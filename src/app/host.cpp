@@ -46,6 +46,17 @@ void write_pixels(std::array<char, 32>& buffer, float value) {
     std::snprintf(buffer.data(), buffer.size(), "%gpx", static_cast<double>(value));
 }
 
+// Marks every SafeArea node for layout: their padding or margin comes from the host's insets, which
+// no style or scene mutation reports.
+void mark_safe_area_nodes(ui::Node& node) {
+    if (is_safe_area_node(node)) {
+        node.mark_dirty(ui::Dirty::Layout);
+    }
+    for (const auto& child : node.children()) {
+        mark_safe_area_nodes(*child);
+    }
+}
+
 void mark_subtree(ui::Node& node, ui::Dirty dirty) {
     node.mark_dirty(dirty);
     for (const auto& child : node.children()) {
@@ -54,10 +65,18 @@ void mark_subtree(ui::Node& node, ui::Dirty dirty) {
 }
 
 // One layout tree of computed styles (the paint pass resolves the same provider, so both agree).
-ui::layout::LayoutInput build_layout_input(const ui::Node& node, ui::paint::StyleProvider& styles) {
+ui::layout::LayoutInput build_layout_input(const ui::Node& node, ui::paint::StyleProvider& styles,
+                                           const SafeAreaState& safe_area) {
     ui::layout::LayoutInput input;
     input.id = node.id();
     input.style = styles.compute(node);
+    // A SafeArea node's padding or margin is host-owned: the resolved insets replace the sides.
+    if (safe_area.has_metrics()) {
+        const std::string* direction = input.style.find("direction");
+        if (const auto spec = read_safe_area_spec(node, direction != nullptr && *direction == "rtl")) {
+            apply_safe_area(input.style, *spec, safe_area.resolve(spec->config));
+        }
+    }
     const auto& paint = node.paint_data();
     const bool text_payload = paint && paint->kind == ui::PaintKind::Text;
     if (text_payload) {
@@ -68,7 +87,7 @@ ui::layout::LayoutInput build_layout_input(const ui::Node& node, ui::paint::Styl
         if (text_payload && paint->has_span(child->id())) {
             continue;
         }
-        input.children.push_back(build_layout_input(*child, styles));
+        input.children.push_back(build_layout_input(*child, styles, safe_area));
     }
     return input;
 }
@@ -239,7 +258,7 @@ void AppHost::Impl::apply_style_generation(ui::Dirty dirty_mask) {
 }
 
 void AppHost::Impl::run_layout_pass() {
-    const ui::layout::LayoutInput input = build_layout_input(root, *provider);
+    const ui::layout::LayoutInput input = build_layout_input(root, *provider, safe_area);
     const ui::layout::LayoutViewport viewport{config.width, config.height, config.dpi_scale};
     // The scheduler reuses the cached result when the layout input signature (tree shape,
     // layout-affecting longhands, text, viewport) is unchanged, so a style-only change that
@@ -290,6 +309,14 @@ AppHost::~AppHost() = default;
 HostFrame AppHost::begin_frame(double dt, double alpha) {
     Impl& state = *impl_;
     HostFrame frame;
+    // Insets ease before the tick so the layout of this frame already sees the new values; an
+    // animation in flight keeps the loop awake, a settled one costs nothing.
+    if (state.safe_area.step(dt, state.reduced_motion)) {
+        mark_safe_area_nodes(state.root);
+    }
+    if (state.safe_area.animating()) {
+        state.loop.mark_render_dirty();
+    }
     frame.tick = state.pipeline->tick(state.root, dt, alpha);
 
     // A latched full repaint is re-applied after the tick: tick() starts from a cleared damage
@@ -418,6 +445,15 @@ void AppHost::resize(float width, float height, float dpi_scale) {
     // The new pipeline starts at full quality; carry the controller's decision over.
     state.pipeline->set_reduce_effects(state.quality_controller.decision().effects_reduced);
     mark_subtree(state.root, ui::Dirty::Layout | ui::Dirty::Paint | ui::Dirty::Render);
+}
+
+void AppHost::set_window_metrics(const hal::WindowMetrics& metrics) {
+    Impl& state = *impl_;
+    if (!state.safe_area.set_metrics(metrics, state.reduced_motion)) {
+        return;
+    }
+    mark_safe_area_nodes(state.root);
+    state.loop.mark_render_dirty();
 }
 
 void AppHost::request_full_repaint() {

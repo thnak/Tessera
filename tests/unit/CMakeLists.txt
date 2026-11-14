@@ -2158,3 +2158,12 @@ target_compile_definitions(library_button_lowering_tests PRIVATE
     TESSERA_BUTTON_TSX="${CMAKE_SOURCE_DIR}/packages/tessera-ui/Button.tsx"
     TESSERA_CODEGEN_GOLDEN_DIR="${PROJECT_SOURCE_DIR}/tests/golden/codegen")
 add_test(NAME library_button_lowering COMMAND library_button_lowering_tests)
+
+# SafeArea in the app host (#223): resolved insets become padding or margin before layout, per-edge
+# keyboard easing under the manual clock, reduced motion, and no layout for unchanged insets.
+add_executable(app_safe_area_tests
+    app_safe_area_tests.cpp)
+
+target_link_libraries(app_safe_area_tests PRIVATE tessera_app tessera_runtime)
+
+add_test(NAME app_safe_area COMMAND app_safe_area_tests)

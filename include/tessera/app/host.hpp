@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "tessera/hal/window.hpp"
 #include "tessera/runtime/config.hpp"
 #include "tessera/runtime/diagnostics.hpp"
 #include "tessera/runtime/runtime_loop.hpp"
@@ -128,6 +129,12 @@ public:
     // when `force` is set. The plan's scissor regions are applied, so a partial frame emits only
     // the damaged parts.
     [[nodiscard]] ui::frame::FramePaint paint(ui::paint::PaintSink& sink, bool force = false);
+
+    // Hands the host the window metrics SafeArea nodes read (docs/specs/safe-area-v1.md): insets,
+    // cutouts, keyboard and hinge. The first call and reduced motion apply them at once; later
+    // ones animate each inset edge independently over the next frames. A node with a safe-area spec
+    // gets its padding or margin from the result before layout. Cheap when nothing changed.
+    void set_window_metrics(const hal::WindowMetrics& metrics);
 
     // Step 8: clears every dirty domain on the scene after a painted frame. Safe to call after a
     // skipped frame too (nothing is dirty then).
