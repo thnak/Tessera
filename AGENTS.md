@@ -446,7 +446,14 @@ Acceptance: a `useState`/`useEffect`/`useRef` screen regenerates without losing 
       `alias_style_defaults` for b/strong/i/em/code and `a` → `role="link"`; specs
       `elements-basic.md` §2.1, `html-aliases.md`, `ir-v1.md` §3.6/§9/§10; tests
       `lowering_inline_span`, `ir_inline_span`, `codegen_span`, `paint_text_span`, `a11y_span`.
-- [ ] #231: User component instances inside list templates and conditionals, and list-typed props.
+- [x] #231: User component instances inside list templates and conditionals, and list-typed props —
+      design in `docs/design/compiler-node-state.md` (one `gen::<Callee>` per instance; a conditional
+      instance keeps its object in the caller and only its host node moves into the branch slot, a
+      keyed list item owns one instance inside its keyed record), codegen
+      `src/compiler/codegen/src/emit_instances*.cpp`, goldens `tests/golden/codegen/instances/`,
+      tests `codegen_instances` + `codegen_instances_runtime` (state survives reorder, key removal
+      unmounts, per-item presence, list-typed prop); open decision on conditional-instance
+      destroy-vs-keep-alive recorded in #283.
 
 
 ### V1-M3 Backends and shader chain ([milestone 3](https://github.com/thnak/Tessera/milestone/3))
