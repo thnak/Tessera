@@ -73,6 +73,7 @@ add_dependencies(tessera_vulkan tessera_vulkan_shaders)
 
 set(TESSERA_VULKAN_RHI_SOURCES
     src/vulkan_device.cpp
+    src/vulkan_device_info.cpp
     src/vulkan_device_recovery.cpp
     src/vulkan_instance.cpp
     src/vulkan_resources.cpp

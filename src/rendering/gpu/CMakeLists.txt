@@ -7,12 +7,17 @@ add_library(tessera_gpu STATIC
     glass_blur.cpp
     glass_compositor.cpp
     offscreen_target_pool.cpp
+    surface_renderer.cpp
     vertex_arena.cpp)
 
 target_include_directories(tessera_gpu PUBLIC
     ${PROJECT_SOURCE_DIR}/include)
 
-target_link_libraries(tessera_gpu PUBLIC tessera_rhi tessera_damage)
+# `SurfaceRenderer` composites into a `hal::NativeSurface` (ADR-050 section 7, AF6), so this library
+# links the HAL's surface seam. That is an upward edge from the rendering layer to the HAL, which
+# already exists (`src/app` links both) and is the intended one: the HAL boundary is *below*
+# rendering, and the surface type is the only thing rendering borrows from it.
+target_link_libraries(tessera_gpu PUBLIC tessera_rhi tessera_damage tessera_hal_surface)
 
 target_compile_features(tessera_gpu PUBLIC cxx_std_23)
 

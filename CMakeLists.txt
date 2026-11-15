@@ -148,6 +148,9 @@ add_subdirectory(src/hal/window)
 # timer and window halves rather than under `src/appfw/`, so a later module can use it without
 # depending on the app framework.
 add_subdirectory(src/hal/filesystem)
+# AF6 (issue #178): the borrowed native-surface view. It sits beside the other hal halves so a
+# renderer can take a surface without depending on the window module that owns the handles.
+add_subdirectory(src/hal/surface)
 add_subdirectory(src/runtime)
 add_subdirectory(src/ui/input)
 add_subdirectory(src/ui/scene)
