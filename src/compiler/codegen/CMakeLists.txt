@@ -788,43 +788,29 @@ endif ()
     add_executable(forms_codegen_tests
         ${CMAKE_SOURCE_DIR}/tests/unit/forms_codegen_tests.cpp)
 
-    target_link_libraries(forms_codegen_tests PRIVATE
-        tessera_codegen
-        tessera_lowering
-        tessera_merger)
+    target_link_libraries(forms_codegen_tests PRIVATE tessera_codegen tessera_lowering)
 
     target_compile_definitions(forms_codegen_tests PRIVATE
         TESSERA_CODEGEN_GOLDEN_DIR="${_tessera_codegen_golden_dir}")
 
     add_test(NAME forms_codegen COMMAND forms_codegen_tests)
 
-    # The golden sample owns the committed files: `forms_codegen_tests --write` regenerates
-    # tests/golden/codegen/Field.* and FormPage.*; the guard keeps a fresh worktree configuring
-    # before the goldens exist.
-    if (EXISTS ${_tessera_codegen_golden_dir}/Field.cpp AND EXISTS
-        ${_tessera_codegen_golden_dir}/Form.cpp AND EXISTS
-        ${_tessera_codegen_golden_dir}/FieldPage.cpp AND EXISTS
-        ${_tessera_codegen_golden_dir}/FormPage.cpp)
-        add_library(tessera_codegen_forms_sample STATIC
-            ${_tessera_codegen_golden_dir}/Field.cpp
-            ${_tessera_codegen_golden_dir}/Form.cpp
-            ${_tessera_codegen_golden_dir}/FieldPage.cpp
-            ${_tessera_codegen_golden_dir}/FormPage.cpp)
-        target_include_directories(tessera_codegen_forms_sample
-            PRIVATE ${_tessera_codegen_golden_dir})
-        target_link_libraries(tessera_codegen_forms_sample PRIVATE tessera_scene tessera_forms)
-        target_compile_features(tessera_codegen_forms_sample PUBLIC cxx_std_23)
-
+    # The developer classes (tests/unit/codegen_base/fixtures/{Field,Form,FieldPage,FormPage}.hpp)
+    # over the committed bases, generated from the library IR by
+    # `forms_codegen_tests --write`.
+    if (EXISTS ${_tessera_codegen_golden_dir}/FormPage.g.hpp AND EXISTS
+        ${_tessera_codegen_golden_dir}/FieldPage.g.hpp)
         add_executable(forms_codegen_runtime_tests
             ${CMAKE_SOURCE_DIR}/tests/unit/forms_codegen_runtime_tests.cpp)
 
-        target_include_directories(forms_codegen_runtime_tests
-            PRIVATE ${_tessera_codegen_golden_dir})
+        target_include_directories(forms_codegen_runtime_tests PRIVATE
+            ${_tessera_codegen_golden_dir}
+            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures)
         target_link_libraries(forms_codegen_runtime_tests PRIVATE
-            tessera_codegen_forms_sample
             tessera_forms
             tessera_runtime
             tessera_scene)
+        target_compile_features(forms_codegen_runtime_tests PRIVATE cxx_std_23)
 
         add_test(NAME forms_codegen_runtime COMMAND forms_codegen_runtime_tests)
     endif ()

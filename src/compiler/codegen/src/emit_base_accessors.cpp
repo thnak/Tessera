@@ -142,7 +142,12 @@ std::vector<std::string> apply_access(const std::vector<std::string>& struct_bod
         if (is_data_member(item)) {
             const std::string name = data_member_name(item);
             // `node_id_base_` is written by the owning component before build (issue #295).
-            wants_private = !starts_with(name, "prop_") && name != "node_id_base_";
+            // The form binding's members are the host's configuration surface: the emitter builds
+            // the controller lazily *so that the host can set the config* (a CompletionQueue, a
+            // require-touched policy), and reads the report back. They stay public for the same
+            // reason the `prop_` fields do.
+            wants_private = !starts_with(name, "prop_") && name != "node_id_base_" &&
+                            !starts_with(name, "form_");
         } else {
             for (const std::string& line : item.code) {
                 wants_private =

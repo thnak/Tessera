@@ -103,7 +103,7 @@ ui::Node* standalone_field_value(ui::Node& root) {
 }
 
 void test_the_form_builds_through_the_controller() {
-    demo::gen::FormPage page;
+    demo::FormPage page;
     ui::Node root(1000);
     page.build(root);
 
@@ -144,7 +144,7 @@ void test_the_form_builds_through_the_controller() {
 }
 
 void test_an_edit_routes_into_the_controller() {
-    demo::gen::FormPage page;
+    demo::FormPage page;
     ui::Node root(2000);
     page.build(root);
     page.mount();
@@ -168,16 +168,16 @@ void test_an_edit_routes_into_the_controller() {
              "the Field value repainted from the controller");
     check_eq(paint_text(*field_part(root, 0, 2)), "Too short",
              "the Field error repainted from the controller");
-    check_eq(page.child_3_.prop_value_, "ab", "the generated prop record was refreshed");
-    check(page.child_3_.prop_errors_.size() == 1 &&
-              page.child_3_.prop_errors_.front() == "Too short",
+    check_eq(page.child_3().prop_value_, "ab", "the generated prop record was refreshed");
+    check(page.child_3().prop_errors_.size() == 1 &&
+              page.child_3().prop_errors_.front() == "Too short",
           "the Field errors list carries the issue");
 
     page.unmount();
 }
 
 void test_submit_focuses_and_reports_the_first_invalid_field() {
-    demo::gen::FormPage page;
+    demo::FormPage page;
     ui::Node root(3000);
     page.build(root);
     ui::FocusManager focus;
@@ -206,9 +206,9 @@ void test_submit_focuses_and_reports_the_first_invalid_field() {
     page.form_2().touch(page.form_controller_2_id_email_);
     page.form_2().touch(page.form_controller_2_id_age_);
     bool submitted = false;
-    page.child_2_.prop_onSubmit_ = [&submitted]() { submitted = true; };
+    page.child_2().prop_onSubmit_ = [&submitted]() { submitted = true; };
     bool observed_validate = false;
-    page.child_2_.prop_validate_ = [&observed_validate]() { observed_validate = true; };
+    page.child_2().prop_validate_ = [&observed_validate]() { observed_validate = true; };
 
     check(page.validate_form_2(), "the settled form validates");
     check(observed_validate, "validate routed to the validate callback prop");
@@ -225,7 +225,7 @@ runtime::Task<bool> not_taken(runtime::TaskContext, const forms::FormValue& valu
 
 void test_async_validation_stays_on_the_completion_queue() {
     runtime::CompletionQueue queue(8);
-    demo::gen::FormPage page;
+    demo::FormPage page;
     page.form_controller_2_config_.completion_queue = &queue;
     ui::Node root(4000);
     page.build(root);
@@ -262,7 +262,7 @@ void test_async_validation_stays_on_the_completion_queue() {
 }
 
 void test_the_standalone_field_still_uses_explicit_props() {
-    demo::gen::FieldPage page;
+    demo::FieldPage page;
     ui::Node root(5000);
     page.build(root);
     page.mount();
@@ -294,10 +294,10 @@ void test_the_build_is_deterministic() {
         }
         return out;
     };
-    demo::gen::FormPage first;
+    demo::FormPage first;
     ui::Node first_root(6000);
     first.build(first_root);
-    demo::gen::FormPage second;
+    demo::FormPage second;
     ui::Node second_root(6000);
     second.build(second_root);
     check_eq(snapshot(first_root), snapshot(second_root), "two builds produce the same tree");
