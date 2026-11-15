@@ -49,6 +49,8 @@ on:
       - 'scripts/preview_budget_ratchet.py'
       - 'tests/golden/perf/preview_budget.json'
       - 'scripts/ci/scene_snapshot_parity.py'
+      - 'scripts/ci/scene_frame_parity.py'
+      - 'scripts/ci/scene_frame_canvas_probe.mjs'
       - '.github/workflows/pages.yml'
   pull_request:
     paths:
@@ -67,6 +69,8 @@ on:
       - 'scripts/preview_budget_ratchet.py'
       - 'tests/golden/perf/preview_budget.json'
       - 'scripts/ci/scene_snapshot_parity.py'
+      - 'scripts/ci/scene_frame_parity.py'
+      - 'scripts/ci/scene_frame_canvas_probe.mjs'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -133,6 +137,12 @@ jobs:
       # P2 (issue #166): the scene-preview module behind scene.html. Same configure, same pattern.
       - name: Build browser scene-preview module
         run: cmake --build build/wasm-webgpu --target tessera_scene_preview_wasm --parallel
+
+      # P3 (issue #167): the canvas module behind canvas.html. It links tessera_webgpu, so the same
+      # `wasm-webgpu` configure brings the WebGPU backend and the emdawnwebgpu port, and the wasm
+      # build proves the module compiles and links against them before anything is published.
+      - name: Build browser canvas module
+        run: cmake --build build/wasm-webgpu --target tessera_canvas_wasm --parallel
 
       # The page must not ship a module that does not load, and it must not ship one that disagrees
       # with the native compiler. This is the same gate the WebGPU lane runs, over the same corpus;
@@ -202,6 +212,20 @@ jobs:
           grep -q '_tessera_scene_json_sized' "$module"
           echo "the scene module exports tessera_scene_json_sized"
 
+      # P3's module, checked for the one thing this lane can check without a GPU: the canvas module
+      # loads under Node (which has no `navigator.gpu`, exactly like a browser without WebGPU) and
+      # honours the no-device contract instead of crashing. That contract is what makes the page show
+      # its "unsupported browser" state instead of a blank canvas.
+      #
+      # The PIXEL half of P3's acceptance is NOT here: Node has no WebGPU device, and this runner has
+      # no display, so no frame can be drawn in this job. See docs/design/compiler-wasm.md section 8
+      # for what proves the pixels and where.
+      - name: Canvas module no-device contract (Node)
+        run: >-
+          python3 -B scripts/ci/scene_frame_parity.py --mode canvas-report
+          --canvas build/wasm-webgpu/src/compiler/codegen/tessera_canvas.js
+          --node "$EMSDK_NODE"
+
       # Assemble the site: the hand-written page plus the two artifacts the module needs. Nothing is
       # built here - the page has no build step of its own by design (issue #165).
       - name: Assemble site
@@ -221,6 +245,11 @@ jobs:
           cp build/wasm-webgpu/src/compiler/codegen/tessera_diagnostics.wasm "$site/"
           cp build/wasm-webgpu/src/compiler/codegen/tessera_scene_preview.js "$site/"
           cp build/wasm-webgpu/src/compiler/codegen/tessera_scene_preview.wasm "$site/"
+          # P3's canvas module (issue #167). Both modules are published: the snapshot page must keep
+          # working in a browser without WebGPU (design section 7.5), so a page that loads this one
+          # is never the only way to see a scene.
+          cp build/wasm-webgpu/src/compiler/codegen/tessera_canvas.js "$site/"
+          cp build/wasm-webgpu/src/compiler/codegen/tessera_canvas.wasm "$site/"
           # The build id the page displays (D-S5 acceptance: the URL serves the current build).
           printf '%s\n' "${GITHUB_SHA}" > "$site/build-id.txt"
           # A static host resolves the directory to index.html; make the intent explicit and fail
@@ -257,6 +286,13 @@ jobs:
               assert target.is_file(), f"manifest path missing from the site: {entry['path']}"
           print(f"{len(samples)} manifest path(s) present in the site")
           PY
+
+          # P3's canvas page and its module (issue #167).
+          test -f "$site/canvas.html"
+          test -f "$site/canvas.js"
+          test -f "$site/canvas.css"
+          test -f "$site/tessera_canvas.js"
+          test -f "$site/tessera_canvas.wasm"
           ls -l "$site"
 
       # P6 of docs/design/reference-equantic-ui.md section 7.4 (issue #170): the size and latency

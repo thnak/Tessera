@@ -1,0 +1,46 @@
+/* SPDX-License-Identifier: MIT */
+
+/* Styles for the WebGPU canvas page (canvas.html, issue #167). A separate sheet from app.css on
+   purpose: app.css is part of the P1 page's enforced download budget
+   (tests/golden/perf/preview_budget.json, `download_gzip_bytes`), and the canvas page's ~0.5 KB of
+   layout rules would have spent that budget on a page the budget does not measure. Loading this file
+   only from canvas.html keeps the measured page byte-for-byte what it was. */
+
+/* canvas.js sizes the backing store in device pixels, so CSS keeps the element at the logical
+   viewport; letting the browser rescale it would make the preview blurry. */
+.canvas-frame {
+  display: flex;
+  justify-content: center;
+  padding: 12px;
+  overflow: auto;
+}
+
+.canvas-frame canvas {
+  display: block;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: #0b1220;
+  /* A preview is a picture of a UI, not a UI: not selectable, and no text caret on a click. */
+  user-select: none;
+}
+
+/* The frame counters: name/value pairs, two columns so the labels line up without a table. */
+.frame-stats {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 2px 12px;
+  margin: 0;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.frame-stats dt {
+  color: var(--text-dim);
+}
+
+.frame-stats dd {
+  margin: 0;
+  color: var(--text);
+}

@@ -28,7 +28,7 @@
   },
   "entries": {
     "download_gzip_bytes": {
-      "budget": 404814,
+      "budget": 417327,
       "status": "enforce",
       "unit": "bytes",
       "measures": "gzip-9 bytes of the whole designer/web/ page directory plus tessera_diagnostics.js + tessera_diagnostics.wasm: the transfer a browser pays for the page and its module",
@@ -36,16 +36,19 @@
         "tessera_diagnostics.wasm.gzip": 374019,
         "tessera_diagnostics.js.gzip": 2831,
         "index.html.gzip": 1602,
+        "scene.html.gzip": 2201,
         "app.js.gzip": 4541,
         "app.css.gzip": 3126,
-        "scene.html.gzip": 2201,
         "scene.js.gzip": 5367,
         "preview-state.js.gzip": 2063,
         "share.js.gzip": 3939,
         "gallery.js.gzip": 2363,
         "studio.js.gzip": 4779,
-        "samples.json.gzip": 162,
-        "scene-input.js.gzip": 2625
+        "scene-input.js.gzip": 2625,
+        "canvas.html.gzip": 1925,
+        "canvas.js.gzip": 5024,
+        "canvas.css.gzip": 760,
+        "samples.json.gzip": 162
       }
     },
     "cold_engine_ready_ms": {

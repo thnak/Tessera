@@ -253,7 +253,14 @@ void VulkanDevice::pick_device() {
     std::vector<VkQueueFamilyProperties> queues(queue_count);
     vkGetPhysicalDeviceQueueFamilyProperties(physical_device_, &queue_count, queues.data());
 
+    // The device records which presentation family it will use, but the members behind that
+    // (`present_platform_`, the two probe methods) only exist when a WSI extension is compiled in
+    // -- exactly the guard vulkan_device.cpp and vulkan_device_recovery.cpp use. MSVC always has
+    // VK_USE_PLATFORM_WIN32_KHR, so an unguarded use builds on Windows and fails to link or
+    // compile on a headless Linux host.
+#if defined(TESSERA_VULKAN_HAS_PRESENT_SURFACE)
     present_platform_ = resolve_present_platform();
+#endif // TESSERA_VULKAN_HAS_PRESENT_SURFACE
 
     bool found_graphics = false;
     for (std::uint32_t i = 0; i < queue_count; ++i) {
@@ -264,6 +271,7 @@ void VulkanDevice::pick_device() {
             queue_family_ = i;
             found_graphics = true;
         }
+#if defined(TESSERA_VULKAN_HAS_PRESENT_SURFACE)
         // Prefer a graphics family that can also present to this device's surface family.
         // Presentation support is queryable before a surface exists, unlike
         // vkGetPhysicalDeviceSurfaceSupportKHR, so the run never ends up on a queue that cannot
@@ -273,6 +281,7 @@ void VulkanDevice::pick_device() {
             queue_family_ = i;
             break;
         }
+#endif // TESSERA_VULKAN_HAS_PRESENT_SURFACE
     }
     if (!found_graphics) {
         throw std::runtime_error("no graphics queue family found");

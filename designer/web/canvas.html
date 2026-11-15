@@ -1,0 +1,112 @@
+<!doctype html>
+<!--
+  SPDX-License-Identifier: MIT
+
+  Tessera preview P3: the WebGPU canvas preview (issue #167, docs/design/reference-equantic-ui.md
+  section 7.4). Static files, no framework and no build step: this directory plus the Wasm artifacts
+  the CI lane copies in are the whole page.
+
+  Three states, and the page is explicit about which one it is in, because a blank canvas is the
+  failure this slice exists to avoid:
+
+    unsupported   the browser has no `navigator.gpu`, or no adapter/device could be acquired. The
+                  page names the reason and points at the P2 scene page, which needs no GPU.
+    ready         a WebGPU device exists; the canvas shows the evaluated scene.
+    failed        the module loaded but a frame could not be drawn; the message is the module's own.
+
+  Rendering is on demand (see canvas.js): a static scene draws once and then idles, and a new frame is
+  requested only for a real change (a Run, a resize, a theme flip). There is no 60 Hz loop.
+
+  The scene-snapshot page is scene.html; this page does not replace it and does not depend on it.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tessera preview: canvas</title>
+  <link rel="stylesheet" href="app.css">
+  <link rel="stylesheet" href="canvas.css">
+</head>
+<body>
+  <header class="page-header">
+    <div class="page-title">
+      <h1>Tessera preview</h1>
+      <p class="page-subtitle">
+        Evaluates your TSX with the same evaluator, style and layout engine the native build runs,
+        then paints it through WebGPU. Rendered on demand: the canvas redraws only when something
+        actually changed.
+      </p>
+    </div>
+    <div class="build-id" id="build-id" title="The build this page came from">build: loading</div>
+  </header>
+
+  <main class="layout">
+    <section class="pane" aria-labelledby="editor-heading">
+      <div class="pane-header">
+        <h2 id="editor-heading">Source</h2>
+        <div class="pane-actions">
+          <button id="run" type="button" class="primary">Run</button>
+          <button id="load-sample" type="button">Load sample</button>
+        </div>
+      </div>
+      <label for="source" class="visually-hidden">TSX source</label>
+      <textarea id="source" spellcheck="false" autocapitalize="off" autocomplete="off"
+                autocorrect="off" wrap="off"></textarea>
+      <p class="hint">
+        Ctrl+Enter (or Cmd+Enter) runs. The viewport is 320&times;240 logical pixels.
+      </p>
+    </section>
+
+    <section class="pane" aria-labelledby="canvas-heading">
+      <div class="pane-header">
+        <h2 id="canvas-heading">Canvas</h2>
+        <div class="status" id="status" role="status" aria-live="polite">not started</div>
+      </div>
+
+      <!-- The unsupported-browser state. It is the default content of the pane and canvas.js swaps
+           in the canvas only once a device exists, so a browser without WebGPU sees this text and
+           never an empty black rectangle. -->
+      <div class="unavailable" id="unsupported" hidden>
+        <h3 id="unsupported-heading">This browser cannot show the canvas preview</h3>
+        <p id="unsupported-body">
+          The preview draws through WebGPU, and this browser did not provide it.
+        </p>
+        <p>
+          You can still see the evaluated scene:
+          <a href="scene.html">the scene snapshot page</a> needs no GPU at all.
+        </p>
+      </div>
+
+      <div class="canvas-frame" id="canvas-frame" hidden>
+        <canvas id="canvas" width="320" height="240"
+                aria-label="Preview of the evaluated scene"></canvas>
+      </div>
+
+      <div class="unavailable" id="failed" hidden>
+        <h3>Preview failed</h3>
+        <p id="failed-body"></p>
+      </div>
+
+      <dl class="frame-stats" id="frame-stats" hidden>
+        <dt>Frame</dt><dd id="stat-frame">-</dd>
+        <dt>Draws</dt><dd id="stat-draws">-</dd>
+        <dt>Vertices</dt><dd id="stat-vertices">-</dd>
+        <dt>Painted nodes</dt><dd id="stat-nodes">-</dd>
+        <dt>Device pixel ratio</dt><dd id="stat-dpr">-</dd>
+      </dl>
+    </section>
+  </main>
+
+  <footer class="page-footer">
+    <p>
+      Part of <a href="https://github.com/thnak/Tessera">Tessera</a>. The module is the
+      <code>wasm-webgpu</code> build's canvas target; the native
+      <code>tessera_scene_frame</code> renders the same scene through the same RHI, which is what the
+      canvas is compared against. The TSX diagnostics page is <a href="index.html">index.html</a>,
+      and the no-GPU scene view is <a href="scene.html">scene.html</a>.
+    </p>
+  </footer>
+
+  <script type="module" src="canvas.js"></script>
+</body>
+</html>

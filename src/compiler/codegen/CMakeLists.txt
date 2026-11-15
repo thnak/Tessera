@@ -177,6 +177,7 @@ endif ()
 set(_tessera_scene_preview_sources
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_evaluate.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_preview.cpp
+    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_prepare.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_build.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_layout.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_state.cpp
@@ -205,6 +206,43 @@ if (NOT EMSCRIPTEN)
         PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
     target_link_libraries(tessera_scene_preview_entry PRIVATE tessera_scene_preview)
 
+    # The GPU half as an OBJECT library too (issue #167). `scene_frame.cpp` is the file the browser
+    # module's frame entry calls, and it is deliberately *not* part of the P2 OBJECT library above:
+    # that one exists to keep the snapshot driver on the null RHI, and linking tessera_gpu/paint into
+    # it would quietly break the claim the P2 gate is about. Compiling it here keeps its RHI-only
+    # code (no webgpu.h, no Vulkan header) type-checked on the ordinary Windows/Linux lanes.
+    add_library(tessera_scene_frame_entry OBJECT
+        ${CMAKE_SOURCE_DIR}/tools/codegen/scene_frame.cpp
+        ${_tessera_scene_preview_sources})
+    target_include_directories(tessera_scene_frame_entry
+        PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
+    target_link_libraries(tessera_scene_frame_entry PRIVATE
+        tessera_automation_scene
+        tessera_gpu
+        tessera_ir_eval
+        tessera_ir_ids
+        tessera_layout
+        tessera_lowering
+        tessera_paint
+        tessera_scene
+        tessera_style)
+
+    # `wasm_canvas_entry.cpp` is Emscripten-only in its body (it includes the WebGPU device header),
+    # so the host lane cannot compile it. Its ABI and its report serializer therefore live here as a
+    # plain function the Wasm build calls, and the host lane compiles *that* - the same
+    # "type-check the entry on every push" rule P1 and P2 followed, adapted to a header the host
+    # cannot see.
+    add_library(tessera_canvas_report OBJECT
+        ${CMAKE_SOURCE_DIR}/tools/codegen/canvas_report.cpp)
+    target_include_directories(tessera_canvas_report
+        PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
+    target_link_libraries(tessera_canvas_report PRIVATE
+        tessera_gpu
+        tessera_ir
+        tessera_rhi
+        tessera_scene
+        tessera_style)
+
     # The native half of the parity gate: `tessera_scene_preview --scene-json OUT FILE.tsx` prints the
     # same document the module returns, so scripts/ci/scene_snapshot_parity.py can compare two
     # artifacts instead of two implementations.
@@ -214,6 +252,58 @@ if (NOT EMSCRIPTEN)
         PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
     target_link_libraries(tessera_scene_preview_cli PRIVATE tessera_scene_preview)
     set_target_properties(tessera_scene_preview_cli PROPERTIES OUTPUT_NAME tessera_scene_preview)
+
+    # The GPU half (issue #167, P3 of docs/design/reference-equantic-ui.md section 7.4): the same
+    # prepared scene, painted through an RHI device. Kept in its own sources list and its own
+    # executable because it links `tessera_gpu` and `tessera_paint`; the snapshot driver must stay
+    # free of both, so the P2 parity gate keeps proving the null-RHI claim.
+    #
+    #   tessera_scene_frame_cli      native: renders a PNG through Vulkan (the lavapipe reference on
+    #                               the Linux lane) or records the command stream on the null backend.
+    #                               The image the browser canvas is compared against comes from here.
+    add_executable(tessera_scene_frame_cli
+        ${CMAKE_SOURCE_DIR}/tools/codegen/scene_frame_main.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/scene_frame.cpp
+        ${_tessera_scene_preview_sources})
+    target_include_directories(tessera_scene_frame_cli
+        PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
+    target_link_libraries(tessera_scene_frame_cli PRIVATE
+        tessera_automation_scene
+        tessera_gpu
+        tessera_harness_image
+        tessera_ir_eval
+        tessera_ir_ids
+        tessera_layout
+        tessera_lowering
+        tessera_paint
+        tessera_rhi_null
+        tessera_scene
+        tessera_style)
+    set_target_properties(tessera_scene_frame_cli PROPERTIES OUTPUT_NAME tessera_scene_frame)
+    # The reference lane is a lavapipe render, so this binary must be able to open a Vulkan device;
+    # a build without the Vulkan backend still produces it, and `--backend null` is then the only
+    # mode (the CLI says so instead of failing silently).
+    #
+    # The guard is the root `TESSERA_BUILD_VULKAN` option, not `TARGET tessera_rhi_vulkan`: this
+    # directory is processed before `src/rendering/backend/vulkan`, so a TARGET test here is always
+    # false and the binary would silently lose its reference backend.
+    if (TESSERA_BUILD_VULKAN)
+        target_link_libraries(tessera_scene_frame_cli PRIVATE tessera_rhi_vulkan)
+        target_compile_definitions(tessera_scene_frame_cli PRIVATE
+            TESSERA_SCENE_FRAME_HAS_VULKAN=1)
+    endif ()
+
+    # The pixel comparison, split out so `scripts/ci/scene_frame_parity.py --compare` can drive the
+    # repository's one tolerance implementation instead of re-deriving SSIM/deltaE in Python.
+    add_executable(tessera_scene_frame_compare
+        ${CMAKE_SOURCE_DIR}/tools/codegen/scene_frame_compare.cpp)
+    target_include_directories(tessera_scene_frame_compare
+        PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
+    target_link_libraries(tessera_scene_frame_compare PRIVATE
+        tessera_golden
+        tessera_harness_image)
+    set_target_properties(tessera_scene_frame_compare PROPERTIES
+        OUTPUT_NAME tessera_scene_frame_compare)
 else ()
     # Same flag set as the diagnostics module, with the one difference the artifact needs: nothing
     # here reads a file either, so NODERAWFS is absent for the same documented reason
@@ -240,6 +330,45 @@ else ()
         -sENVIRONMENT=web,node
         -sALLOW_MEMORY_GROWTH=1
         -sEXPORTED_FUNCTIONS=["_tessera_scene_json","_tessera_scene_json_sized","_tessera_input_json","_tessera_free","_malloc","_free"]
+        -sEXPORTED_RUNTIME_METHODS=["UTF8ToString","lengthBytesUTF8","stringToUTF8"])
+
+    # The canvas module (issue #167, P3): the same prepared scene plus the GPU half, drawing through
+    # the WebGPU device the page created. Only Emscripten can build it, because only there does
+    # `tessera_webgpu` exist (`<webgpu/webgpu.h>` comes from the emdawnwebgpu port).
+    #
+    # It is a SEPARATE module from the P2 one on purpose, and the page loads both: the snapshot page
+    # must keep working in a browser without WebGPU (design section 7.5 names that risk), and a
+    # single module whose import fails would take the snapshot view down with the canvas.
+    #
+    # `-sEXPORTED_FUNCTIONS` mirrors the P2 ABI plus the device handover, and the two functions the
+    # page needs to run a frame. No NODERAWFS: nothing here reads a file (section 2.1).
+    add_executable(tessera_canvas_wasm
+        ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_entry.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/canvas_report.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/scene_frame.cpp
+        ${_tessera_scene_preview_sources})
+    target_include_directories(tessera_canvas_wasm
+        PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
+    target_link_libraries(tessera_canvas_wasm PRIVATE
+        tessera_automation_scene
+        tessera_gpu
+        tessera_ir_eval
+        tessera_ir_ids
+        tessera_layout
+        tessera_lowering
+        tessera_paint
+        tessera_scene
+        tessera_style
+        tessera_webgpu)
+    set_target_properties(tessera_canvas_wasm PROPERTIES OUTPUT_NAME tessera_canvas)
+    target_link_options(tessera_canvas_wasm PRIVATE
+        --no-entry
+        -sMODULARIZE=1
+        -sEXPORT_ES6=1
+        -sEXPORT_NAME=createTesseraCanvas
+        -sENVIRONMENT=web,node
+        -sALLOW_MEMORY_GROWTH=1
+        -sEXPORTED_FUNCTIONS=["_tessera_canvas_frame","_tessera_webgpu_set_device","_tessera_free","_malloc","_free"]
         -sEXPORTED_RUNTIME_METHODS=["UTF8ToString","lengthBytesUTF8","stringToUTF8"])
 endif ()
 
@@ -434,6 +563,31 @@ if (TESSERA_BUILD_TESTS)
             PASS_REGULAR_EXPRESSION "TESSERA_CG_MISSING_BINDING: component .Sample. needs .void on_click"
             RESOURCE_LOCK tessera_codegen_negative_build)
     endif ()
+
+    # The canvas path's native half (issue #167): prepared scene, recorded command stream, the report
+    # the page parses, and the tolerance policy the pixel gate uses. Registered here rather than in
+    # tests/unit/CMakeLists.txt so this lane does not edit the shared registry while other lanes work
+    # in it - the same pattern src/ui/paint and tests/gpu/backends already use.
+    add_executable(scene_frame_tests
+        ${CMAKE_SOURCE_DIR}/tests/unit/scene_frame_tests.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/scene_frame.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/canvas_report.cpp
+        ${_tessera_scene_preview_sources})
+    target_include_directories(scene_frame_tests
+        PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
+    target_link_libraries(scene_frame_tests PRIVATE
+        tessera_automation_scene
+        tessera_golden
+        tessera_gpu
+        tessera_ir_eval
+        tessera_ir_ids
+        tessera_layout
+        tessera_lowering
+        tessera_paint
+        tessera_rhi_null
+        tessera_scene
+        tessera_style)
+    add_test(NAME scene_frame COMMAND scene_frame_tests)
 
     add_executable(codegen_layering_tests
         ${CMAKE_SOURCE_DIR}/tests/unit/codegen_layering_tests.cpp)

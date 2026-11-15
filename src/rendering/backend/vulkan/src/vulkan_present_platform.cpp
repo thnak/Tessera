@@ -38,6 +38,7 @@
 namespace tessera::rendering::vulkan {
 namespace {
 
+#if defined(TESSERA_VULKAN_HAS_PRESENT_SURFACE)
 // MSVC deprecates std::getenv in favour of the bounds-checked _dupenv_s variant (C4996 is fatal
 // here), so the Windows arm reads and frees an owned copy; the answer is only "set and non-empty".
 bool session_env_set(const char* name) {
@@ -55,6 +56,7 @@ bool session_env_set(const char* name) {
     return value != nullptr && value[0] != '\0';
 #endif
 }
+#endif // TESSERA_VULKAN_HAS_PRESENT_SURFACE
 
 } // namespace
 
