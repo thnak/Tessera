@@ -9,13 +9,6 @@
 namespace tessera::ui::text {
 namespace {
 
-void copy_bounded_text(Event& event, std::string_view value) {
-    const std::size_t size = std::min<std::size_t>(value.size(), event.text.size());
-    std::copy_n(value.data(), size, event.text.begin());
-    event.text_size = static_cast<std::uint32_t>(size);
-    event.text_truncated = value.size() > size;
-}
-
 std::uint32_t clamp_offset(EditOffset offset) {
     return static_cast<std::uint32_t>(
         std::min<EditOffset>(offset, static_cast<EditOffset>(0xFFFFFFFFU)));
@@ -126,8 +119,9 @@ void TextInputRuntime::emit_change() {
     // invalidate the view); copy the value if it must be stored.
     change.text_view = value.data();
     change.text_view_size = static_cast<std::uint32_t>(value.size());
-    // Keep the bounded inline copy for recording sinks and diagnostics.
-    copy_bounded_text(change, value);
+    // The same payload through the general borrowed-text channel, so a sink that reads `text`
+    // rather than `text_view` still sees it without the event owning a 256-byte copy.
+    change.set_text(value);
     // Half-open UTF-8 byte offsets (the units PaintData::TextDecoration consumes).
     change.selection_start = clamp_offset(buffer.selection_start());
     change.selection_end = clamp_offset(buffer.selection_end());

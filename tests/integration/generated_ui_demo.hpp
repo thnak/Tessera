@@ -349,6 +349,7 @@ inline InputEvent pointer_event(InputEventType type, float x, float y) {
 inline InputEvent edit_text_event(std::string_view text) {
     InputEvent event;
     event.type = InputEventType::EditText;
+    // `InputEvent` is the flat platform boundary type and keeps its own bounded array.
     const std::size_t size = std::min<std::size_t>(text.size(), event.text.size());
     std::copy_n(text.data(), size, event.text.begin());
     event.text_size = static_cast<std::uint32_t>(size);

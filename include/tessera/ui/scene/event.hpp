@@ -4,8 +4,8 @@
 
 #include "tessera/ui/input.hpp"
 
-#include <array>
 #include <cstdint>
+#include <string_view>
 
 namespace tessera::ui {
 
@@ -99,23 +99,47 @@ struct Event {
     bool prevent_default = false;
     // Meaningful for EventType::Click only.
     ClickSource click_source = ClickSource::Pointer;
-    // IME/text payload, mirrored from the normalized event: UTF-8 bytes plus the UTF-8
-    // byte selection range. `text_truncated` marks a payload cut at `kMaxEditTextBytes`.
-    std::array<char, kMaxEditTextBytes> text{};
+    // IME/text payload: UTF-8 bytes plus the UTF-8 byte selection range. The bytes are BORROWED
+    // (`text`/`text_size`), never copied: the producer keeps the storage alive for the synchronous
+    // dispatch, which is the only time any handler runs. This used to be a 256-byte inline
+    // `std::array<char, kMaxEditTextBytes>`, which every scene event paid for whether or not it
+    // carried text - and events are stack-built in the input path and copied through
+    // capture/bubble, so the buffer dominated the copy cost of a pointer move
+    // (docs/architecture/god-type-audit-v1.md section 4.2).
+    //
+    // `text_truncated` stays meaningful for a producer that had to cut its payload; the scene no
+    // longer truncates on its own because it no longer owns a buffer.
+    const char* text = nullptr;
     std::uint32_t text_size = 0;
     bool text_truncated = false;
-    // Half-open UTF-8 byte offsets: into the full text for `TextChange`, into the inline payload
+    // Half-open UTF-8 byte offsets: into the full text for `TextChange`, into the borrowed payload
     // for the IME/EditText events (the HAL converts the platform's UTF-16 caret).
     std::uint32_t selection_start = 0;
     std::uint32_t selection_end = 0;
     // Borrowed full-text view used by `TextChange`: points into the edit buffer and is only valid
-    // for the duration of the dispatch (null on every other event type). When set it supersedes the
-    // bounded inline `text` copy above, which recording sinks can still read.
+    // for the duration of the dispatch. Historically this superseded the bounded inline copy; now
+    // it is simply the unbounded variant of the borrowed payload above, kept because `TextChange`
+    // carries the whole buffer rather than a truncated prefix.
     const char* text_view = nullptr;
     std::uint32_t text_view_size = 0;
 
     void stop_propagation() {
         stopped = true;
+    }
+
+    // Sets the borrowed text payload. The caller must keep `value`'s storage alive and unmoved
+    // until the dispatch returns (an `InputEvent` member, a buffer that is not mutated during the
+    // dispatch, or a string literal). Prefer this over assigning `text`/`text_size` by hand so the
+    // truncation flag stays consistent.
+    void set_text(std::string_view value) {
+        text = value.data();
+        text_size = static_cast<std::uint32_t>(value.size());
+        text_truncated = false;
+    }
+
+    // The borrowed IME/committed-text payload, empty when the event carries none.
+    [[nodiscard]] std::string_view text_bytes() const {
+        return text == nullptr ? std::string_view{} : std::string_view(text, text_size);
     }
 };
 

@@ -38,12 +38,12 @@ Event text_event(std::uint32_t codepoint) {
     return event;
 }
 
-Event edit_event(const std::string& text) {
+Event edit_event(std::string_view text) {
     Event event;
     event.type = EventType::EditText;
-    const std::size_t size = std::min<std::size_t>(text.size(), event.text.size());
-    std::copy_n(text.data(), size, event.text.begin());
-    event.text_size = static_cast<std::uint32_t>(size);
+    // `Event` borrows its payload, so `text` must outlive the dispatch. Every call site passes a
+    // string literal (static storage); a `std::string` temporary would dangle here.
+    event.set_text(text);
     return event;
 }
 

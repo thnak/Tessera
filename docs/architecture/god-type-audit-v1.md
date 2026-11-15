@@ -384,10 +384,12 @@ still open.
 | 2 | `emit_node` emission groups | **landed** | sixteen named groups behind `NodeEmitContext`; `emit_node.cpp` 502 -> 138 lines, split across `emit_node_attributes.cpp` (what a node is) and `emit_node_behavior.cpp` (how it behaves); the emission order is now the call list, all 22 rejection messages preserved, goldens byte-identical |
 | 3 | `FrameDiagnostics` split | **landed** | `FrameCounters`, `AdaptiveQualityCounters` and `FrameTimeSourceCounter` in `include/tessera/runtime/frame_counters.hpp`; `FrameDiagnostics` is the aggregate and keeps all twenty accessor names |
 | 4 | `Node` TU split | **landed (step 1)** | `node.cpp` 483 -> 90 lines, with `node_geometry.cpp`, `node_scroll.cpp` and `node_interaction.cpp`; header unchanged and `hit_test_deep` still a member on the hot path. Steps 2-3 (the view types) remain open, see question 1 |
+| 5 | `Event` buffer removal | **landed (step 1)** | the inline `std::array<char, kMaxEditTextBytes>` became a borrowed pointer, so `sizeof(Event)` went 384 -> 136; `InputEvent` keeps its flat array at the platform boundary. The tagged-variant/SoA payload views of section 4.2 remain open |
 | 6 | `EditController` keymap + composition | **landed** | `CompositionState` (`composition_state.hpp`) owns the IME invariant; 28-row `KeyChord` table (`edit_keymap.hpp`) replaces the `handle_key` if chain, with required/forbidden modifier masks for the old branch-order rules |
 
-Slices 5, 7-12 are open. Row 4 is deliberately partial: the TU split is the mechanical half and the
-header views are a separate API change that must re-check the 320-byte budget on each step.
+Slices 7-12 are open. Rows 4 and 5 are deliberately partial: row 4's TU split is the mechanical half
+and its header views are a separate API change that must re-check the 320-byte budget on each step;
+row 5's buffer removal is the cheap half and its payload views change how handlers read an event.
 
 ## 7. What is deliberately not split
 

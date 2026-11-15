@@ -29,9 +29,12 @@ void append_utf8(std::string& out, std::uint32_t cp) {
 }
 
 std::string_view event_text(const Event& event) {
-    // Clamp to the event's own storage: text_size from a directly constructed Event can exceed it.
-    const std::size_t size = std::min<std::size_t>(event.text_size, event.text.size());
-    return std::string_view(event.text.data(), size);
+    // A `TextChange` carries its full payload through `text_view`; the IME/EditText family carries
+    // the borrowed platform bytes. Both are borrowed for the synchronous dispatch only.
+    if (event.text_view != nullptr) {
+        return std::string_view(event.text_view, event.text_view_size);
+    }
+    return event.text_bytes();
 }
 
 // A single-line field never holds a line break: pasted or IME-committed newlines are dropped.

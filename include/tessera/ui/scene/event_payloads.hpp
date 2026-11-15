@@ -138,7 +138,7 @@ inline std::string_view event_text(const Event& event) {
     if (event.text_view != nullptr) {
         return std::string_view(event.text_view, event.text_view_size);
     }
-    return std::string_view(event.text.data(), event.text_size);
+    return event.text_bytes();
 }
 
 inline PointerEventInfo pointer_event_info(const Event& event) {
