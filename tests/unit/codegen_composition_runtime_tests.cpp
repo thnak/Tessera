@@ -106,12 +106,33 @@ void test_instance_lifecycle() {
     check(root.children().size() == 1, "the tree is intact after the lifecycle calls");
 }
 
+// ADR-040 item 2: the instance member is private, but the caller reaches the child it owns through
+// the generated accessor. This is what a real parent needs to write a child's (public) props, so
+// the accessor is exercised against the real class, not only asserted in the golden text.
+void test_instance_accessor_reaches_the_child() {
+    compose::CardPage page;
+    ui::Node root(3000);
+    page.build(root);
+
+    compose::Card& card = page.child_2();
+    const compose::Card& const_card = page.child_2();
+    check(&card == &const_card, "both overloads name the same instance");
+
+    // A write through the non-const accessor is visible through the const one.
+    const ui::NodeId base_before = card.node_id_base_;
+    card.node_id_base_ = base_before + 1;
+    check(page.child_2().node_id_base_ == base_before + 1,
+          "a write through the accessor reaches the owned instance");
+    card.node_id_base_ = base_before;
+}
+
 } // namespace
 
 int main() {
     test_slot_content_is_attached();
     test_empty_slot();
     test_instance_lifecycle();
+    test_instance_accessor_reaches_the_child();
     if (failures != 0) {
         std::cerr << failures << " check(s) failed\n";
         return 1;

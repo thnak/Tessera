@@ -320,7 +320,7 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
     }
     if (base_mode) {
         // ADR-040: the bindings are dispatch thunks into the developer class, not declarations.
-        if (!emit_base_members(writer, component, bindings, error)) {
+        if (!emit_base_members(writer, component, bindings, instances, error)) {
             return false;
         }
     }

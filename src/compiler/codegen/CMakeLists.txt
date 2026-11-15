@@ -5,6 +5,7 @@
 add_library(tessera_codegen STATIC
     src/codegen.cpp
     src/emit_base.cpp
+    src/emit_base_accessors.cpp
     src/scaffold.cpp
     src/emit_component.cpp
     src/emit_composition.cpp

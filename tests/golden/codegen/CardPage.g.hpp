@@ -66,6 +66,11 @@ namespace compose {
       // ADR-040 dispatch thunks: each calls the same-named member the developer class
       // defines; build() static_asserts that it does (static dispatch, no vtable).
       void on_tap(const tessera::ui::Event& event) { return static_cast<Self&>(*this).on_tap(event); }
+    public:
+      // Accessors for developer code: names come from the TSX, not the generated fields.
+      // Component instance `comp::Card`: the caller's developer code writes the child's props through it.
+      [[nodiscard]] Card& child_2() { return child_2_; }
+      [[nodiscard]] const Card& child_2() const { return child_2_; }
     };
     template <class Self>
     concept CardPageContract = requires {

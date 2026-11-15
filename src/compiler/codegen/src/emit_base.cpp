@@ -29,10 +29,6 @@
 namespace tessera::compiler::codegen::internal {
 namespace {
 
-bool fail(std::string& error, std::string message) {
-    error = "TESSERA_CODEGEN_UNSUPPORTED: " + std::move(message);
-    return false;
-}
 
 using Lines = std::vector<std::string>;
 
@@ -51,89 +47,11 @@ Lines split_lines(const std::string& text) {
     return lines;
 }
 
-std::size_t indent_of(std::string_view line) {
-    std::size_t count = 0;
-    while (count < line.size() && line[count] == ' ') {
-        ++count;
-    }
-    return count;
-}
 
-std::string_view trimmed(std::string_view line) {
-    line.remove_prefix(indent_of(line));
-    while (!line.empty() && (line.back() == ' ' || line.back() == '\r')) {
-        line.remove_suffix(1);
-    }
-    return line;
-}
 
-bool starts_with(std::string_view text, std::string_view prefix) {
-    return text.substr(0, prefix.size()) == prefix;
-}
-
-bool is_word(char c) {
-    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_';
-}
-
-// Net `{` minus `}` of one line, skipping string/char literals and a trailing `//` comment.
-int brace_delta(std::string_view line) {
-    int delta = 0;
-    for (std::size_t i = 0; i < line.size(); ++i) {
-        const char c = line[i];
-        if (c == '/' && i + 1 < line.size() && line[i + 1] == '/') {
-            break;
-        }
-        if (c == '"' || c == '\'') {
-            for (++i; i < line.size() && line[i] != c; ++i) {
-                if (line[i] == '\\') {
-                    ++i;
-                }
-            }
-            continue;
-        }
-        delta += (c == '{') - (c == '}');
-    }
-    return delta;
-}
-
-// One top-level item of a body: leading comment lines plus the code lines of one declaration.
-struct Item {
-    Lines lead;
-    Lines code;
-};
-
-std::vector<Item> group_items(const Lines& lines) {
-    std::vector<Item> items;
-    Item current;
-    int depth = 0;
-    bool seen_open = false;
-    for (const std::string& line : lines) {
-        const std::string_view text = trimmed(line);
-        if (current.code.empty()) {
-            if (text.empty()) {
-                continue;
-            }
-            if (starts_with(text, "//")) {
-                current.lead.push_back(line);
-                continue;
-            }
-        }
-        current.code.push_back(line);
-        const int delta = brace_delta(line);
-        depth += delta;
-        seen_open = seen_open || line.find('{') != std::string::npos;
-        // A declaration ends when its braces balance (a trailing `// namespace` comment must not
-        // matter) or, with no brace at all, at its `;`.
-        if (depth == 0 && (seen_open || (!text.empty() && text.back() == ';'))) {
-            items.push_back(std::move(current));
-            current = Item{};
-            seen_open = false;
-        }
-    }
-    if (!current.code.empty()) {
-        items.push_back(std::move(current));
-    }
-    return items;
+std::string with_static(const std::string& line) {
+    const std::size_t at = indent_of(line);
+    return line.substr(0, at) + "static " + line.substr(at);
 }
 
 bool contains_token(std::string_view text, std::string_view token) {
@@ -231,220 +149,10 @@ std::string function_name(const std::string& line) {
     return line.substr(begin, paren - begin);
 }
 
-void append(Lines& out, const Lines& lines, std::size_t extra_indent = 0) {
-    for (const std::string& line : lines) {
-        out.push_back(line.empty() ? line : std::string(extra_indent, ' ') + line);
-    }
-}
 
-std::string with_static(const std::string& line) {
-    const std::size_t at = indent_of(line);
-    return line.substr(0, at) + "static " + line.substr(at);
-}
 
-// True for a generated data member (`state_count_`, `effect_sync_state_`, `prop_cb_`): the declared
-// name ends in `_`, which is the writer's convention for every field and for no method.
-bool is_data_member(const Item& item) {
-    std::string text;
-    for (const std::string& line : item.code) {
-        text += std::string(trimmed(line)) + " ";
-    }
-    std::size_t at = 0;
-    while (text.compare(at, 2, "[[") == 0) {
-        const std::size_t close = text.find("]]", at);
-        if (close == std::string::npos) {
-            return false;
-        }
-        at = close + 2;
-        while (at < text.size() && text[at] == ' ') {
-            ++at;
-        }
-    }
-    int depth = 0;
-    std::size_t cut = text.size();
-    for (std::size_t i = at; i < text.size(); ++i) {
-        const char c = text[i];
-        depth += (c == '(' || c == '<') - (c == ')' || c == '>');
-        const bool assign = c == '=' && i + 1 < text.size() && text[i + 1] != '=' && i > 0 &&
-                            std::string_view("=<>!").find(text[i - 1]) == std::string_view::npos;
-        if (depth == 0 && (c == ';' || c == '{' || assign)) {
-            cut = i;
-            break;
-        }
-    }
-    std::string head = text.substr(at, cut - at);
-    while (!head.empty() && head.back() == ' ') {
-        head.pop_back();
-    }
-    if (head.empty() || head.back() == ')' || head.ends_with(" const")) {
-        return false;
-    }
-    return head.back() == '_';
-}
-
-// The declared name of a data member (`prop_title_` in `std::string prop_title_ = {};`).
-std::string data_member_name(const Item& item) {
-    const std::string& line = item.code.front();
-    std::size_t end = line.find(" =");
-    if (end == std::string::npos) {
-        end = line.find(';');
-    }
-    if (end == std::string::npos) {
-        end = line.size();
-    }
-    std::size_t begin = end;
-    while (begin > 0 && is_word(line[begin - 1])) {
-        --begin;
-    }
-    return line.substr(begin, end - begin);
-}
-
-// ADR-040 item 2: generated fields and the dispatch thunks are private. Methods stay public (the
-// host drives build/mount/update/..., the developer reads accessors), and so do the `prop_` fields:
-// a parent component writes the props of the child instance it owns.
-Lines apply_access(const Lines& struct_body, const std::string& friend_line) {
-    Lines out;
-    bool is_private = false;
-    const auto set_access = [&](bool want_private) {
-        if (want_private != is_private) {
-            out.push_back(want_private ? "    private:" : "    public:");
-            is_private = want_private;
-        }
-    };
-    set_access(true);
-    if (!friend_line.empty()) {
-        out.push_back(friend_line);
-    }
-    for (const Item& item : group_items(struct_body)) {
-        bool wants_private = false;
-        if (is_data_member(item)) {
-            const std::string name = data_member_name(item);
-            // `node_id_base_` is written by the owning component before build (issue #295).
-            wants_private = !starts_with(name, "prop_") && name != "node_id_base_";
-        } else {
-            for (const std::string& line : item.code) {
-                wants_private =
-                    wants_private || line.find("static_cast<Self&>(*this).") != std::string::npos;
-            }
-        }
-        set_access(wants_private);
-        append(out, item.lead);
-        append(out, item.code);
-    }
-    return out;
-}
-
-// The accessor/reserved names a generated member already uses.
-bool reserved_member(std::string_view name) {
-    static constexpr std::string_view kReserved[] = {
-        "build",           "mount",           "update",
-        "unmount",         "apply_state",     "update_effects",
-        "snapshot_state",  "schedule_update", "attach_scheduler",
-        "detach_scheduler"};
-    return std::find(std::begin(kReserved), std::end(kReserved), name) != std::end(kReserved);
-}
 
 } // namespace
-
-std::optional<BindingShape> binding_shape(const ir::Binding& binding, std::string& error) {
-    BindingShape shape;
-    shape.return_type = "void";
-    if (binding.kind == ir::BindingKind::Event) {
-        bool typed = false;
-        std::string param_name;
-        const std::optional<std::string> signature =
-            payload_signature(binding.params, typed, param_name);
-        if (!signature) {
-            fail(error, "binding `" + binding.id + "` has an unsupported payload record");
-            return std::nullopt;
-        }
-        const std::size_t space = signature->rfind(' ');
-        shape.event = true;
-        shape.param_type = signature->substr(0, space);
-        shape.param_name = signature->substr(space + 1);
-        return shape;
-    }
-    if (!binding.return_type.empty()) {
-        shape.return_type = handler_type(binding.return_type);
-        if (shape.return_type.empty()) {
-            fail(error, "binding `" + binding.id + "` has an unsupported return type `" +
-                            binding.return_type + "`");
-            return std::nullopt;
-        }
-    }
-    return shape;
-}
-
-std::string binding_signature(const ir::Binding& binding, const BindingShape& shape) {
-    return shape.return_type + " " + binding.region + "(" +
-           (shape.event ? shape.param_type + " " + shape.param_name : std::string()) + ")";
-}
-
-bool emit_base_members(CppWriter& writer, const ir::Component& component,
-                       const std::vector<const ir::Binding*>& bindings, std::string& error) {
-    std::set<std::string> names;
-    const auto claim = [&](const std::string& name) {
-        if (reserved_member(name) || !names.insert(name).second) {
-            return fail(error, "component `" + component.name + "`: accessor `" + name +
-                                   "` collides with another generated member");
-        }
-        return true;
-    };
-    writer.line("// ADR-040 dispatch thunks: each calls the same-named member the developer class");
-    writer.line("// defines; build() static_asserts that it does (static dispatch, no vtable).");
-    for (const ir::Binding* binding : bindings) {
-        const std::optional<BindingShape> shape = binding_shape(*binding, error);
-        if (!shape) {
-            return false;
-        }
-        const std::string call = "static_cast<Self&>(*this)." + binding->region + "(" +
-                                 (shape->event ? shape->param_name : std::string()) + ");";
-        writer.line(shape->return_type + " " + binding->region + "(" +
-                    (shape->event ? shape->param_type + " " + shape->param_name : std::string()) +
-                    ") { return " + call + " }");
-    }
-    writer.line(
-        "// Accessors for developer code: names come from the TSX, not the generated fields.");
-    for (const ir::Prop& prop : component.props) {
-        if (prop.type == "children" || !is_value_prop_type(prop.type)) {
-            continue;
-        }
-        const std::optional<std::string> type = cpp_type(prop.type);
-        if (!type || !claim(prop.name)) {
-            return type.has_value() ? false
-                                    : fail(error, "prop `" + prop.name + "` has no C++ type");
-        }
-        writer.line("[[nodiscard]] const " + *type + "& " + prop.name + "() const { return " +
-                    member_name("prop::" + prop.name) + "; }");
-    }
-    for (const ir::State& state : component.state) {
-        const std::optional<std::string> type = cpp_type(state.type);
-        if (!type || !claim(state.name)) {
-            return type.has_value() ? false
-                                    : fail(error, "state `" + state.name + "` has no C++ type");
-        }
-        writer.line("[[nodiscard]] const " + *type + "& " + state.name + "() const { return " +
-                    member_name(state.id) + "; }");
-    }
-    for (const ir::Ref& ref : component.refs) {
-        if (!claim("ref_" + ref.name)) {
-            return false;
-        }
-        writer.line("[[nodiscard]] tessera::ui::Node* ref_" + ref.name + "() const { return " +
-                    member_name(ref.id) + "; }");
-    }
-    for (const ir::AnimatedValue& value : component.animated_values) {
-        const std::optional<std::string> type = cpp_type(value.type);
-        if (!type || !claim(value.name)) {
-            return type.has_value()
-                       ? false
-                       : fail(error, "animated value `" + value.name + "` has no C++ type");
-        }
-        writer.line("[[nodiscard]] " + *type + " " + value.name + "() const { return " +
-                    member_name(value.id) + "; }");
-    }
-    return true;
-}
 
 bool emit_generated_base(const ir::Component& component,
                          const std::vector<const ir::Binding*>& bindings,
@@ -461,7 +169,7 @@ bool emit_generated_base(const ir::Component& component,
         ++ns_open;
     }
     if (ns_open + 4 >= header.size() || header[ns_open + 1] != "  namespace gen {") {
-        return fail(error, "the generated header of `" + name + "` has an unexpected shape");
+        return base_fail(error, "the generated header of `" + name + "` has an unexpected shape");
     }
     const std::string module_open = header[ns_open];
     Lines body(header.begin() + static_cast<std::ptrdiff_t>(ns_open) + 2, header.end() - 2);
@@ -475,7 +183,7 @@ bool emit_generated_base(const ir::Component& component,
         --struct_end;
     }
     if (struct_at >= body.size() || struct_end == 0 || struct_end - 1 <= struct_at) {
-        return fail(error, "the generated header of `" + name + "` has no component struct");
+        return base_fail(error, "the generated header of `" + name + "` has no component struct");
     }
     --struct_end;
     const std::string comment = body.empty() ? std::string() : body.front();
@@ -528,7 +236,7 @@ bool emit_generated_base(const ir::Component& component,
         }
     }
     if (gen_open == 0 || source.size() < gen_open + 3) {
-        return fail(error, "the generated source of `" + name + "` has an unexpected shape");
+        return base_fail(error, "the generated source of `" + name + "` has an unexpected shape");
     }
     const Lines source_body(source.begin() + static_cast<std::ptrdiff_t>(gen_open) + 1,
                             source.end() - 2);
