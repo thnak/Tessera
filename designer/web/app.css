@@ -281,6 +281,52 @@ button.primary {
   font-size: 13px;
 }
 
+/* The scene snapshot (scene.html, issue #166): one row per UiSnapshot entry, indented by its depth so
+   the preorder list reads as a tree. The path and bounds come straight from the document, so this is
+   a view of the same bytes the parity gate compares. */
+.nodes {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+  overflow: auto;
+}
+
+.node {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: baseline;
+  padding: 3px 8px;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.node-kind {
+  min-width: 8ch;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.node-path {
+  color: var(--text-dim);
+}
+
+.node-bounds {
+  color: var(--text-dim);
+  margin-left: auto;
+}
+
+.node-text {
+  color: var(--ok);
+}
+
+.node-id {
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+
 .unavailable {
   margin: 16px;
   padding: 14px 16px;

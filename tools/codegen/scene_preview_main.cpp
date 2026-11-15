@@ -1,0 +1,166 @@
+// SPDX-License-Identifier: MIT
+
+// tessera_scene_preview: the native half of the scene-snapshot parity gate (issue #166, P2 of
+// docs/design/reference-equantic-ui.md section 7.4).
+//
+//   tessera_scene_preview --scene-json OUT FILE.tsx [--component NAME] [--salt SALT]
+//
+// It evaluates one in-memory TSX buffer through the same driver the browser module exports
+// (`scene_preview.cpp`) and writes the canonical UiSnapshot document of
+// docs/specs/automation-ids-v1.md section 5.2. `scripts/ci/scene_snapshot_parity.py` runs this and
+// the Emscripten module over one corpus and requires byte-identical documents, which is P2's
+// acceptance ("the Wasm scene snapshot equals the native harness snapshot for the parity samples").
+//
+// The viewport is the preview's fixed 320x240: the Wasm export hardcodes it, so the native side
+// must use the same rectangle or the two would lay out different trees. `--salt` defaults to the
+// same `preview` the module uses, for the same reason (the salt feeds every `uiId`).
+//
+// Exit codes: 0 document written; 1 the source produced no scene (the document is still written,
+// with an empty `nodes` array, so a caller can see what it got); 2 usage/setup.
+//
+// It is a separate executable rather than a `--scene-json` verb on `tessera_codegen` on purpose:
+// that CLI is the target the Wasm-compiler lane builds (docs/design/compiler-wasm.md section 2),
+// and linking the engine (Yoga, the text stack, the stylesheet engine) into it would drag the whole
+// UI into the P0 Wasm artifact. The driver is shared instead of the binary.
+
+#include "scene_preview.hpp"
+
+#include <fstream>
+#include <iostream>
+#include <iterator>
+#include <string>
+#include <string_view>
+
+namespace {
+
+constexpr std::string_view kUsage =
+    "usage: tessera_scene_preview --scene-json OUT|FILE.tsx [options] FILE.tsx\n"
+    "\n"
+    "  --scene-json OUT   write the canonical scene snapshot document to OUT (`-` for stdout)\n"
+    "  --component NAME   the component to preview (default: the first in the file)\n"
+    "  --file NAME        the project-relative source name the ids are hashed with (default: the\n"
+    "                     input path with POSIX separators); the browser module passes the same\n"
+    "                     name, and the source path is an input to every uiId, so the parity gate\n"
+    "                     must give both sides one spelling\n"
+    "  --salt SALT        the project salt the ids are hashed with (default: preview)\n"
+    "  --size WxH         the layout viewport in logical pixels (default: 320x240)\n"
+    "\n"
+    "Exit codes: 0 document written; 1 no scene (an empty `nodes` array); 2 usage/setup.\n";
+
+int usage_error(std::string_view message) {
+    std::cerr << "tessera_scene_preview: " << message << "\n\n" << kUsage;
+    return 2;
+}
+
+bool read_file(const std::string& path, std::string& out) {
+    std::ifstream in(path, std::ios::binary);
+    if (!in) {
+        return false;
+    }
+    out.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+    return true;
+}
+
+// `WxH`, both positive finite. The preview's viewport is what the layout and the fitted window
+// agree on, so a malformed size is a usage error rather than a silent default.
+bool parse_size(std::string_view text, float& width, float& height) {
+    const std::size_t x = text.find('x');
+    if (x == std::string_view::npos) {
+        return false;
+    }
+    try {
+        const std::string left(text.substr(0, x));
+        const std::string right(text.substr(x + 1));
+        width = std::stof(left);
+        height = std::stof(right);
+    } catch (const std::exception&) {
+        return false;
+    }
+    return width > 0.0f && height > 0.0f && width <= 65535.0f && height <= 65535.0f;
+}
+
+} // namespace
+
+int main(int argc, char** argv) {
+    std::string output;
+    std::string component;
+    std::string project_file;
+    std::string salt = "preview";
+    float width = 320.0f;
+    float height = 240.0f;
+    std::string input;
+
+    for (int i = 1; i < argc; ++i) {
+        const std::string_view arg(argv[i]);
+        if (arg == "--help" || arg == "-h") {
+            std::cout << kUsage;
+            return 0;
+        }
+        if (arg == "--scene-json" || arg == "--component" || arg == "--salt" || arg == "--size" ||
+            arg == "--file") {
+            if (i + 1 >= argc) {
+                return usage_error("`" + std::string(arg) + "` needs a value");
+            }
+            const std::string value(argv[++i]);
+            if (arg == "--scene-json") {
+                output = value;
+            } else if (arg == "--component") {
+                component = value;
+            } else if (arg == "--file") {
+                project_file = value;
+            } else if (arg == "--salt") {
+                salt = value;
+            } else if (!parse_size(value, width, height)) {
+                return usage_error("`--size` takes WxH, for example 320x240");
+            }
+            continue;
+        }
+        if (!arg.empty() && arg.front() == '-') {
+            return usage_error("unknown option `" + std::string(arg) + "`");
+        }
+        if (!input.empty()) {
+            return usage_error("one input .tsx file");
+        }
+        input = std::string(arg);
+    }
+
+    if (output.empty()) {
+        return usage_error("--scene-json is required");
+    }
+    if (input.empty()) {
+        return usage_error("no input .tsx file");
+    }
+    std::string source;
+    if (!read_file(input, source)) {
+        std::cerr << "tessera_scene_preview: cannot read `" << input << "`\n";
+        return 2;
+    }
+
+    tessera::compiler::codegen::cli::ScenePreviewOptions options;
+    options.file = project_file.empty() ? std::string_view(input) : std::string_view(project_file);
+    options.salt = salt;
+    options.width = width;
+    options.height = height;
+    const std::string document =
+        tessera::compiler::codegen::cli::scene_preview_document(source, options, component);
+
+    // A document with no nodes is a successful write of a failed preview: exit 1 says "the source
+    // produced no scene" while the bytes still land where the caller asked, the way
+    // `--diagnostics-json` writes a document on a failed run.
+    const bool produced_scene = document.find("\"nodes\":[]") == std::string::npos;
+    if (output == "-") {
+        std::cout << document;
+        return produced_scene ? 0 : 1;
+    }
+    std::ofstream out(output, std::ios::binary | std::ios::trunc);
+    if (!out) {
+        std::cerr << "tessera_scene_preview: cannot write `" << output << "`\n";
+        return 2;
+    }
+    out << document;
+    if (!out) {
+        std::cerr << "tessera_scene_preview: cannot write `" << output << "`\n";
+        return 2;
+    }
+    return produced_scene ? 0 : 1;
+}

@@ -137,3 +137,113 @@ the browser tool then differ only in their file seam. P2's evaluator and P3's We
 the same `wasm-webgpu` configure preset. The parity gate itself stays the reference: every later
 stage that claims "matches native" should name the native artifact it compared against, the way this
 stage names the IR digest.
+
+## 7. P2: evaluator, scene and layout on the null RHI
+
+P2's acceptance is **"the Wasm scene snapshot equals the native harness snapshot for the parity
+samples"**. The artifact is the one the harness already produces — the canonical `UiSnapshot`
+document of [`automation-ids-v1.md`](../specs/automation-ids-v1.md) section 5.2, written by
+`snapshot_to_json()` (`include/tessera/ui/automation/snapshot_json.hpp`). P2 adds no second snapshot
+format; it adds an in-memory path *to* that format.
+
+### 7.1 What runs, and what does not
+
+The driver is `tools/codegen/scene_preview.cpp`, the sibling of `diagnose.cpp` (P1). It takes one
+in-memory source and runs the CLI's stage order:
+
+```text
+source text -> jsx parse -> analyze -> lower -> assign_identity(salt)
+            -> evaluator: evaluate each useState/useAnimatedValue initializer into a Scope
+            -> build the ui::Node tree (scene_build.cpp)
+            -> resolve computed style + Yoga layout + apply_layout (scene_layout.cpp)
+            -> ui::automation::snapshot_scene() -> snapshot_to_json()
+```
+
+Nothing in that path reads the filesystem, creates a device or RHI object, touches a clock, or
+depends on the locale. The null-RHI claim is exactly this: layout stops at the scene's bounds and
+never reaches for a render target, so the same code runs on any lane and in the module.
+
+The tree is built on the **same `ui::Node` surface generated C++ uses** — `set_element_kind`,
+`set_automation_id`, `set_element_id`, `set_class_name`, `set_role`, `set_aria`,
+`set_inline_style`, `set_paint_data`, `set_focusable`, the scroll flags, `add_child` — in the order
+`emit_node_attributes.cpp` and `emit_node_behavior.cpp` apply them. A preview tree is therefore the
+tree a native build would have built for the same IR, not a parallel model of it.
+
+**Not evaluated by this slice**, and reported as `TESSERA_SCENE_UNSUPPORTED` with an empty `nodes`
+array rather than approximated: user component instances (`NodeKind::Component`, which needs prop
+binding and slot splicing), `CustomElement`, virtual collections, `Slot` positions, conditional and
+repeated children, and inline-span `Text`. `samples/compiler-demo/Demo.tsx` uses a conditional child
+and `samples/gallery/Gallery.tsx` imports a user component, so **neither shipped sample is in the
+parity corpus**; the corpus is the static subset the preview does evaluate. Widening it is P4/P7
+work, not a P2 regression. Dynamic inline-style values are likewise not applied (generated
+`apply_state` owns those); the preview lays out the component's initial tree.
+
+### 7.2 The shared walk (one implementation, not two)
+
+The scene → snapshot walk used to live inside `src/harness/engine_host_snapshot.cpp`. It now lives in
+`include/tessera/ui/automation/scene_snapshot.hpp` + `src/ui/automation/scene_snapshot.cpp`
+(`tessera_automation_scene`), and the harness calls it too:
+
+- `snapshot_scene(const ui::Node&, const SceneSnapshotOptions&)` returns
+  `std::expected<UiSnapshot, SceneSnapshotError>`; the caps (`kMaxSnapshotNodes` 65536,
+  `kMaxSnapshotDepth` 64, `kMaxSnapshotPathBytes` 256) and the derived structural paths moved with it,
+  and `include/tessera/automation/engine_host.hpp` now re-exports the constants as `using` aliases so
+  its public names did not change.
+- A capped tree is a **hard failure**, never a truncated document: a partial snapshot would compare
+  equal to a partial snapshot from the other side and pass a gate it should fail.
+- Source-level identity is a callback (`SceneAnnotationFn`), not the automation lane's
+  `NodeAnnotations` map, so the header stays free of that module; the harness binds its manifest
+  through it.
+- `tessera_automation` remains a leaf that links nothing. The walk is its own small target
+  (`tessera_automation_scene` = `tessera_automation` + `tessera_scene`) because it reads a live scene.
+
+### 7.3 The two artifacts and the gate
+
+| Side | Artifact | Invocation |
+|---|---|---|
+| native | `tessera_scene_preview` | `--scene-json OUT --file FILE --salt SALT FILE.tsx` |
+| Wasm | `tessera_scene_preview.js` | `tessera_scene_json(source, file, component)` + `tessera_free` |
+
+Both are the same driver. The browser module follows P1's ABI convention exactly: **the module owns
+the buffer it returns and the caller hands it back through `tessera_free`** (not a static buffer,
+which the next call would invalidate). `src/compiler/codegen/CMakeLists.txt` compiles the sources as
+an **OBJECT library on host lanes** (`tessera_scene_preview_entry`, so the entry point is
+type-checked on every push) and as a `--no-entry` Emscripten module only under `EMSCRIPTEN`. It is
+*not* a verb on `tessera_codegen_cli`: that target is the Node tool the `wasm-compiler` preset builds
+for P0's IR parity, and linking the engine into it would drag Yoga and the text stack into that
+artifact. The driver is shared instead of the binary, and there is a second executable because the
+comparison needs a native command.
+
+`scripts/ci/scene_snapshot_parity.py` copies the shape of `wasm_diagnostics_parity.py`: it runs both
+sides over one corpus and requires **byte-identical** documents, decodes both to check
+`snapshotVersion`, and — the anti-vacuity rule — every case declares a **minimum node count**, so
+"both empty" cannot pass. Both sides are executed with `cwd` set to a scratch case directory, so the
+script resolves the CLI, module and Node to **absolute** paths first (P1 shipped a relative-path bug
+that failed on CI). The salt and the file name are passed to *both* sides because both are inputs to
+every `uiId` (section 2 of the ids spec); `--file` exists precisely so a Windows `\` cannot give a
+document no Linux run could reproduce.
+
+`scripts/ci/scene_snapshot_native.py` is the half that runs without Emscripten: it imports the gate's
+corpus and salt (so the two cannot drift), and asserts the version, the minimum counts, the
+zero-node cases, byte determinism across two runs, and that an explicit `automationId` reaches the
+document. A lane without `EMSDK` proves its native half with it.
+
+### 7.4 Verification and status
+
+Verified on this Windows host (2026-11-15), native side only:
+
+- `python -B scripts/ci/scene_snapshot_native.py --native build/.../tessera_scene_preview.exe`:
+  `NATIVE CORPUS OK`, 11 cases, node counts 5/4/3/4/4/6/6/3/3/0/0.
+- `ctest -R "scene|layout|parity|automation|eval|snapshot"`: 34/34 pass, including the new
+  `scene_snapshot` test (`tests/unit/scene_snapshot_tests.cpp`), which pins preorder + parent
+  indices, derived paths, the annotation override, hidden-subtree omission, both caps, and the
+  document bytes.
+- The full suite (555 tests) and `scripts/check_source_size.py` / `scripts/gates.py --only docs` are
+  clean.
+
+**CI-only, and why:** the Wasm half. `$env:EMSDK` is empty on this box and P1 confirmed Emscripten
+cannot be built here, so `tessera_scene_preview_wasm` was authored to the P1 pattern and is
+type-checked by the host OBJECT-library build, but the module itself has **not** been executed. The
+byte comparison in `scene_snapshot_parity.py` — and therefore P2's acceptance sentence — is proven
+only when the new `wasm-parity` step runs in CI. That is stated rather than implied.
+

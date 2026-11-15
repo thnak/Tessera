@@ -153,6 +153,86 @@ else ()
         -sEXPORTED_RUNTIME_METHODS=["UTF8ToString","lengthBytesUTF8","stringToUTF8"])
 endif ()
 
+# The browser scene-preview module (issue #166, P2 of docs/design/reference-equantic-ui.md section
+# 7.4): the same front end, lowering, evaluator, stylesheet engine and Yoga layout the native harness
+# runs, behind one C export the preview page calls with the textarea contents in memory, returning the
+# canonical UiSnapshot document of docs/specs/automation-ids-v1.md section 5.2.
+#
+# It is shaped like the diagnostics module above, and for the same reasons: host builds compile the
+# sources as an OBJECT library (no `main`, so it cannot be an executable there) which keeps the entry
+# point type-checked on the ordinary Windows/Linux lanes, and only an Emscripten build links them into
+# a module. The sources are listed once and shared by both branches.
+#
+# The driver (`scene_preview.cpp`) is separate from the native CLI binary on purpose: the CLI target
+# (`tessera_codegen_cli`) is what the `wasm-compiler` preset builds for P0's IR parity, and adding the
+# engine to it would drag Yoga and the text stack into that artifact. The shared thing is the driver,
+# not the executable.
+set(_tessera_scene_preview_sources
+    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_preview.cpp
+    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_build.cpp
+    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_layout.cpp)
+
+if (NOT EMSCRIPTEN)
+    add_library(tessera_scene_preview_entry OBJECT
+        ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_scene_entry.cpp
+        ${_tessera_scene_preview_sources})
+    target_include_directories(tessera_scene_preview_entry
+        PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
+    target_link_libraries(tessera_scene_preview_entry PRIVATE
+        tessera_automation_scene
+        tessera_ir_eval
+        tessera_ir_ids
+        tessera_layout
+        tessera_lowering
+        tessera_scene
+        tessera_style)
+
+    # The native half of the parity gate: `tessera_scene_preview --scene-json OUT FILE.tsx` prints the
+    # same document the module returns, so scripts/ci/scene_snapshot_parity.py can compare two
+    # artifacts instead of two implementations.
+    add_executable(tessera_scene_preview_cli
+        ${CMAKE_SOURCE_DIR}/tools/codegen/scene_preview_main.cpp
+        ${_tessera_scene_preview_sources})
+    target_include_directories(tessera_scene_preview_cli
+        PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
+    target_link_libraries(tessera_scene_preview_cli PRIVATE
+        tessera_automation_scene
+        tessera_ir_eval
+        tessera_ir_ids
+        tessera_layout
+        tessera_lowering
+        tessera_scene
+        tessera_style)
+    set_target_properties(tessera_scene_preview_cli PROPERTIES OUTPUT_NAME tessera_scene_preview)
+else ()
+    # Same flag set as the diagnostics module, with the one difference the artifact needs: nothing
+    # here reads a file either, so NODERAWFS is absent for the same documented reason
+    # (docs/design/compiler-wasm.md section 2.1).
+    add_executable(tessera_scene_preview_wasm
+        ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_scene_entry.cpp
+        ${_tessera_scene_preview_sources})
+    target_include_directories(tessera_scene_preview_wasm
+        PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
+    target_link_libraries(tessera_scene_preview_wasm PRIVATE
+        tessera_automation_scene
+        tessera_ir_eval
+        tessera_ir_ids
+        tessera_layout
+        tessera_lowering
+        tessera_scene
+        tessera_style)
+    set_target_properties(tessera_scene_preview_wasm PROPERTIES OUTPUT_NAME tessera_scene_preview)
+    target_link_options(tessera_scene_preview_wasm PRIVATE
+        --no-entry
+        -sMODULARIZE=1
+        -sEXPORT_ES6=1
+        -sEXPORT_NAME=createTesseraScenePreview
+        -sENVIRONMENT=web,node
+        -sALLOW_MEMORY_GROWTH=1
+        -sEXPORTED_FUNCTIONS=["_tessera_scene_json","_tessera_free","_malloc","_free"]
+        -sEXPORTED_RUNTIME_METHODS=["UTF8ToString","lengthBytesUTF8","stringToUTF8"])
+endif ()
+
 # Goldens of the generated base (`<Component>.g.hpp`) live here; they are written by the
 # `--write` mode of their test and are generated from IR, never hand-edited.
 #

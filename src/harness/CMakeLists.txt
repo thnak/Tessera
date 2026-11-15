@@ -60,6 +60,8 @@ target_include_directories(tessera_automation_host PUBLIC
 target_link_libraries(tessera_automation_host PUBLIC
     tessera_app
     tessera_automation
+    # The scene -> snapshot walk (issue #166): the harness and the design-time preview share it.
+    tessera_automation_scene
     tessera_diagnostics
     tessera_harness
     tessera_input_pump

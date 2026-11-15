@@ -1,0 +1,72 @@
+<!doctype html>
+<!--
+  SPDX-License-Identifier: MIT
+
+  Tessera preview P2: the scene-snapshot debug page (issue #166, docs/design/reference-equantic-ui.md
+  section 7.4). Static files, no framework and no build step: this directory plus the two Wasm
+  artifacts the CI lane copies in are the whole page.
+
+  It evaluates the textarea contents with the same evaluator, stylesheet engine and Yoga layout the
+  native harness runs, lays the tree out on the null RHI (no GPU yet), and lists the canonical
+  UiSnapshot nodes with their paths, kinds, bounds and text. That document is what the wasm-parity CI
+  job compares byte for byte against the native CLI, so this page shows the artifact the gate proves.
+  The canvas preview is P3, browser input is P4, share links are P5.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tessera preview: scene snapshot</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header class="page-header">
+    <div class="page-title">
+      <h1>Tessera preview</h1>
+      <p class="page-subtitle">
+        Evaluates your TSX with the same evaluator, style and layout engine the native build runs,
+        then shows the scene snapshot. No GPU yet (stage&nbsp;P2).
+      </p>
+    </div>
+    <div class="build-id" id="build-id" title="The build this page came from">build: loading</div>
+  </header>
+
+  <main class="layout">
+    <section class="pane" aria-labelledby="editor-heading">
+      <div class="pane-header">
+        <h2 id="editor-heading">Source</h2>
+        <div class="pane-actions">
+          <button id="run" type="button" class="primary">Run</button>
+          <button id="load-sample" type="button">Load sample</button>
+        </div>
+      </div>
+      <label for="source" class="visually-hidden">TSX source</label>
+      <textarea id="source" spellcheck="false" autocapitalize="off" autocomplete="off"
+                autocorrect="off" wrap="off"></textarea>
+      <p class="hint">Ctrl+Enter (or Cmd+Enter) runs. The viewport is 320&times;240.</p>
+    </section>
+
+    <section class="pane" aria-labelledby="nodes-heading">
+      <div class="pane-header">
+        <h2 id="nodes-heading">Scene snapshot</h2>
+        <div class="status" id="status" role="status" aria-live="polite">not run yet</div>
+      </div>
+      <ol class="nodes" id="nodes"></ol>
+      <div class="empty-state" id="empty-state">
+        Press <strong>Run</strong> to evaluate the source.
+      </div>
+    </section>
+  </main>
+
+  <footer class="page-footer">
+    <p>
+      Part of <a href="https://github.com/thnak/Tessera">Tessera</a>. The module is the
+      <code>wasm-webgpu</code> build's scene-preview target; the same input produces the same
+      snapshot document natively, which the <code>wasm-parity</code> CI job checks byte for byte.
+      The TSX diagnostics page is <a href="index.html">index.html</a>.
+    </p>
+  </footer>
+
+  <script type="module" src="scene.js"></script>
+</body>
+</html>
