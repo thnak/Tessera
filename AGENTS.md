@@ -519,7 +519,17 @@ ADR-049 is Accepted and the shader chain is on `main`; WebGPU is Tier 1: its CI 
 
 - [x] WebGPU first slice (mapping tables, WGSL registry, unbuilt skeleton) —
       `src/rendering/backend/webgpu/`, `tests/unit/webgpu_mapping_tests.cpp`.
-- [ ] #159: `shader_id`, portable shader branch, opt-in cross-compile — PR #84, after ADR-049.
+- [x] #159: `shader_id`, portable shader branch, opt-in cross-compile — PR #84 plus the closing
+      slice: the normative id-to-source table and the identity rule in
+      [`docs/specs/shader-manifest-v1.md`](docs/specs/shader-manifest-v1.md) section 3.2, the
+      opt-in section 5.1, and the `shader-cross` lane in `.github/workflows/linux.yml` that runs
+      `TESSERA_SHADER_CROSS=ON` (10 `shader_cross_*` + `shader_parity`, `dxc` skipped on Linux);
+      the lane found and fixed a real defect — Linux glslang 16.1 lowered the by-value
+      `ClipUniform` parameter to `OpCopyLogical`, which naga rejects, so
+      `src/rendering/backend/vulkan/shaders/batched2d.frag` indexes the clip block instead
+      (Vulkan pixels unchanged: `batched2d_golden`, `batched2d_shapes_golden`, `rounded_clip`,
+      `glass_composite_gpu`, `damage_equivalence` pass). Cross tools in
+      [`docs/guides/writing-a-backend.md`](docs/guides/writing-a-backend.md) section 7.1.
 - [x] #160: RHI `version.hpp` + `Device::capabilities()` + docs-gate check on RHI header changes —
       `include/tessera/rendering/rhi/version.hpp`, `RhiCapabilities` reported by null/Vulkan/WebGPU
       (`tests/gpu/rhi/rhi_null_tests.cpp`, `rhi_buffer_bounds_tests.cpp`), gate in
@@ -903,11 +913,13 @@ bridges not yet installed in a host; and the first WebGPU slice (unbuilt on host
 **Farm order:** V1-M1 is now complete (the B3 Wayland window and the B3 OS-event slice both landed),
 so the farm moves to V1-M2: the ADR-040 one-path migration (#218 migrates the codegen test families
 to the generated base, then #219 deletes the legacy output, the merger and `EmitMode`), the doc slice
-#211, and #158 (object-literal prop defaults, ADR-051). V1-M3 closes with one small docs+CI slice:
-#159's shader machinery is already on `main` — `shader_id`, the `ShaderRegistry`, the portable GLSL
-branch, `shader_parity`, `TESSERA_SHADER_CROSS` and `tools/shaders/manifest.json` all exist, PR #84
-merged 2026-11-12, and ADR-049's own follow-up records it — so only the `shader-manifest-v1.md`
-id-to-source table and a `TESSERA_SHADER_CROSS=ON` CI lane remain. V1-M4 cannot start without
+#211, and #158 (object-literal prop defaults, ADR-051). V1-M3's last item, #159, is closed by this
+landing: the `shader-manifest-v1.md` id-to-source table (section 3.2) and the opt-in cross-compile
+section (5.1), plus the `shader-cross` job in `.github/workflows/linux.yml` that runs
+`TESSERA_SHADER_CROSS=ON` — its first run found a real shader defect (a by-value struct parameter
+in `batched2d.frag` lowered to `OpCopyLogical`, which naga rejects on Linux glslang 16.1), now
+fixed. V1-M3 keeps only #245 (cross-backend image parity) as a follow-up. V1-M4 cannot start
+without
 Emscripten: `EMSDK` is unset and there is no `emcc` on PATH, which the `wasm-webgpu` preset requires,
 so #164 is blocked on tooling rather than sequencing. V1-M5 is unblocked (ADR-050 is Accepted) and
 AF1 (#173) may start now. V1-M6, V1-M7 (#187 now has the #156 display/event seam it needed) and V1-M8

@@ -45,29 +45,34 @@ float sd_round_box(vec2 p, vec2 b, float r) {
 }
 
 // Hard-edged per-corner rounded-rect clip test (no clip AA in this slice; see antialiasing.md).
-bool inside_clip(vec2 p, ClipUniform clip) {
-    vec2 origin = clip.rect.xy;
-    vec2 size = clip.rect.zw;
+// The clip arrives by index, not by value: recent glslang (16.x, the Linux distro build) lowers a
+// by-value struct parameter to a duplicated struct type plus OpCopyLogical, which naga's SPIR-V
+// front end rejects, so the cross-compiled WGSL (TESSERA_SHADER_CROSS) could not be produced on
+// those hosts. Indexing the block is the same code with no per-call copy and translates everywhere.
+bool inside_clip(vec2 p, uint index) {
+    vec2 origin = pc.clips[index].rect.xy;
+    vec2 size = pc.clips[index].rect.zw;
+    vec4 radii = pc.clips[index].radii;
     if (p.x < origin.x || p.y < origin.y || p.x > origin.x + size.x ||
         p.y > origin.y + size.y) {
         return false;
     }
     vec2 q = p - origin;
-    if (q.x < clip.radii.x && q.y < clip.radii.x) {
-        vec2 d = vec2(q.x - clip.radii.x, q.y - clip.radii.x);
-        return dot(d, d) <= clip.radii.x * clip.radii.x;
+    if (q.x < radii.x && q.y < radii.x) {
+        vec2 d = vec2(q.x - radii.x, q.y - radii.x);
+        return dot(d, d) <= radii.x * radii.x;
     }
-    if (q.x > size.x - clip.radii.y && q.y < clip.radii.y) {
-        vec2 d = vec2(q.x - (size.x - clip.radii.y), q.y - clip.radii.y);
-        return dot(d, d) <= clip.radii.y * clip.radii.y;
+    if (q.x > size.x - radii.y && q.y < radii.y) {
+        vec2 d = vec2(q.x - (size.x - radii.y), q.y - radii.y);
+        return dot(d, d) <= radii.y * radii.y;
     }
-    if (q.x > size.x - clip.radii.z && q.y > size.y - clip.radii.z) {
-        vec2 d = vec2(q.x - (size.x - clip.radii.z), q.y - (size.y - clip.radii.z));
-        return dot(d, d) <= clip.radii.z * clip.radii.z;
+    if (q.x > size.x - radii.z && q.y > size.y - radii.z) {
+        vec2 d = vec2(q.x - (size.x - radii.z), q.y - (size.y - radii.z));
+        return dot(d, d) <= radii.z * radii.z;
     }
-    if (q.x < clip.radii.w && q.y > size.y - clip.radii.w) {
-        vec2 d = vec2(q.x - clip.radii.w, q.y - (size.y - clip.radii.w));
-        return dot(d, d) <= clip.radii.w * clip.radii.w;
+    if (q.x < radii.w && q.y > size.y - radii.w) {
+        vec2 d = vec2(q.x - radii.w, q.y - (size.y - radii.w));
+        return dot(d, d) <= radii.w * radii.w;
     }
     return true;
 }
@@ -79,7 +84,7 @@ void main() {
     float clip_alpha = 1.0;
     if (pc.clip_count > 0u) {
         for (uint index = 0u; index < pc.clip_count; ++index) {
-            if (!inside_clip(gl_FragCoord.xy, pc.clips[index])) {
+            if (!inside_clip(gl_FragCoord.xy, index)) {
                 clip_alpha = 0.0;
             }
         }

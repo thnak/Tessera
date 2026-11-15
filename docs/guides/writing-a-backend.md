@@ -171,6 +171,37 @@ ctest --preset vs2026-release -R "rhi_|shader_parity|batched2d" --output-on-fail
 - A backend README (Tier 2 requirement) states the RHI version implemented, platforms, how to run
   the suite and the known gaps.
 
+### 7.1 Cross-compiled shaders (`TESSERA_SHADER_CROSS`)
+
+A backend that reuses the GLSL instead of authoring its own sources builds with
+`-DTESSERA_SHADER_CROSS=ON` (default OFF, in no preset; ADR-049 decision item 1.3). The step
+compiles each stage again with `-DTESSERA_SHADER_PORTABLE=1` and translates the portable SPIR-V
+under `<build>/shaders/cross/<shader_id>/`:
+
+| Tool | Role | Missing behavior |
+|---|---|---|
+| `glslc` (Vulkan SDK) | portable SPIR-V | configure fails: it is the one mandatory tool |
+| `spirv-val` (SPIRV-Tools) | validates the portable SPIR-V | output and its test are skipped |
+| `spirv-cross` | → MSL and HLSL (`--flip-vert-y`) | the MSL/HLSL outputs are skipped |
+| `dxc` (Vulkan SDK) | compiles the generated HLSL | the `_hlsl_dxc` test is skipped |
+| `spirv-opt` + `naga` | → WGSL, re-validated by naga | the WGSL output and `_wgsl_naga` test are skipped |
+
+Configure prints one `-- Shader cross: <tool> = <path>` or `... not found; its outputs and checks
+are skipped` line per tool, so the log states exactly what ran:
+
+```bash
+cmake --preset ci -DTESSERA_SHADER_CROSS=ON -DTESSERA_BUILD_POC=OFF
+cmake --build --preset ci
+ctest --preset ci -R shader_cross --output-on-failure
+```
+
+`tests/gpu/shaders/shader_parity_tests.cpp` proves portable-branch parity in the ordinary build and
+needs no tool; the cross lane adds the artifact checks. On Ubuntu, `glslc`, `spirv-tools`,
+`spirv-cross` and `vulkan-validationlayers` come from apt and `naga` from
+`cargo install naga-cli --version "$(cat tools/naga-version.txt)" --locked`; `dxc` is not
+packaged, so the HLSL compile step is skipped there and is only exercised where the Vulkan SDK
+ships `dxc`. The `shader-cross` job in `.github/workflows/linux.yml` is the reference lane.
+
 ## 8. Review checklist
 
 Before requesting review, confirm:
