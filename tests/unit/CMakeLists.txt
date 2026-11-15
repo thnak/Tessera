@@ -855,6 +855,18 @@ target_link_libraries(runtime_config_tests PRIVATE tessera_runtime)
 
 add_test(NAME runtime_config COMMAND runtime_config_tests)
 
+# The one JSON failure vocabulary (god-type audit section 4.4): every code has a distinct non-empty
+# description with no generic fallthrough, and the harness's public alias is that same type rather
+# than a private copy. The schema reader is excluded on purpose -- it is a leaf library that may
+# include no project header, enforced by schema_layering.
+add_executable(json_error_vocabulary_tests
+    json_error_vocabulary_tests.cpp)
+
+target_link_libraries(json_error_vocabulary_tests PRIVATE
+    tessera_harness)
+
+add_test(NAME json_error_vocabulary COMMAND json_error_vocabulary_tests)
+
 add_executable(input_tests
     input_tests.cpp)
 

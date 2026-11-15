@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "tessera/detail/json_error.hpp"
 #include "tessera/harness/json_value.hpp"
 
 #include <cstddef>
@@ -14,20 +15,11 @@ namespace tessera::harness {
 // Protocol envelopes are two levels deep; 64 is generous for nested audit/trace payloads.
 inline constexpr std::size_t kMaxJsonDepth = 64;
 
-enum class JsonParseErrorCode {
-    UnexpectedEnd,
-    UnexpectedCharacter,
-    TrailingContent,
-    InvalidLiteral,
-    InvalidNumber,
-    NumberOutOfRange,
-    InvalidEscape,
-    InvalidUtf16Escape,
-    ControlCharacterInString,
-    DuplicateKey,
-    NestingTooDeep,
-    InvalidUtf8,
-};
+// The one JSON failure vocabulary, shared with the schema manifest reader and the runtime config
+// reader (god-type audit section 4.4). The name stays a harness alias because
+// `JsonParseError::code` is public surface this library's callers already use; the vocabulary
+// behind it is shared, so the same failure cannot be spelled three ways.
+using JsonParseErrorCode = tessera::detail::json::ErrorCode;
 
 struct JsonParseError {
     JsonParseErrorCode code = JsonParseErrorCode::UnexpectedEnd;

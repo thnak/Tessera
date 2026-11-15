@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "tessera/detail/json_error.hpp"
+
 #include <cstddef>
 #include <cstdint>
 #include <expected>
@@ -28,17 +30,9 @@ enum class JsonType : std::uint8_t {
     Object,
 };
 
-enum class JsonErrorCode : std::uint8_t {
-    UnexpectedEnd,
-    UnexpectedCharacter,
-    TrailingContent,
-    InvalidLiteral,
-    InvalidNumber,
-    InvalidEscape,
-    DuplicateKey,
-    NestingTooDeep,
-    InvalidUtf8,
-};
+// The one JSON failure vocabulary, shared with the schema manifest reader and the harness protocol
+// (god-type audit section 4.4). Header-only, so this library still links nothing for it.
+using JsonErrorCode = tessera::detail::json::ErrorCode;
 
 struct JsonParseError {
     JsonErrorCode code = JsonErrorCode::UnexpectedEnd;
