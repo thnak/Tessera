@@ -93,14 +93,13 @@ ui::Node& instance_host(ui::Node& view, std::size_t index) {
 }
 
 // Asserts the child layout the rest of this file indexes into.
-void check_view_structure(ui::Node& view, std::size_t instances,
-                          std::string_view what) {
+void check_view_structure(ui::Node& view, std::size_t instances, std::string_view what) {
     check(view.children().size() == kPresenceCount + instances,
           std::string(what) + ": the view holds the presence items and the instance hosts");
     for (std::size_t index = 0; index < kPresenceCount && index < view.children().size(); ++index) {
         check(presence_item(view, index).element_kind() == "View",
               std::string(what) + ": a presence item is a View, as the template declares");
-      }
+    }
     for (std::size_t index = 0; index < instances; ++index) {
         const std::size_t at = kPresenceCount + index;
         if (at >= view.children().size()) {
@@ -109,8 +108,7 @@ void check_view_structure(ui::Node& view, std::size_t instances,
         const ui::Node& host = *view.children()[at];
         check(host.element_kind() == "Component",
               std::string(what) + ": an instance slot is a Component host");
-        check(host.component_name() == "Row",
-              std::string(what) + ": the host names the callee");
+        check(host.component_name() == "Row", std::string(what) + ": the host names the callee");
     }
 }
 
@@ -178,9 +176,9 @@ void test_keyed_list_of_instances() {
 
 // Instance state belongs to the key: a reorder moves the record, never the state.
 //
-// A keyed item's `Row` instance is template-owned (one per key inside the item record), so it has no
-// `child_<n>()` accessor and its state cell cannot be written from outside. The claims this test can
-// and does prove through the scene:
+// A keyed item's `Row` instance is template-owned (one per key inside the item record), so it has
+// no `child_<n>()` accessor and its state cell cannot be written from outside. The claims this test
+// can and does prove through the scene:
 //   - the key's host node moves with the key (node identity across the reorder);
 //   - the callee subtree under that host is preserved, not rebuilt (the callee root node keeps its
 //     address, which a rebuild would change);
@@ -232,8 +230,7 @@ void test_conditional_instance_keeps_state() {
     ui::Node root(1000);
     page.build(root);
     ui::Node& view = root_view(root);
-    check(view.children().size() == kChildCount,
-          "the conditional instance starts detached");
+    check(view.children().size() == kChildCount, "the conditional instance starts detached");
     if (view.children().size() != kChildCount) {
         return;
     }
@@ -292,8 +289,7 @@ void test_conditional_inside_item() {
     page.update();
     check(view.children().size() == 3 + kInstanceCount,
           "the presence list grew to three items; the instance hosts stay");
-    check(presence_item(view, 0).children().empty(),
-          "the first item still attaches nothing");
+    check(presence_item(view, 0).children().empty(), "the first item still attaches nothing");
     const std::string_view numeric_text[] = {"", "6", "7"};
     for (std::size_t index = 1; index < 3; ++index) {
         ui::Node& item = presence_item(view, index);
