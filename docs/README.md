@@ -273,6 +273,9 @@ This page is the map and reading order for the framework.
 - [`design/service-resolve-benchmark.md`](design/service-resolve-benchmark.md) — measured cost of
   resolving app services (per call, per mount, cache effects, virtual vs static dispatch) behind
   ADR-050's resolve-at-mount rule
+- [`design/observable.md`](design/observable.md) — `Observable<T>`: coalescing over
+  `UpdateScheduler` (one notification per flush), the `const T&` delivery model, unsubscribe
+  semantics, and the zero-allocation `set()` proof (ADR-050 section 6, AF4)
 - [`design/app-framework-open-questions.md`](design/app-framework-open-questions.md) — proposed
   answers to ADR-050's open questions (background work, scopes, multi-window, SQLite, HTTP, state,
   startup, default modules, surfaces) and the spec contradictions they would fix
