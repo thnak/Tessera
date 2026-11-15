@@ -9,6 +9,7 @@ add_library(tessera_virtual STATIC
     item_geometry.cpp
     key_index.cpp
     node_recycler.cpp
+    realized_window.cpp
     scroll_anchor.cpp
     item_state_store.cpp
     virtual_range.cpp

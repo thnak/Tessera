@@ -45,8 +45,8 @@ ui::Node* VirtualRange::focused_node() const noexcept {
 void VirtualRange::apply_focus_state() noexcept {
     const bool has_focus = item_state_.has_focus();
     const VirtualItemId focused = item_state_.focused_key();
-    for (std::size_t position = 0; position < realized_count_; ++position) {
-        RealizedItem& item = realized_[position];
+    for (std::size_t position = 0; position < window_.count(); ++position) {
+        const RealizedWindow::Item& item = window_.at(position);
         // Node::set_pseudo_state only dirties style when the bit actually changes, so mirroring the
         // whole realized window here is cheap and keeps exactly one realized node focused.
         const bool wants = has_focus && keys_.key_at(item.index) == focused;

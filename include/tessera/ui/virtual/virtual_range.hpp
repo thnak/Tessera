@@ -6,6 +6,7 @@
 #include "tessera/ui/virtual/item_state_store.hpp"
 #include "tessera/ui/virtual/key_index.hpp"
 #include "tessera/ui/virtual/node_recycler.hpp"
+#include "tessera/ui/virtual/realized_window.hpp"
 #include "tessera/ui/virtual/scroll_anchor.hpp"
 #include "tessera/ui/virtual/virtual_data_source.hpp"
 
@@ -212,10 +213,16 @@ public:
     // Node realized for `index`, or nullptr when it is outside the window (or truncated away).
     [[nodiscard]] ui::Node* realized_node(std::size_t index) const noexcept;
     [[nodiscard]] std::size_t realized_count() const noexcept {
-        return realized_count_;
+        return window_.count();
     }
     // Index at `position` in the realized table (build order, not sorted after scrolling back).
     [[nodiscard]] std::optional<std::size_t> realized_index_at(std::size_t position) const noexcept;
+
+    // The realized window's table and placement, for a caller that wants that part on its own
+    // rather than through this aggregate (docs/architecture/god-type-audit-v1.md section 3.3).
+    [[nodiscard]] const RealizedWindow& realized_window() const noexcept {
+        return window_;
+    }
 
     [[nodiscard]] std::size_t item_count() const noexcept {
         return geometry_.item_count();
@@ -240,12 +247,6 @@ public:
     }
 
 private:
-    struct RealizedItem {
-        std::size_t index = 0;
-        NodeRecycler::Lease lease{};
-        float cross_size = 0.0f;
-    };
-
     struct Refinement {
         ItemGeometry::MeasureChange change{};
         AnchorAdjustment adjustment{};
@@ -283,10 +284,10 @@ private:
     float scroll_offset_ = 0.0f;
     float viewport_extent_ = 0.0f;
 
-    // Realized slots are allocated once; every entry owns a detached lease whose node is a child
-    // of `container_`.
-    std::vector<RealizedItem> realized_;
-    std::size_t realized_count_ = 0;
+    // Realized slots are allocated once by `RealizedWindow`; every entry owns a detached lease
+    // whose node is a child of `container_`. The window owns the table, its placement and its
+    // content-size reporting; the range owns the scheduling that drives it.
+    RealizedWindow window_;
 };
 
 } // namespace tessera::ui::virtualization
