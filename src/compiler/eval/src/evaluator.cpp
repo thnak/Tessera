@@ -129,6 +129,11 @@ std::expected<Value, EvalError> Evaluator::eval(const ir::Expr& expr, const Scop
         }
         return Value::of_list(std::move(items));
     }
+    case ir::ExprKind::Record:
+        // ADR-051 slice 5 is evaluator parity: the value model here has no record, so a record value
+        // is rejected loudly until that slice lands. The validator is what accepts one in the IR.
+        return fail("TESSERA_IR_EVAL_UNSUPPORTED",
+                    "a record value is not evaluated yet (ADR-051 slice 5)");
     }
     return malformed("unknown expression kind");
 }

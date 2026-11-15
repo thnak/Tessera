@@ -111,6 +111,9 @@ std::optional<TextValueType> infer_type(const ir::Expr& expr, const ir::Componen
     case ir::ExprKind::Array:
         // A list literal has no printable text form (a list is not interpolated in v1).
         return std::nullopt;
+    case ir::ExprKind::Record:
+        // A record value has no printable text form either (section 4.3: a value position only).
+        return std::nullopt;
     }
     return std::nullopt;
 }

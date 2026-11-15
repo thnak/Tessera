@@ -361,6 +361,11 @@ ExprEmission emit_expr(const ir::Expr& expr, const ir::Component& component,
         // initializer position has its own emitter so a braced list never leaks into an expression.
         return fail("an array literal has no C++ spelling in an expression position; it is only a "
                     "state or prop initial value");
+    case ir::ExprKind::Record:
+        // A record value is only a `useState` initial or a prop default (section 4.3); emitting one
+        // needs the record struct and designated initialization of the codegen follow-up slice.
+        return fail("a record value has no C++ spelling in this codegen slice; the record struct "
+                    "and designated initialization are a follow-up (ADR-051 slice 4)");
     }
     return fail("unsupported expression kind");
 }
