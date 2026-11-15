@@ -8,9 +8,8 @@
 #
 # path lines
 include/tessera/ui/scene/node.hpp 652
-src/app/host.cpp 727
+src/app/host.cpp 687
 src/app/window.cpp 697
-src/compiler/codegen/src/emit_expr.cpp 578
 src/compiler/lowering/src/module_lowering.cpp 580
 src/platform/linux/window.cpp 753
 src/platform/windows/window.cpp 607

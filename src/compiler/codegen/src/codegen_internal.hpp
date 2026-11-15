@@ -46,6 +46,19 @@ struct CppWriter {
 // The generated member name for a reference id (`state::count` -> `state_count_`).
 [[nodiscard]] std::string member_name(std::string_view ir_id);
 
+// A C++ string literal for `text`, with quotes, backslash and control characters escaped. Shared by
+// the expression emitter and the action emitter (issue #327 split them into separate TUs).
+[[nodiscard]] std::string escape_string(std::string_view text);
+
+// The C++ member prefix of a reference namespace (`state::` -> `state_`). Null for a namespace that
+// has no member form, which is how a bare id is rejected as unsupported.
+[[nodiscard]] std::optional<std::string> member_prefix(std::string_view prefix);
+
+// The reference namespaces that resolve to generated members: `state::`, `prop::`, `ref::`,
+// `anim::` and `env::`. Declared here because both the expression and the action emitter ask.
+inline constexpr std::string_view kStatePrefix = "state::";
+inline constexpr std::string_view kAnimPrefix = "anim::";
+
 // A `callProp` action as C++ statements appended to `body` (issue #286); false with `error` set.
 [[nodiscard]] bool emit_call_prop(const ir::Action& action, const ir::Component& component,
                                   std::span<const ir::Param> params, std::string& body,

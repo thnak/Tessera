@@ -16,7 +16,11 @@ add_library(tessera_codegen STATIC
     src/emit_dynamic_plan_util.cpp
     src/emit_events.cpp
     src/emit_call_prop.cpp
+    # emit_expr.cpp is the expression switch; naming/literal spelling and the action emitter are
+    # separate TUs (issue #327: the file was 578 lines, over the 500 hard limit).
     src/emit_expr.cpp
+    src/emit_expr_actions.cpp
+    src/emit_expr_names.cpp
     src/emit_forms.cpp
     src/emit_layout_observe.cpp
     src/emit_schedule.cpp
