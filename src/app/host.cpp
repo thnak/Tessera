@@ -607,30 +607,9 @@ bool AppHost::reduced_motion() const {
     return impl_->reduced_motion;
 }
 
-// A new OS appearance snapshot (issue #187). The reduced-motion half goes through the existing path
-// so every consumer (animations, springs, the scheduler, scroll clamping) sees it; a color-scheme
-// change re-resolves the stylesheet against the new media context, which is the ADR-048 resolve
-// step, and rebuilds the style generation exactly like a theme switch.
-void AppHost::set_appearance(const hal::AppearancePreference& appearance) {
-    Impl& state = *impl_;
-    if (hal::appearance_changed(state.appearance, appearance)) {
-        state.appearance = appearance;
-        const ui::style::MediaContext next =
-            ui::style::with_appearance(state.media_context, appearance);
-        const bool scheme_moved = next.color_scheme != state.media_context.color_scheme;
-        state.media_context = next;
-        if (scheme_moved && state.base_prepared) {
-            // The stylesheet's `prefers-color-scheme` rules changed applicability. Rebuilding the
-            // cascade re-evaluates every rule; the nodes are re-marked and the paint cache dropped
-            // because the same node can resolve a different color without its own dirty flag (the
-            // documented reason a generation change invalidates everything).
-            state.apply_style_generation(ui::Dirty::Style | ui::Dirty::Paint | ui::Dirty::Render);
-        }
-    }
-    // The motion flag is applied even when only the assumption bit moved: a measurement replacing a
-    // guess with the same value is not a visual change, but the call is a cheap idempotent set.
-    set_reduced_motion(appearance.reduced_motion);
-}
+// `AppHost::set_appearance` (issue #187) lives in host_appearance.cpp: the rule it encodes - which
+// appearance changes force a cascade re-resolve - is worth stating in one place, and host.cpp is at
+// its size budget.
 
 const ui::style::MediaContext& AppHost::media_context() const {
     return impl_->media_context;

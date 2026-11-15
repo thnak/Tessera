@@ -29,6 +29,7 @@
 // its configure sequence, window_wayland_dispatch.cpp owns the bounded libwayland read loop, and
 // this file owns the hal::Window shape (metrics, normalized events, visibility, close).
 
+#include "appearance_portal.hpp"
 #include "tessera/hal/timer/steady_time.hpp"
 #include "tessera/hal/window.hpp"
 #include "tessera/hal/window_backdrop.hpp"
@@ -82,6 +83,11 @@ public:
     [[nodiscard]] WindowSystem window_system() const noexcept override {
         return WindowSystem::Wayland;
     }
+    // OS appearance preferences (issue #187): the freedesktop settings portal is session-wide, not
+    // an X11 facility, so a Wayland session reads the same `org.freedesktop.appearance` keys
+    // through the same watcher. The read is an atomic load of the watcher's published snapshot; a
+    // window whose watcher has not answered reports the documented fallback.
+    [[nodiscard]] AppearancePreference appearance() const noexcept override;
     [[nodiscard]] NativeWindowHandle native_handle() const override {
         return {connection_.display(), surface_};
     }
@@ -124,6 +130,10 @@ private:
     std::array<CaptionRegion, kMaxCaptionRegions> caption_regions_{};
     std::uint8_t caption_region_count_ = 0;
     BackdropResolution backdrop_{};
+    // The OS appearance source (issue #187): one D-Bus connection and one worker thread, owned by
+    // the window so its lifetime is the connection's. Declared before the state flags so it is
+    // destroyed after them, which keeps a slow bus shutdown from delaying event teardown.
+    std::unique_ptr<detail::AppearancePortal> appearance_;
     bool configured_ = false;
     bool initializing_ = true;
     bool mapped_ = false;
@@ -212,10 +222,22 @@ bool WaylandWindow::create(const WindowDesc& desc) {
     events_.clear();
     redraw_pending_ = false;
     mapped_ = desc.visible;
+    // The OS appearance source (issue #187) starts last: the window is fully created, so its first
+    // published snapshot has somewhere to land, and the D-Bus connect happens on the watcher's own
+    // thread, never here (ADR-021). A session with no portal leaves the documented fallback.
+    appearance_ = std::make_unique<detail::AppearancePortal>();
+    appearance_->start();
     return true;
 }
 
 WaylandWindow::~WaylandWindow() {
+    // The appearance watcher goes first: it owns a thread and a socket, and it must be joined while
+    // this object is still alive. `stop()` signals and joins a thread whose reads are already
+    // bounded by the transport's poll timeout, so shutdown cannot hang on a dead bus.
+    if (appearance_ != nullptr) {
+        appearance_->stop();
+        appearance_.reset();
+    }
     if (connection_.display() == nullptr) {
         return;
     }
@@ -228,6 +250,16 @@ WaylandWindow::~WaylandWindow() {
     shell_.destroy();
     surface_ = nullptr;
     connection_.disconnect();
+}
+
+// The appearance snapshot is an atomic load of the watcher's published word: no platform call, no
+// lock, no allocation, so it is safe on the frame path (ADR-021). A window whose watcher never
+// started answers the documented fallback (light / motion enabled, both recorded as assumed).
+AppearancePreference WaylandWindow::appearance() const noexcept {
+    if (appearance_ == nullptr) {
+        return assumed_appearance();
+    }
+    return appearance_->snapshot();
 }
 
 std::uint32_t WaylandWindow::resolved_width() const {
@@ -324,7 +356,8 @@ void WaylandWindow::pump() {
 }
 
 bool WaylandWindow::has_pending_events() const {
-    return events_.count() > 0 || (close_requested_ && !close_delivered_) || redraw_pending_;
+    return events_.count() > 0 || (close_requested_ && !close_delivered_) || redraw_pending_ ||
+           (appearance_ != nullptr && appearance_->change_pending());
 }
 
 std::size_t WaylandWindow::poll_events(std::span<WindowEvent> events) {
@@ -332,6 +365,13 @@ std::size_t WaylandWindow::poll_events(std::span<WindowEvent> events) {
     // The dispatch loop invokes listeners; drain any configure sequence it published.
     if (const WaylandConfigureState* configure = shell_.consume_configure()) {
         apply_configure(*configure);
+    }
+    // The appearance watcher reports its change on its own thread; this is where it becomes a
+    // normalized window event, at the poll boundary, exactly like a Win32 settings broadcast and
+    // like the X11 backend. The compare-and-clear means one event per observed change, and the
+    // event carries no value: the owner re-reads `appearance()` at that tick's boundary.
+    if (appearance_ != nullptr && appearance_->take_change()) {
+        enqueue(WindowEventType::ThemeChanged);
     }
     const std::size_t copied = events_.copy_to(events);
     for (std::size_t i = 0; i < copied; ++i) {

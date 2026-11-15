@@ -227,24 +227,35 @@ Platform halves, both of which only record:
   `enable-animations` is **inverted**: the portal reports whether animations are allowed, the HAL
   reports whether motion should be reduced.
 
-The app half is `AppHost::set_appearance` (`src/app/host.cpp`). The motion flag goes through the
-existing `set_reduced_motion` path (animations, springs, the scheduler, scroll clamping), and a
-color-scheme change re-resolves the SAME media-independent prepared sheet against the new
-`MediaContext` (ADR-048's resolve step), rebuilds the style generation and drops the paint cache —
-the same path a theme switch takes. `ui::style::with_appearance` is the one place the HAL snapshot
-becomes CSS (`prefers-color-scheme`, `prefers-reduced-motion`), and `AppHost::media_context` exposes
-the result. `WindowHost::apply_appearance` is the tick-boundary re-read the events drive, and a
-settings broadcast that moved nothing costs one comparison and no frame.
+The app half is `AppHost::set_appearance` (`src/app/host_appearance.cpp`). The motion flag goes
+through the existing `set_reduced_motion` path (animations, springs, the scheduler, scroll
+clamping), and a change to **either** preference re-resolves the SAME media-independent prepared
+sheet against the new `MediaContext` (ADR-048's resolve step), rebuilds the style generation and
+drops the paint cache — the same path a theme switch takes. Keying the rebuild on the resolved media
+context moving at all, rather than on the color scheme alone, is what makes the acceptance hold for a
+sheet whose only media rule is `@media (prefers-reduced-motion: reduce)`: a motion-only change used to
+move `reducedMotion` while leaving that rule's applicability at its startup value. A change that only
+flips an assumption bit resolves to the same context and therefore costs no rebuild.
+`ui::style::with_appearance` is the one place the HAL snapshot becomes CSS (`prefers-color-scheme`,
+`prefers-reduced-motion`), and `AppHost::media_context` exposes the result.
+`WindowHost::apply_appearance` is the tick-boundary re-read the events drive, and a settings
+broadcast that moved nothing costs one comparison and no frame.
 
 Tests: `hal_appearance` (the normalized model, the packed handoff, the portal value mapping
 including the inversion, the `Read`/`SettingChanged` decoders built with the real `MessageWriter`
 including a big-endian body, and the GTK parser), `app_host_appearance` (the acceptance: `AppHost`
 resolves the media queries from the startup appearance, `set_appearance` moves `reducedMotion` and
-the media evaluation, and the fake window's `ThemeChanged`/`SystemSettingsChanged` seam), and
+the media evaluation — including the motion-only case above, asserted through the cascade's resolved
+background — and the fake window's `ThemeChanged`/`SystemSettingsChanged` seam), and
 `appearance_portal` (the absent-bus fallback and the real GTK path under `XDG_CONFIG_HOME`). All
 three are deterministic with no bus, socket, clock or desktop, so they run identically on the
-Windows and Linux gating lanes. Not exercised: a live portal on a real desktop, and a Wayland-only
-session (the Wayland backend has no appearance source yet).
+Windows and Linux gating lanes. Not exercised: a live portal on a real desktop.
+
+Both Linux backends read the portal. It is session-wide, not an X11 facility, so
+`src/platform/linux/window_wayland.cpp` runs the same `AppearancePortal` watcher and turns
+`take_change()` into `ThemeChanged` at its poll boundary exactly as the X11 backend does; the TU is
+therefore compiled whenever either backend is present, and a Wayland-only box kept the documented
+fallback only because it had no source before.
 
 ## 2. Core types
 

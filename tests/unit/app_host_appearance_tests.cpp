@@ -60,6 +60,14 @@ constexpr std::string_view kMediaCss = R"(
 @media (prefers-reduced-motion: reduce) { .root { background-color: #333333; } }
 )";
 
+// A sheet whose ONLY media rule is the motion one, and which never mentions the color scheme. It
+// exists so a motion-only change cannot pass by accident through the color-scheme re-resolve path:
+// if the cascade is rebuilt it is rebuilt for the motion query, and nothing else.
+constexpr std::string_view kMotionOnlyCss = R"(
+.root { background-color: #000000; }
+@media (prefers-reduced-motion: reduce) { .root { background-color: #444444; } }
+)";
+
 AppearancePreference measured(ColorSchemePreference scheme, bool reduced_motion) {
     AppearancePreference appearance;
     appearance.color_scheme = scheme;
@@ -227,6 +235,45 @@ int main() {
         window.set_appearance(measured(ColorSchemePreference::Dark, true));
         expect(window.queued_events() == before, "a no-op settings broadcast produces no event");
         expect(drained > 0, "the queued change events were drainable through poll_events");
+    }
+
+    // --- 5. A motion-only change re-evaluates the cascade, not just the media context -------
+    // The acceptance is "the host updates reducedMotion AND the media queries". `set_appearance`
+    // used to re-resolve the stylesheet only when the COLOR SCHEME moved, so on a sheet whose only
+    // media rule is `prefers-reduced-motion` the cascade kept the stale rule and `reducedMotion`
+    // moved on its own. The sheet here never mentions the color scheme, so the only way the
+    // background can change is the motion re-resolve.
+    {
+        tessera::runtime::ManualClock clock;
+        tessera::runtime::RuntimeLoop loop(clock);
+        Node root(1);
+        root.set_class_name("root");
+        const tessera::ui::style::PreparedStyleSheet prepared =
+            tessera::ui::style::prepare_stylesheet(kMotionOnlyCss);
+
+        HostConfig config;
+        config.width = 200.0f;
+        config.height = 120.0f;
+        config.appearance = measured(ColorSchemePreference::Light, false);
+        AppHost host(root, prepared, loop, config);
+        (void)host.begin_frame(0.0);
+
+        expect(resolved_background(host, root) == "#000000",
+               "motion-on resolves the base rule, not the reduce rule");
+        // Motion flips with the color scheme held at light, so no color-scheme re-resolve can
+        // cover for a missing motion one.
+        host.set_appearance(measured(ColorSchemePreference::Light, true));
+        expect(host.reduced_motion(), "reducedMotion follows the motion-only change");
+        expect(host.media_context().prefers_reduced_motion,
+               "the media context follows the motion-only change");
+        expect(resolved_background(host, root) == "#444444",
+               "the reduce @media rule is what the cascade resolves after a motion-only change");
+
+        // And back, so the re-resolve is not latched.
+        host.set_appearance(measured(ColorSchemePreference::Light, false));
+        expect(!host.reduced_motion(), "reducedMotion clears on the way back");
+        expect(resolved_background(host, root) == "#000000",
+               "the base rule is resolved again after the motion preference cleared");
     }
 
     if (failures == 0) {

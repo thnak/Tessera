@@ -167,6 +167,29 @@ int main() {
         return 11;
     }
 
+    // OS appearance (issue #187): a Wayland session reads the same session-wide settings portal the
+    // X11 backend does, because the portal is not an X11 facility. This box may have no portal at
+    // all, so the assertion is the CONTRACT, not a value: the snapshot is always a valid normalized
+    // preference, and an unanswered source reports the documented fallback with its assumption bit
+    // rather than a guess presented as a measurement.
+    const tessera::hal::AppearancePreference appearance = window->appearance();
+    if (!expect(tessera::hal::color_scheme_preference_is_known(appearance.color_scheme),
+                "the appearance snapshot holds a known color-scheme value")) {
+        return 13;
+    }
+    // A source that did not answer must say so. `Unspecified` is the documented "did not answer"
+    // value, and the assumption bit must be set with it; a real answer clears it. Either way the
+    // pair is consistent, which is the property a consumer relies on (ADR-023 rule 7).
+    const bool unspecified =
+        appearance.color_scheme == tessera::hal::ColorSchemePreference::Unspecified;
+    if (!expect(!unspecified || appearance.assumed.color_scheme == 1,
+                "an unanswered color scheme carries its assumption bit")) {
+        return 14;
+    }
+    // The event half: a settings change must arrive as the normalized ThemeChanged on this backend
+    // too. A box with no portal produces no change, which is a pass, so this only drains.
+    (void)window->poll_events(events);
+
     const WindowMetrics final_metrics = window->metrics();
     window.reset();
 
