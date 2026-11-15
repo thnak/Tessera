@@ -32,6 +32,11 @@ namespace codegen = tessera::compiler::codegen;
 using tessera::test::codegen_virtual::integer;
 using tessera::test::codegen_virtual::make_virtual_module;
 
+// The canonical ADR-040 path (issue #218): one header-only base per component.
+codegen::CodegenResult generate(const ir::IrModule& module) {
+    return codegen::generate(module, {}, std::nullopt, codegen::EmitMode::GeneratedBase);
+}
+
 int failures = 0;
 
 void check(bool condition, std::string_view message) {
@@ -71,14 +76,14 @@ std::string concatenated(const std::vector<codegen::GeneratedFile>& files) {
 // The fixture drives the list estimate/gap from state, its fixed extent from a prop, and the grid
 // row height from state, so every emitted input has a dynamic and a hashed form.
 void test_reseed_shape() {
-    const auto result = codegen::generate(make_virtual_module());
+    const auto result = generate(make_virtual_module());
     check(result.has_value(), "the dynamic-geometry fixture generates");
     if (!result) {
         std::cerr << "  error: " << first_error(result) << "\n";
         return;
     }
     const std::string& header = (*result)[0].text;
-    const std::string& source = (*result)[1].text;
+    const std::string& source = header; // the base is header-only: one text holds both halves
     for (const std::string_view member :
          {"double virtual_3_item_size_ = static_cast<double>(prop_item_extent_);",
           "double virtual_3_estimate_size_ = static_cast<double>(state_row_extent_);",
@@ -95,8 +100,9 @@ void test_reseed_shape() {
           "the grid declares its own re-seed method");
     check(contains(header, "std::uint64_t virtual_3_geometry_seeds_ = 0;"),
           "the per-collection re-seed counter is a generated member");
-    check(contains(source, "bool VirtualDemo::update_virtual_geometry_3(float& tessera_scroll, "
-                           "float tessera_viewport)"),
+    check(contains(source,
+                   "bool VirtualDemoBase<Self>::update_virtual_geometry_3(float& tessera_scroll, "
+                   "float tessera_viewport)"),
           "the re-seed method is defined");
     check(contains(source, "std::uint64_t tessera_hash = tessera::ui::kEffectHashSeed;"),
           "the re-seed guard hashes the inputs");
@@ -135,14 +141,14 @@ void test_literal_geometry() {
     ir::Node& grid = module.components[0].root.children[2];
     grid.props["rowHeight"] = integer(36);
     grid.props["estimateSize"] = integer(30);
-    const auto result = codegen::generate(module);
+    const auto result = generate(module);
     check(result.has_value(), "the literal-geometry variant generates");
     if (!result) {
         std::cerr << "  error: " << first_error(result) << "\n";
         return;
     }
     const std::string& header = (*result)[0].text;
-    const std::string& source = (*result)[1].text;
+    const std::string& source = header; // the base is header-only: one text holds both halves
     check(contains(header, "double virtual_3_item_size_ = 48.0;"),
           "the fixed item size is the emitted seed");
     check(contains(header, "double virtual_3_estimate_size_ = 48.0;"),
@@ -161,7 +167,7 @@ void test_literal_geometry() {
 
 void test_rejections() {
     const auto expect_error = [](const ir::IrModule& module, std::string_view what) {
-        const auto result = codegen::generate(module);
+        const auto result = generate(module);
         check(!result.has_value(), what);
         check(first_error(result).rfind("TESSERA_CODEGEN_", 0) == 0,
               std::string(what) + " reports a TESSERA_CODEGEN_ code");
@@ -193,8 +199,8 @@ void test_rejections() {
 }
 
 void test_determinism() {
-    const auto first = codegen::generate(make_virtual_module());
-    const auto second = codegen::generate(make_virtual_module());
+    const auto first = generate(make_virtual_module());
+    const auto second = generate(make_virtual_module());
     check(first.has_value() && second.has_value(), "the dynamic sample generates twice");
     if (first && second) {
         check_eq(concatenated(*first), concatenated(*second), "two runs are byte-identical");

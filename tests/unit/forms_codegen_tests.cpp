@@ -15,7 +15,6 @@
 #include "forms_codegen_fixture.hpp"
 #include "tessera/compiler/codegen/codegen.hpp"
 #include "tessera/compiler/ir/validate.hpp"
-#include "tessera/compiler/merger.hpp"
 
 #include <filesystem>
 #include <fstream>
@@ -51,6 +50,11 @@ void check_eq(const std::string& actual, const std::string& expected, std::strin
                   << "\n  actual:   " << actual << "\n";
         ++failures;
     }
+}
+
+// The canonical ADR-040 path (issue #218): every component is one header-only generated base.
+codegen::CodegenResult generate(const ir::IrModule& module) {
+    return codegen::generate(module, {}, std::nullopt, codegen::EmitMode::GeneratedBase);
 }
 
 std::string read_file(const std::string& path) {
@@ -99,17 +103,17 @@ void test_fixture_is_valid() {
 }
 
 void test_library_components_are_ordinary_components() {
-    const auto result = codegen::generate(make_forms_module());
+    const auto result = generate(make_forms_module());
     check(result.has_value(), "the forms fixture generates");
     if (!result) {
         std::cerr << "  error: " << first_error(result) << "\n";
         return;
     }
-    check(result->size() == 8, "four components, one header and one source each");
+    check(result->size() == 4, "four components, one header-only base each");
 
-    const std::string field_header = file_text(*result, "Field.hpp");
-    const std::string form_header = file_text(*result, "Form.hpp");
-    const std::string form_source = file_text(*result, "Form.cpp");
+    const std::string field_header = file_text(*result, "Field.g.hpp");
+    const std::string form_header = file_text(*result, "Form.g.hpp");
+    const std::string form_source = file_text(*result, "Form.g.hpp");
     check(field_header.find("std::string prop_label_") != std::string::npos,
           "Field declares its label prop record");
     check(form_header.find("std::vector<std::string> prop_initial_") != std::string::npos,
@@ -125,12 +129,12 @@ void test_library_components_are_ordinary_components() {
 }
 
 void test_field_page_keeps_the_explicit_prop_path() {
-    const auto result = codegen::generate(make_forms_module());
+    const auto result = generate(make_forms_module());
     if (!result) {
         return;
     }
-    const std::string header = file_text(*result, "FieldPage.hpp");
-    const std::string source = file_text(*result, "FieldPage.cpp");
+    const std::string header = file_text(*result, "FieldPage.g.hpp");
+    const std::string source = file_text(*result, "FieldPage.g.hpp");
     check(header.find("Field child_3_;") != std::string::npos,
           "the standalone Field is a generated struct member");
     check(source.find("this->child_3_.prop_value_ = state_email_;") != std::string::npos,
@@ -152,17 +156,19 @@ void test_field_page_keeps_the_explicit_prop_path() {
           "apply_props hashes the value prop");
     check(source.find("if (prop_3_value_hash != child_3_prop_value_hash_) {") != std::string::npos,
           "an unchanged value prop is not reassigned");
-    check(count_of(source, "apply_props();") == 2,
-          "apply_props runs in build() and in the update path");
+    // The base is header-only: the declaration and the two call sites all live in one text, so
+    // count only the calls (the declaration reads `void apply_props();`).
+    check(count_of(source, "apply_props();") == 3,
+          "apply_props is declared and runs in build() and in the update path");
 }
 
 void test_form_state_binding_is_generated() {
-    const auto result = codegen::generate(make_forms_module());
+    const auto result = generate(make_forms_module());
     if (!result) {
         return;
     }
-    const std::string header = file_text(*result, "FormPage.hpp");
-    const std::string source = file_text(*result, "FormPage.cpp");
+    const std::string header = file_text(*result, "FormPage.g.hpp");
+    const std::string source = file_text(*result, "FormPage.g.hpp");
 
     // The controller and its Field bindings live in the caller that owns the Form instance.
     check(header.find("tessera::ui::forms::FormConfig form_controller_2_config_;") !=
@@ -223,8 +229,8 @@ void test_form_state_binding_is_generated() {
     check(props_at != std::string::npos && seed_at != std::string::npos &&
               fields_at != std::string::npos && props_at < seed_at && seed_at < fields_at,
           "build() seeds the controller before any slot content is built");
-    check(source.find("tessera::ui::EventType::TextChange, &form_2_field_email_changed_adapter") !=
-              std::string::npos,
+    check(source.find("tessera::ui::EventType::TextChange, "
+                      "&Thunks<Self>::form_2_field_email_changed_adapter") != std::string::npos,
           "a text Field binds the generated edit adapter");
     check(source.find("form_2().set_value(") != std::string::npos,
           "an edit routes into the controller");
@@ -240,19 +246,19 @@ void test_form_state_binding_is_generated() {
 // The library owns validation: generated code carries the rule strings as prop data only, and no
 // generated translation unit evaluates a rule.
 void test_validation_wiring_stays_in_the_library() {
-    const auto result = codegen::generate(make_forms_module());
+    const auto result = generate(make_forms_module());
     check(result.has_value(), "the forms fixture generates for the rule audit");
     if (!result) {
         return;
     }
-    for (const std::string_view name : {"Field.cpp", "Form.cpp"}) {
+    for (const std::string_view name : {"Field.g.hpp", "Form.g.hpp"}) {
         const std::string source = file_text(*result, name);
         for (const std::string_view rule :
              {"minLength", "min_length", "is_valid", "kMin", "violated", "maxLength"}) {
             check(source.find(rule) == std::string::npos, std::string(name) + " evaluates no rule");
         }
     }
-    const std::string page = file_text(*result, "FormPage.cpp");
+    const std::string page = file_text(*result, "FormPage.g.hpp");
     // The prop assignment and its value hash carry the string; the rule itself is data only.
     check(count_of(page, "minLength:3") == 2,
           "the rule string is passed through as prop data only");
@@ -262,7 +268,7 @@ void test_validation_wiring_stays_in_the_library() {
 }
 
 void test_goldens(bool update) {
-    const auto result = codegen::generate(make_forms_module());
+    const auto result = generate(make_forms_module());
     check(result.has_value(), "the forms golden sample generates");
     if (!result) {
         return;
@@ -289,37 +295,16 @@ void test_goldens(bool update) {
 }
 
 void test_determinism() {
-    const auto first = codegen::generate(make_forms_module());
-    const auto second = codegen::generate(make_forms_module());
+    const auto first = generate(make_forms_module());
+    const auto second = generate(make_forms_module());
     check(first.has_value() && second.has_value(), "the forms sample generates twice");
     if (!first || !second) {
         return;
     }
-    check_eq(file_text(*first, "FormPage.cpp"), file_text(*second, "FormPage.cpp"),
+    check_eq(file_text(*first, "FormPage.g.hpp"), file_text(*second, "FormPage.g.hpp"),
              "two runs are byte-identical");
-    check_eq(file_text(*first, "Form.cpp"), file_text(*second, "Form.cpp"),
+    check_eq(file_text(*first, "Form.g.hpp"), file_text(*second, "Form.g.hpp"),
              "the library Form is byte-identical too");
-}
-
-void test_merger_idempotency() {
-    const auto result = codegen::generate(make_forms_module());
-    if (!result) {
-        return;
-    }
-    const std::string generated = file_text(*result, "FormPage.cpp");
-    constexpr std::string_view kMarker = "// [DEVELOPER_LOGIC_START: bind::on_validate_form]";
-    const std::size_t marker = generated.find(kMarker);
-    check(marker != std::string::npos, "the on_validate_form region marker exists");
-    if (marker == std::string::npos) {
-        return;
-    }
-    std::string existing = generated;
-    existing.insert(marker + kMarker.size(), "\n    // developer body");
-    const tessera::compiler::MergeResult first = tessera::compiler::merge(generated, existing);
-    check(first.text.find("developer body") != std::string::npos,
-          "the developer body survives the merge");
-    const tessera::compiler::MergeResult second = tessera::compiler::merge(first.text, existing);
-    check_eq(second.text, first.text, "merge(merge(g, e), e) == merge(g, e) over the forms output");
 }
 
 } // namespace
@@ -337,7 +322,6 @@ int main(int argc, char** argv) {
     test_validation_wiring_stays_in_the_library();
     test_goldens(false);
     test_determinism();
-    test_merger_idempotency();
     if (failures != 0) {
         std::cerr << failures << " check(s) failed\n";
         return 1;

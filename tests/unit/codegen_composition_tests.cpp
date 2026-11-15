@@ -235,6 +235,30 @@ void test_generated_shape() {
               page_source.find("child_2_.update();") != std::string::npos &&
               page_source.find("child_2_.unmount();") != std::string::npos,
           "the instance lifecycle is driven by the caller");
+
+    // ADR-040 item 2 keeps the instance member private, but a caller's developer code has to reach
+    // the child to write its (public) props. `child_2()` is that door, and it must not replace the
+    // privacy of the member itself.
+    check(page_header.find("[[nodiscard]] Card& child_2() { return child_2_; }") !=
+                  std::string::npos &&
+              page_header.find("[[nodiscard]] const Card& child_2() const { return child_2_; }") !=
+                  std::string::npos,
+          "the caller exposes non-const and const instance accessors");
+    {
+        const std::size_t member = page_header.find("Card child_2_;");
+        const std::size_t last_private = page_header.rfind("private:", member);
+        const std::size_t last_public = page_header.rfind("public:", member);
+        check(member != std::string::npos && last_private != std::string::npos &&
+                  (last_public == std::string::npos || last_private > last_public),
+              "the instance member itself stays private");
+        const std::size_t accessor = page_header.find("Card& child_2()");
+        check(accessor != std::string::npos &&
+                  page_header.rfind("public:", accessor) != std::string::npos &&
+                  page_header.rfind("public:", accessor) > page_header.rfind("private:", accessor),
+              "the instance accessor is public");
+    }
+    check(card_header.find("child_2()") == std::string::npos,
+          "a component with no instances emits no child accessor");
 }
 
 void test_goldens(bool update) {

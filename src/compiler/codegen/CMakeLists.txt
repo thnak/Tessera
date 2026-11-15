@@ -5,6 +5,7 @@
 add_library(tessera_codegen STATIC
     src/codegen.cpp
     src/emit_base.cpp
+    src/emit_base_accessors.cpp
     src/scaffold.cpp
     src/emit_component.cpp
     src/emit_composition.cpp
@@ -585,55 +586,33 @@ endif ()
     # The sample library owns the committed golden: `codegen_virtual_tests --write` regenerates
     # tests/golden/codegen/VirtualDemo.*; the guard keeps a fresh worktree configuring before the
     # golden exists.
-    if (EXISTS ${_tessera_codegen_golden_dir}/VirtualDemo.cpp)
-        add_library(tessera_codegen_virtual_sample STATIC
-            ${_tessera_codegen_golden_dir}/VirtualDemo.cpp)
-        target_include_directories(tessera_codegen_virtual_sample
-            PRIVATE ${_tessera_codegen_golden_dir})
-        target_link_libraries(tessera_codegen_virtual_sample PRIVATE
-            tessera_scene
-            tessera_virtual)
-        target_compile_features(tessera_codegen_virtual_sample PUBLIC cxx_std_23)
-
-        add_executable(codegen_virtual_runtime_tests
-            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_virtual_runtime_tests.cpp)
-
-        target_include_directories(codegen_virtual_runtime_tests
-            PRIVATE ${_tessera_codegen_golden_dir})
-        target_link_libraries(codegen_virtual_runtime_tests PRIVATE
-            tessera_codegen_virtual_sample
-            tessera_scene
-            tessera_virtual)
+    # ADR-040 (#218): the developer class in tests/unit/codegen_base/fixtures over the committed
+    # golden base. One developer class per component, shared by the three runtime suites.
+    if (EXISTS ${_tessera_codegen_golden_dir}/VirtualDemo.g.hpp)
+        foreach (_virtual_runtime
+                 codegen_virtual_runtime_tests
+                 codegen_virtual_scroll_tests
+                 codegen_virtual_geometry_runtime_tests)
+            add_executable(${_virtual_runtime}
+                ${CMAKE_SOURCE_DIR}/tests/unit/${_virtual_runtime}.cpp)
+            target_include_directories(${_virtual_runtime} PRIVATE
+                ${_tessera_codegen_golden_dir}
+                ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures)
+            target_link_libraries(${_virtual_runtime} PRIVATE
+                tessera_scene
+                tessera_virtual)
+            target_compile_features(${_virtual_runtime} PRIVATE cxx_std_23)
+        endforeach ()
 
         add_test(NAME codegen_virtual_runtime COMMAND codegen_virtual_runtime_tests)
 
         # The generated scroll entry point: geometry ownership, overscanned window,
         # measurement feedback/re-anchor, and the edge/throttle `onEndReached` contract.
-        add_executable(codegen_virtual_scroll_tests
-            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_virtual_scroll_tests.cpp)
-
-        target_include_directories(codegen_virtual_scroll_tests
-            PRIVATE ${_tessera_codegen_golden_dir})
-        target_link_libraries(codegen_virtual_scroll_tests PRIVATE
-            tessera_codegen_virtual_sample
-            tessera_scene
-            tessera_virtual)
-
         add_test(NAME codegen_virtual_scroll COMMAND codegen_virtual_scroll_tests)
 
         # Dynamic geometry at runtime: the state/prop-driven re-seed path (once per change, not per
         # frame), the measurement-invalidation rule, the re-anchor and its clamp, and the untouched
         # `onEndReached` edge/throttle state.
-        add_executable(codegen_virtual_geometry_runtime_tests
-            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_virtual_geometry_runtime_tests.cpp)
-
-        target_include_directories(codegen_virtual_geometry_runtime_tests
-            PRIVATE ${_tessera_codegen_golden_dir})
-        target_link_libraries(codegen_virtual_geometry_runtime_tests PRIVATE
-            tessera_codegen_virtual_sample
-            tessera_scene
-            tessera_virtual)
-
         add_test(NAME codegen_virtual_geometry_runtime
             COMMAND codegen_virtual_geometry_runtime_tests)
     endif ()
@@ -787,43 +766,29 @@ endif ()
     add_executable(forms_codegen_tests
         ${CMAKE_SOURCE_DIR}/tests/unit/forms_codegen_tests.cpp)
 
-    target_link_libraries(forms_codegen_tests PRIVATE
-        tessera_codegen
-        tessera_lowering
-        tessera_merger)
+    target_link_libraries(forms_codegen_tests PRIVATE tessera_codegen tessera_lowering)
 
     target_compile_definitions(forms_codegen_tests PRIVATE
         TESSERA_CODEGEN_GOLDEN_DIR="${_tessera_codegen_golden_dir}")
 
     add_test(NAME forms_codegen COMMAND forms_codegen_tests)
 
-    # The golden sample owns the committed files: `forms_codegen_tests --write` regenerates
-    # tests/golden/codegen/Field.* and FormPage.*; the guard keeps a fresh worktree configuring
-    # before the goldens exist.
-    if (EXISTS ${_tessera_codegen_golden_dir}/Field.cpp AND EXISTS
-        ${_tessera_codegen_golden_dir}/Form.cpp AND EXISTS
-        ${_tessera_codegen_golden_dir}/FieldPage.cpp AND EXISTS
-        ${_tessera_codegen_golden_dir}/FormPage.cpp)
-        add_library(tessera_codegen_forms_sample STATIC
-            ${_tessera_codegen_golden_dir}/Field.cpp
-            ${_tessera_codegen_golden_dir}/Form.cpp
-            ${_tessera_codegen_golden_dir}/FieldPage.cpp
-            ${_tessera_codegen_golden_dir}/FormPage.cpp)
-        target_include_directories(tessera_codegen_forms_sample
-            PRIVATE ${_tessera_codegen_golden_dir})
-        target_link_libraries(tessera_codegen_forms_sample PRIVATE tessera_scene tessera_forms)
-        target_compile_features(tessera_codegen_forms_sample PUBLIC cxx_std_23)
-
+    # The developer classes (tests/unit/codegen_base/fixtures/{Field,Form,FieldPage,FormPage}.hpp)
+    # over the committed bases, generated from the library IR by
+    # `forms_codegen_tests --write`.
+    if (EXISTS ${_tessera_codegen_golden_dir}/FormPage.g.hpp AND EXISTS
+        ${_tessera_codegen_golden_dir}/FieldPage.g.hpp)
         add_executable(forms_codegen_runtime_tests
             ${CMAKE_SOURCE_DIR}/tests/unit/forms_codegen_runtime_tests.cpp)
 
-        target_include_directories(forms_codegen_runtime_tests
-            PRIVATE ${_tessera_codegen_golden_dir})
+        target_include_directories(forms_codegen_runtime_tests PRIVATE
+            ${_tessera_codegen_golden_dir}
+            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures)
         target_link_libraries(forms_codegen_runtime_tests PRIVATE
-            tessera_codegen_forms_sample
             tessera_forms
             tessera_runtime
             tessera_scene)
+        target_compile_features(forms_codegen_runtime_tests PRIVATE cxx_std_23)
 
         add_test(NAME forms_codegen_runtime COMMAND forms_codegen_runtime_tests)
     endif ()
