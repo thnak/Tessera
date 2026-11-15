@@ -14,7 +14,9 @@
 #include "tessera/rendering/vulkan/glass_blur_pipeline.hpp"
 #include "tessera/rendering/vulkan/vulkan_device.hpp"
 #include "tessera/ui/paint/batched2d_sink.hpp"
+#include "tessera/ui/paint/paint_text_metrics.hpp"
 #include "tessera/ui/text/font_face.hpp"
+#include "tessera/ui/text/font_text_measurer.hpp"
 #include "tessera/ui/text/glyph_raster.hpp"
 #include "tessera/ui/text/harfbuzz_shaper.hpp"
 #include "tessera/ui/text/text_renderer.hpp"
@@ -57,6 +59,12 @@ public:
         shaper = std::make_unique<ui::text::HarfBuzzShaper>(face);
         renderer = std::make_unique<ui::text::TextRenderer>(
             device, *rasterizer, ui::text::GlyphAtlasConfig{1024, 1024, 2, 1});
+        // Layout and paint must measure with the face that is actually drawn (issue #314): the
+        // deterministic stub advance is a fixed 0.5 em per code point and does not track the font,
+        // so a content-sized box would be narrower or wider than its painted ink by a
+        // string-dependent amount. These two seams and the glyph renderer now share one face.
+        measurer = std::make_shared<ui::text::FontTextMeasurer>(face);
+        paint_metrics = std::make_unique<ui::paint::FontPaintTextMetrics>(face, kPaintMetricsId);
     }
 
     ~TextStack() = default;
@@ -67,6 +75,23 @@ public:
     std::unique_ptr<ui::text::GlyphRasterizer> rasterizer;
     std::unique_ptr<ui::text::HarfBuzzShaper> shaper;
     std::unique_ptr<ui::text::TextRenderer> renderer;
+    // The same face as a layout measurer and as paint's wrapping metrics source (issue #314): the
+    // stub advance is a fixed 0.5 em per code point and does not track the font, so a content-sized
+    // box disagrees with its painted ink by a string-dependent amount. A caller installs both
+    // (HostConfig::text_measurer and PaintContext::text_metrics_source).
+    //
+    // Lifetime: both objects own their own `FontFace` copy, and `FontFace` holds a
+    // `shared_ptr<FontFaceState>` - so the measurer keeps the FreeType face alive on its own and
+    // the layout engine's `shared_ptr` to it is never dangling, even though `TextStack` is
+    // destroyed (or replaced on device loss) after the `AppHost` that borrows the measurer. The
+    // glyphs the sink draws come from `renderer`/`shaper` above, which live exactly as long as this
+    // object and the sink that borrows them.
+    std::shared_ptr<const ui::text::TextMeasurer> measurer;
+    std::unique_ptr<ui::paint::FontPaintTextMetrics> paint_metrics;
+
+    // Stable per-face id for the paint text-layout cache key; distinct from the stub's id 0 so stub
+    // and real-face line boxes can never mix in one cache.
+    static constexpr std::uint32_t kPaintMetricsId = 1;
 
 private:
     static ui::text::FontFace load(const std::string& path) {
@@ -81,6 +106,14 @@ private:
         return *loaded;
     }
 };
+
+// The measurer a host's layout engine should use: the caller's explicit one wins, otherwise the
+// presentation's own real-face measurer. Layout and the glyph renderer then share one face (#314).
+inline std::shared_ptr<const ui::text::TextMeasurer>
+layout_measurer(const std::shared_ptr<const ui::text::TextMeasurer>& requested,
+                const TextStack& text) {
+    return requested != nullptr ? requested : text.measurer;
+}
 
 // Vulkan device, or null when the machine has no usable device (tests/tools then skip).
 // `validation` turns the Khronos validation layer (plus synchronization validation) on for this

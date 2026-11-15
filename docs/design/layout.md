@@ -6,7 +6,11 @@ Status: implementation started for Big Step B2 (runtime slice; see
 Yoga v3.2.2. It maps `ComputedStyle` longhands to a parallel `LayoutInput` tree and returns fractional
 absolute boxes in DFS order. Non-empty leaf `text` is measured through `ui/text/text_measure.hpp` and
 a Yoga measure callback, backed by a bounded `TextMeasureCache` (capacity configurable per engine);
-the default `StubTextMeasurer` is deterministic until the real text stack lands. `apply_layout` maps the absolute boxes back onto scene `Node`s as parent-relative bounds,
+the default `StubTextMeasurer` is deterministic, and a host that paints real glyphs installs
+`FontTextMeasurer` (`ui/text/font_text_measurer.hpp`) instead so the box is sized from the same
+FreeType metrics and HarfBuzz advances the renderer draws with - mixing the stub layout with real
+glyphs makes an auto-width box disagree with its ink by a string-dependent amount (issue #314).
+`apply_layout` maps the absolute boxes back onto scene `Node`s as parent-relative bounds,
 leaving unchanged boxes clean and marking changed ones paint/render dirty. `LayoutScheduler`
 (`ui/layout/layout_scheduler.hpp`) caches the last result and reuses it only while the
 layout-input signature (`ui/layout/layout_signature.hpp`, section 7.1) is unchanged, so clean
@@ -153,6 +157,24 @@ Rules:
 - Measurement is cached by `(text, style, constraints)`; invalidated by text/font/style change.
 - Images use intrinsic size/aspect ratio; missing assets use a deterministic placeholder.
 - Yoga baseline alignment uses the text baseline, not the box bottom.
+
+### 4.1 The measure/paint contract
+
+Layout and paint must measure with one font source. For a content-sized text leaf with a border and
+horizontal padding, Yoga ceils the fractional measured size to whole pixels and then adds the box
+insets, so the invariant is
+
+```text
+box width  == ceil(measured advance) + 2 * border + 2 * padding
+box width  >= painted ink span
+```
+
+The second half matters because a glyph's side bearing can exceed its advance; the padding absorbs
+that overhang, which is what keeps a centred label off the border. `StubTextMeasurer` cannot satisfy
+the first half - its advance is a fixed `0.5 * font_size` per code point - so a host that paints real
+glyphs installs `FontTextMeasurer` (`ui/text/font_text_measurer.hpp`) instead. Breaking this rule is
+issue #314: the box was 1px short for one label and 2px wide for another because the stub and the
+glyph renderer disagreed per string. Pinned by `tests/unit/text_measure_paint_tests.cpp`.
 
 ## 5. Pixel alignment
 

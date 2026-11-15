@@ -4,7 +4,12 @@ Status: design for Big Step B2 (runtime slice; see
 [AGENTS.md Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step)). `src/ui/text/` now has
 the measurement seam: `TextMeasurer`, `TextStyle`, `TextConstraints`, `TextMetrics`, and a
 deterministic `StubTextMeasurer` (fixed advance, greedy word wrap) wired into Yoga through
-`LayoutInput::text`. `FontMetricsProvider`/`StubFontMetricsProvider` supply ascent/descent/line-gap
+`LayoutInput::text`. `StubTextMeasurer` is a fixed `0.5 * font_size` advance per code point: a
+deliberate approximation for font-free paths and tests, never to be mixed with real glyph painting. A
+host that paints real text installs `FontTextMeasurer` (`ui/text/font_text_measurer.hpp`), which
+measures with `FreeTypeFontMetricsProvider` line metrics and the `HarfBuzzShaper` advances the glyph
+renderer draws with, so a content-sized box agrees with its ink (issue #314).
+`FontMetricsProvider`/`StubFontMetricsProvider` supply ascent/descent/line-gap
 for baselines and `line-height: normal`; `TextLayout` exposes per-line width/height/baseline from the
 same wrapping pass used by measurement. `TextMeasureCache` adds a bounded LRU keyed by
 text/style/constraints with hit/miss/eviction/invalidation stats. Font files now load through
@@ -486,14 +491,9 @@ caching, shaping caches, incremental layout, and sharing the cache with the layo
 deferred. See `paint-pass.md` section 10.1.1.
 
 Paint metric sources (task-53): `PaintContext::text_metrics_source` selects how wrapped paint text
-is measured. Null (default) uses `StubPaintTextMetrics` (deterministic stub metrics + the existing
-`layout_text` path, so CPU/GPU goldens stay byte-identical); `FontPaintTextMetrics(face, id)` uses
-FreeType metrics and the same HarfBuzz advances the glyph renderer draws, via
-`text::layout_text_measured`. The source id is part of `TextLayoutCache` so stub and real entries
-never mix; paint emits the source line boxes verbatim (slices, widths, heights, baselines, snapping
-only at paint time), so real-font lines no longer overflow the content box. Debug measurements
-(200-word/300 px): stub ~200.8 us, real ~13.2 ms per layout (per-word HarfBuzz in Debug), real cache
-hit ~1.0 us; faster real measuring is deferred, as are bidi/ICU breaking, hyphenation, subpixel
+is measured; `paint-pass.md` section 10.1.2 is the normative contract. The source id is part of
+`TextLayoutCache`, so stub and real entries never mix, and real-font lines no longer overflow the
+content box. Faster real measuring is deferred, as are bidi/ICU breaking, hyphenation, subpixel
 positioning, emoji/fallback and a shaping cache.
 
 Bidi layout (task-71): SheenBidi v3.0.0 (Apache-2.0, pinned archive `86c560…`) resolves the
