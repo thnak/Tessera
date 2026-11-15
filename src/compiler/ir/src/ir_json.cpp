@@ -123,6 +123,20 @@ JsonValue to_json(const Component& component) {
         environment.push(std::move(entry));
     }
     add_if_not_empty(json, "environment", std::move(environment));
+
+    // ADR-050 section 3.1 (AF5): omitted when the component declares no service, so a module
+    // without `useService` writes byte-identical JSON to the IR before this field existed.
+    JsonValue services = JsonValue::array();
+    for (const auto& service : component.services) {
+        JsonValue entry = JsonValue::object();
+        entry.set("id", JsonValue::string(service.id));
+        entry.set("name", JsonValue::string(service.name));
+        entry.set("type", JsonValue::string(service.type));
+        entry.set("header", JsonValue::string(service.header));
+        entry.set("source", to_json(service.source));
+        services.push(std::move(entry));
+    }
+    add_if_not_empty(json, "services", std::move(services));
     return json;
 }
 

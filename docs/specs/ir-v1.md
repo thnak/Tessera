@@ -73,6 +73,7 @@ both parts, so every `section N` reference stays valid.
 | `refs` | Ref[] | no | `useRef` |
 | `animatedValues` | AnimatedValue[] | no | `useAnimatedValue` |
 | `environment` | Environment[] | no | Library hooks with `environment` lowering ([`jsx-subset-v1.md`](jsx-subset-v1.md) section 7.1). An Environment has `id` (`env::<name>`), `name`, `provider` (`theme` or `breakpoint` in V1), `type` (an IR type), optional `writable` (boolean, default `false`) and `source`. A change of the provider's value updates the component like a state change. Only an Environment with `writable: true` may be the target of a setter call in a handler (`useThemeState` in V1) |
+| `services` | Service[] | no | ADR-050 section 3.1 (`useService<T>()`). Additive and omitted when empty. A Service has `id` (`svc::<name>`), `name` (the TSX binding the generated accessor is named after), `type` (the C++ service interface, fully qualified, from the project's service manifest), `header` (the header declaring `type`) and `source`. Codegen resolves each entry once at mount; `service<T>()` for a `T` not in this list is `TESSERA_CG_SERVICE_UNDECLARED` |
 | `root` | Node | yes | Exactly one root node |
 
 `props[].default` and `state[].initial` are Expressions (section 4): a literal is the bare JSON value,

@@ -85,6 +85,41 @@ Renaming a bind id is therefore an ordinary reviewed edit: rename the marker in 
 member, rebuild. The compiler tells you if the two sides disagree; no migration tool and no
 manifest editing are involved.
 
+### 2.1 Services
+
+A component declares the services it needs; the generated base resolves each one **once**, in
+`mount(context)`, and hands the developer class a typed accessor named after the TSX binding:
+
+```cpp
+// generated (do not edit): gen::<Component>Base<Self>
+void mount(const tessera::appfw::ServiceContext& context);   // attach_services(), then mount()
+template <class T> [[nodiscard]] T& service() const;         // the resolved pointer
+[[nodiscard]] demo::Navigator& nav() const;                  // one per declaration
+
+// developer class
+nav().push("/inbox");   // one pointer load: no registry lookup happens here
+```
+
+A read never reaches the registry: `attach_services()` keeps only the typed pointers and drops the
+context, so resolving from the frame path is not expressible (ADR-050 section 3 item 5). The cost is
+in [`../design/service-resolve-benchmark.md`](../design/service-resolve-benchmark.md) section 4.5: an
+accessor read is 0.37 ns against 4.61 ns for a lookup per use.
+
+Asking for a service the component did not declare is a compile error with a stable code, not a
+template dump:
+
+```text
+error: static_assert failed: TESSERA_CG_SERVICE_UNDECLARED: component `Inbox` needs a
+       `useService<T>()` declaration for this service type;
+       declared: `demo::Navigator` (ui/Inbox.tsx:3:15), `demo::MailStore` (ui/Inbox.tsx:4:15)
+```
+
+`TESSERA_CG_SERVICE_NOT_INTERFACE` is the sibling for a `T` with no `kServiceId`: a service type is
+always a registered interface, never a concrete class or a string key (ADR-050 section 3 item 2).
+Both fire at the call site, and the compiler's instantiation trace names the type that was asked
+for. Emission is per component: a component that declares no service generates no service code at
+all.
+
 ## 3. Adding a component
 
 1. Create `ui/MyComponent.tsx`.

@@ -14,6 +14,7 @@
 #include "emit_base_accessors.hpp"
 #include "emit_events.hpp"
 #include "emit_props.hpp"
+#include "emit_services.hpp"
 
 #include <algorithm>
 #include <cstddef>
@@ -288,7 +289,10 @@ bool emit_base_members(CppWriter& writer, const ir::IrModule& module,
         writer.line("[[nodiscard]] const " + instance.type_name + "& " + name +
                     "() const { return " + instance_member(instance.ordinal) + "; }");
     }
-    return true;
+    // ADR-050 section 3.1 (AF5): the `useService<T>()` accessor surface, emitted only for a
+    // component that declares a requirement, so a component without one generates no service code.
+    // The private slot tuple was already emitted in the header's field run by emit_service_fields.
+    return emit_service_accessors(writer, component, error);
 }
 
 } // namespace tessera::compiler::codegen::internal

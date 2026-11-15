@@ -572,7 +572,8 @@ incremental generation, and single-node incremental regeneration. Form-binding d
 in [`forms-and-validation-v1.md`](../specs/forms-and-validation-v1.md) section 5.2 (typed generated
 values, dynamic/object-literal `initial`, dynamic rules, widget wrappers). Goldens live in
 `tests/golden/codegen/`; update them deliberately with the owning test's `--write` and rebuild: the
-build compiles the generated samples, so they are never hand-maintained.
+build compiles the generated samples, so they are never hand-maintained. Service access (`useService<T>()`,
+AF5, #177) adds `ir::Component::services` and a generated `service<T>()` surface; see [`services.md`](services.md) section 11.5.
 
 ## 11. Testing
 

@@ -351,6 +351,84 @@ void run_many_components(FrozenRegistry const& registry, std::size_t count, std:
               }));
 }
 
+// ---------------------------------------------------------------------------------------------
+// AF5 (issue #177): the generated accessor's path, in the shape codegen actually emits.
+//
+// The generated base holds `std::tuple<T*...> services_`, filled once by `attach_services()`.
+// `service<T>()` is `std::get<T*>(services_)`; `<name>()` forwards to it. What this section
+// measures is the difference between that (a) *compile-time-indexed* tuple read and (b) a *registry
+// lookup* issued on every use -- the two ends of ADR-050 section 3 item 5, with the same barrier.
+//
+// The tuple index is a compile-time constant here because it is in generated code too (`std::get`
+// with a type argument resolves to `std::get<I>`), so an unused `services_` slot cannot be
+// mistaken for a lookup.
+template<std::size_t N> struct GeneratedBase {
+    std::tuple<Svc<static_cast<int>(0)>, Svc<static_cast<int>(1)>> ignored{}; // keeps the type real
+    std::array<void*, N> services{};
+
+    template<typename T> T& service() const noexcept {
+        // Exactly the generated `std::get<T*>(services_)`, with the same static index.
+        return *static_cast<T*>(std::get<T::kIndex>(services));
+    }
+};
+
+// A two-requirement base, the fixture's shape, with the types spelled out as codegen spells them.
+struct TwoServiceBase {
+    Svc<5>* navigator = nullptr;
+    Svc<37>* mail = nullptr;
+
+    // `nav()` / `store()` in the generated base: one dereference of a cached pointer.
+    Svc<5>& nav() const noexcept {
+        return *navigator;
+    }
+    Svc<37>& store() const noexcept {
+        return *mail;
+    }
+};
+
+void run_generated_accessor(FrozenRegistry const& registry, ServiceSet& services, std::size_t ops) {
+    auto base = std::make_unique<TwoServiceBase>();
+    // attach_services(): the two lookups, once, at mount.
+    base->navigator = &registry.get<Svc<5>>();
+    base->mail = &registry.get<Svc<37>>();
+    auto context_component = std::make_unique<CallComponent<Svc<5>>>();
+    context_component->context = &registry;
+
+    print_header("(f) AF5 generated accessor vs a lookup per use", "ns/call");
+    print_row("accessor read: cached pointer through nav()", measure(ops, [&](std::size_t n) {
+                  std::uint64_t acc = 0;
+                  for (std::size_t i = 0; i < n; ++i) {
+                      clobber_memory();
+                      acc += base->nav().bump(1);
+                  }
+                  keep(acc);
+              }));
+    print_row("service<T>() through the retained context (forbidden)",
+              measure(ops, [&](std::size_t n) {
+                  std::uint64_t acc = 0;
+                  for (std::size_t i = 0; i < n; ++i) {
+                      clobber_memory();
+                      acc += context_component->context->get<Svc<5>>().bump(1);
+                  }
+                  keep(acc);
+              }));
+    // The second requirement read through its own slot: a tuple-index mix-up would be a different
+    // service, so the value check keeps the two rows honest.
+    keep(static_cast<std::uint64_t>(&base->store() == &std::get<37>(services) ? 1 : 0));
+    keep(static_cast<std::uint64_t>(&base->nav() == &std::get<5>(services) ? 1 : 0));
+
+    // Per-mount: the two lookups `attach_services()` performs, M components at a time.
+    std::vector<TwoServiceBase> mounted(262144);
+    print_row("mount: attach_services() resolves N=2 (M=262144)",
+              measure(mounted.size(), [&](std::size_t n) {
+                  for (std::size_t c = 0; c < n; ++c) {
+                      mounted[c].navigator = &registry.get<Svc<5>>();
+                      mounted[c].mail = &registry.get<Svc<37>>();
+                      clobber_memory();
+                  }
+              }));
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -397,6 +475,8 @@ int main(int argc, char** argv) {
                           string_locator, call_ops);
 
     run_dispatch(*services, call_ops);
+
+    run_generated_accessor(registry64, *services, call_ops);
 
     print_header("Per-mount cost (registry of 64; one component needing N services)", "ns/mount");
     for (std::size_t const components : {std::size_t{4096}, std::size_t{262144}}) {

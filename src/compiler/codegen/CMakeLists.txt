@@ -24,6 +24,7 @@ add_library(tessera_codegen STATIC
     src/emit_forms.cpp
     src/emit_layout_observe.cpp
     src/emit_schedule.cpp
+    src/emit_services.cpp
     src/emit_snapshot.cpp
     src/emit_stylesheet_embed.cpp
     src/emit_theme_embed.cpp
@@ -454,6 +455,18 @@ if (TESSERA_BUILD_TESTS)
         TESSERA_CODEGEN_GOLDEN_DIR="${_tessera_codegen_golden_dir}")
     add_test(NAME codegen_base_generate COMMAND codegen_base_tests)
 
+    # ADR-050 section 3.1 (AF5, issue #177): the `useService<T>()` lowering. The generated base
+    # resolves each declared requirement once at mount and exposes `service<T>()`; an undeclared
+    # service is `TESSERA_CG_SERVICE_UNDECLARED`. The goldens live in
+    # tests/golden/codegen/services/, a NEW directory: every pre-existing `.g.hpp` stays
+    # byte-identical because emission is conditional on the component having a requirement.
+    add_executable(codegen_services_tests
+        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_services_tests.cpp)
+    target_link_libraries(codegen_services_tests PRIVATE tessera_codegen)
+    target_compile_definitions(codegen_services_tests PRIVATE
+        TESSERA_CODEGEN_GOLDEN_DIR="${_tessera_codegen_golden_dir}")
+    add_test(NAME codegen_services_generate COMMAND codegen_services_tests)
+
 
     # The developer class derives from the generated base and the generated thunks reach it.
     set(_tessera_codegen_base_golden_dir ${_tessera_codegen_golden_dir})
@@ -562,6 +575,59 @@ if (TESSERA_BUILD_TESTS)
         set_tests_properties(codegen_base_wrong_signature_fails PROPERTIES
             PASS_REGULAR_EXPRESSION "TESSERA_CG_MISSING_BINDING: component .Sample. needs .void on_click"
             RESOURCE_LOCK tessera_codegen_negative_build)
+
+        # ADR-050 section 3.1 (AF5, issue #177): the resolve-cost gate. A developer class derives
+        # from `services/Inbox.g.hpp`, `mount(context)` resolves each requirement once, and 1000
+        # accessor reads inside a FrameScope add ZERO lookups -- asserted with AF1's audit counters
+        # and paired with value checks, so a no-op accessor cannot satisfy it. The wall-clock
+        # numbers behind the same path are the documented measurement in
+        # docs/design/service-resolve-benchmark.md (tools/poc/service_resolve), not a second harness.
+        if (EXISTS ${_tessera_codegen_golden_dir}/services/Inbox.g.hpp AND
+            TARGET tessera_appfw_core)
+            add_executable(codegen_services_runtime_tests
+                ${CMAKE_SOURCE_DIR}/tests/unit/codegen_services_runtime_tests.cpp
+                ${_tessera_codegen_base_dev_dir}/services/Inbox.cpp)
+            target_include_directories(codegen_services_runtime_tests PRIVATE
+                ${_tessera_codegen_golden_dir}/services
+                ${_tessera_codegen_base_dev_dir}/services)
+            target_link_libraries(codegen_services_runtime_tests PRIVATE
+                tessera_scene tessera_appfw_core)
+            target_compile_features(codegen_services_runtime_tests PRIVATE cxx_std_23)
+            add_test(NAME codegen_services_runtime COMMAND codegen_services_runtime_tests)
+
+            # Compile-fail checks, the same shape as the codegen_base_* cases and taking the same
+            # resource lock: both drive the shared build directory.
+            #
+            #   service_undeclared   `service<Settings>()` for a valid interface the component never
+            #                        declared -> TESSERA_CG_SERVICE_UNDECLARED
+            #   service_not_interface `service<NotAService>()` for a type with no kServiceId ->
+            #                        TESSERA_CG_SERVICE_NOT_INTERFACE
+            foreach (_variant IN ITEMS undeclared not_interface)
+                add_library(codegen_base_service_${_variant} OBJECT EXCLUDE_FROM_ALL
+                    ${_tessera_codegen_base_dev_dir}/services/${_variant}/instantiate.cpp)
+                target_include_directories(codegen_base_service_${_variant} PRIVATE
+                    ${_tessera_codegen_golden_dir}/services
+                    ${_tessera_codegen_base_dev_dir}/services
+                    ${_tessera_codegen_base_dev_dir}/services/${_variant})
+                target_link_libraries(codegen_base_service_${_variant} PRIVATE
+                    tessera_scene tessera_appfw_core)
+                target_compile_features(codegen_base_service_${_variant} PRIVATE cxx_std_23)
+            endforeach ()
+            add_test(NAME codegen_base_service_undeclared_fails
+                COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --config $<CONFIG>
+                        --target codegen_base_service_undeclared)
+            set_tests_properties(codegen_base_service_undeclared_fails PROPERTIES
+                PASS_REGULAR_EXPRESSION
+                    "TESSERA_CG_SERVICE_UNDECLARED: component .Inbox. needs a .useService.*declaration for this service type"
+                RESOURCE_LOCK tessera_codegen_negative_build)
+            add_test(NAME codegen_base_service_not_interface_fails
+                COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --config $<CONFIG>
+                        --target codegen_base_service_not_interface)
+            set_tests_properties(codegen_base_service_not_interface_fails PROPERTIES
+                PASS_REGULAR_EXPRESSION
+                    "TESSERA_CG_SERVICE_NOT_INTERFACE: component .Inbox. can only resolve a service interface"
+                RESOURCE_LOCK tessera_codegen_negative_build)
+        endif ()
     endif ()
 
     # The canvas path's native half (issue #167): prepared scene, recorded command stream, the report

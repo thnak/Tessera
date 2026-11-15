@@ -31,6 +31,8 @@ audits: [`lighthouse-audit-v1.md`](../specs/lighthouse-audit-v1.md).
 | Test | Covers |
 |---|---|
 | `codegen_base` | generated `gen::<Component>Base<Self>` shape, golden, determinism; scaffold and the `TESSERA_CG_MISSING_BINDING`/`TESSERA_CG_BINDING_UNUSED` reports |
+| `codegen_services` | ADR-050 section 3.1 (AF5) `useService<T>()` lowering: the `attach_services()`/`mount(context)`/`service<T>()` surface, `tests/golden/codegen/services/Inbox.g.hpp`, determinism, and that a component without a requirement emits no service code |
+| `codegen_services_runtime` | the resolve-cost gate: `mount(context)` resolves each requirement once, 1 000 accessor reads inside a `FrameScope` add zero lookups (AF1 audit counters) and return the provided instance; `codegen_base_service_undeclared_fails` / `codegen_base_service_not_interface_fails` are the compile-error halves |
 | `rhi_null` | null device command stats, buffer round-trip |
 | `scene_graph` | world bounds, deep hit testing, capture/target/bubble, stop propagation |
 | `scene_dirty` | dirty domains, ancestor aggregation, clear/recompute, setter invalidation |

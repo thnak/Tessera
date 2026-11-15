@@ -59,6 +59,23 @@ struct Environment {
     SourceSpan source;
 };
 
+// One `const <name> = useService<Interface>();` requirement of a component (ADR-050 section 3.1,
+// AF5). The component's requirement set is exactly this list: codegen resolves each entry once, in
+// the generated base's `attach_services()`, and `service<T>()` is a compile error for any other T.
+//
+// `type` and `header` are the C++ spelling of the interface, which is what the `ui/services.json`
+// manifest supplies (ADR-050 section 3.1 item 1). The IR carries them as data because codegen reads
+// the IR only; the project's manifest reader fills them in. This is deliberately NOT the same as
+// `Environment`: an environment value is read through a provider every time, a service is a typed
+// pointer cached at attach.
+struct Service {
+    std::string id;     // `svc::<name>`
+    std::string name;   // the TSX binding name the accessor is named after (`nav`)
+    std::string type;   // the C++ service interface, fully qualified (`demo::Navigator`)
+    std::string header; // the header that declares `type` (`demo/services.hpp`)
+    SourceSpan source;
+};
+
 // Inline setter handler (section 2.1).
 struct Handler {
     std::string id;
@@ -79,6 +96,10 @@ struct Component {
     std::vector<Ref> refs;
     std::vector<AnimatedValue> animated_values;
     std::vector<Environment> environment;
+    // ADR-050 section 3.1 (AF5): the component's declared service requirements, in source order.
+    // Empty for every component that does not call `useService`, which is what keeps the generated
+    // base (and every committed golden) free of service code.
+    std::vector<Service> services;
     Node root;
 };
 
