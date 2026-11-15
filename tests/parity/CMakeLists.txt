@@ -44,3 +44,13 @@ target_link_libraries(preview_parity_tests PRIVATE
 target_compile_definitions(preview_parity_tests PRIVATE
     TESSERA_PARITY_SAMPLE_DIR="${_parity_sample_dir}")
 add_test(NAME preview_parity COMMAND preview_parity_tests)
+
+# Browser input into the evaluator and state kept across edits (issue #168, P4). The test links the
+# preview driver the browser module exports rather than re-listing its sources, so the session under
+# test is the one the module runs; it is host-only for the same reason everything here is (the driver
+# target is not built when cross-compiling).
+if (TARGET tessera_scene_preview)
+    add_executable(scene_input_tests scene_input_tests.cpp)
+    target_link_libraries(scene_input_tests PRIVATE tessera_scene_preview tessera_parity_runner)
+    add_test(NAME scene_input COMMAND scene_input_tests)
+endif ()

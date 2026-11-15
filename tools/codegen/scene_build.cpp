@@ -168,8 +168,23 @@ private:
         // and the scene node's automation id is what the snapshot reports. Both are decimal
         // strings.
         std::uint64_t id = 0;
-        if (parse_id(node.automation_id, id) || parse_id(node.ui_id, id)) {
+        const bool has_id = parse_id(node.automation_id, id) || parse_id(node.ui_id, id);
+        if (has_id) {
             scene.set_automation_id(id);
+        }
+
+        // The node's declared events, keyed by the automation id a dispatched scene event reports:
+        // that id is how the session finds the handler to run, because `Node::bind_event` carries
+        // no IR identity of its own. A node with a handler but no id cannot be addressed by a
+        // scripted click (`click <automationId>`), so it is reported rather than silently unbound.
+        if (!node.events.empty()) {
+            if (!has_id) {
+                return fail("a node with an event handler has no automation id (`" + node.id +
+                            "`), so nothing can address it");
+            }
+            for (const auto& [event, handler] : node.events) {
+                result_.handlers.push_back({id, event, handler});
+            }
         }
 
         // Element metadata: the channels codegen fills (emit_node_attributes.cpp). They are how a
@@ -245,8 +260,15 @@ SceneBuildResult build_scene(const ir::Component& component, ui::Node& root, eva
     // expressions.
     eval::Evaluator evaluator;
     const eval::Scope empty;
+    // The state cells of a carried edit are already in `scope` (`scene_state.cpp`); every other
+    // cell is evaluated from its initializer. The presence test is the whole merge rule: a carried
+    // value is never recomputed, and an initializer never overwrites one. This keeps the preview's
+    // "state survives an edit" behaviour in one place instead of re-deriving it per caller.
     const auto add = [&](const std::string& id, const std::string& type,
                          const ir::ExprPtr& initial) -> bool {
+        if (scope.find(id) != scope.end()) {
+            return true; // carried across the edit
+        }
         if (!initial) {
             scope[id] = eval::Value::null();
             return true;

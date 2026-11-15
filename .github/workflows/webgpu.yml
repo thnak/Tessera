@@ -199,6 +199,17 @@ jobs:
           --wasm build/wasm-webgpu/src/compiler/codegen/tessera_scene_preview.js
           --node "$EMSDK_NODE"
 
+      # P4 (issue #168): a scripted click sequence must produce the same state cells on both sides.
+      # Same corpus shape and the same anti-vacuity principle, adapted to input: every case declares a
+      # minimum state-cell count and a minimum number of handlers that must actually run, so a run
+      # where every click missed cannot pass by agreeing on "nothing happened".
+      - name: Scene input parity (native vs Wasm)
+        run: >-
+          python3 -B scripts/ci/scene_input_parity.py
+          --native build/native-parity/src/compiler/codegen/tessera_scene_preview
+          --wasm build/wasm-webgpu/src/compiler/codegen/tessera_scene_preview.js
+          --node "$EMSDK_NODE"
+
   wgsl-validation:
     runs-on: ubuntu-latest
     timeout-minutes: 20

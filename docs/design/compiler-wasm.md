@@ -247,3 +247,114 @@ type-checked by the host OBJECT-library build, but the module itself has **not**
 byte comparison in `scene_snapshot_parity.py` — and therefore P2's acceptance sentence — is proven
 only when the new `wasm-parity` step runs in CI. That is stated rather than implied.
 
+## 8. P4: browser input, and state kept across edits
+
+P4's acceptance is **"scripted clicks give the same state cells as the parity runner"**. The artifact
+is the state cell list the preview parity runner already compares: `ui::StateSnapshot`
+(`include/tessera/ui/scene/state_snapshot.hpp`), the same `std::vector<ui::StateCell>` a generated
+`snapshot_state()` returns and `tests/parity/parity_runner.cpp` reads through `parity::NativeSide`.
+P4 adds no second notion of state.
+
+### 8.1 What a synthetic click actually invokes
+
+The preview is an IR *evaluator*. It does not contain the developer's C++ and cannot run it. A click
+goes through the engine's own router:
+
+```text
+PreviewInput -> ui::InputEvent -> ui::InputRouter::dispatch(root, event)
+             -> hit test -> implicit pointer capture -> press/release
+             -> ClickSynthesizer: nearest common ancestor -> ui::EventType::Click
+             -> W3C capture -> target -> bubble (src/ui/scene/input_dispatch.cpp, event.cpp)
+             -> Node::bind_event callback installed by scene_session.cpp
+             -> eval::Evaluator::run(handler actions, Scope) -> state cells
+```
+
+Everything up to the callback is the production code path, unchanged: hit testing, capture, the
+common-ancestor click rule, focus, and capture/target/bubble propagation are `src/ui/scene/`, not a
+preview copy. The callback then runs the handler's **TSX preview body** through the evaluator, the
+same action list `parity::run_parity` executes for a `click <automationId>` step. Consequently:
+
+- a handler that is a native `bind::` binding with no `preview` body runs **no** actions, exactly as
+  in the parity runner, because its body is the developer's C++;
+- a handler that declares a payload parameter (`(e: ClickEvent) => ...`) **cannot** run: the
+  evaluator has no record value to bind to the parameter. It is reported in the result document's
+  `unrun` list and counted by the gate, never silently treated as "nothing happened";
+- real handler execution in the browser is the ADR-046 web target's job (the same code path as
+  native, the browser being one OS behind the HAL), not this slice's.
+
+### 8.2 State kept across edits: the exact rule
+
+`tools/codegen/scene_state.hpp` states it in full; the operative sentence is:
+
+> A state cell is carried across an edit when, and only when, the new evaluation has a component with
+> the same **component id** that declares a cell with the same **cell id** (`state::count`) and the
+> same **IR type**. Everything else starts at its initializer.
+
+- The component id is the salted hash of source path plus component name
+  ([`automation-ids-v1.md`](../specs/automation-ids-v1.md) section 2.1), assigned by
+  `ids::assign_identity`. It is a pure function of the text, so two separate evaluations of edited
+  text are directly comparable. Inserting, deleting or reordering components cannot hand one
+  component's state to another, and a moved file is a different component.
+- The cell id, not a position, is the cell identity: reordering `useState` calls or inserting one
+  above keeps every existing value; renaming a variable makes it a different cell.
+- The IR type is part of the key because the generated C++ field's type comes from it: carrying an
+  `int` into a `float` cell would be a conversion the native build never performs.
+- The **initializer expression is deliberately not** part of the key, so editing `useState(0)` to
+  `useState(10)` does not reset a live counter. `build_scene()` seeds only the cells a carried scope
+  does not already hold, so a carried value is never recomputed.
+- A removed component's cells carry a component id the new evaluation does not have, so they are
+  dropped (`dropped_component`) and never offered to a component that took its place.
+
+**Not in the key yet, and why:** the list-item `key` dimension of `(uiId, itemKey)`
+([`automation-ids-v1.md`](../specs/automation-ids-v1.md) section 1). This preview reports a repeated
+child as unsupported (section 7.1), so no keyed component instance can exist. When loops are evaluated
+the key extends to `(componentId, itemKey, cellId)`; adding it only narrows the matches, so a value
+carried correctly today stays correct. That extension — and whether a page may ever persist cells
+across a reload — is an ADR/protocol question: `docs/specs/designer-protocol-v1.md` section 14 states
+V1 has **no** state snapshot or restore, and this slice does not add one. The carry is in-process,
+between two evaluations in one session.
+
+### 8.3 The artifacts and the gate
+
+| Side | Artifact | Invocation |
+|---|---|---|
+| native | `tessera_scene_preview` | `--input-json OUT --script SCRIPT --file FILE --salt SALT FILE.tsx` |
+| Wasm | `tessera_scene_preview.js` | `tessera_input_json(source, file, component, script)` + `tessera_free` |
+
+The result document is `{"inputVersion":1,"initial":[...],"steps":[...]}`; each step carries `found`,
+`dispatched`, the `ran` and `unrun` handler ids, and the state cells after it. Cells are the existing
+`ui::StateCell` shape, with `kind` and `value` as text so a diff names the cell that moved and never
+has to reason about JSON number formatting.
+
+`scripts/ci/scene_input_parity.py` copies `scene_snapshot_parity.py`'s shape: one corpus, both sides
+executed, **byte-identical** documents, absolute paths resolved before any `cwd` change, and an
+anti-vacuity rule. For input the vacuity that matters is different: every case declares a **minimum
+state-cell count and a minimum number of handlers that must run**, and any non-empty `unrun` fails, so
+"both sides clicked nothing" cannot pass. `scripts/ci/scene_input_native.py` is the half that runs
+without Emscripten; it imports the gate's corpus and salt so the two cannot drift.
+
+`tests/parity/scene_input_tests.cpp` is the acceptance test: it hands the scene session to the real
+`parity::run_parity` as that runner's **native side**, so "scripted clicks give the same state cells
+as the parity runner" is checked by the runner itself rather than by a second, weaker comparison.
+
+### 8.4 Verification and status
+
+Verified on this Windows host (2026-11-15), native side only:
+
+- `ctest -R scene_input`: passes. It covers click-versus-runner parity over three clicks, that a click
+  on an unknown id or outside the viewport changes no cell, that `state::count` **survives** an edit
+  that removes a sibling cell and changes the initializer, that a removed component's value is **not**
+  handed to a same-shaped component (`Other` starts at 0, not at `Counter`'s 1), that a type change
+  drops the cell, the script grammar, and the document shape.
+- The identity rule was mutation-tested: removing the component-id comparison in `apply_state()` made
+  six assertions fail, including `Other` starting at 1 instead of 0. The test is not vacuous.
+- `python -B scripts/ci/scene_input_native.py --native build/.../tessera_scene_preview.exe`:
+  `NATIVE CORPUS OK`, 6 cases, including a click that bubbles to a parent handler, a click on a node
+  with no handler, and intermediate state threading (totals 2, 5, 9).
+
+**CI-only, and why:** the Wasm half, for the same reason as section 7.4. `$env:EMSDK` is empty on this
+box, so `tessera_input_json` is authored to the P1/P2 pattern and type-checked by the host build but
+has not been executed. The byte comparison in `scene_input_parity.py` — and therefore P4's acceptance
+sentence — is proven when the Wasm lane runs it.
+
+
