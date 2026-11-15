@@ -17,6 +17,7 @@
 #include <fstream>
 #include <iostream>
 #include <optional>
+#include <span>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -90,6 +91,14 @@ std::string first_error(const codegen::CodegenResult& result) {
         return {};
     }
     return result.error().empty() ? std::string("<empty>") : result.error().front();
+}
+
+// The embed family has no components: a module is only its stylesheet blobs, so the emitted table
+// is mode-independent and the two emit modes produce the same bytes. The canonical ADR-040 path is
+// called explicitly here (issue #218 removes the legacy mode, #219 the enum).
+codegen::CodegenResult generate_base(const ir::IrModule& module,
+                                     std::span<const codegen::StylesheetEmbed> embeds = {}) {
+    return codegen::generate(module, embeds, std::nullopt, codegen::EmitMode::GeneratedBase);
 }
 
 ir::IrModule make_module() {
@@ -166,7 +175,7 @@ std::vector<std::uint8_t> blob_bytes(std::string_view header, std::string_view s
 
 void test_embedded_header_is_pinned() {
     const auto embeds = make_embeds();
-    const auto result = codegen::generate(make_module(), embeds);
+    const auto result = generate_base(make_module(), embeds);
     check(result.has_value(), "a module with blobs generates: " + first_error(result));
     if (!result) {
         return;
@@ -220,7 +229,7 @@ void test_embedded_header_is_pinned() {
 void test_partial_embeds_keep_the_warning() {
     const std::vector<codegen::StylesheetEmbed> embeds{
         {"ui/sub/card.css", card_bytes()}}; // ui/app.css has no blob
-    const auto result = codegen::generate(make_module(), embeds);
+    const auto result = generate_base(make_module(), embeds);
     check(result.has_value(), "a partial embed list generates");
     if (!result) {
         return;
@@ -250,7 +259,7 @@ void test_partial_embeds_keep_the_warning() {
 }
 
 void test_without_embeds_nothing_changes() {
-    const auto result = codegen::generate(make_module());
+    const auto result = generate_base(make_module());
     check(result.has_value() && result->empty(),
           "no blob means no extra file (and no component files here)");
     const std::vector<std::string> warnings = codegen::codegen_warnings(make_module());
@@ -263,7 +272,7 @@ void test_without_embeds_nothing_changes() {
 
 void test_unknown_embed_is_an_error() {
     const std::vector<codegen::StylesheetEmbed> unknown{{"ui/other.css", {1, 2, 3}}};
-    const auto result = codegen::generate(make_module(), unknown);
+    const auto result = generate_base(make_module(), unknown);
     check(!result.has_value(), "a blob for an unknown path is rejected");
     check_eq(first_error(result),
              "TESSERA_CODEGEN_STYLESHEET_UNKNOWN: stylesheet blob for `ui/other.css` is not a "
@@ -273,15 +282,15 @@ void test_unknown_embed_is_an_error() {
     // Deterministic ordering: the first unknown path in sorted order is reported, whatever order
     // the caller supplied them in.
     const std::vector<codegen::StylesheetEmbed> two_unknown{{"ui/z.css", {1}}, {"ui/a.css", {2}}};
-    const auto sorted = codegen::generate(make_module(), two_unknown);
+    const auto sorted = generate_base(make_module(), two_unknown);
     check(!sorted.has_value() && first_error(sorted).find("`ui/a.css`") != std::string::npos,
           "the first unknown path in sorted order is reported");
 }
 
 void test_determinism_and_module_order() {
     const auto embeds = make_embeds();
-    const auto first = codegen::generate(make_module(), embeds);
-    const auto second = codegen::generate(make_module(), embeds);
+    const auto first = generate_base(make_module(), embeds);
+    const auto second = generate_base(make_module(), embeds);
     check(first.has_value() && second.has_value(), "the module generates twice");
     if (!first || !second) {
         return;
@@ -295,7 +304,7 @@ void test_determinism_and_module_order() {
     // The table follows module.stylesheets order, not the caller's embed order.
     std::vector<codegen::StylesheetEmbed> reversed = embeds;
     std::reverse(reversed.begin(), reversed.end());
-    const auto reordered = codegen::generate(make_module(), reversed);
+    const auto reordered = generate_base(make_module(), reversed);
     check(reordered.has_value(), "a reordered embed list generates");
     const codegen::GeneratedFile* original_header = find_file(*first, "demo_stylesheets.hpp");
     const codegen::GeneratedFile* reordered_header =

@@ -17,7 +17,7 @@
 //   the runtime payload: kind, asset name and resolution through the generated bundle + SVG decode.
 //
 // Deliberate golden update path: `codegen_vector_payload_tests --write` rewrites
-// tests/golden/codegen/vector/VectorIcon.* and vicon_vector_assets.hpp.
+// tests/golden/codegen/vector/VectorIcon.g.hpp and vicon_vector_assets.hpp.
 
 #include "codegen_vector_module.hpp"
 #include "tessera/compiler/codegen/codegen.hpp"
@@ -77,6 +77,13 @@ std::string first_error(const codegen::CodegenResult& result) {
         return {};
     }
     return result.error().empty() ? std::string("<empty>") : result.error().front();
+}
+
+// The canonical ADR-040 path (issue #218): the vector payload, the accessible name and the asset
+// bundle are emitted into the header-only base; the synthesized `<module>_vector_assets.hpp` is
+// emitted identically in both modes.
+codegen::CodegenResult generate(const ir::IrModule& module) {
+    return codegen::generate(module, {}, std::nullopt, codegen::EmitMode::GeneratedBase);
 }
 
 std::string concatenated(const std::vector<codegen::GeneratedFile>& files) {
@@ -227,13 +234,13 @@ void test_fixture_is_valid() {
 }
 
 void test_emitted_payload_lines() {
-    const auto result = codegen::generate(make_vector_module());
+    const auto result = generate(make_vector_module());
     check(result.has_value(), "the `Path` fixture generates: " + first_error(result));
     if (!result) {
         return;
     }
-    const codegen::GeneratedFile* source = find_file(*result, "VectorIcon.cpp");
-    check(source != nullptr, "the component source is emitted");
+    const codegen::GeneratedFile* source = find_file(*result, "VectorIcon.g.hpp");
+    check(source != nullptr, "the component base is emitted");
     if (source == nullptr) {
         return;
     }
@@ -270,7 +277,7 @@ void test_emitted_payload_lines() {
 }
 
 void test_svg_bytes_are_exact() {
-    const auto result = codegen::generate(make_vector_module());
+    const auto result = generate(make_vector_module());
     check(result.has_value(), "the `Path` fixture generates for the byte check");
     if (!result) {
         return;
@@ -294,8 +301,8 @@ void test_svg_bytes_are_exact() {
 }
 
 void test_regeneration_is_byte_identical() {
-    const auto first = codegen::generate(make_vector_module());
-    const auto second = codegen::generate(make_vector_module());
+    const auto first = generate(make_vector_module());
+    const auto second = generate(make_vector_module());
     check(first.has_value() && second.has_value(), "the fixture generates twice");
     if (first && second) {
         check_eq(concatenated(*first), concatenated(*second),
@@ -304,7 +311,7 @@ void test_regeneration_is_byte_identical() {
 }
 
 void test_goldens(bool update) {
-    const auto result = codegen::generate(make_vector_module());
+    const auto result = generate(make_vector_module());
     check(result.has_value(), "the `Path` golden sample generates");
     if (!result) {
         return;
@@ -332,7 +339,7 @@ void test_goldens(bool update) {
 void test_rejections() {
     const auto expect_error = [](const ir::IrModule& module, std::string_view what,
                                  std::string_view needle) {
-        const auto result = codegen::generate(module);
+        const auto result = generate(module);
         check(!result.has_value(), what);
         const std::string error = first_error(result);
         check(error.rfind("TESSERA_CODEGEN_UNSUPPORTED", 0) == 0,
@@ -398,7 +405,7 @@ namespace ui = tessera::ui;
 
 void test_runtime_payload() {
     ui::Node scene(1000);
-    vicon::gen::VectorIcon component;
+    vicon::VectorIcon component;
     component.build(scene);
     check(scene.children().size() == 1, "the component builds one root child");
     if (scene.children().empty()) {

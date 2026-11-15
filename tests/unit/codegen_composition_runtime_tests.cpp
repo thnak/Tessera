@@ -35,7 +35,7 @@ void check_eq(std::string_view actual, std::string_view expected, std::string_vi
 // The slot content of the instance is created by the caller and attached by the callee at its Slot,
 // in source order, at the callee's own position.
 void test_slot_content_is_attached() {
-    demo::gen::CardPage page;
+    compose::CardPage page;
     ui::Node root(1000);
     page.build(root);
 
@@ -85,7 +85,7 @@ void test_slot_content_is_attached() {
 
 // An empty child list is a valid instantiation: the callee renders nothing at its Slot.
 void test_empty_slot() {
-    demo::gen::Card card;
+    compose::Card card;
     ui::Node host(2000);
     card.build(host);
     check(host.children().size() == 1, "the callee root is attached");
@@ -97,7 +97,7 @@ void test_empty_slot() {
 
 // The caller drives the instance lifecycle; the generated calls compile and run.
 void test_instance_lifecycle() {
-    demo::gen::CardPage page;
+    compose::CardPage page;
     ui::Node root(3000);
     page.build(root);
     page.mount();

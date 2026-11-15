@@ -2,17 +2,20 @@
 
 // Component composition and the static `Children` slot in codegen (docs/specs/ir-v1.md section 3.4,
 // docs/design/compiler.md section 11): the caller's child nodes become the instance's slot content,
-// the callee attaches them at its Slot, every instance gets its own generated struct member, and
-// the deferred instance forms are rejected loudly.
+// the callee attaches them at its Slot, every instance keeps its own generated object, and the
+// deferred instance forms are rejected loudly.
 //
 // The fixture is hand-built IR: `Card` declares `{ children: Children }` and places `{children}`,
 // `CardPage` instantiates `Card` with a text, a nested view and an event-bound Button. The golden
 // update path is `codegen_composition_tests --write`.
+//
+// The assertions read the ADR-040 generated base (`Card.g.hpp`/`CardPage.g.hpp`): one deterministic
+// header per component, the instance as a developer-class member, and the caller driving the
+// instance lifecycle through it.
 
 #include "tessera/compiler/codegen/codegen.hpp"
 #include "tessera/compiler/ir/ir_json.hpp"
 #include "tessera/compiler/ir/validate.hpp"
-#include "tessera/compiler/merger.hpp"
 
 #include <cstdint>
 #include <filesystem>
@@ -32,6 +35,12 @@ namespace {
 
 namespace ir = tessera::compiler::ir;
 namespace codegen = tessera::compiler::codegen;
+
+// The canonical ADR-040 path (issue #218). Composition is emitted as a header-only base per
+// component; the legacy `.hpp`/`.cpp` split is gone (#219 removes the mode).
+codegen::CodegenResult generate(const ir::IrModule& module) {
+    return codegen::generate(module, {}, std::nullopt, codegen::EmitMode::GeneratedBase);
+}
 
 int failures = 0;
 
@@ -78,7 +87,10 @@ ir::Node node_of(ir::NodeKind kind, std::string id, std::string ui_id, ir::Sourc
 
 ir::IrModule make_composition_module() {
     ir::IrModule module;
-    module.name = "demo";
+    // The fixture namespace matches the shared developer classes in
+    // tests/unit/codegen_base/fixtures (`compose::Card`, `compose::CardPage`), so the runtime test
+    // compiles the committed base against hand-written developer code (ADR-040).
+    module.name = "compose";
 
     // Card: declares the slot and places it after its own text.
     ir::Component card;
@@ -169,25 +181,26 @@ void test_fixture_is_valid() {
 }
 
 void test_generated_shape() {
-    const auto result = codegen::generate(make_composition_module());
+    const auto result = generate(make_composition_module());
     check(result.has_value(), "the composition fixture generates");
     if (!result) {
         std::cerr << "  error: " << first_error(result) << "\n";
         return;
     }
-    check(result->size() == 4, "two components, one header and one source each");
-    const std::string card_header = file_text(*result, "Card.hpp");
-    const std::string card_source = file_text(*result, "Card.cpp");
-    const std::string page_header = file_text(*result, "CardPage.hpp");
-    const std::string page_source = file_text(*result, "CardPage.cpp");
-    check(!card_header.empty() && !page_header.empty(), "both headers are emitted");
+    check(result->size() == 2, "two components, one header-only base each");
+    const std::string card_header = file_text(*result, "Card.g.hpp");
+    const std::string page_header = file_text(*result, "CardPage.g.hpp");
+    check(!card_header.empty() && !page_header.empty(), "both bases are emitted");
+    const std::string& card_source = card_header; // the base is header-only
+    const std::string& page_source = page_header;
 
     // The callee declares the slot overload and attaches the caller's nodes at the Slot.
     check(card_header.find("void build(tessera::ui::Node& parent, "
                            "std::vector<std::unique_ptr<tessera::ui::Node>> slot);") !=
               std::string::npos,
           "the children-declaring component takes the slot in build()");
-    check(card_source.find("void Card::build(tessera::ui::Node& parent)") != std::string::npos &&
+    check(card_source.find("void CardBase<Self>::build(tessera::ui::Node& parent)") !=
+                  std::string::npos &&
               card_source.find("build(parent, {});") != std::string::npos,
           "the one-argument build is the empty-slot wrapper");
     check(card_source.find("for (auto& slot_node : slot)") != std::string::npos,
@@ -199,7 +212,7 @@ void test_generated_shape() {
 
     // The caller owns the instance and builds its content in the caller's own code.
     check(page_header.find("#include \"Card.hpp\"") != std::string::npos,
-          "the caller header includes the referenced component");
+          "the caller base includes the referenced component's developer class");
     check(page_header.find("Card child_2_;") != std::string::npos,
           "the instance is a member of the caller (it owns its own state)");
     check(page_source.find("auto node_2 = std::make_unique<tessera::ui::Node>(") !=
@@ -215,8 +228,9 @@ void test_generated_shape() {
           "the instance is built with the caller's slot content");
     check(page_source.find("slot_2.push_back(std::move(node_3));") != std::string::npos,
           "the caller's first child is slot content");
-    check(page_source.find("// [DEVELOPER_LOGIC_START: bind::on_tap]") != std::string::npos,
-          "event bindings of slot content stay in the caller");
+    check(page_source.find("event_adapter_6_onClick") != std::string::npos &&
+              page_source.find("component->on_tap(event);") != std::string::npos,
+          "event bindings of slot content reach the caller's developer member");
     check(page_source.find("child_2_.mount();") != std::string::npos &&
               page_source.find("child_2_.update();") != std::string::npos &&
               page_source.find("child_2_.unmount();") != std::string::npos,
@@ -224,7 +238,7 @@ void test_generated_shape() {
 }
 
 void test_goldens(bool update) {
-    const auto result = codegen::generate(make_composition_module());
+    const auto result = generate(make_composition_module());
     check(result.has_value(), "the composition golden sample generates");
     if (!result) {
         return;
@@ -252,13 +266,13 @@ void test_goldens(bool update) {
 }
 
 void test_determinism() {
-    const auto first = codegen::generate(make_composition_module());
-    const auto second = codegen::generate(make_composition_module());
+    const auto first = generate(make_composition_module());
+    const auto second = generate(make_composition_module());
     check(first.has_value() && second.has_value(), "the composition sample generates twice");
     if (!first || !second) {
         return;
     }
-    check_eq(file_text(*first, "CardPage.cpp"), file_text(*second, "CardPage.cpp"),
+    check_eq(file_text(*first, "CardPage.g.hpp"), file_text(*second, "CardPage.g.hpp"),
              "two runs are byte-identical");
 }
 
@@ -266,14 +280,14 @@ void test_deferred_forms_are_rejected() {
     {
         ir::IrModule module = make_composition_module();
         module.components[1].root.children[0].condition = ir::make_literal(true);
-        check(codegen::generate(module).has_value(),
+        check(generate(module).has_value(),
               "a conditional component instance is supported (issue #231; its host node rides the "
               "branch slot)");
     }
     {
         ir::IrModule module = make_composition_module();
         module.components[1].root.children[0].props.emplace("title", text("x"));
-        const auto result = codegen::generate(module);
+        const auto result = generate(module);
         check(!result.has_value(), "a prop the target does not declare is rejected");
         check(!result.error().empty() &&
                   result.error().front().find("has no prop `title`") != std::string::npos,
@@ -282,49 +296,25 @@ void test_deferred_forms_are_rejected() {
     {
         ir::IrModule module = make_composition_module();
         module.components[1].root.children[0].children[0].condition = ir::make_literal(true);
-        check(!codegen::generate(module).has_value(),
+        check(!generate(module).has_value(),
               "a conditional direct child of slot content is deferred");
     }
     {
         ir::IrModule module = make_composition_module();
         module.components[0].props.clear();
-        check(!codegen::generate(module).has_value(),
+        check(!generate(module).has_value(),
               "slot children without the children prop are rejected");
     }
     {
         ir::IrModule module = make_composition_module();
         module.components[1].root.children[0].component = "comp::Gone";
-        check(!codegen::generate(module).has_value(), "an unknown component instance is rejected");
+        check(!generate(module).has_value(), "an unknown component instance is rejected");
     }
     {
         ir::IrModule module = make_composition_module();
         module.components[1].root.children[0].component = "comp::CardPage";
-        check(!codegen::generate(module).has_value(), "a component reference cycle is rejected");
+        check(!generate(module).has_value(), "a component reference cycle is rejected");
     }
-}
-
-void test_merger_idempotency() {
-    const auto result = codegen::generate(make_composition_module());
-    check(result.has_value(), "the composition sample generates for the merger test");
-    if (!result) {
-        return;
-    }
-    const std::string generated = file_text(*result, "CardPage.cpp");
-    check(!generated.empty(), "the caller source exists");
-    constexpr std::string_view kMarker = "// [DEVELOPER_LOGIC_START: bind::on_tap]";
-    const std::size_t marker = generated.find(kMarker);
-    check(marker != std::string::npos, "the on_tap region marker exists");
-    if (marker == std::string::npos) {
-        return;
-    }
-    std::string existing = generated;
-    existing.insert(marker + kMarker.size(), "\n    state_dirty_ = true; // developer body");
-    const tessera::compiler::MergeResult first = tessera::compiler::merge(generated, existing);
-    check(first.text.find("developer body") != std::string::npos,
-          "the developer body survives the merge");
-    const tessera::compiler::MergeResult second = tessera::compiler::merge(first.text, existing);
-    check_eq(second.text, first.text,
-             "merge(merge(g, e), e) == merge(g, e) over the composition output");
 }
 
 } // namespace
@@ -340,7 +330,6 @@ int main(int argc, char** argv) {
     test_goldens(false);
     test_determinism();
     test_deferred_forms_are_rejected();
-    test_merger_idempotency();
     if (failures != 0) {
         std::cerr << failures << " check(s) failed\n";
         return 1;

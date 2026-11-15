@@ -309,28 +309,34 @@ std::string file_text(const std::vector<codegen::GeneratedFile>& files, std::str
     return {};
 }
 
+// The canonical ADR-040 path (issue #218): identity stability is a property of the IR, so it is
+// asserted on the generated base the one path emits.
+codegen::CodegenResult generate(const ir::IrModule& module) {
+    return codegen::generate(module, {}, std::nullopt, codegen::EmitMode::GeneratedBase);
+}
+
 void test_library_goldens_survive_insertion() {
     ir::IrModule before = make_library_module(false);
     check(ids::assign_library_identity(before).has_value(), "the library identity stamps");
     ir::IrModule after = make_library_module(true);
     check(ids::assign_library_identity(after).has_value(), "the library identity stamps with Aaa");
 
-    const auto before_files = codegen::generate(before);
-    const auto after_files = codegen::generate(after);
+    const auto before_files = generate(before);
+    const auto after_files = generate(after);
     check(before_files.has_value(), "the library module generates");
     check(after_files.has_value(), "the library module with Aaa generates");
     if (!before_files || !after_files) {
         return;
     }
-    for (const std::string_view path : {"Field.hpp", "Field.cpp", "Form.hpp", "Form.cpp"}) {
+    for (const std::string_view path : {"Field.g.hpp", "Form.g.hpp"}) {
         check(!file_text(*before_files, path).empty(),
               "the untouched component generates " + std::string(path));
         check_eq(file_text(*after_files, path), file_text(*before_files, path),
                  "inserting Aaa before Field/Form keeps " + std::string(path) + " byte-identical");
     }
-    check(!file_text(*after_files, "Aaa.cpp").empty(),
+    check(!file_text(*after_files, "Aaa.g.hpp").empty(),
           "the inserted component generates its own file");
-    check(file_text(*before_files, "Aaa.cpp").empty(),
+    check(file_text(*before_files, "Aaa.g.hpp").empty(),
           "the inserted component is absent before the insertion");
 
     // The committed library data (compiled into tessera_lowering) must carry exactly the ids a
@@ -344,16 +350,16 @@ void test_library_goldens_survive_insertion() {
         ir::IrModule committed;
         committed.name = "demo";
         committed.components.push_back(lowering::make_library_component(*library));
-        const auto generated = codegen::generate(committed);
+        const auto generated = generate(committed);
         check(generated.has_value(), std::string(name) + " generates from committed data");
         if (!generated) {
             continue;
         }
-        const auto lowered = codegen::generate(before);
+        const auto lowered = generate(before);
         check(lowered.has_value(), "the lowered library module generates");
         if (lowered) {
-            check_eq(file_text(*generated, std::string(name) + ".cpp"),
-                     file_text(*lowered, std::string(name) + ".cpp"),
+            check_eq(file_text(*generated, std::string(name) + ".g.hpp"),
+                     file_text(*lowered, std::string(name) + ".g.hpp"),
                      std::string(name) +
                          ": the committed library IR and a fresh lowering generate the same C++");
         }
