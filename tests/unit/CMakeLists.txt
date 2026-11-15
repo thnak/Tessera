@@ -126,12 +126,37 @@ add_executable(ir_construct_tests
     ir_samples.cpp
     ir_samples_rich.cpp
     ir_samples_valid.cpp)
-
 target_link_libraries(ir_construct_tests PRIVATE
     tessera_ir
     Threads::Threads)
 
 add_test(NAME ir_construct COMMAND ir_construct_tests)
+
+# Issue #158 / ADR-051: IR record types and record values (docs/specs/ir-v1.md sections 2.2, 4.3 and
+# 9). Two translation units: the writer (`record` expression, optional `types` array, and the
+# byte-identity of a module with no record) and the validator (type table, cycles, field rules, the
+# three allowed positions, dotted refs, the unused warning).
+add_executable(ir_record_writer_tests
+    ir_record_writer_tests.cpp
+    ir_samples.cpp
+    ir_samples_rich.cpp
+    ir_samples_valid.cpp
+    ir_samples_record.cpp)
+
+target_link_libraries(ir_record_writer_tests PRIVATE tessera_ir)
+
+add_test(NAME ir_record_writer COMMAND ir_record_writer_tests)
+
+add_executable(ir_record_validate_tests
+    ir_record_validate_tests.cpp
+    ir_samples.cpp
+    ir_samples_rich.cpp
+    ir_samples_valid.cpp
+    ir_samples_record.cpp)
+
+target_link_libraries(ir_record_validate_tests PRIVATE tessera_ir)
+
+add_test(NAME ir_record_validate COMMAND ir_record_validate_tests)
 
 add_executable(ir_layering_tests
     ir_layering_tests.cpp)

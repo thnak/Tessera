@@ -64,23 +64,32 @@ void ComponentChecker::check_declarations() {
             context.report("TESSERA_IR_SLOT", "the `children` prop has no optional form", where);
         }
         validate_type(context, prop.type, where);
-        validate_expr(context, scope, {}, prop.default_value.get(), where);
+        // Section 4.3: a prop default is one of the three positions a record value is allowed in.
+        validate_record_position(context, scope, prop.default_value.get(), prop.type, where);
     }
     for (const auto& state : component.state) {
         declare(state.id, "state::", where);
         validate_type(context, state.type, where);
-        require_expr(context, scope, {}, state.initial.get(), where,
-                     "initial value of " + state.id);
+        scope.declared_types.emplace(state.id, state.type);
+        // Section 4.3: a `useState` initial is one of the three positions a record value may take.
+        if (state.initial == nullptr) {
+            context.report("TESSERA_IR_MALFORMED", "initial value of " + state.id + " is missing",
+                           where);
+        } else {
+            validate_record_position(context, scope, state.initial.get(), state.type, where);
+        }
     }
     for (const auto& value : component.animated_values) {
         declare(value.id, "anim::", where);
         validate_type(context, value.type, where);
+        scope.declared_types.emplace(value.id, value.type);
         require_expr(context, scope, {}, value.initial.get(), where,
                      "initial value of " + value.id);
     }
     for (const auto& env : component.environment) {
         declare(env.id, "env::", env.source);
         validate_type(context, env.type, env.source);
+        scope.declared_types.emplace(env.id, env.type);
         validate_span(context, env.source, "environment `" + env.id + "`");
         if (env.provider.empty()) {
             context.report("TESSERA_IR_MALFORMED", "environment `" + env.id + "` has no provider",
@@ -175,18 +184,22 @@ ComponentScope make_scope(const Component& component) {
     scope.component = &component;
     for (const auto& prop : component.props) {
         scope.props.insert(prop.name);
+        scope.declared_types.emplace("prop::" + prop.name, prop.type);
         if (prop.name == "children" && prop.type == "children") {
             scope.declares_children = true;
         }
     }
     for (const auto& state : component.state) {
         scope.ids.insert(state.id);
+        scope.declared_types.emplace(state.id, state.type);
     }
     for (const auto& value : component.animated_values) {
         scope.ids.insert(value.id);
+        scope.declared_types.emplace(value.id, value.type);
     }
     for (const auto& env : component.environment) {
         scope.ids.insert(env.id);
+        scope.declared_types.emplace(env.id, env.type);
     }
     for (const auto& ref : component.refs) {
         scope.ids.insert(ref.id);
@@ -198,15 +211,12 @@ ComponentScope make_scope(const Component& component) {
 }
 
 void validate_component(ValidationContext& context, const Component& component) {
-    ComponentChecker checker{context, component, ComponentScope{}};
-    checker.scope.component = &component;
-    // Props are visible to everything, including defaults of later props and state initials.
-    for (const auto& prop : component.props) {
-        checker.scope.props.insert(prop.name);
-        if (prop.name == "children" && prop.type == "children") {
-            checker.scope.declares_children = true;
-        }
-    }
+    ComponentChecker checker{context, component, make_scope(component)};
+    // `make_scope` pre-fills the ids and handlers so a preview body or an effect dependency can
+    // resolve one; the checker's `declare` pass rebuilds both sets itself, so that a duplicate
+    // declaration is reported once per offending entry rather than once per pre-filled id.
+    checker.scope.ids.clear();
+    checker.scope.handlers.clear();
     if (component.name.empty()) {
         context.report("TESSERA_IR_MALFORMED", "a component has no name", component.source);
     }

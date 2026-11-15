@@ -44,5 +44,10 @@ inline constexpr const char* kMissing = "TESSERA_IR_MISSING_ID;";
 inline constexpr const char* kUnresolved = "TESSERA_IR_UNRESOLVED;";
 inline constexpr const char* kMalformed = "TESSERA_IR_MALFORMED;";
 inline constexpr const char* kUnsupported = "TESSERA_IR_UNSUPPORTED;";
+// Section 2.2 (ADR-051): a type name that is not in the module's record table.
+inline constexpr const char* kUnknownType = "TESSERA_IR_UNKNOWN_TYPE;";
+// Section 4.3: a record value in a position that is not a `useState` initial, a prop default or a
+// field of another record value.
+inline constexpr const char* kRecordValue = "TESSERA_IR_RECORD_VALUE;";
 
 } // namespace ir_test

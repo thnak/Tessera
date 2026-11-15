@@ -1,6 +1,7 @@
 # IR v1: Counter example
 
-Companion to [`ir-v1.md`](ir-v1.md) section 13; the normative rules stay there.
+Companion to [`ir-v1.md`](ir-v1.md) section 13 (in [`ir-v1-expr.md`](ir-v1-expr.md) after the part
+split); the normative rules stay there.
 
 ```json
 {

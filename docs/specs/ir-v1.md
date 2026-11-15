@@ -1,4 +1,4 @@
-# Tessera IR v1
+# Tessera IR v1: module, components, nodes and record types
 
 Status: proposed (Big Step C, the compiler vertical slice, defined in
 [AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step), section "Big Steps"). Normative for `src/compiler/ir/` and
@@ -11,6 +11,12 @@ independent of the JSX parser
 ([ADR-007](../../decisions/ADR-007-compiler-ir.md), a neutral IR between JSX and C++ codegen;
 the JSX front end is [ADR-036](../../decisions/ADR-036-own-jsx-frontend-and-react-like-model.md)).
 Codegen must not read the parser AST.
+
+This is **part 1** of the spec: the module, components, handlers, node kinds (including virtual
+collections and inline spans), automation IDs, custom elements, text input nodes and component
+nodes. Expressions, loops, bindings, spans, validation, codegen mapping, determinism, versioning and
+the worked example are in [`ir-v1-expr.md`](ir-v1-expr.md), part 2; section numbers continue across
+both parts, so every `section N` reference stays valid.
 
 ## 1. Top level
 
@@ -35,6 +41,7 @@ Codegen must not read the parser AST.
 | `components` | Component[] | yes | Deterministic order (source path, then name) |
 | `bindings` | Binding[] | no | Sorted by id |
 | `stylesheets` | StylesheetRef[] | no | One per imported `.css` (`id`, `path`, `hash` = `fnv1a64:` of the file bytes), sorted by path |
+| `types` | RecordType[] | no | Declared record types, sorted by `name` (section 2.2). Omitted when a module declares no record |
 
 ## 2. Component
 
@@ -75,7 +82,8 @@ any other expression its object (`{ "kind": "ref", "id": "prop::start" }`). A `P
 `env::<name>`; a field of a record-typed value is dotted (`item.id`); loop item/index names are as
 written. V1 types: `bool`, `int`, `float`, `string`, `color`, `length`, `node_ref`, `list<T>`, `children`
 (section 3.4; props only), `optional<T>`, and for props `callback` or a payload record name
-(`TextChangeEvent`). No arbitrary objects/functions in state.
+(`TextChangeEvent`). A record type name is valid only when it is declared in `types` (section 2.2). No
+arbitrary objects/functions in state.
 
 ## 2.1 Handlers
 
@@ -98,6 +106,56 @@ it is an IR record of its own, referenced from `events`:
   (0..60000), `easing` (a CSS keyword or `cubic-bezier(x1, y1, x2, y2)` with x in [0, 1]) or, exclusive with both and with `animate: false`, `spring` `{stiffness, damping, mass}` in (0, 1e5], [0, 1e4], (0, 1000]; invalid timing is `TESSERA_IR_ANIMATION`.
   `onComplete` (additive) is the `handler::N` of a parameterless handler of the component, run once when the value reaches that set's target (a snap completes at once); unknown: `TESSERA_IR_UNRESOLVED`, with parameters or on a `set`: `TESSERA_IR_ANIMATION`.
 - A handler declared once and used by several event props is one record with several references.
+
+## 2.2 Record types (additive, ADR-051)
+
+`types` is the module's declared record table ([ADR-051](../../decisions/ADR-051-ir-record-types-and-record-values.md)):
+a record is a TypeScript object type with named, typed members (`type Size = { w: int; h: int }`). The
+array is **sorted by `name`** for determinism (section 11) and **omitted when empty**, so a module that
+declares no record writes exactly the bytes it wrote before this section existed.
+
+```json
+"types": [
+  { "id": "type::Size", "name": "Size",
+    "members": [
+      { "name": "w", "type": "int" },
+      { "name": "h", "type": "int", "optional": true }
+    ],
+    "source": { "file": "ui/Card.tsx", "offset": 0, "length": 40, "line": 1, "column": 1,
+                "endLine": 1, "endColumn": 41 } }
+]
+```
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `id` | string | yes | `type::<name>` |
+| `name` | string | yes | PascalCase record name; unique in the module |
+| `members` | Member[] | yes (may be empty) | Declaration order is preserved (it is the aggregate-initialization order in generated C++) |
+| `members[].name` | string | yes | Unique within the record |
+| `members[].type` | string | yes | Any IR type of section 2: a primitive, `list<T>`, `optional<T>`, or another record (or a payload record) by name |
+| `members[].optional` | boolean | no | The source `?`: a record value may omit it (its value is empty). Default `false` |
+| `source` | SourceSpan | yes | Span of the declaration |
+
+- **Member types.** A member is a value: `callback` and `children` have no record form
+  (`TESSERA_IR_UNSUPPORTED`). Every other type of section 2 is allowed, including another record name,
+  which is resolved against this table (`TESSERA_IR_UNKNOWN_TYPE` for a name that is not declared).
+- **Cycles.** A record may not contain itself, directly or through other records, in any `list<T>` or
+  `optional<T>` wrapper: `TESSERA_IR_TYPE_CYCLE`.
+- **Identity and duplicates.** The identity is the name, as for components: two entries with the same
+  name are `TESSERA_IR_DUPLICATE_ID`, never a merge.
+- **Payload records.** The framework's payload records (`TextChangeEvent`, `ClickEvent`, the typed
+  event objects of [`jsx-subset-v1.md`](jsx-subset-v1.md) section 16.2) are **predeclared and are not
+  listed** in `types`. They are valid type names for a prop or a handler parameter, but they are
+  framework data: a `record` value of a payload record is `TESSERA_IR_UNSUPPORTED`, and a dotted
+  `ref` into one is not member-checked (section 9.1).
+- **Unused record.** A declared record that nothing uses is a **warning** (`TESSERA_IR_UNUSED_TYPE`),
+  never an error: the table is additive data a project may keep for a later slice. "Used" means named
+  by a component (a prop, state, animated value or environment type, a handler parameter, a binding type
+  or a `ref` base) or reachable from such a record through its member types; a record reachable only
+  from an unused record stays unused.
+- **Additive.** The field is optional and `irVersion` stays `1` (section 12). Lowering collects the
+  declared records and emits a `record` value where a record-typed `useState` initial or prop default
+  is written (section 4.3).
 
 ## 3. Node
 
@@ -320,281 +378,21 @@ A component instance is identified at design time by `(componentId, instanceKey)
 - `Component` and `Slot` are the only additions to the node kinds in v1; both are additive, so
   `irVersion` stays `1` (section 12).
 
-## 4. Expressions
+## Continued in part 2
 
-V1 expressions are pure and statically analyzable:
+Sections 4-14 live in [`ir-v1-expr.md`](ir-v1-expr.md); numbering is unchanged.
 
-| Kind | Shape | Notes |
-|---|---|---|
-| `literal` | `{ "kind": "literal", "value": 42 }` | bool/int/float/string/null |
-| `ref` | `{ "kind": "ref", "id": "state::count" }` | prop/state/ref/animated/environment/local |
-| `binary` | `{ "kind": "binary", "op": "+", "left": Expr, "right": Expr }` | `+ - * / % == != < <= > >= && ||` |
-| `unary` | `{ "kind": "unary", "op": "!", "value": Expr }` | `! - +` |
-| `conditional` | `{ "kind": "conditional", "test": Expr, "then": Expr, "else": Expr }` | no side effects |
-| `template` | `{ "kind": "template", "parts": [string|Expr] }` | string interpolation |
-| `call` | `{ "kind": "call", "callee": "formatNumber", "args": [Expr] }` | allowlisted pure functions only (section 4.2) |
-| `array` | `{ "kind": "array", "items": [Expr] }` | list literal; a value position only (state/prop initial). Lowering accepts literal elements only, per jsx-subset-v1 section 8.4 |
-
-Rejected: member access on arbitrary objects, array indexing except list items, assignments,
-function expressions, `await`, `yield`, `new`, dynamic imports, and any call with side effects.
-
-### 4.1 Numeric semantics
-
-These rules apply identically in the IR evaluator (Wasm designer) and in generated C++; a differential test checks this ([`designer.md`](../design/designer.md) section 9). They were decided by the project owner.
-
-| Topic | Rule |
+| Section | Topic |
 |---|---|
-| `int` | Signed 32-bit two's complement |
-| `float` | IEEE-754 binary64 (C++ `double`), round to nearest even |
-| Integer overflow in `+ - *` and unary `-` | Wraps modulo 2^32 (generated C++ computes in `uint32_t` and converts to `int32_t`, so there is no undefined behavior). `-` of the minimum `int` gives the minimum `int` |
-| `/` | Operands convert to `float`; the result is `float`. Division of `float` by zero follows IEEE-754 (`Infinity`, `-Infinity`, `NaN`) |
-| `%` on two `int` | Result has the sign of the left operand (as in C++ and JavaScript). `x % 0` gives `0` and reports the runtime diagnostic `TESSERA_IR_INT_MODULO_ZERO` once per expression node per session; the minimum `int` `% -1` gives `0`. `%` with a `float` operand is `fmod`, with IEEE-754 results for zero divisors |
-| Mixed `int` and `float` operands | The `int` converts to `float` exactly |
-| Comparison and `==`/`!=` on `float` | IEEE-754: any comparison with `NaN` is false except `!=`, which is true |
-| `float` to `int` | Never implicit. The function `toInt` truncates toward zero; `NaN` gives `0`; values outside the `int` range saturate to the minimum or maximum `int` |
-| Number to string (template, text child) | `int`: base 10 with a leading `-` for negatives. `float`: the shortest decimal text that parses back to the same value (the output of C++ `std::to_chars` without a precision), `NaN`, `Infinity` or `-Infinity`; negative zero prints as `-0`. No locale is ever consulted |
-
-### 4.2 Pure functions
-
-A `call` expression may name only the functions in this table. They are pure, total (never throw), locale-independent, and are named without a namespace. In source they are imported by name from `"tessera"` ([`jsx-subset-v1.md`](jsx-subset-v1.md) section 4). `Math.*` of JavaScript is not available.
-
-| Function | Signature | Result |
-|---|---|---|
-| `min(a, b)`, `max(a, b)` | `(int, int) -> int`; otherwise `(float, float) -> float` | Smaller / larger value. With `NaN`, the result is the other operand; both `NaN` gives `NaN` |
-| `clamp(x, lo, hi)` | same typing as `min` | `min(max(x, lo), hi)` |
-| `abs(x)` | `int -> int`, `float -> float` | Absolute value; the minimum `int` stays the minimum `int` |
-| `floor(x)`, `ceil(x)`, `round(x)` | `float -> float` | Round toward minus infinity, plus infinity, or to nearest with ties away from zero |
-| `toInt(x)` | `float -> int` | As in section 4.1 |
-| `toFloat(x)` | `int -> float` | Exact conversion |
-| `length(x)` | `string -> int`, `list<T> -> int` | For a string, the number of Unicode code points; for a list, its element count |
-| `formatNumber(x, decimals)` | `(int or float, int) -> string` | Fixed-point text with `decimals` digits after a `.` separator (`decimals` is clamped to 0..20), correctly rounded from the exact value of `x` with ties away from zero; no thousands separator; `NaN`, `Infinity`, `-Infinity` as in section 4.1 |
-
-Adding a function to this table is a change to this specification and to the evaluator and the code generator together. Functions that depend on locale, time, randomness or the environment are never allowed.
-
-## 5. Loop
-
-```json
-{
-  "kind": "loop",
-  "item": "item",
-  "index": "index",
-  "source": { "kind": "ref", "id": "state::rows" }
-}
-```
-
-The `loop` is a field of the node it repeats; the key is that node's `key`:
-
-```json
-{ "kind": "View", "id": "node::10", "key": { "kind": "ref", "id": "item.id" }, "loop": { "kind": "loop", "item": "item", "index": "index", "source": { "kind": "ref", "id": "state::rows" } }, "children": [] }
-```
-
-- `source` must be a list ref or a static list literal.
-- The node's `key` is required for dynamic lists; a missing key is a hard error.
-- The node that carries `loop` and its subtree are the template; `item`/`index` are local refs.
-  They are distinct valid local names (no dots), and the source is an existing list reference.
-- No nested dynamic loops beyond depth 2 in V1.
-
-## 5.1 ErrorBoundary
-
-```json
-{
-  "id": "node::err",
-  "kind": "ErrorBoundary",
-  "props": {
-    "resetKey": { "kind": "ref", "id": "state::route" },
-    "maxAutoRetries": 0,
-    "catchEvents": true
-  },
-  "events": { "onError": "bind::on_error" },
-  "fallback": { "kind": "View", "id": "node::fallback", "children": [] },
-  "children": [
-    { "kind": "View", "id": "node::child", "children": [] }
-  ]
-}
-```
-
-- `fallback` is required (one node subtree).
-- `children` is exactly one subtree in V1; wrap siblings in a `View`.
-- `onError` is optional and must resolve to a binding.
-- `resetKey` is optional; any value change resets the boundary.
-- Nested boundaries are allowed; nearest catches first.
-- The boundary is not painted and does not affect layout.
-- Semantics/exception policy: [`error-boundaries-v1.md`](error-boundaries-v1.md).
-
-## 6. Binding
-
-```json
-{
-  "id": "bind::on_click",
-  "component": "comp::Counter",
-  "kind": "event",
-  "source": { "file": "ui/Counter.tsx", "offset": 240, "length": 15, "line": 12, "column": 5, "endLine": 12, "endColumn": 20 },
-  "region": "on_click"
-}
-```
-
-| Field | Type | Notes |
-|---|---|---|
-| `id` | string | `bind::<id>`, globally unique |
-| `component` | string | Owning component id |
-| `kind` | string | `state`, `effect`, `ref`, `animated`, `event`, `logic` |
-| `source` | SourceSpan | Annotation location |
-| `region` | string | Protected-region id (without `bind::`); a protected region is the developer-owned C++ block, see [ADR-008](../../decisions/ADR-008-protected-regions-and-manifest.md) |
-
-A binding for a native handler may also carry its signature and preview body
-([`jsx-subset-v1.md`](jsx-subset-v1.md) section 9.3), all optional:
-
-| Field | Type | Notes |
-|---|---|---|
-| `params` | `{ name, type }[]` | Typed parameters, in order; the C++ stub uses them |
-| `returnType` | string | IR type; absent means `void` |
-| `preview` | `{ actions, return }` | `actions` as in section 2.1; `return` is an optional Expression for a non-`void` handler. Absent when the handler has no preview body |
-
-`kind` must match the use: an event binding is named by a node `events` entry, and an effect (and
-its cleanup) is named by `effects[].handler`/`cleanup`. Binding ids are stable across regeneration.
-Renames go through a migration; the merger never guesses. See
-[`developer-workflow.md`](../guides/developer-workflow.md).
-
-## 7. Stylesheet references
-
-```json
-{ "id": "css::app", "path": "ui/app.css", "hash": "sha256:..." }
-```
-
-The IR does not embed raw CSS. The build-time style engine compiles CSS to a rule table keyed
-by stable rule ids; generated C++ references those ids/classes. Runtime uses the same computed
-style semantics. See [`stylesheet-v1.md`](stylesheet-v1.md).
-
-## 8. Source spans
-
-```json
-{ "file": "ui/Counter.tsx", "offset": 240, "length": 15, "line": 12, "column": 5, "endLine": 12, "endColumn": 20 }
-```
-
-| Field | Type | Meaning |
-|---|---|---|
-| `file` | string | Project-relative path, POSIX separators |
-| `offset` | integer | Byte offset of the first byte of the span in the UTF-8 file, 0-based |
-| `length` | integer | Length of the span in bytes |
-| `line`, `column` | integer | Start position, 1-based |
-| `endLine`, `endColumn` | integer | End position (exclusive), 1-based |
-
-- A column counts Unicode code points from the start of the line (not bytes, not UTF-16 units).
-- A leading UTF-8 byte order mark counts in `offset` (offsets are file byte offsets) and is not a
-  column: the first character after it is column 1.
-- `offset` and `length` are required so that tools (the designer patch writer, [`designer-protocol-v1.md`](designer-protocol-v1.md) section 3.1) can edit text exactly. The examples of sections 2, 3 and 13 show full spans. Other examples in this document are fragments that omit `source` fields; the emitted IR contains them on every component, node, binding and effect.
-- Source spans are required on components, nodes, bindings, effects and diagnostics. A node's span covers its whole JSX element (opening tag through closing tag). A component's span covers its whole function declaration.
-- Generated C++ may carry `#line`-style source maps after V1 (open question, section 14); V1
-  emits a sidecar map.
-
-## 9. Validation
-
-Hard errors:
-
-- `irVersion` missing/unsupported
-- duplicate component/node/binding ids
-- unresolved `ref`/`binding`/node targets
-- unsupported node kind, type, operator, or callee
-- `ErrorBoundary` missing `fallback`, more/less than one child subtree, or unresolved `onError`
-  binding
-- missing/duplicate `componentId`/`uiId`, `automationId != uiId`, or a 64-bit ID collision
-- unknown/non-literal `element`, unknown element prop/event, missing shader, or `CustomElement`
-  with children
-- `TextInput`/`TextArea` with children or unsupported props/event payloads
-- dynamic component types, context, suspense, custom hooks
-- missing list key or non-static loop source; a loop `item`/`index` that is empty, dotted or equal
-  (`TESSERA_IR_LOOP`); a virtual collection without an `itemTemplate`, an item template without its
-  `loop`, or a condition on it (`TESSERA_IR_VIRTUAL`)
-- a field outside its node kind (`text` on a non-`Text` node, `style` on a `Component` node), a
-  template or non-bool literal `condition` (`TESSERA_IR_CONDITION`), or an `ErrorBoundary` fallback
-  with `condition`/`loop`
-- an inline span violation: a non-span `Text` child, a non-literal span `text`, a nested span, a
-  disallowed span field, or a span count/byte cap (`TESSERA_IR_SPAN`, section 3.6)
-- a binding whose `kind` does not match its use (`TESSERA_IR_BINDING`)
-- binding annotation without a matching IR use, or vice versa (a binding no event or effect uses
-  is this error, not a warning)
-- unresolved or duplicate `handler::` id, an `events` value that is neither a `bind::` nor a
-  `handler::` id, a `Component` node with an unresolved `component`, an unknown prop, or a prop or
-  event the referenced component does not declare
-- a `Component` node with `children` whose component has no `children` prop; a `Slot` outside a
-  component with a `children` prop, a second `Slot`, a `Slot` with props, style, events, key,
-  condition, loop or children, a `Slot` as the component root, or a `Slot` inside a `loop` template
-  or inside another component's slot content
-- a component reference cycle (a component whose tree reaches itself), `TESSERA_IR_CYCLE`
-- non-deterministic ordering/ids
-
-Warnings: unused ref/state; a binding present in existing code but not in generated IR
-(rename/removal); deprecated fields.
-
-### 9.1 Writer and validator coverage (slices 6 to 9)
-
-Every construct lowering emits is written; structural invariants are validated. Goldens
-`tests/golden/ir/{counter,rich}.json` are re-baselined deliberately with `ir_json_tests --write`; a
-full IR reader is still deferred (jsx-ir-lowering decision 15), so round-trip tests compare canonical
-text, not a re-parsed model.
-
-| Construct | Writer | Validator |
-|---|---|---|
-| `condition` | expression object | boolean-valued shape (`TESSERA_IR_CONDITION`) |
-| loop `item`/`index`/`source`/`key` | `loop` object; `index` when present | distinct local names, source ref, key required, depth 2 |
-| `Component` reference | `component`, props, events, slot `children` | target resolves, no `style`, children only when the target declares the `children` prop, no reference cycle (`TESSERA_IR_CYCLE`) |
-| `Slot` | `kind` only (a bare position marker) | at most one per component, only with the `children` prop, no payload, not the root, not in a loop template or slot content (`TESSERA_IR_SLOT`) |
-| `VirtualList`/`VirtualGrid` `itemTemplate` | the template node with its `loop` and `key` | one static template, its loop source is a list ref, its key is required, no `children`/own `loop`, no condition (`TESSERA_IR_VIRTUAL`, `TESSERA_IR_LIST_KEY`) |
-| text, style/className, events, `fallback` | `text`/`style`/`props`/`events`, fallback node | `text` only on `Text`; event ids resolve to event bindings; fallback static |
-| inline spans | `Text` children with literal `text`; parent has no `text` | children are all spans, literal text, no nested span or disallowed field, count/byte caps (`TESSERA_IR_SPAN`) |
-
-Deliberately not covered: intrinsic prop/event schemas (the IR is a leaf and does not link
-`tessera_schema`), the `Children` type of a prop other than the `children` declaration (the type
-table that resolves prop types is a later slice), and a re-parsed reader (section 9.1 note above).
-
-## 10. Codegen mapping
-
-| IR | Generated C++ |
-|---|---|
-| Component | struct/class with state/effect/ref/animated members |
-| `Component` reference | a generated host node (element kind `Component`) plus one member of the referenced component's struct, built by the caller; the instance owns its own state and lifecycle (`mount`/`update`/`unmount` are driven by the caller) |
-| `Slot` | the callee's `build(parent, slot)` overload attaches the caller's slot nodes at the Slot position; the caller builds that content with its own state/props/handlers |
-| Node | `std::make_unique<Node>(id)` + setters/add_child |
-| Text | text node + style + text layout binding |
-| Inline spans | the parent `Text` node gets the concatenated paint text plus one span entry per child (span node id and byte range); each span is emitted as a child scene node with its class/style/role/events so the runtime resolves its run style through the normal cascade |
-| Event binding | `on_event` dispatch to protected region |
-| ErrorBoundary | boundary state + guarded child build/update/effect/event + fallback subtree |
-| Conditional | `if` around node creation/update |
-| Loop | keyed list update/rebuild |
-| `VirtualList`/`VirtualGrid` | a fixed container node with generated geometry constants (`itemSize`/`estimateSize`/`overscan`/`gap`, grid row height/columns), a bounded realized-window item table, `apply_virtual_<n>(first, last)` (keyed reconciliation and changed-item repaint), and the generated `scroll_virtual_<n>(scroll_offset, viewport_extent)` entry point, which owns the runtime geometry, refines realized-item measures, re-anchors the offset and dispatches `onScroll`/`onEndReached`; the host may still compute `[first, last)` itself and call `apply_virtual_<n>` with its own geometry |
-| Ref | `Node*` member + assignment after creation |
-| Animated value | `AnimationController`/`Tween` member |
-| Style token | property id/value or stylesheet class reference |
-
-## 11. Determinism
-
-- Components sorted by source path, then name; nodes in source order; bindings sorted by id.
-- No timestamps, absolute paths, random ids, or hash-map iteration.
-- JSON snapshot output is stable (sorted keys in tests).
-- The writer omits empty optional fields (examples that show `[]` or `{}` are only explicit);
-  `components`, `bindings` and `stylesheets` are always written.
-- V1 limit: the validator accepts any identifier as a record type until a type table exists;
-  repeated compilation of the same input is byte-identical.
-
-## 12. Versioning
-
-- `irVersion: 1` is the only accepted version in V1.
-- Adding optional fields or node kinds keeps v1 (precedent: `Component`, `Slot`, inline spans); an
-  unknown kind is `TESSERA_IR_MALFORMED`. Changing meaning or removing fields bumps the version, with
-  a migration. Codegen rejects unsupported versions with `TESSERA_IR_VERSION`.
-- Versions of all schemas are tabulated in [`versioning-v1.md`](versioning-v1.md).
-- Snapshots and `bindings.json` record the IR version.
-
-## 13. Example: Counter
-
-The worked Counter example (a complete `ir.json`) lives in [`ir-v1-example.md`](ir-v1-example.md) to
-keep this normative spec under the size limit.
-
-## 14. Open questions
-
-- Virtual collection data source/paging and nested virtualization
-  ([`virtualization-v1.md`](virtualization-v1.md)); source-map format and `#line` emission; whether
-  styles are inlined as tokens or referenced by compiled rule ids.
-- Expression extensions beyond the functions of section 4.2 (string methods such as
-  `toUpperCase`, `trim`, `startsWith`); locale-aware formatting.
-- Incremental IR diffs for hot reload.
+| 4 | Expressions (including the `record` value, section 4.3) |
+| 5 | Loop |
+| 5.1 | ErrorBoundary |
+| 6 | Binding |
+| 7 | Stylesheet references |
+| 8 | Source spans |
+| 9 | Validation (including the record diagnostics and the writer/validator coverage table) |
+| 10 | Codegen mapping |
+| 11 | Determinism |
+| 12 | Versioning |
+| 13 | Example: Counter |
+| 14 | Open questions |

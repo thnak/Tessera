@@ -90,7 +90,8 @@ bool valid_type(std::string_view type) {
             return valid_type(type.substr(wrapper.size(), type.size() - wrapper.size() - 1));
         }
     }
-    // A record type declared in the source (decision 8 of docs/design/jsx-ir-lowering.md).
+    // An identifier: a declared record or a payload record name. Which one is section 2.2's type
+    // table check (`validate_type_names`), not a shape rule.
     const auto word = [](char c) {
         return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
                c == '_';
@@ -121,16 +122,18 @@ void ValidationContext::report(std::string code, std::string message, const Sour
 }
 
 void require_expr(ValidationContext& context, const ComponentScope& scope, const LocalNames& locals,
-                  const Expr* expr, const SourceSpan& where, const std::string& what) {
+                  const Expr* expr, const SourceSpan& where, const std::string& what,
+                  bool record_value_allowed) {
     if (expr == nullptr) {
         context.report("TESSERA_IR_MALFORMED", what + " is missing", where);
         return;
     }
-    validate_expr(context, scope, locals, expr, where);
+    validate_expr(context, scope, locals, expr, where, record_value_allowed);
 }
 
 void validate_expr(ValidationContext& context, const ComponentScope& scope,
-                   const LocalNames& locals, const Expr* expr, const SourceSpan& where) {
+                   const LocalNames& locals, const Expr* expr, const SourceSpan& where,
+                   bool record_value_allowed) {
     if (expr == nullptr) {
         return;
     }
@@ -155,6 +158,9 @@ void validate_expr(ValidationContext& context, const ComponentScope& scope,
         if (!reference_resolves(scope, locals, expr->id)) {
             context.report("TESSERA_IR_UNRESOLVED", "unresolved reference `" + expr->id + "`",
                            where);
+        } else {
+            // Section 4.3: a dotted ref into a declared record must name a member it has.
+            validate_reference_member(context, scope, expr->id, where);
         }
         break;
     case ExprKind::Binary:
@@ -197,6 +203,27 @@ void validate_expr(ValidationContext& context, const ComponentScope& scope,
         for (const auto& item : expr->operands) {
             require_expr(context, scope, locals, item.get(), where, "an array element");
         }
+        break;
+    case ExprKind::Record:
+        // Section 4.3: a record value is allowed only as a `useState` initial, a prop default or a
+        // field of another record value. Elsewhere it is a hard error and only its members would
+        // take part, so the field values are not validated again here.
+        if (is_predeclared_record(expr->type)) {
+            // A payload record is framework data: it has no aggregate form anywhere.
+            context.report("TESSERA_IR_UNSUPPORTED",
+                           "the framework payload record `" + expr->type +
+                               "` is not a project record and has no record value",
+                           where);
+            break;
+        }
+        if (!record_value_allowed) {
+            context.report("TESSERA_IR_RECORD_VALUE",
+                           "a record value is only a `useState` initial, a prop default or a field "
+                           "of another record value (section 4.3)",
+                           where);
+            break;
+        }
+        validate_record_expr(context, *expr, nullptr, where);
         break;
     }
 }
@@ -333,9 +360,18 @@ void validate_actions(ValidationContext& context, const ComponentScope& scope,
 }
 
 void validate_type(ValidationContext& context, const std::string& type, const SourceSpan& where) {
+    validate_type(context, type, where, true);
+}
+
+void validate_type(ValidationContext& context, const std::string& type, const SourceSpan& where,
+                   bool mark_used) {
     if (!valid_type(type)) {
         context.report("TESSERA_IR_UNSUPPORTED", "unsupported type `" + type + "`", where);
+        return;
     }
+    // Section 2.2: the shape is fine, so the identifier it names must be in the table. This is the
+    // rule that replaces "any identifier is a record type" (the old section 11 limitation).
+    validate_type_names(context, type, where, mark_used);
 }
 
 void validate_span(ValidationContext& context, const SourceSpan& span, const std::string& what) {

@@ -178,6 +178,29 @@ JsonValue to_json(const IrModule& module) {
         sheets.push(std::move(entry));
     }
     json.set("stylesheets", std::move(sheets));
+
+    // Section 2.2: optional, omitted when the module declares no record, so a module without
+    // records writes exactly the bytes it wrote before `types` existed (ADR-051).
+    JsonValue types = JsonValue::array();
+    for (const auto& type : module.types) {
+        JsonValue entry = JsonValue::object();
+        entry.set("id", JsonValue::string(type.id));
+        entry.set("name", JsonValue::string(type.name));
+        JsonValue members = JsonValue::array();
+        for (const auto& member : type.members) {
+            JsonValue item = JsonValue::object();
+            item.set("name", JsonValue::string(member.name));
+            item.set("type", JsonValue::string(member.type));
+            if (member.optional) {
+                item.set("optional", JsonValue::boolean(true));
+            }
+            members.push(std::move(item));
+        }
+        entry.set("members", std::move(members));
+        entry.set("source", to_json(type.source));
+        types.push(std::move(entry));
+    }
+    add_if_not_empty(json, "types", std::move(types));
     return json;
 }
 

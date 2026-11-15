@@ -91,6 +91,21 @@ JsonValue expr_to_json(const Expr* expr) {
         json.set("items", std::move(items));
         break;
     }
+    case ExprKind::Record: {
+        // Section 4.3: `fields` lists the written members in member order; an omitted optional
+        // member is simply absent.
+        json.set("kind", JsonValue::string("record"));
+        json.set("type", JsonValue::string(expr->type));
+        JsonValue fields = JsonValue::array();
+        for (const auto& field : expr->fields) {
+            JsonValue item = JsonValue::object();
+            item.set("name", JsonValue::string(field.name));
+            item.set("value", expr_to_json(field.value.get()));
+            fields.push(std::move(item));
+        }
+        json.set("fields", std::move(fields));
+        break;
+    }
     }
     return json;
 }

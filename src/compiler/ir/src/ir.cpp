@@ -125,6 +125,13 @@ ExprPtr make_array(std::vector<ExprPtr> elements) {
     return expr;
 }
 
+ExprPtr make_record(std::string type, std::vector<RecordField> fields) {
+    auto expr = make_expr(ExprKind::Record);
+    expr->type = std::move(type);
+    expr->fields = std::move(fields);
+    return expr;
+}
+
 TemplatePart text_part(std::string text) {
     return TemplatePart{std::move(text), nullptr};
 }

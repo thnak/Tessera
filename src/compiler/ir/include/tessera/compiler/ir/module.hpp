@@ -4,6 +4,7 @@
 
 #include "tessera/compiler/ir/action.hpp"
 #include "tessera/compiler/ir/component.hpp"
+#include "tessera/compiler/ir/types.hpp"
 
 #include <optional>
 #include <string>
@@ -49,6 +50,9 @@ struct IrModule {
     std::vector<Component> components;
     std::vector<Binding> bindings;
     std::vector<StylesheetRef> stylesheets;
+    // Section 2.2 (ADR-051): the declared record types, sorted by name. Optional and additive: a
+    // module with no records writes no `types` field and is byte-identical to the IR before it.
+    std::vector<RecordType> types;
 };
 
 } // namespace tessera::compiler::ir
