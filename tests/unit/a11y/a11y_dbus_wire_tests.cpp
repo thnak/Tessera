@@ -4,7 +4,7 @@
 // and stream framing.
 
 #include "a11y_dbus_test_support.hpp"
-#include "tessera/ui/accessibility/dbus_wire.hpp"
+#include "tessera/dbus/wire.hpp"
 
 #include <string>
 #include <vector>
@@ -12,20 +12,20 @@
 namespace {
 
 using namespace a11y_dbus_test;
-using tessera::ui::a11y::alignment_of;
-using tessera::ui::a11y::alignment_of_code;
-using tessera::ui::a11y::ByteOrder;
-using tessera::ui::a11y::code_of;
-using tessera::ui::a11y::complete_type_length;
-using tessera::ui::a11y::MessageHeader;
-using tessera::ui::a11y::MessageReader;
-using tessera::ui::a11y::MessageType;
-using tessera::ui::a11y::MessageWriter;
-using tessera::ui::a11y::parse_message;
-using tessera::ui::a11y::single_complete_type;
-using tessera::ui::a11y::type_from_code;
-using tessera::ui::a11y::valid_signature;
-using tessera::ui::a11y::WireType;
+using tessera::dbus::alignment_of;
+using tessera::dbus::alignment_of_code;
+using tessera::dbus::ByteOrder;
+using tessera::dbus::code_of;
+using tessera::dbus::complete_type_length;
+using tessera::dbus::MessageHeader;
+using tessera::dbus::MessageReader;
+using tessera::dbus::MessageType;
+using tessera::dbus::MessageWriter;
+using tessera::dbus::parse_message;
+using tessera::dbus::single_complete_type;
+using tessera::dbus::type_from_code;
+using tessera::dbus::valid_signature;
+using tessera::dbus::WireType;
 
 bool type_tables() {
     return expect(alignment_of(WireType::Byte) == 1, "byte alignment") &&

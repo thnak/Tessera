@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "tessera/hal/appearance.hpp"
 #include "tessera/hal/caption.hpp"
 #include "tessera/hal/cursor.hpp"
 #include "tessera/hal/display.hpp"
@@ -191,6 +192,13 @@ enum class WindowEventType {
     // change (a same-scale monitor swap, a compositor scale change). The metrics carry the new
     // `display`/`scale`.
     ScaleChanged,
+    // The OS color-scheme preference changed (issue #187): the user switched a light/dark theme in
+    // the desktop's settings. It is the `ThemeChanged` member of the normalized taxonomy
+    // (docs/specs/os-events-v1.md section 2) and, like `SystemSettingsChanged`, carries no value:
+    // the owner re-reads `Window::appearance()` at the tick boundary. Windows reports the same
+    // change through `WM_THEMECHANGED`/`WM_SETTINGCHANGE`, so both platforms have one event for it
+    // rather than making a color-scheme change look like a reduced-motion change.
+    ThemeChanged,
 };
 
 // The window-system family a platform window belongs to. It is the one fact the renderer needs to
@@ -208,7 +216,7 @@ enum class WindowSystem : std::uint8_t {
 // The number of `WindowEventType` enumerators. The rules table is indexed by the enumerator value
 // and compile-time checked against this count, so an enumerator added without a row fails the
 // build.
-inline constexpr std::size_t kWindowEventTypeCount = 18;
+inline constexpr std::size_t kWindowEventTypeCount = 19;
 
 // What a window event is about, above its concrete `WindowEventType`: section 3's fixed delivery
 // order is these categories in ascending order. Keeping the category separate from the concrete
@@ -338,6 +346,19 @@ public:
     virtual std::size_t displays(std::span<DisplayInfo> displays) const {
         (void)displays;
         return 0;
+    }
+
+    // The OS appearance preferences this window mirrors: color scheme and reduced motion
+    // (issue #187, `tessera/hal/appearance.hpp`). It is the value the platform measured LAST, not a
+    // query: every platform that has a source keeps a normalized snapshot and a change arrives as
+    // `ThemeChanged`/`SystemSettingsChanged`, so the owner re-reads it at that tick's boundary
+    // instead of polling. The read is required to be cheap and non-blocking (a lock-free load), so
+    // it is safe on the frame path; the platform is responsible for doing any I/O on its own
+    // thread. The default is the documented fallback (light, motion enabled, both recorded as
+    // assumed) for platforms with no settings source, and for a platform that has one but has not
+    // answered yet.
+    [[nodiscard]] virtual AppearancePreference appearance() const noexcept {
+        return assumed_appearance();
     }
 
     // Copies pending events oldest first into `events` and returns the count written. Events that

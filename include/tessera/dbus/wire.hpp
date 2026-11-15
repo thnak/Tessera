@@ -10,7 +10,7 @@
 #include <string_view>
 #include <vector>
 
-namespace tessera::ui::a11y {
+namespace tessera::dbus {
 
 // D-Bus wire codec (docs/specs/accessibility-v1.md section 7, docs/design/accessibility.md section
 // 3). The AT-SPI2 bridge speaks the protocol itself instead of linking libatspi/glib (ADR-012), so
@@ -303,4 +303,4 @@ private:
     WireError error_ = WireError::None;
 };
 
-} // namespace tessera::ui::a11y
+} // namespace tessera::dbus

@@ -36,7 +36,13 @@ target_sources(tessera_hal_window PRIVATE
     # The window-path projection onto that taxonomy: category, coalescing, spec names.
     ${CMAKE_CURRENT_SOURCE_DIR}/window_events.cpp
     # The deterministic synthetic event injector and the display-capability scripts (ADR-023 rule 8).
-    ${CMAKE_CURRENT_SOURCE_DIR}/synthetic_events.cpp)
+    ${CMAKE_CURRENT_SOURCE_DIR}/synthetic_events.cpp
+    # The OS appearance preferences (issue #187): the portal value/message decode and the GTK
+    # settings-file fallback. Both pure, so the Linux feature's decisions are testable on a box with
+    # no session bus. The normalized snapshot itself is `constexpr` in
+    # `include/tessera/hal/appearance.hpp`, so the style engine can fold it into a `MediaContext`
+    # without the UI layer linking this library (ADR-020's dependency direction).
+    ${CMAKE_CURRENT_SOURCE_DIR}/portal_appearance.cpp)
 
 # Private shared implementation header (normalized event ring).
 target_include_directories(tessera_hal_window PRIVATE
@@ -57,6 +63,9 @@ if (WIN32)
         ${PROJECT_SOURCE_DIR}/src/platform/windows/window_display_win.cpp
         ${PROJECT_SOURCE_DIR}/src/platform/windows/window_display_messages_win.cpp
         ${PROJECT_SOURCE_DIR}/src/platform/windows/window_dpi_win.cpp
+        # OS appearance preferences (issue #187): SPI_GETCLIENTAREAANIMATION and AppsUseLightTheme,
+        # in their own TU so neither window.cpp nor window_display_win.cpp grows.
+        ${PROJECT_SOURCE_DIR}/src/platform/windows/window_appearance_win.cpp
         ${PROJECT_SOURCE_DIR}/src/platform/windows/win32_ime_translation.cpp
         ${PROJECT_SOURCE_DIR}/src/platform/windows/win32_input.cpp
         ${PROJECT_SOURCE_DIR}/src/platform/windows/win32_input_ime.cpp
@@ -90,6 +99,10 @@ elseif (TESSERA_X11_FOUND OR TESSERA_WAYLAND_FOUND)
             # Display capabilities (ADR-023, docs/specs/os-events-v1.md section 5): `_NET_WORKAREA`,
             # DPI and the RandR event normalization, outside window.cpp's size budget.
             ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_display.cpp
+            # OS appearance preferences (issue #187): the settings portal watcher, one D-Bus
+            # connection and one worker thread off the frame path, with the GTK settings.ini
+            # fallback. A separate TU so window.cpp stays inside its file-size budget.
+            ${PROJECT_SOURCE_DIR}/src/platform/linux/appearance_portal.cpp
             ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_backdrop.cpp
             ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_input.cpp
             ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_input_translation.cpp
@@ -158,5 +171,13 @@ target_include_directories(tessera_hal_window PUBLIC
 
 # The base Window fallback and the public window_wait.hpp helper use the HAL steady clock.
 target_link_libraries(tessera_hal_window PUBLIC tessera_hal_timer)
+
+# The Linux appearance watcher speaks D-Bus, so the HAL links the bottom-level `tessera_dbus` client
+# (the wire codec/SASL/transport, shared with the AT-SPI2 accessibility bridge). PRIVATE because the
+# type is an implementation detail: no public HAL header exposes a D-Bus type, which is what keeps
+# ADR-020's "the UI sees only normalized types" true. Windows needs no D-Bus at all.
+if (TESSERA_X11_FOUND OR TESSERA_WAYLAND_FOUND)
+    target_link_libraries(tessera_hal_window PRIVATE tessera_dbus)
+endif()
 
 target_compile_features(tessera_hal_window PUBLIC cxx_std_23)

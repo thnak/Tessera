@@ -14,6 +14,7 @@ namespace {
 using namespace a11y_atspi_test;
 using a11y_dbus_test::expect;
 using a11y_dbus_test::expect_equal;
+using tessera::dbus::MessageReader;
 using tessera::ui::a11y::ActionRequest;
 using tessera::ui::a11y::AtspiState;
 using tessera::ui::a11y::has_state;
@@ -23,7 +24,6 @@ using tessera::ui::a11y::kApplicationInterface;
 using tessera::ui::a11y::kComponentInterface;
 using tessera::ui::a11y::kTextInterface;
 using tessera::ui::a11y::kValueInterface;
-using tessera::ui::a11y::MessageReader;
 
 bool name_role_and_state(AtspiBridge& bridge) {
     {

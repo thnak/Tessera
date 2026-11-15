@@ -137,6 +137,11 @@ add_subdirectory(src/rendering/path)
 add_subdirectory(src/rendering/image)
 add_subdirectory(src/rendering/software)
 add_subdirectory(src/diagnostics)
+# The in-tree D-Bus client: the wire codec, SASL and transport seam. Bottom-level on purpose, so
+# both the AT-SPI2 accessibility bridge (src/ui/accessibility) and the HAL's Linux appearance
+# watcher (src/platform/linux, `org.freedesktop.portal.Settings`) can link it without the HAL
+# depending on the UI layer.
+add_subdirectory(src/dbus)
 add_subdirectory(src/hal/timer)
 add_subdirectory(src/hal/window)
 add_subdirectory(src/runtime)

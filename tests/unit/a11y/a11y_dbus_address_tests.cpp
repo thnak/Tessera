@@ -5,23 +5,23 @@
 // unavailable".
 
 #include "a11y_dbus_test_support.hpp"
-#include "tessera/ui/accessibility/dbus_address.hpp"
+#include "tessera/dbus/address.hpp"
 
 #include <string>
 
 namespace {
 
 using namespace a11y_dbus_test;
-using tessera::ui::a11y::AddressError;
-using tessera::ui::a11y::BusAddress;
-using tessera::ui::a11y::BusTransport;
-using tessera::ui::a11y::format_bus_address;
-using tessera::ui::a11y::kMaxUnixPathBytes;
-using tessera::ui::a11y::parse_bus_address;
-using tessera::ui::a11y::read_session_environment;
-using tessera::ui::a11y::session_bus_address;
-using tessera::ui::a11y::SessionEnvironment;
-using tessera::ui::a11y::to_string;
+using tessera::dbus::AddressError;
+using tessera::dbus::BusAddress;
+using tessera::dbus::BusTransport;
+using tessera::dbus::format_bus_address;
+using tessera::dbus::kMaxUnixPathBytes;
+using tessera::dbus::parse_bus_address;
+using tessera::dbus::read_session_environment;
+using tessera::dbus::session_bus_address;
+using tessera::dbus::SessionEnvironment;
+using tessera::dbus::to_string;
 
 bool unix_path() {
     const auto parsed = parse_bus_address("unix:path=/run/user/1000/bus");

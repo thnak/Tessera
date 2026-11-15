@@ -101,6 +101,14 @@ struct WindowHost::Impl {
     // so the running deadline is not resynced for nothing.
     void apply_present_cap(double now_seconds);
 
+    // --- OS appearance (issue #187, docs/specs/os-events-v1.md sections 2 and 5) ---------------
+    // Re-reads the window's normalized appearance snapshot at a settings/theme event's tick
+    // boundary and applies it: the reduced-motion flag reaches the animation runtime and the
+    // installed scheduler, and a color-scheme change re-resolves the stylesheet so the
+    // `prefers-color-scheme` / `prefers-reduced-motion` media queries follow. A settings broadcast
+    // that did not move either value costs one comparison and requests no frame.
+    void apply_appearance();
+
     // --- display capabilities (docs/specs/os-events-v1.md section 2, ADR-023 rule 4) ----------
     // Applies a `RefreshRateChanged` (or a topology change carrying a new rate): the pacer's
     // divisor base follows the display's current refresh through its normal rate-change path, so a

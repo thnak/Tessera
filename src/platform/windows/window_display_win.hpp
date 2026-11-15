@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include "tessera/hal/appearance.hpp"
 #include "tessera/hal/display.hpp"
 #include "tessera/hal/event_reason.hpp"
 #include "tessera/hal/window.hpp"
@@ -89,8 +90,11 @@ struct DisplayMessage {
 
 // Classifies the display/settings notifications into the one event each means
 // (docs/specs/os-events-v1.md section 4). Keeping the mapping out of `window.cpp` is what stops
-// that file growing every time a display event is added.
-[[nodiscard]] DisplayMessage classify_win32_display_message(UINT message, WPARAM wparam) noexcept;
+// that file growing every time a display event is added. `lparam` is only read for the two
+// `WM_SETTINGCHANGE` areas this slice distinguishes (work area and the immersive color set), and it
+// is compared, never dereferenced when the message does not carry an area string.
+[[nodiscard]] DisplayMessage classify_win32_display_message(UINT message, WPARAM wparam,
+                                                            LPARAM lparam = 0) noexcept;
 
 // Registers the window for monitor device notifications (`WM_DEVICECHANGE`), which is what makes a
 // hotplug observable at all on Windows: `WM_DISPLAYCHANGE` alone cannot tell an add from a remove.
@@ -122,5 +126,12 @@ std::size_t query_win32_displays(std::span<DisplayInfo> out) noexcept;
 // behind `Window::display_refresh_hz()`; the per-event snapshot uses
 // `fill_win32_display_capabilities`.
 [[nodiscard]] double query_win32_display_refresh_hz(HWND window) noexcept;
+
+// The OS appearance preferences (issue #187): `SPI_GETCLIENTAREAANIMATION` for reduced motion and
+// `AppsUseLightTheme` for the color scheme. It is `Window::appearance()`'s Windows half, so the
+// engine reads the same normalized snapshot on every platform; a value the OS cannot answer keeps
+// the documented fallback with its assumption bit set (ADR-023 rule 7). Implemented in
+// `window_appearance_win.cpp` to keep this TU inside its budget.
+[[nodiscard]] AppearancePreference query_win32_appearance() noexcept;
 
 } // namespace tessera::hal::detail

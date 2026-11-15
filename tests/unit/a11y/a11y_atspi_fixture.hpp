@@ -7,8 +7,8 @@
 #pragma once
 
 #include "a11y_dbus_test_support.hpp"
+#include "tessera/dbus/wire.hpp"
 #include "tessera/ui/accessibility/atspi_bridge.hpp"
-#include "tessera/ui/accessibility/dbus_wire.hpp"
 
 #include <algorithm>
 #include <cstdint>
@@ -20,18 +20,18 @@
 
 namespace a11y_atspi_test {
 
+using tessera::dbus::MessageHeader;
+using tessera::dbus::MessageType;
+using tessera::dbus::MessageWriter;
+using tessera::dbus::ParsedMessage;
+using tessera::dbus::WireError;
 using tessera::rendering::rhi::Rect;
 using tessera::ui::a11y::A11yNode;
 using tessera::ui::a11y::A11ySnapshot;
 using tessera::ui::a11y::Action;
 using tessera::ui::a11y::AtspiBridge;
-using tessera::ui::a11y::MessageHeader;
-using tessera::ui::a11y::MessageType;
-using tessera::ui::a11y::MessageWriter;
-using tessera::ui::a11y::ParsedMessage;
 using tessera::ui::a11y::Role;
 using tessera::ui::a11y::State;
-using tessera::ui::a11y::WireError;
 
 inline A11yNode make_node(Role role, std::string_view name, std::string_view value, Rect bounds) {
     A11yNode node;

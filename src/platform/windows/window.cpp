@@ -67,6 +67,8 @@ public:
         return WindowSystem::Win32;
     }
     [[nodiscard]] double display_refresh_hz() const noexcept override;
+    // OS appearance preferences (issue #187): color scheme and reduced motion, read from the OS.
+    [[nodiscard]] AppearancePreference appearance() const noexcept override;
     std::size_t displays(std::span<DisplayInfo> displays) const override {
         return detail::query_win32_displays(displays);
     }
@@ -286,6 +288,14 @@ double Win32Window::display_refresh_hz() const noexcept {
     // The query moved to window_display_win.cpp with the other display reads, so this file stays
     // inside its size budget.
     return detail::query_win32_display_refresh_hz(hwnd_);
+}
+
+// OS appearance preferences (issue #187): the same `SPI_GETCLIENTAREAANIMATION` the existing
+// reduced-motion path used, plus the `AppsUseLightTheme` value for the color scheme. Both are plain
+// preference reads and are cheap enough to call when an event says the settings moved; the
+// implementation lives in window_appearance_win.cpp with the other Windows-only reads.
+AppearancePreference Win32Window::appearance() const noexcept {
+    return detail::query_win32_appearance();
 }
 
 // Records one normalized event with its cause, stamped with the per-window sequence so a coalesced
@@ -521,7 +531,7 @@ LRESULT Win32Window::handle_message(HWND window, UINT message, WPARAM wparam, LP
     case WM_DISPLAYCHANGE:
     case WM_DEVICECHANGE: {
         const detail::DisplayMessage classified =
-            detail::classify_win32_display_message(message, wparam);
+            detail::classify_win32_display_message(message, wparam, lparam);
         if (!classified.handled) {
             return DefWindowProcW(window, message, wparam, lparam);
         }

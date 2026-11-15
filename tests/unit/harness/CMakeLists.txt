@@ -323,3 +323,24 @@ target_link_libraries(window_cursor_fake_tests PRIVATE
     tessera_style)
 
 add_test(NAME window_cursor_fake COMMAND window_cursor_fake_tests)
+
+# The Linux appearance source's fallback paths (issue #187): the absent-bus answer (the documented
+# fallback, no measurement, no event), the GTK settings.ini location under XDG_CONFIG_HOME, and a
+# real settings file being the no-portal answer. Linux-only because the platform half lives in
+# src/platform/linux; the portal's decoding rules are `hal_appearance`, which runs on every lane.
+if (TESSERA_X11_FOUND OR TESSERA_WAYLAND_FOUND)
+    add_executable(appearance_portal_tests
+        appearance_portal_tests.cpp
+        # The platform half is one TU; it is compiled in here instead of linking the whole HAL so
+        # the test needs no X11, no window and no display.
+        ${PROJECT_SOURCE_DIR}/src/platform/linux/appearance_portal.cpp)
+
+    target_include_directories(appearance_portal_tests PRIVATE
+        ${PROJECT_SOURCE_DIR}/src/platform/linux)
+
+    target_link_libraries(appearance_portal_tests PRIVATE
+        tessera_dbus
+        tessera_hal_window)
+
+    add_test(NAME appearance_portal COMMAND appearance_portal_tests)
+endif()

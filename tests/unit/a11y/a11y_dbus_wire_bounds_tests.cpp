@@ -4,7 +4,7 @@
 // container/framing mismatches, the nesting cap, and writer overflow.
 
 #include "a11y_dbus_test_support.hpp"
-#include "tessera/ui/accessibility/dbus_wire.hpp"
+#include "tessera/dbus/wire.hpp"
 
 #include <string>
 #include <vector>
@@ -12,14 +12,14 @@
 namespace {
 
 using namespace a11y_dbus_test;
-using tessera::ui::a11y::kMaxWireDepth;
-using tessera::ui::a11y::kMaxWireText;
-using tessera::ui::a11y::MessageHeader;
-using tessera::ui::a11y::MessageReader;
-using tessera::ui::a11y::MessageType;
-using tessera::ui::a11y::MessageWriter;
-using tessera::ui::a11y::parse_message;
-using tessera::ui::a11y::WireError;
+using tessera::dbus::kMaxWireDepth;
+using tessera::dbus::kMaxWireText;
+using tessera::dbus::MessageHeader;
+using tessera::dbus::MessageReader;
+using tessera::dbus::MessageType;
+using tessera::dbus::MessageWriter;
+using tessera::dbus::parse_message;
+using tessera::dbus::WireError;
 
 void patch_u32(std::vector<std::uint8_t>& bytes, std::size_t offset, std::uint32_t value) {
     bytes[offset] = static_cast<std::uint8_t>(value & 0xFFU);

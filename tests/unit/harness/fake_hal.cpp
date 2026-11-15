@@ -227,6 +227,27 @@ void FakeWindow::set_fold(const hal::FoldInfo& fold) {
     push_metrics_event(hal::WindowEventType::FoldChanged);
 }
 
+void FakeWindow::set_appearance(hal::AppearancePreference appearance) {
+    if (!hal::appearance_changed(appearance_, appearance)) {
+        // A broadcast that did not move the value is not a change: a real platform raises one event
+        // per settings transition, and the app must not repaint for a no-op (the host compares too,
+        // so this also proves the platform-side and host-side rules agree).
+        return;
+    }
+    const bool scheme_moved = appearance.color_scheme != appearance_.color_scheme;
+    appearance_ = appearance;
+    // The color scheme is a theme change; the motion toggle is a system-settings change. Both carry
+    // no value: the app re-reads `appearance()` at the tick boundary, exactly like a Win32
+    // broadcast. A snapshot whose motion flag moved keeps the settings event even when the color
+    // scheme moved too, because both are re-read from the same snapshot either way.
+    push_metrics_event(scheme_moved ? hal::WindowEventType::ThemeChanged
+                                    : hal::WindowEventType::SystemSettingsChanged);
+}
+
+void FakeWindow::seed_appearance(hal::AppearancePreference appearance) noexcept {
+    appearance_ = appearance;
+}
+
 void FakeWindow::set_displays(std::span<const hal::DisplayInfo> displays) {
     display_count_ = std::min(displays.size(), displays_.size());
     for (std::size_t index = 0; index < display_count_; ++index) {

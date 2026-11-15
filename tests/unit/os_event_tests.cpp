@@ -213,10 +213,10 @@ void check_taxonomy() {
 
 void check_window_path() {
     using hal::WindowEventType;
-    expect(static_cast<std::size_t>(WindowEventType::ScaleChanged) + 1 ==
+    expect(static_cast<std::size_t>(WindowEventType::ThemeChanged) + 1 ==
                hal::kWindowEventTypeCount,
            "kWindowEventTypeCount matches the window enumerator count");
-    expect(hal::kWindowEventTypeCount == 18, "the documented window enumerator count");
+    expect(hal::kWindowEventTypeCount == 19, "the documented window enumerator count");
     expect(hal::window_event_type_is_known(WindowEventType::Resize), "resize is known");
     expect(hal::window_event_type_is_known(WindowEventType::ScaleChanged), "scale is known");
     expect(!hal::window_event_type_is_known(static_cast<WindowEventType>(200)),
@@ -256,6 +256,12 @@ void check_window_path() {
            "refresh ranks with display");
     expect(hal::window_event_order_rank(WindowEventType::SystemSettingsChanged) == 3,
            "settings rank last");
+    expect(hal::window_event_order_rank(WindowEventType::ThemeChanged) == 3,
+           "a color-scheme change ranks with the other settings");
+    expect(hal::os_event_type_for(WindowEventType::ThemeChanged) == hal::OsEventType::ThemeChanged,
+           "ThemeChanged maps to the taxonomy's ThemeChanged");
+    expect(!hal::window_event_coalesces(WindowEventType::ThemeChanged),
+           "a settings transition never coalesces");
     expect(hal::window_event_coalesces(WindowEventType::Resize), "resize coalesces");
     expect(hal::window_event_coalesces(WindowEventType::RefreshRateChanged), "refresh coalesces");
     expect(!hal::window_event_coalesces(WindowEventType::Close), "close never coalesces");

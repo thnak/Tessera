@@ -175,6 +175,45 @@ four scripts, the recorded fallbacks, "unknown event is ignored", a deterministi
 fake-window `poll_events` seam). Both are OS-free, so they run identically on the Windows and Linux
 gating lanes.
 
+### 2.2 OS appearance settings: color scheme and reduced motion (issue #187)
+
+The `Theme`/`ReducedMotion` rows of the platform tables below are implemented on Windows and
+Linux/X11. The normalized surface is `include/tessera/hal/appearance.hpp`:
+`ColorSchemePreference` (`Unspecified`, `Light`, `Dark`, `NoPreference`) plus a `reduced_motion`
+flag, with the ADR-023 rule 7 assumption bits, and `Window::appearance()` returns the last measured
+snapshot as a lock-free value. Two normalized events carry a change, neither with a value:
+`WindowEventType::ThemeChanged` (maps to this taxonomy's `ThemeChanged`) for a color-scheme change
+and `WindowEventType::SystemSettingsChanged` (maps to `ReducedMotionChanged`) for the motion toggle.
+The owner re-reads `Window::appearance()` at the tick boundary, which is the rule the first
+reduced-motion slice already used.
+
+Windows reads `SPI_GETCLIENTAREAANIMATION` and `AppsUseLightTheme`
+(`src/platform/windows/window_appearance_win.cpp`); `WM_SETTINGCHANGE` with the `ImmersiveColorSet`
+area and `SPI_SETCLIENTAREAANIMATION` classify to the two events. Linux/X11 observes the freedesktop
+settings portal (`org.freedesktop.appearance` `color-scheme` and `enable-animations`, plus the
+`SettingChanged` signal) on a worker thread with one D-Bus connection
+(`src/platform/linux/appearance_portal.{hpp,cpp}`), with GTK's `settings.ini` as the fallback and the
+documented light/motion-on default (both assumptions set) when neither is available. The
+`enable-animations` value is inverted: the portal says whether animations are allowed, the HAL says
+whether motion is reduced. The D-Bus client itself is the bottom-level `tessera_dbus` target
+(`src/dbus`, `include/tessera/dbus`), which the AT-SPI2 accessibility bridge also uses.
+
+Note the assumption contract: the app driver reads the preference once at creation and again at a
+settings event's tick boundary, so a machine with no settings source produces no event and keeps the
+default. The app half (`AppHost::set_appearance`) applies the motion flag to the animation runtime
+and re-resolves the stylesheet's `@media (prefers-color-scheme)`/`(prefers-reduced-motion)` rules
+against the new media context (ADR-048's resolve step).
+
+Evidence: `hal_appearance` (`tests/unit/hal_appearance_tests.cpp`: the model, the packed handoff, the
+portal value/`Read`/`SettingChanged` decode with a big-endian body, and the GTK parser),
+`app_host_appearance` (`tests/unit/app_host_appearance_tests.cpp`: the acceptance — media queries
+resolved from the startup appearance, `set_appearance` moving `reducedMotion` and the media
+evaluation, and the fake window's event seam), and `appearance_portal`
+(`tests/unit/harness/appearance_portal_tests.cpp`: the absent-bus fallback and a real `settings.ini`
+read under `XDG_CONFIG_HOME`). All are deterministic with no bus, socket, clock or desktop. **Not
+exercised:** a live portal on a real desktop, and a Wayland-only session — the Wayland backend has
+no appearance source yet (its `Window::appearance()` answers the documented fallback).
+
 ## 3. Event ordering and delivery
 
 Per frame/tick:

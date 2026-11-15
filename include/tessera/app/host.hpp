@@ -78,6 +78,12 @@ struct HostConfig {
     // their end value instead of moving; it applies to CSS animations, transitions and the
     // generated components' animated values.
     bool reduced_motion = false;
+    // The OS appearance the host starts with (issue #187): the color scheme and reduced-motion
+    // preferences the platform reported at window creation. The color scheme selects the `@media
+    // (prefers-color-scheme: ...)` rules the stylesheet is resolved against, and the motion flag is
+    // the initial `reduced_motion` above (a caller that sets `reduced_motion` explicitly keeps it:
+    // the flag here only fills the media context and is not a second source of truth for motion).
+    hal::AppearancePreference appearance{};
     ui::frame::FramePipelineConfig pipeline{};
     // Adaptive quality (docs/design/performance.md section 6). The defaults match
     // RuntimeConfig{}, so a host that never configures it behaves exactly like one that does.
@@ -115,6 +121,15 @@ public:
     // and pacing. Throws std::invalid_argument for a non-finite/non-positive size or DPI scale.
     AppHost(ui::Node& root, ui::style::CompiledStyleSheet sheet, runtime::RuntimeLoop& loop,
             HostConfig config = {});
+    // The re-resolvable form (issue #187, ADR-048 decision 2): a media-independent prepared sheet
+    // plus the media context to resolve it against. `@media` is evaluated from `config.appearance`,
+    // and a later appearance change re-resolves the SAME prepared data, which is the documented way
+    // a color-scheme change is applied. A caller that has only a compiled sheet uses the overload
+    // above, where a color-scheme change logs that it cannot re-resolve instead of silently
+    // ignoring it.
+    AppHost(ui::Node& root, const ui::style::PreparedStyleSheet& laid_out_sheet,
+            runtime::RuntimeLoop& loop, HostConfig config,
+            ui::style::Origin origin = ui::style::Origin::Author);
     ~AppHost();
 
     AppHost(const AppHost&) = delete;
@@ -255,6 +270,15 @@ public:
     // animation runtime and the installed scheduler; a scheduler installed later inherits it.
     void set_reduced_motion(bool reduced);
     [[nodiscard]] bool reduced_motion() const;
+
+    // Applies a new OS appearance snapshot at run time (issue #187): the reduced-motion flag goes
+    // through `set_reduced_motion`, and a changed color scheme re-resolves the stylesheet against
+    // the new `prefers-color-scheme` value, which is the same path a theme switch takes (the
+    // cascade is rebuilt, every node is marked, the paint cache is dropped and the loop wakes). The
+    // call is a no-op when neither preference moved, so a settings broadcast that changed something
+    // else costs nothing. The media context the host resolves against is also readable.
+    void set_appearance(const hal::AppearancePreference& appearance);
+    [[nodiscard]] const ui::style::MediaContext& media_context() const;
 
     [[nodiscard]] bool frame_due() const;
     [[nodiscard]] const ui::frame::FrameRender& last_render() const;

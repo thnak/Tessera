@@ -14,11 +14,11 @@ namespace {
 using namespace a11y_atspi_test;
 using a11y_dbus_test::expect;
 using a11y_dbus_test::expect_equal;
+using tessera::dbus::MessageReader;
 using tessera::ui::a11y::A11ySnapshot;
 using tessera::ui::a11y::kAccessibleInterface;
 using tessera::ui::a11y::kComponentInterface;
 using tessera::ui::a11y::make_focus_event;
-using tessera::ui::a11y::MessageReader;
 
 bool error_replies(AtspiBridge& bridge) {
     const Exchange unknown_method =

@@ -649,7 +649,32 @@ Acceptance: a streaming dashboard at target frame rate with deterministic golden
       thread pumps, a terminal phase becomes one `TESSERA_A11Y_UNSUPPORTED:` line),
       `docs/specs/accessibility-v1.md` §12.3/§12.3.2, tests `app_accessibility_host`
       (synthetic loopback peer: handshake, auth rejection, peer close).
-- [ ] #187: Reduced motion and dark mode queries on Linux.
+- [x] #187: Reduced motion and dark mode queries on Linux — the HAL reports both normalized
+      preferences and a change arrives as an event. `include/tessera/hal/appearance.hpp` is the
+      normalized snapshot (`ColorSchemePreference`, `reduced_motion`, `assumed` bits per ADR-023
+      rule 7, the documented light/motion-on fallback and the packed handoff),
+      `include/tessera/hal/portal_appearance.hpp` + `src/hal/window/portal_appearance.cpp` are the
+      pure freedesktop-portal decode (`org.freedesktop.appearance` `color-scheme`/`enable-animations`
+      with the animations->reduced-motion inversion, the `Read`/`SettingChanged` decoders and the GTK
+      `settings.ini` fallback), and `Window::appearance()` is the platform-neutral read. The Linux
+      source is `src/platform/linux/appearance_portal.{hpp,cpp}` (one worker thread, one D-Bus
+      connection through the in-tree client, `SettingChanged` subscription; the UI thread only does
+      an atomic load, so nothing blocks the frame path) and the Windows source is
+      `src/platform/windows/window_appearance_win.cpp` (`SPI_GETCLIENTAREAANIMATION` +
+      `AppsUseLightTheme`), both delivered as the existing normalized
+      `SystemSettingsChanged`/new `ThemeChanged` event; `AppHost::set_appearance` applies the motion
+      flag and re-resolves the prepared stylesheet (`ui::style::with_appearance`,
+      `AppHost::media_context`), and `WindowHost::apply_appearance` is the tick-boundary re-read.
+      Evidence: `hal_appearance` (`tests/unit/hal_appearance_tests.cpp`), `app_host_appearance`
+      (`tests/unit/app_host_appearance_tests.cpp`), `appearance_portal`
+      (`tests/unit/harness/appearance_portal_tests.cpp`), `os_event` (`ThemeChanged` mapping),
+      `a11y_dbus_*`/`a11y_atspi_*` unchanged in what they assert. Design in
+      [`docs/design/hal.md`](docs/design/hal.md) §1.7 and
+      [`docs/specs/os-events-v1.md`](docs/specs/os-events-v1.md) §5/§5.1; the D-Bus client moved to
+      the bottom-level `tessera_dbus` target (`src/dbus`, `include/tessera/dbus`) so the HAL can use
+      it without depending on `ui/accessibility`. Not exercised: a live portal on a real desktop and
+      a Wayland-only session (the Wayland backend has no appearance source yet); the loopback/decoder
+      tests are the deterministic evidence.
 - [x] #243: Translucent window and OS backdrop (Mica, Acrylic, compositor blur) with fallback —
       `include/tessera/hal/window_backdrop.hpp` (resolver table), `src/platform/windows/window_backdrop.cpp`
       (`DWMWA_SYSTEMBACKDROP_TYPE`, DWM frame extension), `src/platform/linux/x11_backdrop.cpp`

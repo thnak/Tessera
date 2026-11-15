@@ -2,10 +2,10 @@
 
 #pragma once
 
+#include "tessera/dbus/address.hpp"
+#include "tessera/dbus/auth.hpp"
+#include "tessera/dbus/transport.hpp"
 #include "tessera/ui/accessibility/atspi_bridge.hpp"
-#include "tessera/ui/accessibility/dbus_address.hpp"
-#include "tessera/ui/accessibility/dbus_auth.hpp"
-#include "tessera/ui/accessibility/dbus_transport.hpp"
 
 #include <array>
 #include <atomic>
@@ -22,6 +22,32 @@
 #include <vector>
 
 namespace tessera::ui::a11y {
+
+// The D-Bus client primitives the session is built from live in the bottom-level `tessera_dbus`
+// target (src/dbus); see the note in atspi_bridge.hpp. `AtspiSession`'s public surface names them
+// (config, errors, the injected transport provider), so they are re-exported here rather than
+// making every caller spell two namespaces.
+using tessera::dbus::AddressError;
+using tessera::dbus::AuthClient;
+using tessera::dbus::AuthError;
+using tessera::dbus::AuthPhase;
+using tessera::dbus::BusAddress;
+using tessera::dbus::BusTransport;
+using tessera::dbus::create_unix_socket_transport;
+using tessera::dbus::current_uid;
+using tessera::dbus::external_identity;
+using tessera::dbus::format_bus_address;
+using tessera::dbus::kMaxAddressBytes;
+using tessera::dbus::kMaxAuthIdentityBytes;
+using tessera::dbus::kMaxAuthLineBytes;
+using tessera::dbus::kMaxLoopbackBytes;
+using tessera::dbus::kMaxUnixPathBytes;
+using tessera::dbus::LoopbackTransport;
+using tessera::dbus::parse_bus_address;
+using tessera::dbus::read_session_environment;
+using tessera::dbus::SessionEnvironment;
+using tessera::dbus::Transport;
+using tessera::dbus::TransportError;
 
 // AT-SPI2 session handshake and pumped worker thread (docs/specs/accessibility-v1.md section 12.1).
 // `AtspiSession` owns the two D-Bus connections the Linux bridge needs and runs the handshake an

@@ -104,14 +104,44 @@ bool WindowHost::Impl::handle_window_event(const hal::WindowEvent& event) {
         }
         break;
     case hal::WindowEventType::SystemSettingsChanged:
-        if (motion.update(system_prefers_reduced_motion())) {
-            host->set_reduced_motion(motion.reduced());
-            // In-flight animations must finish (or snap) even if the scene was idle.
-            loop->mark_render_dirty();
-        }
+        // The platform re-reads its settings when it sees the broadcast, so one normal read here is
+        // enough for both preferences: the reduced-motion toggle and a color-scheme change travel
+        // through the same snapshot (issue #187). A change reaches the host once, and the media
+        // queries are re-resolved by `set_appearance` when the color scheme moved.
+        apply_appearance();
+        break;
+    case hal::WindowEventType::ThemeChanged:
+        // The Windows immersive-color set / the Linux portal's SettingChanged became this event.
+        apply_appearance();
         break;
     }
     return false;
+}
+
+// The appearance half of the settings path (issue #187, docs/specs/os-events-v1.md sections 2 and
+// 5). The platform event carries no value, so the host re-reads the window's normalized snapshot at
+// this tick boundary -- the same rule the pre-existing reduced-motion path followed, now covering
+// the color scheme too. Both preferences travel together: `AppHost::set_appearance` applies the
+// motion flag to the animation runtime and re-resolves the stylesheet when the color scheme moved.
+// A re-read that did not move is a no-op, and the render is woken only for a real change so a
+// static scene stays idle (ADR-019).
+void WindowHost::Impl::apply_appearance() {
+    if (window == nullptr) {
+        return;
+    }
+    const hal::AppearancePreference observed = window->appearance();
+    // Windows keeps its SPI query for a backend whose window does not implement the HAL snapshot;
+    // the color scheme then stays assumed, which is what a platform without a source reports.
+    const bool reduced = observed.reduced_motion || system_prefers_reduced_motion();
+    hal::AppearancePreference next = observed;
+    next.reduced_motion = reduced;
+    if (motion.update(reduced)) {
+        host->set_reduced_motion(motion.reduced());
+        loop->mark_render_dirty();
+    }
+    // The color scheme is compared through the host's own snapshot, so a broadcast for an unrelated
+    // setting (same theme) costs one comparison and no style rebuild.
+    host->set_appearance(next);
 }
 
 // The display refresh the platform reports now reaches the pacer through its existing rate-change

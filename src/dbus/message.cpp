@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 
-#include "tessera/ui/accessibility/dbus_wire.hpp"
+#include "tessera/dbus/wire.hpp"
 
-namespace tessera::ui::a11y {
+namespace tessera::dbus {
 namespace {
 
 char type_code_of(std::string_view signature) {
@@ -188,4 +188,4 @@ std::expected<ParsedMessage, WireError> parse_message(std::span<const std::uint8
     message.consumed = body_start + body_length;
     return message;
 }
-} // namespace tessera::ui::a11y
+} // namespace tessera::dbus
