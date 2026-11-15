@@ -30,6 +30,8 @@ add_library(tessera_codegen STATIC
     src/emit_lifecycle.cpp
     src/emit_list.cpp
     src/emit_node.cpp
+    src/emit_node_attributes.cpp
+    src/emit_node_behavior.cpp
     src/emit_node_support.cpp
     src/emit_props.cpp
     src/emit_virtual.cpp
