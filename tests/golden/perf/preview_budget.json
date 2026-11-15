@@ -37,14 +37,15 @@
         "tessera_diagnostics.js.gzip": 2831,
         "index.html.gzip": 1602,
         "app.js.gzip": 4541,
-        "app.css.gzip": 2783,
-        "scene.html.gzip": 1755,
-        "scene.js.gzip": 3974,
+        "app.css.gzip": 3126,
+        "scene.html.gzip": 2201,
+        "scene.js.gzip": 5367,
         "preview-state.js.gzip": 2063,
         "share.js.gzip": 3939,
         "gallery.js.gzip": 2363,
         "studio.js.gzip": 4779,
-        "samples.json.gzip": 165
+        "samples.json.gzip": 162,
+        "scene-input.js.gzip": 2625
       }
     },
     "cold_engine_ready_ms": {

@@ -68,6 +68,10 @@ PAGE_FILES = (
     "share.js",
     "gallery.js",
     "studio.js",
+    # P4's input pane, split out of `scene.js` when the merged file reached the 500-line limit
+    # (issue #169). Added here in the same change as the split: a page asset that is not in this
+    # list ships unweighed, which is the bug P5 fixed for `scene.html`/`scene.js`.
+    "scene-input.js",
     "samples.json",
 )
 
