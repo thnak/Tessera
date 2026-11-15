@@ -24,4 +24,4 @@ src/ui/style/property_registry.cpp 507
 tests/unit/adaptive_quality_tests.cpp 804
 tests/unit/frame_pipeline_tests.cpp 563
 tests/unit/input_router_tests.cpp 507
-tools/codegen/regenerate.cpp 766
+tools/codegen/regenerate.cpp 668

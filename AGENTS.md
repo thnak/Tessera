@@ -894,6 +894,9 @@ live in one place and are linked, not copied.
 - [ ] `scripts/format.* --check` passes; clang-tidy reports no new warnings in changed files.
 - [ ] Files stay under the 300/500-line soft/hard limits (ADR-015). Phase 0 PoC targets
       (`tools/poc/vulkan_offscreen`, `offscreen_renderer.cpp`) are exempt until retired.
+      `scripts/check_source_size.py` enforces it (gate `source-size`): a new over-limit file, or any
+      file that grows past its count in `scripts/source-size-baseline.txt`, fails; the baseline only
+      accepts a lower number (`--update` refuses to raise one).
 - [ ] Docs are updated/indexed; relative links and code fences are valid; no doc exceeds the
       600-line hard limit (target 400). New ADRs are in `decisions/README.md`.
 - [ ] Generator/config changes update `docs/guides/project-generator.md` and the schema.
@@ -954,16 +957,19 @@ both ADR-048 blob artifacts (compiled stylesheets registered in import-graph ord
 `@layer tessera-ui`, and the embedded theme asset loaded without parsing); in-tree UIA and AT-SPI2
 bridges not yet installed in a host; and the first WebGPU slice (unbuilt on host).
 
-**Farm order:** V1-M1 is now complete (the B3 Wayland window and the B3 OS-event slice both landed),
-so the farm is on V1-M2: the ADR-040 one-path migration is done (#218 migrated every test family,
-sample and tool to the generated base, and #219 deleted the legacy output, the merger and
-`EmitMode`), so what remains in this milestone is the documentation slice #211 and #158
-(object-literal prop defaults, ADR-051). V1-M3's last item, #159, is closed by this
-landing: the `shader-manifest-v1.md` id-to-source table (section 3.2) and the opt-in cross-compile
+**Farm order:** V1-M1, V1-M2 and V1-M3 are complete. V1-M2 closed with the ADR-040 one-path
+migration (#218 migrated every test family, sample and tool to the generated base; #219 deleted the
+legacy output, the merger and `EmitMode`), the documentation slice #211, and #158 (object-literal
+prop defaults and `useState` record initials, ADR-051); its only open item is #327's `emit_expr.cpp`
+/ `emit_node.cpp` split, whose gate landed in #340. **V1-M4 is the active milestone**: P1 (#165)
+landed the diagnostics page, the machine-readable diagnostics document
+(`docs/specs/compiler-diagnostics-v1.md`) and a ready-to-enable Pages pipeline, so P2 (#166, the
+evaluator on the null RHI) is next. P1's deploy half waits on an owner action: GitHub Pages is not
+enabled on this repository. V1-M3 closed with #159: the `shader-manifest-v1.md` id-to-source table (section 3.2) and the opt-in cross-compile
 section (5.1), plus the `shader-cross` job in `.github/workflows/linux.yml` that runs
 `TESSERA_SHADER_CROSS=ON` — its first run found a real shader defect (a by-value struct parameter
 in `batched2d.frag` lowered to `OpCopyLogical`, which naga rejects on Linux glslang 16.1), now
-fixed. With #159 closed, V1-M3 is complete (9 of 9 items; #245 closed too). V1-M4 is in progress,
+fixed. V1-M3 is therefore complete (9 of 9 items; #245 closed too). V1-M4 is in progress,
 not blocked on tooling: the WebGPU lane already installs the pinned Emscripten and builds Wasm
 green, so the remaining work is putting the compiler into the Wasm build graph and adding a
 differential harness and CI lane for it (#164). V1-M5 is unblocked (ADR-050 is Accepted) and
