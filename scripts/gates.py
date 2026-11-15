@@ -63,6 +63,12 @@ BASE_GATES: List[Gate] = [
     Gate("license-bundle", "gen_license_bundle.py", ("--check",), "license bundle is up to date"),
     Gate("sbom", "gen_sbom.py", ("--check",), "SPDX 2.3 SBOM is up to date"),
     Gate("docs", "check_docs.py", (), "links, anchors, docs index, fences, sizes, ADRs, RHI header changes"),
+    Gate(
+        "source-size",
+        "check_source_size.py",
+        (),
+        "C++ files stay within the 500-line hard limit (ratchet baseline, issue #327)",
+    ),
     Gate("pins", "check_pins.py", ("--check",), "reproducible pins and dependency rows"),
 ]
 OPTIONAL_GATES: List[Gate] = [
