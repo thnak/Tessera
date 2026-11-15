@@ -1,0 +1,228 @@
+// SPDX-License-Identifier: MIT
+
+#include "compile_tools.hpp"
+#include "mcp_protocol.hpp"
+#include "session.hpp"
+#include "tool_registry.hpp"
+
+#include <string>
+#include <string_view>
+#include <utility>
+
+namespace tessera::mcp {
+namespace {
+
+// A project path is a host path, not a source file: 4 KiB is far beyond any real path and bounded
+// so a client cannot make the session hold an arbitrary string in its state.
+constexpr std::size_t kMaxPathBytes = 4096;
+
+std::string_view string_member(const JsonValue& object, std::string_view key) {
+    const JsonValue* value = object.find(key);
+    if (value == nullptr || !value->is_string()) {
+        return {};
+    }
+    return *value->as_string();
+}
+
+// The `arguments` object of a `tools/call`. A tool with no arguments may omit it, and the schema
+// `tools/list` publishes for such a tool is an empty object, so an omission and `{}` are the same
+// request. Anything else is refused instead of being coerced.
+std::expected<const JsonValue*, RpcError> tool_arguments(const JsonValue& params) {
+    static const JsonValue kNoArguments = JsonValue::object();
+    const JsonValue* arguments = params.find("arguments");
+    if (arguments == nullptr) {
+        return &kNoArguments;
+    }
+    if (!arguments->is_object()) {
+        return std::unexpected(RpcError{RpcErrorCode::InvalidParams,
+                                        "`arguments` must be an object", kInvalidParamsCode});
+    }
+    return arguments;
+}
+
+// A required non-empty string argument. The message names the argument so an agent can correct the
+// call without re-reading the tool description; it is a caller-supplied literal because RpcError
+// holds views and must not point into a temporary.
+std::expected<std::string_view, RpcError>
+string_argument(const JsonValue& arguments, std::string_view name, std::string_view message) {
+    const JsonValue* value = arguments.find(name);
+    if (value == nullptr || !value->is_string() || value->as_string()->empty()) {
+        return std::unexpected(RpcError{RpcErrorCode::InvalidParams, message, kInvalidParamsCode});
+    }
+    return *value->as_string();
+}
+
+} // namespace
+
+JsonValue initialize_result(std::string_view requested_version) {
+    const std::string_view version =
+        protocol_version_supported(requested_version) ? requested_version : kLatestProtocolVersion;
+
+    JsonValue tools_capability = JsonValue::object();
+    // `listChanged` is false and honest: the surface is fixed for the process lifetime, so this
+    // server never sends `notifications/tools/list_changed`.
+    tools_capability.set("listChanged", JsonValue::boolean(false));
+    JsonValue capabilities = JsonValue::object();
+    capabilities.set("tools", std::move(tools_capability));
+
+    JsonValue info = JsonValue::object();
+    info.set("name", JsonValue::string(std::string(kServerName)));
+    info.set("version", JsonValue::string(std::string(kServerVersion)));
+
+    JsonValue result = JsonValue::object();
+    result.set("protocolVersion", JsonValue::string(std::string(version)));
+    result.set("capabilities", std::move(capabilities));
+    result.set("serverInfo", std::move(info));
+    // The section 8 adapter is a tool surface only: no prompts, no resources, no sampling.
+    result.set("instructions",
+               JsonValue::string(
+                   "Tessera compile-only adapter. `diagnostics` and `get_ir` run the real compiler "
+                   "front end over text you send, in memory; `open_project` records a project path "
+                   "for later tools. Every other tool is declared in `tools/list` and answers with "
+                   "TESSERA_MCP_TOOL_UNIMPLEMENTED."));
+    return result;
+}
+
+std::expected<JsonValue, RpcError> McpSession::initialize(const JsonValue& params) {
+    // A client that sends no version at all is answered with this server's newest one rather than
+    // refused: the handshake is the first line of a session and being strict there helps nobody.
+    return initialize_result(string_member(params, "protocolVersion"));
+}
+
+std::expected<JsonValue, RpcError> McpSession::call_tool(const JsonValue& params) {
+    const std::string_view name = string_member(params, "name");
+    if (name.empty()) {
+        return std::unexpected(RpcError{RpcErrorCode::InvalidParams,
+                                        "`name` must be a non-empty string", kInvalidParamsCode});
+    }
+    const ToolDefinition* tool = find_tool(name);
+    if (tool == nullptr) {
+        return std::unexpected(
+            RpcError{RpcErrorCode::InvalidParams, "no tool with that name", kUnknownToolCode});
+    }
+    auto arguments = tool_arguments(params);
+    if (!arguments) {
+        return std::unexpected(arguments.error());
+    }
+
+    if (tool->status == ToolStatus::Declared) {
+        // An execution error, not a protocol error: the request was well formed and the tool is a
+        // real member of the surface. Answering `InvalidParams` would blame the client for asking
+        // for something the server advertised.
+        return tool_result_json(unimplemented_tool_result(*tool));
+    }
+
+    if (name == "open_project") {
+        auto path = string_argument(**arguments, "path", "`path` must be a non-empty string");
+        if (!path) {
+            return std::unexpected(path.error());
+        }
+        if (path->size() > kMaxPathBytes) {
+            return std::unexpected(
+                RpcError{RpcErrorCode::InvalidParams, "`path` is too long", kInputTooLargeCode});
+        }
+        if (auto reason = state_.open_project(std::string(*path)); reason.has_value()) {
+            return tool_result_json(ToolResult{true, std::move(*reason)});
+        }
+        return tool_result_json(ToolResult{false, "project opened: " + std::string(*path)});
+    }
+
+    if (name == "diagnostics" || name == "get_ir") {
+        auto source = string_argument(**arguments, "source", "`source` must be a non-empty string");
+        if (!source) {
+            return std::unexpected(source.error());
+        }
+        if (source->size() > kMaxSourceBytes) {
+            return std::unexpected(
+                RpcError{RpcErrorCode::InvalidParams,
+                         "`source` exceeds the 1 MiB per-file limit of docs/specs/jsx-subset-v1.md "
+                         "section 15",
+                         kInputTooLargeCode});
+        }
+        const std::string file = resolve_buffer_name(state_, string_member(**arguments, "file"));
+        if (file.empty()) {
+            return std::unexpected(
+                RpcError{RpcErrorCode::InvalidParams,
+                         "`file` must stay inside the project (no absolute path or `..`)",
+                         kInvalidParamsCode});
+        }
+        const ToolResult result = name == "diagnostics" ? run_diagnostics_tool(*source, file)
+                                                        : run_get_ir_tool(*source, file);
+        return tool_result_json(result);
+    }
+
+    // Unreachable by construction: ToolStatus::Implemented is exactly the set handled above, and
+    // the registry test asserts that. Answered rather than asserted so a future tool cannot crash a
+    // session that is already serving a client.
+    return tool_result_json(unimplemented_tool_result(*tool));
+}
+
+std::expected<SessionReply, std::string_view>
+McpSession::handle_message(const IncomingMessage& message) {
+    const bool is_request = message.is_request();
+    const auto respond = [&message, is_request](std::expected<JsonValue, RpcError> result)
+        -> std::expected<SessionReply, std::string_view> {
+        if (!is_request) {
+            // A notification is never answered; an unknown or failed notification is dropped, as
+            // JSON-RPC requires (there is no id to correlate an error with).
+            return SessionReply{};
+        }
+        if (!result) {
+            auto text = encode_error(message.id, result.error());
+            if (!text) {
+                return std::unexpected(text.error());
+            }
+            return SessionReply{std::move(*text), true};
+        }
+        auto text = encode_result(message.id, *result);
+        if (!text) {
+            return std::unexpected(text.error());
+        }
+        return SessionReply{std::move(*text), true};
+    };
+
+    if (!message.params_were_object) {
+        return respond(std::unexpected(RpcError{RpcErrorCode::InvalidParams,
+                                                "`params` must be an object", kInvalidParamsCode}));
+    }
+
+    if (message.method == "initialize") {
+        auto result = initialize(message.params);
+        if (result) {
+            initialized_ = true;
+        }
+        return respond(std::move(result));
+    }
+    if (message.method == "ping") {
+        // Liveness only, and deliberately allowed before the handshake: a client probing a server
+        // it has not initialized yet should get an answer, not a lifecycle error.
+        return respond(JsonValue::object());
+    }
+    if (message.method == "notifications/initialized") {
+        // The client's acknowledgement of the handshake. Nothing to do, and never answered.
+        return respond(JsonValue::object());
+    }
+    if (!initialized_) {
+        return respond(std::unexpected(RpcError{RpcErrorCode::NotInitialized,
+                                                "send `initialize` before any other method",
+                                                kNotInitializedCode}));
+    }
+    if (message.method == "tools/list") {
+        return respond(tools_list_result());
+    }
+    if (message.method == "tools/call") {
+        return respond(call_tool(message.params));
+    }
+    return respond(std::unexpected(
+        RpcError{RpcErrorCode::MethodNotFound, "unknown method", kInvalidParamsCode}));
+}
+
+std::expected<SessionReply, std::string_view> McpSession::handle_line(std::string_view line) {
+    auto message = decode_message(line);
+    if (!message) {
+        return SessionReply{encode_decode_failure(message.error()), true};
+    }
+    return handle_message(*message);
+}
+
+} // namespace tessera::mcp
