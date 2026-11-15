@@ -33,6 +33,11 @@ namespace ids = tessera::compiler::ids;
 
 bool write_goldens = false;
 
+// The canonical ADR-040 path (issue #218): every component is one header-only generated base.
+codegen::CodegenResult generate(const ir::IrModule& module) {
+    return codegen::generate(module, {}, std::nullopt, codegen::EmitMode::GeneratedBase);
+}
+
 // Two SafeAreas: the defaults, and one with explicit edges, a floor and margin mode.
 constexpr const char* kDemo =
     "import { SafeArea } from \"./SafeArea\";\n"
@@ -94,7 +99,7 @@ void test_demo_project(const std::string& source) {
     const auto diagnostics = ir::validate(module);
     check(diagnostics.empty(), "the demo module validates: " +
                                    (diagnostics.empty() ? std::string() : diagnostics[0].message));
-    const auto generated = codegen::generate(module);
+    const auto generated = generate(module);
     check(generated.has_value(), "the demo generates C++");
     if (generated) {
         check_goldens(*generated);
@@ -141,7 +146,7 @@ int main(int argc, char** argv) {
     const auto diagnostics = ir::validate(module);
     check(diagnostics.empty(), "the module validates: " +
                                    (diagnostics.empty() ? std::string() : diagnostics[0].message));
-    check(codegen::generate(module).has_value(), "SafeArea generates C++");
+    check(generate(module).has_value(), "SafeArea generates C++");
     test_demo_project(text);
     return jsx_test::finish("library safe area lowering");
 }

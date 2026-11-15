@@ -298,9 +298,9 @@ presence state: the model is [`compiler-node-state.md`](compiler-node-state.md).
 `TESSERA_CODEGEN_UNSUPPORTED`: slot children of an instance inside a template, and a conditional list
 node as a *direct* child of a Component node (its insertion parent would be a callee tree position
 the caller does not know). Props and callback props are passed (see the next paragraph). The goldens
-`tests/golden/codegen/{Card,CardPage}.*` are generated from hand-built IR by
-`codegen_composition_tests --write`; the build compiles them as
-`tessera_codegen_composition_sample` and `codegen_composition_runtime_tests` asserts the attached
+`tests/golden/codegen/{Card,CardPage}.g.hpp` are generated from hand-built IR by
+`codegen_composition_tests --write`; the developer classes are hand-written under
+`tests/unit/codegen_base/fixtures`, and `codegen_composition_runtime_tests` asserts the attached
 tree, the slot order and the lifecycle wiring.
 
 **Component props and callback props (implemented).** A `Component` node's attributes are passed to

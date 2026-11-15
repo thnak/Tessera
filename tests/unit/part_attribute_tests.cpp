@@ -28,7 +28,8 @@ ir::IrModule to_module(lowering::LoweredModule& lowered) {
 }
 
 std::string generated(std::string_view path, const ir::IrModule& module) {
-    const auto files = codegen::generate(module, {}, std::nullopt, codegen::EmitMode::Legacy);
+    const auto files =
+        codegen::generate(module, {}, std::nullopt, codegen::EmitMode::GeneratedBase);
     check(files.has_value(), "codegen succeeds");
     if (!files) {
         return {};
@@ -86,7 +87,7 @@ void test_codegen_emits_set_part() {
     if (!lowered) {
         return;
     }
-    const std::string source = generated("App.cpp", to_module(*lowered));
+    const std::string source = generated("App.g.hpp", to_module(*lowered));
     check(source.find("->set_part(\"label\");") != std::string::npos,
           "codegen emits set_part for the part attribute");
 }
@@ -102,10 +103,10 @@ void test_component_host_carries_its_name() {
         return;
     }
     ir::IrModule module = to_module(*lowered);
-    const std::string page = generated("App.cpp", module);
+    const std::string page = generated("App.g.hpp", module);
     check(page.find("->set_component_name(\"Card\");") != std::string::npos,
           "the instance host is typed with its component name");
-    const std::string card = generated("Card.cpp", module);
+    const std::string card = generated("Card.g.hpp", module);
     check(card.find("->set_part(\"label\");") != std::string::npos,
           "the component's inner element declares its part");
 }

@@ -39,11 +39,12 @@ A cross-platform C++ UI framework:
 5. **Generated code and developer code have separate owners** ([ADR-040](decisions/ADR-040-generated-base-and-developer-class.md)).
    Codegen emits a `gen::<Component>Base<Self>` that is never edited or merged; developer C++
    lives in a developer-owned derived class scaffolded once, and a missing `bind::` member is a
-   compile error. The migration is under way: #209 and #210 are done, #218 moves the codegen
-   test families to the base one by one (sample, dynamic, embed, ids-stability, dynamic-virtual,
-   vector, composition, virtual and forms are done; size-change and instances remain, plus the
-   trailing library fixtures), and #219 deletes the legacy output, the merger and `EmitMode`.
-   Until #219 lands the legacy merger must stay idempotent
+   compile error. The migration is under way: #209 and #210 are done, and #218 has moved every
+   codegen test family to the base (sample, dynamic, embed, ids-stability, dynamic-virtual,
+   vector, composition, virtual, forms, size-change, instances, and the trailing library fixtures
+   Button, SafeArea, callback-forward and `part_attribute_tests`), so no test or sample emits the
+   legacy output any more and #219 deletes it, the merger and `EmitMode`. Until #219 lands the
+   legacy merger must stay idempotent
    (`merge(merge(g, e), e) == merge(g, e)`); add no new features to it.
 6. **Deterministic headless tests use a software path.** Golden images come from
    Mesa **lavapipe** or the CPU rasterizer, never from a real GPU framebuffer.
@@ -953,9 +954,11 @@ both ADR-048 blob artifacts (compiled stylesheets registered in import-graph ord
 bridges not yet installed in a host; and the first WebGPU slice (unbuilt on host).
 
 **Farm order:** V1-M1 is now complete (the B3 Wayland window and the B3 OS-event slice both landed),
-so the farm moves to V1-M2: the ADR-040 one-path migration (#218 migrates the codegen test families
-to the generated base, then #219 deletes the legacy output, the merger and `EmitMode`), the doc slice
-#211, and #158 (object-literal prop defaults, ADR-051). V1-M3's last item, #159, is closed by this
+so the farm is on V1-M2: #218's last families (Button, SafeArea, callback-forward,
+`part_attribute_tests`) landed, so nothing but `tools/codegen/regenerate.cpp` and
+`part_attribute_tests` still name `EmitMode` and #219 (delete the legacy output, the merger and
+`EmitMode`) is next, followed by the doc slice #211 and #158 (object-literal prop defaults,
+ADR-051). V1-M3's last item, #159, is closed by this
 landing: the `shader-manifest-v1.md` id-to-source table (section 3.2) and the opt-in cross-compile
 section (5.1), plus the `shader-cross` job in `.github/workflows/linux.yml` that runs
 `TESSERA_SHADER_CROSS=ON` — its first run found a real shader defect (a by-value struct parameter

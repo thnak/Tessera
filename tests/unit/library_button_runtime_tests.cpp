@@ -92,7 +92,7 @@ struct Fixture {
     }
 
     ui::Node root{1000};
-    button_demo::gen::ButtonDemo demo;
+    button_demo::ButtonDemo demo;
     std::vector<ui::Node*> buttons;
     ui::InputRouter router;
 };
@@ -120,15 +120,15 @@ int main() {
     // Keyboard: Enter on the focused enabled Button calls onPress once.
     router.focus_manager().request_focus(&enabled);
     router.dispatch(fixture.root, keyboard(ui::InputEventType::KeyDown, key::kEnter));
-    check(demo.state_count_ == 1, "Enter activates the enabled Button");
-    check(demo.child_2_.state_pressed_, "Enter presses it");
+    check(demo.count() == 1, "Enter activates the enabled Button");
+    check(demo.child_2().pressed(), "Enter presses it");
     router.dispatch(fixture.root, keyboard(ui::InputEventType::KeyUp, key::kEnter));
-    check(!demo.child_2_.state_pressed_, "releasing the key releases it");
+    check(!demo.child_2().pressed(), "releasing the key releases it");
 
     // Space activates on key up, like a native button.
     router.dispatch(fixture.root, keyboard(ui::InputEventType::KeyDown, key::kSpace));
     router.dispatch(fixture.root, keyboard(ui::InputEventType::KeyUp, key::kSpace));
-    check(demo.state_count_ == 2, "Space activates the enabled Button");
+    check(demo.count() == 2, "Space activates the enabled Button");
 
     // Disabled: neither key nor pointer reaches onPress, and it never shows as pressed.
     router.focus_manager().request_focus(&disabled);
@@ -136,8 +136,8 @@ int main() {
     router.dispatch(fixture.root, keyboard(ui::InputEventType::KeyUp, key::kEnter));
     router.dispatch(fixture.root, pointer(ui::InputEventType::PointerDown, 20, 60));
     router.dispatch(fixture.root, pointer(ui::InputEventType::PointerUp, 20, 60));
-    check(demo.state_count_ == 2, "a disabled Button never calls onPress");
-    check(!demo.child_4_.state_pressed_, "a disabled Button is never pressed");
+    check(demo.count() == 2, "a disabled Button never calls onPress");
+    check(!demo.child_4().pressed(), "a disabled Button is never pressed");
 
     // Pointer: press and release on the small danger Button.
     router.dispatch(fixture.root, pointer(ui::InputEventType::PointerDown, 20, 100));
@@ -146,7 +146,7 @@ int main() {
     check(ui::style::has_state(danger.pseudo_state(), ui::style::PseudoState::Active),
           "pointer down makes the danger Button :active");
     router.dispatch(fixture.root, pointer(ui::InputEventType::PointerUp, 20, 100));
-    check(demo.state_count_ == 12, "a pointer click calls onPress (+10)");
+    check(demo.count() == 12, "a pointer click calls onPress (+10)");
     check(!ui::style::has_state(danger.pseudo_state(), ui::style::PseudoState::Active),
           "pointer up clears :active");
 
@@ -154,7 +154,7 @@ int main() {
     router.dispatch(fixture.root, pointer(ui::InputEventType::PointerDown, 20, 20));
     router.dispatch(fixture.root, pointer(ui::InputEventType::PointerMove, 300, 150));
     router.dispatch(fixture.root, pointer(ui::InputEventType::PointerUp, 300, 150));
-    check(demo.state_count_ == 12, "leaving before release does not activate");
+    check(demo.count() == 12, "leaving before release does not activate");
     check(!ui::style::has_state(enabled.pseudo_state(), ui::style::PseudoState::Active),
           "leaving clears :active");
 
