@@ -6,6 +6,13 @@
 add_library(tessera_app STATIC
     host.cpp
     host_impl.hpp
+    # The adaptive-quality ladder of AppHost::Impl (god-type audit slice 10): the controller, its
+    # diagnostics recording, and the two application rules a decision implies.
+    quality_stage.cpp
+    quality_stage.hpp
+    # The adapters binding that stage to the real host state. Kept out of host.cpp, which is already
+    # at its size budget.
+    host_quality.cpp
     host_theme.cpp
     safe_area_state.cpp
     safe_area_state.hpp

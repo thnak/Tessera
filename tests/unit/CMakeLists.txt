@@ -354,6 +354,23 @@ target_link_libraries(adaptive_quality_tests PRIVATE
 
 add_test(NAME adaptive_quality COMMAND adaptive_quality_tests)
 
+# The adaptive-quality stage of AppHost (god-type audit slice 10): the frame-time selection, its
+# diagnostics recording, and the two application rules a decision implies -- a reduced-effects flip
+# requests exactly one full repaint, a paused-animations flip marks the loop dirty exactly once.
+# Driven with a fake context, so no host, window or GPU.
+add_executable(app_quality_stage_tests
+    app_quality_stage_tests.cpp)
+
+target_include_directories(app_quality_stage_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src/app
+    ${PROJECT_SOURCE_DIR}/src/runtime)
+
+target_link_libraries(app_quality_stage_tests PRIVATE
+    tessera_app
+    tessera_runtime)
+
+add_test(NAME app_quality_stage COMMAND app_quality_stage_tests)
+
 # GPU frame-time signal (docs/design/performance.md section 6.1): the timestamp interval arithmetic
 # (period, 64-bit wraparound, zero/absurd delta and unusable period), the capability gate with a fake
 # probe (usable -> GPU, any missing fact -> CPU), and the host wiring that feeds the controller the

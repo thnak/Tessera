@@ -176,6 +176,15 @@ schedule. The class is not over the size limit; the TU is the symptom.
 (`observe_frame_time_*`, `quality_controller_config`). `begin_frame` then reads as the four stages in
 order, which is what the frame-pipeline design note already describes.
 
+**Landed (step 1).** `detail::QualityStage` (`quality_stage.hpp`) owns the adaptive-quality ladder,
+its diagnostics recording and the two application rules a decision implies. It takes a
+`QualityStageContext` of function pointers rather than a pointer to `Impl`, for the same reason
+`AdaptiveQualityStageProbe` already does: the stage is then testable with a fake context, and
+`tests/unit/app_quality_stage_tests.cpp` pins both wake rules (a reduced-effects flip requests
+exactly one full repaint; a paused-animations flip marks the loop dirty exactly once) instead of
+leaving them implied by statement order in `host.cpp`. `StyleStage`, `LayoutStage` and
+`OverlayStage` remain open.
+
 ### 3.5 `rendering::gpu::Batched2DRenderer` (rank 5)
 
 271-line header, 42 methods, 36 members, three private nested structs (`ClipState`, `Batch`,
@@ -415,13 +424,16 @@ still open.
 | 7 | `VirtualRange` realized window | **landed (step 1)** | `RealizedWindow` (`realized_window.hpp`) now owns the realized table, its packed swap-in release, main-axis placement and index span; `VirtualRange` keeps the scheduling that drives it. The `FocusCursor`/`SelectionSet` extraction of section 3.3 remains open, and so does replacing the aggregate re-exports with direct accessors |
 | 8 | `Batched2DRenderer` state cluster | **landed** | `ClipStateTable` (`clip_state_table.hpp`) owns the rounded-clip stack, its interned shader fold and the push-constant packing; `VertexArena` (`vertex_arena.hpp`) owns slot rotation, in-frame append and growth; `GlassCompositor` (`glass_compositor.hpp`) owns the two glass passes and the bounded pool. `batched2d_clip_state.cpp` and `batched2d_glass.cpp` are gone, the renderer header is 271 -> 216 lines, and `tests/unit/gpu_collaborators_tests.cpp` covers the three directly |
 | 9 | `WindowHost::Impl` collaborators | **landed (step 1)** | `detail::FrameTimeProbe` (`frame_time_probe.hpp`) owns the capability gate, the pending interval and the selection rule; `detail::ScaledTargets` (`scaled_targets.hpp`) owns the per-slot render-scale targets and the resample capability. Both are in the non-Vulkan `tessera_app` library, so `tests/unit/window_state_clusters_tests.cpp` drives them with the null backend. `Presentation` and `RecoveryFlow` remain open, see section 3.2 |
+| 10 | `AppHost` stages | **landed (step 1)** | `detail::QualityStage` (`quality_stage.hpp`) owns the adaptive-quality ladder, its diagnostics recording and the two application rules a decision implies; `AppHost::observe_frame_time_sample` is now one call. `tests/unit/app_quality_stage_tests.cpp` drives it with a fake context. `StyleStage`, `LayoutStage` and `OverlayStage` remain open, see section 3.4 |
 
-Slices 10-12 are open. Rows 4, 5, 7 and 9 are deliberately partial: row 4's TU split is the
+Slices 11-12 are open. Rows 4, 5, 7, 9 and 10 are deliberately partial: row 4's TU split is the
 mechanical half and its header views are a separate API change that must re-check the 320-byte budget
 on each step; row 5's buffer removal is the cheap half and its payload views change how handlers read
 an event; row 7's window extraction is the part that owns real mutable state, and the
-focus/selection policy behind it is a second, smaller step; row 9's two clusters are the ones with
-no lifecycle coupling, and `Presentation`/`RecoveryFlow` are the ones that have it.
+focus/selection policy behind it is a second, smaller step; row 9's two clusters are the ones with no
+lifecycle coupling, and `Presentation`/`RecoveryFlow` are the ones that have it; row 10's quality
+stage is the one section 3.4 names with the cleanest boundary, while the three scene-facing stages
+need the `begin_frame` restructure that follows.
 
 ## 7. What is deliberately not split
 
