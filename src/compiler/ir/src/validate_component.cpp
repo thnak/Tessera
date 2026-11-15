@@ -96,6 +96,25 @@ void ComponentChecker::check_declarations() {
                            env.source);
         }
     }
+    // ADR-050 section 3.1 (AF5): a service requirement is an `svc::<name>` id with the C++ spelling
+    // of its interface. The type and header are the project manifest's data, so they are required
+    // here: without them codegen would have to guess a C++ name.
+    for (const auto& service : component.services) {
+        declare(service.id, "svc::", service.source);
+        validate_span(context, service.source, "service `" + service.id + "`");
+        if (service.name.empty()) {
+            context.report("TESSERA_IR_MALFORMED", "service `" + service.id + "` has no name",
+                           service.source);
+        }
+        if (service.type.empty()) {
+            context.report("TESSERA_IR_MALFORMED", "service `" + service.id + "` has no type",
+                           service.source);
+        }
+        if (service.header.empty()) {
+            context.report("TESSERA_IR_MALFORMED", "service `" + service.id + "` has no header",
+                           service.source);
+        }
+    }
     for (const auto& ref : component.refs) {
         declare(ref.id, "ref::", where);
     }

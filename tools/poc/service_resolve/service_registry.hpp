@@ -10,6 +10,7 @@
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <string>
 #include <string_view>
 #include <typeindex>
@@ -116,6 +117,17 @@ public:
             return nullptr;
         }
         return static_cast<T*>(it->service);
+    }
+
+    // The AF5 shape: `ServiceContext::get<T>()` is the required-service form `attach_services()`
+    // calls. It is the same lookup as `find<T>()`; a miss terminates in the real one, so the
+    // benchmark treats a miss as unreachable and asserts it.
+    template<ProvidedService T> T& get() const noexcept {
+        T* const found = find<T>();
+        if (found == nullptr) {
+            std::abort();
+        }
+        return *found;
     }
 
     [[nodiscard]] std::size_t size() const noexcept {

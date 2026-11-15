@@ -20,6 +20,7 @@ The benchmark compares:
 | (d1) `unordered_map<type_index>` | naive locator keyed by `std::type_index` (needs RTTI) |
 | (d2) `unordered_map<string>` | naive locator keyed by a `std::string` built per call |
 | (e) dispatch | trivial service method called statically (inlined), through CRTP, statically but not inlined, and through a `virtual` interface |
+| (f) generated accessor | the AF5 shape codegen emits: `std::get<T*>(services_)` read through `<name>()` (a cached pointer), compared with `ServiceContext::get<T>()` on a retained context from every use, and the per-mount cost of `attach_services()` for a two-requirement component |
 
 ## 2. How to run
 
@@ -99,6 +100,25 @@ allocation.
 | 262 144 | 12.19 / 13.38 | 84.09 / 84.62 | 58.10 / 58.94 | 26.0 |
 | 1 048 576 | 13.46 / 15.68 | 99.64 / 102.97 | 70.33 / 67.64 | 29.3 to 35.3 |
 
+### 4.5 The generated accessor (AF5, issue #177), ns per call
+
+Measured on the same machine with the same harness, after the rows above (a later build of the
+same sources, so the absolute numbers are lower than run 1 and run 2 and only the ratio matters):
+
+| Case | median | min | allocs/op |
+|---|---:|---:|---:|
+| accessor read: `std::get<T*>(services_)` through `<name>()` | 0.37 | 0.37 | 0 |
+| `ServiceContext::get<T>()` on a retained context, every use | 4.61 | 4.58 | 0 |
+| mount: `attach_services()` resolves N = 2 (M = 262 144) | 7.34 | 7.33 | 0 |
+
+The accessor row is the `(b)` cached-pointer row, as it should be: ADR-050 section 3.1 item 3
+resolves at mount, so a use site is one pointer load. The retained-context row is the shape ADR-050
+section 3 item 5 forbids, and it costs about **12x** the cached read even while the registry is
+entirely in cache -- which is the number that justifies making the accessor structurally incapable
+of a lookup rather than a review rule. `attach_services()` for two requirements is one binary search
+per requirement at mount (about 3.7 ns each, consistent with row `(b) registry lookup x N` in
+section 4.3).
+
 ## 5. Reading the numbers
 
 1. **Resolving once at mount makes the use site as cheap as injection.** (b) and (c) are the same
@@ -122,6 +142,14 @@ allocation.
    bound by the store-to-load latency of the counter it updates. The real cost of `virtual` is lost
    inlining and cross-call optimization, which a one-line method cannot show, and it applies only
    where a method is called per frame.
+6. **The generated accessor is the cached pointer, and that is enforced, not observed.** Section 4.5
+   measures the shape AF5 emits: a use site is a `std::get<T*>` on the component (0.37 ns, the same
+   machine code as (b) and (c)), while resolving through a retained context from every use costs
+   4.6 ns, about 12x, even with the whole registry in cache. The generated base therefore keeps no
+   `ServiceContext` at all after `attach_services()`, so the 12x path cannot be written by accident.
+   `codegen_services_runtime` is the gate: it asserts with AF1's `service_lookup_audit()` counters
+   that 1 000 accessor reads inside a `FrameScope` add zero lookups, and pairs that with value checks
+   so an accessor that did nothing could not pass.
 
 ## 6. Limits of this microbenchmark
 

@@ -177,6 +177,19 @@ void test_new_v1_fields() {
     check(ir::write_ir_json(module).find("\"animate\": false") != std::string::npos,
           "animSet with animate false writes it");
 
+    // ADR-050 section 3.1 (AF5): `services` is additive, and omitted when empty, so a module
+    // without `useService` writes byte-identical JSON to the IR before the field existed.
+    check(!has("\"services\""), "a component without a service requirement omits `services`");
+    module.components[0].services.push_back(
+        {"svc::nav", "nav", "demo::Navigator", "demo/services.hpp", module.components[0].source});
+    const std::string with_service = ir::write_ir_json(module);
+    check(with_service.find("\"services\": [") != std::string::npos,
+          "a declared service writes the field");
+    check(with_service.find("\"id\": \"svc::nav\"") != std::string::npos &&
+              with_service.find("\"type\": \"demo::Navigator\"") != std::string::npos &&
+              with_service.find("\"header\": \"demo/services.hpp\"") != std::string::npos,
+          "the entry carries id, name, type and header");
+
     // Timing options are written for animSet only, in a fixed order after `animate`.
     module.components[0].handlers[0].actions[1].duration_ms = 250.0;
     module.components[0].handlers[0].actions[1].easing = "ease-out";

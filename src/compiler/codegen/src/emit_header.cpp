@@ -11,6 +11,7 @@
 #include "emit_layout_observe.hpp"
 #include "emit_props.hpp"
 #include "emit_schedule.hpp"
+#include "emit_services.hpp"
 #include "emit_snapshot.hpp"
 #include "emit_types_header.hpp"
 #include "form_binding.hpp"
@@ -105,6 +106,15 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
     if (uses_record_types(component, module)) {
         writer.line("#include \"" + module.name + "_types.hpp\"");
     }
+    // ADR-050 section 3.1 (AF5): a component that declares a `useService` requirement includes the
+    // runtime seam and the project headers that name its service interfaces. Emitted only then, so
+    // a component without a requirement gains no include line.
+    if (uses_services(component)) {
+        writer.line("#include \"tessera/appfw/service_context.hpp\"");
+        for (const std::string& header : service_headers(component)) {
+            writer.line("#include \"" + header + "\"");
+        }
+    }
     emit_form_includes(writer, forms);
     if (uses_focus_actions(component)) {
         writer.line("#include \"tessera/ui/scene/focus.hpp\"");
@@ -126,6 +136,9 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
     writer.line("#include <optional>");
     writer.line("#include <string>");
     writer.line("#include <string_view>");
+    if (uses_services(component)) {
+        writer.line("#include <tuple>");
+    }
     writer.line("#include <vector>");
     writer.line("");
     writer.open("namespace " + ns);
@@ -266,6 +279,11 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
         writer.line("// useEffect `" + effect.id +
                     "` state (deps hash, run counter, active flag).");
         writer.line("tessera::ui::EffectState " + member_name(effect.id) + "state_;");
+    }
+    // ADR-050 section 3.1 (AF5): the private typed slot of a component that declares a
+    // `useService` requirement. Emitted with the other fields so `apply_access` keeps it private.
+    if (!emit_service_fields(writer, component, error)) {
+        return false;
     }
     writer.line("");
     emit_dynamic_fields(writer, plan);

@@ -93,6 +93,35 @@ void test_declarations() {
     expect(
         "environment without provider", [](auto& m) { list(m).environment[0].provider.clear(); },
         kMalformed);
+    // ADR-050 section 3.1 (AF5): a service requirement without its C++ spelling is malformed,
+    // because codegen would otherwise have to guess an interface name.
+    expect(
+        "service without type",
+        [](auto& m) {
+            list(m).services.push_back(
+                {"svc::nav", "nav", "", "demo/services.hpp", list(m).source});
+        },
+        kMalformed);
+    expect(
+        "service without header",
+        [](auto& m) {
+            list(m).services.push_back({"svc::nav", "nav", "demo::Navigator", "", list(m).source});
+        },
+        kMalformed);
+    expect(
+        "service without name",
+        [](auto& m) {
+            list(m).services.push_back(
+                {"svc::nav", "", "demo::Navigator", "demo/services.hpp", list(m).source});
+        },
+        kMalformed);
+    expect(
+        "a complete service requirement is valid",
+        [](auto& m) {
+            list(m).services.push_back(
+                {"svc::nav", "nav", "demo::Navigator", "demo/services.hpp", list(m).source});
+        },
+        "");
     expect(
         "effect on a missing dependency",
         [](auto& m) { list(m).effects[0].deps.push_back("state::gone"); }, kUnresolved);
