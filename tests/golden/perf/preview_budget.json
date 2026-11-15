@@ -3,7 +3,7 @@
   "note": "Preview P6 budgets (issue #170, docs/design/reference-equantic-ui.md section 7.4; ADR-045 consequences). Checked by scripts/check_preview_budget.py. TWO-SIDED RATCHET: an entry fails when it is worse than its budget by more than tolerance.worse, AND when it is better by more than tolerance.better (the budget went stale and must be tightened with --update, which never loosens any entry). The two sides carry different percentages on purpose: a single symmetric band wide enough for a noisy timing row (300%) would make the lower bound negative and silently disable the staleness side, so 'better' stays under 100% for every entry. Only download_gzip_bytes is ENFORCED: it is exactly reproducible for a fixed input and zlib build, so its 5%/1% band is measurement slack, not noise cover, and it is the number the slice's acceptance is about. The two latency entries WARN, for two separate reasons. (1) They are the ENGINE'S SHARE ONLY: cold time-to-first-frame also needs the browser's HTML/CSS parse and a WebGPU frame (P3, not landed), and edit-to-view needs that frame too. They are named for what was measured instead of borrowing the slice's name for a number that is not the whole path; the browser lane adds cold_first_frame_ms/edit_to_view_ms beside them. (2) Wall-clock time on a shared CI runner is not reproducible (docs/guides/testing.md section 7). Their mitigations are tolerance.worse = 300% (a multiple, so only an order-of-magnitude change fires) and min-over-N-fresh-processes, which discards contention instead of averaging it in. Their tolerance.better is a plain 20%: the min statistic is already close to the true cost, so a 20% improvement is real news and worth recording.",
   "source": {
     "module": "tessera_diagnostics_wasm, the P1 page module (src/compiler/codegen/CMakeLists.txt); the same bytes the Pages lane assembles into build/pages",
-    "page": "designer/web/{index.html,app.js,app.css} (static, no build step, so the checked-in copy is the shipped copy)",
+    "page": "the whole static page directory designer/web/ that the Pages lane copies (see PAGE_FILES in scripts/preview_budget_measure.py): index.html, scene.html, app.js, app.css, scene.js, preview-state.js, share.js, studio.js, samples.json. P5 (issue #169) widened this from the original three files after finding that scene.html/scene.js had been shipping unmeasured since P2; a page asset that is not listed here is not weighed, so adding one means adding it to PAGE_FILES in the same change",
     "sample": "samples/parity-demo/Counter.tsx",
     "probe": "scripts/ci/preview_budget_probe.mjs",
     "runtime": "the module runs in the Emscripten Node host ($EMSDK_NODE in CI); a browser host cannot be measured in this lane"
@@ -28,16 +28,23 @@
   },
   "entries": {
     "download_gzip_bytes": {
-      "budget": 384129,
+      "budget": 404814,
       "status": "enforce",
       "unit": "bytes",
-      "measures": "gzip-9 bytes of tessera_diagnostics.js + tessera_diagnostics.wasm + index.html + app.js + app.css: the transfer a browser pays for the page and its module",
+      "measures": "gzip-9 bytes of the whole designer/web/ page directory plus tessera_diagnostics.js + tessera_diagnostics.wasm: the transfer a browser pays for the page and its module",
       "recorded": {
         "tessera_diagnostics.wasm.gzip": 374019,
         "tessera_diagnostics.js.gzip": 2831,
-        "index.html.gzip": 1236,
-        "app.js.gzip": 4025,
-        "app.css.gzip": 2018
+        "index.html.gzip": 1602,
+        "app.js.gzip": 4541,
+        "app.css.gzip": 2783,
+        "scene.html.gzip": 1755,
+        "scene.js.gzip": 3974,
+        "preview-state.js.gzip": 2063,
+        "share.js.gzip": 3939,
+        "gallery.js.gzip": 2363,
+        "studio.js.gzip": 4779,
+        "samples.json.gzip": 165
       }
     },
     "cold_engine_ready_ms": {

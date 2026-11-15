@@ -93,6 +93,120 @@ body {
   white-space: nowrap;
 }
 
+/* The P5 page-to-page navigation (issue #169): two pages, so a link is enough and no router is
+   needed. The current page is text, not a link, so it is not a dead control. */
+.page-meta {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.page-nav {
+  display: flex;
+  gap: 10px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.page-nav a { color: var(--accent); text-decoration: none; }
+.page-nav a:hover { text-decoration: underline; }
+.page-nav [aria-current="page"] { color: var(--text-dim); font-weight: 600; }
+
+/* The environment toolbar. It is *not* part of the engine canvas: the studio's own chrome is HTML
+   (ADR-045 decision 3), and these three controls are the P5 toggles. */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--pane-bg);
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.control-label {
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+
+.control select {
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--pane-bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+}
+
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.share-status {
+  font-size: 12px;
+  color: var(--ok);
+  min-width: 0;
+}
+
+/* The sample gallery: a strip of buttons, populated from samples.json when it is first opened. */
+.gallery {
+  padding: 8px 20px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--pane-bg);
+}
+
+.gallery-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.gallery-item {
+  font-size: 12px;
+}
+
+.gallery-item code {
+  color: var(--text-dim);
+  font-family: var(--mono);
+}
+
+.gallery-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.gallery-note.warning { color: var(--warning); }
+
+/* A broken share link is a first-class state, not a console message. */
+.link-note {
+  margin: 0;
+  padding: 8px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--warning-bg);
+  color: var(--warning);
+  font-size: 12px;
+}
+
 .layout {
   flex: 1 1 auto;
   min-height: 0;

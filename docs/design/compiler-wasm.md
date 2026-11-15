@@ -357,4 +357,70 @@ box, so `tessera_input_json` is authored to the P1/P2 pattern and type-checked b
 has not been executed. The byte comparison in `scene_input_parity.py` — and therefore P4's acceptance
 sentence — is proven when the Wasm lane runs it.
 
+## 8. P5: share links, the sample gallery and the environment toggles
+
+P5's acceptance is **"a compressed URL-fragment link round-trips; the samples from `samples/` load
+within the project-load budget"**. The format is normative in
+[`designer-studio-v1.md`](../specs/designer-studio-v1.md) section 7.1; this section records what is
+implemented, what is proven locally, and what only CI can prove.
+
+### 8.1 The pieces
+
+| Piece | Where | Why it is there and not in a page |
+|---|---|---|
+| Codec | `designer/web/share.js` | Pure ES module: no DOM, no `fetch`, no Wasm. It is what makes the round trip testable in Node, and the page and the test import the same bytes |
+| State vocabulary | `designer/web/preview-state.js` | The constants and validation, shared by the codec and the toolbar; keeping it separate is what lets the codec be tested without the DOM |
+| Page chrome | `designer/web/studio.js` | Toolbar, share button and the broken-link banner, mounted once per page. Both pages need exactly this and would otherwise carry two copies |
+| Gallery | `designer/web/gallery.js` | Manifest fetch, sample fetch and the derived titles, split out of `studio.js` so the chrome module stays under the size limit. Lazy: nothing runs until the gallery is opened |
+| Manifest | `designer/web/samples.json` | Generated from `samples/**/*.tsx` by `scripts/ci/gen_sample_manifest.py`; committed so Pages needs no build step |
+| Sized layout export | `tools/codegen/wasm_scene_entry.cpp` | `tessera_scene_json_sized(...)`; the P2 signature is untouched because the parity gate pins its defaults |
+
+### 8.2 What the toggles actually do
+
+`viewport` and `dpr` are real layout inputs: `tessera_scene_json_sized` passes them to
+`ScenePreviewOptions`, so the scene page re-lays-out at the chosen rectangle. Measured on this host
+with the native CLI at 320×240 / 390×844 / 1280×800: the root node's bounds follow the request
+(`--size 390x844` gives a 390×844 root) and the node count is unchanged, which is the difference
+between "the toggle is wired" and "the toggle re-renders the same picture".
+
+`theme` is carried in the link and persisted locally, but it is **not applied**: the null-RHI
+snapshot path has no theme asset, so a themed preview would be a claim the module cannot keep. That
+is a spec-level gap, not a bug in this slice, and it is recorded rather than papered over.
+
+### 8.3 Verification and status
+
+Verified on this Windows host (2026-11-15):
+
+- `node scripts/ci/preview_share_roundtrip.mjs`: 18 cases, all pass. Covers the compressed (`z`),
+  gzip (`g`) and uncompressed (`u`) modes, every viewport × DPR × theme combination, multi-byte and
+  empty sources, determinism, the whole-URL and bare-fragment inputs, the version refusal, the
+  malformed and invalid-field refusals, the 8 KiB fragment cap in both directions, the
+  decompression-bomb cap, and `samples/parity-demo/Counter.tsx` encoding to 584 characters.
+- `node scripts/ci/preview_studio_smoke.mjs`: 9 stub-DOM cases, all pass. Covers lazy manifest fetch
+  (nothing before the gallery opens), one fetch per page load, a gallery pick reaching the textarea,
+  the toolbar's option sets, local persistence (environment only, never the source), the share link
+  through the address bar, a good link restoring source/viewport/theme, and a broken link showing its
+  code in the banner.
+- `node scripts/ci/preview_page_checks.mjs`: 5 static checks, all pass: every element `studio.js` looks
+  up exists in both pages, `samples.json`'s four paths exist, and neither page calls a function it does
+  not declare.
+- `python -B -m unittest discover -s scripts/tests`: 239 tests, OK, including 14 new cases for the
+  manifest generator.
+- `python -B scripts/check_source_size.py`: 0 errors; `scripts/gates.py --only docs`: PASS.
+
+**A real bug the smoke test found, and why it is worth naming:** the gallery's first version read
+`aria-expanded`, wrote it back unchanged, then hid the panel on `!open`, so the button never opened
+anything. A stub-DOM test caught it; nothing in the codec test could have. Four more defects turned up
+the same way (a missing `ShareError` import that would have thrown on every broken link, a `dpr` that
+was a number before a click and a string after, a gallery note node detached from the container, and
+a broken link leaving an empty editor instead of the page's sample).
+
+**CI-only, and why:** the browser half. The Wasm module cannot be built on this box (`$env:EMSDK` is
+empty), so `tessera_scene_json_sized` has **not** been executed as Wasm; it is type-checked by the
+host OBJECT-library build, and the Pages lane greps the built module for the export. The page itself —
+that `index.html`/`scene.html` render, that the fragment survives a real navigation, that
+`CompressionStream` behaves as expected in a browser — is verified by the deploy and by opening
+https://thnak.github.io/Tessera/. The Node tests are honest about being codec and stub-DOM tests, not
+browser tests.
+
 

@@ -35,10 +35,15 @@ on:
     branches: [main]
     paths:
       - 'designer/web/**'
+      - 'samples/**'
       - 'tools/codegen/**'
       - 'src/compiler/**'
       - 'scripts/ci/wasm_diagnostics_parity.py'
       - 'scripts/ci/preview_budget_probe.mjs'
+      - 'scripts/ci/preview_share_roundtrip.mjs'
+      - 'scripts/ci/preview_studio_smoke.mjs'
+      - 'scripts/ci/preview_page_checks.mjs'
+      - 'scripts/ci/gen_sample_manifest.py'
       - 'scripts/check_preview_budget.py'
       - 'scripts/preview_budget_measure.py'
       - 'scripts/preview_budget_ratchet.py'
@@ -48,10 +53,15 @@ on:
   pull_request:
     paths:
       - 'designer/web/**'
+      - 'samples/**'
       - 'tools/codegen/**'
       - 'src/compiler/**'
       - 'scripts/ci/wasm_diagnostics_parity.py'
       - 'scripts/ci/preview_budget_probe.mjs'
+      - 'scripts/ci/preview_share_roundtrip.mjs'
+      - 'scripts/ci/preview_studio_smoke.mjs'
+      - 'scripts/ci/preview_page_checks.mjs'
+      - 'scripts/ci/gen_sample_manifest.py'
       - 'scripts/check_preview_budget.py'
       - 'scripts/preview_budget_measure.py'
       - 'scripts/preview_budget_ratchet.py'
@@ -159,6 +169,39 @@ jobs:
           --wasm build/wasm-webgpu/src/compiler/codegen/tessera_scene_preview.js
           --node "$EMSDK_NODE"
 
+      # P5 (issue #169): the share-link round trip, the page chrome under a stub DOM, the page's
+      # static wiring, and the sample manifest's drift. All four need Node but not Wasm: the codec is a
+      # pure ES module, the chrome is driven through a stub DOM, and the manifest is generated from
+      # samples/. They run BEFORE the site is assembled, so a broken link format cannot be published.
+      #
+      # What they do NOT prove: that a browser paints the page. That is this lane's deploy and a human
+      # opening the URL. The scripts say so in their own headers.
+      - name: Share-link round trip (codec, no browser)
+        run: node scripts/ci/preview_share_roundtrip.mjs
+
+      - name: Page chrome smoke (stub DOM)
+        run: node scripts/ci/preview_studio_smoke.mjs
+
+      # The static half: every element `studio.js` looks up exists in both pages, every manifest path
+      # exists, and no page calls a function its own refactor deleted. Both failures this checks for
+      # actually shipped into a draft of this slice.
+      - name: Page wiring checks (ids, sample paths, dangling calls)
+        run: node scripts/ci/preview_page_checks.mjs
+
+      - name: Sample manifest is generated and current
+        run: python3 -B scripts/ci/gen_sample_manifest.py --check
+
+      # The viewport and DPR toggles reach the layout through a second export, so the module the page
+      # ships must actually export it. A missing `_tessera_scene_json_sized` would show up here as a
+      # page that quietly falls back to 320x240, which is exactly the kind of silent regression this
+      # step exists to prevent.
+      - name: Scene module exports the sized entry point
+        run: |
+          set -euo pipefail
+          module=build/wasm-webgpu/src/compiler/codegen/tessera_scene_preview.js
+          grep -q '_tessera_scene_json_sized' "$module"
+          echo "the scene module exports tessera_scene_json_sized"
+
       # Assemble the site: the hand-written page plus the two artifacts the module needs. Nothing is
       # built here - the page has no build step of its own by design (issue #165).
       - name: Assemble site
@@ -168,6 +211,12 @@ jobs:
           rm -rf "$site"
           mkdir -p "$site"
           cp -R designer/web/. "$site/"
+          # P5's sample gallery fetches `samples/<path>` from the page's own origin (issue #169). The
+          # TSX is the single source of truth and is copied verbatim, never inlined into the manifest;
+          # without this the gallery 404s in production while passing every local test, because a
+          # checkout has samples/ next to designer/ but the assembled site does not.
+          mkdir -p "$site/samples"
+          cp -R samples/. "$site/samples/"
           cp build/wasm-webgpu/src/compiler/codegen/tessera_diagnostics.js "$site/"
           cp build/wasm-webgpu/src/compiler/codegen/tessera_diagnostics.wasm "$site/"
           cp build/wasm-webgpu/src/compiler/codegen/tessera_scene_preview.js "$site/"
@@ -181,11 +230,33 @@ jobs:
           test -f "$site/app.css"
           test -f "$site/tessera_diagnostics.js"
           test -f "$site/tessera_diagnostics.wasm"
-          # P2's debug page and its module (issue #166).
+          # P2's debug page and its module (issue #166), and P4's input/state pane (issue #168), which
+          # `scene.js` imports as its own module.
           test -f "$site/scene.html"
           test -f "$site/scene.js"
+          test -f "$site/scene-input.js"
           test -f "$site/tessera_scene_preview.js"
           test -f "$site/tessera_scene_preview.wasm"
+          # P5's page modules and the generated sample manifest (issue #169). A missing one of these
+          # is a page that throws on load in the browser, which no CI step here would otherwise catch,
+          # so the artifact is checked for them before it is uploaded.
+          test -f "$site/preview-state.js"
+          test -f "$site/share.js"
+          test -f "$site/gallery.js"
+          test -f "$site/studio.js"
+          test -f "$site/samples.json"
+          # The manifest names repository paths; every one of them must exist in the artifact or the
+          # gallery offers a button that cannot load.
+          python3 - "$site" <<'PY'
+          import json, pathlib, sys
+          site = pathlib.Path(sys.argv[1])
+          samples = json.loads((site / "samples.json").read_text(encoding="utf-8"))["samples"]
+          assert samples, "the manifest lists no samples"
+          for entry in samples:
+              target = site / entry["path"]
+              assert target.is_file(), f"manifest path missing from the site: {entry['path']}"
+          print(f"{len(samples)} manifest path(s) present in the site")
+          PY
           ls -l "$site"
 
       # P6 of docs/design/reference-equantic-ui.md section 7.4 (issue #170): the size and latency

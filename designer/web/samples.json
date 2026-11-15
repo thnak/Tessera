@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "samples": [
+    {"component": "Demo", "path": "samples/compiler-demo/Demo.tsx"},
+    {"component": "Gallery", "path": "samples/gallery/Gallery.tsx"},
+    {"component": "SafeAreaPage", "path": "samples/gallery/SafeAreaPage.tsx"},
+    {"component": "Counter", "path": "samples/parity-demo/Counter.tsx"}
+  ]
+}

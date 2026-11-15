@@ -40,6 +40,13 @@ GATE = SCRIPTS_DIR / "check_preview_budget.py"
 MEASURE = SCRIPTS_DIR / "preview_budget_measure.py"
 RATCHET = SCRIPTS_DIR / "preview_budget_ratchet.py"
 
+# The page files the measurement weighs, imported from the measurement module so the fixture cannot
+# drift from what the gate actually measures.
+sys.path.insert(0, str(SCRIPTS_DIR))
+import preview_budget_measure as measure  # noqa: E402  (sibling script, stdlib only)
+
+MEASURE_PAGE_FILES = measure.PAGE_FILES
+
 # A page and a module whose gzip sizes are stable for a given byte pattern: the content is generated
 # from a fixed seed, so the number is the same on every machine even though it is not round.
 PAGE_BYTES = 4096
@@ -80,8 +87,13 @@ class PreviewBudgetGateTests(unittest.TestCase):
 
         page = self.repo / "designer" / "web"
         page.mkdir(parents=True)
-        for name in ("index.html", "app.js", "app.css"):
-            (page / name).write_bytes(payload(PAGE_BYTES, 1))
+        # Every page asset the measurement weighs, read from the measurement module rather than
+        # repeated here: P5 (issue #169) widened PAGE_FILES, and a fixture that hard-coded the old
+        # three would fail with a setup error the moment that list grew -- or, worse, would keep
+        # passing while covering only part of the page.
+        for index, name in enumerate(MEASURE_PAGE_FILES, start=1):
+            (page / name).write_bytes(payload(PAGE_BYTES, index))
+        self.page_files = MEASURE_PAGE_FILES
         self.module_dir = self.repo / "build" / "pages"
         self.module_dir.mkdir(parents=True)
         for name, seed in (("tessera_diagnostics.js", 2), ("tessera_diagnostics.wasm", 3)):
@@ -89,7 +101,8 @@ class PreviewBudgetGateTests(unittest.TestCase):
 
         self.budget = self.repo / "tests" / "golden" / "perf" / "preview_budget.json"
         self.budget.parent.mkdir(parents=True)
-        sizes = [gzip_size(payload(PAGE_BYTES, 1)) * 3, gzip_size(payload(MODULE_BYTES, 2)),
+        sizes = [gzip_size(payload(PAGE_BYTES, 1)) * len(self.page_files),
+                 gzip_size(payload(MODULE_BYTES, 2)),
                  gzip_size(payload(MODULE_BYTES, 3))]
         self.download = sum(sizes)
         self.write_budget()
