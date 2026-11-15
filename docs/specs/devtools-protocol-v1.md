@@ -153,3 +153,21 @@ Gap-closure decisions (ids G-n are gaps and Q-n are open questions, listed in [`
 - IDE/editor protocol integration.
 - Multi-client collaboration beyond one primary session.
 - Structural patch format details for nested control flow (reconcile fallback).
+- **Native state-keeping hot reload (issue #78 part 3) is blocked on a seam that does not exist.**
+  The survey behind this note found three facts: (i) there is no dynamic-load path for a component —
+  the tree's only `LoadLibrary`/`GetProcAddress` use is the DWM backdrop probe in
+  `src/platform/windows/window_backdrop.cpp`, which loads a system DLL for a capability query and is
+  not a component registry, and `src/platform/linux/` has no `dlopen` counterpart; (ii) nothing in
+  `src/`, `include/` or `tools/` watches the filesystem (no `ReadDirectoryChangesW`, no `inotify`);
+  and (iii) ADR-040 makes the generated output a header-only `template <class Self> struct
+  <Component>Base`, so a component is instantiated into the binary at compile time and has no
+  `extern "C"` symbol, no object file and no vtable that a reload could swap. What has to exist
+  first, in dependency order: a component ABI that can be swapped (or the data-driven evaluator route
+  of ADR-037 items 2 and 4, which replaces IR instead of code), a dynamic-load registry in `src/hal/`
+  if the ABI route is taken (new platform dependency, needs an ADR), the state-transfer protocol
+  keyed by identity that section 4 leaves unspecified (consume the identity rule from #168/P4 rather
+  than defining a second one), and a dev-mode host excluded from release by construction (the
+  `TESSERA_ENABLE_DEVTOOLS` option of section 6 still does not exist). The two parts of #78 that do
+  not need any of this landed instead: `#line` mapping to TSX
+  ([`compiler-diagnostics-v1.md`](compiler-diagnostics-v1.md) section 9) and the dev-mode error
+  overlay, which is the "never a blank window" half of the same loop.

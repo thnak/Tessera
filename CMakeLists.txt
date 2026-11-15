@@ -159,6 +159,10 @@ add_subdirectory(src/ui/accessibility)
 add_subdirectory(src/ui/automation)
 add_subdirectory(src/ui/virtual)
 add_subdirectory(src/ui/boundary)
+# The dev-mode compiler-error overlay (issue #78): a consumer of the `compiler-diagnostics-v1`
+# document that renders into the app's existing OverlayHost. Dev-only (`TESSERA_ENABLE_DEVTOOLS`
+# will gate the app-side mount); the library itself builds unconditionally so its tests always run.
+add_subdirectory(src/ui/devtools)
 add_subdirectory(src/app)
 # ADR-050 opt-in app framework (AF1, issue #173): the service layer sits beside `src/app` and is not
 # part of it, so an app that does not adopt the framework links none of it.

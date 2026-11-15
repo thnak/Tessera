@@ -151,7 +151,7 @@ std::string function_name(const std::string& line) {
 bool emit_generated_base(const ir::Component& component,
                          const std::vector<const ir::Binding*>& bindings,
                          const std::string& legacy_header, const std::string& legacy_source,
-                         GeneratedFile& out, std::string& error) {
+                         GeneratedFile& out, std::string& error, LineMapMarkers* markers) {
     const std::string& name = component.name;
     const std::string base = name + "Base";
     const std::string detail = name + "_detail";
@@ -300,6 +300,12 @@ bool emit_generated_base(const ir::Component& component,
     const bool has_detail = !detail_items.empty() || !thunk_items.empty() || has_aux;
 
     // Contract: one static_assert per binding, first thing build() does.
+    //
+    // These are the developer-facing statements of the generated base: a binding the developer
+    // class does not define (or defines with the wrong signature) fails *here*, so they are what
+    // the
+    // `#line` map covers (issue #78). Mapping them means a compile error names the TSX line that
+    // asked for the binding instead of a line of the generated header.
     Lines contract;
     Lines concept_lines;
     concept_lines.push_back("    template <class Self>");
@@ -326,9 +332,15 @@ bool emit_generated_base(const ir::Component& component,
                                     std::to_string(binding->source.line) + ":" +
                                     std::to_string(binding->source.column) +
                                     "); define it in the developer class (ADR-040)";
+        if (markers != nullptr) {
+            contract.push_back(marker_line(markers->add(binding->source)));
+        }
         contract.push_back("      static_assert(" + own + " &&");
         contract.push_back("                        " + fits + ",");
         contract.push_back("                    \"" + escape_message(message) + "\");");
+        if (markers != nullptr) {
+            contract.push_back(std::string(kLineMapEnd));
+        }
         // The thunk is private, so outside the base `&Self::member` of a class that does not define
         // `member` names an inaccessible base member: the requirement is simply false. (The
         // authoritative check is the static_assert in build(), which runs inside the friend.)
@@ -449,6 +461,13 @@ bool emit_generated_base(const ir::Component& component,
     for (const std::string& line : out_lines) {
         out.text += line;
         out.text += '\n';
+    }
+    // Markers become directives only now, on the finished text: the reshaping above rewrites
+    // identifiers, prefixes `inline`/`static` and re-indents bodies, so a directive written earlier
+    // would be reshaped like source. Resolving here also means the restoring `#line` can name the
+    // exact generated line it resumes on (see apply_line_map).
+    if (markers != nullptr) {
+        out.text = apply_line_map(out.path, out.text, *markers);
     }
     return true;
 }

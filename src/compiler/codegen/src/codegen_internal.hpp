@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "emit_line_map.hpp"
 #include "tessera/compiler/codegen/codegen.hpp"
 #include "tessera/compiler/ir/action.hpp"
 #include "tessera/compiler/ir/component.hpp"
@@ -228,9 +229,11 @@ struct DynamicMetadata {
                                   const DynamicPlan& plan, CppWriter& writer, std::string& error);
 
 // Appends the one header-only `<Component>.g.hpp` of the ADR-040 generated base to `files`, or sets
-// `error` and returns false.
+// `error` and returns false. `options` carries the emission switches; the only one today is the
+// `#line` map, which is off by default so the committed goldens stay byte-identical.
 [[nodiscard]] bool emit_component(const ir::Component& component, const ir::IrModule& module,
-                                  std::vector<GeneratedFile>& files, std::string& error);
+                                  std::vector<GeneratedFile>& files, std::string& error,
+                                  CodegenOptions options = {});
 
 // One stylesheet of the module that the caller supplied a blob for, in `module.stylesheets` order.
 struct ResolvedStylesheet {
