@@ -43,14 +43,14 @@ class StaticRuntimeProofTests(unittest.TestCase):
 
     def test_debug_artifact_path_is_skipped(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            artifact = Path(directory) / "Debug" / "merger_tests.exe"
+            artifact = Path(directory) / "Debug" / "static_runtime_probe.exe"
             result = run_proof("--skip-build", "--artifact", str(artifact))
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("SKIPPED", result.stdout)
 
     def test_release_missing_artifact_is_a_setup_error(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            artifact = Path(directory) / "missing" / "merger_tests"
+            artifact = Path(directory) / "missing" / "static_runtime_probe"
             result = run_proof("--config", "Release", "--skip-build", "--artifact", str(artifact))
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
         self.assertIn("artifact not found", result.stderr + result.stdout)

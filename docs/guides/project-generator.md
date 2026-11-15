@@ -225,15 +225,15 @@ The generator hashes:
 If the hash is unchanged, the component is skipped. `tessera generate --force` regenerates
 everything. The report lists `generated`, `skipped`, `merged`, and `warnings`.
 
-### Generated base mode (ADR-040)
+### The generated base (ADR-040)
 
-`tessera_codegen --mode base` writes `<Component>.g.hpp` (the generated CRTP base, always
-regenerated, never edited) and, once, the developer stubs `<Component>.hpp/.cpp` with one member per
-`bind::` id. Existing developer files are never touched; a binding they do not define yet is
-reported as `TESSERA_CG_MISSING_BINDING` with the stub to add, and a stub marker whose binding left
-the TSX as `TESSERA_CG_BINDING_UNUSED`. `--check` reports drift of the generated header only. See
-[ADR-040](../../decisions/ADR-040-generated-base-and-developer-class.md); this becomes the only mode
-when the legacy path is removed (#219).
+`tessera_codegen --write` writes `<Component>.g.hpp` (the generated CRTP base, always regenerated,
+never edited) and, once, the developer stubs `<Component>.hpp/.cpp` with one member per `bind::` id.
+Existing developer files are never touched; a binding they do not define yet is reported as
+`TESSERA_CG_MISSING_BINDING` with the stub to add, and a stub marker whose binding left the TSX as
+`TESSERA_CG_BINDING_UNUSED`. `--check` reports drift of the generated header only. This is the only
+codegen path ([ADR-040](../../decisions/ADR-040-generated-base-and-developer-class.md)); the legacy
+protected-region output and its merger are gone (#219).
 
 ## CLI reference (v1)
 

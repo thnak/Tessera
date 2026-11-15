@@ -6,7 +6,7 @@
 // IR v1 type, and carries the source `?` as the optional flag; the `children` member stays the
 // static slot. A member type the V1 list cannot represent is a loud `TESSERA_IR_UNSUPPORTED`.
 //
-// Determinism: the same source lowers to byte-identical canonical JSON, so a golden or the merger
+// Determinism: the same source lowers to byte-identical canonical JSON, so a golden
 // never sees a different record order.
 
 #include "lowering_module_test_util.hpp"

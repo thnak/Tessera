@@ -74,7 +74,7 @@ For each sample it runs both compilers and compares:
 
 1. **IR** (`--emit-ir`): the canonical IR JSON, size and SHA-256, required to match exactly. This is
    the acceptance artifact.
-2. **Generated C++** (`--mode base --write`), unless `--ir-only` is passed: `Counter.g.hpp`,
+2. **Generated C++** (`--write`), unless `--ir-only` is passed: `Counter.g.hpp`,
    `Counter.hpp`, `Counter.cpp` and `automation.manifest.json`, each byte-compared and the file
    *sets* compared too (a silently dropped artifact fails). The generated C++ is what the preview
    pipeline consumes downstream, so comparing it extends the gate from the front end to codegen;

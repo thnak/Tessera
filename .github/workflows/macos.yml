@@ -30,7 +30,7 @@ jobs:
           -DCMAKE_BUILD_TYPE=Release
           -DTESSERA_BUILD_VULKAN=OFF
           -DTESSERA_BUILD_POC=OFF
-          -DTESSERA_PACKAGE_EXECUTABLES=merger_tests
+          -DTESSERA_PACKAGE_EXECUTABLES=static_runtime_probe
           -DTESSERA_WARNINGS_AS_ERRORS=ON
 
       - name: Build
@@ -65,7 +65,7 @@ jobs:
       - name: Static-link allowlist (ADR-012, macOS)
         run: >
           python3 -B scripts/check_static_link.py --os macos
-          --binary build/macos/tests/unit/merger_tests
+          --binary build/macos/tests/unit/static_runtime_probe
 
       - name: Tests
         run: ctest --test-dir build/macos --output-on-failure

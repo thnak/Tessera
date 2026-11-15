@@ -5,7 +5,7 @@
 Compiles the preview-parity sample with two builds of the *same commit* -- the host
 `tessera_codegen_cli` and the Emscripten build of that same target run under Node -- and fails
 unless both produce byte-identical output. The accepted artifact is the canonical IR JSON
-(`--emit-ir`); by default the run also compares `--mode base --write`, because the generated C++ is
+(`--emit-ir`); by default the run also compares `--write`, because the generated C++ is
 what the downstream preview pipeline actually consumes and it was verified byte-identical when this
 gate was added, so asserting it adds drift coverage for the codegen half of the compiler at the cost
 of one extra process pair.
@@ -114,9 +114,9 @@ def write_cpp(
     repo_root: Path,
 ) -> Dict[str, Path]:
     result = run(
-        [*prefix, "--mode", "base", "--write", "--out", str(out_dir), sample], repo_root
+        [*prefix, "--write", "--out", str(out_dir), sample], repo_root
     )
-    require_success(result, "{} --mode base --write".format(label))
+    require_success(result, "{} --write".format(label))
     files = sorted(path for path in out_dir.rglob("*") if path.is_file())
     if not files:
         raise SetupError("{} exited 0 but wrote no files under {}".format(label, out_dir.name))

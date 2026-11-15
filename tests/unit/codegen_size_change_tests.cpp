@@ -148,7 +148,7 @@ ir::IrModule make_module() {
 
 // The canonical ADR-040 path (issue #218): one header-only base per component.
 codegen::CodegenResult generate(const ir::IrModule& module) {
-    return codegen::generate(module, {}, std::nullopt, codegen::EmitMode::GeneratedBase);
+    return codegen::generate(module, {}, std::nullopt);
 }
 
 std::string read_file(const std::string& path) {

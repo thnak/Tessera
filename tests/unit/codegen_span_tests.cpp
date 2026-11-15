@@ -32,8 +32,7 @@ bool check(bool condition, std::string_view message) {
 }
 
 std::string generate(const ir::IrModule& module) {
-    const auto result =
-        codegen::generate(module, {}, std::nullopt, codegen::EmitMode::GeneratedBase);
+    const auto result = codegen::generate(module, {}, std::nullopt);
     if (!result) {
         std::cerr << "FAIL: the spanned sample generates: " << result.error().front() << "\n";
         ++failures;

@@ -36,7 +36,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 SCRIPTS_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPTS_DIR.parent
 DEFAULT_BUILD_ROOT = REPO_ROOT / "build" / "reproducible"
-DEFAULT_TARGET = "merger_tests"
+DEFAULT_TARGET = "static_runtime_probe"
 DEFAULT_CONFIG = "Release"
 # Fixed archive timestamps: 1980-01-01T00:00:00Z is the minimum ZIP DOS timestamp.
 DEFAULT_ARCHIVE_EPOCH = "315532800"

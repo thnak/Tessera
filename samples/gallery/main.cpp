@@ -2,7 +2,7 @@
 //
 // gallery: the Instrument library gallery skeleton (issue #239, ADR-047 item 10, native lane).
 //
-// The page is the generated `gallery::gen::Gallery` (samples/gallery/Gallery.tsx, importing the
+// The page is the generated `gallery::Gallery` (samples/gallery/Gallery.tsx, importing the
 // library `Button`). The switches are host-side state around it, never page logic:
 //   --theme ID         instrument-light (default), instrument-dark or instrument-high-contrast
 //   --density D        comfortable (default) or compact: token overrides in gallery.css
@@ -236,8 +236,8 @@ bool write_png(const std::string& path, const tessera::app::CapturedFrame& frame
                           static_cast<int>(frame.width) * 4) != 0;
 }
 
-// One generated page in a scene root. `Page` is gallery::gen::Gallery or
-// gallery::gen::SafeAreaPage.
+// One generated page in a scene root. `Page` is gallery::Gallery or
+// gallery::SafeAreaPage.
 template<typename Page> struct Scene {
     Scene() {
         gallery.build(root);
@@ -400,9 +400,9 @@ int main(int argc, char** argv) {
         return run_window(args, *resources, scene);
     };
     if (args.page == "safe-area") {
-        Scene<gallery::gen::SafeAreaPage> scene;
+        Scene<gallery::SafeAreaPage> scene;
         return run(scene);
     }
-    Scene<gallery::gen::Gallery> scene;
+    Scene<gallery::Gallery> scene;
     return run(scene);
 }

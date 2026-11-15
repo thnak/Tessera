@@ -108,7 +108,7 @@ std::vector<std::string> codegen_warnings(const ir::IrModule& module,
 }
 
 CodegenResult generate(const ir::IrModule& module, std::span<const StylesheetEmbed> embeds,
-                       std::optional<EmbeddedTheme> theme, EmitMode mode) {
+                       std::optional<EmbeddedTheme> theme) {
     if (!valid_namespace(module.name)) {
         return std::unexpected(single(
             "TESSERA_CODEGEN_UNSUPPORTED: module.name `" + module.name +
@@ -147,8 +147,7 @@ CodegenResult generate(const ir::IrModule& module, std::span<const StylesheetEmb
     }
     for (const ir::Component* component : components) {
         std::string error;
-        if (!internal::emit_component(*component, module, files, error,
-                                      mode == EmitMode::GeneratedBase)) {
+        if (!internal::emit_component(*component, module, files, error)) {
             return std::unexpected(single(std::move(error)));
         }
     }

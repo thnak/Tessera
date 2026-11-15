@@ -69,7 +69,6 @@ target_link_libraries(tessera_codegen_cli PRIVATE
     tessera_harness
     tessera_ir_ids
     tessera_lowering
-    tessera_merger
     # The CLI compiles CSS into the blobs codegen embeds (issue #81, ADR-048); the library does not.
     tessera_style)
 set_target_properties(tessera_codegen_cli PROPERTIES OUTPUT_NAME tessera_codegen)
@@ -136,7 +135,7 @@ set(_tessera_codegen_demo_src ${CMAKE_SOURCE_DIR}/samples/compiler-demo)
 add_custom_command(
     OUTPUT ${_tessera_codegen_demo_dir}/Demo.g.hpp
     COMMAND ${CMAKE_COMMAND} -E make_directory ${_tessera_codegen_demo_dir}
-    COMMAND $<TARGET_FILE:tessera_codegen_cli> --mode base --write
+    COMMAND $<TARGET_FILE:tessera_codegen_cli> --write
             --out ${_tessera_codegen_demo_dir} --namespace demo
             ${_tessera_codegen_demo_src}/Demo.tsx
     DEPENDS tessera_codegen_cli
@@ -507,8 +506,7 @@ if (TESSERA_BUILD_TESTS)
         ${CMAKE_SOURCE_DIR}/tests/unit/codegen_size_change_tests.cpp)
 
     target_link_libraries(codegen_size_change_tests PRIVATE
-        tessera_codegen
-        tessera_merger)
+        tessera_codegen)
 
     target_compile_definitions(codegen_size_change_tests PRIVATE
         TESSERA_CODEGEN_GOLDEN_DIR="${_tessera_codegen_golden_dir}")
@@ -540,8 +538,7 @@ if (TESSERA_BUILD_TESTS)
         ${CMAKE_SOURCE_DIR}/tests/unit/codegen_virtual_tests.cpp)
 
     target_link_libraries(codegen_virtual_tests PRIVATE
-        tessera_codegen
-        tessera_merger)
+        tessera_codegen)
 
     target_compile_definitions(codegen_virtual_tests PRIVATE
         TESSERA_CODEGEN_GOLDEN_DIR="${_tessera_codegen_golden_dir}")
@@ -554,8 +551,7 @@ if (TESSERA_BUILD_TESTS)
         ${CMAKE_SOURCE_DIR}/tests/unit/codegen_virtual_geometry_tests.cpp)
 
     target_link_libraries(codegen_virtual_geometry_tests PRIVATE
-        tessera_codegen
-        tessera_merger)
+        tessera_codegen)
 
     add_test(NAME codegen_virtual_geometry COMMAND codegen_virtual_geometry_tests)
 
@@ -794,8 +790,7 @@ if (TESSERA_BUILD_TESTS)
     endif ()
 
     add_test(NAME codegen_cli
-        COMMAND codegen_cli_tests ${_tessera_codegen_demo_src}
-                ${CMAKE_SOURCE_DIR}/tests/golden/codegen/demo $<TARGET_FILE:tessera_codegen_cli>)
+        COMMAND codegen_cli_tests ${_tessera_codegen_demo_src} $<TARGET_FILE:tessera_codegen_cli>)
 
     # The demo target only exists on host builds (see the cross-compiling guard above).
     if (NOT CMAKE_CROSSCOMPILING)

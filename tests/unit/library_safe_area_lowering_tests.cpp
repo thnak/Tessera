@@ -35,7 +35,7 @@ bool write_goldens = false;
 
 // The canonical ADR-040 path (issue #218): every component is one header-only generated base.
 codegen::CodegenResult generate(const ir::IrModule& module) {
-    return codegen::generate(module, {}, std::nullopt, codegen::EmitMode::GeneratedBase);
+    return codegen::generate(module, {}, std::nullopt);
 }
 
 // Two SafeAreas: the defaults, and one with explicit edges, a floor and margin mode.

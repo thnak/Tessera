@@ -35,7 +35,7 @@ from typing import Dict, List, Optional, Sequence
 
 SCRIPTS_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPTS_DIR.parent
-DEFAULT_TARGET = "merger_tests"
+DEFAULT_TARGET = "static_runtime_probe"
 DEFAULT_CONFIG = "Release"
 LICENSE_FILES = (
     "LICENSE",

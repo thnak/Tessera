@@ -26,7 +26,7 @@ set(_parity_sample_dir ${CMAKE_SOURCE_DIR}/samples/parity-demo)
 add_custom_command(
     OUTPUT ${_parity_dir}/Counter.g.hpp
     COMMAND ${CMAKE_COMMAND} -E make_directory ${_parity_dir}
-    COMMAND $<TARGET_FILE:tessera_codegen_cli> --mode base --write
+    COMMAND $<TARGET_FILE:tessera_codegen_cli> --write
             --out ${_parity_dir} --namespace parity_sample ${_parity_sample_dir}/Counter.tsx
     DEPENDS tessera_codegen_cli ${_parity_sample_dir}/Counter.tsx
             ${_parity_sample_dir}/tessera.json

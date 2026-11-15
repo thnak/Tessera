@@ -47,7 +47,7 @@ jobs:
           cmake --preset ci
           -DTESSERA_BUILD_VULKAN=OFF
           -DTESSERA_BUILD_POC=OFF
-          -DTESSERA_PACKAGE_EXECUTABLES=merger_tests
+          -DTESSERA_PACKAGE_EXECUTABLES=static_runtime_probe
           -DTESSERA_WARNINGS_AS_ERRORS=ON
 
       - name: Build
@@ -83,10 +83,10 @@ jobs:
       - name: Static-link allowlist (ADR-012, Windows)
         run: >
           python -B scripts/check_static_link.py --os windows
-          --binary build/ci/tests/unit/merger_tests.exe
+          --binary build/ci/tests/unit/static_runtime_probe.exe
 
       - name: Release static-runtime proof (ADR-012)
-        run: python -B scripts/check_static_runtime.py --config Release --target merger_tests
+        run: python -B scripts/check_static_runtime.py --config Release --target static_runtime_probe
 
       - name: Tests
         run: ctest --preset ci --output-on-failure

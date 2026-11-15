@@ -98,7 +98,7 @@ std::string first_error(const codegen::CodegenResult& result) {
 // called explicitly here (issue #218 removes the legacy mode, #219 the enum).
 codegen::CodegenResult generate_base(const ir::IrModule& module,
                                      std::span<const codegen::StylesheetEmbed> embeds = {}) {
-    return codegen::generate(module, embeds, std::nullopt, codegen::EmitMode::GeneratedBase);
+    return codegen::generate(module, embeds, std::nullopt);
 }
 
 ir::IrModule make_module() {

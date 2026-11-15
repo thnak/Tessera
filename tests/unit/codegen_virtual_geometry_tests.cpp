@@ -34,7 +34,7 @@ using tessera::test::codegen_virtual::make_virtual_module;
 
 // The canonical ADR-040 path (issue #218): one header-only base per component.
 codegen::CodegenResult generate(const ir::IrModule& module) {
-    return codegen::generate(module, {}, std::nullopt, codegen::EmitMode::GeneratedBase);
+    return codegen::generate(module, {}, std::nullopt);
 }
 
 int failures = 0;

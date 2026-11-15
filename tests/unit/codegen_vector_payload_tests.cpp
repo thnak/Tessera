@@ -83,7 +83,7 @@ std::string first_error(const codegen::CodegenResult& result) {
 // bundle are emitted into the header-only base; the synthesized `<module>_vector_assets.hpp` is
 // emitted identically in both modes.
 codegen::CodegenResult generate(const ir::IrModule& module) {
-    return codegen::generate(module, {}, std::nullopt, codegen::EmitMode::GeneratedBase);
+    return codegen::generate(module, {}, std::nullopt);
 }
 
 std::string concatenated(const std::vector<codegen::GeneratedFile>& files) {

@@ -39,7 +39,7 @@ if "-B" in args:
     pathlib.Path(value("-B")).mkdir(parents=True, exist_ok=True)
 if "--build" in args:
     build = pathlib.Path(value("--build"))
-    target = value("--target") or "merger_tests"
+    target = value("--target") or "static_runtime_probe"
     artifact = build / "tests" / "unit" / (target + (".exe" if sys.platform == "win32" else ""))
     artifact.parent.mkdir(parents=True, exist_ok=True)
     artifact.write_bytes(b"fake executable")
@@ -116,7 +116,7 @@ class ReproduciblePackageTests(unittest.TestCase):
                 "--cpack",
                 str(self.bin / ("cpack.bat" if os.name == "nt" else "cpack")),
                 "--target",
-                "merger_tests",
+                "static_runtime_probe",
                 "--commit",
                 "deadbeef1234",
                 *extra,
@@ -183,7 +183,7 @@ class ReproduciblePackageTests(unittest.TestCase):
                 "--cpack",
                 str(self.bin / "cpack-not-installed"),
                 "--target",
-                "merger_tests",
+                "static_runtime_probe",
                 "--commit",
                 "deadbeef1234",
             ],

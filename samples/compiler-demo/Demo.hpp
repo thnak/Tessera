@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Developer-owned half of the compiler demo screen (ADR-040): edit freely. The generated base is
-// Demo.g.hpp, written into the build directory from Demo.tsx by tessera_codegen --mode base.
+// Demo.g.hpp, written into the build directory from Demo.tsx by tessera_codegen --write.
 #pragma once
 
 #include "Demo.g.hpp"

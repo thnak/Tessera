@@ -71,7 +71,7 @@ std::string first_error(const codegen::CodegenResult& result) {
 codegen::CodegenResult generate_base(const ir::IrModule& module,
                                      std::span<const codegen::StylesheetEmbed> embeds = {},
                                      std::optional<codegen::EmbeddedTheme> theme = std::nullopt) {
-    return codegen::generate(module, embeds, theme, codegen::EmitMode::GeneratedBase);
+    return codegen::generate(module, embeds, theme);
 }
 
 ir::IrModule make_module() {

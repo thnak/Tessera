@@ -101,8 +101,7 @@ if (NOT CMAKE_CROSSCOMPILING)
         tessera_ir_ids
         tessera_lowering_core
         tessera_lowering_bootstrap
-        tessera_merger
-        tessera_style)
+            tessera_style)
 
     set(_tessera_library_generated_dir ${CMAKE_CURRENT_BINARY_DIR}/generated)
     set(_tessera_library_generated_cpp

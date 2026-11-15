@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-// Codegen CLI driver: read .tsx -> parse/analyse -> lower -> validate IR -> generate C++ -> merge
-// with the existing files and rewrite only what changed (docs/guides/developer-workflow.md).
+// Codegen CLI driver: read .tsx -> parse/analyse -> lower -> validate IR -> generate C++ -> rewrite
+// what changed (docs/guides/developer-workflow.md). There is one codegen path (ADR-040): the
+// generated `<Component>.g.hpp` base is rewritten wholesale and the developer
+// `<Component>.hpp/.cpp` files are scaffolded once and never edited.
 
 #include "emit_library_components.hpp"
 #include "package_manifest.hpp"
@@ -15,7 +17,6 @@
 #include "tessera/compiler/jsx/parser.hpp"
 #include "tessera/compiler/lowering/library_components.hpp"
 #include "tessera/compiler/lowering/node_lowering.hpp"
-#include "tessera/compiler/merger.hpp"
 #include "tessera/compiler/rules/analyze.hpp"
 #include "tessera/harness/json_parse.hpp"
 #include "tessera/ui/style/component_parts.hpp"
@@ -279,9 +280,8 @@ std::string derive_module_name(const std::string& input) {
 
 bool generate_files(const ir::IrModule& module, std::span<const StylesheetEmbed> embeds,
                     const std::optional<EmbeddedTheme>& theme, std::vector<GeneratedFile>& files,
-                    Outcome& outcome, std::string_view input, bool generated_base) {
-    const auto generated = generate(module, embeds, theme,
-                                    generated_base ? EmitMode::GeneratedBase : EmitMode::Legacy);
+                    Outcome& outcome, std::string_view input) {
+    const auto generated = generate(module, embeds, theme);
     if (!generated) {
         const CodegenErrors& errors = generated.error();
         report(outcome, true,
@@ -692,8 +692,7 @@ Outcome run(const Options& options) {
     }
 
     std::vector<GeneratedFile> files;
-    if (!generate_files(module, *embeds, theme, files, outcome, options.inputs.front(),
-                        options.generated_base)) {
+    if (!generate_files(module, *embeds, theme, files, outcome, options.inputs.front())) {
         return outcome;
     }
 
@@ -727,21 +726,11 @@ Outcome run(const Options& options) {
         const std::optional<std::string> existing =
             fs::exists(target) ? read_file(target) : std::nullopt;
         std::string content = file.text;
-        if (existing && options.generated_base) {
-            // The generated base is regenerated wholesale: no regions, nothing to merge.
+        if (existing) {
+            // The generated base and the manifest are rewritten wholesale: they carry no
+            // developer-owned content, only the scaffolded `<Component>.hpp/.cpp` does, and those
+            // are handled by handle_developer_files() below and never written here.
             if (*existing == content) {
-                if (options.verbose) {
-                    report(outcome, false, target.string() + ": unchanged");
-                }
-                continue;
-            }
-        } else if (existing) {
-            tessera::compiler::MergeResult merged = tessera::compiler::merge(file.text, *existing);
-            for (const std::string& warning : merged.warnings) {
-                report(outcome, false, target.string() + ": warning: " + warning);
-            }
-            content = std::move(merged.text);
-            if (content == *existing) {
                 if (options.verbose) {
                     report(outcome, false, target.string() + ": unchanged");
                 }
@@ -764,7 +753,7 @@ Outcome run(const Options& options) {
             report(outcome, false, target.string() + ": written");
         }
     }
-    if (options.generated_base && outcome.exit_code == 0) {
+    if (outcome.exit_code == 0) {
         handle_developer_files(module, output_dir, options.check_only, options.verbose, outcome);
     }
     if (drift) {

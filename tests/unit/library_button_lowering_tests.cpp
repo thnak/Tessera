@@ -50,7 +50,7 @@ bool write_goldens = false;
 
 // The canonical ADR-040 path (issue #218): every component is one header-only generated base.
 codegen::CodegenResult generate(const ir::IrModule& module) {
-    return codegen::generate(module, {}, std::nullopt, codegen::EmitMode::GeneratedBase);
+    return codegen::generate(module, {}, std::nullopt);
 }
 
 // A demo that imports the library Button as `<Button>` (issue #291) and uses it in the states the
