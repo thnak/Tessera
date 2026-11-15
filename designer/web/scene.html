@@ -10,7 +10,11 @@
   native harness runs, lays the tree out on the null RHI (no GPU yet), and lists the canonical
   UiSnapshot nodes with their paths, kinds, bounds and text. That document is what the wasm-parity CI
   job compares byte for byte against the native CLI, so this page shows the artifact the gate proves.
-  The canvas preview is P3, browser input is P4, share links are P5.
+
+  P4 (issue #168) adds the input script: a `click <automationId>` step is dispatched into the same
+  in-memory evaluator through the engine's own input router, and the state cells after every step are
+  listed beside the nodes. The click runs the handler's TSX preview body through the IR evaluator; the
+  developer's C++ is not in this module. The canvas preview is P3, share links are P5.
 -->
 <html lang="en">
 <head>
@@ -44,6 +48,23 @@
       <textarea id="source" spellcheck="false" autocapitalize="off" autocomplete="off"
                 autocorrect="off" wrap="off"></textarea>
       <p class="hint">Ctrl+Enter (or Cmd+Enter) runs. The viewport is 320&times;240.</p>
+
+      <div class="pane-header">
+        <h2 id="input-heading">Input script</h2>
+        <div class="pane-actions">
+          <button id="run-input" type="button">Send clicks</button>
+        </div>
+      </div>
+      <label for="script" class="visually-hidden">Input script</label>
+      <textarea id="script" spellcheck="false" autocapitalize="off" autocomplete="off"
+                autocorrect="off" wrap="off" rows="4"></textarea>
+      <p class="hint">
+        One step per line: <code>click &lt;automationId&gt;</code>. Clicking a node below appends
+        its id. Each click is dispatched through the engine's own input router &mdash; hit test,
+        pointer capture, click synthesis, capture/target/bubble &mdash; and the handler it reaches is
+        the handler's <strong>TSX preview body</strong>, run by the IR evaluator. The developer's C++
+        is not in this module and is never executed.
+      </p>
     </section>
 
     <section class="pane" aria-labelledby="nodes-heading">
@@ -55,6 +76,12 @@
       <div class="empty-state" id="empty-state">
         Press <strong>Run</strong> to evaluate the source.
       </div>
+
+      <div class="pane-header">
+        <h2 id="state-heading">State cells</h2>
+        <div class="status" id="input-status" role="status" aria-live="polite">no clicks yet</div>
+      </div>
+      <ol class="cells" id="cells"></ol>
     </section>
   </main>
 
@@ -62,7 +89,9 @@
     <p>
       Part of <a href="https://github.com/thnak/Tessera">Tessera</a>. The module is the
       <code>wasm-webgpu</code> build's scene-preview target; the same input produces the same
-      snapshot document natively, which the <code>wasm-parity</code> CI job checks byte for byte.
+      snapshot document natively, which the <code>wasm-parity</code> CI job checks byte for byte,
+      and the same click script produces the same state cells, which the
+      <code>scene_input_parity.py</code> gate checks the same way.
       The TSX diagnostics page is <a href="index.html">index.html</a>.
     </p>
   </footer>

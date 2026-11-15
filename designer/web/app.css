@@ -326,6 +326,60 @@ button.primary {
   font-size: 11px;
 }
 
+/* The id picker beside a node (P4, issue #168): appends `click <id>` to the input script. Kept small
+   and borderless so it reads as part of the row rather than a competing primary action. */
+.node-pick {
+  margin-left: 6px;
+  padding: 0 6px;
+  font: inherit;
+  font-size: 11px;
+  color: var(--accent);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.node-pick:hover { background: var(--ok-bg); }
+
+/* State cells (P4): one row for the initial state and one per scripted step, so a reader sees the
+   sequence and not only the final value. The row label is the step, the pairs are the cells. */
+.cells {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 8px;
+  list-style: none;
+  overflow-y: auto;
+  max-height: 40%;
+  font-family: var(--mono);
+  font-size: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.cell {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  padding: 3px 0;
+  align-items: baseline;
+}
+
+.cell.step { border-top: 1px dotted var(--border); }
+
+.cell-when {
+  min-width: 12ch;
+  color: var(--text-dim);
+}
+
+.cell-pair { display: inline-flex; gap: 4px; }
+
+.cell-name { color: var(--text); }
+
+.cell-value {
+  color: var(--ok);
+  font-weight: 600;
+}
+
 
 .unavailable {
   margin: 16px;

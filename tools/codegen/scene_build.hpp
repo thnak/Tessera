@@ -7,7 +7,9 @@
 #include "tessera/ui/scene/node.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <string>
+#include <vector>
 
 // IR -> live scene tree for the in-memory preview (issue #166). The evaluator (src/compiler/eval)
 // supplies expression values; this file applies them to the same `ui::Node` surface generated C++
@@ -33,6 +35,17 @@ struct SceneBuildResult {
     // tree would be a snapshot of a program that does not exist.
     std::string error;
     std::size_t nodes = 0;
+    // One entry per built scene node that declares an IR event, in build order: the scene node's
+    // automation id (`uiId`) and the IR handler id per event name. The scene graph stores a
+    // type-erased C callback (`Node::bind_event`), so the mapping from a dispatched scene event
+    // back to the IR handler it must run is the session's to install; this is the data it needs and
+    // nothing more. Empty for a tree whose nodes declare no events.
+    struct SceneEventHandler {
+        std::uint64_t automation_id = 0;
+        std::string event;   // the IR/schema event name (`onClick`, `onKeyDown`, ...)
+        std::string handler; // the IR handler id: `handler::N` or `bind::name`
+    };
+    std::vector<SceneEventHandler> handlers;
 };
 
 // Builds the tree of `component` under `root`. `root` is the window content node: it is given the

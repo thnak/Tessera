@@ -172,17 +172,22 @@ endif ()
 # engine to it would drag Yoga and the text stack into that artifact. The shared thing is the driver,
 # not the executable.
 set(_tessera_scene_preview_sources
+    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_evaluate.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_preview.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_build.cpp
-    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_layout.cpp)
+    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_layout.cpp
+    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_state.cpp
+    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_session.cpp
+    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_interaction.cpp)
 
 if (NOT EMSCRIPTEN)
-    add_library(tessera_scene_preview_entry OBJECT
-        ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_scene_entry.cpp
-        ${_tessera_scene_preview_sources})
-    target_include_directories(tessera_scene_preview_entry
-        PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
-    target_link_libraries(tessera_scene_preview_entry PRIVATE
+    # The driver as a library, so the parity test (tests/parity) can run the very same evaluation
+    # and input session the module exports instead of a second copy of the stage order. The OBJECT
+    # library below and the CLI both link it; linking rather than re-listing the sources is what
+    # keeps "the native half" and "the Wasm half" one build of one implementation.
+    add_library(tessera_scene_preview STATIC ${_tessera_scene_preview_sources})
+    target_include_directories(tessera_scene_preview PUBLIC ${CMAKE_SOURCE_DIR}/tools/codegen)
+    target_link_libraries(tessera_scene_preview PUBLIC
         tessera_automation_scene
         tessera_ir_eval
         tessera_ir_ids
@@ -190,23 +195,21 @@ if (NOT EMSCRIPTEN)
         tessera_lowering
         tessera_scene
         tessera_style)
+
+    add_library(tessera_scene_preview_entry OBJECT
+        ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_scene_entry.cpp)
+    target_include_directories(tessera_scene_preview_entry
+        PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
+    target_link_libraries(tessera_scene_preview_entry PRIVATE tessera_scene_preview)
 
     # The native half of the parity gate: `tessera_scene_preview --scene-json OUT FILE.tsx` prints the
     # same document the module returns, so scripts/ci/scene_snapshot_parity.py can compare two
     # artifacts instead of two implementations.
     add_executable(tessera_scene_preview_cli
-        ${CMAKE_SOURCE_DIR}/tools/codegen/scene_preview_main.cpp
-        ${_tessera_scene_preview_sources})
+        ${CMAKE_SOURCE_DIR}/tools/codegen/scene_preview_main.cpp)
     target_include_directories(tessera_scene_preview_cli
         PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
-    target_link_libraries(tessera_scene_preview_cli PRIVATE
-        tessera_automation_scene
-        tessera_ir_eval
-        tessera_ir_ids
-        tessera_layout
-        tessera_lowering
-        tessera_scene
-        tessera_style)
+    target_link_libraries(tessera_scene_preview_cli PRIVATE tessera_scene_preview)
     set_target_properties(tessera_scene_preview_cli PROPERTIES OUTPUT_NAME tessera_scene_preview)
 else ()
     # Same flag set as the diagnostics module, with the one difference the artifact needs: nothing
@@ -233,7 +236,7 @@ else ()
         -sEXPORT_NAME=createTesseraScenePreview
         -sENVIRONMENT=web,node
         -sALLOW_MEMORY_GROWTH=1
-        -sEXPORTED_FUNCTIONS=["_tessera_scene_json","_tessera_free","_malloc","_free"]
+        -sEXPORTED_FUNCTIONS=["_tessera_scene_json","_tessera_input_json","_tessera_free","_malloc","_free"]
         -sEXPORTED_RUNTIME_METHODS=["UTF8ToString","lengthBytesUTF8","stringToUTF8"])
 endif ()
 
