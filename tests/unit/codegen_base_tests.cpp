@@ -48,8 +48,7 @@ bool contains(const std::string& text, std::string_view needle) {
 }
 
 codegen::CodegenResult generate_base() {
-    return codegen::generate(make_sample_module(), {}, std::nullopt,
-                             codegen::EmitMode::GeneratedBase);
+    return codegen::generate(make_sample_module(), {}, std::nullopt);
 }
 
 void test_shape() {

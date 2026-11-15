@@ -39,7 +39,7 @@ namespace codegen = tessera::compiler::codegen;
 // The canonical ADR-040 path (issue #218). Composition is emitted as a header-only base per
 // component; the legacy `.hpp`/`.cpp` split is gone (#219 removes the mode).
 codegen::CodegenResult generate(const ir::IrModule& module) {
-    return codegen::generate(module, {}, std::nullopt, codegen::EmitMode::GeneratedBase);
+    return codegen::generate(module, {}, std::nullopt);
 }
 
 int failures = 0;

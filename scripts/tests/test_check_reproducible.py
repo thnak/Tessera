@@ -109,8 +109,8 @@ class ReproGateTests(unittest.TestCase):
     def test_absolute_path_difference_is_classified(self) -> None:
         data_a = bytearray(b"\x00" * 256)
         data_b = bytearray(data_a)
-        marker_a = b"D:/build/reproducible/a/tests/unit/Release/merger_tests.exe"
-        marker_b = b"D:/build/reproducible/b/tests/unit/Release/merger_tests.exe"
+        marker_a = b"D:/build/reproducible/a/tests/unit/Release/static_runtime_probe.exe"
+        marker_b = b"D:/build/reproducible/b/tests/unit/Release/static_runtime_probe.exe"
         data_a[64 : 64 + len(marker_a)] = marker_a
         data_b[64 : 64 + len(marker_b)] = marker_b
         self.write(bytes(data_a), bytes(data_b))

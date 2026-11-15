@@ -3,14 +3,20 @@
 # Gallery skeleton (issue #239, ADR-047 item 10), native lane. The page is generated at build time
 # from Gallery.tsx and the library Button by the host-built codegen CLI (host-only, like the
 # compiler demo), so the gallery always shows the Button that ships.
+#
+# One codegen path (ADR-040, issue #219): the CLI writes the generated `<Component>.g.hpp` bases and
+# scaffolds the developer `<Component>.hpp/.cpp` classes once. Every component here has no `bind::`
+# region, so the scaffolded classes are empty; the page drives them through the base API
+# (`build`/`mount`/`attach_scheduler`).
 set(_gallery_gen ${CMAKE_CURRENT_BINARY_DIR}/generated)
 set(_gallery_button ${CMAKE_SOURCE_DIR}/packages/tessera-ui/Button.tsx)
 set(_gallery_safe_area ${CMAKE_SOURCE_DIR}/packages/tessera-ui/SafeArea.tsx)
 set(_gallery_outputs
-    ${_gallery_gen}/Button.hpp ${_gallery_gen}/Button.cpp
-    ${_gallery_gen}/Gallery.hpp ${_gallery_gen}/Gallery.cpp
-    ${_gallery_gen}/SafeArea.hpp ${_gallery_gen}/SafeArea.cpp
-    ${_gallery_gen}/SafeAreaPage.hpp ${_gallery_gen}/SafeAreaPage.cpp)
+    ${_gallery_gen}/Button.g.hpp ${_gallery_gen}/Button.hpp ${_gallery_gen}/Button.cpp
+    ${_gallery_gen}/Gallery.g.hpp ${_gallery_gen}/Gallery.hpp ${_gallery_gen}/Gallery.cpp
+    ${_gallery_gen}/SafeArea.g.hpp ${_gallery_gen}/SafeArea.hpp ${_gallery_gen}/SafeArea.cpp
+    ${_gallery_gen}/SafeAreaPage.g.hpp ${_gallery_gen}/SafeAreaPage.hpp
+    ${_gallery_gen}/SafeAreaPage.cpp)
 add_custom_command(
     OUTPUT ${_gallery_outputs}
     COMMAND ${CMAKE_COMMAND} -E make_directory ${_gallery_gen}/src
@@ -18,7 +24,7 @@ add_custom_command(
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/Gallery.tsx ${_gallery_gen}/src/Gallery.tsx
     COMMAND ${CMAKE_COMMAND} -E copy ${_gallery_safe_area} ${_gallery_gen}/src/SafeArea.tsx
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/SafeAreaPage.tsx ${_gallery_gen}/src/SafeAreaPage.tsx
-    COMMAND $<TARGET_FILE:tessera_codegen_cli> --mode legacy --write --out ${_gallery_gen}
+    COMMAND $<TARGET_FILE:tessera_codegen_cli> --write --out ${_gallery_gen}
             --namespace gallery --salt gallery --root ${_gallery_gen}/src
             ${_gallery_gen}/src/Button.tsx ${_gallery_gen}/src/Gallery.tsx
             ${_gallery_gen}/src/SafeArea.tsx ${_gallery_gen}/src/SafeAreaPage.tsx

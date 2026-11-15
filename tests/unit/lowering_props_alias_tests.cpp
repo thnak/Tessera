@@ -349,7 +349,7 @@ void test_generated_cpp_is_byte_identical() {
         check_eq((*imported_cpp)[i].path, (*inline_cpp)[i].path, "the same generated path");
         check_eq((*imported_cpp)[i].text, (*inline_cpp)[i].text,
                  "generated C++ for the imported alias is byte-identical");
-        if ((*imported_cpp)[i].path == "Card.hpp") {
+        if ((*imported_cpp)[i].path == "Card.g.hpp") {
             props_struct_seen = (*imported_cpp)[i].text.find("prop_title_") != std::string::npos &&
                                 (*imported_cpp)[i].text.find("prop_count_") != std::string::npos;
         }

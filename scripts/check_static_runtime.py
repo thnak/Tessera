@@ -5,7 +5,7 @@
 The task-8 static-link gate only inspects whatever artifacts already exist (usually Debug test
 binaries). This script proves the hard requirement end to end: it configures a throwaway build
 directory with ``TESSERA_STATIC_RUNTIME=ON``, ``CMAKE_BUILD_TYPE=Release`` and
-``TESSERA_BUILD_VULKAN=OFF``, builds one small framework-linking target (``merger_tests`` by
+``TESSERA_BUILD_VULKAN=OFF``, builds one small framework-linking target (``static_runtime_probe`` by
 default), and runs ``scripts/check_static_link.py`` on the produced executable.
 
 Debug builds are reported as ``SKIPPED`` instead of passing or failing: MSVC ``/MTd`` and debug
@@ -30,7 +30,7 @@ SCRIPTS_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPTS_DIR.parent
 GATE = SCRIPTS_DIR / "check_static_link.py"
 DEFAULT_BUILD_DIR = REPO_ROOT / "build" / "static-runtime-proof"
-DEFAULT_TARGET = "merger_tests"
+DEFAULT_TARGET = "static_runtime_probe"
 DEFAULT_CONFIG = "Release"
 
 if str(SCRIPTS_DIR) not in sys.path:
@@ -226,7 +226,7 @@ def run_gate(command: Sequence[str]) -> int:
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--config", default=DEFAULT_CONFIG, help="CMake configuration (default: Release)")
-    parser.add_argument("--target", default=DEFAULT_TARGET, help="CMake target to build (default: merger_tests)")
+    parser.add_argument("--target", default=DEFAULT_TARGET, help="CMake target to build (default: static_runtime_probe)")
     parser.add_argument(
         "--build-dir",
         default=str(DEFAULT_BUILD_DIR),

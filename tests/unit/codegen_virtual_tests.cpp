@@ -55,7 +55,7 @@ using tessera::test::codegen_virtual::span;
 
 // The canonical ADR-040 path (issue #218): the fixture is emitted as one header-only base.
 codegen::CodegenResult generate(const ir::IrModule& module) {
-    return codegen::generate(module, {}, std::nullopt, codegen::EmitMode::GeneratedBase);
+    return codegen::generate(module, {}, std::nullopt);
 }
 
 std::string read_file(const std::string& path) {

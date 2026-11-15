@@ -118,7 +118,7 @@ inline ir::IrModule make_virtual_module() {
     footer.text = ir::make_literal(std::string("Footer"));
     root.children.push_back(std::move(footer));
 
-    // A protected-region binding next to the collections (merger idempotency coverage).
+    // A native event binding next to the collections (a developer-owned handler).
     ir::Node button = leaf(ir::NodeKind::Button, "node::10", "10");
     button.events.emplace("onClick", "bind::on_click");
     ir::Node add_text = leaf(ir::NodeKind::Text, "node::11", "11");

@@ -1,12 +1,5 @@
 # SPDX-License-Identifier: MIT
 
-add_executable(merger_tests
-    merger_tests.cpp)
-
-target_link_libraries(merger_tests PRIVATE tessera_merger)
-
-add_test(NAME merger_unit COMMAND merger_tests)
-
 add_executable(jsx_lexer_tests
     jsx_lexer_tests.cpp)
 
@@ -219,6 +212,17 @@ add_executable(scene_graph_tests
 target_link_libraries(scene_graph_tests PRIVATE tessera_scene)
 
 add_test(NAME scene_graph COMMAND scene_graph_tests)
+
+# The sample framework-linking executable of the release gates (ADR-012, issue #219): it replaces
+# the deleted `merger_tests` as the target `check_static_runtime.py`, `check_reproducible.py` and
+# `release_rehearsal.py` build and inspect. Registered as a test too, so a broken probe fails the
+# normal suite instead of only the release lanes.
+add_executable(static_runtime_probe
+    static_runtime_probe.cpp)
+
+target_link_libraries(static_runtime_probe PRIVATE tessera_runtime tessera_scene tessera_style)
+
+add_test(NAME static_runtime_probe_links COMMAND static_runtime_probe)
 
 add_executable(input_dispatch_tests
     input_dispatch_tests.cpp)
@@ -2032,17 +2036,6 @@ add_test(NAME gesture_pipeline COMMAND gesture_pipeline_tests)
 # tests/integration/CMakeLists.txt; this include is the build fallback until the root CMakeLists
 # (Lead-owned) adds tests/integration. Both paths are guarded to stay idempotent.
 include(${PROJECT_SOURCE_DIR}/tests/integration/CMakeLists.txt)
-if (TARGET merger_poc)
-    add_test(NAME merger_cli_help COMMAND merger_poc --help)
-    add_test(
-        NAME merger_cli_idempotent
-        COMMAND ${CMAKE_COMMAND}
-            -DMERGER=$<TARGET_FILE:merger_poc>
-            -DWORK=${CMAKE_CURRENT_BINARY_DIR}/merger_cli
-            -DGENERATED=${CMAKE_SOURCE_DIR}/tests/fixtures/merger/generated.cpp
-            -DEXISTING=${CMAKE_SOURCE_DIR}/tests/fixtures/merger/existing.cpp
-            -P ${CMAKE_CURRENT_SOURCE_DIR}/merger_cli_test.cmake)
-endif()
 
 add_executable(image_diff_tests
     image_diff_tests.cpp)

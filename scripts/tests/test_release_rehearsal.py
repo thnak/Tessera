@@ -57,7 +57,7 @@ if "--build" in args:
     build.mkdir(parents=True, exist_ok=True)
     # The real build target (tessera-package-stage) produces the shipped executable.
     suffix = ".exe" if sys.platform == "win32" else ""
-    (build / ("merger_tests" + suffix)).write_bytes(b"fake binary")
+    (build / ("static_runtime_probe" + suffix)).write_bytes(b"fake binary")
     sys.exit(0)
 
 if "-S" in args:
@@ -168,7 +168,7 @@ class RehearsalTests(unittest.TestCase):
             "--cpack",
             "cpack",
             "--target",
-            "merger_tests",
+            "static_runtime_probe",
         ]
         if json_mode:
             command.append("--json")

@@ -37,12 +37,11 @@ struct EmbeddedTheme {
     std::vector<std::uint8_t> bytes; // serialize_theme_asset() output
 };
 
-// How components are emitted. `Legacy` is the struct plus protected-region path (ADR-008, merged by
-// the merger); `GeneratedBase` is ADR-040: one header-only `<Component>.g.hpp` declaring
+// How components are emitted: ADR-040, one header-only `<Component>.g.hpp` declaring
 // `<namespace>::gen::<Component>Base<Self>`, which a developer-owned `<Component> final : public
 // gen::<Component>Base<<Component>>` derives from. Every `bind::<id>` is a required member of the
-// developer class, checked by a static_assert in the base's `build()`.
-enum class EmitMode { Legacy, GeneratedBase };
+// developer class, checked by a static_assert in the base's `build()`. This is the only path
+// (issue #219): the legacy struct plus merged protected regions is gone.
 
 // One `TESSERA_CODEGEN_*` error. Lowering/codegen stops at the first unsupported construct; no
 // partial file set is returned.
@@ -50,7 +49,7 @@ using CodegenErrors = std::vector<std::string>;
 using CodegenResult = std::expected<std::vector<GeneratedFile>, CodegenErrors>;
 
 // Generates the C++ files of every component of `module`, sorted by component name. The module name
-// becomes the C++ namespace root of the generated structs.
+// becomes the C++ namespace root of the generated bases.
 //
 // When at least one stylesheet of `module` has a blob in `embeds`, exactly one extra file
 // `<module.name>_stylesheets.hpp` is appended (see docs/specs/compiled-stylesheet-v1.md section 9):
@@ -63,8 +62,7 @@ using CodegenResult = std::expected<std::vector<GeneratedFile>, CodegenErrors>;
 // new warning.
 [[nodiscard]] CodegenResult generate(const ir::IrModule& module,
                                      std::span<const StylesheetEmbed> embeds = {},
-                                     std::optional<EmbeddedTheme> theme = std::nullopt,
-                                     EmitMode mode = EmitMode::Legacy);
+                                     std::optional<EmbeddedTheme> theme = std::nullopt);
 
 // One member the developer class of a component must define (ADR-040 decision item 3): the
 // `bind::<id>` of the TSX, the member name, the declaration a developer writes and the TSX

@@ -43,7 +43,7 @@ void check_eq(const std::string& actual, const std::string& expected, std::strin
 using tessera::test::codegen_sample::make_sample_module;
 
 codegen::CodegenResult generate_base(const ir::IrModule& module) {
-    return codegen::generate(module, {}, std::nullopt, codegen::EmitMode::GeneratedBase);
+    return codegen::generate(module, {}, std::nullopt);
 }
 
 bool contains(const std::string& text, std::string_view needle) {

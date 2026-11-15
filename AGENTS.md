@@ -39,13 +39,10 @@ A cross-platform C++ UI framework:
 5. **Generated code and developer code have separate owners** ([ADR-040](decisions/ADR-040-generated-base-and-developer-class.md)).
    Codegen emits a `gen::<Component>Base<Self>` that is never edited or merged; developer C++
    lives in a developer-owned derived class scaffolded once, and a missing `bind::` member is a
-   compile error. The migration is under way: #209 and #210 are done, and #218 has moved every
-   codegen test family to the base (sample, dynamic, embed, ids-stability, dynamic-virtual,
-   vector, composition, virtual, forms, size-change, instances, and the trailing library fixtures
-   Button, SafeArea, callback-forward and `part_attribute_tests`), so no test or sample emits the
-   legacy output any more and #219 deletes it, the merger and `EmitMode`. Until #219 lands the
-   legacy merger must stay idempotent
-   (`merge(merge(g, e), e) == merge(g, e)`); add no new features to it.
+   compile error. This is the only codegen path: the legacy struct output, its
+   `[DEVELOPER_LOGIC_START/END]` regions, the merger and `EmitMode` are deleted (#209, #210, #218,
+   #219), so `generate()` has no mode and the CLI has no `--mode`. The legacy emitters survive only
+   as the text source `emit_base.cpp` reshapes into the base.
 6. **Deterministic headless tests use a software path.** Golden images come from
    Mesa **lavapipe** or the CPU rasterizer, never from a real GPU framebuffer.
 7. **No React runtime in production.** Production is pure C++. React semantics exist only
@@ -450,13 +447,17 @@ Acceptance: a `useState`/`useEffect`/`useRef` screen regenerates without losing 
 
 - [x] JSX/TSX front end + Tier-1 rules — `src/compiler/{analyzer,rules}/`.
 - [x] `bind::` extractor + IR — `src/compiler/{ir,lowering}/`.
-- [x] C++ codegen + incremental merger — `src/compiler/codegen/`, `tools/codegen/`.
-- [x] Acceptance (legacy merger) — `samples/compiler-demo/Demo.tsx`,
-      `tests/golden/codegen/demo/Demo.cpp`.
+- [x] C++ codegen (one path: the ADR-040 generated base) — `src/compiler/codegen/`,
+      `tools/codegen/`.
+- [x] Acceptance — `samples/compiler-demo/Demo.tsx` plus its developer class
+      `samples/compiler-demo/Demo.cpp`, regenerated with the developer class untouched.
 - [x] Animated values (tween, spring, `onComplete`, reduced motion live on Windows), CSS end events,
       `SpringRuntime` in the frame pipeline — `src/ui/animation/`, commits `a76165f`, `a075170`.
-- [ ] #157 (slice 1 landed), #209-#211, #218, #219 (one canonical codegen path: scaffold, consumers, tests, delete legacy, docs): ADR-040: emit `gen::<Component>Base<Self>` + developer class — `compiler-demo` regenerates
-      with its developer class untouched.
+- [x] #157, #209, #210, #218, #219 (one canonical codegen path): ADR-040 emits
+      `gen::<Component>Base<Self>` plus a scaffolded developer class; the legacy output, the
+      merger and `EmitMode` are deleted — `src/compiler/codegen/src/emit_base.cpp`,
+      `tests/unit/codegen_base_tests.cpp`, `tests/golden/codegen/*.g.hpp`.
+- [ ] #211 (docs describe the one path) — the follow-up documentation slice.
 - [x] #81/ADR-048: embed the compiled stylesheet blob as a `constexpr` array (serializer/loader
       landed) — no `TESSERA_CG_STYLESHEET_NOT_EMBEDDED` for embedded sheets —
       `src/compiler/codegen/src/emit_stylesheet_embed.cpp`,
@@ -817,7 +818,7 @@ The manual `cmake -S . -B build ...` path still works; presets are the recommend
 | Build / packaging | [`docs/design/build-and-packaging.md`](docs/design/build-and-packaging.md), [`docs/guides/packaging.md`](docs/guides/packaging.md) |
 | Glossary | [`docs/reference/glossary.md`](docs/reference/glossary.md) |
 | Batched2D demo | `tools/poc/batched2d/` |
-| Compiler frontend/IR/codegen | `src/compiler/{analyzer,rules,ir,codegen,merger}/` |
+| Compiler frontend/IR/codegen | `src/compiler/{analyzer,rules,ir,codegen}/` |
 | Design-time viewer | `designer/{web,native}/` |
 | Tests | `tests/{unit,gpu,integration,golden,fixtures,benchmarks}/` |
 | PoCs / demos | `tools/poc/`, `samples/` |
@@ -954,11 +955,10 @@ both ADR-048 blob artifacts (compiled stylesheets registered in import-graph ord
 bridges not yet installed in a host; and the first WebGPU slice (unbuilt on host).
 
 **Farm order:** V1-M1 is now complete (the B3 Wayland window and the B3 OS-event slice both landed),
-so the farm is on V1-M2: #218's last families (Button, SafeArea, callback-forward,
-`part_attribute_tests`) landed, so nothing but `tools/codegen/regenerate.cpp` and
-`part_attribute_tests` still name `EmitMode` and #219 (delete the legacy output, the merger and
-`EmitMode`) is next, followed by the doc slice #211 and #158 (object-literal prop defaults,
-ADR-051). V1-M3's last item, #159, is closed by this
+so the farm is on V1-M2: the ADR-040 one-path migration is done (#218 migrated every test family,
+sample and tool to the generated base, and #219 deleted the legacy output, the merger and
+`EmitMode`), so what remains in this milestone is the documentation slice #211 and #158
+(object-literal prop defaults, ADR-051). V1-M3's last item, #159, is closed by this
 landing: the `shader-manifest-v1.md` id-to-source table (section 3.2) and the opt-in cross-compile
 section (5.1), plus the `shader-cross` job in `.github/workflows/linux.yml` that runs
 `TESSERA_SHADER_CROSS=ON` — its first run found a real shader defect (a by-value struct parameter
@@ -974,7 +974,8 @@ come later.
 paint gaps that make V1 look unfinished), #228 (multi-window refactor, before AF6), #232, #233,
 #222, and the library stage 0 items #234, #237 and #238. #226, #229 and #231 touch the IR and the
 front end, so land them one at a time. Stage 0 is closed (#239), so #236, #240 and #223 are unblocked.
-#218 and #219 run one family or step at a time (they share `src/compiler/codegen/CMakeLists.txt`).
+`src/compiler/codegen/CMakeLists.txt` carries the goldens and fixture wiring of every migrated
+codegen family, so a lane adding a family edits it alone.
 
 The detailed history of what landed and why is in
 [`docs/architecture/implementation-log.md`](docs/architecture/implementation-log.md). Keep the B1

@@ -59,7 +59,7 @@ void write_file(const std::string& path, const std::string& text) {
 
 // The canonical ADR-040 path (issue #218): one header-only base per component.
 codegen::CodegenResult generate(const ir::IrModule& module) {
-    return codegen::generate(module, {}, std::nullopt, codegen::EmitMode::GeneratedBase);
+    return codegen::generate(module, {}, std::nullopt);
 }
 
 std::string file_text(const std::vector<codegen::GeneratedFile>& files, std::string_view path) {

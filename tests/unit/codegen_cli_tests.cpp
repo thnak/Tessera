@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-// Codegen CLI and incremental regeneration (Big Step C): run the real executable twice over the
-// committed sample screen, assert the second run is a byte/mtime no-op, developer regions are
-// preserved, --check reports drift, outside-region edits are overwritten, and exit codes are the
-// documented 0/1/2.
+// Codegen CLI and regeneration (Big Step C, ADR-040): run the real executable twice over the
+// committed sample screen, assert the second run is a byte/mtime no-op, the generated base is
+// rewritten wholesale while the developer files are scaffolded once and never edited, --check
+// reports drift, and exit codes are the documented 0/1/2.
 
 #include <chrono>
 #include <cstdio>
@@ -79,21 +79,6 @@ int run_cli(const fs::path& cli, const std::string& arguments, const fs::path& l
 #endif
 }
 
-std::string region_body(const std::string& text, std::string_view region_id) {
-    const std::string start = "// [DEVELOPER_LOGIC_START: " + std::string(region_id) + "]";
-    const std::string end = "// [DEVELOPER_LOGIC_END: " + std::string(region_id) + "]";
-    const std::size_t begin = text.find(start);
-    if (begin == std::string::npos) {
-        return {};
-    }
-    const std::size_t body = begin + start.size();
-    const std::size_t finish = text.find(end, body);
-    if (finish == std::string::npos) {
-        return {};
-    }
-    return text.substr(body, finish - body);
-}
-
 std::string codegen_arguments(const fs::path& out, const fs::path& sample_dir) {
     return "--out " + quoted(out) + " --namespace demo " + quoted(sample_dir / "Demo.tsx");
 }
@@ -101,13 +86,12 @@ std::string codegen_arguments(const fs::path& out, const fs::path& sample_dir) {
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 4) {
-        std::cerr << "usage: codegen_cli_tests SAMPLE_DIR SEED_DIR CLI\n";
+    if (argc != 3) {
+        std::cerr << "usage: codegen_cli_tests SAMPLE_DIR CLI\n";
         return 2;
     }
     const fs::path sample_dir(argv[1]);
-    const fs::path seed_dir(argv[2]);
-    const fs::path cli = fs::path(argv[3]).make_preferred();
+    const fs::path cli = fs::path(argv[2]).make_preferred();
     const fs::path work = fs::temp_directory_path() / "tessera-codegen-cli-test";
     const fs::path log_dir = work / "logs";
     std::error_code error;
@@ -117,55 +101,71 @@ int main(int argc, char** argv) {
     fs::create_directories(out);
     fs::create_directories(work / "outside");
 
-    const std::string committed_seed = read_file(seed_dir / "Demo.cpp");
-    check(!committed_seed.empty(), "the committed developer seed is readable");
-    write_file(out / "Demo.cpp", committed_seed);
+    // The committed developer class (samples/compiler-demo/Demo.cpp) is the developer-owned half of
+    // the demo: it derives from the generated base and defines every `bind::` member. It is the
+    // file the CLI must never overwrite.
+    const std::string committed_developer = read_file(sample_dir / "Demo.cpp");
+    check(!committed_developer.empty(), "the committed developer class is readable");
+    check(committed_developer.find("DEVELOPER_LOGIC") == std::string::npos,
+          "the committed developer class is a plain file, not a protected-region output");
+    check(committed_developer.find("Demo::sync()") != std::string::npos,
+          "the committed developer class defines the bound member");
 
-    // First run: writes the regenerated files, preserving every developer region.
-    check(run_cli(cli, "--write " + codegen_arguments(out, sample_dir), log_dir) == 0,
-          "the first --write exits 0");
-    const std::string first_cpp = read_file(out / "Demo.cpp");
-    check(fs::exists(out / "Demo.hpp"), "the first run writes the header");
-    check(first_cpp == committed_seed,
-          "regeneration reproduces the committed developer file byte-for-byte");
-    check(region_body(first_cpp, "bind::sync").find("state_count_ < 0") != std::string::npos,
-          "the sync developer body is preserved");
-    check(region_body(first_cpp, "bind::sync_cleanup").find("Hand-written C++") !=
-              std::string::npos,
-          "the cleanup developer body is preserved");
-    check(region_body(first_cpp, "bind::on_name").empty(),
-          "a removed binding drops its developer region");
-    check(region_body(first_cpp, "bind::sync").find("state_count_ < 0") != std::string::npos,
-          "the sync developer body is preserved");
+    // First run: writes the generated base and scaffolds the developer files.
+    const auto first_run = run_cli(cli, "--write " + codegen_arguments(out, sample_dir), log_dir);
+    check(first_run == 0, "the first --write exits 0");
+    check(fs::exists(out / "Demo.g.hpp"), "the first run writes the generated base");
+    const std::string first_header = read_file(out / "Demo.g.hpp");
+    check(first_header.find("gen::DemoBase<Self>") != std::string::npos ||
+              first_header.find("struct DemoBase {") != std::string::npos,
+          "the generated base declares the CRTP template");
+    check(first_header.find("DEVELOPER_LOGIC") == std::string::npos,
+          "the generated base carries no protected regions");
 
-    const auto first_time = fs::last_write_time(out / "Demo.cpp");
-    check(run_cli(cli, "--write " + codegen_arguments(out, sample_dir), log_dir) == 0,
-          "the second --write exits 0");
-    check(read_file(out / "Demo.cpp") == first_cpp, "the second run is byte-identical");
-    check(fs::last_write_time(out / "Demo.cpp") == first_time,
-          "the second run leaves mtime untouched (no-op regeneration)");
+    // The developer class is scaffolded with one member per `bind::` id and derives from the base.
+    const std::string stub_header = read_file(out / "Demo.hpp");
+    check(stub_header.find("class Demo final : public gen::DemoBase<Demo>") != std::string::npos,
+          "the developer class derives from the generated base");
+    check(stub_header.find("// bind::sync") != std::string::npos,
+          "the stub carries a marker per binding");
+    const std::string stub_source = read_file(out / "Demo.cpp");
+    check(stub_source.find("Demo::sync()") != std::string::npos,
+          "the scaffold defines a body per binding");
+
+    // The generated base is a byte/mtime no-op on a second run; the developer files are not edited.
+    const auto header_time = fs::last_write_time(out / "Demo.g.hpp");
+    const auto stub_time = fs::last_write_time(out / "Demo.cpp");
     check(run_cli(cli, "--verbose --write " + codegen_arguments(out, sample_dir), log_dir) == 0,
-          "a verbose no-op run exits 0");
+          "the second --write exits 0");
+    check(read_file(out / "Demo.g.hpp") == first_header, "the second run is byte-identical");
+    check(fs::last_write_time(out / "Demo.g.hpp") == header_time,
+          "the second run leaves the generated header mtime untouched");
+    check(fs::last_write_time(out / "Demo.cpp") == stub_time,
+          "the second run leaves the developer file mtime untouched");
     check(read_file(log_dir / "cli.log").find("unchanged") != std::string::npos,
           "the verbose no-op run reports the file as unchanged");
+
+    // A developer edit survives a rerun: the scaffold is written once, never rewritten.
+    write_file(out / "Demo.cpp", read_file(out / "Demo.cpp") + "\n// mine\n");
+    check(run_cli(cli, "--write " + codegen_arguments(out, sample_dir), log_dir) == 0,
+          "a rerun over an edited developer file exits 0");
+    check(read_file(out / "Demo.cpp").find("// mine") != std::string::npos,
+          "an existing developer file is never overwritten");
 
     // A clean tree passes --check.
     check(run_cli(cli, "--check " + codegen_arguments(out, sample_dir), log_dir) == 0,
           "--check is 0 when the output is current");
 
-    // An outside-region edit is drift for --check and is overwritten by --write.
-    std::string edited = first_cpp;
-    edited += "\n// outside-region manual edit\n";
-    write_file(out / "Demo.cpp", edited);
+    // A generated-base edit is drift for --check and is overwritten by --write.
+    write_file(out / "Demo.g.hpp", first_header + "\n// drift\n");
     check(run_cli(cli, "--check " + codegen_arguments(out, sample_dir), log_dir) == 1,
-          "--check reports drift outside protected regions");
+          "--check reports drift of the generated base");
     check(run_cli(cli, "--write " + codegen_arguments(out, sample_dir), log_dir) == 0,
           "--write repairs the drift");
-    const std::string repaired = read_file(out / "Demo.cpp");
-    check(repaired.find("outside-region manual edit") == std::string::npos,
-          "outside-region edits are overwritten");
-    check(region_body(repaired, "bind::sync").find("state_count_ < 0") != std::string::npos,
-          "the developer region survives the outside-region repair");
+    check(read_file(out / "Demo.g.hpp").find("// drift") == std::string::npos,
+          "the generated base is overwritten wholesale");
+    check(read_file(out / "Demo.cpp").find("// mine") != std::string::npos,
+          "the developer file is still untouched after a drift repair");
 
     // Nothing outside the output directory is touched.
     write_file(work / "outside" / "sentinel.txt", "keep");
@@ -204,13 +204,13 @@ int main(int argc, char** argv) {
     check(salted(project_b, work / "salt-b", "factory") == 0, "a salted run elsewhere exits 0");
     check(salted(project_a, work / "salt-c", "other") == 0,
           "a salted run with another salt exits 0");
-    const std::string ids_a = read_file(work / "salt-a" / "Demo.cpp");
+    const std::string ids_a = read_file(work / "salt-a" / "Demo.g.hpp");
     check(ids_a.find("set_automation_id(") != std::string::npos,
           "a salted run gives every node its automation id");
-    check(ids_a == read_file(work / "salt-b" / "Demo.cpp"),
+    check(ids_a == read_file(work / "salt-b" / "Demo.g.hpp"),
           "the ids do not depend on the checkout location");
-    check(ids_a != read_file(work / "salt-c" / "Demo.cpp"), "another salt gives other ids");
-    check(read_file(out / "Demo.cpp").find("set_automation_id(") == std::string::npos,
+    check(ids_a != read_file(work / "salt-c" / "Demo.g.hpp"), "another salt gives other ids");
+    check(read_file(out / "Demo.g.hpp").find("set_automation_id(") == std::string::npos,
           "without a salt no ids are assigned");
     check(run_cli(cli,
                   "--write --out " + quoted(work / "salt-d") + " --salt factory --root " +
@@ -236,12 +236,12 @@ int main(int argc, char** argv) {
                       "--root " + quoted(configured) + " " + quoted(configured / "ui" / "Demo.tsx"),
                   log_dir) == 0,
           "the explicit equivalent exits 0");
-    check(read_file(work / "cfg-a" / "Demo.cpp").find("set_automation_id(") != std::string::npos,
+    check(read_file(work / "cfg-a" / "Demo.g.hpp").find("set_automation_id(") != std::string::npos,
           "the config namespace assigns ids without --salt");
-    check(read_file(work / "cfg-a" / "Demo.cpp") == read_file(work / "cfg-b" / "Demo.cpp"),
+    check(read_file(work / "cfg-a" / "Demo.g.hpp") == read_file(work / "cfg-b" / "Demo.g.hpp"),
           "the config gives the same ids as --salt with --root");
     check(from_config(work / "cfg-c", "--salt other ") == 0, "--salt overrides the config");
-    check(read_file(work / "cfg-c" / "Demo.cpp") != read_file(work / "cfg-a" / "Demo.cpp"),
+    check(read_file(work / "cfg-c" / "Demo.g.hpp") != read_file(work / "cfg-a" / "Demo.g.hpp"),
           "the overriding salt changes the ids");
 
     // Package roots (project-config-v1.md `packages`, issue #70): a bare specifier resolves inside
@@ -391,66 +391,47 @@ int main(int argc, char** argv) {
     check(from_config(work / "cfg-f") == 1, "a malformed tessera.json exits 1");
     check(!fs::exists(work / "cfg-f" / "Demo.cpp"), "a bad config produces no output");
 
-    // ADR-040 `--mode base`: the generated base is regenerated wholesale, the developer files are
-    // scaffolded once and never edited, and drift in them is reported as warnings.
+    // Developer-file contract (ADR-040 decision item 6, issue #209): a binding the developer class
+    // does not define is a warning with its code, not a failure, and a stub marker whose binding
+    // left the TSX is reported unused.
     {
-        const fs::path base_out = work / "base-out";
-        fs::create_directories(base_out);
-        const std::string base_args = "--mode base " + codegen_arguments(base_out, sample_dir);
-        check(run_cli(cli, "--write " + base_args, log_dir) == 0,
-              "base: the first --write exits 0");
-        check(fs::exists(base_out / "Demo.g.hpp"), "base: writes Demo.g.hpp");
-        check(!fs::exists(base_out / "Demo.cpp.merged"), "base: no merge artifacts");
-        const std::string stub_header = read_file(base_out / "Demo.hpp");
-        check(stub_header.find("class Demo final : public gen::DemoBase<Demo>") !=
-                  std::string::npos,
-              "base: scaffolds the developer class deriving from the generated base");
-        check(stub_header.find("// bind::sync") != std::string::npos,
-              "base: the stub carries a marker per binding");
-        check(read_file(base_out / "Demo.cpp").find("Demo::sync()") != std::string::npos,
-              "base: scaffolds a definition per binding");
+        const fs::path dev_out = work / "dev-out";
+        fs::create_directories(dev_out);
+        const std::string dev_args = codegen_arguments(dev_out, sample_dir);
+        check(run_cli(cli, "--write " + dev_args, log_dir) == 0, "dev: the first --write exits 0");
 
-        // A developer edit survives a rerun; the generated file stays unchanged.
-        write_file(base_out / "Demo.cpp", read_file(base_out / "Demo.cpp") + "\n// mine\n");
-        check(run_cli(cli, "--verbose --write " + base_args, log_dir) == 0, "base: rerun exits 0");
-        check(read_file(base_out / "Demo.cpp").find("// mine") != std::string::npos,
-              "base: an existing developer file is never overwritten");
-        check(read_file(log_dir / "cli.log").find("Demo.g.hpp: unchanged") != std::string::npos,
-              "base: the generated header is reported unchanged");
-
-        // A binding the developer file does not define is a warning, not a failure.
-        std::string trimmed = read_file(base_out / "Demo.hpp");
-        for (const char* needle : {"void sync_cleanup();", "// bind::sync_cleanup"}) {
-            const std::size_t at = trimmed.find(needle);
-            if (at != std::string::npos) {
-                trimmed.erase(at, std::string_view(needle).size());
+        // Rename the `sync_cleanup` declaration AND definition so the developer class no longer
+        // defines the binding (the check reads the two files together).
+        for (const char* file : {"Demo.hpp", "Demo.cpp"}) {
+            const fs::path path = dev_out / file;
+            std::string text = read_file(path);
+            const std::size_t at = text.find("sync_cleanup(");
+            check(at != std::string::npos, std::string("dev: ") + file + " names sync_cleanup");
+            if (at == std::string::npos) {
+                continue;
             }
+            text.replace(at, 13, "gone_cleanup(");
+            write_file(path, text);
         }
-        write_file(base_out / "Demo.hpp", trimmed);
-        write_file(base_out / "Demo.cpp", read_file(base_out / "Demo.cpp"));
-        std::string no_cleanup = read_file(base_out / "Demo.cpp");
-        for (std::size_t at; (at = no_cleanup.find("sync_cleanup(")) != std::string::npos;) {
-            no_cleanup.replace(at, 13, "gone_cleanup(");
-        }
-        write_file(base_out / "Demo.cpp", no_cleanup);
-        check(run_cli(cli, "--write " + base_args, log_dir) == 0,
-              "base: a missing binding exits 0");
+        check(run_cli(cli, "--write " + dev_args, log_dir) == 0, "dev: a missing binding exits 0");
         check(read_file(log_dir / "cli.log").find("TESSERA_CG_MISSING_BINDING") !=
                   std::string::npos,
-              "base: a missing binding is reported with its code");
+              "dev: a missing binding is reported with its code");
 
-        // --check: clean, then drift in the generated header only.
-        check(run_cli(cli, "--check " + base_args, log_dir) == 0,
-              "base: --check is 0 when current");
-        write_file(base_out / "Demo.g.hpp", read_file(base_out / "Demo.g.hpp") + "// drift\n");
-        check(run_cli(cli, "--check " + base_args, log_dir) == 1,
-              "base: --check reports drift of the generated header");
-        check(run_cli(cli, "--write " + base_args, log_dir) == 0,
-              "base: --write repairs the drift");
-        check(read_file(base_out / "Demo.g.hpp").find("// drift") == std::string::npos,
-              "base: the generated header is overwritten");
-        check(run_cli(cli, "--mode other " + codegen_arguments(base_out, sample_dir), log_dir) == 2,
-              "base: an unknown --mode exits 2");
+        // A stub marker for a binding that is not in the TSX is reported unused.
+        std::string stale = read_file(dev_out / "Demo.hpp");
+        const std::string marker = "    // bind::sync_cleanup";
+        const std::size_t at = stale.find(marker);
+        check(at != std::string::npos, "dev: the stub carries the sync_cleanup marker");
+        if (at != std::string::npos) {
+            stale.replace(at, marker.size(), "    // bind::on_removed");
+            write_file(dev_out / "Demo.hpp", stale);
+            check(run_cli(cli, "--write " + dev_args, log_dir) == 0,
+                  "dev: a stale binding marker exits 0");
+            check(read_file(log_dir / "cli.log").find("TESSERA_CG_BINDING_UNUSED") !=
+                      std::string::npos,
+                  "dev: a marker whose binding left the TSX is reported unused");
+        }
     }
 
     // Usage errors exit 2.

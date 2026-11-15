@@ -54,7 +54,7 @@ void check_eq(const std::string& actual, const std::string& expected, std::strin
 
 // The canonical ADR-040 path (issue #218): every component is one header-only generated base.
 codegen::CodegenResult generate(const ir::IrModule& module) {
-    return codegen::generate(module, {}, std::nullopt, codegen::EmitMode::GeneratedBase);
+    return codegen::generate(module, {}, std::nullopt);
 }
 
 std::string read_file(const std::string& path) {

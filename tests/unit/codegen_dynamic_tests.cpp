@@ -70,7 +70,7 @@ void write_file(const std::string& path, const std::string& text) {
 }
 
 codegen::CodegenResult generate_base(const ir::IrModule& module) {
-    return codegen::generate(module, {}, std::nullopt, codegen::EmitMode::GeneratedBase);
+    return codegen::generate(module, {}, std::nullopt);
 }
 
 std::string first_error(const codegen::CodegenResult& result) {

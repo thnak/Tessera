@@ -197,8 +197,7 @@ struct DynamicMetadata {
                                          const std::vector<ControlledInput>& controlled_inputs,
                                          const DynamicPlan& plan, const FormPlan& forms,
                                          const std::vector<ComponentInstance>& instances,
-                                         GeneratedFile& file, std::string& error,
-                                         bool base_mode = false);
+                                         GeneratedFile& file, std::string& error);
 
 // Emits the effect deps-hash helpers, mount/update_effects/unmount and the child-instance
 // lifecycle propagation (emit_lifecycle.cpp). Per-item component instances follow the owner's
@@ -209,12 +208,10 @@ struct DynamicMetadata {
                                   const std::vector<ComponentInstance>& instances,
                                   const DynamicPlan& plan, CppWriter& writer, std::string& error);
 
-// Appends `<Component>.hpp` and `<Component>.cpp` to `files` (or, with `base_mode`, the one
-// header-only `<Component>.g.hpp` of the ADR-040 generated base), or sets `error` and returns
-// false.
+// Appends the one header-only `<Component>.g.hpp` of the ADR-040 generated base to `files`, or sets
+// `error` and returns false.
 [[nodiscard]] bool emit_component(const ir::Component& component, const ir::IrModule& module,
-                                  std::vector<GeneratedFile>& files, std::string& error,
-                                  bool base_mode = false);
+                                  std::vector<GeneratedFile>& files, std::string& error);
 
 // One stylesheet of the module that the caller supplied a blob for, in `module.stylesheets` order.
 struct ResolvedStylesheet {

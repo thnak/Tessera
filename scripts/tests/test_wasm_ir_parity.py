@@ -4,7 +4,7 @@
 
 Fake native and "Wasm" CLIs stand in for the two compilers, so the gate's pass, mismatch,
 determinism, generated-C++ and setup-error semantics are covered without Emscripten or a build.
-The fake CLI writes the IR file requested by ``--emit-ir`` and a tree for ``--mode base --write``;
+The fake CLI writes the IR file requested by ``--emit-ir`` and a tree for ``--write``;
 a ``FAKE_*`` environment variable selects the behavior under test.
 """
 
@@ -50,7 +50,7 @@ if "--emit-ir" in args:
                 body = body + "  // %s\\n" % parent.name
                 break
     target.write_text(body, encoding="utf-8")
-elif "--mode" in args and "base" in args:
+elif "--write" in args:
     out = Path(args[args.index("--out") + 1])
     out.mkdir(parents=True, exist_ok=True)
     (out / "Counter.g.hpp").write_text("// generated\\n", encoding="utf-8")

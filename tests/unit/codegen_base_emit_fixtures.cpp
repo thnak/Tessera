@@ -126,8 +126,7 @@ ir::IrModule make_compose_module() {
 }
 
 bool emit(const ir::IrModule& module, const std::filesystem::path& dir) {
-    const auto result =
-        codegen::generate(module, {}, std::nullopt, codegen::EmitMode::GeneratedBase);
+    const auto result = codegen::generate(module, {}, std::nullopt);
     if (!result) {
         std::cerr << module.name << ": " << result.error().front() << "\n";
         return false;
@@ -143,7 +142,7 @@ bool emit(const ir::IrModule& module, const std::filesystem::path& dir) {
 // The sample module with its developer stubs from scaffold(): the stubs must compile against the
 // generated base without any hand-written developer class (ADR-040 decision item 6).
 bool emit_with_scaffold(const ir::IrModule& module, const std::filesystem::path& dir) {
-    const auto base = codegen::generate(module, {}, std::nullopt, codegen::EmitMode::GeneratedBase);
+    const auto base = codegen::generate(module, {}, std::nullopt);
     const auto stubs = codegen::scaffold(module);
     if (!base || !stubs) {
         std::cerr << module.name << ": base or scaffold failed\n";

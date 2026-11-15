@@ -103,7 +103,7 @@ inline ir::IrModule make_dynamic_module() {
     filled.children.push_back(std::move(filled_text));
     root.children.push_back(std::move(filled));
 
-    // A protected-region binding next to the dynamic children (merger idempotency coverage).
+    // A native event binding next to the dynamic children (a developer-owned handler).
     ir::Node button = leaf(ir::NodeKind::Button, "node::10", "10");
     button.events.emplace("onClick", "bind::on_click");
     ir::Node add_text = leaf(ir::NodeKind::Text, "node::11", "11");

@@ -312,7 +312,7 @@ std::string file_text(const std::vector<codegen::GeneratedFile>& files, std::str
 // The canonical ADR-040 path (issue #218): identity stability is a property of the IR, so it is
 // asserted on the generated base the one path emits.
 codegen::CodegenResult generate(const ir::IrModule& module) {
-    return codegen::generate(module, {}, std::nullopt, codegen::EmitMode::GeneratedBase);
+    return codegen::generate(module, {}, std::nullopt);
 }
 
 void test_library_goldens_survive_insertion() {

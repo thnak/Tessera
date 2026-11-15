@@ -28,8 +28,7 @@ ir::IrModule to_module(lowering::LoweredModule& lowered) {
 }
 
 std::string generated(std::string_view path, const ir::IrModule& module) {
-    const auto files =
-        codegen::generate(module, {}, std::nullopt, codegen::EmitMode::GeneratedBase);
+    const auto files = codegen::generate(module, {}, std::nullopt);
     check(files.has_value(), "codegen succeeds");
     if (!files) {
         return {};

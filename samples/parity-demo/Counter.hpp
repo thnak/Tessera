@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Developer-owned half of the preview-parity sample (ADR-040). The generated base Counter.g.hpp is
-// written into the build directory from Counter.tsx by tessera_codegen --mode base.
+// written into the build directory from Counter.tsx by tessera_codegen --write.
 #pragma once
 
 #include "Counter.g.hpp"

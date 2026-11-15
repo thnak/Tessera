@@ -162,7 +162,6 @@ add_subdirectory(src/ui/boundary)
 add_subdirectory(src/app)
 add_subdirectory(src/harness)
 add_subdirectory(src/schema)
-add_subdirectory(src/compiler/merger)
 add_subdirectory(src/compiler/analyzer)
 add_subdirectory(src/compiler/ir)
 add_subdirectory(src/compiler/eval)
@@ -181,10 +180,6 @@ add_subdirectory(tools/icons)
 set(TESSERA_SHADER_MANIFEST "${PROJECT_SOURCE_DIR}/tools/shaders/manifest.json")
 if (TESSERA_BUILD_VULKAN OR TESSERA_SHADER_CROSS)
     add_subdirectory(tools/shaders)
-endif()
-
-if (TESSERA_BUILD_POC)
-    add_subdirectory(tools/poc/merger)
 endif()
 
 # ADR-050 service-resolve microbenchmark: Release-only measurement tool, never in ctest.
