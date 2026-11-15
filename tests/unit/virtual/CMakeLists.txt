@@ -121,3 +121,10 @@ add_executable(virtual_announce_tests
 target_link_libraries(virtual_announce_tests PRIVATE tessera_virtual)
 
 add_test(NAME virtual_announce COMMAND virtual_announce_tests)
+
+add_executable(realized_window_tests
+    realized_window_tests.cpp)
+
+target_link_libraries(realized_window_tests PRIVATE tessera_virtual)
+
+add_test(NAME realized_window COMMAND realized_window_tests)

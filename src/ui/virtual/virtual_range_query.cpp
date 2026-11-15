@@ -84,19 +84,11 @@ VirtualItemId VirtualRange::key_at(std::size_t index) const noexcept {
 }
 
 ui::Node* VirtualRange::realized_node(std::size_t index) const noexcept {
-    for (std::size_t position = 0; position < realized_count_; ++position) {
-        if (realized_[position].index == index) {
-            return realized_[position].lease.node;
-        }
-    }
-    return nullptr;
+    return window_.node_for(index);
 }
 
 std::optional<std::size_t> VirtualRange::realized_index_at(std::size_t position) const noexcept {
-    if (position >= realized_count_) {
-        return std::nullopt;
-    }
-    return realized_[position].index;
+    return window_.index_at(position);
 }
 
 } // namespace tessera::ui::virtualization

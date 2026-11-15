@@ -27,7 +27,7 @@ VirtualRange::VirtualRange(Config config, VirtualDataSource& source, ui::Node& c
       keys_(config.capacity),
       recycler_(config.pool_cap),
       item_state_(config.state_capacity),
-      realized_(recycler_.capacity()) {
+      window_(recycler_.capacity()) {
     config_.overscan_main = std::max(config_.overscan_main, 0.0f);
     config_.cross_extent = std::max(config_.cross_extent, 0.0f);
 }
@@ -83,7 +83,7 @@ VirtualRange::update(float scroll_offset, float viewport_extent) {
     result.window = window;
     if (window.empty()) {
         result.released = 0;
-        while (realized_count_ > 0) {
+        while (!window_.empty()) {
             release_at(0, true);
             ++result.released;
         }
@@ -100,8 +100,8 @@ VirtualRange::update(float scroll_offset, float viewport_extent) {
     set_anchor_from(visible.empty() ? window.first : visible.first);
 
     // Release first so a forward scroll can immediately reuse the nodes it just freed.
-    for (std::size_t position = 0; position < realized_count_;) {
-        const std::size_t index = realized_[position].index;
+    for (std::size_t position = 0; position < window_.count();) {
+        const std::size_t index = window_.at(position).index;
         if (index < window.first || index >= window.last) {
             release_at(position, true);
             ++result.released;
@@ -137,8 +137,7 @@ VirtualRange::update(float scroll_offset, float viewport_extent) {
             break; // unreachable with a fresh lease; never leave the container half-attached
         }
         container_->add_child(std::move(owned));
-        realized_[realized_count_] = RealizedItem{index, *lease, measure.cross_size};
-        ++realized_count_;
+        window_.append(index, *lease, measure.cross_size);
         ++result.built;
     }
     result.reused = result.built - (recycler_.stats().allocations - allocations_before);
@@ -155,18 +154,7 @@ VirtualRange::update(float scroll_offset, float viewport_extent) {
     update_container_content_size();
     apply_focus_state();
 
-    if (realized_count_ == 0) {
-        result.realized = ItemGeometry::Range{0, 0};
-    } else {
-        std::size_t first = std::numeric_limits<std::size_t>::max();
-        std::size_t last = 0;
-        for (std::size_t position = 0; position < realized_count_; ++position) {
-            const std::size_t index = realized_[position].index;
-            first = std::min(first, index);
-            last = std::max(last, index);
-        }
-        result.realized = ItemGeometry::Range{first, last + 1};
-    }
+    result.realized = window_.index_span();
     result.scroll_offset = scroll_offset_;
     return result;
 }
@@ -223,7 +211,8 @@ VirtualRange::Refinement VirtualRange::refine_and_reanchor(std::size_t index,
 }
 
 void VirtualRange::release_at(std::size_t position, bool notify_source) noexcept {
-    RealizedItem item = realized_[position];
+    RealizedWindow::Item item;
+    window_.take_at(position, item);
     std::unique_ptr<ui::Node> owned = container_->remove_child(*item.lease.node);
 #ifndef NDEBUG
     assert(owned != nullptr && "virtualization: realized item is not a child of the container");
@@ -235,30 +224,16 @@ void VirtualRange::release_at(std::size_t position, bool notify_source) noexcept
         clear_node_item_state(*owned);
         (void)recycler_.reclaim(item.lease, std::move(owned));
     }
-    realized_[position] = realized_[realized_count_ - 1];
-    realized_[realized_count_ - 1] = RealizedItem{};
-    --realized_count_;
 }
 
 void VirtualRange::release_all(bool notify_source) noexcept {
-    while (realized_count_ > 0) {
-        release_at(realized_count_ - 1, notify_source);
+    while (!window_.empty()) {
+        release_at(window_.count() - 1, notify_source);
     }
 }
 
 void VirtualRange::place_realized_nodes() noexcept {
-    for (std::size_t position = 0; position < realized_count_; ++position) {
-        RealizedItem& item = realized_[position];
-        const float offset = geometry_.item_offset(item.index) - scroll_offset_;
-        const float main_size = geometry_.item_main_size(item.index);
-        if (config_.horizontal) {
-            item.lease.node->set_bounds(
-                tessera::ui::rhi::Rect{offset, 0.0f, main_size, item.cross_size});
-        } else {
-            item.lease.node->set_bounds(
-                tessera::ui::rhi::Rect{0.0f, offset, item.cross_size, main_size});
-        }
-    }
+    window_.place_all(geometry_, scroll_offset_, config_.horizontal);
 }
 
 void VirtualRange::update_container_content_size() noexcept {
