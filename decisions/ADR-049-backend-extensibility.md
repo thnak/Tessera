@@ -241,6 +241,14 @@ Condition 2: `scripts/ci/validate_wgsl.py` validates every authored WGSL file wi
 CI job `wgsl-validation` runs it. The core maintainer agreement above was given on 2026-11-13.
 Details: [webgpu-backend.md](../docs/design/gpu/webgpu-backend.md#build-validation-and-ci).
 
+Toolchain pin move (2026-11-15, issue #164): the owner directed the Emscripten pin to `7.0.0`
+(`tools/emsdk-version.txt`) as part of P0 of the design-time preview, which builds the compiler for
+Node from the same cross build. This does not change the decision above: emsdk 7.0.0 bundles the
+same emdawnwebgpu port release and the same SHA-512 (`v20260423.175430`) that 6.0.13 carried, so the
+WebGPU bindings this ADR validated are byte-identical, and `tessera_webgpu` plus
+`webgpu_wasm_smoke` were re-verified on the new pin. The pin is not a compatibility surface; it is
+the toolchain the WebGPU and parity lanes install.
+
 **Stays in core** (changes need an ADR or spec change):
 
 - the IR spec ([`docs/specs/ir-v1.md`](../docs/specs/ir-v1.md)) and the compiler;

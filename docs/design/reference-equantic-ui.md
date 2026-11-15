@@ -410,7 +410,7 @@ rather than adding a parallel plan.
 
 | Slice | Work | Acceptance |
 |---|---|---|
-| P0 | Emscripten preset; front end, analyzer and IR lowering compiled to Wasm; Node smoke test that compiles `samples/parity-demo/Counter.tsx` and returns the same IR JSON as the native CLI | byte-identical IR on native and Wasm |
+| P0 | Emscripten preset; front end, analyzer and IR lowering compiled to Wasm; Node smoke test that compiles `samples/parity-demo/Counter.tsx` and returns the same IR JSON as the native CLI. **Landed (#164)** — see [`compiler-wasm.md`](compiler-wasm.md) | byte-identical IR on native and Wasm |
 | P1 | Diagnostics-only page (studio D-S5 early form): static page, editor textarea, Run validates TSX and lists diagnostics with spans; deployed to GitHub Pages from `main` | deployed URL shows the build id; diagnostics match native |
 | P2 | Evaluator + scene + layout in Wasm with the **null** RHI backend: the page shows a scene/IR tree and computed layout boxes as HTML (no GPU yet), click a node to see its source span | scene snapshot equals the native harness snapshot for the samples |
 | P3 | WebGPU device half in the browser; canvas preview of the evaluated scene; render-on-demand via `requestAnimationFrame`; "unsupported browser" page | WebGPU frame vs lavapipe golden within the parity tolerance (lesson 6) |

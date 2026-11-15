@@ -73,6 +73,23 @@ target_link_libraries(tessera_codegen_cli PRIVATE
     tessera_style)
 set_target_properties(tessera_codegen_cli PROPERTIES OUTPUT_NAME tessera_codegen)
 
+# The Emscripten build of the CLI is a Node tool, never a browser/sample-app artifact (issue #164,
+# docs/design/compiler-wasm.md): the design-time preview compiles .tsx with the same front end the
+# native CLI uses, so the two must behave identically.
+#
+#   -sENVIRONMENT=node  emits a Node loader only; there is no DOM/browser shim to link against.
+#   -sNODERAWFS=1       routes <cstdio>/<filesystem> to Node's synchronous `fs` calls instead of
+#                       Emscripten's in-memory MEMFS. Without it the CLI cannot open the .tsx input
+#                       or write the output at all (MEMFS only holds what was preloaded), which made
+#                       the Wasm compiler unusable outside a preload-manifest build.
+#
+# NODERAWFS must never leak into a browser artifact: it is undefined in a browser because browsers
+# have no synchronous host filesystem, and it would defeat the point of a self-contained preview
+# module. Both flags therefore live on this one target, not in a global link option.
+if (EMSCRIPTEN)
+    target_link_options(tessera_codegen_cli PRIVATE -sNODERAWFS=1 -sENVIRONMENT=node)
+endif ()
+
 # Goldens of the generated base (`<Component>.g.hpp`) live here; they are written by the
 # `--write` mode of their test and are generated from IR, never hand-edited.
 #

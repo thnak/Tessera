@@ -81,10 +81,11 @@ Decided in [ADR-049](../../../decisions/ADR-049-backend-extensibility.md) sectio
 
 ## Build, validation and CI
 
-- **Toolchain pin:** emsdk `6.0.13` (`tools/emsdk-version.txt`). Its bundled emdawnwebgpu port is
-  `v20260423.175430`, downloaded by emcc on first use and verified against the SHA-512 in that
-  emsdk release. Install emsdk outside the repository (`emsdk install 6.0.13`, `emsdk activate
-  6.0.13`) and set `EMSDK`.
+- **Toolchain pin:** emsdk `7.0.0` (`tools/emsdk-version.txt`), moved from 6.0.13 for the compiler's
+  Wasm build (issue #164). Its bundled emdawnwebgpu port is `v20260423.175430`, the same release and
+  SHA-512 that 6.0.13 carried, so the bindings this backend compiles against are unchanged; the port
+  is downloaded by emcc on first use and verified against the SHA-512 in that emsdk release. Install
+  emsdk outside the repository (`emsdk install 7.0.0`, `emsdk activate 7.0.0`) and set `EMSDK`.
 - **Preset:** `cmake --preset wasm-webgpu` then `cmake --build --preset wasm-webgpu` builds
   `tessera_webgpu_mapping`, `tessera_webgpu` and `webgpu_wasm_smoke` (Ninja, Release, tests, PoCs
   and Vulkan off, `-Werror` on). Under Emscripten every target uses `-fwasm-exceptions`, because
@@ -104,7 +105,7 @@ Decided in [ADR-049](../../../decisions/ADR-049-backend-extensibility.md) sectio
 Verified on a Windows host (2026-11-12): mapping tables, WGSL embedding and id registry
 (`ctest -R webgpu_mapping`), GLSL/WGSL interface parity (`ctest -R shader_parity`), and with
 `TESSERA_SHADER_CROSS=ON` (Vulkan SDK 1.4.350.0, naga 30.0.1) the spirv-val, naga and dxc checks.
-With emsdk 6.0.13 and emdawnwebgpu `v20260423.175430`, `tessera_webgpu` compiles under `-Wall
+With emsdk 7.0.0 and emdawnwebgpu `v20260423.175430`, `tessera_webgpu` compiles under `-Wall
 -Wextra -Wpedantic -Werror` and links into `webgpu_wasm_smoke`, which runs under Node 24. The
 device code written against the 2025-style `webgpu.h` (`WGPUStringView`, `WGPU_*_INIT`,
 `WGPUTexelCopy*`, callback-info structs, `wgpu*AddRef`) needed no source changes for this port

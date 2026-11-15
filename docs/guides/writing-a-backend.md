@@ -148,7 +148,7 @@ Build-time tools per backend (the canonical list with licenses is
 |---|---|
 | Vulkan | Vulkan SDK 1.4.x: headers, loader, `glslc`, validation layers |
 | WebGPU native | Dawn (optional, headless parity) |
-| WebGPU Wasm | Emscripten `6.0.13` (`tools/emsdk-version.txt`), emdawnwebgpu port, naga CLI `30.0.1` (`tools/naga-version.txt`) for validation |
+| WebGPU Wasm | Emscripten `7.0.0` (`tools/emsdk-version.txt`), emdawnwebgpu port, naga CLI `30.0.1` (`tools/naga-version.txt`) for validation |
 | Contributed | optional SPIRV-Cross, `dxc`, naga from the pinned Vulkan SDK |
 
 ## 7. Run the suite

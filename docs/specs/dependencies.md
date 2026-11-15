@@ -44,8 +44,8 @@ Acronyms and project terms used below (RHI, SPIR-V, lavapipe, VRR, damage, golde
 | ThorVG | V1 hard (FetchContent v1.1.3, `TESSERA_ENABLE_THORVG` default OFF; spike Go) | MIT | `rendering/path` | Vector paths behind `rendering::PathRasterizer`: CPU raster into RGBA8, uploaded through the RHI; SVG assets later |
 | Skia Graphite | Fallback only ([ADR-004](../../decisions/ADR-004-buy-vector-path-rasterization.md); owner chose ThorVG first) | BSD-3-Clause | `rendering/backend` | Vector paths/text, Vulkan backend |
 | Dawn | V1 optional (native/headless) | BSD-3-Clause | `rendering/backend/webgpu` | Native WebGPU implementation; the Wasm viewer uses the browser WebGPU via Emscripten |
-| Emscripten (emsdk 6.0.13, `tools/emsdk-version.txt`) | V1 hard for design-time | MIT / UIUC | `designer/web`, `rendering/backend/webgpu` | C++ → WebAssembly toolchain; the `wasm-webgpu` preset and the WebGPU CI lane build `tessera_webgpu` with it; installed by emsdk outside the repository, not vendored |
-| Emscripten WebGPU bindings (`webgpu.h` / emdawnwebgpu, port `v20260423.175430` pinned with its SHA-512 by emsdk 6.0.13) | V1 hard for design-time | MIT / UIUC / BSD-3-Clause | `designer/web`, `rendering/backend/webgpu` | Browser WebGPU API behind `--use-port=emdawnwebgpu`; the JS bindings are MIT/UIUC, the Dawn-authored headers BSD-3-Clause; fetched by the emsdk port mechanism, not vendored |
+| Emscripten (emsdk 7.0.0, `tools/emsdk-version.txt`) | V1 hard for design-time | MIT / UIUC | `designer/web`, `rendering/backend/webgpu`, `src/compiler/codegen` | C++ → WebAssembly toolchain; the `wasm-webgpu` preset and the WebGPU CI lane build `tessera_webgpu` with it, and the `wasm-compiler` build preset builds the codegen CLI for the native-versus-Wasm IR parity gate (issue #164); installed by emsdk outside the repository, not vendored |
+| Emscripten WebGPU bindings (`webgpu.h` / emdawnwebgpu, port `v20260423.175430` pinned with its SHA-512 by emsdk 7.0.0) | V1 hard for design-time | MIT / UIUC / BSD-3-Clause | `designer/web`, `rendering/backend/webgpu` | Browser WebGPU API behind `--use-port=emdawnwebgpu`; the JS bindings are MIT/UIUC, the Dawn-authored headers BSD-3-Clause; fetched by the emsdk port mechanism, not vendored |
 | CodeMirror 6 | V1 design-time (studio) | MIT | `designer/web` | Code editor in the hosted studio; bundled and version-pinned |
 | fflate | V1 design-time (studio) | MIT | `designer/web` | Zip import/export for browsers without the File System Access API |
 | Mesa lavapipe | V1 CI | MIT | tests / CI | Software Vulkan ICD (installable client driver, the plug-in the Vulkan loader uses to reach a GPU or software rasterizer) for deterministic goldens |
@@ -71,7 +71,7 @@ shipped libraries, except where the table says the output ships.
 |---|---|---|
 | Vulkan 1.3 (Tier 1) | Vulkan SDK 1.4.x: headers, loader, `glslc`, validation layers; `volk` and VMA from `third_party/` | SPIR-V compiled into the app |
 | Null (Tier 1) | none | — |
-| WebGPU, Wasm (Tier 1) | Emscripten `6.0.13` (`tools/emsdk-version.txt`), emdawnwebgpu port, naga CLI `30.0.1` (`tools/naga-version.txt`) for WGSL validation | authored WGSL |
+| WebGPU, Wasm (Tier 1) | Emscripten `7.0.0` (`tools/emsdk-version.txt`), emdawnwebgpu port, naga CLI `30.0.1` (`tools/naga-version.txt`) for WGSL validation | authored WGSL |
 | WebGPU, native (Tier 1 headless parity) | Dawn (optional) | — |
 | Contributed (Tier 2) | optional `TESSERA_SHADER_CROSS`: SPIRV-Cross, `dxc`, naga from the pinned Vulkan SDK | per backend README |
 

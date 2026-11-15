@@ -77,6 +77,80 @@ jobs:
         run: >
           "$EMSDK_NODE" build/wasm-webgpu/src/rendering/backend/webgpu/webgpu_wasm_smoke.js
 
+  # P0 of the design-time preview (issue #164, docs/design/compiler-wasm.md): the compiler built to
+  # Wasm must produce the same output as the native compiler. The Wasm build preset has
+  # TESSERA_BUILD_TESTS=OFF, so this is a script invocation rather than a ctest case. The native
+  # side builds one target (the CLI), not the whole native tree, so the job stays cheap next to
+  # wasm-build; both sides come from the same commit.
+  wasm-parity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read emsdk pin
+        run: echo "EMSDK_VERSION=$(cat tools/emsdk-version.txt)" >> "$GITHUB_ENV"
+
+      - name: Install Ninja
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build
+
+      - name: Cache emsdk
+        id: emsdk-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/emsdk
+          key: emsdk-${{ runner.os }}-${{ env.EMSDK_VERSION }}
+
+      - name: Install emsdk
+        if: steps.emsdk-cache.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch "$EMSDK_VERSION" \
+            https://github.com/emscripten-core/emsdk.git "$RUNNER_TEMP/emsdk"
+          "$RUNNER_TEMP/emsdk/emsdk" install "$EMSDK_VERSION"
+
+      - name: Activate emsdk
+        run: |
+          "$RUNNER_TEMP/emsdk/emsdk" activate "$EMSDK_VERSION"
+          source "$RUNNER_TEMP/emsdk/emsdk_env.sh"
+          echo "EMSDK=$EMSDK" >> "$GITHUB_ENV"
+          echo "EMSDK_NODE=$EMSDK_NODE" >> "$GITHUB_ENV"
+          echo "$EMSDK" >> "$GITHUB_PATH"
+          echo "$EMSDK/upstream/emscripten" >> "$GITHUB_PATH"
+          echo "$(dirname "$EMSDK_NODE")" >> "$GITHUB_PATH"
+
+      # One configure for both sides: the Emscripten configure comes from the preset, the native
+      # configure turns off everything the parity run does not need (tests, PoCs, Vulkan).
+      - name: Configure (wasm-webgpu)
+        run: |
+          emcc --version | head -n1
+          cmake --preset wasm-webgpu
+
+      - name: Configure (native, compiler only)
+        run: >
+          cmake -S . -B build/native-parity -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DTESSERA_BUILD_TESTS=OFF
+          -DTESSERA_BUILD_POC=OFF
+          -DTESSERA_BUILD_VULKAN=OFF
+          -DTESSERA_WARNINGS_AS_ERRORS=ON
+
+      - name: Build Wasm compiler
+        run: cmake --build --preset wasm-compiler --parallel
+
+      - name: Build native compiler
+        run: cmake --build build/native-parity --target tessera_codegen_cli --parallel
+
+      - name: IR parity (native vs Wasm)
+        run: >-
+          python3 -B scripts/ci/wasm_ir_parity.py
+          --native build/native-parity/src/compiler/codegen/tessera_codegen
+          --wasm build/wasm-webgpu/src/compiler/codegen/tessera_codegen.js
+          --node "$EMSDK_NODE"
+          --repeat 2
+
   wgsl-validation:
     runs-on: ubuntu-latest
     timeout-minutes: 20
