@@ -53,8 +53,7 @@ EditController::EditController(std::size_t max_bytes, EditHistoryConfig history_
       history_(history_config) {}
 
 EditResult EditController::set_text(std::string_view text) {
-    composing_ = false;
-    preedit_.clear();
+    composition_.cancel();
     const EditResult result = buffer_.set_text(text);
     // Controlled value sync is a clean history boundary: the app replaced the field's value, so
     // undoing back across it would resurrect state the app no longer owns. No entry is recorded.
@@ -71,11 +70,10 @@ bool EditController::commit_text(std::string_view text) {
         text = flattened;
     }
     const EditSnapshot before = snapshot();
-    if (composing_) {
-        const EditOffset start = composition_start_;
-        const EditOffset end = composition_end_;
-        composing_ = false;
-        preedit_.clear();
+    if (composition_.active()) {
+        const EditOffset start = composition_.start();
+        const EditOffset end = composition_.end();
+        composition_.cancel();
         return record_mutation(before, buffer_.replace_range(start, end, text),
                                EditCommitKind::Composition);
     }
@@ -96,8 +94,7 @@ bool EditController::record_mutation(const EditSnapshot& before, EditResult resu
 }
 
 void EditController::restore(const EditSnapshot& snapshot) {
-    composing_ = false;
-    preedit_.clear();
+    composition_.cancel();
     buffer_.set_text(snapshot.text);
     buffer_.set_selection(snapshot.anchor, snapshot.caret);
     // Restoring is a committed edit for the TextChange runtime (the controlled value refreshes) but
@@ -111,7 +108,7 @@ void EditController::restore(const EditSnapshot& snapshot) {
 }
 
 bool EditController::undo() {
-    if (read_only_ || composing_) {
+    if (read_only_ || composition_.active()) {
         return false;
     }
     const std::optional<EditSnapshot> target = history_.undo(snapshot());
@@ -123,7 +120,7 @@ bool EditController::undo() {
 }
 
 bool EditController::redo() {
-    if (read_only_ || composing_) {
+    if (read_only_ || composition_.active()) {
         return false;
     }
     const std::optional<EditSnapshot> target = history_.redo(snapshot());
@@ -167,7 +164,7 @@ bool EditController::handle_event(Event& event) {
     }
     switch (event.type) {
     case EventType::Text: {
-        if (read_only_ || composing_) {
+        if (read_only_ || composition_.active()) {
             return false;
         }
         const std::uint32_t cp = event.text_codepoint;
@@ -194,13 +191,10 @@ bool EditController::handle_event(Event& event) {
         return commit_text(event_text(event));
     }
     case EventType::CompositionStart: {
-        if (read_only_ || composing_) {
+        if (read_only_ || composition_.active()) {
             return false;
         }
-        composing_ = true;
-        preedit_.clear();
-        composition_start_ = buffer_.selection_start();
-        composition_end_ = buffer_.selection_end();
+        composition_.begin(buffer_.selection_start(), buffer_.selection_end());
         event.handled = true;
         return true;
     }
@@ -212,28 +206,25 @@ bool EditController::handle_event(Event& event) {
         if (!edit_detail::valid_utf8(text)) {
             return false;
         }
-        if (!composing_) {
+        if (!composition_.active()) {
             // An IME can commit one segment and start the next inside a single message (Windows
             // sends no second start): a non-empty update then begins a composition at the
             // current selection, exactly as CompositionStart would.
             if (text.empty()) {
                 return false;
             }
-            composing_ = true;
-            composition_start_ = buffer_.selection_start();
-            composition_end_ = buffer_.selection_end();
+            composition_.begin(buffer_.selection_start(), buffer_.selection_end());
         }
-        preedit_.assign(text.data(), text.size());
+        composition_.update(text);
         event.handled = true;
         return true;
     }
     case EventType::CompositionEnd: {
-        if (!composing_) {
+        if (!composition_.active()) {
             return false;
         }
         // No committed `EditText` arrived: cancel restores the pre-composition state.
-        composing_ = false;
-        preedit_.clear();
+        composition_.cancel();
         event.handled = true;
         return true;
     }
@@ -262,7 +253,7 @@ EditController::ClipboardResult EditController::copy(hal::Clipboard& clipboard) 
 
 EditController::ClipboardResult EditController::cut(hal::Clipboard& clipboard) {
     ClipboardResult result;
-    if (read_only_ || composing_ || !buffer_.has_selection()) {
+    if (read_only_ || composition_.active() || !buffer_.has_selection()) {
         return result;
     }
     result = copy(clipboard);
@@ -279,7 +270,7 @@ EditController::ClipboardResult EditController::cut(hal::Clipboard& clipboard) {
 
 EditController::ClipboardResult EditController::paste(hal::Clipboard& clipboard) {
     ClipboardResult result;
-    if (read_only_ || composing_) {
+    if (read_only_ || composition_.active()) {
         return result;
     }
     const auto read = clipboard.read_text();
@@ -303,81 +294,134 @@ EditController::ClipboardResult EditController::paste(hal::Clipboard& clipboard)
     return result;
 }
 
-bool EditController::handle_key(Event& event) {
-    const std::uint32_t key = event.key;
-    const bool control = has_modifier(event.modifiers, Modifier::Control);
-    const bool shift = has_modifier(event.modifiers, Modifier::Shift);
-    const bool alt = has_modifier(event.modifiers, Modifier::Alt);
-    const bool meta = has_modifier(event.modifiers, Modifier::Meta);
+namespace {
 
-    if (control && !alt && !meta) {
-        // Clipboard chords: consume only when the operation actually changed something (clipboard
-        // written or buffer edited), so an empty selection/clipboard leaves the chord to the app.
-        const auto run_chord = [&](hal::Clipboard& clipboard) {
-            if (key == 'C') {
-                return copy(clipboard).changed;
-            }
-            if (key == 'X') {
-                return cut(clipboard).changed;
-            }
-            if (key == 'V') {
-                return paste(clipboard).changed;
-            }
-            return false;
-        };
-        if ((key == 'C' || key == 'X' || key == 'V') && clipboard_ != nullptr) {
-            if (run_chord(*clipboard_)) {
-                event.handled = true;
-                return true;
-            }
-            return false;
-        }
-        if (key == 'Z') {
-            if (shift ? redo() : undo()) {
-                event.handled = true;
-                return true;
-            }
-            return false;
-        }
-        if (key == 'Y' && !shift) {
-            if (redo()) {
-                event.handled = true;
-                return true;
-            }
-            return false;
-        }
+// The event's modifiers as the key map's set.
+ModifierSet chord_modifiers(const Event& event) {
+    ModifierSet set = ModifierSet::None;
+    if (has_modifier(event.modifiers, Modifier::Control)) {
+        set = set | ModifierSet::Control;
     }
+    if (has_modifier(event.modifiers, Modifier::Shift)) {
+        set = set | ModifierSet::Shift;
+    }
+    if (has_modifier(event.modifiers, Modifier::Alt)) {
+        set = set | ModifierSet::Alt;
+    }
+    if (has_modifier(event.modifiers, Modifier::Meta)) {
+        set = set | ModifierSet::Meta;
+    }
+    return set;
+}
 
-    if (key == key::kBackspace || key == key::kDelete) {
+} // namespace
+
+bool EditController::run_command(EditCommand command) {
+    switch (command) {
+    case EditCommand::None:
+        return false;
+    case EditCommand::DeleteBackward:
+    case EditCommand::DeleteBackwardWord:
+    case EditCommand::DeleteForward:
+    case EditCommand::DeleteForwardWord: {
         if (read_only_) {
             return false;
         }
-        const EditCommitKind kind = control ? EditCommitKind::WordDelete : EditCommitKind::Delete;
+        const bool word =
+            command == EditCommand::DeleteBackwardWord || command == EditCommand::DeleteForwardWord;
+        const bool backward =
+            command == EditCommand::DeleteBackward || command == EditCommand::DeleteBackwardWord;
+        const EditCommitKind kind = word ? EditCommitKind::WordDelete : EditCommitKind::Delete;
         const EditSnapshot before = snapshot();
-        return record_mutation(before,
-                               key == key::kBackspace ? buffer_.delete_backward(control)
-                                                      : buffer_.delete_forward(control),
-                               kind);
+        const EditResult result =
+            backward ? buffer_.delete_backward(word) : buffer_.delete_forward(word);
+        return record_mutation(before, result, kind);
     }
-    if (key == key::kArrowLeft || key == key::kArrowRight) {
-        return accept(key == key::kArrowLeft ? buffer_.move_left(control, shift)
-                                             : buffer_.move_right(control, shift));
-    }
-    if (key == key::kHome || key == key::kEnd) {
-        return accept(key == key::kHome ? buffer_.move_home(control, shift)
-                                        : buffer_.move_end(control, shift));
-    }
-    if (control && key == 'A') {
-        return accept(buffer_.select_all());
-    }
-    if (key == key::kEnter) {
+    case EditCommand::InsertNewline: {
         if (read_only_ || !multiline_) {
             return false;
         }
         const EditSnapshot before = snapshot();
-        return record_mutation(before, buffer_.insert("\n"), EditCommitKind::Newline);
+        const EditResult result = buffer_.insert("\n");
+        return record_mutation(before, result, EditCommitKind::Newline);
     }
-    return false;
+    case EditCommand::SelectAll:
+        return accept(buffer_.select_all());
+    case EditCommand::Copy:
+    case EditCommand::Cut:
+    case EditCommand::Paste: {
+        // Consume only when the operation actually changed something (clipboard written or buffer
+        // edited), so an empty selection/clipboard leaves the chord to the app.
+        if (clipboard_ == nullptr) {
+            return false;
+        }
+        ClipboardResult result;
+        if (command == EditCommand::Copy) {
+            result = copy(*clipboard_);
+        } else if (command == EditCommand::Cut) {
+            result = cut(*clipboard_);
+        } else {
+            result = paste(*clipboard_);
+        }
+        return result.changed;
+    }
+    case EditCommand::Undo:
+        return undo();
+    case EditCommand::Redo:
+        return redo();
+    // Everything else is a caret or selection move: accepted even when it lands on the same
+    // position, which is what keeps the event consumed and the app from also acting on it.
+    default:
+        break;
+    }
+    const bool shift =
+        command == EditCommand::MoveLeftExtend || command == EditCommand::MoveRightExtend ||
+        command == EditCommand::MoveLeftWordExtend || command == EditCommand::MoveRightWordExtend ||
+        command == EditCommand::MoveHomeExtend || command == EditCommand::MoveEndExtend ||
+        command == EditCommand::MoveHomeDocumentExtend ||
+        command == EditCommand::MoveEndDocumentExtend;
+    const bool word =
+        command == EditCommand::MoveLeftWord || command == EditCommand::MoveRightWord ||
+        command == EditCommand::MoveLeftWordExtend || command == EditCommand::MoveRightWordExtend ||
+        command == EditCommand::MoveHomeDocument || command == EditCommand::MoveEndDocument ||
+        command == EditCommand::MoveHomeDocumentExtend ||
+        command == EditCommand::MoveEndDocumentExtend;
+    switch (command) {
+    case EditCommand::MoveLeft:
+    case EditCommand::MoveLeftWord:
+    case EditCommand::MoveLeftExtend:
+    case EditCommand::MoveLeftWordExtend:
+        return accept(buffer_.move_left(word, shift));
+    case EditCommand::MoveRight:
+    case EditCommand::MoveRightWord:
+    case EditCommand::MoveRightExtend:
+    case EditCommand::MoveRightWordExtend:
+        return accept(buffer_.move_right(word, shift));
+    case EditCommand::MoveHome:
+    case EditCommand::MoveHomeDocument:
+    case EditCommand::MoveHomeExtend:
+    case EditCommand::MoveHomeDocumentExtend:
+        return accept(buffer_.move_home(word, shift));
+    case EditCommand::MoveEnd:
+    case EditCommand::MoveEndDocument:
+    case EditCommand::MoveEndExtend:
+    case EditCommand::MoveEndDocumentExtend:
+        return accept(buffer_.move_end(word, shift));
+    default:
+        return false;
+    }
+}
+
+bool EditController::handle_key(Event& event) {
+    const EditCommand command = command_for(event.key, chord_modifiers(event));
+    if (command == EditCommand::None) {
+        return false;
+    }
+    if (!run_command(command)) {
+        return false;
+    }
+    event.handled = true;
+    return true;
 }
 
 } // namespace tessera::ui::text
