@@ -76,6 +76,37 @@ if (TESSERA_BUILD_TESTS)
             SKIP_REGULAR_EXPRESSION "cpu-vector-golden: skipped")
     endif()
 
+    # Chart nodes (#183, docs/specs/chart-node-v1.md): retained geometry, the damage a rebuild
+    # reports, the hybrid immediate hook and the invalidation rules. The chart's paint half emits
+    # through ui::paint::PaintSink, which is why its tests are registered from this subdirectory
+    # rather than the shared tests/unit registry (same lane-isolation rule as the tests above).
+    add_executable(chart_node_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/chart_node_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/chart_node_paint_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/chart_node_allocation.cpp)
+    target_link_libraries(chart_node_tests PRIVATE tessera_paint)
+    add_test(NAME chart_node COMMAND chart_node_tests)
+
+    # Chart damage on the null RHI: a one-sample append repaints a band, the plan's scissor contains
+    # every draw, and the partial frame issues strictly fewer draws than a full repaint.
+    add_executable(chart_node_damage_tests
+        ${PROJECT_SOURCE_DIR}/tests/gpu/batched2d/chart_node_damage_tests.cpp)
+    target_link_libraries(chart_node_damage_tests PRIVATE
+        tessera_paint
+        tessera_gpu
+        tessera_damage
+        tessera_rhi_null)
+    add_test(NAME chart_node_damage COMMAND chart_node_damage_tests)
+
+    # Chart dirty-only == full-redraw pixel equivalence on the deterministic CPU canvas.
+    add_executable(chart_node_equivalence_tests
+        ${PROJECT_SOURCE_DIR}/tests/gpu/batched2d/chart_node_equivalence_tests.cpp)
+    target_link_libraries(chart_node_equivalence_tests PRIVATE
+        tessera_paint
+        tessera_software
+        tessera_damage)
+    add_test(NAME chart_node_equivalence COMMAND chart_node_equivalence_tests)
+
     # Vulkan-free pixel check of box-shadow through the CPU sink (blur falloff, sharp offset).
     add_executable(paint_shadow_cpu_tests
         ${PROJECT_SOURCE_DIR}/tests/gpu/paint_shadow_cpu_tests.cpp)

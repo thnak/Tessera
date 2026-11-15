@@ -403,6 +403,24 @@ above is for preserved offscreen/CPU targets. The unsupported overlap/backdrop/s
 - Async resource completions apply on the UI thread and mark only the nodes that use the
   resource; see [`async.md`](async.md).
 
+The chart half of that bullet is specified in [`chart-node-v1.md`](../specs/chart-node-v1.md) and
+implemented in issue #183. Two points are worth repeating here because they are dirty-rendering
+properties, not chart properties:
+
+- **The damage rule is this document's rule, one level down.** §6 damages the union of a node's old
+  and new bounds; the chart damages the union of each rebuilt segment's old and new box. A chart is
+  therefore not a special case of damage, only a finer granularity of it - an appended sample damages
+  a band, not the plot.
+- **The chart owns no second redraw path.** Its rectangles go into
+  `rendering::DamageAccumulator` like any other damage source, and its boxes are clipped by
+  `paint::ClippedPaintSink` like any other paint content. "Retained geometry" here means retained
+  *boxes*, not a retained draw list that bypasses the plan.
+
+Retained geometry is invalidated by exactly the events §3 already classifies as paint-level changes,
+plus two chart-specific ones (a plot rectangle change and an auto-fit domain change, both of which move
+every sample). A pinned data window is the configuration that keeps an update inside a band, which is
+why it is the recommended one.
+
 ## 8.1 Power and utilization
 
 Dirty rendering is the primary mechanism that keeps an application framework from behaving like

@@ -11,6 +11,7 @@
 #include "cpu_paint_sink.hpp"
 #include "cpu_vector_scene.hpp"
 #include "damage_cli.hpp"
+#include "tessera/diagnostics/frame_budget.hpp"
 #include "tessera/diagnostics/metrics.hpp"
 #include "tessera/diagnostics/overlay.hpp"
 #include "tessera/hal/window.hpp"
@@ -95,7 +96,19 @@ struct Options {
     std::uint32_t tolerance = 2;
     double max_mismatch = 0.005;
     std::vector<tessera::rendering::rhi::Rect> damage;
+    // Frame-budget overlay (issue #183): the budget and the frame duration the diagnostics overlay
+    // reports. Both default to 0, which means "no budget": the overlay is then byte-identical to
+    // what it drew before this slice, so the committed `dashboard_overlay.png` baseline stays
+    // valid.
+    // `--frame-budget N` turns the budget line on and derives the duration from it, so the two
+    // verdicts are reachable deterministically with no clock.
+    double frame_budget_ms = 0.0;
+    double frame_ms = 0.0;
 };
+
+bool budget_configured(const Options& options) {
+    return options.frame_budget_ms > 0.0;
+}
 
 // The RHI presentation family a HAL window belongs to (issue #155). The windowed paths create a
 // real window and then a device, so the device is told the family instead of letting the backend
@@ -122,6 +135,7 @@ void print_usage() {
                  "                     [--max-mismatch ratio] [--overlay] [--shapes] "
                  "[--cpu-text] [--cpu-vector] [--cpu-image] [--msaa N] [--simulate-loss] [--report "
                  "report.json]\n"
+                 "                     [--frame-budget ms] [--frame-ms ms]\n"
                  "                     [--diff diff.png] [--windowed [--frames N]] [--on-demand "
                  "[--run-seconds S]]\n";
 }
@@ -184,6 +198,13 @@ bool parse_options(int argc, char** argv, Options& options) {
             options.tolerance = static_cast<std::uint32_t>(std::stoul(argv[++i]));
         } else if (arg == "--max-mismatch" && i + 1 < argc) {
             options.max_mismatch = std::stod(argv[++i]);
+        } else if (arg == "--frame-budget" && i + 1 < argc) {
+            options.frame_budget_ms = std::stod(argv[++i]);
+            // Derive the reported frame from the budget so `--overlay --frame-budget 10` exercises
+            // the over-budget line and the default exercises the inside-budget one.
+            options.frame_ms = options.frame_budget_ms * 0.66;
+        } else if (arg == "--frame-ms" && i + 1 < argc) {
+            options.frame_ms = std::stod(argv[++i]);
         } else if (arg == "--report" && i + 1 < argc) {
             options.report = argv[++i];
         } else if (arg == "--diff" && i + 1 < argc) {
@@ -371,8 +392,10 @@ void draw_diagnostics_overlay(tessera::poc::batched2d::TextDemo* text,
     if (text == nullptr) {
         throw std::runtime_error("--overlay requires --font");
     }
+    using tessera::diagnostics::FrameBudgetRecorder;
     using tessera::diagnostics::MetricKind;
     using tessera::diagnostics::MetricSample;
+    using tessera::diagnostics::MetricsRegistry;
     using tessera::diagnostics::OverlayFrame;
     using tessera::diagnostics::OverlayModel;
 
@@ -386,11 +409,23 @@ void draw_diagnostics_overlay(tessera::poc::batched2d::TextDemo* text,
     frame.scissors = options.damage.size();
     frame.full_redraw = options.damage.empty();
 
+    // Frame-budget metrics (issue #183, docs/specs/chart-node-v1.md section 7). The PoC builds no
+    // clock of its own: it publishes the configured budget and lets the recorder decide the
+    // verdict, so `--overlay` shows the same `frame Nms  budget Mms  ok|OVER  overruns K` line the
+    // app does.
+    MetricsRegistry registry;
+    FrameBudgetRecorder budget(registry, options.frame_budget_ms);
+    budget.record(options.frame_ms);
+    budget.apply(frame);
+
     const MetricSample metrics[] = {
         {"paint.batches", renderer.pending_batches(), MetricKind::Counter},
         {"paint.vertices", renderer.vertex_count(), MetricKind::Counter},
+        {"frame.time_us", registry.value(budget.time_metric()), MetricKind::Gauge},
+        {"frame.budget_overruns", registry.value(budget.overruns_metric()), MetricKind::Counter},
     };
-    const auto lines = OverlayModel::build(frame, metrics, 2);
+    // Two metrics by default (the committed baseline), four when a budget was asked for.
+    const auto lines = OverlayModel::build(frame, metrics, budget_configured(options) ? 4 : 2);
     renderer.push_rounded_rect({8, 8, 250, 88}, tessera::rendering::rhi::rgba8(15, 23, 42, 232), 8);
     text->draw_lines(renderer, lines, 16.0f, 26.0f, 18.0f, 14,
                      tessera::rendering::rhi::rgba8(226, 232, 240));
