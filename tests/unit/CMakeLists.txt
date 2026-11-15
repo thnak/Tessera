@@ -371,6 +371,23 @@ target_link_libraries(gpu_frame_time_tests PRIVATE
 
 add_test(NAME gpu_frame_time COMMAND gpu_frame_time_tests)
 
+# The two WindowHost::Impl state clusters extracted by the god-type audit slice 9: the GPU frame-time
+# probe (capability gate, source selection, counted fallbacks, reset across a device loss) and the
+# adaptive render-scale targets (one per slot, reuse while the extent lasts, release per generation).
+# Pure CPU with the null backend: no window, no wall clock.
+add_executable(window_state_clusters_tests
+    window_state_clusters_tests.cpp)
+
+target_include_directories(window_state_clusters_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src/app)
+
+target_link_libraries(window_state_clusters_tests PRIVATE
+    tessera_app
+    tessera_rhi_null
+    tessera_runtime)
+
+add_test(NAME window_state_clusters COMMAND window_state_clusters_tests)
+
 # The window driver stops after a bounded run of frame failures instead of spinning or hanging.
 add_executable(app_frame_guard_tests
     app_frame_guard_tests.cpp)

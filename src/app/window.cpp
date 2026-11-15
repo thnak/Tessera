@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+﻿// SPDX-License-Identifier: MIT
 
 #include "tessera/app/frame_guard.hpp"
 #include "tessera/app/idle_policy.hpp"
@@ -208,28 +208,17 @@ void WindowHost::Impl::recreate_swapchain() {
 // presents at full quality instead (ADR-025 boundary, and a lost frame would be worse than a sharp
 // one).
 bool WindowHost::Impl::ensure_scaled_target(std::size_t frame_slot, rhi::Extent2D extent) {
-    if (swapchain == nullptr || frame_slot >= scaled_targets.size() || extent.width == 0 ||
-        extent.height == 0) {
+    if (swapchain == nullptr || device == nullptr) {
         return false;
     }
-    const rhi::TextureFormat format = swapchain->format();
-    rhi::RenderTarget* existing = scaled_targets[frame_slot].get();
-    if (existing != nullptr && scaled_target_extents[frame_slot].width == extent.width &&
-        scaled_target_extents[frame_slot].height == extent.height && existing->format() == format) {
-        return true;
-    }
-    try {
-        scaled_targets[frame_slot] = device->create_render_target(detail::target_desc(
-            extent, format,
-            translucent_presentation ? rhi::rgba8(0, 0, 0, 0) : rhi::rgba8(11, 18, 32)));
-        scaled_target_extents[frame_slot] = extent;
-        return scaled_targets[frame_slot] != nullptr;
-    } catch (const std::exception&) {
-        scaled_targets[frame_slot].reset();
-        scaled_target_extents[frame_slot] = {};
+    bool fallback = false;
+    rhi::RenderTarget* target =
+        scaled_targets.ensure(*device, frame_slot, extent, swapchain->format(),
+                              detail::frame_clear_color(translucent_presentation), fallback);
+    if (fallback) {
         ++stats.scale_fallbacks;
-        return false;
     }
+    return target != nullptr;
 }
 
 // One rendered frame: reuse a free slot, acquire, paint the whole scene, submit async and present.
@@ -254,7 +243,7 @@ WindowHost::Impl::FrameResult WindowHost::Impl::render_and_present(bool full_rep
     if (in_flight[slot]) {
         double gpu_frame_time_ms = 0.0;
         if (in_flight[slot]->gpu_frame_time_ms(gpu_frame_time_ms)) {
-            pending_gpu_frame_time_ms = gpu_frame_time_ms;
+            frame_time.publish(gpu_frame_time_ms);
         }
         in_flight[slot].reset();
     }
@@ -294,8 +283,8 @@ WindowHost::Impl::FrameResult WindowHost::Impl::render_and_present(bool full_rep
         ui::scale::adaptive_target_extent(presented, host->adaptive_quality().render_scale);
     // A backend whose swapchain images cannot be resampled keeps the direct path instead of
     // dropping frames; the capability is fixed for this swapchain generation.
-    const bool scaled =
-        adaptive.scaled && scaled_present_supported && ensure_scaled_target(slot, adaptive.extent);
+    const bool scaled = adaptive.scaled && scaled_targets.resample_supported() &&
+                        ensure_scaled_target(slot, adaptive.extent);
     // A glass frame reads the target it paints into (the backdrop copy is a region of the frame
     // target), and a swapchain image is neither a copy source nor samplable (RHI 1.1/1.3). So a
     // scene with a glass node renders into the per-slot offscreen target at the presented extent
@@ -303,15 +292,15 @@ WindowHost::Impl::FrameResult WindowHost::Impl::render_and_present(bool full_rep
     // scale already uses, at content scale 1 (a 1:1 blit is exact, so the pixels are unchanged).
     // Without the resample capability the frame paints directly and the sink reports the glass
     // draws as unsupported, which is the documented fallback rather than an unbounded target.
-    const bool glass_frame = !scaled && root.glass_subtree() && scaled_present_supported &&
+    const bool glass_frame = !scaled && root.glass_subtree() &&
+                             scaled_targets.resample_supported() &&
                              ensure_scaled_target(slot, presented);
     const bool offscreen = scaled || glass_frame;
-    const rhi::Color clear_color =
-        translucent_presentation ? rhi::rgba8(0, 0, 0, 0) : rhi::rgba8(11, 18, 32);
+    const rhi::Color clear_color = detail::frame_clear_color(translucent_presentation);
     rhi::RenderTarget* paint_target = target;
     rhi::RenderTargetDesc desc = detail::target_desc(presented, swapchain->format(), clear_color);
     if (offscreen) {
-        paint_target = scaled_targets[slot].get();
+        paint_target = scaled_targets.get(slot);
         desc = detail::target_desc(paint_target->extent(), swapchain->format(), clear_color);
     }
     auto commands = device->create_command_list();
@@ -337,7 +326,7 @@ WindowHost::Impl::FrameResult WindowHost::Impl::render_and_present(bool full_rep
     if (offscreen) {
         // The same submission records the resample into the acquired image, so it carries the
         // acquire wait and the present semaphore exactly like a render pass into that image would.
-        commands->blit_target(*scaled_targets[slot], *target, rhi::Filter::Linear);
+        commands->blit_target(*scaled_targets.get(slot), *target, rhi::Filter::Linear);
     }
     stats.render_scale = host->adaptive_quality().render_scale;
     stats.present_extent = presented;
@@ -377,31 +366,18 @@ void WindowHost::Impl::sample_frame_sync() {
     stats.slots_skipped = sync.slots_skipped;
 }
 
-std::optional<double> WindowHost::Impl::take_gpu_frame_time_ms() {
-    if (!pending_gpu_frame_time_ms) {
-        return std::nullopt;
-    }
-    const double milliseconds = *pending_gpu_frame_time_ms;
-    pending_gpu_frame_time_ms.reset();
-    return milliseconds;
-}
-
 runtime::FrameTimeSample WindowHost::Impl::observe_frame_time(double cpu_frame_time_ms) {
-    // The selection rule is pure (tessera/runtime/frame_time_source.hpp); the capability decision
-    // was made once by the RHI probe. A capability that is usable but has no fresh interval (the
-    // first frames, a skipped read, an unusable value) falls back to the CPU time and is counted,
-    // so a reader can tell a real GPU number from a fallback.
-    const std::optional<double> gpu_frame_time_ms = take_gpu_frame_time_ms();
-    const runtime::FrameTimeSample sample =
-        runtime::select_frame_time(cpu_frame_time_ms, gpu_frame_time_ms);
-    stats.frame_time_source = sample.source;
-    if (sample.source == runtime::FrameTimeSource::Gpu) {
+    // The selection rule and the capability bookkeeping live in detail::FrameTimeProbe; the host
+    // records the verdict in stats and hands the raw numbers to the adaptive controller.
+    const detail::FrameTimeObservation observation = frame_time.observe(cpu_frame_time_ms);
+    stats.frame_time_source = observation.sample.source;
+    if (observation.sample.source == runtime::FrameTimeSource::Gpu) {
         ++stats.gpu_frame_time_samples;
-    } else if (gpu_timestamps_usable) {
+    } else if (observation.counted_fallback()) {
         ++stats.gpu_frame_time_fallbacks;
     }
-    host->observe_frame_time_sample(cpu_frame_time_ms, gpu_frame_time_ms);
-    return sample;
+    host->observe_frame_time_sample(cpu_frame_time_ms, observation.gpu_frame_time_ms);
+    return observation.sample;
 }
 
 // Applies one metrics snapshot. Occlusion has no Win32/X11 event yet, so the snapshot's

@@ -125,6 +125,24 @@ and recovery and adaptive scale have nothing to do with each other beyond adjace
 no lifecycle coupling. `Presentation` is the larger slice and follows the existing
 `recreate_swapchain`/`replace_device` tests.
 
+**Landed (step 1).** `detail::FrameTimeProbe` (`frame_time_probe.hpp`) and
+`detail::ScaledTargets` (`scaled_targets.hpp`) are in, and both live in the always-built
+`tessera_app` library rather than the Vulkan-gated window driver, because they need only the RHI
+seam - so a null-device test drives them (`tests/unit/window_state_clusters_tests.cpp`) with no
+window. Two shape notes: `ScaledTargets::ensure` reports a backend refusal through an out-parameter
+so the type never learns about `WindowFrameStats`, and it takes the device per call instead of
+holding it, which is what makes a device-loss generation swap a single `reset()`. `Presentation` and
+`RecoveryFlow` remain open.
+
+**Landed (step 1).** `detail::FrameTimeProbe` (`frame_time_probe.hpp`) and
+`detail::ScaledTargets` (`scaled_targets.hpp`) are in, and both live in the always-built
+`tessera_app` library rather than the Vulkan-gated window driver, because they need only the RHI
+seam - so a null-device test drives them (`tests/unit/window_state_clusters_tests.cpp`) without a
+window. Two shape notes: `ScaledTargets::ensure` reports a backend refusal through an out-parameter
+so the type never learns about `WindowFrameStats`, and it takes the device per call instead of
+holding it, which is what keeps a device-loss generation swap a single `reset()`. `Presentation` and
+`RecoveryFlow` remain open.
+
 ### 3.3 `ui::virtualization::VirtualRange` (rank 3)
 
 292-line header, 46 methods, 13 members, three enums and four public structs, implemented in
@@ -396,12 +414,14 @@ still open.
 | 6 | `EditController` keymap + composition | **landed** | `CompositionState` (`composition_state.hpp`) owns the IME invariant; 28-row `KeyChord` table (`edit_keymap.hpp`) replaces the `handle_key` if chain, with required/forbidden modifier masks for the old branch-order rules |
 | 7 | `VirtualRange` realized window | **landed (step 1)** | `RealizedWindow` (`realized_window.hpp`) now owns the realized table, its packed swap-in release, main-axis placement and index span; `VirtualRange` keeps the scheduling that drives it. The `FocusCursor`/`SelectionSet` extraction of section 3.3 remains open, and so does replacing the aggregate re-exports with direct accessors |
 | 8 | `Batched2DRenderer` state cluster | **landed** | `ClipStateTable` (`clip_state_table.hpp`) owns the rounded-clip stack, its interned shader fold and the push-constant packing; `VertexArena` (`vertex_arena.hpp`) owns slot rotation, in-frame append and growth; `GlassCompositor` (`glass_compositor.hpp`) owns the two glass passes and the bounded pool. `batched2d_clip_state.cpp` and `batched2d_glass.cpp` are gone, the renderer header is 271 -> 216 lines, and `tests/unit/gpu_collaborators_tests.cpp` covers the three directly |
+| 9 | `WindowHost::Impl` collaborators | **landed (step 1)** | `detail::FrameTimeProbe` (`frame_time_probe.hpp`) owns the capability gate, the pending interval and the selection rule; `detail::ScaledTargets` (`scaled_targets.hpp`) owns the per-slot render-scale targets and the resample capability. Both are in the non-Vulkan `tessera_app` library, so `tests/unit/window_state_clusters_tests.cpp` drives them with the null backend. `Presentation` and `RecoveryFlow` remain open, see section 3.2 |
 
-Slices 9-12 are open. Rows 4, 5 and 7 are deliberately partial: row 4's TU split is the mechanical
-half and its header views are a separate API change that must re-check the 320-byte budget on each
-step; row 5's buffer removal is the cheap half and its payload views change how handlers read an
-event; row 7's window extraction is the part that owns real mutable state, and the focus/selection
-policy behind it is a second, smaller step.
+Slices 10-12 are open. Rows 4, 5, 7 and 9 are deliberately partial: row 4's TU split is the
+mechanical half and its header views are a separate API change that must re-check the 320-byte budget
+on each step; row 5's buffer removal is the cheap half and its payload views change how handlers read
+an event; row 7's window extraction is the part that owns real mutable state, and the
+focus/selection policy behind it is a second, smaller step; row 9's two clusters are the ones with
+no lifecycle coupling, and `Presentation`/`RecoveryFlow` are the ones that have it.
 
 ## 7. What is deliberately not split
 

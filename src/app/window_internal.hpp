@@ -168,6 +168,13 @@ inline std::unique_ptr<rhi::Texture> create_white(rhi::Device& device) {
     return device.create_texture(desc);
 }
 
+// The frame clear color. A translucent window clears to transparent black so the OS material shows
+// through where the stylesheet paints nothing (glass-v1.md section 6); every other window clears to
+// the app background so a frame never presents uninitialized pixels.
+inline rhi::Color frame_clear_color(bool translucent_presentation) {
+    return translucent_presentation ? rhi::rgba8(0, 0, 0, 0) : rhi::rgba8(11, 18, 32);
+}
+
 // Clears to the app window background so a frame never presents uninitialized pixels. A translucent
 // window clears to transparent black instead: the OS material shows through where the stylesheet
 // paints nothing (glass-v1.md section 6).
