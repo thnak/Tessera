@@ -83,7 +83,7 @@ Rules:
 
 - Supported V1 events: pointer down/up/move/enter/leave, click, key down/up, focus/blur,
   input/change, scroll, submit, pointer cancel.
-- Event handlers are `bind::<id>` protected regions in generated C++ (a protected region is a developer-owned block that survives regeneration; [ADR-008](../../decisions/ADR-008-protected-regions-and-manifest.md), [`developer-workflow.md`](../guides/developer-workflow.md)).
+- Event handlers are `bind::<id>` members of the developer-owned component class (a required member reached through a generated dispatch thunk; [ADR-040](../../decisions/ADR-040-generated-base-and-developer-class.md), [`developer-workflow.md`](../guides/developer-workflow.md)). A missing member is a compile error.
 - Handlers receive a normalized event object (`target`, `currentTarget`, position, key, etc.).
 - Handlers may call state setters, request focus, or start animations; they must not block or
   mutate the scene graph directly.
@@ -190,10 +190,11 @@ Rejections are compile errors with source spans; no silent fallback.
 
 ## 9. Generated C++ contract
 
-- One `<Component>.g.h` + `<Component>.g.cpp` per component.
-- State/effect/ref/animated members are generated with stable names.
-- Node construction and updates are generated; developer logic is only inside protected
-  regions (`bind::<id>`).
+- One generated `<Component>.g.hpp` base per component, plus the developer-owned
+  `<Component>.hpp/.cpp` that derives from it (ADR-040).
+- State/effect/ref/animated members are generated with stable TSX-derived accessor names.
+- Node construction and updates are generated; developer logic is only in the developer class,
+  in the members its `bind::<id>` annotations require.
 - Generated code is deterministic, formatted, and compiles with warnings-as-errors in CI.
 - Node constructors carry `(NodeId, UiId, ComponentId)`; the automation manifest is emitted
   deterministically.
@@ -201,7 +202,7 @@ Rejections are compile errors with source spans; no silent fallback.
   `ui/elements.json`; no runtime registration.
 - Error boundaries emit guards around child entry points; fallback/onError are outside the
   guard and propagate to the parent/root on failure.
-- The binding manifest (generated JSON, see [ADR-008](../../decisions/ADR-008-protected-regions-and-manifest.md)) maps ids to components/files/regions.
+- The binding report (generated JSON, see [ADR-040](../../decisions/ADR-040-generated-base-and-developer-class.md)) maps ids to components/files.
 
 ## 10. Determinism
 

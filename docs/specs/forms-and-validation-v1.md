@@ -135,7 +135,7 @@ project component (`docs/design/compiler.md` section 11). The documented prop re
   the caller and attached by `Field` at its Slot.
 - Tests: `forms_lowering` (import resolution, `Component` IR node kind, prop-record mapping,
   slot, determinism), `forms_codegen` (prop/callback matrix, unknown-prop and type diagnostics,
-  golden, determinism, merger idempotency), `forms_codegen_runtime` (two Fields in a form, a value
+  golden, determinism, base and developer-class compile), `forms_codegen_runtime` (two Fields in a form, a value
   change through the generated paths, no GPU).
 
 ### 5.2 Form prop records (implemented)

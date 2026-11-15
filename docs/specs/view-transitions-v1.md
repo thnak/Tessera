@@ -28,7 +28,7 @@ Decision record: [ADR-035](../../decisions/ADR-035-view-transitions.md).
 
 | Reference | Subject |
 |---|---|
-| [ADR-008](../../decisions/ADR-008-protected-regions-and-manifest.md) | Protected regions: developer C++ that code generation must preserve |
+| [ADR-040](../../decisions/ADR-040-generated-base-and-developer-class.md) | Generated base plus developer-owned class: where developer C++ lives |
 | [ADR-019](../../decisions/ADR-019-power-aware-runtime.md) | Power-aware defaults; a static UI must produce no presents |
 | [ADR-021](../../decisions/ADR-021-async-runtime.md) | Async runtime; the UI thread never blocks; completions go through a bounded queue |
 | [ADR-022](../../decisions/ADR-022-diagnostics-and-profiling.md) | Structured, bounded diagnostics |
@@ -138,8 +138,8 @@ public:
 - If `update` throws, the exception goes to the nearest error boundary
   ([ADR-025](../../decisions/ADR-025-error-boundaries.md)) and the transition is skipped. State
   changes made before the throw are kept, as for any event handler.
-- Developer C++ may call `ViewTransition::start` inside a protected region
-  (`[DEVELOPER_LOGIC_START: bind::id]`, [ADR-008](../../decisions/ADR-008-protected-regions-and-manifest.md)).
+- Developer C++ may call `ViewTransition::start` from a member of the developer-owned component
+  class (a `bind::<id>` member, [ADR-040](../../decisions/ADR-040-generated-base-and-developer-class.md)).
 
 ## 4. Lifecycle
 

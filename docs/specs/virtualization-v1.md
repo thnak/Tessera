@@ -496,7 +496,7 @@ Tests:
   path (docs/design/compiler.md section 11). The host computes the window with `VirtualRange` /
   `ItemGeometry`, so generated code never reimplements prefix sums. Goldens
   `tests/golden/codegen/VirtualDemo.*`; tests `codegen_virtual` (shape, goldens, determinism,
-  rejections, merger idempotency), `codegen_virtual_runtime` (a scripted scroll through the real
+  rejections, base and developer-class compile), `codegen_virtual_runtime` (a scripted scroll through the real
   `ItemGeometry`), and `codegen_virtual_scroll` (the generated scroll entry point: overscanned
   range parity, measure refinement and re-anchor, the edge/throttle `onEndReached`, the grid row
   window, and the geometry-cap refusal).

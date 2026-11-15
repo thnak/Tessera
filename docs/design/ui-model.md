@@ -3,7 +3,8 @@
 Status: design for Big Step B2 (runtime slice) and Big Step C (compiler vertical slice); both are defined in
 [AGENTS.md Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step). The B1 (Big Step B phase 1,
 renderer core) scene graph is implemented; components/hooks/styles are not. Terms (IR, RHI, Yoga,
-ComputedStyle, protected region, WindowMetrics) are in [`glossary.md`](../reference/glossary.md).
+ComputedStyle, generated base, developer class, WindowMetrics) are in
+[`glossary.md`](../reference/glossary.md).
 
 Tessera combines a **declarative component model** (JSX/React syntax at design time) with a
 **retained scene graph** at runtime. The compiler lowers components to C++ that constructs and
@@ -58,11 +59,11 @@ Component.tsx
   -> Tier 2 bindings (`// Note: bind::<id>`; see compiler.md)
   -> custom element manifest/registry (`ui/elements.json`)
   -> IR (docs/specs/ir-v1.md; neutral intermediate representation)
-  -> generated C++:
-       Component::build(Node& parent) / Component::update()
-       state members + setters
-       effect/lifecycle stubs
-       protected developer regions
+  -> generated C++ (ADR-040):
+       gen::ComponentBase<Self>::build(Node& parent) / update()  (generated base, never edited)
+       Component : gen::ComponentBase<Component>                 (developer class, never rewritten)
+       state accessors + setters
+       one dispatch thunk per bind::<id>
 ```
 
 The compiler design is in [`compiler.md`](compiler.md) and the IR in [`ir-v1.md`](../specs/ir-v1.md).
@@ -174,12 +175,11 @@ See [`input.md`](input.md) and [`scene-graph.md`](scene-graph.md).
 ## 11. Minimal generated shape (illustrative)
 
 ```cpp
-// Generated; do not edit outside protected regions.
-struct Counter {
-    int count_ = 0;
-    Node* label_ = nullptr;
-
+// Counter.g.hpp — generated base, build output, never edited (ADR-040).
+template <class Self>
+struct CounterBase {
     void build(Node& parent) {
+        static_assert(...); // TESSERA_CG_MISSING_BINDING for each bind::<id>
         auto root = std::make_unique<Node>(next_id());
         // style/layout props omitted
         auto label = std::make_unique<Node>(next_id());
@@ -188,18 +188,21 @@ struct Counter {
         parent.add_child(std::move(root));
     }
 
-    void on_click(Event&) {
-        count_ += 1;
-        // request dirty style/text/layout
-    }
+  private:
+    int count_ = 0;   // reached through count() / set_count()
+    Node* label_ = nullptr;
+};
 
-    // [DEVELOPER_LOGIC_START: bind::on_click]
-    // [DEVELOPER_LOGIC_END: bind::on_click]
+// Counter.hpp — developer-owned class, scaffolded once, never rewritten.
+class Counter final : public gen::CounterBase<Counter> {
+  private:
+    friend struct gen::CounterBase<Counter>;
+    void on_click(const tessera::ui::Event&);   // bind::on_click
 };
 ```
 
-The real codegen owns node creation, style binding, and dirty marking; developer logic is only
-inside protected regions.
+The real codegen owns node creation, style binding, dirty marking, state cells and the dispatch
+thunks; the developer writes only the members the bindings require.
 
 ## 12. Tests
 

@@ -25,7 +25,7 @@ constructs mean at run time; that is defined in [`component-model-v1.md`](compon
 | Pure expression | An expression with no side effects, from the grammar in section 8 |
 | Setter | The second value returned by `useState`, for example `setCount` |
 | Handler | A function value passed to an event prop or to an effect (section 9) |
-| Native handler | A handler whose run-time behavior is developer-written C++ inside a protected region, announced by a `// Note: bind::<id>` comment (section 9.3). A protected region is a developer-owned block that survives regeneration ([ADR-008](../../decisions/ADR-008-protected-regions-and-manifest.md)) |
+| Native handler | A handler whose run-time behavior is developer-written C++ in the developer-owned component class, announced by a `// Note: bind::<id>` comment (section 9.3). The bind id names a required member of that class ([ADR-040](../../decisions/ADR-040-generated-base-and-developer-class.md)) |
 | Preview body | The TypeScript body of a native handler; the browser designer runs it because it cannot run C++ (section 9.3) |
 | Live view | The preview in the browser designer ([`designer.md`](../design/designer.md)) |
 | Span | A source location: file, byte offset and length, and 1-based start and end line and column (section 13.2) |
@@ -43,7 +43,7 @@ constructs mean at run time; that is defined in [`component-model-v1.md`](compon
 | [`virtualization-v1.md`](virtualization-v1.md) | `VirtualList` and `VirtualGrid` |
 | [`error-boundaries-v1.md`](error-boundaries-v1.md) | `ErrorBoundary` |
 | [`view-transitions-v1.md`](view-transitions-v1.md) | `startViewTransition` update-function rule |
-| [`developer-workflow.md`](../guides/developer-workflow.md) | Protected regions and `bind::` ids |
+| [`developer-workflow.md`](../guides/developer-workflow.md) | Generated base, developer class and `bind::` ids |
 
 ## 1. Purpose and non-goals
 
@@ -288,7 +288,7 @@ Hook calls are statements of these exact forms. Argument expressions are pure ex
   error (`TESSERA_REACT_HOOK_ORDER`).
 - The returned value of `useEffect` is not used. An effect may have a cleanup function, written as the
   last statement of the effect body: `return () => { ... };`. The cleanup is a second native handler:
-  its protected region id is the effect's bind id followed by `_cleanup` (effect `bind::sync` has
+  its binding id is the effect's bind id followed by `_cleanup` (effect `bind::sync` has
   cleanup `bind::sync_cleanup`), and the IR effect has an optional `cleanup` field holding that id
   ([`ir-v1.md`](ir-v1.md) section 2). The cleanup runs before the effect runs again and on unmount
   ([`component-model-v1.md`](component-model-v1.md) section 2). Its arrow body is its preview body
@@ -456,7 +456,7 @@ expressions, separated by `;`:
   a letter). It lowers to the IR action `guard`, and the generated code tests it with
   `tessera::ui::key_is`. A guard on a non-setter call is rejected.
 - No other statements: no `if`, no loops, no declarations, no calls other than setters, `.set`, `r.focus()`, `r.blur()` and calls of the component's own callback props (section 9.5).
-- The front end lowers this form to IR and generates C++ for it. No protected region is created, and
+- The front end lowers this form to IR and generates C++ for it. No developer member is required, and
   the designer runs it exactly as the generated code would.
 - `startViewTransition(update, options)` accepts only a handler of this form as `update`
   ([`view-transitions-v1.md`](view-transitions-v1.md) section 3.1).
@@ -476,13 +476,14 @@ const submit = (values: FormValues): void => {
 ```
 
 - `<id>` is `[a-z][a-z0-9_]*`, unique in the project; duplicates and malformed ids are errors
-  (`TESSERA_REACT_BIND_ID`). The id becomes the protected region id
-  ([ADR-008](../../decisions/ADR-008-protected-regions-and-manifest.md)).
+  (`TESSERA_REACT_BIND_ID`). The id becomes the name of a required member of the developer class
+  ([ADR-040](../../decisions/ADR-040-generated-base-and-developer-class.md)).
 - Every parameter has a type annotation (section 5 types only). The return type annotation is
   required when the handler returns a value and may be omitted for a handler that returns nothing
   (`void`).
-- In production, behavior is the developer's C++ in the protected region `bind::<id>`. The TSX body is
-  not translated to C++.
+- In production, behavior is the developer's C++ member `<id>(...)` of the developer-owned
+  `<Component>` class; a missing member is a compile error (`TESSERA_CG_MISSING_BINDING`), never a
+  silent no-op. The TSX body is not translated to C++.
 - The TSX body is the **preview body**: the browser designer runs it (it cannot run C++). It follows
   the rules of section 9.2, and may additionally contain `return <PureExpr>;` for a non-`void` handler.
   The preview body is optional. A native handler with an empty body is allowed; the designer then does
@@ -494,7 +495,7 @@ const submit = (values: FormValues): void => {
   developer's responsibility. A project can compare them with the preview-parity test: a script of
   handler calls runs on the IR evaluator and on the generated component, and the state must match
   after every step ([`designer.md`](../design/designer.md) section 2, `tests/parity/`).
-- The annotation may also precede a hook call to give its protected region a stable id; the accepted
+- The annotation may also precede a hook call to give its binding a stable id; the accepted
   positions are: before a handler declaration and before a `useEffect` statement. Any other position
   is `TESSERA_REACT_BIND_POSITION`.
 

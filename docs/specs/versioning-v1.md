@@ -6,8 +6,9 @@ golden reports.
 Terms: **IR** is the compiler intermediate representation ([`ir-v1.md`](ir-v1.md)). **ABI** is
 binary interface compatibility. **SBOM** is a software bill of materials. **CRT** is the C runtime
 library. **LTS** is long-term support. **Golden** is a deterministic reference image
-([`golden-tests-v1.md`](golden-tests-v1.md)). **Protected region** is developer C++ preserved across
-regeneration ([glossary](../reference/glossary.md)). **V1** is the first release scope
+([`golden-tests-v1.md`](golden-tests-v1.md)). **Generated base** and **developer class** are the two
+halves of a component's C++ under ADR-040 ([glossary](../reference/glossary.md)). **V1** is the first
+release scope
 ([`AGENTS.md`](../../AGENTS.md#non-negotiables), item 8).
 
 ## 1. Framework version
@@ -23,7 +24,7 @@ regeneration ([glossary](../reference/glossary.md)). **V1** is the first release
 |---|---|---|---|
 | `tessera.json` | `schemaVersion` | 1 | strict; unknown fields error |
 | IR | `irVersion` | 1 | codegen rejects unknown |
-| Bindings manifest | `manifestVersion` | 1 | merger/generator must match |
+| Bindings manifest | `manifestVersion` | 1 | codegen and generator must match |
 | Golden case/report | `caseVersion`/`reportVersion` | 1 | runner rejects unknown |
 | Shader manifest | `manifestVersion` | 1 | build rejects mismatch |
 | Asset manifest | `manifestVersion` | 1 | runtime validates |
@@ -61,9 +62,10 @@ Rules:
 ## 3. Generated code
 
 - Generated C++ is tied to the Tessera version that produced it.
-- Regeneration is deterministic; `--check` detects drift.
-- Protected regions are a compatibility contract: marker format/id semantics cannot change
-  without a migration.
+- Regeneration is deterministic; `--check` detects drift of the generated base.
+- The generated base is build output and has no compatibility contract; the developer class is
+  version-controlled and never rewritten by the generator, so binding-id semantics are the only
+  stable interface ([ADR-040](../../decisions/ADR-040-generated-base-and-developer-class.md)).
 - Generated code targets the project's declared C++ standard (C++23 in V1).
 
 ## 4. Runtime ABI

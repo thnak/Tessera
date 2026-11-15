@@ -66,7 +66,8 @@ or where app-wide state lives. The gap register in
    bounded queues, and waits with a timeout") and the no-blocking rule.
 6. **Protected regions still described as current** in
    [`component-model-v1.md`](../specs/component-model-v1.md) sections 4 and 9 and
-   [`overview.md`](overview.md) section 3, although ADR-040 superseded ADR-008.
+   [`overview.md`](overview.md) section 3, although ADR-040 superseded ADR-008. **Resolved**
+   (#211): both documents now describe the generated base plus developer class.
 7. **I/O executor status.** [`async.md`](../design/async.md) says "an I/O executor is not implemented
    yet" in its status paragraph but documents the implemented `IoExecutor` in section 2.1; the
    status table in [`docs/README.md`](../README.md) still says "I/O executor pending".

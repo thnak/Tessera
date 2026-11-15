@@ -139,7 +139,7 @@ font bytes that FreeType already validated, so the two libraries never share a f
 | Library | Status | License | Module | Role in Tessera |
 |---|---|---|---|---|
 | tree-sitter / SWC / oxc | Rejected ([ADR-036](../../decisions/ADR-036-own-jsx-frontend-and-react-like-model.md), own JSX/TSX front end and React-like model) | - | - | Replaced by Tessera's own JSX/TSX front end; tree-sitter may be reconsidered for editor highlighting only |
-| clang-format | V1 hard (toolchain) | Apache-2.0 (LLVM exception) | `compiler/codegen`, `scripts/` | Deterministic formatting before merge ([ADR-008](../../decisions/ADR-008-protected-regions-and-manifest.md) (protected regions and binding manifest), [ADR-015](../../decisions/ADR-015-code-style-build-cache.md) (code style and build cache)) |
+| clang-format | V1 hard (toolchain) | Apache-2.0 (LLVM exception) | `compiler/codegen`, `scripts/` | Deterministic formatting of generated text ([ADR-040](../../decisions/ADR-040-generated-base-and-developer-class.md) (generated base), [ADR-015](../../decisions/ADR-015-code-style-build-cache.md) (code style and build cache)) |
 | clang-tidy | V1 build-time | Apache-2.0 (LLVM exception) | `scripts/`, CI | Static analysis ([ADR-015](../../decisions/ADR-015-code-style-build-cache.md)) |
 | sccache | V1 optional build | Apache-2.0 | build | Compiler cache (preferred) |
 | ccache | V1 optional build | GPL-3.0-or-later | build | Compiler cache; build-time only, never linked/shipped |
@@ -313,7 +313,8 @@ Still dynamic, by platform necessity:
 - CI checks the link graph: `dumpbin /dependents` (Windows), `ldd`/`readelf -d` (Linux),
   `otool -L` (macOS). Unexpected third-party dynamic libraries fail the build.
 - Phase 0 evidence (Windows/MSVC, `/MT`): `vulkan_offscreen_poc.exe` imports only
-  `vulkan-1.dll` and `KERNEL32.dll`; `merger_poc.exe` imports only `KERNEL32.dll`.
+  `vulkan-1.dll` and `KERNEL32.dll`; the static-runtime probe (a framework-linking test target)
+  imports only `KERNEL32.dll`.
 - The Vulkan loader may be statically linked from source (Apache-2.0), but it still loads GPU
   ICDs dynamically; a zero-DLL executable is not achievable with Vulkan on Windows.
 
@@ -329,18 +330,17 @@ This is the concrete answer to "which library does what, in which component".
   -> [Tier 1 analyzer]                 React rules, purity       compiler/analyzer
   -> [Tier 2 rules + bind extractor]   lower to IR                compiler/rules
   -> [nlohmann/json]                   IR/manifest JSON           compiler/ir
-  -> [codegen]                         emit C++                   compiler/codegen
+  -> [codegen]                         emit C++ base              compiler/codegen
   -> [clang-format]                    deterministic format       build step
-  -> [merger]                          preserve dev regions       compiler/merger
-  -> .cpp/.h
+  -> .g.hpp + developer class (ADR-040)
 ```
 
 - **Tier 1 / Tier 2** — Tier 1 is the analyzer for React rules and purity; Tier 2 lowers to the IR (intermediate representation) and extracts `bind::` bindings ([`compiler.md`](../design/compiler.md) sections 4 and 5).
 - **Own front end** — Tessera lexer/parser for the JSX/TSX subset ([ADR-036](../../decisions/ADR-036-own-jsx-frontend-and-react-like-model.md)). Produces an AST; no UI semantics.
-- **nlohmann/json** — serializes the IR and the binding manifest; also used for snapshot
+- **nlohmann/json** — serializes the IR and the binding report; also used for snapshot
   tests. Not on the runtime hot path.
 - **clang-format** — invoked as a build tool, never linked into the app.
-- **Codegen and merger** — our own code; no external library.
+- **Codegen** — our own code; no external library.
 
 ### Runtime: one frame
 
@@ -430,7 +430,7 @@ renderer -> [lavapipe | CPU rasterizer] -> RGBA buffer
 ### What is *not* a dependency
 
 The scene graph, layout integration, CSS subset, renderer batching, game clock, dirty-flag
-invalidation, IR, codegen, merger, golden runner, and the AI-agent feedback loop are our
+invalidation, IR, codegen, golden runner, and the AI-agent feedback loop are our
 code. They are the differentiators and are not delegated.
 
 ## Licensing

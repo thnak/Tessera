@@ -6,8 +6,8 @@ Terms used across Tessera docs. Keep definitions short and link to the normative
 |---|---|
 | **ADR** | Architecture Decision Record under `decisions/`; append-only. |
 | **Backend** | GPU implementation of the RHI: Vulkan, WebGPU, null, software. |
-| **Binding** | Stable id (`bind::<id>`) connecting JSX logic to a protected C++ region. |
-| **Binding manifest** | Generated JSON mapping binding ids to components/files/regions. |
+| **Binding** | Stable id (`bind::<id>`) naming a required member of a component's developer class. |
+| **Binding manifest** | Report mapping binding ids to components and files; generated for review, not a merge input (ADR-040). |
 | **Batching key** | `(scissor, texture)` (pipeline is fixed per primitive class); consecutive quads with the same key share a draw. |
 | **B1/B2/B3** | Big Step B phases: renderer core; runtime slice; window/swapchain/OS. |
 | **Command list** | Explicit RHI recording object: render pass, bind, draw, copy, submit. |
@@ -21,9 +21,9 @@ Terms used across Tessera docs. Keep definitions short and link to the normative
 | **IR** | Neutral compiler intermediate representation between JSX and C++ codegen. |
 | **lavapipe** | Mesa software Vulkan ICD used for deterministic/headless tests. |
 | **Logical pixel** | DPI-independent UI unit; physical = logical × scale. |
-| **Merger** | Protected-region merge step that preserves developer C++ across regeneration. |
+| **Developer class** | The developer-owned `<Component>.hpp/.cpp` deriving from the generated base; scaffolded once and never rewritten by the generator ([ADR-040](../../decisions/ADR-040-generated-base-and-developer-class.md)). |
+| **Generated base** | `<Component>.g.hpp`, produced by codegen as `gen::<Component>Base<Self>` (CRTP); build output, never edited or committed ([ADR-040](../../decisions/ADR-040-generated-base-and-developer-class.md)). |
 | **Null backend** | No-GPU RHI backend recording command stats for tests. |
-| **Protected region** | `[DEVELOPER_LOGIC_START/END: bind::id]` block owned by the developer. |
 | **RHI** | Thin render hardware interface; the only GPU seam. |
 | **Retained/immediate hybrid** | Retained scene/caches plus per-frame streaming for dynamic data. |
 | **Render-on-demand** | Render only on dirty/wake events; static UI idles. |

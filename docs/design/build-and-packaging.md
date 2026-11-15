@@ -37,7 +37,7 @@ ctest --preset vs2026-release
 | `tessera_gpu` | static | batched 2D renderer |
 | `tessera_rhi_null` | static | null backend |
 | `tessera_scene` | static | scene graph/events |
-| `tessera_merger` | static | protected-region merger |
+| `tessera_codegen` | static | C++ codegen: the ADR-040 generated base |
 | `tessera_vulkan` | static | offscreen Vulkan renderer |
 | `tessera_rhi_vulkan` | static | Vulkan RHI backend |
 | `tessera_stb` | static | stb image decode/write |
@@ -98,7 +98,7 @@ python scripts/check_static_runtime.py --config Release
 
 The script configures the throwaway directory `build/static-runtime-proof` with
 `TESSERA_STATIC_RUNTIME=ON`, `CMAKE_BUILD_TYPE=Release` and `TESSERA_BUILD_VULKAN=OFF`, builds the
-small `merger_tests` target, and runs `scripts/check_static_link.py` on the executable (same
+small `static_runtime_probe` target, and runs `scripts/check_static_link.py` on the executable (same
 per-OS allowlist and forbidden-runtime rule as CI). On Windows it bootstraps the MSVC environment
 through `vcvars64.bat` when `cl`/`nmake` are not on `PATH`. Exit codes: 0 pass (or Debug
 SKIPPED), 1 static-link violation, 2 tool/setup failure. A thin

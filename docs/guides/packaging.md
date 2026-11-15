@@ -113,7 +113,7 @@ normal configure and `cmake --install` are unchanged; pass the explicit executab
 cmake -S . -B build/package \
   -DCMAKE_BUILD_TYPE=Release -DTESSERA_STATIC_RUNTIME=ON \
   -DTESSERA_BUILD_VULKAN=OFF -DTESSERA_BUILD_TESTS=ON \
-  -DTESSERA_PACKAGE_EXECUTABLES=merger_tests
+  -DTESSERA_PACKAGE_EXECUTABLES=static_runtime_probe
 cmake --build build/package --config Release --target tessera-package-stage
 export SOURCE_DATE_EPOCH=315532800 TZ=UTC
 cpack --config build/package/CPackConfig.cmake -G TGZ -B build/package/out
@@ -250,7 +250,7 @@ detached temporary worktree, so a build input that exists only in a dirty workin
 instead of leaking into a release:
 
 ```bash
-python -B scripts/release_rehearsal.py --target merger_tests
+python -B scripts/release_rehearsal.py --target static_runtime_probe
 ```
 
 It resolves `git rev-parse HEAD`, configures Release with `TESSERA_STATIC_RUNTIME=ON` and

@@ -157,7 +157,7 @@ The `loop` is a field of the node it repeats; the key is that node's `key`:
 | `component` | string | Owning component id |
 | `kind` | string | `state`, `effect`, `ref`, `animated`, `event`, `logic` |
 | `source` | SourceSpan | Annotation location |
-| `region` | string | Protected-region id (without `bind::`); a protected region is the developer-owned C++ block, see [ADR-008](../../decisions/ADR-008-protected-regions-and-manifest.md) |
+| `region` | string | Binding id (without `bind::`); the name of the required developer-class member, see [ADR-040](../../decisions/ADR-040-generated-base-and-developer-class.md) |
 
 A binding for a native handler may also carry its signature and preview body
 ([`jsx-subset-v1.md`](jsx-subset-v1.md) section 9.3), all optional:
@@ -170,7 +170,8 @@ A binding for a native handler may also carry its signature and preview body
 
 `kind` must match the use: an event binding is named by a node `events` entry, and an effect (and
 its cleanup) is named by `effects[].handler`/`cleanup`. Binding ids are stable across regeneration.
-Renames go through a migration; the merger never guesses. See
+Renames go through a reviewed edit of the marker and the member; there is no merge step and no
+migration tool. See
 [`developer-workflow.md`](../guides/developer-workflow.md).
 
 ## 7. Stylesheet references
@@ -294,7 +295,7 @@ note above).
 | Node | `std::make_unique<Node>(id)` + setters/add_child |
 | Text | text node + style + text layout binding |
 | Inline spans | the parent `Text` node gets the concatenated paint text plus one span entry per child (span node id and byte range); each span is emitted as a child scene node with its class/style/role/events so the runtime resolves its run style through the normal cascade |
-| Event binding | `on_event` dispatch to protected region |
+| Event binding | `on_event` dispatch to the developer-class member named by the binding id |
 | ErrorBoundary | boundary state + guarded child build/update/effect/event + fallback subtree |
 | Conditional | `if` around node creation/update |
 | Loop | keyed list update/rebuild |

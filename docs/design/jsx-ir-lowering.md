@@ -261,7 +261,7 @@ Diagnostics reuse `jsx::Diagnostic` and the first-error rule of section 4. Codes
 `TESSERA_IR_UNSUPPORTED`, `TESSERA_IR_UNRESOLVED` and `TESSERA_IR_MALFORMED`, plus one new
 `TESSERA_IR_BINDING` for a `useEffect` without a `bind::` annotation. The decision to require an
 annotation: `ir-v1.md` section 2 makes an effect's `handler` a binding id, and every effect body is
-developer C++ in a protected region; the only stable region id is the one the developer writes
+a required developer-class member; the only stable member name is the one the developer writes
 (section 5 forbids position-derived ids). An unannotated effect therefore has no V1 IR form and is
 rejected rather than given a generated id. The effect id is `effect::<bind id>` because source has
 no other stable name for it (the example in `ir-v1.md` section 2 shows unrelated effect/handler
@@ -444,14 +444,12 @@ Tests are `lowering_module`, `lowering_module_reject` and `lowering_module_deter
   `<id>_cleanup`, kind `effect`, with the cleanup arrow's span.
 - `bindings` is sorted by id. Uniqueness across the project is the IR validator's job (the parser
   checks only within one file).
-- Codegen emits one protected region per binding, with the exact markers of
-  [ADR-008](../../decisions/ADR-008-protected-regions-and-manifest.md), and the generated `region`
-  string is the only link to developer C++. The merger (`src/compiler/merger`) therefore never
-  sees AST or IR; it sees generated text.
-- Idempotency, `merge(merge(g,e),e) == merge(g,e)`, depends on the generated text being a pure
-  function of the IR. Lowering contributes by being deterministic (section 7) and by never putting
-  anything position-dependent (line numbers, offsets) into region ids or stub text. Line numbers
-  appear only in the sidecar source map.
+- Codegen emits one dispatch thunk per binding into the generated base, and the developer class
+  must define the matching member (ADR-040); the binding id is the only link to developer C++. No
+  generated text is ever merged, so lowering never has to reason about existing files.
+- Determinism depends on the generated text being a pure function of the IR. Lowering contributes by
+  being deterministic (section 7) and by never putting anything position-dependent (line numbers,
+  offsets) into binding ids or stub text. Line numbers appear only in the sidecar source map.
 - IR validation implements "binding annotation without a matching IR use, or vice versa"
   ([`ir-v1.md`](../specs/ir-v1.md) section 9) by comparing `bindings` with the handler and effect references.
 

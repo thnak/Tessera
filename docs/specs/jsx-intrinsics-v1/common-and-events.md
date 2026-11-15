@@ -101,7 +101,7 @@ redaction rules of [`text-editing-v1.md`](../text-editing-v1.md) section 10 appl
 5. **Native handler** (9.3): the first parameter, if present, is annotated with the payload record name
    imported from `"tessera"`: `(e: TextChangeEvent): void`. A different annotation (`string`) is
    `TESSERA_JSX_TYPE_MISMATCH`. `stopPropagation` and `preventDefault` exist only in the developer C++
-   of the protected region; the TS record has no methods and the preview body cannot call them [Q3].
+   member of the class; the TS record has no methods and the preview body cannot call them [Q3].
 6. Event delivery is on the UI thread at tick boundaries and never blocks
    ([`component-model-v1.md`](../component-model-v1.md) section 4).
 7. A `disabled` element does not deliver pointer, key, focus or change events; the handler stays in IR.

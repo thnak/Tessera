@@ -61,7 +61,7 @@ file change -> hash -> incremental compile -> generated patch
 
 - Toggleable dev overlay; node hover/click selects tree/style/layout/semantics.
 - Shows dirty domains/reasons, draw calls/batches, frame stages, memory/cache, recent events.
-- Click-to-source maps generated/scene nodes to TSX/C++ source spans via the generated manifests (automation manifest, [`automation-ids-v1.md`](automation-ids-v1.md) section 2, and the binding manifest, [ADR-008](../../decisions/ADR-008-protected-regions-and-manifest.md) (protected regions and binding manifest)).
+- Click-to-source maps generated/scene nodes to TSX/C++ source spans via the generated manifests (automation manifest, [`automation-ids-v1.md`](automation-ids-v1.md) section 2, and the binding report, [ADR-040](../../decisions/ADR-040-generated-base-and-developer-class.md)).
 - Overlay never defeats dirty rendering (only its own region or explicit debug mode).
 - No secrets/PII; redaction applies to screenshots/traces/events.
 

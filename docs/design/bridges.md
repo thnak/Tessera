@@ -52,7 +52,7 @@ Forbidden:
 | UI scene/style/layout/animation | **none** (direct C++) | `src/ui/*` | yes |
 | Renderer/RHI/Vulkan/WebGPU | **none** (direct C/C++ APIs) | `src/rendering/*` | yes |
 | Runtime loop/async/memory/diagnostics core | **none** (direct C++) | `src/runtime`, `src/core`, `src/diagnostics` | yes |
-| Compiler IR/codegen/merger | **none** (direct C++) | `src/compiler/{ir,codegen,merger}` | build-time only |
+| Compiler IR/codegen | **none** (direct C++) | `src/compiler/{ir,codegen}` | build-time only |
 | Virtualized lists/grids | **none** (direct C++) | `src/ui/*` + runtime | yes |
 
 Notes:

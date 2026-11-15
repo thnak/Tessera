@@ -39,9 +39,9 @@ It is an **application framework**, not a game engine or a benchmark.
 ┌──────────────────────────────────────────────────────────────────────┐
 │ Toolchain (build time)                                               │
 │  tessera CLI ─ tesserac ─ JSX/TSX parser ─ analyzer/rules ─ IR       │
-│       └─ codegen ─ clang-format ─ protected-region merger ─ manifest │
+│       └─ codegen ─ clang-format ─ scaffold ─ automation manifest     │
 └───────────────────────────────┬──────────────────────────────────────┘
-                                │ generated C++ + bindings.json
+                                │ generated base + developer class
 ┌───────────────────────────────▼──────────────────────────────────────┐
 │ Application runtime (native)                                         │
 │  App/runtime loop ─ HAL (window/display/input/power/timer)            │
@@ -71,10 +71,10 @@ tessera.json
   -> Tier 1: React rules (hooks, purity, static structure)
   -> Tier 2: bindings (`bind::<id>`) and node lowering
   -> IR (`docs/specs/ir-v1.md`)
-  -> codegen: one `<Component>.g.h/.g.cpp` per component
+  -> codegen: one `<Component>.g.hpp` generated base per component (ADR-040)
   -> clang-format (pinned)
-  -> protected-region merge (ADR-008)
-  -> bindings manifest + generation report
+  -> scaffold `<Component>.hpp/.cpp` where missing; never rewritten
+  -> automation manifest + generation report
 ```
 
 The front end named in the second step is the Tessera-owned JSX/TSX parser decided in [ADR-036](../../decisions/ADR-036-own-jsx-frontend-and-react-like-model.md) (own JSX front end and React-like model).
@@ -177,7 +177,6 @@ Implemented B1:
 - thin RHI + [null backend](../reference/glossary.md)
 - Vulkan 1.3 offscreen backend + batched 2D
 - scene graph/hit-testing/events
-- merger prototype
 
 Implemented B2 slices:
 
@@ -196,7 +195,7 @@ Implemented B2 slices:
 
 Documented, not implemented: real text stack (font loading/shaping/glyph atlas), frame
 pacing/VRR present path, adaptive quality, I/O executor, tracing/profiling/crash,
-window/swapchain, OS events/foldables, compiler/IR/codegen, Wasm designer, services,
+window/swapchain, OS events/foldables, Wasm designer, services,
 accessibility, packaging.
 
 Start with [`docs/README.md`](../README.md), then

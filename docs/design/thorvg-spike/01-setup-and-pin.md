@@ -66,7 +66,7 @@ Nothing from ThorVG is vendored; the source tree lives in the CMake build direct
 - `tessera_path` still builds and provides the seam with its null backend, so non-ThorVG builds
   link;
 - existing targets and binaries are unchanged. This was proven byte-for-byte: a Release build of
-  three pre-existing targets (`merger_poc`, `tessera_schema_dump`, `image_diff_tests`) from the
+  three pre-existing targets (`batched2d_poc`, `tessera_schema_dump`, `image_diff_tests`) from the
   working tree with the option present and OFF produced identical SHA-256 hashes to the same
   targets built from a copy of the tree with the option/wrapper additions removed (link
   timestamps pinned with `-Wl,/Brepro` for the comparison; without that flag only the PE header
