@@ -148,8 +148,9 @@ has the `glass_ms` and `glass_backdrop_count` fields; the count comes from `Glas
 ([`glass-v1.md`](../../specs/glass-v1.md) section 8.1). `glass_blur.frag`/`glass_blur.wgsl` implement
 the two passes, the color matrix and the rounded composite clip.
 
-The renderer wiring landed with #244 in `src/rendering/gpu/batched2d_glass.cpp`
-(`Batched2DRenderer::draw_backdrop`), driven by `Batched2DSink::draw_backdrop` on the real paint path:
+The renderer wiring landed with #244 in `src/rendering/gpu/glass_compositor.cpp`
+(`GlassCompositor::compose`, called by `Batched2DRenderer::draw_backdrop`), driven by
+`Batched2DSink::draw_backdrop` on the real paint path:
 
 1. `break_pass()` after flushing the vertex batch; the frame target stays current.
 2. `plan_glass_backdrop_region` (clamped `3 * sigma` box, half resolution above the area limit)
@@ -235,7 +236,7 @@ wait on this seam.
   capability's scope.
 - The #227 layer path: render a subtree into a pooled target and composite it once. The glass
   composite (#244) landed its half of this consumer in
-  [`src/rendering/gpu/batched2d_glass.cpp`](../../../src/rendering/gpu/batched2d_glass.cpp) -
+  [`src/rendering/gpu/glass_compositor.cpp`](../../../src/rendering/gpu/glass_compositor.cpp) -
   `break_pass`/`copy_target_region`/`bind_sampled_target`/`resume_pass` plus the two pipelines - so a
   layer is that sequence with a render pass instead of a region copy. Everything it needs is in the
   capability, not RHI work.

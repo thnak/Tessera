@@ -97,7 +97,12 @@ Only `include/tessera/` is public. Current headers:
 | `rendering/rhi/swapchain.hpp` | `Swapchain`, `SwapchainDesc` (opaque native handles), `SwapchainError`, `Device::create_swapchain` (B3) |
 | `rendering/null/null_swapchain.hpp` | deterministic null swapchain + test stats (B3 seam) |
 | `rendering/gpu/vertex2d.hpp` | `Vertex2D`, attributes, push constants |
-| `rendering/gpu/batched2d_renderer.hpp` | batched 2D renderer |
+| `rendering/gpu/batched2d_renderer.hpp` | batched 2D renderer: pass lifecycle, transform/scissor stacks, emit |
+| `rendering/gpu/clip_state_table.hpp` | rounded-clip stack + interned shader fold |
+| `rendering/gpu/vertex_arena.hpp` | per-frame vertex buffers, slot rotation, growth |
+| `rendering/gpu/glass_compositor.hpp` | glass backdrop composite passes + bounded offscreen pool |
+| `rendering/gpu/glass_blur.hpp` | glass kernel, limits, dependency region |
+| `rendering/gpu/offscreen_target_pool.hpp` | bounded pooled render targets for the isolated-layer seam |
 | `element/custom_element.hpp` | custom native element interface/contexts (planned) |
 | `rendering/damage.hpp` | damage rectangles: clip, merge, cap, full-redraw fallback |
 | `rendering/redraw_plan.hpp` | damage rects -> scissor plan + full-redraw policy |

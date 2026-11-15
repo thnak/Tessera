@@ -3,19 +3,18 @@
 #pragma once
 
 #include "tessera/rendering/gpu/clip.hpp"
+#include "tessera/rendering/gpu/clip_state_table.hpp"
 #include "tessera/rendering/gpu/glass_blur.hpp"
+#include "tessera/rendering/gpu/glass_compositor.hpp"
 #include "tessera/rendering/gpu/vertex2d.hpp"
+#include "tessera/rendering/gpu/vertex_arena.hpp"
 #include "tessera/rendering/redraw_plan.hpp"
 #include "tessera/rendering/rhi/device.hpp"
 
-#include <array>
 #include <cstdint>
-#include <memory>
 #include <vector>
 
 namespace tessera::rendering::gpu {
-
-class OffscreenTargetPool;
 
 struct Batched2DConfig {
     std::uint32_t initial_vertex_capacity = 4096;
@@ -47,6 +46,15 @@ struct Batched2DConfig {
     GlassLimits glass{};
 };
 
+// The batched 2D renderer. It owns the frame and pass lifecycle, the transform and scissor stacks
+// and the emit calls; the state clusters that used to live inside it are collaborators
+// (god-type audit slice 8, docs/architecture/god-type-audit-v1.md section 3.5):
+//
+//  - ClipStateTable holds the rounded-clip stack and its interned shader fold.
+//  - VertexArena owns the per-frame vertex buffers.
+//  - GlassCompositor plans and records the glass backdrop passes.
+//
+// The break/resume seam stays here, because it must flush mid-frame state.
 class Batched2DRenderer {
 public:
     // `glass` supplies the two pipelines a backdrop composite records (glass-v1 sections 3-5,
@@ -119,9 +127,7 @@ public:
     [[nodiscard]] bool glass_supported() const;
 
     // Blur + composite draws recorded so far (diagnostics and the benchmark).
-    [[nodiscard]] std::uint32_t glass_draws() const {
-        return glass_draws_;
-    }
+    [[nodiscard]] std::uint32_t glass_draws() const;
 
     void set_viewport(rhi::Extent2D extent);
     void set_scissor(const rhi::Scissor& scissor);
@@ -144,9 +150,7 @@ public:
     // pair (mixing with push_scissor is allowed but each pop matches its own push).
     void push_clip(const clip::RoundedRect& clip);
     void pop_clip();
-    [[nodiscard]] std::uint32_t clip_depth() const {
-        return static_cast<std::uint32_t>(clip_stack_.size());
-    }
+    [[nodiscard]] std::uint32_t clip_depth() const;
 
     void set_transform(const rhi::Mat3& transform);
     void push_transform(const rhi::Mat3& transform);
@@ -162,22 +166,10 @@ public:
     [[nodiscard]] std::uint32_t draw_calls() const {
         return draw_calls_;
     }
-    [[nodiscard]] std::uint32_t vertex_count() const {
-        return emitted_vertices_;
-    }
-    [[nodiscard]] std::uint32_t pending_batches() const {
-        return static_cast<std::uint32_t>(batches_.size() +
-                                          (current_batch_.vertex_count > 0 ? 1 : 0));
-    }
+    [[nodiscard]] std::uint32_t vertex_count() const;
+    [[nodiscard]] std::uint32_t pending_batches() const;
 
 private:
-    // Folded clip uniforms for one batch. `count` clips are live in `clips`; state 0 is always the
-    // empty clip set, so a batch only splits when the uniform set (or texture/scissor) changes.
-    struct ClipState {
-        std::uint32_t count = 0;
-        std::array<clip::RoundedRect, clip::kMaxShaderClips> clips{};
-    };
-
     struct Batch {
         rhi::Scissor scissor;
         rhi::Texture* texture = nullptr;
@@ -193,17 +185,12 @@ private:
     // pass starts with no state, and a glass composite records its own pipeline/push constants in
     // the middle of one, so both resume_pass() and draw_backdrop() restore the frame state here.
     void bind_frame_state();
-    void select_next_slot();
-    void ensure_buffer_space(std::size_t vertices);
-    [[nodiscard]] rhi::Buffer& current_buffer();
     void flush_batch();
     void emit_quad(const rhi::Rect& rect, const rhi::Rect& uv, rhi::Color color, float radius,
                    float mode, rhi::Texture* texture);
     void update_push_constants(std::uint32_t state_index);
-    void rebuild_clip_state();
-    void apply_clip_state(std::uint32_t state_index, const rhi::Scissor& scissor);
-    [[nodiscard]] std::uint32_t intern_clip_state(const ClipState& state);
-    static bool same_clip_state(const ClipState& a, const ClipState& b);
+    void apply_clip_state(const ClipStateTable::Update& update);
+    static void resume_pass_callback(void* context);
 
     rhi::Device* device_ = nullptr;
     rhi::Pipeline* pipeline_ = nullptr;
@@ -211,20 +198,15 @@ private:
     rhi::CommandList* commands_ = nullptr;
 
     // Isolated-layer seam state: the frame target the pass was opened on (kept so resume_pass() can
-    // reopen it) and the bounded offscreen target pool. The pool object is created on the first
-    // frame (targets are only created when a break actually asks for one), so a renderer that never
-    // breaks a pass owns no offscreen texture.
+    // reopen it).
     const rhi::RenderTarget* frame_target_ = nullptr;
     rhi::RenderTargetDesc frame_desc_;
-    std::unique_ptr<OffscreenTargetPool> offscreen_pool_;
     std::uint64_t frame_index_ = 0;
     bool pass_broken_ = false;
 
-    // Glass pipelines (borrowed, like pipeline_) and the count of composite draws this frame
-    // recorded. Empty for a renderer that never paints glass, which keeps the frame stream of a
-    // no-glass tree identical to the pre-glass renderer.
-    GlassPipelines glass_;
-    std::uint32_t glass_draws_ = 0;
+    GlassCompositor glass_;
+    ClipStateTable clips_;
+    VertexArena vertices_;
 
     Batched2DConfig config_;
     rhi::Extent2D extent_;
@@ -233,14 +215,6 @@ private:
     std::vector<rhi::Scissor> scissor_stack_;
     std::vector<rhi::Scissor> damage_regions_;
 
-    // Rounded clips: the caller-visible stack, its folded shader state, and the interned states of
-    // the current frame. Clip states are interned so a batch only stores an index.
-    std::vector<clip::RoundedRect> clip_stack_;
-    std::vector<bool> clip_folded_;
-    std::vector<rhi::Scissor> clip_scissor_stack_;
-    std::vector<ClipState> clip_states_;
-    std::uint32_t current_clip_state_ = 0;
-
     rhi::Mat3 transform_;
     std::vector<rhi::Mat3> transform_stack_;
     // Presented-pixel -> target-pixel factor for this frame; (1, 1) unless a caller downgraded the
@@ -248,23 +222,11 @@ private:
     float content_scale_x_ = 1.0f;
     float content_scale_y_ = 1.0f;
 
-    // Vertex memory for one in-flight frame. A frame normally uses a single buffer; when it runs
-    // out of room it continues in a larger one, because draws already recorded this frame still
-    // reference the earlier buffers. Extra buffers are dropped when the slot is reused.
-    struct FrameSlot {
-        std::vector<std::unique_ptr<rhi::Buffer>> buffers;
-        std::uint32_t capacity = 0; // vertices in buffers.back()
-    };
-    std::vector<FrameSlot> slots_;
-    std::uint32_t slot_index_ = 0;
-    std::uint32_t buffer_used_ = 0; // vertices already written to the current buffer this frame
-    std::vector<Vertex2D> vertices_;
     std::vector<Batch> batches_;
     Batch current_batch_;
     rhi::Texture* current_texture_ = nullptr;
 
     std::uint32_t draw_calls_ = 0;
-    std::uint32_t emitted_vertices_ = 0;
     bool in_frame_ = false;
 };
 

@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: MIT
 
 #include "tessera/rendering/gpu/batched2d_renderer.hpp"
-#include "tessera/rendering/gpu/offscreen_target_pool.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <memory>
 #include <stdexcept>
 #include <string>
 
@@ -35,26 +33,18 @@ Batched2DRenderer::Batched2DRenderer(rhi::Device& device, rhi::Pipeline& pipelin
     : device_(&device),
       pipeline_(&pipeline),
       white_texture_(&white_texture),
-      // Declaration order, not readability order: `glass_` is declared above `config_`, and
-      // -Wreorder is an error on the Linux lane.
-      glass_(glass),
+      // Declaration order, not readability order: the collaborators are declared above the frame
+      // state, and -Wreorder is an error on the Linux lane.
+      glass_(device, glass, config.max_offscreen_targets, config.glass),
+      clips_(),
+      vertices_(device, config.initial_vertex_capacity, config.frames_in_flight),
       config_(config),
       current_texture_(&white_texture) {
     static_assert(sizeof(Vertex2D) == kVertex2DStride, "vertex stride must match the layout");
-
-    const std::uint32_t capacity = std::max(config.initial_vertex_capacity, 64u);
-    slots_.resize(std::max(config.frames_in_flight, 1u));
-    for (FrameSlot& slot : slots_) {
-        slot.capacity = capacity;
-        slot.buffers.push_back(device_->create_buffer(
-            {static_cast<std::size_t>(capacity) * kVertex2DStride, rhi::BufferUsage::Vertex}));
-    }
-    // The first frame advances to slot 0.
-    slot_index_ = static_cast<std::uint32_t>(slots_.size()) - 1;
-    vertices_.reserve(capacity);
     batches_.reserve(64);
     damage_regions_.reserve(8);
-    clip_states_.reserve(16);
+    transform_stack_.reserve(16);
+    scissor_stack_.reserve(16);
 }
 
 Batched2DRenderer::~Batched2DRenderer() = default;
@@ -71,11 +61,12 @@ void Batched2DRenderer::begin_damaged(rhi::CommandList& commands, const rhi::Ren
         return;
     }
     if (plan.scissors.empty()) {
-        // A no-op frame reports no work rather than stale counters from a previous frame.
+        // A no-op frame reports no work rather than stale counters from a previous frame, and does
+        // not rotate the vertex slot (no GPU work references it).
         commands_ = nullptr;
         in_frame_ = false;
         draw_calls_ = 0;
-        emitted_vertices_ = 0;
+        vertices_.cancel_frame();
         return;
     }
     begin_frame(commands, target, desc, &plan.scissors);
@@ -94,7 +85,7 @@ void Batched2DRenderer::begin_frame(rhi::CommandList& commands, const rhi::Rende
             std::to_string(target_samples) + ", pipeline " +
             std::to_string(pipeline_ != nullptr ? pipeline_->sample_count() : 0) + ")");
     }
-    select_next_slot();
+    vertices_.begin_frame();
     commands_ = &commands;
     frame_target_ = &target;
     frame_desc_ = desc;
@@ -102,13 +93,7 @@ void Batched2DRenderer::begin_frame(rhi::CommandList& commands, const rhi::Rende
     // The offscreen pool advances with the frame slots, so a target acquired in frame k is only
     // handed out again once the slot rotation proves frame k complete.
     ++frame_index_;
-    if (config_.max_offscreen_targets > 0) {
-        if (offscreen_pool_ == nullptr) {
-            offscreen_pool_ = std::make_unique<OffscreenTargetPool>(
-                *device_, OffscreenTargetPoolConfig{config_.max_offscreen_targets});
-        }
-        offscreen_pool_->begin_frame(frame_index_, config_.frames_in_flight, desc.format);
-    }
+    glass_.begin_frame(frame_index_, config_.frames_in_flight, desc.format);
     extent_ = desc.extent;
     base_scissor_ = rhi::Scissor{0, 0, static_cast<std::uint32_t>(desc.extent.width),
                                  static_cast<std::uint32_t>(desc.extent.height)};
@@ -118,22 +103,15 @@ void Batched2DRenderer::begin_frame(rhi::CommandList& commands, const rhi::Rende
     if (damage_regions != nullptr) {
         damage_regions_ = *damage_regions;
     }
-    clip_stack_.clear();
-    clip_folded_.clear();
-    clip_scissor_stack_.clear();
-    clip_states_.clear();
-    rebuild_clip_state();
+    clips_.reset();
     transform_ = rhi::Mat3::identity();
     transform_stack_.clear();
     content_scale_x_ = 1.0f;
     content_scale_y_ = 1.0f;
-    vertices_.clear();
     batches_.clear();
     current_texture_ = white_texture_;
-    current_batch_ = Batch{scissor_, current_texture_, current_clip_state_, 0, 0};
+    current_batch_ = Batch{scissor_, current_texture_, clips_.index(), 0, 0};
     draw_calls_ = 0;
-    emitted_vertices_ = 0;
-    glass_draws_ = 0;
     in_frame_ = true;
 
     commands_->begin_render_pass(target, desc);
@@ -141,7 +119,7 @@ void Batched2DRenderer::begin_frame(rhi::CommandList& commands, const rhi::Rende
     commands_->set_viewport(
         rhi::Viewport{0, 0, static_cast<float>(extent_.width), static_cast<float>(extent_.height)});
     commands_->set_scissor(scissor_);
-    update_push_constants(current_clip_state_);
+    update_push_constants(clips_.index());
 }
 
 void Batched2DRenderer::end() {
@@ -168,7 +146,7 @@ void Batched2DRenderer::set_viewport(rhi::Extent2D extent) {
     extent_ = extent;
     commands_->set_viewport(
         rhi::Viewport{0, 0, static_cast<float>(extent_.width), static_cast<float>(extent_.height)});
-    update_push_constants(current_clip_state_);
+    update_push_constants(clips_.index());
 }
 
 void Batched2DRenderer::set_scissor(const rhi::Scissor& scissor) {
@@ -220,38 +198,16 @@ void Batched2DRenderer::push_clip(const clip::RoundedRect& input) {
         scaled.bottom_right *= radius_scale;
         scaled.bottom_left *= radius_scale;
     }
-    const clip::RoundedRect clamped = clip::clamp_radii(scaled);
-    clip_scissor_stack_.push_back(scissor_);
-    if (clip_stack_.size() < clip::kMaxClipDepth) {
-        clip_stack_.push_back(clamped);
-        clip_folded_.push_back(false);
-    } else {
-        // Documented nesting bound: deeper clips are folded into the innermost active clip
-        // (conservative intersection) instead of growing the stack.
-        clip_stack_.back() = clip::intersect_clips(clip_stack_.back(), clamped);
-        clip_folded_.push_back(true);
-    }
-    rebuild_clip_state();
-    apply_clip_state(current_clip_state_,
-                     rhi::intersect(scissor_, clip::enclosing_scissor(clamped)));
+    // The frame's own scissor (damage or scroll) is the base this clip intersects, so it is handed
+    // to the table as the level's entry scissor and the pop later restores it exactly.
+    apply_clip_state(clips_.push(clip::clamp_radii(scaled), scissor_));
 }
 
 void Batched2DRenderer::pop_clip() {
-    if (!in_frame_ || clip_folded_.empty()) {
+    if (!in_frame_ || clips_.empty()) {
         return;
     }
-    const bool folded = clip_folded_.back();
-    clip_folded_.pop_back();
-    if (!folded && !clip_stack_.empty()) {
-        clip_stack_.pop_back();
-    }
-    const rhi::Scissor restored =
-        clip_scissor_stack_.empty() ? base_scissor_ : clip_scissor_stack_.back();
-    if (!clip_scissor_stack_.empty()) {
-        clip_scissor_stack_.pop_back();
-    }
-    rebuild_clip_state();
-    apply_clip_state(current_clip_state_, restored);
+    apply_clip_state(clips_.pop(scissor_));
 }
 
 void Batched2DRenderer::set_transform(const rhi::Mat3& transform) {
@@ -299,23 +255,26 @@ void Batched2DRenderer::push_texture(const rhi::Rect& rect, rhi::Texture& textur
     emit_quad(rect, uv, color, 0, 2, &texture);
 }
 
+std::uint32_t Batched2DRenderer::vertex_count() const {
+    return vertices_.vertex_count();
+}
+
+std::uint32_t Batched2DRenderer::pending_batches() const {
+    return static_cast<std::uint32_t>(batches_.size() + (current_batch_.vertex_count > 0 ? 1 : 0));
+}
+
 void Batched2DRenderer::flush() {
-    if (!in_frame_ || vertices_.empty()) {
+    if (!in_frame_ || vertices_.staged_vertices() == 0) {
         return;
     }
 
     flush_batch();
 
-    // Append after whatever earlier flushes of this frame wrote: their draws are recorded but
-    // not executed yet, so overwriting offset 0 would change what they draw.
-    const auto count = static_cast<std::uint32_t>(vertices_.size());
-    ensure_buffer_space(count);
-    rhi::Buffer& buffer = current_buffer();
-    const std::uint32_t base = buffer_used_;
-    buffer.write(vertices_.data(), static_cast<std::size_t>(count) * kVertex2DStride,
-                 static_cast<std::size_t>(base) * kVertex2DStride);
-    buffer_used_ += count;
-    commands_->bind_vertex_buffer(buffer);
+    // Append after whatever earlier flushes of this frame wrote: their draws are recorded but not
+    // executed yet, so overwriting offset 0 would change what they draw.
+    const VertexArena::Span span = vertices_.upload();
+    commands_->bind_vertex_buffer(*span.buffer);
+    const std::uint32_t base = span.base_vertex;
 
     std::uint32_t emitted_draws = 0;
     if (damage_regions_.empty()) {
@@ -327,8 +286,8 @@ void Batched2DRenderer::flush() {
             ++emitted_draws;
         }
     } else {
-        // Replay each batch once per damage region. Regions are disjoint, so a pixel is
-        // never blended twice even when several regions intersect the same batch.
+        // Replay each batch once per damage region. Regions are disjoint, so a pixel is never
+        // blended twice even when several regions intersect the same batch.
         for (const Batch& batch : batches_) {
             bool state_bound = false;
             for (const rhi::Scissor& region : damage_regions_) {
@@ -351,40 +310,7 @@ void Batched2DRenderer::flush() {
     draw_calls_ += emitted_draws;
     vertices_.clear();
     batches_.clear();
-    current_batch_ = Batch{scissor_, current_texture_, current_clip_state_, 0, 0};
-}
-
-void Batched2DRenderer::select_next_slot() {
-    slot_index_ = (slot_index_ + 1) % static_cast<std::uint32_t>(slots_.size());
-    FrameSlot& slot = slots_[slot_index_];
-    // Reusing a slot means the frame that last used it is complete (see frames_in_flight), so
-    // buffers added for growth can go; the largest one is kept.
-    if (slot.buffers.size() > 1) {
-        slot.buffers.erase(slot.buffers.begin(), slot.buffers.end() - 1);
-    }
-    buffer_used_ = 0;
-}
-
-void Batched2DRenderer::ensure_buffer_space(std::size_t vertices) {
-    FrameSlot& slot = slots_[slot_index_];
-    if (buffer_used_ + vertices <= slot.capacity) {
-        return;
-    }
-
-    // Draws already recorded this frame reference the current buffer, so it cannot be replaced
-    // or destroyed; the rest of the frame continues in a larger buffer.
-    std::uint32_t new_capacity = slot.capacity * 2;
-    while (new_capacity < vertices) {
-        new_capacity *= 2;
-    }
-    slot.buffers.push_back(device_->create_buffer(
-        {static_cast<std::size_t>(new_capacity) * kVertex2DStride, rhi::BufferUsage::Vertex}));
-    slot.capacity = new_capacity;
-    buffer_used_ = 0;
-}
-
-rhi::Buffer& Batched2DRenderer::current_buffer() {
-    return *slots_[slot_index_].buffers.back();
+    current_batch_ = Batch{scissor_, current_texture_, clips_.index(), 0, 0};
 }
 
 void Batched2DRenderer::flush_batch() {
@@ -393,11 +319,11 @@ void Batched2DRenderer::flush_batch() {
     }
 
     batches_.push_back(current_batch_);
-    current_batch_.first_vertex = static_cast<std::uint32_t>(vertices_.size());
+    current_batch_.first_vertex = vertices_.staged_vertices();
     current_batch_.vertex_count = 0;
     current_batch_.scissor = scissor_;
     current_batch_.texture = current_texture_;
-    current_batch_.clip_state = current_clip_state_;
+    current_batch_.clip_state = clips_.index();
 }
 
 void Batched2DRenderer::emit_quad(const rhi::Rect& rect, const rhi::Rect& uv, rhi::Color color,
@@ -451,25 +377,34 @@ void Batched2DRenderer::emit_quad(const rhi::Rect& rect, const rhi::Rect& uv, rh
         vertex.half_height = half_height;
         vertex.radius = radius;
         vertex.mode = mode;
-        vertices_.push_back(vertex);
+        vertices_.push_vertex(vertex);
     }
 
     current_batch_.vertex_count += 6;
-    emitted_vertices_ += 6;
 }
 
-void Batched2DRenderer::apply_clip_state(std::uint32_t state_index, const rhi::Scissor& scissor) {
-    const bool state_changed = state_index != current_batch_.clip_state;
-    const bool scissor_changed = !same_scissor(scissor, current_batch_.scissor);
+void Batched2DRenderer::apply_clip_state(const ClipStateTable::Update& update) {
+    const bool state_changed = update.state != current_batch_.clip_state;
+    const bool scissor_changed = !same_scissor(update.scissor, current_batch_.scissor);
     if (state_changed || scissor_changed) {
         // Batching split rule: a draw batch covers one (texture, scissor, folded-clip-uniform)
         // tuple. Clip push/pop only costs a split when the folded uniform set or scissor changes.
         flush_batch();
     }
-    scissor_ = scissor;
-    current_clip_state_ = state_index;
-    current_batch_.scissor = scissor;
-    current_batch_.clip_state = state_index;
+    scissor_ = update.scissor;
+    current_batch_.scissor = update.scissor;
+    current_batch_.clip_state = update.state;
+}
+
+void Batched2DRenderer::update_push_constants(std::uint32_t state_index) {
+    Batched2DPushConstants push;
+    const float aa_radius = (config_.enable_aa && !config_.golden_mode) ? 1.0f : 0.0f;
+    clips_.pack_push_constants(state_index, extent_, aa_radius, push);
+    commands_->push_constants(&push, sizeof(push));
+}
+
+void Batched2DRenderer::resume_pass_callback(void* context) {
+    static_cast<Batched2DRenderer*>(context)->resume_pass();
 }
 
 } // namespace tessera::rendering::gpu
