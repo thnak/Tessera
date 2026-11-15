@@ -331,6 +331,9 @@ Registered -> Starting -> Started -> Stopping -> Stopped
    non-virtual, inlinable methods to C++ callers that name it directly. Any service method called
    per frame (rare; for example a value read by an animation) must be reached through a cached
    pointer to a `final` type so it can inline.
+**Implementation note (AF1, issue #173).** The signature above is the contract, but its body cannot
+literally be a coroutine with the in-tree `runtime::Task`; AF1 keeps the signature and moves the
+coroutine to a context-first free body. Mechanics and the AF1/AF3 split: [`services.md`](../docs/design/services.md) section 1.1.
 
 ### 5. Background work: task scopes, timers, desktop and mobile
 

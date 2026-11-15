@@ -160,6 +160,9 @@ add_subdirectory(src/ui/automation)
 add_subdirectory(src/ui/virtual)
 add_subdirectory(src/ui/boundary)
 add_subdirectory(src/app)
+# ADR-050 opt-in app framework (AF1, issue #173): the service layer sits beside `src/app` and is not
+# part of it, so an app that does not adopt the framework links none of it.
+add_subdirectory(src/appfw)
 add_subdirectory(src/harness)
 add_subdirectory(src/schema)
 add_subdirectory(src/compiler/analyzer)
