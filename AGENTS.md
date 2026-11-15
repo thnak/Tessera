@@ -584,11 +584,14 @@ Stages P0-P7 are planned in `docs/design/reference-equantic-ui.md`.
 ### V1-M5 Application framework ([milestone 5](https://github.com/thnak/Tessera/milestone/5))
 ADR-050 is Accepted (roadmap AF1-AF8); start with AF1.
 
-- [ ] #173: AF1: `ServiceContext` + `Service` state machine, ordered async start/stop, deadlines — new
+- [x] #173: AF1: `ServiceContext` + `Service` state machine, ordered async start/stop, deadlines — new
       `tessera_appfw_core`, tests under `ManualClock`/`ManualExecutor`.
 - [ ] #174: AF2: `TaskScope` + `RuntimeLoop` timer wake source — timers in order; idle parks.
 - [ ] #175: AF3: `Application` lifecycle; `WindowHost` forwards focus/minimize/occlusion.
-- [ ] #176: AF4: `Observable<T>` over `UpdateScheduler` — one flush per tick, no allocation on `set`.
+- [x] #176: AF4: `Observable<T>` over `UpdateScheduler` — one flush per tick, no allocation on
+      `set`: `include/tessera/appfw/observable.hpp`, `docs/design/observable.md`, tests
+      `appfw_observable` (`tests/unit/appfw_observable_tests.cpp`,
+      `appfw_observable_allocation.cpp`).
 - [ ] #177: AF5: `useService<T>()` codegen (after ADR-040) — undeclared service is a compile error.
 - [ ] #178: AF6: `NativeSurface` refs + `SurfaceRenderer` — lavapipe golden of a composited surface.
 - [ ] #179: AF7: `storage` module, atomic writes on `IoExecutor` — corruption fallback tested.
