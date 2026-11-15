@@ -80,10 +80,8 @@ void test_payload_mapping() {
     check(key.repeat, "key repeat maps");
 
     constexpr std::string_view kValue = "hello";
-    event.text_size = static_cast<std::uint32_t>(kValue.size());
-    for (std::size_t i = 0; i < kValue.size(); ++i) {
-        event.text[i] = kValue[i];
-    }
+    // The event borrows its payload; `kValue` is a constexpr literal, so it outlives the read.
+    event.set_text(kValue);
     event.selection_start = 1;
     event.selection_end = 4;
     const ui::TextChangeEvent change = ui::text_change_event(event);

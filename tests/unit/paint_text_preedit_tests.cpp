@@ -178,9 +178,8 @@ void run_paint(const std::string& text, const TextDecoration& value, PaintSink& 
 Event payload_event(EventType type, std::string_view text) {
     Event event;
     event.type = type;
-    const std::size_t size = std::min<std::size_t>(text.size(), event.text.size());
-    std::copy_n(text.data(), size, event.text.begin());
-    event.text_size = static_cast<std::uint32_t>(size);
+    // `Event` borrows its payload; callers keep the storage alive for the dispatch.
+    event.set_text(text);
     return event;
 }
 

@@ -60,8 +60,26 @@ InputEvent pointer(InputEventType type, float x, float y) {
 }
 
 bool carries(const Event& event, std::string_view expected) {
-    return event.text_size == expected.size() &&
-           std::equal(expected.begin(), expected.end(), event.text.begin());
+    // The scene event borrows the payload; compare through the accessor rather than the removed
+    // inline buffer.
+    return event.text_bytes() == expected;
+}
+
+// The scene event no longer owns a 256-byte text buffer (god-type audit section 4.2): that copy was
+// paid by every pointer move, because events are stack-built in the input path and copied through
+// capture/bubble. Keep it shrunk. `InputEvent` deliberately keeps its flat array, because it is the
+// platform boundary type (audit section 7).
+bool event_sizes() {
+    static_assert(sizeof(Event) < sizeof(InputEvent),
+                  "the scene event must stay smaller than the flat platform event");
+    std::cout << "input_text: sizeof(Event)=" << sizeof(Event)
+              << " sizeof(InputEvent)=" << sizeof(InputEvent) << "\n";
+    // The invariant is not a magic number: the scene event must no longer be dominated by a
+    // 256-byte text array, so it has to be far smaller than the platform event that still has one.
+    return expect(sizeof(Event) * 2 <= sizeof(InputEvent),
+                  "the scene event is no longer dominated by a text buffer") &&
+           expect(sizeof(InputEvent) >= kMaxEditTextBytes,
+                  "InputEvent keeps its bounded platform payload");
 }
 
 } // namespace
@@ -175,5 +193,11 @@ int main() {
     key.type = InputEventType::KeyDown;
     key.key = 'A';
     const InputDispatchResult keyed = router.dispatch(root, key);
-    return expect(keyed.dispatched && keyed.target == &child, "key routing unchanged") ? 0 : 9;
+    if (!expect(keyed.dispatched && keyed.target == &child, "key routing unchanged")) {
+        return 9;
+    }
+    if (!event_sizes()) {
+        return 10;
+    }
+    return 0;
 }

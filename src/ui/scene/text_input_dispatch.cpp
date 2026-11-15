@@ -32,9 +32,14 @@ Event make_composition_event(EventType type, const InputEvent& input) {
     event.y = input.y;
     event.modifiers = input.modifiers;
     event.timestamp_s = input.timestamp_s;
-    const std::size_t size = std::min<std::size_t>(input.text_size, tessera::ui::kMaxEditTextBytes);
-    std::copy_n(input.text.begin(), size, event.text.begin());
-    event.text_size = static_cast<std::uint32_t>(size);
+    // Borrow the platform payload instead of copying it: the `InputEvent` outlives the synchronous
+    // dispatch, which is the only window a handler can read it in. This is the buffer removal the
+    // audit sequences first, and it also drops a 256-byte memcpy per composition event
+    // (docs/architecture/god-type-audit-v1.md section 4.2). The clamp keeps a hand-built
+    // `InputEvent` whose `text_size` exceeds its own array from reading past it.
+    event.text = input.text.data();
+    event.text_size = static_cast<std::uint32_t>(
+        std::min<std::size_t>(input.text_size, tessera::ui::kMaxEditTextBytes));
     event.text_truncated = input.text_truncated;
     event.selection_start = input.selection_start;
     event.selection_end = input.selection_end;
