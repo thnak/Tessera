@@ -350,6 +350,26 @@ the four dominant kinds (`Text`, `Image`/`Path`, `Component`, `Slot`); `id`, `so
 `style` and `events` stay common. Start with the trait table: it removes the duplicated per-kind
 checks without touching the versioned IR wire format.
 
+**Landed (step 1: the table).** `ir::node_kind_traits` (`node_kind_traits.hpp`) is the table, and the
+validators now read it instead of re-deriving predicates. Two corrections to the audit's framing,
+both from measuring rather than assuming:
+
+- The "25 `case NodeKind` sites across three files" are really **15** `switch` cases (all in
+  `ir.cpp`'s `node_kind_name`) plus roughly **50** scattered `kind == A || kind == B` predicates
+  across the validators, lowering and emitters. The duplication that mattered was the predicates,
+  not the switches, so the table names the *questions* (does it have `element`? may it have
+  children? is it a collection?) rather than the switch arms.
+- The table is deliberately **not** generated from the IR spec table. Generation would add a build
+  step to a leaf library that links nothing, for 15 rows that change when the enum changes - and the
+  enum changing is exactly when a human is already reading the spec. The compile-time checks give
+  what generation was meant to buy: `kNodeKindCount == Slot + 1`, per-row name checks against
+  `node_kind_name`, and flag-count assertions that catch a row where a different kind got a flag.
+
+`validate_node.cpp`'s `check_shape`, `check_spans` and the slot-content walk now ask the table, so a
+new kind is a missing row (compile error) rather than a missed predicate. The `std::variant` payload
+half of the proposal is **not** done: it changes the in-memory IR that every emitter reads, and the
+audit itself calls this row high risk because the IR is versioned.
+
 ### 4.4 Three JSON error enums
 
 `JsonErrorCode` exists three times with overlapping values: `src/schema/src/json.hpp` (12),
@@ -435,17 +455,19 @@ still open.
 | 8 | `Batched2DRenderer` state cluster | **landed** | `ClipStateTable` (`clip_state_table.hpp`) owns the rounded-clip stack, its interned shader fold and the push-constant packing; `VertexArena` (`vertex_arena.hpp`) owns slot rotation, in-frame append and growth; `GlassCompositor` (`glass_compositor.hpp`) owns the two glass passes and the bounded pool. `batched2d_clip_state.cpp` and `batched2d_glass.cpp` are gone, the renderer header is 271 -> 216 lines, and `tests/unit/gpu_collaborators_tests.cpp` covers the three directly |
 | 9 | `WindowHost::Impl` collaborators | **landed (step 1)** | `detail::FrameTimeProbe` (`frame_time_probe.hpp`) owns the capability gate, the pending interval and the selection rule; `detail::ScaledTargets` (`scaled_targets.hpp`) owns the per-slot render-scale targets and the resample capability. Both are in the non-Vulkan `tessera_app` library, so `tests/unit/window_state_clusters_tests.cpp` drives them with the null backend. `Presentation` and `RecoveryFlow` remain open, see section 3.2 |
 | 10 | `AppHost` stages | **landed (step 1)** | `detail::QualityStage` (`quality_stage.hpp`) owns the adaptive-quality ladder, its diagnostics recording and the two application rules a decision implies; `AppHost::observe_frame_time_sample` is now one call. `tests/unit/app_quality_stage_tests.cpp` drives it with a fake context. `StyleStage`, `LayoutStage` and `OverlayStage` remain open, see section 3.4 |
+| 11 | `ir::NodeKind` traits | **landed (step 1: the table)** | `ir::node_kind_traits` (`node_kind_traits.hpp`) is one row per kind, and the validators ask it instead of re-deriving `kind == A \|\| kind == B`. Alignment is compile-time (one row per kind, names checked against `node_kind_name`, flag counts); `tests/unit/node_kind_traits_tests.cpp` proves it agrees with the rest of the IR. No wire change. The `std::variant` payload half remains open, see section 4.3 |
 | 12 | JSON error unification | **landed (2 of 3 readers)** | `detail::json::ErrorCode` (`include/tessera/detail/json_error.hpp`) backs the runtime config reader and the harness protocol, and both hand-written formatters are gone. The **schema keeps its own enum**: `tests/unit/schema_layering_tests.cpp` enforces that `tessera_schema` is a leaf including no project header, so it cannot share this one. See section 4.4 |
 
-Slice 11 is open. Rows 4, 5, 7, 9, 10 and 12 are deliberately partial: row 4's TU split is the
-mechanical half and its header views are a separate API change that must re-check the 320-byte budget
-on each step; row 5's buffer removal is the cheap half and its payload views change how handlers read
-an event; row 7's window extraction is the part that owns real mutable state, and the
-focus/selection policy behind it is a second, smaller step; row 9's two clusters are the ones with no
-lifecycle coupling, and `Presentation`/`RecoveryFlow` are the ones that have it; row 10's quality
+All twelve rows have a landed step. Rows 4, 5, 7, 9, 10, 11 and 12 are deliberately partial: row 4's
+TU split is the mechanical half and its header views are a separate API change that must re-check the
+320-byte budget on each step; row 5's buffer removal is the cheap half and its payload views change
+how handlers read an event; row 7's window extraction is the part that owns real mutable state, and
+the focus/selection policy behind it is a second, smaller step; row 9's two clusters are the ones with
+no lifecycle coupling, and `Presentation`/`RecoveryFlow` are the ones that have it; row 10's quality
 stage is the one section 3.4 names with the cleanest boundary, while the three scene-facing stages
-need the `begin_frame` restructure that follows; row 12 stopped at two readers because the third is a
-leaf library whose no-project-header rule is itself tested.
+need the `begin_frame` restructure that follows; row 11's table removes the duplicated per-kind
+predicates, while the variant payloads change the in-memory IR every emitter reads; row 12 stopped at
+two readers because the third is a leaf library whose no-project-header rule is itself tested.
 
 ## 7. What is deliberately not split
 
