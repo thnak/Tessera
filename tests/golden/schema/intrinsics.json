@@ -2399,6 +2399,11 @@
       "name": "height"
     },
     {
+      "kind": "number",
+      "name": "aspect-ratio",
+      "note": "a bare number is a unitless ratio"
+    },
+    {
       "kind": "length",
       "name": "min-width"
     },
@@ -2527,6 +2532,18 @@
       "name": "border-bottom-left-radius"
     },
     {
+      "kind": "keyword",
+      "name": "field-sizing"
+    },
+    {
+      "kind": "keyword",
+      "name": "overflow-x"
+    },
+    {
+      "kind": "keyword",
+      "name": "overflow-y"
+    },
+    {
       "kind": "color",
       "name": "color"
     },
@@ -2537,6 +2554,28 @@
     {
       "kind": "number",
       "name": "opacity"
+    },
+    {
+      "kind": "list",
+      "name": "box-shadow",
+      "note": "comma-separated shadow list, one per layer"
+    },
+    {
+      "kind": "keyword",
+      "name": "backdrop-filter"
+    },
+    {
+      "kind": "keyword",
+      "name": "-webkit-backdrop-filter",
+      "note": "alias of backdrop-filter"
+    },
+    {
+      "kind": "keyword",
+      "name": "window-backdrop"
+    },
+    {
+      "kind": "number",
+      "name": "z-index"
     },
     {
       "kind": "list",
@@ -2579,6 +2618,10 @@
     },
     {
       "kind": "keyword",
+      "name": "text-overflow"
+    },
+    {
+      "kind": "keyword",
       "name": "white-space"
     },
     {
@@ -2588,6 +2631,14 @@
     {
       "kind": "keyword",
       "name": "cursor"
+    },
+    {
+      "kind": "keyword",
+      "name": "pointer-events"
+    },
+    {
+      "kind": "keyword",
+      "name": "user-select"
     },
     {
       "kind": "keyword",
@@ -2646,24 +2697,52 @@
       "name": "column-gap"
     },
     {
-      "kind": "keyword",
-      "name": "overflow-x"
-    },
-    {
-      "kind": "keyword",
-      "name": "overflow-y"
-    },
-    {
       "kind": "number",
       "name": "order"
     },
     {
-      "kind": "number",
-      "name": "z-index"
+      "kind": "list",
+      "name": "grid-template-columns",
+      "note": "track list; a bare number is not a track"
+    },
+    {
+      "kind": "list",
+      "name": "grid-template-rows",
+      "note": "track list; a bare number is not a track"
     },
     {
       "kind": "keyword",
-      "name": "field-sizing"
+      "name": "grid-column",
+      "note": "`<start> / <end>` line value"
+    },
+    {
+      "kind": "keyword",
+      "name": "grid-row",
+      "note": "`<start> / <end>` line value"
+    },
+    {
+      "kind": "keyword",
+      "name": "grid-auto-flow"
+    },
+    {
+      "kind": "keyword",
+      "name": "justify-self"
+    },
+    {
+      "kind": "keyword",
+      "name": "scroll-behavior"
+    },
+    {
+      "kind": "keyword",
+      "name": "overscroll-behavior"
+    },
+    {
+      "kind": "keyword",
+      "name": "overscroll-effect"
+    },
+    {
+      "kind": "keyword",
+      "name": "scrollbar-gutter"
     },
     {
       "kind": "keyword",
@@ -2672,6 +2751,126 @@
     {
       "kind": "keyword",
       "name": "container-name"
+    },
+    {
+      "kind": "list",
+      "name": "transform",
+      "note": "function list; a bare number is not a transform"
+    },
+    {
+      "kind": "length",
+      "name": "transform-origin"
+    },
+    {
+      "kind": "keyword",
+      "name": "animation-name"
+    },
+    {
+      "kind": "number",
+      "name": "animation-duration",
+      "note": "a time; a bare number stays unitless (seconds)"
+    },
+    {
+      "kind": "keyword",
+      "name": "animation-timing-function"
+    },
+    {
+      "kind": "number",
+      "name": "animation-delay",
+      "note": "a time; a bare number stays unitless (seconds)"
+    },
+    {
+      "kind": "number",
+      "name": "animation-iteration-count"
+    },
+    {
+      "kind": "keyword",
+      "name": "animation-direction"
+    },
+    {
+      "kind": "keyword",
+      "name": "animation-fill-mode"
+    },
+    {
+      "kind": "keyword",
+      "name": "animation-play-state"
+    },
+    {
+      "kind": "keyword",
+      "name": "animation",
+      "note": "shorthand; the grammar lives in src/ui/animation"
+    },
+    {
+      "kind": "list",
+      "name": "transition-property",
+      "note": "comma-separated property names"
+    },
+    {
+      "kind": "number",
+      "name": "transition-duration",
+      "note": "a time; a bare number stays unitless (seconds)"
+    },
+    {
+      "kind": "keyword",
+      "name": "transition-timing-function"
+    },
+    {
+      "kind": "number",
+      "name": "transition-delay",
+      "note": "a time; a bare number stays unitless (seconds)"
+    },
+    {
+      "kind": "keyword",
+      "name": "transition",
+      "note": "shorthand; the grammar lives in src/ui/animation"
+    },
+    {
+      "kind": "length",
+      "name": "margin-inline-start"
+    },
+    {
+      "kind": "length",
+      "name": "margin-inline-end"
+    },
+    {
+      "kind": "length",
+      "name": "padding-inline-start"
+    },
+    {
+      "kind": "length",
+      "name": "padding-inline-end"
+    },
+    {
+      "kind": "length",
+      "name": "inset-inline-start"
+    },
+    {
+      "kind": "length",
+      "name": "inset-inline-end"
+    },
+    {
+      "kind": "length",
+      "name": "border-inline-start-width"
+    },
+    {
+      "kind": "keyword",
+      "name": "border-inline-start-style"
+    },
+    {
+      "kind": "color",
+      "name": "border-inline-start-color"
+    },
+    {
+      "kind": "length",
+      "name": "border-inline-end-width"
+    },
+    {
+      "kind": "keyword",
+      "name": "border-inline-end-style"
+    },
+    {
+      "kind": "color",
+      "name": "border-inline-end-color"
     }
   ],
   "types": [

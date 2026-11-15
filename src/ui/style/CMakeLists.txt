@@ -99,4 +99,13 @@ if (TESSERA_BUILD_TESTS)
     target_compile_definitions(property_registry_matrix_tests PRIVATE
         TESSERA_STYLESHEET_SPEC_DIR="${PROJECT_SOURCE_DIR}/docs/specs")
     add_test(NAME property_registry_matrix COMMAND property_registry_matrix_tests)
+
+    # The schema inline-style table and the registry must agree (issue #272). This is the only place
+    # both are visible: `tessera_schema` may not link the UI module, so the table is hand-maintained
+    # and this test is the seam that keeps the two from drifting again. Registered here for the same
+    # reason as the lanes above; the link to `tessera_schema` is a test-only edge, not a library one.
+    add_executable(schema_style_registry_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/schema_style_registry_tests.cpp)
+    target_link_libraries(schema_style_registry_tests PRIVATE tessera_style tessera_schema)
+    add_test(NAME schema_style_registry COMMAND schema_style_registry_tests)
 endif()

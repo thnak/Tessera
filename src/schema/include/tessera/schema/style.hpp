@@ -10,10 +10,12 @@
 // The style half of the shared schema (docs/specs/jsx-intrinsics-v1/machine-readable.md section 5):
 // one table of supported CSS property names and their value kind. The compiler uses the kind for
 // the inline `style` number rule of docs/design/jsx-ir-lowering.md decision 10; the runtime
-// property registry keeps initial values and inheritance and checks its names against this table.
+// property registry keeps initial values and inheritance.
 //
-// The rows are the longhands of src/ui/style/property_registry.cpp; shorthands are expanded by the
-// registry and are not rows here.
+// The rows are every registered longhand of src/ui/style/ (the physical table, `logical_properties`
+// and the animation/transition names); shorthands are expanded by the registry and are not rows
+// here. The schema is a leaf, so this table is a hand-maintained mirror and the UI-side
+// `schema_style_registry` ctest keeps it equal to the registry in both directions.
 namespace tessera::schema {
 
 struct StyleProperty {
