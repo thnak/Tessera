@@ -270,6 +270,9 @@ This page is the map and reading order for the framework.
 - [`design/resources.md`](design/resources.md) — assets, caches, uploads, lifetime, hot reload
 - [`design/services.md`](design/services.md) — i18n (internationalization), navigation, storage, networking,
   notifications
+- [`design/storage-module.md`](design/storage-module.md) — the `storage` module: the atomic-replace
+  sequence, `Durability` and the per-platform fsync policy, the corruption fallback, cancellation and
+  temp-file cleanup, and the `IoTaskExecutor` seam it runs on (ADR-050 AF7)
 - [`design/native-render-surfaces.md`](design/native-render-surfaces.md) — typed refs to native
   render surfaces drawn through the RHI: lifecycle, threading, dirty/idle rules (ADR-050 section 7)
 - [`design/service-resolve-benchmark.md`](design/service-resolve-benchmark.md) — measured cost of

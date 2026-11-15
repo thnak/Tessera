@@ -144,6 +144,10 @@ add_subdirectory(src/diagnostics)
 add_subdirectory(src/dbus)
 add_subdirectory(src/hal/timer)
 add_subdirectory(src/hal/window)
+# AF7 (issue #179): the filesystem seam the storage module writes through. It lives beside the
+# timer and window halves rather than under `src/appfw/`, so a later module can use it without
+# depending on the app framework.
+add_subdirectory(src/hal/filesystem)
 add_subdirectory(src/runtime)
 add_subdirectory(src/ui/input)
 add_subdirectory(src/ui/scene)
