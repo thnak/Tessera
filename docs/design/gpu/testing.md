@@ -32,7 +32,7 @@ golden format: [`../../specs/golden-tests-v1.md`](../../specs/golden-tests-v1.md
 ```text
 tests/
   unit/
-    merger_tests.cpp
+    codegen_base_tests.cpp
     scene_graph_tests.cpp
   gpu/
     README.md

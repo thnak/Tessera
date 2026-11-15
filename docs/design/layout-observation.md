@@ -346,8 +346,8 @@ const [wide, setWide] = useState(false);
   member and a static thunk `on_size_change_<n>(void*, const SizeChange&)` that converts to
   `SizeChangeEvent` and runs the handler; `attach_layout_observers(LayoutObserverSet&)` /
   `detach_layout_observers(...)` mirror `attach_scheduler`. Inside a list loop or a virtual item
-  template, each realized row owns its observation in the row table. A merger idempotency test
-  covers the new member and thunks.
+  template, each realized row owns its observation in the row table. A codegen golden test covers
+  the new member and thunks.
 - **Designer**: the Wasm evaluator runs inline setter handlers after its own layout with the same
   round rule, so previews match production ([ADR-037](../../decisions/ADR-037-self-contained-wasm-designer.md)).
 
@@ -411,8 +411,8 @@ All headless, `ManualClock`, null paint sink, the stub text measurer:
   depth rule defers a shallower re-dirty; an oscillating pair hits the round budget, is deferred,
   wakes the loop, and reports `TESSERA_LAYOUT_OBSERVER_LOOP` after `kLoopReportTicks`;
   `max_rounds = 1` behaves as next-tick delivery.
-- `codegen_size_change`: front-end acceptance/rejection per intrinsic, IR shape, goldens,
-  merger idempotency; `codegen_size_change_runtime` drives a generated panel across 600 px.
+- `codegen_size_change`: front-end acceptance/rejection per intrinsic, IR shape, goldens, base and
+  developer-class compile; `codegen_size_change_runtime` drives a generated panel across 600 px.
 - `setter_equality`: no scheduled update for equal writes; effects unchanged.
 - Golden: a `field-sizing: content` `TextArea` at 1, 3 and 20 lines (lavapipe/CPU only).
 
@@ -439,12 +439,12 @@ Each slice is behavior + tests + docs and leaves `main` green. Dependency order:
    waits for the runtime-config loader.
 4. **Equality-gated setters** in codegen (independent; can land any time). Tests
    `setter_equality`, golden updates.
-5. **`onSizeChange` front end + IR validator + typings**, then **codegen + merger** (two commits).
+5. **`onSizeChange` front end + IR validator + typings**, then **codegen** (two commits).
    Tests `codegen_size_change*`. Front end Done: the schema rows (every element with a box;
    `Spacer` and `ErrorBoundary` reject it as an unknown event), the `SizeChangeEvent` record, the
-   regenerated `intrinsics.json`/`tessera.d.ts` goldens and lowering tests. Codegen and merger
-   Done: `emit_layout_observe.*`, the `Watcher`/`WatchPage` goldens, runtime test and merger
-   idempotency; handler bodies read `e.width` and friends. Not yet supported (rejected loudly):
+   regenerated `intrinsics.json`/`tessera.d.ts` goldens and lowering tests. Codegen
+   Done: `emit_layout_observe.*`, the `Watcher`/`WatchPage` goldens and the runtime test;
+   handler bodies read `e.width` and friends. Not yet supported (rejected loudly):
    `onSizeChange` inside a list or virtual item template, where each realized row would need its
    own observation. A node in a detached conditional branch reads as zeros until it is attached.
 6. **Designer evaluator** delivery after preview layout. Blocked: the IR evaluator of ADR-037 is

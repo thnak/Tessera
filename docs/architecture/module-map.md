@@ -35,8 +35,7 @@ implemented feature. In the Status columns, B1, B2, and B3 are the phases of [Bi
 | `src/compiler/rules/` | framework/binding rules | implemented (C; analysis skeleton) |
 | `src/compiler/ir/` | neutral IR (intermediate representation) + serialization | implemented (C; model, JSON writer, validator) |
 | `src/compiler/lowering/` | AST -> IR lowering (expressions, hooks and bindings) | implemented (C, slices 5 and 6) |
-| `src/compiler/codegen/` | IR -> C++ | planned (C) |
-| `src/compiler/merger/` | protected-region merge | implemented (B1) |
+| `src/compiler/codegen/` | IR -> C++: the ADR-040 generated base | implemented (C) |
 | `src/schema/` | shared machine-readable intrinsic/style schema (`tessera_schema`), consumed by the compiler, designer and runtime; leaf library | implemented (C, slice 12) |
 | `src/runtime/` | fixed-step accumulator, clock, `RuntimeLoop`, frame pacer, async primitives, diagnostics counters | B2 core |
 | `src/services/` | i18n (internationalization), navigation, state restore, storage, networking, notifications, shell | planned (F) |
@@ -50,7 +49,7 @@ implemented feature. In the Status columns, B1, B2, and B3 are the phases of [Bi
 | `tests/gpu/` | GPU/RHI contract/resource/frame tests (CTest) | B1 subset |
 | `tests/integration/` | cross-module tests (GPU under `integration/gpu/`) | planned |
 | `tests/golden/` | deterministic [goldens](../reference/glossary.md) + report (GPU under `gpu/`) | planned |
-| `tests/fixtures/` | fonts, images, merger/compiler/GPU fixtures | B1 merger |
+| `tests/fixtures/` | fonts, images, compiler/GPU fixtures | compiler + GPU fixtures |
 | `tests/benchmarks/` | performance budgets (GPU under `gpu/`) | planned |
 | `samples/hello`, `samples/dashboard` | sample projects | placeholder |
 | `tools/poc/` | Phase 0/B1 proofs | B1 |
@@ -72,7 +71,7 @@ core
  ├─ diagnostics
  └─ runtime ── ui + rendering + element + hal + services + data + diagnostics
 
-compiler (build time only): analyzer -> rules -> ir -> codegen -> merger
+compiler (build time only): analyzer -> rules -> ir -> codegen (ADR-040 generated base)
 designer (Wasm): runtime/ui/rendering + webgpu + IPC
 ```
 
@@ -175,8 +174,8 @@ Only `include/tessera/` is public. Current headers:
 | `runtime/frame_wait.hpp` | FramePacer deadline + window event wait helper (B3) |
 | `runtime/frame_pacer.hpp` | deadline-based `maxFps` pacer, no sleep/busy-wait (B2) |
 
-`src/compiler/merger/include/tessera/compiler/merger.hpp` is a build-time public header for the
-merger prototype.
+`src/compiler/codegen/` is the build-time-only C++ generator; it emits the ADR-040 generated base
+and has no public header outside the compiler tree.
 
 ## 4. Build targets (current)
 
@@ -202,13 +201,12 @@ merger prototype.
 | `tessera_animation` | static | easing + keyframes + runtime + springs (B2) |
 | `tessera_layout` | static | computed-style to Yoga layout adapter + text measure callback (B2) |
 | `tessera_frame` | static | per-frame animation/dirty/damage/redraw orchestration (B2) |
-| `tessera_merger` | static | protected-region merger |
+| `tessera_codegen` | static | C++ codegen: the ADR-040 generated base + scaffold |
 | `tessera_vulkan` | static | offscreen Vulkan renderer |
 | `tessera_rhi_vulkan` | static | Vulkan RHI backend + batched2D pipeline |
 | `tessera_stb` | static | stb image decode/write |
 | `vulkan_offscreen_poc` | exe | offscreen Vulkan proof |
 | `batched2d_poc` | exe | batched 2D demo (Vulkan/null) |
-| `merger_poc` | exe | merger CLI (command-line interface) |
 | `*_tests` | exe | unit/CLI tests |
 
 ## 5. Where to add code
@@ -218,8 +216,7 @@ merger prototype.
 - New HAL seam: `src/hal/<area>/` + `include/tessera/hal/<area>/`; the HAL never includes
   `src/runtime/`.
 - New GPU backend: `src/rendering/backend/<api>/`; add a null fallback/test first.
-- New compiler pass: `src/compiler/{analyzer,rules,ir,codegen}/`; IR is the only codegen input.
-- New service: `src/services/<name>/`; async, cancellable, no UI blocking.
+- New compiler pass: `src/compiler/{analyzer,rules,ir,codegen}/`; IR is the only codegen input.- New service: `src/services/<name>/`; async, cancellable, no UI blocking.
 - New diagnostic sink: `src/diagnostics/<area>/`; bounded and redacted.
 - New test: UI/compiler in `tests/unit/<area>_tests.cpp`; GPU in `tests/gpu/<area>/` +
   `tests/gpu/CMakeLists.txt`.
@@ -228,9 +225,10 @@ merger prototype.
 
 ## 6. Ownership rules
 
-- The compiler owns everything outside [protected regions](../reference/glossary.md); developers own inside them.
-- Generated files are never edited outside `[DEVELOPER_LOGIC_START/END]`.
-- The [binding manifest](../reference/glossary.md) is the source of truth for binding ids.
+- The generator owns the [generated base](../reference/glossary.md); the developer owns the
+  [developer class](../reference/glossary.md) and the generator never rewrites it (ADR-040).
+- Generated `<Component>.g.hpp` files are never edited and never committed.
+- The [binding manifest](../reference/glossary.md) reports binding ids; it is not a merge input.
 - UI code never owns a window/swapchain; the HAL/runtime does.
 - GPU resources are owned by the device; destroy resources before the device.
 - Specs are normative; design notes explain; ADRs record contentious choices.

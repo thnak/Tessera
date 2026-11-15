@@ -28,10 +28,10 @@ Questions flagged as unblocking the next implementation round: **19** (marked `*
 - **design/compiler.md#1** — Nothing pending: jsx-subset section 18 leaves no question open, and the hook manifest plus its two V1 hooks are fixed. _resolved; jsx-subset-v1.md sections 7.1 and 18; ADR-036._
 - **design/compiler.md#2** — already decided: front-end recovery mode skips to the next top-level item, keeps the last valid IR per component, and is never used by codegen. _resolved; jsx-subset-v1.md section 14; ADR-037 item 3._
 - **design/compiler.md#3** — No source maps in V1: IR spans are the only TSX-to-C++ mapping and generated C++ carries no #line directives. _resolved; ir-v1.md section 8 (V1 omits #line); ir-v1.md section 14._
-- **design/compiler.md#4** — Component-level incrementality: hash component source plus config and versions, skip unchanged components; no node-level regeneration. _resolved; compiler.md section 9; the CLI already byte-compares merged output._
+- **design/compiler.md#4** — Component-level incrementality: hash component source plus config and versions, skip unchanged components; no node-level regeneration. _resolved; compiler.md section 9; the CLI compares the generated base byte-for-byte._
 - **design/compiler.md#5** — V1 keeps exact, explicit dependency arrays and rejects missing or extra deps; no inferred-dependency analysis. _resolved; component-model-v1.md section 2; jsx-ir-lowering.md effect-deps row._
 - **design/compiler.md#6** — Fail fast: the CLI stops at the first error (exit 1) and emits no partial C++; tolerant recovery exists only in the designer. _resolved; jsx-subset-v1.md sections 14 and 15; compiler.md sections 2 and 10._
-- **design/compiler.md#7** — No migration tool in V1: renaming a bind:: id is a manual reviewed edit plus a full regeneration; the merger warns on orphaned regions. _resolved; ADR-008; compiler.md section 8 merger rules._
+- **design/compiler.md#7** — No migration tool in V1: renaming a bind:: id is a manual reviewed edit of the TSX marker and the developer-class member plus a rebuild; the compiler reports a mismatch. _resolved; ADR-040; compiler.md section 8 binding checks._
 **[`docs/specs/jsx-subset-v1.md`](../specs/jsx-subset-v1-jsx.md#18-open-questions-no-decision-yet)**
 
 - **specs/jsx-subset-v1.md#1** — No open question: every listed topic is already decided, so this round changes nothing here. _resolved; jsx-subset-v1.md section 18 states Still open: None; manifest format in section 7.1._

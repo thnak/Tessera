@@ -86,7 +86,7 @@ vendored `third_party/{stb,volk,vma}`.
 | `vulkan_offscreen_poc` | Vulkan 1.3 dynamic rendering, readback, PNG output, no window/swapchain |
 | `batched2d_poc --backend vulkan` | RHI + batched 2D (solid/SDF/textured quads, clip/transform stacks) |
 | `batched2d_poc --backend null` | Same scene without a GPU; deterministic command stats |
-| `merger_poc` | Protected-region (developer C++ block that survives regeneration) merge/idempotency prototype |
+| `tessera_codegen` | Codegen CLI: `.tsx` -> IR -> the ADR-040 generated base plus developer scaffold |
 
 Reference image: [`docs/images/batched2d.png`](../images/batched2d.png).
 
@@ -108,12 +108,12 @@ ctest --preset vs2026-release
 
 Current tests:
 
-- `merger_unit` — protected-region extract/merge/idempotency
+- `codegen_base` — generated-base shape/golden, scaffold, missing/unused binding reports
 - `rhi_null` — null device command stats
 - `scene_graph` — hit testing, capture/target/bubble, stop propagation
 - `batched2d` — batch/vertex counts on the null backend (the RHI backend that records commands without a GPU)
 - `batched2d_vulkan_smoke` — Vulkan 1.3 smoke render
-- `merger_cli_help`, `merger_cli_idempotent`
+- `codegen_cli`
 
 ## 4. Troubleshooting
 
@@ -147,6 +147,7 @@ a currently runnable CLI.
 ## 6. Next steps
 
 - Read [`docs/README.md`](../README.md) and [`architecture/overview.md`](../architecture/overview.md).
-- Read [`developer-workflow.md`](developer-workflow.md) (protected regions and regeneration) before editing generated code.
+- Read [`developer-workflow.md`](developer-workflow.md) (generated base, developer class and
+  regeneration) before editing generated code.
 - Read [`testing.md`](testing.md) before adding tests.
 - Read [`packaging.md`](packaging.md) before shipping a binary.

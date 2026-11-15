@@ -19,7 +19,7 @@ same engine for coding agents (MCP).
 Not in scope: the production app (V1 compiles to native C++/Vulkan), the native inspector
 ([devtools-protocol-v1.md](devtools-protocol-v1.md)), a hosted compile service or any server-side
 code, multi-user collaboration, OS emulation (the engine is real; the device frame is only a
-simulation), editing C++ or protected regions ([ADR-008](../../decisions/ADR-008-protected-regions-and-manifest.md)),
+simulation), editing C++ ([ADR-040](../../decisions/ADR-040-generated-base-and-developer-class.md)),
 and using Tessera itself to render the studio's own chrome.
 
 ## 2. Deployment model
@@ -240,8 +240,8 @@ thermal simulation, and animation timeline scrubbing.
   drag-and-drop of a zip (all browsers); a directory previously imported into OPFS.
 - **Accepted files**: `tessera.json`, `.tsx`/`.jsx`, `.css`, theme JSON, and the fonts/images listed
   in `tessera.json`. Other files are shown read-only with a lock badge and are never sent to the
-  viewer. C++ and generated files are read-only; protected regions are never edited
-  ([ADR-008](../../decisions/ADR-008-protected-regions-and-manifest.md)).
+  viewer. C++ and generated files are read-only; the developer class is never edited
+  ([ADR-040](../../decisions/ADR-040-generated-base-and-developer-class.md)).
 - **Validation**: `tessera.json` and assets are validated by the same in-tree validator compiled to
   Wasm (`tessera_schema`); an invalid config shows a blocking panel with the JSON path instead of a
   blank preview.

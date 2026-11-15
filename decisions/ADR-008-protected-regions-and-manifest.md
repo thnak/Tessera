@@ -1,10 +1,13 @@
 # ADR-008: Protected regions, binding manifest, and idempotent merging
 
-- Status: Superseded by [ADR-040](ADR-040-generated-base-and-developer-class.md) (2026-11-11). The C++ region merge path remains in the code until the
-  ADR-040 migration lands; keep it working but do not extend it.
+- Status: Superseded by [ADR-040](ADR-040-generated-base-and-developer-class.md) (2026-11-11). The
+  region merge path, the merger library and the `[DEVELOPER_LOGIC_*]` markers are gone from the
+  code; the one path is a generated `<Component>.g.hpp` base plus a developer-owned class.
 - Date: 2026-11-07
 - Related: [ADR-007](ADR-007-compiler-ir.md) (compiler intermediate representation)
-- Evidence: `tessera_merger` + `merger_poc` (a proof-of-concept merger library and command-line tool built in Phase 0); unit and CLI (command-line interface) tests verify idempotency.
+- Evidence: `tessera_merger` + `merger_poc` (a proof-of-concept merger library and command-line tool
+  built in Phase 0, retired with the ADR-040 migration); unit and CLI (command-line interface) tests
+  verified idempotency while it existed.
 
 ## Context
 

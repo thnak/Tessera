@@ -17,7 +17,7 @@ audits: [`lighthouse-audit-v1.md`](../specs/lighthouse-audit-v1.md).
 
 | Layer | What | Runs |
 |---|---|---|
-| Unit | pure logic, data structures, parsers, merger, layout math | every CI job |
+| Unit | pure logic, data structures, parsers, codegen goldens, layout math | every CI job |
 | Integration | module seams (HAL -> UI -> renderer; HAL = hardware/OS abstraction layer, [`hal.md`](hal.md)) | CI, fake HAL |
 | Golden | image + structural report | lavapipe/software |
 | Headless automation | scripts/actions/snapshots/traces/audits | null/software/lavapipe |
@@ -30,7 +30,7 @@ audits: [`lighthouse-audit-v1.md`](../specs/lighthouse-audit-v1.md).
 
 | Test | Covers |
 |---|---|
-| `merger_unit` | protected-region merger (keeps developer C++ across regeneration) extraction/merge/idempotency/CRLF/warnings |
+| `codegen_base` | generated `gen::<Component>Base<Self>` shape, golden, determinism; scaffold and the `TESSERA_CG_MISSING_BINDING`/`TESSERA_CG_BINDING_UNUSED` reports |
 | `rhi_null` | null device command stats, buffer round-trip |
 | `scene_graph` | world bounds, deep hit testing, capture/target/bubble, stop propagation |
 | `scene_dirty` | dirty domains, ancestor aggregation, clear/recompute, setter invalidation |
@@ -105,7 +105,7 @@ audits: [`lighthouse-audit-v1.md`](../specs/lighthouse-audit-v1.md).
 | `batched2d` | batching/vertex counts across texture/scissor changes |
 | `batched2d_vulkan_smoke` | Vulkan 1.3 dynamic rendering smoke |
 | `batched2d_vulkan_validation` | Vulkan render with validation layers |
-| `merger_cli_help`, `merger_cli_idempotent` | merger CLI behavior |
+| `codegen_cli` | CLI regeneration, `--check` drift of the generated base, developer files never rewritten |
 
 Run:
 
@@ -213,8 +213,8 @@ command/validation structure; lavapipe/software covers pixels; real GPUs are smo
 
 ## 13. Status
 
-- B1: unit + Vulkan smoke + merger CLI.
+- B1: unit + Vulkan smoke.
 - B2: style/layout/text/input/loop/dirty/pacing/async/diagnostics tests; first goldens.
 - B3: window/swapchain/DPI/lifecycle/OS-event tests; multi-frame sync.
-- C: parser/IR/codegen/merger tests; generated-code compile tests.
+- C: parser/IR/codegen tests; generated-base goldens; generated-code compile tests.
 - D: Wasm/IPC/hot-reload/parity tests.

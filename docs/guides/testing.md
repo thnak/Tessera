@@ -32,7 +32,7 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 
 | Test | What it covers |
 |---|---|
-| `merger_unit` | protected-region extraction/merge/idempotency/CRLF/warnings |
+| `codegen_base` | generated `gen::<Component>Base<Self>` shape/golden/determinism, scaffold, missing/unused binding reports |
 | `rhi_null` | null backend (RHI backend with no GPU) device commands, buffer round-trip |
 | `scene_graph` | hit testing, capture/target/bubble, stop propagation |
 | `scene_dirty` | dirty domains, ancestor aggregation, clear/recompute, setter invalidation |
@@ -129,8 +129,7 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `cpu_canvas_corpus` | software-backend primitive corpus: solid quads, pixel-center edges, alpha order, textured quads, 0-size/off-canvas/1-pixel/negative geometry, negative control |
 | `cpu_canvas_scene_corpus` | sink-level corpus: nested/disjoint clip stacks, translate vs rotation AABB, rounded-rect bounds gap, damage-scissored replay == full redraw, negative control |
 | `image_diff` | RGBA8 exact/tolerant diff, mismatch ratio, size/buffer rejection |
-| `merger_cli_help` | merger CLI usage |
-| `merger_cli_idempotent` | CLI merge idempotency |
+| `codegen_cli` | CLI regeneration and `--check` drift of the generated base |
 | `automation_sha256` | FIPS 180-4 SHA-256 known-answer vectors (empty, `abc`, 448/896-bit, 1e6×`a`, binary) |
 | `automation_hash_id` | salted `hash64` UiIds, explicit `automationId` override, duplicate and collision diagnostics |
 | `automation_snapshot` | preorder snapshot order, hidden/offscreen omission, `includeHidden`, `(uiId, itemKey)` lookup |

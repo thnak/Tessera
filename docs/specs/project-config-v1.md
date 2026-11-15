@@ -4,7 +4,7 @@ Status: draft for Big Step C (compiler vertical slice, defined in
 [AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step), section "Big Steps"). Decision:
 [ADR-014](../../decisions/ADR-014-project-config-format.md) (project config format). "V1" in this
 file means the first-release scope ([AGENTS.md](../../AGENTS.md#non-negotiables) rule 8, "V1 scope discipline"). Terms
-such as binding, protected region, RHI, and golden are defined in the
+such as binding, generated base, RHI, and golden are defined in the
 [glossary](../reference/glossary.md).
 File: `tessera.json` at the project root. JSON is the source of truth; the C++ API
 `tessera::AppConfig` mirrors it.
@@ -76,7 +76,7 @@ paths are rejected.
 | `limits.maxDiagnostics` | integer | no | `100` | Front-end limit: diagnostics reported per file; greater than 0 |
 | `limits.maxComponents` | integer | no | `64` | Front-end limit: components per file; greater than 0 |
 | `styles` | string[] | no | `[]` | CSS files, relative to `tessera.json`, safe `.css` paths, at most 16, 256 KiB each and 1 MiB in all. Applied in order after the built-in default sheet, so author rules win ties. The headless harness loads them for an `--app` run (errors `StyleInvalid`, `StyleUnreadable`, `StyleTooLarge`, exit 2) |
-| `bindings.annotation` | string | no | `// Note: bind::` | Marker prefix for bindings (stable ids tying JSX logic to protected C++ regions, [ADR-008](../../decisions/ADR-008-protected-regions-and-manifest.md)) |
+| `bindings.annotation` | string | no | `// Note: bind::` | Marker prefix for bindings (stable ids naming a required member of the developer class, [ADR-040](../../decisions/ADR-040-generated-base-and-developer-class.md)) |
 | `bindings.manifest` | string | no | `generated/bindings.json` | Must stay inside `codegen.outDir` |
 
 ## `packages`
@@ -110,10 +110,8 @@ is compiled; the manifest, the check and its diagnostics are in
 | `namespace` | string | `<app.namespace>::gen` | Generated C++ namespace |
 | `language` | string | `c++23` | `c++23` only in V1 |
 | `format` | string | `clang-format` | `clang-format` or `none` (debug only) |
-| `protectedRegions` | boolean | `true` | Must be `true` outside debug |
 | `deterministic` | boolean | `true` | Must be `true` outside debug |
-| `headerSuffix` | string | `.g.h` | |
-| `sourceSuffix` | string | `.g.cpp` | |
+| `headerSuffix` | string | `.g.hpp` | Generated base header suffix (ADR-040); there is no source suffix, the base is header-only |
 
 ## `assets`
 
@@ -508,7 +506,6 @@ See [diagnostics-config-v1.md](diagnostics-config-v1.md). Key defaults:
     "namespace": "factory::gen",
     "language": "c++23",
     "format": "clang-format",
-    "protectedRegions": true,
     "deterministic": true
   },
   "assets": {

@@ -51,7 +51,8 @@ Not in scope:
 
 - Editing component props or children (no release scheduled, [`designer.md`](../design/designer.md) section 8.2).
 - Writing files from the viewer. Only the host writes files.
-- Editing developer C++ or any text inside a protected region ([ADR-008](../../decisions/ADR-008-protected-regions-and-manifest.md)).
+- Editing developer C++ (the developer class of [ADR-040](../../decisions/ADR-040-generated-base-and-developer-class.md))
+  or generated files.
 - Other transports than those of section 2.1 (for example stdio). Message content is defined here;
   the two V1 transports are defined in section 2.1.
 

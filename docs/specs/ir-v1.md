@@ -87,7 +87,7 @@ arbitrary objects/functions in state.
 
 ## 2.1 Handlers
 
-An inline setter handler ([`jsx-subset-v1.md`](jsx-subset-v1.md) section 9.2) has no protected region, so
+An inline setter handler ([`jsx-subset-v1.md`](jsx-subset-v1.md) section 9.2) needs no developer member, so
 it is an IR record of its own, referenced from `events`:
 
 ```json

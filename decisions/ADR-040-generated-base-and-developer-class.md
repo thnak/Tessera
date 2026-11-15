@@ -1,10 +1,10 @@
 # ADR-040: Generated base class plus developer-owned class instead of protected regions
 
-- Status: Accepted (2026-11-11)
+- Status: Accepted (2026-11-11); migration complete (2026-11-15, #209, #210, #218, #219)
 - Date: 2026-11-10
 - Supersedes: [ADR-008](ADR-008-protected-regions-and-manifest.md) (protected regions, binding
-  manifest, idempotent merging). The region merge path stays in the code only until the migration
-  in Follow-up lands; do not extend it.
+  manifest, idempotent merging). The region merge path, the merger library and the
+  `[DEVELOPER_LOGIC_*]` markers have been removed; this ADR is the only codegen path.
 - Related: [ADR-007](ADR-007-compiler-ir.md) (compiler IR),
   [ADR-036](ADR-036-own-jsx-frontend-and-react-like-model.md) (own front end; native handlers and
   preview bodies), [ADR-037](ADR-037-self-contained-wasm-designer.md) (Wasm designer),
@@ -133,10 +133,12 @@ developer file is written once and never touched by the generator, so there is n
 
 ## Implementation status
 
-Slice 1 (issue #157, 2026-11-13) landed the base emitter as an opt-in mode,
-`codegen::generate(module, embeds, theme, EmitMode::GeneratedBase)`, writing one header-only
-`<Component>.g.hpp` per component (`src/compiler/codegen/src/emit_base.cpp`). The legacy
-`<Component>.hpp/.cpp` path and its goldens are unchanged. What exists:
+The migration is complete (2026-11-15; issues #209, #210, #218 and #219). The generated base plus
+developer class is the **only** codegen path: there is no mode flag, no merge step and no
+`[DEVELOPER_LOGIC_*]` marker anywhere in generated output.
+
+Slice 1 (issue #157, 2026-11-13) landed the base emitter (`src/compiler/codegen/src/emit_base.cpp`),
+writing one header-only `<Component>.g.hpp` per component. What exists:
 
 - `gen::<Component>Base<Self>` as a CRTP template; every definition is an `inline` template member
   in the header; helpers live in `namespace <Component>_detail`; event and scheduler thunks are
@@ -166,27 +168,33 @@ friend, so private developer handlers work).
 Scaffold and CLI (issue #209, 2026-11-13): `codegen::scaffold(module)` returns the developer
 `<Component>.hpp/.cpp` stubs (a `final` class deriving from the base, a `friend` declaration, one
 private member per `bind::` id with its signature and a TODO body), and
-`codegen::required_bindings()` lists the members a developer class must define. The CLI takes
-`--mode base|legacy` (legacy stays the default until #210/#219 land): in base mode it regenerates
+`codegen::required_bindings()` lists the members a developer class must define. The CLI regenerates
 `<Component>.g.hpp` wholesale (no merge), writes the stubs only when the developer files do not
-exist, never edits an existing developer file, warns `TESSERA_CG_MISSING_BINDING` for a binding the
-file does not define and `TESSERA_CG_BINDING_UNUSED` for a `// bind::<id>` marker whose binding left
-the TSX; `--check` compares only the generated header. Tested by `codegen_base_tests`
-(`test_scaffold`), `codegen_cli_tests` (base block) and a build-time compile of the unedited stubs
-of the sample module (`codegen_base_fixtures_compile`).
+exist, never edits an existing developer file, reports `TESSERA_CG_MISSING_BINDING` for a binding
+the file does not define and `TESSERA_CG_BINDING_UNUSED` for a `// bind::<id>` marker whose binding
+left the TSX; `--check` compares only the generated header. Tested by `codegen_base_tests`
+(`test_scaffold`), `codegen_cli_tests` and a build-time compile of the unedited stubs of the sample
+module (`codegen_base_fixtures_compile`).
 
-Known limits, closed by the later slices: `compiler-demo` and the merger still use the legacy path (#210); documents still
-describe protected regions (#211). A child component in a parent is the child's developer class, so
-a parent's header includes `<Child>.hpp`.
+Migration (issues #210, #218 and #219, 2026-11-15): `samples/compiler-demo` and
+`samples/parity-demo` keep their developer-owned classes (`Demo.hpp/.cpp`, `Counter.hpp/.cpp`) and
+regenerate the base into the build tree; every codegen test family, every sample and every tool
+emits only the base plus the developer class. `EmitMode`, the mode parameter of
+`codegen::generate()`, the `src/compiler/merger` library, `tools/poc/merger` and its tests and
+fixtures, and the `--mode` CLI flag are deleted, so the CLI is `--write`/`--check` only. The legacy
+emitters survive only as the **text source** that `emit_base.cpp` reshapes into the header-only
+template; they are not an output of the compiler. A child component in a parent is the child's
+developer class, so a parent's header includes `<Child>.hpp`.
 
 ## Follow-up
 
 - Codegen: emit `<Component>Base<Self>`, accessors/setters, dispatch thunks, contract concept and
-  the per-binding `static_assert`; regenerate goldens in a separate reviewed change.
-- CLI: `--scaffold`, `TESSERA_CG_MISSING_BINDING`, removed-binding warning.
-- Migrate `samples/compiler-demo` and `tests/golden/codegen/demo/Demo.cpp`; then remove the C++
-  region path from the merger and update its tests.
-- On acceptance: mark ADR-008 `Superseded by ADR-040`, and update
+  the per-binding `static_assert`; regenerate goldens in a separate reviewed change. **Done.**
+- CLI: `TESSERA_CG_MISSING_BINDING`, removed-binding warning. **Done.**
+- Migrate `samples/compiler-demo` and `samples/parity-demo`; remove the C++ region path, the merger
+  and `EmitMode`. **Done** (#210, #218, #219).
+- Mark ADR-008 `Superseded by ADR-040`, and update
   [`developer-workflow.md`](../docs/guides/developer-workflow.md),
   [`compiler.md`](../docs/design/compiler.md) sections 7, 8 and 11,
   [`jsx-subset-v1.md`](../docs/specs/jsx-subset-v1.md) section 9.3, `CLAUDE.md` and `AGENTS.md`.
+  ADR-008 is marked and the docs describe the one path (#211).

@@ -185,8 +185,8 @@ source change -> hash -> viewer front end (changed components) -> IR diff
   editor applies it. The changed
   file then round-trips through the front end to the same IR and the override is cleared.
 - Undo/redo and revert-all live in the designer; uncommitted overrides are visibly marked.
-- The engine never writes files, edits only UI sources (TSX/CSS/tokens), and never touches
-  developer C++ in protected regions (ADR-008). Mutation exists only in designer builds and only
+- The engine never writes files, edits only UI sources (TSX/CSS/tokens), and never touches the
+  developer C++ class or the generated base (ADR-040). Mutation exists only in designer builds and only
   on the local machine (`docs/specs/devtools-protocol-v1.md`). Editing component props and
   children is not part of this design and has no scheduled release.
 

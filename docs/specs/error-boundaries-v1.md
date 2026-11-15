@@ -84,7 +84,7 @@ Rules:
 
 - `fallback` is required and must be a node subtree.
 - `children` is exactly one subtree in V1 (wrap siblings in a `View`).
-- `onError` is optional; if present it must resolve to a `bind::<id>` binding (a developer-owned protected region in generated C++, [ADR-008](../../decisions/ADR-008-protected-regions-and-manifest.md) (protected regions and binding manifest)).
+- `onError` is optional; if present it must resolve to a `bind::<id>` binding (a required member of the developer-owned component class, [ADR-040](../../decisions/ADR-040-generated-base-and-developer-class.md)).
 - `resetKey` is optional; any value change resets the boundary.
 - Nested boundaries are allowed; the nearest boundary catches first.
 - The boundary itself is not painted; it does not affect layout.
