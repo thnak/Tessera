@@ -342,11 +342,17 @@ if (TESSERA_BUILD_TESTS)
             target_link_libraries(codegen_base_${_variant} PRIVATE tessera_scene)
             target_compile_features(codegen_base_${_variant} PRIVATE cxx_std_23)
         endforeach ()
+        # These three cases are *negative compile* tests: each drives the whole build for one
+        # fixture target, and all three drive the SAME build directory. Without a lock they
+        # collide when ctest runs in parallel and one fails at random -- a different member of
+        # the set each run, each passing in isolation (issue #353). One shared resource
+        # serialises only these three.
         add_test(NAME codegen_base_missing_member_fails
             COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --config $<CONFIG>
                     --target codegen_base_missing_member)
         set_tests_properties(codegen_base_missing_member_fails PROPERTIES
-            PASS_REGULAR_EXPRESSION "TESSERA_CG_MISSING_BINDING: component .Sample. needs .void sync")
+            PASS_REGULAR_EXPRESSION "TESSERA_CG_MISSING_BINDING: component .Sample. needs .void sync"
+            RESOURCE_LOCK tessera_codegen_negative_build)
         # The generator tool runs on the HOST at build time, so a cross-compiling build (Android,
         # iOS) skips the fixture compile, like the compiler demo above; the host lanes cover it.
         if (NOT CMAKE_CROSSCOMPILING)
@@ -409,12 +415,14 @@ if (TESSERA_BUILD_TESTS)
             COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --config $<CONFIG>
                     --target codegen_base_private_field)
         set_tests_properties(codegen_base_private_field_fails PROPERTIES
-            PASS_REGULAR_EXPRESSION "state_count_.*private|private.*state_count_")
+            PASS_REGULAR_EXPRESSION "state_count_.*private|private.*state_count_"
+            RESOURCE_LOCK tessera_codegen_negative_build)
         add_test(NAME codegen_base_wrong_signature_fails
             COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --config $<CONFIG>
                     --target codegen_base_wrong_signature)
         set_tests_properties(codegen_base_wrong_signature_fails PROPERTIES
-            PASS_REGULAR_EXPRESSION "TESSERA_CG_MISSING_BINDING: component .Sample. needs .void on_click")
+            PASS_REGULAR_EXPRESSION "TESSERA_CG_MISSING_BINDING: component .Sample. needs .void on_click"
+            RESOURCE_LOCK tessera_codegen_negative_build)
     endif ()
 
     add_executable(codegen_layering_tests
