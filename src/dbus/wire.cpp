@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-#include "tessera/ui/accessibility/dbus_wire.hpp"
+#include "tessera/dbus/wire.hpp"
 
 #include <bit>
 #include <cstring>
 
-namespace tessera::ui::a11y {
+namespace tessera::dbus {
 namespace {
 
 struct TypeRow {
@@ -475,4 +475,4 @@ std::expected<void, WireError> MessageWriter::end_message() {
     return {};
 }
 
-} // namespace tessera::ui::a11y
+} // namespace tessera::dbus

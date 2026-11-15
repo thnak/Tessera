@@ -4,19 +4,17 @@
 # metadata, computed style, focus, and scroll state into a bounded, deterministic flat snapshot,
 # then serves it over an in-tree AT-SPI2 D-Bus client. No platform API is called here; bridges
 # consume the snapshot later.
+#
+# The D-Bus client itself (address parsing, SASL, the wire codec, the transport seam) is the
+# bottom-level `tessera_dbus` target in src/dbus: the HAL's Linux appearance watcher observes
+# `org.freedesktop.portal.Settings` through the same client, and the HAL may not depend on this
+# UI-layer library. This target links it and uses its types directly.
 
 find_package(Threads REQUIRED)
 
 set(TESSERA_A11Y_SOURCES
     a11y_roles.cpp
     a11y_tree.cpp
-    dbus_address.cpp
-    dbus_transport.cpp
-    dbus_unix_transport.cpp
-    dbus_wire.cpp
-    dbus_reader.cpp
-    dbus_message.cpp
-    dbus_auth.cpp
     atspi_mapping.cpp
     atspi_events.cpp
     atspi_bridge.cpp
@@ -58,6 +56,7 @@ target_include_directories(tessera_accessibility PUBLIC
     ${PROJECT_SOURCE_DIR}/include)
 
 target_link_libraries(tessera_accessibility PUBLIC
+    tessera_dbus
     tessera_scene
     tessera_style
     tessera_schema

@@ -4,7 +4,7 @@
 // UNIX-fd negotiation, partial-line buffering, and the bounded line cap.
 
 #include "a11y_dbus_test_support.hpp"
-#include "tessera/ui/accessibility/dbus_auth.hpp"
+#include "tessera/dbus/auth.hpp"
 
 #include <string>
 #include <vector>
@@ -12,13 +12,13 @@
 namespace {
 
 using namespace a11y_dbus_test;
-using tessera::ui::a11y::AuthClient;
-using tessera::ui::a11y::AuthError;
-using tessera::ui::a11y::AuthPhase;
-using tessera::ui::a11y::current_uid;
-using tessera::ui::a11y::external_identity;
-using tessera::ui::a11y::kMaxAuthLineBytes;
-using tessera::ui::a11y::to_string;
+using tessera::dbus::AuthClient;
+using tessera::dbus::AuthError;
+using tessera::dbus::AuthPhase;
+using tessera::dbus::current_uid;
+using tessera::dbus::external_identity;
+using tessera::dbus::kMaxAuthLineBytes;
+using tessera::dbus::to_string;
 
 std::string feed(AuthClient& client, std::string_view text) {
     std::vector<std::uint8_t> out;

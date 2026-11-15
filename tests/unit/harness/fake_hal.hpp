@@ -123,6 +123,22 @@ public:
     [[nodiscard]] std::size_t cursor_requests() const noexcept;
 
     // --- display capabilities (docs/specs/os-events-v1.md section 2, ADR-023 rules 4 and 7) -----
+    // The OS appearance snapshot (issue #187). It is the same normalized value a real platform
+    // reports, so the app driver's `ThemeChanged`/`SystemSettingsChanged` handling is tested
+    // without a desktop: `set_appearance` records a change and queues the event the platform would
+    // send.
+    [[nodiscard]] hal::AppearancePreference appearance() const noexcept override {
+        return appearance_;
+    }
+    // Records the new snapshot and queues the normalized event. `measured` models a platform that
+    // answered; the default `AppearancePreference` is the documented fallback with both
+    // assumptions.
+    void set_appearance(hal::AppearancePreference appearance);
+    // Records the snapshot WITHOUT queueing an event, so a test can prove the host only reacts to
+    // the event (the platform's "re-read at the tick boundary" contract).
+    void seed_appearance(hal::AppearancePreference appearance) noexcept;
+
+    // --- display capabilities (docs/specs/os-events-v1.md section 2, ADR-023 rules 4 and 7) -----
     // Sets the display the window is on and the refresh/VRR the platform reports. `assumed` models
     // the documented fallback (a platform that cannot report the capability): the metrics keep
     // kAssumedDisplayRefreshHz/kAssumedDisplayScale and set the matching flag, which is what a
@@ -155,6 +171,9 @@ private:
 
     hal::WindowMetrics metrics_;
     std::deque<hal::WindowEvent> events_;
+    // The OS appearance snapshot the fake reports (issue #187); the documented fallback until a
+    // test scripts one, which is exactly what a platform with no settings source answers.
+    hal::AppearancePreference appearance_;
     // The per-monitor topology `displays()` reports; a fake with no topology source leaves it empty
     // and reports 0, which is the documented "no per-monitor information" answer.
     std::array<hal::DisplayInfo, hal::kMaxDisplays> displays_{};

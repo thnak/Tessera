@@ -2,10 +2,10 @@
 
 #pragma once
 
+#include "tessera/dbus/wire.hpp"
 #include "tessera/ui/accessibility/a11y_tree.hpp"
 #include "tessera/ui/accessibility/atspi_events.hpp"
 #include "tessera/ui/accessibility/atspi_mapping.hpp"
-#include "tessera/ui/accessibility/dbus_wire.hpp"
 
 #include <array>
 #include <atomic>
@@ -19,6 +19,22 @@
 #include <vector>
 
 namespace tessera::ui::a11y {
+
+// The D-Bus wire codec lives in the bottom-level `tessera_dbus` target (src/dbus) so the HAL's
+// Linux appearance watcher can share it without the HAL depending on this UI-layer library. The
+// bridge's own surface is written in terms of these types, so they are re-exported here: a caller
+// that dispatches a message through `AtspiBridge` needs the codec's errors/reader/writer anyway,
+// and one spelling keeps this header's contract stable for the bridge's tests.
+using tessera::dbus::kMaxWireBody;
+using tessera::dbus::kMaxWireFieldBytes;
+using tessera::dbus::kMaxWireMessage;
+using tessera::dbus::MessageHeader;
+using tessera::dbus::MessageReader;
+using tessera::dbus::MessageType;
+using tessera::dbus::MessageWriter;
+using tessera::dbus::parse_message;
+using tessera::dbus::ParsedMessage;
+using tessera::dbus::WireError;
 
 // AT-SPI2 bridge core (docs/specs/accessibility-v1.md section 7, docs/design/accessibility.md
 // section 3). It turns the immutable semantics snapshot into the six interfaces an assistive

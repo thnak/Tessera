@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "tessera/ui/accessibility/dbus_address.hpp"
+#include "tessera/dbus/address.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -11,7 +11,7 @@
 #include <span>
 #include <vector>
 
-namespace tessera::ui::a11y {
+namespace tessera::dbus {
 
 // Transport seam for the AT-SPI2 D-Bus client (docs/specs/accessibility-v1.md section 7). The D-Bus
 // client speaks bytes; this interface is the only place that knows about sockets. Two
@@ -99,4 +99,4 @@ private:
 // "accessibility unavailable" and keeps the app running.
 [[nodiscard]] std::unique_ptr<Transport> create_unix_socket_transport();
 
-} // namespace tessera::ui::a11y
+} // namespace tessera::dbus

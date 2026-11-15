@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "tessera/hal/appearance.hpp"
 #include "tessera/hal/window_backdrop.hpp"
 
 #include <cstddef>
@@ -71,5 +72,13 @@ struct MediaQueryParseResult {
 MediaQueryParseResult parse_media_query_list(std::string_view text);
 bool evaluate(const MediaQuery& query, const MediaContext& context);
 bool evaluate(const MediaQueryList& queries, const MediaContext& context);
+
+// Folds the OS appearance snapshot into a media context: `prefers-color-scheme` follows the
+// resolved color scheme and `prefers-reduced-motion` the reduced-motion flag (issue #187). It is
+// the one place the HAL's normalized preference becomes CSS, so the mapping is tested directly and
+// no host has to re-derive it. Everything else in `context` is left as the caller set it (viewport,
+// resolution, backdrop), because those come from the window metrics, not the settings.
+[[nodiscard]] MediaContext with_appearance(MediaContext context,
+                                           const hal::AppearancePreference& appearance) noexcept;
 
 } // namespace tessera::ui::style

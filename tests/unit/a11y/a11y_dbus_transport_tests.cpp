@@ -4,7 +4,7 @@
 // factory contract (POSIX sockets exist on Linux only).
 
 #include "a11y_dbus_test_support.hpp"
-#include "tessera/ui/accessibility/dbus_transport.hpp"
+#include "tessera/dbus/transport.hpp"
 
 #include <array>
 #include <memory>
@@ -14,13 +14,13 @@
 namespace {
 
 using namespace a11y_dbus_test;
-using tessera::ui::a11y::BusAddress;
-using tessera::ui::a11y::BusTransport;
-using tessera::ui::a11y::create_unix_socket_transport;
-using tessera::ui::a11y::kMaxLoopbackBytes;
-using tessera::ui::a11y::LoopbackTransport;
-using tessera::ui::a11y::Transport;
-using tessera::ui::a11y::TransportError;
+using tessera::dbus::BusAddress;
+using tessera::dbus::BusTransport;
+using tessera::dbus::create_unix_socket_transport;
+using tessera::dbus::kMaxLoopbackBytes;
+using tessera::dbus::LoopbackTransport;
+using tessera::dbus::Transport;
+using tessera::dbus::TransportError;
 
 struct Pair {
     std::unique_ptr<LoopbackTransport> client;

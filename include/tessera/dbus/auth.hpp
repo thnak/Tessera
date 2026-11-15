@@ -10,7 +10,7 @@
 #include <string_view>
 #include <vector>
 
-namespace tessera::ui::a11y {
+namespace tessera::dbus {
 
 // D-Bus SASL authentication, client side (docs/specs/accessibility-v1.md section 7). The AT-SPI2
 // bus only needs the EXTERNAL mechanism: the client's identity is the hex-encoded decimal user id,
@@ -103,4 +103,4 @@ private:
     AuthError error_ = AuthError::None;
 };
 
-} // namespace tessera::ui::a11y
+} // namespace tessera::dbus

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-#include "tessera/ui/accessibility/dbus_auth.hpp"
+#include "tessera/dbus/auth.hpp"
 
 #include <utility>
 
@@ -8,7 +8,7 @@
 #include <unistd.h>
 #endif
 
-namespace tessera::ui::a11y {
+namespace tessera::dbus {
 namespace {
 
 char hex_digit(unsigned int value) {
@@ -194,4 +194,4 @@ std::expected<AuthPhase, AuthError> AuthClient::consume(std::span<const std::uin
     return phase_;
 }
 
-} // namespace tessera::ui::a11y
+} // namespace tessera::dbus

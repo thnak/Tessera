@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 
-#include "tessera/ui/accessibility/dbus_address.hpp"
+#include "tessera/dbus/address.hpp"
 
 #include <cstdlib>
 #include <optional>
 #include <string>
 #include <string_view>
 
-namespace tessera::ui::a11y {
+namespace tessera::dbus {
 namespace {
 
 // Bytes that may appear unescaped in an address value. The D-Bus grammar allows the ASCII
@@ -307,4 +307,4 @@ std::string_view to_string(AddressError error) {
     return "unknown";
 }
 
-} // namespace tessera::ui::a11y
+} // namespace tessera::dbus

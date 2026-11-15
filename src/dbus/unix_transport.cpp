@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-#include "tessera/ui/accessibility/dbus_transport.hpp"
+#include "tessera/dbus/transport.hpp"
 
 #if defined(__linux__)
 
@@ -13,7 +13,7 @@
 #include <sys/un.h>
 #include <unistd.h>
 
-namespace tessera::ui::a11y {
+namespace tessera::dbus {
 namespace {
 
 // Plain SOCK_STREAM UNIX socket. The bridge only ever calls this from its own thread, so a blocking
@@ -139,11 +139,11 @@ std::unique_ptr<Transport> create_unix_socket_transport() {
     return std::make_unique<UnixSocketTransport>();
 }
 
-} // namespace tessera::ui::a11y
+} // namespace tessera::dbus
 
 #else
 
-namespace tessera::ui::a11y {
+namespace tessera::dbus {
 
 // No UNIX-domain sockets on this platform (Windows uses its own bus transport, out of scope for the
 // Linux AT-SPI2 bridge). The bridge treats nullptr as "accessibility unavailable".
@@ -151,6 +151,6 @@ std::unique_ptr<Transport> create_unix_socket_transport() {
     return nullptr;
 }
 
-} // namespace tessera::ui::a11y
+} // namespace tessera::dbus
 
 #endif

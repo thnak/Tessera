@@ -284,6 +284,22 @@ target_link_libraries(app_host_tests PRIVATE tessera_app tessera_runtime)
 
 add_test(NAME app_host COMMAND app_host_tests)
 
+# The host half of issue #187's acceptance: "the host updates reducedMotion and the media queries".
+# It drives the real AppHost with a media-independent prepared sheet (ADR-048's resolve step) and
+# asserts both `reducedMotion` reaching the animation/spring runtimes and the
+# `prefers-color-scheme`/`prefers-reduced-motion` evaluation moving with `set_appearance`, plus the
+# fake window's normalized ThemeChanged/SystemSettingsChanged seam. Deterministic: ManualClock,
+# ManualExecutor-free, no bus, no desktop.
+add_executable(app_host_appearance_tests
+    app_host_appearance_tests.cpp)
+
+target_link_libraries(app_host_appearance_tests PRIVATE
+    tessera_app
+    tessera_runtime
+    tessera_harness_testing)
+
+add_test(NAME app_host_appearance COMMAND app_host_appearance_tests)
+
 # Embedded stylesheet registration (issue #81, ADR-048): blobs load in table (import-graph) order,
 # a later sheet wins an equal cascade key, and a corrupt blob is reported and skipped. Painting goes
 # through a deterministic CPU sink; no GPU, font or wall clock.
@@ -497,6 +513,20 @@ add_executable(window_cursor_tests
 target_link_libraries(window_cursor_tests PRIVATE tessera_style)
 
 add_test(NAME window_cursor COMMAND window_cursor_tests)
+
+# The OS appearance model and the freedesktop settings-portal rules (issue #187, os-events-v1.md
+# sections 2 and 5): the normalized color-scheme/reduced-motion snapshot and its documented
+# fallbacks with assumption bits, the portal value mapping (including the enable-animations
+# inversion), the `Read` reply and `SettingChanged` decoders built with the real message writer, and
+# the GTK settings.ini fallback. Pure CPU with no bus, socket, clock or desktop, so it runs
+# identically on the Windows and Linux gating lanes; the live portal path is covered by
+# `appearance_portal` over a deterministic loopback bus.
+add_executable(hal_appearance_tests
+    hal_appearance_tests.cpp)
+
+target_link_libraries(hal_appearance_tests PRIVATE tessera_hal_window tessera_dbus)
+
+add_test(NAME hal_appearance COMMAND hal_appearance_tests)
 
 if (WIN32)
     add_executable(window_win32_tests

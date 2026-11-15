@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-#include "tessera/ui/accessibility/dbus_wire.hpp"
+#include "tessera/dbus/wire.hpp"
 
 #include <bit>
 #include <cstring>
 
-namespace tessera::ui::a11y {
+namespace tessera::dbus {
 namespace {
 
 std::expected<void, WireError> skip_single(MessageReader& reader, std::string_view signature,
@@ -444,4 +444,4 @@ std::expected<void, WireError> MessageReader::skip_value(std::string_view signat
     return skip_single(*this, signature, 0);
 }
 
-} // namespace tessera::ui::a11y
+} // namespace tessera::dbus

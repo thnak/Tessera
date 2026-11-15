@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 
-#include "tessera/ui/accessibility/dbus_transport.hpp"
+#include "tessera/dbus/transport.hpp"
 
 #include <algorithm>
 #include <deque>
 #include <mutex>
 #include <utility>
 
-namespace tessera::ui::a11y {
+namespace tessera::dbus {
 namespace {
 constexpr std::size_t kEndpointCount = 2;
 } // namespace
@@ -120,4 +120,4 @@ void LoopbackTransport::shutdown() {
     pipe_->open[1] = false;
 }
 
-} // namespace tessera::ui::a11y
+} // namespace tessera::dbus

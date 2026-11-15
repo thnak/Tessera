@@ -29,6 +29,8 @@
 
 #include "window_display_win.hpp"
 
+#include <cwchar>
+
 namespace tessera::hal::detail {
 namespace {
 
@@ -40,7 +42,7 @@ constexpr GUID kMonitorDeviceInterface{
 
 } // namespace
 
-DisplayMessage classify_win32_display_message(UINT message, WPARAM wparam) noexcept {
+DisplayMessage classify_win32_display_message(UINT message, WPARAM wparam, LPARAM lparam) noexcept {
     DisplayMessage result;
     switch (message) {
     case WM_DISPLAYCHANGE:
@@ -63,6 +65,20 @@ DisplayMessage classify_win32_display_message(UINT message, WPARAM wparam) noexc
             result.event = WindowEventType::SystemSettingsChanged;
             result.reason = EventReason::System;
             return result;
+        }
+        if (wparam == 0 && lparam != 0) {
+            // `WM_SETTINGCHANGE` also broadcasts the Windows 10/11 app-mode change as an
+            // `ImmersiveColorSet` area string, which is what a light/dark switch sends. The area is
+            // a UTF-16 string in `lparam`, so it is compared rather than acted on: the app re-reads
+            // `Window::appearance()` at the tick boundary, exactly like the animation toggle.
+            const auto* const area = reinterpret_cast<const wchar_t*>(lparam);
+            if (::wcscmp(area, L"ImmersiveColorSet") == 0) {
+                result.handled = true;
+                result.forward = true;
+                result.event = WindowEventType::ThemeChanged;
+                result.reason = EventReason::System;
+                return result;
+            }
         }
         if (wparam == SPI_SETWORKAREA) {
             // A taskbar/dock moved or resized: the display's usable area is stale.

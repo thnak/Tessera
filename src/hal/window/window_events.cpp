@@ -51,6 +51,10 @@ constexpr std::array<WindowEventInfo, kWindowEventTypeCount> kWindowEvents{{
     {false, OsEventType::DisplayRemoved, "DisplayRemoved"},
     {true, OsEventType::DisplayChanged, "DisplayChanged"},
     {true, OsEventType::ScaleChanged, "ScaleChanged"},
+    // The OS color-scheme preference changed (issue #187). Like the settings broadcast above it
+    // carries no value: the owner re-reads `Window::appearance()` at the tick boundary, so a
+    // platform never has to put a theme inside a window event.
+    {false, OsEventType::ThemeChanged, "ThemeChanged"},
 }};
 
 constexpr bool window_names_are_unique() {

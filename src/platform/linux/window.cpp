@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "appearance_portal.hpp"
 #include "tessera/hal/os_event.hpp"
 #include "tessera/hal/timer/steady_time.hpp"
 #include "tessera/hal/window.hpp"
@@ -71,6 +72,11 @@ public:
         return WindowSystem::Xlib;
     }
     [[nodiscard]] double display_refresh_hz() const noexcept override;
+    // OS appearance preferences (issue #187): the color scheme and reduced motion the desktop's
+    // settings report. The value is kept by a watcher thread (one D-Bus connection, off the frame
+    // path), and a change arrives as `ThemeChanged` from `poll_events`; this read is an atomic
+    // load.
+    [[nodiscard]] AppearancePreference appearance() const noexcept override;
     std::size_t displays(std::span<DisplayInfo> displays) const override {
         return detail::query_x11_displays(display_, root_, displays);
     }
@@ -130,6 +136,10 @@ private:
     Atom wm_delete_window_ = 0;
     std::thread::id owner_thread_ = std::this_thread::get_id();
     EventQueue events_;
+    // The OS appearance source (issue #187): one D-Bus connection and one worker thread, owned by
+    // the window so its lifetime is the connection's. Declared before the input members so it is
+    // destroyed after them, which keeps a slow bus shutdown from delaying event teardown.
+    std::unique_ptr<detail::AppearancePortal> appearance_;
     X11InputTranslator input_;
     X11Xi2Pump xi2_;
     XIM input_method_ = nullptr;
@@ -242,10 +252,22 @@ bool X11Window::create(const WindowDesc& desc) {
     initializing_ = false;
     events_.clear();
     redraw_pending_ = false;
+    // The OS appearance source (issue #187) starts last: the window is fully created, so its first
+    // published snapshot has somewhere to land, and the D-Bus connect happens on the watcher's own
+    // thread, never here (ADR-021). A session with no portal leaves the documented fallback.
+    appearance_ = std::make_unique<detail::AppearancePortal>();
+    appearance_->start();
     return true;
 }
 
 X11Window::~X11Window() {
+    // The appearance watcher goes first: it owns a thread and a socket, and it must be joined while
+    // this object is still alive. `stop()` signals and joins a thread whose reads are already
+    // bounded by the transport's poll timeout, so shutdown cannot hang on a dead bus.
+    if (appearance_ != nullptr) {
+        appearance_->stop();
+        appearance_.reset();
+    }
     if (display_ == nullptr) {
         return;
     }
@@ -320,6 +342,16 @@ double X11Window::display_refresh_hz() const noexcept {
     // the present cap keeps its configured value.
     return kUnknownRefreshHz;
 #endif
+}
+
+// The appearance snapshot is an atomic load of the watcher's published word: no platform call, no
+// lock, no allocation, so it is safe on the frame path (ADR-021). A window whose watcher never
+// started answers the documented fallback (light / motion enabled, both recorded as assumed).
+AppearancePreference X11Window::appearance() const noexcept {
+    if (appearance_ == nullptr) {
+        return assumed_appearance();
+    }
+    return appearance_->snapshot();
 }
 
 void X11Window::enqueue(WindowEventType type, EventReason reason) {
@@ -537,6 +569,13 @@ bool X11Window::has_pending_events() const {
 
 std::size_t X11Window::poll_events(std::span<WindowEvent> events) {
     pump(false);
+    // The appearance watcher reports its change on its own thread; this is where it becomes a
+    // normalized window event, at the poll boundary, exactly like a Win32 settings broadcast. The
+    // compare-and-clear means one event per observed change, and the event carries no value: the
+    // owner re-reads `appearance()` (the rule the Win32 path already follows).
+    if (appearance_ != nullptr && appearance_->take_change()) {
+        enqueue(WindowEventType::ThemeChanged, EventReason::System);
+    }
     const std::size_t copied = events_.copy_to(events);
     for (std::size_t i = 0; i < copied; ++i) {
         if (events[i].type == WindowEventType::Close) {

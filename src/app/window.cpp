@@ -107,9 +107,18 @@ WindowHost::Impl::Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet,
     config.height = static_cast<float>(metrics.logical_height);
     config.dpi_scale = metrics.dpi_scale;
     config.text_measurer = detail::layout_measurer(options.text_measurer, *text);
-    config.reduced_motion = system_prefers_reduced_motion();
+    // The OS appearance (issue #187) is read once from the platform window, which is the one
+    // normalized source for both preferences on every backend: Windows answers from
+    // SPI_GETCLIENTAREAANIMATION + AppsUseLightTheme, Linux from the settings portal (or the GTK
+    // fallback) through its watcher. A platform with neither returns the documented fallback with
+    // both assumptions set, so this never blocks and never guesses.
+    const hal::AppearancePreference appearance = window->appearance();
+    config.appearance = appearance;
+    config.reduced_motion = appearance.reduced_motion || system_prefers_reduced_motion();
     config.pipeline = window_pipeline_config(options.runtime);
     config.adaptive_quality = window_adaptive_quality_policy(options.runtime, options.refresh_hz);
+    // The startup preference is recorded once so a later broadcast only moves the host when the
+    // value actually changed (Win32 broadcasts settings for unrelated changes too).
     motion = MotionPreference(config.reduced_motion);
     host = std::make_unique<AppHost>(root, std::move(sheet), *loop, config);
     // The first insets apply at once, so a SafeArea never animates in from zero on startup.

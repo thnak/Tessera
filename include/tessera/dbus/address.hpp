@@ -8,7 +8,7 @@
 #include <string>
 #include <string_view>
 
-namespace tessera::ui::a11y {
+namespace tessera::dbus {
 
 // D-Bus server address parsing (docs/specs/accessibility-v1.md section 7). The AT-SPI2 bridge
 // speaks the D-Bus wire protocol directly (ADR-012: no libatspi/glib), so it has to resolve the
@@ -88,4 +88,4 @@ session_bus_address(const SessionEnvironment& environment);
 // Stable lowercase names for diagnostics and test failures.
 [[nodiscard]] std::string_view to_string(AddressError error);
 
-} // namespace tessera::ui::a11y
+} // namespace tessera::dbus

@@ -347,4 +347,16 @@ bool evaluate(const MediaQueryList& queries, const MediaContext& context) {
     return false;
 }
 
+MediaContext with_appearance(MediaContext context,
+                             const hal::AppearancePreference& appearance) noexcept {
+    // The HAL has already decided what the preference MEANS (its `resolve_color_scheme` applies the
+    // documented light fallback and records it as an assumption), so the stylesheet sees one value
+    // and never sees a D-Bus or registry detail. `prefers-reduced-motion` is the flag itself.
+    context.color_scheme = hal::resolve_color_scheme(appearance.color_scheme).dark
+                               ? ColorScheme::Dark
+                               : ColorScheme::Light;
+    context.prefers_reduced_motion = appearance.reduced_motion;
+    return context;
+}
+
 } // namespace tessera::ui::style

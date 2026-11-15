@@ -183,6 +183,69 @@ Tests: `os_event` (the pure rules and the mapping) and `os_event_display` (the s
 fake window). Both are OS-free and run on the Windows and Linux gating lanes; the real platform reads
 are covered by `window_win32`/`window_x11`.
 
+### 1.7 OS appearance: color scheme and reduced motion (implemented, Windows and Linux/X11)
+
+Issue #187 completes the settings half of ADR-023 on Linux and adds the color-scheme half on both
+platforms. The surface is `include/tessera/hal/appearance.hpp`:
+
+- `ColorSchemePreference` (`Unspecified`, `Light`, `Dark`, `NoPreference`) and
+  `AppearancePreference` (one color-scheme value plus a `reduced_motion` flag) are the normalized
+  snapshot. `Unspecified` is the "the platform did not answer" value, distinct from the portal's
+  `NoPreference` answer, and `AppearancePreference::assumed` carries one bit per field so a
+  fallback can never be read as a measurement (ADR-023 rule 7). `resolve_color_scheme` applies the
+  documented light fallback and reports whether it resolved or assumed.
+- `Window::appearance()` is the platform-neutral read. It returns the LAST measured snapshot, not a
+  query: a platform that has a settings source keeps the value current and raises an event on a
+  change, so the owner re-reads the accessor at that tick's boundary instead of polling. It is
+  required to be cheap and non-blocking (an atomic load in the Linux implementation), so it is safe
+  on the frame path.
+- The change is the existing normalized path, not a bespoke callback: `WindowEventType::ThemeChanged`
+  (new, mapping to the taxonomy's `ThemeChanged`) for a color-scheme change and the already-shipped
+  `WindowEventType::SystemSettingsChanged` for the motion toggle. Both carry no value, exactly like
+  the Win32 reduced-motion slice did, so no platform puts a preference inside a window event.
+- ADR-020 holds: no D-Bus type, portal name or registry path appears in this header or in
+  `Window::appearance()`. The portal decode is `include/tessera/hal/portal_appearance.hpp`, which
+  names the freedesktop interface only in comments; the values it decodes are the enums above.
+
+Platform halves, both of which only record:
+
+- **Windows** (`src/platform/windows/window_appearance_win.cpp`): `SPI_GETCLIENTAREAANIMATION` for
+  reduced motion (the same query the pre-existing `app::system_prefers_reduced_motion` used) and
+  `HKCU\...\Themes\Personalize\AppsUseLightTheme` for the color scheme. `WM_SETTINGCHANGE` with the
+  `ImmersiveColorSet` area and `SPI_SETCLIENTAREAANIMATION` classify to `ThemeChanged` /
+  `SystemSettingsChanged` (`window_display_messages_win.cpp`).
+- **Linux/X11** (`src/platform/linux/appearance_portal.{hpp,cpp}`): the freedesktop settings portal.
+  One worker thread owns one D-Bus connection (the in-tree client in `src/dbus`, shared with the
+  AT-SPI2 bridge), calls `org.freedesktop.portal.Settings.Read` for
+  `org.freedesktop.appearance`/{`color-scheme`, `enable-animations`}, subscribes to
+  `SettingChanged`, and publishes each new snapshot into one atomic word. `poll_events` turns the
+  watcher's compare-and-clear into the normalized event. The **fallbacks** are: the portal, then
+  GTK's `settings.ini` (`$XDG_CONFIG_HOME/gtk-3.0/settings.ini`, `gtk-enable-animations` and
+  `gtk-application-prefer-dark-theme`), then the documented light/motion-on default with both
+  assumptions set. A session with no bus, no portal or a refused call therefore keeps the default
+  and emits no event, which is what the CI box and a bare X session get.
+  `enable-animations` is **inverted**: the portal reports whether animations are allowed, the HAL
+  reports whether motion should be reduced.
+
+The app half is `AppHost::set_appearance` (`src/app/host.cpp`). The motion flag goes through the
+existing `set_reduced_motion` path (animations, springs, the scheduler, scroll clamping), and a
+color-scheme change re-resolves the SAME media-independent prepared sheet against the new
+`MediaContext` (ADR-048's resolve step), rebuilds the style generation and drops the paint cache —
+the same path a theme switch takes. `ui::style::with_appearance` is the one place the HAL snapshot
+becomes CSS (`prefers-color-scheme`, `prefers-reduced-motion`), and `AppHost::media_context` exposes
+the result. `WindowHost::apply_appearance` is the tick-boundary re-read the events drive, and a
+settings broadcast that moved nothing costs one comparison and no frame.
+
+Tests: `hal_appearance` (the normalized model, the packed handoff, the portal value mapping
+including the inversion, the `Read`/`SettingChanged` decoders built with the real `MessageWriter`
+including a big-endian body, and the GTK parser), `app_host_appearance` (the acceptance: `AppHost`
+resolves the media queries from the startup appearance, `set_appearance` moves `reducedMotion` and
+the media evaluation, and the fake window's `ThemeChanged`/`SystemSettingsChanged` seam), and
+`appearance_portal` (the absent-bus fallback and the real GTK path under `XDG_CONFIG_HOME`). All
+three are deterministic with no bus, socket, clock or desktop, so they run identically on the
+Windows and Linux gating lanes. Not exercised: a live portal on a real desktop, and a Wayland-only
+session (the Wayland backend has no appearance source yet).
+
 ## 2. Core types
 
 ```cpp

@@ -5,10 +5,10 @@
 // values for unknown interfaces, properties, and malformed bodies.
 
 #include "a11y_dbus_test_support.hpp"
+#include "tessera/dbus/wire.hpp"
 #include "tessera/ui/accessibility/atspi_bridge.hpp"
 #include "tessera/ui/accessibility/atspi_events.hpp"
 #include "tessera/ui/accessibility/atspi_mapping.hpp"
-#include "tessera/ui/accessibility/dbus_wire.hpp"
 
 #include <algorithm>
 #include <array>
@@ -22,16 +22,16 @@
 namespace {
 
 using namespace a11y_dbus_test;
+using tessera::dbus::MessageHeader;
+using tessera::dbus::MessageReader;
+using tessera::dbus::MessageType;
+using tessera::dbus::MessageWriter;
+using tessera::dbus::parse_message;
+using tessera::dbus::ParsedMessage;
 using tessera::ui::a11y::A11yNode;
 using tessera::ui::a11y::A11ySnapshot;
 using tessera::ui::a11y::AtspiBridge;
 using tessera::ui::a11y::kMaxTextBytes;
-using tessera::ui::a11y::MessageHeader;
-using tessera::ui::a11y::MessageReader;
-using tessera::ui::a11y::MessageType;
-using tessera::ui::a11y::MessageWriter;
-using tessera::ui::a11y::parse_message;
-using tessera::ui::a11y::ParsedMessage;
 using tessera::ui::a11y::Role;
 
 // Copies text into a bounded snapshot field.

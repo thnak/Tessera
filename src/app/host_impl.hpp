@@ -16,6 +16,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <span>
 #include <string>
 #include <vector>
@@ -46,7 +47,13 @@ struct AppHost::Impl {
     bool escape_swallowed = false;
     // The constructor sheet, kept so registration can rebuild the cascade; `sheet` is the active
     // one.
+    // The constructor sheet, kept so registration can rebuild the cascade; `sheet` is the active
+    // one. When the caller supplied the re-resolvable prepared form (issue #187), `base_prepared`
+    // holds it and every rebuild re-resolves it against the current media context; a caller that
+    // supplied a compiled sheet leaves it null and a color-scheme change cannot re-resolve.
     ui::style::CompiledStyleSheet base_sheet;
+    std::optional<ui::style::PreparedStyleSheet> base_prepared;
+    ui::style::Origin base_origin = ui::style::Origin::Author;
     ui::style::CompiledStyleSheet sheet;
     // The embedded sheets as loaded at registration, so a theme switch can rebuild the cascade
     // without the caller re-registering them.
@@ -73,6 +80,12 @@ struct AppHost::Impl {
     std::unique_ptr<ui::frame::FramePipeline> pipeline;
     ui::UpdateScheduler* scheduler = nullptr;
     bool reduced_motion = false;
+    // The OS appearance snapshot in force (issue #187) and the media context it produces. The
+    // stylesheet's `@media (prefers-color-scheme/...)` rules resolved against `media_context`; a
+    // color-scheme change rebuilds the cascade through `apply_style_generation`, the same path a
+    // theme switch takes, so the stylesheet never grows a second "theme changed" mechanism.
+    hal::AppearancePreference appearance{};
+    ui::style::MediaContext media_context;
     std::size_t rejected_stylesheet_count = 0;
     std::size_t rejected_theme_count = 0;
 

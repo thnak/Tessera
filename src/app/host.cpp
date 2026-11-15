@@ -183,6 +183,17 @@ AppHost::Impl::Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet, runtime
       damage(std::make_unique<rendering::DamageAccumulator>(rendering::DamageConfig{
           extent_for(config.width, config.height, config.dpi_scale), config.damage_max_rects})),
       quality_controller(quality_controller_config(config.adaptive_quality)) {
+    // The OS appearance the window reported at creation (issue #187). It must be in place BEFORE
+    // the first cascade: `@media (prefers-color-scheme)` / `(prefers-reduced-motion)` are resolved
+    // there, so a host built with the appearance applied already matches the desktop.
+    appearance = config.appearance;
+    media_context = ui::style::with_appearance(media_context, appearance);
+    // A caller that set `reduced_motion` explicitly keeps it; otherwise the OS flag is the answer.
+    // Keeping one source of truth avoids a host whose animations and media queries disagree.
+    if (config.reduced_motion) {
+        appearance.reduced_motion = true;
+    }
+    reduced_motion = appearance.reduced_motion;
     // The window root is the host's geometry: logical size plus the column flex container every
     // app content area starts from. Inline style is the outermost origin, so an app stylesheet
     // can style the root's background but never resize the window.
@@ -236,7 +247,24 @@ void AppHost::Impl::rebuild_style_tree() {
 // and the active theme's generated `:root` rule last with `Origin::Theme` (stylesheet-v1.md
 // section 9.1). The theme rule cannot win an author declaration of the same token because the
 // theme origin ranks below author, and only the active theme is present.
+//
+// Every sheet is resolved against `media_context` (issue #187): `@media (prefers-color-scheme)` and
+// `(prefers-reduced-motion)` are evaluated here, once per cascade generation, not per frame. A
+// color-scheme change therefore goes through the same rebuild a theme switch does.
 void AppHost::Impl::rebuild_cascade() {
+    // The re-resolvable form (issue #187, ADR-048 decision 2): the prepared sheet is media
+    // independent, so re-resolving the SAME data against a new `MediaContext` is how a color-scheme
+    // change is applied. `base_sheet` is the compiled copy that this then replaces.
+    if (base_prepared) {
+        ui::style::CompiledStyleSheet combined(*base_prepared, base_origin, {}, media_context);
+        for (const ui::style::PreparedStyleSheet& prepared : embedded_sheets) {
+            combined.append_sheet(prepared);
+        }
+        combined.append_sheet(ui::style::prepare_theme_stylesheet(theme_asset, active_theme_id),
+                              ui::style::Origin::Theme);
+        sheet = std::move(combined);
+        return;
+    }
     ui::style::CompiledStyleSheet combined = base_sheet;
     for (const ui::style::PreparedStyleSheet& prepared : embedded_sheets) {
         combined.append_sheet(prepared);
@@ -363,7 +391,26 @@ AppHost::AppHost(ui::Node& root, ui::style::CompiledStyleSheet sheet, runtime::R
     config.dpi_scale = checked_scale(config.dpi_scale);
     impl_ = std::make_unique<Impl>(root, std::move(sheet), loop, config);
     impl_->reduced_motion = config.reduced_motion;
-    impl_->animations.set_reduced_motion(config.reduced_motion);
+    impl_->animations.set_reduced_motion(impl_->reduced_motion);
+}
+
+// The re-resolvable constructor (issue #187): the prepared sheet is kept so a later color-scheme
+// change re-resolves the same data against the new media context instead of re-parsing CSS.
+AppHost::AppHost(ui::Node& root, const ui::style::PreparedStyleSheet& laid_out_sheet,
+                 runtime::RuntimeLoop& loop, HostConfig config, ui::style::Origin origin)
+    : impl_(nullptr) {
+    config.width = checked_extent(config.width, "width");
+    config.height = checked_extent(config.height, "height");
+    config.dpi_scale = checked_scale(config.dpi_scale);
+    // Resolve the prepared data once with the startup appearance, then keep it for every rebuild.
+    ui::style::MediaContext media;
+    media = ui::style::with_appearance(media, config.appearance);
+    ui::style::CompiledStyleSheet resolved(laid_out_sheet, origin, {}, media);
+    impl_ = std::make_unique<Impl>(root, std::move(resolved), loop, config);
+    impl_->base_prepared = laid_out_sheet;
+    impl_->base_origin = origin;
+    impl_->reduced_motion = config.reduced_motion || config.appearance.reduced_motion;
+    impl_->animations.set_reduced_motion(impl_->reduced_motion);
 }
 
 AppHost::~AppHost() {
@@ -598,6 +645,35 @@ void AppHost::set_reduced_motion(bool reduced) {
 
 bool AppHost::reduced_motion() const {
     return impl_->reduced_motion;
+}
+
+// A new OS appearance snapshot (issue #187). The reduced-motion half goes through the existing path
+// so every consumer (animations, springs, the scheduler, scroll clamping) sees it; a color-scheme
+// change re-resolves the stylesheet against the new media context, which is the ADR-048 resolve
+// step, and rebuilds the style generation exactly like a theme switch.
+void AppHost::set_appearance(const hal::AppearancePreference& appearance) {
+    Impl& state = *impl_;
+    if (hal::appearance_changed(state.appearance, appearance)) {
+        state.appearance = appearance;
+        const ui::style::MediaContext next =
+            ui::style::with_appearance(state.media_context, appearance);
+        const bool scheme_moved = next.color_scheme != state.media_context.color_scheme;
+        state.media_context = next;
+        if (scheme_moved && state.base_prepared) {
+            // The stylesheet's `prefers-color-scheme` rules changed applicability. Rebuilding the
+            // cascade re-evaluates every rule; the nodes are re-marked and the paint cache dropped
+            // because the same node can resolve a different color without its own dirty flag (the
+            // documented reason a generation change invalidates everything).
+            state.apply_style_generation(ui::Dirty::Style | ui::Dirty::Paint | ui::Dirty::Render);
+        }
+    }
+    // The motion flag is applied even when only the assumption bit moved: a measurement replacing a
+    // guess with the same value is not a visual change, but the call is a cheap idempotent set.
+    set_reduced_motion(appearance.reduced_motion);
+}
+
+const ui::style::MediaContext& AppHost::media_context() const {
+    return impl_->media_context;
 }
 
 bool AppHost::frame_due() const {

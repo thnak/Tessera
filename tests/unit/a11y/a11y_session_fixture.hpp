@@ -7,10 +7,10 @@
 #pragma once
 
 #include "a11y_dbus_test_support.hpp"
+#include "tessera/dbus/auth.hpp"
+#include "tessera/dbus/transport.hpp"
 #include "tessera/ui/accessibility/atspi_bridge.hpp"
 #include "tessera/ui/accessibility/atspi_session.hpp"
-#include "tessera/ui/accessibility/dbus_auth.hpp"
-#include "tessera/ui/accessibility/dbus_transport.hpp"
 
 #include <algorithm>
 #include <array>
@@ -25,23 +25,23 @@
 
 namespace a11y_session_test {
 
+using tessera::dbus::AuthClient;
+using tessera::dbus::BusAddress;
+using tessera::dbus::current_uid;
+using tessera::dbus::external_identity;
+using tessera::dbus::LoopbackTransport;
+using tessera::dbus::MessageHeader;
+using tessera::dbus::MessageReader;
+using tessera::dbus::MessageType;
+using tessera::dbus::MessageWriter;
+using tessera::dbus::parse_message;
+using tessera::dbus::ParsedMessage;
+using tessera::dbus::Transport;
 using tessera::ui::a11y::AtspiBridge;
 using tessera::ui::a11y::AtspiSession;
-using tessera::ui::a11y::AuthClient;
-using tessera::ui::a11y::BusAddress;
-using tessera::ui::a11y::current_uid;
-using tessera::ui::a11y::external_identity;
-using tessera::ui::a11y::LoopbackTransport;
-using tessera::ui::a11y::MessageHeader;
-using tessera::ui::a11y::MessageReader;
-using tessera::ui::a11y::MessageType;
-using tessera::ui::a11y::MessageWriter;
-using tessera::ui::a11y::parse_message;
-using tessera::ui::a11y::ParsedMessage;
 using tessera::ui::a11y::SessionConfig;
 using tessera::ui::a11y::SessionError;
 using tessera::ui::a11y::SessionPhase;
-using tessera::ui::a11y::Transport;
 using tessera::ui::a11y::TransportProvider;
 
 // The session address used by the replay: the loopback transport ignores it, but it has to parse so
