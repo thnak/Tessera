@@ -373,6 +373,22 @@ Rules for every slice: files stay under the 300/500 limits, one primary type per
 `node_size_tests` and the codegen goldens stay green, no new allocation or vtable on a frame path,
 and [docs/README.md](../README.md) plus [module-map.md](module-map.md) update with each landing.
 
+### 6.1 Landed so far
+
+Status as of the `feat/god-class-split` branch (2026-11-15). The remaining rows are untouched and
+still open.
+
+| Order | Slice | State | What changed |
+|---|---|---|---|
+| 1 | `a11y::Role` trait table | **landed** | `kRoleTable` (one row per role) in `src/ui/accessibility/a11y_role_traits.hpp`; the nine `switch (role)` blocks became index lookups, `Role::kCount` sizes the table, and a missing row is a compile error instead of a silent `default` |
+| 2 | `emit_node` emission groups | **landed** | sixteen named groups behind `NodeEmitContext`; `emit_node.cpp` 502 -> 138 lines, split across `emit_node_attributes.cpp` (what a node is) and `emit_node_behavior.cpp` (how it behaves); the emission order is now the call list, all 22 rejection messages preserved, goldens byte-identical |
+| 3 | `FrameDiagnostics` split | **landed** | `FrameCounters`, `AdaptiveQualityCounters` and `FrameTimeSourceCounter` in `include/tessera/runtime/frame_counters.hpp`; `FrameDiagnostics` is the aggregate and keeps all twenty accessor names |
+| 4 | `Node` TU split | **landed (step 1)** | `node.cpp` 483 -> 90 lines, with `node_geometry.cpp`, `node_scroll.cpp` and `node_interaction.cpp`; header unchanged and `hit_test_deep` still a member on the hot path. Steps 2-3 (the view types) remain open, see question 1 |
+| 6 | `EditController` keymap + composition | **landed** | `CompositionState` (`composition_state.hpp`) owns the IME invariant; 28-row `KeyChord` table (`edit_keymap.hpp`) replaces the `handle_key` if chain, with required/forbidden modifier masks for the old branch-order rules |
+
+Slices 5, 7-12 are open. Row 4 is deliberately partial: the TU split is the mechanical half and the
+header views are a separate API change that must re-check the 320-byte budget on each step.
+
 ## 7. What is deliberately not split
 
 - `TokenType` (31 values, zero switches) is the CSS Syntax vocabulary; splitting hides the mirror.
