@@ -14,6 +14,9 @@ add_library(tessera_app STATIC
     # at its size budget.
     host_quality.cpp
     host_theme.cpp
+    # The OS appearance rule of issue #187 (`AppHost::set_appearance`): a media-affecting change
+    # re-resolves the cascade. Split out of host.cpp, which is at its size budget.
+    host_appearance.cpp
     safe_area_state.cpp
     safe_area_state.hpp
     system_motion.cpp

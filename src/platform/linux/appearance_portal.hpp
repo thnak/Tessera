@@ -91,6 +91,12 @@ public:
     [[nodiscard]] bool take_change() noexcept {
         return change_pending_.exchange(false, std::memory_order_acq_rel);
     }
+    // True while a published change has not been drained yet. A non-consuming peek, for a caller
+    // that asks "is there anything to poll?" before it commits to producing the event; the event
+    // itself is still claimed by `take_change()`, so a peek never swallows a change.
+    [[nodiscard]] bool change_pending() const noexcept {
+        return change_pending_.load(std::memory_order_acquire);
+    }
     [[nodiscard]] AppearanceSource source() const noexcept {
         return source_.load(std::memory_order_acquire);
     }

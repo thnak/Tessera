@@ -202,17 +202,22 @@ Note the assumption contract: the app driver reads the preference once at creati
 settings event's tick boundary, so a machine with no settings source produces no event and keeps the
 default. The app half (`AppHost::set_appearance`) applies the motion flag to the animation runtime
 and re-resolves the stylesheet's `@media (prefers-color-scheme)`/`(prefers-reduced-motion)` rules
-against the new media context (ADR-048's resolve step).
+against the new media context (ADR-048's resolve step) when **either** preference moved the resolved
+context — a media rule can be gated on either one, so a motion-only change must re-resolve too.
+
+Both Linux backends use the portal, which is session-wide rather than an X11 facility: the Wayland
+backend runs the same `AppearancePortal` watcher and emits `ThemeChanged` from its poll boundary. A
+build with only the Wayland backend links the same TU and the same `tessera_dbus` client.
 
 Evidence: `hal_appearance` (`tests/unit/hal_appearance_tests.cpp`: the model, the packed handoff, the
 portal value/`Read`/`SettingChanged` decode with a big-endian body, and the GTK parser),
 `app_host_appearance` (`tests/unit/app_host_appearance_tests.cpp`: the acceptance — media queries
 resolved from the startup appearance, `set_appearance` moving `reducedMotion` and the media
-evaluation, and the fake window's event seam), and `appearance_portal`
+evaluation, the motion-only cascade re-resolve asserted through the resolved background, and the fake
+window's event seam), and `appearance_portal`
 (`tests/unit/harness/appearance_portal_tests.cpp`: the absent-bus fallback and a real `settings.ini`
 read under `XDG_CONFIG_HOME`). All are deterministic with no bus, socket, clock or desktop. **Not
-exercised:** a live portal on a real desktop, and a Wayland-only session — the Wayland backend has
-no appearance source yet (its `Window::appearance()` answers the documented fallback).
+exercised:** a live portal on a real desktop.
 
 ## 3. Event ordering and delivery
 

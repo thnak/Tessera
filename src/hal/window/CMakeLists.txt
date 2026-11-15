@@ -87,6 +87,13 @@ elseif (TESSERA_X11_FOUND OR TESSERA_WAYLAND_FOUND)
         ${PROJECT_SOURCE_DIR}/src/platform/linux/window_linux.cpp)
     target_include_directories(tessera_hal_window PRIVATE
         ${PROJECT_SOURCE_DIR}/src/platform/linux)
+    # OS appearance preferences (issue #187): the freedesktop settings portal watcher, one D-Bus
+    # connection and one worker thread off the frame path, with the GTK settings.ini fallback. The
+    # portal is SESSION-wide, not an X11 facility: both Linux backends read it, so this TU is
+    # compiled whenever either backend is present (a Wayland-only box would otherwise have no
+    # appearance source at all, and `window_wayland.cpp` would not link).
+    target_sources(tessera_hal_window PRIVATE
+        ${PROJECT_SOURCE_DIR}/src/platform/linux/appearance_portal.cpp)
     if (TESSERA_X11_FOUND)
         target_compile_definitions(tessera_hal_window PRIVATE TESSERA_HAS_X11=1)
         target_sources(tessera_hal_window PRIVATE
@@ -99,10 +106,6 @@ elseif (TESSERA_X11_FOUND OR TESSERA_WAYLAND_FOUND)
             # Display capabilities (ADR-023, docs/specs/os-events-v1.md section 5): `_NET_WORKAREA`,
             # DPI and the RandR event normalization, outside window.cpp's size budget.
             ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_display.cpp
-            # OS appearance preferences (issue #187): the settings portal watcher, one D-Bus
-            # connection and one worker thread off the frame path, with the GTK settings.ini
-            # fallback. A separate TU so window.cpp stays inside its file-size budget.
-            ${PROJECT_SOURCE_DIR}/src/platform/linux/appearance_portal.cpp
             ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_backdrop.cpp
             ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_input.cpp
             ${PROJECT_SOURCE_DIR}/src/platform/linux/x11_input_translation.cpp
