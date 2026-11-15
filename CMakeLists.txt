@@ -172,6 +172,9 @@ add_subdirectory(src/compiler/codegen)
 add_subdirectory(tools/schema_dump)
 # `tessera icons add` (ADR-047 item 8): build-time Iconify import with the license gate.
 add_subdirectory(tools/icons)
+# `tessera-mcp` (issue #172): the stdio adapter a design-time client drives. It links the harness and
+# nothing under `src/compiler` or `src/harness` learns about MCP, so the protocol stays at the edge.
+add_subdirectory(tools/mcp)
 
 # docs/specs/shader-manifest-v1.md sections 1 and 5: the manifest is a repository build input and
 # `tessera_schema` validates it before glslc. The checker target must exist before the Vulkan
