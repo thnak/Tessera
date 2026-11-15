@@ -19,8 +19,7 @@ namespace tessera::appfw {
 // ADR-050 section 4.1 state diagram:
 //
 //   Registered -> Starting -> Started -> Stopping -> Stopped
-//                     \           \          \
-//                      +-> Failed  +-> Failed +-> Abandoned (deadline expired)
+//   Starting also fails to `Failed`; Stopping also fails to `Abandoned` (deadline expired).
 //
 // `Failed` is also the state of a service whose dependency failed and which therefore never ran;
 // `Abandoned` is the only terminal state a stop sequence can produce when a service overruns its

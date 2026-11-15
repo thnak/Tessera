@@ -17,7 +17,7 @@ void report(const ReportSink& sink, std::size_t slot, std::uint32_t generation,
 
 } // namespace
 
-runtime::Task<void> drive_start(runtime::TaskContext context, Service& service, StartContext start,
+runtime::Task<void> drive_start(runtime::TaskContext, Service& service, StartContext start,
                                 ReportSink sink, std::size_t slot, std::uint32_t generation) {
     // A service boundary (ADR-025): whatever escapes the service becomes a status value, so a
     // throwing service can never propagate into the frame loop. Recording the specific failure is
@@ -32,7 +32,7 @@ runtime::Task<void> drive_start(runtime::TaskContext context, Service& service, 
     co_return;
 }
 
-runtime::Task<void> drive_stop(runtime::TaskContext context, Service& service, StopContext stop,
+runtime::Task<void> drive_stop(runtime::TaskContext, Service& service, StopContext stop,
                                ReportSink sink, std::size_t slot, std::uint32_t generation) {
     ServiceStatus status = ServiceStatus::Ok;
     try {

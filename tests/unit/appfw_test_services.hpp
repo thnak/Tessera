@@ -153,11 +153,11 @@ struct HangingStopService : Service {
     Task<void> stop(StopContext& ctx) override {
         return run_stop(ctx, *this);
     }
-    static Task<ServiceStatus> run_start(StartContext ctx, HangingStopService& self) {
+    static Task<ServiceStatus> run_start(StartContext, HangingStopService& self) {
         self.started = true;
         co_return ServiceStatus::Ok;
     }
-    static Task<void> run_stop(StopContext ctx, HangingStopService& self) {
+    static Task<void> run_stop(StopContext, HangingStopService& self) {
         self.stop_entered = true;
         co_await ParkForever{};
         co_return;
@@ -174,12 +174,12 @@ struct HangingStartService : Service {
     Task<void> stop(StopContext& ctx) override {
         return run_stop(ctx, *this);
     }
-    static Task<ServiceStatus> run_start(StartContext ctx, HangingStartService& self) {
+    static Task<ServiceStatus> run_start(StartContext, HangingStartService& self) {
         self.start_entered = true;
         co_await ParkForever{};
         co_return ServiceStatus::Ok;
     }
-    static Task<void> run_stop(StopContext ctx, HangingStartService& self) {
+    static Task<void> run_stop(StopContext, HangingStartService& self) {
         self.stop_entered = true;
         co_return;
     }
@@ -195,12 +195,12 @@ struct ThrowingService : Service {
     Task<void> stop(StopContext& ctx) override {
         return run_stop(ctx, *this);
     }
-    static Task<ServiceStatus> run_start(StartContext ctx, ThrowingService& self) {
+    static Task<ServiceStatus> run_start(StartContext, ThrowingService& self) {
         self.entered = true;
         throw std::runtime_error("service start exploded");
         co_return ServiceStatus::Ok;
     }
-    static Task<void> run_stop(StopContext ctx, ThrowingService&) {
+    static Task<void> run_stop(StopContext, ThrowingService&) {
         co_return;
     }
     bool entered = false;
