@@ -142,6 +142,9 @@ jobs:
           -DTESSERA_BUILD_VULKAN=OFF
           -DTESSERA_WARNINGS_AS_ERRORS=ON
 
+      # The frame CLI lives in the canvas-native-parity job, not here: that job installs lavapipe
+      # and this one deliberately configures with -DTESSERA_BUILD_VULKAN=OFF (a parity run needs no
+      # device). Configuring Vulkan here fails outright on a runner with no Vulkan SDK.
       - name: Build Wasm compiler
         run: cmake --build --preset wasm-compiler --parallel
 
@@ -209,6 +212,116 @@ jobs:
           --native build/native-parity/src/compiler/codegen/tessera_scene_preview
           --wasm build/wasm-webgpu/src/compiler/codegen/tessera_scene_preview.js
           --node "$EMSDK_NODE"
+
+      # P3 of the preview (issue #167): the canvas module. It links tessera_webgpu, so this is also
+      # the check that the device half compiles and links under Emscripten with the frame driver.
+      - name: Build browser canvas module
+        run: >-
+          cmake --build build/wasm-webgpu
+          --target tessera_canvas_wasm --parallel
+
+      # Node has no `navigator.gpu`, so this is the *unsupported-browser* contract and nothing more:
+      # the module loads, reports `hasDevice:false`, and returns a report instead of crashing. The
+      # pixel half of P3's acceptance cannot run here (see the canvas-native-parity job below).
+      - name: Canvas module no-device contract (Node)
+        run: >-
+          python3 -B scripts/ci/scene_frame_parity.py --mode canvas-report
+          --canvas build/wasm-webgpu/src/compiler/codegen/tessera_canvas.js
+          --node "$EMSDK_NODE"
+
+  # P3's pixel half, on the half of the gate that can actually render: the *native* reference.
+  #
+  # The acceptance sentence is "the canvas render is within tolerance of the lavapipe golden". Two
+  # facts decide where that can be proven:
+  #
+  #   * the golden must come from lavapipe (ADR-009), which this job installs as the software Vulkan
+  #     ICD; a hosted runner has no GPU, which is exactly why lavapipe is the reference;
+  #   * the *candidate* is a WebGPU frame, and hosted runners have no GPU either, so a browser on
+  #     this runner would fall back to SwiftShader or refuse. A WebGPU frame is therefore not a
+  #     hosted-CI artifact at all.
+  #
+  # So this job proves the half that is real here - the lavapipe reference renders, deterministically,
+  # with the corpus's minimum draw counts - and the browser lane supplies the candidate against these
+  # goldens (docs/design/compiler-wasm.md section 8). It does NOT pretend to compare WebGPU pixels.
+  canvas-native-parity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Three separate packages, and all three are needed:
+      #   libvulkan-dev        the loader headers/library that find_package(Vulkan) requires
+      #                        (Vulkan_INCLUDE_DIR + Vulkan_LIBRARY); without it the configure fails
+      #                        before any test runs
+      #   mesa-vulkan-drivers  the lavapipe ICD itself (the software renderer, ADR-009's reference)
+      #   vulkan-tools         vulkaninfo, so a misconfigured lane is diagnosable from the log
+      #   glslc                the shader compiler; the Vulkan backend raises a fatal error when it
+      #                        is absent, and it is not part of libvulkan-dev
+      - name: Install Ninja, the Vulkan loader and lavapipe
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libvulkan-dev mesa-vulkan-drivers vulkan-tools glslc
+
+      # Locate the lavapipe manifest instead of assuming its filename: the directory and the
+      # `lvp_icd.<arch>.json` spelling vary by distribution and architecture, and guessing one is
+      # what made this step fail while the install itself had succeeded.
+      - name: Locate the lavapipe ICD
+        run: |
+          set -euo pipefail
+          echo "ICD manifests present:"
+          ls -1 /usr/share/vulkan/icd.d/ /etc/vulkan/icd.d/ 2>/dev/null || true
+          manifest=""
+          for candidate in /usr/share/vulkan/icd.d/lvp_icd*.json /etc/vulkan/icd.d/lvp_icd*.json; do
+            if [ -f "$candidate" ]; then
+              manifest="$candidate"
+              break
+            fi
+          done
+          if [ -z "$manifest" ]; then
+            echo "::error::no lvp_icd*.json manifest found; mesa-vulkan-drivers did not install lavapipe"
+            exit 1
+          fi
+          echo "lavapipe manifest: $manifest"
+          echo "VK_ICD_FILENAMES=$manifest" >> "$GITHUB_ENV"
+          VK_ICD_FILENAMES="$manifest" vulkaninfo --summary | sed -n '1,25p'
+
+      - name: Configure (native, frame CLI)
+        run: >
+          cmake -S . -B build/native-frame -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DTESSERA_BUILD_TESTS=OFF
+          -DTESSERA_BUILD_POC=OFF
+          -DTESSERA_BUILD_VULKAN=ON
+          -DTESSERA_WARNINGS_AS_ERRORS=ON
+
+      - name: Build frame CLI and comparison tool
+        run: >-
+          cmake --build build/native-frame
+          --target tessera_scene_frame_cli tessera_scene_frame_compare --parallel
+
+      # VK_ICD_FILENAMES selects ONLY the lavapipe manifest, so a runner that did grow a GPU could
+      # not silently turn this into a hardware render. The script refuses to write goldens from a
+      # non-lavapipe device, so even a misconfigured lane cannot commit the wrong reference.
+      - name: Preview canvas reference (lavapipe)
+        # VK_ICD_FILENAMES is exported by the "Locate the lavapipe ICD" step above.
+        run: |
+          set -euo pipefail
+          reference=build/canvas-reference
+          python3 -B scripts/ci/scene_frame_parity.py \
+            --native build/native-frame/src/compiler/codegen/tessera_scene_frame \
+            --out-dir "$reference"
+          # The goldens are committed from a lavapipe host and compared on every push. Until they
+          # are committed this job proves the reference renders; it does not claim a comparison it
+          # did not make.
+          if [ -d tests/golden/canvas ]; then
+            python3 -B scripts/ci/scene_frame_parity.py --mode compare \
+              --native build/native-frame/src/compiler/codegen/tessera_scene_frame_compare \
+              --golden-dir tests/golden/canvas \
+              --candidate-dir "$reference"
+          else
+            echo "::notice::tests/golden/canvas is not committed yet; the lavapipe reference was rendered but not compared."
+          fi
 
   wgsl-validation:
     runs-on: ubuntu-latest

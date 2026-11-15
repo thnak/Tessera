@@ -247,7 +247,160 @@ type-checked by the host OBJECT-library build, but the module itself has **not**
 byte comparison in `scene_snapshot_parity.py` — and therefore P2's acceptance sentence — is proven
 only when the new `wasm-parity` step runs in CI. That is stated rather than implied.
 
-## 8. P4: browser input, and state kept across edits
+## 8. P3: the WebGPU canvas
+
+P3's acceptance is **"the canvas render is within tolerance of the lavapipe golden for the parity
+samples"**. It is one sentence about two artifacts, and the two are produced by different machines, so
+this section is mostly about which half is proven where — deliberately, because the tempting shortcut
+(Node loads the module, compares pixels) is not available and a fake version of it would be worse than
+no gate.
+
+### 8.1 One pipeline, three consumers
+
+P2 ended at the scene's bounds. P3 needs the same laid-out tree twice more (recorded as a draw list,
+and painted through an RHI device), so the stage sequence moved out of `scene_preview.cpp` into
+**`tools/codegen/scene_prepare.cpp`**:
+
+```text
+source text -> jsx parse -> analyse -> lower -> assign_identity(salt)
+            -> pick component -> evaluate initial state -> build the ui::Node tree
+            -> compiled stylesheet -> Yoga layout -> apply_layout
+```
+
+`prepare_scene()` returns a `PreparedScene` (the lowered IR the tree borrows its strings from, the
+root node, and the stylesheet the layout resolved against). Three consumers walk that one value:
+
+| Consumer | File | Artifact |
+|---|---|---|
+| P2 snapshot | `scene_preview.cpp` | the canonical `UiSnapshot` document |
+| P3 native frame | `scene_frame.cpp` (`scene_frame_render`) | a PNG through an RHI device |
+| P3 browser frame | `scene_frame.cpp` (`scene_frame_paint`), called by `wasm_canvas_entry.cpp` | a WebGPU frame on a canvas-owned target |
+
+`scene_preview.cpp` is now a thin wrapper, so the P2 parity gate keeps comparing exactly what it
+compared before — verified byte-identical on the same corpus.
+
+The paint half is `ui::paint::paint_scene()` through `Batched2DSink`/`Batched2DRenderer`, the same
+objects the native window driver and the golden harness use. A preview frame and a native frame are
+therefore the same command stream by construction, not by agreement between two implementations.
+
+**What a preview frame does not paint, and why.** The preview module ships no font and no
+`AssetBundle`, so a text run is counted in `text_skipped` and a vector/image payload in
+`vectors_skipped`/`images_skipped`; the node's box is still painted. This is a missing *input*, not a
+missing capability, and it is reported rather than approximated. The parity corpus below has no glyph
+runs, so it does not affect the render comparison.
+
+### 8.2 The preview stylesheet now paints
+
+P2's sheet gave the intrinsic element kinds a size and nothing else, which was right for layout and
+wrong for a render gate: a sheet that paints nothing leaves both images a single clear colour, and two
+clear-colour images are byte-identical — the render equivalent of "both sides returned `{"nodes":[]}`".
+The sheet now carries background colours and one `border-radius`, and the gate declares a **minimum
+draw-call count** per case, the same anti-vacuity rule P2 applies to node counts.
+
+The clear colour is the app window background (`rgba8(11, 18, 32)`, `detail::frame_clear_color()` in
+`src/app/window_internal.hpp`), not black, so a preview and the native window of the same stylesheet
+start from the same pixel everywhere the sheet paints nothing.
+
+### 8.3 What can and cannot be proven, and by what
+
+| Half | Where it runs | What it proves |
+|---|---|---|
+| `prepare_scene` + frame command stream + report | `scene_frame` ctest, any host | the path builds, lays out, records draws, is deterministic, and the counters are not vacuous |
+| lavapipe reference render | `webgpu.yml` `canvas-native-parity` (Ubuntu + `mesa-vulkan-drivers`) | the reference images exist, are deterministic across processes, and meet their minimum draw counts |
+| WebGPU candidate render | **nowhere automatically** | needs a browser with a real WebGPU device |
+| the pixel comparison itself | `tessera_scene_frame_compare`, any host | the two PNGs are within `webgpu_vs_lavapipe` |
+
+**The honest statement.** The pixel acceptance cannot be proven on this machine or on a hosted CI
+runner. Three independent facts block it, and none is a matter of effort:
+
+1. **Node has no WebGPU.** `webgpu_wasm_smoke.cpp` records this explicitly: `navigator.gpu` does not
+   exist in Node, so a module loaded there cannot create an adapter, and no frame can be drawn. This
+   is not "not yet wired" — there is no device to draw with.
+2. **A browser needs a GPU.** The WebGPU candidate is a browser artifact. Hosted runners have no GPU,
+   so a headless browser there would fall back to a software adapter or refuse; either way the frame
+   would not be the frame a user sees, which is what the acceptance is about.
+3. **The golden must be lavapipe** (ADR-009). A hardware driver's pixels are one vendor's rasterizer
+   and cannot be a reference. The dev box used for this slice has an RTX 4060 and no lavapipe
+   manifest, so `--write-goldens` **refuses** there rather than committing hardware pixels.
+
+So the slice lands three things and names the fourth as remaining:
+
+- (a) the whole native path, proven by `scene_frame` (5 cases, deterministic, non-vacuous) and by the
+  `canvas-native-parity` job rendering the lavapipe reference;
+- (b) the canvas page, the device plumbing, render-on-demand, and the unsupported-browser path;
+- (c) the node-count-equivalent of a pixel gate: the compare tool plus the script that would apply it;
+- (d) **remaining**: the WebGPU candidate. It needs a real browser with a real device. That is a new
+  CI dependency (Playwright-class, plus a GPU runner), which is a spec/ADR decision — `docs/specs/
+  dependencies.md` and `THIRD_PARTY_NOTICES.md` entries, and probably an ADR — so it is reported, not
+  added. The concrete plan: a browser job that serves `build/pages`, runs `canvas.html`, calls
+  `tessera_canvas_frame`, reads the canvas back with `toDataURL()`, and feeds the PNG directory to
+  `scene_frame_parity.py --mode compare`. Every piece of that exists except the browser.
+
+Measuring the delta between a hardware WebGPU frame and a lavapipe golden is exactly what
+`tests/golden/tolerance.json`'s `webgpu_vs_lavapipe` pair (8/255 per channel, 2% of pixels, SSIM >=
+0.99, deltaE <= 2.0) was written for, so the browser lane adds no policy, only a device.
+
+### 8.4 Render on demand
+
+The page does not run a frame loop. `canvas.js` draws once per *change*: a Run, a device-pixel-ratio
+change, or the tab becoming visible again. `requestAnimationFrame` is the scheduling primitive — it
+coalesces a burst of notifications into one frame and aligns the draw with the display — but nothing
+re-arms it after a frame, so a static scene stops drawing. This is the browser form of the repository's
+idle rule (a static UI presents nothing), and it also means the page does not spin a GPU at 60 Hz on a
+tab nobody is looking at.
+
+### 8.5 The unsupported path
+
+`canvas.html` ships the unsupported state as its *default* pane content and `canvas.js` only replaces
+it with the canvas once a device exists. The three ways to get there — no `navigator.gpu`, no adapter,
+`requestDevice()` rejecting — each name their cause and link `scene.html`, which needs no GPU. A module
+that fails to load, or one without the canvas exports, reports that too. A blank canvas is never the
+outcome.
+
+`scene_frame_parity.py --mode canvas-report` checks the same contract without a browser: it loads
+`tessera_canvas.js` under Node (which has no `navigator.gpu`, exactly like a browser without WebGPU)
+and requires a `hasDevice:false` report rather than a crash.
+
+### 8.6 Verification and status
+
+Verified on this Windows host (2026-11-16), native side only:
+
+- `ctest -R scene_frame`: passes. Covers `prepare_scene` (and the failed-prepare shape), the null
+  backend's command stream and counters, byte-identical pixels across two runs, the report's JSON
+  escaping and the no-device/failed-frame distinction, the parity policy (identical pair passes;
+  moved geometry, flat-region drift and a size difference fail; an edge rounding difference passes),
+  and the SPIR-V-free pipeline description.
+- `python -B scripts/ci/scene_frame_parity.py --native .../tessera_scene_frame.exe`: `NATIVE
+  REFERENCE OK`, 5 cases, each deterministic across two processes and above its minimum draw count.
+- `tessera_scene_frame --backend vulkan` on an RTX 4060 renders the corpus (e.g. 5 nodes, 1 draw, 24
+  vertices) and is byte-identical across runs; `--backend null` records the same counts. The RTX
+  render is evidence the path works, **not** a golden, and the script refuses to save it as one.
+- `tessera_scene_frame_compare` classifies an identical pair as a pass (`ssim=1 deltaE=0`) and two
+  different scenes as a structural failure (`mismatch=0.207 ssim=0.879`), so the comparison is not
+  vacuous.
+
+**CI-only, and why:** the browser half. `$env:EMSDK` is empty on this box, so
+`wasm_canvas_entry.cpp`, `webgpu_canvas_target.cpp` and `canvas.js` have not been compiled or run;
+the host lanes type-check `scene_frame.cpp` and `canvas_report.cpp` as OBJECT libraries, which is the
+part they can check. The Emscripten build and the no-device contract run in `pages.yml` / `webgpu.yml`.
+**The pixel comparison has not run anywhere yet** — see 8.3.
+
+### 8.7 Files
+
+| Path | Role |
+|---|---|
+| `tools/codegen/scene_prepare.{hpp,cpp}` | the shared stage sequence (`prepare_scene`) |
+| `tools/codegen/scene_frame.{hpp,cpp}` | paint into an RHI target; `scene_frame_render` adds offscreen+readback |
+| `tools/codegen/scene_frame_main.cpp` | `tessera_scene_frame`: renders a PNG (vulkan or null) |
+| `tools/codegen/scene_frame_compare.cpp` | `tessera_scene_frame_compare`: the pixel comparison, one policy |
+| `tools/codegen/canvas_report.{hpp,cpp}` | the JSON report the page parses (host-compilable) |
+| `tools/codegen/wasm_canvas_entry.cpp` | the browser ABI: device handover + `tessera_canvas_frame` |
+| `src/rendering/backend/webgpu/src/webgpu_canvas_target.cpp` | an RHI target over a host-owned canvas texture view |
+| `designer/web/{canvas.html,canvas.js,canvas.css}` | the page |
+| `scripts/ci/scene_frame_parity.py`, `scene_frame_canvas_probe.mjs` | the gate: native reference, node contract, comparison |
+| `tests/unit/scene_frame_tests.cpp` | the native half, as a ctest case |
+
+## 9. P4: browser input, and state kept across edits
 
 P4's acceptance is **"scripted clicks give the same state cells as the parity runner"**. The artifact
 is the state cell list the preview parity runner already compares: `ui::StateSnapshot`
@@ -255,7 +408,7 @@ is the state cell list the preview parity runner already compares: `ui::StateSna
 `snapshot_state()` returns and `tests/parity/parity_runner.cpp` reads through `parity::NativeSide`.
 P4 adds no second notion of state.
 
-### 8.1 What a synthetic click actually invokes
+### 9.1 What a synthetic click actually invokes
 
 The preview is an IR *evaluator*. It does not contain the developer's C++ and cannot run it. A click
 goes through the engine's own router:
@@ -282,7 +435,7 @@ same action list `parity::run_parity` executes for a `click <automationId>` step
 - real handler execution in the browser is the ADR-046 web target's job (the same code path as
   native, the browser being one OS behind the HAL), not this slice's.
 
-### 8.2 State kept across edits: the exact rule
+### 9.2 State kept across edits: the exact rule
 
 `tools/codegen/scene_state.hpp` states it in full; the operative sentence is:
 
@@ -314,7 +467,7 @@ across a reload — is an ADR/protocol question: `docs/specs/designer-protocol-v
 V1 has **no** state snapshot or restore, and this slice does not add one. The carry is in-process,
 between two evaluations in one session.
 
-### 8.3 The artifacts and the gate
+### 9.3 The artifacts and the gate
 
 | Side | Artifact | Invocation |
 |---|---|---|
@@ -337,7 +490,7 @@ without Emscripten; it imports the gate's corpus and salt so the two cannot drif
 `parity::run_parity` as that runner's **native side**, so "scripted clicks give the same state cells
 as the parity runner" is checked by the runner itself rather than by a second, weaker comparison.
 
-### 8.4 Verification and status
+### 9.4 Verification and status
 
 Verified on this Windows host (2026-11-15), native side only:
 
@@ -357,14 +510,14 @@ box, so `tessera_input_json` is authored to the P1/P2 pattern and type-checked b
 has not been executed. The byte comparison in `scene_input_parity.py` — and therefore P4's acceptance
 sentence — is proven when the Wasm lane runs it.
 
-## 8. P5: share links, the sample gallery and the environment toggles
+## 10. P5: share links, the sample gallery and the environment toggles
 
 P5's acceptance is **"a compressed URL-fragment link round-trips; the samples from `samples/` load
 within the project-load budget"**. The format is normative in
 [`designer-studio-v1.md`](../specs/designer-studio-v1.md) section 7.1; this section records what is
 implemented, what is proven locally, and what only CI can prove.
 
-### 8.1 The pieces
+### 10.1 The pieces
 
 | Piece | Where | Why it is there and not in a page |
 |---|---|---|
@@ -375,7 +528,7 @@ implemented, what is proven locally, and what only CI can prove.
 | Manifest | `designer/web/samples.json` | Generated from `samples/**/*.tsx` by `scripts/ci/gen_sample_manifest.py`; committed so Pages needs no build step |
 | Sized layout export | `tools/codegen/wasm_scene_entry.cpp` | `tessera_scene_json_sized(...)`; the P2 signature is untouched because the parity gate pins its defaults |
 
-### 8.2 What the toggles actually do
+### 10.2 What the toggles actually do
 
 `viewport` and `dpr` are real layout inputs: `tessera_scene_json_sized` passes them to
 `ScenePreviewOptions`, so the scene page re-lays-out at the chosen rectangle. Measured on this host
@@ -387,7 +540,7 @@ between "the toggle is wired" and "the toggle re-renders the same picture".
 snapshot path has no theme asset, so a themed preview would be a claim the module cannot keep. That
 is a spec-level gap, not a bug in this slice, and it is recorded rather than papered over.
 
-### 8.3 Verification and status
+### 10.3 Verification and status
 
 Verified on this Windows host (2026-11-15):
 
@@ -422,5 +575,3 @@ that `index.html`/`scene.html` render, that the fragment survives a real navigat
 `CompressionStream` behaves as expected in a browser — is verified by the deploy and by opening
 https://thnak.github.io/Tessera/. The Node tests are honest about being codec and stub-DOM tests, not
 browser tests.
-
-

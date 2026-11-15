@@ -93,11 +93,19 @@ set(TESSERA_VULKAN_RHI_SOURCES
     ${TESSERA_GLASS_BLUR_FRAG_SPV}
     ${PROJECT_SOURCE_DIR}/third_party/volk/volk.c)
 
+# The presentation-family resolution is part of the RHI target unconditionally: `vulkan_instance.cpp`
+# selects its queue family by calling `resolve_present_platform()` / `probe_present_support()` /
+# `has_present_support()`, and `PresentPlatform::NoPlatform` is a valid answer on a headless host.
+# Gating this TU behind a *window* platform made those symbols vanish on a Linux host with neither
+# X11 nor Wayland, which is a link error rather than a degraded build (found by the canvas lane,
+# which is the first Linux configuration that builds this backend).
+list(APPEND TESSERA_VULKAN_RHI_SOURCES
+    src/vulkan_present_platform.cpp)
+
 if (WIN32 OR TESSERA_X11_FOUND OR TESSERA_WAYLAND_FOUND)
-    # Platform presentation surface + bounded acquire/present state machine, plus the presentation
-    # family resolution shared by the instance and swapchain paths (issue #155).
+    # The presentation surface itself, plus the bounded acquire/present state machine. These need a
+    # real window system; the family resolution above does not.
     list(APPEND TESSERA_VULKAN_RHI_SOURCES
-        src/vulkan_present_platform.cpp
         src/vulkan_swapchain.cpp
         src/vulkan_swapchain_present.cpp)
 endif()

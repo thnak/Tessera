@@ -35,6 +35,7 @@ if (EMSCRIPTEN OR TESSERA_BUILD_WEBGPU)
         src/webgpu_device.cpp
         src/webgpu_resources.cpp
         src/webgpu_pipeline.cpp
+        src/webgpu_canvas_target.cpp
         src/webgpu_command_list.cpp)
     target_link_libraries(tessera_webgpu PUBLIC tessera_webgpu_mapping)
     if (EMSCRIPTEN)

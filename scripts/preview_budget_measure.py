@@ -72,6 +72,11 @@ PAGE_FILES = (
     # (issue #169). Added here in the same change as the split: a page asset that is not in this
     # list ships unweighed, which is the bug P5 fixed for `scene.html`/`scene.js`.
     "scene-input.js",
+    # P3's canvas page (issue #167). Added in the same change as the assets themselves, which is
+    # the rule this list states: an unlisted page asset ships unweighed.
+    "canvas.html",
+    "canvas.js",
+    "canvas.css",
     "samples.json",
 )
 
