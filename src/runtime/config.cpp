@@ -421,30 +421,6 @@ validate_runtime_object(const json::JsonValue& runtime) {
     return config;
 }
 
-std::string_view describe(json::JsonErrorCode code) {
-    switch (code) {
-    case json::JsonErrorCode::UnexpectedEnd:
-        return "unexpected end of input";
-    case json::JsonErrorCode::UnexpectedCharacter:
-        return "unexpected character";
-    case json::JsonErrorCode::TrailingContent:
-        return "trailing content after the document";
-    case json::JsonErrorCode::InvalidLiteral:
-        return "invalid literal";
-    case json::JsonErrorCode::InvalidNumber:
-        return "invalid number";
-    case json::JsonErrorCode::InvalidEscape:
-        return "invalid escape sequence";
-    case json::JsonErrorCode::DuplicateKey:
-        return "duplicate object key";
-    case json::JsonErrorCode::NestingTooDeep:
-        return "nesting too deep";
-    case json::JsonErrorCode::InvalidUtf8:
-        return "invalid UTF-8";
-    }
-    return "invalid JSON";
-}
-
 } // namespace
 
 std::string_view to_string(RuntimeConfigErrorCode code) noexcept {
@@ -472,10 +448,11 @@ parse_runtime_config(std::string_view project_json) {
     const std::expected<json::JsonValue, json::JsonParseError> document =
         json::parse_json(project_json, kMaxDocumentDepth);
     if (!document) {
-        return std::unexpected(RuntimeConfigError{RuntimeConfigErrorCode::MalformedJson, "",
-                                                  "the document is not valid JSON: " +
-                                                      std::string(describe(document.error().code)),
-                                                  document.error().offset});
+        return std::unexpected(RuntimeConfigError{
+            RuntimeConfigErrorCode::MalformedJson, "",
+            "the document is not valid JSON: " +
+                std::string(tessera::detail::json::to_string(document.error().code)),
+            document.error().offset});
     }
     if (!document->is_object()) {
         return std::unexpected(RuntimeConfigError{RuntimeConfigErrorCode::InvalidType, "",
