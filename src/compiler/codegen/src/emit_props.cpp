@@ -104,7 +104,15 @@ bool literal_matches(std::string_view type, const ir::Expr& expr) {
     return false;
 }
 
-bool prop_value_matches(std::string_view type, const ir::Expr& expr) {
+bool prop_value_matches(std::string_view type, const ir::Expr& expr,
+                        std::span<const ir::RecordType> records) {
+    // ADR-051: a record-typed prop takes a record value of exactly that record (the IR validator
+    // has already checked the field set and the member types).
+    for (const ir::RecordType& record : records) {
+        if (record.name == type) {
+            return expr.kind == ir::ExprKind::Record && expr.type == record.name;
+        }
+    }
     const std::string_view element = list_element(type);
     if (element.empty()) {
         return literal_matches(type, expr);
@@ -162,7 +170,8 @@ bool resolve_callback(const ir::IrModule& module, const ir::Component& owner, co
 }
 
 bool collect_value(const ir::Component& target, std::string_view name, const ir::Expr& value,
-                   ComponentInstance& instance, std::string& error) {
+                   ComponentInstance& instance, std::string& error,
+                   std::span<const ir::RecordType> records) {
     const ir::Prop* prop = find_declared_prop(target, name);
     if (prop == nullptr) {
         return fail(error,
@@ -172,14 +181,16 @@ bool collect_value(const ir::Component& target, std::string_view name, const ir:
         return fail(error, "`children` of component `" + target.name +
                                "` is the slot; write the nodes between the tags");
     }
-    if (!is_value_prop_type(prop->type)) {
+    if (!is_value_prop_type(prop->type, records)) {
         return fail(error, "callback prop `" + std::string(name) + "` of component `" +
                                target.name + "` is bound through the node's events, not a value");
     }
-    if (!prop_value_matches(prop->type, value)) {
+    if (!prop_value_matches(prop->type, value, records)) {
         std::string got = value.kind == ir::ExprKind::Array ? "array" : "literal";
         if (value.kind == ir::ExprKind::Literal) {
             got = std::string(literal_kind(value.literal)) + " literal";
+        } else if (value.kind == ir::ExprKind::Record) {
+            got = "`" + value.type + "` record value";
         }
         return fail(error, "prop `" + std::string(name) + "` of component `" + target.name +
                                "` expects `" + prop->type + "`, got a " + got);
@@ -215,7 +226,7 @@ bool collect_callback(const ir::IrModule& module, const ir::Component& owner,
 
 } // namespace
 
-bool is_value_prop_type(std::string_view ir_type) {
+bool is_value_prop_type(std::string_view ir_type, std::span<const ir::RecordType> records) {
     if (ir_type == "bool" || ir_type == "int" || ir_type == "float" || ir_type == "string" ||
         ir_type == "color" || ir_type == "length" || ir_type == "node_ref") {
         return true;
@@ -224,7 +235,13 @@ bool is_value_prop_type(std::string_view ir_type) {
         if (ir_type.size() > wrapper.size() + 1 && ir_type.rfind(wrapper, 0) == 0 &&
             ir_type.back() == '>') {
             return is_value_prop_type(
-                ir_type.substr(wrapper.size(), ir_type.size() - wrapper.size() - 1));
+                ir_type.substr(wrapper.size(), ir_type.size() - wrapper.size() - 1), records);
+        }
+    }
+    // ADR-051: a prop whose type is a declared record is a value (the generated aggregate struct).
+    for (const ir::RecordType& record : records) {
+        if (record.name == ir_type) {
+            return true;
         }
     }
     return false;
@@ -241,11 +258,11 @@ std::string callback_prop_type(std::string_view ir_type) {
     return "std::function<void(const tessera::ui::" + std::string(payload->cpp_type) + "&)>";
 }
 
-PropGuard prop_guard(std::string_view ir_type) {
+PropGuard prop_guard(std::string_view ir_type, std::span<const ir::RecordType> records) {
     if (ir_type == "callback") {
         return PropGuard::Callback;
     }
-    if (!is_value_prop_type(ir_type)) {
+    if (!is_value_prop_type(ir_type, records)) {
         return PropGuard::None;
     }
     if (text_value_type(ir_type)) {
@@ -254,6 +271,8 @@ PropGuard prop_guard(std::string_view ir_type) {
     if (!list_element(ir_type).empty() && text_value_type(list_element(ir_type))) {
         return PropGuard::Value;
     }
+    // A declared record is a value but has no generated equality/hash in this slice (ADR-051
+    // section 5), so its assignment is unguarded: it copies on every refresh, like a list.
     return PropGuard::None;
 }
 
@@ -273,7 +292,7 @@ bool collect_instance_props(const ir::IrModule& module, const ir::Component& own
     for (const ir::Prop& prop : target.props) {
         const auto found = node.props.find(prop.name);
         if (found != node.props.end() && found->second) {
-            if (!collect_value(target, prop.name, *found->second, instance, error)) {
+            if (!collect_value(target, prop.name, *found->second, instance, error, module.types)) {
                 return false;
             }
         }

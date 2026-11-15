@@ -4,6 +4,7 @@
 
 #include "tessera/compiler/ir/component.hpp"
 #include "tessera/compiler/ir/module.hpp"
+#include "tessera/compiler/ir/types.hpp"
 #include "tessera/compiler/jsx/diagnostic.hpp"
 #include "tessera/compiler/lowering/hook_lowering.hpp"
 #include "tessera/compiler/rules/analyzed_module.hpp"
@@ -52,12 +53,15 @@ struct ModuleSource {
 
 // All components of a project plus its module-level data. `components` are sorted by source file
 // and then by name (ir-v1 section 11) and `bindings` by id; `componentId`/`uiId` stay empty for
-// slice 10.
+// slice 10. `types` is the record type table of ADR-051, sorted by `name` and empty when the
+// project declares no record (so a module without records is byte-identical to the IR before it
+// existed).
 struct LoweredModule {
     std::string name;
     std::vector<ir::Component> components;
     std::vector<ir::Binding> bindings;
     std::vector<ir::StylesheetRef> stylesheets; // sorted by path, one entry per file
+    std::vector<ir::RecordType> types;          // sorted by name, empty when none is declared
 };
 
 using ModuleLoweringResult = std::expected<LoweredModule, NodeLoweringErrors>;

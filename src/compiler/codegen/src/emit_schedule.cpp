@@ -3,6 +3,7 @@
 #include "emit_dynamic.hpp"
 #include "emit_events.hpp"
 #include "emit_schedule.hpp"
+#include "emit_types_header.hpp"
 
 #include <cctype>
 #include <optional>
@@ -28,6 +29,12 @@ bool plain_identifier(std::string_view name) {
 
 std::string setter_name(const ir::State& state) {
     return "set_" + state.name;
+}
+
+// ADR-051 section 5: a record state cell has no generated equality in this slice, so its setter
+// cannot be equality-gated and must always schedule an update.
+bool is_record_state(const ir::State& state, const ir::IrModule& module) {
+    return find_record_type(module, innermost_record_name(state.type)) != nullptr;
 }
 
 // Runs the handler recorded by the set that just completed (`onComplete`), once. The member is
@@ -64,8 +71,8 @@ void emit_completion_dispatch(CppWriter& writer, const ir::Component& component,
 
 } // namespace
 
-bool emit_schedule_declarations(CppWriter& writer, const ir::Component& component,
-                                std::string& error) {
+bool emit_schedule_declarations(CppWriter& writer, const ir::IrModule& module,
+                                const ir::Component& component, std::string& error) {
     writer.line("// Scheduled updates: a setter marks this component dirty and the host's");
     writer.line(
         "// UpdateScheduler runs update() once at its next flush (UI thread only). The ticket");
@@ -86,7 +93,7 @@ bool emit_schedule_declarations(CppWriter& writer, const ir::Component& componen
         if (!plain_identifier(state.name)) {
             continue;
         }
-        const std::optional<std::string> type = cpp_type(state.type);
+        const std::optional<std::string> type = cpp_type(state.type, module.types);
         if (!type) {
             error = "state `" + state.name + "` has a type with no C++ form (`" + state.type + "`)";
             return false;
@@ -96,7 +103,8 @@ bool emit_schedule_declarations(CppWriter& writer, const ir::Component& componen
     return true;
 }
 
-bool emit_schedule_definitions(CppWriter& writer, const ir::Component& component,
+bool emit_schedule_definitions(CppWriter& writer, const ir::IrModule& module,
+                               const ir::Component& component,
                                const std::vector<ComponentInstance>& instances,
                                const DynamicPlan& plan, std::string& error) {
     const bool item_instances = plan_has_item_instances(plan);
@@ -201,7 +209,7 @@ bool emit_schedule_definitions(CppWriter& writer, const ir::Component& component
         if (!plain_identifier(state.name)) {
             continue;
         }
-        const std::optional<std::string> type = cpp_type(state.type);
+        const std::optional<std::string> type = cpp_type(state.type, module.types);
         if (!type) {
             error = "state `" + state.name + "` has a type with no C++ form (`" + state.type + "`)";
             return false;
@@ -210,9 +218,15 @@ bool emit_schedule_definitions(CppWriter& writer, const ir::Component& component
         // Equality-gated (ADR-041, decision 6): an unchanged value schedules nothing, so a repeated
         // identical set neither wakes the loop nor runs update(). NaN never compares equal and
         // therefore always schedules, which is the safe direction.
-        writer.open("if (" + member_name(state.id) + " == value)");
-        writer.line("return;");
-        writer.close("");
+        //
+        // ADR-051 section 5 generates no equality for a record in this slice, so a record state
+        // assignment is unconditional: a record change always schedules an update, exactly as a
+        // list does without a generated comparison.
+        if (!is_record_state(state, module)) {
+            writer.open("if (" + member_name(state.id) + " == value)");
+            writer.line("return;");
+            writer.close("");
+        }
         writer.line(member_name(state.id) + " = std::move(value);");
         writer.line("schedule_update();");
         writer.close("");

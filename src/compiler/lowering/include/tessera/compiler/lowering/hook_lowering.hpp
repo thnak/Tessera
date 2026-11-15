@@ -6,6 +6,7 @@
 #include "tessera/compiler/ir/component.hpp"
 #include "tessera/compiler/ir/expr.hpp"
 #include "tessera/compiler/ir/module.hpp"
+#include "tessera/compiler/ir/types.hpp"
 #include "tessera/compiler/jsx/ast.hpp"
 #include "tessera/compiler/jsx/diagnostic.hpp"
 #include "tessera/compiler/jsx/module_ast.hpp"
@@ -53,6 +54,11 @@ struct HookLoweringContext {
     // Slice 4 (cross-file): every type name visible in the project files, resolved through imports
     // and re-exports by `lower_project` (issue #70). Null keeps the same-file-only alias walk.
     const TypeNameTable* types = nullptr;
+    // ADR-051 slice 3: the module's record type table (docs/specs/ir-v1.md section 2.2). A
+    // `useState` initial or a prop default whose declared type names a record here is an object
+    // literal that becomes an `ir::Record`. Null in the single-component entry points, where an
+    // object literal in such a position stays unsupported.
+    const std::vector<ir::RecordType>* records = nullptr;
     // The component's declared prop records, lowered before its handlers and nodes so a callback
     // prop can be forwarded or called with its declared type (issue #286). Null when the props type
     // has no resolvable object type.

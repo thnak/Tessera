@@ -5,6 +5,7 @@
 // read here (the returned element is ignored).
 
 #include "hook_lowering_internal.hpp"
+#include "record_internal.hpp"
 #include "tessera/compiler/lowering/source_span.hpp"
 
 #include <algorithm>
@@ -144,9 +145,33 @@ void lower_state(HookState& state, std::size_t index, LoweredHooks& out,
         }
         type = *inferred;
     }
-    ir::ExprPtr initial = internal::lower_component_expression(state, *call.operands[1], names);
-    if (!initial) {
-        return;
+    // ADR-051 slice 3: an object literal whose declared state type names a module record is a
+    // record value (docs/specs/ir-v1.md section 4.3), not the generic "object literal is not an IR
+    // expression" rejection. The record table decides; without one this stays the old error.
+    ir::ExprPtr initial;
+    const ir::RecordType* record = nullptr;
+    if (state.context.records != nullptr) {
+        if (const std::optional<std::string_view> name =
+                internal::record_name_of(*state.context.records, type)) {
+            record = internal::find_record(*state.context.records, *name);
+        }
+    }
+    if (record != nullptr && call.operands[1]->kind == jsx::ExprKind::Object) {
+        internal::RecordLoweringState record_state{state.context.source_map, state.context.file,
+                                                   std::nullopt};
+        initial = internal::lower_record_value(record_state, *call.operands[1], *record,
+                                               *state.context.records);
+        if (!initial) {
+            if (!state.error && record_state.error) {
+                state.error = std::move(record_state.error);
+            }
+            return;
+        }
+    } else {
+        initial = internal::lower_component_expression(state, *call.operands[1], names);
+        if (!initial) {
+            return;
+        }
     }
     if (is_list_type(type) && !validate_list_initial(state, type, *initial, statement.span)) {
         return;

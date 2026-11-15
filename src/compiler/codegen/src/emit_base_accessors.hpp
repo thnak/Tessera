@@ -122,7 +122,8 @@ struct Item {
 // the accessors (`x()` per state, `ref_<name>()` per ref, `<name>()` per prop and animated value,
 // `child_<n>()` per non-template component instance) and the developer-facing contract. Fails on an
 // accessor name that collides with a generated member.
-[[nodiscard]] bool emit_base_members(CppWriter& writer, const ir::Component& component,
+[[nodiscard]] bool emit_base_members(CppWriter& writer, const ir::IrModule& module,
+                                     const ir::Component& component,
                                      const std::vector<const ir::Binding*>& bindings,
                                      const std::vector<ComponentInstance>& instances,
                                      std::string& error);

@@ -95,6 +95,13 @@ std::optional<std::string> lower_return_type(const jsx::TypePtr& type) {
     return lower_written_type(*type);
 }
 
+// ADR-051 section 1: a record member is a value. `lower_written_type` already lowers every value
+// form of jsx-subset-v1.md section 5; what it cannot express for a record is the `children` slot
+// and a function type, which the record table rejects at the member's own span.
+std::optional<std::string> lower_written_value_type(const jsx::TypeNode& type) {
+    return lower_written_type(type);
+}
+
 std::optional<std::string> initial_literal_type(const jsx::Expr& expr) {
     switch (expr.kind) {
     case jsx::ExprKind::Number:

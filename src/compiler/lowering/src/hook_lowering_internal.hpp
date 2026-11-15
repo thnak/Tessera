@@ -43,6 +43,11 @@ std::string callee_name(const jsx::Expr& call);
 // any expression that needs the type table.
 [[nodiscard]] std::optional<std::string> initial_literal_type(const jsx::Expr& expr);
 
+// ADR-051 section 1: the written type of a record member, or of a record-valued position. The same
+// mapping as `lower_written_type`; it exists as its own name so the record table's "a member is a
+// value" rule has one place to reject a `children`/callback member.
+[[nodiscard]] std::optional<std::string> lower_written_value_type(const jsx::TypeNode& type);
+
 // Lowers one component expression with the component's names, or null with the first error
 // recorded in `state`.
 [[nodiscard]] ir::ExprPtr lower_component_expression(HookState& state, const jsx::Expr& expr,

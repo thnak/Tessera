@@ -149,7 +149,8 @@ std::string member_name(std::string_view ir_id) {
     return (mapped ? *mapped : std::string(prefix) + "_") + std::string(name) + "_";
 }
 
-std::optional<std::string> cpp_type(std::string_view ir_type) {
+std::optional<std::string> cpp_type(std::string_view ir_type,
+                                    std::span<const ir::RecordType> records) {
     if (ir_type == "bool") {
         return std::string("bool");
     }
@@ -171,8 +172,8 @@ std::optional<std::string> cpp_type(std::string_view ir_type) {
     for (const std::string_view wrapper : {"list<", "optional<"}) {
         if (ir_type.size() > wrapper.size() + 1 && ir_type.rfind(wrapper, 0) == 0 &&
             ir_type.back() == '>') {
-            const std::optional<std::string> inner =
-                cpp_type(ir_type.substr(wrapper.size(), ir_type.size() - wrapper.size() - 1));
+            const std::optional<std::string> inner = cpp_type(
+                ir_type.substr(wrapper.size(), ir_type.size() - wrapper.size() - 1), records);
             if (!inner) {
                 return std::nullopt;
             }
@@ -182,7 +183,13 @@ std::optional<std::string> cpp_type(std::string_view ir_type) {
             return "std::optional<" + *inner + ">";
         }
     }
-    // A record type name has no generated C++ struct in this slice.
+    // ADR-051: a declared record is a generated aggregate struct in `<module>_types.hpp`. Without
+    // the table a record name has no C++ form, which is how a callback prop stays a non-value.
+    for (const ir::RecordType& record : records) {
+        if (record.name == ir_type) {
+            return record.name;
+        }
+    }
     return std::nullopt;
 }
 
@@ -361,17 +368,36 @@ ExprEmission emit_expr(const ir::Expr& expr, const ir::Component& component,
         // initializer position has its own emitter so a braced list never leaks into an expression.
         return fail("an array literal has no C++ spelling in an expression position; it is only a "
                     "state or prop initial value");
-    case ir::ExprKind::Record:
-        // A record value is only a `useState` initial or a prop default (section 4.3); emitting one
-        // needs the record struct and designated initialization of the codegen follow-up slice.
-        return fail("a record value has no C++ spelling in this codegen slice; the record struct "
-                    "and designated initialization are a follow-up (ADR-051 slice 4)");
+    case ir::ExprKind::Record: {
+        // ADR-051 section 5: a record value is designated aggregate initialization
+        // (`Size{.w = 1, .h = 2}`), so the member names and their order are compiler-checked
+        // against the generated struct. A record value only reaches an initializer position
+        // (section 4.3).
+        std::string text = expr.type + "{";
+        for (std::size_t i = 0; i < expr.fields.size(); ++i) {
+            const ir::RecordField& field = expr.fields[i];
+            if (!field.value) {
+                return fail("record `" + expr.type + "` field `" + field.name + "` has no value");
+            }
+            const ExprEmission value = emit_initializer_expr(*field.value, component);
+            if (!value.error.empty()) {
+                return value;
+            }
+            if (i != 0) {
+                text += ", ";
+            }
+            text += "." + field.name + " = " + value.text;
+        }
+        text += "}";
+        return ExprEmission{std::move(text), {}};
+    }
     }
     return fail("unsupported expression kind");
 }
 
 ExprEmission emit_initializer_expr(const ir::Expr& expr, const ir::Component& component) {
     if (expr.kind != ir::ExprKind::Array) {
+        // A record value is an initializer form too (`Size{.w = 1}`), never a bare expression.
         return emit_expr(expr, component);
     }
     std::string text = "{";

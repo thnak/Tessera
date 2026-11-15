@@ -3,6 +3,7 @@
 // Entry point and deterministic writer of the first C++ codegen slice.
 
 #include "codegen_internal.hpp"
+#include "emit_types_header.hpp"
 #include "emit_vector.hpp"
 
 #include <algorithm>
@@ -150,6 +151,17 @@ CodegenResult generate(const ir::IrModule& module, std::span<const StylesheetEmb
         if (!internal::emit_component(*component, module, files, error)) {
             return std::unexpected(single(std::move(error)));
         }
+    }
+    // ADR-051 slice 4: the module's record aggregates, in one per-module header (see
+    // `emit_types_header.hpp` for why this is not a component header). A module without records
+    // emits nothing here, which is what keeps every existing golden byte-identical.
+    if (!module.types.empty()) {
+        GeneratedFile types;
+        std::string types_error;
+        if (!internal::emit_types_header(module, types, types_error)) {
+            return std::unexpected(single(std::move(types_error)));
+        }
+        files.push_back(std::move(types));
     }
     std::vector<internal::ResolvedStylesheet> resolved;
     resolved.reserve(module.stylesheets.size());

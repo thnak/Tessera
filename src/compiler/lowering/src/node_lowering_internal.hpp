@@ -10,6 +10,7 @@
 #include "tessera/schema/style.hpp"
 
 #include <cstdint>
+#include <expected>
 #include <optional>
 #include <span>
 #include <string>

@@ -16,14 +16,15 @@
 namespace tessera::compiler::codegen::internal {
 
 // Members and method declarations on the component struct.
-bool emit_schedule_declarations(CppWriter& writer, const ir::Component& component,
-                                std::string& error);
+bool emit_schedule_declarations(CppWriter& writer, const ir::IrModule& module,
+                                const ir::Component& component, std::string& error);
 
 // Out-of-line definitions; owned component instances attach and detach after/before their owner so
 // the flush order is parent before child. Per-item component instances follow the owner's
 // scheduler: attach/detach reach every live item instance, and a late-created item joins through
 // the stored pointer (docs/design/compiler-node-state.md section 3).
-bool emit_schedule_definitions(CppWriter& writer, const ir::Component& component,
+bool emit_schedule_definitions(CppWriter& writer, const ir::IrModule& module,
+                               const ir::Component& component,
                                const std::vector<ComponentInstance>& instances,
                                const DynamicPlan& plan, std::string& error);
 

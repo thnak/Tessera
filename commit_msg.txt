@@ -1,0 +1,55 @@
+compiler: object-literal prop defaults and useState record initials (ADR-051)
+
+Slices 3 and 4 of ADR-051, following the record type and record value model
+that slices 1-2 landed. A component may now declare a record type once and use
+object literals for it in the two positions the ADR allows, and codegen emits
+them as designated aggregate initializers.
+
+Lowering (slice 3):
+
+- `LoweredModule::types` is the module record table, sorted by name, with the
+  `type::<name>` IR id.
+- An object literal becomes `ir::Record` for a prop default
+  (`{ padding = { top: 4 } }`) and for a `useState` record initial
+  (`useState<Spacing>({ top: 1 })`).
+- Fields are emitted in the record's *member* order, not source order, and an
+  omitted optional member stays omitted, so the emitted C++ is a pure function
+  of the record declaration plus the written fields.
+- `is_literal_default()` accepts an object literal structurally. Field *values*
+  are checked in the lowering, which knows the member and can name it: a computed
+  field is still a hard error but now says
+  `TESSERA_IR_UNSUPPORTED: field `top` of record `Spacing` is `compute()`; this
+  slice accepts a literal, a record of literals or an array of literals`, where
+  the parse-time rejection was a generic `TESSERA_JSX_SUBSET_LITERAL` with no
+  member name. Spreads and computed keys are still rejected at parse time.
+
+Codegen (slice 4):
+
+- `cpp_type(ir_type, records)` resolves a declared record to its aggregate type
+  and `ExprKind::Record` emits `Spacing{.top = 4, .bottom = 4}`.
+- One per-module `<module>_types.hpp` holds the aggregate structs and is included
+  by each generated header that names a record. This replaces ADR-051 section 5's
+  "first component that uses it" placement, which cannot work in ADR-040 base
+  mode — a generated header includes a referenced component's *developer* `.hpp`,
+  never another component's `.g.hpp`, so a second using component would not see
+  the struct. The note is recorded in the ADR itself.
+- A declared record is a value prop with no hash guard, a record state setter is
+  not equality-gated (the ADR generates no `operator==` this slice), and a record
+  as an effect dependency is a loud `TESSERA_CODEGEN_UNSUPPORTED` rather than
+  code that fails to compile.
+- The types header is emitted only when `types` is non-empty, so every module
+  without records generates byte-identical output: no existing golden moves and
+  all 92 tracked goldens are untouched.
+
+Also: `ir::IrModule.types` is carried through `tools/codegen/regenerate.cpp`,
+`docs/specs/jsx-subset-v1.md` gains the object-literal grammar line, and
+`docs/specs/ir-v1-expr.md` records that slice 4 landed.
+
+Verified: full `cmake --build --preset vs2026-release` clean and
+`ctest --preset vs2026-release` -> 551 tests, 0 failed; `clang-format
+--dry-run -Werror` clean on every changed file. The round-trip assertion
+compares two canonical `write_ir_json` writes, because the repo has no IR
+reader yet (ir-v1-expr.md section 9.1), and it checks the text carries
+`"kind": "record"`, `"type": "Spacing"` and `"id": "type::Spacing"`.
+
+Closes #158

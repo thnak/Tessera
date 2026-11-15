@@ -7,12 +7,14 @@
 // reading stays with the caller.
 
 #include "node_lowering_internal.hpp"
+#include "record_internal.hpp"
 #include "tessera/compiler/lowering/library_components.hpp"
 #include "type_scope.hpp"
 
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <expected>
 #include <optional>
 #include <span>
 #include <string>
@@ -361,9 +363,13 @@ bool resolve_imports(ProjectState& state, std::size_t index, std::span<const Pac
 }
 
 std::optional<LoweredModule> finish(ProjectState& state, std::string_view module_name,
-                                    const TypeNameTable* types) {
+                                    const TypeNameTable* types,
+                                    const std::vector<ir::RecordType>* records) {
     LoweredModule lower;
     lower.name = std::string(module_name);
+    if (records != nullptr) {
+        lower.types = *records;
+    }
     for (const std::size_t index : state.order) {
         const FileEntry& entry = state.files[index];
         const ModuleSource& source = *entry.source;
@@ -378,9 +384,14 @@ std::optional<LoweredModule> finish(ProjectState& state, std::string_view module
                      "component `" + item.name + "` was not analysed", item.span);
                 return std::nullopt;
             }
-            const HookLoweringContext context{
-                item,          *analysis, *source.source_map, source.file, entry.component_refs,
-                source.module, types};
+            const HookLoweringContext context{item,
+                                              *analysis,
+                                              *source.source_map,
+                                              source.file,
+                                              entry.component_refs,
+                                              source.module,
+                                              types,
+                                              records};
             LoweredComponentResult component = lower_component(context);
             if (!component) {
                 if (!state.error && !component.error().empty()) {
@@ -520,7 +531,22 @@ ModuleLoweringResult lower_files(std::span<const ModuleSource> sources,
         state.error = std::move(*types.error);
         return std::unexpected(NodeLoweringErrors{*state.error});
     }
-    std::optional<LoweredModule> module = finish(state, module_name, &types.table);
+    // ADR-051 slice 3: the record type table must exist before any component is lowered, because a
+    // prop default or a `useState` initial is lowered against it.
+    std::vector<internal::RecordTypeSource> record_sources;
+    record_sources.reserve(state.files.size());
+    for (const FileEntry& file : state.files) {
+        record_sources.push_back(internal::RecordTypeSource{file.source->file, file.source->module,
+                                                            file.source->source_map});
+    }
+    std::expected<std::vector<ir::RecordType>, jsx::Diagnostic> collected =
+        internal::collect_record_types(record_sources, types.table);
+    if (!collected) {
+        state.error = std::move(collected.error());
+        return std::unexpected(NodeLoweringErrors{*state.error});
+    }
+    const std::vector<ir::RecordType>& records = *collected;
+    std::optional<LoweredModule> module = finish(state, module_name, &types.table, &records);
     if (!module) {
         return std::unexpected(NodeLoweringErrors{*state.error});
     }

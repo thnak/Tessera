@@ -1,14 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-// Slice 4 (cross-file): a component whose props type is a type alias declared in another source
-// file lowers to the same props record as the same alias declared inline (issue #70, "cross-file
-// props aliases"). Type-only imports, plain imports, `as` renames and re-export chains all resolve
-// to the one declaration that owns the object body, so the `ir::Prop` list is byte-identical, in
-// declaration order, and generated C++ does not change with where the alias is authored.
-//
-// Diagnostics stay loud: a missing exported alias, an import that names a non-type declaration, a
-// cycle through type-alias imports and an unresolvable module each produce their own code, and no
-// case silently lowers an empty props record.
+// ADR-051 slice 4 (issue #158): codegen emits a model with a record type table as one per-module
+// `<module>_types.hpp` of aggregate structs, a record default/initial as designated aggregate
+// initialization, and one include edge in each generated component header that names a record. The
+// lowering half of the same fixture (the `ir::Record` shape and the table) is asserted in
+// `lowering_props_tests.cpp`; this file lowers and generates so the emitted text is proven end to
+// end. A module without records must emit no types header and no extra include, which the committed
+// `.g.hpp` goldens already prove and `test_record_free_modules_emit_no_types_header` pins.
 
 #include "lowering_module_test_util.hpp"
 #include "tessera/compiler/codegen/codegen.hpp"
@@ -98,6 +96,16 @@ lower_files(std::initializer_list<std::pair<const char*, std::string>> files) {
         project.add(parse_file(path, text));
     }
     return project.lower("demo");
+}
+
+ir::IrModule into_module(lowering::LoweredModule&& lowered) {
+    ir::IrModule module;
+    module.name = std::move(lowered.name);
+    module.components = std::move(lowered.components);
+    module.bindings = std::move(lowered.bindings);
+    module.stylesheets = std::move(lowered.stylesheets);
+    module.types = std::move(lowered.types);
+    return module;
 }
 
 void test_inline_and_imported_aliases_are_identical() {
@@ -193,38 +201,6 @@ void test_import_forms_resolve() {
     }
 }
 
-void test_optional_slot_and_default_through_the_import() {
-    const std::string body = "type BadgeProps = {\n"
-                             "  label: string;\n"
-                             "  count?: int;\n"
-                             "  children: Children;\n"
-                             "};\n";
-    const std::string component =
-        "export function Badge({ label = \"x\", count, children }: BadgeProps) {\n"
-        "  return <View><Text>{label}</Text>{children}</View>;\n"
-        "}\n";
-    const auto inline_result = lower_files({{"ui/Badge.tsx", body + component}});
-    const auto imported_result = lower_files(
-        {{"ui/types.tsx", "export " + body},
-         {"ui/Badge.tsx", "import type { BadgeProps } from \"./types\";\n" + component}});
-    check(inline_result.has_value() && imported_result.has_value(),
-          "both Badge fixtures lower: " + first_message(imported_result));
-    if (!inline_result || !imported_result) {
-        return;
-    }
-    const ir::Component* badge = find_component(*imported_result, "Badge");
-    check(badge != nullptr, "the imported-alias Badge lowers");
-    if (badge == nullptr) {
-        return;
-    }
-    check_eq(props_text(*badge),
-             "label:string::{\"kind\":\"literal\",\"value\":\"x\"}\ncount:int:?:-\n"
-             "children:children::-\n",
-             "the destructuring default, `?` and the children slot survive the import");
-    check_eq(component_text(*imported_result), component_text(*inline_result),
-             "optional/slot/default records match the inline-alias lowering");
-}
-
 // Reports the first code of a failing project, and proves no IR (and so no props record) came back.
 std::string expect_error(std::initializer_list<std::pair<const char*, std::string>> files,
                          std::string_view what) {
@@ -287,16 +263,46 @@ void test_alias_resolution_errors_are_distinct() {
     check(codes.size() == 4, "each failure mode has its own TESSERA_* code");
 }
 
-// A props alias reached through a package root uses the ordinary import graph (ADR-014, issue #70).
+void test_optional_slot_and_default_through_the_import() {
+    const std::string body = "type BadgeProps = {\n"
+                             "  label: string;\n"
+                             "  count?: int;\n"
+                             "  children: Children;\n"
+                             "};\n";
+    const std::string component =
+        "export function Badge({ label = \"x\", count, children }: BadgeProps) {\n"
+        "  return <View><Text>{label}</Text>{children}</View>;\n"
+        "}\n";
+    const auto inline_result = lower_files({{"ui/Badge.tsx", body + component}});
+    const auto imported_result = lower_files(
+        {{"ui/types.tsx", "export " + body},
+         {"ui/Badge.tsx", "import type { BadgeProps } from \"./types\";\n" + component}});
+    check(inline_result.has_value() && imported_result.has_value(),
+          "both Badge fixtures lower: " + first_message(imported_result));
+    if (!inline_result || !imported_result) {
+        return;
+    }
+    const ir::Component* badge = find_component(*imported_result, "Badge");
+    check(badge != nullptr, "the imported-alias Badge lowers");
+    if (badge == nullptr) {
+        return;
+    }
+    check_eq(props_text(*badge),
+             "label:string::{\"kind\":\"literal\",\"value\":\"x\"}\ncount:int:?:-\n"
+             "children:children::-\n",
+             "the destructuring default, `?` and the children slot survive the import");
+    check_eq(component_text(*imported_result), component_text(*inline_result),
+             "optional/slot/default records match the inline-alias lowering");
+}
+
 void test_package_root_alias_resolves() {
     Project project;
-    project.add(parse_file("ui/Card.tsx", "import type { CardProps } from \"tessera-ui/types\";\n" +
+    project.add(
+        parse_file("packages/ui/types.tsx", "export type CardProps = " + std::string(kPropsBody)));
+    project.add(parse_file("ui/Card.tsx", "import type { CardProps } from \"ui/types\";\n" +
                                               std::string(kCardComponent)));
-    project.add(parse_file("packages/tessera-ui/types.tsx",
-                           "export type CardProps = " + std::string(kPropsBody)));
-    const std::array<lowering::PackageRoot, 1> packages{
-        {{.name = "tessera-ui", .root = "packages/tessera-ui"}}};
     const std::vector<lowering::ModuleSource> sources = project.sources();
+    const std::array<lowering::PackageRoot, 1> packages{lowering::PackageRoot{"ui", "packages/ui"}};
     const auto result = lowering::lower_project(sources, "demo", packages);
     check(result.has_value(), "a package-root props alias resolves: " + first_message(result));
     if (!result) {
@@ -324,18 +330,8 @@ void test_generated_cpp_is_byte_identical() {
     if (!inline_result || !imported_result) {
         return;
     }
-    const auto into_module = [](lowering::LoweredModule&& lowered) {
-        ir::IrModule module;
-        module.name = std::move(lowered.name);
-        module.components = std::move(lowered.components);
-        module.bindings = std::move(lowered.bindings);
-        module.stylesheets = std::move(lowered.stylesheets);
-        return module;
-    };
-    auto inline_lowered = std::move(*inline_result);
-    auto imported_lowered = std::move(*imported_result);
-    const auto inline_cpp = codegen::generate(into_module(std::move(inline_lowered)));
-    const auto imported_cpp = codegen::generate(into_module(std::move(imported_lowered)));
+    const auto inline_cpp = codegen::generate(into_module(std::move(*inline_result)));
+    const auto imported_cpp = codegen::generate(into_module(std::move(*imported_result)));
     check(inline_cpp.has_value() && imported_cpp.has_value(),
           "both fixtures generate C++: " +
               (imported_cpp ? std::string() : imported_cpp.error().front()));
@@ -357,6 +353,108 @@ void test_generated_cpp_is_byte_identical() {
     check(props_struct_seen, "the generated props struct carries the declared fields");
 }
 
+// ADR-051 slice 4 (issue #158): the record struct, the designated initializer and the include edge.
+// The lowering assertions for the same fixture live in `lowering_props_tests.cpp`.
+constexpr std::string_view kRecordSource = "type Spacing = {\n"
+                                           "  top: int;\n"
+                                           "  bottom: int;\n"
+                                           "  label?: string;\n"
+                                           "};\n"
+                                           "type BoxProps = {\n"
+                                           "  padding: Spacing;\n"
+                                           "  title: string;\n"
+                                           "  children: Children;\n"
+                                           "};\n"
+                                           "export function Box({ padding = { top: 4, bottom: 4 }, "
+                                           "title, children }: BoxProps) {\n"
+                                           "  const [margin, setMargin] = "
+                                           "useState<Spacing>({ label: \"m\", bottom: 2, top: 1 "
+                                           "});\n"
+                                           "  return <View><Text>{title}</Text>{children}</View>;\n"
+                                           "}\n";
+
+const codegen::GeneratedFile* find_file(const std::vector<codegen::GeneratedFile>& files,
+                                        std::string_view path) {
+    for (const codegen::GeneratedFile& file : files) {
+        if (file.path == path) {
+            return &file;
+        }
+    }
+    return nullptr;
+}
+
+void test_record_type_and_value_are_emitted() {
+    auto result = lower_files({{"ui/Box.tsx", std::string(kRecordSource)}});
+    check(result.has_value(), "the record fixture lowers: " + first_message(result));
+    if (!result) {
+        return;
+    }
+    const auto generated = codegen::generate(into_module(std::move(*result)));
+    check(generated.has_value(), "the record module generates C++: " +
+                                     (generated ? std::string() : generated.error().front()));
+    if (!generated) {
+        return;
+    }
+    const codegen::GeneratedFile* types = find_file(*generated, "demo_types.hpp");
+    check(types != nullptr, "a module with a record emits demo_types.hpp");
+    if (types != nullptr) {
+        check(types->text.find("struct Spacing {") != std::string::npos,
+              "the aggregate struct is emitted");
+        check(types->text.find("int top = {};") != std::string::npos,
+              "the member keeps its C++ type");
+        check(types->text.find("std::optional<std::string> label = {};") != std::string::npos,
+              "an optional member becomes std::optional");
+    }
+    const codegen::GeneratedFile* header = find_file(*generated, "Box.g.hpp");
+    check(header != nullptr, "the component header is generated");
+    if (header == nullptr) {
+        return;
+    }
+    check(header->text.find("#include \"demo_types.hpp\"") != std::string::npos,
+          "the component header includes the module types header");
+    check(header->text.find("Spacing prop_padding_ = Spacing{.top = 4, .bottom = 4};") !=
+              std::string::npos,
+          "the prop default is designated aggregate initialization");
+    check(header->text.find("Spacing state_margin_ = Spacing{.top = 1, .bottom = 2, .label = "
+                            "\"m\"};") != std::string::npos,
+          "the state initial is designated aggregate initialization");
+    // ADR-051 section 5: no equality for a record, so the setter cannot be equality-gated. The
+    // generated base is one header-only file (ADR-040), so the definition lives in the header too.
+    const std::size_t setter = header->text.find("::set_margin(Spacing value) {");
+    check(setter != std::string::npos, "the record state gets a setter taking the aggregate");
+    if (setter != std::string::npos) {
+        const std::string body = header->text.substr(setter, 300);
+        check(body.find("== value") == std::string::npos,
+              "the record setter is not equality-gated (no generated operator==)");
+        check(body.find("schedule_update();") != std::string::npos,
+              "the record setter always schedules an update");
+    }
+}
+
+// The converse, which is what keeps every committed golden byte-identical: a module without a
+// record table emits no types header and no component gains an include.
+void test_record_free_modules_emit_no_types_header() {
+    auto result = lower_files({{"ui/Card.tsx", "type CardProps = " + std::string(kPropsBody) +
+                                                   std::string(kCardComponent)}});
+    check(result.has_value(), "the record-free fixture lowers: " + first_message(result));
+    if (!result) {
+        return;
+    }
+    check(result->types.empty(),
+          "a module with no `type`-declared value record has an empty table");
+    const auto generated = codegen::generate(into_module(std::move(*result)));
+    check(generated.has_value(), "the record-free module generates C++");
+    if (!generated) {
+        return;
+    }
+    for (const codegen::GeneratedFile& file : *generated) {
+        check(file.path.find("_types.hpp") == std::string::npos,
+              "no module types header is emitted: " + file.path);
+        check(file.text.find("_types.hpp") == std::string::npos,
+              "no generated file mentions a types header: " + file.path);
+    }
+}
+
 } // namespace
 
 int main() {
@@ -365,6 +463,8 @@ int main() {
     test_optional_slot_and_default_through_the_import();
     test_package_root_alias_resolves();
     test_alias_resolution_errors_are_distinct();
+    test_record_type_and_value_are_emitted();
+    test_record_free_modules_emit_no_types_header();
     test_generated_cpp_is_byte_identical();
     return jsx_test::finish("lowering props alias tests");
 }
