@@ -82,6 +82,8 @@ This page is the map and reading order for the framework.
 - [`specs/component-parts-v1.md`](specs/component-parts-v1.md) — `::part(name)`: the `part` attribute, cross-boundary matching, specificity, `@supports selector()`
 - [`specs/compiled-stylesheet-v1.md`](specs/compiled-stylesheet-v1.md) — precompiled stylesheet blob format (prepare/resolve split, ADR-048)
 - [`specs/theme-versions-v1.md`](specs/theme-versions-v1.md) — theme versions, `assets.themePins` and `TESSERA_THEME_VERSION_PIN` (ADR-047)
+- [`specs/theme-generation-v1.md`](specs/theme-generation-v1.md) — deriving an Instrument token set
+  from one seed color in OKLCH, with enforced WCAG 2.2 AA contrast (ADR-047)
 - [`specs/diagnostics-config-v1.md`](specs/diagnostics-config-v1.md) — logging, tracing,
   profiling, crash, overlay
 - [`specs/os-events-v1.md`](specs/os-events-v1.md) — normalized OS events, display
