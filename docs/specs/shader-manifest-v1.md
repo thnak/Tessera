@@ -1,8 +1,11 @@
 # Shader manifest v1
 
-Status: proposed (Big Steps B and D, defined in [`AGENTS.md`](../../AGENTS.md#big-steps-group-work-dont-micro-step)). Follow-up to
-[ADR-011](../../decisions/ADR-011-shader-authoring-and-cross-compilation.md) (shader authoring and
-cross-compilation).
+Status: partly implemented (Big Steps B and D, defined in [`AGENTS.md`](../../AGENTS.md#big-steps-group-work-dont-micro-step)).
+Follow-up to [ADR-011](../../decisions/ADR-011-shader-authoring-and-cross-compilation.md) (shader
+authoring and cross-compilation) and amended by
+[ADR-049](../../decisions/ADR-049-backend-extensibility.md) (shader ids, the portable branch and
+opt-in cross-compilation). Sections 1, 2, 3.2, 5 and 9 are implemented and checked by the build;
+the rest is the target contract.
 
 Terms: **GLSL** is the OpenGL/Vulkan shading language; **SPIR-V** is Vulkan shader bytecode built
 with `glslc`; **WGSL** is the WebGPU shading language; **naga/Tint** are WGSL tools; **SPIRV-Reflect**
@@ -141,6 +144,54 @@ Layout of the `transition` uniform buffer (64 bytes; identical under GLSL `std14
 
 Adding `kind` is an optional field and keeps manifest version 1 (section 6).
 
+### 3.2 Shader id and source table
+
+The **shader id** is the stable name of one logical shader program across every backend
+([ADR-049](../../decisions/ADR-049-backend-extensibility.md), decision item 1.2). This section is
+normative for the identity rule and for the current id → source mapping.
+
+**Identity rule.** A shader id **is** the manifest `name` of its entry. The two are the same string,
+character for character, and this is the only place the mapping is defined:
+
+- `rhi::PipelineDesc::shader_id` carries the id (`include/tessera/rendering/rhi/types.hpp`).
+- The C++ constant is a `std::string_view` in
+  `include/tessera/rendering/gpu/shader_ids.hpp` whose value equals the manifest `name`.
+- A non-SPIR-V backend resolves the id against a table it owns; for WebGPU that table is
+  `webgpu::ShaderRegistry` (`src/rendering/backend/webgpu/src/shader_registry.cpp`).
+- An id that the manifest does not list is a **configure-time error** once a build rule consumes the
+  manifest, and a **pipeline-creation error** at run time (not a crash or an empty pipeline) for a
+  backend that cannot resolve it: the WebGPU backend throws `std::invalid_argument` for an empty or
+  unknown `shader_id` (`src/rendering/backend/webgpu/src/webgpu_pipeline.cpp`). A
+  `shader_id` that is empty means "use the SPIR-V words", which keeps the Vulkan path unchanged.
+- **Renaming an id is a manifest migration**, not an edit: it changes the id embedded in compiled
+  pipelines and in every backend's table, so the manifest version bumps (section 6) and a migration
+  note is required. Never rename an id to make a source file or a C++ symbol "nicer".
+
+**Portable branch.** Where a shader has a source shared with non-Vulkan APIs, the GLSL keeps one
+file per stage and selects the interface with `TESSERA_SHADER_PORTABLE` (ADR-049, decision item
+1.1): the Vulkan push-constant block and combined image sampler become a std140 uniform buffer at
+set 0 binding 0, a `texture2D` at binding 1 and a `sampler` at binding 2. The define is **not** set
+in a Vulkan build, so Vulkan SPIR-V is unchanged; `cmake/TesseraShaderCross.cmake` sets it only for
+its opt-in cross-compiled outputs. The manifest records the portable interface (section 2); the
+selected branch is a source detail, not a manifest field.
+
+**Current table.** Every entry in `tools/shaders/manifest.json` with its sources, constant and
+consumers:
+
+| id / `name` | Stages | GLSL sources (`src/rendering/backend/vulkan/shaders/`) | WGSL source (`src/rendering/backend/webgpu/shaders/`) | C++ constant (`shader_ids.hpp`) | Backend table / pipeline desc | Consumer |
+|---|---|---|---|---|---|---|
+| `batched2d` | vertex, fragment | `batched2d.vert`, `batched2d.frag` | `batched2d.wgsl` | `gpu::kBatched2dShaderId` | `vulkan::batched2d_pipeline_desc()`; `webgpu::builtin_shader_registry()` | `Batched2DRenderer` (`src/app/window_internal.hpp`) |
+| `glass_blur` | vertex, fragment | `fullscreen.vert`, `glass_blur.frag` | `glass_blur.wgsl` | `gpu::kGlassBlurShaderId` | `vulkan::glass_blur_pipeline_desc()` | `Batched2DRenderer::draw_backdrop` (glass, `docs/specs/glass-v1.md` section 5) |
+
+`fullscreen.vert` is a fullscreen triangle from `gl_VertexIndex` with no vertex buffer, so the
+manifest's `vertexLayout` is empty; it is a shared source for `glass_blur` only (the Vulkan
+`fullscreen.frag` PoC shader is not a manifest entry and has no id).
+
+`glass_blur.wgsl` is authored and validated (`scripts/ci/validate_wgsl.py`, the `webgpu.yml` lane)
+but is **not yet registered** in `builtin_shader_registry()`: no WebGPU path draws glass, so adding
+it there would publish an untested program. Registering it is part of the WebGPU glass work, not a
+change to this table.
+
 ## 4. Compatibility rules
 
 - Shared shaders may not use geometry/tessellation shaders, push constants on WebGPU, or
@@ -179,6 +230,31 @@ manifest.json
 - A manifest/source mismatch fails the build.
 - Shader changes require a golden update or a documented tolerance (case-file tolerance is the `compare.tolerance` field in
   [`golden-tests-v1.md`](golden-tests-v1.md), which applies to GPU smoke runs only).
+
+### 5.1 Opt-in cross-compilation (`TESSERA_SHADER_CROSS`)
+
+The default build compiles GLSL to SPIR-V with `glslc` and needs no translator. Setting
+`TESSERA_SHADER_CROSS=ON` (default OFF, in no preset) adds the `tessera_shader_cross_<id>` targets
+from `cmake/TesseraShaderCross.cmake` for contributed backends (ADR-049, decision item 1.3):
+
+- It compiles each stage a second time with `-DTESSERA_SHADER_PORTABLE=1`, runs the manifest check
+  first in the same rule, and writes everything under `<build>/shaders/cross/<id>/`. Nothing is
+  committed and nothing runs at application run time.
+- `glslc` is the only mandatory tool; a missing optional tool **skips** its outputs and its ctest
+  checks with a `-- Shader cross: <tool> not found` status line at configure time. `spirv-val`
+  validates the portable SPIR-V (always, when found), SPIRV-Cross emits MSL and HLSL, `dxc`
+  compiles the HLSL, and `spirv-opt` + naga emit and re-validate WGSL.
+- Registered ctest names: `shader_cross_<id>_<stage>_spirv_val`, `..._hlsl_dxc`, `..._wgsl_naga`,
+  plus `shader_cross_<id>_authored_wgsl_naga` for the authored WGSL twin.
+- The lane that runs it is the `shader-cross` job in `.github/workflows/linux.yml`; the tool setup
+  and what it validates are in [`docs/guides/writing-a-backend.md`](../guides/writing-a-backend.md)
+  section 5.
+
+**Parity requirement.** A shader built through the portable branch must still pass the same parity
+check as the Vulkan build. `shader_parity` (`tests/gpu/shaders/shader_parity_tests.cpp`) runs in
+every build — including a default one with no tools — and compares the portable GLSL branch against
+the authored WGSL, so a portable-only divergence fails without the cross tools installed. The cross
+lane adds the artifact-level checks; it is not what proves parity.
 
 ## 6. Versioning
 
