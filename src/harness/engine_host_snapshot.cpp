@@ -1,19 +1,22 @@
 // SPDX-License-Identifier: MIT
 //
-// Snapshot half of EngineAutomationHost: it walks the live scene into the automation snapshot
-// builder (docs/specs/automation-ids-v1.md section 5.2) and returns the canonical document. Kept
-// separate from the action half so both translation units stay small.
+// Snapshot half of EngineAutomationHost: it asks the shared scene walk
+// (`ui::automation::snapshot_scene`, src/ui/automation/scene_snapshot.cpp) for the canonical
+// UiSnapshot of the live tree (docs/specs/automation-ids-v1.md section 5.2) and returns the
+// document. The walk lives in the automation lane, not here, because the design-time preview's
+// in-memory evaluate -> layout -> snapshot path must produce the same bytes (issue #166); this file
+// only supplies the harness's manifest annotations and its sequence counter.
 
 #include "tessera/automation/engine_host.hpp"
+#include "tessera/automation/node_annotation.hpp"
 #include "tessera/diagnostics/trace.hpp"
 #include "tessera/harness/json_parse.hpp"
+#include "tessera/ui/automation/scene_snapshot.hpp"
 #include "tessera/ui/automation/snapshot.hpp"
 #include "tessera/ui/automation/snapshot_json.hpp"
-#include "tessera/ui/scene/paint_data.hpp"
-#include "tessera/ui/style/pseudo_state.hpp"
 
-#include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <expected>
 #include <string>
 #include <string_view>
@@ -34,90 +37,34 @@ std::unexpected<harness::ProtocolError> unexpected(harness::ProtocolError value)
     return std::unexpected(std::move(value));
 }
 
-std::string_view accessible_name(const ui::Node& node) {
-    for (const ui::Node::AriaAttribute& attribute : node.aria_attributes()) {
-        if (attribute.name == "aria-label") {
-            return attribute.value;
-        }
+// The manifest annotation as the walk's callback (`SceneAnnotationFn`). `NodeAnnotations` is keyed
+// by automation id, exactly what the walk passes in.
+struct AnnotationContext {
+    const NodeAnnotations* annotations = nullptr;
+};
+
+bool annotate(void* raw, std::uint64_t automation_id, ui::automation::SceneAnnotation& out) {
+    const auto* context = static_cast<const AnnotationContext*>(raw);
+    if (context == nullptr || context->annotations == nullptr) {
+        return false;
     }
-    return {};
+    const auto found = context->annotations->find(automation_id);
+    if (found == context->annotations->end()) {
+        return false;
+    }
+    out.path = found->second.path;
+    out.component_id = found->second.component_id;
+    return true;
 }
 
-std::string_view debug_kind(const ui::Node& node) {
-    const std::string_view kind = node.element_kind();
-    return kind.empty() ? std::string_view("Node") : kind;
-}
-
-// Structural path, built from parent to child in source order and capped so a deep tree cannot make
-// one path (and so the snapshot) unbounded. Deterministic for a fixed tree.
-std::string path_for(std::string_view parent, const ui::Node& node, std::size_t index) {
-    std::string path(parent);
-    path.push_back('/');
-    path.append(debug_kind(node));
-    path.push_back('[');
-    path.append(std::to_string(index));
-    path.push_back(']');
-    if (path.size() > kMaxSnapshotPathBytes) {
-        path.resize(kMaxSnapshotPathBytes);
+std::string_view error_name(ui::automation::SceneSnapshotErrorCode code) {
+    switch (code) {
+    case ui::automation::SceneSnapshotErrorCode::TooDeep:
+        return "snapshot tree exceeds the depth cap";
+    case ui::automation::SceneSnapshotErrorCode::TooManyNodes:
+        return "snapshot tree exceeds the node cap";
     }
-    return path;
-}
-
-std::expected<ui::automation::SnapshotSourceNode, harness::ProtocolError>
-build_source_node(const ui::Node& node, std::string_view path, bool parent_visible,
-                  std::size_t depth, std::size_t cap, std::size_t& count,
-                  const NodeAnnotations& annotations) {
-    if (depth > kMaxSnapshotDepth) {
-        return unexpected(error(harness::ProtocolErrorCode::Internal,
-                                "snapshot tree exceeds the depth cap",
-                                std::to_string(kMaxSnapshotDepth)));
-    }
-    if (++count > cap) {
-        return unexpected(error(harness::ProtocolErrorCode::Internal,
-                                "snapshot tree exceeds the node cap", std::to_string(cap)));
-    }
-
-    ui::automation::SnapshotSourceNode source;
-    source.ui_id = node.automation_id();
-    source.component_id = 0; // the scene carries no component id; annotations supply it
-    source.kind = std::string(debug_kind(node));
-    source.path = std::string(path);
-    if (const auto found = annotations.find(node.automation_id()); found != annotations.end()) {
-        source.component_id = found->second.component_id;
-        if (!found->second.path.empty()) {
-            source.path = found->second.path.substr(0, kMaxSnapshotPathBytes);
-        }
-    }
-    source.name = std::string(accessible_name(node));
-    if (const auto key = node.item_key(); key.has_value()) {
-        source.item_key = std::to_string(*key); // canonical decimal, matches resolve_target
-    }
-    const auto& paint = node.paint_data();
-    if (paint.has_value() && paint->kind == ui::PaintKind::Text) {
-        source.text = paint->text;
-    }
-    const auto bounds = node.world_bounds();
-    if (std::isfinite(bounds.x) && std::isfinite(bounds.y) && std::isfinite(bounds.width) &&
-        std::isfinite(bounds.height)) {
-        source.bounds =
-            ui::automation::SnapshotBounds{bounds.x, bounds.y, bounds.width, bounds.height};
-    }
-    source.visible = parent_visible && node.rendered();
-    source.enabled = !ui::style::has_state(node.pseudo_state(), ui::style::PseudoState::Disabled);
-    source.focused = ui::style::has_state(node.pseudo_state(), ui::style::PseudoState::Focus);
-    source.selected = ui::style::has_state(node.pseudo_state(), ui::style::PseudoState::Checked);
-
-    source.children.reserve(node.children().size());
-    for (std::size_t index = 0; index < node.children().size(); ++index) {
-        const ui::Node& child = *node.children()[index];
-        auto built = build_source_node(child, path_for(path, child, index), source.visible,
-                                       depth + 1, cap, count, annotations);
-        if (!built.has_value()) {
-            return std::unexpected(std::move(built.error()));
-        }
-        source.children.push_back(std::move(*built));
-    }
-    return source;
+    return "snapshot tree exceeds a cap";
 }
 
 } // namespace
@@ -130,24 +77,28 @@ EngineAutomationHost::canonical_snapshot(bool include_hidden) {
     // snapshot after layout.
     refresh_virtual_collections();
 
-    std::size_t count = 0;
-    auto source = build_source_node(root_, "root", true, 0, config_.max_snapshot_nodes, count,
-                                    config_.annotations);
-    if (!source.has_value()) {
-        return std::unexpected(std::move(source.error()));
+    AnnotationContext annotations{&config_.annotations};
+    ui::automation::SceneSnapshotOptions options;
+    options.snapshot.sequence = snapshot_sequence_++;
+    options.snapshot.include_hidden = include_hidden;
+    options.max_nodes = config_.max_snapshot_nodes;
+    options.max_depth = kMaxSnapshotDepth;
+    options.annotate = &annotate;
+    options.annotation_context = &annotations;
+
+    auto snapshot = ui::automation::snapshot_scene(root_, options);
+    if (!snapshot.has_value()) {
+        return unexpected(error(harness::ProtocolErrorCode::Internal,
+                                std::string(error_name(snapshot.error().code)),
+                                std::to_string(snapshot.error().limit)));
     }
 
-    ui::automation::SnapshotOptions options;
-    options.sequence = snapshot_sequence_++;
-    options.include_hidden = include_hidden;
-    const ui::automation::UiSnapshot snapshot = ui::automation::build_snapshot(*source, options);
-
-    auto parsed = harness::parse_json(ui::automation::snapshot_to_json(snapshot));
+    auto parsed = harness::parse_json(ui::automation::snapshot_to_json(*snapshot));
     if (!parsed.has_value()) {
         return unexpected(error(harness::ProtocolErrorCode::Internal,
                                 "canonical snapshot document could not be decoded", "snapshot"));
     }
-    stats_.emitted_nodes = snapshot.nodes.size();
+    stats_.emitted_nodes = snapshot->nodes.size();
     ++stats_.snapshots;
     record("automation.snapshot", diagnostics::TraceCategory::Frame);
     return std::move(*parsed);

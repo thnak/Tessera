@@ -174,6 +174,31 @@ jobs:
           --wasm build/wasm-webgpu/src/compiler/codegen/tessera_diagnostics.js
           --node "$EMSDK_NODE"
 
+      # P2 of the preview (issue #166): the evaluate -> scene -> layout -> snapshot path must produce
+      # the same canonical UiSnapshot document in Wasm as the native harness's serializer does. This
+      # is the slice's acceptance sentence, and it is the only place it is proven: the native half
+      # runs on a developer box, the Wasm half cannot (it needs this emsdk). The native CLI is the
+      # *preview* driver, not `tessera_codegen`, because P2 links the engine (Yoga, the text stack,
+      # the stylesheet engine) and that must not enter the P0 Node tool.
+      - name: Build native scene-preview CLI
+        run: >-
+          cmake --build build/native-parity
+          --target tessera_scene_preview_cli --parallel
+
+      - name: Build browser scene-preview module
+        run: >-
+          cmake --build build/wasm-webgpu
+          --target tessera_scene_preview_wasm --parallel
+
+      # The corpus declares a minimum node count per case, so "both sides empty" cannot pass; the
+      # script resolves all three executables to absolute paths before it changes directory.
+      - name: Scene snapshot parity (native vs Wasm)
+        run: >-
+          python3 -B scripts/ci/scene_snapshot_parity.py
+          --native build/native-parity/src/compiler/codegen/tessera_scene_preview
+          --wasm build/wasm-webgpu/src/compiler/codegen/tessera_scene_preview.js
+          --node "$EMSDK_NODE"
+
   wgsl-validation:
     runs-on: ubuntu-latest
     timeout-minutes: 20

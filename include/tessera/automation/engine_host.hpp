@@ -7,6 +7,7 @@
 #include "tessera/automation/virtual_collection.hpp"
 #include "tessera/harness/automation_host.hpp"
 #include "tessera/runtime/runtime_loop.hpp"
+#include "tessera/ui/automation/scene_snapshot.hpp"
 #include "tessera/ui/input_pump.hpp"
 #include "tessera/ui/scene/node.hpp"
 
@@ -25,12 +26,13 @@ enum class TraceCategory : std::uint8_t;
 
 namespace tessera::automation {
 
-// Snapshot bounds for one live scene. They exist so a script cannot make the process copy an
-// unbounded tree: the node cap bounds the builder's allocations, the depth cap bounds the recursion
-// (and the structural path strings), and the path cap keeps each emitted path small.
-inline constexpr std::size_t kMaxSnapshotNodes = 65536;
-inline constexpr std::size_t kMaxSnapshotDepth = 64;
-inline constexpr std::size_t kMaxSnapshotPathBytes = 256;
+// Snapshot bounds for one live scene. They are owned by the scene walk
+// (`include/tessera/ui/automation/scene_snapshot.hpp`), which is the one implementation of the
+// snapshot artifact; the harness's config field and the preview's in-memory path both take their
+// caps from there, so the two cannot drift.
+using ui::automation::kMaxSnapshotDepth;
+using ui::automation::kMaxSnapshotNodes;
+using ui::automation::kMaxSnapshotPathBytes;
 
 // Trace and audit attachment (docs/specs/headless-automation-v1.md sections 6.4 and 7).
 //

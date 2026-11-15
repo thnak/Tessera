@@ -229,6 +229,30 @@ feed the same tree.
   loses precision above 2^53), `parent` is a decimal index or `null`, `bounds` values are fixed
   three-decimal numbers, strings are JSON-escaped with UTF-8 passed through, and the document
   ends with one newline.
+- The scene walk that produces a snapshot from a live tree is
+  `include/tessera/ui/automation/scene_snapshot.hpp`
+  (`snapshot_scene`, `src/ui/automation/scene_snapshot.cpp`). It is the **one** implementation: the
+  headless harness (`src/harness/engine_host_snapshot.cpp`) and the design-time preview's in-memory
+  evaluate → layout → snapshot path ([`compiler-wasm.md`](../design/compiler-wasm.md) section 7,
+  issue #166) both call it, so a document is defined once rather than per caller. Its caps are
+  `kMaxSnapshotNodes` 65536, `kMaxSnapshotDepth` 64 and `kMaxSnapshotPathBytes` 256; exceeding one is
+  a hard failure that emits **no** document, because a truncated snapshot would compare equal to a
+  truncated snapshot from another implementation and pass a parity gate it should fail. A node's
+  `path` is the caller's annotation when one is supplied (the harness's generated manifest), else the
+  walk's derived `root/<Kind>[<index>]/...`; both are capped at `kMaxSnapshotPathBytes`.
+
+### 5.3 Snapshot parity across implementations (implemented)
+
+A consumer may compare two documents for equality only over the same inputs, and the ids make that
+stricter than it looks: `uiId` is a hash of `project_salt`, the **source path** and the structural
+path (section 2), so two runs that disagree about the salt or about how a path is spelled (a
+`\` versus a `/`) produce different numbers for the same program and no byte comparison can pass.
+A parity gate therefore passes the salt and the project-relative POSIX path to **both** sides, and the
+comparison is byte equality of the whole document, not of a subset of fields.
+
+`scripts/ci/scene_snapshot_parity.py` is that gate for the preview's Wasm and native sides, and it
+declares a minimum node count per case so two empty documents cannot count as parity
+([`compiler-wasm.md`](../design/compiler-wasm.md) section 7.3).
 
 ## 6. Tracing
 

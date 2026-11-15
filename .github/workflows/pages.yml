@@ -43,6 +43,7 @@ on:
       - 'scripts/preview_budget_measure.py'
       - 'scripts/preview_budget_ratchet.py'
       - 'tests/golden/perf/preview_budget.json'
+      - 'scripts/ci/scene_snapshot_parity.py'
       - '.github/workflows/pages.yml'
   pull_request:
     paths:
@@ -55,6 +56,7 @@ on:
       - 'scripts/preview_budget_measure.py'
       - 'scripts/preview_budget_ratchet.py'
       - 'tests/golden/perf/preview_budget.json'
+      - 'scripts/ci/scene_snapshot_parity.py'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -118,6 +120,10 @@ jobs:
       - name: Build browser diagnostics module
         run: cmake --build build/wasm-webgpu --target tessera_diagnostics_wasm --parallel
 
+      # P2 (issue #166): the scene-preview module behind scene.html. Same configure, same pattern.
+      - name: Build browser scene-preview module
+        run: cmake --build build/wasm-webgpu --target tessera_scene_preview_wasm --parallel
+
       # The page must not ship a module that does not load, and it must not ship one that disagrees
       # with the native compiler. This is the same gate the WebGPU lane runs, over the same corpus;
       # it needs a native CLI, so a minimal native configure comes along (compiler only).
@@ -140,6 +146,19 @@ jobs:
           --wasm build/wasm-webgpu/src/compiler/codegen/tessera_diagnostics.js
           --node "$EMSDK_NODE"
 
+      # P2's acceptance sentence, checked before anything is published: the scene snapshot the page
+      # shows must equal the native harness's document for every corpus case, byte for byte, with a
+      # declared minimum node count per case so "both empty" cannot pass.
+      - name: Build native scene-preview CLI
+        run: cmake --build build/native-pages --target tessera_scene_preview_cli --parallel
+
+      - name: Scene snapshot parity (native vs Wasm)
+        run: >-
+          python3 -B scripts/ci/scene_snapshot_parity.py
+          --native build/native-pages/src/compiler/codegen/tessera_scene_preview
+          --wasm build/wasm-webgpu/src/compiler/codegen/tessera_scene_preview.js
+          --node "$EMSDK_NODE"
+
       # Assemble the site: the hand-written page plus the two artifacts the module needs. Nothing is
       # built here - the page has no build step of its own by design (issue #165).
       - name: Assemble site
@@ -151,6 +170,8 @@ jobs:
           cp -R designer/web/. "$site/"
           cp build/wasm-webgpu/src/compiler/codegen/tessera_diagnostics.js "$site/"
           cp build/wasm-webgpu/src/compiler/codegen/tessera_diagnostics.wasm "$site/"
+          cp build/wasm-webgpu/src/compiler/codegen/tessera_scene_preview.js "$site/"
+          cp build/wasm-webgpu/src/compiler/codegen/tessera_scene_preview.wasm "$site/"
           # The build id the page displays (D-S5 acceptance: the URL serves the current build).
           printf '%s\n' "${GITHUB_SHA}" > "$site/build-id.txt"
           # A static host resolves the directory to index.html; make the intent explicit and fail
@@ -160,6 +181,11 @@ jobs:
           test -f "$site/app.css"
           test -f "$site/tessera_diagnostics.js"
           test -f "$site/tessera_diagnostics.wasm"
+          # P2's debug page and its module (issue #166).
+          test -f "$site/scene.html"
+          test -f "$site/scene.js"
+          test -f "$site/tessera_scene_preview.js"
+          test -f "$site/tessera_scene_preview.wasm"
           ls -l "$site"
 
       # P6 of docs/design/reference-equantic-ui.md section 7.4 (issue #170): the size and latency
