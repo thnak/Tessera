@@ -964,9 +964,9 @@ legacy output, the merger and `EmitMode`), the documentation slice #211, and #15
 prop defaults and `useState` record initials, ADR-051); its only open item is #327's `emit_expr.cpp`
 / `emit_node.cpp` split, whose gate landed in #340. **V1-M4 is the active milestone**: P1 (#165)
 landed the diagnostics page, the machine-readable diagnostics document
-(`docs/specs/compiler-diagnostics-v1.md`) and a ready-to-enable Pages pipeline, so P2 (#166, the
-evaluator on the null RHI) is next. P1's deploy half waits on an owner action: GitHub Pages is not
-enabled on this repository. V1-M3 closed with #159: the `shader-manifest-v1.md` id-to-source table (section 3.2) and the opt-in cross-compile
+(`docs/specs/compiler-diagnostics-v1.md`), and Pages is enabled, so the page is live at
+https://thnak.github.io/Tessera/ and deployed by CI from `main`. P2 (#166, the evaluator on the
+null RHI) is next. V1-M3 closed with #159: the `shader-manifest-v1.md` id-to-source table (section 3.2) and the opt-in cross-compile
 section (5.1), plus the `shader-cross` job in `.github/workflows/linux.yml` that runs
 `TESSERA_SHADER_CROSS=ON` — its first run found a real shader defect (a by-value struct parameter
 in `batched2d.frag` lowered to `OpCopyLogical`, which naga rejects on Linux glslang 16.1), now
