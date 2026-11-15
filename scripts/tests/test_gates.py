@@ -32,6 +32,7 @@ GATE_FILES = {
     "sbom": "gen_sbom.py",
     "docs": "check_docs.py",
     "source-size": "check_source_size.py",
+    "public-api": "check_public_api.py",
     "pins": "check_pins.py",
 }
 PACKAGE_FILE = "check_package.py"

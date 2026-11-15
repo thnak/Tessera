@@ -226,12 +226,51 @@ python -B scripts/gates.py
 Gate order: `format-version` (the `clang-format` on `PATH`/`CLANG_FORMAT` matches the version
 pinned in `tools/format-version.txt`, which is also what CI installs), `dependencies` (license
 allowlist, statuses, notices), `license-bundle` (`THIRD_PARTY_LICENSES.txt` is current), `sbom`
-(`sbom.spdx.json` is current), `docs` (links/anchors/index/fences/sizes/ADRs) and `pins`
+(`sbom.spdx.json` is current), `docs` (links/anchors/index/fences/sizes/ADRs), `source-size` (the
+500-line ratchet), `public-api` (the recorded public surface, section 13.1) and `pins`
 (reproducible fetch pins plus dependency rows).
 `--archive PATH` adds `package` (validates a distributable archive) and `--fixtures` adds the slower
 gate self-tests. `--only docs,pins`, `--list`, `--json` and `--quiet` are available, and the runner
 is cwd-independent; it forces UTF-8 for child processes so it behaves the same on Windows cp1252
 consoles as on Linux/macOS.
+
+### 13.1 The public-API surface gate
+
+`scripts/check_public_api.py` keeps `scripts/public-api-baseline.txt`, the committed record of the
+public surface (issue #76). It exists because nothing recorded the surface, so a header deleted, a
+type renamed, a prop dropped or a `::part()` name removed could land with nobody noticing. A diff of
+the baseline **is** the API diff: an added line is additive, a removed or renamed line is breaking
+([`versioning-v1.md`](../specs/versioning-v1.md) section 1).
+
+The baseline records, one sorted line each (`kind path name`):
+
+- every `include/tessera/**/*.hpp` as a `header` line, plus the `class`/`struct`/`union`/`enum`,
+  `alias`, `concept`, `function`, `constant` and `variable` declared at namespace scope in it, fully
+  qualified (`class include/tessera/ui/scene/node.hpp tessera::ui::Node`);
+- every `packages/tessera-ui/**/*.tsx` as a `component` line, the fields of its
+  `export type <Name>Props` as `prop` lines and its literal `part="a b"` names as `part` lines (the
+  `::part()` contract of ADR-047 item 3, the same source `tessera_codegen` builds the library part
+  registry from). No library component declares a `part="..."` yet, so today the baseline has
+  `component` and `prop` lines from it and no `part` lines; the first component that adds one starts
+  being tracked, and dropping it later fails the gate.
+
+It is **declaration-level only** and deliberately does not record: function signatures, return
+types, template parameters, attributes or access specifiers; class members (methods, data members,
+nested types, enumerators); default values, prop types or prop optionality; `::part()` names used in
+stylesheets; or the `tessera.json` schema (issue #76 leaves config schemas to #194). Recording those
+would make every ordinary edit a reported "break", and a gate that fires on routine work gets
+switched off, which is worse than no gate. What it does catch is surface *disappearing*, which is
+never routine.
+
+```bash
+python -B scripts/check_public_api.py --check    # the gate (scripts/gates.py runs this)
+python -B scripts/check_public_api.py --update    # record additions
+```
+
+`--update` is a ratchet, like `scripts/check_source_size.py`: it records additive lines and **refuses
+to write anything when a line would be dropped**, so removing or renaming surface is a hand edit of
+the baseline in a reviewed change, with the reason in the diff. The deleted line is the record of
+the break. Exit codes: 0 match, 1 a difference or a refused `--update`, 2 a missing input.
 
 OS matrix: the same `gates.py` runs in the `release-gates` job on Linux, Windows and macOS CI. The
 gate self-test suite (`--fixtures`) stays on Linux, where it is cheap; the Windows/macOS jobs run
