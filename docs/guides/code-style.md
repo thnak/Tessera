@@ -146,6 +146,14 @@ This list is the style-related subset of the full definition of done in [AGENTS.
 - `scripts/format.* --check` passes.
 - Build with `TESSERA_WARNINGS_AS_ERRORS=ON`; fix warnings instead of adding blanket suppressions.
 - `clang-tidy` reports no new warnings in changed files.
-- Files stay under the soft limit unless there is a documented reason (the hard limit of 500 lines has no exceptions except the Phase 0 PoC targets listed in AGENTS.md).
+- Files stay under the soft limit unless there is a documented reason (the hard limit of 500 lines
+  has no exceptions except the Phase 0 PoC targets listed in AGENTS.md).
+  `scripts/check_source_size.py` enforces this as part of `scripts/gates.py` (gate `source-size`,
+  issue #327): a new file over 500 lines fails, and so does any file that *grows* past the count
+  recorded for it in `scripts/source-size-baseline.txt`. Files that were already over the limit when
+  the gate landed are grandfathered at that count and reported as warnings, so the only edit the
+  baseline accepts is a lower number. After a real split, run
+  `python -B scripts/check_source_size.py --update` to lower it (the script refuses to raise one) and
+  delete the line once the file is under the limit.
 - No new heavy include in a public header.
 - A clean build and an incremental rebuild both work with the compiler cache.
