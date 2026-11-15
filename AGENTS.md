@@ -574,11 +574,34 @@ Stages P0-P7 are planned in `docs/design/reference-equantic-ui.md`.
       job in `.github/workflows/webgpu.yml`, and `docs/design/compiler-wasm.md`. Both sides emit
       4542 bytes of IR with SHA-256 `fa9989b1...f52fa9`; three repeated runs reported
       `unique_digests=1`, and the four generated C++ files match byte-for-byte too.
-- [ ] #165: P1: diagnostics-only page on GitHub Pages — diagnostics match native.
-- [ ] #166: P2: evaluator (ADR-037) + scene + layout on the null RHI — snapshot equals native harness.
+- [x] #165: P1: diagnostics-only page on GitHub Pages — diagnostics match native. Live at
+      https://thnak.github.io/Tessera/, deployed by CI from `main`; the parity gate is
+      `scripts/ci/wasm_diagnostics_parity.py` and the format is
+      `docs/specs/compiler-diagnostics-v1.md`.
+- [x] #166: P2: evaluator (ADR-037) + scene + layout on the null RHI — snapshot equals native
+      harness. The shared walk is `src/ui/automation/scene_snapshot.cpp` (the harness delegates
+      to it), the gate is `scripts/ci/scene_snapshot_parity.py` (11 cases), and
+      `docs/design/compiler-wasm.md` section 7 records it.
 - [ ] #167: P3: WebGPU canvas preview — within tolerance of the lavapipe golden (needs M3).
-- [ ] #168-#171: P4-P7: browser input, share links, CI budgets, picker/style patches, hosted studio, hot
-      reload (#78), one stage per PR.
+- [x] #168: P4: browser input into the evaluator, state kept across edits — a cell is carried
+      when the component id, cell id and IR type all match (`tools/codegen/scene_state.cpp`),
+      dispatch is the unmodified `ui::InputRouter`, and the gate is
+      `scripts/ci/scene_input_parity.py`.
+- [x] #169: P5: shareable links, sample gallery, theme/DPR/viewport toggles —
+      `designer/web/{share,preview-state,gallery,studio,scene-input}.js`, the generated
+      `designer/web/samples.json`, 18 + 9 + 7 page test cases, and the format in
+      `docs/specs/designer-studio-v1.md` section 7.1.
+- [x] #170: P6: size and latency budgets with a two-sided ratchet —
+      `scripts/check_preview_budget.py` + `tests/golden/perf/preview_budget.json`
+      (download size enforced; the two engine-share latencies warn).
+- [x] #172: `tessera-mcp` stdio adapter, compile-only first — `tools/mcp/`, 11 tools with
+      three implemented and eight declared-unimplemented, 7 ctest cases.
+- [x] #78: devtools: `#line` mapping to TSX (opt-in, `--line-directives`) and an in-app
+      compiler-error overlay. Hot reload is **blocked, not deferred**: ADR-040 emits a
+      header-only template, so there is nothing to swap; the seam that must exist first is
+      written up in `docs/specs/devtools-protocol-v1.md` section 8.
+- [ ] #167: P3: WebGPU canvas preview — in flight.
+- [ ] #171: P7: studio slices (picker overlay, style inspector, `source.patch`, skins).
 - [ ] #172: `tessera-mcp` stdio adapter over the harness session, compile-only first.
 
 ### V1-M5 Application framework ([milestone 5](https://github.com/thnak/Tessera/milestone/5))
@@ -587,7 +610,10 @@ ADR-050 is Accepted (roadmap AF1-AF8); start with AF1.
 - [x] #173: AF1: `ServiceContext` + `Service` state machine, ordered async start/stop, deadlines — new
       `tessera_appfw_core`, tests under `ManualClock`/`ManualExecutor`.
 - [ ] #174: AF2: `TaskScope` + `RuntimeLoop` timer wake source — timers in order; idle parks.
-- [ ] #175: AF3: `Application` lifecycle; `WindowHost` forwards focus/minimize/occlusion.
+- [x] #175: AF3: `Application` lifecycle; `WindowHost` forwards focus/minimize/occlusion. The
+      dispatch order is asserted as an explicit vector (forward in start order, stop in reverse),
+      `src/app/window_lifecycle_seam.cpp` forwards the existing fold rather than adding a second
+      one, and `tests/fixtures/lifecycle/desktop.json` is the per-platform script.
 - [x] #176: AF4: `Observable<T>` over `UpdateScheduler` — one flush per tick, no allocation on
       `set`: `include/tessera/appfw/observable.hpp`, `docs/design/observable.md`, tests
       `appfw_observable` (`tests/unit/appfw_observable_tests.cpp`,
