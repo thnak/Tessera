@@ -38,6 +38,11 @@ on:
       - 'tools/codegen/**'
       - 'src/compiler/**'
       - 'scripts/ci/wasm_diagnostics_parity.py'
+      - 'scripts/ci/preview_budget_probe.mjs'
+      - 'scripts/check_preview_budget.py'
+      - 'scripts/preview_budget_measure.py'
+      - 'scripts/preview_budget_ratchet.py'
+      - 'tests/golden/perf/preview_budget.json'
       - '.github/workflows/pages.yml'
   pull_request:
     paths:
@@ -45,6 +50,11 @@ on:
       - 'tools/codegen/**'
       - 'src/compiler/**'
       - 'scripts/ci/wasm_diagnostics_parity.py'
+      - 'scripts/ci/preview_budget_probe.mjs'
+      - 'scripts/check_preview_budget.py'
+      - 'scripts/preview_budget_measure.py'
+      - 'scripts/preview_budget_ratchet.py'
+      - 'tests/golden/perf/preview_budget.json'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -151,6 +161,30 @@ jobs:
           test -f "$site/tessera_diagnostics.js"
           test -f "$site/tessera_diagnostics.wasm"
           ls -l "$site"
+
+      # P6 of docs/design/reference-equantic-ui.md section 7.4 (issue #170): the size and latency
+      # budgets, measured against the exact module this job just built and assembled.
+      #
+      # This runs HERE, in the lane that already has the artifact, for three reasons:
+      #   - the numbers are about the shipped bytes, so measuring anything else would be measuring a
+      #     different product;
+      #   - it needs no second Wasm build, and the emsdk install above is already paid for;
+      #   - it is the only lane that has both Node ($EMSDK_NODE) and the module at the same time.
+      #
+      # What each row does to the build:
+      #   download_gzip_bytes  ENFORCED. Deterministic, so a regression fails this job.
+      #   cold_engine_ready_ms WARN. Wall clock; printed every run and never fails the lane.
+      #   edit_compile_ms      WARN. Same.
+      # The header of scripts/check_preview_budget.py explains both choices, and
+      # tests/golden/perf/preview_budget.json records the pins, tolerances and the reason.
+      #
+      # A missing module is a setup error (exit 2), not a pass: a budget nobody measured is not a
+      # budget that passed. So this step also proves the assembled site is complete.
+      - name: Preview size and latency budgets
+        run: >-
+          python3 -B scripts/check_preview_budget.py --check
+          --module-dir build/pages
+          --node "$EMSDK_NODE"
 
       # The module is loaded as an ES module by the page, so a wrong MIME type on the host would
       # break it; GitHub Pages serves .js as JavaScript and .wasm as application/wasm, which is why
