@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "a11y_role_traits.hpp"
 #include "tessera/ui/accessibility/uia_mapping.hpp"
 
 namespace tessera::ui::a11y {
@@ -51,50 +52,7 @@ std::string_view to_string(UiaControlType type) {
 }
 
 UiaControlType control_type_for(Role role) {
-    switch (role) {
-    case Role::Generic:
-    case Role::Presentation:
-    case Role::ScrollView:
-    case Role::Dialog:
-    case Role::TabPanel:
-        return UiaControlType::Pane;
-    case Role::Button:
-        return UiaControlType::Button;
-    case Role::Link:
-        return UiaControlType::Hyperlink;
-    case Role::Text:
-    case Role::Heading:
-    case Role::Alert:
-        return UiaControlType::Text;
-    case Role::Image:
-        return UiaControlType::Image;
-    case Role::TextField:
-        return UiaControlType::Edit;
-    case Role::Checkbox:
-        return UiaControlType::CheckBox;
-    case Role::Radio:
-        return UiaControlType::RadioButton;
-    case Role::Switch:
-        // UIA has no switch control type; a binary toggle is a checkbox to clients.
-        return UiaControlType::CheckBox;
-    case Role::Slider:
-        return UiaControlType::Slider;
-    case Role::Progress:
-        return UiaControlType::ProgressBar;
-    case Role::List:
-        return UiaControlType::List;
-    case Role::ListItem:
-        return UiaControlType::ListItem;
-    case Role::Tab:
-        return UiaControlType::TabItem;
-    case Role::Menu:
-        return UiaControlType::Menu;
-    case Role::MenuItem:
-        return UiaControlType::MenuItem;
-    case Role::Tooltip:
-        return UiaControlType::ToolTip;
-    }
-    return UiaControlType::Pane;
+    return detail::role_traits(role).uia;
 }
 
 UiaPatterns patterns_for(const A11yNode& node) {
@@ -105,29 +63,19 @@ UiaPatterns patterns_for(const A11yNode& node) {
     if (has_action(node.actions, Action::SetValue)) {
         patterns = patterns | UiaPatterns::Value;
     }
-    switch (node.role) {
-    case Role::Checkbox:
-    case Role::Radio:
-    case Role::Switch:
-    case Role::Tab:
-    case Role::ListItem:
-    case Role::MenuItem:
+    if (detail::role_traits(node.role).selectable) {
         patterns = patterns | UiaPatterns::SelectionItem;
-        break;
-    default:
-        break;
     }
     // A selected node always answers `SelectionItem.IsSelected`, even when a role tables it
     // differently, because clients read the state to mirror it in their own tree.
     if (has_state(node.states, State::Selected)) {
         patterns = patterns | UiaPatterns::SelectionItem;
     }
-    if (node.role == Role::List || node.role == Role::Menu) {
+    if (detail::role_traits(node.role).selection_container) {
         patterns = patterns | UiaPatterns::Selection;
     }
     return patterns;
 }
-
 std::int32_t pattern_id(UiaPatterns pattern) {
     switch (pattern) {
     case UiaPatterns::Invoke:

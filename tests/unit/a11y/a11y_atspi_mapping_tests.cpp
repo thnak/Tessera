@@ -37,7 +37,9 @@ using tessera::ui::a11y::kInvalidIndex;
 using tessera::ui::a11y::kRootObjectPath;
 using tessera::ui::a11y::parse_object_path;
 using tessera::ui::a11y::Role;
+using tessera::ui::a11y::role_from_string;
 using tessera::ui::a11y::State;
+using tessera::ui::a11y::to_string;
 
 A11yNode make_node(Role role, std::string_view name, std::string_view value = {}) {
     A11yNode node;
@@ -201,6 +203,30 @@ bool object_paths() {
     return expect(format_object_path(1, tiny) == 0, "undersized buffer reports no write");
 }
 
+// Every Role must have exactly one trait-table row, and the reverse lookup must round-trip. Before
+// the table existed the four mapping switches each ended in a `default`, so a new role silently
+// became "generic" in whichever file nobody remembered to edit; this walks the whole enum instead.
+bool role_table_covers_every_role() {
+    for (std::size_t index = 0; index < static_cast<std::size_t>(Role::kCount); ++index) {
+        const auto role = static_cast<Role>(index);
+        const std::string_view name = to_string(role);
+        if (!expect(!name.empty(), "every role has a name")) {
+            return false;
+        }
+        if (!expect(role_from_string(name) == role,
+                    "role name round-trips through role_from_string")) {
+            return false;
+        }
+    }
+    // The alternate spellings that the schema/ARIA surface accepts keep mapping to the same rows.
+    return expect(role_from_string("image") == Role::Image, "image alias") &&
+           expect(role_from_string("text field") == Role::TextField, "text field alias") &&
+           expect(role_from_string("progressbar") == Role::Progress, "progressbar alias") &&
+           expect(role_from_string("list item") == Role::ListItem, "list item alias") &&
+           expect(role_from_string("none") == Role::Presentation, "none alias") &&
+           expect(role_from_string("no such role") == Role::Generic, "unknown is generic");
+}
+
 } // namespace
 
 int main() {
@@ -227,6 +253,9 @@ int main() {
     }
     if (!object_paths()) {
         return 8;
+    }
+    if (!role_table_covers_every_role()) {
+        return 9;
     }
     std::cout << "a11y_atspi_mapping: ok\n";
     return 0;

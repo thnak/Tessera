@@ -4,8 +4,10 @@
 
 #include "tessera/hal/clipboard.hpp"
 #include "tessera/ui/scene/event.hpp"
+#include "tessera/ui/text/composition_state.hpp"
 #include "tessera/ui/text/edit_buffer.hpp"
 #include "tessera/ui/text/edit_history.hpp"
+#include "tessera/ui/text/edit_keymap.hpp"
 #include "tessera/ui/text/hit_test.hpp"
 
 #include <cstddef>
@@ -59,17 +61,18 @@ public:
 
     // Composition (IME preedit) state. The preedit text is not part of the buffer until an
     // `EditText` commits it; `CompositionEnd` without a commit cancels and restores the state.
+    // The state itself lives in CompositionState (composition_state.hpp), which owns the invariant.
     [[nodiscard]] bool composing() const {
-        return composing_;
+        return composition_.active();
     }
     [[nodiscard]] std::string_view preedit() const {
-        return preedit_;
+        return composition_.preedit();
     }
     [[nodiscard]] EditOffset composition_start() const {
-        return composition_start_;
+        return composition_.start();
     }
     [[nodiscard]] EditOffset composition_end() const {
-        return composition_end_;
+        return composition_.end();
     }
     // The current IME composition for decoration emission (additive; task-72). `begin`/`end` are
     // the half-open buffer bytes the composition replaces (equal offsets = insertion at `begin`),
@@ -77,17 +80,9 @@ public:
     // true between `CompositionStart` and the commit/cancel. Paint consumes this through
     // `TextDecoration::composition_active/preedit_*`; the commit path is unchanged (one
     // `TextChange` per committed edit).
-    struct PreeditRange {
-        EditOffset begin = 0;
-        EditOffset end = 0;
-        std::string_view text;
-        bool active = false;
-    };
+    using PreeditRange = text::PreeditRange;
     [[nodiscard]] PreeditRange preedit_range() const {
-        if (!composing_) {
-            return PreeditRange{buffer_.caret(), buffer_.caret(), {}, false};
-        }
-        return PreeditRange{composition_start_, composition_end_, preedit_, true};
+        return composition_.range(buffer_.caret());
     }
 
     // Set the controlled value from app state (normalizes/truncates like EditBuffer::set_text);
@@ -178,6 +173,9 @@ public:
 
 private:
     bool handle_key(Event& event);
+    // Runs one key-map command. Returns true when the command was consumed; a no-op chord (empty
+    // history, empty clipboard) returns false so the app can still act on it.
+    bool run_command(EditCommand command);
     bool commit_text(std::string_view text);
     bool accept(EditResult result, bool text_edit = false);
     [[nodiscard]] EditSnapshot snapshot() const;
@@ -186,11 +184,8 @@ private:
 
     EditBuffer buffer_;
     EditHistory history_;
+    CompositionState composition_;
     hal::Clipboard* clipboard_ = nullptr;
-    std::string preedit_;
-    EditOffset composition_start_ = 0;
-    EditOffset composition_end_ = 0;
-    bool composing_ = false;
     bool read_only_ = false;
     bool multiline_ = false;
     EditResult last_result_;

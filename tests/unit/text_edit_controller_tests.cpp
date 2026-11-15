@@ -301,6 +301,69 @@ bool determinism() {
            expect(first.buffer().text() == "hello committed", "script result");
 }
 
+// The chord set as data (god-type audit slice 6). Before the key map, the meaning of a chord was
+// the position of an `if` in `handle_key`, so nothing could assert that, for example, Ctrl+Shift+Z
+// is redo but Ctrl+Y is *not* redo when Shift is held, or that an Alt chord stays app-owned. These
+// assertions are about the table itself, not about a controller instance.
+bool keymap_chords() {
+    using tessera::ui::key::kArrowLeft;
+    using tessera::ui::key::kBackspace;
+    using tessera::ui::key::kDelete;
+    using tessera::ui::key::kEnd;
+    using tessera::ui::key::kEnter;
+    using tessera::ui::key::kHome;
+    using tessera::ui::text::command_for;
+    using tessera::ui::text::EditCommand;
+    using tessera::ui::text::ModifierSet;
+
+    constexpr ModifierSet kControl = ModifierSet::Control;
+    constexpr ModifierSet kShift = ModifierSet::Shift;
+    constexpr ModifierSet kAlt = ModifierSet::Alt;
+    constexpr ModifierSet kMeta = ModifierSet::Meta;
+
+    return expect(command_for('Z', kControl) == EditCommand::Undo, "ctrl+z undoes") &&
+           expect(command_for('Z', kControl | kShift) == EditCommand::Redo,
+                  "ctrl+shift+z redoes") &&
+           expect(command_for('Y', kControl) == EditCommand::Redo, "ctrl+y redoes") &&
+           expect(command_for('Y', kControl | kShift) == EditCommand::None,
+                  "ctrl+shift+y is not a redo") &&
+           // Alt and Meta chords belong to the app, never to the editor.
+           expect(command_for('C', kControl | kAlt) == EditCommand::None,
+                  "ctrl+alt+c is app-owned") &&
+           expect(command_for('Z', kControl | kMeta) == EditCommand::None,
+                  "ctrl+meta+z is app-owned") &&
+           // Clipboard chords are Ctrl-only; an unmodified C is just typing.
+           expect(command_for('C', kControl) == EditCommand::Copy, "ctrl+c copies") &&
+           expect(command_for('C', ModifierSet::None) == EditCommand::None,
+                  "bare c is not a chord") &&
+           // Word delete needs Control, plain delete does not; both ignore Shift as before.
+           expect(command_for(kBackspace, kControl) == EditCommand::DeleteBackwardWord,
+                  "ctrl+backspace deletes a word") &&
+           expect(command_for(kBackspace, ModifierSet::None) == EditCommand::DeleteBackward,
+                  "backspace deletes a character") &&
+           expect(command_for(kBackspace, kControl | kShift) == EditCommand::DeleteBackwardWord,
+                  "shift does not change ctrl+backspace") &&
+           expect(command_for(kDelete, kControl) == EditCommand::DeleteForwardWord,
+                  "ctrl+delete deletes the next word") &&
+           // The four movement arms, in the order the first-match-wins table ranks them.
+           expect(command_for(kArrowLeft, ModifierSet::None) == EditCommand::MoveLeft,
+                  "left moves") &&
+           expect(command_for(kArrowLeft, kControl) == EditCommand::MoveLeftWord,
+                  "ctrl+left words") &&
+           expect(command_for(kArrowLeft, kShift) == EditCommand::MoveLeftExtend,
+                  "shift+left extends") &&
+           expect(command_for(kArrowLeft, kControl | kShift) == EditCommand::MoveLeftWordExtend,
+                  "ctrl+shift+left extends by word") &&
+           expect(command_for(kHome, kControl) == EditCommand::MoveHomeDocument,
+                  "ctrl+home goes to the document start") &&
+           expect(command_for(kEnd, kControl | kShift) == EditCommand::MoveEndDocumentExtend,
+                  "ctrl+shift+end extends to the document end") &&
+           // A newline is a chord; a single-line field gates it off in the dispatcher, not here.
+           expect(command_for(kEnter, ModifierSet::None) == EditCommand::InsertNewline,
+                  "enter is the newline chord") &&
+           expect(command_for('Q', kControl) == EditCommand::None, "unbound chord is none");
+}
+
 } // namespace
 
 int main() {
@@ -336,6 +399,9 @@ int main() {
     }
     if (!determinism()) {
         return 10;
+    }
+    if (!keymap_chords()) {
+        return 12;
     }
 
     std::cout << "text_edit_controller: ok\n";

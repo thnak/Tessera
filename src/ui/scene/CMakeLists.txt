@@ -2,7 +2,10 @@
 
 add_library(tessera_scene STATIC
     node.cpp
+    node_geometry.cpp
+    node_interaction.cpp
     node_metadata.cpp
+    node_scroll.cpp
     overlay_dismiss.cpp
     overlay_host.cpp
     overlay_place.cpp
