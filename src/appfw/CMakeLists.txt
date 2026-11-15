@@ -12,7 +12,8 @@ add_library(tessera_appfw_core STATIC
     service_bridge.cpp
     service_context.cpp
     service_runner.cpp
-    service_runner_sequence.cpp)
+    service_runner_sequence.cpp
+    task_scope.cpp)
 
 target_include_directories(tessera_appfw_core PUBLIC
     ${PROJECT_SOURCE_DIR}/include)
@@ -108,4 +109,16 @@ if (TESSERA_BUILD_TESTS)
     target_compile_definitions(appfw_storage_tests PRIVATE
         TESSERA_STORAGE_SCRATCH_DIR="${CMAKE_BINARY_DIR}/storage-scratch")
     add_test(NAME appfw_storage COMMAND appfw_storage_tests)
+    # AF2 (issue #174, ADR-050 section 5 item 1): `TaskScope`'s structured cancellation. The
+    # acceptance here is the roadmap row's "closing a scope cancels and drains"; the timer wake
+    # source it also names is layer 0 and is tested by `runtime_timer` in `src/runtime`.
+    add_executable(appfw_task_scope_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_task_scope_main.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_task_scope_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_task_scope_suspension_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_task_scope_cancel_tests.cpp)
+    target_include_directories(appfw_task_scope_tests PRIVATE
+        ${PROJECT_SOURCE_DIR}/tests/unit)
+    target_link_libraries(appfw_task_scope_tests PRIVATE tessera_appfw_core)
+    add_test(NAME appfw_task_scope COMMAND appfw_task_scope_tests)
 endif()

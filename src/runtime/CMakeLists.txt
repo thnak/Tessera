@@ -19,6 +19,7 @@ add_library(tessera_runtime STATIC
     present_cap.cpp
     runtime_loop.cpp
     task.cpp
+    timer_queue.cpp
     worker_executor.cpp
     worker_io_executor.cpp
     system_clock.cpp)
@@ -42,4 +43,14 @@ if (TESSERA_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/unit/glass_config_tests.cpp)
     target_link_libraries(glass_config_tests PRIVATE tessera_runtime)
     add_test(NAME glass_config COMMAND glass_config_tests)
+
+    # The timer wake source (AF2, issue #174; ADR-050 section 5 item 2). Layer 0 only: the ordering
+    # of equal deadlines and the "a far timer parks with zero presents" proof, driven by
+    # `ManualClock` with no wall clock, sleep or thread.
+    add_executable(runtime_timer_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/runtime_timer_main.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/runtime_timer_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/runtime_timer_park_tests.cpp)
+    target_link_libraries(runtime_timer_tests PRIVATE tessera_runtime)
+    add_test(NAME runtime_timer COMMAND runtime_timer_tests)
 endif()

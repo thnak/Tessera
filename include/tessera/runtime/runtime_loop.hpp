@@ -5,6 +5,7 @@
 #include "tessera/runtime/clock.hpp"
 #include "tessera/runtime/device_recovery.hpp"
 #include "tessera/runtime/fixed_step.hpp"
+#include "tessera/runtime/timer_queue.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -21,6 +22,10 @@ struct RuntimeLoopConfig {
     // Optional D7 device-loss orchestration: when set, the loop polls it once per tick, never
     // presents while a recovery is required, and requests a full frame after a successful recovery.
     DeviceRecoveryController* device_recovery = nullptr;
+    // Optional timer wake source (ADR-050 section 5 item 2). Borrowed, like the completion queue:
+    // the composition root owns it. When set, `tick()` fires every timer due at the loop's clock
+    // instant and `next_timer_wait_seconds()` tells the host how long it may park.
+    TimerQueue* timers = nullptr;
 };
 
 struct RuntimeTick {
@@ -48,6 +53,10 @@ struct RuntimeTick {
     // the first render tick after it (the caller must paint the whole frame, damage state is
     // invalid), then cleared.
     bool full_frame = false;
+    // How many timers fired inside this tick. A timer never forces a frame by itself (ADR-050
+    // section 5 item 2); its callback schedules work like any other completion, so this is a
+    // counter for diagnostics and tests, not a render trigger.
+    std::size_t timers_fired = 0;
 };
 
 class RuntimeLoop {
@@ -66,6 +75,8 @@ public:
     void set_completion_budget(std::size_t budget);
     // Attaches/removes the device-loss controller polled by tick() (D7).
     void set_device_recovery(DeviceRecoveryController* controller);
+    // Attaches/removes the timer wake source fired by tick() (ADR-050 section 5 item 2).
+    void set_timer_queue(TimerQueue* timers);
 
     [[nodiscard]] bool should_render() const;
     [[nodiscard]] bool render_on_demand() const {
@@ -80,6 +91,15 @@ public:
     [[nodiscard]] DeviceRecoveryController* device_recovery() const {
         return config_.device_recovery;
     }
+    [[nodiscard]] TimerQueue* timer_queue() const {
+        return config_.timers;
+    }
+    // Seconds the host may park before the next timer comes due, or `kNoDeadline` when nothing is
+    // scheduled (or no queue is attached). Never negative: a due timer asks for 0, so a host that
+    // clamps its platform wait to the minimum of this and the pacer's deadline cannot oversleep a
+    // timer. This is the join ADR-050 section 5 item 2 specifies, and it is a pure query: calling
+    // it neither fires a timer nor advances time.
+    [[nodiscard]] double next_timer_wait_seconds() const;
 
 private:
     Clock* clock_ = nullptr;

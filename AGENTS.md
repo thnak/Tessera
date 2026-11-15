@@ -609,7 +609,11 @@ ADR-050 is Accepted (roadmap AF1-AF8); start with AF1.
 
 - [x] #173: AF1: `ServiceContext` + `Service` state machine, ordered async start/stop, deadlines — new
       `tessera_appfw_core`, tests under `ManualClock`/`ManualExecutor`.
-- [ ] #174: AF2: `TaskScope` + `RuntimeLoop` timer wake source — timers in order; idle parks.
+- [x] #174: AF2: `TaskScope` + `RuntimeLoop` timer wake source — timers in order; idle parks. Evidence:
+      `include/tessera/appfw/task_scope.hpp` (`spawn`/`cancel`/`drained`/deadline-bounded `close()`,
+      bounded children) and `include/tessera/runtime/timer_queue.hpp` +
+      `RuntimeLoop::next_timer_wait_seconds()` in layer 0 with no `appfw` name in it; ctest
+      `appfw_task_scope`, `runtime_timer`; `docs/design/background-work.md`.
 - [x] #175: AF3: `Application` lifecycle; `WindowHost` forwards focus/minimize/occlusion. The
       dispatch order is asserted as an explicit vector (forward in start order, stop in reverse),
       `src/app/window_lifecycle_seam.cpp` forwards the existing fold rather than adding a second

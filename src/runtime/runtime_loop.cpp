@@ -30,6 +30,16 @@ RuntimeTick RuntimeLoop::tick() {
         completions = config_.completion_queue->run(config_.completion_budget);
     }
 
+    // Timers fire after the completion drain and before the fixed step, so work they schedule is
+    // drained by the next tick and the step this tick advances sees the timer's effects. A timer
+    // never sets `frame_requested_`; it is a wake source, not a render cause (ADR-050 section 5
+    // item 2). The clock instant read above is the one used, so a ManualClock test and a real clock
+    // agree on what "due" means.
+    std::size_t timers_fired = 0;
+    if (config_.timers != nullptr) {
+        timers_fired = config_.timers->fire_due(now);
+    }
+
     const FixedStepResult step = fixed_step_.advance(delta);
 
     if (recovery.full_frame_required) {
@@ -74,7 +84,8 @@ RuntimeTick RuntimeLoop::tick() {
                        recovery.failed,
                        recovery.generation,
                        !render && !recovery.recovered,
-                       full_frame};
+                       full_frame,
+                       timers_fired};
 }
 
 void RuntimeLoop::request_frame() {
@@ -117,6 +128,24 @@ void RuntimeLoop::set_completion_budget(std::size_t budget) {
 
 void RuntimeLoop::set_device_recovery(DeviceRecoveryController* controller) {
     config_.device_recovery = controller;
+}
+
+void RuntimeLoop::set_timer_queue(TimerQueue* timers) {
+    config_.timers = timers;
+}
+
+double RuntimeLoop::next_timer_wait_seconds() const {
+    if (config_.timers == nullptr) {
+        return kNoDeadline;
+    }
+    const double deadline = config_.timers->next_deadline_seconds();
+    if (!(deadline < kNoDeadline)) {
+        return kNoDeadline;
+    }
+    const double wait = deadline - clock_->now_seconds();
+    // A due (or overdue) timer asks for zero: the host must not sleep past it, and a negative wait
+    // would read as "park" to `idle_wait_seconds`.
+    return wait > 0.0 ? wait : 0.0;
 }
 
 bool RuntimeLoop::should_render() const {
