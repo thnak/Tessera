@@ -15,9 +15,10 @@ Gate order:
   6. source-size     C++ files within the 500-line hard limit (ratchet baseline, #327)
   7. public-api      the public surface matches scripts/public-api-baseline.txt (issue #76)
   8. pins            reproducible dependency pins + dependencies.md rows (adds --check)
-  9. package         only with --archive PATH: validates the distributable archive
- 10. fixtures        only with --fixtures: the gate self-tests (unittest discovery)
- 11. wgsl            only with --wgsl: authored WGSL passes the pinned naga (needs naga-cli)
+  9. version-policy  a breaking RHI/IR/tessera.json change moves its version (issue #194)
+ 10. package         only with --archive PATH: validates the distributable archive
+ 11. fixtures        only with --fixtures: the gate self-tests (unittest discovery)
+ 12. wgsl            only with --wgsl: authored WGSL passes the pinned naga (needs naga-cli)
 
 The runner is cwd-independent (children run from the repository root) and forces UTF-8 for child
 processes while making its own stdout/stderr tolerant, so it behaves the same on Windows cp1252
@@ -78,6 +79,12 @@ BASE_GATES: List[Gate] = [
         "the public surface matches scripts/public-api-baseline.txt (issue #76)",
     ),
     Gate("pins", "check_pins.py", ("--check",), "reproducible pins and dependency rows"),
+    Gate(
+        "version-policy",
+        "check_version_policy.py",
+        ("--check",),
+        "a breaking RHI/IR/tessera.json change moves its version (issue #194)",
+    ),
 ]
 OPTIONAL_GATES: List[Gate] = [
     Gate("package", "check_package.py", (), "distributable archive contents (needs --archive)"),

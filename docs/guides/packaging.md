@@ -227,8 +227,11 @@ Gate order: `format-version` (the `clang-format` on `PATH`/`CLANG_FORMAT` matche
 pinned in `tools/format-version.txt`, which is also what CI installs), `dependencies` (license
 allowlist, statuses, notices), `license-bundle` (`THIRD_PARTY_LICENSES.txt` is current), `sbom`
 (`sbom.spdx.json` is current), `docs` (links/anchors/index/fences/sizes/ADRs), `source-size` (the
-500-line ratchet), `public-api` (the recorded public surface, section 13.1) and `pins`
-(reproducible fetch pins plus dependency rows).
+500-line ratchet), `public-api` (the recorded public surface, section 13.1), `pins` (reproducible
+fetch pins plus dependency rows) and `version-policy` (a breaking change to the RHI headers, the IR
+schema or `tessera.json` moves that surface's version; policy in
+[versioning-v1](../specs/versioning-v1.md) section 11, baseline in
+`scripts/versioning-baseline.txt`, section 13.2).
 `--archive PATH` adds `package` (validates a distributable archive) and `--fixtures` adds the slower
 gate self-tests. `--only docs,pins`, `--list`, `--json` and `--quiet` are available, and the runner
 is cwd-independent; it forces UTF-8 for child processes so it behaves the same on Windows cp1252
@@ -272,6 +275,35 @@ to write anything when a line would be dropped**, so removing or renaming surfac
 the baseline in a reviewed change, with the reason in the diff. The deleted line is the record of
 the break. Exit codes: 0 match, 1 a difference or a refused `--update`, 2 a missing input.
 
+### 13.2 The version-policy gate
+
+`scripts/check_version_policy.py` is the other half (issue #194, policy in
+[`versioning-v1.md`](../specs/versioning-v1.md) section 11). The public-API gate answers *did the
+surface change?*; this one answers *did that change require a version bump?* They have separate
+baselines and neither reads the other.
+
+It watches three surfaces, each with the version its spec already declares:
+
+| Surface | Version read from |
+|---|---|
+| RHI, `include/tessera/rendering/rhi/**` | `kRhiVersionMajor`/`kRhiVersionMinor` in `.../rhi/version.hpp` |
+| IR schema, [`ir-v1.md`](../specs/ir-v1.md) + [`ir-v1-expr.md`](../specs/ir-v1-expr.md) | `kIrVersion` in `.../ir/module.hpp` |
+| `tessera.json`, incl. its `runtime` and `diagnostics` objects | the accepted `schemaVersion` in `src/harness/manifest_loader.cpp` |
+
+`scripts/versioning-baseline.txt` records the reviewed state of all three. A **breaking** change
+(removed or retyped field, a field made required, a changed default) that leaves the version where
+it was fails the gate and names every field; a change to the RHI headers that leaves the version
+alone fails too. An **additive** change keeps the version but is still recorded:
+
+```bash
+python -B scripts/check_version_policy.py --check     # the gate (scripts/gates.py runs this)
+python -B scripts/check_version_policy.py --update    # record a reviewed change
+```
+
+`--update` refuses a breaking change whose version did not move, so it records a decision and never
+hides one. A version bump and its recording ship in the same change. Exit codes: 0 clean, 1 a
+finding or a refused `--update`, 2 an unreadable surface input.
+
 OS matrix: the same `gates.py` runs in the `release-gates` job on Linux, Windows and macOS CI. The
 gate self-test suite (`--fixtures`) stays on Linux, where it is cheap; the Windows/macOS jobs run
 only the aggregator so they stay around a minute. The release-only checks (static runtime,
@@ -303,8 +335,8 @@ and does not replace, `gates.py` (current-tree checks including docs) and the pe
 build/package jobs; it runs in the Linux `release-rehearsal` CI job.
 
 1. **Repository gates** — `python -B scripts/gates.py` (format-version, dependencies, license
-   bundle, SBOM, docs, pins). Proves the tree is internally consistent; add `--archive` once step 5
-   produced an archive.
+   bundle, SBOM, docs, source-size, pins, version-policy). Proves the tree is internally consistent;
+   add `--archive` once step 5 produced an archive.
 2. **Release build and static-runtime proof** — configure with `TESSERA_STATIC_RUNTIME=ON` and
    `BUILD_SHARED_LIBS=OFF` (both default), build the shipped target set, then run
    `python -B scripts/check_static_runtime.py --config Release --target <target>`. Proves the
