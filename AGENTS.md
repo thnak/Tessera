@@ -41,9 +41,10 @@ A cross-platform C++ UI framework:
    lives in a developer-owned derived class scaffolded once, and a missing `bind::` member is a
    compile error. The migration is under way: #209 and #210 are done, #218 moves the codegen
    test families to the base one by one (sample, dynamic, embed, ids-stability, dynamic-virtual,
-   vector and composition are done; virtual, forms, size-change and instances remain), and #219
-   deletes the legacy output, the merger and `EmitMode`. Until #219 lands the legacy merger must
-   stay idempotent (`merge(merge(g, e), e) == merge(g, e)`); add no new features to it.
+   vector, composition, virtual and forms are done; size-change and instances remain, plus the
+   trailing library fixtures), and #219 deletes the legacy output, the merger and `EmitMode`.
+   Until #219 lands the legacy merger must stay idempotent
+   (`merge(merge(g, e), e) == merge(g, e)`); add no new features to it.
 6. **Deterministic headless tests use a software path.** Golden images come from
    Mesa **lavapipe** or the CPU rasterizer, never from a real GPU framebuffer.
 7. **No React runtime in production.** Production is pure C++. React semantics exist only

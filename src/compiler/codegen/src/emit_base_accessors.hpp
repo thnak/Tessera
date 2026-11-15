@@ -14,9 +14,9 @@
 #include "codegen_internal.hpp"
 
 #include <optional>
-#include <utility>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace tessera::compiler::codegen::internal {

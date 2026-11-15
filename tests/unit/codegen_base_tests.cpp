@@ -86,8 +86,7 @@ void test_shape() {
     // The sample module has no component instances, so it gets no instance accessor. The positive
     // case for a component that owns one lives in codegen_composition_tests, which owns that
     // fixture (see test_instance_accessor there).
-    check(!contains(text, "child_2()"),
-          "a component without instances emits no child accessor");
+    check(!contains(text, "child_2()"), "a component without instances emits no child accessor");
 }
 
 void test_determinism() {

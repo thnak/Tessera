@@ -10,9 +10,8 @@
 // The split is behavior-preserving: everything here emits the same text in the same order as
 // before, which the committed `.g.hpp` goldens prove.
 
-#include "emit_base_accessors.hpp"
-
 #include "emit_base.hpp"
+#include "emit_base_accessors.hpp"
 #include "emit_events.hpp"
 #include "emit_props.hpp"
 
@@ -25,7 +24,6 @@
 
 namespace tessera::compiler::codegen::internal {
 namespace {
-
 
 // True for a generated data member (`state_count_`, `effect_sync_state_`, `prop_cb_`): the declared
 // name ends in `_`, which is the writer's convention for every field and for no method.
@@ -193,7 +191,7 @@ std::optional<BindingShape> binding_shape(const ir::Binding& binding, std::strin
         shape.return_type = handler_type(binding.return_type);
         if (shape.return_type.empty()) {
             base_fail(error, "binding `" + binding.id + "` has an unsupported return type `" +
-                            binding.return_type + "`");
+                                 binding.return_type + "`");
             return std::nullopt;
         }
     }
@@ -212,7 +210,7 @@ bool emit_base_members(CppWriter& writer, const ir::Component& component,
     const auto claim = [&](const std::string& name) {
         if (reserved_member(name) || !names.insert(name).second) {
             return base_fail(error, "component `" + component.name + "`: accessor `" + name +
-                                   "` collides with another generated member");
+                                        "` collides with another generated member");
         }
         return true;
     };
@@ -246,8 +244,9 @@ bool emit_base_members(CppWriter& writer, const ir::Component& component,
     for (const ir::State& state : component.state) {
         const std::optional<std::string> type = cpp_type(state.type);
         if (!type || !claim(state.name)) {
-            return type.has_value() ? false
-                                    : base_fail(error, "state `" + state.name + "` has no C++ type");
+            return type.has_value()
+                       ? false
+                       : base_fail(error, "state `" + state.name + "` has no C++ type");
         }
         writer.line("[[nodiscard]] const " + *type + "& " + state.name + "() const { return " +
                     member_name(state.id) + "; }");
@@ -270,9 +269,9 @@ bool emit_base_members(CppWriter& writer, const ir::Component& component,
                     member_name(value.id) + "; }");
     }
     // A component instance the caller owns is a generated member the caller's developer code has to
-    // reach to write the child's props (ADR-040 decision item 2 keeps the props public on the child,
-    // so the only missing door is the instance itself). A per-item instance is owned by the keyed
-    // item record instead of by a caller member, so it gets no accessor here.
+    // reach to write the child's props (ADR-040 decision item 2 keeps the props public on the
+    // child, so the only missing door is the instance itself). A per-item instance is owned by the
+    // keyed item record instead of by a caller member, so it gets no accessor here.
     for (const ComponentInstance& instance : instances) {
         if (instance.in_template()) {
             continue;

@@ -2,16 +2,15 @@
 
 // VirtualList/VirtualGrid codegen tests (ir-v1.md section 3.5, virtualization-v1.md section 10,
 // docs/design/compiler.md section 11): the item-template builder, the host-range application path,
-// the bounded window table, stable absolute-index NodeId slots, byte-identical determinism, loud
-// rejection of the deferred forms, and merger idempotency over the generated output.
+// the bounded window table, stable absolute-index NodeId slots and byte-identical determinism, on
+// the ADR-040 generated base.
 //
 // Deliberate golden update path: `codegen_virtual_tests --write` rewrites
-// tests/golden/codegen/VirtualDemo.*; then review the diff and rebuild.
+// tests/golden/codegen/VirtualDemo.g.hpp; then review the diff and rebuild.
 
 #include "codegen_virtual_module.hpp"
 #include "tessera/compiler/codegen/codegen.hpp"
 #include "tessera/compiler/ir/validate.hpp"
-#include "tessera/compiler/merger.hpp"
 
 #include <cstdint>
 #include <filesystem>
@@ -54,6 +53,11 @@ using tessera::test::codegen_virtual::leaf;
 using tessera::test::codegen_virtual::make_virtual_module;
 using tessera::test::codegen_virtual::span;
 
+// The canonical ADR-040 path (issue #218): the fixture is emitted as one header-only base.
+codegen::CodegenResult generate(const ir::IrModule& module) {
+    return codegen::generate(module, {}, std::nullopt, codegen::EmitMode::GeneratedBase);
+}
+
 std::string read_file(const std::string& path) {
     std::ifstream in(path, std::ios::binary);
     std::ostringstream text;
@@ -95,20 +99,19 @@ void test_fixture_is_valid() {
 }
 
 void test_generated_shape() {
-    const auto result = codegen::generate(make_virtual_module());
+    const auto result = generate(make_virtual_module());
     check(result.has_value(), "the virtual sample generates");
     if (!result) {
         std::cerr << "  error: " << first_error(result) << "\n";
         return;
     }
-    check(result->size() == 2, "one header and one source");
-    if (result->size() != 2) {
+    check(result->size() == 1, "one header-only base per component");
+    if (result->size() != 1) {
         return;
     }
-    check_eq((*result)[0].path, "VirtualDemo.hpp", "deterministic header path");
-    check_eq((*result)[1].path, "VirtualDemo.cpp", "deterministic source path");
+    check_eq((*result)[0].path, "VirtualDemo.g.hpp", "deterministic header-only base path");
     const std::string& header = (*result)[0].text;
-    const std::string& source = (*result)[1].text;
+    const std::string& source = header; // the base is header-only: one text holds both halves
     check(!contains(header, "kMaxGeneratedVirtualItems"),
           "no fixed realized-window cap is emitted");
     check(contains(header, "struct Item_4 {"), "the item node struct of the list template");
@@ -126,13 +129,14 @@ void test_generated_shape() {
           "the declared fixed extent comes from a prop");
     check(contains(header, "tessera::ui::Node* virtual_3_ = nullptr;"),
           "the collection container is recorded");
-    check(contains(header, "std::vector<Item_4> virtual_3_items_{};"),
+    check(contains(header, "std::vector<VirtualDemo_detail::Item_4> virtual_3_items_{};"),
           "the growable realized-window table");
     check(contains(header, "std::size_t virtual_3_count_ = 0;"), "the realized item count");
     check(contains(header, "std::size_t virtual_3_first_ = 0;"), "the realized window start");
     check(contains(header,
                    "std::unique_ptr<tessera::ui::Node> build_item_4(const std::string& item, "
-                   "std::size_t tessera_index, std::size_t tessera_id_slot, Item_4& tessera_out);"),
+                   "std::size_t tessera_index, std::size_t tessera_id_slot, "
+                   "VirtualDemo_detail::Item_4& tessera_out);"),
           "the per-item builder signature");
     check(contains(header, "void apply_virtual_3(std::size_t tessera_first, "
                            "std::size_t tessera_last);"),
@@ -143,7 +147,7 @@ void test_generated_shape() {
           "the grid row height is re-evaluated from its state cell");
     check(contains(header, "static constexpr int virtual_6_columns_ = 2;"),
           "the grid column count is a generated constant");
-    check(contains(source, "void VirtualDemo::apply_virtual_3(std::size_t tessera_first, "
+    check(contains(source, "void VirtualDemoBase<Self>::apply_virtual_3(std::size_t tessera_first, "
                            "std::size_t tessera_last)"),
           "the window application is emitted");
     check(contains(source, "tessera::ui::virtualization::ItemGeometry"),
@@ -173,14 +177,14 @@ void test_generated_shape() {
 // an ItemGeometry seeded from the emitted constants, refines it from realized item bounds, applies
 // the overscanned window and dispatches the collection events.
 void test_scroll_wiring_shape() {
-    const auto result = codegen::generate(make_virtual_module());
+    const auto result = generate(make_virtual_module());
     check(result.has_value(), "the scroll-wiring sample generates");
     if (!result) {
         std::cerr << "  error: " << first_error(result) << "\n";
         return;
     }
     const std::string& header = (*result)[0].text;
-    const std::string& source = (*result)[1].text;
+    const std::string& source = header; // the base is header-only: one text holds both halves
     check(contains(header, "#include \"tessera/ui/virtual/item_geometry.hpp\""),
           "the header includes the owned geometry");
     check(contains(header, "tessera::ui::virtualization::ItemGeometry virtual_3_geometry_{{"),
@@ -200,7 +204,7 @@ void test_scroll_wiring_shape() {
           "the fire counter of onEndReached is a generated member");
     check(contains(header, "std::uint64_t virtual_3_end_throttled_ = 0;"),
           "the throttle counter of onEndReached is a generated member");
-    check(contains(source, "bool VirtualDemo::scroll_virtual_3(float& tessera_scroll, "
+    check(contains(source, "bool VirtualDemoBase<Self>::scroll_virtual_3(float& tessera_scroll, "
                            "float tessera_viewport)"),
           "the scroll entry point is emitted");
     check(contains(source, "update_virtual_geometry_3(tessera_scroll, tessera_viewport);"),
@@ -231,21 +235,26 @@ void test_scroll_wiring_shape() {
           "the onScroll binding is invoked");
     check(contains(source, "this->handler_on_end_reached(tessera_end_event);"),
           "the onEndReached handler is invoked");
-    check(contains(source, "tessera_end_distance < kVirtualEndReachedThrottlePx)"),
+    check(contains(source,
+                   "tessera_end_distance < VirtualDemo_detail::kVirtualEndReachedThrottlePx)"),
           "the distance throttle gates onEndReached");
     check(contains(source, "apply_virtual_6(tessera_first, tessera_last);"),
           "the grid applies a whole-row item window");
     check(contains(source, "tessera_item_index / tessera_columns"),
           "a grid cell measure maps to its row");
-    check(contains(source, "// [DEVELOPER_LOGIC_START: bind::on_scroll]"),
-          "the onScroll binding keeps its protected region");
+    // ADR-040 removes protected regions entirely: the developer writes `on_scroll` in its own
+    // class and the base only carries the dispatch thunk.
+    check(!contains(source, "DEVELOPER_LOGIC_START"),
+          "the base carries no protected regions (the developer owns the handler body)");
+    check(contains(source, "static_cast<Self&>(*this).on_scroll(e)"),
+          "onScroll is a dispatch thunk into the developer class");
     // No scene adapter is generated for a collection-level event (there is no scroll EventType).
     check(!contains(source, "event_adapter_3_onScroll"),
           "collection events are not scene event adapters");
 }
 
 void test_goldens(bool update) {
-    const auto result = codegen::generate(make_virtual_module());
+    const auto result = generate(make_virtual_module());
     check(result.has_value(), "the virtual golden sample generates");
     if (!result) {
         return;
@@ -270,8 +279,8 @@ void test_goldens(bool update) {
 }
 
 void test_determinism() {
-    const auto first = codegen::generate(make_virtual_module());
-    const auto second = codegen::generate(make_virtual_module());
+    const auto first = generate(make_virtual_module());
+    const auto second = generate(make_virtual_module());
     check(first.has_value() && second.has_value(), "the virtual sample generates twice");
     if (first && second) {
         check_eq(concatenated(*first), concatenated(*second), "two runs are byte-identical");
@@ -280,7 +289,7 @@ void test_determinism() {
 
 void test_rejections() {
     const auto expect_error = [](const ir::IrModule& module, std::string_view what) {
-        const auto result = codegen::generate(module);
+        const auto result = generate(module);
         check(!result.has_value(), what);
         check(first_error(result).rfind("TESSERA_CODEGEN_", 0) == 0,
               std::string(what) + " reports a TESSERA_CODEGEN_ code");
@@ -395,43 +404,6 @@ void test_rejections() {
     }
 }
 
-void test_merger_idempotency() {
-    const auto result = codegen::generate(make_virtual_module());
-    check(result.has_value(), "the virtual sample generates for the merger test");
-    if (!result) {
-        return;
-    }
-    std::string generated;
-    for (const codegen::GeneratedFile& file : *result) {
-        if (file.path == "VirtualDemo.cpp") {
-            generated = file.text;
-        }
-    }
-    check(!generated.empty(), "the generated virtual source exists");
-    constexpr std::string_view kMarker = "// [DEVELOPER_LOGIC_START: bind::on_click]";
-    const std::size_t marker = generated.find(kMarker);
-    check(marker != std::string::npos, "the on_click region survives next to the collections");
-    if (marker == std::string::npos) {
-        return;
-    }
-    std::string existing = generated;
-    existing.insert(marker + kMarker.size(), "\n    // developer body next to generated windows");
-    constexpr std::string_view kScrollMarker = "// [DEVELOPER_LOGIC_START: bind::on_scroll]";
-    const std::size_t scroll_marker = existing.find(kScrollMarker);
-    check(scroll_marker != std::string::npos, "the on_scroll region exists");
-    if (scroll_marker == std::string::npos) {
-        return;
-    }
-    existing.insert(scroll_marker + kScrollMarker.size(), "\n    // developer scroll observation");
-    const tessera::compiler::MergeResult first = tessera::compiler::merge(generated, existing);
-    check(first.text.find("developer body next to generated windows") != std::string::npos,
-          "the developer body survives the merge");
-    check(first.text.find("developer scroll observation") != std::string::npos,
-          "the onScroll developer body survives the merge");
-    const tessera::compiler::MergeResult second = tessera::compiler::merge(first.text, existing);
-    check_eq(second.text, first.text, "merge(merge(g, e), e) == merge(g, e) over virtual output");
-}
-
 } // namespace
 
 int main(int argc, char** argv) {
@@ -446,7 +418,6 @@ int main(int argc, char** argv) {
     test_goldens(false);
     test_determinism();
     test_rejections();
-    test_merger_idempotency();
     if (failures != 0) {
         std::cerr << failures << " check(s) failed\n";
         return 1;

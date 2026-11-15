@@ -29,7 +29,6 @@
 namespace tessera::compiler::codegen::internal {
 namespace {
 
-
 using Lines = std::vector<std::string>;
 
 Lines split_lines(const std::string& text) {
@@ -46,8 +45,6 @@ Lines split_lines(const std::string& text) {
     }
     return lines;
 }
-
-
 
 std::string with_static(const std::string& line) {
     const std::size_t at = indent_of(line);
@@ -148,9 +145,6 @@ std::string function_name(const std::string& line) {
     }
     return line.substr(begin, paren - begin);
 }
-
-
-
 
 } // namespace
 

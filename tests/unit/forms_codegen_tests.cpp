@@ -307,7 +307,6 @@ void test_determinism() {
              "the library Form is byte-identical too");
 }
 
-
 } // namespace
 
 int main(int argc, char** argv) {
