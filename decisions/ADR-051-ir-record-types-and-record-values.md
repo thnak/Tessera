@@ -93,6 +93,18 @@ names are compiler-checked. Equality and hashing are not generated in this slice
 state-dependency comparison key yet; changing a record state value always schedules an update, as
 for a list). Records contain no heap allocation beyond their own `string`/`list` members.
 
+**Implementation note (slice 4, 2026-11-15).** The placement sentence above ("the generated header of
+the first component that uses it") is replaced by **one per-module `<module>_types.hpp`**, included by
+each generated component header that names a record. ADR-040 base mode makes a generated header
+`#include` the *developer* `.hpp` of a component it references, never another component's `.g.hpp`
+(see `tests/golden/codegen/CardPage.g.hpp`), so a struct placed in one component's header would be
+invisible to a second using component, or redefined by it. The per-module header is the established
+idiom (`<module>_stylesheets.hpp`, `<module>_theme.hpp`), stays deterministic, and is emitted only
+when `types` is non-empty — so a module without records generates byte-identical output to before
+this slice and no existing codegen golden moves. Structs are emitted in `types` order (sorted by
+name); a by-value member of another record needs a complete type only at the point of use, so the
+order inside the header is not a dependency order.
+
 ## Alternatives considered
 
 - **Flatten a record default into one prop per member.** No IR change, but it breaks the component

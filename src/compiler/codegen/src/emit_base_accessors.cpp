@@ -203,7 +203,8 @@ std::string binding_signature(const ir::Binding& binding, const BindingShape& sh
            (shape.event ? shape.param_type + " " + shape.param_name : std::string()) + ")";
 }
 
-bool emit_base_members(CppWriter& writer, const ir::Component& component,
+bool emit_base_members(CppWriter& writer, const ir::IrModule& module,
+                       const ir::Component& component,
                        const std::vector<const ir::Binding*>& bindings,
                        const std::vector<ComponentInstance>& instances, std::string& error) {
     std::set<std::string> names;
@@ -230,10 +231,10 @@ bool emit_base_members(CppWriter& writer, const ir::Component& component,
     writer.line(
         "// Accessors for developer code: names come from the TSX, not the generated fields.");
     for (const ir::Prop& prop : component.props) {
-        if (prop.type == "children" || !is_value_prop_type(prop.type)) {
+        if (prop.type == "children" || !is_value_prop_type(prop.type, module.types)) {
             continue;
         }
-        const std::optional<std::string> type = cpp_type(prop.type);
+        const std::optional<std::string> type = cpp_type(prop.type, module.types);
         if (!type || !claim(prop.name)) {
             return type.has_value() ? false
                                     : base_fail(error, "prop `" + prop.name + "` has no C++ type");
@@ -242,7 +243,7 @@ bool emit_base_members(CppWriter& writer, const ir::Component& component,
                     member_name("prop::" + prop.name) + "; }");
     }
     for (const ir::State& state : component.state) {
-        const std::optional<std::string> type = cpp_type(state.type);
+        const std::optional<std::string> type = cpp_type(state.type, module.types);
         if (!type || !claim(state.name)) {
             return type.has_value()
                        ? false
@@ -259,7 +260,7 @@ bool emit_base_members(CppWriter& writer, const ir::Component& component,
                     member_name(ref.id) + "; }");
     }
     for (const ir::AnimatedValue& value : component.animated_values) {
-        const std::optional<std::string> type = cpp_type(value.type);
+        const std::optional<std::string> type = cpp_type(value.type, module.types);
         if (!type || !claim(value.name)) {
             return type.has_value()
                        ? false

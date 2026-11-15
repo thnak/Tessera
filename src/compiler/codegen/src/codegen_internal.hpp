@@ -32,7 +32,13 @@ struct CppWriter {
 
 // A C++ type for an IR type (docs/specs/ir-v1.md section 2). Null when the type needs a runtime
 // type this slice does not have; the caller reports TESSERA_CODEGEN_UNSUPPORTED.
-[[nodiscard]] std::optional<std::string> cpp_type(std::string_view ir_type);
+//
+// `records` is the module's record type table (ADR-051): a name declared there maps to its
+// generated aggregate struct, which is what makes a record-typed prop or `useState` cell a *value*.
+// With an empty table (the default) every record name keeps returning null, which is how a callback
+// prop is still recognized as a non-value.
+[[nodiscard]] std::optional<std::string> cpp_type(std::string_view ir_type,
+                                                  std::span<const ir::RecordType> records = {});
 
 // C++ literal text for one IR literal (string literals are escaped).
 [[nodiscard]] std::string literal_text(const ir::LiteralValue& literal);
@@ -203,7 +209,7 @@ struct DynamicMetadata {
 // lifecycle propagation (emit_lifecycle.cpp). Per-item component instances follow the owner's
 // lifecycle: they mount when the owner mounts (or when their item is created afterwards), update
 // with it, and unmount before their item is dropped.
-[[nodiscard]] bool emit_lifecycle(const ir::Component& component,
+[[nodiscard]] bool emit_lifecycle(const ir::Component& component, const ir::IrModule& module,
                                   const std::vector<const ir::Binding*>& bindings,
                                   const std::vector<ComponentInstance>& instances,
                                   const DynamicPlan& plan, CppWriter& writer, std::string& error);

@@ -6,6 +6,7 @@
 #include "codegen_internal.hpp"
 #include "emit_dynamic.hpp"
 #include "emit_events.hpp"
+#include "emit_types_header.hpp"
 
 #include <optional>
 #include <string>
@@ -36,14 +37,24 @@ const ir::Binding* find_binding(const std::vector<const ir::Binding*>& bindings,
 }
 
 // Resolves one effect dependency to its generated member and C++ type.
-bool dep_member(const ir::Component& component, std::string_view dep, std::string& member,
-                std::string& type, std::string& error) {
+bool dep_member(const ir::Component& component, const ir::IrModule& module, std::string_view dep,
+                std::string& member, std::string& type, std::string& error) {
+    const auto no_cpp_form = [&](std::string_view ir_type) {
+        if (find_record_type(module, innermost_record_name(ir_type)) != nullptr) {
+            // ADR-051 section 5: a record has no generated equality or hash in this slice, so a
+            // record cannot be an effect dependency yet. Say so instead of emitting a hash call
+            // that would not compile.
+            return fail(error, "effect dep `" + std::string(dep) +
+                                   "` is a record, which has no "
+                                   "dependency hash in this slice (ADR-051 section 5)");
+        }
+        return fail(error, "effect dep `" + std::string(dep) + "` has a type with no C++ form");
+    };
     for (const ir::State& state : component.state) {
         if (state.id == dep) {
-            const std::optional<std::string> mapped = cpp_type(state.type);
+            const std::optional<std::string> mapped = cpp_type(state.type, module.types);
             if (!mapped) {
-                return fail(error,
-                            "effect dep `" + std::string(dep) + "` has a type with no C++ form");
+                return no_cpp_form(state.type);
             }
             member = member_name(state.id);
             type = *mapped;
@@ -54,9 +65,9 @@ bool dep_member(const ir::Component& component, std::string_view dep, std::strin
         if ("prop::" + prop.name != dep) {
             continue;
         }
-        const std::optional<std::string> mapped = cpp_type(prop.type);
+        const std::optional<std::string> mapped = cpp_type(prop.type, module.types);
         if (!mapped) {
-            return fail(error, "effect dep `" + std::string(dep) + "` has a type with no C++ form");
+            return no_cpp_form(prop.type);
         }
         member = member_name("prop::" + prop.name);
         type = *mapped;
@@ -64,10 +75,9 @@ bool dep_member(const ir::Component& component, std::string_view dep, std::strin
     }
     for (const ir::AnimatedValue& value : component.animated_values) {
         if (value.id == dep) {
-            const std::optional<std::string> mapped = cpp_type(value.type);
+            const std::optional<std::string> mapped = cpp_type(value.type, module.types);
             if (!mapped) {
-                return fail(error,
-                            "effect dep `" + std::string(dep) + "` has a type with no C++ form");
+                return no_cpp_form(value.type);
             }
             member = member_name(value.id);
             type = *mapped;
@@ -78,8 +88,8 @@ bool dep_member(const ir::Component& component, std::string_view dep, std::strin
                            "` is not a state, prop or animated value reference");
 }
 
-bool emit_dep_hash(CppWriter& writer, const ir::Component& component, std::size_t index,
-                   const ir::Effect& effect, std::string& error) {
+bool emit_dep_hash(CppWriter& writer, const ir::Component& component, const ir::IrModule& module,
+                   std::size_t index, const ir::Effect& effect, std::string& error) {
     writer.line("std::uint64_t dep_hash_" + std::to_string(index) + "(const " + component.name +
                 "& component) {");
     ++writer.indent;
@@ -87,7 +97,7 @@ bool emit_dep_hash(CppWriter& writer, const ir::Component& component, std::size_
     for (const std::string& dep : effect.deps) {
         std::string member;
         std::string type;
-        if (!dep_member(component, dep, member, type, error)) {
+        if (!dep_member(component, module, dep, member, type, error)) {
             return false;
         }
         writer.line("hash = tessera::ui::effect_hash(hash, component." + member + ");");
@@ -100,7 +110,8 @@ bool emit_dep_hash(CppWriter& writer, const ir::Component& component, std::size_
 
 } // namespace
 
-bool emit_lifecycle(const ir::Component& component, const std::vector<const ir::Binding*>& bindings,
+bool emit_lifecycle(const ir::Component& component, const ir::IrModule& module,
+                    const std::vector<const ir::Binding*>& bindings,
                     const std::vector<ComponentInstance>& instances, const DynamicPlan& plan,
                     CppWriter& writer, std::string& error) {
     const bool item_instances = plan_has_item_instances(plan);
@@ -190,7 +201,7 @@ bool emit_lifecycle(const ir::Component& component, const std::vector<const ir::
     writer.line("namespace {");
     ++writer.indent;
     for (std::size_t i = 0; i < component.effects.size(); ++i) {
-        if (!emit_dep_hash(writer, component, i, component.effects[i], error)) {
+        if (!emit_dep_hash(writer, component, module, i, component.effects[i], error)) {
             return false;
         }
         writer.line("");

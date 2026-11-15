@@ -23,6 +23,7 @@ add_library(tessera_codegen STATIC
     src/emit_snapshot.cpp
     src/emit_stylesheet_embed.cpp
     src/emit_theme_embed.cpp
+    src/emit_types_header.cpp
     src/emit_vector.cpp
     src/form_binding.cpp
     src/emit_header.cpp

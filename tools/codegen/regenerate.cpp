@@ -601,6 +601,7 @@ Outcome run(const Options& options) {
     module.components = std::move(lowered_module.components);
     module.bindings = std::move(lowered_module.bindings);
     module.stylesheets = std::move(lowered_module.stylesheets);
+    module.types = std::move(lowered_module.types);
 
     if (!options.emit_library_cpp_path.empty()) {
         // The build-time library registry has no project: its ids come from the fixed library salt

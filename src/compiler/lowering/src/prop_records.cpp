@@ -9,6 +9,7 @@
 // (docs/design/jsx-ir-lowering.md section 9).
 
 #include "node_lowering_internal.hpp"
+#include "record_internal.hpp"
 #include "tessera/compiler/jsx/parser.hpp"
 #include "tessera/compiler/lowering/type_alias.hpp"
 
@@ -350,16 +351,54 @@ DeclaredPropsKind lower_declared_props(NodeState& state, std::vector<ir::Prop>& 
         ir::ExprPtr default_value;
         if (const jsx::PropBinding* binding = find_binding(state, member.name);
             binding != nullptr && binding->default_value) {
-            if (!is_literal_default(*binding->default_value)) {
-                fail_node(state, "TESSERA_IR_UNSUPPORTED",
-                          "default of prop `" + member.name +
-                              "` must be a literal or a literal list",
-                          binding->span);
-                return DeclaredPropsKind::Error;
+            // ADR-051 slice 3: a prop whose declared type names a module record takes an object
+            // literal default (`{ padding = { top: 4 } }`), which lowers to an `ir::Record`
+            // (docs/specs/ir-v1.md sections 4.3 and 8.5). Every other type keeps the literal rule
+            // of jsx-subset-v1.md section 6, because a record is the only object-literal position.
+            const ir::RecordType* record = nullptr;
+            if (state.context.records != nullptr) {
+                if (const std::optional<std::string_view> name =
+                        record_name_of(*state.context.records, *type)) {
+                    record = find_record(*state.context.records, *name);
+                }
             }
-            default_value = lower_node_expression(state, *binding->default_value);
-            if (!default_value) {
-                return DeclaredPropsKind::Error;
+            if (record != nullptr) {
+                if (binding->default_value->kind != jsx::ExprKind::Object) {
+                    fail_node(state, "TESSERA_IR_RECORD_VALUE",
+                              "the default of prop `" + member.name + "` is type `" + record->name +
+                                  "`, so it must be an object literal",
+                              binding->span);
+                    return DeclaredPropsKind::Error;
+                }
+                RecordLoweringState record_state{state.context.source_map, state.context.file,
+                                                 std::nullopt};
+                default_value = lower_record_value(record_state, *binding->default_value, *record,
+                                                   *state.context.records);
+                if (!default_value) {
+                    if (!state.error && record_state.error) {
+                        state.error = std::move(record_state.error);
+                    }
+                    return DeclaredPropsKind::Error;
+                }
+            } else {
+                if (!is_literal_default(*binding->default_value)) {
+                    // An object literal here means the prop's type names no record of this module:
+                    // either it is not a record at all, or the entry point lowered a single
+                    // component and has no module type table (ADR-051 slice 3).
+                    fail_node(state, "TESSERA_IR_UNSUPPORTED",
+                              binding->default_value->kind == jsx::ExprKind::Object
+                                  ? "an object literal default of prop `" + member.name +
+                                        "` needs a declared record type; `" + *type +
+                                        "` is not a record of this module"
+                                  : "default of prop `" + member.name +
+                                        "` must be a literal or a literal list",
+                              binding->span);
+                    return DeclaredPropsKind::Error;
+                }
+                default_value = lower_node_expression(state, *binding->default_value);
+                if (!default_value) {
+                    return DeclaredPropsKind::Error;
+                }
             }
         }
         props.push_back(ir::Prop{member.name, *type, std::move(default_value), member.optional});

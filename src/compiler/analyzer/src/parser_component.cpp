@@ -8,14 +8,22 @@
 namespace tessera::compiler::jsx {
 namespace {
 
-// A prop default is a literal, or a flat list of literals (`validators = []`). The IR keeps the
-// literal value; anything computed would need a runtime and is rejected at parse time.
+// A prop default is a literal, a flat list of literals (`validators = []`), or an object literal
+// for a prop whose type is a declared record (`{ padding = { top: 4 } }`, ADR-051). The IR keeps
+// the literal value; anything computed would need a runtime and is rejected at parse time.
+//
+// An object literal is accepted structurally: `parser_literals.cpp` already rejects a spread and a
+// computed key, and whether the *field values* are literals is checked by the lowering, which knows
+// the record's members and can name the offending field (`TESSERA_IR_UNSUPPORTED`). Checking it
+// here too would only move that message to a generic parse error with no member name.
 bool is_literal_default(const Expr& expr) {
     switch (expr.kind) {
     case ExprKind::Number:
     case ExprKind::String:
     case ExprKind::Boolean:
     case ExprKind::Null:
+        return true;
+    case ExprKind::Object:
         return true;
     case ExprKind::Array:
         for (const ExprPtr& element : expr.operands) {

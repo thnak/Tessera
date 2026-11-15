@@ -29,6 +29,8 @@ set(_tessera_lowering_core_sources
     src/node_lowering.cpp
     src/project_path.cpp
     src/prop_records.cpp
+    src/record_lowering.cpp
+    src/record_types.cpp
     src/reference_lowering.cpp
     src/schema_bridge.cpp
     src/source_span.cpp

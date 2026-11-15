@@ -4,6 +4,7 @@
 
 #include "codegen_internal.hpp"
 
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -15,10 +16,12 @@
 // events. No library component gets a special path; `Field` is an ordinary declared component.
 namespace tessera::compiler::codegen::internal {
 
-// True for an IR type with a plain generated C++ value form (a primitive, `list<T>` or
-// `optional<T>`), false for a record type. A record-typed prop is a callback prop: it is not a
-// value, so it must be bound through `node.events` (docs/specs/component-model-v1.md section 3).
-[[nodiscard]] bool is_value_prop_type(std::string_view ir_type);
+// True for an IR type with a plain generated C++ value form (a primitive, `list<T>`, `optional<T>`,
+// or a declared record of `records`). False for a record name that is not declared: a record-typed
+// prop is then a callback prop, which is not a value and must be bound through `node.events`
+// (docs/specs/component-model-v1.md section 3).
+[[nodiscard]] bool is_value_prop_type(std::string_view ir_type,
+                                      std::span<const ir::RecordType> records = {});
 
 // The generated C++ type of a callback prop: `std::function<void(const <Record>&)>` for a prop
 // whose IR type names a scene payload record, and `std::function<void()>` for the payload-free
@@ -29,10 +32,12 @@ namespace tessera::compiler::codegen::internal {
 // How `apply_props()` guards one prop assignment: a 64-bit FNV-1a value hash for a printable scalar
 // or list-of-printable prop (the same allocation-free change detection apply_state() uses), a
 // one-shot bound flag for a callback (the lambda is built once), or no guard when the type has no
-// hashable form.
+// hashable form. A record value is `None`: ADR-051 section 5 does not generate equality or hashing
+// for a record in this slice, so a record prop is assigned on every refresh (as a list would be).
 enum class PropGuard { None, Value, Callback };
 
-[[nodiscard]] PropGuard prop_guard(std::string_view ir_type);
+[[nodiscard]] PropGuard prop_guard(std::string_view ir_type,
+                                   std::span<const ir::RecordType> records = {});
 
 // The generated caller-struct member that stores a prop's guard. `_hash_` is a `std::uint64_t`,
 // `_bound_` is a `bool`.

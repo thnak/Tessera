@@ -12,6 +12,7 @@
 #include "emit_props.hpp"
 #include "emit_schedule.hpp"
 #include "emit_snapshot.hpp"
+#include "emit_types_header.hpp"
 #include "form_binding.hpp"
 #include "interpolation.hpp"
 
@@ -67,7 +68,7 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
         }
     }
     for (const ir::Prop& prop : component.props) {
-        if (prop.type != "children" && !is_value_prop_type(prop.type)) {
+        if (prop.type != "children" && !is_value_prop_type(prop.type, module.types)) {
             has_callback_props = has_callback_props || !callback_prop_type(prop.type).empty();
         }
     }
@@ -97,6 +98,12 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
     }
     for (const std::string& include : includes) {
         writer.line("#include \"" + include + ".hpp\"");
+    }
+    // ADR-051 slice 4: a component that names a declared record includes the module's aggregate
+    // struct header. A module without records emits no such file, so no existing golden gains a
+    // line.
+    if (uses_record_types(component, module)) {
+        writer.line("#include \"" + module.name + "_types.hpp\"");
     }
     emit_form_includes(writer, forms);
     if (uses_focus_actions(component)) {
@@ -136,7 +143,7 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
         if (prop.type == "children") {
             continue; // the static slot declaration is not a generated field (ir-v1 section 3.4)
         }
-        std::optional<std::string> type = cpp_type(prop.type);
+        std::optional<std::string> type = cpp_type(prop.type, module.types);
         if (!type) {
             // A record-typed prop is a callback prop: it is bound through the node's events and
             // stored as a generated callable (docs/specs/component-model-v1.md section 3).
@@ -149,11 +156,11 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
             return fail(error, "prop `" + prop.name + "` has a type with no C++ form (`" +
                                    prop.type + "`)");
         }
-        if (!is_value_prop_type(prop.type) && prop.default_value) {
+        if (!is_value_prop_type(prop.type, module.types) && prop.default_value) {
             return fail(error, "callback prop `" + prop.name + "` has no default value");
         }
         std::string initial = "{}";
-        if (prop.default_value && is_value_prop_type(prop.type)) {
+        if (prop.default_value && is_value_prop_type(prop.type, module.types)) {
             if (prop.default_value->kind == ir::ExprKind::Array && !is_list_cpp_type(*type)) {
                 return fail(error, "prop `" + prop.name +
                                        "` has an array default but its type is not a list");
@@ -162,15 +169,17 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
             if (!value.error.empty()) {
                 return fail(error, value.error);
             }
-            // An array default already carries its braces; a scalar default is brace-initialized.
-            initial = prop.default_value->kind == ir::ExprKind::Array ? value.text
-                                                                      : "{" + value.text + "}";
+            // An array default and a record value already carry their braces; a scalar default is
+            // brace-initialized.
+            const bool braced = prop.default_value->kind == ir::ExprKind::Array ||
+                                prop.default_value->kind == ir::ExprKind::Record;
+            initial = braced ? value.text : "{" + value.text + "}";
         }
         writer.line("// prop `" + prop.name + "`.");
         writer.line(*type + " " + member_name("prop::" + prop.name) + " = " + initial + ";");
     }
     for (const ir::State& state : component.state) {
-        const std::optional<std::string> type = cpp_type(state.type);
+        const std::optional<std::string> type = cpp_type(state.type, module.types);
         if (!type) {
             return fail(error, "state `" + state.name + "` has a type with no C++ form (`" +
                                    state.type + "`)");
@@ -193,7 +202,7 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
         writer.line("tessera::ui::Node* " + member_name(ref.id) + " = nullptr;");
     }
     for (const ir::AnimatedValue& value : component.animated_values) {
-        const std::optional<std::string> type = cpp_type(value.type);
+        const std::optional<std::string> type = cpp_type(value.type, module.types);
         if (!type) {
             return fail(error, "animated value `" + value.name + "` has a type with no C++ form");
         }
@@ -293,7 +302,7 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
     writer.line(
         "// Runs update_effects() then apply_state(); the scheduler calls it at its flush.");
     writer.line("void update();");
-    if (!emit_schedule_declarations(writer, component, error)) {
+    if (!emit_schedule_declarations(writer, module, component, error)) {
         return false;
     }
     emit_snapshot_declaration(writer);
@@ -320,7 +329,7 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
         writer.line("void " + method_name(handler.id) + "(" + *signature + ");");
     }
     // ADR-040: the bindings are dispatch thunks into the developer class, not declarations.
-    if (!emit_base_members(writer, component, bindings, instances, error)) {
+    if (!emit_base_members(writer, module, component, bindings, instances, error)) {
         return false;
     }
     writer.close(";");

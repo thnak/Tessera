@@ -22,6 +22,9 @@ bool snapshot_type(std::string_view ir_type) {
     return scalar_type(ir_type);
 }
 
+// ADR-051 section 5 generates no snapshot cell for a record in this slice, which is what
+// `snapshot_type` already yields: a record name is not a scalar. Nothing to skip explicitly.
+
 } // namespace
 
 void emit_snapshot_declaration(CppWriter& writer) {

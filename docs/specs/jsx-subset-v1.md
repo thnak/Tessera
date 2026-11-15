@@ -240,7 +240,7 @@ ParamType  = IDENT ":" TypeExpr ;
 Param  = ( IDENT | DestructuredProps ) ":" TypeExpr ;
 DestructuredProps = "{" PropBind { "," PropBind } [ "," ] "}" ;
 PropBind = IDENT [ "=" PropDefault ] ;
-PropDefault = Literal | "[" [ Literal { "," Literal } ] "]" ;
+PropDefault = Literal | "[" [ Literal { "," Literal } ] "]" | ObjectLiteral ;
 Block  = "{" { Stmt } ReturnStmt "}" ;
 Stmt   = StateDecl | RefDecl | AnimDecl | EffectStmt | HandlerDecl | LocalDecl ;
 ReturnStmt = "return" ( JsxElement | "(" JsxElement ")" ) ";" ;
@@ -250,7 +250,10 @@ LocalDecl  = "const" IDENT [ ":" TypeExpr ] "=" PureExpr ";" ;
 - A component has zero or one parameter: the props. The parameter is either a name
   (`props: CounterProps`, read as `props.initial`) or a destructuring with literal or flat
   literal-list defaults (`{ initial = 0 }: CounterProps`, `{ items = [] }: P`). The type annotation
-  is required when the parameter exists. Rest elements (`...rest`) are rejected.
+  is required when the parameter exists. Rest elements (`...rest`) are rejected. A default may also
+  be an object literal when the prop's type is a declared record (`{ padding = { top: 4 } }`, ADR-051);
+  its values are literals, nested record literals or arrays of literals, and a computed value is a
+  lowering error (`TESSERA_IR_UNSUPPORTED`, section 8.5).
 - The name starts with an uppercase letter.
 - The body is a sequence of statements followed by exactly one `return` that is the last statement.
   The returned value is one JSX element (not an array, string or `null`).
@@ -423,8 +426,15 @@ top-level constant list are not accepted yet: a loop source must be a list refer
 
 Accepted only as: the `style` attribute value (section 10.3), the `props` attribute of
 `CustomElement` ([`custom-elements-v1.md`](custom-elements-v1.md)), the `initial` attribute of library
-`Form` components, and a `useState` initial value of a declared record type. Keys are identifiers or
-string literals (no computed keys, no shorthand with a function value, no spread).
+`Form` components, a `useState` initial value of a declared record type, and a prop default whose
+prop type is a declared record (ADR-051). Keys are identifiers or string literals (no computed keys,
+no shorthand with a function value, no spread).
+
+A record's field values are literals, nested record literals, or arrays of literals of the member's
+element type; a computed value (a reference, a call, an expression) is `TESSERA_IR_UNSUPPORTED` and
+names the field. A field whose key is not a member of the record, a repeated key and a missing
+non-optional member are `TESSERA_IR_RECORD_VALUE`. The record's declaration supplies the field order,
+so the source order of the fields does not matter.
 
 ## 9. Handlers
 

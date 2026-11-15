@@ -303,12 +303,16 @@ note above).
 | Ref | `Node*` member + assignment after creation |
 | Animated value | `AnimationController`/`Tween` member |
 | Style token | property id/value or stylesheet class reference |
+| Record type | one aggregate `struct` per declared record in the per-module `<module>_types.hpp`, members in declaration order with an `optional` member as `std::optional<T>`; included by each generated component header that names a record (ADR-051 section 5 and its implementation note) |
+| `record` value | designated aggregate initialization `Size{.w = 1, .h = 2}`, as a prop field default and as a state initial |
 
-A record type and a `record` value need codegen support that this slice does not add: the struct is
-emitted once per module (dependencies first) and the value becomes designated aggregate
-initialization (`Size{.w = 1, .h = 2}`), so member order and names are compiler-checked (ADR-051
-decision 5). That is the follow-up codegen slice; until it lands, codegen reports a record type as
-having no C++ form rather than emitting something wrong.
+A record type and a `record` value are emitted as above (ADR-051 slice 4). The struct lives in one
+per-module `<module>_types.hpp` rather than in the first using component's header, because ADR-040
+base mode has a generated header include the child's *developer* `.hpp`, never another component's
+`.g.hpp`. Designated initialization makes the member order and names compiler-checked. A module
+without records emits no such header and no extra include; equality, hashing and snapshots are not
+generated for a record in this slice, so a record state change always schedules an update and a
+record cannot be an effect dependency.
 
 ## 11. Determinism
 
