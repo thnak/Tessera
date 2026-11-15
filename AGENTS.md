@@ -544,9 +544,10 @@ ADR-049 is Accepted and the shader chain is on `main`; WebGPU is Tier 1: its CI 
       [`docs/specs/dependencies.md`](docs/specs/dependencies.md) "Backend build tools".
 - [x] #163: Emscripten CI lane + WGSL validation — WebGPU promoted to Tier 1 —
       `.github/workflows/webgpu.yml`, `scripts/ci/validate_wgsl.py`, ADR-049.
-- [ ] #245: Cross-backend image parity: a fixed scene set on every available backend against the
+- [x] #245: Cross-backend image parity: a fixed scene set on every available backend against the
       lavapipe reference, SSIM and deltaE with edge-rounding vs structural classes, tolerances per
-      backend pair in `tolerance.json`.
+      backend pair in `tolerance.json` — landed in PR #261 (`tests/gpu/backends/`,
+      `include/tessera/rendering/golden/parity.hpp`).
 
 ### V1-M4 Design-time preview and playground ([milestone 4](https://github.com/thnak/Tessera/milestone/4)) — Big Step D
 Acceptance: a screen previews in a browser and matches native output within the golden tolerance.
@@ -918,10 +919,10 @@ landing: the `shader-manifest-v1.md` id-to-source table (section 3.2) and the op
 section (5.1), plus the `shader-cross` job in `.github/workflows/linux.yml` that runs
 `TESSERA_SHADER_CROSS=ON` — its first run found a real shader defect (a by-value struct parameter
 in `batched2d.frag` lowered to `OpCopyLogical`, which naga rejects on Linux glslang 16.1), now
-fixed. V1-M3 keeps only #245 (cross-backend image parity) as a follow-up. V1-M4 cannot start
-without
-Emscripten: `EMSDK` is unset and there is no `emcc` on PATH, which the `wasm-webgpu` preset requires,
-so #164 is blocked on tooling rather than sequencing. V1-M5 is unblocked (ADR-050 is Accepted) and
+fixed. With #159 closed, V1-M3 is complete (9 of 9 items; #245 closed too). V1-M4 is in progress,
+not blocked on tooling: the WebGPU lane already installs the pinned Emscripten and builds Wasm
+green, so the remaining work is putting the compiler into the Wasm build graph and adding a
+differential harness and CI lane for it (#164). V1-M5 is unblocked (ADR-050 is Accepted) and
 AF1 (#173) may start now. V1-M6, V1-M7 (#187 now has the #156 display/event seam it needed) and V1-M8
 come later.
 
