@@ -79,7 +79,6 @@ std::string resolved_background(AppHost& host, const Node& node) {
 }
 
 } // namespace
-
 int main() {
     // --- 1. The stylesheet resolves against the startup appearance ---------------------------
     {
@@ -120,6 +119,9 @@ int main() {
         expect(resolved.media().color_scheme == ColorScheme::Dark,
                "the host's media context is what the resolved sheet reports");
         expect(!resolved.media().prefers_reduced_motion, "motion is not reduced at startup");
+        // And the CASCADE result itself: the dark rule's declaration is what paint resolves.
+        expect(resolved_background(host, root) == "#111111",
+               "the dark @media rule is the declaration the cascade resolves");
     }
 
     // --- 2. A runtime appearance change updates reducedMotion AND the media queries -----------
