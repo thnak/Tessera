@@ -582,7 +582,12 @@ Stages P0-P7 are planned in `docs/design/reference-equantic-ui.md`.
       harness. The shared walk is `src/ui/automation/scene_snapshot.cpp` (the harness delegates
       to it), the gate is `scripts/ci/scene_snapshot_parity.py` (11 cases), and
       `docs/design/compiler-wasm.md` section 7 records it.
-- [ ] #167: P3: WebGPU canvas preview — within tolerance of the lavapipe golden (needs M3).
+- [x] #167: P3: WebGPU canvas preview — the native half, the page and the device plumbing.
+      `tools/codegen/{scene_prepare,scene_frame,canvas_report}.*`, a canvas `RenderTarget` over a
+      host-owned `WGPUTextureView`, `designer/web/canvas.*`, and the `canvas-native-parity` job that
+      renders the lavapipe reference. The **pixel comparison remains open**: it needs a browser+GPU
+      CI dependency (an owner decision) and `tests/golden/canvas/` produced on the lavapipe lane,
+      which `--write-goldens` refuses to create from any other device.
 - [x] #168: P4: browser input into the evaluator, state kept across edits — a cell is carried
       when the component id, cell id and IR type all match (`tools/codegen/scene_state.cpp`),
       dispatch is the unmodified `ui::InputRouter`, and the gate is
@@ -600,7 +605,6 @@ Stages P0-P7 are planned in `docs/design/reference-equantic-ui.md`.
       compiler-error overlay. Hot reload is **blocked, not deferred**: ADR-040 emits a
       header-only template, so there is nothing to swap; the seam that must exist first is
       written up in `docs/specs/devtools-protocol-v1.md` section 8.
-- [ ] #167: P3: WebGPU canvas preview — in flight.
 - [ ] #171: P7: studio slices (picker overlay, style inspector, `source.patch`, skins).
 - [ ] #172: `tessera-mcp` stdio adapter over the harness session, compile-only first.
 
@@ -624,7 +628,10 @@ ADR-050 is Accepted (roadmap AF1-AF8); start with AF1.
       `appfw_observable_allocation.cpp`).
 - [ ] #177: AF5: `useService<T>()` codegen (after ADR-040) — undeclared service is a compile error.
 - [ ] #178: AF6: `NativeSurface` refs + `SurfaceRenderer` — lavapipe golden of a composited surface.
-- [ ] #179: AF7: `storage` module, atomic writes on `IoExecutor` — corruption fallback tested.
+- [x] #179: AF7: `storage` module, atomic writes on `IoExecutor` — corruption fallback
+      tested. Same-directory temp + flush + atomic replace
+      (`src/appfw/storage_atomic.cpp`), the `IoTaskExecutor` seam in layer 0, and a fake
+      `FileSystem` that fails at one named step so atomicity is proved rather than hoped for.
 - [ ] #180, #181: Multi-window, then tray apps, each its own slice.
 - [ ] #228: One `Application` loop and one `rhi::Device` for several windows (before AF6).
 - [x] #234: Library stage 0: bare package imports of `tessera-ui` —
@@ -664,7 +671,7 @@ Acceptance: a streaming dashboard at target frame rate with deterministic golden
       tests `chart_series_ring` (`chart_series_ring_tests.cpp` semantics +
       `chart_series_ring_allocation.cpp` replaced-global-`operator new` zero-allocation proof across
       five wrap-arounds).
-- [ ] #183: Retained/immediate hybrid chart nodes with damage rects; frame-budget metrics in the overlay.
+- [x] #183: Retained/immediate hybrid chart nodes with damage rects; frame-budget metrics in the overlay.
 - [ ] #184: Streaming dashboard sample under sustained load with deterministic goldens.
 - [x] #233: `DataStore::set/update` push entry for app-fed data —
       `include/tessera/runtime/data_store.hpp`, `src/runtime/data_store_core.cpp` (per-key version +
