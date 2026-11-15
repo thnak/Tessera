@@ -61,6 +61,9 @@ endif ()
 add_executable(tessera_codegen_cli
     ${CMAKE_SOURCE_DIR}/tools/codegen/main.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate.cpp
+    ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate_assets.cpp
+    ${CMAKE_SOURCE_DIR}/tools/codegen/diagnostics_json.cpp
+    ${CMAKE_SOURCE_DIR}/tools/codegen/diagnostic_record.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/project_identity.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/package_manifest.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/emit_library_components.cpp
@@ -91,6 +94,63 @@ set_target_properties(tessera_codegen_cli PROPERTIES OUTPUT_NAME tessera_codegen
 # module. Both flags therefore live on this one target, not in a global link option.
 if (EMSCRIPTEN)
     target_link_options(tessera_codegen_cli PRIVATE -sNODERAWFS=1 -sENVIRONMENT=node)
+endif ()
+
+# The browser diagnostics module (issue #165, P1 of docs/design/reference-equantic-ui.md section 7.4):
+# the same front end, analysis, lowering, validator and diagnostics serializer the CLI uses, behind one
+# C export the preview page calls with the textarea contents in memory.
+#
+# Host builds compile the same sources as an OBJECT library instead of the module. It has no `main`, so
+# it cannot be an executable there, but compiling it natively is what keeps the entry point
+# type-checked on the ordinary Windows/Linux lanes: the Wasm lane builds once per push, the host lanes
+# run constantly. The sources are listed once below and shared by both branches.
+set(_tessera_diagnostics_sources
+    ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_entry.cpp
+    ${CMAKE_SOURCE_DIR}/tools/codegen/diagnose.cpp
+    ${CMAKE_SOURCE_DIR}/tools/codegen/diagnostics_json.cpp
+    ${CMAKE_SOURCE_DIR}/tools/codegen/diagnostic_record.cpp)
+
+if (NOT EMSCRIPTEN)
+    add_library(tessera_diagnostics_entry OBJECT ${_tessera_diagnostics_sources})
+    target_include_directories(tessera_diagnostics_entry
+        PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
+    target_link_libraries(tessera_diagnostics_entry PRIVATE
+        tessera_codegen
+        tessera_ir_ids
+        tessera_lowering)
+else ()
+    # The module is a PREVIEW artifact, not a Node tool, and the flags say so:
+    #   -sMODULARIZE=1 -sEXPORT_ES6=1   the page does `import createModule from './tessera_diagnostics.js'`
+    #                                   with no bundler; MODULARIZE keeps the module off `window`.
+    #   -sENVIRONMENT=web,node          a browser page and, for CI, the emsdk Node that drives the parity
+    #                                   gate. Deliberately NOT `node` alone: the parity gate would then be
+    #                                   proving an artifact the page cannot load.
+    #   -sALLOW_MEMORY_GROWTH=1         the module allocates per Run (a document, a parse tree); a fixed
+    #                                   heap would fail on a large file instead of growing.
+    #   --no-entry                      there is no `main`: the module is a library of exports called by
+    #                                   the page, not a program.
+    #   -sEXPORTED_FUNCTIONS            the two exports `wasm_entry.cpp` defines, plus the malloc/free
+    #                                   prefix emscripten needs to hand the page a pointer.
+    # NO NODERAWFS here: a browser has no synchronous host filesystem, so it is undefined there and
+    # would defeat the point of a self-contained module (docs/design/compiler-wasm.md section 2.1
+    # explains why the flag must never leak between the two artifacts). This module never reads a file.
+    add_executable(tessera_diagnostics_wasm ${_tessera_diagnostics_sources})
+    target_include_directories(tessera_diagnostics_wasm
+        PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
+    target_link_libraries(tessera_diagnostics_wasm PRIVATE
+        tessera_codegen
+        tessera_ir_ids
+        tessera_lowering)
+    set_target_properties(tessera_diagnostics_wasm PROPERTIES OUTPUT_NAME tessera_diagnostics)
+    target_link_options(tessera_diagnostics_wasm PRIVATE
+        --no-entry
+        -sMODULARIZE=1
+        -sEXPORT_ES6=1
+        -sEXPORT_NAME=createTesseraDiagnostics
+        -sENVIRONMENT=web,node
+        -sALLOW_MEMORY_GROWTH=1
+        -sEXPORTED_FUNCTIONS=["_tessera_diagnostics_json","_tessera_free","_malloc","_free"]
+        -sEXPORTED_RUNTIME_METHODS=["UTF8ToString","lengthBytesUTF8","stringToUTF8"])
 endif ()
 
 # Goldens of the generated base (`<Component>.g.hpp`) live here; they are written by the
@@ -781,6 +841,38 @@ if (TESSERA_BUILD_TESTS)
         TESSERA_CODEGEN_GOLDEN_DIR="${_tessera_codegen_golden_dir}")
 
     add_test(NAME forms_form_codegen COMMAND forms_form_codegen_tests)
+
+    # The machine-readable diagnostics document (issue #165, docs/specs/compiler-diagnostics-v1.md):
+    # the CLI's --diagnostics-json output, its span fidelity against the printed diagnostic, and the
+    # document's determinism. In process, no subprocess: it runs the real `cli::run()`, so it needs
+    # no %TEMP% write and works in a confined sandbox.
+    add_executable(codegen_diagnostics_json_tests
+        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_diagnostics_json_tests.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/diagnostics_json.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/diagnostic_record.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/diagnose.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate_assets.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/project_identity.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/package_manifest.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/emit_library_components.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/emit_library_components_expr.cpp)
+
+    target_include_directories(codegen_diagnostics_json_tests
+        PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
+
+    target_link_libraries(codegen_diagnostics_json_tests PRIVATE
+        tessera_codegen
+        tessera_harness
+        tessera_ir_ids
+        tessera_lowering
+        tessera_style)
+
+    # The scratch directory lives under the build tree, never %TEMP%: a confined sandbox denies a
+    # child process writing there, and keeping it here also makes a failed run inspectable.
+    add_test(NAME codegen_diagnostics_json
+        COMMAND codegen_diagnostics_json_tests
+                ${CMAKE_CURRENT_BINARY_DIR}/codegen_diagnostics_json_tests-work)
 
     add_executable(codegen_cli_tests
         ${CMAKE_SOURCE_DIR}/tests/unit/codegen_cli_tests.cpp)

@@ -144,6 +144,8 @@ This page is the map and reading order for the framework.
   browser designer: source sync, picker, style overrides, commit as text patches
 - [`specs/designer-studio-v1.md`](specs/designer-studio-v1.md) — hosted studio: GitHub Pages deploy,
   page-as-host, skins and simulated system chrome, project import/export, MCP stdio mode
+- [`specs/compiler-diagnostics-v1.md`](specs/compiler-diagnostics-v1.md) — machine-readable compiler
+  diagnostics document (`--diagnostics-json`), spans, determinism, native/Wasm parity
 - [`specs/jsx-subset-v1.md`](specs/jsx-subset-v1.md) — accepted JSX/TSX syntax: grammar, expressions,
   handlers, hooks (sections 0-9)
 - [`specs/jsx-subset-v1-jsx.md`](specs/jsx-subset-v1-jsx.md) — part 2 of the JSX/TSX subset: JSX,
@@ -465,6 +467,7 @@ This page is the map and reading order for the framework.
 3. [Designer protocol](specs/designer-protocol-v1.md)
 4. [Compiler](design/compiler.md)
 5. [IR](specs/ir-v1.md)
+6. [Compiler diagnostics document](specs/compiler-diagnostics-v1.md)
 6. [Renderer](design/renderer.md)
 7. [Shader manifest](specs/shader-manifest-v1.md)
 8. [Security](design/security.md)

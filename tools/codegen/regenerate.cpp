@@ -5,25 +5,21 @@
 // generated `<Component>.g.hpp` base is rewritten wholesale and the developer
 // `<Component>.hpp/.cpp` files are scaffolded once and never edited.
 
+#include "diagnostic_record.hpp"
 #include "emit_library_components.hpp"
 #include "package_manifest.hpp"
 #include "project_identity.hpp"
 #include "regenerate.hpp"
+#include "regenerate_assets.hpp"
 #include "tessera/compiler/codegen/codegen.hpp"
 #include "tessera/compiler/ids/assign_identity.hpp"
 #include "tessera/compiler/ids/manifest.hpp"
 #include "tessera/compiler/ir/ir_json.hpp"
 #include "tessera/compiler/ir/validate.hpp"
 #include "tessera/compiler/jsx/parser.hpp"
-#include "tessera/compiler/lowering/library_components.hpp"
 #include "tessera/compiler/lowering/node_lowering.hpp"
 #include "tessera/compiler/rules/analyze.hpp"
 #include "tessera/harness/json_parse.hpp"
-#include "tessera/ui/style/component_parts.hpp"
-#include "tessera/ui/style/prepared_stylesheet.hpp"
-#include "tessera/ui/style/stylesheet_blob.hpp"
-#include "tessera/ui/style/theme_asset.hpp"
-#include "tessera/ui/style/tokenizer.hpp"
 
 #include <algorithm>
 #include <filesystem>
@@ -41,6 +37,8 @@
 
 namespace tessera::compiler::codegen::cli {
 
+using internal::build_stylesheet_embeds;
+using internal::build_theme_embed;
 using internal::import_target;
 using internal::PackageRootSpec;
 using internal::ProjectIdentity;
@@ -56,7 +54,6 @@ namespace ir = tessera::compiler::ir;
 namespace jsx = tessera::compiler::jsx;
 namespace lowering = tessera::compiler::lowering;
 namespace rules = tessera::compiler::rules;
-namespace style = tessera::ui::style;
 
 struct SourceFile {
     SourceFile(std::string file_path, std::string file_text)
@@ -89,6 +86,13 @@ std::string diagnostic_text(std::string_view path, const jsx::Diagnostic& diagno
     return std::string(path) + ":" + jsx::format_diagnostic(diagnostic);
 }
 
+// Reports a front-end, rules or lowering diagnostic: the printed text is unchanged, and the record
+// carries the code and span the pipeline already had (docs/specs/compiler-diagnostics-v1.md).
+void report_diagnostic(Outcome& outcome, std::string_view path, const jsx::Diagnostic& diagnostic) {
+    report(outcome, diagnostic.severity == jsx::Severity::Error, diagnostic_text(path, diagnostic),
+           to_record(diagnostic, path));
+}
+
 std::string ir_diagnostic_text(const ir::IrDiagnostic& diagnostic) {
     const ir::SourceSpan& span = diagnostic.span;
     std::string text;
@@ -99,161 +103,9 @@ std::string ir_diagnostic_text(const ir::IrDiagnostic& diagnostic) {
     return text + diagnostic.code + ": " + diagnostic.message;
 }
 
-// `path:line:column` for a byte offset into a stylesheet: the engine reports offsets, the CLI's
-// contract with the user is file:line:column (docs/guides/developer-workflow.md).
-std::string css_diagnostic_text(std::string_view path, std::string_view text, std::size_t offset,
-                                std::string_view message) {
-    std::size_t line = 1;
-    std::size_t column = 1;
-    const std::size_t end = std::min(offset, text.size());
-    for (std::size_t i = 0; i < end; ++i) {
-        if (text[i] == '\n') {
-            ++line;
-            column = 1;
-        } else {
-            ++column;
-        }
-    }
-    return std::string(path) + ":" + std::to_string(line) + ":" + std::to_string(column) + ": " +
-           std::string(message);
-}
-
-// The stylesheet parser is tolerant by design (stylesheet-v1.md section 10), so a build-time
-// failure can only come from the lexical error it proves: an unterminated string. Everything else
-// prepares, and the prepared sheet carries its own diagnostics for the run time.
-std::optional<std::string> stylesheet_syntax_error(std::string_view path, std::string_view text) {
-    style::Tokenizer tokenizer(text);
-    while (true) {
-        const style::Token token = tokenizer.next();
-        if (token.type == style::TokenType::Eof) {
-            return std::nullopt;
-        }
-        if (token.type == style::TokenType::BadString) {
-            return css_diagnostic_text(path, text, token.offset,
-                                       "TESSERA_CSS_SYNTAX: unterminated string in the stylesheet");
-        }
-    }
-}
-
-// The parts a component source declares: every literal `part` attribute of its static node tree
-// (stylesheet-v1 section 6.3). A pre-order walk, so the collected set is deterministic.
-void collect_declared_parts(const ir::Node& node, std::set<std::string>& out) {
-    const auto found = node.props.find("part");
-    if (found != node.props.end() && found->second) {
-        const ir::Expr& value = *found->second;
-        if (value.kind == ir::ExprKind::Literal &&
-            std::holds_alternative<std::string>(value.literal)) {
-            const std::string& text = std::get<std::string>(value.literal);
-            for (std::size_t index = 0;; ++index) {
-                const std::string_view name = style::part_name_at(text, index);
-                if (name.empty()) {
-                    break;
-                }
-                out.emplace(name);
-            }
-        }
-    }
-    for (const ir::Node& child : node.children) {
-        collect_declared_parts(child, out);
-    }
-    if (node.fallback) {
-        collect_declared_parts(*node.fallback, out);
-    }
-    if (node.item_template) {
-        collect_declared_parts(*node.item_template, out);
-    }
-}
-
-// The part declarations of the library components: their part names are the only published styling
-// contract, so they are the only ones `::part()` selectors are checked against (ADR-047 item 3).
-// App components are absent by construction, which is why they are never diagnosed.
-style::ComponentPartRegistry library_part_registry() {
-    style::ComponentPartRegistry registry;
-    for (const lowering::LibraryComponent& component : lowering::library_components()) {
-        std::set<std::string> names;
-        collect_declared_parts(lowering::make_library_component(component).root, names);
-        std::vector<std::string_view> parts;
-        parts.reserve(names.size());
-        for (const std::string& name : names) {
-            parts.push_back(name);
-        }
-        registry.declare(std::string(component.name), parts);
-    }
-    return registry;
-}
-
-// Compiled stylesheet blobs of the module (issue #81, ADR-048): the CLI compiles the CSS it read,
-// so `StylesheetEmbed::bytes` is exactly `serialize_stylesheet()` output and the codegen library
-// never sees a stylesheet engine header.
-std::optional<std::vector<StylesheetEmbed>>
-build_stylesheet_embeds(std::span<const std::string> paths, std::span<const std::string> texts,
-                        Outcome& outcome) {
-    std::vector<StylesheetEmbed> embeds;
-    embeds.reserve(paths.size());
-    const style::ComponentPartRegistry parts = library_part_registry();
-    for (std::size_t i = 0; i < paths.size(); ++i) {
-        if (const std::optional<std::string> error = stylesheet_syntax_error(paths[i], texts[i])) {
-            report(outcome, true, *error);
-            outcome.exit_code = 1;
-            return std::nullopt;
-        }
-        const style::PreparedStyleSheet prepared = style::prepare_stylesheet(texts[i]);
-        // `::part(name)` on a library component that does not declare `name` is a warning, not an
-        // error: the rule simply never matches (stylesheet-v1 section 6.3).
-        for (const style::StyleDiagnostic& diagnostic :
-             style::check_part_selectors(prepared, parts)) {
-            report(outcome, false,
-                   css_diagnostic_text(paths[i], texts[i], diagnostic.offset,
-                                       "TESSERA_CSS_UNDECLARED_PART: " + diagnostic.message));
-        }
-        embeds.push_back(StylesheetEmbed{paths[i], style::serialize_stylesheet(prepared)});
-    }
-    return embeds;
-}
-
 bool safe_file_name(std::string_view name) {
     return !name.empty() && name.find('/') == std::string_view::npos &&
            name.find('\\') == std::string_view::npos && name.find("..") == std::string_view::npos;
-}
-
-// The embedded theme asset (issue #81, ADR-048): a project without `assets.theme` has no asset and
-// therefore no generated theme file. A configured asset is parsed and serialized once here, so the
-// codegen library never sees the JSON or the style engine (docs/specs/stylesheet-v1.md 9.1).
-bool build_theme_embed(const ProjectIdentity& identity, Outcome& outcome,
-                       std::optional<EmbeddedTheme>& theme) {
-    if (identity.theme.empty()) {
-        return true;
-    }
-    const std::optional<std::string> text = read_file(identity.root / fs::path(identity.theme));
-    if (!text) {
-        report(outcome, true, identity.theme + ": TESSERA_THEME_READ: cannot read the theme asset");
-        outcome.exit_code = 1;
-        return false;
-    }
-    const auto parsed = style::parse_theme_asset(*text);
-    if (!parsed) {
-        report(outcome, true,
-               identity.theme + ": " + style::theme_error_code_name(parsed.error().code) + ": " +
-                   parsed.error().message);
-        outcome.exit_code = 1;
-        return false;
-    }
-    std::vector<style::ThemePin> pins;
-    for (const ThemePinSpec& spec : identity.theme_pins) {
-        pins.push_back(style::ThemePin{spec.theme, spec.pin});
-    }
-    if (const auto pin_error = style::check_theme_pins(*parsed, pins)) {
-        report(outcome, true,
-               identity.theme + ": " + style::theme_error_code_name(pin_error->code) + ": " +
-                   pin_error->message);
-        outcome.exit_code = 1;
-        return false;
-    }
-    for (const std::string& warning : parsed->warnings) {
-        report(outcome, false, identity.theme + ": warning: " + warning);
-    }
-    theme = EmbeddedTheme{style::serialize_theme_asset(*parsed)};
-    return true;
 }
 
 // A module namespace when --namespace is absent: the file stem with non-identifier characters
@@ -400,20 +252,31 @@ void handle_developer_files(const ir::IrModule& module, const fs::path& output_d
 
 } // namespace
 
-Outcome run(const Options& options) {
+namespace {
+
+// The body of run(), split out so the `--diagnostics-json` document is written on every exit path
+// (success, a diagnostic, a setup failure) without repeating the write at each return.
+Outcome run_impl(const Options& options) {
     Outcome outcome;
     if (options.inputs.empty()) {
         report(outcome, true, "tessera_codegen: no input .tsx file");
         outcome.exit_code = 2;
         return outcome;
     }
-    if (!options.emit_ir_path.empty() && !options.emit_library_cpp_path.empty()) {
-        report(outcome, true, "tessera_codegen: choose one of --emit-ir and --emit-library-cpp");
+    const int output_modes = (!options.emit_ir_path.empty() ? 1 : 0) +
+                             (!options.emit_library_cpp_path.empty() ? 1 : 0) +
+                             (!options.diagnostics_json_path.empty() ? 1 : 0);
+    if (output_modes > 1) {
+        report(outcome, true,
+               "tessera_codegen: choose one of --emit-ir, --emit-library-cpp and "
+               "--diagnostics-json");
         outcome.exit_code = 2;
         return outcome;
     }
     const bool emits = !options.emit_ir_path.empty() || !options.emit_library_cpp_path.empty();
-    if (!emits && options.output_dir.empty()) {
+    // `--diagnostics-json` needs no --out: it is another "write one file, generate no C++" mode.
+    const bool diagnostics_only = !options.diagnostics_json_path.empty();
+    if (!emits && !diagnostics_only && options.output_dir.empty()) {
         report(outcome, true, "tessera_codegen: --out is required");
         outcome.exit_code = 2;
         return outcome;
@@ -498,8 +361,7 @@ Outcome run(const Options& options) {
             if (source->parsed.root == nullptr) {
                 report(outcome, true, source->path + ": the file cannot be parsed");
             } else if (!source->parsed.diagnostics.empty()) {
-                report(outcome, true,
-                       diagnostic_text(source->path, source->parsed.diagnostics.front()));
+                report_diagnostic(outcome, source->path, source->parsed.diagnostics.front());
             } else {
                 report(outcome, true, source->path + ": parse failed");
             }
@@ -508,8 +370,7 @@ Outcome run(const Options& options) {
         }
         if (source->analyzed.has_errors()) {
             if (!source->analyzed.diagnostics.empty()) {
-                report(outcome, true,
-                       diagnostic_text(source->path, source->analyzed.diagnostics.front()));
+                report_diagnostic(outcome, source->path, source->analyzed.diagnostics.front());
             } else {
                 report(outcome, true, source->path + ": analysis failed");
             }
@@ -588,9 +449,11 @@ Outcome run(const Options& options) {
                                 module_name, packages, stylesheet_files);
     if (!lowered) {
         const lowering::NodeLoweringErrors& errors = lowered.error();
-        report(outcome, true,
-               errors.empty() ? "lowering failed"
-                              : diagnostic_text(sources.front()->path, errors.front()));
+        if (errors.empty()) {
+            report(outcome, true, "lowering failed");
+        } else {
+            report_diagnostic(outcome, sources.front()->path, errors.front());
+        }
         outcome.exit_code = 1;
         return outcome;
     }
@@ -640,8 +503,16 @@ Outcome run(const Options& options) {
         all_diagnostics.begin(), all_diagnostics.end(),
         [&](const ir::IrDiagnostic& diagnostic) { return !deferred_identity(diagnostic); });
     if (first_ir != all_diagnostics.end()) {
-        report(outcome, true, ir_diagnostic_text(*first_ir));
+        report(outcome, true, ir_diagnostic_text(*first_ir), to_record(*first_ir));
         outcome.exit_code = 1;
+        return outcome;
+    }
+
+    // `--diagnostics-json` is a pure query: it reports what the front end, the analysis, the
+    // lowering and the validator found and writes no C++, so a clean input produces an empty
+    // `diagnostics` array and exit 0 (docs/specs/compiler-diagnostics-v1.md section 3). No
+    // "written" message is reported here: the document holds diagnostics, not progress notes.
+    if (diagnostics_only) {
         return outcome;
     }
 
@@ -759,6 +630,37 @@ Outcome run(const Options& options) {
     }
     if (drift) {
         outcome.exit_code = 1;
+    }
+    return outcome;
+}
+
+} // namespace
+
+Outcome run(const Options& options) {
+    Outcome outcome = run_impl(options);
+    if (options.diagnostics_json_path.empty()) {
+        return outcome;
+    }
+    // Every message of the run, in report order, becomes one record. `Message::record` was filled
+    // where a real diagnostic was in hand; the rest (setup, usage, drift, developer-file warnings)
+    // carry their text and severity only, with no invented span. The document is written even when
+    // the run failed, because "why did it fail" is the question the page exists to answer.
+    std::vector<DiagnosticRecord> records;
+    records.reserve(outcome.messages.size());
+    for (const Message& message : outcome.messages) {
+        DiagnosticRecord record = message.record;
+        if (record.message.empty()) {
+            record.message = message.text;
+        }
+        record.severity = message.is_error ? "error" : "warning";
+        records.push_back(std::move(record));
+    }
+    const std::string primary_file =
+        options.inputs.empty() ? std::string() : options.inputs.front();
+    std::string error;
+    if (!write_diagnostics_file(options.diagnostics_json_path, primary_file, records, error)) {
+        report(outcome, true, "tessera_codegen: " + error);
+        outcome.exit_code = 2;
     }
     return outcome;
 }

@@ -82,6 +82,11 @@ jobs:
   # TESSERA_BUILD_TESTS=OFF, so this is a script invocation rather than a ctest case. The native
   # side builds one target (the CLI), not the whole native tree, so the job stays cheap next to
   # wasm-build; both sides come from the same commit.
+  #
+  # P1 (issue #165) adds the second half of the same idea: the diagnostics document the preview page
+  # shows must be the one the native CLI produces (docs/specs/compiler-diagnostics-v1.md section 7).
+  # It rides in this job because it is the same two builds of the same commit; the module it builds
+  # is the browser artifact, not the Node tool, so the flags under test are the ones the page uses.
   wasm-parity:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -150,6 +155,24 @@ jobs:
           --wasm build/wasm-webgpu/src/compiler/codegen/tessera_codegen.js
           --node "$EMSDK_NODE"
           --repeat 2
+
+      # P1 of the preview (issue #165): the diagnostics document the page shows must be the one the
+      # native compiler produces. The target is built by name rather than through a build preset so
+      # the preset file (which P0 owns) is untouched; it is the same `wasm-webgpu` configure.
+      - name: Build browser diagnostics module
+        run: >-
+          cmake --build build/wasm-webgpu
+          --target tessera_diagnostics_wasm --parallel
+
+      # The module is the in-memory driver behind a C export, and the in-memory-versus-CLI agreement
+      # is already covered locally by `codegen_diagnostics_json`; this step proves the export wraps
+      # it and that both sides produce byte-identical documents over the corpus.
+      - name: Diagnostics parity (native vs Wasm)
+        run: >-
+          python3 -B scripts/ci/wasm_diagnostics_parity.py
+          --native build/native-parity/src/compiler/codegen/tessera_codegen
+          --wasm build/wasm-webgpu/src/compiler/codegen/tessera_diagnostics.js
+          --node "$EMSDK_NODE"
 
   wgsl-validation:
     runs-on: ubuntu-latest

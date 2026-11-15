@@ -92,6 +92,9 @@ if (NOT CMAKE_CROSSCOMPILING)
     add_executable(tessera_library_ir_gen
         ${CMAKE_SOURCE_DIR}/tools/codegen/main.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate_assets.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/diagnostics_json.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/diagnostic_record.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/project_identity.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/package_manifest.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/emit_library_components.cpp
