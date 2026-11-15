@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: MIT
 //
 // The glass backdrop composite of Batched2DRenderer (issue #244, docs/specs/glass-v1.md sections
-// 3-5). One glass node is executed entirely inside the frame it belongs to:
+// 3-5), extracted into gpu::GlassCompositor by the god-type audit (slice 8). One glass node is
+// executed entirely inside the frame it belongs to:
 //
-//   flush pending geometry -> break the pass -> copy the node's 3-sigma dependency region out of
-//   the frame target into a pooled target -> horizontal Gaussian into a second pooled target
-//   sampling that copy -> resume the frame pass with LoadOp::Load -> vertical Gaussian + color
+//   copy the node's 3-sigma dependency region out of the frame target into a pooled target ->
+//   horizontal Gaussian into a second pooled target sampling that copy -> vertical Gaussian + color
 //   matrix + rounded-box composite back into the frame target, with the node opacity folded into
 //   the composite alpha.
+//
+// The caller breaks the frame pass before compose() and resumes it after, because that state
+// belongs to the frame rather than to the effect.
 //
 // Everything is recorded on the frame's own command list, so nothing waits and nothing blocks the
 // UI thread. The two blur targets come from the bounded OffscreenTargetPool (#242): when it cannot
@@ -20,12 +23,10 @@
 // straight-alpha blur data into a pooled target (no blending), the composite pass draws over the
 // frame target with alpha blending so its alpha is the blend weight.
 
-#include "tessera/rendering/gpu/batched2d_renderer.hpp"
-#include "tessera/rendering/gpu/offscreen_target_pool.hpp"
+#include "tessera/rendering/gpu/glass_compositor.hpp"
 
 #include <algorithm>
 #include <cmath>
-#include <cstdint>
 
 namespace tessera::rendering::gpu {
 namespace {
@@ -42,52 +43,82 @@ float mean_scale(float x, float y) {
 
 } // namespace
 
-bool Batched2DRenderer::glass_supported() const {
-    return glass_.blur != nullptr && glass_.composite != nullptr &&
-           config_.max_offscreen_targets > 0;
+GlassCompositor::GlassCompositor(rhi::Device& device, GlassPipelines glass,
+                                 std::uint32_t max_targets, const GlassLimits& limits)
+    : device_(&device),
+      glass_(glass),
+      limits_(limits),
+      max_targets_(max_targets) {
+    // The pool is created here rather than on the first frame: unlike the renderer it used to live
+    // in, a compositor exists only because the renderer always constructs one, so an unconditional
+    // pool keeps the "no offscreen texture for a no-glass tree" property that matters (a target is
+    // still only created when a break actually asks for one).
+    if (max_targets_ > 0) {
+        pool_ = std::make_unique<OffscreenTargetPool>(*device_,
+                                                      OffscreenTargetPoolConfig{max_targets_});
+    }
 }
 
-bool Batched2DRenderer::draw_backdrop(const GlassBackdropDraw& draw) {
-    if (!in_frame_ || commands_ == nullptr || frame_target_ == nullptr || !glass_supported()) {
-        return false;
+bool GlassCompositor::supported() const {
+    return glass_.blur != nullptr && glass_.composite != nullptr && pool_ != nullptr;
+}
+
+void GlassCompositor::begin_frame(std::uint64_t frame_index, std::uint32_t frames_in_flight,
+                                  rhi::TextureFormat format) {
+    frame_index_ = frame_index;
+    draws_ = 0;
+    if (pool_ != nullptr) {
+        pool_->begin_frame(frame_index_, frames_in_flight, format);
     }
+}
+
+rhi::RenderTarget* GlassCompositor::acquire(rhi::Extent2D extent) {
+    return pool_ != nullptr ? pool_->acquire(extent) : nullptr;
+}
+
+bool GlassCompositor::can_read_target(const rhi::RenderTarget& target) const {
     // A swapchain image is not a copy source (RHI 1.1) and not samplable (RHI 1.3), so a frame that
     // paints straight into one cannot run the effect. The window renders such a frame into an
     // offscreen target first; this check keeps the failure a documented fallback instead of a
     // throw.
-    if (frame_target_->presentable()) {
+    if (target.presentable()) {
         return false;
     }
     // The composite pipeline's sample count must match the pass it draws into; a renderer wired for
     // a multisampled frame without matching glass pipelines falls back instead of failing the
     // frame.
-    if (glass_.composite->sample_count() != frame_target_->sample_count()) {
+    return glass_.composite->sample_count() == target.sample_count();
+}
+
+bool GlassCompositor::compose(const FrameContext& frame, const GlassBackdropDraw& draw) {
+    if (frame.commands == nullptr || frame.target == nullptr || !supported()) {
+        return false;
+    }
+    if (!can_read_target(*frame.target)) {
         return false;
     }
 
     // Paint coordinates -> target pixels: positions scale per axis, the sigma by the mean factor.
-    const float scale_x = content_scale_x_;
-    const float scale_y = content_scale_y_;
+    const float scale_x = frame.content_scale_x;
+    const float scale_y = frame.content_scale_y;
     const rhi::Rect box{draw.clip.rect.x * scale_x, draw.clip.rect.y * scale_y,
                         draw.clip.rect.width * scale_x, draw.clip.rect.height * scale_y};
     const float device_scale = draw.device_scale * mean_scale(scale_x, scale_y);
     const GlassBackdropRegion region =
-        plan_glass_backdrop_region(box, draw.sigma, device_scale, config_.glass, extent_);
+        plan_glass_backdrop_region(box, draw.sigma, device_scale, limits_, frame.extent);
     if (!region.active) {
         return false;
     }
 
-    // The region and the blur target are both requested from the pool only after the pass is
-    // broken, and a failure resumes it before returning so the caller's recording continues.
-    break_pass();
-    rhi::RenderTarget* source =
-        acquire_offscreen_target(rhi::Extent2D{region.source.width, region.source.height});
-    rhi::RenderTarget* blur = acquire_offscreen_target(region.blur);
+    // Both targets are requested only after the caller broke the pass; a failure here returns false
+    // and the caller resumes the pass, so its recording continues either way.
+    rhi::RenderTarget* source = acquire(rhi::Extent2D{region.source.width, region.source.height});
+    rhi::RenderTarget* blur = acquire(region.blur);
     if (source == nullptr || blur == nullptr) {
-        resume_pass();
         return false;
     }
 
+    rhi::CommandList& commands = *frame.commands;
     const rhi::Extent2D source_extent = source->extent();
     const rhi::Extent2D blur_extent = blur->extent();
     const float blur_width = static_cast<float>(region.blur.width);
@@ -96,7 +127,7 @@ bool Batched2DRenderer::draw_backdrop(const GlassBackdropDraw& draw) {
     const float region_height = static_cast<float>(region.source.height);
 
     // Copy the dependency region 1:1 into the pooled source target at its origin.
-    commands_->copy_target_region(*frame_target_, region.source, *source, rhi::Offset2D{});
+    commands.copy_target_region(*frame.target, region.source, *source, rhi::Offset2D{});
 
     // --- Horizontal pass: blur along x into the pooled blur target ---------------------------
     // texel_step is the source-space uv advance per destination pixel. The target may be larger
@@ -113,20 +144,20 @@ bool Batched2DRenderer::draw_backdrop(const GlassBackdropDraw& draw) {
     horizontal.radius = static_cast<float>(region.kernel.radius);
     horizontal.mode = 0.0f;
 
-    rhi::RenderTargetDesc blur_desc = frame_desc_;
+    rhi::RenderTargetDesc blur_desc = frame.desc;
     blur_desc.extent = blur_extent;
     blur_desc.sample_count = 1;
     blur_desc.load_op = rhi::LoadOp::Clear;
     blur_desc.clear_color = rhi::Color{0.0f, 0.0f, 0.0f, 0.0f};
 
-    commands_->bind_pipeline(*glass_.blur);
-    commands_->bind_sampled_target(0, *source);
-    commands_->begin_render_pass(*blur, blur_desc);
-    commands_->set_viewport(rhi::Viewport{0.0f, 0.0f, blur_width, blur_height});
-    commands_->set_scissor(rhi::Scissor{0, 0, region.blur.width, region.blur.height});
-    commands_->push_constants(&horizontal, sizeof(horizontal));
-    commands_->draw(kFullscreenVertices);
-    commands_->end_render_pass();
+    commands.bind_pipeline(*glass_.blur);
+    commands.bind_sampled_target(0, *source);
+    commands.begin_render_pass(*blur, blur_desc);
+    commands.set_viewport(rhi::Viewport{0.0f, 0.0f, blur_width, blur_height});
+    commands.set_scissor(rhi::Scissor{0, 0, region.blur.width, region.blur.height});
+    commands.push_constants(&horizontal, sizeof(horizontal));
+    commands.draw(kFullscreenVertices);
+    commands.end_render_pass();
 
     // --- Vertical pass + composite back into the frame target ---------------------------------
     // The vertical pass renders at the region's placement in the frame target, so its fragcoords
@@ -158,21 +189,20 @@ bool Batched2DRenderer::draw_backdrop(const GlassBackdropDraw& draw) {
     vertical.mode = 1.0f;
     vertical.opacity = std::clamp(draw.opacity, 0.0f, 1.0f);
 
-    commands_->bind_sampled_target(0, *blur);
-    resume_pass();
-    commands_->bind_pipeline(*glass_.composite);
-    commands_->set_viewport(rhi::Viewport{0.0f, 0.0f, static_cast<float>(extent_.width),
-                                          static_cast<float>(extent_.height)});
+    commands.bind_sampled_target(0, *blur);
+    // Reopen the frame pass before recording the composite into it. The sampler is bound outside a
+    // pass (RHI 1.3), so this is the only ordering that satisfies both rules.
+    frame.seam.reopen();
+    commands.bind_pipeline(*glass_.composite);
+    commands.set_viewport(rhi::Viewport{0.0f, 0.0f, static_cast<float>(frame.extent.width),
+                                        static_cast<float>(frame.extent.height)});
     // The composite only writes where the frame's own scissor (damage/scroll clips) allows it.
     const rhi::Scissor region_scissor{region.source.x, region.source.y, region.source.width,
                                       region.source.height};
-    commands_->set_scissor(rhi::intersect(scissor_, region_scissor));
-    commands_->push_constants(&vertical, sizeof(vertical));
-    commands_->draw(kFullscreenVertices);
-    // The composite bound its own pipeline and push constants inside the frame's pass: restore the
-    // 2D state so geometry recorded after the glass node continues the pre-break stream.
-    bind_frame_state();
-    ++glass_draws_;
+    commands.set_scissor(rhi::intersect(frame.scissor, region_scissor));
+    commands.push_constants(&vertical, sizeof(vertical));
+    commands.draw(kFullscreenVertices);
+    ++draws_;
     return true;
 }
 

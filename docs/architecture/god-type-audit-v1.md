@@ -174,6 +174,14 @@ pool handle) and `gpu::VertexArena` (`slots_`, `slot_index_`, `buffer_used_`, `v
 the transform/scissor stacks and the emit calls; its header drops to roughly 150 lines. The seam
 stays on the renderer because it must flush mid-frame state.
 
+**Landed.** Exactly that, with one shape change worth recording: `ClipStateTable` ended up owning
+the *whole* rounded-clip stack, not just the interned fold, because the stack and the fold cannot be
+split without threading the caller's scissor through the boundary on every push. The table records
+the scissor each level was entered with and returns it from `pop()`, so the renderer no longer keeps
+a parallel scissor stack for clips. `GlassCompositor` does not own the break/resume seam either; it
+takes a `PassSeam` (a function pointer plus context, so no `std::function` allocation on the frame
+path) and calls it between its blur and composite passes. The renderer's header is now 216 lines.
+
 ### 3.6 `ui::frame::FramePipeline` (rank 6)
 
 281-line header, 26 methods, 21 members; `frame_pipeline.cpp` is 452 lines, `interpolation.cpp` 297,
@@ -387,8 +395,9 @@ still open.
 | 5 | `Event` buffer removal | **landed (step 1)** | the inline `std::array<char, kMaxEditTextBytes>` became a borrowed pointer, so `sizeof(Event)` went 384 -> 136; `InputEvent` keeps its flat array at the platform boundary. The tagged-variant/SoA payload views of section 4.2 remain open |
 | 6 | `EditController` keymap + composition | **landed** | `CompositionState` (`composition_state.hpp`) owns the IME invariant; 28-row `KeyChord` table (`edit_keymap.hpp`) replaces the `handle_key` if chain, with required/forbidden modifier masks for the old branch-order rules |
 | 7 | `VirtualRange` realized window | **landed (step 1)** | `RealizedWindow` (`realized_window.hpp`) now owns the realized table, its packed swap-in release, main-axis placement and index span; `VirtualRange` keeps the scheduling that drives it. The `FocusCursor`/`SelectionSet` extraction of section 3.3 remains open, and so does replacing the aggregate re-exports with direct accessors |
+| 8 | `Batched2DRenderer` state cluster | **landed** | `ClipStateTable` (`clip_state_table.hpp`) owns the rounded-clip stack, its interned shader fold and the push-constant packing; `VertexArena` (`vertex_arena.hpp`) owns slot rotation, in-frame append and growth; `GlassCompositor` (`glass_compositor.hpp`) owns the two glass passes and the bounded pool. `batched2d_clip_state.cpp` and `batched2d_glass.cpp` are gone, the renderer header is 271 -> 216 lines, and `tests/unit/gpu_collaborators_tests.cpp` covers the three directly |
 
-Slices 8-12 are open. Rows 4, 5 and 7 are deliberately partial: row 4's TU split is the mechanical
+Slices 9-12 are open. Rows 4, 5 and 7 are deliberately partial: row 4's TU split is the mechanical
 half and its header views are a separate API change that must re-check the 320-byte budget on each
 step; row 5's buffer removal is the cheap half and its payload views change how handlers read an
 event; row 7's window extraction is the part that owns real mutable state, and the focus/selection

@@ -380,8 +380,9 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
       `docs/design/gpu/offscreen-layers.md`, `docs/design/paint-pass.md` §14, tests `renderer_seam`,
       `renderer_seam_gpu`, `rhi_null` (300-frame bounded pool, byte-identical no-break commands).
 - [x] #244: `backdrop-filter` glass, two-pass Gaussian, damage rules, GPU composite (seam from #242,
-      sampled target from #254) — `src/rendering/gpu/batched2d_glass.cpp`
-      (`Batched2DRenderer::draw_backdrop`: break -> region copy -> horizontal blur -> resume ->
+      sampled target from #254) — `src/rendering/gpu/glass_compositor.cpp` (formerly
+      `batched2d_glass.cpp`; `GlassCompositor::compose` via `Batched2DRenderer::draw_backdrop`:
+      break -> region copy -> horizontal blur -> resume ->
       vertical blur + composite, bounded by `glassMaxBlurTargets`), `src/ui/paint/paint_sinks.cpp`
       (the real frame path; `GlassPaintStats` counts composites vs the bounded fallback),
       `src/app/window.cpp` + `window_recovery.cpp` + `frame_capture.cpp` (glass pipelines and limits;

@@ -2,11 +2,12 @@
 
 add_library(tessera_gpu STATIC
     batched2d_renderer.cpp
-    batched2d_clip_state.cpp
-    batched2d_glass.cpp
     batched2d_seam.cpp
+    clip_state_table.cpp
     glass_blur.cpp
-    offscreen_target_pool.cpp)
+    glass_compositor.cpp
+    offscreen_target_pool.cpp
+    vertex_arena.cpp)
 
 target_include_directories(tessera_gpu PUBLIC
     ${PROJECT_SOURCE_DIR}/include)
@@ -25,4 +26,12 @@ if (TESSERA_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/unit/glass_blur_tests.cpp)
     target_link_libraries(glass_blur_tests PRIVATE tessera_gpu)
     add_test(NAME glass_blur COMMAND glass_blur_tests)
+
+    # The three state clusters extracted from Batched2DRenderer (god-type audit slice 8):
+    # ClipStateTable, VertexArena and GlassCompositor, tested directly rather than through a command
+    # stream. Registered here for the same reason as glass_blur above.
+    add_executable(gpu_collaborators_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/gpu_collaborators_tests.cpp)
+    target_link_libraries(gpu_collaborators_tests PRIVATE tessera_gpu tessera_rhi_null)
+    add_test(NAME gpu_collaborators COMMAND gpu_collaborators_tests)
 endif()
