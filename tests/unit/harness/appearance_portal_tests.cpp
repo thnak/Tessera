@@ -21,6 +21,10 @@
 
 #include "appearance_portal.hpp"
 #include "tessera/hal/appearance.hpp"
+// The GTK fallback parser this test drives. Included explicitly because the test names its types,
+// which is also what makes the file build on its own (Linux caught the transitive-only include the
+// Windows build happened to satisfy).
+#include "tessera/hal/portal_appearance.hpp"
 
 #include <cstdint>
 #include <cstdlib>
