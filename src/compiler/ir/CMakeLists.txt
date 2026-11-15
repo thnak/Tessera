@@ -7,6 +7,9 @@ add_library(tessera_ir STATIC
     src/ir_json.cpp
     src/ir_json_node.cpp
     src/json_value.cpp
+    # Per-kind facts (god-type audit section 4.3). Header-only for the table; this TU carries the
+    # compile-time checks that keep it aligned with the enum.
+    src/node_kind_traits.cpp
     src/types.cpp
     src/validate.cpp
     src/validate_component.cpp

@@ -2,6 +2,7 @@
 
 // Node tree checks (docs/specs/ir-v1.md sections 3, 3.1, 3.2, 3.3, 3.4, 5 and 5.1).
 
+#include "tessera/compiler/ir/node_kind_traits.hpp"
 #include "validate_internal.hpp"
 
 #include <string>
@@ -111,8 +112,12 @@ void NodeWalker::check_identity(const Node& node) {
 }
 
 void NodeWalker::check_shape(const Node& node) {
-    const bool custom = node.kind == NodeKind::CustomElement;
-    const bool component = node.kind == NodeKind::Component;
+    // Every per-kind question is answered by the traits table (section 4.3), so a kind added to the
+    // enum cannot leave a check behind: the table is keyed by the enum and a missing row is a
+    // compile error.
+    const NodeKindTraits& traits = node_kind_traits(node.kind);
+    const bool custom = traits.has_element;
+    const bool component = traits.has_component;
     if (custom && node.element.empty()) {
         context.report("TESSERA_IR_UNRESOLVED", "a CustomElement needs a literal `element`",
                        node.source);
@@ -157,12 +162,12 @@ void NodeWalker::check_shape(const Node& node) {
         context.report("TESSERA_IR_MALFORMED",
                        "a Component node carries props, not style (section 3.4)", node.source);
     }
-    if (node.text && node.kind != NodeKind::Text) {
+    if (node.text && !traits.has_text) {
         context.report("TESSERA_IR_MALFORMED", "only a Text node has `text`", node.source);
     }
     // A CustomElement, TextInput and TextArea are leaves; a Component node may carry the caller's
     // slot children (section 3.4), validated against the target props by the type pass.
-    const bool leaf = custom || node.kind == NodeKind::TextInput || node.kind == NodeKind::TextArea;
+    const bool leaf = traits.is_leaf;
     if (leaf && !node.children.empty()) {
         context.report("TESSERA_IR_LEAF",
                        std::string(node_kind_name(node.kind)) + " must not have children",
@@ -185,8 +190,7 @@ void NodeWalker::check_shape(const Node& node) {
     } else if (node.fallback) {
         context.report("TESSERA_IR_MALFORMED", "only an ErrorBoundary has a fallback", node.source);
     }
-    const bool collection =
-        node.kind == NodeKind::VirtualList || node.kind == NodeKind::VirtualGrid;
+    const bool collection = traits.is_collection;
     if (collection) {
         // Section 3.5: one static template; the data source is the template's loop source.
         if (!node.item_template) {
@@ -215,7 +219,7 @@ void NodeWalker::check_shape(const Node& node) {
 }
 
 void NodeWalker::check_spans(const Node& node) {
-    if (node.kind != NodeKind::Text || node.children.empty()) {
+    if (!node_kind_traits(node.kind).is_inline_span || node.children.empty()) {
         return;
     }
     if (node.text) {
@@ -413,7 +417,8 @@ void NodeWalker::walk(const Node& node, const LocalNames& outer, int loop_depth,
     check_condition(node);
     validate_expr(context, scope, locals, node.condition.get(), node.source);
     // The children of a Component node are the caller's slot content (section 3.4).
-    const bool children_in_slot = in_slot_content || node.kind == NodeKind::Component;
+    const bool children_in_slot =
+        in_slot_content || node_kind_traits(node.kind).takes_slot_children;
     for (const auto& child : node.children) {
         walk(child, locals, loop_depth, children_in_slot, false);
     }

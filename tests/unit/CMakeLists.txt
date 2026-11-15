@@ -125,6 +125,16 @@ target_link_libraries(ir_construct_tests PRIVATE
 
 add_test(NAME ir_construct COMMAND ir_construct_tests)
 
+# Per-kind traits table (god-type audit section 4.3). The table's alignment is a compile-time
+# property (src/compiler/ir/src/node_kind_traits.cpp); this test proves it agrees with the rest of
+# the IR -- `node_kind_name` for every kind, and the field groups the validator reports from.
+add_executable(node_kind_traits_tests
+    node_kind_traits_tests.cpp)
+target_link_libraries(node_kind_traits_tests PRIVATE
+    tessera_ir)
+
+add_test(NAME node_kind_traits COMMAND node_kind_traits_tests)
+
 # Issue #158 / ADR-051: IR record types and record values (docs/specs/ir-v1.md sections 2.2, 4.3 and
 # 9). Two translation units: the writer (`record` expression, optional `types` array, and the
 # byte-identity of a module with no record) and the validator (type table, cycles, field rules, the
