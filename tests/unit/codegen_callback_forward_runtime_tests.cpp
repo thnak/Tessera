@@ -76,7 +76,7 @@ ui::Event click_event() {
 
 // The caller's handler is the callback the wrapper forwards the click to.
 void test_click_reaches_the_callers_handler() {
-    forward::gen::ForwardOuter outer;
+    forward::ForwardOuter outer;
     ui::Node root(1000);
     outer.build(root);
     outer.apply_props();
@@ -85,18 +85,18 @@ void test_click_reaches_the_callers_handler() {
     if (button == nullptr) {
         return;
     }
-    check(outer.state_count_ == 0, "the counter starts at zero");
+    check(outer.count() == 0, "the counter starts at zero");
     ui::Event click = click_event();
     ui::dispatch_event_to(*button, click);
-    check(outer.state_count_ == 1, "the click ran the caller's handler through the wrapper");
+    check(outer.count() == 1, "the click ran the caller's handler through the wrapper");
     click = click_event();
     ui::dispatch_event_to(*button, click);
-    check(outer.state_count_ == 2, "each click forwards once");
+    check(outer.count() == 2, "each click forwards once");
 }
 
 // A wrapper used without the callback never calls through an empty std::function.
 void test_unset_callback_is_skipped() {
-    forward::gen::ForwardWrap wrap;
+    forward::ForwardWrap wrap;
     ui::Node root(2000);
     wrap.build(root);
     ui::Node* button = find_kind(root, "Button");
@@ -111,7 +111,7 @@ void test_unset_callback_is_skipped() {
 
 // A payload callback receives the event's payload record unchanged.
 void test_payload_is_passed_on() {
-    forward::gen::ForwardWrap wrap;
+    forward::ForwardWrap wrap;
     std::string seen;
     wrap.prop_onText_ = [&seen](const ui::TextChangeEvent& event) { seen = event.value; };
     ui::Node root(3000);
@@ -134,7 +134,7 @@ void test_payload_is_passed_on() {
 // A handler body runs its setter and then calls the callback prop (option 2 of issue #286); the
 // payload callback is called with the handler's own parameter.
 void test_calls_from_a_handler_body() {
-    forward::gen::ForwardCounter counter;
+    forward::ForwardCounter counter;
     int changed = 0;
     std::string seen;
     counter.prop_onChanged_ = [&changed]() { ++changed; };
@@ -149,7 +149,7 @@ void test_calls_from_a_handler_body() {
     }
     ui::Event click = click_event();
     ui::dispatch_event_to(*button, click);
-    check(counter.state_n_ == 1, "the setter ran");
+    check(counter.n() == 1, "the setter ran");
     check(changed == 1, "the callback was called once after it");
     input->set_pseudo_state(ui::style::PseudoState::Focus);
     ui::Event text;
@@ -161,7 +161,7 @@ void test_calls_from_a_handler_body() {
 
 // With no callbacks set the same handlers still run their setters and never call through nothing.
 void test_unset_callbacks_in_a_handler_body() {
-    forward::gen::ForwardCounter counter;
+    forward::ForwardCounter counter;
     ui::Node root(5000);
     counter.build(root);
     ui::Node* button = find_kind(root, "Button");
@@ -171,7 +171,7 @@ void test_unset_callbacks_in_a_handler_body() {
     }
     ui::Event click = click_event();
     ui::dispatch_event_to(*button, click);
-    check(counter.state_n_ == 1, "the setter still ran without a callback");
+    check(counter.n() == 1, "the setter still ran without a callback");
 }
 
 // Performance gate (issue #286 step 3). A forwarded callback is one `std::function` call per
@@ -180,7 +180,7 @@ void test_unset_callbacks_in_a_handler_body() {
 // per event. The chain depth equals the component nesting depth (the IR rejects reference cycles,
 // TESSERA_IR_CYCLE), so the work per event is bounded by the tree, never by data.
 void test_forwarded_event_does_not_allocate() {
-    forward::gen::ForwardOuter outer;
+    forward::ForwardOuter outer;
     ui::Node root(6000);
     outer.build(root);
     outer.apply_props();
@@ -205,7 +205,7 @@ void test_forwarded_event_does_not_allocate() {
     std::cout << "forwarded click: " << allocations << " allocations in " << kEvents << " events, "
               << std::chrono::duration_cast<std::chrono::nanoseconds>(elapsed).count() / kEvents
               << " ns/event\n";
-    check(outer.state_count_ == kEvents + 1, "every gate event ran the caller's handler");
+    check(outer.count() == kEvents + 1, "every gate event ran the caller's handler");
     check(allocations == 0, "forwarding allocates nothing per event: " +
                                 std::to_string(allocations) + " allocations");
 }

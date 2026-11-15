@@ -48,6 +48,11 @@ std::string prop_kind(const ir::Node& node, const char* name) {
 
 bool write_goldens = false;
 
+// The canonical ADR-040 path (issue #218): every component is one header-only generated base.
+codegen::CodegenResult generate(const ir::IrModule& module) {
+    return codegen::generate(module, {}, std::nullopt, codegen::EmitMode::GeneratedBase);
+}
+
 // A demo that imports the library Button as `<Button>` (issue #291) and uses it in the states the
 // runtime test drives: enabled, disabled and the danger variant.
 constexpr const char* kDemo =
@@ -112,7 +117,7 @@ void test_demo_project(const std::string& button_source) {
     const auto diagnostics = ir::validate(module);
     check(diagnostics.empty(), "the demo module validates: " +
                                    (diagnostics.empty() ? std::string() : diagnostics[0].message));
-    const auto generated = codegen::generate(module);
+    const auto generated = generate(module);
     check(generated.has_value(), "the demo generates C++");
     if (generated) {
         check_goldens(*generated);
@@ -176,7 +181,7 @@ int main(int argc, char** argv) {
     const auto diagnostics = ir::validate(module);
     check(diagnostics.empty(), "the module validates: " +
                                    (diagnostics.empty() ? std::string() : diagnostics[0].message));
-    const auto generated = codegen::generate(module);
+    const auto generated = generate(module);
     check(generated.has_value(),
           "the Button generates C++: " +
               (generated || generated.error().empty() ? std::string() : generated.error().front()));

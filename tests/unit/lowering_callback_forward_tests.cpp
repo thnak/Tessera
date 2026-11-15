@@ -30,6 +30,11 @@ namespace ids = tessera::compiler::ids;
 
 bool write_goldens = false;
 
+// The canonical ADR-040 path (issue #218): every component is one header-only generated base.
+codegen::CodegenResult generate(const ir::IrModule& module) {
+    return codegen::generate(module, {}, std::nullopt, codegen::EmitMode::GeneratedBase);
+}
+
 // The generated files are committed goldens (`--write` regenerates them); the runtime test compiles
 // them. They are generated from the TSX above, never hand-edited.
 void check_goldens(const std::vector<codegen::GeneratedFile>& files) {
@@ -127,7 +132,7 @@ void test_forwarding_lowers() {
           "the module validates: " +
               (diagnostics.empty() ? std::string() : diagnostics.front().message));
 
-    const auto generated = codegen::generate(module);
+    const auto generated = generate(module);
     check(generated.has_value(),
           "the module generates C++: " +
               (generated || generated.error().empty() ? std::string() : generated.error().front()));

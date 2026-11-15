@@ -100,49 +100,23 @@ endif ()
 set(_tessera_codegen_golden_dir ${CMAKE_SOURCE_DIR}/tests/golden/codegen)
 
 # Callback-forwarding fixture (issue #286), generated from TSX in lowering_callback_forward_tests.
-# Same deliberate golden path: `lowering_callback_forward_tests --write` owns ForwardWrap.*,
-# ForwardCounter.* and ForwardOuter.*.
-if (EXISTS ${_tessera_codegen_golden_dir}/ForwardWrap.cpp AND EXISTS ${_tessera_codegen_golden_dir}/ForwardOuter.cpp)
-    add_library(tessera_codegen_forward_sample STATIC
-        ${_tessera_codegen_golden_dir}/ForwardWrap.cpp
-        ${_tessera_codegen_golden_dir}/ForwardCounter.cpp
-        ${_tessera_codegen_golden_dir}/ForwardOuter.cpp)
-    target_include_directories(tessera_codegen_forward_sample
-        PRIVATE ${_tessera_codegen_golden_dir})
-    target_link_libraries(tessera_codegen_forward_sample PRIVATE tessera_scene tessera_text_edit)
-    target_compile_features(tessera_codegen_forward_sample PUBLIC cxx_std_23)
-endif ()
-
+# Same deliberate golden path: `lowering_callback_forward_tests --write` owns ForwardWrap.g.hpp,
+# ForwardCounter.g.hpp and ForwardOuter.g.hpp. ADR-040 (#218): the developer classes are the
+# hand-written tests/unit/codegen_base/fixtures/Forward*.hpp, so no sample library is compiled.
+#
 # Per-branch and per-item component instances (issue #231, docs/design/compiler-node-state.md):
 # `codegen_instances_tests --write` owns tests/golden/codegen/instances/{Row,Page}.g.hpp.
 set(_tessera_codegen_instances_golden_dir ${_tessera_codegen_golden_dir}/instances)
 
 # Library Button fixture (issue #239), generated from packages/tessera-ui/Button.tsx and a demo that
 # imports it, in library_button_lowering_tests. Same deliberate golden path:
-# `library_button_lowering_tests --write` owns Button.* and ButtonDemo.*.
-if (EXISTS ${_tessera_codegen_golden_dir}/Button.cpp AND EXISTS ${_tessera_codegen_golden_dir}/ButtonDemo.cpp)
-    add_library(tessera_codegen_button_sample STATIC
-        ${_tessera_codegen_golden_dir}/Button.cpp
-        ${_tessera_codegen_golden_dir}/ButtonDemo.cpp)
-    target_include_directories(tessera_codegen_button_sample
-        PRIVATE ${_tessera_codegen_golden_dir})
-    target_link_libraries(tessera_codegen_button_sample PRIVATE tessera_scene tessera_text_edit)
-    target_compile_features(tessera_codegen_button_sample PUBLIC cxx_std_23)
-endif ()
+# `library_button_lowering_tests --write` owns Button.g.hpp and ButtonDemo.g.hpp; the developer
+# classes are tests/unit/codegen_base/fixtures/Button*.hpp (ADR-040, #218).
 
 # Library SafeArea fixture (issue #223), generated from packages/tessera-ui/SafeArea.tsx and a demo
 # that imports it, in library_safe_area_lowering_tests. Same deliberate golden path:
-# `library_safe_area_lowering_tests --write` owns SafeArea.*, SafeAreaDemo.* and SafeAreaOptions.*.
-if (EXISTS ${_tessera_codegen_golden_dir}/SafeArea.cpp AND EXISTS ${_tessera_codegen_golden_dir}/SafeAreaDemo.cpp)
-    add_library(tessera_codegen_safe_area_sample STATIC
-        ${_tessera_codegen_golden_dir}/SafeArea.cpp
-        ${_tessera_codegen_golden_dir}/SafeAreaDemo.cpp
-        ${_tessera_codegen_golden_dir}/SafeAreaOptions.cpp)
-    target_include_directories(tessera_codegen_safe_area_sample
-        PRIVATE ${_tessera_codegen_golden_dir})
-    target_link_libraries(tessera_codegen_safe_area_sample PRIVATE tessera_scene tessera_text_edit)
-    target_compile_features(tessera_codegen_safe_area_sample PUBLIC cxx_std_23)
-endif ()
+# `library_safe_area_lowering_tests --write` owns SafeArea.g.hpp, SafeAreaDemo.g.hpp and
+# SafeAreaOptions.g.hpp; the developer classes are the fixtures under codegen_base/fixtures.
 
 # onSizeChange fixture (ADR-041 slice 5), generated from the hand-built IR in
 # codegen_size_change_tests. Same deliberate golden path: `codegen_size_change_tests --write` owns
@@ -432,18 +406,21 @@ if (TESSERA_BUILD_TESTS)
         add_test(NAME codegen_composition_runtime COMMAND codegen_composition_runtime_tests)
     endif ()
 
-    if (TARGET tessera_codegen_forward_sample)
+    if (EXISTS ${_tessera_codegen_golden_dir}/ForwardWrap.g.hpp AND EXISTS ${_tessera_codegen_golden_dir}/ForwardOuter.g.hpp)
+        # ADR-040 (#218): the developer classes (tests/unit/codegen_base/fixtures/Forward*.hpp) over
+        # the committed bases, generated from the TSX in lowering_callback_forward_tests.
         add_executable(codegen_callback_forward_runtime_tests
             ${CMAKE_SOURCE_DIR}/tests/unit/codegen_callback_forward_runtime_tests.cpp)
 
         target_include_directories(codegen_callback_forward_runtime_tests PRIVATE
-            ${_tessera_codegen_golden_dir})
+            ${_tessera_codegen_golden_dir}
+            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures)
         target_link_libraries(codegen_callback_forward_runtime_tests PRIVATE
-            tessera_codegen_forward_sample
             tessera_scene
             tessera_text_edit
             tessera_animation
             tessera_style)
+        target_compile_features(codegen_callback_forward_runtime_tests PRIVATE cxx_std_23)
 
         add_test(NAME codegen_callback_forward_runtime
             COMMAND codegen_callback_forward_runtime_tests)
@@ -480,38 +457,48 @@ if (TESSERA_BUILD_TESTS)
         add_test(NAME codegen_instances_runtime COMMAND codegen_instances_runtime_tests)
     endif ()
 
-    if (TARGET tessera_codegen_button_sample)
+    if (EXISTS ${_tessera_codegen_golden_dir}/Button.g.hpp AND EXISTS
+        ${_tessera_codegen_golden_dir}/ButtonDemo.g.hpp)
+        # ADR-040 (#218): the developer classes (tests/unit/codegen_base/fixtures/Button*.hpp) over
+        # the committed bases, generated from packages/tessera-ui/Button.tsx by
+        # library_button_lowering_tests.
         add_executable(library_button_runtime_tests
             ${CMAKE_SOURCE_DIR}/tests/unit/library_button_runtime_tests.cpp)
 
         target_include_directories(library_button_runtime_tests PRIVATE
-            ${_tessera_codegen_golden_dir})
+            ${_tessera_codegen_golden_dir}
+            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures)
         target_link_libraries(library_button_runtime_tests PRIVATE
-            tessera_codegen_button_sample
             tessera_scene
             tessera_text_edit
             tessera_animation
             tessera_style)
+        target_compile_features(library_button_runtime_tests PRIVATE cxx_std_23)
 
         add_test(NAME library_button_runtime COMMAND library_button_runtime_tests)
     endif ()
 
-    if (TARGET tessera_codegen_safe_area_sample AND TARGET tessera_app)
+    if (EXISTS ${_tessera_codegen_golden_dir}/SafeArea.g.hpp AND
+        EXISTS ${_tessera_codegen_golden_dir}/SafeAreaDemo.g.hpp AND TARGET tessera_app)
+        # ADR-040 (#218): the developer classes (tests/unit/codegen_base/fixtures/SafeArea*.hpp)
+        # over the committed bases, generated from packages/tessera-ui/SafeArea.tsx by
+        # library_safe_area_lowering_tests.
         add_executable(library_safe_area_runtime_tests
             ${CMAKE_SOURCE_DIR}/tests/unit/library_safe_area_runtime_tests.cpp)
 
         target_include_directories(library_safe_area_runtime_tests PRIVATE
-            ${_tessera_codegen_golden_dir})
+            ${_tessera_codegen_golden_dir}
+            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures)
         target_compile_definitions(library_safe_area_runtime_tests PRIVATE
             TESSERA_SAFE_AREA_CSS="${CMAKE_SOURCE_DIR}/packages/tessera-ui/safe-area.css")
         target_link_libraries(library_safe_area_runtime_tests PRIVATE
-            tessera_codegen_safe_area_sample
             tessera_app
             tessera_runtime
             tessera_scene
             tessera_text_edit
             tessera_animation
             tessera_style)
+        target_compile_features(library_safe_area_runtime_tests PRIVATE cxx_std_23)
 
         add_test(NAME library_safe_area_runtime COMMAND library_safe_area_runtime_tests)
     endif ()

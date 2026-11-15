@@ -114,7 +114,7 @@ template<typename Page> struct Window {
 int main() {
     // Notched phone: a top-center cutout inside a taller bar; the default SafeArea pads by it.
     {
-        Window<safe_area_demo::gen::SafeAreaDemo> w(400, 800);
+        Window<safe_area_demo::SafeAreaDemo> w(400, 800);
         check(w.safe != nullptr && w.content != nullptr, "the page has a SafeArea and content");
         if (w.safe == nullptr || w.content == nullptr) {
             return 1;
@@ -133,7 +133,7 @@ int main() {
     // Gesture-navigation phone: the default ignores the gesture zone; the options page counts it,
     // keeps a floor of 8 on top and bottom only, and leaves the sides edge to edge (margin mode).
     {
-        Window<safe_area_demo::gen::SafeAreaDemo> w(400, 800);
+        Window<safe_area_demo::SafeAreaDemo> w(400, 800);
         hal::WindowMetrics metrics = device(400, 800);
         metrics.gesture_insets = {24, 0, 24, 20};
         w.host->set_window_metrics(metrics);
@@ -142,7 +142,7 @@ int main() {
               "gestures are off by default");
     }
     {
-        Window<safe_area_demo::gen::SafeAreaOptions> w(400, 800);
+        Window<safe_area_demo::SafeAreaOptions> w(400, 800);
         check(w.safe != nullptr, "the options page has a SafeArea");
         if (w.safe == nullptr) {
             return 1;
@@ -159,7 +159,7 @@ int main() {
 
     // Tablet with a bottom keyboard: the inset eases in and settles on the keyboard height.
     {
-        Window<safe_area_demo::gen::SafeAreaDemo> w(800, 600);
+        Window<safe_area_demo::SafeAreaDemo> w(800, 600);
         if (w.content == nullptr) {
             return 1;
         }
@@ -177,7 +177,7 @@ int main() {
 
     // Book-mode foldable: a full-occlusion vertical hinge; a single pane keeps the larger side.
     {
-        Window<safe_area_demo::gen::SafeAreaDemo> w(1000, 700);
+        Window<safe_area_demo::SafeAreaDemo> w(1000, 700);
         if (w.content == nullptr) {
             return 1;
         }
