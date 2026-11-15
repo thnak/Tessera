@@ -177,8 +177,9 @@ int main() {
         std::filesystem::remove_all(temp, error);
         std::filesystem::create_directories(temp, error);
         ScopedEnv config_home("XDG_CONFIG_HOME", temp.string());
+        const std::string_view empty_text;
         const tessera::hal::GtkSettingsAnswer answer =
-            tessera::hal::parse_gtk_settings(std::string{});
+            tessera::hal::parse_gtk_settings(empty_text);
         expect(!answer.saw_animations && !answer.saw_dark_theme,
                "a missing settings.ini says nothing rather than failing");
         std::filesystem::remove_all(temp, error);
