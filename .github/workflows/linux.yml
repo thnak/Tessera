@@ -110,6 +110,16 @@ jobs:
   # `dxc` has no Ubuntu package, so the `_hlsl_dxc` tests do not exist on Linux; `spirv-val`,
   # `spirv-cross`, `spirv-opt` and naga do run, and `_wgsl_naga` is the check that catches a
   # translator-incompatible shader.
+  #
+  # TESSERA_BUILD_VULKAN=OFF (same flags as the `icu-text` job): this lane builds no Vulkan code, so
+  # it must not pull in the Vulkan SDK. `ci` defaults the option to ON, and
+  # `src/rendering/backend/vulkan/CMakeLists.txt:3` is a hard `find_package(Vulkan REQUIRED)`, which
+  # needs the dev headers (`libvulkan-dev`) that `vulkan-validationlayers` does not provide — that
+  # is what broke this job's first run. Turning the backend off removes the only Vulkan package
+  # search, so the lane needs no graphics SDK at all. `shader_parity_tests` links
+  # `tessera_rhi_vulkan` only when that target exists (`tests/gpu/CMakeLists.txt:99`), so it still
+  # builds and runs; its Vulkan-only `shader_id` assertion is covered by the Windows and `linux`
+  # lanes, which do build the backend.
   shader-cross:
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -120,11 +130,14 @@ jobs:
       - name: Read naga pin
         run: echo "NAGA_VERSION=$(cat tools/naga-version.txt)" >> "$GITHUB_ENV"
 
+      # python3 is explicit because tests/gpu/CMakeLists.txt:150 requires it at configure time;
+      # `ubuntu-latest` happens to preinstall it, and this keeps the job correct if that changes.
+      # No Vulkan packages: TESSERA_BUILD_VULKAN=OFF means the lane never links the SDK.
       - name: Install toolchain
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build build-essential \
-            glslc spirv-tools spirv-cross vulkan-validationlayers
+          sudo apt-get install -y cmake ninja-build build-essential python3 \
+            glslc spirv-tools spirv-cross
           python3 -m pip install --user "clang-format==$(cat tools/format-version.txt)"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
@@ -148,11 +161,28 @@ jobs:
       # Configure must not fail on a missing optional tool: TesseraShaderCross.cmake warns for
       # glslc only (it is the one mandatory tool) and skips every other tool's outputs. The
       # "Shader cross:" lines in the log are the record of what this run could check.
+      #
+      # The presence assertions below are the other half of that contract: this job installs
+      # spirv-val, spirv-cross, spirv-opt and naga, so a `not found` line means the install broke
+      # and the lane would silently test less than it claims. Only `dxc` (no Ubuntu package) is
+      # allowed to be missing. `-DTESSERA_BUILD_VULKAN=OFF` keeps the Vulkan SDK out of a lane that
+      # builds no Vulkan code; see the job comment.
       - name: Configure (TESSERA_SHADER_CROSS=ON)
         run: |
+          set -o pipefail
           cmake --preset ci -DTESSERA_SHADER_CROSS=ON -DTESSERA_BUILD_POC=OFF \
-            -DTESSERA_WARNINGS_AS_ERRORS=ON | tee "$RUNNER_TEMP/configure.log"
+            -DTESSERA_BUILD_VULKAN=OFF -DTESSERA_WARNINGS_AS_ERRORS=ON \
+            | tee "$RUNNER_TEMP/configure.log"
           grep -q "Shader cross:" "$RUNNER_TEMP/configure.log"
+          for tool in SPIRV_VAL SPIRV_OPT SPIRV_CROSS NAGA; do
+            if ! grep -q "^-- Shader cross: $tool = " "$RUNNER_TEMP/configure.log"; then
+              echo "expected $tool but configure did not find it:"
+              grep "Shader cross:" "$RUNNER_TEMP/configure.log"
+              exit 1
+            fi
+          done
+          grep -q "^-- Shader cross: DXC not found" "$RUNNER_TEMP/configure.log" \
+            || echo "note: dxc is present, so the HLSL compile tests run too"
 
       - name: Build cross-compiled shaders and the parity test
         run: |

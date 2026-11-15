@@ -190,17 +190,25 @@ Configure prints one `-- Shader cross: <tool> = <path>` or `... not found; its o
 are skipped` line per tool, so the log states exactly what ran:
 
 ```bash
-cmake --preset ci -DTESSERA_SHADER_CROSS=ON -DTESSERA_BUILD_POC=OFF
-cmake --build --preset ci
-ctest --preset ci -R shader_cross --output-on-failure
+cmake --preset ci -DTESSERA_SHADER_CROSS=ON -DTESSERA_BUILD_POC=OFF -DTESSERA_BUILD_VULKAN=OFF
+cmake --build --preset ci --target tessera_shader_cross_batched2d shader_parity_tests
+ctest --preset ci -R "shader_cross|shader_parity" --output-on-failure
 ```
 
 `tests/gpu/shaders/shader_parity_tests.cpp` proves portable-branch parity in the ordinary build and
-needs no tool; the cross lane adds the artifact checks. On Ubuntu, `glslc`, `spirv-tools`,
-`spirv-cross` and `vulkan-validationlayers` come from apt and `naga` from
+needs no tool; the cross lane adds the artifact checks. On Ubuntu, `glslc`, `spirv-tools` and
+`spirv-cross` come from apt and `naga` from
 `cargo install naga-cli --version "$(cat tools/naga-version.txt)" --locked`; `dxc` is not
 packaged, so the HLSL compile step is skipped there and is only exercised where the Vulkan SDK
 ships `dxc`. The `shader-cross` job in `.github/workflows/linux.yml` is the reference lane.
+
+`-DTESSERA_BUILD_VULKAN=OFF` matters for a cross-compile-only build: the `ci` preset turns the
+Vulkan backend on, and `src/rendering/backend/vulkan/CMakeLists.txt` runs
+`find_package(Vulkan REQUIRED)`, which needs the development headers (`libvulkan-dev`) that the
+runtime/validation packages do not provide. A lane that only translates shaders builds no Vulkan
+code, so turning the backend off removes the SDK requirement entirely; `shader_parity_tests` links
+`tessera_rhi_vulkan` only when that target exists, so it still builds and runs. Build the real
+Vulkan backend, and its parity assertion, in a normal lane.
 
 ## 8. Review checklist
 
