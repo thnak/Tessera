@@ -21,6 +21,7 @@
 #ifndef TESSERA_PLATFORM_LINUX_APPEARANCE_PORTAL_HPP
 #define TESSERA_PLATFORM_LINUX_APPEARANCE_PORTAL_HPP
 
+#include "tessera/dbus/auth.hpp"
 #include "tessera/dbus/transport.hpp"
 #include "tessera/hal/appearance.hpp"
 
