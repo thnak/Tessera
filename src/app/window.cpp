@@ -91,6 +91,9 @@ WindowHost::Impl::Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet,
     loop->set_device_recovery(recovery.get());
 
     const hal::WindowMetrics metrics = window->metrics();
+    // The lifecycle seam's baselines come from the window the platform just created: a window
+    // created visible and focused is not a transition, so its first snapshot forwards nothing.
+    seed_lifecycle_baseline(metrics);
     // The platform resolved the requested OS backdrop at creation (glass-v1.md section 6). The
     // unsupported path is one warning and the opaque fallback; it never delays, retries or fails
     // startup for a cosmetic material. The stylesheet's `@media (window-backdrop: none)` rule is
@@ -380,28 +383,18 @@ runtime::FrameTimeSample WindowHost::Impl::observe_frame_time(double cpu_frame_t
     return observation.sample;
 }
 
-// Applies one metrics snapshot. Occlusion has no Win32/X11 event yet, so the snapshot's
-// `occluded`/`minimized` flags are the channel a platform (and a test) reports the lifecycle
-// through: they own the metrics half of the pause state.
+// Applies one metrics snapshot. The pause half (metrics_paused_, the lifecycle forward, the
+// accessibility mark) is apply_metrics_lifecycle() in window_lifecycle.cpp; what stays here is the
+// presentation half, which owns the swapchain.
 void WindowHost::Impl::apply_metrics(const hal::WindowMetrics& metrics) {
     if (!available) {
         return;
     }
-    metrics_paused_ = pause_policy.pauses(metrics.occluded, metrics.minimized);
-    update_pause_state();
-    // Accessibility bounds follow the client area, so a metrics snapshot is a semantics change even
-    // when the scene itself has no dirty flags.
-    if (accessibility != nullptr) {
-        accessibility->mark_dirty();
-    }
-    // A metrics snapshot does not change the presentation generation, so `translucent_presentation`
-    // keeps following the current swapchain's composite mode; a later recreation (a resize
-    // OutOfDate, a device recovery) re-resolves it from the platform's fresh metrics.
-    // An occluded/minimized window can report a zero client area (a minimized Win32 window does);
-    // resizing the target or re-laying out at 0x0 is skipped whenever the metrics say invisible,
-    // even when the pause policy keeps rendering (`pauseWhenOccluded=false`). The scene tree stays
-    // intact (docs/design/window-resize.md section 2 rule 6); the restore's metrics apply the real
-    // size.
+    apply_metrics_lifecycle(metrics);
+    // A hidden window can report a zero client area (a minimized Win32 window does), so a target
+    // resize or a 0x0 relayout is skipped whenever the metrics say invisible - even when the pause
+    // policy keeps rendering (pauseWhenOccluded=false). The scene tree stays intact
+    // (docs/design/window-resize.md section 2 rule 6); the restore's metrics apply the real size.
     if (!metrics.occluded && !metrics.minimized) {
         if (swapchain != nullptr) {
             swapchain->resize({metrics.physical_width, metrics.physical_height});
@@ -652,6 +645,13 @@ bool WindowHost::post_input(const ui::InputEvent& event) {
 
 void WindowHost::apply_metrics(const hal::WindowMetrics& metrics) {
     impl_->apply_metrics(metrics);
+}
+
+// The lifecycle seam (ADR-050 section 1 rule 1, AF3). The driver forwards what it already folds;
+// the caller owns the sink and must clear it before the sink dies, so a hand-written main that
+// installs nothing keeps today's behaviour exactly.
+void WindowHost::set_lifecycle_sink(LifecycleSink* sink) {
+    impl_->lifecycle_sink = sink;
 }
 
 // Full-screen (docs/specs/window-chrome-v1.md section 13, issue #232). The platform owns the

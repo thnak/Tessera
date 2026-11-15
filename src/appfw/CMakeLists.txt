@@ -1,10 +1,14 @@
 # SPDX-License-Identifier: MIT
 #
 # ADR-050 layer 1: `tessera_appfw_core`. AF1 (issue #173) starts the library with the service
-# registry and the service state machine; `Application`, `TaskScope`, timers, `Observable` and the
-# native surface host land in AF2-AF7 and are added to this target as they arrive.
+# registry and the service state machine; AF3 (issue #175) adds `Application`, the app lifecycle
+# state machine and the ordered lifecycle dispatch. `TaskScope`, timers, `Observable` and the native
+# surface host land in AF2-AF7 and are added to this target as they arrive.
 
 add_library(tessera_appfw_core STATIC
+    application.cpp
+    application_lifecycle_sink.cpp
+    lifecycle_script.cpp
     service_bridge.cpp
     service_context.cpp
     service_runner.cpp
@@ -16,7 +20,9 @@ target_include_directories(tessera_appfw_core PUBLIC
 target_compile_features(tessera_appfw_core PUBLIC cxx_std_23)
 
 # Layer 1 depends on layer 0 only (ADR-050 section 1). `tessera_runtime` provides the clock, the
-# completion queue, cancellation and `Task`; nothing here names a platform API or a UI internal.
+# completion queue, cancellation and `Task`. The lifecycle's platform surface is the normalized
+# `hal::WindowEventType` enumerator and the header-only `app::LifecycleSink` seam, so no HAL library
+# is linked: a headless app-framework build stays free of a window backend (and its platform libs).
 target_link_libraries(tessera_appfw_core
     PUBLIC tessera_runtime)
 
@@ -44,4 +50,17 @@ if (TESSERA_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/unit)
     target_link_libraries(appfw_observable_tests PRIVATE tessera_scene)
     add_test(NAME appfw_observable COMMAND appfw_observable_tests)
+    # The AF3 tests (issue #175, ADR-050 section 2): the state table of section 2 row by row, the
+    # ordered-event vector a transition produces, the termination gate and `Defer`, and the
+    # lifecycle script replayed through the same state machine every platform lane runs.
+    add_executable(appfw_lifecycle_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_lifecycle_main.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_lifecycle_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_application_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_lifecycle_script_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_lifecycle_seam_tests.cpp)
+    target_link_libraries(appfw_lifecycle_tests PRIVATE tessera_appfw_core)
+    target_compile_definitions(appfw_lifecycle_tests PRIVATE
+        TESSERA_LIFECYCLE_SCRIPT_DIR="${PROJECT_SOURCE_DIR}/tests/fixtures/lifecycle")
+    add_test(NAME appfw_lifecycle COMMAND appfw_lifecycle_tests)
 endif()
