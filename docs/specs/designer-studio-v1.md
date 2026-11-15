@@ -70,6 +70,16 @@ fonts load from the project, not the bundle. The budget is measured by the studi
 reported as a warning; the owner decided (2026-11-11) that it stays a warning in V1 and becomes a
 hard gate only after D-S5 is stable.
 
+**Status (issue #170, P6).** The gate exists and measures what has landed:
+`scripts/check_preview_budget.py` against `tests/golden/perf/preview_budget.json`, run in
+`.github/workflows/pages.yml`. It enforces the **compressed download** of the P1 page (module + page
+assets, gzip) and warns on the two latency rows. Those rows are the engine's share only --
+`cold_engine_ready_ms` and `edit_compile_ms` measure module instantiation plus compile in the Node
+host -- because the browser's parse and the WebGPU frame (P3) do not exist yet, so the table's
+`≤ 4 s` and `≤ 1 s` targets above are **not** what is being checked. The browser lane adds
+`cold_first_frame_ms`/`edit_to_view_ms` when there is a frame to time; the download row is the slice's
+number and is already enforced, at 375 KiB gzip for the P1 page.
+
 ## 3. Page composition
 
 ```text

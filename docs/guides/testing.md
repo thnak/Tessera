@@ -559,6 +559,16 @@ until the executables accept a CLI override.
   counters exact, allocation counters within `tolerance.allocation_percent`). The label is the
   opt-in handle and `DISABLED` gates it, so the default suite reports `Not Run (Disabled)`. Run it
   with `-DTESSERA_BENCHMARK_STYLESHEET=ON` and `ctest -L benchmark`.
+- `scripts/check_preview_budget.py` (gate `preview-budget`, issue #170, P6 of
+  [`../design/reference-equantic-ui.md`](../design/reference-equantic-ui.md) section 7.4) budgets the
+  preview page's compressed download, cold engine-ready time and edit-to-view compile against
+  `tests/golden/perf/preview_budget.json`. Two-sided ratchet: an entry fails when worse than its budget
+  by `tolerance.worse` *and* when better by `tolerance.better`, because unrecorded improvement means
+  the budget went stale; `--update` re-pins a tightening but refuses to loosen any entry.
+  `download_gzip_bytes` is **enforced** (deterministic); the latency rows are **warn** and report a
+  minimum over fresh processes, so only an order-of-magnitude change fires them. Runs in
+  `.github/workflows/pages.yml`, the lane that already built the module, not in `scripts/gates.py`.
+  The script header and the budget file's `note` carry the reasoning; this line is the index.
 
 ## 8. Fuzzing
 
