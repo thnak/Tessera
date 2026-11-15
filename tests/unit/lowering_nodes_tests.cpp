@@ -373,6 +373,49 @@ void test_style_property_kinds() {
              "{\"kind\":\"literal\",\"value\":\"#fff\"}", "backgroundColor becomes kebab-case");
 }
 
+// Issue #272: the schema style table was frozen at 73 rows while the registry grew, so keys the
+// engine accepts in a stylesheet were rejected in a JSX inline `style` object. These are the keys
+// that used to be missing, one per group the registry grew (paint, grid, scroll, interaction,
+// animation, logical direction), plus the `length`/`number` rule for the new rows.
+void test_style_rows_that_used_to_be_missing() {
+    const auto fixture = parse(component(
+        "", "<View style={{ pointerEvents: \"none\", aspectRatio: 2, boxShadow: \"2px 2px\", "
+            "transformOrigin: \"0 0\", zIndex: 2, gridColumn: \"1 / 3\", "
+            "scrollBehavior: \"smooth\", animationDuration: 2, transitionDelay: 0.5, "
+            "marginInlineStart: 4 }} />"));
+    const auto result = lower(*fixture);
+    check(result.has_value(),
+          "the rows added by issue #272 lower: " + describe_errors(*fixture, result));
+    if (!result) {
+        return;
+    }
+    // `number` rows must keep a bare number (no `px`); `length` rows must take it.
+    constexpr struct {
+        const char* property;
+        const char* expected;
+    } kExpected[] = {
+        {"pointer-events", "{\"kind\":\"literal\",\"value\":\"none\"}"},
+        {"aspect-ratio", "{\"kind\":\"literal\",\"value\":2}"},
+        {"z-index", "{\"kind\":\"literal\",\"value\":2}"},
+        {"animation-duration", "{\"kind\":\"literal\",\"value\":2}"},
+        {"transition-delay", "{\"kind\":\"literal\",\"value\":0.5}"},
+        {"margin-inline-start", "{\"kind\":\"literal\",\"value\":\"4px\"}"},
+        {"box-shadow", "{\"kind\":\"literal\",\"value\":\"2px 2px\"}"},
+        {"transform-origin", "{\"kind\":\"literal\",\"value\":\"0 0\"}"},
+        {"grid-column", "{\"kind\":\"literal\",\"value\":\"1 / 3\"}"},
+        {"scroll-behavior", "{\"kind\":\"literal\",\"value\":\"smooth\"}"},
+    };
+    for (const auto& expected : kExpected) {
+        const auto found = result->component.root.style.find(expected.property);
+        check(found != result->component.root.style.end(),
+              std::string("the IR carries `") + expected.property + "`");
+        if (found != result->component.root.style.end()) {
+            check_eq(expr_text(found->second.get()), expected.expected,
+                     std::string("the IR value of `") + expected.property + "`");
+        }
+    }
+}
+
 } // namespace
 
 int main() {
@@ -388,5 +431,6 @@ int main() {
     test_leaf_and_scroll_elements();
     test_spread_object_literal();
     test_style_property_kinds();
+    test_style_rows_that_used_to_be_missing();
     return finish("lowering nodes tests");
 }

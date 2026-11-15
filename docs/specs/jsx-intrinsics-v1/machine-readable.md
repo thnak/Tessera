@@ -122,6 +122,13 @@ even when it does not evaluate it.
   inheritance (data the compiler must not need) and a unit test checks that every name of the schema
   style table exists in the registry and the reverse. The registry is not rewritten to consume the
   schema in the first slice.
+  The schema is a leaf library and may not link the UI module, so the table is a hand-maintained
+  mirror of the registry's longhands (119 rows: the physical table, the logical inline-axis
+  longhands and the animation/transition names). The cross-check is the `schema_style_registry`
+  ctest in `src/ui/style/CMakeLists.txt`: it walks both directions, rejects a shorthand row, checks
+  each kind against the grammar the registry enforces (`2px` for `length`, a bare number for
+  `number`, a colour for `color`, the initial value for every row) and pins the kinds whose
+  classification a JSX number would silently change. Change both tables in the same commit.
 - **Node props.** The runtime node factory looks up an IR prop name in the same element rows to apply
   it to the scene node, instead of its own copy of the names; unknown props cannot reach it because the
   validator rejected them.
@@ -175,8 +182,10 @@ Rows that needed a decision, all resolved in the least committal way:
 1. **Style kinds.** The stylesheet spec does not classify its properties. The kind is derived from
    the initial value and CSS semantics: lengths take px (`width`, margins, radii, `font-size`,
    `flex-basis`, gaps, `letter-spacing`); `line-height` and `font-weight` are unitless `number`;
-   `font-family` is a `list`; colors and keywords as named. A unit test in the UI module checks the
-   names against `src/ui/style/property_registry.cpp`.
+   `font-family` is a `list`; colors and keywords as named, and a multi-part value (a shadow,
+   transform or track list) is a `list` so a bare number does not become a px length. The
+   `schema_style_registry` test in the UI module checks the names and the kinds against
+   `src/ui/style/property_registry.cpp` (section 5).
 2. **Unsupported aliases** are expanded to one row per tag (74 rows) so a consumer needs no group
    lookup; the `alternative` text is the group text of section 5.
 3. **Alias attribute rewrites** are rows with `aliasAttrKind` `keep`/`rename`/`reject`/`toStyle`/
