@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT
 //
 // Bounded device-loss recovery for the app window driver (docs/design/window-resize.md
 // section 7.2).
@@ -155,6 +155,40 @@ bool WindowHost::Impl::replace_device() {
     recovery = std::make_unique<runtime::DeviceRecoveryController>(*device);
     loop->set_device_recovery(recovery.get());
     return true;
+}
+
+// Charges one non-presented attempt to the right budget. A busy slot is backpressure, not a fault
+// (ADR-021 forbids waiting on the GPU), so it is retried against its own far larger budget: the
+// fault guard's eight retries at 2 ms are only ~16 ms, less than one 60 Hz frame, and would stop a
+// run that only needed the in-flight command list to complete. Every other non-presented outcome is
+// a real fault and keeps the bounded fault budget, so a lost device or a swapchain that never
+// yields an image still terminates the run instead of spinning.
+WindowHost::Impl::FrameRetry WindowHost::Impl::charge_frame_attempt(FrameResult outcome,
+                                                                    FrameFailureGuard& failures,
+                                                                    BusyRetryBudget& busy) {
+    if (outcome == FrameResult::Busy) {
+        // The attempt consumed the latched full repaint and the damage plan without painting, so
+        // relatch the whole target or the retry would present nothing.
+        host->request_full_repaint();
+        if (busy.retried()) {
+            stats.stalled = true;
+            return FrameRetry::Stop;
+        }
+        return FrameRetry::Continue;
+    }
+    busy.succeeded();
+    if (failures.failed()) {
+        stats.stalled = true;
+        if (outcome == FrameResult::DeviceLost) {
+            stats.device_state = WindowDeviceState::Lost;
+        }
+        return FrameRetry::Stop;
+    }
+    if (outcome == FrameResult::Skipped) {
+        // A failed acquire drew nothing but consumed the plan, exactly like a busy slot.
+        host->request_full_repaint();
+    }
+    return FrameRetry::Continue;
 }
 
 bool WindowHost::Impl::service_device_loss(const runtime::RuntimeTick& tick, RecoveryPolicy& policy,
