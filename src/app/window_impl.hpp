@@ -10,6 +10,8 @@
 #include "frame_time_probe.hpp"
 #include "scaled_targets.hpp"
 #include "tessera/app/frame_guard.hpp"
+#include "tessera/app/lifecycle_events.hpp"
+#include "tessera/app/lifecycle_sink.hpp"
 #include "tessera/app/recovery_policy.hpp"
 #include "tessera/app/system_motion.hpp"
 #include "tessera/app/window.hpp"
@@ -281,6 +283,32 @@ struct WindowHost::Impl {
     // Last frame time shared by run() and pump_once(), so a resume gets a normal dt instead of the
     // whole pause duration (and paused iterations refresh it).
     double last_tick_seconds_ = 0.0;
+
+    // The lifecycle seam (ADR-050 section 1 rule 1). Layer 0 forwards the transitions it already
+    // folds into the pause state above; the layer above owns what an app state is. Borrowed, may be
+    // null (a hand-written main with no app framework, ADR-050 section 1 rule 5), and never
+    // constructed here: this driver does not know the type.
+    LifecycleSink* lifecycle_sink = nullptr;
+    // Forwards one event, in poll order, when a sink is installed. A sink must not throw into the
+    // event fold (the driver has no exception boundary at this seam), so this is the only call
+    // site.
+    void forward_lifecycle(const hal::WindowEvent& event) const;
+    // The snapshot's half of the pause machine (`apply_metrics` calls it): folds occlusion and
+    // minimization into `metrics_paused_`, updates the union, forwards the transitions the layer
+    // above needs, and marks the accessibility tree. The presentation half - swapchain resize,
+    // relayout, window metrics - stays in window.cpp, which owns those objects.
+    void apply_metrics_lifecycle(const hal::WindowMetrics& metrics);
+    // Forwards the lifecycle transitions a metrics snapshot implies (occluded/minimized/focused
+    // moving), so a platform that reports the lifecycle through the snapshot reaches the layer
+    // above exactly like one that sends events: `apply_metrics` calls it once per snapshot, and
+    // only the flags that actually changed produce a forwarded event.
+    void forward_metrics_lifecycle(const hal::WindowMetrics& metrics);
+    // Records the baselines from the window the platform created, so its first snapshot is not
+    // reported as a transition (window_lifecycle_seam.cpp).
+    void seed_lifecycle_baseline(const hal::WindowMetrics& metrics);
+    // What the last snapshot told the seam, so a snapshot that moved nothing forwards nothing.
+    // Seeded by `seed_lifecycle_baseline` from the window's creation metrics.
+    LifecycleBaseline lifecycle_baseline{};
 };
 
 } // namespace tessera::app

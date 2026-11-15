@@ -3,6 +3,7 @@
 #pragma once
 
 #include "tessera/app/host.hpp"
+#include "tessera/app/lifecycle_sink.hpp"
 #include "tessera/hal/window.hpp"
 #include "tessera/rendering/rhi/types.hpp"
 #include "tessera/runtime/config.hpp"
@@ -251,6 +252,14 @@ public:
     // is resized, the AppHost re-lays out at the new logical size and the next frame is requested.
     // Tests use it to exercise the resize path without an OS-driven window resize.
     void apply_metrics(const hal::WindowMetrics& metrics);
+
+    // Installs (or clears, with null) the lifecycle seam (ADR-050 section 1 rule 1). The driver
+    // forwards the transitions it already folds into its occlusion/minimize pause - `Focus`,
+    // `Blur`, `Minimized`, `Occluded`, `Restored`, `Close`, in poll order, plus the same
+    // transitions when a `WindowMetrics` snapshot reports them - so a layer above can derive the
+    // app state without the driver naming an app state. The sink is borrowed and must outlive its
+    // installation; installing nothing (the default) leaves the driver's behaviour unchanged.
+    void set_lifecycle_sink(LifecycleSink* sink);
 
     // Enters or leaves full-screen on the platform window (docs/specs/window-chrome-v1.md
     // section 13, issue #232). The platform owns the mechanism and the bounds to restore, so this

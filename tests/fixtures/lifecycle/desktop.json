@@ -1,0 +1,25 @@
+{
+  "scriptVersion": 1,
+  "script": "lifecycle",
+  "description": "AF3 (issue #175, ADR-050 section 2): the desktop lifecycle sequence every platform lane replays through appfw::Application. Each step is one normalized lifecycle transition; each expect is the app state the ADR's table derives from it. Deterministic: no wall clock, no threads, no OS callbacks.",
+  "steps": [
+    { "event": "focus", "expect": "active" },
+    { "event": "blur", "expect": "inactive" },
+    { "event": "focus", "expect": "active" },
+    { "event": "minimize", "expect": "hidden" },
+    { "event": "restore", "expect": "active" },
+    { "event": "occlude", "expect": "hidden" },
+    { "event": "restore", "expect": "active" },
+    { "event": "blur", "expect": "inactive" },
+    { "event": "occlude", "expect": "hidden" },
+    { "event": "restore", "expect": "inactive" },
+    { "event": "blur", "expect": "inactive" },
+    { "event": "suspend", "expect": "suspended" },
+    { "event": "resume", "expect": "inactive" },
+    { "event": "focus", "expect": "active" },
+    { "event": "suspend", "expect": "suspended" },
+    { "event": "resume", "expect": "active" },
+    { "event": "shutdown", "expect": "terminating" },
+    { "event": "focus", "expect": "terminating" }
+  ]
+}

@@ -28,11 +28,17 @@ bool subtree_dirty(const ui::Node& root) {
 
 } // namespace
 
+// The lifecycle seam (`forward_lifecycle`, `apply_metrics_lifecycle`, `forward_metrics_lifecycle`
+// and the baselines they compare against) lives in window_lifecycle_seam.cpp, so this file stays
+// the pause state machine and the bounded single-iteration seam. The calls below are the whole
+// coupling.
+
 // Folds one normalized platform event into the driver state. Events never run user code and never
 // touch the GPU; a lifecycle event only moves the pause state.
 bool WindowHost::Impl::handle_window_event(const hal::WindowEvent& event) {
     switch (event.type) {
     case hal::WindowEventType::Close:
+        forward_lifecycle(event);
         return true;
     case hal::WindowEventType::Resize:
     case hal::WindowEventType::DpiChange:
@@ -79,10 +85,12 @@ bool WindowHost::Impl::handle_window_event(const hal::WindowEvent& event) {
         // seams) report.
         lifecycle_paused_ = pause_policy.pause_when_minimized;
         update_pause_state();
+        forward_lifecycle(event);
         break;
     case hal::WindowEventType::Occluded:
         lifecycle_paused_ = pause_policy.pause_when_occluded;
         update_pause_state();
+        forward_lifecycle(event);
         break;
     case hal::WindowEventType::Restored: {
         // The HAL's visible/restore transition (there is no separate Visible value). It clears the
@@ -92,6 +100,11 @@ bool WindowHost::Impl::handle_window_event(const hal::WindowEvent& event) {
         const hal::WindowMetrics current = window->metrics();
         metrics_paused_ = pause_policy.pauses(current.occluded, current.minimized);
         update_pause_state();
+        // The forwarded event carries the snapshot the fold above just read, so the layer above
+        // derives the same answer this driver did rather than a second guess at it.
+        hal::WindowEvent restored = event;
+        restored.metrics = current;
+        forward_lifecycle(restored);
         break;
     }
     case hal::WindowEventType::Focus:
@@ -102,6 +115,7 @@ bool WindowHost::Impl::handle_window_event(const hal::WindowEvent& event) {
         if (accessibility != nullptr) {
             accessibility->mark_dirty();
         }
+        forward_lifecycle(event);
         break;
     case hal::WindowEventType::SystemSettingsChanged:
         // The platform re-reads its settings when it sees the broadcast, so one normal read here is
