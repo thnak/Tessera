@@ -421,9 +421,11 @@ bool WindowHost::Impl::pump_once() {
     const std::uint32_t presented = stats.presented;
     const FrameResult outcome = render_and_present(frame.render.full_redraw);
     if (outcome != FrameResult::Presented) {
-        // Same rule as run(): the skipped frame consumed the repaint request and the damage plan,
-        // so latch the whole target again or the retry would present nothing.
-        if (outcome == FrameResult::Skipped) {
+        // Same rule as run(): the attempt consumed the repaint request and the damage plan, so
+        // latch the whole target again or the retry would present nothing. A busy slot is
+        // backpressure rather than a fault, but it still painted nothing, so it needs the same
+        // relatch.
+        if (outcome == FrameResult::Skipped || outcome == FrameResult::Busy) {
             host->request_full_repaint();
         }
         return false;

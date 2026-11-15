@@ -62,5 +62,43 @@ int main() {
         return 1;
     }
 
+    // Backpressure has its own, far larger budget: a busy slot is expected under load, so it must
+    // outlive many more retries than the fault guard allows, but it must still be finite or a slot
+    // that never completes would spin the UI thread forever.
+    using tessera::app::BusyRetryBudget;
+    BusyRetryBudget busy;
+    if (!expect(busy.limit() == BusyRetryBudget::kDefaultLimit, "default busy budget")) {
+        return 1;
+    }
+    if (!expect(busy.limit() > FrameFailureGuard::kDefaultLimit,
+                "the busy budget outlasts the fault budget")) {
+        return 1;
+    }
+    // Eight fault retries at the 2 ms backoff are ~16 ms, under one 60 Hz frame; the busy budget
+    // must span several frames of real GPU backpressure.
+    if (!expect(busy.limit() * 0.002 >= 0.25, "the busy budget spans at least a quarter second")) {
+        return 1;
+    }
+    for (std::uint32_t index = 1; index < busy.limit(); ++index) {
+        if (!expect(!busy.retried(), "under the busy budget must not give up")) {
+            return 1;
+        }
+    }
+    if (!expect(busy.retried(), "the last busy retry spends the budget")) {
+        return 1;
+    }
+    if (!expect(busy.retried(), "a spent busy budget keeps reporting")) {
+        return 1;
+    }
+    // A painted frame ends the run of busy retries, so ordinary backpressure is not cumulative.
+    busy.succeeded();
+    if (!expect(busy.consecutive() == 0, "a painted frame resets the busy budget")) {
+        return 1;
+    }
+    BusyRetryBudget busy_blocked(0);
+    if (!expect(busy_blocked.retried(), "a zero busy budget gives up immediately")) {
+        return 1;
+    }
+
     return 0;
 }

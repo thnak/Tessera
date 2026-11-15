@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT
 
 #include "tessera/app/frame_guard.hpp"
 #include "tessera/app/idle_policy.hpp"
@@ -233,11 +233,13 @@ WindowHost::Impl::FrameResult WindowHost::Impl::render_and_present(bool full_rep
     }
     sample_frame_sync();
     // A slot whose GPU work is still running is skipped, never waited on: the UI thread must not
-    // block on the GPU (ADR-021). The frame is retried on the next tick.
+    // block on the GPU (ADR-021). The frame is retried on the next tick. This is backpressure, not
+    // a failure: under load a busy slot can stay busy for longer than a frame, so it reports Busy
+    // and leaves the failure budget alone.
     if (in_flight[slot] && !in_flight[slot]->is_complete()) {
         // A lost device never completes it either; report the loss instead of skipping forever.
         return device->status() == rhi::DeviceStatus::Lost ? FrameResult::DeviceLost
-                                                           : FrameResult::Skipped;
+                                                           : FrameResult::Busy;
     }
     // The slot's GPU work has completed (a non-blocking is_complete() poll above), so its recorded
     // timestamp pair can be read without waiting (ADR-021). The interval is consumed at this
@@ -464,9 +466,11 @@ WindowFrameStats WindowHost::Impl::run(std::uint32_t max_frames) {
 
     bool closed = false;
     last_tick_seconds_ = hal::steady_now_seconds();
-    // A frame that keeps failing (a device that never recovers, a slot that never completes, a
-    // swapchain that never yields an image) stops the run instead of spinning (ADR-021).
+    // A frame that keeps failing (a device that never recovers, a swapchain that never yields an
+    // image) stops the run instead of spinning (ADR-021). Backpressure is bounded separately: a
+    // busy in-flight slot is expected under load (see FrameResult::Busy below).
     FrameFailureGuard failures;
+    BusyRetryBudget busy;
     std::array<hal::WindowEvent, detail::kMaxWindowEvents> events{};
     // Startup is a frame cause: the scene has no dirty flags until the first layout.
     loop->mark_render_dirty();
@@ -561,27 +565,16 @@ WindowFrameStats WindowHost::Impl::run(std::uint32_t max_frames) {
         const FrameResult outcome = render_and_present(frame.render.full_redraw);
         if (outcome != FrameResult::Presented) {
             ++stats.idle_waits;
-            // The backend recorded a loss on this frame; the next tick's controller reports it
-            // blocked and service_device_loss() takes over. Counting it here keeps a runtime
-            // without recovery support bounded by the same guard.
-            if (failures.failed()) {
-                stats.stalled = true;
-                if (outcome == FrameResult::DeviceLost) {
-                    stats.device_state = WindowDeviceState::Lost;
-                }
+            if (charge_frame_attempt(outcome, failures, busy) == FrameRetry::Stop) {
                 break;
             }
-            // begin_frame() already consumed the latched full repaint and the damage plan, so the
-            // retry would find nothing to draw and the window would keep its stale image. A skipped
-            // frame (a busy slot, a failed acquire) asks for the whole target again.
-            if (outcome == FrameResult::Skipped) {
-                host->request_full_repaint();
-            }
-            // A busy slot may free on any GPU completion; retry on the bounded backoff.
+            // Retry on the bounded backoff: a busy slot frees on any GPU completion, a skipped one
+            // on the next acquire.
             idle(kFrameRetryWaitSeconds);
             continue;
         }
         failures.succeeded();
+        busy.succeeded();
         pacer.present(hal::steady_now_seconds());
         // Adaptive quality (docs/design/performance.md section 6): the one frame observation, fed
         // from the GPU interval of the most recent completed submission when the device's

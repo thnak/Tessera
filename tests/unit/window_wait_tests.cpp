@@ -93,13 +93,19 @@ int main() {
         return 4;
     }
 
-    // 2b. A frame-sized wait must land near its deadline. With the default 15.6 ms system tick a
-    // 16.7 ms wait without the high-resolution timer sleeps about 31 ms, which halves a 60 fps
-    // loop. This only fails while the system tick is coarse: another process holding
-    // timeBeginPeriod(1) hides the problem, so it is a bound, not proof the timer is used. The
-    // median of several waits keeps one scheduler hiccup from failing the test; the upper bound is
-    // generous (40 ms, under one coarse tick) because a machine running several parallel build
-    // lanes can overshoot a single wait even when the timer is correct.
+    // 2b. A frame-sized wait must land near its deadline rather than overshooting it. With the
+    // default 15.6 ms system tick a 16.7 ms wait that misses the high-resolution timer sleeps until
+    // the next tick boundary, about 31 ms, which halves a 60 fps loop. This is a bound, not proof
+    // the timer is used: another process holding timeBeginPeriod(1) hides the problem.
+    //
+    // The bound reads the fastest of several waits, not one sample and not the median. Scheduler
+    // noise only ever *adds* delay, so under load the distribution has a long right tail and any
+    // central statistic drifts with it -- a cold-cache run with twelve parallel test processes has
+    // pushed this median to 65 ms against the 40 ms bound while the timer was working correctly.
+    // The minimum is the load-immune estimate: fifteen waits only needs one that was not
+    // descheduled, measured at 16.68 ms idle and 16.68 ms with sixteen concurrent copies running.
+    // A real regression inflates every sample, so the minimum moves with it and the bound still
+    // trips.
     constexpr double kFrameWait = 1.0 / 60.0;
     constexpr int kFrameWaitSamples = 15;
     std::array<double, kFrameWaitSamples> frame_waits{};
@@ -109,16 +115,14 @@ int main() {
         sample = tessera::hal::steady_now_seconds() - start;
     }
     std::sort(frame_waits.begin(), frame_waits.end());
-    const double median_wait = frame_waits[kFrameWaitSamples / 2];
-    // A heavily loaded machine (several parallel build lanes) inflates every wake-up, so the bound
-    // below would measure scheduler load rather than the timer. The past-deadline wait above is a
-    // proxy for that load: when even an immediate return takes milliseconds, skip the bound.
-    if (elapsed > 0.002) {
-        std::cerr << "window_wait: skipped frame-sized wait bound (loaded machine: immediate wait "
-                  << elapsed * 1000.0 << " ms, median " << median_wait * 1000.0 << " ms)\n";
-    } else if (!expect(median_wait >= kFrameWait * 0.9, "frame-sized wait does not return early") ||
-               !expect(median_wait < 0.040, "frame-sized wait lands near its deadline")) {
-        std::cerr << "window_wait: median frame-sized wait " << median_wait * 1000.0 << " ms\n";
+    // Sorting puts the fastest wait first. A wait cannot return before its deadline, so the fast
+    // end is still a valid lower bound; the median and the worst sample only aid a future failure.
+    const double fastest_wait = frame_waits.front();
+    if (!expect(fastest_wait >= kFrameWait * 0.9, "frame-sized wait does not return early") ||
+        !expect(fastest_wait < 0.040, "frame-sized wait lands near its deadline")) {
+        std::cerr << "window_wait: fastest frame-sized wait " << fastest_wait * 1000.0
+                  << " ms, median " << frame_waits[kFrameWaitSamples / 2] * 1000.0 << " ms, worst "
+                  << frame_waits.back() * 1000.0 << " ms\n";
         return 12;
     }
 
