@@ -54,10 +54,10 @@ bool expect(bool condition, const char* message) {
 // The stylesheet under test: one rule per media feature, each with a distinct background color so
 // the cascade's decision is readable from the computed style rather than from a pixel.
 constexpr std::string_view kMediaCss = R"(
-.root { background: #000000; }
-@media (prefers-color-scheme: dark) { .root { background: #111111; } }
-@media (prefers-color-scheme: light) { .root { background: #222222; } }
-@media (prefers-reduced-motion: reduce) { .root { background: #333333; } }
+.root { background-color: #000000; }
+@media (prefers-color-scheme: dark) { .root { background-color: #111111; } }
+@media (prefers-color-scheme: light) { .root { background-color: #222222; } }
+@media (prefers-reduced-motion: reduce) { .root { background-color: #333333; } }
 )";
 
 AppearancePreference measured(ColorSchemePreference scheme, bool reduced_motion) {
