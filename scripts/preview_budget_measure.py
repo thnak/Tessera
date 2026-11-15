@@ -52,8 +52,24 @@ SAMPLE = REPO_ROOT / "samples" / "parity-demo" / "Counter.tsx"
 PROBE = SCRIPTS_DIR / "ci" / "preview_budget_probe.mjs"
 
 # The files the page fetches, split so a regression report can name the one that grew.
+#
+# `PAGE_FILES` is the *whole* page, not just the three files P1 shipped: stage P5 (issue #169) added
+# `share.js`, `preview-state.js`, `studio.js` and `samples.json`, and a budget that kept weighing only
+# the original three would report green for an artifact it no longer fully measures. Adding a page
+# asset means adding it here in the same change -- that is the rule the enforced row depends on.
 MODULE_FILES = ("tessera_diagnostics.js", "tessera_diagnostics.wasm")
-PAGE_FILES = ("index.html", "app.js", "app.css")
+PAGE_FILES = (
+    "index.html",
+    "scene.html",
+    "app.js",
+    "app.css",
+    "scene.js",
+    "preview-state.js",
+    "share.js",
+    "gallery.js",
+    "studio.js",
+    "samples.json",
+)
 
 # Where a built module usually is: the Pages lane's assembled site first, then a local wasm configure.
 MODULE_CANDIDATES = (

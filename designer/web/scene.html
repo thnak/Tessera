@@ -32,8 +32,35 @@
         then shows the scene snapshot. No GPU yet (stage&nbsp;P2).
       </p>
     </div>
-    <div class="build-id" id="build-id" title="The build this page came from">build: loading</div>
+    <div class="page-meta">
+      <nav class="page-nav" aria-label="Preview pages">
+        <a href="index.html">Diagnostics</a>
+        <span aria-current="page">Scene</span>
+      </nav>
+      <div class="build-id" id="build-id" title="The build this page came from">build: loading</div>
+    </div>
   </header>
+
+  <!-- The P5 toolbar (issue #169). On this page the viewport and DPR reach the layout through
+       `tessera_scene_json_sized`, so the toggle is not decoration: changing it re-runs the layout at
+       the new size. Theme is carried into the share link even though the null-RHI snapshot does not
+       consume it yet (the engine's theme asset is not in this module). -->
+  <div class="toolbar" role="group" aria-label="Preview environment">
+    <div class="controls" id="controls"></div>
+    <div class="toolbar-actions">
+      <button id="toggle-gallery" type="button" aria-expanded="false" aria-controls="gallery">
+        Samples
+      </button>
+      <button id="share" type="button">Copy share link</button>
+      <span class="share-status" id="share-status" role="status" aria-live="polite"></span>
+    </div>
+  </div>
+
+  <section class="gallery" id="gallery" aria-label="Sample gallery" hidden>
+    <div class="gallery-list" id="gallery-list"></div>
+  </section>
+
+  <p class="link-note" id="link-note" role="alert" hidden></p>
 
   <main class="layout">
     <section class="pane" aria-labelledby="editor-heading">

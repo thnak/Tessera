@@ -1,16 +1,26 @@
 // SPDX-License-Identifier: MIT
 
-// The diagnostics page's logic (issue #165, P1). Vanilla ES modules: no framework, no bundler, no
-// build step, so `index.html` + `app.js` + `app.css` + the two Wasm artifacts are the whole page.
+// The diagnostics page's logic (issue #165, P1; the share link, gallery and environment toolbar are
+// issue #169, P5). Vanilla ES modules: no framework, no bundler, no build step, so `index.html` +
+// `app.js` + `app.css` + `studio.js` + `share.js` + `preview-state.js` + `samples.json` + the two Wasm
+// artifacts are the whole page.
 //
 // The page compiles in the browser with `tessera_diagnostics`, the same compiler the native CLI
 // runs. It never trusts that the module loaded: a missing or failed module leaves the page in an
 // explicit "preview unavailable" state, because the Wasm artifacts are built by CI and a local
 // checkout that has not built them must say so rather than show a blank pane.
+//
+// P5 adds no new compile path and no new artifact: it reads a share link (or the local toolbar
+// position) into the editor and the three toggles, and offers the sample gallery. The environment is
+// *carried* by this page but only *applied* to layout on the scene page -- a diagnostics run has no
+// viewport, and pretending otherwise would report a number the compiler never used.
+
+import { mountStudio } from './studio.js';
 
 const MODULE_URL = './tessera_diagnostics.js';
 
-// A small sample that is valid, so the first Run shows the empty-diagnostics path.
+// A small sample that is valid, so the first Run shows the empty-diagnostics path. The gallery's
+// samples are read from `samples/` (P5); this stays as the zero-network default.
 const SAMPLE = `export function Counter(): Node {
   const [count, setCount] = useState<int>(0);
 
@@ -281,6 +291,23 @@ source.addEventListener('keydown', (event) => {
     event.preventDefault();
     compile();
   }
+});
+
+// ---- P5: environment toolbar, sample gallery, share link (issue #169) --------------------------
+
+// The page's P5 chrome is one call: the toolbar, gallery, share button and broken-link banner are
+// shared with the scene page (`studio.js`), and this page only says what a change means here. A
+// diagnostics run has no layout, so an environment change is carried into the share link but not
+// applied -- pretending otherwise would report a viewport the compiler never used.
+void mountStudio({
+  source,
+  startup: SAMPLE,
+  onEnvironmentChange: () => {
+    /* carried, not applied: see above */
+  },
+  onSample: (sample) => {
+    setStatus(`loaded ${sample.path}`, 'ok');
+  },
 });
 
 // The build id the page reports: the footer of the deployed artifact carries it, and D-S5's

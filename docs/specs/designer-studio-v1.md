@@ -267,6 +267,72 @@ thermal simulation, and animation timeline scrubbing.
 - **Samples** live in `samples/`; the studio loads them read-only and offers "Copy to workspace" so a
   visitor cannot edit the bundled copy.
 
+### 7.1 Share links (P5, issue #169)
+
+A preview's state travels in the **URL fragment**, so a link works with no server (ADR-045 decision 1)
+and nothing is uploaded. The implementing module is `designer/web/share.js`; this section is the
+normative format.
+
+**Shape.** `#p5=<payload>`, where `<payload>` is one mode character followed by base64url data:
+
+| Mode | Meaning |
+|---|---|
+| `z` | deflate-raw compressed, the default |
+| `g` | gzip compressed, the fallback for a browser with gzip but not deflate-raw |
+| `u` | uncompressed base64url, the fallback for a browser with no compression stream |
+
+Compression uses the browser's own `CompressionStream`/`DecompressionStream`; there is **no library**,
+which is what keeps the page free of dependencies and a build step.
+
+**Envelope.** The decoded bytes are UTF-8 JSON. Keys are one character because the fragment is the
+artifact a person pastes.
+
+```json
+{"v":1,"s":"<source>","w":320,"h":240,"d":1,"t":"system","f":"ui/Counter.tsx"}
+```
+
+| Key | Required | Meaning |
+|---|---|---|
+| `v` | yes | Format version, exactly `1`. An unknown value is **refused**, never guessed |
+| `s` | yes | The source text, verbatim. It is the single source of truth: never a sample id, never a diff |
+| `w`, `h` | yes | Viewport in logical pixels, one of the toolbar's presets |
+| `d` | yes | Device pixel ratio, one of `1`, `2`, `3` |
+| `t` | yes | Theme: `system`, `light` or `dark` |
+| `f` | no | Source file name; omitted when it is `ui/Preview.tsx`, so the common case pays no bytes |
+
+**Caps and failure mode.** A payload over **8192 characters** is refused in both directions with
+`ShareError("too-large")` naming the actual size and the limit. It is **never truncated**: a truncated
+link would silently load different source than the one that was shared, the one failure a share
+feature must not have. 8 KiB is a pasteability limit, not a browser one; a project too large for it is
+what the zip export (7.3 item 6) is for. The decompressed side is capped at 1 MiB + 4 KiB and the cap
+is enforced **while reading**, so a small hostile fragment cannot expand into a large allocation.
+
+**Precedence.** A fragment wins over the locally remembered toolbar position, which wins over the
+page's default. Local preferences store only the environment (`viewport`, `dpr`, `theme`, `file`) under
+`tessera.preview.p5`, never the source, so reopening the page is not a surprise. A fragment that fails
+to decode shows a banner naming the `ShareError` code and loads the page's own sample; it is never
+silently ignored.
+
+**Not in the fragment.** Assets, fonts, multi-file projects, and the C++ developer class
+([ADR-040](../../decisions/ADR-040-generated-base-and-developer-class.md)). A link is one source file
+plus its environment; the studio's project IO (D-S4) is the path for everything else.
+
+**Gallery.** The sample gallery reads `designer/web/samples.json`, **generated** from `samples/**/*.tsx`
+by `scripts/ci/gen_sample_manifest.py` and committed so Pages needs no build step. The manifest carries
+a `path` and the exported `component` name and no source text: the page fetches the TSX from its path,
+so the file in the repository stays the single source of truth and adding a sample never means editing
+JavaScript. Display titles are derived from the file stem in the page. `--check` fails on a stale
+manifest, and the Pages lane copies `samples/` into the site and asserts every manifest path exists
+there.
+
+**Viewport and DPR reach the layout.** The P2 module export
+`tessera_scene_json(source, file, component)` keeps its fixed 320×240 defaults because the parity gate
+pins them; P5 adds `tessera_scene_json_sized(source, file, component, width, height, dpr)` for the
+same document at an explicit rectangle. A non-positive value falls back to the default rather than
+laying out a degenerate tree. **Theme is carried but not applied**: the null-RHI snapshot has no theme
+asset, so the toggle is honest about being a share-link field, not a style input, until the theme
+asset is in that module.
+
 ## 8. MCP server mode (stdio)
 
 The same engine has a Node entry point so a coding agent can validate and inspect a project without a

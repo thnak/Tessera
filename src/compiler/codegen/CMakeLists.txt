@@ -236,7 +236,7 @@ else ()
         -sEXPORT_NAME=createTesseraScenePreview
         -sENVIRONMENT=web,node
         -sALLOW_MEMORY_GROWTH=1
-        -sEXPORTED_FUNCTIONS=["_tessera_scene_json","_tessera_input_json","_tessera_free","_malloc","_free"]
+        -sEXPORTED_FUNCTIONS=["_tessera_scene_json","_tessera_scene_json_sized","_tessera_input_json","_tessera_free","_malloc","_free"]
         -sEXPORTED_RUNTIME_METHODS=["UTF8ToString","lengthBytesUTF8","stringToUTF8"])
 endif ()
 
