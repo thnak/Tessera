@@ -12,12 +12,12 @@ Status legend: **resolved** means a V1 decision exists and is recorded here; **d
 | Text, editing, forms, accessibility | 6 | 30 | 17 | 13 |
 | Rendering, layout, styles, damage | 8 | 42 | 32 | 10 |
 | Runtime loop, async, input, diagnostics, config | 8 | 41 | 35 | 6 |
-| Services, platform shell, navigation, mobile | 8 | 48 | 40 | 8 |
+| Services, platform shell, navigation, mobile | 8 | 49 | 40 | 9 |
 | Release, packaging, tooling, automation | 10 | 46 | 41 | 5 |
 | Data UI, overlays, animation, errors, resources | 12 | 77 | 45 | 32 |
-| **Total** | **61** | **349** | **270** | **79** |
+| **Total** | **61** | **350** | **270** | **80** |
 
-Questions flagged as unblocking the next implementation round: **19** (marked `*` below).
+Questions flagged as unblocking the next implementation round: **20** (marked `*` below).
 
 ## 2. Decisions
 
@@ -283,6 +283,7 @@ Questions flagged as unblocking the next implementation round: **19** (marked `*
 - **design/services.md#3** — The generator validates ui/routes.json and emits a typed RouteTable plus a compile-time screen-id enum; IR/codegen reference screens by id only and the runtime never parses route JSON. _resolved; navigation-v1 section 1 requires build-time validation and compile-time screen ids; ADR-007/ADR-036 keep generation in the compiler, not the runtime._
 - **design/services.md#4** — No framework background loop in V1: suspend cancels or checkpoints service work and restore rebuilds from the snapshot; OS background jobs are app-declared native adapters only. _resolved; mobile-integration 3.1/5 bans background GPU work; ADR-019 power-aware defaults; ADR-024 keeps any bridge at the OS edge._
 - **design/services.md#5** — SecretStore capability service in the HAL: DPAPI/Credential Manager, Keychain, Android Keystore, Linux Secret Service over D-Bus; a missing store returns Unsupported, never plaintext. _resolved; ADR-020 puts OS access behind the HAL; ADR-012 rules out statically linked LGPL libsecret; bridges.md lists storage/secrets as an OS-edge bridge._
+- **design/services.md#6** — Who marks the in-frame service-lookup region: AF1 ships `appfw::FrameScope` plus `service_lookup_audit()` but does not wire `runtime::RuntimeLoop` (layer 0 gains seams, not concepts; a whole-tick mark would also count a service's own legal `start()` lookup, which resumes from the drain inside the tick). _(Deferred trigger: AF3, the `Application` lifecycle sequencer, needs the counter to be authoritative for the tick, at which point either `RuntimeLoop` marks the update/render stage itself or the AF3 tick wrapper must; ADR-050 section 3 item 5. The AF1 tests mark explicitly and prove the counter stays zero there.)_
 **[`docs/design/security.md`](../design/security.md#11-open-questions)**
 
 - ***design/security.md#1** — Run the compiler in-process in V1 with enforced resource limits (file size, component count, nesting/loop depth) plus fuzzing; no seccomp or Job Object sandbox. _resolved; security.md section 3 already mandates bounded resources and fuzzing; the compiler is build-time direct C++ (ADR-024), so a sandbox wrapper adds no V1 guarantee. **Implemented (front end):** the five `jsx::Limits` (file size 1 MiB, 200k tokens, depth 128, 100 diagnostics, 64 components) with stable `TESSERA_JSX_LIMIT_*` codes, `excerpt()` 32-byte and sink 256-byte text caps so hostile input cannot bloat a report, a file-wide UTF-8 pre-scan that stops once the report is full, and the deterministic stress corpus (`compiler_limits` plus `jsx_adversarial`); docs/design/security.md sections 3.1 and 3.2 record the table and the four downstream budgets (IR depth/nodes, IR-JSON depth, lowering height, codegen bytes/identifier) the other compiler lane still adds._
