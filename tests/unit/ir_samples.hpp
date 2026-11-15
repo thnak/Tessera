@@ -23,4 +23,16 @@ ir::IrModule make_rich_module();
 // a native-handler binding with a preview, an ErrorBoundary and a ref.
 ir::IrModule make_valid_module();
 
+// docs/specs/ir-v1.md section 2.2 (ADR-051): a module with a record table and every record
+// position. Records, sorted by name:
+//   Size { w: int; h: int }
+//   Style { color: string; sizes: list<Size>; padding: Size?; label: string? }
+// Components use a `Size` state initial, a `Size` prop default and a `Style` prop default that
+// nests a `Size` and a `Size` list; a `ref` reads `size.w`. Every declared record is used, so the
+// module is clean and its JSON is the record golden.
+ir::IrModule make_record_module();
+// The same module with every record position and the `types` array removed: a module with no
+// record, which must write exactly the bytes it wrote before `types` and `record` existed.
+ir::IrModule make_no_record_module();
+
 } // namespace ir_test

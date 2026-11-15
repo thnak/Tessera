@@ -142,7 +142,7 @@ void test_expressions() {
 void test_types() {
     for (const char* type :
          {"bool", "int", "float", "string", "color", "length", "node_ref", "list<int>",
-          "optional<string>", "list<optional<int>>", "Row", "list<Row>"}) {
+          "optional<string>", "list<optional<int>>", "TextChangeEvent", "list<KeyEvent>"}) {
         expect(
             std::string("accepted type ") + type, [&](auto& m) { list(m).state[0].type = type; },
             "");
@@ -153,11 +153,22 @@ void test_types() {
             std::string("rejected type `") + type + "`",
             [&](auto& m) { list(m).state[0].type = type; }, kUnsupported);
     }
+    // Section 2.2: the shape of a bare identifier is valid, but the name must be in the type table.
+    // This replaces the old "any identifier is a record type" rule.
+    for (const char* type : {"Row", "list<Row>", "optional<Row>"}) {
+        expect(
+            std::string("undeclared record name `") + type + "`",
+            [&](auto& m) { list(m).state[0].type = type; }, kUnknownType);
+    }
     expect("prop type", [](auto& m) { list(m).props[0].type = "x y"; }, kUnsupported);
     expect("environment type", [](auto& m) { list(m).environment[0].type = ""; }, kUnsupported);
     expect(
         "handler parameter type", [](auto& m) { list(m).handlers[0].params[0].type = "x y"; },
         kUnsupported);
+    expect(
+        "undeclared handler parameter record",
+        [](auto& m) { list(m).handlers[0].params[0].type = "Payload"; }, kUnknownType);
+    expect("undeclared prop record", [](auto& m) { list(m).props[0].type = "Size"; }, kUnknownType);
 }
 
 } // namespace

@@ -147,15 +147,36 @@ void check_previews(ValidationContext& context) {
     }
 }
 
+void check_unused_types(ValidationContext& context) {
+    // Section 9: a declared record no component uses is a warning, not an error (it is additive
+    // data the project may keep for a later slice). Reported after every component, so the
+    // `used_types` set is complete. A duplicate name is reported once, by the duplicate-id rule
+    // above, so the dead-entry warning follows the first declaration only.
+    for (const RecordType& type : context.module.types) {
+        if (context.used_types.count(type.name) != 0) {
+            continue;
+        }
+        const auto registered = context.types.find(type.name);
+        if (registered == context.types.end() || registered->second != &type) {
+            continue;
+        }
+        context.report("TESSERA_IR_UNUSED_TYPE",
+                       "record type `" + type.name + "` is declared but no component uses it",
+                       type.source);
+    }
+}
+
 } // namespace
 
 std::vector<IrDiagnostic> validate(const IrModule& module) {
-    ValidationContext context{module, {}, {}, {}, {}, {}, {}, {}};
+    ValidationContext context(module);
     const SourceSpan none;
     if (module.ir_version != kIrVersion) {
         context.report("TESSERA_IR_VERSION",
                        "unsupported irVersion " + std::to_string(module.ir_version), none);
     }
+    // Section 2.2: the record table first, so a component's type and value resolve against it.
+    check_type_table(context);
     for (const auto& component : module.components) {
         if (!context.component_ids.insert(component.id).second) {
             context.report("TESSERA_IR_DUPLICATE_ID",
@@ -185,6 +206,8 @@ std::vector<IrDiagnostic> validate(const IrModule& module) {
     check_bindings(context);
     check_previews(context);
     check_component_cycles(context);
+    close_used_types(context);
+    check_unused_types(context);
     return std::move(context.diagnostics);
 }
 

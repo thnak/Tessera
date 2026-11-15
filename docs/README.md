@@ -83,7 +83,9 @@ This page is the map and reading order for the framework.
   profiling, crash, overlay
 - [`specs/os-events-v1.md`](specs/os-events-v1.md) — normalized OS events, display
   capabilities, mobile/foldables
-- [`specs/ir-v1.md`](specs/ir-v1.md) — compiler IR schema, expressions, bindings, validation
+- [`specs/ir-v1.md`](specs/ir-v1.md) — compiler IR: module, components, nodes, record types, validation
+- [`specs/ir-v1-expr.md`](specs/ir-v1-expr.md) — compiler IR part 2: expressions (including the
+  `record` value), loops, bindings, spans, validation and versioning
 - [`specs/ir-v1-example.md`](specs/ir-v1-example.md) — the worked Counter `ir.json` example
 - [`specs/component-model-v1.md`](specs/component-model-v1.md) — JSX/hooks subset, lifecycle,
   reconciliation, generated C++

@@ -7,10 +7,13 @@ add_library(tessera_ir STATIC
     src/ir_json.cpp
     src/ir_json_node.cpp
     src/json_value.cpp
+    src/types.cpp
     src/validate.cpp
     src/validate_component.cpp
     src/validate_expr.cpp
-    src/validate_node.cpp)
+    src/validate_node.cpp
+    src/validate_record.cpp
+    src/validate_record_value.cpp)
 
 target_include_directories(tessera_ir
     PUBLIC

@@ -35,7 +35,7 @@ Questions flagged as unblocking the next implementation round: **19** (marked `*
 **[`docs/specs/jsx-subset-v1.md`](../specs/jsx-subset-v1-jsx.md#18-open-questions-no-decision-yet)**
 
 - **specs/jsx-subset-v1.md#1** — No open question: every listed topic is already decided, so this round changes nothing here. _resolved; jsx-subset-v1.md section 18 states Still open: None; manifest format in section 7.1._
-**[`docs/specs/ir-v1.md`](../specs/ir-v1.md#14-open-questions)**
+**[`docs/specs/ir-v1.md`](../specs/ir-v1.md)** open questions (section 14: [`ir-v1-expr.md`](../specs/ir-v1-expr.md#14-open-questions))
 
 - **specs/ir-v1.md#1** — V1 takes an app-supplied VirtualDataSource (count, keys, measure, build, release); in-memory or async-paged by the app; no nested virtualization. _resolved; virtualization-v1.md sections 3, 8 and 13._
 - **specs/ir-v1.md#2** — No #line or source maps in V1; IR spans are the only mapping and generated C++ stays map-free. _resolved; ir-v1.md section 8 (V1 omits #line)._

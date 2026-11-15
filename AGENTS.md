@@ -486,7 +486,15 @@ Acceptance: a `useState`/`useEffect`/`useRef` screen regenerates without losing 
       landed (`src/compiler/ids/src/assign_identity.cpp`, `tests/unit/ir_ids_stability_tests.cpp`)
       and cross-file props aliases landed
       (`src/compiler/lowering/src/type_alias_table.cpp`, `tests/unit/lowering_props_alias_tests.cpp`);
-      still to do: object-literal defaults (blocked on an IR record type).
+      the IR record type + spec landed (ADR-051 slices 1-2:
+      `src/compiler/ir/include/tessera/compiler/ir/types.hpp`, `IrModule.types` sorted by name,
+      `ExprKind::Record`/`make_record`, `src/compiler/ir/src/{types,validate_record,
+      validate_record_value}.cpp`, spec `docs/specs/ir-v1.md` §2.2/§4.3 with §9/§9.1/§12 in
+      `docs/specs/ir-v1-expr.md`, `irVersion` stays 1 and a module without records is byte-identical,
+      tests `ir_record_writer`/`ir_record_table`/`ir_record_value`).
+      Still to do: object-literal lowering for `useState` initials and prop defaults (ADR-051 slice 3),
+      then codegen struct + designated initialization (slice 4, after the #218/#219 codegen migration)
+      and evaluator parity (slice 5).
 - [x] Scene-side `EventType::Scroll` for virtual collections — dispatch test —
       `include/tessera/ui/scene/event.hpp`, `tests/unit/scene_scroll_event_tests.cpp`.
 - [x] Dynamic `orientation`/`columns`/`overscan` on virtual lists/grids — codegen runtime test —

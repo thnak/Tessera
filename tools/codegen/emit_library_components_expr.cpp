@@ -188,6 +188,11 @@ bool expr_source(const ir::Expr& expr, std::string& out, std::string& error) {
         }
         out = "ir::make_array(" + out + ")";
         return true;
+    case ir::ExprKind::Record:
+        // A record value (ADR-051 section 4.3) has no generated C++ form in this slice, so the IR
+        // source emitter rejects it rather than writing something codegen cannot consume.
+        error = "a record value has no generated IR-source form in this slice (ADR-051)";
+        return false;
     }
     std::string operands;
     if (!expr_list(expr.operands, operands, error)) {

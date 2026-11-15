@@ -11,7 +11,7 @@
 namespace tessera::compiler::ir {
 
 // docs/specs/ir-v1.md section 4.
-enum class ExprKind { Literal, Ref, Binary, Unary, Conditional, Template, Call, Array };
+enum class ExprKind { Literal, Ref, Binary, Unary, Conditional, Template, Call, Array, Record };
 
 struct Null {};
 // A literal is null, bool, int, float or string. Int and float stay distinct so the writer can
@@ -27,6 +27,14 @@ struct TemplatePart {
     ExprPtr expr;
 };
 
+// One field of a `record` expression (section 4.3): the member name and its value. Fields keep
+// member order; a value position literal may be written bare only in a JSON value position, so a
+// field value is always an expression object in the writer (like any other operand).
+struct RecordField {
+    std::string name;
+    ExprPtr value;
+};
+
 // Operand order: binary {left, right}; unary {value}; conditional {test, then, else};
 // call {args...}. A malformed operand count is reported by the validator, not by the type.
 struct Expr {
@@ -36,6 +44,8 @@ struct Expr {
     std::string op;                  // Binary, Unary
     std::vector<ExprPtr> operands;   // Binary, Unary, Conditional, Call
     std::vector<TemplatePart> parts; // Template
+    std::string type;                // Record: the declared record name
+    std::vector<RecordField> fields; // Record: one entry per member value, in member order
 };
 
 ExprPtr make_literal(LiteralValue value);
@@ -49,6 +59,10 @@ ExprPtr make_template(std::vector<TemplatePart> parts);
 // literal elements only, and only where the subset spec allows an array literal (a `useState`
 // initial of a declared `T[]` type, a list-loop source or a top-level constant).
 ExprPtr make_array(std::vector<ExprPtr> elements);
+// Record value (section 4.3, ADR-051): a declared record name plus one field per written member,
+// in member order. The first slice accepts literal, nested-record and array-of-literal field values
+// only; the validator is what enforces that and the field set.
+ExprPtr make_record(std::string type, std::vector<RecordField> fields);
 
 TemplatePart text_part(std::string text);
 TemplatePart expr_part(ExprPtr expr);
