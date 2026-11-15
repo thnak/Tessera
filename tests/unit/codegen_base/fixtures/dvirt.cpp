@@ -1,18 +1,12 @@
 // SPDX-License-Identifier: MIT
 //
-// ADR-040: the generated base of the `DynamicVirtual` fixture compiles with a developer class, and
-// every member of the template instantiates (explicit instantiation), not only the ones a test
-// calls.
+// ADR-040: the generated base of the `DynamicVirtual` fixture compiles with its developer class
+// (fixtures/DynamicVirtual.hpp, the same class the runtime test drives), and every member of the
+// template instantiates (explicit instantiation), not only the ones a test calls.
 
-#include "DynamicVirtual.g.hpp"
+#include "DynamicVirtual.hpp"
 
 namespace dvirt {
-
-class DynamicVirtual final : public gen::DynamicVirtualBase<DynamicVirtual> {
-public:
-private:
-    friend struct gen::DynamicVirtualBase<DynamicVirtual>;
-};
 
 template struct gen::DynamicVirtualBase<DynamicVirtual>;
 static_assert(gen::DynamicVirtualContract<DynamicVirtual>);
