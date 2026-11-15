@@ -14,6 +14,7 @@
 #include "window_impl.hpp"
 
 #include <array>
+#include <cmath>
 #include <cstddef>
 
 namespace tessera::app {
@@ -35,6 +36,7 @@ bool WindowHost::Impl::handle_window_event(const hal::WindowEvent& event) {
         return true;
     case hal::WindowEventType::Resize:
     case hal::WindowEventType::DpiChange:
+    case hal::WindowEventType::ScaleChanged:
         apply_metrics(window->metrics());
         // The client area moved, so every snapshot bound is stale. `apply_metrics` marks the
         // controller too; the explicit mark keeps the accessibility tree honest even when the
@@ -42,6 +44,25 @@ bool WindowHost::Impl::handle_window_event(const hal::WindowEvent& event) {
         if (accessibility != nullptr) {
             accessibility->mark_dirty();
         }
+        break;
+    // Display-capability events (docs/specs/os-events-v1.md section 2, ADR-023 rule 4): the new
+    // size/scale/refresh/work area is in the platform's metrics, so one snapshot push carries it.
+    // `apply_metrics` re-lays out, resizes the swapchain and marks the render dirty; the pacer also
+    // follows the reported refresh at this tick's frame boundary (apply_refresh_rate).
+    case hal::WindowEventType::RefreshRateChanged:
+        apply_metrics(window->metrics());
+        apply_refresh_rate();
+        break;
+    case hal::WindowEventType::WorkAreaChanged:
+    case hal::WindowEventType::DisplayChanged:
+    case hal::WindowEventType::DisplayAdded:
+    case hal::WindowEventType::DisplayRemoved:
+        // A topology/work-area change does not move the client area by itself, but it does change
+        // the display caps every layout and pacing decision reads, so the host takes the snapshot
+        // and the loop re-evaluates media queries at this tick.
+        apply_metrics(window->metrics());
+        apply_refresh_rate();
+        display_topology_changed = true;
         break;
     case hal::WindowEventType::SafeAreaChanged:
     case hal::WindowEventType::ImeChanged:
@@ -93,6 +114,76 @@ bool WindowHost::Impl::handle_window_event(const hal::WindowEvent& event) {
     return false;
 }
 
+// The display refresh the platform reports now reaches the pacer through its existing rate-change
+// path (docs/specs/performance.md section 6, step 3; docs/specs/os-events-v1.md section 11). A
+// refresh event is the OS saying the divisor base moved - a mode switch, a move onto a 120 Hz
+// monitor - so the present cap must re-derive from it at this tick's frame boundary instead of
+// keeping the creation-time value. An assumed 60 Hz (a platform that cannot report one) never
+// overrides an explicit `WindowOptions::refresh_hz`: `resolve_display_refresh_hz` already encoded
+// that precedence at creation, so this follows the same rule.
+void WindowHost::Impl::apply_refresh_rate() {
+    if (!available || window == nullptr) {
+        return;
+    }
+    const hal::WindowMetrics metrics = window->metrics();
+    // The event says the display caps are stale; the metrics carry the resolved value and its
+    // assumption flag, so an unmeasured 60 Hz never silently replaces a measured rate.
+    const double reported =
+        metrics.assumed.refresh_hz ? options.refresh_hz : static_cast<double>(metrics.refresh_hz);
+    const double resolved = hal::resolve_display_refresh_hz(
+        options.refresh_hz, static_cast<double>(metrics.refresh_hz));
+    // An explicit option still wins, so only a resolution that actually moved rewrites the pacer.
+    const double next = resolved > 0.0 ? resolved : reported;
+    if (!std::isfinite(next) || next <= 0.0 || next == options.refresh_hz) {
+        return;
+    }
+    options.refresh_hz = next;
+    // The pacer owns the deadline; its rate-change path resyncs to one interval after now, so the
+    // new refresh takes effect at the next frame boundary with no burst and no swapchain recreate.
+    pacer.update(runtime::FramePacerConfig{applied_present_cap_hz, options.refresh_hz, false},
+                 hal::steady_now_seconds());
+    ++stats.refresh_rate_changes;
+    // Media queries and rem units derive from the display caps, so the style environment changed.
+    loop->mark_render_dirty();
+}
+
+// The display topology re-read at a topology event's tick boundary (section 3: a `DisplayAdded`/
+// `DisplayRemoved`/`DisplayChanged` says the list is stale; the loop re-reads it once, not once per
+// event, so a hotplug storm costs one query). A backend with no per-monitor source reports zero
+// displays, which is the documented answer, not a fabricated monitor.
+bool WindowHost::Impl::sync_display_topology() {
+    if (!display_topology_changed) {
+        return false;
+    }
+    display_topology_changed = false;
+    if (!available || window == nullptr) {
+        return false;
+    }
+    const std::size_t count = window->displays(displays_);
+    const auto next_count =
+        static_cast<std::uint8_t>(count > displays_.size() ? displays_.size() : count);
+    bool changed = next_count != display_count_;
+    if (!changed) {
+        for (std::size_t index = 0; index < next_count; ++index) {
+            // A monitor's id is its identity, so a different id at any index is a topology change
+            // even when the count stayed the same (one monitor replaced by another).
+            if (displays_[index].id != last_displays_[index].id) {
+                changed = true;
+                break;
+            }
+        }
+    }
+    last_displays_ = displays_;
+    display_count_ = next_count;
+    stats.display_count = display_count_;
+    if (!changed) {
+        return false;
+    }
+    // The display list feeds resolution/media-query inputs, so the style environment is stale.
+    loop->mark_render_dirty();
+    return true;
+}
+
 // Step 3 of the design order: the controller's decided present cap reaches the pacer through the
 // pacer's existing rate-change path. `update()` resyncs the next deadline to one new interval after
 // `now_seconds`, so the change lands at the next frame boundary - no burst of catch-up frames, no
@@ -110,6 +201,11 @@ void WindowHost::Impl::apply_present_cap(double now_seconds) {
 }
 
 void WindowHost::Impl::pump_input() {
+    // Display topology at this iteration's tick boundary (docs/specs/os-events-v1.md section 3): a
+    // `DisplayAdded`/`DisplayRemoved`/`DisplayChanged` event from the drain above only marks the
+    // list stale; it is re-read here, once per tick, never inside the platform callback. Both
+    // driver paths call this immediately after their event drain, so the boundary is the same.
+    (void)sync_display_topology();
     const ui::InputPumpStats pumped = pump.pump(root, *loop);
     stats.input_events += static_cast<std::uint32_t>(pumped.consumed);
     if (subtree_dirty(root)) {

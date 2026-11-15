@@ -441,6 +441,17 @@ target_link_libraries(window_fullscreen_tests PRIVATE tessera_hal_window)
 
 add_test(NAME window_fullscreen COMMAND window_fullscreen_tests)
 
+# The normalized OS event model (docs/specs/os-events-v1.md sections 2-3, ADR-023 rules 5 and 7):
+# display-capability value rules and fallbacks, event-reason merging, the taxonomy's category/order/
+# coalescing/wake rules, the sequential staleness rule, and the total window-path mapping.
+# Pure CPU and display-free, so it runs identically on the Windows and Linux gating lanes.
+add_executable(os_event_tests
+    os_event_tests.cpp)
+
+target_link_libraries(os_event_tests PRIVATE tessera_hal_window)
+
+add_test(NAME os_event COMMAND os_event_tests)
+
 # The CSS cursor grammar and its diagnostics (issue #191, window-chrome-v1.md section 8.5). Pure CPU
 # and display-free: the real native cursor is covered by window_win32/window_x11 and the fake round
 # trip by window_cursor_fake.

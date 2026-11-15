@@ -340,10 +340,34 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
       falls back to the unchanged core path. Touch/pen/XIM were exercised only at the
       translation layer and on Xvfb (no touch/pen hardware, no IM server), and nothing paints
       the pre-edit yet because there is no text editor.
-- [ ] #156: **B3:** OS events (ADR-023, accepted): first slice is the normalized `OsEvent`/`WindowMetrics`/`FoldInfo`
+- [x] #156: **B3:** OS events (ADR-023, accepted): first slice is the normalized `OsEvent`/`WindowMetrics`/`FoldInfo`
       types, a synthetic event injector, and display-capability events on Windows and X11 (DPI, scale,
       refresh, work area) — synthetic display scripts pass; fold/posture/hinge backends are post-V1
-      (Android).
+      (Android). The taxonomy is `include/tessera/hal/os_event.hpp` (48 `OsEventType` enumerators,
+      category/order/coalescing/wake rules, `kOsEventTypeCount` compile-checked against the rules
+      table) with `display.hpp` (`DisplayId`, `DisplayInfo`, `Orientation`), `event_reason.hpp` and
+      `synthetic_events.hpp`; the platform-neutral halves are `src/hal/window/{os_event,display,
+      event_reason,window_events,synthetic_events}.cpp`, and the window path projects onto the
+      taxonomy through `os_event_type_for` (total, `static_assert`-checked table). `WindowMetrics`
+      grows the display fields (`display`, `refresh_hz`, `work_area`, `orientation`, VRR/PiP, each
+      with an `*_assumed` flag per ADR-023 rule 7) plus six new `WindowEventType` values
+      (`RefreshRateChanged`, `WorkAreaChanged`, `DisplayAdded/Removed/Changed`, `ScaleChanged`); the
+      struct is byte-packed and guarded by `kWindowMetricsSizeBudget` (384) with a `static_assert`.
+      The platform halves are `src/platform/windows/window_display_win.cpp` +
+      `window_display_messages_win.cpp` + `window_dpi_win.cpp` (per-monitor reads via
+      `GetDpiForMonitor`/`shcore`, mode + work area, the display/settings message classification)
+      and `src/platform/linux/x11_display.cpp` + `x11_randr_monitors.cpp` (`Xft.dpi`, `_NET_WORKAREA`,
+      RandR monitors/modes, RandR event normalization), all split out so neither window TU grows.
+      Evidence: `os_event` (`tests/unit/os_event_tests.cpp`) covers the taxonomy, ordering,
+      coalescing, staleness, the total window-path mapping and the 48/18 counts; `os_event_display`
+      (`tests/unit/harness/os_event_display_tests.cpp`) drives the four synthetic scripts (resize/DPI
+      storm, hotplug, scale change, refresh change) through `SyntheticEventInjector` and the fake
+      window's `poll_events`, asserting the recorded 60 Hz/1.0 assumptions and that an unknown event
+      is ignored without a crash. Verified on Windows (Release, `/WX`) and Linux (`dev`): both build
+      clean and the window/display/metrics/event suites pass; the full Linux failure set is identical
+      to the pristine baseline (no Vulkan validation layer on that box). Not exercised: live
+      hotplug/DPI on real second-monitor hardware (synthetic scripts are the deterministic evidence),
+      and Wayland display capabilities (no producer in this slice).
 - [x] #227: Effective opacity multiplies down the subtree (children fade with their parent) —
       `src/ui/paint/paint_pass.cpp` (ancestor product folded into every primitive), paint-cache key
       (`PaintCacheSignature::opacity_bits`), `Node::mark_subtree_dirty` on an animated opacity,
@@ -876,15 +900,18 @@ both ADR-048 blob artifacts (compiled stylesheets registered in import-graph ord
 `@layer tessera-ui`, and the embedded theme asset loaded without parsing); in-tree UIA and AT-SPI2
 bridges not yet installed in a host; and the first WebGPU slice (unbuilt on host).
 
-**Farm order:** V1-M1 and V1-M2 first. Remaining unblocked M2 slice: the ADR-040 generated-base
-migration (the last #70 leftover, object-literal prop defaults, is blocked on an IR record type).
-Remaining M1 slices, in order of what is actually startable: the B3 Wayland window, then the two
-items waiting on a definition — the remaining power steps
-([#147](https://github.com/thnak/Tessera/issues/147)) and the interpolation alpha threshold
-([#148](https://github.com/thnak/Tessera/issues/148)); the B3 OS-event item still waits on
-ADR-023. V1-M3 and V1-M5 wait for their design PRs
-(#83/#84 ADR-049 and shader chain, #85 ADR-050); only ADR-050 AF1 may start now. V1-M4, V1-M6, V1-M7
-and V1-M8 come later.
+**Farm order:** V1-M1 is now complete (the B3 Wayland window and the B3 OS-event slice both landed),
+so the farm moves to V1-M2: the ADR-040 one-path migration (#218 migrates the codegen test families
+to the generated base, then #219 deletes the legacy output, the merger and `EmitMode`), the doc slice
+#211, and #158 (object-literal prop defaults, ADR-051). V1-M3 closes with one small docs+CI slice:
+#159's shader machinery is already on `main` — `shader_id`, the `ShaderRegistry`, the portable GLSL
+branch, `shader_parity`, `TESSERA_SHADER_CROSS` and `tools/shaders/manifest.json` all exist, PR #84
+merged 2026-11-12, and ADR-049's own follow-up records it — so only the `shader-manifest-v1.md`
+id-to-source table and a `TESSERA_SHADER_CROSS=ON` CI lane remain. V1-M4 cannot start without
+Emscripten: `EMSDK` is unset and there is no `emcc` on PATH, which the `wasm-webgpu` preset requires,
+so #164 is blocked on tooling rather than sequencing. V1-M5 is unblocked (ADR-050 is Accepted) and
+AF1 (#173) may start now. V1-M6, V1-M7 (#187 now has the #156 display/event seam it needed) and V1-M8
+come later.
 
 **V1 gaps added 2026-11-13 (ready now):** #226, #227, #229, #230, #231 and #235 (front end, style and
 paint gaps that make V1 look unfinished), #228 (multi-window refactor, before AF6), #232, #233,

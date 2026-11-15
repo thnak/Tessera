@@ -161,6 +161,13 @@ struct WindowFrameStats {
     // run starts, and the opaque fallback reports the first two as `NoMaterial`/false.
     hal::BackdropMaterial backdrop = hal::BackdropMaterial::NoMaterial;
     bool transparent = false;
+    // Display capabilities (docs/specs/os-events-v1.md sections 2 and 11, ADR-023 rule 4): how many
+    // times a `RefreshRateChanged`/topology event moved the pacer's divisor base away from its
+    // creation-time value (0 for a static window), and the topology list length read at the last
+    // display event (0 when the backend has no per-monitor source). The display id and refresh are
+    // already observable through `WindowMetrics`, so they are not duplicated here.
+    std::uint32_t refresh_rate_changes = 0;
+    std::uint8_t display_count = 0;
 };
 
 // The production window driver: owns the platform window, the Vulkan device + swapchain, the

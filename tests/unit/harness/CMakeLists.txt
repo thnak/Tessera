@@ -272,6 +272,18 @@ target_include_directories(cutout_tests PRIVATE
 
 add_test(NAME cutout COMMAND cutout_tests)
 
+# Synthetic display scripts (docs/specs/os-events-v1.md section 12, ADR-023 rule 8): the resize/DPI
+# storm, display hotplug, scale change and refresh-rate change, plus the documented fallbacks, the
+# "unknown event is ignored" rule and a deterministic replay. Deterministic and OS-free: it drives
+# the fake window's `poll_events` seam, which is the same one a platform backend fills, so the same
+# script runs on the Windows and Linux gating lanes.
+add_executable(os_event_display_tests
+    os_event_display_tests.cpp)
+
+target_link_libraries(os_event_display_tests PRIVATE tessera_harness_testing)
+
+add_test(NAME os_event_display COMMAND os_event_display_tests)
+
 # SafeArea inset arithmetic (#223, docs/specs/safe-area-v1.md): edges, sources, minimum, start/end
 # under RTL, cutout and hinge insets, and the notched, gesture-navigation, keyboard and book-mode
 # metrics, all with the fake window.

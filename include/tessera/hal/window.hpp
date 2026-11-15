@@ -4,6 +4,8 @@
 
 #include "tessera/hal/caption.hpp"
 #include "tessera/hal/cursor.hpp"
+#include "tessera/hal/display.hpp"
+#include "tessera/hal/event_reason.hpp"
 #include "tessera/hal/geometry.hpp"
 #include "tessera/hal/refresh_rate.hpp"
 #include "tessera/hal/window_backdrop.hpp"
@@ -14,6 +16,7 @@
 #include <memory>
 #include <span>
 #include <string>
+#include <string_view>
 
 namespace tessera::ui {
 class InputQueue;
@@ -96,7 +99,56 @@ struct WindowMetrics {
     // one report the same resolved value. `Default` is the platform arrow and every window starts
     // there.
     CursorShape cursor = CursorShape::Default;
+
+    // --- display capabilities (docs/specs/os-events-v1.md section 2, ADR-023 rule 4) -----------
+    // The display this window is on. `kNoDisplayId` when the backend cannot say (a headless or fake
+    // window), in which case the per-display fields below are the documented fallbacks.
+    DisplayId display = kNoDisplayId;
+    // The display's current refresh rate, in Hz. It is the value the platform reports now (not the
+    // creation-time `display_refresh_hz()` query), so a `RefreshRateChanged` event carries the new
+    // rate in its metrics. `kAssumedDisplayRefreshHz` (60) when the platform cannot report one.
+    float refresh_hz = kAssumedDisplayRefreshHz;
+    // The usable area of the display the window is on, in the display's logical coordinate space
+    // (excludes taskbars/docks/panels). Falls back to the window's client area at the origin when
+    // the platform has no work-area query.
+    WindowRect work_area;
+    // The window's aspect orientation, derived from its logical size when the platform has no
+    // rotation source (which is every desktop backend).
+    Orientation orientation = Orientation::Landscape;
+    // ADR-023 rule 7: every capability the platform may not be able to measure carries an
+    // "assumed" bit here, so a consumer can never mistake the documented fallback (60 Hz, 1.0) for
+    // a measurement. Packed into one byte instead of four separate bools + padding: the metrics are
+    // copied into every event, so the padding would otherwise cost 3 bytes per copy.
+    struct DisplayAssumptions {
+        std::uint8_t refresh_hz : 1;  // the refresh is the 60 Hz fallback, not measured
+        std::uint8_t vrr : 1;         // VRR support is unknown, not "off"
+        std::uint8_t work_area : 1;   // the work area is the window's client area
+        std::uint8_t orientation : 1; // the orientation is derived from the extent
+    };
+    // All bits set: a default-constructed snapshot has measured nothing.
+    DisplayAssumptions assumed{1, 1, 1, 1};
+    // The display's non-trivial boolean state, packed for the same reason as `assumed`: three
+    // separate bools would cost a byte each plus padding in a struct copied with every event.
+    struct DisplayFlags {
+        std::uint8_t vrr : 1;                // the display follows the content rate
+        std::uint8_t multi_window : 1;       // multi-window split-screen state
+        std::uint8_t picture_in_picture : 1; // PiP state
+    };
+    DisplayFlags flags{};
 };
+
+// Budget for the per-event metrics snapshot. `WindowMetrics` is embedded in `WindowEvent`, which
+// the platform event ring and the pump path copy, and `OsEvent` copies it again, so its size is a
+// hot-path cost, not an ergonomics question: the same guardrail as `kNodeSizeBudget` for `Node`
+// (docs/guides/code-style.md). `sizeof(WindowMetrics)` is 376 today, so this budget leaves 8 bytes
+// of headroom for one small future field; growing past it needs a deliberate decision and an
+// updated comment, not an accidental struct member.
+inline constexpr std::size_t kWindowMetricsSizeBudget = 384;
+
+static_assert(
+    sizeof(WindowMetrics) <= kWindowMetricsSizeBudget,
+    "WindowMetrics is copied per event and per pump; keep it within kWindowMetricsSizeBudget "
+    "(or group new fields, or update the budget deliberately)");
 
 enum class WindowEventType {
     Resize,
@@ -120,6 +172,25 @@ enum class WindowEventType {
     // The fold state or hinge rectangle changed; the metrics carry `fold`. Consecutive ones
     // coalesce into the newest.
     FoldChanged,
+    // --- display capabilities (docs/specs/os-events-v1.md section 2) --------------------------
+    // The display's refresh rate changed (a mode change, a move to another monitor, a VRR
+    // renegotiation). The metrics carry the new `refresh_hz`/`vrr`. Coalesces into the newest.
+    RefreshRateChanged,
+    // The window's display work area changed (a taskbar moved, a dock appeared or hid). The metrics
+    // carry the new `work_area`. Coalesces into the newest.
+    WorkAreaChanged,
+    // A display was added to or removed from the desktop. The metrics describe the display the
+    // window is on now, so a window that lost its monitor to a hotplug reports its new one.
+    // `display` on the event names the display that appeared or disappeared.
+    DisplayAdded,
+    DisplayRemoved,
+    // An existing display changed (its mode, position or scale) without being added or removed.
+    // Coalesces into the newest.
+    DisplayChanged,
+    // The window moved to a display with another device scale, but its own `dpi_scale` did not
+    // change (a same-scale monitor swap, a compositor scale change). The metrics carry the new
+    // `display`/`scale`.
+    ScaleChanged,
 };
 
 // The window-system family a platform window belongs to. It is the one fact the renderer needs to
@@ -134,6 +205,36 @@ enum class WindowSystem : std::uint8_t {
     Wayland,
 };
 
+// The number of `WindowEventType` enumerators. The rules table is indexed by the enumerator value
+// and compile-time checked against this count, so an enumerator added without a row fails the
+// build.
+inline constexpr std::size_t kWindowEventTypeCount = 18;
+
+// What a window event is about, above its concrete `WindowEventType`: section 3's fixed delivery
+// order is these categories in ascending order. Keeping the category separate from the concrete
+// type means a new event type sorts correctly the moment its category is known, and the loop's
+// ordering rule is one comparison instead of a table of types.
+enum class WindowEventCategory : std::uint8_t {
+    // Created/shown/hidden/closed/focused/blurred/minimized: lifecycle transitions.
+    Lifecycle,
+    // Resize/move/DPI/display/scale/refresh/work area: geometry and display capabilities.
+    Display,
+    // Insets, IME, fold: geometry that is not the display's.
+    Geometry,
+    // Reduced motion and other OS user settings.
+    Settings,
+};
+
+// The category `type` belongs to. An out-of-range value is `Settings`, which sorts last: a value
+// this build does not understand can never jump ahead of a lifecycle transition.
+[[nodiscard]] WindowEventCategory window_event_category(WindowEventType type) noexcept;
+
+// The position of `type`'s category in the fixed delivery order (Lifecycle 0 ... Settings 3).
+[[nodiscard]] int window_event_order_rank(WindowEventType type) noexcept;
+
+// True when consecutive events of `type` coalesce into the newest (section 3: resize, move, DPI,
+// scale, refresh, insets). Lifecycle transitions never coalesce and return false.
+[[nodiscard]] bool window_event_coalesces(WindowEventType type) noexcept;
 // Opaque native handles for renderer integration; UI/components must keep using WindowMetrics.
 // Win32: `window` is the HWND, `display` is unused. X11: `display` is the Display* and `window` the
 // Window id. Wayland: `display` is the wl_display* and `window` the wl_surface*.
@@ -158,6 +259,12 @@ struct AccessibilityHostHandle {
 struct WindowEvent {
     WindowEventType type = WindowEventType::Resize;
     WindowMetrics metrics;
+    // Why the event happened (docs/specs/os-events-v1.md section 2). A platform records it when it
+    // knows; coalescing keeps the newest non-`Unspecified` reason instead of dropping it.
+    EventReason reason = EventReason::Unspecified;
+    // Monotonically increasing per window; a value at or below the newest delivered one is stale
+    // and must be discarded (section 3). 0 means "not stamped", which is never stale.
+    std::uint64_t sequence = 0;
 };
 
 // Answers one WM_GETOBJECT (or the platform equivalent) for the window. `object_id` is the OS
@@ -217,6 +324,20 @@ public:
     // that have no display-refresh source.
     [[nodiscard]] virtual double display_refresh_hz() const noexcept {
         return kUnknownRefreshHz;
+    }
+
+    // Copies the current display topology into `displays` and returns the count written, at most
+    // `kMaxDisplays`. `DisplayInfo` is the per-monitor list; `WindowMetrics` carries only the
+    // capabilities of the display this window is on, so a caller that needs the others reads them
+    // here. A platform without a topology query leaves the span untouched and returns 0, which is
+    // the documented "no per-monitor information" answer, never a fabricated monitor.
+    //
+    // It is a state query, not an event: a `DisplayAdded`/`DisplayRemoved`/`DisplayChanged` event
+    // says the list is stale, and the loop re-reads it at that tick's boundary. Must be called on
+    // the thread that created the window. The default returns 0, for platforms with no topology.
+    virtual std::size_t displays(std::span<DisplayInfo> displays) const {
+        (void)displays;
+        return 0;
     }
 
     // Copies pending events oldest first into `events` and returns the count written. Events that

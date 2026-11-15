@@ -33,6 +33,15 @@ int main() {
     static_assert(std::is_abstract_v<Window>, "Window must be a pure interface");
     static_assert(std::is_default_constructible_v<WindowMetrics>,
                   "WindowMetrics must be default-constructible");
+    // The per-event footprint budget (docs/design/hal.md section 1.6). WindowMetrics is embedded in
+    // WindowEvent, which the platform event ring and the pump path copy, and OsEvent copies it
+    // again, so its size is a hot-path cost. The header has the same assertion; repeating it here
+    // names the budget in the suite that documents the value type, and fails a build that changes
+    // the layout.
+    static_assert(sizeof(WindowMetrics) <= tessera::hal::kWindowMetricsSizeBudget,
+                  "WindowMetrics must stay within kWindowMetricsSizeBudget");
+    static_assert(tessera::hal::kWindowMetricsSizeBudget == 384,
+                  "the documented WindowMetrics budget is 384 bytes");
 
     const WindowMetrics defaults;
     if (!expect(defaults.logical_width == 0 && defaults.logical_height == 0,
@@ -46,6 +55,14 @@ int main() {
         !expect(defaults.focused, "default focused") ||
         !expect(!defaults.occluded, "default not occluded") ||
         !expect(!defaults.minimized, "default not minimized") ||
+        // Display capabilities default to the documented fallbacks, each recorded as assumed
+        // (ADR-023 rule 7), so a default snapshot never looks measured.
+        !expect(defaults.display == tessera::hal::kNoDisplayId, "default display is unknown") ||
+        !expect(near(defaults.refresh_hz, tessera::hal::kAssumedDisplayRefreshHz),
+                "default refresh is the 60 Hz fallback") ||
+        !expect(defaults.assumed.refresh_hz != 0 && defaults.assumed.vrr != 0 &&
+                    defaults.assumed.work_area != 0 && defaults.assumed.orientation != 0,
+                "every unmeasured capability is recorded as assumed") ||
         // The default window is opaque with no OS material (glass-v1.md section 6).
         !expect(defaults.backdrop == BackdropMaterial::NoMaterial, "default backdrop none") ||
         !expect(!defaults.transparent, "default opaque") ||

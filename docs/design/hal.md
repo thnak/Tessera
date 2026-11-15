@@ -116,7 +116,6 @@ changes are not tracked in this slice; the OS-event display-capabilities item in
 [`os-events-v1.md`](../specs/os-events-v1.md) owns that.
 
 ### 1.5 Cursor shape (implemented, Windows and Linux/X11)
-
 `hal::Window::set_cursor(hal::CursorShape)` is the pointer-shape seam (window-chrome-v1.md section
 8.5, issue #191); `supports_cursor()` says whether the platform can do it at all, and
 `WindowMetrics::cursor` reports the shape the platform resolved, not the last request. `CursorShape`
@@ -130,6 +129,59 @@ the app reports one `TESSERA_WINDOW_CURSOR_UNSUPPORTED`. The value names are pur
 metrics dump and the app's mapping are testable without a display; the platform halves are
 `src/platform/windows/window_cursor_win.*` and `src/platform/linux/window_cursor_x11.*`. Tests:
 `window_cursor`, `window_cursor_fake`, `window_win32`, `window_x11`.
+
+### 1.6 Display capabilities and normalized events (implemented, Windows and Linux/X11)
+
+The first ADR-023 slice is `include/tessera/hal/os_event.hpp` (`OsEventType`, `OsEvent`,
+`OsEventSequence`), `include/tessera/hal/display.hpp` (`WindowId`/`DisplayId`, `DisplayInfo`,
+`Orientation`, `ColorGamut`, and the documented fallback helpers) and
+`include/tessera/hal/event_reason.hpp`. The normative rules are in
+[`os-events-v1.md`](../specs/os-events-v1.md) sections 2-3; this section records the shape.
+
+`WindowMetrics` carries the capability half as plain values, with an "assumed" bit next to every one
+the platform may not be able to measure: `display`, `refresh_hz`/`assumed.refresh_hz`,
+`vrr`/`assumed.vrr`, `work_area`/`assumed.work_area`, `orientation`/`assumed.orientation`, plus
+`multi_window` and `picture_in_picture`. The four bits share one byte (`DisplayAssumptions`) instead
+of four separate `bool`s, because the metrics are copied into every event: the padding would
+otherwise cost three bytes per copy. `kAssumedDisplayRefreshHz` (60) and `kAssumedDisplayScale` (1.0)
+are the documented fallbacks (ADR-023 rule 7) and the flags are what stop a fallback being read as a
+measurement. There is **no** separate `DisplayCapabilities` type: the metrics are the per-event
+snapshot, copied with every event, so they stay cheap and allocation-free. The per-monitor topology
+is the separate `DisplayInfo` list `hal::Window::displays()` fills (at most `kMaxDisplays`), re-read
+once per tick after a `DisplayAdded`/`DisplayRemoved`/`DisplayChanged` event - never polled per frame.
+
+`kWindowMetricsSizeBudget` (384 bytes) is a `static_assert` on `sizeof(WindowMetrics)`: the struct is
+copied by the platform event ring, the pump path and `OsEvent`, so it is a hot-path cost in the same
+way `kNodeSizeBudget` guards `Node`. It has headroom for a few more capability fields; growing past it
+needs a deliberate decision rather than an accidental struct member.
+
+`WindowEvent` gained `EventReason` and a monotonic `sequence`; `WindowEventType` gained
+`RefreshRateChanged`, `WorkAreaChanged`, `DisplayAdded`, `DisplayRemoved`, `DisplayChanged` and
+`ScaleChanged`. The window path is a projection of the `OsEvent` taxonomy: `os_event_type_for` maps
+every enumerator (table-driven, so an unmapped one is a compile error), and the delivery order of
+section 3 is derived from the mapped `OsEventType` rather than duplicated.
+
+Platform halves, all of which only record:
+
+- Windows (`src/platform/windows/window_display_win.*`, `window_display_messages_win.*`,
+  `window_dpi_win.*`): `GetMonitorInfoW` + `EnumDisplaySettingsExW` + `GetDpiForMonitor` fill the
+  metrics (work area, refresh, per-monitor scale, orientation) and `displays()`; the monitor device
+  interface (`RegisterDeviceNotificationW`) plus `WM_DISPLAYCHANGE`/`WM_DPICHANGED`/
+  `WM_SETTINGCHANGE` become the normalized events.
+- Linux/X11 (`src/platform/linux/x11_display.*`, `x11_randr_monitors.*`): `_NET_WORKAREA` for the
+  work area, RandR for the monitor list and the active CRTC's refresh, with
+  `RRScreenChangeNotify`/`RRNotify` selected at creation (and `XRRUpdateConfiguration` before any
+  RandR read).
+
+The app driver (`src/app/window_lifecycle.cpp`) takes one metrics snapshot at the tick boundary,
+follows a refresh change through the pacer's existing rate-change path (no stall, no swapchain
+recreation), and re-reads the topology once per tick. The synthetic injector
+(`include/tessera/hal/synthetic_events.hpp`) provides the deterministic scripts: resize/DPI storm,
+display hotplug, scale change and refresh change.
+
+Tests: `os_event` (the pure rules and the mapping) and `os_event_display` (the scripts through the
+fake window). Both are OS-free and run on the Windows and Linux gating lanes; the real platform reads
+are covered by `window_win32`/`window_x11`.
 
 ## 2. Core types
 

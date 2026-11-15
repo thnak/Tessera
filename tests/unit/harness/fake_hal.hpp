@@ -10,9 +10,11 @@
 #pragma once
 
 #include "tessera/hal/cutout.hpp"
+#include "tessera/hal/display.hpp"
 #include "tessera/hal/window.hpp"
 #include "tessera/harness/session.hpp"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <deque>
@@ -120,6 +122,26 @@ public:
     // Counts `set_cursor` calls, so a test can prove the app only asks on a change.
     [[nodiscard]] std::size_t cursor_requests() const noexcept;
 
+    // --- display capabilities (docs/specs/os-events-v1.md section 2, ADR-023 rules 4 and 7) -----
+    // Sets the display the window is on and the refresh/VRR the platform reports. `assumed` models
+    // the documented fallback (a platform that cannot report the capability): the metrics keep
+    // kAssumedDisplayRefreshHz/kAssumedDisplayScale and set the matching flag, which is what a
+    // consumer must be able to see instead of a value presented as measured.
+    void set_display(hal::DisplayId id, float refresh_hz, bool vrr = false);
+    // Records a refresh change and queues one `RefreshRateChanged` carrying the new metrics; a
+    // consecutive one coalesces like a platform queue.
+    void set_refresh_rate(float refresh_hz, bool assumed = false);
+    // Records a work-area change and queues one `WorkAreaChanged` (coalescing).
+    void set_work_area(const hal::WindowRect& work_area);
+    // Records the per-monitor topology the fake reports from `displays()`. Capped at
+    // `hal::kMaxDisplays`; the extras are dropped. A test scripts a hotplug by replacing it and
+    // queuing `DisplayAdded`/`DisplayRemoved`.
+    void set_displays(std::span<const hal::DisplayInfo> displays);
+    // Queues the display event a script wants and, for an add/remove, applies the topology change
+    // first so the event's metrics and the list agree.
+    void push_display_event(hal::WindowEventType type, hal::DisplayId display = hal::kNoDisplayId);
+    [[nodiscard]] std::size_t displays(std::span<hal::DisplayInfo> displays) const override;
+
     [[nodiscard]] bool has_queued(hal::WindowEventType type) const noexcept;
     [[nodiscard]] std::size_t queued_events() const noexcept;
     [[nodiscard]] std::size_t dropped_events() const noexcept;
@@ -133,6 +155,10 @@ private:
 
     hal::WindowMetrics metrics_;
     std::deque<hal::WindowEvent> events_;
+    // The per-monitor topology `displays()` reports; a fake with no topology source leaves it empty
+    // and reports 0, which is the documented "no per-monitor information" answer.
+    std::array<hal::DisplayInfo, hal::kMaxDisplays> displays_{};
+    std::size_t display_count_ = 0;
     std::size_t dropped_events_ = 0;
     std::size_t redraw_requests_ = 0;
     bool visible_ = true;
