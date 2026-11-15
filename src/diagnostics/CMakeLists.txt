@@ -23,3 +23,15 @@ target_compile_features(tessera_diagnostics PUBLIC cxx_std_23)
 if(WIN32)
     target_link_libraries(tessera_diagnostics PRIVATE psapi)
 endif()
+
+# Frame-budget metrics (#183, docs/specs/chart-node-v1.md section 7): the recorder's registration,
+# overrun rule and the overlay's budget line. Registered from this subdirectory so the lane does not
+# edit the shared tests/unit registry while other lanes are working in it.
+if (TESSERA_BUILD_TESTS)
+    enable_testing()
+
+    add_executable(frame_budget_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/frame_budget_tests.cpp)
+    target_link_libraries(frame_budget_tests PRIVATE tessera_diagnostics)
+    add_test(NAME frame_budget COMMAND frame_budget_tests)
+endif()

@@ -57,6 +57,27 @@ int main() {
         return 3;
     }
 
+    // Issue #183: a configured budget adds exactly one line between the damage summary and the
+    // metrics, and the summary lines keep their existing format.
+    frame.frame_ms = 12.0;
+    frame.budget_ms = 16.666;
+    frame.budget_overruns = 0;
+    const auto budgeted = OverlayModel::build(frame, metrics, 1);
+    if (!expect(budgeted.size() == 4, "summary + budget + one metric") ||
+        !expect(budgeted[0] == "frame 42  steps 2  completions 3/1", "frame line unchanged") ||
+        !expect(budgeted[1] == "damage 5  scissors 2  full yes", "damage line unchanged") ||
+        !expect(budgeted[2] == "frame 12.0ms  budget 16.7ms  ok  overruns 0", "budget line") ||
+        !expect(budgeted[3] == "paint.draw_calls 12", "metric after the budget line")) {
+        return 4;
+    }
+    frame.frame_ms = 21.25;
+    frame.budget_overruns = 3;
+    const auto over = OverlayModel::build(frame, {}, 4);
+    if (!expect(over.size() == 3, "budget line only") ||
+        !expect(over[2] == "frame 21.3ms  budget 16.7ms  OVER  overruns 3", "over-budget line")) {
+        return 5;
+    }
+
     std::cout << "diagnostics_overlay: ok\n";
     return 0;
 }

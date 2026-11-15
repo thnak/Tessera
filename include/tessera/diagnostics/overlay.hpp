@@ -22,6 +22,13 @@ struct OverlayFrame {
     std::size_t damage_rects = 0;
     std::size_t scissors = 0;
     bool full_redraw = false;
+    // Frame budget (issue #183, docs/specs/chart-node-v1.md section 7): the duration of the frame
+    // just completed and the budget it is judged against. `budget_ms` of 0 means no budget is
+    // configured, and the overlay then omits the budget line entirely rather than printing a
+    // meaningless ratio.
+    double frame_ms = 0.0;
+    double budget_ms = 0.0;
+    std::uint64_t budget_overruns = 0;
 };
 
 // Builds short overlay lines from a frame snapshot and metric values. No allocation happens per

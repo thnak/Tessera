@@ -165,7 +165,8 @@ false; only destruction, move assignment or a new ring replaces it.
 
 ## 10. Non-goals
 
-- Chart nodes, axes, scales, decimation, rendering and damage: #183.
+- Chart nodes, axes, scales, decimation, rendering and damage: #183, now specified in
+  [`chart-node-v1.md`](chart-node-v1.md) (which builds on the ring defined here).
 - Multi-series aggregation, legend or tooltip state: component library work after #183.
 - Persisting series data, cross-thread queues, or a new data transport: app/DataStore concerns.
 - Resizable series storage: capacity is fixed. A resized chart constructs a new ring and copies the
