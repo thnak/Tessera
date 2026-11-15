@@ -554,8 +554,14 @@ ADR-049 is Accepted and the shader chain is on `main`; WebGPU is Tier 1: its CI 
 Acceptance: a screen previews in a browser and matches native output within the golden tolerance.
 Stages P0-P7 are planned in `docs/design/reference-equantic-ui.md`.
 
-- [ ] #164: P0: Emscripten preset, compiler in Wasm — IR byte-identical to native for
-      `samples/parity-demo/Counter.tsx`.
+- [x] #164: P0: Emscripten preset, compiler in Wasm — IR byte-identical to native for
+      `samples/parity-demo/Counter.tsx`. Evidence: `wasm-compiler` build preset (the Emscripten
+      `wasm-webgpu` configure with a compiler-only target set), the CLI's Emscripten-only
+      `-sNODERAWFS=1 -sENVIRONMENT=node` link options (`src/compiler/codegen/CMakeLists.txt`), the
+      gate `scripts/ci/wasm_ir_parity.py` (IR plus generated C++, byte-for-byte), the `wasm-parity`
+      job in `.github/workflows/webgpu.yml`, and `docs/design/compiler-wasm.md`. Both sides emit
+      4542 bytes of IR with SHA-256 `fa9989b1...f52fa9`; three repeated runs reported
+      `unique_digests=1`, and the four generated C++ files match byte-for-byte too.
 - [ ] #165: P1: diagnostics-only page on GitHub Pages — diagnostics match native.
 - [ ] #166: P2: evaluator (ADR-037) + scene + layout on the null RHI — snapshot equals native harness.
 - [ ] #167: P3: WebGPU canvas preview — within tolerance of the lavapipe golden (needs M3).

@@ -116,6 +116,14 @@
         "tessera_webgpu_mapping",
         "webgpu_wasm_smoke"
       ]
+    },
+    {
+      "name": "wasm-compiler",
+      "description": "Wasm/Node build of tessera_codegen_cli for the native-vs-Wasm IR parity gate (issue #164)",
+      "configurePreset": "wasm-webgpu",
+      "targets": [
+        "tessera_codegen_cli"
+      ]
     }
   ],
   "testPresets": [
