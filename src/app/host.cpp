@@ -152,24 +152,6 @@ runtime::AdaptiveQualityConfig quality_controller_config(const AdaptiveQualityPo
     return config;
 }
 
-// True when some visible node paints a blurred outer shadow: the effect the first ladder position
-// reduces. Read from the outsets the style sync already stores on each node, so it needs no style
-// resolution. Allocation-free; it runs only on the observation that changes the ladder position.
-bool scene_has_blurred_shadow(const ui::Node& node) noexcept {
-    if (!node.rendered()) {
-        return false;
-    }
-    if (node.paint_outsets().blurred) {
-        return true;
-    }
-    for (const auto& child : node.children()) {
-        if (scene_has_blurred_shadow(*child)) {
-            return true;
-        }
-    }
-    return false;
-}
-
 } // namespace
 
 AppHost::Impl::Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet, runtime::RuntimeLoop& loop,
@@ -182,7 +164,14 @@ AppHost::Impl::Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet, runtime
       engine(config.text_measurer),
       damage(std::make_unique<rendering::DamageAccumulator>(rendering::DamageConfig{
           extent_for(config.width, config.height, config.dpi_scale), config.damage_max_rects})),
-      quality_controller(quality_controller_config(config.adaptive_quality)) {
+      // A decision either changes pixels (reduced effects, so a full repaint covers it) or stops
+      // animations (so resuming has to wake an idle loop). Both rules live in the stage.
+      quality(detail::QualityStageContext{&scene_has_blurred_shadow_callback,
+                                          &non_essential_animations_callback,
+                                          &set_reduce_effects_callback,
+                                          &set_animations_paused_callback, &frame_diagnostics,
+                                          this},
+              quality_controller_config(config.adaptive_quality)) {
     // The OS appearance the window reported at creation (issue #187). It must be in place BEFORE
     // the first cascade: `@media (prefers-color-scheme)` / `(prefers-reduced-motion)` are resolved
     // there, so a host built with the appearance applied already matches the desktop.
@@ -213,7 +202,7 @@ AppHost::Impl::Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet, runtime
     // Publish the full-quality decision before the first frame, so diagnostics and
     // adaptive_quality() agree from the start instead of reporting a default 1.0 scale for a window
     // configured at another renderScale.
-    frame_diagnostics.record_adaptive_quality(quality_controller.decision());
+    quality.publish();
 }
 
 void AppHost::Impl::apply_root_size() {
@@ -507,42 +496,13 @@ void AppHost::observe_frame_time_ms(double frame_time_ms) {
 
 void AppHost::observe_frame_time_sample(double cpu_frame_time_ms,
                                         std::optional<double> gpu_frame_time_ms) {
-    Impl& state = *impl_;
-    // The pure rule (frame_time_source.hpp) picks the signal; the capability decision was already
-    // made by the device probe, so the worst case here is a CPU fallback, never a guessed GPU
-    // number. The controller returns the decision in force with this frame's change flags;
-    // recording it always keeps the latest scale readable and only counts the frames that changed
-    // something.
-    const runtime::FrameTimeSample sample =
-        runtime::select_frame_time(cpu_frame_time_ms, gpu_frame_time_ms);
-    state.frame_diagnostics.record_frame_time_source(sample.source);
-    // The probe is read only when the controller is about to change position
-    // (adaptive_quality.hpp), so the scene walk below costs nothing on an ordinary frame.
-    const runtime::AdaptiveQualityStageProbe probe{
-        [](const void* context) noexcept {
-            return scene_has_blurred_shadow(static_cast<const Impl*>(context)->root);
-        },
-        [](const void* context) noexcept {
-            return static_cast<const Impl*>(context)->animations.non_essential_active() > 0;
-        },
-        &state};
-    const runtime::AdaptiveQualitySample decision =
-        state.quality_controller.observe(sample.frame_time_ms, probe);
-    state.frame_diagnostics.record_adaptive_quality(decision);
-    if (decision.effects_reduced != state.pipeline->reduce_effects()) {
-        state.pipeline->set_reduce_effects(decision.effects_reduced);
-        // Pixels change with the flag, and a settled on-demand scene has nothing else to repaint.
-        request_full_repaint();
-    }
-    if (decision.animations_paused != state.animations.suspend_non_essential()) {
-        state.animations.set_suspend_non_essential(decision.animations_paused);
-        // Resuming must wake a loop that went idle while the animations were frozen.
-        state.loop.mark_render_dirty();
-    }
+    // The stage owns the selection rule, the recording and both application rules (see
+    // quality_stage.hpp); the host only hands it one observed frame.
+    (void)impl_->quality.observe(cpu_frame_time_ms, gpu_frame_time_ms);
 }
 
 const runtime::AdaptiveQualitySample& AppHost::adaptive_quality() const {
-    return impl_->quality_controller.decision();
+    return impl_->quality.decision();
 }
 
 const runtime::FrameDiagnostics& AppHost::frame_diagnostics() const {
@@ -578,7 +538,7 @@ void AppHost::resize(float width, float height, float dpi_scale) {
                                                                 state.dirty, state.config.pipeline);
     state.pipeline->set_update_scheduler(state.scheduler);
     // The new pipeline starts at full quality; carry the controller's decision over.
-    state.pipeline->set_reduce_effects(state.quality_controller.decision().effects_reduced);
+    state.pipeline->set_reduce_effects(state.quality.decision().effects_reduced);
     mark_subtree(state.root, ui::Dirty::Layout | ui::Dirty::Paint | ui::Dirty::Render);
 }
 

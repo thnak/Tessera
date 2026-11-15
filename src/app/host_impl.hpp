@@ -7,6 +7,7 @@
 // includes it.
 
 #include "adaptive_quality.hpp"
+#include "quality_stage.hpp"
 #include "safe_area_state.hpp"
 #include "tessera/app/host.hpp"
 #include "tessera/rendering/damage.hpp"
@@ -38,6 +39,14 @@ struct AppHost::Impl {
     [[nodiscard]] bool root_is_rtl() const;
     void register_embedded_stylesheets(std::span<const ui::style::EmbeddedStylesheet> sheets);
     void register_embedded_theme(std::span<const std::uint8_t> bytes);
+
+    // The adaptive-quality stage's callbacks. Static members rather than file-local functions
+    // because `Impl` is a private nested type, so a free function cannot name it; defined inline
+    // here because they are three-line accessors and host.cpp is already at its size budget.
+    static bool scene_has_blurred_shadow_callback(const void* context) noexcept;
+    static bool non_essential_animations_callback(const void* context) noexcept;
+    static void set_reduce_effects_callback(void* context, bool reduced);
+    static void set_animations_paused_callback(void* context, bool paused);
 
     ui::Node& root;
     SafeAreaState safe_area;
@@ -95,8 +104,9 @@ struct AppHost::Impl {
     // Adaptive quality (docs/design/performance.md section 6): the deterministic controller is fed
     // one measured frame time per presented frame by observe_frame_time_ms(); the diagnostics
     // object keeps its latest decision and counts changes. Both are per host (not per pipeline), so
-    // the quality ladder survives an AppHost::resize(), which only re-creates the pipeline.
-    runtime::AdaptiveQualityController quality_controller;
+    // the quality ladder survives an AppHost::resize(), which only re-creates the pipeline. The
+    // ladder itself, its recording and its application rules live in detail::QualityStage.
+    detail::QualityStage quality;
     runtime::FrameDiagnostics frame_diagnostics;
     // One-shot full-repaint request from request_full_repaint(). It is applied after the pipeline's
     // tick (which clears the accumulator), so it survives the tick it was requested before.
