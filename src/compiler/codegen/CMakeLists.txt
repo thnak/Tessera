@@ -34,6 +34,9 @@ add_library(tessera_codegen STATIC
     src/emit_item_props.cpp
     src/emit_lifecycle.cpp
     src/emit_list.cpp
+    # The `#line` map of issue #78: markers the ADR-040 reshaping writes become directives before
+    # the file is returned. Off by default, so the committed goldens stay byte-identical.
+    src/emit_line_map.cpp
     src/emit_node.cpp
     src/emit_node_attributes.cpp
     src/emit_node_behavior.cpp
@@ -986,5 +989,16 @@ if (TESSERA_BUILD_TESTS)
     if (NOT CMAKE_CROSSCOMPILING)
         add_test(NAME sample_compile
             COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target tessera_compiler_demo)
+        # This test drives the build directory, like the codegen_base_* negatives above: without the
+        # lock a parallel ctest run has two `--build` processes in one tree and one of them loses
+        # (the failure mode #353 fixed for the negatives). It never failed alone, only under
+        # `--parallel`.
+        set_tests_properties(sample_compile PROPERTIES
+            RESOURCE_LOCK tessera_codegen_negative_build)
+
+        # `#line` mapping to TSX (issue #78): the directives (default off, so the goldens above do
+        # not move) and one real negative compile whose diagnostics must name TSX lines, not lines
+        # of the generated base. Kept in its own file so this list stays readable.
+        include(${CMAKE_CURRENT_SOURCE_DIR}/line_map_tests.cmake)
     endif ()
 endif ()

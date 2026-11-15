@@ -245,7 +245,7 @@ bool emit_source(const ir::Component& component, const ir::IrModule& module,
 } // namespace
 
 bool emit_component(const ir::Component& component, const ir::IrModule& module,
-                    std::vector<GeneratedFile>& files, std::string& error) {
+                    std::vector<GeneratedFile>& files, std::string& error, CodegenOptions options) {
     if (component.name.empty()) {
         return fail(error, "a component has no name");
     }
@@ -303,7 +303,9 @@ bool emit_component(const ir::Component& component, const ir::IrModule& module,
         return false;
     }
     GeneratedFile generated;
-    if (!emit_generated_base(component, owned, header.text, source.text, generated, error)) {
+    LineMapMarkers markers;
+    if (!emit_generated_base(component, owned, header.text, source.text, generated, error,
+                             options.line_directives ? &markers : nullptr)) {
         return false;
     }
     files.push_back(std::move(generated));

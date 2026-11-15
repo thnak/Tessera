@@ -18,10 +18,14 @@
 namespace tessera::compiler::codegen::internal {
 
 // Builds `<Component>.g.hpp` from the legacy header/source texts of the same component.
+//
+// `markers`, when non-null, collects the TSX spans of the binding contract and makes the file
+// carry `//@tessera-line <n>` markers around each `static_assert`; the caller resolves them into
+// `#line` directives after the reshaping (issue #78). Null keeps the output byte-identical.
 [[nodiscard]] bool emit_generated_base(const ir::Component& component,
                                        const std::vector<const ir::Binding*>& bindings,
                                        const std::string& legacy_header,
                                        const std::string& legacy_source, GeneratedFile& out,
-                                       std::string& error);
+                                       std::string& error, LineMapMarkers* markers = nullptr);
 
 } // namespace tessera::compiler::codegen::internal

@@ -131,9 +131,9 @@ std::string derive_module_name(const std::string& input) {
 }
 
 bool generate_files(const ir::IrModule& module, std::span<const StylesheetEmbed> embeds,
-                    const std::optional<EmbeddedTheme>& theme, std::vector<GeneratedFile>& files,
-                    Outcome& outcome, std::string_view input) {
-    const auto generated = generate(module, embeds, theme);
+                    const std::optional<EmbeddedTheme>& theme, const Options& options,
+                    std::vector<GeneratedFile>& files, Outcome& outcome, std::string_view input) {
+    const auto generated = generate(module, embeds, theme, CodegenOptions{options.line_directives});
     if (!generated) {
         const CodegenErrors& errors = generated.error();
         report(outcome, true,
@@ -564,7 +564,7 @@ Outcome run_impl(const Options& options) {
     }
 
     std::vector<GeneratedFile> files;
-    if (!generate_files(module, *embeds, theme, files, outcome, options.inputs.front())) {
+    if (!generate_files(module, *embeds, theme, options, files, outcome, options.inputs.front())) {
         return outcome;
     }
 

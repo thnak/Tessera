@@ -592,7 +592,7 @@ build compiles the generated samples, so they are never hand-maintained.
 - The open questions listed in [`jsx-subset-v1.md`](../specs/jsx-subset-v1.md) section 18 (the built-in
   hook manifest format is specified in its section 7.1).
 - Parser error recovery for the live view (editing partially valid files; V1 fails fast).
-- Source maps from generated C++ back to TSX.
+- Source maps to TSX: `#line` answers line granularity ([`compiler-diagnostics-v1.md`](../specs/compiler-diagnostics-v1.md) section 9, issue #78); columns, developer class: open.
 - Incremental codegen at the node level vs component level.
 - How much static analysis for effect dependencies.
 - Migration tooling for binding renames (none exists today; see

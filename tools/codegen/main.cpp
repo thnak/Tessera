@@ -37,6 +37,9 @@ constexpr std::string_view kUsage =
     "                    write the machine-readable diagnostics document and no C++ (no --out\n"
     "                    needed); an empty `diagnostics` array means the input is valid\n"
     "                    (docs/specs/compiler-diagnostics-v1.md)\n"
+    "  --line-directives emit `#line <TSX line> \"<TSX file>\"` into the generated base, so a C++\n"
+    "                    compiler error or debugger frame points at the TSX statement the code\n"
+    "                    came from (issue #78). Off by default; a dev-build switch, not release\n"
     "  --namespace NAME  C++ namespace / IR module name (default: first file stem)\n"
     "  --salt SALT       id salt, overriding `app.namespace` of tessera.json (found at --root or\n"
     "                    above the first input); with a salt every node gets a numeric uiId\n"
@@ -66,6 +69,8 @@ int main(int argc, char** argv) {
             options.check_only = false;
         } else if (arg == "--verbose") {
             options.verbose = true;
+        } else if (arg == "--line-directives") {
+            options.line_directives = true;
         } else if (arg == "--out" || arg == "--namespace" || arg == "--salt" || arg == "--root" ||
                    arg == "--emit-ir" || arg == "--ir-out" || arg == "--emit-library-cpp" ||
                    arg == "--diagnostics-json") {
