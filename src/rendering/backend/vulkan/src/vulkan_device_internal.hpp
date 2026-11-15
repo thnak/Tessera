@@ -65,6 +65,12 @@ public:
     [[nodiscard]] std::uint32_t epoch() const {
         return epoch_;
     }
+    // The physical device this generation runs on, for the device-provenance query a golden run
+    // uses to prove it rendered on software (vulkan_device_info.cpp). Invalid after a real device
+    // loss, like every other handle; a provenance read happens while the device is Ready.
+    [[nodiscard]] VkPhysicalDevice physical_device() const {
+        return physical_device_;
+    }
     // True when `epoch` is the live generation and the device is healthy: operations on wrappers
     // from an older generation are refused instead of touching dead handles.
     [[nodiscard]] bool usable_epoch(std::uint32_t epoch) const {
