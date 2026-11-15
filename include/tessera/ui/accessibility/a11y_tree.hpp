@@ -57,6 +57,9 @@ enum class Role : std::uint8_t {
     ScrollView,
     Tooltip,
     Alert,
+    // Not a role: the count of real values, so the role trait table can be sized and checked at
+    // compile time (src/ui/accessibility/a11y_role_traits.hpp).
+    kCount,
 };
 
 // Stable lowercase names (used by tests, diagnostics, and bridge mapping tables).

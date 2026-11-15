@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "a11y_role_traits.hpp"
 #include "a11y_text.hpp"
 #include "tessera/schema/intrinsics.hpp"
 #include "tessera/ui/accessibility/a11y_tree.hpp"
@@ -129,22 +130,12 @@ Action actions_for(Role role, bool disabled, bool focusable, bool scrollable) {
         actions = actions | Action::Focus;
     }
     if (!disabled) {
-        switch (role) {
-        case Role::Button:
-        case Role::Checkbox:
-        case Role::Radio:
-        case Role::Switch:
-        case Role::Link:
-        case Role::Tab:
-        case Role::MenuItem:
+        const detail::RoleTraits& traits = detail::role_traits(role);
+        if (traits.press) {
             actions = actions | Action::Press;
-            break;
-        case Role::TextField:
-        case Role::Slider:
+        }
+        if (traits.set_value) {
             actions = actions | Action::SetValue;
-            break;
-        default:
-            break;
         }
         if (scrollable) {
             actions = actions | Action::Scroll;
