@@ -160,6 +160,44 @@ copy of uncommitted work.
   directory rather than creating a fresh one per attempt; a cold cache means a full recompile.
 - **Skipped is not passed.** A skip on a lane lacking the capability means untested.
 
+## A green Windows build is not a green lane: the GCC-only warnings
+
+`vs2026` uses MSVC `/W4 /WX`; `linux`/`icu-text` use GCC `-Wall -Wextra -Wpedantic -Werror`. Four
+classes of defect pass MSVC and fail GCC. They broke **five** PRs in one session, and CI cannot tell
+you until the whole Linux build has run — so check your own diff before pushing.
+
+1. **An unused function or variable in an anonymous namespace** — `-Werror=unused-function` /
+   `-Wunused-variable`. MSVC does not diagnose a static function nothing calls. Delete it, or use it.
+   A helper written for one assertion and later inlined away is the usual cause.
+2. **The same warning when the function IS used — just not in every configuration.** This is the one
+   that is easy to miss: a helper called only from a `#if defined(TESSERA_...)` branch is unused in
+   the configuration where that macro is undefined. Guard the helper with the same macro as its
+   caller.
+3. **A `//` comment line that ends in a backslash** — `-Werror=comment`. The backslash continues the
+   comment onto the next line. ASCII-art diagrams are the usual cause: a state diagram whose branch
+   lines end in `\`.
+4. **An unused named parameter** — `-Werror=unused-parameter`. Leave the parameter **unnamed**
+   (`void f(int)` not `void f(int n)`) when the body does not read it. Coroutine bodies whose leading
+   context argument is consumed by the promise type are the usual case.
+
+**The deepest version of class 2 is a preprocessor-conditional *member*.** Anything behind
+`#if defined(TESSERA_VULKAN_HAS_PRESENT_SURFACE)` is invisible on Windows, because MSVC always
+defines `VK_USE_PLATFORM_WIN32_KHR`, and visible on a headless Linux runner, which defines no WSI
+macro at all. An unguarded use of such a member compiles on Windows and **fails to build on Linux**.
+Grep for the macro before using anything it guards, and mirror the same `#if` at the use site.
+
+```powershell
+# 1. any comment line ending in a backslash?
+Select-String -Path <changed files> -Pattern '//.*\\$'
+# 2. is every static helper referenced, in every configuration?
+Select-String -Path <changed files> -Pattern '^static |^namespace \{'
+# 3. does anything conditional get used unguarded?
+Select-String -Path <changed files> -Pattern 'TESSERA_[A-Z_]+'
+```
+
+`-Wshadow`, `-Wconversion` and `-Wsign-conversion` are worth running by hand on new arithmetic
+(`int` to `size_t` indexing and ternary mixes are the common finds); they are not in the default lane.
+
 ## Two failed-looking suites that are the environment, not the code
 
 Check these before debugging a "regression"; both have cost sessions real time.
