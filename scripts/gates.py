@@ -12,10 +12,12 @@ Gate order:
   3. license-bundle  THIRD_PARTY_LICENSES.txt is up to date (adds --check)
   4. sbom            sbom.spdx.json is up to date (adds --check)
   5. docs            relative links/anchors, docs index, fences, sizes, ADRs
-  6. pins            reproducible dependency pins + dependencies.md rows (adds --check)
-  7. package         only with --archive PATH: validates the distributable archive
-  8. fixtures        only with --fixtures: the gate self-tests (unittest discovery)
-  9. wgsl            only with --wgsl: authored WGSL passes the pinned naga (needs naga-cli)
+  6. source-size     C++ files within the 500-line hard limit (ratchet baseline, #327)
+  7. public-api      the public surface matches scripts/public-api-baseline.txt (issue #76)
+  8. pins            reproducible dependency pins + dependencies.md rows (adds --check)
+  9. package         only with --archive PATH: validates the distributable archive
+ 10. fixtures        only with --fixtures: the gate self-tests (unittest discovery)
+ 11. wgsl            only with --wgsl: authored WGSL passes the pinned naga (needs naga-cli)
 
 The runner is cwd-independent (children run from the repository root) and forces UTF-8 for child
 processes while making its own stdout/stderr tolerant, so it behaves the same on Windows cp1252
@@ -68,6 +70,12 @@ BASE_GATES: List[Gate] = [
         "check_source_size.py",
         (),
         "C++ files stay within the 500-line hard limit (ratchet baseline, issue #327)",
+    ),
+    Gate(
+        "public-api",
+        "check_public_api.py",
+        ("--check",),
+        "the public surface matches scripts/public-api-baseline.txt (issue #76)",
     ),
     Gate("pins", "check_pins.py", ("--check",), "reproducible pins and dependency rows"),
 ]
