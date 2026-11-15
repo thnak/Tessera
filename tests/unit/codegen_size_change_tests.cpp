@@ -3,7 +3,7 @@
 // `onSizeChange` codegen (ADR-041 slice 5, docs/design/layout-observation.md section 6.2): one
 // LayoutObservation member and thunk per observed node, attach/detach_layout_observers that mirror
 // attach_scheduler (an owned instance forwards, in mount order), a typed SizeChangeEvent handler
-// whose body can read `e.width`, byte-identical output, goldens and merger idempotency. The fixture
+// whose body can read `e.width`, byte-identical output and goldens. The fixture
 // is hand-built IR so every handler form is covered without the front end.
 //
 // Deliberate golden update path: `codegen_size_change_tests --write` rewrites
@@ -11,7 +11,6 @@
 
 #include "tessera/compiler/codegen/codegen.hpp"
 #include "tessera/compiler/ir/validate.hpp"
-#include "tessera/compiler/merger.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -95,7 +94,7 @@ ir::Handler set_handler(std::string id, std::string target, ir::ExprPtr value,
 // part of the output.
 ir::IrModule make_module() {
     ir::IrModule module;
-    module.name = "demo";
+    module.name = "watch";
 
     ir::Component watcher;
     watcher.id = "comp::Watcher";
@@ -147,6 +146,11 @@ ir::IrModule make_module() {
     return module;
 }
 
+// The canonical ADR-040 path (issue #218): one header-only base per component.
+codegen::CodegenResult generate(const ir::IrModule& module) {
+    return codegen::generate(module, {}, std::nullopt, codegen::EmitMode::GeneratedBase);
+}
+
 std::string read_file(const std::string& path) {
     std::ifstream in(path, std::ios::binary);
     std::ostringstream text;
@@ -184,15 +188,15 @@ void test_fixture_is_valid() {
 }
 
 void test_generated_shape() {
-    const auto result = codegen::generate(make_module());
+    const auto result = generate(make_module());
     check(result.has_value(), "the size-change fixture generates: " + first_error(result));
     if (!result) {
         return;
     }
-    const std::string header = file_text(*result, "Watcher.hpp");
-    const std::string source = file_text(*result, "Watcher.cpp");
-    const std::string page_header = file_text(*result, "WatchPage.hpp");
-    const std::string page_source = file_text(*result, "WatchPage.cpp");
+    const std::string header = file_text(*result, "Watcher.g.hpp");
+    const std::string source = file_text(*result, "Watcher.g.hpp");
+    const std::string page_header = file_text(*result, "WatchPage.g.hpp");
+    const std::string page_source = file_text(*result, "WatchPage.g.hpp");
 
     check(contains(header, "#include \"tessera/ui/layout/layout_observer.hpp\""),
           "an observing header includes the observation API");
@@ -216,7 +220,8 @@ void test_generated_shape() {
           "the thunk converts the delivered size to the typed payload");
     check(contains(source, "component->handler_2(tessera::ui::Event{});"),
           "a parameterless handler needs no payload");
-    check(contains(source, "this->size_observation_1_.emplace(*node_1, &on_size_change_1, this);"),
+    check(contains(source, "this->size_observation_1_.emplace(*node_1, "
+                           "&Thunks<Self>::on_size_change_1, this);"),
           "build() constructs the observation once the node exists");
     check(contains(source, "this->layout_observers_->attach(*this->size_observation_1_);"),
           "build() attaches to a set the component is already attached to");
@@ -249,7 +254,7 @@ void test_unobserved_components_are_unchanged() {
     module.components[1].root.children[0].events.clear();
     module.components[0].root.children[1].events.clear();
     module.bindings.clear();
-    const auto result = codegen::generate(module);
+    const auto result = generate(module);
     check(result.has_value(), "the fixture without observations generates: " + first_error(result));
     if (!result) {
         return;
@@ -261,7 +266,7 @@ void test_unobserved_components_are_unchanged() {
 }
 
 void test_goldens(bool update) {
-    const auto result = codegen::generate(make_module());
+    const auto result = generate(make_module());
     check(result.has_value(), "the size-change golden sample generates");
     if (!result) {
         return;
@@ -287,15 +292,15 @@ void test_goldens(bool update) {
 }
 
 void test_determinism() {
-    const auto first = codegen::generate(make_module());
-    const auto second = codegen::generate(make_module());
+    const auto first = generate(make_module());
+    const auto second = generate(make_module());
     check(first.has_value() && second.has_value(), "the sample generates twice");
     if (!first || !second) {
         return;
     }
-    check_eq(file_text(*first, "WatchPage.cpp"), file_text(*second, "WatchPage.cpp"),
+    check_eq(file_text(*first, "WatchPage.g.hpp"), file_text(*second, "WatchPage.g.hpp"),
              "two runs are byte-identical");
-    check_eq(file_text(*first, "Watcher.hpp"), file_text(*second, "Watcher.hpp"),
+    check_eq(file_text(*first, "Watcher.g.hpp"), file_text(*second, "Watcher.g.hpp"),
              "two header runs are byte-identical");
 }
 
@@ -303,7 +308,7 @@ void test_rejections() {
     {
         ir::IrModule module = make_module();
         module.components[1].handlers[0].params[0].type = "ClickEvent";
-        const auto result = codegen::generate(module);
+        const auto result = generate(module);
         check(!result.has_value(), "onSizeChange with a ClickEvent handler is rejected");
         check(contains(first_error(result), "SizeChangeEvent"),
               "the wrong payload record is named in the diagnostic");
@@ -311,32 +316,8 @@ void test_rejections() {
     {
         ir::IrModule module = make_module();
         module.components[1].root.events["onSizeChange"] = "handler::99";
-        check(!codegen::generate(module).has_value(), "an unknown handler is rejected");
+        check(!generate(module).has_value(), "an unknown handler is rejected");
     }
-}
-
-void test_merger_idempotency() {
-    const auto result = codegen::generate(make_module());
-    check(result.has_value(), "the sample generates for the merger test");
-    if (!result) {
-        return;
-    }
-    const std::string generated = file_text(*result, "WatchPage.cpp");
-    constexpr std::string_view kMarker = "// [DEVELOPER_LOGIC_START: bind::on_tail_size]";
-    const std::size_t marker = generated.find(kMarker);
-    check(marker != std::string::npos, "the native size handler region marker exists");
-    if (marker == std::string::npos) {
-        return;
-    }
-    std::string existing = generated;
-    existing.insert(marker + kMarker.size(), "\n    last_tail_width_ = e.width; // developer body");
-    const tessera::compiler::MergeResult first = tessera::compiler::merge(generated, existing);
-    check(contains(first.text, "developer body"), "the developer body survives the merge");
-    check(contains(first.text, "size_observation_3_") && contains(first.text, "on_size_change_3"),
-          "the generated observation members and thunk survive the merge");
-    const tessera::compiler::MergeResult second = tessera::compiler::merge(first.text, existing);
-    check_eq(second.text, first.text,
-             "merge(merge(g, e), e) == merge(g, e) over the observation output");
 }
 
 } // namespace
@@ -352,7 +333,6 @@ int main(int argc, char** argv) {
     test_goldens(false);
     test_determinism();
     test_rejections();
-    test_merger_idempotency();
     if (failures != 0) {
         std::cerr << failures << " check(s) failed\n";
         return 1;

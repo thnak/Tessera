@@ -57,6 +57,11 @@ void write_file(const std::string& path, const std::string& text) {
     out << text;
 }
 
+// The canonical ADR-040 path (issue #218): one header-only base per component.
+codegen::CodegenResult generate(const ir::IrModule& module) {
+    return codegen::generate(module, {}, std::nullopt, codegen::EmitMode::GeneratedBase);
+}
+
 std::string file_text(const std::vector<codegen::GeneratedFile>& files, std::string_view path) {
     for (const codegen::GeneratedFile& file : files) {
         if (file.path == path) {
@@ -79,16 +84,16 @@ void test_fixture_is_valid() {
 }
 
 void test_generated_shape() {
-    const auto result = codegen::generate(instances_fixture::make_instances_module());
+    const auto result = generate(instances_fixture::make_instances_module());
     check(result.has_value(), "the instance fixture generates");
     if (!result) {
         std::cerr << "  " << (result.error().empty() ? std::string() : result.error().front())
                   << "\n";
         return;
     }
-    const std::string page_header = file_text(*result, "Page.hpp");
-    const std::string page_source = file_text(*result, "Page.cpp");
-    const std::string row_header = file_text(*result, "Row.hpp");
+    const std::string page_header = file_text(*result, "Page.g.hpp");
+    const std::string page_source = file_text(*result, "Page.g.hpp");
+    const std::string row_header = file_text(*result, "Row.g.hpp");
     check(!page_header.empty() && !page_source.empty() && !row_header.empty(),
           "both components generate a header and a source");
 
@@ -157,12 +162,12 @@ void test_generated_shape() {
     // The callee maps its list-typed prop (form 4).
     check(contains(row_header, "std::vector<std::string> prop_notes_ = {};"),
           "the callee owns a list-typed prop as a generated vector");
-    check(contains(file_text(*result, "Row.cpp"), "prop_notes_"),
+    check(contains(file_text(*result, "Row.g.hpp"), "prop_notes_"),
           "the callee maps the list-typed prop");
 }
 
 void test_goldens(bool update) {
-    const auto result = codegen::generate(instances_fixture::make_instances_module());
+    const auto result = generate(instances_fixture::make_instances_module());
     check(result.has_value(), "the instance golden sample generates");
     if (!result) {
         return;
@@ -190,19 +195,19 @@ void test_goldens(bool update) {
 }
 
 void test_determinism() {
-    const auto first = codegen::generate(instances_fixture::make_instances_module());
-    const auto second = codegen::generate(instances_fixture::make_instances_module());
+    const auto first = generate(instances_fixture::make_instances_module());
+    const auto second = generate(instances_fixture::make_instances_module());
     check(first.has_value() && second.has_value(), "the instance sample generates twice");
     if (!first || !second) {
         return;
     }
-    check(file_text(*first, "Page.cpp") == file_text(*second, "Page.cpp"),
+    check(file_text(*first, "Page.g.hpp") == file_text(*second, "Page.g.hpp"),
           "two runs are byte-identical");
 }
 
 // The forms this slice lifts are accepted; the forms it does not cover stay loud.
 void test_lifted_and_deferred_forms() {
-    check(codegen::generate(instances_fixture::make_instances_module()).has_value(),
+    check(generate(instances_fixture::make_instances_module()).has_value(),
           "a keyed list of instances, a conditional instance and a conditional inside an item all "
           "generate");
 
@@ -211,7 +216,7 @@ void test_lifted_and_deferred_forms() {
         ir::IrModule module = instances_fixture::make_instances_module();
         module.components[0].root.children[1].children.push_back(
             instances_fixture::node_of(ir::NodeKind::Text, "node::9", "2109", 260));
-        const auto result = codegen::generate(module);
+        const auto result = generate(module);
         check(!result.has_value(), "slot children of a per-item instance are deferred");
         check(!result.error().empty() &&
                   result.error().front().find("slot children") != std::string::npos,
@@ -224,14 +229,14 @@ void test_lifted_and_deferred_forms() {
         nested.loop = ir::Loop{"inner", std::string(), instances_fixture::ref("state::entries")};
         nested.key = instances_fixture::ref("inner");
         module.components[0].root.children[0].children.push_back(std::move(nested));
-        check(!codegen::generate(module).has_value(), "a nested list template is deferred");
+        check(!generate(module).has_value(), "a nested list template is deferred");
     }
     {
         // A `useRef` target on a per-item instance cannot name one item's instance: the target is
         // rejected before any code is emitted.
         ir::IrModule module = instances_fixture::make_instances_module();
         module.components[0].refs.push_back({"useRef::row", "row", "node::4"});
-        const auto result = codegen::generate(module);
+        const auto result = generate(module);
         check(!result.has_value(), "a per-item instance `useRef` target is deferred");
     }
 }

@@ -114,17 +114,8 @@ if (EXISTS ${_tessera_codegen_golden_dir}/ForwardWrap.cpp AND EXISTS ${_tessera_
 endif ()
 
 # Per-branch and per-item component instances (issue #231, docs/design/compiler-node-state.md):
-# `codegen_instances_tests --write` owns tests/golden/codegen/instances/{Row,Page}.*.
+# `codegen_instances_tests --write` owns tests/golden/codegen/instances/{Row,Page}.g.hpp.
 set(_tessera_codegen_instances_golden_dir ${_tessera_codegen_golden_dir}/instances)
-if (EXISTS ${_tessera_codegen_instances_golden_dir}/Page.cpp AND EXISTS ${_tessera_codegen_instances_golden_dir}/Row.cpp)
-    add_library(tessera_codegen_instances_sample STATIC
-        ${_tessera_codegen_instances_golden_dir}/Row.cpp
-        ${_tessera_codegen_instances_golden_dir}/Page.cpp)
-    target_include_directories(tessera_codegen_instances_sample
-        PRIVATE ${_tessera_codegen_instances_golden_dir})
-    target_link_libraries(tessera_codegen_instances_sample PRIVATE tessera_scene)
-    target_compile_features(tessera_codegen_instances_sample PUBLIC cxx_std_23)
-endif ()
 
 # Library Button fixture (issue #239), generated from packages/tessera-ui/Button.tsx and a demo that
 # imports it, in library_button_lowering_tests. Same deliberate golden path:
@@ -155,16 +146,7 @@ endif ()
 
 # onSizeChange fixture (ADR-041 slice 5), generated from the hand-built IR in
 # codegen_size_change_tests. Same deliberate golden path: `codegen_size_change_tests --write` owns
-# Watcher.* and WatchPage.*. It links tessera_layout for LayoutObservation.
-if (EXISTS ${_tessera_codegen_golden_dir}/Watcher.cpp AND EXISTS ${_tessera_codegen_golden_dir}/WatchPage.cpp)
-    add_library(tessera_codegen_size_watch_sample STATIC
-        ${_tessera_codegen_golden_dir}/Watcher.cpp
-        ${_tessera_codegen_golden_dir}/WatchPage.cpp)
-    target_include_directories(tessera_codegen_size_watch_sample
-        PRIVATE ${_tessera_codegen_golden_dir})
-    target_link_libraries(tessera_codegen_size_watch_sample PUBLIC tessera_scene tessera_layout)
-    target_compile_features(tessera_codegen_size_watch_sample PUBLIC cxx_std_23)
-endif ()
+# Watcher.g.hpp and WatchPage.g.hpp. The runtime test links tessera_layout for LayoutObservation.
 
 # Compiler demo (ADR-040): the generated base `Demo.g.hpp` is written into the build directory from
 # Demo.tsx by the CLI in base mode; the developer class `Demo.hpp/.cpp` is committed under
@@ -482,18 +464,21 @@ if (TESSERA_BUILD_TESTS)
 
     add_test(NAME codegen_instances COMMAND codegen_instances_tests)
 
-    if (TARGET tessera_codegen_instances_sample)
+    # ADR-040 (#218): the developer classes in tests/unit/codegen_base/fixtures/instances over the
+    # committed bases, generated from the hand-built IR in codegen_instances_tests.
+    if (EXISTS ${_tessera_codegen_instances_golden_dir}/Page.g.hpp AND EXISTS
+        ${_tessera_codegen_instances_golden_dir}/Row.g.hpp)
         add_executable(codegen_instances_runtime_tests
             ${CMAKE_SOURCE_DIR}/tests/unit/codegen_instances_runtime_tests.cpp)
 
         target_include_directories(codegen_instances_runtime_tests PRIVATE
-            ${_tessera_codegen_instances_golden_dir})
-        target_link_libraries(codegen_instances_runtime_tests PRIVATE
-            tessera_codegen_instances_sample
-            tessera_scene)
+            ${_tessera_codegen_instances_golden_dir}
+            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures/instances)
+        target_link_libraries(codegen_instances_runtime_tests PRIVATE tessera_scene)
+        target_compile_features(codegen_instances_runtime_tests PRIVATE cxx_std_23)
 
         add_test(NAME codegen_instances_runtime COMMAND codegen_instances_runtime_tests)
-endif ()
+    endif ()
 
     if (TARGET tessera_codegen_button_sample)
         add_executable(library_button_runtime_tests
@@ -543,16 +528,20 @@ endif ()
 
     add_test(NAME codegen_size_change COMMAND codegen_size_change_tests)
 
-    if (TARGET tessera_codegen_size_watch_sample)
+    # ADR-040 (#218): the developer classes in tests/unit/codegen_base/fixtures over the committed
+    # bases, generated from the hand-built IR in codegen_size_change_tests.
+    if (EXISTS ${_tessera_codegen_golden_dir}/Watcher.g.hpp AND EXISTS
+        ${_tessera_codegen_golden_dir}/WatchPage.g.hpp)
         add_executable(codegen_size_change_runtime_tests
             ${CMAKE_SOURCE_DIR}/tests/unit/codegen_size_change_runtime_tests.cpp)
 
         target_include_directories(codegen_size_change_runtime_tests PRIVATE
-            ${_tessera_codegen_golden_dir})
+            ${_tessera_codegen_golden_dir}
+            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures/watch)
         target_link_libraries(codegen_size_change_runtime_tests PRIVATE
-            tessera_codegen_size_watch_sample
             tessera_scene
             tessera_layout)
+        target_compile_features(codegen_size_change_runtime_tests PRIVATE cxx_std_23)
 
         add_test(NAME codegen_size_change_runtime COMMAND codegen_size_change_runtime_tests)
     endif ()
