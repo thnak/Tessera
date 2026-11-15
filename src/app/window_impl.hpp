@@ -7,6 +7,8 @@
 #pragma once
 
 #include "accessibility_host.hpp"
+#include "frame_time_probe.hpp"
+#include "scaled_targets.hpp"
 #include "tessera/app/frame_guard.hpp"
 #include "tessera/app/recovery_policy.hpp"
 #include "tessera/app/system_motion.hpp"
@@ -126,25 +128,15 @@ struct WindowHost::Impl {
     bool sync_display_topology();
 
     // --- adaptive render scale (docs/design/performance.md section 6.1) ----------------------
-    // Ensures the offscreen target `slot` renders into when the controller's renderScale is below
-    // full quality is the requested extent. One target per frame slot, because a target may still
-    // be read by the frame slot's in-flight blit: reusing a single image across two frames in
-    // flight would be a cross-submission read/write hazard. Returns false when the backend refuses,
-    // in which case the frame stays on the direct full-size path rather than dropping. Called at a
-    // frame boundary and only when the decided extent changed, so a downgrade allocates one image.
-    bool ensure_scaled_target(std::size_t frame_slot, rhi::Extent2D extent);
+    // The per-slot offscreen targets the controller's renderScale below full quality renders into,
+    // and the swapchain generation's resample capability. Both live in detail::ScaledTargets; see
+    // its header for the one-target-per-slot hazard.
+    [[nodiscard]] bool ensure_scaled_target(std::size_t frame_slot, rhi::Extent2D extent);
 
     // --- GPU frame-time signal (docs/design/performance.md section 6.1) ----------------------
-    // The device probe's answer, resolved once per presentation generation. False (null backend,
-    // no timestamp queries, a bad period) keeps the CPU frame time for every observation.
-    bool gpu_timestamps_usable = false;
-    // The GPU interval of a submission whose slot completed, waiting to be fed to the one
-    // observation of a presented frame. It is at most two frames old because a timestamp value is
-    // only readable after its submission completed; a frame that observes before a new interval
-    // exists falls back to the CPU time and counts the fallback.
-    std::optional<double> pending_gpu_frame_time_ms;
-    // Takes the pending GPU interval (and clears it). The one place both driver paths consume it.
-    std::optional<double> take_gpu_frame_time_ms();
+    // The device probe's answer, the pending interval of a completed submission and the selection
+    // rule all live in detail::FrameTimeProbe; see its header.
+    detail::FrameTimeProbe frame_time;
     // Selects the frame-time source, records it in stats, and feeds the host. `cpu_frame_time_ms`
     // is the frame's CPU cost through present, which stays the fallback.
     runtime::FrameTimeSample observe_frame_time(double cpu_frame_time_ms);
@@ -226,13 +218,8 @@ struct WindowHost::Impl {
     std::unique_ptr<rhi::Swapchain> swapchain;
     // Adaptive render-scale targets (docs/design/performance.md section 6.1): allocated only while
     // the controller reports a scale below full quality, at the decided extent, and never at the
-    // window's physical size. One per frame slot, like the renderer's vertex-buffer slots: the slot
-    // gate (see kFramesInFlight) is what proves the previous read of that image completed.
-    // `scaled_present_supported` is the swapchain generation's fixed answer to whether a smaller
-    // target can be resampled into its images.
-    std::array<std::unique_ptr<rhi::RenderTarget>, detail::kFramesInFlight> scaled_targets;
-    std::array<rhi::Extent2D, detail::kFramesInFlight> scaled_target_extents{};
-    bool scaled_present_supported = false;
+    // window's physical size. The slot gate (see kFramesInFlight) is what proves a target is free.
+    detail::ScaledTargets scaled_targets;
     // True when the platform window presents a translucent client area (glass-v1.md section 6), so
     // every frame clears to transparent black instead of the app window background.
     bool translucent_presentation = false;

@@ -19,7 +19,15 @@ add_library(tessera_app STATIC
     accessibility_host_atspi.cpp
     accessibility_host_facade.cpp
     accessibility_host.hpp
-    accessibility_host_impl.hpp)
+    accessibility_host_impl.hpp
+    # The two WindowHost::Impl state clusters that carry policy but no lifecycle coupling
+    # (god-type audit slice 9): the GPU frame-time signal and the adaptive render-scale targets.
+    # Both need only the RHI seam, so they live in this always-built library (not the Vulkan-gated
+    # window driver) and a null-device test drives them.
+    frame_time_probe.cpp
+    frame_time_probe.hpp
+    scaled_targets.cpp
+    scaled_targets.hpp)
 
 target_include_directories(tessera_app PUBLIC
     ${PROJECT_SOURCE_DIR}/include)
@@ -36,6 +44,9 @@ target_link_libraries(tessera_app PUBLIC
     tessera_layout
     tessera_animation
     tessera_paint
+    # The RHI seam only: ScaledTargets creates offscreen render targets through it, and stays
+    # backend-agnostic (the null backend in tests, Vulkan in the window driver).
+    tessera_rhi
     tessera_style
     tessera_scene
     tessera_runtime)

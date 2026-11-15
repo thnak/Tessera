@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+﻿// SPDX-License-Identifier: MIT
 //
 // Bounded device-loss recovery for the app window driver (docs/design/window-resize.md
 // section 7.2).
@@ -34,8 +34,7 @@ bool WindowHost::Impl::create_presentation() {
     // The RHI probe is the only authority on the GPU frame-time signal (docs/design/performance.md
     // section 6.1). It is resolved once per presentation generation; a device without timestamp
     // queries, a zero period or a non-graphics queue leaves the CPU fallback in place.
-    gpu_timestamps_usable = device->timestamp_capability().usable();
-    pending_gpu_frame_time_ms.reset();
+    frame_time.reset(device->timestamp_capability().usable());
     rhi::SwapchainDesc swap_desc;
     swap_desc.extent = {metrics.physical_width, metrics.physical_height};
     swap_desc.image_count = 2;
@@ -69,11 +68,7 @@ bool WindowHost::Impl::create_presentation() {
     }
     // Fixed for this swapchain generation: whether a smaller render target (the adaptive render
     // scale) can be resampled into the presented images (docs/design/performance.md section 6.1).
-    scaled_present_supported = swapchain->supports_scaled_present();
-    for (std::size_t index = 0; index < scaled_targets.size(); ++index) {
-        scaled_targets[index].reset();
-        scaled_target_extents[index] = {};
-    }
+    scaled_targets.reset(swapchain->supports_scaled_present());
 
     pipeline = detail::create_pipeline(*device, swapchain->format());
     if (pipeline == nullptr) {
@@ -116,13 +111,8 @@ void WindowHost::Impl::release_presentation() {
     renderer.reset();
     text.reset();
     white.reset();
-    for (std::size_t index = 0; index < scaled_targets.size(); ++index) {
-        scaled_targets[index].reset();
-        scaled_target_extents[index] = {};
-    }
-    scaled_present_supported = false;
-    gpu_timestamps_usable = false;
-    pending_gpu_frame_time_ms.reset();
+    scaled_targets.reset(false);
+    frame_time.reset(false);
     pipeline.reset();
     glass_blur_pipeline.reset();
     glass_composite_pipeline.reset();
