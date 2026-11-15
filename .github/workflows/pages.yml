@@ -10,25 +10,23 @@
 #            real check - it proves the page and the Wasm module assemble together and that the
 #            diagnostics gate passes against the native CLI.
 #
-#   deploy   Publishes the artifact to GitHub Pages. It is GUARDED and does not fail a build while
-#            Pages is disabled on the repository.
+#   deploy   Publishes the artifact to GitHub Pages at https://thnak.github.io/Tessera/. It is
+#            GUARDED, so a repository where Pages is off (a fork, or this repo before 2026-11-15)
+#            skips instead of going red.
 #
-# Why the deploy is gated (read this before enabling Pages):
-#   GitHub Pages is a repository *setting*, not something a workflow file can turn on. This repo does
-#   not have it enabled (`gh api repos/thnak/Tessera/pages` is a 404), and only the owner can enable
-#   it. If `deploy` ran unguarded, `actions/deploy-pages` would fail on every push to main and make
-#   main red for a reason no code change caused. So the job runs only when the setting is on:
+# Why the deploy stays guarded:
+#   GitHub Pages is a repository *setting*, not something a workflow file can turn on. If `deploy`
+#   ran unguarded, `actions/deploy-pages` would fail on every push to a repository without it and
+#   make main red for a reason no code change caused. Pages is enabled here (Settings -> Pages ->
+#   Source: "GitHub Actions"), and the deploy of #165 was the proof that the guard's success path
+#   works; the guard is kept for forks and for a repo where the setting is later turned off.
 #
-#     - once Pages is enabled with "GitHub Actions" as the source, the `pages` API exists and the
-#       guard's probe succeeds, and the job deploys normally;
+#     - Pages enabled: the `pages` API exists, the guard's probe succeeds, and the job deploys;
+#     - Pages absent (404) or the probe failing: the job skips with a notice naming which it was;
 #     - a PR never deploys (deployment is main-only, ADR-045 decision 1).
 #
 #   The probe is a `gh api` call, so it needs no secret beyond the workflow token, and it treats any
 #   non-200 as "not enabled" rather than as an error.
-#
-#   OWNER STEP: enable Pages on the repository (Settings -> Pages -> Source: "GitHub Actions"). The
-#   first push to main after that is the proof of the deploy half of #165's acceptance; until then the
-#   page exists and assembles in CI but is not served from a URL.
 
 name: Pages
 
