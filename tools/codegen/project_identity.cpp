@@ -168,7 +168,19 @@ std::optional<fs::path> find_config(const fs::path& start) {
 } // namespace
 
 void report(Outcome& outcome, bool is_error, std::string text) {
-    outcome.messages.push_back(Message{is_error, std::move(text)});
+    DiagnosticRecord record;
+    // A message with no structured diagnostic behind it is still an entry in the document: a page
+    // that showed an empty list for a failed run would be lying about what happened.
+    record.severity = is_error ? "error" : "warning";
+    record.message = text;
+    report(outcome, is_error, std::move(text), std::move(record));
+}
+
+void report(Outcome& outcome, bool is_error, std::string text, DiagnosticRecord record) {
+    if (is_error) {
+        record.severity = "error";
+    }
+    outcome.messages.push_back(Message{is_error, std::move(text), std::move(record)});
     if (is_error) {
         outcome.exit_code = outcome.exit_code == 0 ? 1 : outcome.exit_code;
     }

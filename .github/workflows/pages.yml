@@ -1,0 +1,233 @@
+# SPDX-License-Identifier: MIT
+
+# The preview page (issue #165, P1 of docs/design/reference-equantic-ui.md section 7.4; studio slice
+# D-S5 in docs/specs/designer-studio-v1.md section 12).
+#
+# Two jobs with different risk:
+#
+#   build    Assembles the page: the static files in designer/web/ plus the Emscripten diagnostics
+#            module built from this commit. It ALWAYS runs on main and on a pull request, and it is a
+#            real check - it proves the page and the Wasm module assemble together and that the
+#            diagnostics gate passes against the native CLI.
+#
+#   deploy   Publishes the artifact to GitHub Pages. It is GUARDED and does not fail a build while
+#            Pages is disabled on the repository.
+#
+# Why the deploy is gated (read this before enabling Pages):
+#   GitHub Pages is a repository *setting*, not something a workflow file can turn on. This repo does
+#   not have it enabled (`gh api repos/thnak/Tessera/pages` is a 404), and only the owner can enable
+#   it. If `deploy` ran unguarded, `actions/deploy-pages` would fail on every push to main and make
+#   main red for a reason no code change caused. So the job runs only when the setting is on:
+#
+#     - once Pages is enabled with "GitHub Actions" as the source, the `pages` API exists and the
+#       guard's probe succeeds, and the job deploys normally;
+#     - a PR never deploys (deployment is main-only, ADR-045 decision 1).
+#
+#   The probe is a `gh api` call, so it needs no secret beyond the workflow token, and it treats any
+#   non-200 as "not enabled" rather than as an error.
+#
+#   OWNER STEP: enable Pages on the repository (Settings -> Pages -> Source: "GitHub Actions"). The
+#   first push to main after that is the proof of the deploy half of #165's acceptance; until then the
+#   page exists and assembles in CI but is not served from a URL.
+
+name: Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'designer/web/**'
+      - 'tools/codegen/**'
+      - 'src/compiler/**'
+      - 'scripts/ci/wasm_diagnostics_parity.py'
+      - '.github/workflows/pages.yml'
+  pull_request:
+    paths:
+      - 'designer/web/**'
+      - 'tools/codegen/**'
+      - 'src/compiler/**'
+      - 'scripts/ci/wasm_diagnostics_parity.py'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+# A new push to a pull request cancels the run it supersedes; runs on main are never cancelled (a
+# cancelled deploy would leave the site half-published).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read emsdk pin
+        run: echo "EMSDK_VERSION=$(cat tools/emsdk-version.txt)" >> "$GITHUB_ENV"
+
+      - name: Install Ninja
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build
+
+      # Same emsdk cache key as the WebGPU lane, so the two workflows share the download instead of
+      # fetching the SDK twice.
+      - name: Cache emsdk
+        id: emsdk-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/emsdk
+          key: emsdk-${{ runner.os }}-${{ env.EMSDK_VERSION }}
+
+      - name: Install emsdk
+        if: steps.emsdk-cache.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch "$EMSDK_VERSION" \
+            https://github.com/emscripten-core/emsdk.git "$RUNNER_TEMP/emsdk"
+          "$RUNNER_TEMP/emsdk/emsdk" install "$EMSDK_VERSION"
+
+      - name: Activate emsdk
+        run: |
+          "$RUNNER_TEMP/emsdk/emsdk" activate "$EMSDK_VERSION"
+          source "$RUNNER_TEMP/emsdk/emsdk_env.sh"
+          echo "EMSDK=$EMSDK" >> "$GITHUB_ENV"
+          echo "EMSDK_NODE=$EMSDK_NODE" >> "$GITHUB_ENV"
+          echo "$EMSDK" >> "$GITHUB_PATH"
+          echo "$EMSDK/upstream/emscripten" >> "$GITHUB_PATH"
+          echo "$(dirname "$EMSDK_NODE")" >> "$GITHUB_PATH"
+
+      - name: Configure (wasm-webgpu)
+        run: |
+          emcc --version | head -n1
+          cmake --preset wasm-webgpu
+
+      # The same target the parity gate drives, built once here and shipped as the page's module.
+      - name: Build browser diagnostics module
+        run: cmake --build build/wasm-webgpu --target tessera_diagnostics_wasm --parallel
+
+      # The page must not ship a module that does not load, and it must not ship one that disagrees
+      # with the native compiler. This is the same gate the WebGPU lane runs, over the same corpus;
+      # it needs a native CLI, so a minimal native configure comes along (compiler only).
+      - name: Configure (native, compiler only)
+        run: >
+          cmake -S . -B build/native-pages -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DTESSERA_BUILD_TESTS=OFF
+          -DTESSERA_BUILD_POC=OFF
+          -DTESSERA_BUILD_VULKAN=OFF
+          -DTESSERA_WARNINGS_AS_ERRORS=ON
+
+      - name: Build native compiler
+        run: cmake --build build/native-pages --target tessera_codegen_cli --parallel
+
+      - name: Diagnostics parity (native vs Wasm)
+        run: >-
+          python3 -B scripts/ci/wasm_diagnostics_parity.py
+          --native build/native-pages/src/compiler/codegen/tessera_codegen
+          --wasm build/wasm-webgpu/src/compiler/codegen/tessera_diagnostics.js
+          --node "$EMSDK_NODE"
+
+      # Assemble the site: the hand-written page plus the two artifacts the module needs. Nothing is
+      # built here - the page has no build step of its own by design (issue #165).
+      - name: Assemble site
+        run: |
+          set -euo pipefail
+          site=build/pages
+          rm -rf "$site"
+          mkdir -p "$site"
+          cp -R designer/web/. "$site/"
+          cp build/wasm-webgpu/src/compiler/codegen/tessera_diagnostics.js "$site/"
+          cp build/wasm-webgpu/src/compiler/codegen/tessera_diagnostics.wasm "$site/"
+          # The build id the page displays (D-S5 acceptance: the URL serves the current build).
+          printf '%s\n' "${GITHUB_SHA}" > "$site/build-id.txt"
+          # A static host resolves the directory to index.html; make the intent explicit and fail
+          # loudly if the page is missing rather than publishing an empty artifact.
+          test -f "$site/index.html"
+          test -f "$site/app.js"
+          test -f "$site/app.css"
+          test -f "$site/tessera_diagnostics.js"
+          test -f "$site/tessera_diagnostics.wasm"
+          ls -l "$site"
+
+      # The module is loaded as an ES module by the page, so a wrong MIME type on the host would
+      # break it; GitHub Pages serves .js as JavaScript and .wasm as application/wasm, which is why
+      # ADR-045 chose it. Nothing to configure, but the artifact is uploaded even when the deploy is
+      # skipped so a reviewer can download and open it.
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/pages
+
+  deploy:
+    # Deployment needs the artifact, and it is main-only: a PR builds the page but never publishes it.
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    permissions:
+      # The two scopes `actions/deploy-pages` needs.
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      # The guard. Pages is a repository setting this workflow cannot enable, so probe it and skip
+      # cleanly when it is off instead of failing main.
+      #
+      # It FAILS CLOSED: the deploy step runs only on an explicit successful probe, so *any* other
+      # outcome skips rather than deploying. That covers the three cases distinctly, because a
+      # network or auth error is not the same thing as "Pages is disabled" and the summary must not
+      # claim it is:
+      #   404 / "Not Found"  -> Pages is not enabled; skip, tell the owner what to do
+      #   another non-zero   -> the probe itself failed (network, token, rate limit); skip, say so
+      #   0                  -> Pages exists; deploy
+      # A skipped deploy is not a failed job: main stays green until the owner enables Pages.
+      - name: Check whether GitHub Pages is enabled
+        id: pages-enabled
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -uo pipefail
+          probe="repos/${{ github.repository }}/pages"
+          status=0
+          detail="$(gh api "$probe" 2>&1 >/dev/null)" || status=$?
+          if [ "$status" -eq 0 ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "GitHub Pages is enabled; deploying."
+            exit 0
+          fi
+          echo "enabled=false" >> "$GITHUB_OUTPUT"
+          echo "::notice::GitHub Pages probe failed (exit $status); skipping the deploy."
+          {
+            echo "### Preview page: not deployed"
+            echo ""
+            if printf '%s' "$detail" | grep -qi 'not found'; then
+              echo "GitHub Pages is **not enabled** on this repository, so there is no site to"
+              echo "publish to. The page was built and uploaded as an artifact."
+              echo ""
+              echo "**Owner action:** Settings -> Pages -> Source: **GitHub Actions**. The next push"
+              echo "to main deploys automatically."
+            else
+              echo "The Pages probe itself failed, so the deploy was skipped rather than attempted"
+              echo "(it is guarded so a probe failure cannot turn main red). This is *not* proof that"
+              echo "Pages is disabled."
+              echo ""
+              echo '```'
+              printf '%s\n' "$detail" | head -n 20
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        if: steps.pages-enabled.outputs.enabled == 'true'
+        uses: actions/deploy-pages@v4

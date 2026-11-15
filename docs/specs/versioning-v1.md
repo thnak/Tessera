@@ -34,6 +34,7 @@ release scope
 | Devtools protocol | `protocolVersion` | 1 | unknown major rejected |
 | Crash report | `reportVersion` | 1 | grouping/symbol metadata compatible |
 | Design tokens | `tokenVersion` | 1 | SemVer; visual changes need goldens |
+| Compiler diagnostics document | `diagnosticsVersion` | 1 | strict; a consumer rejects an unknown version |
 
 Defining specs: `tessera.json` in [`project-config-v1.md`](project-config-v1.md); IR in
 [`ir-v1.md`](ir-v1.md); golden case/report in [`golden-tests-v1.md`](golden-tests-v1.md); shader
@@ -43,8 +44,9 @@ manifest in [`shader-manifest-v1.md`](shader-manifest-v1.md); restore snapshot i
 [`i18n-v1.md`](i18n-v1.md); devtools protocol in
 [`devtools-protocol-v1.md`](devtools-protocol-v1.md); crash report in
 [`crash-reporting-v1.md`](crash-reporting-v1.md); asset manifest in
-[`resources.md`](../design/resources.md). The bindings manifest and design tokens have no
-dedicated spec in this folder.
+[`resources.md`](../design/resources.md); compiler diagnostics document in
+[`compiler-diagnostics-v1.md`](compiler-diagnostics-v1.md). The bindings manifest and design tokens
+have no dedicated spec in this folder.
 
 Rules:
 

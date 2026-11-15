@@ -43,8 +43,12 @@ struct ProjectIdentity {
     std::vector<ThemePinSpec> theme_pins;
 };
 
-// Appends one message; an error also makes the exit code 1 unless it was already larger.
+// Appends one message; an error also makes the exit code 1 unless it was already larger. The
+// three-argument form is for a message with no source diagnostic behind it (setup, usage, codegen);
+// its record keeps an empty code and no span rather than inventing either
+// (docs/specs/compiler-diagnostics-v1.md section 2).
 void report(Outcome& outcome, bool is_error, std::string text);
+void report(Outcome& outcome, bool is_error, std::string text, DiagnosticRecord record);
 
 std::optional<std::string> read_file(const std::filesystem::path& path);
 

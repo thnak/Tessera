@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "diagnostics_json.hpp"
+
 #include <string>
 #include <vector>
 
@@ -32,11 +34,21 @@ struct Options {
     // IR data. This is the build-time path for packages/tessera-ui/*.tsx (issue #70); --out is not
     // required. The TSX sources are the source of truth, so an unlowerable source fails the run.
     std::string emit_library_cpp_path;
+    // --diagnostics-json FILE: write the machine-readable diagnostics document
+    // (docs/specs/compiler-diagnostics-v1.md) and generate nothing. The preview page calls the same
+    // serializer through the Wasm entry point, which is what makes native and browser diagnostics
+    // comparable (issue #165, docs/design/compiler-wasm.md section 6).
+    std::string diagnostics_json_path;
 };
 
+// One reported message. `text` is the human form the CLI prints (unchanged); `record` is the same
+// diagnostic with its span intact, filled at the points that already hold a `jsx::Diagnostic` or an
+// `ir::IrDiagnostic`. A message with no source location leaves the record's span empty rather than
+// inventing a position (docs/specs/compiler-diagnostics-v1.md section 2).
 struct Message {
     bool is_error = false;
     std::string text;
+    DiagnosticRecord record;
 };
 
 struct Outcome {
