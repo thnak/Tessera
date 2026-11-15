@@ -75,20 +75,11 @@ set_target_properties(tessera_codegen_cli PROPERTIES OUTPUT_NAME tessera_codegen
 
 # Goldens of the generated base (`<Component>.g.hpp`) live here; they are written by the
 # `--write` mode of their test and are generated from IR, never hand-edited.
+#
+# ADR-040 (issue #218): a migrated family has no compiled sample library any more. Its developer
+# class is the hand-written `tests/unit/codegen_base/fixtures/<Component>.hpp` and the generated
+# base is either the committed golden under this directory or a build-time artifact.
 set(_tessera_codegen_golden_dir ${CMAKE_SOURCE_DIR}/tests/golden/codegen)
-
-# Composition + static children-slot fixture (generated from the hand-built IR in
-# codegen_composition_tests). Same deliberate golden path: `codegen_composition_tests --write` owns
-# Card.* and CardPage.*.
-if (EXISTS ${_tessera_codegen_golden_dir}/CardPage.cpp AND EXISTS ${_tessera_codegen_golden_dir}/Card.cpp)
-    add_library(tessera_codegen_composition_sample STATIC
-        ${_tessera_codegen_golden_dir}/Card.cpp
-        ${_tessera_codegen_golden_dir}/CardPage.cpp)
-    target_include_directories(tessera_codegen_composition_sample
-        PRIVATE ${_tessera_codegen_golden_dir})
-    target_link_libraries(tessera_codegen_composition_sample PRIVATE tessera_scene)
-    target_compile_features(tessera_codegen_composition_sample PUBLIC cxx_std_23)
-endif ()
 
 # Callback-forwarding fixture (issue #286), generated from TSX in lowering_callback_forward_tests.
 # Same deliberate golden path: `lowering_callback_forward_tests --write` owns ForwardWrap.*,
@@ -418,24 +409,25 @@ if (TESSERA_BUILD_TESTS)
     add_executable(codegen_composition_tests
         ${CMAKE_SOURCE_DIR}/tests/unit/codegen_composition_tests.cpp)
 
-    target_link_libraries(codegen_composition_tests PRIVATE
-        tessera_codegen
-        tessera_merger)
+    target_link_libraries(codegen_composition_tests PRIVATE tessera_codegen)
 
     target_compile_definitions(codegen_composition_tests PRIVATE
         TESSERA_CODEGEN_GOLDEN_DIR="${_tessera_codegen_golden_dir}")
 
     add_test(NAME codegen_composition COMMAND codegen_composition_tests)
 
-    if (TARGET tessera_codegen_composition_sample)
+    # The developer classes (tests/unit/codegen_base/fixtures/{Card,CardPage}.hpp) over the committed
+    # bases, generated from the hand-built IR in codegen_composition_tests.
+    if (EXISTS ${_tessera_codegen_golden_dir}/CardPage.g.hpp AND EXISTS
+        ${_tessera_codegen_golden_dir}/Card.g.hpp)
         add_executable(codegen_composition_runtime_tests
             ${CMAKE_SOURCE_DIR}/tests/unit/codegen_composition_runtime_tests.cpp)
 
         target_include_directories(codegen_composition_runtime_tests PRIVATE
-            ${_tessera_codegen_golden_dir})
-        target_link_libraries(codegen_composition_runtime_tests PRIVATE
-            tessera_codegen_composition_sample
-            tessera_scene)
+            ${_tessera_codegen_golden_dir}
+            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures)
+        target_link_libraries(codegen_composition_runtime_tests PRIVATE tessera_scene)
+        target_compile_features(codegen_composition_runtime_tests PRIVATE cxx_std_23)
 
         add_test(NAME codegen_composition_runtime COMMAND codegen_composition_runtime_tests)
     endif ()
@@ -631,43 +623,35 @@ endif ()
 
     # Prop-driven structural options on virtual collections: `orientation`/`columns`/`overscan`
     # (and `columnWidth`) re-read their component prop at sync time, so a prop change re-realizes
-    # the window. The committed golden under `dynamic/` is compiled by the sample library;
-    # `codegen_dynamic_virtual_tests --write` regenerates it. The literal golden must not move.
+    # the window. `codegen_dynamic_virtual_tests --write` regenerates
+    # tests/golden/codegen/dynamic/DynamicVirtual.g.hpp. The literal golden must not move.
     add_executable(codegen_dynamic_virtual_tests
         ${CMAKE_SOURCE_DIR}/tests/unit/codegen_dynamic_virtual_tests.cpp)
 
-    target_link_libraries(codegen_dynamic_virtual_tests PRIVATE
-        tessera_codegen
-        tessera_merger)
+    target_link_libraries(codegen_dynamic_virtual_tests PRIVATE tessera_codegen)
 
     target_compile_definitions(codegen_dynamic_virtual_tests PRIVATE
         TESSERA_CODEGEN_GOLDEN_DIR="${_tessera_codegen_golden_dir}")
 
     add_test(NAME codegen_dynamic_virtual_options COMMAND codegen_dynamic_virtual_tests)
 
-    if (EXISTS ${_tessera_codegen_golden_dir}/dynamic/DynamicVirtual.cpp)
-        add_library(tessera_codegen_dynamic_virtual_sample STATIC
-            ${_tessera_codegen_golden_dir}/dynamic/DynamicVirtual.cpp)
-        target_include_directories(tessera_codegen_dynamic_virtual_sample
-            PRIVATE ${_tessera_codegen_golden_dir}/dynamic)
-        target_link_libraries(tessera_codegen_dynamic_virtual_sample PRIVATE
-            tessera_scene
-            tessera_virtual)
-        target_compile_features(tessera_codegen_dynamic_virtual_sample PUBLIC cxx_std_23)
-
+    # The developer class (tests/unit/codegen_base/fixtures/DynamicVirtual.hpp) over the committed
+    # base, so the same translation unit drives the runtime window behavior.
+    if (EXISTS ${_tessera_codegen_golden_dir}/dynamic/DynamicVirtual.g.hpp)
         target_compile_definitions(codegen_dynamic_virtual_tests PRIVATE
             TESSERA_DYNAMIC_VIRTUAL_SAMPLE=1)
         target_include_directories(codegen_dynamic_virtual_tests
-            PRIVATE ${_tessera_codegen_golden_dir}/dynamic)
+            PRIVATE
+                ${_tessera_codegen_golden_dir}/dynamic
+                ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures)
         target_link_libraries(codegen_dynamic_virtual_tests PRIVATE
-            tessera_codegen_dynamic_virtual_sample
             tessera_scene
             tessera_virtual)
     endif ()
 
     # `Path` -> `PaintKind::Vector`: codegen synthesizes an SVG document from the literal props,
     # embeds it as a generated `AssetBundle` and names that asset in the payload. The golden under
-    # `vector/` is compiled by the sample library; `codegen_vector_payload_tests --write` owns it.
+    # `vector/` is written by `codegen_vector_payload_tests --write`.
     add_executable(codegen_vector_payload_tests
         ${CMAKE_SOURCE_DIR}/tests/unit/codegen_vector_payload_tests.cpp)
 
@@ -681,21 +665,15 @@ endif ()
 
     add_test(NAME codegen_vector_payload COMMAND codegen_vector_payload_tests)
 
-    if (EXISTS ${_tessera_codegen_golden_dir}/vector/VectorIcon.cpp)
-        add_library(tessera_codegen_vector_sample STATIC
-            ${_tessera_codegen_golden_dir}/vector/VectorIcon.cpp)
-        target_include_directories(tessera_codegen_vector_sample
-            PRIVATE ${_tessera_codegen_golden_dir}/vector)
-        target_link_libraries(tessera_codegen_vector_sample PRIVATE tessera_scene)
-        target_compile_features(tessera_codegen_vector_sample PUBLIC cxx_std_23)
-
+    # The developer class (tests/unit/codegen_base/fixtures/VectorIcon.hpp) over the committed base.
+    if (EXISTS ${_tessera_codegen_golden_dir}/vector/VectorIcon.g.hpp)
         target_compile_definitions(codegen_vector_payload_tests PRIVATE
             TESSERA_VECTOR_SAMPLE=1)
         target_include_directories(codegen_vector_payload_tests
-            PRIVATE ${_tessera_codegen_golden_dir}/vector)
-        target_link_libraries(codegen_vector_payload_tests PRIVATE
-            tessera_codegen_vector_sample
-            tessera_scene)
+            PRIVATE
+                ${_tessera_codegen_golden_dir}/vector
+                ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures)
+        target_link_libraries(codegen_vector_payload_tests PRIVATE tessera_scene)
     endif ()
 
     # CPU paint golden for a synthesized payload: the generated component -> payload asset name ->

@@ -16,6 +16,7 @@
 #include <fstream>
 #include <iostream>
 #include <optional>
+#include <span>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -62,6 +63,15 @@ std::string first_error(const codegen::CodegenResult& result) {
         return {};
     }
     return result.error().empty() ? std::string("<empty>") : result.error().front();
+}
+
+// The embed family has no components: a module is only its theme blob, so the emitted header is
+// mode-independent and the two emit modes produce the same bytes. The canonical ADR-040 path is
+// called explicitly here (issue #218 removes the legacy usage, #219 the enum).
+codegen::CodegenResult generate_base(const ir::IrModule& module,
+                                     std::span<const codegen::StylesheetEmbed> embeds = {},
+                                     std::optional<codegen::EmbeddedTheme> theme = std::nullopt) {
+    return codegen::generate(module, embeds, theme, codegen::EmitMode::GeneratedBase);
 }
 
 ir::IrModule make_module() {
@@ -119,7 +129,7 @@ std::vector<std::uint8_t> blob_bytes(std::string_view header) {
 
 void test_theme_header_is_pinned() {
     const std::vector<std::uint8_t> bytes{0x00, 0x01, 0xfe, 0xff};
-    const auto result = codegen::generate(make_module(), {}, codegen::EmbeddedTheme{bytes});
+    const auto result = generate_base(make_module(), {}, codegen::EmbeddedTheme{bytes});
     check(result.has_value(), "a module with a theme generates: " + first_error(result));
     if (!result) {
         return;
@@ -154,7 +164,7 @@ void test_theme_header_is_pinned() {
     for (std::uint8_t value = 0; value < 14; ++value) {
         many.push_back(value);
     }
-    const auto wrapped = codegen::generate(make_module(), {}, codegen::EmbeddedTheme{many});
+    const auto wrapped = generate_base(make_module(), {}, codegen::EmbeddedTheme{many});
     check(wrapped.has_value(), "a longer blob generates");
     if (wrapped) {
         const codegen::GeneratedFile* wrapped_header = find_file(*wrapped, "demo_theme.hpp");
@@ -174,7 +184,7 @@ void test_theme_header_is_pinned() {
 }
 
 void test_no_theme_no_file() {
-    const auto result = codegen::generate(make_module());
+    const auto result = generate_base(make_module());
     check(result.has_value() && result->empty(),
           "no theme means no extra file (and no component files here)");
     const auto warnings = codegen::codegen_warnings(make_module());
@@ -183,8 +193,8 @@ void test_no_theme_no_file() {
 
 void test_determinism_and_order() {
     const std::vector<std::uint8_t> bytes{1, 2, 3, 4, 5};
-    const auto first = codegen::generate(make_module(), {}, codegen::EmbeddedTheme{bytes});
-    const auto second = codegen::generate(make_module(), {}, codegen::EmbeddedTheme{bytes});
+    const auto first = generate_base(make_module(), {}, codegen::EmbeddedTheme{bytes});
+    const auto second = generate_base(make_module(), {}, codegen::EmbeddedTheme{bytes});
     check(first.has_value() && second.has_value(), "the module generates twice");
     if (!first || !second) {
         return;
@@ -199,7 +209,7 @@ void test_determinism_and_order() {
     ir::IrModule module = make_module();
     module.stylesheets = {ir::StylesheetRef{"css::ui/app", "ui/app.css", "fnv1a64:0"}};
     const std::vector<codegen::StylesheetEmbed> embeds{{"ui/app.css", {0xaa, 0xbb}}};
-    const auto both = codegen::generate(module, embeds, codegen::EmbeddedTheme{bytes});
+    const auto both = generate_base(module, embeds, codegen::EmbeddedTheme{bytes});
     check(both.has_value(), "a module with a sheet and a theme generates");
     if (both) {
         check_eq(std::to_string(both->size()), "2", "one stylesheet file plus one theme file");
