@@ -147,16 +147,27 @@ target_link_libraries(ir_record_writer_tests PRIVATE tessera_ir)
 
 add_test(NAME ir_record_writer COMMAND ir_record_writer_tests)
 
-add_executable(ir_record_validate_tests
-    ir_record_validate_tests.cpp
+add_executable(ir_record_table_tests
+    ir_record_table_tests.cpp
     ir_samples.cpp
     ir_samples_rich.cpp
     ir_samples_valid.cpp
     ir_samples_record.cpp)
 
-target_link_libraries(ir_record_validate_tests PRIVATE tessera_ir)
+target_link_libraries(ir_record_table_tests PRIVATE tessera_ir)
 
-add_test(NAME ir_record_validate COMMAND ir_record_validate_tests)
+add_test(NAME ir_record_table COMMAND ir_record_table_tests)
+
+add_executable(ir_record_value_tests
+    ir_record_value_tests.cpp
+    ir_samples.cpp
+    ir_samples_rich.cpp
+    ir_samples_valid.cpp
+    ir_samples_record.cpp)
+
+target_link_libraries(ir_record_value_tests PRIVATE tessera_ir)
+
+add_test(NAME ir_record_value COMMAND ir_record_value_tests)
 
 add_executable(ir_layering_tests
     ir_layering_tests.cpp)

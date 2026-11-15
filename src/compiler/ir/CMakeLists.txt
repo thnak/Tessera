@@ -12,7 +12,8 @@ add_library(tessera_ir STATIC
     src/validate_component.cpp
     src/validate_expr.cpp
     src/validate_node.cpp
-    src/validate_record.cpp)
+    src/validate_record.cpp
+    src/validate_record_value.cpp)
 
 target_include_directories(tessera_ir
     PUBLIC
