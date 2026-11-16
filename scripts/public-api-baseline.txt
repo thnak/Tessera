@@ -317,6 +317,46 @@ function include/tessera/diagnostics/crash.hpp tessera::diagnostics::crash_metad
 function include/tessera/diagnostics/crash.hpp tessera::diagnostics::crash_signature
 function include/tessera/diagnostics/crash.hpp tessera::diagnostics::redact_path
 
+header include/tessera/diagnostics/crash_capture.hpp
+struct include/tessera/diagnostics/crash_capture.hpp tessera::diagnostics::CrashCaptureConfig
+struct include/tessera/diagnostics/crash_capture.hpp tessera::diagnostics::CrashCaptureDetails
+function include/tessera/diagnostics/crash_capture.hpp tessera::diagnostics::crash_report_path
+function include/tessera/diagnostics/crash_capture.hpp tessera::diagnostics::install_crash_capture
+function include/tessera/diagnostics/crash_capture.hpp tessera::diagnostics::uninstall_crash_capture
+
+header include/tessera/diagnostics/crash_report.hpp
+struct include/tessera/diagnostics/crash_report.hpp tessera::diagnostics::CrashModule
+struct include/tessera/diagnostics/crash_report.hpp tessera::diagnostics::CrashRawFrame
+struct include/tessera/diagnostics/crash_report.hpp tessera::diagnostics::CrashRecord
+enum include/tessera/diagnostics/crash_report.hpp tessera::diagnostics::CrashParseError
+function include/tessera/diagnostics/crash_report.hpp tessera::diagnostics::contains_unredacted
+function include/tessera/diagnostics/crash_report.hpp tessera::diagnostics::crash_record_frames
+function include/tessera/diagnostics/crash_report.hpp tessera::diagnostics::crash_record_metadata
+function include/tessera/diagnostics/crash_report.hpp tessera::diagnostics::parse_crash_record
+function include/tessera/diagnostics/crash_report.hpp tessera::diagnostics::redact_report
+function include/tessera/diagnostics/crash_report.hpp tessera::diagnostics::to_string
+
+header include/tessera/diagnostics/crash_symbols.hpp
+struct include/tessera/diagnostics/crash_symbols.hpp tessera::diagnostics::SymbolEntry
+struct include/tessera/diagnostics/crash_symbols.hpp tessera::diagnostics::SymbolFile
+struct include/tessera/diagnostics/crash_symbols.hpp tessera::diagnostics::SymbolizeResult
+function include/tessera/diagnostics/crash_symbols.hpp tessera::diagnostics::parse_symbol_file
+function include/tessera/diagnostics/crash_symbols.hpp tessera::diagnostics::read_elf_symbols
+function include/tessera/diagnostics/crash_symbols.hpp tessera::diagnostics::read_linker_map_symbols
+function include/tessera/diagnostics/crash_symbols.hpp tessera::diagnostics::symbolize_record
+function include/tessera/diagnostics/crash_symbols.hpp tessera::diagnostics::symbolized_metadata
+function include/tessera/diagnostics/crash_symbols.hpp tessera::diagnostics::write_symbol_file
+
+header include/tessera/diagnostics/crash_upload.hpp
+class include/tessera/diagnostics/crash_upload.hpp tessera::diagnostics::CrashUploadTransport
+class include/tessera/diagnostics/crash_upload.hpp tessera::diagnostics::MemoryTransport
+struct include/tessera/diagnostics/crash_upload.hpp tessera::diagnostics::CrashUploadConfig
+struct include/tessera/diagnostics/crash_upload.hpp tessera::diagnostics::CrashUploadPayload
+enum include/tessera/diagnostics/crash_upload.hpp tessera::diagnostics::CrashUploadStatus
+function include/tessera/diagnostics/crash_upload.hpp tessera::diagnostics::to_string
+function include/tessera/diagnostics/crash_upload.hpp tessera::diagnostics::upload_crash_report
+function include/tessera/diagnostics/crash_upload.hpp tessera::diagnostics::upload_enabled
+
 header include/tessera/diagnostics/export.hpp
 struct include/tessera/diagnostics/export.hpp tessera::diagnostics::ExportLimits
 function include/tessera/diagnostics/export.hpp tessera::diagnostics::chrome_trace_json

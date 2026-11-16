@@ -119,9 +119,9 @@ Gap-closure decisions (ids G-n are gaps and Q-n are open questions, listed in [`
 ## 6.2 Implemented: metadata model and exporter (v1 slice)
 
 The report *payload* exists in `include/tessera/diagnostics/crash.hpp` +
-`src/diagnostics/crash.cpp`; the platform capture in section 6.1 (handler, minidump, uploader,
-symbol store) is still to come.
-
+`src/diagnostics/crash.cpp`; the platform capture in section 6.1 is implemented by section 6.3
+below (a bounded text record, not a minidump - see the trade there). The out-of-process dump and
+the internal symbol store's remote side remain deferred.
 - `CrashMetadata` holds what a fatal-path handler can capture without allocating: version,
   commit, build id, platform/arch/OS, GPU, config hash, reason, thread, last trace id, an
   innermost-first frame list and an oldest-first breadcrumb ring. Every field is a view; an
@@ -142,6 +142,98 @@ symbol store) is still to come.
 - Determinism: no clock, no ASLR-dependent address (frames carry a module-relative offset) and
   caller-assigned breadcrumb sequences, so the same crash and build produce identical bytes and
   the golden tests are stable.
+
+## 6.3 Implemented: capture, symbolication and the opt-in uploader (v1 slice, issue #192)
+
+Four headers, one responsibility each: `crash_capture.hpp` (arm the fatal path and locate the
+record), `crash_report.hpp` (parse and redact it), `crash_symbols.hpp` (resolve frames) and
+`crash_upload.hpp` (consent, then send).
+
+**Allocator safety in the handler.** The fatal path may not allocate: a corrupted heap turns
+`malloc` into a deadlock or a second fault. Concretely:
+
+- Every buffer is a fixed-size static array (`detail::kReportCapacity`, 32 KiB; 48 module slots;
+  64 frames). Metadata strings are copied into fixed buffers at *install* time, so the handler never
+  reads the caller's `std::string`.
+- The POSIX arm uses only async-signal-safe calls: `open`, `write`, `close`, `read`, `sigaction`,
+  `raise`, `_exit`, and `backtrace` over a caller-supplied array. No `std::string`, no iostreams,
+  no `snprintf` (it takes a locale lock and can allocate on first use), no `syslog`.
+- A reserved 64 KiB alternate signal stack (`sigaltstack`) plus `SA_ONSTACK`, so a stack-overflow
+  fault can still write a record. `SA_RESETHAND` makes a fault *inside* the handler re-raise with
+  the default disposition instead of looping.
+- The Windows arm is an unhandled-exception filter (`SetUnhandledExceptionFilter`, SEH) that
+  captures the backtrace with `RtlCaptureStackBackTrace` and writes with `CreateFileW`/`WriteFile`,
+  then publishes atomically with `MoveFileExW`. No CRT, no DbgHelp, no loader lock.
+- `_exit`, never `exit`: a corrupted process must not run atexit handlers or flush stdio.
+
+**Deliberately traded away.** The record is a bounded text record, not a minidump or a core file.
+A minidump needs `MiniDumpWriteDump` (DbgHelp) and a core needs a core-pattern decision, and the
+out-of-process choice section 2 names (Crashpad/WER/Breakpad) is a dependency decision this slice
+does not take (`dependencies.md` section 8). What the record carries is therefore everything a
+handler can prove: reason, exception/signal code, thread, fault address, version/commit/build id,
+platform/arch/OS/GPU/config hash, a module table (basenames only) and module-relative frames. Full
+heap and register state, and inline frames, are *not* captured.
+
+**Record format** (`tessera.crash.v1`, one `key=value` per line):
+
+```text
+tessera.crash.v1
+reason=access_violation
+code=3221225477
+thread=main
+address=0x0
+app=<version> commit=<sha> build=<build id> platform=... arch=... os=... gpu=... config=...
+module=app.exe|0x140000000|0x1000
+frame=<module index>|<module-relative offset>
+unmatched=<frames whose pc matched no module>
+```
+
+One record per process at `<crashDir>/crash-report.txt` (mode 0600 on POSIX); a second crash
+overwrites it, which is the "bounded" rule of section 6.1. The name carries no timestamp because a
+report must be byte-stable. `unmatched` counts frames that resolved to no module rather than
+dropping them, and a write that runs out of buffer emits `truncated=1` instead of a short list that
+looks complete.
+
+**Symbolication.** A build's symbol artifact is a text file in `tessera.symbols.v1`
+(`build=`, `module=name|base|size`, `func=<module>|<start>|<size>|<name>`), produced without a new
+dependency by one of two readers: `read_elf_symbols` walks an ELF64 `.symtab` (the Linux/macOS
+debug artifact), and `read_linker_map_symbols` reads an MSVC `/MAP` file (the Windows artifact when
+there is no PDB). Resolution is a lookup of the entry covering `frame.offset`; a frame in a gap
+between sized entries keeps an *empty* symbol and is counted in `unsymbolicated`. A symbol file
+whose build id does not match the record's is refused outright: wrong names are worse than none
+(section 6.1, "mark unsymbolicated").
+
+What a release lane must ship, stated because the default build does not produce it:
+
+- **Windows:** a Release build uses `/Z7` (root `CMakeLists.txt`, CMP0141), which leaves debug info
+  in the objects and produces no PDB for a Release executable (measured: 286 Release test
+  executables, 0 `.pdb`). A release lane adds `/MAP` (as the `crash_symbols` test target does) and
+  archives the `.map` next to the `.exe`, or changes to `/Zi` + `/DEBUG` and archives the PDB. The
+  map carries symbol names and addresses only: no file or line numbers.
+- **Linux/macOS:** the linked ELF keeps `.symtab` unless stripped. A lane that strips ships a
+  `--only-keep-debug` copy as the artifact; the reader needs the unstripped image.
+- Both: archive the artifact per shipped version, keyed by build id, and keep it out of the app
+  bundle (section 3: "never ship debug binaries").
+
+**Uploader.** Opt-in on every axis. `CrashUploadConfig` defaults to `enabled=false`,
+`consent=false` and an empty endpoint, so `upload_enabled()` is false for a default config and
+`upload_crash_report` returns `Disabled` before it reads the report or touches a transport. The
+transport is an interface; the only implementation in-tree is `MemoryTransport`, which records
+calls, so a test asserts `call_count()==0` for the disabled paths and no test ever opens a socket.
+
+**Redaction** (section 5) is `redact_report`, applied to the whole text before transmission:
+user-home prefixes become `<home>` (reusing the logger's `redact_paths`), a path-like value is cut
+to its last component, and an environment-assignment shape (`NAME=value` with an upper-case name
+that is not one of the record's own keys) is dropped as `# env-dropped`. `contains_unredacted` is
+the gate: a report that still carries a user path is refused (`RedactionFailed`) rather than sent.
+
+**Platform matrix.** POSIX (Linux/macOS): `sigaction` on `SIGSEGV`/`SIGBUS`/`SIGFPE`/`SIGILL`/
+`SIGABRT`. Windows: SEH filter for the exception codes plus `signal(SIGABRT)` for `abort()`. The
+forced-crash test spawns a helper that really faults (null write, then `abort`) and asserts the
+report exists, parses, and carries the captured fields; on iOS/tvOS/watchOS there is no forked
+child, so the capture test is not registered and the symbolication test prints
+`crash_symbols: skipped` with that reason.
+
 ## 7. Deferred/open questions
 
 - Public/self-hosted symbol server and access control.
