@@ -71,12 +71,15 @@ void a_post_survives_307_308() {
 }
 
 // Section 3 item 2: "An Authorization header is dropped when a redirect changes the origin."
-void a_cross_origin_redirect_drops_authorization() {
+void a_cross_origin_redirect_drops_every_credential() {
     Harness harness;
     harness.fake.push_response(redirect_to(302, "https://other.example/target"));
     harness.fake.push_response(response_with(200, "ok"));
     NetRequest request = request_for("https://api.example/source");
     request.headers.emplace_back("Authorization", "Bearer secret");
+    request.headers.emplace_back("Cookie", "session=secret");
+    request.headers.emplace_back("Proxy-Authorization", "Basic secret");
+    request.headers.emplace_back("Accept", "application/json");
     submit(harness, request);
     pump(harness);
 
@@ -84,20 +87,31 @@ void a_cross_origin_redirect_drops_authorization() {
     if (harness.fake.received().size() != 2) {
         return;
     }
-    expect(has_header(harness.fake.received()[0].headers, "authorization"),
-           "the first request carried the credential");
-    expect(!has_header(harness.fake.received()[1].headers, "authorization"),
-           "verbatim: a cross-origin redirect drops Authorization");
+    // Every credential reached the first origin...
+    for (const char* header : {"authorization", "cookie", "proxy-authorization"}) {
+        expect(has_header(harness.fake.received()[0].headers, header),
+               "the first request carried the credential");
+    }
+    // ...and none reached the second. A cookie matters most in practice: it is ambient, so an app
+    // that never sets `Authorization` still leaks its session if this list is incomplete.
+    for (const char* header : {"authorization", "cookie", "proxy-authorization"}) {
+        expect(!has_header(harness.fake.received()[1].headers, header),
+               "verbatim: a cross-origin redirect drops every credential");
+    }
+    // A non-credential header is untouched: the rule is about credentials, not about stripping.
+    expect(has_header(harness.fake.received()[1].headers, "accept"),
+           "a non-credential header survives the cross-origin hop");
 }
 
 // The same origin under a different spelling is *not* a cross-origin hop: the port is the effective
 // one, so an explicit `:443` does not count as a change.
-void a_same_origin_redirect_keeps_authorization() {
+void a_same_origin_redirect_keeps_credentials() {
     Harness harness;
     harness.fake.push_response(redirect_to(302, "https://API.example:443/target"));
     harness.fake.push_response(response_with(200, "ok"));
     NetRequest request = request_for("https://api.example/source");
     request.headers.emplace_back("Authorization", "Bearer secret");
+    request.headers.emplace_back("Cookie", "session=secret");
     submit(harness, request);
     pump(harness);
 
@@ -107,7 +121,9 @@ void a_same_origin_redirect_keeps_authorization() {
     }
     expect(has_header(harness.fake.received()[1].headers, "authorization"),
            "a same-origin redirect keeps the credential, even spelled with the default port and a "
-           "different host case");
+           "different case");
+    expect(has_header(harness.fake.received()[1].headers, "cookie"),
+           "and keeps the cookie, which is scoped to the same origin");
 }
 
 // Section 3 item 2: "An https to http redirect is refused with unsupported."
@@ -259,8 +275,8 @@ void a_bad_url_is_refused_before_any_io() {
 int run_redirect_tests() {
     a_post_becomes_a_get_on_301_302_303();
     a_post_survives_307_308();
-    a_cross_origin_redirect_drops_authorization();
-    a_same_origin_redirect_keeps_authorization();
+    a_cross_origin_redirect_drops_every_credential();
+    a_same_origin_redirect_keeps_credentials();
     an_https_to_http_redirect_is_refused();
     a_manual_redirect_is_a_response();
     an_unlisted_3xx_is_a_response();

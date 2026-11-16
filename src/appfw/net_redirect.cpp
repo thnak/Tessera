@@ -69,9 +69,18 @@ follow_redirect(const NetRequest& current, const NetResponse& response, std::uin
     }
     // `307`/`308` keep both, so nothing to do. The remaining statuses never reach here.
     if (origin_of(*origin) != origin_of(*target)) {
-        // Section 3 item 2: a credential is scoped to the origin that issued it. Dropping the
-        // header (rather than forwarding it) is what keeps a redirect from leaking a token.
-        remove_header(next.headers, "authorization");
+        // Section 3 item 2: a credential is scoped to the origin that issued it, so dropping it
+        // (rather than forwarding it) is what keeps a redirect from leaking one. Dropping only
+        // `authorization` left `cookie` and `proxy-authorization` crossing origins -- and a cookie
+        // is the more dangerous omission, because it is ambient: the browser attaches it
+        // automatically, so an app that never sets an `Authorization` header still leaks its
+        // session. Response headers such as `www-authenticate` are not credentials on the request
+        // and are not listed.
+        constexpr std::string_view kCredentialHeaders[] = {"authorization", "cookie",
+                                                           "proxy-authorization"};
+        for (const std::string_view header : kCredentialHeaders) {
+            remove_header(next.headers, header);
+        }
     }
     return next;
 }
