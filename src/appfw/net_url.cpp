@@ -97,6 +97,14 @@ std::expected<NetUrl, NetError> parse_url(std::string_view text) {
     rest =
         authority_end == std::string_view::npos ? std::string_view{} : rest.substr(authority_end);
 
+    // RFC 3986 forbids `\` in a URI, and Windows HTTP stacks normalise it to `/`, which ends the
+    // authority early -- so `good.example\@evil.example` renders as one host and resolves to
+    // another. Refused rather than normalised: silently rewriting it would accept a URL a strict
+    // reader rejects, which is not a property a security boundary may have.
+    if (authority.find('\\') != std::string_view::npos) {
+        return std::unexpected(bad_url("the authority contains a backslash"));
+    }
+
     NetUrl url;
     url.scheme = candidate_scheme.scheme;
 
