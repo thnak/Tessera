@@ -766,7 +766,9 @@ Acceptance: a streaming dashboard at target frame rate with deterministic golden
 ### V1-M8 Release readiness ([milestone 8](https://github.com/thnak/Tessera/milestone/8))
 Acceptance: a real app ships and passes validation layers and golden tests in CI.
 
-- [ ] #192: Crash capture, symbolication, uploader (metadata in `diagnostics/crash.hpp` landed).
+- [ ] #192: Crash capture, symbolication, uploader (metadata in `diagnostics/crash.hpp` landed);
+      capture/symbolication/uploader v1 lands with `tests/unit/crash_capture_tests.cpp`,
+      `crash_symbols_tests.cpp` and `crash_upload_tests.cpp` (section 6.3 of the spec).
 - [ ] #193: Updates and distribution (`docs/specs/updates-and-distribution-v1.md`).
 - [x] #194: Versioning policy for RHI/IR/project config; public API listing gate (#76).
       Two gates, deliberately not one: `check_public_api.py` records declaration-level surface
