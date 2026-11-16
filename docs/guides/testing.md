@@ -557,19 +557,21 @@ until the executables accept a CLI override.
   #201) is counter-only and opt-in: one stylesheet through the embedded-blob path and the run-time
   parse+compile path, compared against `tests/golden/perf/stylesheet_benchmark.json` (structural
   counters exact, allocation counters within `tolerance.allocation_percent`). The label is the
-  opt-in handle and `DISABLED` gates it, so the default suite reports `Not Run (Disabled)`. Run it
-  with `-DTESSERA_BENCHMARK_STYLESHEET=ON` and `ctest -L benchmark`.
+  opt-in handle and `DISABLED` gates it; run it with `-DTESSERA_BENCHMARK_STYLESHEET=ON`.
 - `scripts/check_preview_budget.py` (gate `preview-budget`, issue #170, P6 of
   [`../design/reference-equantic-ui.md`](../design/reference-equantic-ui.md) section 7.4) budgets the
   preview page's compressed download, cold engine-ready time and edit-to-view compile against
-  `tests/golden/perf/preview_budget.json`. Two-sided ratchet: an entry fails when worse than its budget
-  by `tolerance.worse` *and* when better by `tolerance.better`, because unrecorded improvement means
-  the budget went stale; `--update` re-pins a tightening but refuses to loosen any entry.
-  `download_gzip_bytes` is **enforced** (deterministic); the latency rows are **warn** and report a
-  minimum over fresh processes, so only an order-of-magnitude change fires them. Runs in
-  `.github/workflows/pages.yml`, the lane that already built the module, not in `scripts/gates.py`.
-  The script header and the budget file's `note` carry the reasoning; this line is the index.
-
+  `tests/golden/perf/preview_budget.json`. Two-sided ratchet (the same policy as the memory gate
+  below): an entry fails when worse by `tolerance.worse` *and* when better by `tolerance.better`,
+  because unrecorded improvement means the budget went stale; `--update` re-pins a tightening and
+  refuses to loosen. `download_gzip_bytes` is **enforced** (deterministic); the latency rows are
+  **warn**, a minimum over fresh processes. Runs in `pages.yml`, not `gates.py`.
+- `scripts/check_memory_budget.py` (gate `memory-budget`, issue #13) is the memory counterpart:
+  `tests/benchmarks/memory/memory_sizes_probe.cpp` prints the quantities and the gate ratchets
+  `tests/golden/perf/memory_budget.json` two-sided. `sizeof`/allocation rows are **enforced** at 0%
+  (the probe must agree with itself across two runs); resident bytes **warn** in a wide band, because
+  RSS differs between lanes; Android PSS and GPU/VMA are `unmeasured`. CTest runs it where a build
+  tree exists; `gates.py` uses `--no-build`.
 ## 8. Fuzzing
 
 - CSS tokenizer/parser, JSX/TSX parser, IR validation, manifest/IPC parsers, asset decoders.

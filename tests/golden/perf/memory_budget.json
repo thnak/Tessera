@@ -1,0 +1,125 @@
+{
+  "schema": 1,
+  "note": "Memory budgets (issue #13; docs/design/performance.md section 3.1). Checked by scripts/check_memory_budget.py, which runs tests/benchmarks/memory/memory_sizes_probe.cpp and applies the two-sided ratchet in scripts/memory_budget_ratchet.py -- the same policy as tests/golden/perf/preview_budget.json: an entry fails when it is worse than its budget by more than tolerance.worse, AND when it is better by more than tolerance.better (the budget went stale and must be tightened with --update, which refuses to loosen any entry). THE ROWS ARE SPLIT BY REPRODUCIBILITY, NOT BY IMPORTANCE. The `enforce` rows are exact: sizeof of a hot type is fixed by the ABI, and an allocation count comes from a replaced global operator new inside one process, so the probe's two runs must agree byte-for-byte before the gate compares anything. That is why their band is 0%/0% -- it is a real invariant, not noise cover. The `warn` rows are resident memory read from the OS; they move with page granularity, allocator behaviour and machine load, and the two lanes disagree even with identical sizeof(Node): 364 bytes/node on Windows x64 (MSVC) versus 327 on Linux x64 (GCC 13), both Release. A gate that fails at random gets deleted, so those rows report a trend inside a generous band and never block; the bound that does block a leak lives in the CTest tests memory_steady_state and generated_ui_memory, which allow an order of magnitude. The `unmeasured` rows are declared with a reason and NO budget, and the validator rejects a budget on one: Android PSS needs an Android sample this repo does not have (V1 targets Windows and Linux), and the GPU category split needs a Vulkan allocator while every deterministic measurement here uses the null backend, which reports zero allocator bytes by design.",
+  "source": {
+    "probe": "tests/benchmarks/memory/memory_sizes_probe.cpp (CMake target memory_sizes_probe); scripts/memory_budget_measure.py runs it and parses its name=value lines",
+    "ctest": "`memory_sizes` runs the probe; `memory_budget` runs scripts/check_memory_budget.py --check --sizes-only in a lane that has a build tree. Not in scripts/gates.py: that aggregator runs in a job with no build directory, so a gate needing a compiled probe cannot live there (the same reason the preview budget runs in pages.yml)",
+    "argued_by": "tests/unit/node_size_tests.cpp already asserts sizeof(Node) <= kNodeSizeBudget at compile time and counts the lazy-allocation costs; tests/golden/memory/*.txt are the CTest leak guards. This file records the same quantities as data so a change shows up as a diff, and it widens the guard to the other hot types",
+    "conditions": "Windows x64, MSVC (vs2026-release preset), 16 logical cores, idle machine; Linux x64, GCC 13.3, Release, 12 cores under WSL2. sizeof rows agree on both lanes except sizeof_computed_style, which is deliberately NOT pinned here because the standard library decides it (std::map handle: 16 bytes on MSVC, 48 on libstdc++); the portable per-node style cost is the recorded computed_style_one_property_bytes, which is 96 on both. MEASURED FROM A RELEASE BUILD ONLY: MSVC Debug measures sizeof_node 320, sizeof_paint_data 536, paint_slot_bytes 624, computed_style_one_property_bytes 208 and plain_node_allocations 2 (a checked-STL proxy allocation), which are different claims about the same code -- measurement.build_config records which one this file pins and the gate refuses a measurement from another configuration instead of reporting it as a regression",
+    "statistic": "sizeof and allocation counts: exact (two runs must agree, else the gate fails). resident bytes: min over rss_runs"
+  },
+  "measurement": {
+    "build_config": "Release",
+    "nodes": 20000,
+    "idle_cycles": 300,
+    "sizes_runs": 2,
+    "statistic": "sizes: exact (every run must agree); rss: min",
+    "rss_runs": 5
+  },
+  "tolerance": {
+    "default": {
+      "better": 0.0,
+      "worse": 0.0
+    },
+    "resident_bytes_per_node": {
+      "better": 20.0,
+      "worse": 300.0
+    },
+    "node_dirty_scratch_bytes": {
+      "better": 20.0,
+      "worse": 99.0
+    }
+  },
+  "entries": {
+    "sizeof_node": {
+      "budget": 312,
+      "status": "enforce",
+      "unit": "bytes",
+      "measures": "sizeof(ui::Node): one plain View node, the number a 10k-node screen multiplies. kNodeSizeBudget is 320, so this row both pins the measured 312 and leaves the 8-byte headroom visible as a diff. Identical on both lanes (312), which is what makes a 0% band honest"
+    },
+    "sizeof_input_event": {
+      "budget": 344,
+      "status": "enforce",
+      "unit": "bytes",
+      "measures": "sizeof(ui::InputEvent): the element type of the 256-event input queue (about 86 KiB). Deterministic; was 'measured, not yet asserted' in performance.md section 3.1, and this row is the assertion. Identical on both lanes"
+    },
+    "sizeof_paint_data": {
+      "budget": 512,
+      "status": "enforce",
+      "unit": "bytes",
+      "measures": "sizeof(ui::PaintData): the lazily allocated paint payload a text or image node carries. Identical on both lanes. See paint_slot_bytes for what a text node actually allocates"
+    },
+    "sizeof_node_id": {
+      "budget": 8,
+      "status": "enforce",
+      "unit": "bytes",
+      "measures": "sizeof(ui::NodeId): the id stored in every side table (paint cache, resolved-style table, dirty list, damage rects). A wider id multiplies every one of them. Identical on both lanes"
+    },
+    "computed_style_one_property_bytes": {
+      "budget": 96,
+      "status": "enforce",
+      "unit": "bytes",
+      "measures": "bytes the first property insert into a ComputedStyle allocates: the map node plus its two strings, which is the real per-styled-node style cost. This is the portable row; sizeof(ComputedStyle) itself is not pinned because it is a std::map handle whose size the standard library decides (16 on MSVC, 48 on libstdc++) and pinning it would record a libstdc++/MSVC difference as a memory budget. 96 on both lanes"
+    },
+    "plain_node_allocations": {
+      "budget": 1,
+      "status": "enforce",
+      "unit": "allocations",
+      "measures": "global operator new calls made by constructing one plain ui::Node: the node allocates itself and nothing else, so a lazily added default table fails here. Counted, not sampled. 1 on both lanes"
+    },
+    "aria_table_bytes": {
+      "budget": 520,
+      "status": "enforce",
+      "unit": "bytes",
+      "measures": "bytes the first set_aria allocates; exactly one allocation, so the count is deterministic. 520 on both lanes"
+    },
+    "inline_style_table_bytes": {
+      "budget": 520,
+      "status": "enforce",
+      "unit": "bytes",
+      "measures": "bytes the first set_inline_style allocates (one allocation). 520 on both lanes"
+    },
+    "event_binding_table_bytes": {
+      "budget": 200,
+      "status": "enforce",
+      "unit": "bytes",
+      "measures": "bytes the first bind_event allocates (one allocation). 200 on both lanes"
+    },
+    "paint_slot_bytes": {
+      "budget": 520,
+      "status": "enforce",
+      "unit": "bytes",
+      "measures": "bytes a text node's first set_paint_data allocates (the PaintData copy into the node's optional slot). 520 on both lanes"
+    },
+    "cleared_table_reallocations": {
+      "budget": 0,
+      "status": "enforce",
+      "unit": "allocations",
+      "measures": "allocations made by re-setting the aria, inline-style and event-binding tables AFTER clearing them. 0 is the invariant node_size_tests also asserts: clearing keeps the storage, so toggling a value never reallocates"
+    },
+    "resident_bytes_per_node": {
+      "budget": 364,
+      "status": "warn",
+      "unit": "bytes",
+      "measures": "resident bytes the process grows per plain node while a 20k-node tree is built (the memory_steady_state quantity). WARN because it is an OS reading of a heap: measured 364 on Windows x64 and 327 on Linux x64 with identical sizeof(Node)=312, and it moves with page granularity and with whatever else the machine is doing. The 300% worse side is a leak detector, not a ratchet on a specific byte count; the 20% better side notices a real win. Enforced as a generous bound inside the CTest test; this row ratchets the trend"
+    },
+    "node_dirty_scratch_bytes": {
+      "budget": 0,
+      "status": "warn",
+      "unit": "bytes",
+      "measures": "resident growth across 300 idle dirty-mark/clear cycles after warm-up: the leak guard. Measured 0 on both lanes. WARN, and 0 is allowed for a warn row because 'no growth' is the claim; the allowance is tolerance.worse, so an order-of-magnitude jump warns rather than failing a run"
+    },
+    "android_pss_bytes": {
+      "status": "unmeasured",
+      "unit": "bytes",
+      "measures": "the Android PSS split (Java/Native/Graphics) of a running sample, the number that exposes DPR-squared bitmap scaling and swapchain growth on a phone",
+      "reason": "NOT MEASURABLE IN THIS REPO'S LANES. Issue #13's motivating number is an Android PSS split (Java/Native/Graphics), and the DPR-squared bitmap scaling it exposes is the point of the mobile row. This worktree has no Android sample and no emulator job, and AGENTS.md makes Android an advisory, post-V1 platform (Windows and Linux are the gating lanes), so there is nothing to run dumpsys meminfo against. No budget is recorded on purpose: a plausible-looking number would read as evidence and would ratchet a figure nobody measured. Declare it until the Android sample and its emulator job exist"
+    },
+    "gpu_vma_category_bytes": {
+      "status": "unmeasured",
+      "unit": "bytes",
+      "measures": "vmaCalculateStatistics bytes by category (swapchain, glyph-atlas pages, images, buffers), the GPU half of the memory story",
+      "reason": "NOT MEASURABLE ON THE NULL BACKEND, the backend every deterministic measurement here uses. Issue #13 asks for vmaCalculateStatistics by category. rhi::Device::memory_statistics() reports zero on the null backend by design, and tests/gpu/rhi/rhi_memory_tests.cpp asserts that zero, so a null-backend run cannot produce this row. The Vulkan backend does fill it from vmaCalculateStatistics and rhi_memory already asserts the per-resource costs (a 1024x1024 R8 atlas page is 1 MiB, a 1280x720 RGBA target 3.5 MiB, 17.6 MiB at 4x MSAA), which is the enforcement that exists today. The swapchain category is driver-owned and not counted at all, so there is no number to record for it either"
+    }
+  }
+}

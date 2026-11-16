@@ -35,6 +35,7 @@ GATE_FILES = {
     "public-api": "check_public_api.py",
     "pins": "check_pins.py",
     "version-policy": "check_version_policy.py",
+    "memory-budget": "check_memory_budget.py",
 }
 PACKAGE_FILE = "check_package.py"
 # The number of base gates (one stand-in script each) and of gates with --archive, derived from

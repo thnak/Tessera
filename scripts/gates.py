@@ -85,6 +85,12 @@ BASE_GATES: List[Gate] = [
         ("--check",),
         "a breaking RHI/IR/tessera.json change moves its version (issue #194)",
     ),
+    Gate(
+        "memory-budget",
+        "check_memory_budget.py",
+        ("--check", "--no-build"),
+        "hot-type sizes and allocation counts match tests/golden/perf/memory_budget.json (issue #13)",
+    ),
 ]
 OPTIONAL_GATES: List[Gate] = [
     Gate("package", "check_package.py", (), "distributable archive contents (needs --archive)"),
