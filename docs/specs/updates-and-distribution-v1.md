@@ -157,6 +157,72 @@ Gap-closure decisions:
   an explicit policy (`onRestart`/`prompt`/`manual`). Downgrades are blocked unless explicitly
   signed.
 
+## 6.2 Implemented: channel file, release ledger and the manifest gate (issue #193)
+
+The distribution half of this specification now has data and a gate; the signing half does not, and
+the sections above say why. Rationale and the client contract that is *not* implemented are in
+[`packaging.md`](../guides/packaging.md) section 15.
+
+Documents:
+
+| Document | Role | Where |
+|---|---|---|
+| Channel file | channels, ranks, consent, transition table, host allowlist, pinned keys | `release/channels.json` |
+| Release ledger | append-only history: version, channel, date, commit, archive/symbol digests | `release/ledger.json` |
+| Wire manifests | the section-2 manifest, one per (channel, platform), derived and committed | `release/manifests/` |
+
+The manifest is the section-2 shape plus two fields this repository's artifacts need: `symbols`
+(name, size, sha256, `tessera.symbols.v1`, build id) and `deprecations` with the computed
+`earliestRemoval` (section 6.1 and
+[`versioning-v1.md`](versioning-v1.md) section 11.5: two minors **and** ninety days).
+
+`python -B scripts/check_release_manifest.py` is the gate (also `scripts/gates.py` gate
+`release-manifest`). It fails a channel file without `stable`/`beta`, a missing or duplicate
+transition row, a move to a less stable channel that is not `optIn`, a release whose archive digest or
+symbol artifact does not match the shipped bytes, a removal before the deprecation window, and a
+committed manifest that is not byte-identical to its projection or whose URL host is not allowlisted.
+`scripts/gen_release_manifest.py` records a release from a real archive and projects the manifests;
+both commands refuse rather than guess, so a metadata change cannot land on one side alone.
+
+**Signing is not implemented.** The manifest's `signature` is `null`, `release/channels.json` pins no
+key, and the update policy (`scripts/release_client.py`) refuses to offer or apply an unsigned
+package. Verifying one needs an Ed25519 private key held by a release engineer and a CI secret;
+neither exists in this repository, and inventing a signature-verification path with no key to check
+against would be a false claim. The same applies to the CDN, the downloader/deltas and the
+installer (section 7).
+
+Two details of the section-2 example differ from what this repository actually produces, and the
+implementation follows the artifacts rather than the example:
+
+- `platform` is `windows-x86_64` (and `linux-x86_64`, `macos-arm64`), not `windows-x64`: the value is
+  the same `<os>-<arch>` string `cmake/tessera_packaging.cmake` puts in the archive's top-level
+  directory, so a manifest and its artifact cannot name the platform differently.
+- the manifest carries `size` in addition to `sha256`, because section 2 also says "size/hash checked
+  before install" and a size that is not in the manifest can only be learned by downloading. It also
+  carries `symbols` and `deprecations`, which section 2 does not list; see section 6.3.
+
+## 6.3 What a client may do: the update policy seam
+
+`scripts/release_client.py` implements the *decision* half of section 3 and no transport:
+
+- `plan_update(channels, ledger, installed_channel=..., installed_version=..., platform=...,
+  target_channel=..., consent=..., signature_verified=..., allow_downgrade=...)` returns
+  `offer` / `up-to-date` / `blocked` plus the rule id that refused. The refusals, in order: unknown
+  channel, no transition row, a move to a less stable channel without `consent`, no artifact for the
+  platform, a downgrade while the channel file blocks one, an unsigned or unverified package.
+- `signature_verified` is an **input**. This module cannot verify a signature (no key), so the
+  refusal is what it guarantees: a caller that forgets the check gets `blocked`, never an install.
+- The section-6.1 state machine is data (`STATES`, `TRANSITIONS`, `can_transition`), so a test walks
+  `Idle -> Checking -> Available -> Downloading -> Verifying -> Staged -> Applying -> HealthCheck ->
+  Healthy` with no socket; `HealthCheck -> Rollback` and `rollback_after(2)` encode G-23's two
+  failed launches.
+- `apply_allowed(decision, unsaved_work_active)` is section 3's "no update while critical unsaved
+  work is active" rule, in one place.
+
+`UpdateClientPolicy.check/download/stage/apply` raise `NotImplementedError` naming what is missing.
+A downloader needs a transport and a test in this repository may not open a socket; staging and
+applying need a filesystem slot and an installer; deltas are deferred to v1.1 by G-23 itself.
+
 ## 7. Deferred/open questions
 
 - Delta format/tooling and signing (planned for v1.1, per G-23 above).

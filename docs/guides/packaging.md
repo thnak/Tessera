@@ -213,6 +213,8 @@ Still open (no decision yet):
 
 - SBOM format/tooling.
 - Fully static Linux (musl) support.
+- The update host and the signing key (section 15 records the empty state; filling either is an
+  owner decision, not a tooling one).
 
 ## 13. Run the gates locally
 
@@ -228,10 +230,11 @@ pinned in `tools/format-version.txt`, which is also what CI installs), `dependen
 allowlist, statuses, notices), `license-bundle` (`THIRD_PARTY_LICENSES.txt` is current), `sbom`
 (`sbom.spdx.json` is current), `docs` (links/anchors/index/fences/sizes/ADRs), `source-size` (the
 500-line ratchet), `public-api` (the recorded public surface, section 13.1), `pins` (reproducible
-fetch pins plus dependency rows) and `version-policy` (a breaking change to the RHI headers, the IR
+fetch pins plus dependency rows), `version-policy` (a breaking change to the RHI headers, the IR
 schema or `tessera.json` moves that surface's version; policy in
 [versioning-v1](../specs/versioning-v1.md) section 11, baseline in
-`scripts/versioning-baseline.txt`, section 13.2).
+`scripts/versioning-baseline.txt`, section 13.2), `memory-budget` and `release-manifest` (the channel
+file, the release ledger and the projected update manifests, section 15.3).
 `--archive PATH` adds `package` (validates a distributable archive) and `--fixtures` adds the slower
 gate self-tests. `--only docs,pins`, `--list`, `--json` and `--quiet` are available, and the runner
 is cwd-independent; it forces UTF-8 for child processes so it behaves the same on Windows cp1252
@@ -335,8 +338,9 @@ and does not replace, `gates.py` (current-tree checks including docs) and the pe
 build/package jobs; it runs in the Linux `release-rehearsal` CI job.
 
 1. **Repository gates** — `python -B scripts/gates.py` (format-version, dependencies, license
-   bundle, SBOM, docs, source-size, pins, version-policy). Proves the tree is internally consistent;
-   add `--archive` once step 5 produced an archive.
+   bundle, SBOM, docs, source-size, public-api, pins, version-policy, memory-budget,
+   release-manifest). Proves the tree is internally consistent; add `--archive` once step 5 produced
+   an archive.
 2. **Release build and static-runtime proof** — configure with `TESSERA_STATIC_RUNTIME=ON` and
    `BUILD_SHARED_LIBS=OFF` (both default), build the shipped target set, then run
    `python -B scripts/check_static_runtime.py --config Release --target <target>`. Proves the
@@ -431,3 +435,75 @@ owner decision recorded in `docs/design/compiler-wasm.md` §8. No new dependency
 is introduced — validation layers and lavapipe were already installed and are already in
 [`dependencies.md`](../specs/dependencies.md).
 
+## 15. Updates and distribution: the manifest, the channels and the ledger
+
+Issue #193. Normative rules: [`updates-and-distribution-v1.md`](../specs/updates-and-distribution-v1.md)
+sections 1-3 and 6.1-6.3. This section is the how-to and the rationale; the spec wins on any conflict.
+
+The archive of section 5 is a file. An *update* additionally needs four answers: which artifacts
+exist, what their digests are, which channel a user may be offered them on, and whether a client is
+allowed to apply one. Those are three committed documents:
+
+| Document | Answers | Written by |
+|---|---|---|
+| `release/channels.json` | who may move between channels, consent, host allowlist, pinned keys | a reviewed edit |
+| `release/ledger.json` | what shipped: version, channel, date, commit, archive and symbol digests | `gen_release_manifest.py record` |
+| `release/manifests/<channel>-<platform>.json` | the specification section-2 manifest a client reads | `gen_release_manifest.py project` |
+
+### 15.1 Recording a release
+
+`record` takes the bytes, not a claim: it hashes the archive and its symbol artifact, reads the
+version/platform from the archive name (the contract `check_package.py` enforces), the commit from
+`PACKAGE-INFO.txt`, and the build id from the symbol file's header. It refuses a `--commit` that
+disagrees with `PACKAGE-INFO.txt`, a symbol file for another build, a symbol file with no `func=`
+rows, `StaticRuntime` other than `ON`, and a version already recorded on that channel. The ledger is
+append-only; a correction is a new version, not an edit.
+
+The **symbol artifact** is `tessera-<version>-<platform>.symbols.txt` in the format
+`include/tessera/diagnostics/crash_symbols.hpp` defines. Issue #192 measured that a Release Windows
+build emits no PDB; the `/MAP` the linker can produce is one link option, and `read_linker_map_symbols`
+already turns it into this artifact. A release that ships none is a gate failure, because a crash
+report from it would carry addresses and no names.
+
+```bash
+python -B scripts/gen_release_manifest.py record \
+  --archive build/package/out/tessera-1.0.0-windows-x86_64.zip \
+  --symbols build/package/out/tessera-1.0.0-windows-x86_64.symbols.txt \
+  --channel beta --date 2026-11-16
+```
+
+### 15.2 Projecting and checking
+
+```bash
+python -B scripts/gen_release_manifest.py project          # write what changed
+python -B scripts/gen_release_manifest.py project --check  # report drift, write nothing
+python -B scripts/check_release_manifest.py                # the gate (gates.py: release-manifest)
+```
+
+The projection is a ratchet in both directions. `project` refuses to write when the data breaks a
+rule (so a bad host, or a version newer than `project(Tessera VERSION ...)`, cannot be committed as a
+manifest), and `check_release_manifest.py` fails when the committed bytes differ from the projection.
+One side of a metadata change cannot land alone.
+
+What it proves, and what it does not: the manifests describe the exact bytes a ledger recorded, on
+channels whose transition rules are explicit, with the deprecation window (two minors **and** ninety
+days, [versioning-v1](../specs/versioning-v1.md) section 11.5) computed into each deprecation's
+`earliestRemoval`. It does **not** prove a signature, fetch a URL, or apply anything.
+
+### 15.3 Why the client is only a seam
+
+`scripts/release_client.py` decides `offer` / `up-to-date` / `blocked` from the two data files, names
+the rule that refused, carries the section-6.1 state machine as data, and encodes G-23's
+two-failed-launch rollback and the "no update while unsaved work is active" rule.
+`UpdateClientPolicy` is the interface a real client implements; its `check`/`download`/`stage`/`apply`
+raise `NotImplementedError`, because each needs a transport, a filesystem slot or an installer, and no
+test in this repository may open a socket or read the clock.
+
+**Signing is not implemented and cannot be here.** It needs an Ed25519 private key held by a release
+engineer and a CI secret. `release/channels.json` therefore pins no key (the honest unsigned state,
+reported as a warning), every manifest's `signature` is `null`, and `plan_update` refuses to offer an
+unsigned package: `signature_verified` is an input the caller's key store supplies, never a claim this
+tooling makes. Not landed either, with the reason each needs: the CDN and update root (a host and a
+budget decision, so `updateHosts` is empty), the downloader with resume and partial-file recovery (a
+transport), staging/atomic swap/rollback-apply (a filesystem slot and an installer), and delta
+packages (G-23 defers them to v1.1).
