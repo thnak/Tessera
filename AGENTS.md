@@ -657,14 +657,24 @@ owner-planned item and is not part of this milestone.
       separate and lazy, `scene.html`/`canvas.html` become redirect stubs that keep `#p5=` links
       working). Merged in PR #420; the stack conversion and the P6 budget re-record moved to ADR-054's
       slice (#422), which the studio items below and #391 now wait on.
-- [ ] #422: studio: convert the hosted page to React 19 + Vite (ADR-054): Vite, React 19 and
-      TypeScript in `designer/web`, the four regions as components with the engine canvas untouched,
-      the three lazy Wasm modules and the pure-ES-module codec kept, and the Pages build, page checks
-      and download budget moved with the stack (the measured re-record, not a loosened pin). Blocks
-      #387-#390, #395, #408 and #171.
+- [x] #422: studio: convert the hosted page to React 19 + Vite (ADR-054). The four regions are
+      components and the engine canvas is a childless ref'd leaf outside React's render cycle, so a
+      preview crash loses the canvas and not the editor. `share.js`/`preview-state.js` stay pure ES
+      modules (asserted from both sides, and the 19 share checks import them unbuilt). The budget was
+      re-recorded from a measured decomposition: React's floor is +69,007 gzip over a control build
+      and the page's own JS fell from 44,001 to 13,790, for a net +33,774. **Unblocked #387-#390,
+      #395, #408 and #171.** Evidence: `designer/web/src/App.tsx`, `docs/design/studio-page.md`.
+      The Pages lane caught a real defect the conversion could not: the sample-manifest generator
+      still read the pre-Vite path, so `--check` looked for a file the build had just deleted.
 - [ ] #387: P3b: text in the canvas preview, font loaded as data (IBM Plex Sans Latin subset).
-- [ ] #388: P3c: pointer input on the canvas (hit-test, click, hover, active) through a persistent
-      session in the canvas module.
+- [x] #388: P3c pointer input -- the **engine half** (`CanvasSceneSession` + the
+      `tessera_canvas_pointer` export). `:hover`/`:active` come from the real style engine, not from
+      JS writing a class: the router sets `Node::pseudo_state` and marks `Dirty::Style`, so
+      `Button:hover` matches. One frame per change and **zero for a static scene**, proven over the
+      null RHI and mutation-checked (forcing `needs_frame()` true fails both suites). The coordinate
+      rule is the CSS-to-logical ratio, **never DPR**. Page wiring is #422's shell, which has landed;
+      the browser/WebGPU half is still unverified. Evidence:
+      `tools/codegen/scene_canvas_session.*`, `docs/design/canvas-input-session.md`.
 - [ ] #389: conditional and repeated children in the scene preview (today a named
       `TESSERA_SCENE_UNSUPPORTED`).
 - [ ] #390: author stylesheet (second textarea), `style` and `className` in the preview; user CSS
