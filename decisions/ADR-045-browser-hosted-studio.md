@@ -6,7 +6,9 @@ preview).
 
 Related: [ADR-054](ADR-054-studio-front-end-react-vite.md) amends the page-stack wording of this ADR
 (the host shell is a React 19 + Vite application, not hand-written ES modules); decisions 1-5 here
-stand.
+stand. [ADR-055](ADR-055-studio-mock-services.md) narrows decision 7 for `*.mock.ts` project files
+only: the studio host may compile and run them in a sandboxed worker; the engine still never executes
+JavaScript.
 
 ## Context
 

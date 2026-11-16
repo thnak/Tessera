@@ -9,8 +9,9 @@
   [ADR-036](ADR-036-own-jsx-frontend-and-react-like-model.md) (own JSX/TSX front end),
   [ADR-024](ADR-024-native-first-boundaries.md) (no production JS/React runtime — unchanged),
   [ADR-050 section 3.1 item 6](ADR-050/service-provisioning.md) (designer preview fakes),
-  [tools/wiki/README.md](../tools/wiki/README.md) (in-repo React 19 + Vite precedent), GitHub issues
-  #392, #391, #387-#390, #395, #408, #171, #375, #406
+  [ADR-055](ADR-055-studio-mock-services.md) (design-time mock services, which resolves questions 2 and
+  3 below), [tools/wiki/README.md](../tools/wiki/README.md) (in-repo React 19 + Vite precedent), GitHub
+  issues #392, #391, #387-#390, #395, #408, #171, #375, #406
 
 ## Context
 
@@ -189,10 +190,9 @@ the page-stack assumption that the host shell is hand-written ES modules with no
 2. **Code slice inside #392:** Vite scaffold, React shell and view modules; `pages.yml` build step;
    gate rewrite; budget re-record; keep the Wasm modules lazy and `share.js`/`preview-state.js` as pure
    ES modules.
-3. **New ADR, spec and issue:** the mock-service ADR (the ADR-045 decision 7 exception, the sandbox
-   and the in-browser TypeScript compiler or declarative subset) and
-   `docs/specs/studio-mock-services-v1.md` plus the designer-protocol additions — the mock project-file
-   kind (accepted files, `project.load`, limits, #391/#406 file policy), interface binding,
+3. **New spec and issue:** [ADR-055](ADR-055-studio-mock-services.md) records the mock model; its spec
+   `docs/specs/studio-mock-services-v1.md` plus the designer-protocol additions cover the mock
+   project-file kind (accepted files, `project.load`, limits, #391/#406 file policy), interface binding,
    response/latency/failure scripting on the simulation clock, call recording, caps, determinism, and
    the ADR-050 section 3.1 item 6 bridge. It depends on the `ui/services.json` spec, which does not
    exist yet.
@@ -204,7 +204,8 @@ the page-stack assumption that the host shell is hand-written ES modules with no
 ## Open questions raised by this decision
 
 These are not decided here. They are the questions the mock ADR, the mock spec and the project-IO items
-must answer; each names what it would change.
+must answer; each names what it would change. Question 2 and question 3 are resolved by
+[ADR-055](ADR-055-studio-mock-services.md).
 
 1. **Project container.** V1 defines a project as a folder with
    [`tessera.json`](../docs/specs/project-config-v1.md) at its root (ADR-014), plus zip export for
@@ -215,11 +216,15 @@ must answer; each names what it would change.
    class, which size/count limits, whether `project.load` carries it to the viewer at all (it should
    not), and whether the shared file-policy library (#391 for the page, #406 for MCP) owns the rule.
    The accepted-file list and the protocol's "project file" kinds are both extended by the answer.
+   *Resolved by [ADR-055](ADR-055-studio-mock-services.md): `*.mock.ts`, 1 MiB each, 64 per project,
+   host-only, never sent to the viewer.*
 3. **Mock execution model.** Declarative data replayed by the engine-side fake (no user code, no
    ADR-045 decision 7 exception, no new dependency) or TypeScript compiled and run by the studio host
    in a sandboxed worker (in-browser TypeScript compiler, new dependency, explicit exception). If the
    latter: the sandbox API surface, the caps, and the bridge (host-supplied replay data versus a
    protocol round-trip per service call), and how both stay deterministic on the simulation clock.
+   *Resolved by [ADR-055](ADR-055-studio-mock-services.md): a sandboxed studio worker with a lazy
+   transpiler; no live synchronous round-trip; the bridge mode is part of the mock spec.*
 4. **Logger alternative.** Should the studio also (or instead) expose a component-scoped logger —
    `ILogger<Component>`-style — for behaviour traces and test assertions? No such type exists today
    (only [`diagnostics::Logger`](../include/tessera/diagnostics/log.hpp), level/category/sink, no
