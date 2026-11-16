@@ -23,10 +23,8 @@
 // No device, no window, no clock, no file: the test runs anywhere the null backend does.
 
 #include "canvas_report.hpp"
-#include "scene_frame.hpp"
-#include "scene_prepare.hpp"
+#include "scene_frame_test_support.hpp"
 #include "tessera/rendering/golden/parity.hpp"
-#include "tessera/rendering/null/null_device.hpp"
 
 #include <cstdint>
 #include <cstring>
@@ -38,30 +36,19 @@
 
 namespace {
 
-namespace cli = tessera::compiler::codegen::cli;
 namespace golden = tessera::rendering::golden;
+
+// The failure counter and the two shared sources (`kColumn`, the shipped font path) live in the
+// header, so this file and `scene_frame_text_tests.cpp` report through one object.
+using scene_frame_test::expect;
+using scene_frame_test::kColumn;
+using scene_frame_test::options_for;
+
+// The aliases the shared header also declares; repeated here because a namespace alias is not
+// visible through a using-declaration.
+namespace cli = tessera::compiler::codegen::cli;
 namespace null = tessera::rendering::null;
 namespace rhi = tessera::rendering::rhi;
-
-int g_failures = 0;
-
-void expect(bool condition, std::string_view message) {
-    if (!condition) {
-        std::cerr << "scene_frame: " << message << "\n";
-        ++g_failures;
-    }
-}
-
-constexpr std::string_view kColumn = R"(export function Column(): Node {
-  return (
-    <View>
-      <Text>Preview</Text>
-      <Button>Add</Button>
-      <Button>Reset</Button>
-    </View>
-  );
-}
-)";
 
 // Two boxes of the same size at different places: the "moved geometry" case the parity policy must
 // reject, and the cheapest way to build it without a second source file.
@@ -74,16 +61,6 @@ constexpr std::string_view kTwoBoxes = R"(export function TwoBoxes(): Node {
   );
 }
 )";
-
-cli::ScenePreviewOptions options_for(std::string_view file) {
-    cli::ScenePreviewOptions options;
-    options.file = file;
-    options.salt = "preview";
-    options.width = 320.0f;
-    options.height = 240.0f;
-    options.dpi_scale = 1.0f;
-    return options;
-}
 
 void test_prepare_scene() {
     cli::PreparedScene scene = cli::prepare_scene(kColumn, options_for("ui/Column.tsx"));
@@ -342,8 +319,11 @@ int main() {
     test_canvas_report();
     test_parity_policy();
     test_clear_color();
-    if (g_failures != 0) {
-        std::cerr << "scene_frame: " << g_failures << " failure(s)\n";
+    // Issue #387: text in the canvas preview, font loaded as data. The cases live in
+    // `scene_frame_text_tests.cpp` (source-size split); they report through the shared counter.
+    scene_frame_test::run_text_cases();
+    if (scene_frame_test::failures() != 0) {
+        std::cerr << "scene_frame: " << scene_frame_test::failures() << " failure(s)\n";
         return 1;
     }
     std::cout << "scene_frame: ok\n";

@@ -263,6 +263,15 @@ jobs:
           --canvas build/wasm-webgpu/src/compiler/codegen/tessera_canvas.js
           --node "$EMSDK_NODE"
 
+      # The font ABI (issue #387): the page fetches one face and hands the bytes over, so the two
+      # exports and the pointer-plus-size contract are part of what ships. Node has no device, hence the
+      # refusal branch; the glyphs are proven by the native lane.
+      - name: Canvas module font ABI (Node)
+        run: >-
+          python3 -B scripts/ci/scene_frame_parity.py --mode canvas-font
+          --canvas build/wasm-webgpu/src/compiler/codegen/tessera_canvas.js
+          --node "$EMSDK_NODE"
+
       # Assemble the site from the **built** page plus the three Wasm artifacts.
       #
       # Issue #422 converted the page to React 19 + Vite (ADR-054), so there is no longer a hand-written

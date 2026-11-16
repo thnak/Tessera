@@ -122,8 +122,9 @@ void PreviewSession::rebuild() {
         bind_handler(handler.automation_id, handler.event, handler.handler);
     }
 
-    ui::layout::LayoutEngine engine;
-    (void)layout_scene(*root_, sheet_, engine, options_.width, options_.height, options_.dpi_scale);
+    ui::layout::LayoutEngine engine(options_.measurer);
+    (void)layout_scene(*root_, sheet_, engine, options_.width, options_.height, options_.dpi_scale,
+                       options_.measurer);
 }
 
 void PreviewSession::bind_handler(std::uint64_t automation_id, const std::string& event,

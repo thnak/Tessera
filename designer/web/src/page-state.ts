@@ -54,6 +54,8 @@ export interface PaneRefs {
   statVertices: React.RefObject<HTMLElement | null>;
   statNodes: React.RefObject<HTMLElement | null>;
   statDpr: React.RefObject<HTMLElement | null>;
+  /** The font row (issue #387): the painted face's name, or why text is absent. */
+  statFont: React.RefObject<HTMLElement | null>;
 }
 
 /** Creates the ref bundle once. A factory, because every entry has to be a *stable* ref. */
@@ -88,6 +90,7 @@ export function usePaneRefs(): PaneRefs {
     statVertices: useRef<HTMLElement>(null),
     statNodes: useRef<HTMLElement>(null),
     statDpr: useRef<HTMLElement>(null),
+    statFont: useRef<HTMLElement>(null),
   };
 }
 

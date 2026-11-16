@@ -9,6 +9,7 @@
 #include "tessera/ui/scene/dirty_pass.hpp"
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/style/compiled_stylesheet.hpp"
+#include "tessera/ui/text/text_measure.hpp"
 
 #include <cstdint>
 #include <memory>
@@ -40,6 +41,9 @@
 // hover was already cleared) requests no frame at all.
 namespace tessera::compiler::codegen::cli {
 
+// The text module this session's font parameter names lives one namespace up.
+namespace text = tessera::ui::text;
+
 // What one pointer event did. `changed` is the page's answer to "schedule one frame?".
 struct CanvasPointerResult {
     bool dispatched = false; // the router delivered the event to a scene target
@@ -66,6 +70,12 @@ struct CanvasSessionSource {
     float width = 320.0f;
     float height = 240.0f;
     float dpi_scale = 1.0f;
+    // The face the layout measures text with, or null for the deterministic stub. The session does
+    // **not** own it: the device-backed stack belongs to whoever painted the last frame (the Wasm
+    // entry, or a test), so the session stores the measurer `start()` was given and reuses it when
+    // a Run re-evaluates. A font arriving later therefore needs a new `start()` - which is what the
+    // page's `tessera_canvas_set_font` does when it arrives before the first Run.
+    std::shared_ptr<const text::TextMeasurer> measurer;
 };
 
 // One evaluation, kept between events: the lowered IR the tree borrows from, the compiled sheet it
@@ -113,9 +123,15 @@ public:
     // Paints the current tree into `target` and consumes the dirty domains, so a second `paint()`
     // with no intervening event paints the same pixels and `needs_frame()` stays false. The caller
     // owns `device` and `target`.
+    //
+    // `text` is the font the session paints with, and it is also the measurer the *layout* used
+    // (issue #387): a session started with font bytes lays its text boxes out against that face, so
+    // handing the same stack here keeps a painted line inside the box it was measured for. Null
+    // paints boxes only, which is the state before any font arrived.
     SceneFrameResult paint(rhi::Device& device, rhi::RenderTarget& target,
                            const rhi::RenderTargetDesc& desc,
-                           const rhi::PipelineDesc& pipeline = {});
+                           const rhi::PipelineDesc& pipeline = {},
+                           PreviewTextStack* text = nullptr);
 
     [[nodiscard]] std::uint32_t frames_painted() const noexcept {
         return frames_painted_;
@@ -137,8 +153,8 @@ public:
 
 private:
     [[nodiscard]] bool reused_ok(const std::string& text, const std::string& file,
-                                 const std::string& component, float width, float height,
-                                 float dpi) const;
+                                 const std::string& component, float width, float height, float dpi,
+                                 const std::shared_ptr<const text::TextMeasurer>& measurer) const;
 
     // The lowered IR the scene borrows its strings from: declared before the session so it outlives
     // the tree, which is the ownership rule `PreparedScene` states.
@@ -155,6 +171,9 @@ private:
     float width_ = 320.0f;
     float height_ = 240.0f;
     float dpi_scale_ = 1.0f;
+    // The measurer the running evaluation was laid out with; a later `start()` compares it by
+    // identity so a font arriving after the first Run is a re-evaluation, not a reuse.
+    std::shared_ptr<const text::TextMeasurer> measurer_;
     std::string error_;
     bool reused_ = false;
     bool fresh_ = false; // a Run happened and its frame has not been painted yet

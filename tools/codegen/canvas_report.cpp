@@ -96,6 +96,11 @@ std::string canvas_report_json(const SceneFrameResult& result, std::uint32_t wid
     append_number(out, "borders", result.borders);
     append_number(out, "texts", result.texts);
     append_number(out, "textSkipped", result.text_skipped);
+    // The bounded atlas's own failure counter (#387): non-zero means the frame's text was measured
+    // and advanced correctly but that many glyphs' ink is absent, which is a font/atlas fact rather
+    // than a stylesheet bug. Reported next to `textSkipped` so the two are never confused - one
+    // says "no font, no text", the other says "text, but not all of its pixels".
+    append_number(out, "glyphsDropped", result.glyphs_dropped);
     append_number(out, "vectorsSkipped", result.vectors_skipped);
     append_number(out, "imagesSkipped", result.images_skipped);
     append_bool(out, "pixelsAvailable", result.pixels_available);

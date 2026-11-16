@@ -196,6 +196,16 @@ set(_tessera_scene_preview_sources
 set(_tessera_canvas_session_sources
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_canvas_session.cpp)
 
+# The preview's text stack (issue #387): the production FreeType/HarfBuzz/atlas path, loaded from font
+# BYTES the caller supplies (the page fetches them; the CLI reads the same shipped file).
+#
+# Listed separately from `_tessera_scene_preview_sources` for the same reason
+# `_tessera_canvas_session_sources` is: it links `tessera_gpu` (the atlas uploads page textures), and
+# the P2 snapshot driver's null-RHI claim depends on that library never appearing in its link line.
+# Every target that paints a frame adds this list; the snapshot targets do not.
+set(_tessera_preview_text_sources
+    ${CMAKE_SOURCE_DIR}/tools/codegen/preview_text.cpp)
+
 if (NOT EMSCRIPTEN)
     # The driver as a library, so the parity test (tests/parity) can run the very same evaluation
     # and input session the module exports instead of a second copy of the stage order. The OBJECT
@@ -225,6 +235,7 @@ if (NOT EMSCRIPTEN)
     # code (no webgpu.h, no Vulkan header) type-checked on the ordinary Windows/Linux lanes.
     add_library(tessera_scene_frame_entry OBJECT
         ${CMAKE_SOURCE_DIR}/tools/codegen/scene_frame.cpp
+        ${_tessera_preview_text_sources}
         ${_tessera_scene_preview_sources})
     target_include_directories(tessera_scene_frame_entry
         PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
@@ -265,6 +276,7 @@ if (NOT EMSCRIPTEN)
     # deliberately not a link dependency because that target is an OBJECT library as well.
     target_sources(tessera_canvas_report PRIVATE
         ${CMAKE_SOURCE_DIR}/tools/codegen/scene_frame.cpp
+        ${_tessera_preview_text_sources}
         ${_tessera_scene_preview_sources})
 
     # The native half of the parity gate: `tessera_scene_preview --scene-json OUT FILE.tsx` prints the
@@ -288,6 +300,7 @@ if (NOT EMSCRIPTEN)
     add_executable(tessera_scene_frame_cli
         ${CMAKE_SOURCE_DIR}/tools/codegen/scene_frame_main.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/scene_frame.cpp
+        ${_tessera_preview_text_sources}
         ${_tessera_scene_preview_sources})
     target_include_directories(tessera_scene_frame_cli
         PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
@@ -368,8 +381,10 @@ else ()
     # page needs to run a frame. No NODERAWFS: nothing here reads a file (section 2.1).
     add_executable(tessera_canvas_wasm
         ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_entry.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_font.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/canvas_report.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/scene_frame.cpp
+        ${_tessera_preview_text_sources}
         ${_tessera_canvas_session_sources}
         ${_tessera_scene_preview_sources})
     target_include_directories(tessera_canvas_wasm
@@ -393,10 +408,13 @@ else ()
         -sEXPORT_NAME=createTesseraCanvas
         -sENVIRONMENT=web,node
         -sALLOW_MEMORY_GROWTH=1
-        -sEXPORTED_FUNCTIONS=["_tessera_canvas_frame","_tessera_canvas_run","_tessera_canvas_pointer","_tessera_canvas_draw","_tessera_canvas_reset","_tessera_webgpu_set_device","_tessera_free","_malloc","_free"]
+        -sEXPORTED_FUNCTIONS=["_tessera_canvas_frame","_tessera_canvas_run","_tessera_canvas_pointer","_tessera_canvas_draw","_tessera_canvas_reset","_tessera_canvas_set_font","_tessera_canvas_font_status","_tessera_webgpu_set_device","_tessera_free","_malloc","_free"]
         # `WebGPU` is the emdawnwebgpu port's handle table: the page needs `WebGPU.importJsDevice` and
         # `importJsQueue` to turn a JS GPUDevice/GPUQueue into the integer handles the C ABI takes.
-        -sEXPORTED_RUNTIME_METHODS=["UTF8ToString","lengthBytesUTF8","stringToUTF8","WebGPU"])
+        # `HEAPU8` is the view the page writes font bytes through (issue #387): `_malloc` returns a
+        # pointer into the module's linear memory, and without the view exported the page has nowhere to
+        # put the bytes - the handover fails with "no HEAPU8" rather than a wrong picture.
+        -sEXPORTED_RUNTIME_METHODS=["UTF8ToString","lengthBytesUTF8","stringToUTF8","WebGPU","HEAPU8"])
 endif ()
 
 # Goldens of the generated base (`<Component>.g.hpp`) live here; they are written by the
@@ -660,13 +678,25 @@ if (TESSERA_BUILD_TESTS)
     # the page parses, and the tolerance policy the pixel gate uses. Registered here rather than in
     # tests/unit/CMakeLists.txt so this lane does not edit the shared registry while other lanes work
     # in it - the same pattern src/ui/paint and tests/gpu/backends already use.
+    #
+    # Two translation units make one ctest case: `scene_frame_tests.cpp` covers the frame path and
+    # `scene_frame_text_tests.cpp` covers text with a font (issue #387). They are split for the source
+    # size limit, share `scene_frame_test_support.hpp`, and are linked into one executable so the
+    # `scene_frame` case still proves the whole path in one run.
     add_executable(scene_frame_tests
         ${CMAKE_SOURCE_DIR}/tests/unit/scene_frame_tests.cpp
+        ${CMAKE_SOURCE_DIR}/tests/unit/scene_frame_text_tests.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/scene_frame.cpp
+        ${_tessera_preview_text_sources}
         ${CMAKE_SOURCE_DIR}/tools/codegen/canvas_report.cpp
         ${_tessera_scene_preview_sources})
     target_include_directories(scene_frame_tests
-        PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
+        PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen
+                ${CMAKE_SOURCE_DIR}/tests/unit)
+    # The shipped font's absolute path: the text cases read the very bytes the page fetches, and ctest
+    # may run from any directory (the same reason `TESSERA_FONT_FIXTURE` is absolutized elsewhere).
+    target_compile_definitions(scene_frame_tests PRIVATE
+        TESSERA_PREVIEW_FONT_PATH="${CMAKE_SOURCE_DIR}/designer/web/public/fonts/IBMPlexSans-Latin.ttf")
     target_link_libraries(scene_frame_tests PRIVATE
         tessera_automation_scene
         tessera_golden
@@ -714,6 +744,7 @@ if (TESSERA_BUILD_TESTS)
             ${CMAKE_SOURCE_DIR}/tests/unit/${_canvas_test}_tests.cpp
             ${CMAKE_SOURCE_DIR}/tools/codegen/canvas_report.cpp
             ${CMAKE_SOURCE_DIR}/tools/codegen/scene_frame.cpp
+            ${_tessera_preview_text_sources}
             ${_tessera_canvas_session_sources}
             ${_tessera_scene_preview_sources})
         target_include_directories(${_canvas_test}_tests
