@@ -340,6 +340,24 @@ Measuring the delta between a hardware WebGPU frame and a lavapipe golden is exa
 `tests/golden/tolerance.json`'s `webgpu_vs_lavapipe` pair (8/255 per channel, 2% of pixels, SSIM >=
 0.99, deltaE <= 2.0) was written for, so the browser lane adds no policy, only a device.
 
+### 8.3a How the frame reaches the canvas
+
+The page owns the surface, the module owns the drawing:
+
+1. `canvas.js` requests the device, then turns the JS `GPUDevice`/`GPUQueue` into Emscripten
+   handles with `WebGPU.importJsDevice` / `importJsQueue` (the module exports `WebGPU` for this)
+   and calls `tessera_webgpu_set_device`, which returns 1, 0 (null handle) or -1 (wrapping threw).
+   Passing the JS objects themselves does not work: they coerce to 0 and read as a null handle.
+2. It configures the canvas context once (`rgba8unorm`, opaque).
+3. Each frame it imports `getCurrentTexture().createView()` with `importJsTextureView` and passes
+   that handle to `tessera_canvas_frame`. The module wraps it in `create_canvas_target`, paints the
+   scene into it with `scene_frame_paint`, and releases the view when the target is destroyed.
+   A null view draws offscreen instead, which is what the Node probe uses.
+
+Both target kinds derive from `WebGpuTargetViews`, and the command list casts to that. A cast to the
+concrete offscreen class made a canvas target read the wrong memory and begin a pass with no view.
+The preview module ships no font, so text nodes paint their boxes only (`textSkipped`).
+
 ### 8.4 Render on demand
 
 The page does not run a frame loop. `canvas.js` draws once per *change*: a Run, a device-pixel-ratio

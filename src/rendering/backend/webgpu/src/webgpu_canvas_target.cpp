@@ -24,7 +24,7 @@ namespace {
 // The canvas image, wrapped as an RHI render target. It owns the view it was given (the page hands
 // over one reference per frame and never touches it again) and never the texture: the canvas owns
 // that, and destroying it here would break the next frame.
-class WebGpuCanvasTarget final : public rhi::RenderTarget {
+class WebGpuCanvasTarget final : public WebGpuTargetViews {
 public:
     WebGpuCanvasTarget(rhi::Extent2D extent, rhi::TextureFormat format, WGPUTextureView view)
         : extent_(extent),
@@ -63,14 +63,17 @@ public:
     // A canvas target cannot be sampled or copied from, so it has no resolve image and no sampler;
     // the command list's sampled-target path never reaches this type because `presentable()` is
     // true.
-    [[nodiscard]] WGPUTextureView color_view() const {
+    [[nodiscard]] WGPUTextureView color_view() const override {
         return view_;
     }
-    [[nodiscard]] WGPUTextureView resolve_view() const {
+    [[nodiscard]] WGPUTextureView resolve_view() const override {
         return nullptr;
     }
-    [[nodiscard]] WGPUTextureView sampled_view() const {
+    [[nodiscard]] WGPUTextureView sampled_view() const override {
         return view_;
+    }
+    [[nodiscard]] WGPUSampler sampler() const override {
+        return nullptr;
     }
 
 private:

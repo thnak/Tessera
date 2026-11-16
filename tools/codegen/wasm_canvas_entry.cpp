@@ -13,13 +13,13 @@
 //       objects (an object coerces to 0 and reads as a null handle). Returns 1 on success, 0 for
 //       a null handle, -1 when wrapping threw. Until it succeeds every frame call reports "no
 //       device" instead of throwing, which is what the page's unsupported path shows.
-//   const char* tessera_canvas_frame(source, file, component, width, height, dpi)
+//   const char* tessera_canvas_frame(source, file, component, width, height, dpi, canvas_view)
 //       Runs the same `prepare_scene()` + `scene_frame_paint()` path the native CLI renders, into
-//       an offscreen WebGPU target of `width` x `height`, and returns a JSON report of what it
-//       recorded
-//       (`canvas_report.cpp`). The pixels stay on the GPU: a browser cannot map a buffer
-//       synchronously, so `pixelsAvailable` is false and the pixel comparison is a browser lane's
-//       job, not a claim this module makes.
+//       the canvas texture view the page hands over (`width` x `height`, RGBA8), and returns a
+//       JSON report of what it recorded (`canvas_report.cpp`). With a null `canvas_view` it draws
+//       into an offscreen target instead. A browser cannot map a buffer synchronously, so
+//       `pixelsAvailable` is false and the pixel comparison is a browser lane's job, not a claim
+//       this module makes.
 //   void tessera_free(const char* text)
 //       Releases a report returned above.
 //
@@ -41,7 +41,9 @@
 #include <cstdlib>
 #include <cstring>
 #include <emscripten/emscripten.h>
+#include <exception>
 #include <memory>
+#include <string>
 #include <string_view>
 
 namespace {
@@ -63,6 +65,45 @@ char* duplicate_out(std::string_view text) {
     std::memcpy(out, text.data(), text.size());
     out[text.size()] = '\0';
     return out;
+}
+
+// The canvas format the page configures. RGBA8 is one of the two formats WebGPU requires every
+// canvas to support, and it is the format the paint path and the lavapipe goldens already use, so
+// the preview paints the same bytes the reference does.
+constexpr rhi::TextureFormat kCanvasFormat = rhi::TextureFormat::R8G8B8A8Unorm;
+
+// Draws one frame into the canvas texture the page holds. The target takes ownership of the view
+// first so that no later failure (a bad source) leaks the per-frame reference.
+cli::SceneFrameResult paint_to_canvas(std::string_view source,
+                                      const cli::ScenePreviewOptions& options,
+                                      std::string_view component, rhi::Extent2D extent,
+                                      void* canvas_view) {
+    cli::SceneFrameResult result;
+    if (extent.width == 0 || extent.height == 0) {
+        result.error = "paint_to_canvas: the canvas extent must be positive";
+        return result;
+    }
+    std::unique_ptr<rhi::RenderTarget> target;
+    try {
+        target = webgpu::create_canvas_target(canvas_view, extent, kCanvasFormat);
+    } catch (const std::exception& failure) {
+        result.error = std::string("paint_to_canvas: ") + failure.what();
+        return result;
+    }
+
+    const cli::PreparedScene scene = cli::prepare_scene(source, options, component);
+    if (!scene.error.empty() || scene.root == nullptr) {
+        result.error = scene.error.empty() ? "the source produced no scene" : scene.error;
+        return result;
+    }
+
+    rhi::RenderTargetDesc desc;
+    desc.extent = extent;
+    desc.format = kCanvasFormat;
+    desc.clear_color = cli::scene_frame_clear_color();
+    desc.load_op = rhi::LoadOp::Clear;
+    desc.store_op = rhi::StoreOp::Store;
+    return cli::scene_frame_paint(scene, *g_device, *target, desc);
 }
 
 } // namespace
@@ -89,9 +130,13 @@ EMSCRIPTEN_KEEPALIVE int tessera_webgpu_set_device(void* device, void* queue) {
     return 1;
 }
 
+// `canvas_view` is the Emscripten handle of the canvas's current texture view
+// (`WebGPU.importJsTextureView(context.getCurrentTexture().createView())`), one reference per
+// frame, which the frame takes ownership of. Null draws into an offscreen target instead (the Node
+// probe and any caller with no canvas), so the counters stay available without a surface.
 EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_frame(const char* source, const char* file,
                                                       const char* component, int width, int height,
-                                                      float dpi) {
+                                                      float dpi, void* canvas_view) {
     const auto extent = rhi::Extent2D{static_cast<std::uint32_t>(width > 0 ? width : 0),
                                       static_cast<std::uint32_t>(height > 0 ? height : 0)};
     if (g_device == nullptr) {
@@ -118,9 +163,14 @@ EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_frame(const char* source, const 
         return duplicate_out(cli::canvas_report_json(none, extent.width, extent.height, true));
     }
 
-    const cli::SceneFrameResult result =
-        cli::scene_frame_render(source, options, *g_device, extent, name);
-    return duplicate_out(cli::canvas_report_json(result, extent.width, extent.height, true));
+    if (canvas_view == nullptr) {
+        const cli::SceneFrameResult result =
+            cli::scene_frame_render(source, options, *g_device, extent, name);
+        return duplicate_out(cli::canvas_report_json(result, extent.width, extent.height, true));
+    }
+    return duplicate_out(
+        cli::canvas_report_json(paint_to_canvas(source, options, name, extent, canvas_view),
+                                extent.width, extent.height, true));
 }
 
 // The matching release, same convention as the diagnostics and scene modules.
