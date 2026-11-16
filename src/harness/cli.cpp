@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "cli_internal.hpp"
+#include "new_project.hpp"
 #include "tessera/app/host.hpp"
 #include "tessera/automation/app_config.hpp"
 #include "tessera/automation/engine_host.hpp"
@@ -81,6 +82,7 @@ std::string_view cli_usage() noexcept {
     return "tessera - deterministic headless UI harness\n"
            "\n"
            "Usage:\n"
+           "  tessera new <dir> [--template blank|counter] [--title TEXT]\n"
            "  tessera test --script <path> [--mode structural|audit] [--out <dir>] [--report "
            "<path>]\n"
            "  tessera headless --mode <mode> --script <path> [--out <dir>] [--report <path>]\n"
@@ -89,7 +91,11 @@ std::string_view cli_usage() noexcept {
            "[--update-goldens] [--font <ttf>]\n"
            "  tessera --help | --version\n"
            "\n"
-           "Exit codes: 0 pass, 1 run/audit failure, 2 invalid script/config.\n"
+           "Exit codes: 0 pass, 1 run/audit failure or write failure, 2 invalid script/config or\n"
+           "usage.\n"
+           "`tessera new` scaffolds a project directory from a template (docs/guides/"
+           "project-generator.md);\n"
+           "it refuses a non-empty directory, downloads nothing and initialises no repository.\n"
            "The script lane runs against the built-in windowless fixture scene and writes\n"
            "out/report.json (or --report) plus any snapshot/trace/audit artifacts the script asks\n"
            "for. --mode golden and gpu-smoke then render the final scene and compare it with "
@@ -133,6 +139,13 @@ static int run_cli_impl(std::span<const std::string_view> args, std::ostream& ou
     }
 
     const std::string_view command = args.front();
+    // `new` is a subcommand of this binary because this binary is the one named `tessera`
+    // (src/harness/CMakeLists.txt sets no OUTPUT_NAME) and it already dispatches on a leading verb.
+    // The scaffold is a pure text generator plus one directory write: it links no engine target and
+    // reads no runtime state, so it costs this binary nothing it did not already have.
+    if (command == "new") {
+        return generator::run_new(args.subspan(1), out, err);
+    }
     if (command != "test" && command != "headless") {
         err << "tessera: unknown command '" << command << "'\n\n" << cli_usage();
         return 2;

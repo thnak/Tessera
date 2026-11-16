@@ -3,14 +3,21 @@
 This guide covers how a developer creates, configures, generates, and builds a Tessera
 project. The schema reference is [`docs/specs/project-config-v1.md`](../specs/project-config-v1.md).
 
-Status: design only. Neither `tessera` nor `tesserac` is implemented yet; the commands below are the target contract (see [getting-started.md, section 5](getting-started.md#5-target-application-workflow-not-implemented-yet)). V1 means the first release scope described in [AGENTS.md, Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step) (compiler work is Big Step C).
+Status: partly implemented. **`tessera new` ships** (issue #77, first slice): it scaffolds a project
+from the `blank` or `counter` template, refuses a non-empty directory, and downloads nothing. The
+remaining commands below (`generate`, `dev`, `build`, `run`, `doctor`, `add`, `migrate`) and the
+prebuilt-toolchain route are still the target contract — see
+[getting-started.md, section 5](getting-started.md#5-starting-an-app-tessera-new-and-the-target-workflow).
+V1 means the first release scope described in [AGENTS.md, Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step) (compiler work is Big Step C).
 
 ## What the generator does
 
 Tessera has two binaries:
 
-- **`tessera`** — the project CLI: scaffold, validate, generate, build, run, preview.
-- **`tesserac`** — the compiler: JSX/TSX → IR (intermediate representation, [ir-v1.md](../specs/ir-v1.md)) → C++ (invoked by `tessera`; `tesserac` can also be run directly).
+- **`tessera`** — the project CLI: scaffold, validate, generate, build, run, preview. Today it is the
+  headless automation harness (`tessera test`, `tessera headless`) plus `tessera new`; the other
+  verbs are design only.
+- **`tesserac`** — the compiler: JSX/TSX → IR (intermediate representation, [ir-v1.md](../specs/ir-v1.md)) → C++ (invoked by `tessera`; `tesserac` can also be run directly). Today this is the `tessera_codegen` binary.
 
 The generator is deterministic and incremental:
 
@@ -27,13 +34,48 @@ Only components whose input or config hash changed are regenerated.
 
 ## Quick start
 
+`tessera new` works today; the three commands after it are the target contract.
+
 ```bash
-tessera new my-app --template dashboard --targets windows,linux
+tessera new my-app --template blank     # works: scaffolds a project (issue #77)
 cd my-app
-tessera dev          # Wasm/WebGPU preview in the browser
-tessera build        # generate + compile native
-tessera run
+tessera dev          # design only: Wasm/WebGPU preview in the browser
+tessera build        # design only: generate + compile native
+tessera run          # design only
 ```
+
+Until `generate`/`build`/`run` land, build the scaffold with its own presets against a Tessera
+checkout — the generated `README.md` gives the exact commands:
+
+```bash
+cmake --preset dev -DTESSERA_SOURCE_DIR=/path/to/Tessera
+cmake --build --preset dev
+./build/dev/my-app --frames 120
+```
+
+### What `tessera new` does and does not do
+
+```text
+tessera new <dir> [--template blank|counter] [--title TEXT]
+tessera new --list-templates
+```
+
+It writes 12 files: `tessera.json`, `CMakeLists.txt`, `CMakePresets.json`, `.clang-format`,
+`.gitignore`, `README.md`, `ui/App.tsx`, `ui/app.css`, `ui/elements.json`, `src/main.cpp`,
+`src/App.hpp`, `src/App.cpp`. Exit codes: 0 created, 1 write failure, 2 usage or a non-empty target
+directory.
+
+- **Never overwrites.** A target that exists and holds any entry is refused before the first byte is
+  written; there is no `--force` and no merge. A missing directory and an empty one are both accepted.
+- **Deterministic.** The output is a function of (template, directory name, `--title`) alone: no
+  timestamp, no absolute path, no random id, POSIX separators and LF endings on every platform. Two
+  runs with the same inputs are byte-identical, which `new_project` asserts.
+- **Downloads nothing and runs nothing.** No network, no `git init`, no package manager. The project
+  builds against an installed Tessera SDK (route A, not released) or a Tessera checkout (route B,
+  which works today).
+- **No assets.** No font and no theme file: both are licensed third-party assets. `src/main.cpp`
+  looks for `assets/fonts/Inter-Regular.ttf` then `assets/fonts/NotoSans-Regular.ttf`, and takes
+  `--font <path>`.
 
 ## Generated project layout
 

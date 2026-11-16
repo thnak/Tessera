@@ -127,22 +127,41 @@ Current tests:
 | Rebuild is slow | Enable `TESSERA_USE_COMPILER_CACHE=ON` and install `sccache`/`ccache` |
 | Wrong preset name | See `CMakePresets.json`: `dev`, `release`, `ci`, `vs2026`, `vs2022` |
 
-## 5. Target application workflow (not implemented yet)
+## 5. Starting an app (`tessera new`) and the target workflow
 
-The designed workflow is:
+`tessera new` ships today (issue #77, first slice). It scaffolds a project and stops there:
 
 ```bash
-tessera new my-app --template dashboard --targets windows,linux
+tessera new my-app --template blank     # or --template counter
 cd my-app
-tessera dev          # Wasm/WebGPU preview
-tessera build        # generate C++ + compile native
-tessera run
+cmake --preset dev -DTESSERA_SOURCE_DIR=/path/to/Tessera
+cmake --build --preset dev
+./build/dev/my-app --frames 120
 ```
+
+The scaffold writes `tessera.json`, `CMakeLists.txt`, `CMakePresets.json`, `.clang-format`,
+`.gitignore`, `README.md`, `ui/{App.tsx,app.css,elements.json}` and
+`src/{main.cpp,App.hpp,App.cpp}`. It refuses a non-empty directory, is deterministic (two runs with
+the same inputs are byte-identical), and **downloads nothing** — the framework has to be an installed
+SDK or a checkout you already have, which is why the command above passes `-DTESSERA_SOURCE_DIR`.
+No font is scaffolded either: copy any OFL font to `assets/fonts/Inter-Regular.ttf` or pass
+`--font <path>`. The generated `README.md` restates all of this.
+
+The rest of the designed workflow is still the target contract, not runnable:
+
+```bash
+tessera dev          # design only: Wasm/WebGPU preview in the browser
+tessera build        # design only: generate C++ + compile native
+tessera run          # design only
+```
+
+Today `tessera generate` is the separate `tessera_codegen` binary, and `tessera` itself is the
+headless automation harness plus `new`. Independently of this workflow, a Tessera checkout builds
+with the presets in section 1.
 
 The project layout, `tessera.json`, hooks subset, and generated-code contract are defined in
 [`project-generator.md`](project-generator.md) (project layout and generator) and
-[`project-config-v1.md`](../specs/project-config-v1.md) (`tessera.json` schema). Treat this as the target contract, not
-a currently runnable CLI.
+[`project-config-v1.md`](../specs/project-config-v1.md) (`tessera.json` schema).
 
 ## 6. Next steps
 

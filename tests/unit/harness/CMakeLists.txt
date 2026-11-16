@@ -106,6 +106,19 @@ target_compile_definitions(harness_cli_tests PRIVATE
 
 add_test(NAME harness_cli COMMAND harness_cli_tests)
 
+# `tessera new` (issue #77, docs/guides/project-generator.md): the scaffolder's layout, its refusal
+# to overwrite a non-empty directory, its two templates, and -- the assertion the design exists for
+# -- byte-identical output from two runs. In process against the real filesystem, in a scratch
+# directory under the build tree: no compiler, no subprocess, and no %TEMP% write (a confined
+# sandbox denies one, and a failure left here stays inspectable).
+add_executable(new_project_tests
+    new_project_tests.cpp)
+
+target_link_libraries(new_project_tests PRIVATE tessera_generator)
+
+add_test(NAME new_project
+    COMMAND new_project_tests ${CMAKE_CURRENT_BINARY_DIR}/new_project_tests-work)
+
 # Test-only fake HAL and the script runner/fake-HAL suites. `tessera_harness_testing` is built only
 # for tests: no shipping target links it, and `fake_hal.hpp` states that in its first paragraph.
 add_library(tessera_harness_testing STATIC
