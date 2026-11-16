@@ -277,6 +277,10 @@ This page is the map and reading order for the framework.
 - [`design/canvas-input-session.md`](design/canvas-input-session.md) — the persistent canvas session
   (#388): pointer events into one kept evaluation, `:hover`/`:active` through the stylesheet engine,
   one frame per change, and the CSS-to-logical coordinate rule (page wiring deferred to #422)
+- [`design/studio-project-io.md`](design/studio-project-io.md) — the studio's zip container
+  (`studio-zip.js`, STORE-only writer, DEFLATE reader, no dependency) and the path-confinement rule
+  (`project-paths.js`): the two framework-independent pieces of #391, their named refusals, and what
+  the React shell (#422) takes from them
 - [`design/compiler-node-state.md`](design/compiler-node-state.md) — per-branch and per-item
   component instance state, keyed list item records, presence seam
 - [`design/jsx-frontend.md`](design/jsx-frontend.md) — own JSX/TSX lexer/parser: slice plan,
