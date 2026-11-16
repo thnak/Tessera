@@ -74,10 +74,21 @@ bool valid_part_argument(std::string_view argument) {
     return any && !at_token_start;
 }
 
+// The nesting budget for functional pseudo-classes, matching blob_io.hpp's kMaxSelectorDepth: a
+// selector blob and a selector string must not disagree about how deep a selector may be. Exceeding
+// it is a parse failure, not a crash -- `:not(:not(:not(...)))` is not something a real stylesheet
+// writes, and a hostile one must not be able to abort the process.
+inline constexpr int kMaxNestedSelectorDepth = 16;
+
+// Declared here because a nested functional pseudo-class calls back into it before the
+// definition further down this file.
+SelectorParseResult parse_selector_list_at(std::string_view text, int depth);
+
 class SelectorParser {
 public:
-    explicit SelectorParser(std::vector<Token> tokens)
-        : tokens_(std::move(tokens)) {}
+    explicit SelectorParser(std::vector<Token> tokens, int depth = 0)
+        : tokens_(std::move(tokens)),
+          depth_(depth) {}
 
     SelectorParseResult parse() {
         SelectorParseResult result;
@@ -356,10 +367,18 @@ private:
                 }
             } else if (!element && (pseudo.name == "not" || pseudo.name == "is" ||
                                     pseudo.name == "where" || pseudo.name == "has")) {
-                SelectorParseResult nested = parse_selector_list(pseudo.argument);
-                if (nested.ok) {
-                    pseudo.nested = std::make_shared<const SelectorList>(std::move(nested.list));
+                if (depth_ >= kMaxNestedSelectorDepth) {
+                    // Too deep to be a real selector; refuse rather than overflow the stack.
+                    return false;
                 }
+                SelectorParseResult nested = parse_selector_list_at(pseudo.argument, depth_ + 1);
+                if (!nested.ok) {
+                    // A functional pseudo-class whose argument does not parse cannot be honoured,
+                    // and dropping just the argument would silently change what the selector means.
+                    // Fail the compound instead.
+                    return false;
+                }
+                pseudo.nested = std::make_shared<const SelectorList>(std::move(nested.list));
             }
             return true;
         }
@@ -398,14 +417,24 @@ private:
 
     std::vector<Token> tokens_;
     std::size_t index_ = 0;
+    // How many functional pseudo-classes enclose this parse; see kMaxNestedSelectorDepth.
+    int depth_ = 0;
 };
 
 } // namespace
 
-SelectorParseResult parse_selector_list(std::string_view text) {
+namespace {
+
+SelectorParseResult parse_selector_list_at(std::string_view text, int depth) {
     Tokenizer tokenizer(text);
-    SelectorParser parser(tokenizer.tokenize());
+    SelectorParser parser(tokenizer.tokenize(), depth);
     return parser.parse();
+}
+
+} // namespace
+
+SelectorParseResult parse_selector_list(std::string_view text) {
+    return parse_selector_list_at(text, 0);
 }
 
 Specificity specificity(const CompoundSelector& selector) {

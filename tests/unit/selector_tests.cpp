@@ -158,6 +158,37 @@ int main() {
         return 16;
     }
 
+    // Nesting is bounded (issue found by the security review). An unbounded functional
+    // pseudo-class recursion overflowed the stack: a 7 KB stylesheet with 1200 nested `:not(`
+    // aborted the process with 0xC00000FD through the shipped codegen CLI. Depth 16 matches
+    // blob_io.hpp's kMaxSelectorDepth, so a selector blob and a selector string agree.
+    std::string shallow;
+    for (int i = 0; i < 8; ++i) {
+        shallow += ":not(";
+    }
+    shallow += "a";
+    for (int i = 0; i < 8; ++i) {
+        shallow += ")";
+    }
+    parsed = parse_selector_list(shallow);
+    if (!expect(parsed.ok, "nesting inside the budget still parses")) {
+        return 17;
+    }
+
+    std::string deep;
+    for (int i = 0; i < 1200; ++i) {
+        deep += ":not(";
+    }
+    deep += "a";
+    for (int i = 0; i < 1200; ++i) {
+        deep += ")";
+    }
+    // The assertion is that this RETURNS AT ALL: before the bound it overflowed the stack.
+    parsed = parse_selector_list(deep);
+    if (!expect(!parsed.ok, "nesting past the budget is refused, not a stack overflow")) {
+        return 18;
+    }
+
     std::cout << "selector: ok\n";
     return 0;
 }
