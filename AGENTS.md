@@ -152,6 +152,15 @@ How unattended agents pick and land work. Milestones live on GitHub only (no oth
   could not proceed and the owner must decide or fix something. An issue with none of the three
   waits on an earlier item named in its body; flip it to `ready` when the PR that unblocks it
   merges. Pick `ready` issues in milestone order and swap the label to `in-progress` when you start.
+- **Promote unblocked issues:** nothing else flips waiting issues to `ready`, so the agent whose PR
+  merges does it, and an agent that finds no `ready` issue runs the same sweep before stopping.
+  List open issues with none of the three labels
+  (`gh issue list --state open --json number,labels,body`), read the "Depends on", "After", "Waits
+  on" and "Needs" lines in each body, and add `ready` only when every named issue is closed
+  (`gh issue view <n> --json state`) or the line says the work can start now. Leave an issue
+  unlabeled when it is a question or owner decision, needs a measurement first, targets an advisory
+  platform lane, changes CI workflows (verifiable only by pushing), or has a dependency you cannot
+  confirm; if unsure, comment on the issue instead of labeling it.
 - **Marking a task blocked:** when an item cannot be finished (a missing decision, a spec gap, a
   failing dependency, a platform you cannot test), do not guess and do not leave it half done.
   Comment on the issue with the exact blocker, what you tried, and the smallest question or fix
