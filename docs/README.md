@@ -274,6 +274,9 @@ This page is the map and reading order for the framework.
 - [`design/studio-page.md`](design/studio-page.md) — the merged studio `index.html` (#392): one page
   with three lazy views, the module layout, the old-URL redirect that keeps `#p5=` links working, and
   the re-pinned P6 download budget
+- [`design/canvas-input-session.md`](design/canvas-input-session.md) — the persistent canvas session
+  (#388): pointer events into one kept evaluation, `:hover`/`:active` through the stylesheet engine,
+  one frame per change, and the CSS-to-logical coordinate rule (page wiring deferred to #422)
 - [`design/studio-project-io.md`](design/studio-project-io.md) — the studio's zip container
   (`studio-zip.js`, STORE-only writer, DEFLATE reader, no dependency) and the path-confinement rule
   (`project-paths.js`): the two framework-independent pieces of #391, their named refusals, and what

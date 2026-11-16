@@ -19,11 +19,8 @@ void append_number(std::string& out, std::string_view name, std::uint64_t value)
 // A string field, escaped for JSON. The only text that reaches here is this module's own ASCII
 // error messages, so escaping quotes, backslashes and control characters is the whole job; pulling
 // a general encoder into a module this small would be a second implementation of a solved problem.
-void append_text(std::string& out, std::string_view name, std::string_view text) {
-    out += ",";
+void append_escaped(std::string& out, std::string_view text) {
     out.push_back('"');
-    out += name;
-    out += "\":\"";
     for (const char character : text) {
         const auto code = static_cast<unsigned char>(character);
         switch (character) {
@@ -58,6 +55,22 @@ void append_text(std::string& out, std::string_view name, std::string_view text)
     out.push_back('"');
 }
 
+void append_text(std::string& out, std::string_view name, std::string_view text) {
+    out += ",";
+    out.push_back('"');
+    out += name;
+    out += "\":";
+    append_escaped(out, text);
+}
+
+// One element of a JSON string array, with the comma the caller does not have to place.
+void append_string_element(std::string& out, bool first, std::string_view text) {
+    if (!first) {
+        out.push_back(',');
+    }
+    append_escaped(out, text);
+}
+
 void append_bool(std::string& out, std::string_view name, bool value) {
     out += ",";
     out.push_back('"');
@@ -88,6 +101,31 @@ std::string canvas_report_json(const SceneFrameResult& result, std::uint32_t wid
     append_bool(out, "pixelsAvailable", result.pixels_available);
     append_text(out, "error", result.error);
     out += "}\n";
+    return out;
+}
+
+std::string canvas_pointer_report_json(const CanvasPointerResult& result) {
+    std::string out = "{\"pointerVersion\":1";
+    append_bool(out, "dispatched", result.dispatched);
+    // The page's entire decision, so it is a boolean and not a dirty mask: a mask would invite the
+    // page to reason about domains it does not own.
+    append_bool(out, "changed", result.changed);
+    append_text(out, "targetId", std::to_string(result.target_id));
+    append_text(out, "hoveredId", std::to_string(result.hovered_id));
+    append_text(out, "activeId", std::to_string(result.active_id));
+    // Handler ids the dispatch ran and could not run, so "the button did nothing" is attributable:
+    // an empty `ran` with a non-empty `unrun` is a payload-taking handler this evaluator cannot
+    // execute, not a hit-testing bug.
+    out += ",\"ran\":[";
+    for (std::size_t index = 0; index < result.ran.size(); ++index) {
+        append_string_element(out, index == 0, result.ran[index]);
+    }
+    out += "],\"unrun\":[";
+    for (std::size_t index = 0; index < result.unrun.size(); ++index) {
+        append_string_element(out, index == 0, result.unrun[index]);
+    }
+    out += "]}";
+    out += "\n";
     return out;
 }
 

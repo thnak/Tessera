@@ -118,15 +118,12 @@ rhi::PipelineDesc scene_frame_pipeline_desc(rhi::TextureFormat format, std::uint
     return desc;
 }
 
-SceneFrameResult scene_frame_paint(const PreparedScene& scene, rhi::Device& device,
-                                   rhi::RenderTarget& target, const rhi::RenderTargetDesc& desc,
-                                   const rhi::PipelineDesc& pipeline) {
+SceneFrameResult scene_frame_paint_tree(const ui::Node& root,
+                                        const ui::style::CompiledStyleSheet& sheet,
+                                        rhi::Device& device, rhi::RenderTarget& target,
+                                        const rhi::RenderTargetDesc& desc,
+                                        const rhi::PipelineDesc& pipeline) {
     SceneFrameResult result;
-    if (scene.error.empty() == false || scene.root == nullptr || !scene.sheet.has_value()) {
-        result.error = scene.error.empty() ? "the source produced no scene" : scene.error;
-        return result;
-    }
-
     // A pipeline is created for the target's format and sample count: a mismatch is a pipeline the
     // renderer refuses anyway, so it is settled here while the description is in hand.
     rhi::PipelineDesc effective = pipeline;
@@ -156,14 +153,14 @@ SceneFrameResult scene_frame_paint(const PreparedScene& scene, rhi::Device& devi
                                     gpu::Batched2DConfig{4096, false, true});
     // Style must come from the sheet the layout resolved against, or a painted node could have a
     // different size than the box it was laid out in.
-    ui::style::SceneStyleTree style_tree(*scene.root);
-    paint::SceneStyleProvider styles(*scene.sheet, style_tree);
+    ui::style::SceneStyleTree style_tree(root);
+    paint::SceneStyleProvider styles(sheet, style_tree);
     paint::Batched2DSink batched(renderer);
     CountingSink sink(batched, result);
 
     try {
         renderer.begin(*commands, target, desc);
-        const paint::PaintStats painted = paint::paint_scene(*scene.root, styles, sink);
+        const paint::PaintStats painted = paint::paint_scene(root, styles, sink);
         renderer.end();
         // `submit()` blocks, which is correct natively and forbidden in a browser; the WebGPU
         // backend throws there by design, so the async path is the host's choice, not this
@@ -183,6 +180,17 @@ SceneFrameResult scene_frame_paint(const PreparedScene& scene, rhi::Device& devi
         return result;
     }
     return result;
+}
+
+SceneFrameResult scene_frame_paint(const PreparedScene& scene, rhi::Device& device,
+                                   rhi::RenderTarget& target, const rhi::RenderTargetDesc& desc,
+                                   const rhi::PipelineDesc& pipeline) {
+    if (scene.error.empty() == false || scene.root == nullptr || !scene.sheet.has_value()) {
+        SceneFrameResult result;
+        result.error = scene.error.empty() ? "the source produced no scene" : scene.error;
+        return result;
+    }
+    return scene_frame_paint_tree(*scene.root, *scene.sheet, device, target, desc, pipeline);
 }
 
 SceneFrameResult scene_frame_render(std::string_view text, const ScenePreviewOptions& options,
