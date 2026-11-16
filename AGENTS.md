@@ -788,7 +788,7 @@ Acceptance: a real app ships and passes validation layers and golden tests in CI
       `MessageCatalog` with a fallback chain, and a `LocalizedText` binding whose dirty mask is
       **computed**: a wider translation raises `Layout | Paint | Render`, a same-width one only
       `Paint | Render`, a direction flip adds `Style`. Evidence:
-      `include/tessera/appfw/i18n_*.hpp`, `tests/unit/appfw_i18n_*`, `docs/design/services.md`
+      `include/tessera/appfw/i18n_*.hpp`, `tests/unit/appfw_i18n_*`, `docs/design/services/i18n.md`
       section 2.1. ICU MessageFormat, number/date formatting and the catalog generator are the
       next slice, because they need the ICU data pack that CI does not enable.
 - [x] #199: release CI lanes run the validation-layer and golden suites against a declared
@@ -807,9 +807,7 @@ Acceptance: a real app ships and passes validation layers and golden tests in CI
       back is `Empty` and never underflows, a cold deep link seeds the root then pushes
       (`Synthesized`), and restore round-trips byte for byte through AF7's `Storage`.
       Evidence: `include/tessera/appfw/navigation_*.hpp`, ctest `appfw_navigation`,
-      `docs/design/services.md` section 3.1.
-      **Note:** `services.md` is now at exactly **600 lines**, the hard limit -- the next
-      module needs it split into a folder first.
+      `docs/design/services/navigation.md` section 3.1.
 - [ ] #197: networking app-framework module (ADR-052).
 - [ ] #198: security review.
 - [x] #13: memory budgets in CI. 11 rows enforce at 0% tolerance (`sizeof_node` 312,
@@ -917,7 +915,7 @@ The manual `cmake -S . -B build ...` path still works; presets are the recommend
 | Accessibility / async data | [`docs/specs/accessibility-v1.md`](docs/specs/accessibility-v1.md), [`docs/specs/async-data-v1.md`](docs/specs/async-data-v1.md) |
 | Devtools / updates / crash | [`docs/specs/devtools-protocol-v1.md`](docs/specs/devtools-protocol-v1.md), [`docs/specs/updates-and-distribution-v1.md`](docs/specs/updates-and-distribution-v1.md), [`docs/specs/crash-reporting-v1.md`](docs/specs/crash-reporting-v1.md) |
 | Cross-check / gaps | [`docs/architecture/app-completeness-cross-check-v1.md`](docs/architecture/app-completeness-cross-check-v1.md), [`docs/architecture/app-completeness-gap-resolutions-v1.md`](docs/architecture/app-completeness-gap-resolutions-v1.md) |
-| Resources / services / security | `docs/design/resources.md`, `services.md`, `security.md` |
+| Resources / services / security | `docs/design/resources.md`, `docs/design/services/`, `security.md` |
 | Testing / goldens | [`docs/guides/testing.md`](docs/guides/testing.md), [`docs/specs/golden-tests-v1.md`](docs/specs/golden-tests-v1.md) |
 | Build / packaging | [`docs/design/build-and-packaging.md`](docs/design/build-and-packaging.md), [`docs/guides/packaging.md`](docs/guides/packaging.md) |
 | Glossary | [`docs/reference/glossary.md`](docs/reference/glossary.md) |
