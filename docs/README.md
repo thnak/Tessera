@@ -274,6 +274,10 @@ This page is the map and reading order for the framework.
 - [`design/studio-page.md`](design/studio-page.md) — the merged studio `index.html` (#392): one page
   with three lazy views, the module layout, the old-URL redirect that keeps `#p5=` links working, and
   the re-pinned P6 download budget
+- [`design/studio-project-io.md`](design/studio-project-io.md) — the studio's zip container
+  (`studio-zip.js`, STORE-only writer, DEFLATE reader, no dependency) and the path-confinement rule
+  (`project-paths.js`): the two framework-independent pieces of #391, their named refusals, and what
+  the React shell (#422) takes from them
 - [`design/compiler-node-state.md`](design/compiler-node-state.md) — per-branch and per-item
   component instance state, keyed list item records, presence seam
 - [`design/jsx-frontend.md`](design/jsx-frontend.md) — own JSX/TSX lexer/parser: slice plan,
