@@ -54,6 +54,27 @@ target_link_libraries(tessera_appfw_storage
     PUBLIC tessera_appfw_core
     PRIVATE tessera_hal_filesystem)
 
+# ADR-050 layer 1 module: `tessera_appfw_i18n` (AF8, issue #195). A separate static library for the
+# same reason as storage: an app that does not adopt i18n links none of it. It depends on
+# `tessera_appfw_core` for the service contract and `Observable<T>`, and on `tessera_text` for the
+# measurement seam the locale-change dirty classification measures through - not on `tessera_layout`:
+# a module must not reach into the UI layer (ADR-050 section 1), and the classification only needs
+# `TextMeasureCache`, which is the text module's. `tessera_text` also pulls `tessera_style`, which is
+# what a `ComputedStyle`-derived `TextStyle` needs; the module itself names neither.
+add_library(tessera_appfw_i18n STATIC
+    i18n_catalog.cpp
+    i18n_locale.cpp
+    i18n_service.cpp
+    i18n_text.cpp)
+
+target_include_directories(tessera_appfw_i18n PUBLIC
+    ${PROJECT_SOURCE_DIR}/include)
+
+target_compile_features(tessera_appfw_i18n PUBLIC cxx_std_23)
+
+target_link_libraries(tessera_appfw_i18n
+    PUBLIC tessera_appfw_core tessera_text)
+
 if (TESSERA_BUILD_TESTS)
     enable_testing()
 
@@ -121,4 +142,20 @@ if (TESSERA_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/unit)
     target_link_libraries(appfw_task_scope_tests PRIVATE tessera_appfw_core)
     add_test(NAME appfw_task_scope COMMAND appfw_task_scope_tests)
+
+    # AF8 (issue #195, docs/specs/i18n-v1.md): locale negotiation, the compiled message catalog, the
+    # locale service's change signal, and the locale-change dirty classification. The relayout
+    # assertion links `tessera_layout` because it drives the *real* Yoga measure callback with the
+    # same text cache, so what it asserts is the box layout will produce, not a mock of it.
+    add_executable(appfw_i18n_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_i18n_main.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_i18n_locale_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_i18n_catalog_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_i18n_service_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_i18n_relayout_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_i18n_layout_tests.cpp)
+    target_include_directories(appfw_i18n_tests PRIVATE
+        ${PROJECT_SOURCE_DIR}/tests/unit)
+    target_link_libraries(appfw_i18n_tests PRIVATE tessera_appfw_i18n tessera_layout)
+    add_test(NAME appfw_i18n COMMAND appfw_i18n_tests)
 endif()

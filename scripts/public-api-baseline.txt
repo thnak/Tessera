@@ -70,6 +70,37 @@ struct include/tessera/appfw/application.hpp tessera::appfw::LifecycleDispatchRe
 enum include/tessera/appfw/application.hpp tessera::appfw::TerminationOutcome
 function include/tessera/appfw/application.hpp tessera::appfw::termination_outcome_name
 
+header include/tessera/appfw/i18n_catalog.hpp
+class include/tessera/appfw/i18n_catalog.hpp tessera::appfw::MessageCatalog
+struct include/tessera/appfw/i18n_catalog.hpp tessera::appfw::MessageCatalogConfig
+struct include/tessera/appfw/i18n_catalog.hpp tessera::appfw::MessageDiagnostic
+struct include/tessera/appfw/i18n_catalog.hpp tessera::appfw::MessageDiagnostics
+struct include/tessera/appfw/i18n_catalog.hpp tessera::appfw::MessageEntry
+struct include/tessera/appfw/i18n_catalog.hpp tessera::appfw::MessagePattern
+
+header include/tessera/appfw/i18n_locale.hpp
+class include/tessera/appfw/i18n_locale.hpp tessera::appfw::LocaleTable
+struct include/tessera/appfw/i18n_locale.hpp tessera::appfw::I18nError
+struct include/tessera/appfw/i18n_locale.hpp tessera::appfw::LocaleResolution
+struct include/tessera/appfw/i18n_locale.hpp tessera::appfw::LocaleTableConfig
+struct include/tessera/appfw/i18n_locale.hpp tessera::appfw::SupportedLocale
+enum include/tessera/appfw/i18n_locale.hpp tessera::appfw::I18nErrorCode
+enum include/tessera/appfw/i18n_locale.hpp tessera::appfw::LocaleMatch
+enum include/tessera/appfw/i18n_locale.hpp tessera::appfw::TextDirection
+function include/tessera/appfw/i18n_locale.hpp tessera::appfw::i18n_error_code_name
+function include/tessera/appfw/i18n_locale.hpp tessera::appfw::locale_match_name
+function include/tessera/appfw/i18n_locale.hpp tessera::appfw::normalize_locale_tag
+function include/tessera/appfw/i18n_locale.hpp tessera::appfw::text_direction_name
+
+header include/tessera/appfw/i18n_service.hpp
+class include/tessera/appfw/i18n_service.hpp tessera::appfw::LocaleService
+struct include/tessera/appfw/i18n_service.hpp tessera::appfw::I18nServiceConfig
+struct include/tessera/appfw/i18n_service.hpp tessera::appfw::LocaleSnapshot
+
+header include/tessera/appfw/i18n_text.hpp
+class include/tessera/appfw/i18n_text.hpp tessera::appfw::LocalizedText
+struct include/tessera/appfw/i18n_text.hpp tessera::appfw::RelayoutResult
+
 header include/tessera/appfw/lifecycle.hpp
 struct include/tessera/appfw/lifecycle.hpp tessera::appfw::LifecycleEvent
 struct include/tessera/appfw/lifecycle.hpp tessera::appfw::WindowLifecycle
