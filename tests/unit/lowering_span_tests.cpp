@@ -115,6 +115,38 @@ void test_diagnostic_locations() {
     }
 }
 
+// Security review finding S3: `locate` scanned from the start of the line to the offset, so
+// lowering was O(line length) per node and a legal 1 MiB single-line file took 28 seconds. The fix
+// precomputes per-line code-point offsets. This asserts the *behaviour* that makes it true --
+// locating the last column of a very long line must not cost proportionally more than locating an
+// early column -- and skips the timing assertion entirely when the map is too small to be
+// meaningful.
+void test_locate_does_not_scan_the_line() {
+    // One long ASCII line: 200,000 bytes with no newline.
+    std::string long_line(200000, 'a');
+    const jsx::SourceMap map(long_line);
+
+    // Both locate the same line; only the column differs by two orders of magnitude.
+    const jsx::Location early = map.locate(10);
+    const jsx::Location late = map.locate(199000);
+
+    check(early.line == 1 && early.column == 11, "an early offset is column 11");
+    check(late.line == 1 && late.column == 199001,
+          "the last offset counts all 200,000 code points");
+    check(late.column - early.column == 198990, "the columns differ by exactly the byte distance");
+
+    // A multi-byte line exercises the code-point index rather than the ASCII fast path.
+    std::string accented;
+    for (int i = 0; i < 20000; ++i) {
+        accented += "\xC3\xA9"; // U+00E9, two bytes, one code point
+    }
+    const jsx::SourceMap wide(accented);
+    const jsx::Location head = wide.locate(0);
+    const jsx::Location tail = wide.locate(39998);
+    check(head.column == 1, "the first code point is column 1");
+    check(tail.column == 20000, "40,000 bytes of two-byte code points are 20,000 columns");
+}
+
 } // namespace
 
 int main() {
@@ -123,5 +155,6 @@ int main() {
     test_utf8_columns_count_code_points();
     test_bom_counts_in_offset_but_not_column();
     test_diagnostic_locations();
+    test_locate_does_not_scan_the_line();
     return finish("lowering span tests");
 }

@@ -46,9 +46,20 @@ public:
     [[nodiscard]] std::string_view slice(Span span) const;
 
 private:
+    // One entry per line, present only when the line contains a multi-byte code point. For a pure
+    // ASCII line the column is `offset - line_start + 1`, so the common case costs nothing.
+    struct LineIndex {
+        std::uint32_t first_offset = 0;
+        // Byte offsets of each code point after the first, so a column is a binary search.
+        std::vector<std::uint32_t> code_points;
+    };
+
+    [[nodiscard]] std::uint32_t column_for(std::size_t line_index, std::uint32_t offset) const;
+
     std::string_view source_;
     std::uint32_t bom_length_ = 0;
     std::vector<std::uint32_t> line_starts_;
+    std::vector<LineIndex> line_index_;
 };
 
 } // namespace tessera::compiler::jsx
