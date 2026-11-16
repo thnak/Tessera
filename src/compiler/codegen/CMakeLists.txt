@@ -370,7 +370,9 @@ else ()
         -sENVIRONMENT=web,node
         -sALLOW_MEMORY_GROWTH=1
         -sEXPORTED_FUNCTIONS=["_tessera_canvas_frame","_tessera_webgpu_set_device","_tessera_free","_malloc","_free"]
-        -sEXPORTED_RUNTIME_METHODS=["UTF8ToString","lengthBytesUTF8","stringToUTF8"])
+        # `WebGPU` is the emdawnwebgpu port's handle table: the page needs `WebGPU.importJsDevice` and
+        # `importJsQueue` to turn a JS GPUDevice/GPUQueue into the integer handles the C ABI takes.
+        -sEXPORTED_RUNTIME_METHODS=["UTF8ToString","lengthBytesUTF8","stringToUTF8","WebGPU"])
 endif ()
 
 # Goldens of the generated base (`<Component>.g.hpp`) live here; they are written by the

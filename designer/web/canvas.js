@@ -293,8 +293,30 @@ async function run() {
     return;
   }
 
-  module._tessera_webgpu_set_device(acquired.device, acquired.queue);
-  gpu = { device: acquired.device, queue: acquired.queue, module };
+  // The C ABI takes Emscripten WebGPU handles, not JS objects (a JS object coerces to 0, which the
+  // module reads as a null handle and answers "no WebGPU device"). The module exports the port's
+  // handle table for exactly this import.
+  if (!module.WebGPU || typeof module.WebGPU.importJsDevice !== 'function') {
+    showUnsupported(
+      'The module this page loaded does not export the WebGPU handle table (`WebGPU.importJsDevice`), ' +
+        'so it cannot take the browser device. Rebuild the canvas module with the current link options.'
+    );
+    runButton.disabled = false;
+    return;
+  }
+  const devicePtr = module.WebGPU.importJsDevice(acquired.device);
+  const queuePtr = module.WebGPU.importJsQueue(acquired.queue);
+  const handover = module._tessera_webgpu_set_device(devicePtr, queuePtr);
+  if (handover !== 1) {
+    showUnsupported(
+      handover === 0
+        ? 'The module received a null WebGPU handle from the page.'
+        : 'The module could not wrap the WebGPU device the page handed it.'
+    );
+    runButton.disabled = false;
+    return;
+  }
+  gpu ={ device: acquired.device, queue: acquired.queue, module };
   // A lost device is the one case that must draw again without a user action: the next Run would
   // otherwise hand the module a device the browser has already dropped.
   acquired.device.lost.then((info) => {

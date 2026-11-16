@@ -7,10 +7,12 @@
 // "what is the scene" as JSON on the null RHI; this one answers "draw it", against the WebGPU
 // device the page created:
 //
-//   void tessera_webgpu_set_device(void* device, void* queue)
-//       Hands the module the `WGPUDevice`/`WGPUQueue` the page requested. Until this is called
-//       every frame call reports "no device" instead of throwing, which is what the page's
-//       unsupported path shows.
+//   int tessera_webgpu_set_device(void* device, void* queue)
+//       Hands the module the `WGPUDevice`/`WGPUQueue` handles for the device the page requested.
+//       They are Emscripten handles from `WebGPU.importJsDevice` / `importJsQueue`, never JS
+//       objects (an object coerces to 0 and reads as a null handle). Returns 1 on success, 0 for
+//       a null handle, -1 when wrapping threw. Until it succeeds every frame call reports "no
+//       device" instead of throwing, which is what the page's unsupported path shows.
 //   const char* tessera_canvas_frame(source, file, component, width, height, dpi)
 //       Runs the same `prepare_scene()` + `scene_frame_paint()` path the native CLI renders, into
 //       an offscreen WebGPU target of `width` x `height`, and returns a JSON report of what it
@@ -27,10 +29,10 @@
 // `canvas_report.cpp` (the ABI's payload) - is compiled there as OBJECT libraries, so the code this
 // file calls is type-checked on every push even though the file itself is not.
 //
-// **Verified status.** `$EMSDK` is empty on the machine this was written on, so this file has NOT
-// been compiled or executed. What is proven locally is the native half (the same driver through
-// Vulkan and through the null backend); the browser half is CI-only. Stated here because a reader
-// of this file deserves to know which of the two they are looking at.
+// **Verified status.** The native half is proven locally (the same driver through Vulkan and through
+// the null backend). The device handover was first written without an Emscripten toolchain and was
+// wrong (it passed JS objects as handles); it is now built with emsdk 7.0.0 and exercised in a real
+// browser. Pixel comparison against the lavapipe golden is still a browser-lane job.
 
 #include "canvas_report.hpp"
 #include "scene_frame.hpp"
@@ -67,10 +69,14 @@ char* duplicate_out(std::string_view text) {
 
 extern "C" {
 
-EMSCRIPTEN_KEEPALIVE void tessera_webgpu_set_device(void* device, void* queue) {
+// `device` and `queue` are Emscripten WebGPU handles (integers from `WebGPU.importJsDevice` and
+// `WebGPU.importJsQueue`), not JS objects: a JS object passed here is coerced to 0 and would look
+// like a null handle. Returns 1 when the device was wrapped, 0 for a null handle, -1 when wrapping
+// threw, so the page can say why instead of showing a bare "no device" later.
+EMSCRIPTEN_KEEPALIVE int tessera_webgpu_set_device(void* device, void* queue) {
     g_device.reset();
     if (device == nullptr || queue == nullptr) {
-        return;
+        return 0;
     }
     try {
         g_device = webgpu::create_device(device, queue);
@@ -78,7 +84,9 @@ EMSCRIPTEN_KEEPALIVE void tessera_webgpu_set_device(void* device, void* queue) {
         // A module that cannot wrap the handles keeps answering "no device" rather than aborting
         // the page; the page then shows its unsupported state.
         g_device.reset();
+        return -1;
     }
+    return 1;
 }
 
 EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_frame(const char* source, const char* file,
