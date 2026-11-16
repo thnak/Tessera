@@ -36,6 +36,20 @@ target_include_directories(tessera_harness PUBLIC
 
 target_compile_features(tessera_harness PUBLIC cxx_std_23)
 
+# `tessera new` (issue #77, docs/guides/project-generator.md): the project scaffolder. It is a pure
+# text generator plus one directory write -- no engine target, no network, no subprocess -- so it is
+# its own small library rather than part of the automation host. That keeps the scaffold testable
+# without linking the engine and makes the "it downloads nothing" claim a link-graph fact.
+add_library(tessera_generator STATIC
+    ${PROJECT_SOURCE_DIR}/tools/codegen/new_project.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/new_project_app_source.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/new_project_templates.cpp)
+
+target_include_directories(tessera_generator PUBLIC
+    ${PROJECT_SOURCE_DIR}/tools/codegen)
+
+target_compile_features(tessera_generator PUBLIC cxx_std_23)
+
 # The engine side of the lane: the concrete AutomationHost over a live AppHost scene, the
 # deterministic fixture scene the CLI runs scripts against, and the promoted `tessera` CLI. It is a
 # separate target because tessera_harness deliberately links no engine target; the driver may link
@@ -63,6 +77,8 @@ target_link_libraries(tessera_automation_host PUBLIC
     # The scene -> snapshot walk (issue #166): the harness and the design-time preview share it.
     tessera_automation_scene
     tessera_diagnostics
+    # `tessera new` dispatches out of cli.cpp (issue #77).
+    tessera_generator
     tessera_harness
     tessera_input_pump
     tessera_scene
