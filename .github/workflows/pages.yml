@@ -134,13 +134,15 @@ jobs:
       - name: Build browser diagnostics module
         run: cmake --build build/wasm-webgpu --target tessera_diagnostics_wasm --parallel
 
-      # P2 (issue #166): the scene-preview module behind scene.html. Same configure, same pattern.
+      # P2 (issue #166): the scene-preview module behind the merged page's Scene view. Same configure
+      # and the same pattern; issue #392 merged the pages without merging the modules.
       - name: Build browser scene-preview module
         run: cmake --build build/wasm-webgpu --target tessera_scene_preview_wasm --parallel
 
-      # P3 (issue #167): the canvas module behind canvas.html. It links tessera_webgpu, so the same
-      # `wasm-webgpu` configure brings the WebGPU backend and the emdawnwebgpu port, and the wasm
-      # build proves the module compiles and links against them before anything is published.
+      # P3 (issue #167): the canvas module behind the merged page's Canvas view. It links
+      # tessera_webgpu, so the same `wasm-webgpu` configure brings the WebGPU backend and the
+      # emdawnwebgpu port, and the wasm build proves the module compiles and links against them before
+      # anything is published.
       - name: Build browser canvas module
         run: cmake --build build/wasm-webgpu --target tessera_canvas_wasm --parallel
 
@@ -192,10 +194,11 @@ jobs:
       - name: Page chrome smoke (stub DOM)
         run: node scripts/ci/preview_studio_smoke.mjs
 
-      # The static half: every element `studio.js` looks up exists in both pages, every manifest path
-      # exists, and no page calls a function its own refactor deleted. Both failures this checks for
-      # actually shipped into a draft of this slice.
-      - name: Page wiring checks (ids, sample paths, dangling calls)
+      # The static half: every element `studio.js` and the three views look up exists in the merged
+      # page, the redirect stubs preserve the query and the `#p5=` fragment, every manifest path
+      # exists, and no page module calls a function its own refactor deleted. Both failures this checks
+      # for actually shipped into a draft of P5.
+      - name: Page wiring checks (ids, redirects, sample paths, dangling calls)
         run: node scripts/ci/preview_page_checks.mjs
 
       - name: Sample manifest is generated and current
@@ -226,8 +229,13 @@ jobs:
           --canvas build/wasm-webgpu/src/compiler/codegen/tessera_canvas.js
           --node "$EMSDK_NODE"
 
-      # Assemble the site: the hand-written page plus the two artifacts the module needs. Nothing is
+      # Assemble the site: the hand-written page plus the three artifacts the modules need. Nothing is
       # built here - the page has no build step of its own by design (issue #165).
+      #
+      # Issue #392 merged the three pages into one `index.html`: the file list below is the merged page
+      # and its views, and it is the same list as `PAGE_FILES` in `scripts/preview_budget_measure.py`
+      # (the two are read together, and a file missing from either is a file that ships unweighed or a
+      # page that throws on load).
       - name: Assemble site
         run: |
           set -euo pipefail
@@ -245,9 +253,9 @@ jobs:
           cp build/wasm-webgpu/src/compiler/codegen/tessera_diagnostics.wasm "$site/"
           cp build/wasm-webgpu/src/compiler/codegen/tessera_scene_preview.js "$site/"
           cp build/wasm-webgpu/src/compiler/codegen/tessera_scene_preview.wasm "$site/"
-          # P3's canvas module (issue #167). Both modules are published: the snapshot page must keep
-          # working in a browser without WebGPU (design section 7.5), so a page that loads this one
-          # is never the only way to see a scene.
+          # P3's canvas module (issue #167). Both modules are published: the merged page must keep the
+          # Scene view working in a browser without WebGPU (design section 7.5), so the Canvas view is
+          # never the only way to see a scene.
           cp build/wasm-webgpu/src/compiler/codegen/tessera_canvas.js "$site/"
           cp build/wasm-webgpu/src/compiler/codegen/tessera_canvas.wasm "$site/"
           # The build id the page displays (D-S5 acceptance: the URL serves the current build).
@@ -255,15 +263,22 @@ jobs:
           # A static host resolves the directory to index.html; make the intent explicit and fail
           # loudly if the page is missing rather than publishing an empty artifact.
           test -f "$site/index.html"
-          test -f "$site/app.js"
           test -f "$site/app.css"
           test -f "$site/tessera_diagnostics.js"
           test -f "$site/tessera_diagnostics.wasm"
-          # P2's debug page and its module (issue #166), and P4's input/state pane (issue #168), which
-          # `scene.js` imports as its own module.
-          test -f "$site/scene.html"
-          test -f "$site/scene.js"
-          test -f "$site/scene-input.js"
+          # The merged page's shell and the three views (issue #392). Every one of these is imported by
+          # `studio-page.js` (directly or through a view's lazy import); a missing file is a pane that
+          # throws when it is first opened, which no CI step here would otherwise catch.
+          test -f "$site/studio-page.js"
+          test -f "$site/shell.js"
+          test -f "$site/view-diagnostics.js"
+          test -f "$site/diagnostics-view-render.js"
+          test -f "$site/view-scene.js"
+          test -f "$site/scene-view-render.js"
+          test -f "$site/view-canvas.js"
+          test -f "$site/canvas-device.js"
+          test -f "$site/canvas-pane.js"
+          test -f "$site/wasm-call.js"
           test -f "$site/tessera_scene_preview.js"
           test -f "$site/tessera_scene_preview.wasm"
           # P5's page modules and the generated sample manifest (issue #169). A missing one of these
@@ -273,7 +288,14 @@ jobs:
           test -f "$site/share.js"
           test -f "$site/gallery.js"
           test -f "$site/studio.js"
+          test -f "$site/scene-input.js"
           test -f "$site/samples.json"
+          # The pre-merge URLs (issue #392). They must still resolve -- a link or a bookmark made before
+          # the merge is somebody's project state -- and each must carry the redirect script that moves
+          # the visitor to `index.html` with the query and the `#p5=` fragment intact.
+          test -f "$site/scene.html"
+          test -f "$site/canvas.html"
+          test -f "$site/redirect.js"
           # The manifest names repository paths; every one of them must exist in the artifact or the
           # gallery offers a button that cannot load.
           python3 - "$site" <<'PY'
@@ -287,10 +309,6 @@ jobs:
           print(f"{len(samples)} manifest path(s) present in the site")
           PY
 
-          # P3's canvas page and its module (issue #167).
-          test -f "$site/canvas.html"
-          test -f "$site/canvas.js"
-          test -f "$site/canvas.css"
           test -f "$site/tessera_canvas.js"
           test -f "$site/tessera_canvas.wasm"
           ls -l "$site"

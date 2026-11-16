@@ -270,6 +270,26 @@ void a_bad_url_is_refused_before_any_io() {
     expect(!harness.executor.run_one(), "nothing was queued on the I/O executor either");
 }
 
+// Security review finding S7: `\` is not legal in a URI authority, and Windows HTTP stacks
+// normalise it to `/`, so `good.example\@evil.example` displays as one host and resolves to
+// another. A URL is read by a human and parsed by a machine, so the two must agree.
+void a_backslash_in_the_authority_is_refused() {
+    Harness harness;
+    auto ticket =
+        harness.client.submit(request_for("https://good.example\\@evil.example/x"), {}, {});
+    expect(!ticket.has_value(), "a backslash in the authority is refused at submit");
+    if (!ticket.has_value()) {
+        expect(ticket.error().kind == NetErrorKind::BadUrl,
+               "and it is bad_url, not a transport failure");
+    }
+    // A backslash in the *path* is not an authority character, so the rule must not catch it --
+    // otherwise the fix would reject URLs that never had the problem.
+    Harness path_harness;
+    path_harness.fake.push_response(response_with(200, "ok"));
+    auto path_ticket = path_harness.client.submit(request_for("https://good.example/a\\b"), {}, {});
+    expect(path_ticket.has_value(), "a backslash after the authority is left alone");
+}
+
 } // namespace
 
 int run_redirect_tests() {
@@ -285,6 +305,7 @@ int run_redirect_tests() {
     cleartext_is_refused_unless_enabled();
     diagnostics_redact_the_query_string_and_userinfo();
     a_bad_url_is_refused_before_any_io();
+    a_backslash_in_the_authority_is_refused();
     return g_failures;
 }
 
