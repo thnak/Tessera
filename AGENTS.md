@@ -889,8 +889,12 @@ Acceptance: a real app ships and passes validation layers and golden tests in CI
       `file:line`. The headline finding is that **the compiler's escaping held but its resource
       bounds did not**: a 7 KB imported stylesheet aborted `tessera_codegen` with `0xC00000FD`.
       Both stack overflows (S1 selector recursion, S2 nested at-rules) are **fixed** in a
-      follow-up PR with regression tests that assert the call returns at all; S3's quadratic
-      lowerer (a legal 1 MiB single-line file taking 28 s) is the next one to take.
+      follow-up PR with regression tests that assert the call returns at all.
+      **Remediation: 9 of 10 findings fixed** -- #397/#398 (#410), #399 (#413), #400 (#417),
+      #401 (#416), #402 (#415), #403 (#414), #404 (#419), #409 (#418). Only #405 remains, and
+      it needs a spec decision rather than a patch: `ui.limits.*` is documented as configurable
+      in `project-config-v1.md` but nothing reads it, so either the keys get wired to the
+      existing `TESSERA_*` limits or they come out of the schema.
 - [x] #13: memory budgets in CI. 11 rows enforce at 0% tolerance (`sizeof_node` 312,
       `sizeof_input_event` 344, `sizeof_paint_data` 512, `sizeof_node_id` 8, five allocation
       counts) because the probe runs twice and fails if the two disagree; 2 RSS rows warn,
