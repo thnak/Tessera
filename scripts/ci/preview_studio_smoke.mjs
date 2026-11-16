@@ -1,17 +1,19 @@
 // SPDX-License-Identifier: MIT
 //
-// DOM smoke test for the P5 page chrome (issue #169): `designer/web/studio.js`, the module both pages
-// call to mount the toolbar, the sample gallery and the share button.
+// DOM smoke test for the studio page's shared chrome (issue #169, P5; the page it mounts on is the
+// merged `index.html`, issue #392): `designer/web/studio.js`, the module every view calls to mount the
+// toolbar, the sample gallery and the share button.
 //
 //   node scripts/ci/preview_studio_smoke.mjs
 //
 // **What this is, and what it is not.** It is a *stub-DOM* test: a few dozen lines of `document`,
 // `fetch`, `localStorage` and `history` stand-ins, good enough to run the real module's code paths and
-// assert what it did to them. It is NOT a browser test, and it does not prove the pages render: the
-// browser half -- that `index.html`/`scene.html` carry the elements the module looks up, that the CSS
-// applies, that `location.hash` round-trips in a real navigation -- is what the Pages lane and a human
-// opening https://thnak.github.io/Tessera/ verify. Saying this plainly is the point: a smoke test that
-// claimed to be a browser test would be the kind of green that hides a blank page.
+// assert what it did to them. It is NOT a browser test, and it does not prove the page renders: the
+// browser half -- that `index.html` carries the elements the module looks up, that the CSS applies,
+// that `location.hash` round-trips in a real navigation, that the three views switch -- is what the
+// Pages lane and a human opening https://thnak.github.io/Tessera/ verify. Saying this plainly is the
+// point: a smoke test that claimed to be a browser test would be the kind of green that hides a blank
+// page.
 //
 // What it *does* cover, and why each case is worth having:
 //   * the manifest is fetched lazily -- not at import, and not before the gallery is opened -- because

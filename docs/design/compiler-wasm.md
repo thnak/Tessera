@@ -593,3 +593,7 @@ that `index.html`/`scene.html` render, that the fragment survives a real navigat
 `CompressionStream` behaves as expected in a browser — is verified by the deploy and by opening
 https://thnak.github.io/Tessera/. The Node tests are honest about being codec and stub-DOM tests, not
 browser tests.
+
+**§11: the merge into one page.** The three pages described above are now one `index.html` with three
+views; the module layout, the old-URL redirect that keeps `#p5=` links working, and the P6 re-pin are
+in [`studio-page.md`](studio-page.md).

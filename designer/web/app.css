@@ -1,10 +1,17 @@
 /* SPDX-License-Identifier: MIT
  *
- * The diagnostics page's stylesheet (issue #165). Hand-written, no framework and no build step, so
- * the Page is three static files plus the two Wasm artifacts. Values follow the Instrument
- * light/dark pair the component library ships (packages/tessera-ui/themes) by hand rather than
- * importing the theme JSON: this page must render before the engine exists.
+ * The merged studio page's stylesheet (issue #392; originally the diagnostics page's, issue #165, with
+ * the canvas pane's rules folded in from the retired `canvas.css`). Hand-written, no framework and no
+ * build step, so the page is this file plus the JS modules and the three Wasm artifacts. Values follow
+ * the Instrument light/dark pair the component library ships (packages/tessera-ui/themes) by hand
+ * rather than importing the theme JSON: this page must render before the engine exists.
  */
+
+/* The merged page switches panes with the `hidden` attribute, and the panes are flex boxes. A user
+ * agent's `[hidden] { display: none }` has the same specificity as `.pane { display: flex }` and loses
+ * to it on order, so without this rule a "hidden" pane would still take its grid cell -- a bug the
+ * canvas page already had for `.canvas-frame`, and one the merged page cannot afford for three panes. */
+[hidden] { display: none !important; }
 
 :root {
   color-scheme: light dark;
@@ -93,8 +100,9 @@ body {
   white-space: nowrap;
 }
 
-/* The P5 page-to-page navigation (issue #169): two pages, so a link is enough and no router is
-   needed. The current page is text, not a link, so it is not a dead control. */
+/* The view tabs (issue #392). Three views on one page, so the "navigation" is a tablist: one tab stop,
+   arrow keys inside it, and `aria-selected` mirroring the visible pane. Styled as a quiet segmented
+   control so it reads as a mode switch rather than three competing primary actions. */
 .page-meta {
   display: flex;
   align-items: flex-start;
@@ -103,14 +111,33 @@ body {
 
 .page-nav {
   display: flex;
-  gap: 10px;
-  font-size: 13px;
-  white-space: nowrap;
+  gap: 4px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
 }
 
-.page-nav a { color: var(--accent); text-decoration: none; }
-.page-nav a:hover { text-decoration: underline; }
-.page-nav [aria-current="page"] { color: var(--text-dim); font-weight: 600; }
+.tab {
+  padding: 5px 12px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.tab:hover:not(:disabled) { color: var(--text); border-color: var(--border); }
+
+.tab[aria-selected="true"] {
+  border-color: var(--border);
+  background: var(--pane-bg);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 /* The environment toolbar. It is *not* part of the engine canvas: the studio's own chrome is HTML
    (ADR-045 decision 3), and these three controls are the P5 toggles. */
@@ -207,6 +234,9 @@ body {
   font-size: 12px;
 }
 
+/* The merged page's grid: the shared editor on the left, the active view on the right. One view is
+   visible at a time, so the second column is one cell and the views simply swap inside it -- three
+   columns sized for three panes would have left a third of the page empty on two of them. */
 .layout {
   flex: 1 1 auto;
   min-height: 0;
@@ -222,6 +252,20 @@ body {
   min-width: 0;
   min-height: 0;
   background: var(--pane-bg);
+}
+
+/* The view panes (issue #392). They occupy the layout's second column and scroll their own content:
+   the source editor keeps its own scroll, and a long node list or a tall canvas must not drag the
+   editor's scroll position with it. */
+.view {
+  grid-column: 2;
+  grid-row: 1;
+  overflow-y: auto;
+}
+
+.editor-pane {
+  grid-column: 1;
+  grid-row: 1;
 }
 
 .pane-header {
@@ -540,7 +584,101 @@ button.primary {
   border: 0;
 }
 
+/* The canvas pane (P3, issue #167; folded in from the retired canvas.css when the pages merged). The
+   rules are here rather than in a second sheet because there is now one page: the "keep the measured
+   page byte-for-byte what it was" reason for the split (the P1 download budget did not include the
+   canvas page) died with the three pages, and the P6 budget measures this one pane's rules as part of
+   the page it is now on. */
+
+/* canvas.js sizes the backing store in device pixels, so CSS keeps the element at the logical
+   viewport; letting the browser rescale it would make the preview blurry. */
+.canvas-frame {
+  display: flex;
+  justify-content: center;
+  padding: 12px;
+  overflow: auto;
+}
+
+.canvas-frame canvas {
+  display: block;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: #0b1220;
+  /* A preview is a picture of a UI, not a UI: not selectable, and no text caret on a click. */
+  user-select: none;
+}
+
+/* The frame counters: name/value pairs, two columns so the labels line up without a table. */
+.frame-stats {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 2px 12px;
+  margin: 0;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.frame-stats dt {
+  color: var(--text-dim);
+}
+
+.frame-stats dd {
+  margin: 0;
+  color: var(--text);
+}
+
+/* Phone width (issue #392's layout rule): a 16 px gutter, one column, and no horizontal page scroll.
+   The toolbar and the header already wrap; the layout stops being a split view and becomes one
+   scrolling column, with the editor first because it is the input every view shares. */
 @media (max-width: 760px) {
-  .layout { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
-  .page-header { flex-direction: column; }
+  /* The wide layout is a fixed-height flex column that never scrolls: the panes scroll inside it. A
+     phone cannot do that -- two panes stacked need more than one screen -- so the page itself becomes
+     the scroller and `.layout` is allowed to grow past the viewport. Without this the flex column caps
+     `.layout` at the viewport height and the second pane is squeezed to nothing. */
+  html, body { height: auto; min-height: 100%; }
+  body { padding: 0; }
+
+  .page-header { flex-direction: column; gap: 10px; }
+
+  /* The tab strip is one row that fits the phone width: three short labels, no wrap, so it does not
+     turn into a tall stack that pushes the view off the first screen. */
+  .page-meta { width: 100%; flex-wrap: wrap; }
+  .page-nav { flex: 1 1 auto; flex-wrap: nowrap; width: 100%; }
+  .tab { flex: 1 1 0; padding: 6px 4px; text-align: center; }
+  .build-id { font-size: 11px; }
+
+  /* A split view at 390 px leaves two panes too short to be useful, so the phone gets a single
+     scrolling column instead: the editor at a bounded height, then the active view beneath it. `block`
+     rather than the grid is deliberate -- a two-row `fr` grid collapses the second row to nothing once
+     the first row's content is taller than the page, which is exactly the bug this replaces. */
+  .layout {
+    display: block;
+    overflow: visible;
+  }
+
+  .pane { display: flex; }
+
+  .editor-pane { height: 46vh; min-height: 220px; }
+
+  /* The view pane is as tall as its own content and scrolls with the page; a nested scroll area inside
+     a phone-height page is the thing visitors cannot reach. */
+  .view {
+    min-height: 45vh;
+    max-height: none;
+    overflow: visible;
+  }
+
+  /* On a phone the gutter comes from these sections' own horizontal padding, so it is set once here
+     rather than inherited from a body rule. */
+  .page-header, .toolbar, .gallery, .link-note, .page-footer {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  #source { padding: 10px 12px; font-size: 12px; }
+
+  /* The nodes list and the state cells lose the nested scrollers they have on a wide screen. */
+  .nodes, .cells { overflow: visible; max-height: none; }
 }

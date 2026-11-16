@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT
 //
 // Round-trip test for the P5 share-link codec (issue #169; the format is docs/specs/
 // designer-studio-v1.md section 7.1, the codec designer/web/share.js).
@@ -268,6 +268,45 @@ await test('an unsupported decompressor is reported as such', async () => {
   } finally {
     globalThis.DecompressionStream = saved;
   }
+});
+
+// --- #392: the pre-merge link format, pinned as a fixture ---------------------------------------
+//
+// Issue #392 merged the three pages into one `index.html` and turned `scene.html`/`canvas.html` into
+// redirect stubs. The acceptance sentence is that a share link made *before* the merge restores the
+// same state after it, which needs more than "the codec round-trips against itself": a fragment
+// written by the old page has to decode on the new one. The codec is byte-identical across the merge
+// (`share.js` and `preview-state.js` were not touched), so the guarantee follows -- but a future edit
+// that changed the envelope would break every link in circulation silently, and no self-round-trip
+// test would notice. These fixtures are therefore *frozen strings*, produced by the pre-merge code and
+// stored here verbatim, not regenerated on each run.
+//
+// The fixture's fragment was produced by `designer/web/share.js` at commit `201ced54` (origin/main
+// before the merge) from the state below, and the state is asserted on the way back out field by
+// field. If this test ever fails, the merge broke a link somebody already has.
+
+await test('a fragment produced by the pre-merge page decodes to the same state (#392)', async () => {
+  // Produced by the pre-merge `encodeShare` at commit 201ced54 from exactly this state, then recorded
+  // here verbatim. It is NOT regenerated on each run: regenerating it would make the test assert only
+  // that the current codec agrees with itself, which is the one thing a migration fixture must not do.
+  const PRE_MERGE_FRAGMENT =
+    'zPY7NasMwEIRfZdiTTAVOmhxSRRa0uefS0kvcQ7BUalJWRV41AeN3L1aKb8PuNz8j_ZJZaxrIULj9xCT4zNxJ' +
+    'HxmHmFlCUpXBMfqAsWWgizwITt380xiCFOoDDfIQXuUswfYsTq2qfcuzIQXJiaFmDdj3PlzdXQP2LdzElQSDs' +
+    'WROti7HBXnJIpER-fDdd5dmVBUatxSrYsID1tXknr239Z3_99t66Zv3TC2TpiuZzdNK0xeZ3XaryZN51CRkyJ' +
+    '_ThaY_';
+  const PRE_MERGE_STATE = {
+    source: SAMPLE_SOURCE,
+    file: 'ui/Preview.tsx',
+    width: 390,
+    height: 844,
+    dpr: 2,
+    theme: 'dark',
+  };
+  assert.deepEqual(
+    await share.decodeShare('#p5=' + PRE_MERGE_FRAGMENT),
+    PRE_MERGE_STATE,
+    'a link made before the merge must restore the same state after it',
+  );
 });
 
 process.stdout.write(`\n${passed} passed, ${failures} failed\n`);
