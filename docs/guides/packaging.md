@@ -339,3 +339,63 @@ build/package jobs; it runs in the Linux `release-rehearsal` CI job.
    release notes stay manual. No signing or publishing automation is provided.
 
 The platform CI jobs run steps 1-2 and 3-6 on Linux, Windows and macOS; step 7 is always manual.
+
+### Release CI lanes: validation layers, goldens and artifacts
+
+Issue #199's acceptance is "release builds on all lanes run validation-layer and golden suites and
+publish artifacts". There is no separate `release.yml`: the release profile is the existing gating
+lanes (`.github/workflows/linux.yml`, `windows.yml`), and the `release-rehearsal` and
+`static-runtime-proof` jobs above cover the *artifact* half of that sentence only — the rehearsal
+builds and validates the archive but runs no `ctest`, and both configure with
+`TESSERA_BUILD_VULKAN=OFF`, so neither exercises a GPU. The runtime half runs in the build jobs.
+
+**Validation layers cost a package, not a build option.** The layer is chosen at runtime by
+`rhi::DeviceDesc::validation` and installed by `VulkanDevice`
+(`src/rendering/backend/vulkan/src/vulkan_instance.cpp`), which enables `VK_LAYER_KHRONOS_validation`
+with `VK_EXT_validation_features` synchronization validation. There is no `TESSERA_VULKAN_VALIDATION`
+option, so a Release build runs the layer exactly like a Debug build. The `linux` job installs
+`vulkan-validationlayers` and asserts the layer manifest is present.
+
+**The matrix and the two-mode gate.** `scripts/check_release_suites.py` owns `LANE_MATRIX`, the
+single source for which suite runs on which lane. Every release-lane job declares its list twice, on
+purpose: in the workflow (readable, reviewable, so the lane states what it claims) and in the matrix
+(enforced). The `release-gates` job runs the script with `--workflows`, which compares the two and
+fails in **both** directions — a suite the lane stopped requiring, an `--allow-skip` that lost its
+reason, and also a workflow name the matrix does not know. That static half is what catches a lane
+silently dropping a suite, because a runtime report can only omit what it was never asked for.
+
+The runtime half (`--lane`, from the `--output-junit` report plus the CTest log) additionally proves
+the declared suites actually *ran*, which the exit code cannot: `batched2d_vulkan_validation` only
+prints `[vulkan] warning: validation layer not available` and then **passes**; the gallery and
+CPU-vector goldens carry `SKIP_REGULAR_EXPRESSION`; and CTest exits 0 when the filter matched
+nothing. Two details the gate has to get right: `ctest --preset` resolves a **relative**
+`--output-junit` path against the preset's test directory (so `build/ci/x.xml` lands in
+`build/ci/build/ci/x.xml`, hence the absolute `$PWD/...` in both workflows), and a Windows
+`Tee-Object` log is UTF-16LE, which the gate detects rather than reading as UTF-8.
+
+What each lane runs, and what it cannot:
+
+| Suite | `linux` | `windows` | Why Windows cannot |
+|---|---|---|---|
+| `batched2d_vulkan_validation`, `batched2d_on_demand`, `vulkan_*`, `glass_*_gpu`, `msaa`, `rounded_clip`, `renderer_seam_gpu`, `paint_*_gpu` | run | cannot | the job configures `TESSERA_BUILD_VULKAN=OFF`; there is no Vulkan instance |
+| `batched2d_golden`, `batched2d_overlay_golden`, `batched2d_text_golden`, `batched2d_shapes_golden`, `gallery_golden_*`, `harness_frame_capture` | run | cannot | lavapipe-only; the entries are registered under `if (UNIX AND TARGET batched2d_poc)` and a hosted Windows runner has no lavapipe |
+| `batched2d_cpu_image_golden`, `cpu_wide_golden`, `theme_golden`, `harness_golden`, `lowering_golden`, `schema_golden` | run | run | GPU-free and bit-exact on both hosts |
+| `batched2d_cpu_golden`, `batched2d_cpu_text_golden` | run | cannot | need `batched2d_poc`, which exists only with the Vulkan backend on |
+| `batched2d_cpu_vector_golden`, `codegen_vector_paint_golden` | run | cannot | gated on `TESSERA_ENABLE_THORVG`, which this lane leaves off |
+
+The gate also reports a **stale exemption**: if a suite declared unable to run does run (for example
+`batched2d_vulkan_validation` on a developer's GPU box), the log says "drop the exemption", so the
+matrix cannot quietly keep excusing a gap that closed.
+
+So "all lanes" means validation layers and the lavapipe/GPU goldens on Linux, and the GPU-free
+bit-exact golden corpus on Windows. Claiming the lavapipe goldens on Windows would be false. The
+`release-artifacts-linux` / `release-artifacts-windows` artifacts carry every golden PNG (frame,
+diff, candidate baseline), the JUnit report and the CTest log, kept 30 days. The distributable
+archive is still *not* uploaded (§5): it stays a release-time artifact.
+
+Two deliberate non-additions: enabling ThorVG on Windows would add a network fetch and 37 sources to
+a job whose 50-minute cap is already tight (#258), and the WebGPU pixel comparison still needs the
+owner decision recorded in `docs/design/compiler-wasm.md` §8. No new dependency, runner or service
+is introduced — validation layers and lavapipe were already installed and are already in
+[`dependencies.md`](../specs/dependencies.md).
+

@@ -76,9 +76,67 @@ jobs:
 
       - name: Tests (null + lavapipe + validation)
         run: |
+          # pipefail, because the `| tee` below would otherwise report tee's exit code and a red
+          # suite would look green.
+          set -o pipefail
           Xvfb :99 -screen 0 1280x1024x24 -ac &
           sleep 1
-          DISPLAY=:99 ctest --preset ci --output-on-failure
+          # --output-junit gets an ABSOLUTE path: `ctest --preset` resolves a relative path against
+          # the preset's test directory, so `build/ci/x.xml` lands in `build/ci/build/ci/x.xml`.
+          # The report feeds the release-suite gate below, which is what turns "the run exited 0"
+          # into "the validation and golden suites actually ran".
+          junit="$PWD/build/ci/release-junit.xml"
+          DISPLAY=:99 ctest --preset ci --output-on-failure \
+            --output-junit "$junit" 2>&1 | tee "$RUNNER_TEMP/release-tests.log"
+
+      # Issue #199: a Release build must run the validation layer and the golden suites, and must
+      # fail closed when either is silently absent. Both silent-pass shapes are real here - the
+      # validation entry only warns when the Khronos layer is missing, and the goldens carry
+      # SKIP_REGULAR_EXPRESSION - so the gate reads the JUnit report and the log instead of the
+      # exit code alone.
+      #
+      # This list is the Linux column of the lane/suite matrix. It is spelled out here, not hidden
+      # in the script, so a reviewer can see what the lane claims; the `release-gates` job runs
+      # `check_release_suites.py --workflows`, which fails when this list and LANE_MATRIX drift
+      # apart in either direction. That is what catches a lane quietly dropping a suite.
+      #
+      # Every suite below can genuinely run on this lane: it installs lavapipe (the ADR-009
+      # reference renderer) and the Khronos validation layer in its first steps.
+      # The required list and the forbidden text live in the gate's LANE_MATRIX, keyed by
+      # `--lane`, so this step cannot drift from what `--workflows` enforces above. Passing the
+      # list here as well would be the duplication the gate exists to prevent.
+      - name: Release suites really ran (validation layer + goldens)
+        run: |
+          python3 -B scripts/check_release_suites.py \
+            --lane linux \
+            --junit "$PWD/build/ci/release-junit.xml" \
+            --log "$RUNNER_TEMP/release-tests.log"
+
+      # Release-build outputs, published so a run can be reviewed without a rebuild: the golden
+      # frames and diffs the suites rendered, the JUnit report, and the CTest log. The
+      # distributable archive is NOT published from here - docs/guides/packaging.md section 5
+      # keeps it a release-time artifact, and `static-runtime-proof` already builds and checks it.
+      - name: Upload Release build artifacts
+        if: always()
+        run: |
+          set -euo pipefail
+          artifacts="$RUNNER_TEMP/release-artifacts"
+          mkdir -p "$artifacts"
+          # Every PNG a golden wrote (frame, diff, updated baseline candidate) plus the reports.
+          find build/ci -type f \( -name '*.png' -o -name '*junit*.xml' -o -name '*report*.json' \) \
+            -exec cp --parents {} "$artifacts/" \; 2>/dev/null || true
+          cp "$RUNNER_TEMP/release-tests.log" "$artifacts/" 2>/dev/null || true
+          echo "collected $(find "$artifacts" -type f | wc -l) file(s)"
+          find "$artifacts" -type f | sed -n '1,40p'
+
+      - name: Upload release artifacts (Linux)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts-linux
+          path: ${{ runner.temp }}/release-artifacts
+          if-no-files-found: warn
+          retention-days: 30
 
       - name: Upload gallery golden artifacts
         if: always()
@@ -294,6 +352,15 @@ jobs:
 
       - name: Repository gates (aggregator)
         run: python3 -B scripts/gates.py
+
+      # Issue #199: the lane/suite matrix is enforced statically here, on every push, so a release
+      # lane that silently stops declaring a golden or validation suite fails fast instead of
+      # waiting for a runtime report that would simply omit it. `scripts/check_release_suites.py`
+      # owns LANE_MATRIX: the required suites, the suites this lane cannot run and why, and the
+      # forbidden text. The build jobs pass only `--lane`, so there is exactly one list and the
+      # static check and the runtime check cannot disagree.
+      - name: Release suite matrix (workflows declare their suites)
+        run: python3 -B scripts/check_release_suites.py --workflows
 
   release-rehearsal:
     runs-on: ubuntu-latest
