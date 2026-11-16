@@ -23,7 +23,7 @@ it is, and what Tessera should copy, adapt or avoid, with a staged plan for a Te
   ([ADR-045](../../decisions/ADR-045-browser-hosted-studio.md),
   [`designer-studio-v1.md`](../specs/designer-studio-v1.md)), web target
   ([ADR-046](../../decisions/ADR-046-web-target-for-demos.md)), app framework
-  ([ADR-050](../../decisions/ADR-050-opt-in-app-framework-layer.md)), backend extensibility
+  ([ADR-050](../../decisions/ADR-050/README.md)), backend extensibility
   (ADR-049, open as [PR #83](https://github.com/thnak/Tessera/pull/83)).
 
 ## 1. Architecture

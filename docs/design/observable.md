@@ -1,12 +1,12 @@
 # Observable: coalesced app state over `UpdateScheduler`
 
 Status: implemented (issue #176, roadmap row AF4 of
-[ADR-050](../../decisions/ADR-050-opt-in-app-framework-layer.md) section 6). Code:
+[ADR-050 section 6](../../decisions/ADR-050/background-work-and-app-state.md#6-app-wide-state)). Code:
 [`include/tessera/appfw/observable.hpp`](../../include/tessera/appfw/observable.hpp). Tests:
 `appfw_observable` (`tests/unit/appfw_observable_tests.cpp` and
 `tests/unit/appfw_observable_allocation.cpp`).
 
-Normative companions: [ADR-050](../../decisions/ADR-050-opt-in-app-framework-layer.md) sections 6
+Normative companions: [ADR-050 section 6](../../decisions/ADR-050/background-work-and-app-state.md#6-app-wide-state)
 and 10, [`app-framework-open-questions.md`](app-framework-open-questions.md) section 6,
 [`animation.md`](animation.md) section 6 (the sampler that shares this scheduler), and
 [`dirty-rendering.md`](dirty-rendering.md) section 2 (the domains a notification raises).

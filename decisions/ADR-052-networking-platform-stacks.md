@@ -4,7 +4,7 @@
 - Date: 2026-11-13
 - Related: [ADR-012](ADR-012-static-linking.md) (static linking),
   [ADR-021](ADR-021-async-runtime.md) (async runtime),
-  [ADR-050](ADR-050-opt-in-app-framework-layer.md) (app-framework layer),
+  [ADR-050](ADR-050/README.md) (app-framework layer),
   [`networking-v1.md`](../docs/specs/networking-v1.md) (the normative spec),
   [`app-framework-open-questions.md`](../docs/design/app-framework-open-questions.md) section 5
   (options and rationale), GitHub issue #197
