@@ -584,7 +584,9 @@ Stages P0-P7 are planned in `docs/design/reference-equantic-ui.md`.
 **This is the design-time milestone**: everything a developer uses before the app ships (the browser
 preview, the studio that edits a project folder, the MCP adapter, devtools). Runtime and shipping
 concerns live in V1-M5 and later. Since 2026-11-16 the preview pages are being merged into one
-studio `index.html` (#392), which the folder IDE (#391) builds on; the order below is the farm order.
+studio `index.html` (#392), which the folder IDE (#391) builds on; the order below is the farm order. #397-#399 (stack overflow and quadratic
+lowering on untrusted input, from the #198 review) come first because #390, #391 and the MCP folder tools feed
+untrusted files to that code.
 The Wasm studio stays single-threaded (ADR-045 decision 5); a separate multi-threaded studio site is a later,
 owner-planned item and is not part of this milestone.
 
@@ -642,6 +644,12 @@ owner-planned item and is not part of this milestone.
 - [ ] #407: `tessera-mcp`: a `generate` tool for the C++ of the folder (ADR-040). Owner decisions
       first; takes #406.
 - [ ] #408: studio: foldable simulation (hinge, fold posture, two-pane) on the Wasm viewer. Takes #392.
+- [ ] #397: security: nested `:not()`/`:is()`/`:where()`/`:has()` overflow the stack in the stylesheet
+      compiler (found by the #198 review). **Before #390 and #391**, which feed user CSS to it.
+- [ ] #398: security: nested `@media`/`@layer`/`@container`/`@supports` overflow the stack in
+      `prepare_stylesheet`. Same ordering as #397; an independent fix.
+- [ ] #399: security: lowering is quadratic in source-line length (28 s for a legal 1 MiB line).
+      **Before #391** (it would freeze the main thread the viewer runs on).
 - [ ] #392: studio: merge the index, scene and canvas pages into one `index.html` (modules stay
       separate and lazy, `scene.html`/`canvas.html` become redirect stubs that keep `#p5=` links
       working, the P6 budget is re-ratcheted). **First of the studio items; the four below and #391
