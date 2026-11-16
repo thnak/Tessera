@@ -117,6 +117,43 @@ target_link_libraries(tessera_appfw_navigation
     PUBLIC tessera_appfw_core tessera_appfw_storage
     PRIVATE tessera_harness)
 
+# ADR-050 layer 1 module: `tessera_appfw_net` (issue #197, docs/specs/networking-v1.md, ADR-052). A
+# separate static library for the same reason as storage, i18n and navigation: an app that does not
+# adopt networking links none of it, and nothing here pulls a socket into `tessera_appfw_core`.
+#
+# Dependencies, and why each is the narrowest one:
+#   * `tessera_appfw_core` for the service contract and the layer-1 build boundary. It is PUBLIC
+#     because a caller names the module's types next to a service.
+#   * `tessera_runtime` for the four layer-0 seams the module is handed rather than inventing:
+#     `CompletionQueue` (where a result is delivered), `IoTaskExecutor` (where a blocking attempt
+#     runs, so the UI thread never does), `TimerQueue` (where the per-attempt deadline lives, so a
+#     retry/backoff deadline is a timer and not a sleep) and `Clock` (`ManualClock` in tests).
+#     `tessera_appfw_core` already links it PUBLIC, so naming it is documentation as much as
+#     configuration.
+#
+# Deliberately *not* linked, and this is the whole point of the transport seam: no WinHTTP, no
+# `winhttp.lib`, no libcurl, no OpenSSL, no platform TLS library. `net_transport.hpp` is the only
+# place a back end plugs in, and every one of them needs `docs/specs/dependencies.md` entries first
+# (ADR-052 item 5). The build therefore has no new dependency and the Wasm lane compiles this module
+# unchanged - there is no POSIX header and no socket call anywhere in it.
+add_library(tessera_appfw_net STATIC
+    net_client.cpp
+    net_client_hop.cpp
+    net_client_impl.cpp
+    net_fake.cpp
+    net_redirect.cpp
+    net_state.cpp
+    net_types.cpp
+    net_url.cpp)
+
+target_include_directories(tessera_appfw_net PUBLIC
+    ${PROJECT_SOURCE_DIR}/include)
+
+target_compile_features(tessera_appfw_net PUBLIC cxx_std_23)
+
+target_link_libraries(tessera_appfw_net
+    PUBLIC tessera_appfw_core tessera_runtime)
+
 if (TESSERA_BUILD_TESTS)
     enable_testing()
 
@@ -218,4 +255,23 @@ if (TESSERA_BUILD_TESTS)
     target_link_libraries(appfw_navigation_tests PRIVATE
         tessera_appfw_navigation tessera_scene tessera_runtime)
     add_test(NAME appfw_navigation COMMAND appfw_navigation_tests)
+
+    # Networking (issue #197, docs/specs/networking-v1.md): the contract suite of section 5, one TU
+    # per acceptance group so a failure names the group. Deterministic end to end - `ManualClock` for
+    # every instant, `ManualIoExecutor` for the I/O stage, `FakeNet` for the network, a hand-fired
+    # `TimerQueue` for the deadline and a hand-drained `CompletionQueue` for delivery - so no test
+    # opens a socket, reads a wall clock, sleeps or starts a thread. It links `tessera_runtime` for
+    # `RuntimeLoop` (the "a pending request idles with zero presents" case drives the real loop) and
+    # nothing else: there is no platform network library anywhere in this target.
+    add_executable(appfw_net_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_net_main.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_net_state_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_net_error_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_net_redirect_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_net_thread_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_net_request_tests.cpp)
+    target_include_directories(appfw_net_tests PRIVATE
+        ${PROJECT_SOURCE_DIR}/tests/unit)
+    target_link_libraries(appfw_net_tests PRIVATE tessera_appfw_net tessera_runtime)
+    add_test(NAME appfw_net COMMAND appfw_net_tests)
 endif()

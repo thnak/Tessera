@@ -190,6 +190,71 @@ enum include/tessera/appfw/navigation_stack.hpp tessera::appfw::BackOutcome
 enum include/tessera/appfw/navigation_stack.hpp tessera::appfw::PushOutcome
 function include/tessera/appfw/navigation_stack.hpp tessera::appfw::back_outcome_name
 
+header include/tessera/appfw/net_client.hpp
+class include/tessera/appfw/net_client.hpp tessera::appfw::NetClient
+class include/tessera/appfw/net_client.hpp tessera::appfw::detail::NetClientImpl
+struct include/tessera/appfw/net_client.hpp tessera::appfw::NetClientConfig
+struct include/tessera/appfw/net_client.hpp tessera::appfw::NetDiagnostic
+struct include/tessera/appfw/net_client.hpp tessera::appfw::NetDiagnostics
+struct include/tessera/appfw/net_client.hpp tessera::appfw::NetRequestStatus
+struct include/tessera/appfw/net_client.hpp tessera::appfw::NetTicket
+
+header include/tessera/appfw/net_fake.hpp
+class include/tessera/appfw/net_fake.hpp tessera::appfw::FakeNet
+struct include/tessera/appfw/net_fake.hpp tessera::appfw::FakeNetScript
+
+header include/tessera/appfw/net_redirect.hpp
+function include/tessera/appfw/net_redirect.hpp tessera::appfw::follow_redirect
+function include/tessera/appfw/net_redirect.hpp tessera::appfw::is_followable_redirect
+function include/tessera/appfw/net_redirect.hpp tessera::appfw::redirect_location
+
+header include/tessera/appfw/net_state.hpp
+class include/tessera/appfw/net_state.hpp tessera::appfw::NetStateMachine
+enum include/tessera/appfw/net_state.hpp tessera::appfw::NetOutcome
+enum include/tessera/appfw/net_state.hpp tessera::appfw::NetRequestState
+function include/tessera/appfw/net_state.hpp tessera::appfw::net_outcome_name
+function include/tessera/appfw/net_state.hpp tessera::appfw::net_request_state_name
+function include/tessera/appfw/net_state.hpp tessera::appfw::outcome_of
+function include/tessera/appfw/net_state.hpp tessera::appfw::outcome_of_status
+
+header include/tessera/appfw/net_transport.hpp
+class include/tessera/appfw/net_transport.hpp tessera::appfw::NetTransport
+
+header include/tessera/appfw/net_types.hpp
+struct include/tessera/appfw/net_types.hpp tessera::appfw::NetError
+struct include/tessera/appfw/net_types.hpp tessera::appfw::NetRequest
+struct include/tessera/appfw/net_types.hpp tessera::appfw::NetResponse
+enum include/tessera/appfw/net_types.hpp tessera::appfw::HttpMethod
+enum include/tessera/appfw/net_types.hpp tessera::appfw::NetErrorKind
+enum include/tessera/appfw/net_types.hpp tessera::appfw::NetProtocol
+enum include/tessera/appfw/net_types.hpp tessera::appfw::RedirectPolicy
+alias include/tessera/appfw/net_types.hpp tessera::appfw::NetHeaders
+alias include/tessera/appfw/net_types.hpp tessera::appfw::NetResult
+function include/tessera/appfw/net_types.hpp tessera::appfw::default_user_agent
+function include/tessera/appfw/net_types.hpp tessera::appfw::find_header
+function include/tessera/appfw/net_types.hpp tessera::appfw::has_header
+function include/tessera/appfw/net_types.hpp tessera::appfw::header_name_equals
+function include/tessera/appfw/net_types.hpp tessera::appfw::http_method_is_idempotent
+function include/tessera/appfw/net_types.hpp tessera::appfw::http_method_name
+function include/tessera/appfw/net_types.hpp tessera::appfw::net_error_kind_name
+function include/tessera/appfw/net_types.hpp tessera::appfw::net_protocol_name
+function include/tessera/appfw/net_types.hpp tessera::appfw::redirect_policy_name
+function include/tessera/appfw/net_types.hpp tessera::appfw::remove_header
+function include/tessera/appfw/net_types.hpp tessera::appfw::set_header
+constant include/tessera/appfw/net_types.hpp tessera::appfw::kMaxRedirects
+
+header include/tessera/appfw/net_url.hpp
+struct include/tessera/appfw/net_url.hpp tessera::appfw::NetOrigin
+struct include/tessera/appfw/net_url.hpp tessera::appfw::NetUrl
+function include/tessera/appfw/net_url.hpp tessera::appfw::is_cleartext_scheme
+function include/tessera/appfw/net_url.hpp tessera::appfw::origin_of
+function include/tessera/appfw/net_url.hpp tessera::appfw::parse_url
+function include/tessera/appfw/net_url.hpp tessera::appfw::redacted_url
+function include/tessera/appfw/net_url.hpp tessera::appfw::url_string
+constant include/tessera/appfw/net_url.hpp tessera::appfw::kHttpDefaultPort
+constant include/tessera/appfw/net_url.hpp tessera::appfw::kHttpsDefaultPort
+constant include/tessera/appfw/net_url.hpp tessera::appfw::kMaxUrlLength
+
 header include/tessera/appfw/observable.hpp
 class include/tessera/appfw/observable.hpp tessera::appfw::Observable
 
