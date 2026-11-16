@@ -174,12 +174,46 @@ void test_upload_redacts_before_sending() {
     }
 }
 
+// Security review finding S8: the `<home>` early-out made `contains_unredacted` skip *every* check
+// on that line, so a line that both carried the safe marker and still leaked something the
+// redaction pass would fix was reported clean. Narrower than "any secret on the line":
+// `redact_paths` only rewrites home prefixes, and a path is only reduced when it is the value of
+// `key=`, so a bare token or a non-home path mid-line is *not* something this pass removes and the
+// gate must not claim it does.
+void test_home_marker_does_not_excuse_the_rest_of_the_line() {
+    using tessera::diagnostics::contains_unredacted;
+
+    // A bare marker line is clean: nothing remains for the pass to change.
+    check(!contains_unredacted("module=<home> app.exe"), "a bare marker line is clean");
+
+    // A home prefix the pass WOULD rewrite must be caught even when the line also has the marker.
+    // Before the fix this returned false, because the early-out skipped the prefix scan entirely.
+    const char* leaking[] = {
+        "reason=<home> and also C:\\Users\\planted-marker-9f3\\x.cpp",
+        "note=<home>/x plus /home/planted-marker-9f3/y.cpp",
+        "config=<home> with C:/Users/planted-marker-9f3/z.cpp",
+    };
+    for (const char* line : leaking) {
+        check(contains_unredacted(line),
+              "a home prefix beside the marker is still detected as unredacted");
+    }
+
+    // And the contract that makes the gate trustworthy: it agrees with the pass it gates.
+    for (const char* line : leaking) {
+        const std::string raw = line;
+        const std::string fixed = tessera::diagnostics::redact_report(raw);
+        check(fixed != raw, "the gate only reports lines the redaction pass actually changes");
+        check(!contains_unredacted(fixed), "and the pass's own output always passes the gate");
+    }
+}
+
 } // namespace
 
 int main() {
     test_zero_upload_when_disabled();
     test_redaction_with_planted_marker();
     test_upload_redacts_before_sending();
+    test_home_marker_does_not_excuse_the_rest_of_the_line();
     if (failures != 0) {
         std::cerr << failures << " check(s) failed\n";
         return 1;
