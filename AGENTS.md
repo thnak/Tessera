@@ -581,6 +581,11 @@ ADR-049 is Accepted and the shader chain is on `main`; WebGPU is Tier 1: its CI 
 Acceptance: a screen previews in a browser and matches native output within the golden tolerance.
 Stages P0-P7 are planned in `docs/design/reference-equantic-ui.md`.
 
+**This is the design-time milestone**: everything a developer uses before the app ships (the browser
+preview, the studio that edits a project folder, the MCP adapter, devtools). Runtime and shipping
+concerns live in V1-M5 and later. Since 2026-11-16 the preview pages are being merged into one
+studio `index.html` (#392), which the folder IDE (#391) builds on; the order below is the farm order.
+
 - [x] #164: P0: Emscripten preset, compiler in Wasm — IR byte-identical to native for
       `samples/parity-demo/Counter.tsx`. Evidence: `wasm-compiler` build preset (the Emscripten
       `wasm-webgpu` configure with a compiler-only target set), the CLI's Emscripten-only
@@ -602,7 +607,11 @@ Stages P0-P7 are planned in `docs/design/reference-equantic-ui.md`.
       host-owned `WGPUTextureView`, `designer/web/canvas.*`, and the `canvas-native-parity` job that
       renders the lavapipe reference. The **pixel comparison remains open**: it needs a browser+GPU
       CI dependency (an owner decision) and `tests/golden/canvas/` produced on the lavapipe lane,
-      which `--write-goldens` refuses to create from any other device.
+      which `--write-goldens` refuses to create from any other device. #386 then fixed what the first
+      browser run found: the device is handed over as Emscripten handles (`WebGPU.importJsDevice`),
+      the frame is presented on the page canvas, a failed frame clears the canvas instead of
+      showing black, and the WebGPU command list no longer casts a canvas target to the offscreen
+      class. Text, pointer input and the pixel lane are the follow-ups below.
 - [x] #168: P4: browser input into the evaluator, state kept across edits — a cell is carried
       when the component id, cell id and IR type all match (`tools/codegen/scene_state.cpp`),
       dispatch is the unmodified `ui::InputRouter`, and the gate is
@@ -622,6 +631,20 @@ Stages P0-P7 are planned in `docs/design/reference-equantic-ui.md`.
       written up in `docs/specs/devtools-protocol-v1.md` section 8.
 - [ ] #171: P7: studio slices (picker overlay, style inspector, `source.patch`, skins).
 - [ ] #172: `tessera-mcp` stdio adapter over the harness session, compile-only first.
+- [ ] #392: studio: merge the index, scene and canvas pages into one `index.html` (modules stay
+      separate and lazy, `scene.html`/`canvas.html` become redirect stubs that keep `#p5=` links
+      working, the P6 budget is re-ratcheted). **First of the studio items; the four below and #391
+      wait on it.**
+- [ ] #387: P3b: text in the canvas preview, font loaded as data (IBM Plex Sans Latin subset).
+- [ ] #388: P3c: pointer input on the canvas (hit-test, click, hover, active) through a persistent
+      session in the canvas module.
+- [ ] #389: conditional and repeated children in the scene preview (today a named
+      `TESSERA_SCENE_UNSUPPORTED`).
+- [ ] #390: author stylesheet (second textarea), `style` and `className` in the preview; user CSS
+      replaces the built-in sheet, which stays only as the no-stylesheet fallback; tokens come
+      from user code.
+- [ ] #391: studio D-S2 + D-S4: open a project folder (File System Access API, zip elsewhere), file
+      tree, edit, explicit save, multi-file preview. Waits on #390 and #392.
 
 ### V1-M5 Application framework ([milestone 5](https://github.com/thnak/Tessera/milestone/5))
 ADR-050 is Accepted (roadmap AF1-AF8); start with AF1.
@@ -1083,14 +1106,14 @@ prop defaults and `useState` record initials, ADR-051); its only open item is #3
 landed the diagnostics page, the machine-readable diagnostics document
 (`docs/specs/compiler-diagnostics-v1.md`), and Pages is enabled, so the page is live at
 https://thnak.github.io/Tessera/ and deployed by CI from `main`. P2 (#166, the evaluator on the
-null RHI) is next. V1-M3 closed with #159: the `shader-manifest-v1.md` id-to-source table (section 3.2) and the opt-in cross-compile
+null RHI) and P3 to P6 have since landed; the remaining V1-M4 work is the studio sequence #392, then
+#387-#390, then #391, plus #171. V1-M3 closed with #159: the `shader-manifest-v1.md` id-to-source table (section 3.2) and the opt-in cross-compile
 section (5.1), plus the `shader-cross` job in `.github/workflows/linux.yml` that runs
 `TESSERA_SHADER_CROSS=ON` — its first run found a real shader defect (a by-value struct parameter
 in `batched2d.frag` lowered to `OpCopyLogical`, which naga rejects on Linux glslang 16.1), now
 fixed. V1-M3 is therefore complete (9 of 9 items; #245 closed too). V1-M4 is in progress,
-not blocked on tooling: the WebGPU lane already installs the pinned Emscripten and builds Wasm
-green, so the remaining work is putting the compiler into the Wasm build graph and adding a
-differential harness and CI lane for it (#164). V1-M5 is unblocked (ADR-050 is Accepted) and
+not blocked on tooling: the WebGPU lane installs the pinned Emscripten and builds Wasm green, and
+the preview runs in a real browser. V1-M5 is unblocked (ADR-050 is Accepted) and
 AF1 (#173) may start now. V1-M6, V1-M7 (#187 now has the #156 display/event seam it needed) and V1-M8
 come later.
 
