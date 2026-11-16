@@ -36,7 +36,12 @@ public:
         : registry_(registry),
           out_(out) {}
 
-    void rules(const StyleSheet& sheet, std::uint32_t layer);
+    // The nesting budget for at-rules, matching the selector parser's bound in spirit: a stylesheet
+    // must not be able to abort the compiler by nesting `@media` inside `@media`. Exceeding it is a
+    // diagnostic, not a crash.
+    static constexpr int kMaxAtRuleDepth = 32;
+
+    void rules(const StyleSheet& sheet, std::uint32_t layer, int depth = 0);
 
 private:
     struct Item {
@@ -46,8 +51,8 @@ private:
     };
 
     void rule(const Rule& source, std::uint32_t layer);
-    void at_rule(const AtRule& source, std::uint32_t layer);
-    void layer_at_rule(const AtRule& source, std::uint32_t layer);
+    void at_rule(const AtRule& source, std::uint32_t layer, int depth = 0);
+    void layer_at_rule(const AtRule& source, std::uint32_t layer, int depth = 0);
     std::uint32_t layer_for(std::string_view name);
     void diagnose(const AtRule& source, std::string_view name, const char* message);
     PreparedItem make_item(PreparedItemKind kind) const;
@@ -81,7 +86,7 @@ std::uint32_t Preparer::layer_for(std::string_view name) {
     return static_cast<std::uint32_t>(out_.layers.size() - 1);
 }
 
-void Preparer::rules(const StyleSheet& sheet, std::uint32_t layer) {
+void Preparer::rules(const StyleSheet& sheet, std::uint32_t layer, int depth) {
     std::vector<Item> items;
     items.reserve(sheet.rules.size() + sheet.at_rules.size());
     for (const Rule& entry : sheet.rules) {
@@ -97,7 +102,7 @@ void Preparer::rules(const StyleSheet& sheet, std::uint32_t layer) {
         if (item.rule != nullptr) {
             rule(*item.rule, layer);
         } else if (item.at_rule != nullptr) {
-            at_rule(*item.at_rule, layer);
+            at_rule(*item.at_rule, layer, depth);
         }
     }
 }
@@ -125,7 +130,11 @@ void Preparer::rule(const Rule& source, std::uint32_t layer) {
     out_.items.push_back(std::move(item));
 }
 
-void Preparer::layer_at_rule(const AtRule& source, std::uint32_t layer) {
+void Preparer::layer_at_rule(const AtRule& source, std::uint32_t layer, int depth) {
+    if (depth >= kMaxAtRuleDepth) {
+        diagnose(source, "layer", "at-rules nested too deeply");
+        return;
+    }
     std::vector<std::string> names;
     std::size_t start = 0;
     while (start <= source.prelude.size()) {
@@ -163,10 +172,16 @@ void Preparer::layer_at_rule(const AtRule& source, std::uint32_t layer) {
         }
     }
     out_.items.push_back(std::move(item));
-    rules(parse_stylesheet(source.block), target);
+    rules(parse_stylesheet(source.block), target, depth + 1);
 }
 
-void Preparer::at_rule(const AtRule& source, std::uint32_t layer) {
+void Preparer::at_rule(const AtRule& source, std::uint32_t layer, int depth) {
+    if (depth >= kMaxAtRuleDepth) {
+        // Refuse rather than recurse: a stylesheet must not be able to overflow the stack by
+        // nesting at-rules. The rule is dropped with a diagnostic, like any other bad rule.
+        diagnose(source, lower(source.name), "at-rules nested too deeply");
+        return;
+    }
     const std::string name = lower(source.name);
     if (name == "media") {
         MediaQueryParseResult query = parse_media_query_list(source.prelude);
@@ -175,7 +190,7 @@ void Preparer::at_rule(const AtRule& source, std::uint32_t layer) {
             return;
         }
         media_.push_back(std::move(query.list));
-        rules(parse_stylesheet(source.block), layer);
+        rules(parse_stylesheet(source.block), layer, depth + 1);
         media_.pop_back();
         return;
     }
@@ -189,12 +204,12 @@ void Preparer::at_rule(const AtRule& source, std::uint32_t layer) {
         item.container = query.query;
         out_.items.push_back(std::move(item));
         containers_.push_back(std::move(query.query));
-        rules(parse_stylesheet(source.block), layer);
+        rules(parse_stylesheet(source.block), layer, depth + 1);
         containers_.pop_back();
         return;
     }
     if (name == "layer") {
-        layer_at_rule(source, layer);
+        layer_at_rule(source, layer, depth);
         return;
     }
     if (name == "supports") {
@@ -204,7 +219,7 @@ void Preparer::at_rule(const AtRule& source, std::uint32_t layer) {
             return;
         }
         if (evaluate_supports(condition.condition, registry_)) {
-            rules(parse_stylesheet(source.block), layer);
+            rules(parse_stylesheet(source.block), layer, depth + 1);
         }
         return;
     }
