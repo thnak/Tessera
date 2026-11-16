@@ -641,8 +641,24 @@ ADR-050 is Accepted (roadmap AF1-AF8); start with AF1.
       `set`: `include/tessera/appfw/observable.hpp`, `docs/design/observable.md`, tests
       `appfw_observable` (`tests/unit/appfw_observable_tests.cpp`,
       `appfw_observable_allocation.cpp`).
-- [ ] #177: AF5: `useService<T>()` codegen (after ADR-040) — undeclared service is a compile error.
-- [ ] #178: AF6: `NativeSurface` refs + `SurfaceRenderer` — lavapipe golden of a composited surface.
+- [x] #177: AF5: `useService<T>()` codegen -- an undeclared service is a compile error with
+      a stable code, `TESSERA_CG_SERVICE_UNDECLARED`, naming the component, the service type
+      and every declared requirement with its TSX `file:line:column`. Resolution is
+      structurally incapable of running in the frame path: the context is not retained and
+      the accessors read pre-resolved pointers (1000 reads inside a `FrameScope` ->
+      `in_frame == 0`). Evidence: `src/compiler/codegen/src/emit_services.cpp`, ctest
+      `codegen_services_generate`/`codegen_services_runtime`, `docs/design/services/
+      service-injection.md` section 11.5.
+      **Still open:** the TSX half (`nav.push(...)` needs call-expression lowering) and the
+      `ui/services.json` schema, both recorded in section 11.6 rather than guessed at.
+- [x] #178: AF6: `NativeSurface` refs + `SurfaceRenderer` -- the surface is a **borrowed**
+      ref-counted view over handles the HAL owns (no deleter, no teardown hook), proved in
+      both directions against a window that counts its own teardowns. The golden
+      (`tests/golden/baseline/surface/native_surface.png`) was written on a device whose CPU
+      class is read from `VkPhysicalDeviceProperties`, not from `VK_ICD_FILENAMES`, and is
+      **bit-identical** between the local llvmpipe and the remote lavapipe lane
+      (`237bbaeb...`). Evidence: `include/tessera/hal/surface.hpp`,
+      `tests/gpu/surfaces/`, `docs/design/native-render-surfaces.md` section 10.4.
 - [x] #179: AF7: `storage` module, atomic writes on `IoExecutor` — corruption fallback
       tested. Same-directory temp + flush + atomic replace
       (`src/appfw/storage_atomic.cpp`), the `IoTaskExecutor` seam in layer 0, and a fake
