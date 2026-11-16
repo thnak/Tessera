@@ -8,6 +8,40 @@ add_subdirectory(${PROJECT_SOURCE_DIR}/src/hal/clipboard ${CMAKE_BINARY_DIR}/src
 # Native-surface seam (ADR-050 section 7, AF6, issue #178), same arrangement: registered here until
 # the root CMakeLists lists src/hal/surface beside src/hal/window.
 
+# The platform-NEUTRAL HAL value rules that the *style/layout* stack consumes. They are split into
+# their own target because `tessera_hal_window` also carries the Win32/X11/Wayland backends, and a
+# UI-layer consumer must never drag an OS window backend into a build that has none - the Wasm
+# studio viewer is exactly such a consumer (issue #408: it resolves a simulated `FoldInfo` through
+# `hal::resolve_safe_area`). Linking this small target instead keeps ADR-020's dependency direction
+# (UI sees normalized types, never platform code) true by construction rather than by convention.
+add_library(tessera_hal_metrics STATIC
+    # SafeArea inset arithmetic (safe-area-v1.md sections 2 to 4): the source table, the cutout and
+    # hinge insets, and the per-side resolution. Pure, allocation-free, no OS type.
+    ${CMAKE_CURRENT_SOURCE_DIR}/safe_area.cpp
+    # The simulated fold postures of the design-time studio (designer-studio-v1.md section 6,
+    # issue #408): the ONE posture -> `FoldInfo` mapping the Wasm viewer, the native preview CLI and
+    # `tessera-mcp` share, so a posture cannot mean two things in three places.
+    ${CMAKE_CURRENT_SOURCE_DIR}/fold_posture.cpp)
+
+target_include_directories(tessera_hal_metrics PUBLIC
+    ${PROJECT_SOURCE_DIR}/include)
+
+target_compile_features(tessera_hal_metrics PUBLIC cxx_std_23)
+
+# The simulated fold postures (issue #408): the posture -> `FoldInfo` mapping, the
+# `FoldChanged`-equivalent and the rotation rule, against the SAME `resolve_safe_area` the app runs.
+# Registered here rather than in tests/unit/CMakeLists.txt so this lane never edits the shared
+# registry while other lanes work in it - the pattern `src/ui/style` and `src/compiler/codegen`
+# already use.
+if (TESSERA_BUILD_TESTS)
+    enable_testing()
+
+    add_executable(fold_posture_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/fold_posture_tests.cpp)
+    target_link_libraries(fold_posture_tests PRIVATE tessera_hal_metrics)
+    add_test(NAME fold_posture COMMAND fold_posture_tests)
+endif ()
+
 add_library(tessera_hal_window STATIC)
 
 # The pure display-refresh value rules (validation, "unknown", explicit-option precedence and the
@@ -28,8 +62,8 @@ target_sources(tessera_hal_window PRIVATE
     # The pointer-shape names (issue #191): pure, so the metrics dump and the diagnostics are
     # testable without a window or a display.
     ${CMAKE_CURRENT_SOURCE_DIR}/cursor.cpp
-    # SafeArea inset arithmetic (safe-area-v1.md); pure and platform-neutral.
-    ${CMAKE_CURRENT_SOURCE_DIR}/safe_area.cpp
+    # SafeArea inset arithmetic and the simulated fold postures live in `tessera_hal_metrics`
+    # above, because the style module links them and must not pull an OS backend with them.
     # Display identity, per-monitor capabilities and the documented fallbacks (ADR-023 rule 7).
     ${CMAKE_CURRENT_SOURCE_DIR}/display.cpp
     # Event reasons and their coalescing rule (docs/specs/os-events-v1.md section 2).
@@ -176,7 +210,7 @@ target_include_directories(tessera_hal_window PUBLIC
     ${PROJECT_SOURCE_DIR}/include)
 
 # The base Window fallback and the public window_wait.hpp helper use the HAL steady clock.
-target_link_libraries(tessera_hal_window PUBLIC tessera_hal_timer)
+target_link_libraries(tessera_hal_window PUBLIC tessera_hal_metrics tessera_hal_timer)
 
 # The Linux appearance watcher speaks D-Bus, so the HAL links the bottom-level `tessera_dbus` client
 # (the wire codec/SASL/transport, shared with the AT-SPI2 accessibility bridge). PRIVATE because the

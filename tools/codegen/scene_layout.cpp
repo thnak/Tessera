@@ -4,8 +4,12 @@
 #include "tessera/ui/layout/apply_layout.hpp"
 #include "tessera/ui/layout/layout_engine.hpp"
 #include "tessera/ui/scene/paint_data.hpp"
+#include "tessera/ui/style/safe_area_style.hpp"
 #include "tessera/ui/style/scene_style.hpp"
 
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <string>
 #include <string_view>
@@ -28,11 +32,19 @@ std::string pixels(float value) {
 // (src/app/host.cpp, build_layout_input): the style comes from the compiled sheet through the
 // captured scene tree, a text payload becomes the measured text, and an inline-span child is
 // skipped because it is a run of the parent's text, not a box.
+//
+// **The SafeArea step is the app's, literally.** `apply_safe_area_style()` is the same function
+// `AppHost::build_layout_input()` calls, with the same `WindowMetrics*`, so a `SafeArea` inside a
+// `book` posture pads by `hal::resolve_safe_area()`'s answer and a full-occlusion hinge keeps the
+// larger side. There is no preview-only branch: the only difference between the two callers is who
+// filled the metrics in (an OS versus a simulated posture).
 ui::layout::LayoutInput build_layout_input(const ui::Node& node, ui::style::SceneStyleTree& tree,
-                                           const ui::style::CompiledStyleSheet& sheet) {
+                                           const ui::style::CompiledStyleSheet& sheet,
+                                           const hal::WindowMetrics& metrics) {
     ui::layout::LayoutInput input;
     input.id = node.id();
     input.style = tree.compute(sheet, node);
+    (void)ui::style::apply_safe_area_style(input.style, node, &metrics);
     const auto& paint = node.paint_data();
     const bool text_payload = paint.has_value() && paint->kind == ui::PaintKind::Text;
     if (text_payload) {
@@ -42,29 +54,44 @@ ui::layout::LayoutInput build_layout_input(const ui::Node& node, ui::style::Scen
         if (text_payload && paint->has_span(child->id())) {
             continue;
         }
-        input.children.push_back(build_layout_input(*child, tree, sheet));
+        input.children.push_back(build_layout_input(*child, tree, sheet, metrics));
     }
     return input;
 }
 
 } // namespace
 
+hal::WindowMetrics simulated_metrics(const SceneMetrics& metrics) noexcept {
+    hal::WindowMetrics snapshot;
+    const auto whole = [](float value) {
+        return static_cast<std::uint32_t>(std::lround(std::max(value, 0.0f)));
+    };
+    snapshot.logical_width = whole(metrics.width);
+    snapshot.logical_height = whole(metrics.height);
+    snapshot.dpi_scale = metrics.dpi_scale > 0.0f ? metrics.dpi_scale : 1.0f;
+    // The posture is data, exactly like the size: `fold_info_for` centres the band in this extent,
+    // so the hinge rectangle and the window rectangle can never disagree.
+    snapshot.fold =
+        hal::fold_info_for(metrics.posture, snapshot.logical_width, snapshot.logical_height);
+    return snapshot;
+}
+
 SceneLayoutResult layout_scene(ui::Node& root, const ui::style::CompiledStyleSheet& sheet,
-                               ui::layout::LayoutEngine& engine, float width, float height,
-                               float dpi_scale) {
+                               ui::layout::LayoutEngine& engine, const SceneMetrics& metrics) {
     SceneLayoutResult result;
+    result.metrics = simulated_metrics(metrics);
     // The window rectangle is applied to the layout input rather than to the node's inline style:
     // an inline declaration borrows its text from the caller, and a layout pass must not leave the
     // tree pointing at storage that dies with the call.
     ui::style::SceneStyleTree tree(root);
-    ui::layout::LayoutInput input = build_layout_input(root, tree, sheet);
-    input.style.set("width", pixels(width));
-    input.style.set("height", pixels(height));
+    ui::layout::LayoutInput input = build_layout_input(root, tree, sheet, result.metrics);
+    input.style.set("width", pixels(metrics.width));
+    input.style.set("height", pixels(metrics.height));
 
     ui::layout::LayoutViewport viewport;
-    viewport.width = width;
-    viewport.height = height;
-    viewport.dpi_scale = dpi_scale;
+    viewport.width = metrics.width;
+    viewport.height = metrics.height;
+    viewport.dpi_scale = result.metrics.dpi_scale;
 
     const ui::layout::LayoutResult laid_out = engine.layout(input, viewport);
     if (laid_out.boxes.empty()) {

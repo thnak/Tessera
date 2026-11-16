@@ -35,4 +35,14 @@ namespace tessera::compiler::codegen::cli {
 // survive `JSON.parse` as a number.
 [[nodiscard]] std::string canvas_pointer_report_json(const CanvasPointerResult& result);
 
+// What one simulated fold-posture change did (issue #408), as one JSON object on one line:
+//
+//   {"foldVersion":1,"changed":true,"error":""}
+//
+// `changed` is `PreviewSession::set_posture()`'s answer: true when a layout pass ran, false when
+// the posture was already the one in force (so the page draws no frame). The layout pass completes
+// inside the call, so a page that draws once on `changed` paints the new posture on its first
+// frame, which is the "no frame of stale padding" rule this serializer exists to make observable.
+[[nodiscard]] std::string canvas_fold_report_json(const SceneFrameResult& result, bool changed);
+
 } // namespace tessera::compiler::codegen::cli

@@ -2,8 +2,10 @@
 
 #pragma once
 
+#include "scene_layout.hpp"
 #include "scene_preview.hpp"
 #include "tessera/compiler/ir/module.hpp"
+#include "tessera/hal/window.hpp"
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/style/compiled_stylesheet.hpp"
 
@@ -43,6 +45,11 @@ struct PreparedScene {
     // Scene nodes whose style was resolved, and nodes `apply_layout` wrote a box to.
     std::size_t nodes = 0;
     std::size_t applied = 0;
+    // The simulated window this tree was laid out against (issue #408): the logical extent, the DPI
+    // scale and the `FoldInfo` the options' posture resolved to. A consumer that needs to report or
+    // re-derive the fold (the snapshot document, the canvas session) reads it from here instead of
+    // rebuilding it, so it cannot disagree with the pass that produced the boxes.
+    tessera::hal::WindowMetrics metrics;
 };
 
 // Runs parse -> analyse -> lower -> assign identity -> pick component -> evaluate state -> build

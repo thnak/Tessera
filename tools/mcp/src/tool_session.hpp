@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "preview_tools.hpp"
+#include "tessera/hal/fold_posture.hpp"
 #include "tool_registry.hpp"
 
 #include <cstddef>
@@ -40,8 +42,18 @@ public:
         return project_;
     }
 
+    // The preview viewport `set_viewport` last set (`snapshot` renders at it). Defaults are the
+    // preview's own, so a `snapshot` before any `set_viewport` matches the CLI's defaults.
+    [[nodiscard]] ViewportState& viewport() noexcept {
+        return viewport_;
+    }
+    [[nodiscard]] const ViewportState& viewport() const noexcept {
+        return viewport_;
+    }
+
 private:
     std::optional<OpenProject> project_;
+    ViewportState viewport_;
 };
 
 // Normalizes `path` to the project-relative POSIX form the diagnostics document uses

@@ -56,13 +56,16 @@
 #include "canvas_report.hpp"
 #include "scene_canvas_session.hpp"
 #include "scene_frame.hpp"
+#include "tessera/hal/fold_posture.hpp"
 #include "tessera/rendering/webgpu/webgpu_device.hpp"
 
+#include <cmath>
 #include <cstdlib>
 #include <cstring>
 #include <emscripten/emscripten.h>
 #include <exception>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -245,26 +248,57 @@ EMSCRIPTEN_KEEPALIVE int tessera_webgpu_set_device(void* device, void* queue) {
 // frame, which the frame takes ownership of. Null draws into an offscreen target instead (the Node
 // probe and any caller with no canvas), so the counters stay available without a surface.
 EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_frame(const char* source, const char* file,
-                                                      const char* component, int width, int height,
-                                                      float dpi, void* canvas_view) {
-    const auto extent = rhi::Extent2D{static_cast<std::uint32_t>(width > 0 ? width : 0),
-                                      static_cast<std::uint32_t>(height > 0 ? height : 0)};
+                                                      const char* component,
+                                                      const char* fold_posture, int width,
+                                                      int height, float dpi, void* canvas_view) {
+    // Two different rectangles, and the whole point of this block is not to confuse them:
+    //   * `width` x `height` are the LOGICAL layout viewport (the page's CSS box), which is what
+    //   the
+    //     layout engine and `WindowMetrics` take;
+    //   * `extent` is the device-pixel render target, `logical * dpi`, which is what the GPU draws
+    //     into. Deriving it here rather than trusting a second pair of arguments keeps one source
+    //     of truth (logical size plus DPR) on the page side.
+    const float logical_width = width > 0 ? static_cast<float>(width) : 320.0f;
+    const float logical_height = height > 0 ? static_cast<float>(height) : 240.0f;
+    const float scale = dpi > 0.0f ? dpi : 1.0f;
+    const auto extent =
+        rhi::Extent2D{static_cast<std::uint32_t>(std::lround(logical_width * scale)),
+                      static_cast<std::uint32_t>(std::lround(logical_height * scale))};
     if (g_device == nullptr) {
         cli::SceneFrameResult none;
         none.error = "no WebGPU device: call tessera_webgpu_set_device first";
         return duplicate_out(cli::canvas_report_json(none, extent.width, extent.height, false));
+    }
+    // The posture is validated before anything is built: a typo must not silently lay out an
+    // unfolded device, because the page would then show a plausible picture of the wrong thing.
+    tessera::hal::FoldPosture posture = tessera::hal::FoldPosture::None;
+    const std::string_view posture_text =
+        fold_posture != nullptr ? std::string_view(fold_posture) : std::string_view();
+    if (!posture_text.empty()) {
+        const std::optional<tessera::hal::FoldPosture> parsed =
+            tessera::hal::parse_fold_posture(posture_text);
+        if (!parsed) {
+            cli::SceneFrameResult none;
+            none.error = "TESSERA_STUDIO_FOLD_POSTURE: `" + std::string(posture_text) +
+                         "` is not a fold posture; expected flat, book or tabletop";
+            return duplicate_out(cli::canvas_report_json(none, extent.width, extent.height, true));
+        }
+        posture = *parsed;
     }
 
     cli::ScenePreviewOptions options;
     if (file != nullptr && file[0] != '\0') {
         options.file = file;
     }
-    // The layout viewport is the page's CSS box, not the device-pixel extent: the preview has one
-    // viewport in this slice, exactly as the P2 module does, and `dpi` is what scales it up.
-    options.width = 320.0f;
-    options.height = 240.0f;
-    options.dpi_scale = dpi > 0.0f ? dpi : 1.0f;
+    // The layout rectangle is the LOGICAL viewport, which is what the page's CSS box is; `dpi` only
+    // scales the backing store computed above and must never move a layout coordinate. (This used
+    // to hard-code 320x240 here while the page sized its backing store from the toolbar, so a
+    // non-default viewport drew a 320x240 layout scaled into a larger canvas.)
+    options.width = logical_width;
+    options.height = logical_height;
+    options.dpi_scale = scale;
     options.salt = "preview";
+    options.posture = posture;
     const std::string_view name =
         component != nullptr ? std::string_view(component) : std::string_view();
     if (source == nullptr) {
@@ -292,14 +326,30 @@ EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_frame(const char* source, const 
 // `tessera_canvas_pointer`. See that function for the CSS-to-logical mapping; `dpi` is only what
 // scales the backing store and never moves a hit-test coordinate.
 EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_run(const char* source, const char* file,
-                                                    const char* component, int width, int height,
-                                                    float dpi) {
+                                                    const char* component, const char* fold_posture,
+                                                    int width, int height, float dpi) {
     const auto extent = rhi::Extent2D{static_cast<std::uint32_t>(width > 0 ? width : 0),
                                       static_cast<std::uint32_t>(height > 0 ? height : 0)};
     if (g_device == nullptr) {
         cli::SceneFrameResult none;
         none.error = "no WebGPU device: call tessera_webgpu_set_device first";
         return duplicate_out(cli::canvas_report_json(none, extent.width, extent.height, false));
+    }
+    // The posture is validated before anything is built: a typo must not silently start the session
+    // unfolded, because the page would then show a plausible picture of the wrong device.
+    tessera::hal::FoldPosture posture = tessera::hal::FoldPosture::None;
+    const std::string_view posture_text =
+        fold_posture != nullptr ? std::string_view(fold_posture) : std::string_view();
+    if (!posture_text.empty()) {
+        const std::optional<tessera::hal::FoldPosture> parsed =
+            tessera::hal::parse_fold_posture(posture_text);
+        if (!parsed) {
+            cli::SceneFrameResult none;
+            none.error = "TESSERA_STUDIO_FOLD_POSTURE: `" + std::string(posture_text) +
+                         "` is not a fold posture; expected flat, book or tabletop";
+            return duplicate_out(cli::canvas_report_json(none, extent.width, extent.height, true));
+        }
+        posture = *parsed;
     }
     if (g_session == nullptr) {
         g_session = std::make_unique<cli::CanvasSceneSession>();
@@ -314,6 +364,7 @@ EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_run(const char* source, const ch
     options.width = static_cast<float>(extent.width);
     options.height = static_cast<float>(extent.height);
     options.dpi_scale = dpi > 0.0f ? dpi : 1.0f;
+    options.posture = posture;
 
     const std::string error = g_session->start(options);
     cli::SceneFrameResult report;
@@ -363,6 +414,49 @@ EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_pointer(const char* kind, float 
     }
     result = g_session->pointer(parsed, x, y, button > 0 ? static_cast<std::uint32_t>(button) : 0U);
     return duplicate_out(cli::canvas_pointer_report_json(result));
+}
+
+// Changes the simulated fold posture of the RUNNING session (issue #408) and re-lays the tree out
+// in place. Returns the same one-line report a Run returns, with `changed` set when a layout pass
+// ran: the page draws one frame when it is true, and nothing when the posture was already in force.
+//
+// **Why a separate export rather than another `tessera_canvas_run` argument.** A posture change
+// must not re-evaluate the source: the state cells, the hover and the focus the router holds belong
+// to the running evaluation, and a re-run would lose them. This is the export that keeps the
+// session and changes one input of its layout - the device equivalent of turning a folding phone.
+//
+// `posture` is one of `flat`, `book`, `tabletop`; an empty string means "no fold", and an unknown
+// name is reported rather than applied, because a control that looks like it worked while
+// previewing an unfolded screen is the one failure this slice must not have.
+EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_set_fold(const char* posture) {
+    const auto extent = rhi::Extent2D{};
+    if (g_session == nullptr || !g_session->started()) {
+        cli::SceneFrameResult none;
+        none.error = "no canvas session: call tessera_canvas_run first";
+        return duplicate_out(cli::canvas_report_json(none, extent.width, extent.height, false));
+    }
+    const std::string_view text =
+        posture != nullptr ? std::string_view(posture) : std::string_view();
+    tessera::hal::FoldPosture parsed = tessera::hal::FoldPosture::None;
+    if (!text.empty()) {
+        const std::optional<tessera::hal::FoldPosture> known =
+            tessera::hal::parse_fold_posture(text);
+        if (!known) {
+            cli::SceneFrameResult none;
+            none.error = "TESSERA_STUDIO_FOLD_POSTURE: `" + std::string(text) +
+                         "` is not a fold posture; expected flat, book or tabletop";
+            return duplicate_out(cli::canvas_report_json(none, extent.width, extent.height, false));
+        }
+        parsed = *known;
+    }
+    // `set_posture()` lays the tree out INSIDE this call, so the page's next `tessera_canvas_draw`
+    // paints the new posture on its first frame - there is no "pending" state a later frame
+    // applies, which is the issue's "no frame of stale padding" requirement made structural.
+    const bool changed = g_session->set_posture(parsed);
+    cli::SceneFrameResult report;
+    // A report with no error and the layout counters zeroed: the page only needs `changed` and the
+    // absence of `error`, and the frame counters come from the `tessera_canvas_draw` that follows.
+    return duplicate_out(cli::canvas_fold_report_json(report, changed));
 }
 
 // Draws the running session's current tree into the canvas texture view the page hands over, and

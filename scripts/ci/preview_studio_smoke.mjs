@@ -138,9 +138,9 @@ await test("the built chrome renders the page's four regions", async () => {
   assert.match(MARKUP, /class="page-footer"/, "the status line is rendered");
 });
 
-await test("the toolbar's three selects carry the documented option sets", async () => {
+await test("the toolbar's selects carry the documented option sets", async () => {
   const selects = [...MARKUP.matchAll(/<select\b[^>]*id="(control-[^"]+)"[^>]*>([\s\S]*?)<\/select>/g)];
-  assert.equal(selects.length, 3, "viewport, DPR, theme");
+  assert.equal(selects.length, 4, "viewport, DPR, theme, fold posture");
   const values = selects.map(([, id, body]) => ({
     id,
     options: [...body.matchAll(/<option[^>]*value="([^"]*)"/g)].map((match) => match[1]),
@@ -156,15 +156,29 @@ await test("the toolbar's three selects carry the documented option sets", async
     "light",
     "dark",
   ]);
+  // The fold posture (issue #408). The option set is the HAL's, in its order: `""` is no fold, and
+  // the three named postures are the ones `set_viewport` and the share codec accept.
+  assert.deepEqual(values.find((entry) => entry.id === "control-foldPosture").options, [
+    "",
+    "flat",
+    "book",
+    "tabletop",
+  ]);
 });
 
 await test("the toolbar persists to localStorage, and the source never does", async () => {
   const { storage } = installBrowser();
-  preferences.rememberLocally({ viewport: "390x844", dpr: "2", theme: "dark" });
+  preferences.rememberLocally({
+    viewport: "390x844",
+    dpr: "2",
+    theme: "dark",
+    foldPosture: "book",
+  });
   const stored = JSON.parse(storage.get(STORAGE_KEY));
   assert.equal(stored.viewport, "390x844", "the toolbar position is remembered");
   assert.equal(stored.dpr, "2");
   assert.equal(stored.theme, "dark");
+  assert.equal(stored.foldPosture, "book", "the fold posture is remembered too");
   assert.equal(stored.source, undefined, "the source is never persisted by the chrome");
 });
 
@@ -214,6 +228,7 @@ await test("the share link round-trips through the address bar", async () => {
     viewport: "1280x800",
     dpr: "1",
     theme: "system",
+    foldPosture: "tabletop",
   });
   const url = await preferences.shareToLocation(state);
   assert.match(url, /#p5=/, "a fragment link was produced");
@@ -224,6 +239,9 @@ await test("the share link round-trips through the address bar", async () => {
   assert.equal(back.height, 800);
   assert.equal(back.dpr, 1);
   assert.equal(back.theme, "system");
+  // A preview of a foldable screen is not the same preview without its posture, so the link carries
+  // it (issue #408) and this is where a page that forgot to pass it fails.
+  assert.equal(back.foldPosture, "tabletop", "the fold posture round-trips through the link");
 });
 
 await test("opening a share link restores its source, viewport and theme", async () => {

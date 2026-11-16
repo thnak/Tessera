@@ -194,6 +194,7 @@ InputRunResult run_input_script(std::string_view text, const ScenePreviewOptions
     session_options.width = options.width;
     session_options.height = options.height;
     session_options.dpi_scale = options.dpi_scale;
+    session_options.posture = options.posture;
     PreviewSession session(evaluated->module, evaluated->selected(), sheet, session_options);
     result.built = session.built();
     if (!result.built) {

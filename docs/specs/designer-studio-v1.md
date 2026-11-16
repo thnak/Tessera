@@ -277,7 +277,7 @@ V1 controls and their protocol mapping:
 | Locale and direction | `viewport.set` `locale`, `direction` | Text, RTL |
 | Text scale | `viewport.set` `textScale` | Font scale |
 | Safe-area and cutout overlay | page-only overlay | Debug aid; excluded from screenshots |
-| Fold posture (foldables) | `viewport.set` `foldPosture` | Two-pane layout |
+| Fold posture (foldables) | `viewport.set` `foldPosture` (`flat`, `book`, `tabletop`) | Safe-area insets and layout, in one pass (6.1) |
 | Freeze time | fixed clock in the viewer | Deterministic screenshots and animations |
 | Input injection (hover, press, click, type, key, scroll, touch) | viewer input path, same as the real runtime | Drives hooks and events |
 | Startup phase (P0/P2/P4) | viewer startup pipeline with a frozen stage | Loading screen, framework chrome and P2->P4 continuity (D-S9) |
@@ -286,6 +286,52 @@ V1 controls and their protocol mapping:
 
 Deferred: multi-window split, picture-in-picture, network throttling/offline, memory-pressure and
 thermal simulation, and animation timeline scrubbing.
+
+### 6.1 Fold postures, and why they are not a preview-only model
+
+A posture is **data**, exactly like a viewport size: no sensor, no clock, and the same input always
+produces the same frame. The posture names three shapes a foldable can be in, and each resolves to a
+`FoldInfo` the engine already understands:
+
+| `foldPosture` | `FoldState` | `FoldOrientation` | Hinge band | Effect on a `SafeArea` |
+|---|---|---|---|---|
+| (absent) / `flat` | `Flat` | `None` | none | No hinge inset; the whole window is usable |
+| `book` | `HalfOpened` | `Vertical` | centred on the width, full height | A full-occlusion hinge; a single pane keeps the larger side |
+| `tabletop` | `HalfOpened` | `Horizontal` | centred on the height, full width | As above, on the other axis |
+
+Both half-opened postures are `FoldOcclusion::Full` and `separating`: that is the interesting case
+for layout, and it is the one `safe-area-v1.md` section 4 specifies.
+
+**One layout path, by construction.** The posture becomes `WindowMetrics::fold` and is consumed by
+`hal::resolve_safe_area` and the host's safe-area injection — the same functions the native app runs,
+with the same `ComposeStyle` writer. There is no preview-only resolution of the tokens and no second
+padding writer: a previewed foldable and a device differ only in who filled the metrics in. The
+mapping from a posture name to a `FoldInfo` lives once, in `tessera/hal/fold_posture.hpp`, and is
+what the Wasm viewer, the native preview CLI and MCP `set_viewport` all call.
+
+**One layout pass.** A posture change re-lays out a single time, inside the call that applies it,
+before any paint can observe the tree. `safe-area-v1.md` section 4's "never a flash of stale
+padding" is therefore structural rather than a timing assumption: there is no pending posture a
+later frame applies. A posture already in force runs no pass at all, so a repeated control event
+costs nothing.
+
+**Where the control appears.** Section 5.2 assigns the `foldable` skin category to a later slice
+(#171) and this one has no skin picker, so the posture control is offered on the toolbar for every
+skin: until a category can be selected, the posture *is* how a foldable is chosen. The absent value
+is the unfolded desktop case, so a visitor who ignores the control previews what they previewed
+before it existed.
+
+**What does not ship here.** The hinge is not drawn as an overlay yet: the table row "Safe-area and
+cutout overlay" above is its own page-only overlay, and the hinge joins it when that overlay lands.
+Until then the hinge is observable through the layout it causes — the single pane and its inset in
+the Scene view's node bounds — which is what the acceptance asks for and what the evidence below
+asserts. The `foldable` skin category and its art remain #171's.
+
+Evidence: ctest `fold_posture` (the posture to `FoldInfo` mapping and the rotation rule),
+`scene_fold` (the preview's insets against a real `AppHost` on the same metrics, and one-pass
+posture changes), `mcp_preview_tools` (MCP snapshots byte-identical to the driver);
+`scripts/ci/preview_studio_smoke.mjs` and `scripts/ci/preview_share_roundtrip.mjs` for the control
+and the link that carries it.
 
 ## 7. Project load, edit and save
 
@@ -527,7 +573,7 @@ Open questions (no decision yet):
    into gates.
 2. Which browsers must run the fallback path, and whether the fallback may use the CPU rasterizer
    instead of WebGPU.
-3. The bundled skin and preset list: how many devices, which postures, and how much art ships.
+3. The bundled skin and preset list: how many devices, and how much art ships. **Postures are decided**: three simulate (`flat`, `book`, `tabletop`, section 6.1), because they are the three a `FoldInfo` can name without guessing a device's geometry (`tessera/hal/fold_posture.hpp` is the one mapping).
 4. GPU screenshot requirements for MCP: Dawn bindings in Node versus spawning the native `tessera`
    headless renderer, and how CI behaves without a GPU.
 5. Startup preview fidelity: which stages are pinnable, whether it runs the real `AppHost` or a

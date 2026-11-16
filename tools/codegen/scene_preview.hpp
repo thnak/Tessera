@@ -2,6 +2,9 @@
 
 #pragma once
 
+#include "tessera/hal/fold_posture.hpp"
+
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -20,12 +23,19 @@ namespace tessera::compiler::codegen::cli {
 // What the preview does with the source it is given. `salt` is the project salt the ids are hashed
 // with (the `app.namespace` of tessera.json): the page passes the one it shows, so its `uiId`s are
 // the ones the native build would use. `width`/`height` are the layout viewport in logical pixels.
+//
+// `posture` is the simulated foldable posture (issue #408, docs/specs/designer-studio-v1.md section
+// 6). It is data like the size, never a sensor reading: `hal::fold_info_for()` turns it into the
+// `FoldInfo` that goes into the `WindowMetrics` the layout and the `SafeArea` arithmetic read, so a
+// previewed screen responds to a fold exactly as a device would. `FoldPosture::None` is the
+// pre-#408 behaviour and produces a snapshot that contributes no insets at all.
 struct ScenePreviewOptions {
     std::string_view file = "ui/Preview.tsx";
     std::string_view salt = "preview";
     float width = 320.0f;
     float height = 240.0f;
     float dpi_scale = 1.0f;
+    tessera::hal::FoldPosture posture = tessera::hal::FoldPosture::None;
 };
 
 // Evaluates `text` as the single file `options.file` and returns the canonical UiSnapshot document

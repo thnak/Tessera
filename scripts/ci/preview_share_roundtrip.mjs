@@ -89,6 +89,9 @@ const BASE_STATE = {
   height: 844,
   dpr: 2,
   theme: 'dark',
+  // The simulated fold posture (issue #408). ` is the unfolded default; the codec must round-trip
+  // both that and a named posture, so states() below covers one of each.
+  foldPosture: '',
 };
 
 // One representative state per toolbar combination, so a new preset that forgets the codec fails here.
@@ -97,7 +100,14 @@ function states() {
   for (const [width, height] of state.VIEWPORTS.map(([w, h]) => [w, h])) {
     for (const dpr of state.DPRS) {
       for (const theme of state.THEMES) {
-        out.push({ ...BASE_STATE, width, height, dpr, theme });
+        // The unfolded posture is the common case and must stay one field in the matrix...
+        out.push({ ...BASE_STATE, width, height, dpr, theme, foldPosture: '' });
+        // ...and every posture the toolbar offers must survive the codec too (issue #408). The
+        // posture is a named choice, not a boolean, so a new one that the codec forgets fails here
+        // rather than in a shared link.
+        for (const foldPosture of state.FOLD_POSTURES) {
+          out.push({ ...BASE_STATE, width, height, dpr, theme, foldPosture });
+        }
       }
     }
   }
@@ -309,12 +319,19 @@ await test('a fragment produced by the pre-merge page decodes to the same state 
     height: 844,
     dpr: 2,
     theme: 'dark',
+    // The fragment predates the fold posture (issue #408), so its absent posture key decodes to the
+    // unfolded default. That is the migration contract: an old link keeps meaning what it meant, and
+    // it is asserted here rather than by regenerating the fragment (which would only prove the codec
+    // agrees with itself).
+    foldPosture: '',
   };
+  const decoded = await share.decodeShare('#p5=' + PRE_MERGE_FRAGMENT);
   assert.deepEqual(
-    await share.decodeShare('#p5=' + PRE_MERGE_FRAGMENT),
+    decoded,
     PRE_MERGE_STATE,
     'a link made before the merge must restore the same state after it',
   );
+  assert.equal(decoded.foldPosture, '', 'an older link must decode as an unfolded preview');
 });
 
 process.stdout.write(`\n${passed} passed, ${failures} failed\n`);

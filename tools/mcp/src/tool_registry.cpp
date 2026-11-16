@@ -73,13 +73,31 @@ std::vector<ToolDefinition> make_tools() {
         schema(
             JsonValue::Object{{"edits", property("Text edits to apply to the open project.")}})});
     list.push_back(ToolDefinition{
-        "set_viewport", "Set the preview viewport the later tools render at.", ToolStatus::Declared,
-        ToolSource::DesignerProtocol,
+        "set_viewport",
+        "Set the preview viewport that later tools render at: `width`, `height`, `dpr` and the "
+        "simulated foldable `foldPosture` (`flat`, `book`, `tabletop`). Omitted fields keep their "
+        "value, as `viewport.set` does. The posture is data - no sensor, no clock - and reaches "
+        "the "
+        "same metrics and safe-area path the native app runs, so `snapshot` answers the document "
+        "the studio previews for that posture.",
+        ToolStatus::Implemented, ToolSource::DesignerProtocol,
         schema(JsonValue::Object{
-            {"viewport", property("Device size, DPR, theme, locale and safe areas.")}})});
+            {"width", property("Logical viewport width in pixels. Omitted: unchanged.")},
+            {"height", property("Logical viewport height in pixels. Omitted: unchanged.")},
+            {"dpr", property("Device pixel ratio. Omitted: unchanged.")},
+            {"foldPosture",
+             property("Simulated foldable posture: `flat`, `book` (half-opened, vertical hinge) or "
+                      "`tabletop` (half-opened, horizontal hinge). Omitted: unchanged.")}})});
     list.push_back(ToolDefinition{
-        "snapshot", "Return the harness UiSnapshot: node tree, bounds, roles, text, and focus.",
-        ToolStatus::Declared, ToolSource::Harness, schema({})});
+        "snapshot",
+        "Return the harness UiSnapshot document (docs/specs/automation-ids-v1.md section 5.2) for "
+        "the source, laid out at the viewport `set_viewport` last set. Byte-identical to the "
+        "browser module's `tessera_scene_json_folded` for the same input.",
+        ToolStatus::Implemented, ToolSource::Harness,
+        schema(JsonValue::Object{
+            {"source", property("The .tsx text to evaluate (in memory; no file is read).")},
+            {"file", property("Project-relative name the ids are hashed under; defaults to "
+                              "`ui/Preview.tsx`.")}})});
     list.push_back(ToolDefinition{
         "query_style", "Return a node's computed style, matched rules and layout box.",
         ToolStatus::Declared, ToolSource::DesignerProtocol,

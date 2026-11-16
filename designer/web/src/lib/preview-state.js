@@ -25,6 +25,25 @@ export const DPRS = Object.freeze([1, 2, 3]);
 /** The theme ids the toolbar offers: "system" follows `prefers-color-scheme`. */
 export const THEMES = Object.freeze(['system', 'light', 'dark']);
 
+/**
+ * The simulated fold postures the toolbar offers (issue #408, `designer-studio-v1.md` section 6:
+ * "Fold posture (foldables)" -> `viewport.set` `foldPosture`).
+ *
+ * The set is the HAL's (`tessera/hal/fold_posture.hpp` is the one parser): `flat` is a fully open
+ * foldable, `book` a half-opened one with a vertical hinge, `tabletop` a half-opened one with a
+ * horizontal hinge. `''` is "no fold at all", which is the desktop case and the default; it is not a
+ * named posture because `viewport.set`'s rule is that an omitted field keeps its value.
+ */
+export const FOLD_POSTURES = Object.freeze(['', 'flat', 'book', 'tabletop']);
+
+/** The posture labels the toolbar shows; the keys are the values `set_viewport` carries. */
+export const FOLD_POSTURE_LABELS = Object.freeze({
+  '': 'None',
+  flat: 'Flat (unfolded)',
+  book: 'Book (vertical hinge)',
+  tabletop: 'Tabletop (horizontal hinge)',
+});
+
 /** The state a page starts from; each field is also the decoder's fallback for a missing one. */
 export const DEFAULT_STATE = Object.freeze({
   source: '',
@@ -33,6 +52,7 @@ export const DEFAULT_STATE = Object.freeze({
   height: 240,
   dpr: 1,
   theme: 'system',
+  foldPosture: '',
 });
 
 /**
@@ -95,6 +115,9 @@ export function normalizeState(state = {}, options = {}) {
   if (!THEMES.includes(merged.theme)) {
     throw new ShareError('invalid', `the theme must be one of ${THEMES.join(', ')}`);
   }
+  if (!FOLD_POSTURES.includes(merged.foldPosture)) {
+    throw new ShareError('invalid', `the fold posture must be one of ${FOLD_POSTURES.join(', ')}`);
+  }
   return {
     source: merged.source,
     file: merged.file,
@@ -102,6 +125,7 @@ export function normalizeState(state = {}, options = {}) {
     height: merged.height,
     dpr: merged.dpr,
     theme: merged.theme,
+    foldPosture: merged.foldPosture,
   };
 }
 

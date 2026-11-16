@@ -11,6 +11,7 @@ namespace tessera::compiler::codegen::cli {
 namespace {
 
 namespace ui = tessera::ui;
+namespace hal = tessera::hal;
 
 // The domains a frame owes. Style is what `:hover`/`:active` sets through
 // `Node::set_pseudo_state`; Layout/Paint/Render are what the post-dispatch rebuild sets. Any of
@@ -73,6 +74,7 @@ std::string CanvasSceneSession::start(const CanvasSessionSource& source) {
     options.width = source.width;
     options.height = source.height;
     options.dpi_scale = dpi;
+    options.posture = source.posture;
     options.carried = &carried;
     options.live_component_ids = &live_ids;
 
@@ -82,6 +84,7 @@ std::string CanvasSceneSession::start(const CanvasSessionSource& source) {
         error_ = "TESSERA_SCENE_UNSUPPORTED: the source's tree cannot be previewed";
         return error_;
     }
+    metrics_ = session_->metrics();
     text_ = text;
     file_ = file;
     component_ = component;
@@ -97,6 +100,17 @@ bool CanvasSceneSession::reused_ok(const std::string& text, const std::string& f
                                    float dpi) const {
     return text == text_ && file == file_ && component == component_ && width == width_ &&
            height == height_ && dpi == dpi_scale_;
+}
+
+bool CanvasSceneSession::set_posture(hal::FoldPosture posture) {
+    if (!started() || !session_->set_posture(posture)) {
+        return false;
+    }
+    // The layer-1 layout pass already rewrote every box and every SafeArea padding, so this is a
+    // report - not a second pass, and not a "pending" change a later frame would apply. That is
+    // what makes the frame the page draws next the FIRST one to show the new posture.
+    metrics_ = session_->metrics();
+    return true;
 }
 
 CanvasPointerResult CanvasSceneSession::pointer(PreviewInput::Kind kind, float x, float y,

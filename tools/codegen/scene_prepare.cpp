@@ -161,13 +161,18 @@ PreparedScene prepare_scene(std::string_view text, const ScenePreviewOptions& op
 
     scene.sheet = style::compile_stylesheet(preview_stylesheet());
     ui::layout::LayoutEngine engine;
-    const SceneLayoutResult laid_out = layout_scene(
-        *scene.root, *scene.sheet, engine, options.width, options.height, options.dpi_scale);
+    SceneMetrics metrics;
+    metrics.width = options.width;
+    metrics.height = options.height;
+    metrics.dpi_scale = options.dpi_scale;
+    metrics.posture = options.posture;
+    const SceneLayoutResult laid_out = layout_scene(*scene.root, *scene.sheet, engine, metrics);
     if (!laid_out.error.empty()) {
         return failed(laid_out.error);
     }
     scene.nodes = laid_out.nodes;
     scene.applied = laid_out.applied;
+    scene.metrics = laid_out.metrics;
     return scene;
 }
 

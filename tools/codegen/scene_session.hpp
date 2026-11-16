@@ -2,9 +2,11 @@
 
 #pragma once
 
+#include "scene_layout.hpp"
 #include "scene_state.hpp"
 #include "tessera/compiler/eval/evaluator.hpp"
 #include "tessera/compiler/ir/module.hpp"
+#include "tessera/hal/fold_posture.hpp"
 #include "tessera/ui/scene/input_dispatch.hpp"
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/scene/state_snapshot.hpp"
@@ -81,6 +83,10 @@ public:
         float width = 320.0f;
         float height = 240.0f;
         float dpi_scale = 1.0f;
+        // The simulated foldable posture (issue #408). One evaluation lays its tree out once at
+        // this posture; `set_posture()` re-lays it out in place for a later change, so a posture
+        // switch costs no re-evaluation and keeps the state the session has accumulated.
+        tessera::hal::FoldPosture posture = tessera::hal::FoldPosture::None;
         // State carried from the previous evaluation of an edited source. `live_component_ids` is
         // every component id the new evaluation has, so a cell whose component disappeared is
         // reported as dropped instead of being offered to a component that took its place.
@@ -111,6 +117,26 @@ public:
     [[nodiscard]] ui::StateSnapshot state() const;
     // This session's state, for handing to the next evaluation after an edit.
     [[nodiscard]] CarriedState capture() const;
+
+    // Changes the simulated fold posture and re-lays THIS tree out in place (issue #408). Nothing
+    // is re-evaluated: the scope, the hover/active state and the focus the router holds all
+    // survive, which is what makes a posture switch in the studio feel like turning a device rather
+    // than running a program.
+    //
+    // **One layout pass, before anything is painted.** The pass below writes every `SafeArea`
+    // node's padding and every box from the new metrics before it returns, so a caller that only
+    // paints after the call can never observe the previous posture's padding. The dirty domains the
+    // pass sets are what tells a render-on-demand caller that a frame is owed.
+    //
+    // Returns false when the posture was already the requested one (and therefore nothing was laid
+    // out again) or when this session built no tree; true when a layout pass ran.
+    bool set_posture(tessera::hal::FoldPosture posture);
+
+    // The `WindowMetrics` the current tree was laid out against, fold included. A caller reports or
+    // compares what the tree was actually sized to rather than rebuilding the snapshot.
+    [[nodiscard]] const tessera::hal::WindowMetrics& metrics() const noexcept {
+        return metrics_;
+    }
 
     [[nodiscard]] const eval::Scope& scope() const noexcept {
         return scope_;
@@ -165,6 +191,11 @@ private:
     std::unique_ptr<ui::Node> root_;
     ui::InputRouter router_;
     eval::Evaluator evaluator_;
+    // The simulated window the live tree was laid out against, fold included (issue #408). Kept
+    // because a later posture or size change must lay out against the same rectangle and the same
+    // DPI scale, not against defaults.
+    SceneMetrics layout_metrics_;
+    hal::WindowMetrics metrics_;
     std::vector<std::unique_ptr<HandlerSlot>> slots_;
     std::vector<std::string> ran_;
     std::vector<std::string> unrun_;

@@ -14,6 +14,14 @@
 //       The same document for an explicit viewport and DPR (issue #169: the P5 toolbar's viewport
 //       and DPR toggles). A non-positive argument falls back to the default rather than laying out
 //       a degenerate tree.
+//   const char* tessera_scene_json_folded(const char* source, const char* file,
+//                                         const char* component, const char* fold_posture,
+//                                         int width, int height, float dpr)
+//       The same document for a simulated foldable (issue #408): `fold_posture` is the studio's
+//       posture name (`flat`, `book`, `tabletop`; empty keeps the unfolded device). An unknown name
+//       is reported by the document's own error, because a silently ignored posture would make the
+//       studio look like it worked while previewing an unfolded screen. Pointers first, numbers
+//       after, matching `tessera_scene_json_sized` and the page's `callExport` marshalling.
 //   const char* tessera_input_json(const char* source, const char* file, const char* component,
 //                                  const char* script)
 //       The same evaluation with an input script applied through the engine's `ui::InputRouter`:
@@ -38,9 +46,11 @@
 
 #include "scene_interaction.hpp"
 #include "scene_preview.hpp"
+#include "tessera/hal/fold_posture.hpp"
 
 #include <cstdlib>
 #include <cstring>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -76,7 +86,8 @@ char* duplicate_out(std::string text) {
 // page has one project, so it is a constant until a later stage makes it adjustable, and that stage
 // passes it through this surface rather than adding a fourth export.
 tessera::compiler::codegen::cli::ScenePreviewOptions
-preview_options(const char* file, float width, float height, float dpi_scale) {
+preview_options(const char* file, float width, float height, float dpi_scale,
+                tessera::hal::FoldPosture posture = tessera::hal::FoldPosture::None) {
     tessera::compiler::codegen::cli::ScenePreviewOptions options;
     if (file != nullptr && file[0] != '\0') {
         options.file = file;
@@ -85,6 +96,7 @@ preview_options(const char* file, float width, float height, float dpi_scale) {
     options.height = height;
     options.dpi_scale = dpi_scale;
     options.salt = "preview";
+    options.posture = posture;
     return options;
 }
 
@@ -92,8 +104,27 @@ std::string_view name_or_empty(const char* name) {
     return name != nullptr ? std::string_view(name) : std::string_view();
 }
 
+// The posture a page named, or `None` when it named none. A name the HAL does not know is NOT
+// silently treated as "unfolded": the caller reports it (see `folded_document`), because a studio
+// control that appears to work while previewing an unfolded screen is the one failure mode this
+// slice must not have.
+tessera::hal::FoldPosture posture_or_none(const char* name, bool& unknown) {
+    unknown = false;
+    const std::string_view text = name_or_empty(name);
+    if (text.empty()) {
+        return tessera::hal::FoldPosture::None;
+    }
+    const std::optional<tessera::hal::FoldPosture> parsed = tessera::hal::parse_fold_posture(text);
+    if (!parsed) {
+        unknown = true;
+        return tessera::hal::FoldPosture::None;
+    }
+    return *parsed;
+}
+
 char* document_for(const char* source, const char* file, const char* component, float width,
-                   float height, float dpi_scale) {
+                   float height, float dpi_scale,
+                   tessera::hal::FoldPosture posture = tessera::hal::FoldPosture::None) {
     if (source == nullptr) {
         // A page that has not run yet asks for nothing; answer with an empty document rather than a
         // null pointer, so the caller has one shape to handle. The gate's minimum-node guard is
@@ -101,7 +132,18 @@ char* document_for(const char* source, const char* file, const char* component, 
         return duplicate_out("{\"snapshotVersion\":1,\"sequence\":\"0\",\"nodes\":[]}\n");
     }
     return duplicate_out(tessera::compiler::codegen::cli::scene_preview_document(
-        source, preview_options(file, width, height, dpi_scale), name_or_empty(component)));
+        source, preview_options(file, width, height, dpi_scale, posture),
+        name_or_empty(component)));
+}
+
+// The empty document the size/fold exports answer with when an argument names no posture. It is the
+// same shape as a failed run, with the reason in the document the page already parses.
+char* unknown_posture_document(const std::string_view posture) {
+    std::string document = "{\"snapshotVersion\":1,\"sequence\":\"0\",\"error\":";
+    document += "\"TESSERA_STUDIO_FOLD_POSTURE: `";
+    document.append(posture);
+    document += "` is not a fold posture; expected flat, book or tabletop\",\"nodes\":[]}\n";
+    return duplicate_out(document);
 }
 
 } // namespace
@@ -123,6 +165,25 @@ EMSCRIPTEN_KEEPALIVE const char* tessera_scene_json_sized(const char* source, co
     const float h = height > 0 ? static_cast<float>(height) : kDefaultHeight;
     const float scale = dpr > 0.0f ? dpr : kDefaultDpiScale;
     return document_for(source, file, component, w, h, scale);
+}
+
+EMSCRIPTEN_KEEPALIVE const char* tessera_scene_json_folded(const char* source, const char* file,
+                                                           const char* component,
+                                                           const char* fold_posture, int width,
+                                                           int height, float dpr) {
+    // The pointer arguments come first and the numbers after, which is the shape every export here
+    // uses: the page's `callExport` marshals the strings into the module heap and then passes the
+    // resulting pointers followed by the numeric arguments, so a pointer after a number would be
+    // handed a stale integer instead of a marshalled string.
+    bool unknown = false;
+    const tessera::hal::FoldPosture posture = posture_or_none(fold_posture, unknown);
+    if (unknown) {
+        return unknown_posture_document(name_or_empty(fold_posture));
+    }
+    const float w = width > 0 ? static_cast<float>(width) : kDefaultWidth;
+    const float h = height > 0 ? static_cast<float>(height) : kDefaultHeight;
+    const float scale = dpr > 0.0f ? dpr : kDefaultDpiScale;
+    return document_for(source, file, component, w, h, scale, posture);
 }
 
 EMSCRIPTEN_KEEPALIVE const char* tessera_input_json(const char* source, const char* file,

@@ -19,6 +19,15 @@ export const DPRS: readonly number[];
 /** The theme ids the toolbar offers; `system` follows `prefers-color-scheme`. */
 export const THEMES: readonly string[];
 
+/**
+ * The simulated fold postures the toolbar offers (issue #408): `""` (no fold), `flat`, `book`,
+ * `tabletop`. The set and the names are the HAL's (`tessera/hal/fold_posture.hpp` parses them).
+ */
+export const FOLD_POSTURES: readonly string[];
+
+/** The toolbar labels for `FOLD_POSTURES`, keyed by the value `set_viewport` carries. */
+export const FOLD_POSTURE_LABELS: Readonly<Record<string, string>>;
+
 /** The state a page starts from; each field is also the decoder's fallback for a missing one. */
 export const DEFAULT_STATE: Readonly<ShareState>;
 
@@ -40,6 +49,12 @@ export interface ShareState {
   dpr: number;
   /** `system` | `light` | `dark`. */
   theme: string;
+  /**
+   * The simulated fold posture (issue #408): `""` for no fold, else `flat` | `book` | `tabletop`.
+   * It is part of the shared state because a preview of a foldable screen is not the same preview
+   * without it, so a share link has to carry it.
+   */
+  foldPosture: string;
 }
 
 /** A refusal the page branches on by `code`, rather than by matching a message. */

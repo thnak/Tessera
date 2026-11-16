@@ -24,6 +24,11 @@ add_library(tessera_style STATIC
     property_registry.cpp
     property_registry_extra.cpp
     property_value_validation.cpp
+    # The node half of SafeArea (safe-area-v1.md sections 3 and 11, issue #408): the `tsafe` token
+    # parsing and the one padding/margin writer the app host AND the design-time preview both call.
+    # It lives here so the two layout consumers share one implementation instead of a preview-only
+    # copy, which is the "no parallel layout path" rule in issue #408.
+    safe_area_style.cpp
     scene_style.cpp
     scroll_style_sync.cpp
     supports.cpp
@@ -47,6 +52,10 @@ target_include_directories(tessera_style PUBLIC
     ${PROJECT_SOURCE_DIR}/include)
 
 target_link_libraries(tessera_style PUBLIC tessera_scene)
+# The SafeArea inset arithmetic and the fold-posture mapping are the platform-NEUTRAL half of the
+# HAL (`tessera_hal_metrics`), deliberately not `tessera_hal_window`: this library builds for Wasm,
+# where no OS window backend exists, and ADR-020's rule is that UI code sees normalized types only.
+target_link_libraries(tessera_style PUBLIC tessera_hal_metrics)
 # The theme asset is parsed at build time with the harness JSON decoder
 # (docs/specs/stylesheet-v1.md section 9.1); the engine never parses it at run time.
 target_link_libraries(tessera_style PRIVATE tessera_harness)
