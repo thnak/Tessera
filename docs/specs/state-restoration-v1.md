@@ -5,7 +5,7 @@ Status: proposed (Big Step F, production breadth; see [`AGENTS.md`](../../AGENTS
 accessibility, async data). Companion to
 [`navigation-v1.md`](navigation-v1.md), [`startup-and-loading.md`](../design/startup-and-loading.md),
 [`mobile-integration.md`](../design/mobile-integration.md), and
-[`services.md`](../design/services.md).
+[`services/navigation.md`](../design/services/navigation.md).
 
 Terms: **V1** is the first release scope ([`AGENTS.md`](../../AGENTS.md#non-negotiables), item 8).
 **uiId** is the numeric automation/UI id of a node ([`automation-ids-v1.md`](automation-ids-v1.md)).

@@ -7,7 +7,7 @@ embed playback, print, and export without leaking OS/GPU types into components.
 
 ## 1. Media playback
 
-- Video/audio are **services** ([`services.md`](services.md)) or **custom elements** ([`custom-elements-v1.md`](../specs/custom-elements-v1.md)), not built-in scene nodes.
+- Video/audio are **services** ([`services/README.md`](services/README.md)) or **custom elements** ([`custom-elements-v1.md`](../specs/custom-elements-v1.md)), not built-in scene nodes.
 - Video surface: platform decoder/texture or RHI (render hardware interface, [glossary](../reference/glossary.md)) external texture; no raw OS handle in UI.
 - Audio: optional service (miniaudio or platform); no blocking on the UI thread.
 - Playback state (position, duration, buffering, error) is exposed as a resource/state; UI

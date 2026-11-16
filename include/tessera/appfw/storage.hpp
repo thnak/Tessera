@@ -134,8 +134,8 @@ struct StoredValue {
 
 using Settings = std::vector<std::pair<std::string, std::string>>;
 
-// How the module is wired. Everything is explicit (docs/design/services.md section 1: "no
-// environment-variable magic in production").
+// How the module is wired. Everything is explicit (docs/design/services/common-contract.md
+// section 1: "no environment-variable magic in production").
 struct StorageConfig {
     // Root directory of the store. Entries live directly underneath it.
     std::string root;
@@ -144,7 +144,8 @@ struct StorageConfig {
     // Durability requested of every write (see `hal::Durability`).
     hal::Durability durability = hal::Durability::BestEffort;
     // Format version written into the envelope header. A read of any other version reports
-    // `Corrupted` rather than guessing; migration is a later slice (docs/design/services.md).
+    // `Corrupted` rather than guessing; migration is a later slice
+    // (docs/design/services/storage.md).
     std::uint32_t format_version = 1;
     // How many failures the diagnostics ring keeps. 0 disables the ring but keeps the counters.
     std::size_t diagnostic_capacity = 16;
@@ -231,7 +232,7 @@ atomic_replace(hal::FileSystem& files, std::string_view target, std::string_view
 
 // True when `name` is a legal entry name: non-empty, bounded, no path separator, no drive prefix,
 // not `.`/`..` and not containing a `..` component. Rejects traversal from untrusted input
-// (docs/design/services.md section 4).
+// (docs/design/services/storage.md section 4).
 [[nodiscard]] bool is_valid_entry_name(std::string_view name) noexcept;
 
 } // namespace tessera::appfw

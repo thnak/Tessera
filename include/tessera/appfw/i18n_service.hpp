@@ -19,8 +19,8 @@
 //     cannot relayout on every key.
 //   * **The locale seeds the base direction** (section 4): the resolved direction is what the app
 //     writes into the root's inherited `direction` property. The service exposes it rather than
-//     writing stylesheet state itself, because a service must not touch scene nodes (services.md
-//     section 1).
+//     writing stylesheet state itself, because a service must not touch scene nodes
+//     (docs/design/services/common-contract.md section 1).
 //   * **No OS locale, no `setlocale`, no ICU probe.** The supported set and each locale's direction
 //     come from the compiled table (i18n-v1.md section 8.1: "ICU data is ... pinned; locale packs
 //     are bundled"). That is the spec's deterministic mode applied to every build: the same
@@ -59,9 +59,9 @@ struct LocaleSnapshot {
     }
 };
 
-// Everything the service needs, all of it explicit data (services.md section 1: "Configuration is
-// explicit"). Both tables are moved into the service; a caller that wants to keep them passes
-// copies.
+// Everything the service needs, all of it explicit data (docs/design/services/common-contract.md
+// section 1: "Configuration is explicit"). Both tables are moved into the service; a caller that
+// wants to keep them passes copies.
 struct I18nServiceConfig {
     LocaleTable locales;
     MessageCatalog catalog;

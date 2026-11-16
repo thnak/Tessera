@@ -4,7 +4,8 @@ Status: implemented (AF2, issue #174). ADR-050 section 5 is the decision; this n
 that landed, the two mechanisms it reuses from layer 0, and the concurrency rules a caller has to
 respect.
 
-Companions: [`services.md`](services.md) section 1.1 for the coroutine shape AF1 established,
+Companions: [`services/common-contract.md`](services/common-contract.md#11-implemented-shape-af1-issue-173)
+section 1.1 for the coroutine shape AF1 established,
 [`async.md`](async.md) for the completion queue and cancellation primitives, and
 [`game-loop.md`](game-loop.md) section 9 for the idle policy a host applies to the park.
 
@@ -158,6 +159,7 @@ carries the clause.
 - **`Application`'s root scope.** AF3's `Application` borrows a `ServiceRunner`; it does not yet own
   the app `TaskScope` ADR-050 section 2 names, because no service schedules a timer or spawns a task
   until AF5/AF7. Adding a scope with no caller would be untestable dead wiring, the same reasoning
-  `services.md` section 11.1 records for the in-frame mark.
+  [`services/app-lifecycle-rulings.md`](services/app-lifecycle-rulings.md#111-who-marks-the-in-frame-lookup-region-the-appfw-tick-wrapper) section 11.1 records for the
+  in-frame mark.
 - **Pausing timers on `Suspended`.** ADR-050 section 5 item 4 assigns that to the mobile lifecycle
   work; the queue's `clear()` and per-timer `cancel()` are the primitives it will use.

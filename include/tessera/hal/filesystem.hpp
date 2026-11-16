@@ -43,8 +43,8 @@ struct FileError {
 using FileResult = std::expected<void, FileError>;
 using FileReadResult = std::expected<std::string, FileError>;
 
-// The durability policy a write asks for (docs/design/services.md section 4: "fsync policy
-// documented per platform").
+// The durability policy a write asks for (docs/design/services/storage.md section 4:
+// "fsync policy documented per platform").
 //
 // Both policies flush the *temp file* before the rename, so a reader never observes a half-written
 // document and a crash cannot leave a target whose bytes are still in the page cache while the

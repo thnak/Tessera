@@ -76,7 +76,8 @@ This document remains the analysis/rationale; the ledger is the decision record.
    set than [`accessibility-v1`](../specs/accessibility-v1.md). The normative spec wins; the design doc is rationale/summary.
 9. **Versioning omits new artifacts.** [`versioning-v1`](../specs/versioning-v1.md) does not list restore snapshots, update
    manifests, i18n catalogs, devtools protocol, crash reports, or design-token packs.
-10. **Services implementation order is stale.** [`design/services.md`](../design/services.md) still ends at
+10. **Services implementation order is stale.**
+    [`design/services/status-and-open-questions.md`](../design/services/status-and-open-questions.md#9-status) still ends at
     storage/i18n/navigation/networking/notifications; add shell/restore/data and align with
     [ADR-030](../../decisions/ADR-030-app-platform-completeness.md) (app-platform completeness).
 11. **`CustomElement` overlay guidance is repeated in three places** and one open question

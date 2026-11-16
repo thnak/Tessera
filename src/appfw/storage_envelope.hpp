@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 //
 // The stored-entry envelope: a small header in front of the payload, so a torn, truncated or
-// hand-edited file is detected instead of being returned as data (docs/design/services.md section
-// 4: "corruption recovery"; issue #179 acceptance: "a corrupted file falls back with a
+// hand-edited file is detected instead of being returned as data (docs/design/services/storage.md
+// section 4: "corruption recovery"; issue #179 acceptance: "a corrupted file falls back with a
 // diagnostic").
 //
 // Layout, little-endian, 24 bytes:

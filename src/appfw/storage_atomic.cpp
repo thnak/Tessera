@@ -61,8 +61,8 @@ bool is_valid_entry_name(std::string_view name) noexcept {
         return false;
     }
     // No separator of either platform's convention, no drive prefix, no absolute path: the sandbox
-    // rule of docs/design/services.md section 4 ("no absolute/traversal paths from untrusted
-    // input").
+    // rule of docs/design/services/storage.md section 4 ("no absolute/traversal paths from
+    // untrusted input").
     for (const char character : name) {
         if (character == '/' || character == '\\' || character == ':') {
             return false;

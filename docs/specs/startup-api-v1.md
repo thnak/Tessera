@@ -221,7 +221,7 @@ target that requested this launch).
 |---|---|
 | `none` | User launch without an external target |
 | `deep_link` | A validated URL/file/command-line activation ([deep-linking-v1.md](deep-linking-v1.md)) |
-| `notification` | A notification tap/action normalized to the same activation event ([services.md](../design/services.md) section 6) |
+| `notification` | A notification tap/action normalized to the same activation event ([services/platform-modules.md](../design/services/platform-modules.md#6-notifications) section 6) |
 
 The six developer-facing scenarios are these axes combined:
 
