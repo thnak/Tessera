@@ -53,6 +53,7 @@ that has a documented fallback may instead be returned as an `Error` value.
 | `TESSERA_IO_` | storage/filesystem | open/read/write/atomic rename |
 | `TESSERA_DIAG_` | diagnostics | sink failure, redaction |
 | `TESSERA_SEC_` | security | path traversal, invalid payload |
+| `TESSERA_MOCK_` | design-time mock services ([`studio-mock-services-v1.md`](studio-mock-services-v1.md)) | file limits, rejected constructs, binding, sandbox violation, trace |
 
 Codes are stable strings; do not renumber. Add new codes in the owning module and document
 them.

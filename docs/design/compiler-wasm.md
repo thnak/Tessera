@@ -543,7 +543,7 @@ implemented, what is proven locally, and what only CI can prove.
 | State vocabulary | `designer/web/preview-state.js` | The constants and validation, shared by the codec and the toolbar; keeping it separate is what lets the codec be tested without the DOM |
 | Page chrome | `designer/web/studio.js` | Toolbar, share button and the broken-link banner, mounted once per page. Both pages need exactly this and would otherwise carry two copies |
 | Gallery | `designer/web/gallery.js` | Manifest fetch, sample fetch and the derived titles, split out of `studio.js` so the chrome module stays under the size limit. Lazy: nothing runs until the gallery is opened |
-| Manifest | `designer/web/samples.json` | Generated from `samples/**/*.tsx` by `scripts/ci/gen_sample_manifest.py`; committed so Pages needs no build step |
+| Manifest | `designer/web/samples.json` | Generated from `samples/**/*.tsx` by `scripts/ci/gen_sample_manifest.py`; committed so a deploy runs no generator step. The page around it is built by Vite since ADR-054 |
 | Sized layout export | `tools/codegen/wasm_scene_entry.cpp` | `tessera_scene_json_sized(...)`; the P2 signature is untouched because the parity gate pins its defaults |
 
 ### 10.2 What the toggles actually do

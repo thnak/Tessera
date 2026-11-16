@@ -4,6 +4,12 @@ Status: Accepted (2026-11-11; owner selected the browser-hosted studio, page-as-
 worker with main-thread fallback, warning budgets, GPU screenshots for MCP, and in-V1 startup-phase
 preview).
 
+Related: [ADR-054](ADR-054-studio-front-end-react-vite.md) amends the page-stack wording of this ADR
+(the host shell is a React 19 + Vite application, not hand-written ES modules); decisions 1-5 here
+stand. [ADR-055](ADR-055-studio-mock-services.md) narrows decision 7 for `*.mock.ts` project files
+only: the studio host may compile and run them in a sandboxed worker; the engine still never executes
+JavaScript.
+
 ## Context
 
 [ADR-037](../../decisions/ADR-037-self-contained-wasm-designer.md) established a self-contained Wasm

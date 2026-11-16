@@ -73,6 +73,8 @@ This page is the map and reading order for the framework.
 - [ADR-051](../decisions/ADR-051-ir-record-types-and-record-values.md) — IR record types and record values (accepted; object-literal prop defaults, #158)
 - [ADR-052](../decisions/ADR-052-networking-platform-stacks.md) — networking on platform HTTP stacks (accepted; #197)
 - [ADR-053](../decisions/ADR-053-native-metal-backend.md) — native Metal backend for macOS/iOS (accepted; supersedes ADR-010 in part)
+- [ADR-054](../decisions/ADR-054-studio-front-end-react-vite.md) — studio front end: React 19 + Vite over the static Wasm host page (accepted; amends the page-stack wording of ADR-045)
+- [ADR-055](../decisions/ADR-055-studio-mock-services.md) — design-time mock services: `*.mock.ts` project files run in a sandboxed studio worker, never in the engine (accepted; narrows ADR-045 decision 7)
 
 ## 3. Specs (normative)
 
@@ -152,6 +154,8 @@ This page is the map and reading order for the framework.
   browser designer: source sync, picker, style overrides, commit as text patches
 - [`specs/designer-studio-v1.md`](specs/designer-studio-v1.md) — hosted studio: GitHub Pages deploy,
   page-as-host, skins and simulated system chrome, project import/export, MCP stdio mode
+- [`specs/studio-mock-services-v1.md`](specs/studio-mock-services-v1.md) — design-time mock services:
+  `*.mock.ts` project files, sandboxed studio worker, calls/responses and traces (ADR-055)
 - [`specs/compiler-diagnostics-v1.md`](specs/compiler-diagnostics-v1.md) — machine-readable compiler
   diagnostics document (`--diagnostics-json`), spans, determinism, native/Wasm parity
 - [`specs/jsx-subset-v1.md`](specs/jsx-subset-v1.md) — accepted JSX/TSX syntax: grammar, expressions,
