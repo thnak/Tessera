@@ -162,7 +162,9 @@ host                                   viewer
 
 - `hello` payload: `{ "versions": [1] }`. `ready` payload: `{ "version": 1, "engine": "<build id>",
   "capabilities": ["pick", "style.edit"] }`. If no version matches, the viewer sends `error` with
-  `TESSERA_DESIGNER_VERSION` and sends no `ready`.
+  `TESSERA_DESIGNER_VERSION` and sends no `ready`. The `mock` capability and its messages are defined
+  in [`studio-mock-services-v1.md`](studio-mock-services-v1.md) section 6; they are additive under
+  `capabilities` and do not change protocol version 1.
 - The viewer ignores every message except `hello` until it has answered it.
 - The host sends `project.load` once per session. Loading another project requires a new session.
 - The session ends when the transport closes. The viewer keeps showing its last frame and does not

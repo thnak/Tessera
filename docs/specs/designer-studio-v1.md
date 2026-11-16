@@ -251,7 +251,9 @@ thermal simulation, and animation timeline scrubbing.
 - **Accepted files**: `tessera.json`, `.tsx`/`.jsx`, `.css`, theme JSON, and the fonts/images listed
   in `tessera.json`. Other files are shown read-only with a lock badge and are never sent to the
   viewer. C++ and generated files are read-only; the developer class is never edited
-  ([ADR-040](../../decisions/ADR-040-generated-base-and-developer-class.md)).
+  ([ADR-040](../../decisions/ADR-040-generated-base-and-developer-class.md)). `*.mock.ts` mock files
+  are the exception defined in [studio-mock-services-v1.md](studio-mock-services-v1.md): accepted,
+  host-only, and never sent to the viewer either.
 - **Validation**: `tessera.json` and assets are validated by the same in-tree validator compiled to
   Wasm (`tessera_schema`); an invalid config shows a blocking panel with the JSON path instead of a
   blank preview.
