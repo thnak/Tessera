@@ -622,15 +622,18 @@ studio `index.html` (#392), which the folder IDE (#391) builds on; the order bel
       `docs/specs/designer-studio-v1.md` section 7.1.
 - [x] #170: P6: size and latency budgets with a two-sided ratchet —
       `scripts/check_preview_budget.py` + `tests/golden/perf/preview_budget.json`
-      (download size enforced; the two engine-share latencies warn).
+      (download size enforced; the two engine-share latencies warn; the rest is #395).
 - [x] #172: `tessera-mcp` stdio adapter, compile-only first — `tools/mcp/`, 11 tools with
-      three implemented and eight declared-unimplemented, 7 ctest cases.
+      three implemented and eight declared-unimplemented, 7 ctest cases; the rest is #396.
 - [x] #78: devtools: `#line` mapping to TSX (opt-in, `--line-directives`) and an in-app
       compiler-error overlay. Hot reload is **blocked, not deferred**: ADR-040 emits a
       header-only template, so there is nothing to swap; the seam that must exist first is
       written up in `docs/specs/devtools-protocol-v1.md` section 8.
 - [ ] #171: P7: studio slices (picker overlay, style inspector, `source.patch`, skins).
-- [ ] #172: `tessera-mcp` stdio adapter over the harness session, compile-only first.
+- [ ] #395: P6b: promote the latency budgets from `warn` to `enforce` and count the scene and canvas
+      modules in the download budget. Needs a measurement first; take it after #392.
+- [ ] #396: `tessera-mcp`: the eight unimplemented tools (designer D-S7) and the spec decisions #350
+      reported. Owner decisions first; take it after #391.
 - [ ] #392: studio: merge the index, scene and canvas pages into one `index.html` (modules stay
       separate and lazy, `scene.html`/`canvas.html` become redirect stubs that keep `#p5=` links
       working, the P6 budget is re-ratcheted). **First of the studio items; the four below and #391
