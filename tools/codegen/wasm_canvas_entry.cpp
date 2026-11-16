@@ -72,6 +72,29 @@ char* duplicate_out(std::string_view text) {
 // the preview paints the same bytes the reference does.
 constexpr rhi::TextureFormat kCanvasFormat = rhi::TextureFormat::R8G8B8A8Unorm;
 
+// Fills the canvas with the preview's clear colour and nothing else. A canvas texture is presented
+// every frame whether or not anything drew into it, and an undrawn one shows as black, so a failed
+// frame would otherwise replace the last picture with a black box that looks like a crash. Failure
+// here is swallowed: the report already carries the frame's real error.
+void clear_canvas(rhi::Device& device, const rhi::RenderTarget& target, rhi::Extent2D extent) {
+    try {
+        std::unique_ptr<rhi::CommandList> commands = device.create_command_list();
+        if (commands == nullptr) {
+            return;
+        }
+        rhi::RenderTargetDesc desc;
+        desc.extent = extent;
+        desc.format = kCanvasFormat;
+        desc.clear_color = cli::scene_frame_clear_color();
+        desc.load_op = rhi::LoadOp::Clear;
+        desc.store_op = rhi::StoreOp::Store;
+        commands->begin_render_pass(target, desc);
+        commands->end_render_pass();
+        commands->submit_async();
+    } catch (...) {
+    }
+}
+
 // Draws one frame into the canvas texture the page holds. The target takes ownership of the view
 // first so that no later failure (a bad source) leaks the per-frame reference.
 cli::SceneFrameResult paint_to_canvas(std::string_view source,
@@ -94,6 +117,7 @@ cli::SceneFrameResult paint_to_canvas(std::string_view source,
     const cli::PreparedScene scene = cli::prepare_scene(source, options, component);
     if (!scene.error.empty() || scene.root == nullptr) {
         result.error = scene.error.empty() ? "the source produced no scene" : scene.error;
+        clear_canvas(*g_device, *target, extent);
         return result;
     }
 
@@ -103,7 +127,11 @@ cli::SceneFrameResult paint_to_canvas(std::string_view source,
     desc.clear_color = cli::scene_frame_clear_color();
     desc.load_op = rhi::LoadOp::Clear;
     desc.store_op = rhi::StoreOp::Store;
-    return cli::scene_frame_paint(scene, *g_device, *target, desc);
+    cli::SceneFrameResult painted = cli::scene_frame_paint(scene, *g_device, *target, desc);
+    if (!painted.error.empty()) {
+        clear_canvas(*g_device, *target, extent);
+    }
+    return painted;
 }
 
 } // namespace
