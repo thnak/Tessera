@@ -1,0 +1,267 @@
+# SPDX-License-Identifier: MIT
+#
+# The reviewed versioning-policy surface (issue #194, docs/specs/versioning-v1.md section 11).
+# scripts/check_version_policy.py fails when the tree differs from this record without a version
+# move for a breaking change, and `--update` rewrites it after a reviewed change. Do not hand-edit:
+# every difference from the tree is an error, including a cosmetic one.
+#
+# Columns, tab separated: kind, surface, ...payload.
+#   version  <surface>  <version>                       one per gated surface
+#   digest   rhi        <sha256 of the contract text>
+#   field    <surface>  <key>  <type>  <required>  <default>
+# A field that has no Required or Default column in its spec table records "-" in that column.
+version	ir	1
+version	rhi	1.4
+digest	rhi	818d2602d8a522b0261e4eedbce407569ff4ef5a4bc25310c44fd753ab2f1c22
+version	tessera.json	1
+field	ir	ir-v1-expr::6. Binding#2::params	{ name, type }[]	-	-
+field	ir	ir-v1-expr::6. Binding#2::preview	{ actions, return }	-	-
+field	ir	ir-v1-expr::6. Binding#2::returnType	string	-	-
+field	ir	ir-v1-expr::6. Binding::component	string	-	-
+field	ir	ir-v1-expr::6. Binding::id	string	-	-
+field	ir	ir-v1-expr::6. Binding::kind	string	-	-
+field	ir	ir-v1-expr::6. Binding::region	string	-	-
+field	ir	ir-v1-expr::6. Binding::source	SourceSpan	-	-
+field	ir	ir-v1-expr::8. Source spans::endLine`, `endColumn	integer	-	-
+field	ir	ir-v1-expr::8. Source spans::file	string	-	-
+field	ir	ir-v1-expr::8. Source spans::length	integer	-	-
+field	ir	ir-v1-expr::8. Source spans::line`, `column	integer	-	-
+field	ir	ir-v1-expr::8. Source spans::offset	integer	-	-
+field	ir	ir-v1::1. Top level::bindings	Binding[]	no	-
+field	ir	ir-v1::1. Top level::components	Component[]	yes	-
+field	ir	ir-v1::1. Top level::irVersion	integer	yes	-
+field	ir	ir-v1::1. Top level::module.imports	string[]	no	-
+field	ir	ir-v1::1. Top level::module.name	string	yes	-
+field	ir	ir-v1::1. Top level::stylesheets	StylesheetRef[]	no	-
+field	ir	ir-v1::1. Top level::types	RecordType[]	no	-
+field	ir	ir-v1::2. Component::animatedValues	AnimatedValue[]	no	-
+field	ir	ir-v1::2. Component::componentId	string	yes	-
+field	ir	ir-v1::2. Component::effects	Effect[]	no	-
+field	ir	ir-v1::2. Component::environment	Environment[]	no	-
+field	ir	ir-v1::2. Component::handlers	Handler[]	no	-
+field	ir	ir-v1::2. Component::id	string	yes	-
+field	ir	ir-v1::2. Component::name	string	yes	-
+field	ir	ir-v1::2. Component::props	Prop[]	no	-
+field	ir	ir-v1::2. Component::refs	Ref[]	no	-
+field	ir	ir-v1::2. Component::root	Node	yes	-
+field	ir	ir-v1::2. Component::services	Service[]	no	-
+field	ir	ir-v1::2. Component::source	SourceSpan	yes	-
+field	ir	ir-v1::2. Component::state	State[]	no	-
+field	ir	ir-v1::2.2 Record types (additive, ADR-051)::id	string	yes	-
+field	ir	ir-v1::2.2 Record types (additive, ADR-051)::members	Member[]	yes	-
+field	ir	ir-v1::2.2 Record types (additive, ADR-051)::members[].name	string	yes	-
+field	ir	ir-v1::2.2 Record types (additive, ADR-051)::members[].optional	boolean	no	-
+field	ir	ir-v1::2.2 Record types (additive, ADR-051)::members[].type	string	yes	-
+field	ir	ir-v1::2.2 Record types (additive, ADR-051)::name	string	yes	-
+field	ir	ir-v1::2.2 Record types (additive, ADR-051)::source	SourceSpan	yes	-
+field	ir	ir-v1::3. Node::automationId	string/null	no	-
+field	ir	ir-v1::3. Node::children	Node[]	no	-
+field	ir	ir-v1::3. Node::component	string	no	-
+field	ir	ir-v1::3. Node::condition	Expr/null	no	-
+field	ir	ir-v1::3. Node::element	string	no	-
+field	ir	ir-v1::3. Node::events	object	no	-
+field	ir	ir-v1::3. Node::id	string	yes	-
+field	ir	ir-v1::3. Node::itemTemplate	Node/null	no	-
+field	ir	ir-v1::3. Node::key	string/int/null/Expr	no	-
+field	ir	ir-v1::3. Node::kind	string	yes	-
+field	ir	ir-v1::3. Node::loop	Loop/null	no	-
+field	ir	ir-v1::3. Node::props	object	no	-
+field	ir	ir-v1::3. Node::source	SourceSpan	yes	-
+field	ir	ir-v1::3. Node::style	object	no	-
+field	ir	ir-v1::3. Node::text	Expr/null	no	-
+field	ir	ir-v1::3. Node::uiId	string	yes	-
+field	tessera.json	diagnostics-config-v1::2. Fields::audit.enabled	boolean	-	false
+field	tessera.json	diagnostics-config-v1::2. Fields::audit.failOnScoreBelow	number	-	0
+field	tessera.json	diagnostics-config-v1::2. Fields::audit.profile	string	-	desktop
+field	tessera.json	diagnostics-config-v1::2. Fields::audit.reportPath	string	-	artifacts/audit.json
+field	tessera.json	diagnostics-config-v1::2. Fields::audit.thresholds	object	-	{}
+field	tessera.json	diagnostics-config-v1::2. Fields::blockingWaitDetection	boolean	-	true
+field	tessera.json	diagnostics-config-v1::2. Fields::breadcrumbs	integer	-	256
+field	tessera.json	diagnostics-config-v1::2. Fields::categories	string[]	-	["*"]
+field	tessera.json	diagnostics-config-v1::2. Fields::crashDumpDir	string	-	logs/crash
+field	tessera.json	diagnostics-config-v1::2. Fields::crashDumps	boolean	-	true
+field	tessera.json	diagnostics-config-v1::2. Fields::file	string	-	logs/tessera.log
+field	tessera.json	diagnostics-config-v1::2. Fields::frameCapture	string	-	manual
+field	tessera.json	diagnostics-config-v1::2. Fields::gpuTimestamps	boolean	-	false
+field	tessera.json	diagnostics-config-v1::2. Fields::level	string	-	info
+field	tessera.json	diagnostics-config-v1::2. Fields::maxFileSizeMb	integer	-	32
+field	tessera.json	diagnostics-config-v1::2. Fields::overlay	boolean	-	false
+field	tessera.json	diagnostics-config-v1::2. Fields::overlaySections	string[]	-	frame/gpu/dirty/async/memory
+field	tessera.json	diagnostics-config-v1::2. Fields::profilingBackend	string	-	none
+field	tessera.json	diagnostics-config-v1::2. Fields::redactPaths	boolean	-	true
+field	tessera.json	diagnostics-config-v1::2. Fields::redactWindowTitles	boolean	-	false
+field	tessera.json	diagnostics-config-v1::2. Fields::ringEntries	integer	-	4096
+field	tessera.json	diagnostics-config-v1::2. Fields::rotate	integer	-	3
+field	tessera.json	diagnostics-config-v1::2. Fields::sampleRate	number	-	1.0
+field	tessera.json	diagnostics-config-v1::2. Fields::sinks	string[]	-	["debugger","ring"]
+field	tessera.json	diagnostics-config-v1::2. Fields::telemetry	boolean	-	false
+field	tessera.json	diagnostics-config-v1::2. Fields::tracing	boolean	-	false
+field	tessera.json	diagnostics-config-v1::2. Fields::tracingFile	string	-	logs/tessera.trace
+field	tessera.json	diagnostics-config-v1::2. Fields::tracingSink	string	-	file
+field	tessera.json	diagnostics-config-v1::2. Fields::validation	string	-	auto
+field	tessera.json	project-config-v1::Top-level::$schema	string	no	—
+field	tessera.json	project-config-v1::Top-level::app	object	yes	—
+field	tessera.json	project-config-v1::Top-level::assets	object	no	empty
+field	tessera.json	project-config-v1::Top-level::buffers	object	no	see [buffer-config-v1.md](buffer-config-v1.md)
+field	tessera.json	project-config-v1::Top-level::build	object	no	see the `build` section
+field	tessera.json	project-config-v1::Top-level::codegen	object	no	see the `codegen` section
+field	tessera.json	project-config-v1::Top-level::deepLinks	object	no	see [deep-linking-v1.md](deep-linking-v1.md)
+field	tessera.json	project-config-v1::Top-level::dependencies	object	no	empty
+field	tessera.json	project-config-v1::Top-level::dev	object	no	see the `dev` section
+field	tessera.json	project-config-v1::Top-level::diagnostics	object	no	see [diagnostics-config-v1.md](diagnostics-config-v1.md)
+field	tessera.json	project-config-v1::Top-level::i18n	object	no	see [i18n-v1.md](i18n-v1.md)
+field	tessera.json	project-config-v1::Top-level::loading	object	no	see [resource-lifecycle-v1.md](resource-lifecycle-v1.md)
+field	tessera.json	project-config-v1::Top-level::navigation	object	no	see [navigation-v1.md](navigation-v1.md)
+field	tessera.json	project-config-v1::Top-level::packages	array	no	[]
+field	tessera.json	project-config-v1::Top-level::restore	object	no	see [state-restoration-v1.md](state-restoration-v1.md)
+field	tessera.json	project-config-v1::Top-level::runtime	object	no	see [runtime-config-v1.md](runtime-config-v1.md)
+field	tessera.json	project-config-v1::Top-level::schemaVersion	integer	yes	—
+field	tessera.json	project-config-v1::Top-level::tunables	array	no	[]
+field	tessera.json	project-config-v1::Top-level::ui	object	yes	—
+field	tessera.json	project-config-v1::Top-level::updates	object	no	see [updates-and-distribution-v1.md](updates-and-distribution-v1.md)
+field	tessera.json	project-config-v1::Top-level::window	object	no	see the `window` section
+field	tessera.json	project-config-v1::`app`::entry	string	yes	—
+field	tessera.json	project-config-v1::`app`::name	string	yes	—
+field	tessera.json	project-config-v1::`app`::namespace	string	yes	—
+field	tessera.json	project-config-v1::`app`::renderer	string	yes	—
+field	tessera.json	project-config-v1::`app`::targets	string[]	yes	—
+field	tessera.json	project-config-v1::`app`::version	string	yes	—
+field	tessera.json	project-config-v1::`assets`::fonts	string[]	-	[]
+field	tessera.json	project-config-v1::`assets`::imageMaxDecodedBytes	integer	-	67108864
+field	tessera.json	project-config-v1::`assets`::imageMaxDimension	integer	-	8192
+field	tessera.json	project-config-v1::`assets`::imageMaxFileBytes	integer	-	16777216
+field	tessera.json	project-config-v1::`assets`::images	string[]	-	[]
+field	tessera.json	project-config-v1::`assets`::theme	string	-	null
+field	tessera.json	project-config-v1::`build`::compilerCache	string	-	auto
+field	tessera.json	project-config-v1::`build`::generator	string	-	ninja
+field	tessera.json	project-config-v1::`build`::preset	string	-	dev
+field	tessera.json	project-config-v1::`build`::sanitizers	string[]	-	[]
+field	tessera.json	project-config-v1::`build`::staticRuntime	boolean	-	true
+field	tessera.json	project-config-v1::`build`::system	string	-	cmake
+field	tessera.json	project-config-v1::`codegen`::deterministic	boolean	-	true
+field	tessera.json	project-config-v1::`codegen`::format	string	-	clang-format
+field	tessera.json	project-config-v1::`codegen`::headerSuffix	string	-	.g.hpp
+field	tessera.json	project-config-v1::`codegen`::includeDir	string	-	generated/include
+field	tessera.json	project-config-v1::`codegen`::language	string	-	c++23
+field	tessera.json	project-config-v1::`codegen`::namespace	string	-	<app.namespace>::gen
+field	tessera.json	project-config-v1::`codegen`::outDir	string	-	generated
+field	tessera.json	project-config-v1::`deepLinks`::allowColdStart	boolean	-	true
+field	tessera.json	project-config-v1::`deepLinks`::fallbackUrl	string	-	—
+field	tessera.json	project-config-v1::`deepLinks`::fileTypes	string[]	-	[]
+field	tessera.json	project-config-v1::`deepLinks`::hosts	string[]	-	[]
+field	tessera.json	project-config-v1::`deepLinks`::maxUrlLength	integer	-	4096
+field	tessera.json	project-config-v1::`deepLinks`::openIn	string	-	existing
+field	tessera.json	project-config-v1::`deepLinks`::routes	Route[]	-	[]
+field	tessera.json	project-config-v1::`deepLinks`::schemes	string[]	-	[]
+field	tessera.json	project-config-v1::`deepLinks`::singleInstance	boolean	-	true
+field	tessera.json	project-config-v1::`dependencies`::includeDirs	string[]	-	[]
+field	tessera.json	project-config-v1::`dependencies`::licenseReview	boolean	-	true
+field	tessera.json	project-config-v1::`dependencies`::linkLibraries	string[]	-	[]
+field	tessera.json	project-config-v1::`dev`::preview.backend	string	-	webgpu
+field	tessera.json	project-config-v1::`dev`::preview.hotReload	boolean	-	true
+field	tessera.json	project-config-v1::`dev`::preview.port	integer	-	5173
+field	tessera.json	project-config-v1::`i18n`::catalogDir	string	-	locales
+field	tessera.json	project-config-v1::`i18n`::defaultLocale	string	-	en-US
+field	tessera.json	project-config-v1::`i18n`::fallbackLocale	string	-	defaultLocale
+field	tessera.json	project-config-v1::`i18n`::locales	string[]	-	[defaultLocale]
+field	tessera.json	project-config-v1::`i18n`::pseudoLocale	string	-	en-XA
+field	tessera.json	project-config-v1::`i18n`::timezone	string	-	platform
+field	tessera.json	project-config-v1::`loading`::authMode	string	-	blocking
+field	tessera.json	project-config-v1::`loading`::brand.background	string	-	--window-background
+field	tessera.json	project-config-v1::`loading`::brand.logo	string	-	null
+field	tessera.json	project-config-v1::`loading`::criticalResources	string[]	-	[]
+field	tessera.json	project-config-v1::`loading`::diskCacheMb	integer	-	512
+field	tessera.json	project-config-v1::`loading`::evictOnMemoryPressure	boolean	-	true
+field	tessera.json	project-config-v1::`loading`::memoryBudgetMb	integer	-	256
+field	tessera.json	project-config-v1::`loading`::preload	string[]	-	[]
+field	tessera.json	project-config-v1::`loading`::resourcePolicy	string	-	lazy
+field	tessera.json	project-config-v1::`loading`::restoreRoute	boolean	-	true
+field	tessera.json	project-config-v1::`loading`::screen	string	-	skeleton
+field	tessera.json	project-config-v1::`loading`::unloadOnBackground	boolean	-	true
+field	tessera.json	project-config-v1::`navigation`::modalStack	string	-	global
+field	tessera.json	project-config-v1::`navigation`::notFound	string	-	not_found
+field	tessera.json	project-config-v1::`navigation`::restore	boolean	-	true
+field	tessera.json	project-config-v1::`navigation`::routesFile	string	-	ui/routes.json
+field	tessera.json	project-config-v1::`packages`::name	string	yes	-
+field	tessera.json	project-config-v1::`packages`::root	string	yes	-
+field	tessera.json	project-config-v1::`packages`::version	string	no	-
+field	tessera.json	project-config-v1::`restore`::enabled	boolean	-	true
+field	tessera.json	project-config-v1::`restore`::maxBytes	integer	-	262144
+field	tessera.json	project-config-v1::`restore`::persistDrafts	boolean	-	true
+field	tessera.json	project-config-v1::`restore`::persistRouteState	boolean	-	true
+field	tessera.json	project-config-v1::`restore`::persistScroll	boolean	-	true
+field	tessera.json	project-config-v1::`restore`::persistSecure	boolean	-	false
+field	tessera.json	project-config-v1::`ui`::bindings.annotation	string	no	// Note: bind::
+field	tessera.json	project-config-v1::`ui`::bindings.manifest	string	no	generated/bindings.json
+field	tessera.json	project-config-v1::`ui`::exclude	string[]	no	["**/*.test.*", "**/node_modules/**"]
+field	tessera.json	project-config-v1::`ui`::hooks.allowed	string[]	yes	—
+field	tessera.json	project-config-v1::`ui`::hooks.strict	boolean	no	true
+field	tessera.json	project-config-v1::`ui`::include	string[]	no	["**/*.tsx", "**/*.jsx"]
+field	tessera.json	project-config-v1::`ui`::limits.maxComponents	integer	no	64
+field	tessera.json	project-config-v1::`ui`::limits.maxDiagnostics	integer	no	100
+field	tessera.json	project-config-v1::`ui`::limits.maxFileBytes	integer	no	1048576
+field	tessera.json	project-config-v1::`ui`::limits.maxNestingDepth	integer	no	128
+field	tessera.json	project-config-v1::`ui`::limits.maxTokens	integer	no	200000
+field	tessera.json	project-config-v1::`ui`::sourceDirs	string[]	yes	—
+field	tessera.json	project-config-v1::`ui`::styles	string[]	no	[]
+field	tessera.json	project-config-v1::`updates`::autoApply	string	-	onRestart
+field	tessera.json	project-config-v1::`updates`::autoDownload	boolean	-	true
+field	tessera.json	project-config-v1::`updates`::channel	string	-	stable
+field	tessera.json	project-config-v1::`updates`::checkOnStart	boolean	-	true
+field	tessera.json	project-config-v1::`updates`::enabled	boolean	-	false
+field	tessera.json	project-config-v1::`updates`::manifestUrl	string	-	—
+field	tessera.json	project-config-v1::`updates`::publicKey	string	-	—
+field	tessera.json	project-config-v1::`window`::appearance	string	-	auto
+field	tessera.json	project-config-v1::`window`::height	integer	-	800
+field	tessera.json	project-config-v1::`window`::resizable	boolean	-	true
+field	tessera.json	project-config-v1::`window`::scale	string	-	auto
+field	tessera.json	project-config-v1::`window`::title	string	-	app name
+field	tessera.json	project-config-v1::`window`::titleBar	string	-	system
+field	tessera.json	project-config-v1::`window`::width	integer	-	1280
+field	tessera.json	runtime-config-v1::3. Fields::adaptiveQuality	boolean	-	true
+field	tessera.json	runtime-config-v1::3. Fields::allowTearing	boolean	-	false
+field	tessera.json	runtime-config-v1::3. Fields::animationInterpolation	boolean	-	true
+field	tessera.json	runtime-config-v1::3. Fields::asyncIoThreads	integer	-	1
+field	tessera.json	runtime-config-v1::3. Fields::asyncMainThreadBudgetMs	number	-	2.0
+field	tessera.json	runtime-config-v1::3. Fields::asyncQueueCapacity	integer	-	4096
+field	tessera.json	runtime-config-v1::3. Fields::asyncTraceTasks	boolean	-	false
+field	tessera.json	runtime-config-v1::3. Fields::asyncWorkerThreads	integer	-	0
+field	tessera.json	runtime-config-v1::3. Fields::backgroundMaxFps	integer	-	0
+field	tessera.json	runtime-config-v1::3. Fields::damageRects	boolean	-	true
+field	tessera.json	runtime-config-v1::3. Fields::deterministic	boolean	-	false
+field	tessera.json	runtime-config-v1::3. Fields::dirtyRendering	string	-	auto
+field	tessera.json	runtime-config-v1::3. Fields::drawListCacheBudgetMb	integer	-	32
+field	tessera.json	runtime-config-v1::3. Fields::dynamicRefreshRate	string	-	auto
+field	tessera.json	runtime-config-v1::3. Fields::fixedTimestepHz	number	-	60
+field	tessera.json	runtime-config-v1::3. Fields::frameBudgetMs	number	-	0
+field	tessera.json	runtime-config-v1::3. Fields::framePacing	string	-	auto
+field	tessera.json	runtime-config-v1::3. Fields::fullRedrawThreshold	number	-	0.6
+field	tessera.json	runtime-config-v1::3. Fields::glassMaxBackdropArea	integer	-	4000000
+field	tessera.json	runtime-config-v1::3. Fields::glassMaxBlurRadius	number	-	64
+field	tessera.json	runtime-config-v1::3. Fields::glassMaxBlurTargets	integer	-	4
+field	tessera.json	runtime-config-v1::3. Fields::gpuFramesInFlight	integer	-	2
+field	tessera.json	runtime-config-v1::3. Fields::interpolationEpsilonPx	number	-	0.0625
+field	tessera.json	runtime-config-v1::3. Fields::latencyFrames	integer	-	2
+field	tessera.json	runtime-config-v1::3. Fields::layerCacheBudgetMb	integer	-	64
+field	tessera.json	runtime-config-v1::3. Fields::layoutAnimationMaxNodes	integer	-	64
+field	tessera.json	runtime-config-v1::3. Fields::layoutObservationMaxRounds	integer	-	4
+field	tessera.json	runtime-config-v1::3. Fields::maxDamageRects	integer	-	16
+field	tessera.json	runtime-config-v1::3. Fields::maxFps	integer	-	0
+field	tessera.json	runtime-config-v1::3. Fields::maxFrameDeltaMs	number	-	250
+field	tessera.json	runtime-config-v1::3. Fields::maxPendingResizes	integer	-	1
+field	tessera.json	runtime-config-v1::3. Fields::maxUpdatesPerFrame	integer	-	5
+field	tessera.json	runtime-config-v1::3. Fields::minRenderScale	number	-	0.6
+field	tessera.json	runtime-config-v1::3. Fields::pauseWhenOccluded	boolean	-	true
+field	tessera.json	runtime-config-v1::3. Fields::pauseWhenUnfocused	boolean	-	false
+field	tessera.json	runtime-config-v1::3. Fields::powerPolicy	string	-	adaptive
+field	tessera.json	runtime-config-v1::3. Fields::preferredRefreshRate	integer	-	0
+field	tessera.json	runtime-config-v1::3. Fields::presenceExitTimeoutMs	integer	-	1000
+field	tessera.json	runtime-config-v1::3. Fields::presenceMaxExiting	integer	-	32
+field	tessera.json	runtime-config-v1::3. Fields::renderOnDemand	boolean	-	true
+field	tessera.json	runtime-config-v1::3. Fields::renderScale	number	-	1.0
+field	tessera.json	runtime-config-v1::3. Fields::resizeDebounceMs	number	-	16
+field	tessera.json	runtime-config-v1::3. Fields::resizeMode	string	-	adaptive
+field	tessera.json	runtime-config-v1::3. Fields::swapchainRecreateDelayMs	number	-	16
+field	tessera.json	runtime-config-v1::3. Fields::viewTransitionMaxMb	integer	-	64
+field	tessera.json	runtime-config-v1::3. Fields::viewTransitionMaxSharedElements	integer	-	8
+field	tessera.json	runtime-config-v1::3. Fields::vsync	string	-	on

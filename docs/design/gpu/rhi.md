@@ -52,7 +52,11 @@ RHI versioning and capabilities (ADR-049):
   macro; the public RHI headers stay includable beside Windows headers.
 - A PR that changes `include/tessera/rendering/rhi/**` must update `version.hpp` and this contract
   doc to state the version impact; the docs gate fails RHI header changes without those matching
-  updates.
+  updates. The version itself is checked by `scripts/check_version_policy.py` (gate
+  `version-policy`, issue #194, policy in
+  [`versioning-v1.md`](../../specs/versioning-v1.md) section 11.2): the gate fails a change to these
+  headers that leaves `kRhiVersionMinor`/`kRhiVersionMajor` where it was. The docs rule catches a
+  forgotten companion file; the policy gate catches a forgotten version.
 
 The floor-versus-capability model and the rule for where a new feature goes are in
 [`backends.md`](backends.md) section 2.1.
