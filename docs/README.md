@@ -284,6 +284,9 @@ This page is the map and reading order for the framework.
   the React shell (#422) takes from them
 - [`design/compiler-node-state.md`](design/compiler-node-state.md) — per-branch and per-item
   component instance state, keyed list item records, presence seam
+- [`design/preview-dynamic-children.md`](design/preview-dynamic-children.md) — conditional and
+  repeated children in the preview (#389): which state a branch reads, what supplies a `map`'s items,
+  the bounded subset, why both branches build, and the item-key rule
 - [`design/jsx-frontend.md`](design/jsx-frontend.md) — own JSX/TSX lexer/parser: slice plan,
   modes, diagnostics, spec gaps decided
 - [`design/jsx-ir-lowering.md`](design/jsx-ir-lowering.md) — AST to IR lowering design: construct

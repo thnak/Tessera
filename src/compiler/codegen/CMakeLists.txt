@@ -180,6 +180,11 @@ set(_tessera_scene_preview_sources
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_preview.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_prepare.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_build.cpp
+    # The IR -> scene walk, split out of `scene_build.cpp` when conditional and repeated children
+    # (issue #389) pushed that file past the size limit: one TU per node, one per child set.
+    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_build_walk.cpp
+    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_build_children.cpp
+    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_build_dynamic.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_layout.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_state.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_session.cpp
@@ -675,6 +680,26 @@ if (TESSERA_BUILD_TESTS)
         tessera_scene
         tessera_style)
     add_test(NAME scene_frame COMMAND scene_frame_tests)
+
+    # Conditional and repeated children in the preview (issue #389): a branch selected by the state the
+    # session's scope holds, a re-evaluation after a click changes that state, one subtree per list
+    # item, and the bounds that are reported rather than swallowed. Registered here rather than in
+    # tests/unit/CMakeLists.txt for the same reason `scene_frame` is: this lane does not edit the
+    # shared registry while other lanes work in it.
+    add_executable(scene_dynamic_tests
+        ${CMAKE_SOURCE_DIR}/tests/unit/scene_dynamic_tests.cpp
+        ${_tessera_scene_preview_sources})
+    target_include_directories(scene_dynamic_tests
+        PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
+    target_link_libraries(scene_dynamic_tests PRIVATE
+        tessera_automation_scene
+        tessera_ir_eval
+        tessera_ir_ids
+        tessera_layout
+        tessera_lowering
+        tessera_scene
+        tessera_style)
+    add_test(NAME scene_dynamic COMMAND scene_dynamic_tests)
 
     # The persistent canvas session (issue #388): pointer input into one evaluation, the
     # `:hover`/`:active` path through the stylesheet engine, and the on-demand frame accounting.

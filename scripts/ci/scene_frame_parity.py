@@ -36,9 +36,12 @@ fails instead of silently comparing with a default.
 ## Why the corpus is not `samples/parity-demo`
 
 The *samples* in the acceptance sentence are the corpus the earlier preview gates use. The preview
-does not evaluate a user component instance or a conditional child (docs/design/compiler-wasm.md
-section 7.1), so the corpus here is the same static subset `scene_snapshot_parity.py` uses plus the
-paint-relevant cases P3 needs: a filled box, a rounded box, nested clips, and a multi-column layout.
+does not evaluate a user component instance (docs/design/compiler-wasm.md section 7.1); it does evaluate
+a conditional child and a repeated child (issue #389), so those shapes are no longer excluded for being
+unsupported. The corpus here is still the subset whose *pixels* this gate needs plus the paint-relevant
+cases P3 added - a filled box, a rounded box, nested clips, and a multi-column layout - because the
+frame gate's job is the paint path, and `scene_snapshot_parity.py` is what covers the two dynamic
+shapes' node trees.
 Each case declares a minimum draw-call count, for the same anti-vacuity reason the snapshot gate
 declares a minimum node count - two blank frames are byte-identical and prove nothing.
 

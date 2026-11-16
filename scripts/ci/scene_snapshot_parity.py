@@ -25,11 +25,13 @@ The corpus must not be all-empty: a gate that passes when both sides returned `{
 nothing. Every case therefore declares the minimum node count it must produce, and a case below that
 count on either side is a failure before any byte comparison.
 
-Why the shipped samples are not the corpus: `samples/compiler-demo/Demo.tsx` uses a conditional
-child, and `samples/gallery/Gallery.tsx` imports a user component; neither is evaluated by this slice
-(both are reported as `TESSERA_SCENE_UNSUPPORTED`, see docs/design/compiler-wasm.md section 7.1). The
-corpus is the static subset the preview does evaluate, so the gate compares the pipeline and not the
-list of unsupported constructs.
+Why `samples/compiler-demo/Demo.tsx` is still not the corpus: its conditional child now *is* evaluated
+(issue #389), so the file prepares, but its `bind::sync` effect, its `useRef` and its `TextInput`
+`onChange` payload are outside this slice, and the corpus is meant to be the set of shapes whose whole
+tree the preview builds. `samples/gallery/Gallery.tsx` imports a user component, which is still
+`TESSERA_SCENE_UNSUPPORTED` (docs/design/compiler-wasm.md section 7.1). The static corpus below is
+joined by the two dynamic shapes #389 added -- a ternary's branches and a `map`'s items -- so the gate
+covers what the preview now evaluates instead of only what it always did.
 
 Exit codes: 0 parity holds, 1 a mismatch or a corpus expectation failed, 2 setup failure.
 """
@@ -231,20 +233,78 @@ export function Host(): Node {
 """,
         0,
     ),
-    # Must be rejected: a conditional child is outside this slice. Zero nodes on both sides.
+    # Supported since issue #389: a conditional child. `flag` is true, so the `&&` branch is the shown
+    # one and the tree is a View + the Text, not an empty document. The minimum is therefore a real
+    # count: an empty result here would mean the branch stopped being built, which is the regression
+    # this case now guards.
     (
-        "unsupported-conditional",
+        "conditional",
         "ui/Conditional.tsx",
         """export function Conditional(): Node {
   const [flag, setFlag] = useState<bool>(true);
   return (
     <View>
+      <Text>Base</Text>
       {flag && <Text>Yes</Text>}
     </View>
   );
 }
 """,
-        0,
+        4,
+    ),
+    # Supported since issue #389: both branches of a ternary. The test above covers one `&&` branch; this
+    # covers the complementary pair lowering emits for `? :`, where exactly one of two sibling nodes is
+    # painted. A preview that painted neither would still report 4 nodes, which is why the byte
+    # comparison -- not this count -- is what decides the case.
+    (
+        "conditional-both-branches",
+        "ui/Ternary.tsx",
+        """export function Ternary(): Node {
+  const [count, setCount] = useState<int>(0);
+  return (
+    <View>
+      <Text>Count: {count}</Text>
+      {count > 0 ? <Text>Positive</Text> : <Text>Zero</Text>}
+      <Button onClick={() => setCount(count + 1)}>Add</Button>
+    </View>
+  );
+}
+""",
+        5,
+    ),
+    # Supported since issue #389: a repeated child. Three items over a `list<string>` cell, each item a
+    # `Text`, so the minimum counts the container, the three items and no fewer.
+    (
+        "repeated",
+        "ui/Repeated.tsx",
+        """export function Repeated(): Node {
+  const [rows, setRows] = useState<string[]>(["alpha", "beta", "gamma"]);
+  return (
+    <View>
+      {rows.map((row, i) => <Text key={i}>{row}</Text>)}
+    </View>
+  );
+}
+""",
+        5,
+    ),
+    # Supported since issue #389: an empty list. The template contributes no item and the sibling after
+    # it still builds, so an empty list is a 2-node tree rather than a failed build. This is the case a
+    # "zero nodes means unsupported" gate would misread, which is why the two are separate entries.
+    (
+        "repeated-empty",
+        "ui/RepeatedEmpty.tsx",
+        """export function RepeatedEmpty(): Node {
+  const [rows, setRows] = useState<string[]>([]);
+  return (
+    <View>
+      {rows.map((row, i) => <Text key={i}>{row}</Text>)}
+      <Text>After</Text>
+    </View>
+  );
+}
+""",
+        3,
     ),
 )
 
@@ -252,11 +312,14 @@ export function Host(): Node {
 # request on argv, and prints the document. Inline so the gate has no extra file to keep in step with
 # the ABI (the same shape as scripts/ci/wasm_diagnostics_parity.py).
 NODE_DRIVER = r"""
+import { pathToFileURL } from 'node:url';
 const path = process.argv[2];
 const file = process.argv[3];
 const component = process.argv[4];
 const source = process.argv[5];
-const imported = await import(path);
+// `import()` needs a URL, not a bare path: on Windows a `C:\...` argument parses as a `c:` scheme and
+// Node rejects it with ERR_UNSUPPORTED_ESM_URL_SCHEME. `pathToFileURL` is correct on both platforms.
+const imported = await import(pathToFileURL(path).href);
 const factory = imported.default;
 const module = await factory();
 const textLength = module.lengthBytesUTF8(source) + 1;
