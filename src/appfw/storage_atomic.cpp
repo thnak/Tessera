@@ -53,6 +53,37 @@ std::string temp_path_for(std::string_view target, std::uint64_t generation) {
     return path;
 }
 
+bool is_reserved_device_name(std::string_view name) noexcept {
+    // Windows device names, matched case-insensitively and without their extension: `NUL` and
+    // `NUL.txt` are both the null device, so a write to `con` or `nul` is accepted by the OS and
+    // discarded -- the caller sees success and the data is gone.
+    constexpr std::string_view kDevices[] = {
+        "con",  "prn",  "aux",  "nul",  "com1", "com2", "com3", "com4", "com5", "com6", "com7",
+        "com8", "com9", "lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8", "lpt9"};
+    // Compare the stem (everything before the first dot) so `nul.txt` is caught too.
+    const std::size_t dot = name.find('.');
+    const std::string_view stem = dot == std::string_view::npos ? name : name.substr(0, dot);
+    for (const std::string_view device : kDevices) {
+        if (stem.size() != device.size()) {
+            continue;
+        }
+        bool same = true;
+        for (std::size_t index = 0; index < stem.size(); ++index) {
+            const char lowered = (stem[index] >= 'A' && stem[index] <= 'Z')
+                                     ? static_cast<char>(stem[index] - 'A' + 'a')
+                                     : stem[index];
+            if (lowered != device[index]) {
+                same = false;
+                break;
+            }
+        }
+        if (same) {
+            return true;
+        }
+    }
+    return false;
+}
+
 bool is_valid_entry_name(std::string_view name) noexcept {
     if (name.empty() || name.size() > 128) {
         return false;
@@ -72,6 +103,27 @@ bool is_valid_entry_name(std::string_view name) noexcept {
         if (name[index] == '.' && name[index + 1] == '.') {
             return false;
         }
+    }
+
+    // Identity, not just traversal (security review finding S5). A name that a filesystem silently
+    // normalises can address a *different* entry than it appears to, which turns a write into a
+    // silent overwrite of unrelated data. Rejecting is the only safe answer: normalising would make
+    // two spellings alias, which is the bug.
+    //
+    // 1. Trailing dot or space: NTFS and Win32 strip both, so `trail.` and `trail` are one file.
+    const char last = name.back();
+    if (last == '.' || last == ' ') {
+        return false;
+    }
+    // 2. Control characters are not legal in a filename on either platform.
+    for (const char character : name) {
+        if (static_cast<unsigned char>(character) < 0x20U) {
+            return false;
+        }
+    }
+    // 3. A device name is accepted and discarded by the OS, so the write silently goes nowhere.
+    if (is_reserved_device_name(name)) {
+        return false;
     }
     return true;
 }

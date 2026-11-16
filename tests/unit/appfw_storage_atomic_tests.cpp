@@ -162,6 +162,28 @@ void entry_names_are_sandboxed() {
     expect(!is_valid_entry_name("a\\b"), "a backslash is invalid");
     expect(!is_valid_entry_name("C:evil"), "a drive prefix is invalid");
     expect(!is_valid_entry_name("/absolute"), "an absolute name is invalid");
+
+    // Identity, not just traversal (security review finding S5). A name a filesystem silently
+    // normalises can address a *different* entry, turning a write into a silent overwrite of
+    // unrelated data -- the one outcome a store must never produce.
+    expect(!is_valid_entry_name("trail."), "a trailing dot is invalid: NTFS strips it");
+    expect(!is_valid_entry_name("trail "), "a trailing space is invalid: Win32 strips it");
+    expect(!is_valid_entry_name("nul"), "a device name is invalid: the write goes nowhere");
+    expect(!is_valid_entry_name("NUL"), "device names are matched case-insensitively");
+    expect(!is_valid_entry_name("con.txt"), "a device name with an extension is still the device");
+    expect(!is_valid_entry_name("com1"), "COM1 is a device");
+    expect(!is_valid_entry_name("lpt9.log"), "LPT9 with an extension is still the device");
+    expect(!is_valid_entry_name(std::string("a\x01b")), "a control character is invalid");
+
+    // And these must keep working: the fix must not over-reach.
+    expect(is_valid_entry_name("trail"), "the name without the dot is still valid");
+    expect(is_valid_entry_name("console"), "a device-like word is not a device");
+    expect(!is_valid_entry_name("nul.txt.bak"),
+           "only the stem before the first dot matters, so this is still the device");
+    expect(is_valid_entry_name("nullish"), "a longer word starting with a device name is fine");
+    expect(is_valid_entry_name("nav.state"), "a normal dotted name is valid");
+    expect(is_valid_entry_name("Settings"), "an upper-case name is still valid (case policy is the "
+                                            "spec's call, not a silent security change)");
 }
 
 } // namespace
