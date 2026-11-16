@@ -75,6 +75,48 @@ target_compile_features(tessera_appfw_i18n PUBLIC cxx_std_23)
 target_link_libraries(tessera_appfw_i18n
     PUBLIC tessera_appfw_core tessera_text)
 
+# ADR-050 layer 1 module: `tessera_appfw_navigation` (issue #196). A separate static library for the
+# same reason as storage and i18n: an app that does not adopt navigation links none of it.
+#
+# Dependencies, and why each is the narrowest one:
+#   * `tessera_appfw_core` for `Observable<T>` (AF4's frame-boundary route value) and the service
+#     contract. ADR-050 section 1 puts the route observable in the same layer as `Observable`, so this is
+#     the module's only required sibling.
+#   * `tessera_harness` for the JSON codec the restore snapshot is written in. It is a *leaf* library that
+#     links nothing from the project (see `src/harness/CMakeLists.txt`), so depending on it does not reach
+#     into the UI layer; the alternative was a second JSON parser inside layer 1, and `src/ui/style`
+#     already links the same library for the same reason (the theme asset). It is PRIVATE because no
+#     public header of this module names a harness type: `navigation_restore.hpp` exposes only the
+#     module's own `std::string`-based shape.
+#   * `tessera_appfw_storage` for the atomic write the restore snapshot persists through. It is PUBLIC
+#     because `NavRestoreStore` takes a `Storage&` in its constructor, and a caller must be able to name
+#     the type it passes.
+#
+# Deliberately *not* linked: `tessera_scene`. The `ui::UpdateScheduler` the CLI needs is a header-only
+# dependency of the class layout (`Observable<T>` holds an `UpdateTicket`), and `Observable` already
+# declares it; linking the scene library would pull the whole scene graph into an app that only wants to
+# route. The observable's teardown does call `UpdateScheduler::detach`, so the final link needs the
+# symbol from whichever target the app already has - `tessera_appfw_core`'s `Observable` tests link
+# `tessera_scene` for exactly that reason, and this module's test target does too.
+add_library(tessera_appfw_navigation STATIC
+    navigation_codec.cpp
+    navigation_deep_link.cpp
+    navigation_match.cpp
+    navigation_restore_decode.cpp
+    navigation_restore_encode.cpp
+    navigation_restore_store.cpp
+    navigation_route.cpp
+    navigation_stack.cpp)
+
+target_include_directories(tessera_appfw_navigation PUBLIC
+    ${PROJECT_SOURCE_DIR}/include)
+
+target_compile_features(tessera_appfw_navigation PUBLIC cxx_std_23)
+
+target_link_libraries(tessera_appfw_navigation
+    PUBLIC tessera_appfw_core tessera_appfw_storage
+    PRIVATE tessera_harness)
+
 if (TESSERA_BUILD_TESTS)
     enable_testing()
 
@@ -158,4 +200,22 @@ if (TESSERA_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/unit)
     target_link_libraries(appfw_i18n_tests PRIVATE tessera_appfw_i18n tessera_layout)
     add_test(NAME appfw_i18n COMMAND appfw_i18n_tests)
+
+    # Navigation (issue #196, docs/specs/navigation-v1.md): the four acceptance groups, one TU each, so a
+    # failure names route, back, deep-link or restore. It links `tessera_scene` for `UpdateScheduler`,
+    # which `Observable<T>` attaches a ticket to and calls `detach` on in its destructor - the same reason
+    # the AF4 observable target links it. Everything else is deterministic: the route table is explicit
+    # data, the deep links are strings, and a restore runs on `ManualIoExecutor` against an in-memory file
+    # system, so no test in the suite reads a clock, an OS, a network or a real file.
+    add_executable(appfw_navigation_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_navigation_main.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_navigation_route_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_navigation_back_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_navigation_deep_link_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_navigation_restore_tests.cpp)
+    target_include_directories(appfw_navigation_tests PRIVATE
+        ${PROJECT_SOURCE_DIR}/tests/unit)
+    target_link_libraries(appfw_navigation_tests PRIVATE
+        tessera_appfw_navigation tessera_scene tessera_runtime)
+    add_test(NAME appfw_navigation COMMAND appfw_navigation_tests)
 endif()

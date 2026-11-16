@@ -129,6 +129,67 @@ constant include/tessera/appfw/lifecycle_script.hpp tessera::appfw::kMaxLifecycl
 constant include/tessera/appfw/lifecycle_script.hpp tessera::appfw::kMaxLifecycleScriptSteps
 constant include/tessera/appfw/lifecycle_script.hpp tessera::appfw::kNoLifecycleStep
 
+header include/tessera/appfw/navigation_deep_link.hpp
+struct include/tessera/appfw/navigation_deep_link.hpp tessera::appfw::DeepLink
+struct include/tessera/appfw/navigation_deep_link.hpp tessera::appfw::DeepLinkConfig
+struct include/tessera/appfw/navigation_deep_link.hpp tessera::appfw::DeepLinkResult
+enum include/tessera/appfw/navigation_deep_link.hpp tessera::appfw::ActivationSource
+enum include/tessera/appfw/navigation_deep_link.hpp tessera::appfw::DeepLinkOutcome
+function include/tessera/appfw/navigation_deep_link.hpp tessera::appfw::activation_source_name
+function include/tessera/appfw/navigation_deep_link.hpp tessera::appfw::deep_link_outcome_name
+function include/tessera/appfw/navigation_deep_link.hpp tessera::appfw::install_deep_link
+function include/tessera/appfw/navigation_deep_link.hpp tessera::appfw::parse_deep_link
+function include/tessera/appfw/navigation_deep_link.hpp tessera::appfw::resolve_deep_link
+
+header include/tessera/appfw/navigation_restore.hpp
+class include/tessera/appfw/navigation_restore.hpp tessera::appfw::NavRestoreStore
+struct include/tessera/appfw/navigation_restore.hpp tessera::appfw::DecodedSnapshot
+struct include/tessera/appfw/navigation_restore.hpp tessera::appfw::NavEntrySnapshot
+struct include/tessera/appfw/navigation_restore.hpp tessera::appfw::NavSnapshot
+struct include/tessera/appfw/navigation_restore.hpp tessera::appfw::NavStackSnapshot
+struct include/tessera/appfw/navigation_restore.hpp tessera::appfw::RestoreError
+struct include/tessera/appfw/navigation_restore.hpp tessera::appfw::RestorePolicy
+enum include/tessera/appfw/navigation_restore.hpp tessera::appfw::RestoreErrorCode
+function include/tessera/appfw/navigation_restore.hpp tessera::appfw::decode_nav_snapshot
+function include/tessera/appfw/navigation_restore.hpp tessera::appfw::encode_nav_snapshot
+function include/tessera/appfw/navigation_restore.hpp tessera::appfw::restore_entries
+function include/tessera/appfw/navigation_restore.hpp tessera::appfw::restore_error_code_name
+constant include/tessera/appfw/navigation_restore.hpp tessera::appfw::kNavMainStackId
+constant include/tessera/appfw/navigation_restore.hpp tessera::appfw::kNavRestoreVersion
+constant include/tessera/appfw/navigation_restore.hpp tessera::appfw::kNavSnapshotMaxBytes
+
+header include/tessera/appfw/navigation_route.hpp
+class include/tessera/appfw/navigation_route.hpp tessera::appfw::RouteTable
+struct include/tessera/appfw/navigation_route.hpp tessera::appfw::NavigationError
+struct include/tessera/appfw/navigation_route.hpp tessera::appfw::ParamSpec
+struct include/tessera/appfw/navigation_route.hpp tessera::appfw::RouteDef
+struct include/tessera/appfw/navigation_route.hpp tessera::appfw::RouteMatch
+struct include/tessera/appfw/navigation_route.hpp tessera::appfw::RouteTableConfig
+enum include/tessera/appfw/navigation_route.hpp tessera::appfw::DuplicatePolicy
+enum include/tessera/appfw/navigation_route.hpp tessera::appfw::NavigationErrorCode
+enum include/tessera/appfw/navigation_route.hpp tessera::appfw::ParamType
+enum include/tessera/appfw/navigation_route.hpp tessera::appfw::Presentation
+alias include/tessera/appfw/navigation_route.hpp tessera::appfw::ParamMap
+alias include/tessera/appfw/navigation_route.hpp tessera::appfw::StateMap
+function include/tessera/appfw/navigation_route.hpp tessera::appfw::duplicate_policy_name
+function include/tessera/appfw/navigation_route.hpp tessera::appfw::find_param
+function include/tessera/appfw/navigation_route.hpp tessera::appfw::navigation_error_code_name
+function include/tessera/appfw/navigation_route.hpp tessera::appfw::param_type_name
+function include/tessera/appfw/navigation_route.hpp tessera::appfw::percent_decode
+function include/tessera/appfw/navigation_route.hpp tessera::appfw::presentation_is_dismissible
+function include/tessera/appfw/navigation_route.hpp tessera::appfw::presentation_name
+function include/tessera/appfw/navigation_route.hpp tessera::appfw::validate_param_value
+
+header include/tessera/appfw/navigation_stack.hpp
+class include/tessera/appfw/navigation_stack.hpp tessera::appfw::NavController
+struct include/tessera/appfw/navigation_stack.hpp tessera::appfw::BackResult
+struct include/tessera/appfw/navigation_stack.hpp tessera::appfw::NavControllerConfig
+struct include/tessera/appfw/navigation_stack.hpp tessera::appfw::NavEntry
+struct include/tessera/appfw/navigation_stack.hpp tessera::appfw::RouteSnapshot
+enum include/tessera/appfw/navigation_stack.hpp tessera::appfw::BackOutcome
+enum include/tessera/appfw/navigation_stack.hpp tessera::appfw::PushOutcome
+function include/tessera/appfw/navigation_stack.hpp tessera::appfw::back_outcome_name
+
 header include/tessera/appfw/observable.hpp
 class include/tessera/appfw/observable.hpp tessera::appfw::Observable
 
