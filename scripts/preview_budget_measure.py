@@ -57,13 +57,36 @@ PROBE = SCRIPTS_DIR / "ci" / "preview_budget_probe.mjs"
 # `share.js`, `preview-state.js`, `studio.js` and `samples.json`, and a budget that kept weighing only
 # the original three would report green for an artifact it no longer fully measures. Adding a page
 # asset means adding it here in the same change -- that is the rule the enforced row depends on.
+#
+# Issue #392 merged the three pages into one `index.html`. The list is therefore *the merged page*:
+# `scene.html`/`canvas.html` are still here because they are still served (as redirect stubs, and a
+# stub is a download a visitor with an old link pays for), while `app.js`/`scene.js`/`canvas.js` are
+# gone and their replacements (`studio-page.js` and the `view-*.js` modules) are added in the same
+# change. `canvas.css` was folded into `app.css`, so it is removed rather than kept as an empty row.
 MODULE_FILES = ("tessera_diagnostics.js", "tessera_diagnostics.wasm")
 PAGE_FILES = (
     "index.html",
+    # The redirect stubs kept for pre-merge links (issue #392), and the one module they load. They are
+    # on the measured page because they ship: a stub that grew would still be a byte a visitor fetches.
     "scene.html",
-    "app.js",
+    "canvas.html",
+    "redirect.js",
+    # The page's entry point and the view-switching shell.
+    "studio-page.js",
+    "shell.js",
+    # The three views, one module each, so a merge does not produce one large file, plus the render
+    # and pane helpers each was split into to stay inside the source-size limit.
+    "view-diagnostics.js",
+    "diagnostics-view-render.js",
+    "view-scene.js",
+    "scene-view-render.js",
+    "view-canvas.js",
+    "canvas-device.js",
+    "canvas-pane.js",
+    # The single C-ABI marshalling helper all three views call.
+    "wasm-call.js",
     "app.css",
-    "scene.js",
+    # The P5 chrome, unchanged by the merge.
     "preview-state.js",
     "share.js",
     "gallery.js",
@@ -72,11 +95,6 @@ PAGE_FILES = (
     # (issue #169). Added here in the same change as the split: a page asset that is not in this
     # list ships unweighed, which is the bug P5 fixed for `scene.html`/`scene.js`.
     "scene-input.js",
-    # P3's canvas page (issue #167). Added in the same change as the assets themselves, which is
-    # the rule this list states: an unlisted page asset ships unweighed.
-    "canvas.html",
-    "canvas.js",
-    "canvas.css",
     "samples.json",
 )
 

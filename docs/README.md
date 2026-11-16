@@ -267,6 +267,9 @@ This page is the map and reading order for the framework.
 - [`design/compiler.md`](design/compiler.md) — JSX/TSX -> IR -> C++ pipeline
 - [`design/compiler-wasm.md`](design/compiler-wasm.md) — the compiler built to Wasm for the
   design-time preview (Emscripten target, `NODERAWFS`, the native-versus-Wasm IR parity gate)
+- [`design/studio-page.md`](design/studio-page.md) — the merged studio `index.html` (#392): one page
+  with three lazy views, the module layout, the old-URL redirect that keeps `#p5=` links working, and
+  the re-pinned P6 download budget
 - [`design/compiler-node-state.md`](design/compiler-node-state.md) — per-branch and per-item
   component instance state, keyed list item records, presence seam
 - [`design/jsx-frontend.md`](design/jsx-frontend.md) — own JSX/TSX lexer/parser: slice plan,

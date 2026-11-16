@@ -2,128 +2,64 @@
 <!--
   SPDX-License-Identifier: MIT
 
-  Tessera preview P2: the scene-snapshot debug page (issue #166, docs/design/reference-equantic-ui.md
-  section 7.4). Static files, no framework and no build step: this directory plus the two Wasm
-  artifacts the CI lane copies in are the whole page.
+  The pre-merge scene page's URL, kept as a redirect stub (issue #392). The scene snapshot and the
+  click script moved to the Scene view of the merged `index.html`; this page exists only so a link
+  made before the merge -- a chat message, a bookmark, or a `#p5=` share link whose fragment is the
+  whole project state -- still lands on the same state.
 
-  It evaluates the textarea contents with the same evaluator, stylesheet engine and Yoga layout the
-  native harness runs, lays the tree out on the null RHI (no GPU yet), and lists the canonical
-  UiSnapshot nodes with their paths, kinds, bounds and text. That document is what the wasm-parity CI
-  job compares byte for byte against the native CLI, so this page shows the artifact the gate proves.
-
-  P4 (issue #168) adds the input script: a `click <automationId>` step is dispatched into the same
-  in-memory evaluator through the engine's own input router, and the state cells after every step are
-  listed beside the nodes. The click runs the handler's TSX preview body through the IR evaluator; the
-  developer's C++ is not in this module. The canvas preview is P3, share links are P5.
+  It carries no engine code and imports no module: a redirect that had to fetch something before it
+  could redirect would be a redirect that can fail. `redirect.js` copies `location.search` and
+  `location.hash` across byte for byte and adds `?view=scene`; the reasoning is in that file's header.
 -->
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Tessera preview: scene snapshot</title>
+  <title>Tessera Studio: scene snapshot (moved)</title>
   <link rel="stylesheet" href="app.css">
+  <script src="redirect.js"></script>
 </head>
 <body>
   <header class="page-header">
     <div class="page-title">
-      <h1>Tessera preview</h1>
+      <h1>Tessera Studio</h1>
       <p class="page-subtitle">
-        Evaluates your TSX with the same evaluator, style and layout engine the native build runs,
-        then shows the scene snapshot. No GPU yet (stage&nbsp;P2).
+        The scene snapshot is now the <strong>Scene</strong> view of the studio's single page.
+        Forwarding you there with this link's settings intact.
       </p>
     </div>
     <div class="page-meta">
-      <nav class="page-nav" aria-label="Preview pages">
-        <a href="index.html">Diagnostics</a>
-        <span aria-current="page">Scene</span>
-        <a href="canvas.html">Canvas</a>
-      </nav>
-      <div class="build-id" id="build-id" title="The build this page came from">build: loading</div>
+      <div class="build-id" id="build-id" title="This page is a redirect stub">moved</div>
     </div>
   </header>
 
-  <!-- The P5 toolbar (issue #169). On this page the viewport and DPR reach the layout through
-       `tessera_scene_json_sized`, so the toggle is not decoration: changing it re-runs the layout at
-       the new size. Theme is carried into the share link even though the null-RHI snapshot does not
-       consume it yet (the engine's theme asset is not in this module). -->
-  <div class="toolbar" role="group" aria-label="Preview environment">
-    <div class="controls" id="controls"></div>
-    <div class="toolbar-actions">
-      <button id="toggle-gallery" type="button" aria-expanded="false" aria-controls="gallery">
-        Samples
-      </button>
-      <button id="share" type="button">Copy share link</button>
-      <span class="share-status" id="share-status" role="status" aria-live="polite"></span>
-    </div>
-  </div>
-
-  <section class="gallery" id="gallery" aria-label="Sample gallery" hidden>
-    <div class="gallery-list" id="gallery-list"></div>
-  </section>
-
-  <p class="link-note" id="link-note" role="alert" hidden></p>
-
   <main class="layout">
-    <section class="pane" aria-labelledby="editor-heading">
+    <section class="pane" aria-labelledby="moved-heading">
       <div class="pane-header">
-        <h2 id="editor-heading">Source</h2>
-        <div class="pane-actions">
-          <button id="run" type="button" class="primary">Run</button>
-          <button id="load-sample" type="button">Load sample</button>
-        </div>
+        <h2 id="moved-heading">Moved</h2>
       </div>
-      <label for="source" class="visually-hidden">TSX source</label>
-      <textarea id="source" spellcheck="false" autocapitalize="off" autocomplete="off"
-                autocorrect="off" wrap="off"></textarea>
-      <p class="hint">Ctrl+Enter (or Cmd+Enter) runs. The viewport is 320&times;240.</p>
-
-      <div class="pane-header">
-        <h2 id="input-heading">Input script</h2>
-        <div class="pane-actions">
-          <button id="run-input" type="button">Send clicks</button>
-        </div>
+      <div class="unavailable">
+        <h3>This page became a view of one studio page</h3>
+        <p>
+          The diagnostics, scene and canvas previews are one page with one set of controls now. This
+          address still works: it forwards to the studio with the viewport, DPR, theme and any
+          <code>#p5=</code> share payload exactly as they arrived.
+        </p>
+        <p>
+          <a id="continue" href="index.html?view=scene">Continue to the studio</a> if you are not
+          forwarded automatically, or read the
+          <a href="index.html?view=diagnostics">diagnostics view</a>.
+        </p>
       </div>
-      <label for="script" class="visually-hidden">Input script</label>
-      <textarea id="script" spellcheck="false" autocapitalize="off" autocomplete="off"
-                autocorrect="off" wrap="off" rows="4"></textarea>
-      <p class="hint">
-        One step per line: <code>click &lt;automationId&gt;</code>. Clicking a node below appends
-        its id. Each click is dispatched through the engine's own input router &mdash; hit test,
-        pointer capture, click synthesis, capture/target/bubble &mdash; and the handler it reaches is
-        the handler's <strong>TSX preview body</strong>, run by the IR evaluator. The developer's C++
-        is not in this module and is never executed.
-      </p>
-    </section>
-
-    <section class="pane" aria-labelledby="nodes-heading">
-      <div class="pane-header">
-        <h2 id="nodes-heading">Scene snapshot</h2>
-        <div class="status" id="status" role="status" aria-live="polite">not run yet</div>
-      </div>
-      <ol class="nodes" id="nodes"></ol>
-      <div class="empty-state" id="empty-state">
-        Press <strong>Run</strong> to evaluate the source.
-      </div>
-
-      <div class="pane-header">
-        <h2 id="state-heading">State cells</h2>
-        <div class="status" id="input-status" role="status" aria-live="polite">no clicks yet</div>
-      </div>
-      <ol class="cells" id="cells"></ol>
     </section>
   </main>
 
-  <footer class="page-footer">
-    <p>
-      Part of <a href="https://github.com/thnak/Tessera">Tessera</a>. The module is the
-      <code>wasm-webgpu</code> build's scene-preview target; the same input produces the same
-      snapshot document natively, which the <code>wasm-parity</code> CI job checks byte for byte,
-      and the same click script produces the same state cells, which the
-      <code>scene_input_parity.py</code> gate checks the same way.
-      The TSX diagnostics page is <a href="index.html">index.html</a>.
-    </p>
-  </footer>
-
-  <script type="module" src="scene.js"></script>
+  <script>
+    // A classic script (not a module) on purpose: a module is deferred until after parsing, and a stub
+    // should forward before the visitor reads it. `redirect.js` defined the function above.
+    if (globalThis.tesseraRedirect) {
+      globalThis.tesseraRedirect.redirectTo('scene');
+    }
+  </script>
 </body>
 </html>
