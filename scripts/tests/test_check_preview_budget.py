@@ -40,12 +40,24 @@ GATE = SCRIPTS_DIR / "check_preview_budget.py"
 MEASURE = SCRIPTS_DIR / "preview_budget_measure.py"
 RATCHET = SCRIPTS_DIR / "preview_budget_ratchet.py"
 
-# The page files the measurement weighs, imported from the measurement module so the fixture cannot
+# The page assets the measurement weighs, imported from the measurement module so the fixture cannot
 # drift from what the gate actually measures.
 sys.path.insert(0, str(SCRIPTS_DIR))
 import preview_budget_measure as measure  # noqa: E402  (sibling script, stdlib only)
 
-MEASURE_PAGE_FILES = measure.PAGE_FILES
+# The built page, as a directory (issue #422): the measurement walks `dist/`, so the fixture builds one.
+# The names mimic a real Vite build -- a hashed chunk under `assets/` plus the files Vite copies from
+# `public/` -- because the paths are part of what the measurement reports.
+PAGE_FIXTURE_FILES = (
+    "index.html",
+    "assets/index-Ab1Cd2Ef.js",
+    "assets/index-Ab1Cd2Ef.css",
+    "assets/vendor-Qq9Qq9Qq.js",
+    "scene.html",
+    "canvas.html",
+    "redirect.js",
+    "samples.json",
+)
 
 # A page and a module whose gzip sizes are stable for a given byte pattern: the content is generated
 # from a fixed seed, so the number is the same on every machine even though it is not round.
@@ -87,13 +99,17 @@ class PreviewBudgetGateTests(unittest.TestCase):
 
         page = self.repo / "designer" / "web"
         page.mkdir(parents=True)
-        # Every page asset the measurement weighs, read from the measurement module rather than
-        # repeated here: P5 (issue #169) widened PAGE_FILES, and a fixture that hard-coded the old
-        # three would fail with a setup error the moment that list grew -- or, worse, would keep
-        # passing while covering only part of the page.
-        for index, name in enumerate(MEASURE_PAGE_FILES, start=1):
-            (page / name).write_bytes(payload(PAGE_BYTES, index))
-        self.page_files = MEASURE_PAGE_FILES
+        # The *built* page: the measurement reads `designer/web/dist/` as a directory because a Vite build's
+        # asset names carry content hashes and cannot be listed (issue #422, ADR-054 decision 6). The fixture
+        # therefore mirrors that layout rather than a flat list of source files, and the names come from this
+        # module so a change to what a build emits is a change here.
+        self.page = page / "dist"
+        for index, name in enumerate(PAGE_FIXTURE_FILES, start=1):
+            target = self.page / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(payload(PAGE_BYTES, index))
+        # A source map is a build artifact the browser never fetches for execution; the measurement skips it.
+        (self.page / "assets" / "index-Ab1Cd2Ef.js.map").write_bytes(payload(PAGE_BYTES, 1))
         self.module_dir = self.repo / "build" / "pages"
         self.module_dir.mkdir(parents=True)
         for name, seed in (("tessera_diagnostics.js", 2), ("tessera_diagnostics.wasm", 3)):
@@ -101,9 +117,9 @@ class PreviewBudgetGateTests(unittest.TestCase):
 
         self.budget = self.repo / "tests" / "golden" / "perf" / "preview_budget.json"
         self.budget.parent.mkdir(parents=True)
-        sizes = [gzip_size(payload(PAGE_BYTES, 1)) * len(self.page_files),
-                 gzip_size(payload(MODULE_BYTES, 2)),
-                 gzip_size(payload(MODULE_BYTES, 3))]
+        sizes = [gzip_size(payload(PAGE_BYTES, index)) for index in range(1, len(PAGE_FIXTURE_FILES) + 1)]
+        sizes.append(gzip_size(payload(MODULE_BYTES, 2)))
+        sizes.append(gzip_size(payload(MODULE_BYTES, 3)))
         self.download = sum(sizes)
         self.write_budget()
 

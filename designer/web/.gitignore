@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: MIT
+# ADR-054 decision 2: dist/ (and the gate-only SSR build) is an artifact, never committed.
+node_modules/
+dist/
+dist-ssr/

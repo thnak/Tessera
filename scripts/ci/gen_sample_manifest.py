@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-"""Generate `designer/web/samples.json`, the sample gallery's manifest (issue #169, stage P5).
+"""Generate `designer/web/public/samples.json`, the sample gallery's manifest (issue #169, stage P5).
 
 Stage P5 of `docs/design/reference-equantic-ui.md` section 7.4 asks for "a sample gallery built from
 `samples/` -- a manifest the page reads, so adding a sample does not mean editing JS". This script is
@@ -11,7 +11,7 @@ the thing that keeps that promise true:
 
 **The TSX is the single source of truth.** The manifest stores a *path* and the exported component
 name, never a copy of the source: the page fetches `samples/...` at run time, exactly as a person
-would read the file. Nothing in `designer/web/*.js` lists a sample, so adding `samples/new/Thing.tsx`
+would read the file. Nothing in the page source lists a sample, so adding `samples/new/Thing.tsx`
 and re-running this script is the whole procedure; a stale manifest fails `--check` in CI, which is
 what stops the gallery from silently missing a sample.
 
@@ -44,7 +44,7 @@ REPO_ROOT = SCRIPTS_DIR.parent.parent
 # Overridable so the self-tests can run the real script against a throwaway tree; a root that came
 # from `__file__` alone would make the generator untestable and would break if the tree were moved.
 SAMPLES_DIR = REPO_ROOT / "samples"
-MANIFEST = REPO_ROOT / "designer" / "web" / "samples.json"
+MANIFEST = REPO_ROOT / "designer" / "web" / "public" / "samples.json"
 
 # The page reads schema 1; a newer one is a page change, not a manifest edit.
 SCHEMA = 1
@@ -125,7 +125,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         help="verify the checked-in manifest matches samples/ instead of writing it",
     )
     parser.add_argument(
-        "--manifest", default=str(MANIFEST), help="manifest path (default: designer/web/samples.json)"
+        "--manifest", default=str(MANIFEST), help="manifest path (default: designer/web/public/samples.json)"
     )
     parser.add_argument(
         "--repo-root",

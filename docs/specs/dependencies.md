@@ -157,10 +157,21 @@ font bytes that FreeType already validated, so the two libraries never share a f
 
 The hosted studio's chrome and the wiki client are the two browser front ends in the repository.
 Both ship as static assets in the Pages artifact and never in a native binary, so they sit outside
-the native link line; the framework and the toolchain that build them are design-time only
+the native link line; the framework and the toolchain that build them are **design-time only**
 ([ADR-054](../../decisions/ADR-054-studio-front-end-react-vite.md), amending the page-stack wording
-of [ADR-045](../../decisions/ADR-045-browser-hosted-studio.md) without superseding it). The wiki's
-committed `package-lock.json` pins that tree; the studio commits one with its conversion.
+of [ADR-045](../../decisions/ADR-045-browser-hosted-studio.md) without superseding it). Both commit a
+`package-lock.json`, and both build with the same pins: `react`/`react-dom` `^19.0.0`, `vite`
+`^7.0.0`, `typescript` `^5.9.0`, `@vitejs/plugin-react` `^5.0.0`. `tools/wiki` is the in-repo
+precedent the studio mirrors, so the two cannot drift into different React or Vite majors by accident;
+a bump is a one-line change in both manifests and a re-record of the studio's download budget.
+
+**React is design-time only, and that is a recorded status, not an implication.** It is bundled into the
+static studio page and is never linked into an app binary or into the Wasm engine:
+[ADR-024](../../decisions/ADR-024-native-first-boundaries.md) and AGENTS.md non-negotiable 7 are
+untouched by the conversion. The built page contains no React *runtime* in the sense that matters to
+that rule -- the studio is not a Tessera app and its chrome is never Tessera-rendered
+([ADR-045](../../decisions/ADR-045-browser-hosted-studio.md) decision 3). Node/npm stays out of the
+native build: `designer/web` is outside the CMake graph and nothing in it is compiled into the engine.
 
 | Library | Status | License | Module | Role in Tessera |
 |---|---|---|---|---|
@@ -168,6 +179,10 @@ committed `package-lock.json` pins that tree; the studio commits one with its co
 | react-markdown, rehype-slug, remark-gfm | V1 design-time (wiki) | MIT | `tools/wiki` | Wiki markdown rendering, heading anchors and GFM tables |
 | Vite, @vitejs/plugin-react | V1 design-time (studio build) | MIT | `designer/web`, `tools/wiki` | Static build of both front ends (`vite build` → `dist/`, git-ignored) and hashed asset names for the versioned Pages paths ([ADR-045](../../decisions/ADR-045-browser-hosted-studio.md), ADR-054) |
 | TypeScript, @types/react, @types/react-dom | V1 design-time (studio build) | Apache-2.0 / MIT | `designer/web`, `tools/wiki` | TSX type checking (`tsc --noEmit`, part of the build) and the React type declarations |
+
+Neither front end adds a *runtime-only* package: the studio's only production dependencies are `react` and
+`react-dom`, and its gates use `react-dom/server`, which ships inside `react-dom`. That is why the page
+checks could move to server rendering without a jsdom (or any other) dependency.
 
 ## 6. Platform and HAL
 

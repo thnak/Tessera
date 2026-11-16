@@ -523,10 +523,10 @@ Verified on this Windows host (2026-11-15), native side only:
   `NATIVE CORPUS OK`, 6 cases, including a click that bubbles to a parent handler, a click on a node
   with no handler, and intermediate state threading (totals 2, 5, 9).
 
-**CI-only, and why:** the Wasm half, for the same reason as section 7.4. `$env:EMSDK` is empty on this
-box, so `tessera_input_json` is authored to the P1/P2 pattern and type-checked by the host build but
-has not been executed. The byte comparison in `scene_input_parity.py` — and therefore P4's acceptance
-sentence — is proven when the Wasm lane runs it.
+**CI-only, and why:** the Wasm half, for the same reason as section 7.4. Before #422 the authoring box had
+no `$env:EMSDK`, so `tessera_input_json` was authored to the P1/P2 pattern and type-checked by the host
+build but not executed. The byte comparison in `scene_input_parity.py` — and therefore P4's acceptance
+sentence — is proven by the lane that runs the Wasm build.
 
 ## 10. P5: share links, the sample gallery and the environment toggles
 
@@ -537,14 +537,21 @@ implemented, what is proven locally, and what only CI can prove.
 
 ### 10.1 The pieces
 
+The page's chrome is **React 19 + TypeScript built by Vite** since issue #422 (ADR-054), and this table is
+about that page. What did **not** move is the rule the round trip depends on: the codec and the state
+vocabulary are still plain ES modules with no DOM and no React, imported directly from source by
+`scripts/ci/preview_share_roundtrip.mjs`.
+
 | Piece | Where | Why it is there and not in a page |
 |---|---|---|
-| Codec | `designer/web/share.js` | Pure ES module: no DOM, no `fetch`, no Wasm. It is what makes the round trip testable in Node, and the page and the test import the same bytes |
-| State vocabulary | `designer/web/preview-state.js` | The constants and validation, shared by the codec and the toolbar; keeping it separate is what lets the codec be tested without the DOM |
-| Page chrome | `designer/web/studio.js` | Toolbar, share button and the broken-link banner, mounted once per page. Both pages need exactly this and would otherwise carry two copies |
-| Gallery | `designer/web/gallery.js` | Manifest fetch, sample fetch and the derived titles, split out of `studio.js` so the chrome module stays under the size limit. Lazy: nothing runs until the gallery is opened |
-| Manifest | `designer/web/samples.json` | Generated from `samples/**/*.tsx` by `scripts/ci/gen_sample_manifest.py`; committed so a deploy runs no generator step. The page around it is built by Vite since ADR-054 |
-| Sized layout export | `tools/codegen/wasm_scene_entry.cpp` | `tessera_scene_json_sized(...)`; the P2 signature is untouched because the parity gate pins its defaults |
+| Codec | `designer/web/src/lib/share.js` | Plain ES module: no DOM, no `fetch`, no Wasm, so the round trip is testable in Node and the page and the test import the same bytes. Typed by `share.d.ts`, never rewritten as TypeScript -- a bundled copy is not the shipped source |
+| State vocabulary | `designer/web/src/lib/preview-state.js` | The constants and validation, shared by the codec and the toolbar; keeping it separate is what lets the codec be tested without the DOM (`preview-state.d.ts` types it) |
+| Page chrome | `designer/web/src/regions/*.tsx` + `src/App.tsx` | React components for the four regions (`designer-studio-v1.md` section 3): header/tabs/toolbar, gallery, editor and three panes, canvas pane, status line. The old `studio.js` + `shell.js` + `studio-page.js` split existed to keep three hand-written modules under the size limit; a component tree does that by composition |
+| View sessions | `designer/web/src/views/*-session.ts` | The imperative half React hosts but does not render (ADR-054 decision 3): each owns one Wasm module instance, fills the childless leaves React committed, and drives its pane's status line. The canvas session also owns the WebGPU device and the one surface the engine draws |
+| Toolbar and fragment behaviour | `designer/web/src/lib/preferences.ts` | DOM-free: the local-storage toggles, the `#p5=` decode and the share link; the React toolbar and the Node smoke test call the same code |
+| Gallery | `designer/web/src/lib/gallery.ts` + `src/regions/GalleryRegion.tsx` | The manifest fetch, sample fetch and derived titles are DOM-free (Node-testable); the component fetches nothing until the strip is opened, so the manifest stays off the first-paint path |
+| Manifest | `designer/web/public/samples.json` | Generated from `samples/**/*.tsx` by `scripts/ci/gen_sample_manifest.py`; committed so a deploy runs no generator step. Vite copies it from `public/` into `dist/` |
+| Wasm loader imports | `designer/web/src/views/*-session.ts` | Each view calls `import(wasmModuleUrl("tessera_<name>.js"))` with a `@vite-ignore`, so Vite neither bundles nor preloads it: Diagnostics at first paint, Scene on its first open, Canvas plus its device on the first Run there |
 
 ### 10.2 What the toggles actually do
 
@@ -558,42 +565,36 @@ between "the toggle is wired" and "the toggle re-renders the same picture".
 snapshot path has no theme asset, so a themed preview would be a claim the module cannot keep. That
 is a spec-level gap, not a bug in this slice, and it is recorded rather than papered over.
 
+The sized export itself is `tessera_scene_json_sized(...)` in `tools/codegen/wasm_scene_entry.cpp`; the P2
+signature is untouched because the parity gate pins its defaults.
+
 ### 10.3 Verification and status
 
-Verified on this Windows host (2026-11-15):
+Verified on this Windows host (2026-11-15 for P5; re-run 2026-11-16 after the React conversion, #422):
 
-- `node scripts/ci/preview_share_roundtrip.mjs`: 18 cases, all pass. Covers the compressed (`z`),
-  gzip (`g`) and uncompressed (`u`) modes, every viewport × DPR × theme combination, multi-byte and
-  empty sources, determinism, the whole-URL and bare-fragment inputs, the version refusal, the
-  malformed and invalid-field refusals, the 8 KiB fragment cap in both directions, the
-  decompression-bomb cap, and `samples/parity-demo/Counter.tsx` encoding to 584 characters.
-- `node scripts/ci/preview_studio_smoke.mjs`: 9 stub-DOM cases, all pass. Covers lazy manifest fetch
-  (nothing before the gallery opens), one fetch per page load, a gallery pick reaching the textarea,
-  the toolbar's option sets, local persistence (environment only, never the source), the share link
-  through the address bar, a good link restoring source/viewport/theme, and a broken link showing its
-  code in the banner.
-- `node scripts/ci/preview_page_checks.mjs`: 5 static checks, all pass: every element `studio.js` looks
-  up exists in both pages, `samples.json`'s four paths exist, and neither page calls a function it does
-  not declare.
-- `python -B -m unittest discover -s scripts/tests`: 239 tests, OK, including 14 new cases for the
-  manifest generator.
-- `python -B scripts/check_source_size.py`: 0 errors; `scripts/gates.py --only docs`: PASS.
+- `preview_share_roundtrip.mjs`: 19 cases, all pass, importing the codec **from source**. Covers `z`/`g`/`u`,
+  every viewport × DPR × theme combination, multi-byte and empty sources, determinism, whole-URL and bare
+  fragments, the version refusal, the malformed/invalid refusals, the 8 KiB cap both ways, the
+  decompression-bomb cap, `samples/parity-demo/Counter.tsx` at 584 characters, and a fragment recorded from
+  the pre-merge codec decoding to the same state.
+- `preview_studio_smoke.mjs`: 11 cases against the built `dist-ssr/` entries under a stub browser. Covers the
+  rendered chrome's four regions and the toolbar's option sets, persistence (environment only, never the
+  source), the fragment winning over storage, the share link through the address bar, a good link restoring
+  source/viewport/theme, a broken link reported with its code, the lazy manifest, and manifest validation.
+- `preview_page_checks.mjs`: 15 checks against the built page. Covers the CSP (no inline or remote script,
+  every referenced asset present), every id the chrome and the three sessions resolve (from
+  `renderToStaticMarkup`, per view), the redirect's query/fragment preservation for six old-URL shapes, the
+  manifest paths, the purity of the two codec modules, the three lazy Wasm imports, and dangling calls.
+- `preview_browser_check.mjs`: 11 browser checks against the assembled site, all pass (three views, the lazy
+  request set, a `#p5=` share link, both stubs forwarding, and a real WebGPU frame).
+- `python -B -m unittest discover -s scripts/tests`: 239 tests, OK; `check_source_size.py`: 0 errors.
 
-**A real bug the smoke test found, and why it is worth naming:** the gallery's first version read
-`aria-expanded`, wrote it back unchanged, then hid the panel on `!open`, so the button never opened
-anything. A stub-DOM test caught it; nothing in the codec test could have. Four more defects turned up
-the same way (a missing `ShareError` import that would have thrown on every broken link, a `dpr` that
-was a number before a click and a string after, a gallery note node detached from the container, and
-a broken link leaving an empty editor instead of the page's sample).
+**The browser half.** The browser checks could not run on the authoring box before #422; they now do (Chrome
+143 with WebGPU, against `build/pages`), so the result above is recorded rather than deferred to the deploy.
+They still do not cover a browser without WebGPU: the unsupported state is asserted in the pane's markup, not
+by hiding the adapter. The deploy and a human opening the URL remain the last word on CSS and
+`CompressionStream`.
 
-**CI-only, and why:** the browser half. The Wasm module cannot be built on this box (`$env:EMSDK` is
-empty), so `tessera_scene_json_sized` has **not** been executed as Wasm; it is type-checked by the
-host OBJECT-library build, and the Pages lane greps the built module for the export. The page itself —
-that `index.html`/`scene.html` render, that the fragment survives a real navigation, that
-`CompressionStream` behaves as expected in a browser — is verified by the deploy and by opening
-https://thnak.github.io/Tessera/. The Node tests are honest about being codec and stub-DOM tests, not
-browser tests.
-
-**§11: the merge into one page.** The three pages described above are now one `index.html` with three
-views; the module layout, the old-URL redirect that keeps `#p5=` links working, and the P6 re-pin are
-in [`studio-page.md`](studio-page.md).
+**§11 and §12: the merge, then the conversion.** The three pages above are now one `index.html` with three
+views (#392), and its chrome is React 19 + TypeScript built by Vite (#422, ADR-054). Both are recorded in
+[`studio-page.md`](studio-page.md), together with the two budget re-records (§5.1, §5.2).

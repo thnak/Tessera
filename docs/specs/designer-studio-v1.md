@@ -75,21 +75,32 @@ fonts load from the project, not the bundle. The budget is measured by the studi
 reported as a warning; the owner decided (2026-11-11) that it stays a warning in V1 and becomes a
 hard gate only after D-S5 is stable.
 
-**Status (issue #170, P6).** The gate exists and measures what has landed:
+**Status (issue #170, P6; re-recorded by #392 and #422).** The gate exists and measures what has landed:
 `scripts/check_preview_budget.py` against `tests/golden/perf/preview_budget.json`, run in
-`.github/workflows/pages.yml`. It enforces the **compressed download** of the P1 page (module + page
+`.github/workflows/pages.yml`. It enforces the **compressed download** of the built page (module + page
 assets, gzip) and warns on the two latency rows. Those rows are the engine's share only --
 `cold_engine_ready_ms` and `edit_compile_ms` measure module instantiation plus compile in the Node
 host -- because the browser's parse and the WebGPU frame (P3) do not exist yet, so the table's
 `≤ 4 s` and `≤ 1 s` targets above are **not** what is being checked. The browser lane adds
 `cold_first_frame_ms`/`edit_to_view_ms` when there is a frame to time; the download row is the slice's
-number and is already enforced, at 375 KiB gzip for the P1 page.
+number and is already enforced.
 
-**React re-record (ADR-054 decision 6).** The 375 KiB row measures the hand-written P1 page, before
-the front-end conversion. The React shell re-records it in the conversion's landing, measured against
-this table and the two-sided ratchet (an unrecorded improvement fails the same as a regression).
-Until then the number describes the pre-conversion page and must not be inherited as if it measured
-the converted one.
+**The download row, as recorded.** `download_gzip_bytes` moved twice, each time as a reviewed edit of the
+budget file with the reason in the diff (`--update` refuses a raise by design, so a re-pin is never a
+loosening):
+
+| Landing | Recorded | Why |
+|---|---|---|
+| P6 (#170) | 375 KiB | the hand-written P1 page |
+| #392 (the three-page merge) | 436794 bytes | one artifact now ships all three views and the two redirect stubs |
+| #422 (React 19 + Vite, ADR-054 decision 6) | 470568 bytes | React's framework floor (+69007 gzip) minus the vanilla JS it replaces (-30211) minus minified CSS/HTML (-5022); measured against the built `designer/web/dist/`, not the sources |
+
+The measurement walks the built `dist/` directory rather than naming files, because a Vite build's assets
+carry content hashes a fixed list cannot name; `designer/web` is a Vite + React 19 + TypeScript project, so
+the checked-in sources are no longer the shipped bytes. The current attribution is in
+`studio-page.md` section 5.2 and in the budget file's own `note`, both measured on the recording host.
+The two-sided ratchet still applies in both directions: an unrecorded improvement fails exactly like a
+regression.
 
 ## 3. Page composition
 
@@ -151,6 +162,17 @@ engine still draws exactly one thing, the canvas. Styles are static CSS (one sty
 modules) so the strict CSP holds; there is no CSS-in-JS runtime and no second framework. The viewer
 stays lazy: the shell mounts without instantiating the engine and the worker starts when a preview is
 requested, so a failed engine boot leaves a working editor and a diagnostic.
+
+**What has landed (issue #422).** The page currently hosted is the preview page of sections 7-12, not
+the full project workspace of this spec: the four regions exist (`regions/*.tsx`), the three views are
+React panes over three lazy Wasm modules, and the file tree, editor widget and skins are still the
+follow-ups this spec sequences. It is one TypeScript module per responsibility, not "one ES module per
+hand-written file": the conversion replaced the vanilla-JS module split with components plus
+DOM-free library modules plus view sessions, which is what keeps each file inside the source-size
+limit. Two modules stay plain JavaScript on purpose -- `share.js` and `preview-state.js`, the share
+codec and its vocabulary -- because `scripts/ci/preview_share_roundtrip.mjs` imports them directly
+from source and must keep testing the same bytes the page ships (ADR-054, Consequences). They have no
+DOM and no React; `.d.ts` files type them for the React side.
 
 ## 4. Host and viewer in one page
 

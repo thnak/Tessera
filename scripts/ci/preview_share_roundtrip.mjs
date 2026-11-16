@@ -1,36 +1,44 @@
 // SPDX-License-Identifier: MIT
 //
 // Round-trip test for the P5 share-link codec (issue #169; the format is docs/specs/
-// designer-studio-v1.md section 7.1, the codec designer/web/share.js).
+// designer-studio-v1.md section 7.1, the codec designer/web/src/lib/share.js).
 //
 //   node scripts/ci/preview_share_roundtrip.mjs
 //
+// **Where the codec lives now.** Issue #422 converted the page to React 19 + Vite (ADR-054) and moved the
+// codec to `designer/web/src/lib/`, but the two files it tests -- `share.js` and `preview-state.js` -- are
+// still plain ES modules with no DOM and no React, and this test still imports them **directly, from source,
+// with no build step**. That is the whole point of ADR-054's risk note: the 19 checks below keep testing the
+// same bytes the page imports, not a bundled copy of them. The page checks
+// (`preview_page_checks.mjs`) assert the same property from the other side, so a future edit that made either
+// file DOM-dependent or bundler-only fails here and there at once.
+//
 // What this covers, and what it deliberately does not:
 //
-//   * every branch of `encodeShare`/`decodeShare` that does not need a DOM: the compressed path
-//     (`z`), the gzip path (`g`), and the uncompressed fallback (`u`) that older browsers use;
+//   * every branch of `encodeShare`/`decodeShare` that does not need a DOM: the compressed path (`z`), the
+//     gzip path (`g`), and the uncompressed fallback (`u`) that older browsers use;
 //   * the envelope fields, the per-field validation, the version refusal, and the two size caps;
 //   * determinism (the same state must produce the same fragment, or a shared link would churn);
-//   * the real samples from `samples/`, read from disk, so the claim "the samples fit a link" is
-//     measured against the shipped bytes rather than a fixture.
+//   * the real samples from `samples/`, read from disk, so the claim "the samples fit a link" is measured
+//     against the shipped bytes rather than a fixture.
 //
-// It does NOT cover the page: `designer/web/app.js` and `scene.js` wire these functions to the DOM
-// and to `location`, and that wiring is what the Pages lane exercises when it assembles and serves
-// the site. Claiming otherwise would be claiming browser behaviour no run here observes.
+// It does NOT cover the page: the React chrome wires these functions to a fragment and to `location`, and
+// that wiring is what the browser check exercises. Claiming otherwise would be claiming browser behaviour no
+// run here observes.
 //
-// `globalThis.CompressionStream` exists in Node 18+, so the compressed branches are real code paths
-// here, not simulations. The uncompressed path is reached with `{compress: false}`, which is also how
-// the page's own feature fallback is chosen.
+// `globalThis.CompressionStream` exists in Node 18+, so the compressed branches are real code paths here, not
+// simulations. The uncompressed path is reached with `{compress: false}`, which is also how the page's own
+// feature fallback is chosen.
 
-import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = resolve(HERE, '..', '..');
-const SHARE_URL = new URL('../../designer/web/share.js', import.meta.url);
-const STATE_URL = new URL('../../designer/web/preview-state.js', import.meta.url);
+const REPO_ROOT = resolve(HERE, "..", "..");
+const SHARE_URL = new URL("../../designer/web/src/lib/share.js", import.meta.url);
+const STATE_URL = new URL("../../designer/web/src/lib/preview-state.js", import.meta.url);
 
 const share = await import(SHARE_URL.href);
 // The state vocabulary is its own module (the toolbar uses it without importing the codec), so the

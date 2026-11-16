@@ -1,0 +1,34 @@
+fix(ci): point the sample-manifest generator at its new home under Vite's public/
+
+The Pages lane caught this, exactly where the conversion could not verify locally.
+
+The React conversion moved the committed gallery manifest from
+`designer/web/samples.json` to `designer/web/public/samples.json`, because Vite copies
+`public/` verbatim into `dist/` and `dist/` is what the page fetches. The generator kept
+writing and checking the **old** path, so `gen_sample_manifest.py --check` failed in the
+Pages `build` job:
+
+```
+ERROR: designer/web/samples.json is missing; run python -B scripts/ci/gen_sample_manifest.py
+```
+
+**The failure mode is worth naming.** The check runs *after* `npm run build`, and the build
+is what removes the old path, so the sequence was: the page builds correctly, the checks on
+the built output all pass, and then a generator looks for a file the build just deleted. It
+would have failed on every future run, and the error message would have pointed at a
+missing file rather than at a stale path -- the kind of message that invites "just run the
+generator", which would recreate the file in the wrong place and make the page 404 the
+manifest instead.
+
+Only the path moves. The docstring's own reason for committing the artifact still holds --
+Pages needs no build step for the manifest itself, since `public/` is copied rather than
+generated.
+
+Verified: `python -B scripts/ci/gen_sample_manifest.py --check` -> "sample manifest: 4
+sample(s), up to date"; `preview_page_checks` all pass; `preview_share_roundtrip` 19/19;
+`check_preview_budget.py --check` 0 errors; `unittest discover -s scripts/tests` 377 OK.
+
+Swept for the same defect class: `git grep` over `scripts/` and `.github/` for the other
+pre-conversion paths (`app.js`, `scene.js`, `canvas.js`, `index.html`, `app.css`,
+`share.js`, `preview-state.js`, `studio.js`) finds only one historical comment recording
+which commit produced the share-link fixture, which is correct as written.
