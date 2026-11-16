@@ -213,6 +213,17 @@ bool Builder::build_node(const ir::Node& node, ui::Node& parent, std::size_t dep
             return false;
         }
         scene.set_paint_data(text_paint(std::move(text)));
+    } else if (node.kind == ir::NodeKind::Button) {
+        // A `Button`'s caption is its `label` prop, not its text child, so without this a button
+        // painted an empty box even once the preview had a font (issue #387).
+        const auto label = node.props.find("label");
+        if (label != node.props.end() && label->second != nullptr) {
+            std::string text;
+            if (!evaluate_text(evaluator_, *label->second, scope_, text, result_.error)) {
+                return false;
+            }
+            scene.set_paint_data(text_paint(std::move(text)));
+        }
     } else if (node.kind == ir::NodeKind::Text && !node.children.empty()) {
         // `<Text><b>x</b></Text>` is the inline-span form, which needs the span byte ranges codegen
         // computes while it creates the children (emit_node_behavior.cpp).

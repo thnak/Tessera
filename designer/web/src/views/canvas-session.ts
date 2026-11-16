@@ -38,6 +38,7 @@ import { wasmModuleUrl } from "../lib/module-url";
 import type { StatusReporter, ViewSession } from "../lib/views";
 import { callExport, requireExports, type WasmModule } from "../lib/wasm-call";
 import { acquireDevice, handOverDevice, type CanvasModule } from "./canvas-device";
+import { FONT_FAMILY, handOverFont, loadPreviewFont, readFontStatus } from "./canvas-font";
 import {
   requestedViewport,
   sizeToDevicePixels,
@@ -187,8 +188,7 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
     // A device already acquired is reused. A lost device is cleared in the handler below, which is the one
     // case that re-acquires.
     if (gpu === null) {
-      const acquired = await acquireDevice();
-      if (acquired.error !== undefined) {
+      const acquired = await acquireDevice();      if (acquired.error !== undefined) {
         pane.showUnsupported(acquired.error);
         return false;
       }
@@ -215,6 +215,28 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
     return true;
   }
 
+  /**
+   * Hands the module its font, once per device: the bytes are fetched from this site and copied into the
+   * module's heap (issue #387). A failure is **not** fatal -- the preview then paints boxes only and the
+   * pane says so, which is the documented degraded state -- so this never returns a reason the caller must
+   * act on, only the sentence to show.
+   */
+  async function loadFont(module: WasmModule & CanvasModule): Promise<string | null> {
+    const loaded = await loadPreviewFont();
+    if (loaded.error !== undefined) {
+      return loaded.error;
+    }
+    const handover = handOverFont(module as never, loaded.bytes);
+    if (handover.error !== undefined) {
+      return handover.error;
+    }
+    const status = readFontStatus(module as never);
+    // The module copies the bytes into its own `FontFace`, so the buffer stays cached on the page for a
+    // later module instance rather than being kept alive per device.
+    pane.setFontState(status?.loaded === true ? (status.family ?? FONT_FAMILY) : null);
+    return status?.loaded === true ? null : (status?.error ?? "the module reported no font");
+  }
+
   async function run(): Promise<void> {
     if (factory === null) {
       return;
@@ -226,6 +248,17 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
     if (!ready) {
       options.onReady(true);
       return;
+    }
+    // The font, after the device: the atlas needs GPU page textures, so `set_font` refuses before a
+    // device exists. A failed fetch degrades the preview instead of failing it.
+    if (gpu !== null) {
+      const fontError = await loadFont(gpu.module);
+      if (fontError !== null) {
+        // Named, not silent: a designer must be able to tell "this source has no text" from "the font
+        // did not load", and the status line is where the pane already reports that class of fact.
+        pane.setStatus("font unavailable; text is not drawn", "warning");
+        pane.setFontState(null, fontError);
+      }
     }
     requestFrame();
   }

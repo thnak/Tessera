@@ -167,7 +167,7 @@ def parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
     parser.add_argument("--node", help="Node that runs the canvas module (normally $EMSDK_NODE)")
     parser.add_argument(
         "--mode",
-        choices=("native-reference", "canvas-report", "compare"),
+        choices=("native-reference", "canvas-report", "canvas-font", "compare"),
         default="native-reference",
         help="which half of the gate to run (default: native-reference)",
     )
@@ -177,6 +177,9 @@ def parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
     parser.add_argument("--write-goldens", action="store_true",
                         help="write --golden-dir from the native render instead of comparing")
     parser.add_argument("--size", default="320x240", help="the layout viewport (default 320x240)")
+    parser.add_argument("--font",
+                        help="the shipped preview font, for --mode canvas-font "
+                             "(default: designer/web/public/fonts/IBMPlexSans-Latin.ttf)")
     parser.add_argument("--repo-root", default=str(REPO_ROOT))
     return parser.parse_args(argv)
 
@@ -358,6 +361,43 @@ def canvas_report(args: argparse.Namespace) -> int:
     return 0
 
 
+def canvas_font(args: argparse.Namespace, repo_root: Path) -> int:
+    """The canvas module's font ABI (issue #387), checked without a browser.
+
+    The page fetches one face from its own origin, writes the bytes into the module's heap and calls
+    `tessera_canvas_set_font`; this loads the same module under Node, performs the same handover, and
+    asserts the answers. Node has no `navigator.gpu`, so the module refuses the bytes for want of a
+    device - which is the contract worth pinning here, because the alternative (a silent success with
+    no atlas) would show up in a browser as a canvas of empty boxes with a healthy status line.
+
+    The glyph proof is native: `--native-reference` and the `scene_frame` ctest paint text from these
+    same bytes. This mode proves the *page's* half of the handover, which those cannot.
+    """
+    canvas = Path(args.canvas).resolve() if args.canvas else None
+    if canvas is None or not canvas.is_file():
+        print("SETUP ERROR: --canvas not found: {}".format(args.canvas), file=sys.stderr)
+        return 2
+    font = (
+        Path(args.font).resolve()
+        if args.font
+        else repo_root / "designer" / "web" / "public" / "fonts" / "IBMPlexSans-Latin.ttf"
+    )
+    if not font.is_file():
+        print("SETUP ERROR: the preview font is missing: {}".format(font), file=sys.stderr)
+        return 2
+    node = args.node or "node"
+    probe = Path(__file__).with_name("scene_frame_canvas_font_probe.mjs")
+    outcome = subprocess.run([node, str(probe), str(canvas), str(font)], capture_output=True,
+                             text=True, timeout=300)
+    sys.stdout.write(outcome.stdout)
+    if outcome.returncode != 0:
+        sys.stderr.write(outcome.stderr)
+        print("FAIL: the canvas module did not honour the font ABI", file=sys.stderr)
+        return 1
+    print("CANVAS FONT OK")
+    return 0
+
+
 def compare(args: argparse.Namespace) -> int:
     """Compare two PNG directories under P3's tolerance pair.
 
@@ -418,6 +458,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return native_reference(args, repo_root)
     if args.mode == "canvas-report":
         return canvas_report(args)
+    if args.mode == "canvas-font":
+        return canvas_font(args, repo_root)
     return compare(args)
 
 

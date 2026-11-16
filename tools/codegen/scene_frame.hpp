@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "preview_text.hpp"
 #include "scene_prepare.hpp"
 #include "scene_preview.hpp"
 #include "tessera/rendering/rhi/device.hpp"
@@ -24,11 +25,13 @@
 //
 // Two deliberate limits, both reported in `SceneFrameResult` instead of hidden:
 //
-//  - **No text.** Drawing a glyph run needs the FreeType/HarfBuzz stack plus embedded font bytes;
-//    the preview module ships no font (a subset plus its licensing is its own decision), so a node
-//    whose payload is text is painted as its box only and counted in `text_skipped`. The parity
-//    scene set of tests/gpu/backends has no glyph runs, so the render comparison this stage exists
-//    for is unaffected.
+//  - **No text without font bytes.** Drawing a glyph run needs the FreeType/HarfBuzz stack *and* a
+//    font. The stack is linked into every build of this driver (it is the production one), but a
+//    font is an *input*: `scene_frame_paint_tree()` takes an optional `PreviewTextStack`, and with
+//    none supplied a node whose payload is text is painted as its box only and counted in
+//    `text_skipped`. That is what keeps a failed font fetch a degraded preview rather than a broken
+//    one, and it is why the font-free shape of a frame is byte-identical to what it was before
+//    issue #387.
 //  - **No vector/image assets.** A preview source has no embedded AssetBundle, so
 //  `PaintKind::Vector`
 //    and `PaintKind::Image` payloads are counted in `vector_skipped`/`image_skipped` and not drawn.
@@ -57,7 +60,14 @@ struct SceneFrameResult {
     std::size_t backgrounds = 0;
     std::size_t borders = 0;
     std::size_t texts = 0;
+    // Text runs emitted by the paint pass that produced no ink. Non-zero only when no font was
+    // supplied (`texts` then equals `text_skipped`); with a font this is 0, which is the acceptance
+    // this slice exists for.
     std::size_t text_skipped = 0;
+    // Glyph bitmaps the bounded atlas could not place (see `PreviewTextCounters`). A frame can draw
+    // its text correctly and still report a drop when the atlas is exhausted; the run advances and
+    // only that glyph's ink is absent.
+    std::size_t glyphs_dropped = 0;
     std::size_t vectors_skipped = 0;
     std::size_t images_skipped = 0;
     std::size_t backdrops_skipped = 0;
@@ -93,11 +103,13 @@ scene_frame_pipeline_desc(rhi::TextureFormat format = rhi::TextureFormat::R8G8B8
 //
 // `target` and `device` must outlive the call, and `desc` must describe `target`. `pipeline` is
 // used as given when it carries a vertex layout; otherwise `scene_frame_pipeline_desc()` supplies
-// one for `desc.format`.
+// one for `desc.format`. `text` may be null, which paints the boxes only and counts every run in
+// `text_skipped` (the font-free preview, unchanged from before issue #387).
 [[nodiscard]] SceneFrameResult scene_frame_paint(const PreparedScene& scene, rhi::Device& device,
                                                  rhi::RenderTarget& target,
                                                  const rhi::RenderTargetDesc& desc,
-                                                 const rhi::PipelineDesc& pipeline = {});
+                                                 const rhi::PipelineDesc& pipeline = {},
+                                                 PreviewTextStack* text = nullptr);
 
 // The same paint pass for a tree the caller owns rather than one `prepare_scene()` just built. It
 // exists for the persistent canvas session (#388): a session keeps its tree alive across pointer
@@ -106,11 +118,15 @@ scene_frame_pipeline_desc(rhi::TextureFormat format = rhi::TextureFormat::R8G8B8
 // a different size than its box.
 //
 // Trivially equal to `scene_frame_paint(scene, ...)` on a tree `prepare_scene()` produced: same
-// renderer, same sink, same counters. `scene_frame_paint` is the two-line wrapper.
+// renderer, same sink, same counters. `scene_frame_paint` is the wrapper.
+//
+// `text` carries the font: the shaper and atlas renderer the sink draws runs with. Null paints the
+// boxes only, which is the documented degraded state a failed font fetch produces.
 [[nodiscard]] SceneFrameResult
 scene_frame_paint_tree(const ui::Node& root, const ui::style::CompiledStyleSheet& sheet,
                        rhi::Device& device, rhi::RenderTarget& target,
-                       const rhi::RenderTargetDesc& desc, const rhi::PipelineDesc& pipeline = {});
+                       const rhi::RenderTargetDesc& desc, const rhi::PipelineDesc& pipeline = {},
+                       PreviewTextStack* text = nullptr);
 
 // Evaluates `text` exactly as `scene_preview_document()` does (same stages, same options, same
 // salt) and then paints the resulting tree with `ui::paint::paint_scene()` through the batched 2D
@@ -124,15 +140,19 @@ scene_frame_paint_tree(const ui::Node& root, const ui::style::CompiledStyleSheet
 // the null backend) accept. A backend that builds from SPIR-V must pass its own description, which
 // is why the parameter exists rather than being constructed inside.
 //
-// Deterministic for a given (source, options, component, extent, pipeline) on a deterministic
-// device: the null backend records the same command stream every run, and a software Vulkan device
-// produces the same bytes. `pixels_available` is false for a backend that cannot map synchronously
-// (WebGPU in a browser); the command stream is still recorded, the pixels are simply absent, and
-// the caller gates on the counters instead of comparing an empty image.
-[[nodiscard]] SceneFrameResult scene_frame_render(std::string_view text,
-                                                  const ScenePreviewOptions& options,
-                                                  rhi::Device& device, rhi::Extent2D extent,
-                                                  std::string_view component = {},
-                                                  const rhi::PipelineDesc& pipeline = {});
+// `text` is the font the frame paints with. It must already be loaded (the caller chooses the
+// bytes, see `preview_text.hpp`), and when it is null this function lays the scene out with the
+// font-free stub measurer and counts every run in `text_skipped` - the exact behaviour of every
+// caller before issue #387, so a page that could not fetch its font degrades instead of breaking.
+//
+// Deterministic for a given (source, options, component, extent, pipeline, font bytes) on a
+// deterministic device: the null backend records the same command stream every run, and a software
+// Vulkan device produces the same bytes. `pixels_available` is false for a backend that cannot map
+// synchronously (WebGPU in a browser); the command stream is still recorded, the pixels are simply
+// absent, and the caller gates on the counters instead of comparing an empty image.
+[[nodiscard]] SceneFrameResult
+scene_frame_render(std::string_view text, const ScenePreviewOptions& options, rhi::Device& device,
+                   rhi::Extent2D extent, std::string_view component = {},
+                   const rhi::PipelineDesc& pipeline = {}, PreviewTextStack* font = nullptr);
 
 } // namespace tessera::compiler::codegen::cli

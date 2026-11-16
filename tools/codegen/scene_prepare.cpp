@@ -9,6 +9,7 @@
 #include "tessera/compiler/rules/analyze.hpp"
 #include "tessera/ui/layout/layout_engine.hpp"
 
+#include <memory>
 #include <span>
 #include <string>
 #include <string_view>
@@ -105,7 +106,8 @@ std::string_view preview_stylesheet() noexcept {
 }
 
 PreparedScene prepare_scene(std::string_view text, const ScenePreviewOptions& options,
-                            std::string_view component) {
+                            std::string_view component,
+                            const std::shared_ptr<const text::TextMeasurer>& measurer) {
     // Parse, then analyse: the CLI stops at the first stage that fails, so the preview produces no
     // tree for the same inputs it would refuse to compile.
     const jsx::ModuleParseResult parsed = jsx::parse_module(text);
@@ -161,8 +163,9 @@ PreparedScene prepare_scene(std::string_view text, const ScenePreviewOptions& op
 
     scene.sheet = style::compile_stylesheet(preview_stylesheet());
     ui::layout::LayoutEngine engine;
-    const SceneLayoutResult laid_out = layout_scene(
-        *scene.root, *scene.sheet, engine, options.width, options.height, options.dpi_scale);
+    const SceneLayoutResult laid_out =
+        layout_scene(*scene.root, *scene.sheet, engine, options.width, options.height,
+                     options.dpi_scale, measurer);
     if (!laid_out.error.empty()) {
         return failed(laid_out.error);
     }

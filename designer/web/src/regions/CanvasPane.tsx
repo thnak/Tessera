@@ -36,6 +36,7 @@ export function CanvasPane({
   statVerticesRef,
   statNodesRef,
   statDprRef,
+  statFontRef,
 }: {
   view: ViewDefinition;
   statusRef: RefObject<HTMLDivElement | null>;
@@ -51,6 +52,7 @@ export function CanvasPane({
   statVerticesRef: RefObject<HTMLElement | null>;
   statNodesRef: RefObject<HTMLElement | null>;
   statDprRef: RefObject<HTMLElement | null>;
+  statFontRef: RefObject<HTMLElement | null>;
 }) {
   return (
     <section
@@ -111,6 +113,13 @@ export function CanvasPane({
         </dd>
         <dt>Device pixel ratio</dt>
         <dd id="stat-dpr" ref={statDprRef}>
+          -
+        </dd>
+        {/* Issue #387: which face the text is painted with. Part of the frame counters rather than a
+            separate box, because "is text drawn, and with what" is a property of the frame the counters
+            already describe. */}
+        <dt>Font</dt>
+        <dd id="stat-font" ref={statFontRef}>
           -
         </dd>
       </dl>

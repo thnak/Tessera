@@ -159,15 +159,15 @@ source text -> jsx parse -> analyze -> lower -> assign_identity(salt)
             -> ui::automation::snapshot_scene() -> snapshot_to_json()
 ```
 
-Nothing in that path reads the filesystem, creates a device or RHI object, touches a clock, or
-depends on the locale. The null-RHI claim is exactly this: layout stops at the scene's bounds and
-never reaches for a render target, so the same code runs on any lane and in the module.
+Nothing in that path reads the filesystem, creates a device or RHI object, touches a clock or
+depends on the locale: layout stops at the scene's bounds and never reaches for a render target, so the
+same code runs on any lane and in the module.
 
-The tree is built on the **same `ui::Node` surface generated C++ uses** — `set_element_kind`,
-`set_automation_id`, `set_element_id`, `set_class_name`, `set_role`, `set_aria`,
-`set_inline_style`, `set_paint_data`, `set_focusable`, the scroll flags, `add_child` — in the order
-`emit_node_attributes.cpp` and `emit_node_behavior.cpp` apply them. A preview tree is therefore the
-tree a native build would have built for the same IR, not a parallel model of it.
+The tree is built on the **same `ui::Node` surface generated C++ uses** (`set_element_kind`,
+`set_automation_id`, `set_element_id`, `set_class_name`, `set_role`, `set_aria`, `set_inline_style`,
+`set_paint_data`, `set_focusable`, the scroll flags, `add_child`) in the order
+`emit_node_attributes.cpp` and `emit_node_behavior.cpp` apply them, so a preview tree is the tree a
+native build would have built, not a parallel model of it.
 
 **Not evaluated by this slice**, and reported as `TESSERA_SCENE_UNSUPPORTED` with an empty `nodes`
 array rather than approximated: user component instances (`NodeKind::Component`, which needs prop
@@ -234,26 +234,21 @@ Verified on this Windows host (2026-11-15), native side only:
 
 - `python -B scripts/ci/scene_snapshot_native.py --native build/.../tessera_scene_preview.exe`:
   `NATIVE CORPUS OK`, 11 cases, node counts 5/4/3/4/4/6/6/3/3/0/0.
-- `ctest -R "scene|layout|parity|automation|eval|snapshot"`: 34/34 pass, including the new
-  `scene_snapshot` test (`tests/unit/scene_snapshot_tests.cpp`), which pins preorder + parent
-  indices, derived paths, the annotation override, hidden-subtree omission, both caps, and the
-  document bytes.
-- The full suite (555 tests) and `scripts/check_source_size.py` / `scripts/gates.py --only docs` are
-  clean.
+- `ctest -R "scene|layout|parity|automation|eval|snapshot"`: 34/34 pass, including the
+  `scene_snapshot` test (`tests/unit/scene_snapshot_tests.cpp`), which pins preorder + parent indices,
+  derived paths, the annotation override, hidden-subtree omission, both caps and the document bytes.
+- The full suite (555 tests) and `scripts/check_source_size.py` / `scripts/gates.py --only docs` are clean.
 
-**CI-only, and why:** the Wasm half. `$env:EMSDK` is empty on this box and P1 confirmed Emscripten
-cannot be built here, so `tessera_scene_preview_wasm` was authored to the P1 pattern and is
-type-checked by the host OBJECT-library build, but the module itself has **not** been executed. The
-byte comparison in `scene_snapshot_parity.py` — and therefore P2's acceptance sentence — is proven
-only when the new `wasm-parity` step runs in CI. That is stated rather than implied.
+**CI-only, and why:** the Wasm half. `tessera_scene_preview_wasm` follows the P1 pattern and the host
+OBJECT-library build type-checks it, but the byte comparison in `scene_snapshot_parity.py` — and
+therefore P2's acceptance sentence — is proven only where the `wasm-parity` step runs.
 
 ## 8. P3: the WebGPU canvas
 
 P3's acceptance is **"the canvas render is within tolerance of the lavapipe golden for the parity
-samples"**. It is one sentence about two artifacts, and the two are produced by different machines, so
-this section is mostly about which half is proven where — deliberately, because the tempting shortcut
-(Node loads the module, compares pixels) is not available and a fake version of it would be worse than
-no gate.
+samples"**: one sentence about two artifacts produced by different machines, so this section is mostly
+about which half is proven where — because the tempting shortcut (Node loads the module, compares
+pixels) is not available, and a fake version of it would be worse than no gate.
 
 ### 8.1 One pipeline, three consumers
 
@@ -276,18 +271,26 @@ root node, and the stylesheet the layout resolved against). Three consumers walk
 | P3 native frame | `scene_frame.cpp` (`scene_frame_render`) | a PNG through an RHI device |
 | P3 browser frame | `scene_frame.cpp` (`scene_frame_paint`), called by `wasm_canvas_entry.cpp` | a WebGPU frame on a canvas-owned target |
 
-`scene_preview.cpp` is now a thin wrapper, so the P2 parity gate keeps comparing exactly what it
-compared before — verified byte-identical on the same corpus.
+`scene_preview.cpp` is now a thin wrapper, so the P2 parity gate keeps comparing exactly what it did
+before — verified byte-identical on the same corpus.
 
 The paint half is `ui::paint::paint_scene()` through `Batched2DSink`/`Batched2DRenderer`, the same
 objects the native window driver and the golden harness use. A preview frame and a native frame are
 therefore the same command stream by construction, not by agreement between two implementations.
 
-**What a preview frame does not paint, and why.** The preview module ships no font and no
-`AssetBundle`, so a text run is counted in `text_skipped` and a vector/image payload in
-`vectors_skipped`/`images_skipped`; the node's box is still painted. This is a missing *input*, not a
-missing capability, and it is reported rather than approximated. The corpus below has no glyph runs,
-so it does not affect the render comparison.
+**Text is painted, from font bytes the page supplies (issue #387).** The module still embeds no font:
+the page fetches one face from its own origin and hands over the bytes through
+`tessera_canvas_set_font(ptr, size)`, which the module gives to the production
+`FontFace`/`HarfBuzzShaper`/`TextRenderer` stack (`tools/codegen/preview_text.hpp`). Runs are therefore
+shaped and atlased as a native frame draws them, and `textSkipped` is 0 for a sample the face covers.
+Before the bytes arrive — and after a failed fetch — the old behaviour stands, so a missing font
+degrades rather than breaks the preview. A glyph the bounded atlas cannot place is counted in
+`glyphsDropped` and the run still advances, so the layout is unaffected.
+
+**What else a preview frame does not paint, and why.** The module ships no `AssetBundle`, so a
+vector/image payload is counted in `vectors_skipped`/`images_skipped` and the node's box is still
+painted. This is a missing *input*, not a missing capability, and it is reported rather than
+approximated; the parity corpus has no such payloads, so it does not affect the comparison.
 
 ### 8.2 The preview stylesheet now paints
 
@@ -295,33 +298,26 @@ P2's sheet gave the intrinsic element kinds a size and nothing else, which was r
 wrong for a render gate: a sheet that paints nothing leaves both images a single clear colour, and two
 clear-colour images are byte-identical — the render equivalent of "both sides returned `{"nodes":[]}`".
 The sheet now carries background colours and one `border-radius`, and the gate declares a **minimum
-draw-call count** per case, the anti-vacuity rule P2 applies to node counts.
-
-The clear colour is the app window background (`rgba8(11, 18, 32)`, `detail::frame_clear_color()` in
-`src/app/window_internal.hpp`), not black, so a preview and the native window of the same stylesheet
-start from the same pixel everywhere the sheet paints nothing.
+draw-call count** per case, the anti-vacuity rule P2 applies to node counts. The clear colour is the app
+window background (`rgba8(11, 18, 32)`, `detail::frame_clear_color()` in `src/app/window_internal.hpp`),
+not black, so a preview and the native window of the same stylesheet start from the same pixel.
 
 ### 8.3 What can and cannot be proven, and by what
 
 | Half | Where it runs | What it proves |
 |---|---|---|
 | `prepare_scene` + frame command stream + report | `scene_frame` ctest, any host | the path builds, lays out, records draws, is deterministic, and the counters are not vacuous |
+| glyph runs from shipped font bytes | `scene_frame` ctest, any host | text paints with a font, is skipped without one, and the atlas reports what it drops (#387) |
 | lavapipe reference render | `webgpu.yml` `canvas-native-parity` (Ubuntu + `mesa-vulkan-drivers`) | the reference images exist, are deterministic across processes, and meet their minimum draw counts |
 | WebGPU candidate render | **nowhere automatically** | needs a browser with a real WebGPU device |
 | the pixel comparison itself | `tessera_scene_frame_compare`, any host | the two PNGs are within `webgpu_vs_lavapipe` |
 
 **The honest statement.** The pixel acceptance cannot be proven on this machine or on a hosted CI
-runner. Three independent facts block it, and none is a matter of effort:
-
-1. **Node has no WebGPU.** `webgpu_wasm_smoke.cpp` records this explicitly: `navigator.gpu` does not
-   exist in Node, so a module loaded there cannot create an adapter, and no frame can be drawn. This
-   is not "not yet wired" — there is no device to draw with.
-2. **A browser needs a GPU.** The WebGPU candidate is a browser artifact. Hosted runners have no GPU,
-   so a headless browser there would fall back to a software adapter or refuse; either way the frame
-   would not be the frame a user sees, which is what the acceptance is about.
-3. **The golden must be lavapipe** (ADR-009). A hardware driver's pixels are one vendor's rasterizer
-   and cannot be a reference. The dev box used for this slice has an RTX 4060 and no lavapipe
-   manifest, so `--write-goldens` **refuses** there rather than committing hardware pixels.
+runner. Three independent facts block it, and none is a matter of effort: Node has no `navigator.gpu`,
+so a module loaded there has no device to draw with; the WebGPU candidate is a *browser* artifact and a
+hosted runner has no GPU, so a headless browser would fall back to a software adapter and the frame
+would not be the frame a user sees; and the golden must be lavapipe (ADR-009), whose manifest this dev
+box does not have, so `--write-goldens` **refuses** here rather than committing hardware pixels.
 
 So the slice lands three things and names the fourth as remaining:
 
@@ -344,10 +340,10 @@ Measuring the delta between a hardware WebGPU frame and a lavapipe golden is exa
 
 The page owns the surface, the module owns the drawing:
 
-1. `canvas.js` requests the device, then turns the JS `GPUDevice`/`GPUQueue` into Emscripten
-   handles with `WebGPU.importJsDevice` / `importJsQueue` (the module exports `WebGPU` for this)
-   and calls `tessera_webgpu_set_device`, which returns 1, 0 (null handle) or -1 (wrapping threw).
-   Passing the JS objects themselves does not work: they coerce to 0 and read as a null handle.
+1. `canvas.js` requests the device, then turns the JS `GPUDevice`/`GPUQueue` into Emscripten handles
+   with `WebGPU.importJsDevice` / `importJsQueue` (the module exports `WebGPU` for this) and calls
+   `tessera_webgpu_set_device`, which returns 1, 0 (null handle) or -1 (wrapping threw). Passing the JS
+   objects themselves does not work: they coerce to 0 and read as a null handle.
 2. It configures the canvas context once (`rgba8unorm`, opaque).
 3. Each frame it imports `getCurrentTexture().createView()` with `importJsTextureView` and passes
    that handle to `tessera_canvas_frame`. The module wraps it in `create_canvas_target`, paints the
@@ -356,28 +352,29 @@ The page owns the surface, the module owns the drawing:
 
 Both target kinds derive from `WebGpuTargetViews`, and the command list casts to that. A cast to the
 concrete offscreen class made a canvas target read the wrong memory and begin a pass with no view.
-The preview module ships no font, so text nodes paint their boxes only (`textSkipped`).
+
+The module still ships no font, but a frame now paints text when the page has supplied one: once per
+device the page fetches `fonts/IBMPlexSans-Latin.ttf` from its own origin, writes the bytes into the
+module's heap and calls `tessera_canvas_set_font(ptr, size)`, after which `tessera_canvas_frame`
+shapes and draws its runs through the production text stack. Without that call (and after a failed
+fetch, which the pane names) text nodes paint their boxes only, unchanged from before issue #387.
 
 ### 8.4 Render on demand
 
-The page does not run a frame loop. `canvas.js` draws once per *change*: a Run, a device-pixel-ratio
-change, or the tab becoming visible again. `requestAnimationFrame` is the scheduling primitive — it
-coalesces a burst of notifications into one frame and aligns the draw with the display — but nothing
-re-arms it after a frame, so a static scene stops drawing. This is the browser form of the repository's
-idle rule (a static UI presents nothing), and it also means the page does not spin a GPU at 60 Hz on a
-tab nobody is looking at.
+The page does not run a frame loop: it draws once per *change* (a Run, a device-pixel-ratio change, or
+the tab becoming visible again). `requestAnimationFrame` coalesces a burst of notifications into one
+frame and aligns the draw with the display, but nothing re-arms it after a frame, so a static scene
+stops drawing — the browser form of the repository's idle rule (a static UI presents nothing).
 
 ### 8.5 The unsupported path
 
-`canvas.html` ships the unsupported state as its *default* pane content and `canvas.js` only replaces
-it with the canvas once a device exists. The three ways to get there — no `navigator.gpu`, no adapter,
-`requestDevice()` rejecting — each name their cause and link `scene.html`, which needs no GPU. A module
+The page ships the unsupported state as its *default* pane content and swaps in the canvas only once a
+device exists. The three ways to get there — no `navigator.gpu`, no adapter, a rejecting
+`requestDevice()` — each name their cause and point at the Scene tab, which needs no GPU; a module
 that fails to load, or one without the canvas exports, reports that too. A blank canvas is never the
-outcome.
-
-`scene_frame_parity.py --mode canvas-report` checks the same contract without a browser: it loads
-`tessera_canvas.js` under Node (which has no `navigator.gpu`, exactly like a browser without WebGPU)
-and requires a `hasDevice:false` report rather than a crash.
+outcome. `scene_frame_parity.py --mode canvas-report` checks the same contract without a browser,
+loading `tessera_canvas.js` under Node (which has no `navigator.gpu`, like a browser without WebGPU)
+and requiring a `hasDevice:false` report rather than a crash.
 
 ### 8.6 Verification and status
 
@@ -387,21 +384,23 @@ Verified on this Windows host (2026-11-16), native side only:
   backend's command stream and counters, byte-identical pixels across two runs, the report's JSON
   escaping and the no-device/failed-frame distinction, the parity policy (identical pair passes;
   moved geometry, flat-region drift and a size difference fail; an edge rounding difference passes),
-  and the SPIR-V-free pipeline description.
+  the SPIR-V-free pipeline description, and - since issue #387 - text painted from shipped font bytes
+  (`textSkipped` 0 with a font, counted without one), the same frame twice from the same bytes, a
+  refused font leaving a usable degraded frame, and an exhausted atlas counting `glyphsDropped`.
 - `python -B scripts/ci/scene_frame_parity.py --native .../tessera_scene_frame.exe`: `NATIVE
   REFERENCE OK`, 5 cases, each deterministic across two processes and above its minimum draw count.
-- `tessera_scene_frame --backend vulkan` on an RTX 4060 renders the corpus (e.g. 5 nodes, 1 draw, 24
-  vertices) and is byte-identical across runs; `--backend null` records the same counts. The RTX
-  render is evidence the path works, **not** a golden, and the script refuses to save it as one.
+- `tessera_scene_frame --backend vulkan` on an RTX 4060 renders the corpus byte-identically across runs
+  and `--backend null` records the same counts; `--font PATH` renders the same sample with glyphs (3
+  runs, 6 draws, 138 vertices on `Counter.tsx`), also byte-identical. The RTX render is evidence the
+  path works, **not** a golden, and the script refuses to save it as one.
 - `tessera_scene_frame_compare` classifies an identical pair as a pass (`ssim=1 deltaE=0`) and two
-  different scenes as a structural failure (`mismatch=0.207 ssim=0.879`), so the comparison is not
-  vacuous.
+  different scenes as a structural failure (`mismatch=0.207 ssim=0.879`), so it is not vacuous.
 
-**CI-only, and why:** the browser half. `$env:EMSDK` is empty on this box, so
-`wasm_canvas_entry.cpp`, `webgpu_canvas_target.cpp` and `canvas.js` have not been compiled or run;
-the host lanes type-check `scene_frame.cpp` and `canvas_report.cpp` as OBJECT libraries, which is the
-part they can check. The Emscripten build and the no-device contract run in `pages.yml` / `webgpu.yml`.
-**The pixel comparison has not run anywhere yet** — see 8.3.
+**What runs only in CI:** the *browser* half. `wasm_canvas_entry.cpp` and `webgpu_canvas_target.cpp`
+compile under the `wasm-webgpu` preset (verified here with emsdk 7.0.0, producing `tessera_canvas.wasm`)
+and the host lanes type-check `scene_frame.cpp`/`canvas_report.cpp` as OBJECT libraries, but a real
+WebGPU device still needs a browser: `pages.yml` / `webgpu.yml` run the no-device contract, and **the
+pixel comparison has not run anywhere yet** — see 8.3.
 
 ### 8.7 Files
 
@@ -410,13 +409,15 @@ part they can check. The Emscripten build and the no-device contract run in `pag
 | `tools/codegen/scene_prepare.{hpp,cpp}` | the shared stage sequence (`prepare_scene`) |
 | `tools/codegen/scene_frame.{hpp,cpp}` | paint into an RHI target; `scene_frame_render` adds offscreen+readback |
 | `tools/codegen/scene_frame_main.cpp` | `tessera_scene_frame`: renders a PNG (vulkan or null) |
-| `tools/codegen/scene_frame_compare.cpp` | `tessera_scene_frame_compare`: the pixel comparison, one policy |
+| `tools/codegen/scene_frame_compare.cpp` | `tessera_scene_frame_compare`: the pixel comparison |
 | `tools/codegen/canvas_report.{hpp,cpp}` | the JSON report the page parses (host-compilable) |
-| `tools/codegen/wasm_canvas_entry.cpp` | the browser ABI: device handover + `tessera_canvas_frame` |
-| `src/rendering/backend/webgpu/src/webgpu_canvas_target.cpp` | an RHI target over a host-owned canvas texture view |
-| `designer/web/{canvas.html,canvas.js,canvas.css}` | the page |
+| `tools/codegen/preview_text.{hpp,cpp}` | the text stack over caller-supplied font bytes (#387) |
+| `tools/codegen/wasm_canvas_entry.cpp` | the browser ABI: device handover, frame, `set_font` |
+| `src/rendering/backend/webgpu/src/webgpu_canvas_target.cpp` | an RHI target over a host-owned view |
+| `designer/web/src/views/canvas-{session,pane,device,frame,font}.ts` | the Canvas view (ADR-054) |
+| `designer/web/public/fonts/` | the one shipped face and its OFL text (#387) |
 | `scripts/ci/scene_frame_parity.py`, `scene_frame_canvas_probe.mjs` | the gate: native reference, node contract, comparison |
-| `tests/unit/scene_frame_tests.cpp` | the native half, as a ctest case |
+| `tests/unit/scene_frame_{tests,text_tests}.cpp` | the native half, as one `scene_frame` ctest case |
 
 ## 9. P4: browser input, and state kept across edits
 
@@ -441,9 +442,9 @@ PreviewInput -> ui::InputEvent -> ui::InputRouter::dispatch(root, event)
 ```
 
 Everything up to the callback is the production code path, unchanged: hit testing, capture, the
-common-ancestor click rule, focus, and capture/target/bubble propagation are `src/ui/scene/`, not a
-preview copy. The callback then runs the handler's **TSX preview body** through the evaluator, the
-same action list `parity::run_parity` executes for a `click <automationId>` step. Consequently:
+common-ancestor click rule, focus and capture/target/bubble propagation are `src/ui/scene/`, not a
+preview copy; the callback then runs the handler's **TSX preview body** through the evaluator, the same
+action list `parity::run_parity` executes for a `click <automationId>` step. Consequently:
 
 - a handler that is a native `bind::` binding with no `preview` body runs **no** actions, exactly as
   in the parity runner, because its body is the developer's C++;
@@ -581,19 +582,18 @@ Verified on this Windows host (2026-11-15 for P5; re-run 2026-11-16 after the Re
   rendered chrome's four regions and the toolbar's option sets, persistence (environment only, never the
   source), the fragment winning over storage, the share link through the address bar, a good link restoring
   source/viewport/theme, a broken link reported with its code, the lazy manifest, and manifest validation.
-- `preview_page_checks.mjs`: 15 checks against the built page. Covers the CSP (no inline or remote script,
-  every referenced asset present), every id the chrome and the three sessions resolve (from
+- `preview_page_checks.mjs`: 15 checks against the built page: the CSP (no inline or remote script, every
+  referenced asset present), every id the chrome and the three sessions resolve (from
   `renderToStaticMarkup`, per view), the redirect's query/fragment preservation for six old-URL shapes, the
-  manifest paths, the purity of the two codec modules, the three lazy Wasm imports, and dangling calls.
+  manifest paths, the pure codec modules, the three lazy Wasm imports, and dangling calls.
 - `preview_browser_check.mjs`: 11 browser checks against the assembled site, all pass (three views, the lazy
   request set, a `#p5=` share link, both stubs forwarding, and a real WebGPU frame).
 - `python -B -m unittest discover -s scripts/tests`: 239 tests, OK; `check_source_size.py`: 0 errors.
 
-**The browser half.** The browser checks could not run on the authoring box before #422; they now do (Chrome
-143 with WebGPU, against `build/pages`), so the result above is recorded rather than deferred to the deploy.
-They still do not cover a browser without WebGPU: the unsupported state is asserted in the pane's markup, not
-by hiding the adapter. The deploy and a human opening the URL remain the last word on CSS and
-`CompressionStream`.
+**The browser half.** The browser checks could not run on the authoring box before #422; they now do
+(Chrome 143 with WebGPU, against `build/pages`), so the result above is recorded rather than deferred to the
+deploy. They still do not cover a browser without WebGPU: that state is asserted in the pane's markup, not
+by hiding the adapter, and a human opening the deployed URL remains the last word on CSS.
 
 **§11 and §12: the merge, then the conversion.** The three pages above are now one `index.html` with three
 views (#392), and its chrome is React 19 + TypeScript built by Vite (#422, ADR-054). Both are recorded in

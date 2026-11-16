@@ -213,7 +213,8 @@ export function App() {
       pane.statDraws.current &&
       pane.statVertices.current &&
       pane.statNodes.current &&
-      pane.statDpr.current
+      pane.statDpr.current &&
+      pane.statFont.current
     ) {
       const status = pane.canvasStatus.current;
       sessions.current.canvas = createCanvasSession({
@@ -232,6 +233,7 @@ export function App() {
           statVertices: pane.statVertices.current,
           statNodes: pane.statNodes.current,
           statDpr: pane.statDpr.current,
+          statFont: pane.statFont.current,
         },
         source,
         setStatus: (text, kind) => setStatusText(status, text, kind ?? null),
@@ -452,6 +454,7 @@ export function App() {
           statVerticesRef={refs.statVertices}
           statNodesRef={refs.statNodes}
           statDprRef={refs.statDpr}
+          statFontRef={refs.statFont}
         />
       </main>
 

@@ -36,6 +36,8 @@ export interface CanvasPaneElements {
   statVertices: HTMLElement;
   statNodes: HTMLElement;
   statDpr: HTMLElement;
+  /** The font row's value cell (issue #387): the face's name, or the reason text is absent. */
+  statFont: HTMLElement;
 }
 
 export interface CanvasPane {
@@ -48,6 +50,14 @@ export interface CanvasPane {
   showUnsupported(reason: string): void;
   showFailed(message: string): void;
   hideStates(): void;
+  /**
+   * Shows which face the frame is painted with (issue #387), or that text is not painted at all.
+   *
+   * `family` null means "no font": either the fetch failed (`reason` names why) or the module refused the
+   * bytes. The row is never blank, because "text is missing from the canvas" is exactly the fact a
+   * designer needs attributed -- an empty row would read as a rendering bug rather than a missing font.
+   */
+  setFontState(family: string | null, reason?: string): void;
   /** Shows what a frame produced: the counters, and a named state when it produced nothing. */
   renderReport(report: CanvasFrameReport): void;
 }
@@ -77,6 +87,18 @@ export function createCanvasPane(
     pane.failed.hidden = true;
   }
 
+  function setFontState(family: string | null, reason?: string): void {
+    if (family !== null) {
+      pane.statFont.textContent = family;
+      pane.statFont.title = "Text is painted with these font bytes, fetched from this site.";
+      return;
+    }
+    // A short cell plus the whole sentence in `title`, so the row stays a table and the reason is
+    // still reachable without widening the pane.
+    pane.statFont.textContent = "none (text not drawn)";
+    pane.statFont.title = reason ?? "No font was loaded, so text runs are counted but not painted.";
+  }
+
   /**
    * A rejected frame (`hasDevice: false`) is the module refusing the handles the page handed it, which is
    * the unsupported state rather than a generic failure; a frame with `drawCalls: 0` is a real answer that
@@ -104,5 +126,5 @@ export function createCanvasPane(
     }
   }
 
-  return { elements: pane, setStatus, showUnsupported, showFailed, hideStates, renderReport };
+  return { elements: pane, setStatus, showUnsupported, showFailed, hideStates, setFontState, renderReport };
 }

@@ -229,6 +229,18 @@ jobs:
           --canvas build/wasm-webgpu/src/compiler/codegen/tessera_canvas.js
           --node "$EMSDK_NODE"
 
+      # The page's font handover (issue #387), checked against the module the page actually downloads:
+      # the two exports exist, the ABI is pointer-plus-size, and the refusal paths are answers rather
+      # than crashes. Node has no device, so the module refuses the bytes for want of one - which is
+      # the *piece of the contract a browser cannot check cheaply*, because a browser has a device and
+      # would take the other branch. The glyphs themselves are proven natively (canvas-native-parity
+      # and the `scene_frame` ctest paint text from these same bytes).
+      - name: Canvas module font ABI (Node)
+        run: >-
+          python3 -B scripts/ci/scene_frame_parity.py --mode canvas-font
+          --canvas build/wasm-webgpu/src/compiler/codegen/tessera_canvas.js
+          --node "$EMSDK_NODE"
+
   # P3's pixel half, on the half of the gate that can actually render: the *native* reference.
   #
   # The acceptance sentence is "the canvas render is within tolerance of the lavapipe golden". Two
