@@ -374,6 +374,36 @@ void test_events_and_bindings() {
         "binding return type", [](auto& m) { m.bindings[0].return_type = "list<"; }, kUnsupported);
 }
 
+// docs/design/security.md section 3.2 specifies one iterative pre-pass that rejects depth > 128
+// BEFORE the recursive walk, because a walk that overflows on its input cannot report it. The
+// review measured 0xC00000FD at depth 5000; this asserts the diagnostic instead of the crash.
+void test_depth_limit() {
+    // A chain far past the budget: without the pre-pass this overflows the stack rather than
+    // failing.
+    ir::IrModule deep = make_valid_module();
+    ir::Node* cursor = &deep.components[0].root;
+    for (int level = 0; level < 400; ++level) {
+        cursor->children.push_back(ir::Node{});
+        cursor = &cursor->children.back();
+    }
+    // `codes_of` joins codes with ';', so one code ends in a trailing ';'.
+    check_eq(codes_of(deep), "TESSERA_IR_LIMIT_DEPTH;",
+             "a tree deeper than the budget is rejected, not overflowed");
+
+    // A chain inside the budget is still accepted, so the guard does not over-reach.
+    ir::IrModule shallow = make_valid_module();
+    ir::Node* near = &shallow.components[0].root;
+    for (int level = 0; level < 8; ++level) {
+        near->children.push_back(ir::Node{});
+        near = &near->children.back();
+    }
+    // The appended nodes have no id and no span, so the module reports those -- correctly, and
+    // unrelated to this test. What matters is that the *depth* budget did not reject it.
+    const std::string shallow_codes = codes_of(shallow);
+    check(shallow_codes.find("TESSERA_IR_LIMIT_DEPTH") == std::string::npos,
+          "a tree inside the budget is not rejected for depth");
+}
+
 } // namespace
 
 int main() {
@@ -382,5 +412,6 @@ int main() {
     test_declarations();
     test_references();
     test_events_and_bindings();
+    test_depth_limit();
     return finish("ir validate tests");
 }

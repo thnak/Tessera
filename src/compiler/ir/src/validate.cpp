@@ -168,9 +168,144 @@ void check_unused_types(ValidationContext& context) {
 
 } // namespace
 
+namespace {
+
+// The bounds from docs/design/security.md section 3.2. Depth 128 matches the front end's
+// TESSERA_JSX_LIMIT_DEPTH so an IR tree cannot be deeper than the parser would have accepted, and
+// 200000 matches its token cap for the same reason: the validator must not be the first stage to
+// accept a shape the front end would have refused.
+constexpr int kMaxIrDepth = 128;
+constexpr std::size_t kMaxIrNodes = 200000;
+
+// One measured violation, reported before the recursive walk so the walk never runs on a tree that
+// would overflow it.
+struct IrBoundViolation {
+    bool hit = false;
+    const char* code = "";
+    std::string detail;
+    SourceSpan where;
+};
+
+void check_bounds(std::size_t count, int depth, IrBoundViolation& out, const SourceSpan& where) {
+    if (out.hit) {
+        return;
+    }
+    if (depth > kMaxIrDepth) {
+        out.hit = true;
+        out.code = "TESSERA_IR_LIMIT_DEPTH";
+        out.detail = "tree is deeper than " + std::to_string(kMaxIrDepth) + " levels";
+        out.where = where;
+    } else if (count > kMaxIrNodes) {
+        out.hit = true;
+        out.code = "TESSERA_IR_LIMIT_NODES";
+        out.detail = "module has more than " + std::to_string(kMaxIrNodes) + " nodes";
+        out.where = where;
+    }
+}
+
+// Node trees: `children` (a vector) plus the two owned slots. The stack is explicit, and children
+// are pushed in reverse so the visit order matches a pre-order walk -- which keeps the reported
+// node, and so the diagnostic, deterministic.
+void measure_nodes(const Node& root, std::size_t& count, IrBoundViolation& out) {
+    struct Pending {
+        const Node* node;
+        int depth;
+    };
+    std::vector<Pending> stack;
+    stack.push_back(Pending{&root, 1});
+    while (!stack.empty() && !out.hit) {
+        const Pending current = stack.back();
+        stack.pop_back();
+        ++count;
+        check_bounds(count, current.depth, out, current.node->source);
+        if (out.hit) {
+            return;
+        }
+        if (current.node->item_template) {
+            stack.push_back(Pending{current.node->item_template.get(), current.depth + 1});
+        }
+        if (current.node->fallback) {
+            stack.push_back(Pending{current.node->fallback.get(), current.depth + 1});
+        }
+        for (auto it = current.node->children.rbegin(); it != current.node->children.rend(); ++it) {
+            stack.push_back(Pending{&*it, current.depth + 1});
+        }
+    }
+}
+
+// Expression trees are a separate shape -- `operands`, `fields` and template parts rather than
+// children -- so the node measurement above does not see them.
+void measure_exprs(const ExprPtr& root, std::size_t& count, IrBoundViolation& out,
+                   const SourceSpan& where) {
+    struct Pending {
+        const Expr* expr;
+        int depth;
+    };
+    std::vector<Pending> stack;
+    stack.push_back(Pending{root.get(), 1});
+    while (!stack.empty() && !out.hit) {
+        const Pending current = stack.back();
+        stack.pop_back();
+        if (current.expr == nullptr) {
+            continue;
+        }
+        ++count;
+        check_bounds(count, current.depth, out, where);
+        if (out.hit) {
+            return;
+        }
+        for (auto it = current.expr->operands.rbegin(); it != current.expr->operands.rend(); ++it) {
+            stack.push_back(Pending{it->get(), current.depth + 1});
+        }
+        for (auto it = current.expr->fields.rbegin(); it != current.expr->fields.rend(); ++it) {
+            stack.push_back(Pending{it->value.get(), current.depth + 1});
+        }
+        for (auto it = current.expr->parts.rbegin(); it != current.expr->parts.rend(); ++it) {
+            stack.push_back(Pending{it->expr.get(), current.depth + 1});
+        }
+    }
+}
+
+// Measures every node tree and expression root in the module. Returns the first violation, so the
+// caller can report one diagnostic rather than thousands.
+IrBoundViolation measure_module(const IrModule& module) {
+    IrBoundViolation out;
+    std::size_t count = 0;
+    for (const Component& component : module.components) {
+        measure_nodes(component.root, count, out);
+        if (out.hit) {
+            return out;
+        }
+        for (const auto& binding : module.bindings) {
+            if (binding.preview) {
+                for (const auto& action : binding.preview->actions) {
+                    if (action.value) {
+                        measure_exprs(action.value, count, out, binding.source);
+                        if (out.hit) {
+                            return out;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return out;
+}
+
+} // namespace
+
 std::vector<IrDiagnostic> validate(const IrModule& module) {
     ValidationContext context(module);
     const SourceSpan none;
+
+    // Bounds first, before anything walks a tree: docs/design/security.md section 3.2 requires the
+    // check *before* the recursive walk, because a walk that overflows on its input cannot report
+    // it.
+    const IrBoundViolation violation = measure_module(module);
+    if (violation.hit) {
+        context.report(violation.code, violation.detail, violation.where);
+        return std::move(context.diagnostics);
+    }
     if (module.ir_version != kIrVersion) {
         context.report("TESSERA_IR_VERSION",
                        "unsupported irVersion " + std::to_string(module.ir_version), none);
