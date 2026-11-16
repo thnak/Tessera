@@ -171,12 +171,12 @@ tree a native build would have built for the same IR, not a parallel model of it
 
 **Not evaluated by this slice**, and reported as `TESSERA_SCENE_UNSUPPORTED` with an empty `nodes`
 array rather than approximated: user component instances (`NodeKind::Component`, which needs prop
-binding and slot splicing), `CustomElement`, virtual collections, `Slot` positions, conditional and
-repeated children, and inline-span `Text`. `samples/compiler-demo/Demo.tsx` uses a conditional child
-and `samples/gallery/Gallery.tsx` imports a user component, so **neither shipped sample is in the
-parity corpus**; the corpus is the static subset the preview does evaluate. Widening it is P4/P7
-work, not a P2 regression. Dynamic inline-style values are likewise not applied (generated
-`apply_state` owns those); the preview lays out the component's initial tree.
+binding and slot splicing), `CustomElement`, virtual collections, `Slot` positions, nested list
+templates, and inline-span `Text`. **Conditional and repeated children are evaluated** (issue #389)
+through the same evaluator and scope as text and clicks; `docs/design/preview-dynamic-children.md`
+states both decisions, the bounded subset and why there is no second evaluator. The gallery sample
+still imports a user component, so the corpus uses purpose-built sources. Dynamic inline-style values
+are not applied either (generated `apply_state` owns those); the preview lays out the initial tree.
 
 ### 7.2 The shared walk (one implementation, not two)
 
@@ -286,8 +286,8 @@ therefore the same command stream by construction, not by agreement between two 
 **What a preview frame does not paint, and why.** The preview module ships no font and no
 `AssetBundle`, so a text run is counted in `text_skipped` and a vector/image payload in
 `vectors_skipped`/`images_skipped`; the node's box is still painted. This is a missing *input*, not a
-missing capability, and it is reported rather than approximated. The parity corpus below has no glyph
-runs, so it does not affect the render comparison.
+missing capability, and it is reported rather than approximated. The corpus below has no glyph runs,
+so it does not affect the render comparison.
 
 ### 8.2 The preview stylesheet now paints
 
@@ -295,7 +295,7 @@ P2's sheet gave the intrinsic element kinds a size and nothing else, which was r
 wrong for a render gate: a sheet that paints nothing leaves both images a single clear colour, and two
 clear-colour images are byte-identical — the render equivalent of "both sides returned `{"nodes":[]}`".
 The sheet now carries background colours and one `border-radius`, and the gate declares a **minimum
-draw-call count** per case, the same anti-vacuity rule P2 applies to node counts.
+draw-call count** per case, the anti-vacuity rule P2 applies to node counts.
 
 The clear colour is the app window background (`rgba8(11, 18, 32)`, `detail::frame_clear_color()` in
 `src/app/window_internal.hpp`), not black, so a preview and the native window of the same stylesheet

@@ -85,10 +85,10 @@ export function noSceneBox(): HTMLElement {
     element(
       "p",
       null,
-      "The source produced no scene. The preview evaluates the static subset; a user component " +
-        "instance, a conditional or repeated child, or an inline-span Text is reported as " +
-        "unsupported (docs/design/compiler-wasm.md section 7.1). Open the Diagnostics view for the " +
-        "compile error, if there is one.",
+      "The source produced no scene. The preview evaluates the static subset, a conditional child " +
+        "and a repeated child; a user component instance, a virtual collection or an inline-span " +
+        "Text is reported as unsupported (docs/design/compiler-wasm.md section 7.1). Open the " +
+        "Diagnostics view for the compile error, if there is one.",
     ),
   );
   return note;

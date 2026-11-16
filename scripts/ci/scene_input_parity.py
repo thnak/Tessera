@@ -165,12 +165,15 @@ CORPUS: Tuple[Tuple[str, str, str, str, int, int], ...] = (
 # The Node driver for the Wasm side: the same shape as the P2 gate's, with the script as a fifth
 # argument. Inline so the gate has no extra file to keep in step with the ABI.
 NODE_DRIVER = r"""
+import { pathToFileURL } from 'node:url';
 const path = process.argv[2];
 const file = process.argv[3];
 const component = process.argv[4];
 const source = process.argv[5];
 const script = process.argv[6];
-const imported = await import(path);
+// `import()` needs a URL, not a bare path: on Windows a `C:\...` argument parses as a `c:` scheme and
+// Node rejects it with ERR_UNSUPPORTED_ESM_URL_SCHEME. `pathToFileURL` is correct on both platforms.
+const imported = await import(pathToFileURL(path).href);
 const factory = imported.default;
 const module = await factory();
 const write = (text) => {
