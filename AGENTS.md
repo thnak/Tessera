@@ -585,6 +585,8 @@ Stages P0-P7 are planned in `docs/design/reference-equantic-ui.md`.
 preview, the studio that edits a project folder, the MCP adapter, devtools). Runtime and shipping
 concerns live in V1-M5 and later. Since 2026-11-16 the preview pages are being merged into one
 studio `index.html` (#392), which the folder IDE (#391) builds on; the order below is the farm order.
+The Wasm studio stays single-threaded (ADR-045 decision 5); a separate multi-threaded studio site is a later,
+owner-planned item and is not part of this milestone.
 
 - [x] #164: P0: Emscripten preset, compiler in Wasm — IR byte-identical to native for
       `samples/parity-demo/Counter.tsx`. Evidence: `wasm-compiler` build preset (the Emscripten
@@ -634,6 +636,12 @@ studio `index.html` (#392), which the folder IDE (#391) builds on; the order bel
       modules in the download budget. Needs a measurement first; take it after #392.
 - [ ] #396: `tessera-mcp`: the eight unimplemented tools (designer D-S7) and the spec decisions #350
       reported. Owner decisions first; take it after #391.
+- [ ] #406: `tessera-mcp`: project root from the agent's workdir (`roots/list`, else the working
+      directory), `list_files` and folder-wide `diagnostics`. Slice 1 of the MCP follow-up, `ready`;
+      #396 keeps the other tools.
+- [ ] #407: `tessera-mcp`: a `generate` tool for the C++ of the folder (ADR-040). Owner decisions
+      first; takes #406.
+- [ ] #408: studio: foldable simulation (hinge, fold posture, two-pane) on the Wasm viewer. Takes #392.
 - [ ] #392: studio: merge the index, scene and canvas pages into one `index.html` (modules stay
       separate and lazy, `scene.html`/`canvas.html` become redirect stubs that keep `#p5=` links
       working, the P6 budget is re-ratcheted). **First of the studio items; the four below and #391
