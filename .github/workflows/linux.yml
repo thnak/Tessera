@@ -102,15 +102,28 @@ jobs:
       #
       # Every suite below can genuinely run on this lane: it installs lavapipe (the ADR-009
       # reference renderer) and the Khronos validation layer in its first steps.
-      # The required list and the forbidden text live in the gate's LANE_MATRIX, keyed by
-      # `--lane`, so this step cannot drift from what `--workflows` enforces above. Passing the
-      # list here as well would be the duplication the gate exists to prevent.
       - name: Release suites really ran (validation layer + goldens)
         run: |
           python3 -B scripts/check_release_suites.py \
             --lane linux \
             --junit "$PWD/build/ci/release-junit.xml" \
-            --log "$RUNNER_TEMP/release-tests.log"
+            --log "$RUNNER_TEMP/release-tests.log" \
+            --require batched2d_vulkan_validation \
+            --require batched2d_on_demand \
+            --require batched2d_golden \
+            --require batched2d_overlay_golden \
+            --require batched2d_text_golden \
+            --require batched2d_shapes_golden \
+            --require batched2d_cpu_golden \
+            --require batched2d_cpu_text_golden \
+            --require batched2d_cpu_vector_golden \
+            --require batched2d_cpu_image_golden \
+            --require cpu_wide_golden \
+            --require gallery_golden_light_none \
+            --require gallery_golden_high_contrast_focus \
+            --require gallery_golden_safe_area_fold_dark \
+            --require harness_frame_capture \
+            --forbid-text "validation layer not available"
 
       # Release-build outputs, published so a run can be reviewed without a rebuild: the golden
       # frames and diffs the suites rendered, the JUnit report, and the CTest log. The
@@ -356,9 +369,8 @@ jobs:
       # Issue #199: the lane/suite matrix is enforced statically here, on every push, so a release
       # lane that silently stops declaring a golden or validation suite fails fast instead of
       # waiting for a runtime report that would simply omit it. `scripts/check_release_suites.py`
-      # owns LANE_MATRIX: the required suites, the suites this lane cannot run and why, and the
-      # forbidden text. The build jobs pass only `--lane`, so there is exactly one list and the
-      # static check and the runtime check cannot disagree.
+      # owns LANE_MATRIX; the build jobs own the `--require`/`--allow-skip` lists they pass at
+      # runtime, and the two are checked against each other.
       - name: Release suite matrix (workflows declare their suites)
         run: python3 -B scripts/check_release_suites.py --workflows
 

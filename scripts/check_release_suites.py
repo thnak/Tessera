@@ -102,7 +102,10 @@ LANE_MATRIX: Dict[str, Dict[str, object]] = {
 }
 
 # The CTest summary line; its absence means the run did not complete.
-SUMMARY_RE = re.compile(r"(\d+)% tests passed, (\d+) tests failed out of (\d+)")
+# CTest prints the failure clause only when something failed: "100% tests passed, 0 tests
+# failed out of 595" versus "100% tests passed out of 595". Both mean the run completed, and
+# matching only the first form made a fully green release lane report "no summary line".
+SUMMARY_RE = re.compile(r"\d+% tests passed(?:, \d+ tests? failed)? out of \d+")
 REQUIRE_RE = re.compile(r"--require[\s\"']+([A-Za-z0-9_]+)")
 ALLOW_SKIP_RE = re.compile(r"--allow-skip[\s\"']+([A-Za-z0-9_]+)\s*=")
 # The step that declares the suites, so the static check compares the right block rather than the
@@ -301,6 +304,41 @@ def check_lane(args: argparse.Namespace) -> int:
 
     allowed: Dict[str, str] = dict(spec["allow_skip"])  # type: ignore[arg-type]
 
+    # The declaration the workflow passed must agree with LANE_MATRIX, and vice versa. A missing
+    # requirement is a lane that stopped asking for a suite; an extra one is a suite the matrix does
+    # not know about. Either is drift, so both are reported.
+    declared_require = list(args.require or [])
+    if declared_require:
+        missing = [n for n in spec["required"] if n not in declared_require]  # type: ignore[attr-defined]
+        extra = [n for n in declared_require if n not in spec["required"]]  # type: ignore[attr-defined]
+        if missing:
+            problems.append("the invocation does not require: {}".format(", ".join(missing)))
+        if extra:
+            problems.append("the invocation requires suites LANE_MATRIX does not: {}".format(
+                ", ".join(extra)))
+
+    declared_skip: Dict[str, str] = {}
+    for pair in args.allow_skip or []:
+        name, _, reason = pair.partition("=")
+        declared_skip[name.strip()] = reason.strip()
+    # One direction only: the invocation may restate fewer skips than the matrix declares (a lane
+    # that does not pass --allow-skip at all is opting into the matrix wholesale), but it must not
+    # ADD a skip the matrix does not know about, and a reason it does state must not contradict the
+    # matrix -- that is the drift this cross-check exists for.
+    only_declared = sorted(set(declared_skip) - set(allowed))
+    if only_declared:
+        problems.append("the invocation allows skips LANE_MATRIX does not declare: {}".format(
+            ", ".join(only_declared)))
+    for name in sorted(set(declared_skip) & set(allowed)):
+        if declared_skip[name] != allowed[name]:
+            # Wording, not substance: both sides agree the suite cannot run here. Report it so a
+            # reader can align them, but do not fail a release lane over prose.
+            notes.append("'{}': the invocation's skip reason is worded differently from "
+                         "LANE_MATRIX".format(name))
+
+    # --forbid-text must include the matrix's list; the log check below then uses the union.
+    forbidden_text = sorted(set(spec.get("forbid_text", [])) | set(args.forbid_text or []))  # type: ignore[arg-type]
+
     if log and SUMMARY_RE.search(log) is None:
         problems.append("the CTest log has no summary line, so the run did not complete")
 
@@ -325,7 +363,7 @@ def check_lane(args: argparse.Namespace) -> int:
         else:
             notes.append("'{}' is declared unable to run and is not registered".format(name))
 
-    for text in spec["forbid_text"]:  # type: ignore[attr-defined]
+    for text in forbidden_text:
         # Scan the log AND the JUnit output streams: --output-on-failure hides a passing test's
         # stdout from the log, so a layer-unavailable warning can survive only in the JUnit file.
         if (log and text in log) or any(text in chunk for chunk in report.text):
@@ -355,6 +393,16 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument("--junit", default=None, help="CTest --output-junit report")
     parser.add_argument("--log", default=None, help="the CTest run log")
     parser.add_argument("--lane", default=None, help="lane to verify against LANE_MATRIX")
+    # The build jobs pass their suite list explicitly, which is the declaration `--workflows` checks
+    # against LANE_MATRIX. Accept it here too, and verify it agrees: accepting without verifying
+    # would let the workflow and the matrix diverge silently, and ignoring the flags (the previous
+    # behaviour) made every release lane fail with a usage error.
+    parser.add_argument("--require", action="append", default=[], metavar="SUITE",
+                        help="a suite this lane must have run (repeatable; cross-checked with LANE_MATRIX)")
+    parser.add_argument("--allow-skip", action="append", default=[], metavar="SUITE=REASON",
+                        help="a suite this lane cannot run, with the reason (repeatable)")
+    parser.add_argument("--forbid-text", action="append", default=[], metavar="TEXT",
+                        help="text that must not appear in the run log (repeatable)")
     args = parser.parse_args(argv)
     if args.workflows:
         return check_workflows()
