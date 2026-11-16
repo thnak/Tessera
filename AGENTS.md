@@ -656,7 +656,12 @@ owner-planned item and is not part of this milestone.
 - [x] #392: studio: merge the index, scene and canvas pages into one `index.html` (modules stay
       separate and lazy, `scene.html`/`canvas.html` become redirect stubs that keep `#p5=` links
       working). Merged in PR #420; the stack conversion and the P6 budget re-record moved to ADR-054's
-      slice, which the four below and #391 now wait on.
+      slice (#422), which the studio items below and #391 now wait on.
+- [ ] #422: studio: convert the hosted page to React 19 + Vite (ADR-054): Vite, React 19 and
+      TypeScript in `designer/web`, the four regions as components with the engine canvas untouched,
+      the three lazy Wasm modules and the pure-ES-module codec kept, and the Pages build, page checks
+      and download budget moved with the stack (the measured re-record, not a loosened pin). Blocks
+      #387-#390, #395, #408 and #171.
 - [ ] #387: P3b: text in the canvas preview, font loaded as data (IBM Plex Sans Latin subset).
 - [ ] #388: P3c: pointer input on the canvas (hit-test, click, hover, active) through a persistent
       session in the canvas module.
@@ -1156,7 +1161,7 @@ landed the diagnostics page, the machine-readable diagnostics document
 (`docs/specs/compiler-diagnostics-v1.md`), and Pages is enabled, so the page is live at
 https://thnak.github.io/Tessera/ and deployed by CI from `main`. P2 (#166, the evaluator on the
 null RHI) and P3 to P6 have since landed; the remaining V1-M4 work is the React 19 + Vite conversion of
-the studio shell ([ADR-054](decisions/ADR-054-studio-front-end-react-vite.md)), then #387-#390, then
+the studio shell ([ADR-054](decisions/ADR-054-studio-front-end-react-vite.md), #422), then #387-#390, then
 #391, plus #171, #395 and #408. V1-M3 closed with #159: the `shader-manifest-v1.md` id-to-source table (section 3.2) and the opt-in cross-compile
 section (5.1), plus the `shader-cross` job in `.github/workflows/linux.yml` that runs
 `TESSERA_SHADER_CROSS=ON` — its first run found a real shader defect (a by-value struct parameter
