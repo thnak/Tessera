@@ -358,12 +358,12 @@ Outcome run_impl(const Options& options) {
     }
     for (const auto& source : sources) {
         if (!source->parses()) {
-            if (source->parsed.root == nullptr) {
-                report(outcome, true, source->path + ": the file cannot be parsed");
-            } else if (!source->parsed.diagnostics.empty()) {
+            // A diagnostic wins: a limit check fails without a root, so testing `root == nullptr`
+            // first discarded its classified code.
+            if (!source->parsed.diagnostics.empty()) {
                 report_diagnostic(outcome, source->path, source->parsed.diagnostics.front());
             } else {
-                report(outcome, true, source->path + ": parse failed");
+                report(outcome, true, source->path + ": the file cannot be parsed");
             }
             outcome.exit_code = 1;
             return outcome;
