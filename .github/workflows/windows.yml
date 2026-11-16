@@ -89,7 +89,94 @@ jobs:
         run: python -B scripts/check_static_runtime.py --config Release --target static_runtime_probe
 
       - name: Tests
-        run: ctest --preset ci --output-on-failure
+        shell: pwsh
+        run: |
+          # The log is tee'd for the gate below, so ctest's exit code is captured explicitly
+          # instead of being inferred from the pipeline. --output-junit gets an ABSOLUTE path:
+          # `ctest --preset` resolves a relative one against the preset's test directory, so
+          # `build/ci/x.xml` would land in `build/ci/build/ci/x.xml`.
+          $log = "$env:RUNNER_TEMP\release-tests.log"
+          $junit = Join-Path $PWD 'build/ci/release-junit.xml'
+          ctest --preset ci --output-on-failure --output-junit $junit 2>&1 |
+            Tee-Object -FilePath $log
+          $code = $LASTEXITCODE
+          if ($code -ne 0) { exit $code }
+
+      # Issue #199 on the Windows lane. This lane configures with -DTESSERA_BUILD_VULKAN=OFF, so it
+      # has no Vulkan device and therefore cannot run the lavapipe goldens (their ctest entries are
+      # registered only under 'if (UNIX AND TARGET batched2d_poc)' in tests/gpu/CMakeLists.txt) or
+      # the validation layer (there is no Vulkan instance here at all). What it CAN and MUST run is
+      # the GPU-free golden corpus, which is bit-exact across platforms by construction and is
+      # exactly the cross-platform half of the golden suite.
+      #
+      # This list is the Windows column of the lane/suite matrix. Every suite this lane cannot run
+      # is declared with --allow-skip plus the reason, so the gap is stated rather than hidden; the
+      # `release-gates` job runs `check_release_suites.py --workflows`, which fails when this list
+      # and LANE_MATRIX drift apart in either direction.
+      #
+      # Two goldens are deliberately NOT turned on for this lane:
+      #   * batched2d_cpu_vector_golden needs TESSERA_ENABLE_THORVG=ON, which FetchContent-downloads
+      #     and compiles ThorVG (37 sources) in a job whose 50-minute cap is already documented as
+      #     tight (#258): a new network fetch and a build-cost increase, so an owner decision
+      #     rather than a silent change here. The Linux lane runs it.
+      #   * batched2d_cpu_golden / batched2d_cpu_text_golden need batched2d_poc, which this lane
+      #     turns off and which links tessera_rhi_vulkan unconditionally. Linux runs both.
+      - name: Release suites really ran (GPU-free goldens)
+        shell: pwsh
+        run: |
+          $junit = Join-Path $PWD 'build/ci/release-junit.xml'
+          python -B scripts/check_release_suites.py `
+            --lane windows `
+            --junit $junit `
+            --log "$env:RUNNER_TEMP\release-tests.log" `
+            --require batched2d_cpu_image_golden `
+            --require cpu_wide_golden `
+            --require theme_golden `
+            --require harness_golden `
+            --require lowering_golden `
+            --require schema_golden `
+            --allow-skip "batched2d_vulkan_validation=no Vulkan device: this lane configures TESSERA_BUILD_VULKAN=OFF" `
+            --allow-skip "batched2d_golden=lavapipe-only: registered under 'if (UNIX AND TARGET batched2d_poc)'" `
+            --allow-skip "batched2d_overlay_golden=lavapipe-only, same registration as batched2d_golden" `
+            --allow-skip "batched2d_text_golden=lavapipe-only, same registration as batched2d_golden" `
+            --allow-skip "batched2d_shapes_golden=lavapipe-only, same registration as batched2d_golden" `
+            --allow-skip "batched2d_cpu_golden=needs batched2d_poc, which only exists with TESSERA_BUILD_VULKAN=ON" `
+            --allow-skip "batched2d_cpu_text_golden=needs batched2d_poc, same reason as batched2d_cpu_golden" `
+            --allow-skip "batched2d_cpu_vector_golden=ThorVG off on this lane" `
+            --allow-skip "codegen_vector_paint_golden=ThorVG off on this lane: gated on TESSERA_ENABLE_THORVG" `
+            --allow-skip "harness_frame_capture=needs the Vulkan harness capture path"
+
+      # Release-build outputs, published so a run can be reviewed without a rebuild: every golden
+      # frame and diff the CPU corpus rendered, plus the JUnit report and the CTest log. The
+      # distributable ZIP is still built and checked above, and is not uploaded as an artifact here
+      # (docs/guides/packaging.md section 5 keeps the archive a release-time artifact).
+      - name: Upload Release build artifacts (Windows)
+        if: always()
+        shell: pwsh
+        run: |
+          $artifacts = Join-Path $env:RUNNER_TEMP 'release-artifacts'
+          New-Item -ItemType Directory -Force -Path $artifacts | Out-Null
+          $root = (Resolve-Path 'build/ci').Path
+          Get-ChildItem -Path build/ci -Recurse -File -Include *.png,*.xml,*.json |
+            ForEach-Object {
+              $relative = $_.FullName.Substring($root.Length).TrimStart('\', '/')
+              $target = Join-Path $artifacts $relative
+              New-Item -ItemType Directory -Force -Path (Split-Path $target) | Out-Null
+              Copy-Item $_.FullName $target
+            }
+          if (Test-Path "$env:RUNNER_TEMP\release-tests.log") {
+            Copy-Item "$env:RUNNER_TEMP\release-tests.log" $artifacts
+          }
+          Write-Host "collected $((Get-ChildItem $artifacts -Recurse -File).Count) file(s)"
+
+      - name: Upload release artifacts (Windows)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts-windows
+          path: ${{ runner.temp }}/release-artifacts
+          if-no-files-found: warn
+          retention-days: 30
 
   release-gates:
     runs-on: windows-latest
@@ -112,3 +199,9 @@ jobs:
 
       - name: Repository gates (aggregator)
         run: python -B scripts/gates.py
+
+      # Issue #199: the lane/suite matrix is enforced statically here too, so the check runs on both
+      # release-relevant hosts. It reads the workflow YAML as text, so it needs no YAML library and
+      # no checkout of another job's output.
+      - name: Release suite matrix (workflows declare their suites)
+        run: python -B scripts/check_release_suites.py --workflows
