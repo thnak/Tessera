@@ -2,7 +2,7 @@
 
 Status: implemented. The normative contract is [ADR-050 section 8, row `storage`](../../decisions/ADR-050-opt-in-app-framework-layer.md)
 and the module's slice row AF7; the behavioural design record is
-[`services.md`](services.md) section 4.1. This note is the longer rationale, the failure table and
+[`services/storage.md`](services/storage.md#41-implemented-shape-af7-issue-179) section 4.1. This note is the longer rationale, the failure table and
 the test map. Code: `include/tessera/appfw/storage.hpp`, `src/appfw/storage*.cpp`,
 `include/tessera/runtime/io_task_executor.hpp`, `src/hal/filesystem/`,
 `src/platform/{windows,linux}/filesystem_*`.
@@ -13,7 +13,7 @@ It owns named project data: **documents** (opaque payloads) and **settings** (an
 list in one entry). Both go through the same atomic-replace sequence and the same envelope.
 
 It does not own cache eviction, migrations, streaming or the keystore. Those are later slices of the
-same module (ADR-050 section 8 lists them); the header and section 4.1 of `services.md` name them so
+same module (ADR-050 section 8 lists them); the header and section 4.1 of [`services/storage.md`](services/storage.md) name them so
 a caller does not assume they exist.
 
 ## 2. The seam: `IoTaskExecutor`

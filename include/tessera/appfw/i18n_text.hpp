@@ -24,8 +24,9 @@
 // Dirty::Render`. Saying "Paint" there would leave an RTL app LTR until something else reflowed it.
 //
 // So `LocalizedText::relocalize` returns a mask it computed from a measurement, not a constant. The
-// caller marks its node with the result; nothing here touches a scene node (services.md section 1:
-// "Services never touch scene nodes directly; the app maps results to state").
+// caller marks its node with the result; nothing here touches a scene node
+// (docs/design/services/common-contract.md section 1: "Services never touch scene nodes directly;
+// the app maps results to state").
 //
 // ## Determinism
 //

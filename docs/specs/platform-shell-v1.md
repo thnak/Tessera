@@ -3,7 +3,7 @@
 Status: proposed (Big Step F, defined in [AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step), section "Big Steps").
 Decision: [ADR-030](../../decisions/ADR-030-app-platform-completeness.md) (app-platform
 completeness: navigation, restore, shell, i18n, accessibility, data). Companion to
-[`services.md`](../design/services.md), [`input.md`](../design/input.md),
+[`services/README.md`](../design/services/README.md), [`input.md`](../design/input.md),
 [`security.md`](../design/security.md), and [`mobile-integration.md`](../design/mobile-integration.md).
 
 The platform shell is the OS-facing app surface outside the render tree. It is async,

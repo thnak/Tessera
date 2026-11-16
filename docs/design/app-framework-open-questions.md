@@ -12,7 +12,7 @@ Inputs read: ADR-050 and the documents it links
 ([`app-framework-gap-audit-v1.md`](../architecture/app-framework-gap-audit-v1.md),
 [`native-render-surfaces.md`](native-render-surfaces.md),
 [`service-resolve-benchmark.md`](service-resolve-benchmark.md)),
-[`startup-api-v1.md`](../specs/startup-api-v1.md), [`services.md`](services.md),
+[`startup-api-v1.md`](../specs/startup-api-v1.md), [`services/README.md`](services/README.md),
 [`app-host.md`](app-host.md), [`dirty-rendering.md`](dirty-rendering.md),
 [`devtools-protocol-v1.md`](../specs/devtools-protocol-v1.md),
 [`navigation-v1.md`](../specs/navigation-v1.md),
@@ -429,7 +429,7 @@ hardware video overlays or an external engine that must own its swapchain.
 | 7 | [`os-events-v1.md`](../specs/os-events-v1.md) section 8 | iOS `sceneDidEnterBackground` maps to `WindowShown/Hidden` only | add the `AppForeground`/`AppBackground` mapping ADR-050 section 2 introduces |
 | 8 | [`platform-shell-v1.md`](../specs/platform-shell-v1.md) sections 1 and 6 | tray is V1 but its visibility/battery policy is unspecified | the `Hidden` state and `BackgroundPolicy` of ADR-050 section 5 are that policy |
 | 9 | [`dependencies.md`](../specs/dependencies.md) section 7, open question 6, and the abstraction table (`libcurl` behind `services::HttpClient`) | presents libcurl plus mbedTLS as the networking stack | platform back ends, libcurl for Linux only; module names move from `services/*` to `tessera_appfw_*` |
-| 10 | [`services.md`](services.md) sections 7 and 10 | "background execution policy on mobile" open | answered by section 1 (later, with seams) |
+| 10 | [`services/background-and-lifecycle.md`](services/background-and-lifecycle.md) section 7 and [`services/status-and-open-questions.md`](services/status-and-open-questions.md) section 10 | "background execution policy on mobile" open | answered by section 1 (later, with seams) |
 | 11 | [`startup-api-v1.md`](../specs/startup-api-v1.md) section 5.1 | activation sources are `none`, `deep_link`, `notification` | reserve `background_task` (not V1) |
 | 12 | [`navigation-v1.md`](../specs/navigation-v1.md) | does not say whether off-stack screens stay mounted | must be decided before route scopes are reconsidered (section 2) |
 | 13 | ADR-050 section 1 rule 3 and section 8 | `data` listed as a template default | opt-in (section 8) |

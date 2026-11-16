@@ -153,4 +153,4 @@ reallocate in the frame loop.
 ## 10. Status
 
 - Spec/guide only; not implemented.
-- Depends on [`buffer-config-v1`](../specs/buffer-config-v1.md), [`memory-model-v1`](../specs/memory-model-v1.md), [`runtime-config-v1`](../specs/runtime-config-v1.md), and the settings service ([services.md](../design/services.md)).
+- Depends on [`buffer-config-v1`](../specs/buffer-config-v1.md), [`memory-model-v1`](../specs/memory-model-v1.md), [`runtime-config-v1`](../specs/runtime-config-v1.md), and the settings service ([services/storage.md](../design/services/storage.md)).

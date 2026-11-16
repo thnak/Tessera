@@ -270,8 +270,26 @@ This page is the map and reading order for the framework.
 - [`design/threading-and-memory.md`](design/threading-and-memory.md) — threads, ownership,
   allocators, GPU memory, shutdown
 - [`design/resources.md`](design/resources.md) — assets, caches, uploads, lifetime, hot reload
-- [`design/services.md`](design/services.md) — i18n (internationalization), navigation, storage, networking,
-  notifications
+- [`design/services/README.md`](design/services/README.md) — services docs index: the common service
+  contract, i18n (internationalization), navigation, storage, and the platform modules
+- [`design/services/common-contract.md`](design/services/common-contract.md) — section 1: the
+  `Service`/`Result` contract, the async rules, and the AF1 start/stop shape that landed
+- [`design/services/i18n.md`](design/services/i18n.md) — section 2: ICU, catalogs, locale negotiation,
+  and the dirty mask a locale change produces (AF8)
+- [`design/services/navigation.md`](design/services/navigation.md) — section 3: routes, stack and back
+  priority, deep links, restore snapshots (issue #196)
+- [`design/services/storage.md`](design/services/storage.md) — section 4: settings/documents/cache,
+  atomic replace, durability, corruption fallback (AF7)
+- [`design/services/platform-modules.md`](design/services/platform-modules.md) — sections 5, 6 and 8:
+  networking, notifications, security and privacy rules
+- [`design/services/background-and-lifecycle.md`](design/services/background-and-lifecycle.md) —
+  section 7 and 11.4: suspend/resume, `TaskScope`, the layer-0 timer wake source (AF2)
+- [`design/services/app-lifecycle-rulings.md`](design/services/app-lifecycle-rulings.md) — sections
+  11-11.3: `Application`, ordered dispatch, the in-frame lookup mark, the start deadline (AF3)
+- [`design/services/service-injection.md`](design/services/service-injection.md) — sections 11.5-11.6:
+  `useService<T>()` in IR and codegen, and what the TSX half still needs (AF5)
+- [`design/services/status-and-open-questions.md`](design/services/status-and-open-questions.md) —
+  sections 9 and 10: implementation order and what is still open
 - [`design/storage-module.md`](design/storage-module.md) — the `storage` module: the atomic-replace
   sequence, `Durability` and the per-platform fsync policy, the corruption fallback, cancellation and
   temp-file cleanup, and the `IoTaskExecutor` seam it runs on (ADR-050 AF7)
@@ -435,7 +453,16 @@ This page is the map and reading order for the framework.
 4. [i18n](specs/i18n-v1.md)
 5. [Accessibility](specs/accessibility-v1.md)
 6. [Async data](specs/async-data-v1.md)
-7. [Services](design/services.md)
+7. [Services](design/services/README.md)
+   - [Common contract](design/services/common-contract.md)
+   - [i18n](design/services/i18n.md)
+   - [Navigation](design/services/navigation.md)
+   - [Storage](design/services/storage.md)
+   - [Platform modules](design/services/platform-modules.md)
+   - [Background and lifecycle](design/services/background-and-lifecycle.md)
+   - [Application lifecycle rulings](design/services/app-lifecycle-rulings.md)
+   - [Service injection](design/services/service-injection.md)
+   - [Status and open questions](design/services/status-and-open-questions.md)
 
 ### Production readiness
 

@@ -3,7 +3,8 @@
 Status: proposed (Big Step F, defined in [AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step)). Route matching/stack/guards:
 [`navigation-v1.md`](navigation-v1.md). Decision: [ADR-026](../../decisions/ADR-026-deep-links-and-external-activation.md) (deep links and external activation). Companion to
 [`startup-and-loading.md`](../design/startup-and-loading.md),
-[`services.md`](../design/services.md), and [`security.md`](../design/security.md).
+[`services/navigation.md`](../design/services/navigation.md), and
+[`security.md`](../design/security.md).
 
 Opening a link/file must activate the app, route to a screen, and focus the right window. The
 link is **untrusted input** and must be declared/validated by the developer, not hardcoded in

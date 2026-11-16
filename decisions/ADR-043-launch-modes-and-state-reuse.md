@@ -5,7 +5,8 @@
 - Related: [`startup-api-v1.md`](../docs/specs/startup-api-v1.md) (normative behavior and matrix),
   [`state-restoration-v1.md`](../docs/specs/state-restoration-v1.md) (snapshot, restore order),
   [`deep-linking-v1.md`](../docs/specs/deep-linking-v1.md) (activation event/routing),
-  [`services.md`](../docs/design/services.md) section 6 (notifications),
+  [`services/platform-modules.md`](../docs/design/services/platform-modules.md#6-notifications)
+  section 6 (notifications),
   [ADR-019](ADR-019-power-aware-runtime.md) (power/idle), [ADR-020](ADR-020-window-resize-and-lifecycle.md)
   (lifecycle), [ADR-021](ADR-021-async-runtime.md) (async/no blocking),
   [ADR-042](ADR-042-jsx-startup-surface.md) (startup surface).

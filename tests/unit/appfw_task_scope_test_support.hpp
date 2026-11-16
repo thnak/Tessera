@@ -5,8 +5,8 @@
 // there is no wall clock, no sleep, no thread and no network anywhere in this suite.
 //
 // The coroutines take `runtime::TaskContext` as their first parameter because `Task`'s promise
-// consumes it there (see `docs/design/services.md` section 1.1); `scope.spawn(...)` starts the task
-// and the scope's token is what cancels it.
+// consumes it there (see `docs/design/services/common-contract.md` section 1.1); `scope.spawn(...)`
+// starts the task and the scope's token is what cancels it.
 
 #pragma once
 

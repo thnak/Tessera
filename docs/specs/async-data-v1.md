@@ -1,7 +1,7 @@
 # Async data, cache, and offline v1
 
 Status: proposed (Big Step F, defined in [AGENTS.md](../../AGENTS.md#big-steps-group-work-dont-micro-step)). "V1" means the first-release scope ([AGENTS.md](../../AGENTS.md), Non-negotiables rule 8). Decision: [ADR-030](../../decisions/ADR-030-app-platform-completeness.md) (navigation, restore, shell, i18n, accessibility, async data). Companion to
-[`async.md`](../design/async.md), [`services.md`](../design/services.md),
+[`async.md`](../design/async.md), [`services/README.md`](../design/services/README.md),
 [`startup-and-loading.md`](../design/startup-and-loading.md),
 [`forms-and-validation-v1.md`](forms-and-validation-v1.md), and
 [`resource-lifecycle-v1.md`](resource-lifecycle-v1.md).
@@ -63,7 +63,7 @@ cache-first | network-first | stale-while-revalidate | network-only | cache-only
 
 ## 5. Offline
 
-- Offline detection comes from services ([`services.md`](../design/services.md)) or the HAL ([`hal.md`](../design/hal.md)); not polling the network in the loop.
+- Offline detection comes from services ([`services/platform-modules.md`](../design/services/platform-modules.md#5-networking)) or the HAL ([`hal.md`](../design/hal.md)); not polling the network in the loop.
 - Read-only cached data may be shown with an offline/stale indicator.
 - Queueable mutations are explicit, bounded, and idempotent; conflict/error surfaced.
 - Reconnect triggers revalidation/queued flush with backoff and cancellation.

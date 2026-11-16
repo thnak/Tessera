@@ -158,7 +158,7 @@ Start with the [documentation map](docs/README.md) and [architecture overview](d
   resolved/deferred decisions ([ADR-033](decisions/ADR-033-app-completeness-gap-resolutions.md))
 - [Async runtime](docs/design/async.md)
 - [Threading & memory](docs/design/threading-and-memory.md)
-- [Resources](docs/design/resources.md), [services](docs/design/services.md),
+- [Resources](docs/design/resources.md), [services](docs/design/services/README.md),
   [security](docs/design/security.md)
 - [Diagnostics & profiling](docs/design/diagnostics.md)
 - [Diagnostics config](docs/specs/diagnostics-config-v1.md)
