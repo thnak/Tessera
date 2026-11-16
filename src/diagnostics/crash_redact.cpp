@@ -112,36 +112,19 @@ std::string redact_report(std::string_view text) {
 }
 
 bool contains_unredacted(std::string_view text) {
-    std::size_t cursor = 0;
-    while (cursor < text.size()) {
-        const std::size_t line_end = text.find('\n', cursor);
-        const std::string_view line =
-            text.substr(cursor, line_end == std::string_view::npos ? std::string_view::npos
-                                                                   : line_end - cursor);
-        cursor = line_end == std::string_view::npos ? text.size() : line_end + 1;
-        if (line.find("<home>") != std::string_view::npos) {
-            // `<home>` is the *replacement*, which is allowed; but the raw user name must not
-            // follow it, and the check below looks for the real prefixes first.
-            continue;
-        }
-        constexpr std::string_view kHomePrefixes[] = {"C:\\Users\\", "C:/Users/", "/home/",
-                                                      "/Users/"};
-        for (const std::string_view prefix : kHomePrefixes) {
-            if (line.find(prefix) != std::string_view::npos) {
-                return true;
-            }
-        }
-        const std::size_t equals = line.find('=');
-        if (equals != std::string_view::npos && equals > 0 && !is_own_key(line.substr(0, equals)) &&
-            looks_environment_name(line.substr(0, equals))) {
-            return true;
-        }
-        if (equals != std::string_view::npos && equals + 1 < line.size() &&
-            looks_absolute_path(line.substr(equals + 1))) {
-            return true;
-        }
-    }
-    return false;
+    // Defined by the pass it gates: text is unredacted exactly when `redact_report` would change
+    // it.
+    //
+    // The previous implementation was five heuristics that had drifted from `redact_report` in both
+    // directions -- it reported clean a line carrying `<home>` plus a second home prefix that the
+    // pass rewrites (the early-out skipped the whole line), and it had no way to notice a rule the
+    // pass later gained. Re-running the pass makes agreement structural rather than maintained.
+    //
+    // Credentials are deliberately out of scope: `redact_report` does not pattern-match tokens,
+    // because a guessed token format is a false-positive machine that would mangle legitimate
+    // content. A bare token is therefore not "removable", and this gate must not claim otherwise;
+    // keeping secrets out of breadcrumbs is the writer's job (crash-reporting-v1.md section 5).
+    return redact_report(text) != text;
 }
 
 } // namespace tessera::diagnostics
