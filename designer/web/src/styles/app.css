@@ -1,10 +1,15 @@
 /* SPDX-License-Identifier: MIT
  *
- * The merged studio page's stylesheet (issue #392; originally the diagnostics page's, issue #165, with
- * the canvas pane's rules folded in from the retired `canvas.css`). Hand-written, no framework and no
- * build step, so the page is this file plus the JS modules and the three Wasm artifacts. Values follow
- * the Instrument light/dark pair the component library ships (packages/tessera-ui/themes) by hand
- * rather than importing the theme JSON: this page must render before the engine exists.
+ * The studio page's stylesheet (issue #392; originally the diagnostics page's, issue #165, with the canvas
+ * pane's rules folded in from the retired `canvas.css`). It is **static CSS, imported by `src/main.tsx`**,
+ * and Vite emits it as one content-hashed `assets/index-<hash>.css` and links it from the built
+ * `index.html` -- so it is a `<link rel="stylesheet">` with an `href`, never an inline `<style>`, which is
+ * what keeps the strict CSP ("no inline script, no remote script", ADR-054 decision 4) satisfied.
+ *
+ * There is no CSS-in-JS runtime and no second framework (ADR-054 decision 4): the build minifies and
+ * fingerprints this file, nothing more. Values follow the Instrument light/dark pair the component library
+ * ships (packages/tessera-ui/themes) by hand rather than importing the theme JSON: this page must render
+ * before the engine exists.
  */
 
 /* The merged page switches panes with the `hidden` attribute, and the panes are flex boxes. A user

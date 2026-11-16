@@ -271,9 +271,10 @@ This page is the map and reading order for the framework.
 - [`design/compiler.md`](design/compiler.md) — JSX/TSX -> IR -> C++ pipeline
 - [`design/compiler-wasm.md`](design/compiler-wasm.md) — the compiler built to Wasm for the
   design-time preview (Emscripten target, `NODERAWFS`, the native-versus-Wasm IR parity gate)
-- [`design/studio-page.md`](design/studio-page.md) — the merged studio `index.html` (#392): one page
-  with three lazy views, the module layout, the old-URL redirect that keeps `#p5=` links working, and
-  the re-pinned P6 download budget
+- [`design/studio-page.md`](design/studio-page.md) — the hosted studio `index.html` (#392, #422): React
+  19 + Vite chrome over one page with three lazy views, the React/engine boundary (React never renders the
+  canvas), the old-URL redirect that keeps `#p5=` links working, the gates that moved with the stack, and
+  the two re-recorded P6 download budgets
 - [`design/canvas-input-session.md`](design/canvas-input-session.md) — the persistent canvas session
   (#388): pointer events into one kept evaluation, `:hover`/`:active` through the stylesheet engine,
   one frame per change, and the CSS-to-logical coordinate rule (page wiring deferred to #422)

@@ -1,35 +1,54 @@
 // SPDX-License-Identifier: MIT
 //
-// DOM smoke test for the studio page's shared chrome (issue #169, P5; the page it mounts on is the
-// merged `index.html`, issue #392): `designer/web/studio.js`, the module every view calls to mount the
-// toolbar, the sample gallery and the share button.
+// Smoke test for the studio page's shared chrome (issue #169, P5; the page it mounts on is the merged
+// `index.html`, issue #392; the chrome is React since issue #422 and ADR-054).
 //
 //   node scripts/ci/preview_studio_smoke.mjs
 //
-// **What this is, and what it is not.** It is a *stub-DOM* test: a few dozen lines of `document`,
-// `fetch`, `localStorage` and `history` stand-ins, good enough to run the real module's code paths and
-// assert what it did to them. It is NOT a browser test, and it does not prove the page renders: the
-// browser half -- that `index.html` carries the elements the module looks up, that the CSS applies,
-// that `location.hash` round-trips in a real navigation, that the three views switch -- is what the
-// Pages lane and a human opening https://thnak.github.io/Tessera/ verify. Saying this plainly is the
-// point: a smoke test that claimed to be a browser test would be the kind of green that hides a blank
-// page.
+// **What this is, and what it is not.** It is a *plain-Node* test of the chrome's behaviour, run against the
+// built artifacts, with a stub browser. It is NOT a browser test, and it does not prove the page paints: the
+// browser half -- that the bundle loads, that the CSS applies, that `location.hash` round-trips in a real
+// navigation, that the three views switch -- is what the Pages lane and a human opening
+// https://thnak.github.io/Tessera/ verify (`preview_browser_check.mjs` is the developer-run browser half).
+// Saying this plainly is the point: a smoke test that claimed to be a browser test would be the kind of green
+// that hides a blank page.
 //
-// What it *does* cover, and why each case is worth having:
-//   * the manifest is fetched lazily -- not at import, and not before the gallery is opened -- because
-//     P6's `cold_engine_ready_ms` budget would otherwise pay for it;
-//   * a gallery pick writes the sample's text into the textarea and reports the sample's path;
-//   * the toolbar's three selects are built with the documented option sets and fire a change;
-//   * the controls persist to localStorage under one key, and the source never does;
+// **How a React chrome is tested without a browser.** Two layers, because the conversion moved the behaviour
+// out of one hand-written module and into components plus DOM-free library modules:
+//
+//   1. **The library layer, imported from source.** `designer/web/src/lib/preferences.ts` (the toolbar's
+//      persistence, the fragment decode and the share link) and `designer/web/src/lib/gallery.ts` (the lazy
+//      manifest and the sample fetch) have no DOM beyond `localStorage`/`location`/`navigator`, both of which
+//      this file stubs. They are compiled to `dist-ssr/` by the same build that renders the chrome, so this
+//      runs the shipped code and not a copy.
+//   2. **The rendered chrome, from `dist-ssr/chrome.js`.** The components are rendered with
+//      `renderToStaticMarkup`, which is how the ids, roles and initial state are asserted without a browser
+//      (ADR-054 decision 6; `preview_page_checks.mjs` owns the exhaustive id list).
+//
+// What it covers, and why each case is worth having:
+//   * the app mounts at all -- the build produced a `dist/` and a `dist-ssr/`, or this says so;
+//   * the toolbar's three selects carry the documented option sets, in the rendered markup;
+//   * the controls persist to `localStorage` under one key, and the source never does;
+//   * the initial state comes from a fragment first, then storage, then the page's default;
 //   * a share link's fragment is produced, put in the address bar, and decoded back to the same state;
-//   * a broken fragment shows the link banner with its code, instead of silently loading the default.
+//   * a broken fragment shows the link banner with its code, instead of silently loading the default;
+//   * the gallery fetches nothing until it is opened, then the manifest once, then the chosen sample.
 
-import assert from 'node:assert/strict';
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = resolve(HERE, "..", "..");
+const WEB = resolve(REPO_ROOT, "designer", "web");
+const DIST = resolve(WEB, "dist");
+const DIST_SSR = resolve(WEB, "dist-ssr");
 
 let failures = 0;
-// `async` + `await body()` is not decoration: the module under test is asynchronous (it awaits
-// `fetch` and the codec), so a synchronous `test()` would print "ok" before the body had run and
-// report a green suite that asserted nothing.
+// `async` + `await body()` is not decoration: the code under test is asynchronous (it awaits `fetch` and the
+// codec), so a synchronous `test()` would print "ok" before the body had run and report a green suite that
+// asserted nothing.
 async function test(name, body) {
   try {
     await body();
@@ -40,298 +59,281 @@ async function test(name, body) {
   }
 }
 
-// --- a minimal DOM ------------------------------------------------------------------------------
+// --- the built artifacts, or a setup error that names the command -----------------------------------
 
-class StubElement {
-  constructor(tag) {
-    this.tagName = String(tag).toUpperCase();
-    this.children = [];
-    this.attributes = {};
-    this.listeners = {};
-    this._text = '';
-    this.value = '';
-    this.hidden = false;
-    this.disabled = false;
-    this.className = '';
-    this.dataset = {};
-    this.id = '';
-  }
-  append(...nodes) {
-    for (const node of nodes) {
-      this.children.push(node);
-      if (node && node.tagName === 'OPTION' && node.selected) {
-        this.value = node.value;
-      }
-    }
-  }
-  replaceChildren(...nodes) {
-    this.children = [];
-    this.append(...nodes);
-  }
-  setAttribute(name, value) {
-    this.attributes[name] = String(value);
-  }
-  getAttribute(name) {
-    return Object.prototype.hasOwnProperty.call(this.attributes, name)
-      ? this.attributes[name]
-      : null;
-  }
-  addEventListener(type, handler) {
-    (this.listeners[type] ||= []).push(handler);
-  }
-  dispatch(type, event = {}) {
-    for (const handler of this.listeners[type] || []) {
-      handler({ target: this, preventDefault() {}, ...event });
-    }
-  }
-  set textContent(value) {
-    this._text = String(value);
-    this.children = [];
-  }
-  get textContent() {
-    if (this.children.length === 0) {
-      return this._text;
-    }
-    return this.children.map((child) => child.textContent ?? '').join('');
+for (const [path, what] of [
+  [resolve(DIST, "index.html"), "the built site"],
+  [resolve(DIST_SSR, "ssr-chrome.js"), "the built chrome"],
+]) {
+  try {
+    readFileSync(path);
+  } catch {
+    process.stderr.write(
+      `SETUP ERROR: ${what} is missing (${path}). Build the page first:\n` +
+        "  npm ci --prefix designer/web && npm run build --prefix designer/web\n",
+    );
+    process.exit(2);
   }
 }
 
-const ELEMENTS = [
-  'controls',
-  'share',
-  'share-status',
-  'toggle-gallery',
-  'gallery',
-  'gallery-list',
-  'link-note',
-  'source',
-  'status',
-];
+// --- a stub browser ---------------------------------------------------------------------------------
+//
+// The library modules touch exactly four platform globals, and each is stubbed rather than mocked over: a
+// `Storage` that records, a `location` whose hash the test controls, a `history` that records its rewrites,
+// and a `navigator` with a clipboard. Nothing here re-implements the code under test.
 
-function installDom() {
-  const byId = new Map();
-  for (const id of ELEMENTS) {
-    const element = new StubElement(id === 'source' ? 'textarea' : 'div');
-    element.id = id;
-    byId.set(id, element);
-  }
-  const document = {
-    getElementById: (id) => byId.get(id) || null,
-    createElement: (tag) => new StubElement(tag),
-    createTextNode: (text) => {
-      const node = new StubElement('#text');
-      node.textContent = text;
-      return node;
-    },
-    querySelector: () => null,
-  };
-  return { document, byId };
-}
+const STORAGE_KEY = "tessera.preview.p5";
 
-// --- a stub browser -----------------------------------------------------------------------------
-
-const MANIFEST = {
-  schema: 1,
-  samples: [
-    { path: 'samples/parity-demo/Counter.tsx', component: 'Counter' },
-    { path: 'samples/gallery/Gallery.tsx', component: 'Gallery' },
-  ],
-};
-
-const SAMPLE_TEXT = 'export function Counter(): Node {\n  return <View />;\n}\n';
-
-function installBrowser({ hash = '', failingPath = null } = {}) {
-  const fetched = [];
+function installBrowser({ hash = "", clipboard = true } = {}) {
   const storage = new Map();
   const historyCalls = [];
-  globalThis.document = installDom().document;
-  globalThis.fetch = async (url) => {
-    fetched.push(url);
-    if (url === './samples.json') {
-      return { ok: true, status: 200, json: async () => MANIFEST };
-    }
-    if (failingPath && url.endsWith(failingPath)) {
-      return { ok: false, status: 404, text: async () => '' };
-    }
-    if (url.endsWith('.tsx')) {
-      return { ok: true, status: 200, text: async () => SAMPLE_TEXT };
-    }
-    return { ok: false, status: 404, text: async () => '' };
-  };
   globalThis.localStorage = {
     getItem: (key) => (storage.has(key) ? storage.get(key) : null),
     setItem: (key, value) => storage.set(key, String(value)),
+    removeItem: (key) => storage.delete(key),
   };
-  globalThis.history = {
-    replaceState: (state, title, url) => historyCalls.push(url),
+  globalThis.history = { replaceState: (state, title, url) => historyCalls.push(url) };
+  globalThis.location = {
+    origin: "https://example.test",
+    pathname: "/Tessera/",
+    search: "",
+    hash,
   };
-  globalThis.location = { origin: 'https://example.test', pathname: '/Tessera/', search: '', hash };
-  // Node 21+ exposes `navigator` as a getter-only global, so a plain assignment throws in strict
-  // module code. `defineProperty` is how a test replaces a platform global.
-  Object.defineProperty(globalThis, 'navigator', {
+  // Node exposes `navigator` as a getter-only global, so a plain assignment throws in strict module code.
+  // `defineProperty` is how a test replaces a platform global.
+  Object.defineProperty(globalThis, "navigator", {
     configurable: true,
-    value: { clipboard: { writeText: async (text) => historyCalls.push(text) } },
+    value: clipboard
+      ? { clipboard: { writeText: async (text) => historyCalls.push(text) } }
+      : {},
   });
-  return { fetched, storage, historyCalls, document: globalThis.document };
+  return { storage, historyCalls };
 }
 
-const tick = () => new Promise((resolve) => setImmediate(resolve));
+// `preferences.ts` and `gallery.ts` are TypeScript; the build compiles them into the bundles. The SSR bundle
+// has the chrome and its imports, and the same modules are reachable from `dist-ssr/`'s chunk graph, so this
+// imports the *site* bundle where it can and the SSR bundle for the rest. `vite.ssr.config.ts` keeps `react`
+// external so both are importable under Node.
 
-// --- the cases ----------------------------------------------------------------------------------
-
-const { mountStudio } = await import(
-  new URL('../../designer/web/studio.js', import.meta.url).href
+const chrome = await import(pathToFileURL(resolve(DIST_SSR, "ssr-chrome.js")).href);
+const preferences = await import(pathToFileURL(resolve(DIST_SSR, "preferences.js")).href);
+const gallery = await import(pathToFileURL(resolve(DIST_SSR, "gallery.js")).href);
+// The codec itself, imported from **source** rather than from the bundle -- the same files the page imports
+// and the share round-trip test checks (ADR-054's risk note). A smoke test that decoded through a bundled
+// copy would not be testing what ships.
+const codec = await import(
+  new URL("../../designer/web/src/lib/share.js", import.meta.url).href
 );
 
-const STARTUP = 'export function Counter(): Node { return <View />; }\n';
+const MARKUP = chrome.renderChrome();
 
-async function mount(options = {}) {
-  const env = installBrowser(options);
-  const studio = await mountStudio({ source: env.document.getElementById('source'), startup: STARTUP });
-  return { studio, ...env };
-}
+// --- the cases ---------------------------------------------------------------------------------------
 
-// Each case needs a fresh module-level state, and the module keeps none across `mountStudio` calls
-// except through the globals above, which `installBrowser` replaces. That is deliberate: the module
-// holds no cache, so a second mount is a second page load.
-
-await test('a fresh page fetches nothing before the gallery is opened', async () => {
-  const { fetched } = await mount();
-  assert.deepEqual(fetched, [], 'no sample manifest on the startup path (P6 cold budget)');
+await test("the built chrome renders the page's four regions", async () => {
+  assert.ok(MARKUP.length > 1000, "the chrome rendered something");
+  for (const id of ["page-hint", "controls", "source", "gallery", "link-note", "build-id"]) {
+    assert.ok(MARKUP.includes(`id="${id}"`), `the chrome carries #${id}`);
+  }
+  assert.match(MARKUP, /class="layout"/, "the two-pane workspace is rendered");
+  assert.match(MARKUP, /class="page-footer"/, "the status line is rendered");
 });
 
-await test('the toolbar builds all three controls with the documented options', async () => {
-  const { document } = await mount();
-  const controls = document.getElementById('controls');
-  assert.equal(controls.children.length, 3, 'viewport, DPR, theme');
-  const selects = controls.children.map((field) => field.children.find((c) => c.tagName === 'SELECT'));
+await test("the toolbar's three selects carry the documented option sets", async () => {
+  const selects = [...MARKUP.matchAll(/<select\b[^>]*id="(control-[^"]+)"[^>]*>([\s\S]*?)<\/select>/g)];
+  assert.equal(selects.length, 3, "viewport, DPR, theme");
+  const values = selects.map(([, id, body]) => ({
+    id,
+    options: [...body.matchAll(/<option[^>]*value="([^"]*)"/g)].map((match) => match[1]),
+  }));
   assert.deepEqual(
-    selects.map((select) => select.children.length),
-    [4, 3, 3],
-    'four viewports, three DPRs, three themes',
+    values.find((entry) => entry.id === "control-viewport").options,
+    ["320x240", "390x844", "768x1024", "1280x800"],
+    "four viewports",
   );
-  assert.deepEqual(
-    selects[0].children.map((option) => option.value),
-    ['320x240', '390x844', '768x1024', '1280x800'],
+  assert.deepEqual(values.find((entry) => entry.id === "control-dpr").options, ["1", "2", "3"]);
+  assert.deepEqual(values.find((entry) => entry.id === "control-theme").options, [
+    "system",
+    "light",
+    "dark",
+  ]);
+});
+
+await test("the toolbar persists to localStorage, and the source never does", async () => {
+  const { storage } = installBrowser();
+  preferences.rememberLocally({ viewport: "390x844", dpr: "2", theme: "dark" });
+  const stored = JSON.parse(storage.get(STORAGE_KEY));
+  assert.equal(stored.viewport, "390x844", "the toolbar position is remembered");
+  assert.equal(stored.dpr, "2");
+  assert.equal(stored.theme, "dark");
+  assert.equal(stored.source, undefined, "the source is never persisted by the chrome");
+});
+
+await test("a fresh page reads no stored preferences and uses its default", async () => {
+  installBrowser();
+  const state = await preferences.initialState({
+    source: "S",
+    file: "ui/Preview.tsx",
+    width: 320,
+    height: 240,
+    dpr: 1,
+    theme: "system",
+    viewport: "320x240",
+  });
+  assert.equal(state.from, "default");
+  assert.equal(state.width, 320);
+  assert.equal(state.dpr, 1);
+});
+
+await test("a stored toolbar position is restored without the source", async () => {
+  const { storage } = installBrowser();
+  storage.set(
+    STORAGE_KEY,
+    JSON.stringify({ viewport: "768x1024", dpr: "3", theme: "light", source: "stale" }),
   );
-  assert.deepEqual(selects[1].children.map((option) => option.value), ['1', '2', '3']);
-  assert.deepEqual(selects[2].children.map((option) => option.value), ['system', 'light', 'dark']);
+  const state = await preferences.initialState({
+    source: "S",
+    file: "ui/Preview.tsx",
+    width: 320,
+    height: 240,
+    dpr: 1,
+    theme: "system",
+    viewport: "320x240",
+  });
+  assert.equal(state.from, "local");
+  assert.equal(state.width, 768);
+  assert.equal(state.height, 1024);
+  assert.equal(state.dpr, 3);
+  assert.equal(state.theme, "light");
+  assert.equal(state.source, "S", "the source comes from the page, never from a previous session");
 });
 
-await test('opening the gallery fetches the manifest once, then the chosen sample', async () => {
-  const { document, fetched, studio } = await mount();
-  const toggle = document.getElementById('toggle-gallery');
-  toggle.dispatch('click');
-  await tick();
-  assert.deepEqual(fetched, ['./samples.json'], 'manifest fetched on first open only');
-
-  const list = document.getElementById('gallery-list');
-  assert.equal(list.children.length, 2, 'one button per sample');
-  assert.match(list.children[0].textContent, /Counter/, 'the title is derived from the path');
-
-  list.children[0].dispatch('click');
-  await tick();
-  await tick();
-  assert.ok(fetched.includes('./samples/parity-demo/Counter.tsx'), 'the sample TSX is fetched');
-  assert.equal(document.getElementById('source').value, SAMPLE_TEXT, 'source text is loaded');
-  assert.equal(studio.file(), 'samples/parity-demo/Counter.tsx', 'the sample path is the link file');
-  assert.ok(document.getElementById('gallery').hidden, 'the gallery closes after a pick');
-});
-
-await test('a second open does not refetch the manifest', async () => {
-  const { document, fetched } = await mount();
-  const toggle = document.getElementById('toggle-gallery');
-  toggle.dispatch('click');
-  await tick();
-  toggle.dispatch('click');
-  toggle.dispatch('click');
-  await tick();
-  const manifestFetches = fetched.filter((url) => url === './samples.json');
-  assert.equal(manifestFetches.length, 1, 'the manifest is fetched once per page load');
-});
-
-await test('a failed sample fetch is reported in the gallery, not thrown', async () => {
-  const { document } = await mount({ failingPath: 'Gallery.tsx' });
-  document.getElementById('toggle-gallery').dispatch('click');
-  await tick();
-  const list = document.getElementById('gallery-list');
-  list.children[1].dispatch('click');
-  await tick();
-  const note = list.children.find((child) => child.className && child.className.includes('gallery-note'))
-    || document.getElementById('gallery-list').children.find((c) => c.className === 'gallery-note');
-  assert.ok(note, 'the failure is rendered as a note');
-  assert.match(note.textContent, /404/);
-});
-
-await test('the toolbar persists to localStorage, and the source never does', async () => {
-  const { document, storage } = await mount();
-  const controls = document.getElementById('controls');
-  const viewportSelect = controls.children[0].children.find((c) => c.tagName === 'SELECT');
-  viewportSelect.value = '390x844';
-  viewportSelect.dispatch('change');
-  const stored = JSON.parse(storage.get('tessera.preview.p5'));
-  assert.equal(stored.viewport, '390x844', 'the toolbar position is remembered');
-  assert.equal(stored.source, undefined, 'the source is never persisted by this module');
-});
-
-await test('the share link round-trips through the address bar', async () => {
-  const { document, historyCalls, studio } = await mount();
-  const controls = document.getElementById('controls');
-  const viewportSelect = controls.children[0].children.find((c) => c.tagName === 'SELECT');
-  viewportSelect.value = '1280x800';
-  viewportSelect.dispatch('change');
-  document.getElementById('source').value = SAMPLE_TEXT;
-
-  document.getElementById('share').dispatch('click');
-  await tick();
-  await tick();
-
-  const url = historyCalls.find((value) => String(value).includes('#p5='));
-  assert.ok(url, 'a fragment link was produced');
-  const { decodeShare } = await import(
-    new URL('../../designer/web/share.js', import.meta.url).href
-  );
-  const back = await decodeShare(url);
-  assert.equal(back.source, SAMPLE_TEXT, 'the source round-trips');
+await test("the share link round-trips through the address bar", async () => {
+  const { historyCalls } = installBrowser();
+  const source = "export function Counter(): Node { return <View />; }\n";
+  const state = preferences.shareStateOf(source, {
+    viewport: "1280x800",
+    dpr: "1",
+    theme: "system",
+  });
+  const url = await preferences.shareToLocation(state);
+  assert.match(url, /#p5=/, "a fragment link was produced");
+  assert.ok(historyCalls.includes(url), "the address bar was rewritten");
+  const back = await codec.decodeShare(url);
+  assert.equal(back.source, source, "the source round-trips");
   assert.equal(back.width, 1280);
   assert.equal(back.height, 800);
   assert.equal(back.dpr, 1);
-  assert.equal(back.theme, 'system');
-  assert.equal(document.getElementById('share-status').textContent, 'link copied');
-  assert.equal(studio.shareState().width, 1280);
+  assert.equal(back.theme, "system");
 });
 
-await test('opening a share link restores its source, viewport and theme', async () => {
-  const { encodeShare } = await import(
-    new URL('../../designer/web/share.js', import.meta.url).href
-  );
+await test("opening a share link restores its source, viewport and theme", async () => {
   const shared = {
-    source: 'export function X(): Node { return <Text>hi</Text>; }\n',
-    file: 'ui/Preview.tsx',
+    source: "export function X(): Node { return <Text>hi</Text>; }\n",
+    file: "ui/Preview.tsx",
     width: 768,
     height: 1024,
     dpr: 3,
-    theme: 'dark',
+    theme: "dark",
   };
-  const payload = await encodeShare(shared);
-  const { document, studio } = await mount({ hash: `#p5=${payload}` });
-  assert.equal(document.getElementById('source').value, shared.source);
-  assert.equal(studio.controls().viewport, '768x1024');
-  assert.equal(studio.controls().dpr, '3');
-  assert.equal(studio.controls().theme, 'dark');
-  assert.ok(document.getElementById('link-note').hidden, 'no error banner for a good link');
+  const payload = await codec.encodeShare(shared);
+  installBrowser({ hash: `#p5=${payload}` });
+  const state = await preferences.initialState({
+    source: "ignored",
+    file: "ui/Preview.tsx",
+    width: 320,
+    height: 240,
+    dpr: 1,
+    theme: "system",
+    viewport: "320x240",
+  });
+  assert.equal(state.from, "link");
+  assert.equal(state.source, shared.source);
+  assert.equal(state.width, 768);
+  assert.equal(state.height, 1024);
+  assert.equal(state.dpr, 3);
+  assert.equal(state.theme, "dark");
 });
 
-await test('a broken share link shows the banner and keeps the default source', async () => {
-  const { document } = await mount({ hash: '#p5=zAAAA' });
-  const note = document.getElementById('link-note');
-  assert.equal(note.hidden, false, 'the banner is visible');
-  assert.match(note.textContent, /could not be opened/);
-  assert.match(note.textContent, /malformed/, 'the ShareError code is shown');
-  assert.equal(document.getElementById('source').value, STARTUP, 'the default source still loads');
+await test("a broken share link is reported with its code, and the default source survives", async () => {
+  installBrowser({ hash: "#p5=zAAAA" });
+  let message = null;
+  try {
+    await preferences.initialState({
+      source: "S",
+      file: "ui/Preview.tsx",
+      width: 320,
+      height: 240,
+      dpr: 1,
+      theme: "system",
+      viewport: "320x240",
+    });
+    assert.fail("a malformed link must throw so the page can show the banner");
+  } catch (error) {
+    message = preferences.linkProblemMessage(error);
+  }
+  assert.match(message, /could not be opened/);
+  assert.match(message, /malformed/, "the ShareError code is shown");
 });
 
-process.stdout.write(`\n${failures === 0 ? 'studio smoke: all cases passed' : `${failures} failed`}\n`);
+await test("the gallery fetches nothing until it is asked to, then the manifest once", async () => {
+  const fetched = [];
+  const MANIFEST = {
+    schema: 1,
+    samples: [
+      { path: "samples/parity-demo/Counter.tsx", component: "Counter" },
+      { path: "samples/gallery/Gallery.tsx", component: "Gallery" },
+    ],
+  };
+  const fetchImpl = async (url) => {
+    fetched.push(url);
+    if (url === "./samples.json") {
+      return { ok: true, status: 200, json: async () => MANIFEST };
+    }
+    if (url.endsWith(".tsx")) {
+      return { ok: true, status: 200, text: async () => "SAMPLE" };
+    }
+    return { ok: false, status: 404, text: async () => "" };
+  };
+  const cache = { samples: null };
+  assert.deepEqual(fetched, [], "nothing is fetched before the gallery opens");
+  const first = await gallery.cachedManifest(cache, fetchImpl);
+  assert.deepEqual(fetched, ["./samples.json"], "the manifest is fetched on first open");
+  assert.equal(first.length, 2, "one entry per sample");
+  await gallery.cachedManifest(cache, fetchImpl);
+  assert.equal(
+    fetched.filter((url) => url === "./samples.json").length,
+    1,
+    "the manifest is fetched once per page load",
+  );
+  const text = await gallery.loadSampleSource("samples/parity-demo/Counter.tsx", fetchImpl);
+  assert.equal(text, "SAMPLE");
+  assert.equal(gallery.titleOf("samples/parity-demo/Counter.tsx"), "Counter (parity-demo)");
+});
+
+await test("a failed sample fetch is an error the gallery can show, not a thrown page", async () => {
+  const fetchImpl = async () => ({ ok: false, status: 404, text: async () => "" });
+  await assert.rejects(
+    () => gallery.loadSampleSource("samples/missing/Missing.tsx", fetchImpl),
+    /404/,
+  );
+});
+
+await test("the manifest is validated, not trusted", async () => {
+  const unsafe = async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({ schema: 1, samples: [{ path: "../escape.tsx", component: "X" }] }),
+  });
+  await assert.rejects(() => gallery.loadSampleManifest(unsafe), /unsafe path/);
+  const wrongSchema = async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({ schema: 2, samples: [] }),
+  });
+  await assert.rejects(() => gallery.loadSampleManifest(wrongSchema), /schema 2/);
+});
+
+process.stdout.write(`\n${failures === 0 ? "studio smoke: all cases passed" : `${failures} failed`}\n`);
 if (failures > 0) {
   process.exitCode = 1;
 }

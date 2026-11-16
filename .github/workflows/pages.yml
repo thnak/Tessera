@@ -34,6 +34,10 @@ on:
   push:
     branches: [main]
     paths:
+      # `designer/web/**` covers the whole front end, toolchain included: package.json, the committed
+      # package-lock.json, vite.config.ts, vite.ssr.config.ts, tsconfig.json and the React sources
+      # (issue #422). The lockfile is load-bearing -- `npm ci` refuses a stale one -- so a change to it
+      # must run this lane.
       - 'designer/web/**'
       - 'samples/**'
       - 'tools/codegen/**'
@@ -54,6 +58,7 @@ on:
       - '.github/workflows/pages.yml'
   pull_request:
     paths:
+      # The front end and its toolchain (issue #422): see the push trigger's note.
       - 'designer/web/**'
       - 'samples/**'
       - 'tools/codegen/**'
@@ -90,6 +95,33 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      # The studio front end is a Vite + React 19 + TypeScript project since issue #422 (ADR-054), so
+      # this lane now builds it. Node is design-time tooling only; it is never a dependency of the app
+      # binary or of the Wasm engine, and nothing it produces is linked into either.
+      #
+      # The version is pinned because the build must be reproducible from the committed lockfile: `npm ci`
+      # fails outright if `package.json` and `package-lock.json` disagree, which is the check that keeps
+      # the committed lock honest.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: designer/web/package-lock.json
+
+      # `npm ci`, never `npm install`: it installs exactly the lockfile and refuses a stale one.
+      - name: Install studio front-end dependencies
+        run: npm ci --prefix designer/web
+
+      # `npm run build` = `tsc --noEmit` + `vite build` (the site into dist/) + `vite build` with
+      # `vite.ssr.config.ts` (the gate-only bundle in dist-ssr/). The typecheck is part of the build on
+      # purpose: a type error is a build failure here rather than a runtime surprise in a browser no CI
+      # lane can drive.
+      #
+      # This runs before the Wasm build on purpose: it is the cheapest step in the job and the one most
+      # likely to fail, so a broken front end fails in a minute instead of after an emsdk download.
+      - name: Build studio front end (tsc + Vite)
+        run: npm run build --prefix designer/web
 
       - name: Read emsdk pin
         run: echo "EMSDK_VERSION=$(cat tools/emsdk-version.txt)" >> "$GITHUB_ENV"
@@ -181,24 +213,26 @@ jobs:
           --wasm build/wasm-webgpu/src/compiler/codegen/tessera_scene_preview.js
           --node "$EMSDK_NODE"
 
-      # P5 (issue #169): the share-link round trip, the page chrome under a stub DOM, the page's
-      # static wiring, and the sample manifest's drift. All four need Node but not Wasm: the codec is a
-      # pure ES module, the chrome is driven through a stub DOM, and the manifest is generated from
-      # samples/. They run BEFORE the site is assembled, so a broken link format cannot be published.
+      # P5 (issue #169): the share-link round trip, the page chrome, and the page's built wiring. All
+      # three need Node but not Wasm: the codec is a pure ES module, and the chrome is rendered from the
+      # front end's `dist-ssr/` bundle (ADR-054 decision 6 -- React creates the DOM at runtime, so "every
+      # id exists" is asserted against `renderToStaticMarkup` rather than against a static file). They run
+      # BEFORE the site is assembled, so a broken link format cannot be published.
       #
       # What they do NOT prove: that a browser paints the page. That is this lane's deploy and a human
-      # opening the URL. The scripts say so in their own headers.
+      # opening the URL (or the developer-run `preview_browser_check.mjs`). The scripts say so themselves.
       - name: Share-link round trip (codec, no browser)
         run: node scripts/ci/preview_share_roundtrip.mjs
 
-      - name: Page chrome smoke (stub DOM)
+      - name: Studio chrome smoke (rendered build, stub browser)
         run: node scripts/ci/preview_studio_smoke.mjs
 
-      # The static half: every element `studio.js` and the three views look up exists in the merged
-      # page, the redirect stubs preserve the query and the `#p5=` fragment, every manifest path
-      # exists, and no page module calls a function its own refactor deleted. Both failures this checks
-      # for actually shipped into a draft of P5.
-      - name: Page wiring checks (ids, redirects, sample paths, dangling calls)
+      # The built half: `dist/index.html` is CSP-clean and its asset references resolve, the rendered
+      # chrome carries every id the page's code looks up, the redirect stubs preserve the query and the
+      # `#p5=` fragment, every manifest path exists, the two codec modules are still pure ES modules, the
+      # three Wasm modules are still three lazy `import()`s, and no module calls a function its own
+      # refactor deleted. Several of the failures this checks for actually shipped into a draft of P5.
+      - name: Page wiring checks (built output, ids, redirects, sample paths)
         run: node scripts/ci/preview_page_checks.mjs
 
       - name: Sample manifest is generated and current
@@ -229,73 +263,81 @@ jobs:
           --canvas build/wasm-webgpu/src/compiler/codegen/tessera_canvas.js
           --node "$EMSDK_NODE"
 
-      # Assemble the site: the hand-written page plus the three artifacts the modules need. Nothing is
-      # built here - the page has no build step of its own by design (issue #165).
+      # Assemble the site from the **built** page plus the three Wasm artifacts.
       #
-      # Issue #392 merged the three pages into one `index.html`: the file list below is the merged page
-      # and its views, and it is the same list as `PAGE_FILES` in `scripts/preview_budget_measure.py`
-      # (the two are read together, and a file missing from either is a file that ships unweighed or a
-      # page that throws on load).
+      # Issue #422 converted the page to React 19 + Vite (ADR-054), so there is no longer a hand-written
+      # page to copy: `designer/web/dist/` is what a browser downloads, and it carries content-hashed
+      # asset names (`assets/index-<hash>.js`). `dist/` already includes the files Vite copies from
+      # `designer/web/public/` (the two redirect stubs, `redirect.js`, `samples.json`), which is why the
+      # copies below are only the Wasm modules, the samples and the build id.
+      #
+      # The old fixed `test -f` list cannot survive content hashes, so the integrity check is derived from
+      # the document instead: every asset `dist/index.html` references must exist in the artifact. That is
+      # a stronger check than the list it replaces -- it fails on a dangling reference the list would not
+      # have named, and it cannot go stale when the build renames a chunk.
       - name: Assemble site
         run: |
           set -euo pipefail
           site=build/pages
           rm -rf "$site"
           mkdir -p "$site"
-          cp -R designer/web/. "$site/"
+          # The built front end (issue #422): index.html, the hashed JS/CSS chunks, and the public files
+          # Vite copies verbatim. Copied with a trailing `/.` so `dist`'s contents land at the site root.
+          cp -R designer/web/dist/. "$site/"
           # P5's sample gallery fetches `samples/<path>` from the page's own origin (issue #169). The
           # TSX is the single source of truth and is copied verbatim, never inlined into the manifest;
           # without this the gallery 404s in production while passing every local test, because a
           # checkout has samples/ next to designer/ but the assembled site does not.
           mkdir -p "$site/samples"
           cp -R samples/. "$site/samples/"
-          cp build/wasm-webgpu/src/compiler/codegen/tessera_diagnostics.js "$site/"
-          cp build/wasm-webgpu/src/compiler/codegen/tessera_diagnostics.wasm "$site/"
-          cp build/wasm-webgpu/src/compiler/codegen/tessera_scene_preview.js "$site/"
-          cp build/wasm-webgpu/src/compiler/codegen/tessera_scene_preview.wasm "$site/"
-          # P3's canvas module (issue #167). Both modules are published: the merged page must keep the
-          # Scene view working in a browser without WebGPU (design section 7.5), so the Canvas view is
-          # never the only way to see a scene.
-          cp build/wasm-webgpu/src/compiler/codegen/tessera_canvas.js "$site/"
-          cp build/wasm-webgpu/src/compiler/codegen/tessera_canvas.wasm "$site/"
+          # The three Wasm modules stay three (ADR-054 decision 3, and #392's merge did not merge them):
+          # each is a lazy `import()` from the page's own base, so they are copied next to `index.html`
+          # and never bundled.
+          for module in tessera_diagnostics tessera_scene_preview tessera_canvas; do
+            cp "build/wasm-webgpu/src/compiler/codegen/$module.js" "$site/"
+            cp "build/wasm-webgpu/src/compiler/codegen/$module.wasm" "$site/"
+          done
           # The build id the page displays (D-S5 acceptance: the URL serves the current build).
           printf '%s\n' "${GITHUB_SHA}" > "$site/build-id.txt"
-          # A static host resolves the directory to index.html; make the intent explicit and fail
-          # loudly if the page is missing rather than publishing an empty artifact.
+          # A static host resolves the directory to index.html; make the intent explicit and fail loudly
+          # if the page is missing rather than publishing an empty artifact.
           test -f "$site/index.html"
-          test -f "$site/app.css"
-          test -f "$site/tessera_diagnostics.js"
-          test -f "$site/tessera_diagnostics.wasm"
-          # The merged page's shell and the three views (issue #392). Every one of these is imported by
-          # `studio-page.js` (directly or through a view's lazy import); a missing file is a pane that
-          # throws when it is first opened, which no CI step here would otherwise catch.
-          test -f "$site/studio-page.js"
-          test -f "$site/shell.js"
-          test -f "$site/view-diagnostics.js"
-          test -f "$site/diagnostics-view-render.js"
-          test -f "$site/view-scene.js"
-          test -f "$site/scene-view-render.js"
-          test -f "$site/view-canvas.js"
-          test -f "$site/canvas-device.js"
-          test -f "$site/canvas-pane.js"
-          test -f "$site/wasm-call.js"
-          test -f "$site/tessera_scene_preview.js"
-          test -f "$site/tessera_scene_preview.wasm"
-          # P5's page modules and the generated sample manifest (issue #169). A missing one of these
-          # is a page that throws on load in the browser, which no CI step here would otherwise catch,
-          # so the artifact is checked for them before it is uploaded.
-          test -f "$site/preview-state.js"
-          test -f "$site/share.js"
-          test -f "$site/gallery.js"
-          test -f "$site/studio.js"
-          test -f "$site/scene-input.js"
-          test -f "$site/samples.json"
-          # The pre-merge URLs (issue #392). They must still resolve -- a link or a bookmark made before
-          # the merge is somebody's project state -- and each must carry the redirect script that moves
-          # the visitor to `index.html` with the query and the `#p5=` fragment intact.
-          test -f "$site/scene.html"
-          test -f "$site/canvas.html"
-          test -f "$site/redirect.js"
+
+          # Every asset the built document references must exist. A dangling `src`/`href` is a page whose
+          # chrome silently loses its stylesheet or its bundle, which no other step in this lane sees.
+          #
+          # HTML comments are stripped first: the page's own header comment explains the CSP and quotes
+          # `<script type="module">`, and a scan of the comments would report the explanation as the
+          # violation. `preview_page_checks.mjs` does the same thing for the same reason.
+          python3 - "$site" <<'PY'
+          import pathlib, re, sys
+
+          site = pathlib.Path(sys.argv[1])
+          raw = (site / "index.html").read_text(encoding="utf-8")
+          page = re.sub(r"<!--.*?-->", "", raw, flags=re.S)
+          references = re.findall(r'<(?:script|link)\b[^>]*\b(?:src|href)="([^"]+)"', page)
+          local = [
+              url for url in references
+              if not re.match(r"^(?:[a-z]+:|//)", url, re.I)
+          ]
+          assert len(local) >= 2, f"expected a script and a stylesheet, found {local}"
+          for url in local:
+              target = (site / url.lstrip("./")).resolve()
+              assert str(target).startswith(str(site.resolve())), f"asset escapes the site: {url}"
+              assert target.is_file(), f"index.html references a missing asset: {url}"
+          # No inline script: the page's CSP is "no inline script, no remote script" (ADR-054 decision 4).
+          for attributes in re.findall(r"<script\b([^>]*)>", page):
+              assert "src=" in attributes, f"index.html has an inline <script{attributes}>"
+          assert 'id="root"' in page, "index.html has no #root mount point"
+          print(f"{len(local)} asset reference(s) from index.html all present")
+          PY
+
+          # The public files and the stubs, which are not referenced by index.html and so are not covered
+          # by the scan above. `scene.html`/`canvas.html` are somebody's old share link
+          # (`docs/specs/designer-studio-v1.md` section 7.1); `redirect.js` is what forwards them.
+          for asset in scene.html canvas.html redirect.js samples.json; do
+            test -f "$site/$asset" || { echo "missing from the site: $asset"; exit 1; }
+          done
           # The manifest names repository paths; every one of them must exist in the artifact or the
           # gallery offers a button that cannot load.
           python3 - "$site" <<'PY'
@@ -309,8 +351,6 @@ jobs:
           print(f"{len(samples)} manifest path(s) present in the site")
           PY
 
-          test -f "$site/tessera_canvas.js"
-          test -f "$site/tessera_canvas.wasm"
           ls -l "$site"
 
       # P6 of docs/design/reference-equantic-ui.md section 7.4 (issue #170): the size and latency

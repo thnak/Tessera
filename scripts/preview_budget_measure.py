@@ -15,9 +15,16 @@ this module, so enforcing it cannot hide a real download regression. `encoder()`
 budget file because a different zlib rebases every size number and that must be a recorded decision,
 not a silent drift.
 
-**The page assets are measured from `designer/web/`, not from an assembled site.** They are static
-files with no build step (issue #165), so the checked-in copy is the shipped copy; only the module has
-to come from a build.
+**The page assets are measured from the built `dist/`, not from the sources.** That changed with issue #422
+and [ADR-054](../../decisions/ADR-054-studio-front-end-react-vite.md) decision 6: `designer/web` is a Vite +
+React project, so the checked-in sources are not what a browser downloads -- the hashed bundle Vite emits into
+`dist/` is. The measurement therefore walks `dist/` as a whole (see `page_assets`), which also survives content
+hashes: a fixed file list cannot name `assets/index-<hash>.js`, and a name-based list that guessed would either
+miss the bundle or measure a stale one.
+
+The rule that replaced the old list is the same rule: **an asset that ships is an asset that is measured**, and
+the way to keep that true without a list is to measure the directory. A new public file, a new entry chunk or a
+new hashed asset is weighed the moment it is built.
 
 **Latency is the minimum of N fresh processes.** Every sample is a separate `node` process (so JIT
 state and heap growth from one sample cannot leak into the next), and the reported figure is the
@@ -48,55 +55,33 @@ SCRIPTS_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPTS_DIR.parent
 
 PAGE_DIR = REPO_ROOT / "designer" / "web"
+# Where the Vite build puts the page a visitor downloads (issue #422, ADR-054 decision 2). `dist/` is
+# git-ignored: it is a build artifact, and the budget is about the artifact, not the sources.
+PAGE_DIST = PAGE_DIR / "dist"
 SAMPLE = REPO_ROOT / "samples" / "parity-demo" / "Counter.tsx"
 PROBE = SCRIPTS_DIR / "ci" / "preview_budget_probe.mjs"
 
-# The files the page fetches, split so a regression report can name the one that grew.
-#
-# `PAGE_FILES` is the *whole* page, not just the three files P1 shipped: stage P5 (issue #169) added
-# `share.js`, `preview-state.js`, `studio.js` and `samples.json`, and a budget that kept weighing only
-# the original three would report green for an artifact it no longer fully measures. Adding a page
-# asset means adding it here in the same change -- that is the rule the enforced row depends on.
-#
-# Issue #392 merged the three pages into one `index.html`. The list is therefore *the merged page*:
-# `scene.html`/`canvas.html` are still here because they are still served (as redirect stubs, and a
-# stub is a download a visitor with an old link pays for), while `app.js`/`scene.js`/`canvas.js` are
-# gone and their replacements (`studio-page.js` and the `view-*.js` modules) are added in the same
-# change. `canvas.css` was folded into `app.css`, so it is removed rather than kept as an empty row.
+# The Wasm module's two files are copied *next to* the built page by the Pages lane, so they are measured
+# from the module directory rather than from `dist/`.
 MODULE_FILES = ("tessera_diagnostics.js", "tessera_diagnostics.wasm")
-PAGE_FILES = (
-    "index.html",
-    # The redirect stubs kept for pre-merge links (issue #392), and the one module they load. They are
-    # on the measured page because they ship: a stub that grew would still be a byte a visitor fetches.
-    "scene.html",
-    "canvas.html",
-    "redirect.js",
-    # The page's entry point and the view-switching shell.
-    "studio-page.js",
-    "shell.js",
-    # The three views, one module each, so a merge does not produce one large file, plus the render
-    # and pane helpers each was split into to stay inside the source-size limit.
-    "view-diagnostics.js",
-    "diagnostics-view-render.js",
-    "view-scene.js",
-    "scene-view-render.js",
-    "view-canvas.js",
-    "canvas-device.js",
-    "canvas-pane.js",
-    # The single C-ABI marshalling helper all three views call.
-    "wasm-call.js",
-    "app.css",
-    # The P5 chrome, unchanged by the merge.
-    "preview-state.js",
-    "share.js",
-    "gallery.js",
-    "studio.js",
-    # P4's input pane, split out of `scene.js` when the merged file reached the 500-line limit
-    # (issue #169). Added here in the same change as the split: a page asset that is not in this
-    # list ships unweighed, which is the bug P5 fixed for `scene.html`/`scene.js`.
-    "scene-input.js",
-    "samples.json",
-)
+
+# The built page is measured **as a directory**, not as a list of names.
+#
+# This replaced `PAGE_FILES` in issue #422. The list could not survive the conversion: Vite emits
+# `assets/index-<hash>.js` and `assets/index-<hash>.css`, and a name-based list would have to name a hash
+# that changes on every edit. Walking `dist/` also keeps the rule the list existed for -- "a page asset that
+# is not weighed ships unweighed" -- true by construction rather than by discipline: a new public file, a new
+# entry chunk or a new split chunk is measured the moment it is built.
+#
+# The three Wasm loaders stay lazy `import()`s and are *not* in the bundle; they are copied into the site by
+# `.github/workflows/pages.yml` and are measured only as `tessera_diagnostics`, which is the one on the
+# first-paint path (the other two are the visitor's choice, exactly as before -- issue #395 is where counting
+# them is decided).
+#
+# `scene.html`, `canvas.html`, `redirect.js` and `samples.json` are Vite's `public/` directory, copied
+# verbatim into `dist/`; they are measured because they ship.
+PAGE_EXCLUDED_SUFFIXES = (".map",)
+PAGE_EXCLUDED_NAMES = (".gitkeep",)
 
 # Where a built module usually is: the Pages lane's assembled site first, then a local wasm configure.
 MODULE_CANDIDATES = (
@@ -158,18 +143,44 @@ def default_node() -> str:
     return os.environ.get("EMSDK_NODE") or "node"
 
 
-def _sizes(files: Sequence[Path], label: str) -> Dict[str, int]:
+def _sizes(files: Sequence[Path], label: str, root: Optional[Path] = None) -> Dict[str, int]:
+    """The raw and gzip-9 size of each file, keyed by its name relative to `root`.
+
+    `root` is `dist/` for the page, so an entry keeps the layout a reviewer can find on disk
+    (`assets/index-<hash>.js`) instead of only its basename -- with hashed names, two assets in different
+    directories could otherwise collide on one key.
+    """
     sizes: Dict[str, int] = {}
     for path in files:
         require_file(path, label)
+        key = path.relative_to(root).as_posix() if root is not None else path.name
         data = path.read_bytes()
-        sizes[path.name] = len(data)
-        sizes[path.name + ".gzip"] = gzip_size(data)
+        sizes[key] = len(data)
+        sizes[key + ".gzip"] = gzip_size(data)
     return sizes
 
 
-def page_assets() -> List[Path]:
-    return [PAGE_DIR / name for name in PAGE_FILES]
+def page_assets(page_dir: Optional[Path] = None) -> List[Path]:
+    """Every file the built page ships, walked from `dist/`.
+
+    Sorted, so the recorded breakdown in the budget file is deterministic and a diff names one file rather
+    than reshuffling the table. The path is relative to `dist/` with POSIX separators, which is why an entry
+    reads `assets/index-<hash>.js` and not a Windows path.
+
+    A missing `dist/` is a `SetupError` at `_sizes`, not an empty measurement: a budget measured over nothing
+    would report a huge improvement and pass as "stale", which is the failure mode `require_file` exists to
+    prevent.
+    """
+    root = PAGE_DIST if page_dir is None else page_dir
+    assets: List[Path] = []
+    for path in sorted(root.rglob("*")):
+        if not path.is_file():
+            continue
+        name = path.name
+        if name.endswith(PAGE_EXCLUDED_SUFFIXES) or name in PAGE_EXCLUDED_NAMES:
+            continue
+        assets.append(path)
+    return assets
 
 
 def module_assets(module_dir: Path) -> List[Path]:
@@ -184,7 +195,7 @@ def size_measurements(module_dir: Path) -> Dict[str, float]:
     for one change.
     """
     sizes: Dict[str, int] = {}
-    sizes.update(_sizes(page_assets(), "page asset"))
+    sizes.update(_sizes(page_assets(), "page asset", root=PAGE_DIST))
     sizes.update(_sizes(module_assets(module_dir), "Wasm module artifact"))
     sizes["download_gzip_bytes"] = sum(
         value for name, value in sizes.items() if name.endswith(".gzip")

@@ -1,0 +1,45 @@
+// SPDX-License-Identifier: MIT
+
+// The chrome's Node build, used only by the gates (ADR-054 decision 6).
+//
+// React creates the studio's DOM at runtime, so "every id the chrome looks up exists in index.html" is no
+// longer a statement a static file check can make: the shipped `index.html` is a mount point. The
+// alternative to reading the page is to render the chrome itself, and `react-dom/server`'s
+// `renderToStaticMarkup` does that with no browser and no new dependency (issue #422; jsdom would need a
+// dependencies.md and THIRD_PARTY_NOTICES.md entry of its own).
+//
+// Three entries, because the gates need three things from the same source the site ships:
+//
+//   ssr-chrome   the components, rendered to markup (`preview_page_checks.mjs`, `preview_studio_smoke.mjs`)
+//   preferences  the toolbar, the fragment decode and the share link (`preview_studio_smoke.mjs`)
+//   gallery      the lazy manifest and the sample fetch (`preview_studio_smoke.mjs`)
+//
+// `react`/`react-dom` stay external so the gate resolves them from `designer/web/node_modules` rather than
+// carrying a second copy. This ships nothing: `dist-ssr/` is git-ignored and is never assembled into the
+// Pages artifact.
+import react from "@vitejs/plugin-react";
+import { defineConfig } from "vite";
+
+export default defineConfig({
+  plugins: [react()],
+  build: {
+    ssr: true,
+    outDir: "dist-ssr",
+    emptyOutDir: true,
+    target: "node20",
+    minify: false,
+    copyPublicDir: false,
+    rollupOptions: {
+      input: {
+        "ssr-chrome": "src/ssr-chrome.tsx",
+        preferences: "src/lib/preferences.ts",
+        gallery: "src/lib/gallery.ts",
+      },
+      output: {
+        format: "es",
+        entryFileNames: "[name].js",
+        chunkFileNames: "chunks/[name]-[hash].js",
+      },
+    },
+  },
+});

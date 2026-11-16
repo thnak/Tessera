@@ -160,7 +160,7 @@ modules, roles, and status is [`docs/specs/dependencies.md`](docs/specs/dependen
 | emdawnwebgpu (Emscripten port, `v20260423.175430`) | MIT / UIUC (JS bindings), BSD-3-Clause (Dawn headers) | Emscripten contributors; The Dawn & Tint Authors; linked into the Wasm WebGPU build only |
 | CodeMirror 6 | MIT | Marijn Haverbeke and contributors; bundled in the hosted studio page |
 | fflate | MIT | Arjun Barrett; hosted studio zip import/export |
-| React, ReactDOM | MIT | Meta Platforms, Inc. and React contributors; bundled in the hosted studio page ([ADR-054](decisions/ADR-054-studio-front-end-react-vite.md)) |
+| React, ReactDOM | MIT | Meta Platforms, Inc. and React contributors; bundled in the hosted studio page and the wiki client, never linked into an app binary or the Wasm engine ([ADR-054](decisions/ADR-054-studio-front-end-react-vite.md), [ADR-024](decisions/ADR-024-native-first-boundaries.md)) |
 | react-markdown, rehype-slug, remark-gfm | MIT | their respective authors; bundled in the wiki client (`tools/wiki`) |
 | Catch2 | Boost Software License 1.0 | Catch2 contributors |
 | Google Benchmark | Apache-2.0 | Google LLC |
@@ -204,6 +204,8 @@ modules, roles, and status is [`docs/specs/dependencies.md`](docs/specs/dependen
 | Node.js | MIT | build scripts for the hosted studio and the `tools/wiki` client, and the `tessera-mcp` stdio server; design-time tooling, never linked into the app |
 | Vite, @vitejs/plugin-react | MIT | static build of the studio page and the wiki client ([ADR-054](decisions/ADR-054-studio-front-end-react-vite.md)); the toolchain is never shipped |
 | TypeScript, @types/react, @types/react-dom | Apache-2.0 / MIT | TSX type checking and React type declarations for both front ends; never shipped |
+| esbuild 0.28.2 (Vite's transformer and minifier) | MIT | Go binary invoked by Vite at build time only; never shipped, never linked into the app or the Wasm engine |
+| Rollup 4.x (Vite's bundler) | MIT | JavaScript bundler Vite calls at build time only; the bundles it emits ship, the tool does not |
 | SPIRV-Cross, SPIRV-Tools (spirv-val, spirv-opt) | Apache-2.0 | from the pinned Vulkan SDK; only with `TESSERA_SHADER_CROSS=ON` (ADR-049); output stays in the build directory |
 | DirectX Shader Compiler (dxc) | University of Illinois/NCSA | from the pinned Vulkan SDK; only validates generated HLSL under `TESSERA_SHADER_CROSS=ON` |
 | naga-cli 30.0.1 | MIT OR Apache-2.0 | `cargo install naga-cli --version 30.0.1 --locked` (pin in `tools/naga-version.txt`); `TESSERA_SHADER_CROSS=ON` and the WebGPU CI lane; SPIR-V to WGSL and WGSL validation |
