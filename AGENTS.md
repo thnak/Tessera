@@ -140,6 +140,11 @@ How unattended agents pick and land work. Milestones live on GitHub only (no oth
   multi-part issue, or several related issues together (`Closes #a, #b`). Attach the milestone
   (`gh pr create --milestone "V1-M1 Core runtime"`) and tick each item's checkbox in this file in
   the same PR (`[x]` plus the evidence path). Size rules are in the next subsection.
+- **Close or split, never leave open:** the PR body names every issue it finishes as `Closes #n`
+  (one per issue, so GitHub closes each on merge). An issue the PR only partly finishes is not
+  closed and not left as is: either narrow its body to the remaining work in the same PR's
+  description and comment on the issue, or open a follow-up issue for the remainder, then close the
+  original. A merged PR whose issue stays open with its original text makes the next agent redo it.
 - **Format:** check only changed files
   (`git diff --name-only origin/main -- '*.cpp' '*.hpp' | xargs clang-format --dry-run -Werror`);
   do not run the whole-repo format script.
