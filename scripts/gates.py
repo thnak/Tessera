@@ -16,9 +16,11 @@ Gate order:
   7. public-api      the public surface matches scripts/public-api-baseline.txt (issue #76)
   8. pins            reproducible dependency pins + dependencies.md rows (adds --check)
   9. version-policy  a breaking RHI/IR/tessera.json change moves its version (issue #194)
- 10. package         only with --archive PATH: validates the distributable archive
- 11. fixtures        only with --fixtures: the gate self-tests (unittest discovery)
- 12. wgsl            only with --wgsl: authored WGSL passes the pinned naga (needs naga-cli)
+ 10. memory-budget   hot-type sizes and allocation counts match the recorded budget (issue #13)
+ 11. release-manifest  channels, ledger and the projected update manifests (issue #193)
+ 12. package         only with --archive PATH: validates the distributable archive
+ 13. fixtures        only with --fixtures: the gate self-tests (unittest discovery)
+ 14. wgsl            only with --wgsl: authored WGSL passes the pinned naga (needs naga-cli)
 
 The runner is cwd-independent (children run from the repository root) and forces UTF-8 for child
 processes while making its own stdout/stderr tolerant, so it behaves the same on Windows cp1252
@@ -90,6 +92,12 @@ BASE_GATES: List[Gate] = [
         "check_memory_budget.py",
         ("--check", "--no-build"),
         "hot-type sizes and allocation counts match tests/golden/perf/memory_budget.json (issue #13)",
+    ),
+    Gate(
+        "release-manifest",
+        "check_release_manifest.py",
+        (),
+        "channels, ledger and the projected update manifests (issue #193)",
     ),
 ]
 OPTIONAL_GATES: List[Gate] = [

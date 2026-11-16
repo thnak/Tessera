@@ -1,0 +1,73 @@
+{
+  "channelsVersion": 1,
+  "channels": [
+    {
+      "id": "stable",
+      "rank": 0,
+      "prerelease": false,
+      "consent": "prompt",
+      "description": "Releases every user is offered; no pre-release version may appear here."
+    },
+    {
+      "id": "beta",
+      "rank": 1,
+      "prerelease": true,
+      "consent": "prompt",
+      "description": "Preview releases for volunteers; pre-release versions only."
+    },
+    {
+      "id": "nightly",
+      "rank": 2,
+      "prerelease": true,
+      "consent": "manual",
+      "description": "Opt-in per-app channel for builds from main; never offered automatically."
+    }
+  ],
+  "transitions": [
+    {
+      "from": "stable",
+      "to": "beta",
+      "policy": "optIn",
+      "reason": "moving to a less stable channel is always the user's explicit choice"
+    },
+    {
+      "from": "stable",
+      "to": "nightly",
+      "policy": "optIn",
+      "reason": "moving to a less stable channel is always the user's explicit choice"
+    },
+    {
+      "from": "beta",
+      "to": "stable",
+      "policy": "free",
+      "reason": "a promotion to the stable channel needs no consent"
+    },
+    {
+      "from": "beta",
+      "to": "nightly",
+      "policy": "optIn",
+      "reason": "moving to a less stable channel is always the user's explicit choice"
+    },
+    {
+      "from": "nightly",
+      "to": "stable",
+      "policy": "free",
+      "reason": "a promotion to the stable channel needs no consent"
+    },
+    {
+      "from": "nightly",
+      "to": "beta",
+      "policy": "free",
+      "reason": "a promotion to a more stable channel needs no consent"
+    }
+  ],
+  "downgrade": {
+    "policy": "blocked",
+    "reason": "spec section 6.1: downgrades are blocked unless explicitly signed"
+  },
+  "updateHosts": [],
+  "signing": {
+    "algorithm": "ed25519",
+    "keys": []
+  }
+}

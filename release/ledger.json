@@ -1,0 +1,5 @@
+{
+  "ledgerVersion": 1,
+  "note": "Append-only release history (issue #193). One record per published version and channel; records are added by `python -B scripts/gen_release_manifest.py record` from the bytes of a real archive and its symbol artifact, never by hand. An empty list is the honest state before the first release: every record carries the digest of what actually shipped, so a record that was never built cannot be written without a matching archive on disk.",
+  "releases": []
+}
