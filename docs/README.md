@@ -73,6 +73,7 @@ This page is the map and reading order for the framework.
 - [ADR-051](../decisions/ADR-051-ir-record-types-and-record-values.md) — IR record types and record values (accepted; object-literal prop defaults, #158)
 - [ADR-052](../decisions/ADR-052-networking-platform-stacks.md) — networking on platform HTTP stacks (accepted; #197)
 - [ADR-053](../decisions/ADR-053-native-metal-backend.md) — native Metal backend for macOS/iOS (accepted; supersedes ADR-010 in part)
+- [ADR-054](../decisions/ADR-054-studio-front-end-react-vite.md) — studio front end: React 19 + Vite over the static Wasm host page (accepted; amends the page-stack wording of ADR-045)
 
 ## 3. Specs (normative)
 
