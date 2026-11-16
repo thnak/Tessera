@@ -92,32 +92,61 @@ Frame budgets say nothing about resident memory, which regresses late and on mob
 
 | Item | Cost | Enforced by |
 |---|---|---|
-| `ui::Node` (plain View) | 312 bytes (Release; 320 in MSVC Debug), budget `kNodeSizeBudget` = 320 (336 for a while after the `::part()` metadata pointer, issue #235; the booleans were packed into one flags word in #285) | `static_assert` in `node.hpp`, `node_size` test |
-| ARIA table (first `aria-*`) | about 520 bytes, once per node | lazy; `node_size` test counts allocations |
-| Inline-style table (first declaration) | about 520 bytes, once per node | lazy; `node_size` test |
-| Event-binding table (first binding) | about 200 bytes, once per node | lazy; `node_size` test |
-| Paint payload (text/image node) | about 580 bytes plus its string | lazy; `node_size` test |
-| `InputEvent` | 344 bytes (the 256-event queue is about 86 KiB) | measured, not yet asserted |
-| Resident bytes per plain node (20k-node tree) | about 470 bytes measured, budget 1024 | `memory_steady_state` test, `tests/golden/memory/steady_state.txt` |
-| Idle cycles after warm-up | 0 bytes of RSS growth measured, budget 2 MiB | `memory_steady_state` test |
+| `ui::Node` (plain View) | 312 bytes (Release; 320 in MSVC Debug), budget `kNodeSizeBudget` = 320 (336 for a while after the `::part()` metadata pointer, issue #235; the booleans were packed into one flags word in #285) | `static_assert` in `node.hpp`, `node_size` test, `sizeof_node` row |
+| ARIA table (first `aria-*`) | 520 bytes, once per node | lazy; `node_size` test counts allocations; `aria_table_bytes` row |
+| Inline-style table (first declaration) | 520 bytes, once per node | lazy; `node_size` test; `inline_style_table_bytes` row |
+| Event-binding table (first binding) | 200 bytes, once per node | lazy; `node_size` test; `event_binding_table_bytes` row |
+| Paint payload (text/image node) | 512 bytes plus its string; 520 allocated on first use | lazy; `node_size` test; `sizeof_paint_data` and `paint_slot_bytes` rows |
+| `InputEvent` | 344 bytes (the 256-event queue is about 86 KiB) | `sizeof_input_event` row (was measured but unasserted) |
+| `ComputedStyle` (first property) | 96 bytes per styled node (208 in MSVC Debug); the handle itself is 16 bytes on MSVC, 48 on libstdc++ | `computed_style_one_property_bytes` row |
+| `NodeId` | 8 bytes, and it is repeated in every side table (paint cache, resolved styles, dirty list, damage) | `sizeof_node_id` row |
+| Resident bytes per plain node (20k-node tree) | 364 on Windows x64, 327 on Linux x64, budget 1024 | `memory_steady_state` test, `tests/golden/memory/steady_state.txt`, `resident_bytes_per_node` row (warn) |
+| Idle cycles after warm-up | 0 bytes of RSS growth measured, budget 2 MiB | `memory_steady_state` test, `node_dirty_scratch_bytes` row (warn) |
 | Headless generated-UI sample: build and layout | about 0.6 MB measured, budget 8 MiB | `generated_ui_memory` test, `tests/golden/memory/generated_ui.txt` |
 | Same sample: first paint | about 0.9 MB measured, budget 8 MiB | `generated_ui_memory` |
 | Same sample: 300 click + repaint cycles after warm-up | 0 to 45 KB measured, budget 1 MiB | `generated_ui_memory` |
 | Same sample: process peak resident | about 8.7 MB measured, budget 64 MiB | `generated_ui_memory` |
 
-A node carried 1984 bytes before the rarely used tables became lazily allocated, so a 10k-node
-screen of plain views drops from about 20 MB to about 3 MB of node storage (Yoga node and style
-storage are extra). Clearing a table keeps its allocation, so toggling a value never reallocates.
-`diagnostics::sample_process_memory()` (`diagnostics/memory.hpp`) reads resident and peak bytes
-with no heap allocation (VmRSS/VmHWM on Linux and Android, the working set on Windows,
-`resident_size` on macOS and iOS); `MemoryGauges` publishes them as the gauges `memory.rss_bytes`
-and `memory.rss_peak_bytes`. It is a syscall: sample per second or per scripted checkpoint, never
-per frame. Real RSS is machine dependent, so the committed bounds are generous and catch leaks and
-order-of-magnitude regressions, not noise. Raise a budget only with a recorded decision. Still to
-measure and budget: Android PSS (needs the Android sample). The `generated_ui_memory` test runs the
-compiler-generated demo headless (CPU canvas, no GPU), samples resident memory after the build, the
-first paint and a scripted click loop, and prints the numbers on every run so CI logs show the
-trend; it fails above the committed bounds.
+#### The memory ratchet
+
+The rows marked with a bare name are pinned in
+[`tests/golden/perf/memory_budget.json`](../../tests/golden/perf/memory_budget.json) and ratcheted by
+`scripts/check_memory_budget.py`, the same two-sided policy as the preview budget: an entry fails when
+it is worse than its budget by more than `tolerance.worse` **and** when it is better by more than
+`tolerance.better`, because an unrecorded improvement means the budget went stale. `--update` re-pins
+a tightening and refuses to loosen any entry.
+
+The rows are split by **reproducibility, not importance**, and that is what makes the gate
+trustworthy:
+
+- **`enforce` (0%/0%) -- sizes and allocation counts.** `sizeof` of a hot type is fixed by the ABI,
+  and an allocation count comes from a replaced global `operator new` in one process. The measurement
+  module runs the probe twice and fails the row if the two values differ, so a 0% band is a real
+  invariant rather than noise cover. These are the rows a regression arrives through: a node that
+  grows 16 bytes costs 160 KB on a 10k-node screen and shows up nowhere else. Two qualifications,
+  both recorded rather than papered over. The budget pins one **build configuration** (Release), and
+  the gate refuses to compare a measurement from another one: MSVC Debug measures `sizeof(Node)` 320,
+  `sizeof(PaintData)` 536, `paint_slot_bytes` 624 and two allocations for a plain node against
+  Release's 312/512/520/1, so a Debug number is a different claim, not a regression. And
+  `sizeof(ComputedStyle)` is deliberately *not* pinned: it is a `std::map` handle, 16 bytes on MSVC
+  and 48 on libstdc++, so pinning it would record a standard-library difference as a memory budget.
+  The portable per-node style cost is the recorded first-insert size (96 bytes on both lanes, 208 in
+  MSVC Debug to match the configuration rule).
+- **`warn` -- resident memory.** RSS is an OS reading of a heap: it moves with page granularity,
+  allocator behaviour, ASLR and machine load, and the two lanes disagree by 11% (364 vs 327 bytes per
+  node) with an identical `sizeof(Node)` of 312. A gate that fails at random gets deleted, and
+  deleting it is worse than the trend line, so those rows are measured and reported on every run
+  inside a wide band and never block. The generous bound that *does* block a leak is in the CTest
+  tests above (`memory_steady_state`, `generated_ui_memory`).
+- **`unmeasured` -- declared, with a reason and no number.** Android PSS and the GPU/VMA category
+  split cannot be measured by this repository's lanes, and the validator rejects a budget on an
+  `unmeasured` entry: a plausible number for a quantity nobody measured reads as evidence and
+  ratchets a fiction. See the next two paragraphs.
+
+Android PSS is **not measured anywhere in this repository**, because there is no Android sample and
+no emulator job (V1 targets Windows and Linux; Android is advisory and post-V1). It is the row that
+would show DPR-squared bitmap scaling, and it stays declared-but-unmeasured with that reason rather
+than carrying an invented figure.
 
 GPU memory: `rhi::Device::memory_statistics()` returns the allocator totals (`block_bytes` asked of
 the driver, `allocation_bytes` handed to live buffers and images, and their counts). The Vulkan
@@ -129,6 +158,33 @@ the live resources by kind. Swapchain images are driver-owned and not counted. M
 and 17.6 MiB at 4x MSAA. A texture upload also holds a staging buffer of the same size until the
 copy finishes. `diagnostics::GpuMemoryGauges` publishes the four numbers as `gpu.buffer_bytes`,
 `gpu.image_bytes`, `gpu.block_bytes` and `gpu.allocation_bytes`.
+
+The **VMA category split is not ratcheted either**: the null backend, which every deterministic
+measurement here uses, reports zero allocator bytes by design (and `rhi_memory` asserts that zero),
+so there is no null-backend number to pin; `rhi_memory` on the Vulkan lane is the enforcement that
+exists. The swapchain category is driver-owned and not counted at all.
+
+A node carried 1984 bytes before the rarely used tables became lazily allocated, so a 10k-node
+screen of plain views drops from about 20 MB to about 3 MB of node storage (Yoga node and style
+storage are extra). Clearing a table keeps its allocation, so toggling a value never reallocates.
+`diagnostics::sample_process_memory()` (`diagnostics/memory.hpp`) reads resident and peak bytes
+with no heap allocation (VmRSS/VmHWM on Linux and Android, the working set on Windows,
+`resident_size` on macOS and iOS); `MemoryGauges` publishes them as the gauges `memory.rss_bytes`
+and `memory.rss_peak_bytes`. It is a syscall: sample per second or per scripted checkpoint, never
+per frame. Real RSS is machine dependent, so the committed bounds are generous and catch leaks and
+order-of-magnitude regressions, not noise. Raise a budget only with a recorded decision. The
+`generated_ui_memory` test runs the compiler-generated demo headless (CPU canvas, no GPU), samples
+resident memory after the build, the first paint and a scripted click loop, and prints the numbers on
+every run so CI logs show the trend; it fails above the committed bounds.
+
+`scripts/memory_budget_measure.py` runs `tests/benchmarks/memory/memory_sizes_probe.cpp` (CMake
+target `memory_sizes_probe`) in a fresh process per sample and parses its `name=value` lines:
+`sizeof` and allocation counts are taken exactly (and must agree across two runs), resident bytes as
+the minimum of five runs, because contention can only ever *add* resident bytes. The probe is also
+the cheap `memory_sizes` CTest; `memory_budget` runs the checker against it in any lane that has a
+build tree. `scripts/gates.py` runs `--no-build`, which validates the budget file's shape in the
+aggregator job, where there is no build directory -- the same split as the preview budget, which
+runs in its lane rather than in the aggregator.
 
 ## 4. Power policies
 
