@@ -185,6 +185,12 @@ set(_tessera_scene_preview_sources
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_session.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_interaction.cpp)
 
+# The persistent canvas session (#388): the tree a pointer event feeds and a frame paints. It is
+# NOT in the list above because it links `scene_frame.cpp` (it paints) and the snapshot driver must
+# stay free of the GPU/paint stack - the same separation `tessera_scene_frame_entry` makes below.
+set(_tessera_canvas_session_sources
+    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_canvas_session.cpp)
+
 if (NOT EMSCRIPTEN)
     # The driver as a library, so the parity test (tests/parity) can run the very same evaluation
     # and input session the module exports instead of a second copy of the stage order. The OBJECT
@@ -234,15 +240,27 @@ if (NOT EMSCRIPTEN)
     # "type-check the entry on every push" rule P1 and P2 followed, adapted to a header the host
     # cannot see.
     add_library(tessera_canvas_report OBJECT
-        ${CMAKE_SOURCE_DIR}/tools/codegen/canvas_report.cpp)
+        ${CMAKE_SOURCE_DIR}/tools/codegen/canvas_report.cpp
+        ${_tessera_canvas_session_sources})
     target_include_directories(tessera_canvas_report
         PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
     target_link_libraries(tessera_canvas_report PRIVATE
+        tessera_automation_scene
         tessera_gpu
         tessera_ir
+        tessera_ir_eval
+        tessera_ir_ids
+        tessera_layout
+        tessera_lowering
+        tessera_paint
         tessera_rhi
         tessera_scene
         tessera_style)
+    # The session paints, so it needs `scene_frame.cpp` compiled into this OBJECT library too; it is
+    # deliberately not a link dependency because that target is an OBJECT library as well.
+    target_sources(tessera_canvas_report PRIVATE
+        ${CMAKE_SOURCE_DIR}/tools/codegen/scene_frame.cpp
+        ${_tessera_scene_preview_sources})
 
     # The native half of the parity gate: `tessera_scene_preview --scene-json OUT FILE.tsx` prints the
     # same document the module returns, so scripts/ci/scene_snapshot_parity.py can compare two
@@ -347,6 +365,7 @@ else ()
         ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_entry.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/canvas_report.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/scene_frame.cpp
+        ${_tessera_canvas_session_sources}
         ${_tessera_scene_preview_sources})
     target_include_directories(tessera_canvas_wasm
         PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
@@ -369,7 +388,7 @@ else ()
         -sEXPORT_NAME=createTesseraCanvas
         -sENVIRONMENT=web,node
         -sALLOW_MEMORY_GROWTH=1
-        -sEXPORTED_FUNCTIONS=["_tessera_canvas_frame","_tessera_webgpu_set_device","_tessera_free","_malloc","_free"]
+        -sEXPORTED_FUNCTIONS=["_tessera_canvas_frame","_tessera_canvas_run","_tessera_canvas_pointer","_tessera_canvas_draw","_tessera_canvas_reset","_tessera_webgpu_set_device","_tessera_free","_malloc","_free"]
         # `WebGPU` is the emdawnwebgpu port's handle table: the page needs `WebGPU.importJsDevice` and
         # `importJsQueue` to turn a JS GPUDevice/GPUQueue into the integer handles the C ABI takes.
         -sEXPORTED_RUNTIME_METHODS=["UTF8ToString","lengthBytesUTF8","stringToUTF8","WebGPU"])
@@ -656,6 +675,38 @@ if (TESSERA_BUILD_TESTS)
         tessera_scene
         tessera_style)
     add_test(NAME scene_frame COMMAND scene_frame_tests)
+
+    # The persistent canvas session (issue #388): pointer input into one evaluation, the
+    # `:hover`/`:active` path through the stylesheet engine, and the on-demand frame accounting.
+    # Registered here rather than in tests/unit/CMakeLists.txt for the same reason `scene_frame` is:
+    # this lane does not edit the shared registry while other lanes work in it.
+    #
+    # Two executables, split by responsibility (the sources share `scene_canvas_test_support.hpp`):
+    #   scene_canvas_session  the session's lifecycle + the frame contract (a static scene draws zero)
+    #   scene_canvas_pointer  the pointer path into the style engine + click synthesis
+    foreach (_canvas_test IN ITEMS scene_canvas_session scene_canvas_pointer)
+        add_executable(${_canvas_test}_tests
+            ${CMAKE_SOURCE_DIR}/tests/unit/${_canvas_test}_tests.cpp
+            ${CMAKE_SOURCE_DIR}/tools/codegen/canvas_report.cpp
+            ${CMAKE_SOURCE_DIR}/tools/codegen/scene_frame.cpp
+            ${_tessera_canvas_session_sources}
+            ${_tessera_scene_preview_sources})
+        target_include_directories(${_canvas_test}_tests
+            PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
+        target_link_libraries(${_canvas_test}_tests PRIVATE
+            tessera_automation_scene
+            tessera_gpu
+            tessera_ir_eval
+            tessera_ir_ids
+            tessera_layout
+            tessera_lowering
+            tessera_paint
+            tessera_rhi
+            tessera_rhi_null
+            tessera_scene
+            tessera_style)
+        add_test(NAME ${_canvas_test} COMMAND ${_canvas_test}_tests)
+    endforeach ()
 
     add_executable(codegen_layering_tests
         ${CMAKE_SOURCE_DIR}/tests/unit/codegen_layering_tests.cpp)

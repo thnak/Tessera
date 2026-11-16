@@ -83,12 +83,22 @@ std::string_view preview_stylesheet() noexcept {
     // nothing would leave both images a single clear colour and a "within tolerance" verdict would
     // pass while proving nothing (the same anti-vacuity rule the snapshot gate applies to node
     // counts). The palette is the app window's own dark surface so a preview reads as the product.
+    //
+    // The `:hover`/`:active` rules are #388's "visible result without user CSS": pointer input on
+    // the canvas has to be observable before author stylesheets exist (#390 replaces this sheet
+    // wholesale). They are the *only* reason the sheet mentions pseudo-classes, and they match
+    // nothing while no pointer is over the scene, so every static scene - and therefore every
+    // existing golden - resolves to exactly the colours it did before.
     return "View { display: flex; flex-direction: column; background-color: #101a2c; }\n"
            "Text { display: block; height: 24px; font-size: 16px; color: #e6edf7; }\n"
            "Button { width: 120px; height: 32px; background-color: #2d6cdf; "
            "border-radius: 6px; }\n"
+           "Button:hover { background-color: #3d7def; }\n"
+           "Button:active { background-color: #1f4fae; }\n"
            "TextInput { width: 180px; height: 28px; background-color: #1b2740; }\n"
+           "TextInput:hover { background-color: #24365a; }\n"
            "TextArea { width: 180px; height: 64px; background-color: #1b2740; }\n"
+           "TextArea:hover { background-color: #24365a; }\n"
            "Image { width: 64px; height: 64px; background-color: #1b2740; }\n"
            "Spacer { height: 8px; }\n"
            "Scroll { width: 200px; height: 80px; background-color: #16203473; }\n";

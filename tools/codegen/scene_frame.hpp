@@ -99,6 +99,19 @@ scene_frame_pipeline_desc(rhi::TextureFormat format = rhi::TextureFormat::R8G8B8
                                                  const rhi::RenderTargetDesc& desc,
                                                  const rhi::PipelineDesc& pipeline = {});
 
+// The same paint pass for a tree the caller owns rather than one `prepare_scene()` just built. It
+// exists for the persistent canvas session (#388): a session keeps its tree alive across pointer
+// events, so it cannot hand this driver a `PreparedScene` that is re-evaluated per frame, and
+// `sheet` must be the very sheet the tree was laid out against or a painted node would be drawn at
+// a different size than its box.
+//
+// Trivially equal to `scene_frame_paint(scene, ...)` on a tree `prepare_scene()` produced: same
+// renderer, same sink, same counters. `scene_frame_paint` is the two-line wrapper.
+[[nodiscard]] SceneFrameResult
+scene_frame_paint_tree(const ui::Node& root, const ui::style::CompiledStyleSheet& sheet,
+                       rhi::Device& device, rhi::RenderTarget& target,
+                       const rhi::RenderTargetDesc& desc, const rhi::PipelineDesc& pipeline = {});
+
 // Evaluates `text` exactly as `scene_preview_document()` does (same stages, same options, same
 // salt) and then paints the resulting tree with `ui::paint::paint_scene()` through the batched 2D
 // renderer onto an offscreen target of `extent`, reading the pixels back through the RHI.

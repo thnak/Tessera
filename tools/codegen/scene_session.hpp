@@ -118,6 +118,9 @@ public:
     [[nodiscard]] const ui::Node& root() const noexcept {
         return *root_;
     }
+    [[nodiscard]] const ui::InputRouter& router() const noexcept {
+        return router_;
+    }
     [[nodiscard]] ui::Node& root() noexcept {
         return *root_;
     }
@@ -129,6 +132,15 @@ public:
     }
     [[nodiscard]] bool built() const noexcept {
         return built_;
+    }
+    // What the most recent `dispatch()` ran and could not run, in binding order. A canvas caller
+    // reports these to the page so a handler this slice cannot execute is visible rather than
+    // silent, the same split `PreviewClickResult` makes.
+    [[nodiscard]] const std::vector<std::string>& last_ran() const noexcept {
+        return ran_;
+    }
+    [[nodiscard]] const std::vector<std::string>& last_unrun() const noexcept {
+        return unrun_;
     }
 
 private:

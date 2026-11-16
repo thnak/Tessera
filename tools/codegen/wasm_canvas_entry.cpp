@@ -23,6 +23,25 @@
 //   void tessera_free(const char* text)
 //       Releases a report returned above.
 //
+// Issue #388 adds the persistent session, which is the difference between "draw this source" and
+// "run this program":
+//
+//   const char* tessera_canvas_run(source, file, component, width, height, dpi)
+//       Evaluates the source **once** and keeps the tree, its `ui::InputRouter` and its state scope
+//       alive (`scene_canvas_session.hpp`). Returns a frame report: `error` when the source
+//       produced no scene. A Run of the identical source reuses the running evaluation.
+//   const char* tessera_canvas_pointer(kind, x, y, button)
+//       Routes one pointer event into that tree and answers whether a frame is owed. `:hover` and
+//       `:active` are set by the production `ui::InputRouter` on the scene nodes and resolved by
+//       `style::SceneStyleTree` from `Node::pseudo_state()`, so they come from the stylesheet
+//       engine rather than from a class the page writes. **Coordinates are logical pixels; the
+//       CSS-to-pixels rule is documented on the function itself and is not "divide by
+//       devicePixelRatio".**
+//   const char* tessera_canvas_draw(width, height, canvas_view)
+//       Paints the session's current tree. Never re-evaluates.
+//   void tessera_canvas_reset()
+//       Releases the session.
+//
 // **Why the entry exists only under Emscripten.** It includes `tessera/rendering/webgpu/
 // webgpu_device.hpp`, and `tessera_webgpu` is built only for Emscripten or `TESSERA_BUILD_WEBGPU`.
 // The half that *can* be checked on a host lane - `scene_frame.cpp` (the renderer) and
@@ -35,6 +54,7 @@
 // in a real browser. Pixel comparison against the lavapipe golden is still a browser-lane job.
 
 #include "canvas_report.hpp"
+#include "scene_canvas_session.hpp"
 #include "scene_frame.hpp"
 #include "tessera/rendering/webgpu/webgpu_device.hpp"
 
@@ -134,6 +154,68 @@ cli::SceneFrameResult paint_to_canvas(std::string_view source,
     return painted;
 }
 
+// The persistent session (#388): one evaluation the pointer events feed and every later frame
+// paints. It is created by `tessera_canvas_run` and replaced by the next Run, which carries the
+// state cells across the edit (`scene_canvas_session.hpp`). Declared here rather than beside
+// `g_device` because it must die before any device it painted through.
+std::unique_ptr<cli::CanvasSceneSession> g_session;
+
+// The normalized pointer kinds the page may send. Anything else is reported as an error instead of
+// being coerced to a move: a typo in the page would otherwise silently paint the wrong state.
+cli::PreviewInput::Kind pointer_kind_from(std::string_view name, bool& known) {
+    known = true;
+    if (name == "move") {
+        return cli::PreviewInput::Kind::PointerMove;
+    }
+    if (name == "down") {
+        return cli::PreviewInput::Kind::PointerDown;
+    }
+    if (name == "up") {
+        return cli::PreviewInput::Kind::PointerUp;
+    }
+    if (name == "cancel") {
+        return cli::PreviewInput::Kind::PointerCancel;
+    }
+    known = false;
+    return cli::PreviewInput::Kind::PointerMove;
+}
+
+// Paints the session's tree into the canvas texture the page holds. Unlike `paint_to_canvas` this
+// never re-evaluates: the tree is the one the pointer events have been dispatched into, so its
+// hover/active bits and its state are the ones the frame shows.
+cli::SceneFrameResult paint_session_to_canvas(rhi::Extent2D extent, void* canvas_view) {
+    cli::SceneFrameResult result;
+    if (extent.width == 0 || extent.height == 0) {
+        result.error = "paint_session_to_canvas: the canvas extent must be positive";
+        return result;
+    }
+    rhi::RenderTargetDesc desc;
+    desc.extent = extent;
+    desc.format = kCanvasFormat;
+    desc.clear_color = cli::scene_frame_clear_color();
+    desc.load_op = rhi::LoadOp::Clear;
+    desc.store_op = rhi::StoreOp::Store;
+
+    std::unique_ptr<rhi::RenderTarget> target;
+    try {
+        target = canvas_view != nullptr
+                     ? webgpu::create_canvas_target(canvas_view, extent, kCanvasFormat)
+                     : g_device->create_render_target(desc);
+    } catch (const std::exception& failure) {
+        result.error = std::string("paint_session_to_canvas: ") + failure.what();
+        return result;
+    }
+    if (target == nullptr) {
+        result.error = "paint_session_to_canvas: no render target";
+        return result;
+    }
+    result = g_session->paint(*g_device, *target, desc);
+    if (!result.error.empty() && canvas_view != nullptr) {
+        clear_canvas(*g_device, *target, extent);
+    }
+    return result;
+}
+
 } // namespace
 
 extern "C" {
@@ -199,6 +281,117 @@ EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_frame(const char* source, const 
     return duplicate_out(
         cli::canvas_report_json(paint_to_canvas(source, options, name, extent, canvas_view),
                                 extent.width, extent.height, true));
+}
+
+// Starts (or restarts) the persistent session: one evaluation that later `tessera_canvas_pointer`
+// calls feed and later `tessera_canvas_draw` calls paint. Returns the same one-line JSON report a
+// frame returns, with `error` set when the source produced no scene; the page shows the previous
+// picture and the reason rather than a blank canvas.
+//
+// `width`/`height` are the **logical** layout viewport, which is also the coordinate space of
+// `tessera_canvas_pointer`. See that function for the CSS-to-logical mapping; `dpi` is only what
+// scales the backing store and never moves a hit-test coordinate.
+EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_run(const char* source, const char* file,
+                                                    const char* component, int width, int height,
+                                                    float dpi) {
+    const auto extent = rhi::Extent2D{static_cast<std::uint32_t>(width > 0 ? width : 0),
+                                      static_cast<std::uint32_t>(height > 0 ? height : 0)};
+    if (g_device == nullptr) {
+        cli::SceneFrameResult none;
+        none.error = "no WebGPU device: call tessera_webgpu_set_device first";
+        return duplicate_out(cli::canvas_report_json(none, extent.width, extent.height, false));
+    }
+    if (g_session == nullptr) {
+        g_session = std::make_unique<cli::CanvasSceneSession>();
+    }
+    cli::CanvasSessionSource options;
+    options.text = source != nullptr ? std::string_view(source) : std::string_view();
+    options.file = file != nullptr ? std::string_view(file) : std::string_view();
+    options.component = component != nullptr ? std::string_view(component) : std::string_view();
+    // The page's salt is the project namespace it shows; the same constant the scene module uses so
+    // the two views name one node by one number.
+    options.salt = "preview";
+    options.width = static_cast<float>(extent.width);
+    options.height = static_cast<float>(extent.height);
+    options.dpi_scale = dpi > 0.0f ? dpi : 1.0f;
+
+    const std::string error = g_session->start(options);
+    cli::SceneFrameResult report;
+    report.error = error;
+    return duplicate_out(cli::canvas_report_json(report, extent.width, extent.height, true));
+}
+
+// Routes one pointer event into the running session and returns what it did. The page calls this
+// from its pointer listeners and then draws at most one frame, and only when `changed` is true.
+//
+//   kind    "move" | "down" | "up" | "cancel"  (the `InputRouter`'s own gesture vocabulary)
+//   x, y    the pointer position in **logical** (layout viewport) pixels
+//   button  the pointer event's `button`; 0 is primary. Only the primary button acts in this slice.
+//
+// **The coordinate rule, which is the part that goes wrong.** `x`/`y` are logical pixels, not CSS
+// pixels and not device pixels, and the conversion belongs to the page because only it can read the
+// CSS box:
+//
+//     const rect = canvas.getBoundingClientRect();       // CSS box, what the user sees
+//     const logicalWidth = widthArgumentOfLastRun;       // the viewport the layout used
+//     const x = (event.clientX - rect.left) * (logicalWidth / rect.width);
+//
+// Divide by the canvas' **CSS-to-logical ratio**, never by `devicePixelRatio`. The backing store is
+// `logical * dpr` and the CSS box is the logical size, so `logicalWidth / rect.width` is 1 in the
+// unchanged case and the DPR never appears. Worked case: a 320x240 logical viewport at DPR 2 gives
+// a 640x480 backing store and a 320x240 CSS box, so a click at CSS (10,10) is logical (10,10) - a
+// `(clientX - rect.left) / dpr` would hand this function 5 and hit-test half a button away. The
+// division by DPR is only correct if the page has set no CSS size at all and the canvas is being
+// displayed at its natural (backing-store) size, which is not the layout this module is given.
+//
+// Unknown `kind` and a secondary `button` still answer a well-formed report (`dispatched` false,
+// `changed` false), so a page typo costs no frame and no exception at the FFI boundary.
+EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_pointer(const char* kind, float x, float y,
+                                                        int button) {
+    cli::CanvasPointerResult result;
+    if (g_session == nullptr || !g_session->started()) {
+        result.changed = false;
+        return duplicate_out(cli::canvas_pointer_report_json(result));
+    }
+    bool known = false;
+    const cli::PreviewInput::Kind parsed =
+        pointer_kind_from(kind != nullptr ? std::string_view(kind) : std::string_view(), known);
+    if (!known) {
+        // An unrecognized kind is a page bug, and dispatching it as a move would move the hover
+        // somewhere the user never pointed.
+        return duplicate_out(cli::canvas_pointer_report_json(result));
+    }
+    result = g_session->pointer(parsed, x, y, button > 0 ? static_cast<std::uint32_t>(button) : 0U);
+    return duplicate_out(cli::canvas_pointer_report_json(result));
+}
+
+// Draws the running session's current tree into the canvas texture view the page hands over, and
+// returns the frame report. Called after `tessera_canvas_run` and after any
+// `tessera_canvas_pointer` that answered `changed: true`. Nothing here re-evaluates the source, so
+// the picture is the state the pointer events produced; a caller that draws without a change
+// repaints identical pixels.
+EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_draw(int width, int height, void* canvas_view) {
+    const auto extent = rhi::Extent2D{static_cast<std::uint32_t>(width > 0 ? width : 0),
+                                      static_cast<std::uint32_t>(height > 0 ? height : 0)};
+    if (g_device == nullptr) {
+        cli::SceneFrameResult none;
+        none.error = "no WebGPU device: call tessera_webgpu_set_device first";
+        return duplicate_out(cli::canvas_report_json(none, extent.width, extent.height, false));
+    }
+    if (g_session == nullptr || !g_session->started()) {
+        cli::SceneFrameResult none;
+        none.error = "no canvas session: call tessera_canvas_run first";
+        return duplicate_out(cli::canvas_report_json(none, extent.width, extent.height, true));
+    }
+    return duplicate_out(cli::canvas_report_json(paint_session_to_canvas(extent, canvas_view),
+                                                 extent.width, extent.height, true));
+}
+
+// Releases the session (and with it the tree, its handlers and its carried state). The page calls
+// it when it leaves the Canvas view; a later Run starts a fresh session with no carried state,
+// which is the same thing a page reload does.
+EMSCRIPTEN_KEEPALIVE void tessera_canvas_reset() {
+    g_session.reset();
 }
 
 // The matching release, same convention as the diagnostics and scene modules.
