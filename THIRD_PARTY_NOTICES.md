@@ -160,6 +160,8 @@ modules, roles, and status is [`docs/specs/dependencies.md`](docs/specs/dependen
 | emdawnwebgpu (Emscripten port, `v20260423.175430`) | MIT / UIUC (JS bindings), BSD-3-Clause (Dawn headers) | Emscripten contributors; The Dawn & Tint Authors; linked into the Wasm WebGPU build only |
 | CodeMirror 6 | MIT | Marijn Haverbeke and contributors; bundled in the hosted studio page |
 | fflate | MIT | Arjun Barrett; hosted studio zip import/export |
+| React, ReactDOM | MIT | Meta Platforms, Inc. and React contributors; bundled in the hosted studio page ([ADR-054](decisions/ADR-054-studio-front-end-react-vite.md)) |
+| react-markdown, rehype-slug, remark-gfm | MIT | their respective authors; bundled in the wiki client (`tools/wiki`) |
 | Catch2 | Boost Software License 1.0 | Catch2 contributors |
 | Google Benchmark | Apache-2.0 | Google LLC |
 | libpng | libpng License | PNG Reference Library authors |
@@ -199,7 +201,9 @@ modules, roles, and status is [`docs/specs/dependencies.md`](docs/specs/dependen
 | Ninja | Apache-2.0 | build tool |
 | sccache | Apache-2.0 | optional compiler cache (preferred) |
 | ccache | GPL-3.0-or-later | optional compiler cache; separate program, not linked |
-| Node.js | MIT | hosted-studio build scripts and the `tessera-mcp` stdio server; design-time tooling, never linked into the app |
+| Node.js | MIT | build scripts for the hosted studio and the `tools/wiki` client, and the `tessera-mcp` stdio server; design-time tooling, never linked into the app |
+| Vite, @vitejs/plugin-react | MIT | static build of the studio page and the wiki client ([ADR-054](decisions/ADR-054-studio-front-end-react-vite.md)); the toolchain is never shipped |
+| TypeScript, @types/react, @types/react-dom | Apache-2.0 / MIT | TSX type checking and React type declarations for both front ends; never shipped |
 | SPIRV-Cross, SPIRV-Tools (spirv-val, spirv-opt) | Apache-2.0 | from the pinned Vulkan SDK; only with `TESSERA_SHADER_CROSS=ON` (ADR-049); output stays in the build directory |
 | DirectX Shader Compiler (dxc) | University of Illinois/NCSA | from the pinned Vulkan SDK; only validates generated HLSL under `TESSERA_SHADER_CROSS=ON` |
 | naga-cli 30.0.1 | MIT OR Apache-2.0 | `cargo install naga-cli --version 30.0.1 --locked` (pin in `tools/naga-version.txt`); `TESSERA_SHADER_CROSS=ON` and the WebGPU CI lane; SPIR-V to WGSL and WGSL validation |

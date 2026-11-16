@@ -123,7 +123,8 @@ design must make room for it, but its normative definition is a follow-up spec, 
 9. **Scope re-baseline.** #392 becomes the stack conversion plus the three-view merge: Vite scaffold,
    React shell, view modules, build/CI/budget. #391 and #387-#390, #395, #408 and #171 are
    re-baselined against the shell #392 lands; nothing in their acceptance changes except the files
-   they edit.
+   they edit. *As landed (2026-11-16, PR #420) #392 carried only the three-view merge and the module
+   split; the conversion is its own slice — see the amendment note below.*
 
 ## Consequences
 
@@ -177,6 +178,18 @@ design must make room for it, but its normative definition is a follow-up spec, 
 [ADR-045](ADR-045-browser-hosted-studio.md) is **not superseded**. Its decisions (static Pages site,
 page as host, HTML/CSS chrome, no server, single-threaded Wasm) remain in force; this ADR amends only
 the page-stack assumption that the host shell is hand-written ES modules with no build step.
+
+## Amendment (2026-11-16): #392 landed without the conversion
+
+#392 closed on 2026-11-16 in PR #420 as the three-view merge and the module split, in vanilla ES
+modules: no Vite scaffold, no React shell, no re-recorded budget. Decision 9's assumption that the
+conversion rides inside #392 therefore did not hold.
+
+The conversion is now its own slice and lands first among the studio items, because #391, #171, #408
+and #387-#390 edit the shell it produces; decision 9's ordering stands, only who carries the
+conversion changes. Decisions 6 and 7 move with it: the Pages build step, the gate rewrite and the
+re-recorded budget land with the code, and the dependency/licensing entries land in this docs landing.
+ADR-045 is still amended, not superseded.
 
 ## Follow-up
 

@@ -79,8 +79,11 @@ It reads a folder, a zip or a sample project in the browser, edits it with an in
 speaks `postMessage` to the viewer; the native CLI host remains for filesystem and codegen work.
 Package size and first-paint are the deployment constraints, not local build time.
 
-The page shell (toolbar, file tree, editor, skin frame) is HTML and never Tessera-rendered, so a
-preview failure cannot take down the editor. System chrome is simulated **outside** the engine: the
+The page shell is React 19 + TypeScript built by Vite from `designer/web`
+([ADR-054](../../decisions/ADR-054-studio-front-end-react-vite.md)): React renders the chrome only,
+the engine still draws only the canvas, and the build is a deploy-time artifact, so nothing about the
+page changes at runtime. The shell is never Tessera-rendered, so a preview failure cannot take down
+the editor. System chrome is simulated **outside** the engine: the
 skin frame is HTML/SVG around the canvas, tinted from the engine's resolved chrome record
 ([`window-chrome-v1.md`](../specs/window-chrome-v1.md)); the engine draws only the client area (desktop)
 or the edge-to-edge surface (mobile). In `window.titleBar: "custom"` mode the framework title bar is

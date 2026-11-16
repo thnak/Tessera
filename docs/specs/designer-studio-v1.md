@@ -7,8 +7,11 @@ Chrome preview: [window-chrome-v1.md](window-chrome-v1.md).
 
 The studio is the "open a URL and work" form of the designer: the real C++ engine compiled to Wasm
 runs in the page, the page hosts the project (folder, zip or sample) and the code editor, and the
-left pane shows the engine output inside a simulated device frame. No native toolchain, no build
-step in the loop, nothing uploaded to a server.
+left pane shows the engine output inside a simulated device frame. No native toolchain in the loop,
+no per-edit build (user code is IR evaluated by the engine, never JavaScript), nothing uploaded to a
+server. The page's own front end is React 19 built by Vite
+([ADR-054](../../decisions/ADR-054-studio-front-end-react-vite.md)): it is built once per deploy,
+not per edit.
 
 ## 1. Purpose and non-goals
 
@@ -30,14 +33,16 @@ and using Tessera itself to render the studio's own chrome.
   `https://<org>.github.io/Tessera/designer/` (Tessera's canonical remote is `thnak/Tessera`). This
   is a static HTTPS origin with no server code, no cookies and no auth. `git.io` was a GitHub URL
   shortener retired in 2022 and is not used.
-- The build is an artifact, never committed: Emscripten compiles the engine, the site assembles
-  `index.html`, the JS host shell, the viewer worker bootstrap, the Wasm module, skins and samples,
-  and `actions/deploy-pages` publishes it. Deployment runs only from `main`; a failed studio smoke
-  test fails the job and blocks deployment.
+- The build is an artifact, never committed: Emscripten compiles the engine, Vite builds the React
+  front end from `designer/web` into `dist/` (git-ignored), the site assembles `index.html`, the JS
+  host shell, the viewer worker bootstrap, the Wasm module, skins and samples, and
+  `actions/deploy-pages` publishes it. Deployment runs only from `main`; a failed studio smoke test
+  fails the job and blocks deployment.
 - Versioned paths: immutable hashed assets under `/designer/v<major>/`, `index.html` served with
   revalidation, and a `/designer/latest/` alias. A running page never mixes two engine build ids;
   the status line shows the id.
-- Local development uses the same static tree behind any HTTP server. There is no SSR path.
+- Local development serves the same static tree behind any HTTP server; `npm run dev` runs Vite over
+  `designer/web` for the front end. There is no SSR path and no server code.
 
 ### 2.2 Platform constraints
 
@@ -79,6 +84,12 @@ host -- because the browser's parse and the WebGPU frame (P3) do not exist yet, 
 `≤ 4 s` and `≤ 1 s` targets above are **not** what is being checked. The browser lane adds
 `cold_first_frame_ms`/`edit_to_view_ms` when there is a frame to time; the download row is the slice's
 number and is already enforced, at 375 KiB gzip for the P1 page.
+
+**React re-record (ADR-054 decision 6).** The 375 KiB row measures the hand-written P1 page, before
+the front-end conversion. The React shell re-records it in the conversion's landing, measured against
+this table and the two-sided ratchet (an unrecorded improvement fails the same as a regression).
+Until then the number describes the pre-conversion page and must not be inherited as if it measured
+the converted one.
 
 ## 3. Page composition
 
@@ -130,6 +141,16 @@ chrome is a simulation whose geometry and colours must match production
 ([window-chrome-v1.md](window-chrome-v1.md)); it is never an input to the previewed app's layout
 except through the insets it supplies. In `custom` mode the framework title bar is engine content, so
 the studio shows it from the engine and hides the simulated one.
+
+### 3.2 Front-end stack
+
+The four regions are React 19 components in `designer/web`, TypeScript-checked and built by Vite into
+the static artifact ([ADR-054](../../decisions/ADR-054-studio-front-end-react-vite.md)). React owns
+the studio chrome only: it never renders the previewed app and never runs project code, and the
+engine still draws exactly one thing, the canvas. Styles are static CSS (one stylesheet or CSS
+modules) so the strict CSP holds; there is no CSS-in-JS runtime and no second framework. The viewer
+stays lazy: the shell mounts without instantiating the engine and the worker starts when a preview is
+requested, so a failed engine boot leaves a working editor and a diagnostic.
 
 ## 4. Host and viewer in one page
 
@@ -283,8 +304,10 @@ normative format.
 | `g` | gzip compressed, the fallback for a browser with gzip but not deflate-raw |
 | `u` | uncompressed base64url, the fallback for a browser with no compression stream |
 
-Compression uses the browser's own `CompressionStream`/`DecompressionStream`; there is **no library**,
-which is what keeps the page free of dependencies and a build step.
+Compression uses the browser's own `CompressionStream`/`DecompressionStream`; there is **no
+compression library**, which is what keeps the codec dependency-free and lets the same bytes run under
+Node in the test. The page around it is a React application built by Vite
+([ADR-054](../../decisions/ADR-054-studio-front-end-react-vite.md)).
 
 **Envelope.** The decoded bytes are UTF-8 JSON. Keys are one character because the fragment is the
 artifact a person pastes.
@@ -320,7 +343,8 @@ silently ignored.
 plus its environment; the studio's project IO (D-S4) is the path for everything else.
 
 **Gallery.** The sample gallery reads `designer/web/samples.json`, **generated** from `samples/**/*.tsx`
-by `scripts/ci/gen_sample_manifest.py` and committed so Pages needs no build step. The manifest carries
+by `scripts/ci/gen_sample_manifest.py` and committed so a deploy runs no generator step (the page itself
+is built by Vite, [ADR-054](../../decisions/ADR-054-studio-front-end-react-vite.md)). The manifest carries
 a `path` and the exported `component` name and no source text: the page fetches the TSX from its path,
 so the file in the repository stays the single source of truth and adding a sample never means editing
 JavaScript. Display titles are derived from the file stem in the page. `--check` fails on a stale
@@ -334,6 +358,18 @@ same document at an explicit rectangle. A non-positive value falls back to the d
 laying out a degenerate tree. **Theme is carried but not applied**: the null-RHI snapshot has no theme
 asset, so the toggle is honest about being a share-link field, not a style input, until the theme
 asset is in that module.
+
+### 7.2 Mock services (ADR-055)
+
+A project may ship design-time mocks for the services its screens consume. A mock is a `*.mock.ts`
+project file: accepted by the studio (the file-kind exception in section 7), host-only — never sent to
+the viewer and never compiled into the app — and executed in a sandboxed studio worker, which the
+engine observes only through the service seam of ADR-050 section 3.1 item 6. The interface binding,
+response/latency/failure scripting on the simulation clock, call recording, caps and determinism are
+normative in [studio-mock-services-v1.md](studio-mock-services-v1.md); the decision, including the
+narrow ADR-045 decision 7 exception for running project TypeScript in the page, is
+[ADR-055](../../decisions/ADR-055-studio-mock-services.md). Until that spec's `ui/services.json`
+manifest exists, a mock can only be the recording fake ADR-050 already names.
 
 ## 8. MCP server mode (stdio)
 
@@ -370,11 +406,14 @@ there is no third protocol to keep in sync.
 
 ## 9. Hosting workflow
 
-1. CI builds the Wasm module with the pinned Emscripten version
-   ([dependencies.md](dependencies.md)) and runs the headless studio smoke test: instantiate, load a
-   sample, parse, layout, render on the null backend, compare a structural digest.
-2. CI assembles the site artifact (never committed), then `actions/deploy-pages` publishes it from
-   `main`.
+1. CI builds the front end (`npm ci && npm run build` in `designer/web`, Vite into `dist/`) and the
+   Wasm module with the pinned Emscripten version ([dependencies.md](dependencies.md)), then runs the
+   headless studio smoke test: instantiate, load a sample, parse, layout, render on the null backend,
+   compare a structural digest. The static page checks (`scripts/ci/preview_page_checks.mjs`,
+   `scripts/ci/preview_studio_smoke.mjs`) run against the built output
+   ([ADR-054](../../decisions/ADR-054-studio-front-end-react-vite.md) decision 6).
+2. CI assembles the site artifact (never committed) from the built front end, the module and the
+   skins, then `actions/deploy-pages` publishes it from `main`.
 3. The status line and the page's `engine` field show the same build id as the deployed artifact, so
    a stale cache is visible.
 4. A visitor can download the sample project and continue in the native workflow; nothing is lost by
@@ -398,6 +437,9 @@ there is no third protocol to keep in sync.
 
 - Studio smoke (CI): page loads, Wasm instantiates, a sample yields a frame on the null backend, no
   console errors, no network request outside the origin.
+- Front-end build (CI): `npm ci` from the committed lockfile, `tsc --noEmit`, `vite build`, then the
+  page checks and the smoke test against `dist/`; the download budget measures the built page, not the
+  sources ([ADR-054](../../decisions/ADR-054-studio-front-end-react-vite.md) decision 6).
 - Skins: manifest validation, defaults, insets → `safeAreas`, desktop vs mobile geometry, theme
   change retints without reload, invalid skin rejected with `TESSERA_STUDIO_SKIN`.
 - Host loop: edit → diagnostic → frame, monotonic versions, save, download-zip round trip, dirty
@@ -439,6 +481,10 @@ validate TSX in the browser, which gives the hosted URL value early. D-S9 additi
 startup pipeline of [startup-api-v1.md](startup-api-v1.md) slices S3 and S5 compiled to Wasm, so it
 can only follow the startup work; it is planned, not parallel.
 
+The stack conversion of [ADR-054](../../decisions/ADR-054-studio-front-end-react-vite.md) precedes D-S2
+and everything after it: #392 landed as the three-view merge only (PR #420), so the React shell that
+D-S2 and D-S4 (#391) edit is still to land.
+
 ## 13. Decisions and open questions
 
 Owner decisions recorded 2026-11-11: budgets are CI warnings, not gates, in V1; `OffscreenCanvas` +
@@ -447,6 +493,11 @@ from the native headless renderer (GPU), not the Wasm module; `apply_edits` defa
 with an explicit `write: true`; the studio previews startup phases P0/P2/P4 in V1; `viewport.set`
 gains `locale`, `direction` and `textScale`; GitHub Pages is the only host in V1; native parity stays
 a CI concern.
+
+Owner decisions recorded 2026-11-16: the studio front end is React 19 + TypeScript built by Vite
+([ADR-054](../../decisions/ADR-054-studio-front-end-react-vite.md)); design-time mock services are
+`*.mock.ts` project files run in a sandboxed studio worker, never in the engine
+([ADR-055](../../decisions/ADR-055-studio-mock-services.md)).
 
 Open questions (no decision yet):
 

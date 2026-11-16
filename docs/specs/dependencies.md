@@ -150,8 +150,24 @@ font bytes that FreeType already validated, so the two libraries never share a f
 | CMake | V1 build | BSD-3-Clause | build | Build system |
 | vcpkg | V1 build (recommended) | MIT | build | Dependency management |
 | Ninja | V1 optional | Apache-2.0 | build | Fast builds |
-| Node.js | Design-time tooling only ([ADR-045](../../decisions/ADR-045-browser-hosted-studio.md)) | MIT | `designer/web`, `tools/mcp` | Studio build scripts and the `tessera-mcp` stdio server; never a build or runtime dependency of the native app ([ADR-036](../../decisions/ADR-036-own-jsx-frontend-and-react-like-model.md)) |
+| Node.js | Design-time tooling only ([ADR-045](../../decisions/ADR-045-browser-hosted-studio.md)) | MIT | `designer/web`, `tools/wiki`, `tools/mcp` | Vite build scripts for the studio page and the wiki client, and the `tessera-mcp` stdio server; never a build or runtime dependency of the native app ([ADR-036](../../decisions/ADR-036-own-jsx-frontend-and-react-like-model.md)) |
 | Python 3 | Build-time | PSF | `scripts` | Tooling and CI helpers |
+
+### Studio and wiki front end (design-time)
+
+The hosted studio's chrome and the wiki client are the two browser front ends in the repository.
+Both ship as static assets in the Pages artifact and never in a native binary, so they sit outside
+the native link line; the framework and the toolchain that build them are design-time only
+([ADR-054](../../decisions/ADR-054-studio-front-end-react-vite.md), amending the page-stack wording
+of [ADR-045](../../decisions/ADR-045-browser-hosted-studio.md) without superseding it). The wiki's
+committed `package-lock.json` pins that tree; the studio commits one with its conversion.
+
+| Library | Status | License | Module | Role in Tessera |
+|---|---|---|---|---|
+| React, ReactDOM | V1 design-time (studio) | MIT | `designer/web`, `tools/wiki` | Studio chrome components (toolbar, panes, status line) and the wiki client's rendering; bundled into the static page, never linked into an app binary or the Wasm engine ([ADR-054](../../decisions/ADR-054-studio-front-end-react-vite.md), [ADR-024](../../decisions/ADR-024-native-first-boundaries.md)) |
+| react-markdown, rehype-slug, remark-gfm | V1 design-time (wiki) | MIT | `tools/wiki` | Wiki markdown rendering, heading anchors and GFM tables |
+| Vite, @vitejs/plugin-react | V1 design-time (studio build) | MIT | `designer/web`, `tools/wiki` | Static build of both front ends (`vite build` → `dist/`, git-ignored) and hashed asset names for the versioned Pages paths ([ADR-045](../../decisions/ADR-045-browser-hosted-studio.md), ADR-054) |
+| TypeScript, @types/react, @types/react-dom | V1 design-time (studio build) | Apache-2.0 / MIT | `designer/web`, `tools/wiki` | TSX type checking (`tsc --noEmit`, part of the build) and the React type declarations |
 
 ## 6. Platform and HAL
 
@@ -381,6 +397,10 @@ C++ engine -> [Emscripten] -> Wasm -> [browser WebGPU] -> <canvas>
 - **WebGPU bindings** (`webgpu.h` / emdawnwebgpu) call the browser's WebGPU.
 - **Dawn** is the native WebGPU implementation; it is optional and used for native/headless
   parity tests, not linked into the Wasm viewer.
+- **React 19** renders the studio chrome (toolbar, panes, status line) and the **Vite** build emits
+  the static page; the engine still draws exactly one thing, the preview canvas
+  ([ADR-054](../../decisions/ADR-054-studio-front-end-react-vite.md)). Neither is in the native or
+  Wasm link line.
 
 ### Headless: CI and agent loop
 
@@ -530,6 +550,10 @@ LGPL:
 | nlohmann/json, Inja | MIT | Build-time |
 | simdjson | Apache-2.0 | Build-time |
 | CMake, vcpkg, Ninja, Node.js | permissive | Build-time |
+| React, ReactDOM | MIT | Bundled in the hosted studio page; `NOTICE` |
+| react-markdown, rehype-slug, remark-gfm | MIT | Wiki client bundle; `NOTICE` |
+| Vite, @vitejs/plugin-react | MIT | Build-time; the emitted `dist/` ships, the toolchain does not |
+| TypeScript, @types/react, @types/react-dom | Apache-2.0 / MIT | Build-time; type checking only, never shipped |
 | Python | PSF | Build-time |
 | Noto Sans / Inter | OFL-1.1 | Test fonts; keep the license |
 | Twemoji Mozilla | CC-BY 4.0 / MIT | Keep the attribution in `THIRD_PARTY_NOTICES.md` |

@@ -583,10 +583,11 @@ Stages P0-P7 are planned in `docs/design/reference-equantic-ui.md`.
 
 **This is the design-time milestone**: everything a developer uses before the app ships (the browser
 preview, the studio that edits a project folder, the MCP adapter, devtools). Runtime and shipping
-concerns live in V1-M5 and later. Since 2026-11-16 the preview pages are being merged into one
-studio `index.html` (#392), which the folder IDE (#391) builds on; the order below is the farm order. #397-#399 (stack overflow and quadratic
-lowering on untrusted input, from the #198 review) come first because #390, #391 and the MCP folder tools feed
-untrusted files to that code.
+concerns live in V1-M5 and later. Since 2026-11-16 the preview pages are merged into one
+studio `index.html` (#392, PR #420); the React 19 + Vite conversion of that shell (ADR-054) lands next
+and the folder IDE (#391) builds on the converted shell. The order below is the farm order. #397-#399
+(stack overflow and quadratic lowering on untrusted input, from the #198 review) are closed, so #390,
+#391 and the MCP folder tools can feed untrusted files to that code.
 The Wasm studio stays single-threaded (ADR-045 decision 5); a separate multi-threaded studio site is a later,
 owner-planned item and is not part of this milestone.
 
@@ -643,17 +644,19 @@ owner-planned item and is not part of this milestone.
       #396 keeps the other tools.
 - [ ] #407: `tessera-mcp`: a `generate` tool for the C++ of the folder (ADR-040). Owner decisions
       first; takes #406.
-- [ ] #408: studio: foldable simulation (hinge, fold posture, two-pane) on the Wasm viewer. Takes #392.
-- [ ] #397: security: nested `:not()`/`:is()`/`:where()`/`:has()` overflow the stack in the stylesheet
-      compiler (found by the #198 review). **Before #390 and #391**, which feed user CSS to it.
-- [ ] #398: security: nested `@media`/`@layer`/`@container`/`@supports` overflow the stack in
-      `prepare_stylesheet`. Same ordering as #397; an independent fix.
-- [ ] #399: security: lowering is quadratic in source-line length (28 s for a legal 1 MiB line).
-      **Before #391** (it would freeze the main thread the viewer runs on).
-- [ ] #392: studio: merge the index, scene and canvas pages into one `index.html` (modules stay
+- [ ] #408: studio: foldable simulation (hinge, fold posture, two-pane) on the Wasm viewer. Takes the
+      ADR-054 conversion.
+- [x] #397: security: nested `:not()`/`:is()`/`:where()`/`:has()` overflowed the stack in the stylesheet
+      compiler (found by the #198 review). Fixed: selector nesting is depth-bounded, so #390 and #391
+      can feed user CSS to it.
+- [x] #398: security: nested `@media`/`@layer`/`@container`/`@supports` overflowed the stack in
+      `prepare_stylesheet`. Fixed, independently of #397.
+- [x] #399: security: lowering was quadratic in source-line length (28 s for a legal 1 MiB line).
+      Fixed: `SourceMap::locate` is logarithmic, so a 1 MiB line no longer freezes the viewer's thread.
+- [x] #392: studio: merge the index, scene and canvas pages into one `index.html` (modules stay
       separate and lazy, `scene.html`/`canvas.html` become redirect stubs that keep `#p5=` links
-      working, the P6 budget is re-ratcheted). **First of the studio items; the four below and #391
-      wait on it.**
+      working). Merged in PR #420; the stack conversion and the P6 budget re-record moved to ADR-054's
+      slice, which the four below and #391 now wait on.
 - [ ] #387: P3b: text in the canvas preview, font loaded as data (IBM Plex Sans Latin subset).
 - [ ] #388: P3c: pointer input on the canvas (hit-test, click, hover, active) through a persistent
       session in the canvas module.
@@ -663,7 +666,7 @@ owner-planned item and is not part of this milestone.
       replaces the built-in sheet, which stays only as the no-stylesheet fallback; tokens come
       from user code.
 - [ ] #391: studio D-S2 + D-S4: open a project folder (File System Access API, zip elsewhere), file
-      tree, edit, explicit save, multi-file preview. Waits on #390 and #392.
+      tree, edit, explicit save, multi-file preview. Waits on #390 and the ADR-054 conversion.
 
 ### V1-M5 Application framework ([milestone 5](https://github.com/thnak/Tessera/milestone/5))
 ADR-050 is Accepted (roadmap AF1-AF8); start with AF1.
@@ -1148,8 +1151,9 @@ prop defaults and `useState` record initials, ADR-051); its only open item is #3
 landed the diagnostics page, the machine-readable diagnostics document
 (`docs/specs/compiler-diagnostics-v1.md`), and Pages is enabled, so the page is live at
 https://thnak.github.io/Tessera/ and deployed by CI from `main`. P2 (#166, the evaluator on the
-null RHI) and P3 to P6 have since landed; the remaining V1-M4 work is the studio sequence #392, then
-#387-#390, then #391, plus #171. V1-M3 closed with #159: the `shader-manifest-v1.md` id-to-source table (section 3.2) and the opt-in cross-compile
+null RHI) and P3 to P6 have since landed; the remaining V1-M4 work is the React 19 + Vite conversion of
+the studio shell ([ADR-054](decisions/ADR-054-studio-front-end-react-vite.md)), then #387-#390, then
+#391, plus #171, #395 and #408. V1-M3 closed with #159: the `shader-manifest-v1.md` id-to-source table (section 3.2) and the opt-in cross-compile
 section (5.1), plus the `shader-cross` job in `.github/workflows/linux.yml` that runs
 `TESSERA_SHADER_CROSS=ON` — its first run found a real shader defect (a by-value struct parameter
 in `batched2d.frag` lowered to `OpCopyLogical`, which naga rejects on Linux glslang 16.1), now
@@ -1158,6 +1162,15 @@ not blocked on tooling: the WebGPU lane installs the pinned Emscripten and build
 the preview runs in a real browser. V1-M5 is unblocked (ADR-050 is Accepted) and
 AF1 (#173) may start now. V1-M6, V1-M7 (#187 now has the #156 display/event seam it needed) and V1-M8
 come later.
+
+**Studio front end (ADR-054, accepted 2026-11-16).** The hosted studio's chrome is React 19 +
+TypeScript built by Vite over the static Wasm host page; React renders the chrome only and the engine
+still draws just the preview canvas. #392 landed the three-view merge (PR #420) in vanilla ES modules,
+so the conversion is the next studio slice and lands ahead of #391, #171, #408 and #387-#390, which
+edit the shell it produces. Design-time mock services are `*.mock.ts` project files run in a sandboxed
+studio worker and never in the engine ([ADR-055](decisions/ADR-055-studio-mock-services.md)). Both are
+design-time only: no JS/React runtime enters a production app binary ([ADR-024](decisions/ADR-024-native-first-boundaries.md),
+non-negotiable 7), and Node/npm stays out of the native build.
 
 **V1 gaps added 2026-11-13 (ready now):** #226, #227, #229, #230, #231 and #235 (front end, style and
 paint gaps that make V1 look unfinished), #228 (multi-window refactor, before AF6), #232, #233,
