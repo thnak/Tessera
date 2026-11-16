@@ -86,6 +86,77 @@ Two readings of underspecified transitions, both conservative and both stated in
 - Deterministic mode pins locale/ICU data; no system locale leakage in goldens.
 - Tests: plural categories, RTL, long strings, date/number formats, missing keys.
 
+### 2.1 Implemented shape (AF8, issue #195)
+
+The `i18n` module ships as `tessera_appfw_i18n` (ADR-050 section 1 layer 1) in four pieces:
+`LocaleTable` (negotiation), `MessageCatalog` (the compiled table), `LocaleService` (the runtime
+state and its change signal) and `LocalizedText` (what a locale change dirties). It is the smallest
+slice that satisfies the issue's acceptance - *"locale change updates text without relayout bugs"* -
+and the rest of [`i18n-v1.md`](../specs/i18n-v1.md) is named below rather than half-built.
+
+**The supported set is compiled-in data, not a probe of the machine.** `LocaleTable` is built from
+`{tag, direction}` pairs the app ships, and nothing in the module reads an OS locale, calls
+`setlocale`, or links ICU. That is i18n-v1.md section 8.1's "ICU data is ... pinned; locale packs are
+bundled" read as the *only* mode rather than a test mode: the same requests resolve identically on
+every machine, which is also what the acceptance's "tests are deterministic" requires. An ICU-backed
+table fills the same `SupportedLocale::direction` field later, so wiring the reduced data pack
+(`TESSERA_ICU_REDUCED_DATA`, off in the default build and CI) is a data change, not an API change.
+
+**The requests are an ordered list, because section 1 names four inputs.** Section 8.1 writes the
+chain as a single `requested -> normalize -> exact -> language+script -> language -> fallback ->
+default`, so the list is how "OS locale(s), app default, user override, per-window override" arrives
+without an OS call: the composition root passes them in priority order, the table walks the chain
+once per request, and the first request that resolves wins. `requested` in the result names the
+request that served the locale, not the first one tried, so a diagnostic always explains `resolved`.
+Normalization is the reduced canonical form `src/ui/text/locale_resolver.cpp` already documents
+(`-` to `_`, language lowercased, a two-letter region uppercased, a four-letter script title-cased),
+so the tree has one spelling of a tag rather than two.
+
+**The epoch is what makes a redundant request free.** `LocaleService` publishes the resolved locale
+through AF4's `Observable<LocaleSnapshot>`, whose `operator==` is "same tag and same direction" - the
+epoch is deliberately *not* part of equality. `set_requests` with the same request therefore stores
+nothing, advances no epoch and wakes no ticket, so a settings panel that forwards every keystroke
+cannot relayout on every key. A real change increments `locale_epoch` (section 8.1) and delivers one
+notification per flush, which is what invalidates a formatting cache or re-renders a label.
+
+**A locale change is classified by measurement, not by a constant.** This is the dirty-rendering
+half of the acceptance, and it is `LocalizedText`'s whole job:
+
+| Case | Mask | Why |
+|---|---|---|
+| wider/narrower translation, or one that wraps | `Layout \| Paint \| Render` | the "text/font change" row of [`dirty-rendering.md`](dirty-rendering.md) section 3. Filed under Paint only, the new string would paint at the old box and clip |
+| same-width re-translation | `Paint \| Render` | no box moved; relayouting for it is the wasted work the granularity exists to avoid |
+| direction flip | `Style \| Layout \| Paint \| Render` | the resolved base direction seeds the inherited `direction` property (section 4), so the style *input* changed and every logical inline-axis property downstream moved |
+| same locale again | `Clean` | a re-published locale must not relayout |
+
+Measurement goes through the `text::TextMeasureCache` layout itself uses, so the reported box is the
+box Yoga will produce; the `appfw_i18n` test asserts the masks (`appfw_i18n_relayout_tests.cpp`) *and*
+the measured size through the real `LayoutEngine` and `LayoutScheduler`
+(`appfw_i18n_layout_tests.cpp`), for the English and German strings. The tests use
+`StubTextMeasurer` with an explicit metrics provider, so an advance is a fixed multiple of the code
+point count and the assertions are exact rather than tolerance-dependent.
+
+**What this slice deliberately does not do**, and what each piece needs (the next slice, not a
+guess):
+
+- **ICU MessageFormat** (`{count, plural, ...}`, `select`, nesting) and number/date/currency/
+  relative-time formatting (sections 2 and 3). A pattern is returned verbatim today, so a plural
+  string would be shown literally. This needs the ICU data pack in the build; `MessagePattern` is the
+  seam a compiled AST replaces without touching a caller.
+- **Locale-aware parsers** for number/date input (section 5) and **accessibility announcements** in
+  the new locale, which needs the a11y module's announcement queue.
+- **The `en-XA`/`ar-XB` pseudo-locales** (section 8.1). Both are build artifacts that the reduced
+  ICU data step generates; the *layout* half of `ar-XB` is already covered by `logical_layout`, which
+  lays one stylesheet out under both `direction` values.
+- **Persisting the user override** through AF7's settings store, and the **OS-locale source**
+  itself: a host passes its platform locales as the last requests in the list. Reading them is a HAL
+  concern with its own platform lanes, and putting it here would have made the module's tests depend
+  on the machine by construction.
+- **Catalog build/validation** (section 6: ICU syntax validation, unused-key CI failure). The runtime
+  half is enforced - a duplicate `(id, locale)`, an unsupported locale, or an id missing from the
+  default locale is an `I18nError`, not a silent no-op - and the generator that emits
+  `MessageEntry[]` is the build slice.
+
 ## 3. Navigation
 
 - Routes are declarative; a stack model with push/pop/replace/reset.
