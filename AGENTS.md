@@ -777,7 +777,15 @@ Acceptance: a real app ships and passes validation layers and golden tests in CI
       executables, 26 PDBs all from `_deps`, 0 maps), so a release crash report has addresses
       and no names until the packaging lane ships one. Minidumps need an out-of-process
       handler (Crashpad/WER), which is a `dependencies.md` decision.
-- [ ] #193: Updates and distribution (`docs/specs/updates-and-distribution-v1.md`).
+- [x] #193: Updates and distribution. Channel data, an append-only release ledger, derived
+      and committed wire manifests, and the update-client **policy** seam. Two `project` runs
+      are byte-identical, the gate refuses a signature with no pinned key, and `plan_update`
+      refuses an unsigned package rather than faking verification. Evidence:
+      `release/{channels,ledger}.json`, `scripts/{gen,check}_release_manifest.py`,
+      `docs/guides/packaging.md` section 15.
+      **Not landed, each needing a decision:** signing (an Ed25519 key and a CI secret), the
+      update host, the downloader (no test may open a socket), staging/rollback-apply, and
+      deltas (the spec defers them to v1.1).
 - [x] #194: Versioning policy for RHI/IR/project config; public API listing gate (#76).
       Two gates, deliberately not one: `check_public_api.py` records declaration-level surface
       (2,275 lines / 321 files) and **refuses removals**; `check_version_policy.py` fails an
@@ -808,7 +816,15 @@ Acceptance: a real app ships and passes validation layers and golden tests in CI
       (`Synthesized`), and restore round-trips byte for byte through AF7's `Storage`.
       Evidence: `include/tessera/appfw/navigation_*.hpp`, ctest `appfw_navigation`,
       `docs/design/services/navigation.md` section 3.1.
-- [ ] #197: networking app-framework module (ADR-052).
+- [x] #197: networking app-framework module (ADR-052). The state machine is a value type
+      asserted directly, and the outcomes are **named** rather than collapsed: a deadline is
+      `Timeout`, a cancel is `Cancelled`, a TLS failure is `Transport`, a refused connection
+      is `Connect` (not `Offline`), and a 4xx/5xx is `HttpStatus`, not an error. No implicit
+      retry, because the spec forbids one, so a deadline is asserted to be a *timer* rather
+      than a sleep. Evidence: `include/tessera/appfw/net_*.hpp`, ctest `appfw_net`,
+      `docs/design/networking-module.md`.
+      **Back ends are one PR each** (WinHTTP, libcurl, `fetch`, NSURLSession, Android), and
+      each must be configured to follow **no** redirects, since the module does.
 - [ ] #198: security review.
 - [x] #13: memory budgets in CI. 11 rows enforce at 0% tolerance (`sizeof_node` 312,
       `sizeof_input_event` 344, `sizeof_paint_data` 512, `sizeof_node_id` 8, five allocation
