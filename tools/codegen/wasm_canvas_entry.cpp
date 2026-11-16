@@ -29,10 +29,10 @@
 // `canvas_report.cpp` (the ABI's payload) - is compiled there as OBJECT libraries, so the code this
 // file calls is type-checked on every push even though the file itself is not.
 //
-// **Verified status.** The native half is proven locally (the same driver through Vulkan and through
-// the null backend). The device handover was first written without an Emscripten toolchain and was
-// wrong (it passed JS objects as handles); it is now built with emsdk 7.0.0 and exercised in a real
-// browser. Pixel comparison against the lavapipe golden is still a browser-lane job.
+// **Verified status.** The native half is proven locally (the same driver through Vulkan and
+// through the null backend). The device handover was first written without an Emscripten toolchain
+// and was wrong (it passed JS objects as handles); it is now built with emsdk 7.0.0 and exercised
+// in a real browser. Pixel comparison against the lavapipe golden is still a browser-lane job.
 
 #include "canvas_report.hpp"
 #include "scene_frame.hpp"
