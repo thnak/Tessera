@@ -61,7 +61,8 @@ async function main() {
     module.stringToUTF8(source, textPtr, textLength);
     module.stringToUTF8(file, filePtr, fileLength);
     module.stringToUTF8("", componentPtr, 1);
-    const result = module._tessera_canvas_frame(textPtr, filePtr, componentPtr, 320, 240, 1.0);
+    // The last argument is the canvas view handle; 0 is "no canvas", and there is no device anyway.
+    const result = module._tessera_canvas_frame(textPtr, filePtr, componentPtr, 320, 240, 1.0, 0);
     if (!result) {
       fail("tessera_canvas_frame returned null instead of a report");
       return;

@@ -98,7 +98,22 @@ private:
     WGPUSampler sampler_ = nullptr;
 };
 
-class WebGpuRenderTarget final : public rhi::RenderTarget {
+// What the command list needs from any target this backend hands out: the views a render pass
+// attaches and a sampled bind reads. Offscreen targets and the browser canvas image both derive
+// from it, so the command list casts to this one type instead of to a concrete class. Casting every
+// target to `WebGpuRenderTarget` made a canvas target (a sibling, not a subclass) read the wrong
+// memory and begin a pass with no view.
+class WebGpuTargetViews : public rhi::RenderTarget {
+public:
+    [[nodiscard]] virtual WGPUTextureView color_view() const = 0;
+    // Null for 1-sample targets.
+    [[nodiscard]] virtual WGPUTextureView resolve_view() const = 0;
+    [[nodiscard]] virtual WGPUTextureView sampled_view() const = 0;
+    // Null for a target that cannot be sampled (the canvas image).
+    [[nodiscard]] virtual WGPUSampler sampler() const = 0;
+};
+
+class WebGpuRenderTarget final : public WebGpuTargetViews {
 public:
     WebGpuRenderTarget(std::shared_ptr<WebGpuContext> context, const rhi::RenderTargetDesc& desc);
     ~WebGpuRenderTarget() override;
@@ -122,19 +137,18 @@ public:
     [[nodiscard]] WGPUTexture resolved_texture() const {
         return resolve_ != nullptr ? resolve_ : color_;
     }
-    [[nodiscard]] WGPUTextureView color_view() const {
+    [[nodiscard]] WGPUTextureView color_view() const override {
         return color_view_;
     }
-    // Null for 1-sample targets.
-    [[nodiscard]] WGPUTextureView resolve_view() const {
+    [[nodiscard]] WGPUTextureView resolve_view() const override {
         return resolve_view_;
     }
     // RHI 1.3 sampled view (CommandList::bind_sampled_target): the target is read through its
     // 1-sample image - the resolve view for a 4x target - with the sampler it was created with.
-    [[nodiscard]] WGPUTextureView sampled_view() const {
+    [[nodiscard]] WGPUTextureView sampled_view() const override {
         return resolve_view_ != nullptr ? resolve_view_ : color_view_;
     }
-    [[nodiscard]] WGPUSampler sampler() const {
+    [[nodiscard]] WGPUSampler sampler() const override {
         return sampler_;
     }
 

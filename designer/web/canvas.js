@@ -48,6 +48,10 @@ const SAMPLE = `export function Counter(): Node {
 const VIEWPORT_WIDTH = 320;
 const VIEWPORT_HEIGHT = 240;
 
+// The canvas format the page configures and the module paints in (wasm_canvas_entry.cpp's
+// kCanvasFormat). Keep the two in step: a pipeline built for another format is rejected at draw.
+const CANVAS_FORMAT = 'rgba8unorm';
+
 const source = document.getElementById('source');
 const runButton = document.getElementById('run');
 const sampleButton = document.getElementById('load-sample');
@@ -176,7 +180,18 @@ function drawFrame() {
       module.stringToUTF8(text, textPtr, textLength);
       module.stringToUTF8(file, filePtr, fileLength);
       module.stringToUTF8('', componentPtr, 1);
-      const resultPtr = module._tessera_canvas_frame(textPtr, filePtr, componentPtr, width, height, dpr);
+      // One texture-view reference per frame: the module takes ownership and releases it, and the
+      // canvas texture it names is only valid for this frame, so it is fetched here and not cached.
+      const viewPtr = module.WebGPU.importJsTextureView(gpu.context.getCurrentTexture().createView());
+      const resultPtr = module._tessera_canvas_frame(
+        textPtr,
+        filePtr,
+        componentPtr,
+        width,
+        height,
+        dpr,
+        viewPtr
+      );
       if (!resultPtr) {
         throw new Error('tessera_canvas_frame returned null');
       }
@@ -293,8 +308,40 @@ async function run() {
     return;
   }
 
-  module._tessera_webgpu_set_device(acquired.device, acquired.queue);
-  gpu = { device: acquired.device, queue: acquired.queue, module };
+  // The C ABI takes Emscripten WebGPU handles, not JS objects (a JS object coerces to 0, which the
+  // module reads as a null handle and answers "no WebGPU device"). The module exports the port's
+  // handle table for exactly this import.
+  if (!module.WebGPU || typeof module.WebGPU.importJsDevice !== 'function') {
+    showUnsupported(
+      'The module this page loaded does not export the WebGPU handle table (`WebGPU.importJsDevice`), ' +
+        'so it cannot take the browser device. Rebuild the canvas module with the current link options.'
+    );
+    runButton.disabled = false;
+    return;
+  }
+  const devicePtr = module.WebGPU.importJsDevice(acquired.device);
+  const queuePtr = module.WebGPU.importJsQueue(acquired.queue);
+  const handover = module._tessera_webgpu_set_device(devicePtr, queuePtr);
+  if (handover !== 1) {
+    showUnsupported(
+      handover === 0
+        ? 'The module received a null WebGPU handle from the page.'
+        : 'The module could not wrap the WebGPU device the page handed it.'
+    );
+    runButton.disabled = false;
+    return;
+  }
+  // The canvas surface is the page's to configure (the RHI never owns it): RGBA8 is one of the two
+  // formats every WebGPU canvas must support, and it is the format the module paints in. Opaque,
+  // because the preview clears to the app background and a transparent canvas would show the page.
+  const context = canvas.getContext('webgpu');
+  if (!context) {
+    showUnsupported('The canvas could not create a WebGPU context, so the frame has nowhere to be shown.');
+    runButton.disabled = false;
+    return;
+  }
+  context.configure({ device: acquired.device, format: CANVAS_FORMAT, alphaMode: 'opaque' });
+  gpu = { device: acquired.device, queue: acquired.queue, module, context };
   // A lost device is the one case that must draw again without a user action: the next Run would
   // otherwise hand the module a device the browser has already dropped.
   acquired.device.lost.then((info) => {

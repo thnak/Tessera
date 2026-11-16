@@ -71,7 +71,7 @@ public:
         if (pass_ != nullptr) {
             throw std::logic_error("WebGpuCommandList: render pass already open");
         }
-        const auto& wgpu_target = static_cast<const WebGpuRenderTarget&>(target);
+        const auto& wgpu_target = static_cast<const WebGpuTargetViews&>(target);
         target_extent_ = target.extent();
         WGPURenderPassColorAttachment color = WGPU_RENDER_PASS_COLOR_ATTACHMENT_INIT;
         color.view = wgpu_target.color_view();
@@ -136,7 +136,12 @@ public:
         if (slot != 0) {
             throw std::invalid_argument("WebGpuCommandList: only texture slot 0 exists");
         }
-        sampled_target_ = &static_cast<const WebGpuRenderTarget&>(target);
+        // A canvas image is presentable and has no sampled view contract (see the RHI rule).
+        if (target.presentable()) {
+            throw std::invalid_argument(
+                "WebGpuCommandList: a swapchain image cannot be bound as a sampled target");
+        }
+        sampled_target_ = &static_cast<const WebGpuTargetViews&>(target);
         texture_ = nullptr;
         dirty_ = true;
     }
@@ -175,6 +180,10 @@ public:
     }
 
     void copy_target_to_buffer(const rhi::RenderTarget& target, rhi::Buffer& buffer) override {
+        if (target.presentable()) {
+            throw std::invalid_argument(
+                "WebGpuCommandList: a swapchain image is not a readback source");
+        }
         const auto& wgpu_target = static_cast<const WebGpuRenderTarget&>(target);
         auto& wgpu_buffer = static_cast<WebGpuBuffer&>(buffer);
         const rhi::Extent2D extent = target.extent();
@@ -210,6 +219,11 @@ public:
         if (pass_ != nullptr) {
             throw std::logic_error("WebGpuCommandList: render pass is still open");
         }
+        // Checked before the casts below: a canvas target is not a `WebGpuRenderTarget`.
+        if (source.presentable() || destination.presentable()) {
+            throw std::invalid_argument(
+                "WebGpuCommandList: swapchain images are not copy sources or destinations");
+        }
         const auto& wgpu_source = static_cast<const WebGpuRenderTarget&>(source);
         const auto& wgpu_destination = static_cast<const WebGpuRenderTarget&>(destination);
         if (&wgpu_source == &wgpu_destination) {
@@ -222,10 +236,6 @@ public:
         }
         if (source.format() != destination.format()) {
             throw std::invalid_argument("WebGpuCommandList: source and destination formats differ");
-        }
-        if (source.presentable() || destination.presentable()) {
-            throw std::invalid_argument(
-                "WebGpuCommandList: swapchain images are not copy sources or destinations");
         }
         if (!region_fits(source_region, source.extent())) {
             throw std::invalid_argument("WebGpuCommandList: source region exceeds the target");
@@ -388,7 +398,7 @@ private:
     const WebGpuPipeline* pipeline_ = nullptr;
     const WebGpuTexture* texture_ = nullptr;
     // RHI 1.3: the render target bound as a texture instead of `texture_`; the two are exclusive.
-    const WebGpuRenderTarget* sampled_target_ = nullptr;
+    const WebGpuTargetViews* sampled_target_ = nullptr;
     std::array<std::uint8_t, kMaxPushConstantBytes> push_{};
     std::uint32_t push_size_ = 0;
     rhi::Extent2D target_extent_;
