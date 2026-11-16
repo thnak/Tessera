@@ -883,7 +883,14 @@ Acceptance: a real app ships and passes validation layers and golden tests in CI
       `docs/design/networking-module.md`.
       **Back ends are one PR each** (WinHTTP, libcurl, `fetch`, NSURLSession, Android), and
       each must be configured to follow **no** redirects, since the module does.
-- [ ] #198: security review.
+- [x] #198: security review -- `docs/specs/security-review-v1.md`: trust boundaries over TSX,
+      stylesheets, `tessera.json`, deep links, network responses, update manifests and crash
+      reports, with **ten findings filed** (#397-#405, #409), each probed and carrying a
+      `file:line`. The headline finding is that **the compiler's escaping held but its resource
+      bounds did not**: a 7 KB imported stylesheet aborted `tessera_codegen` with `0xC00000FD`.
+      Both stack overflows (S1 selector recursion, S2 nested at-rules) are **fixed** in a
+      follow-up PR with regression tests that assert the call returns at all; S3's quadratic
+      lowerer (a legal 1 MiB single-line file taking 28 s) is the next one to take.
 - [x] #13: memory budgets in CI. 11 rows enforce at 0% tolerance (`sizeof_node` 312,
       `sizeof_input_event` 344, `sizeof_paint_data` 512, `sizeof_node_id` 8, five allocation
       counts) because the probe runs twice and fails if the two disagree; 2 RSS rows warn,
