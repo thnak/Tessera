@@ -766,9 +766,17 @@ Acceptance: a streaming dashboard at target frame rate with deterministic golden
 ### V1-M8 Release readiness ([milestone 8](https://github.com/thnak/Tessera/milestone/8))
 Acceptance: a real app ships and passes validation layers and golden tests in CI.
 
-- [ ] #192: Crash capture, symbolication, uploader (metadata in `diagnostics/crash.hpp` landed);
-      capture/symbolication/uploader v1 lands with `tests/unit/crash_capture_tests.cpp`,
-      `crash_symbols_tests.cpp` and `crash_upload_tests.cpp` (section 6.3 of the spec).
+- [x] #192: Crash capture, symbolication and an opt-in uploader. A forced crash in a
+      **child process** writes a report (`tessera.crash.v1`, `reason=access_violation`,
+      `code=3221225477`), and symbolication resolves against a real 3,035-symbol `/MAP`
+      and a real `.symtab`. The uploader is off by default, proven by four paths asserting
+      `call_count() == 0`, with a planted-marker redaction test. Evidence:
+      `include/tessera/diagnostics/crash_*.hpp`, `tests/unit/crash_{capture,symbols,
+      upload}_tests.cpp`.
+      **Open finding:** a Release Windows build emits **no PDB and no `/MAP`** (verified: 576
+      executables, 26 PDBs all from `_deps`, 0 maps), so a release crash report has addresses
+      and no names until the packaging lane ships one. Minidumps need an out-of-process
+      handler (Crashpad/WER), which is a `dependencies.md` decision.
 - [ ] #193: Updates and distribution (`docs/specs/updates-and-distribution-v1.md`).
 - [x] #194: Versioning policy for RHI/IR/project config; public API listing gate (#76).
       Two gates, deliberately not one: `check_public_api.py` records declaration-level surface
@@ -794,10 +802,23 @@ Acceptance: a real app ships and passes validation layers and golden tests in CI
       byte-identical on a rerun with the same name. `generate`/`build`/`run` and the prebuilt
       toolchain are deliberately out of scope: the last needs a release archive and a CI decision.
       Evidence: `tools/codegen/new_project*.cpp`, `src/harness/cli.cpp`.
-- [ ] #196: navigation app-framework module.
+- [x] #196: navigation app-framework module. Route/back/deep-link/restore, each with a
+      verbatim assertion: an unknown route is `NotFound` and records nothing, an empty-stack
+      back is `Empty` and never underflows, a cold deep link seeds the root then pushes
+      (`Synthesized`), and restore round-trips byte for byte through AF7's `Storage`.
+      Evidence: `include/tessera/appfw/navigation_*.hpp`, ctest `appfw_navigation`,
+      `docs/design/services.md` section 3.1.
+      **Note:** `services.md` is now at exactly **600 lines**, the hard limit -- the next
+      module needs it split into a folder first.
 - [ ] #197: networking app-framework module (ADR-052).
 - [ ] #198: security review.
-- [ ] #13: memory budgets in CI.
+- [x] #13: memory budgets in CI. 11 rows enforce at 0% tolerance (`sizeof_node` 312,
+      `sizeof_input_event` 344, `sizeof_paint_data` 512, `sizeof_node_id` 8, five allocation
+      counts) because the probe runs twice and fails if the two disagree; 2 RSS rows warn,
+      because the two lanes differ 11% with an identical `sizeof(Node)`, so RSS cannot be a
+      shared enforced number. `--update` refuses to loosen. Android PSS and VMA are
+      **declared and deliberately unmeasured**, and the validator rejects a budget on them.
+      Evidence: `scripts/check_memory_budget.py`, `tests/golden/perf/memory_budget.json`.
 
 ## Build & test
 
