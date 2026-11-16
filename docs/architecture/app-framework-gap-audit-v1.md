@@ -1,7 +1,7 @@
 # App-framework gap audit v1
 
 Status: analysis (docs-only, 2026-11-12). Decision proposed in
-[ADR-050](../../decisions/ADR-050-opt-in-app-framework-layer.md) (application-framework layer,
+[ADR-050](../../decisions/ADR-050/README.md) (application-framework layer,
 revised with owner decisions). This document records what Tessera specifies and implements for
 the concerns that C++ UI toolkits such as Qt and JUCE treat as *application framework*
 (lifecycle, services, threading, dependency provisioning, app state, storage, navigation, and so
@@ -104,4 +104,4 @@ Observations that matter for Tessera:
 Feature breadth already tracked in the cross-check (text, scroll, overlays, forms, i18n,
 accessibility), the GPU backend surface ([ADR-049](https://github.com/thnak/Tessera/pull/83),
 backend extensibility, open as a pull request), and the designer. The proposed direction and
-roadmap are in [ADR-050](../../decisions/ADR-050-opt-in-app-framework-layer.md).
+roadmap are in [ADR-050, Roadmap](../../decisions/ADR-050/roadmap-questions-and-follow-up.md#roadmap-each-slice-behavior-tests-docs-headless-first).

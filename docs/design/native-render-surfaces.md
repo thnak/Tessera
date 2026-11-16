@@ -1,8 +1,9 @@
 # Native render surfaces and typed refs
 
 Status: partially implemented - AF6's surface half (the `hal::NativeSurface` ownership boundary and
-`SurfaceRenderer`) landed with [ADR-050](../../decisions/ADR-050-opt-in-app-framework-layer.md)
-section 7; the TSX intrinsic, the `useRef<NativeSurface>` lowering and the hook set of section 3 are
+`SurfaceRenderer`) landed with
+[ADR-050 section 7](../../decisions/ADR-050/native-render-surfaces.md#7-native-render-surfaces-and-typed-refs-owner-decision-4);
+the TSX intrinsic, the `useRef<NativeSurface>` lowering and the hook set of section 3 are
 still design. Sections 1 and 2 and the hook table describe the unbuilt half. The decisions are
 normative in ADR-050; this note carries the detail, the example, and (in section 10) the shape that
 shipped.

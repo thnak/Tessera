@@ -1,7 +1,7 @@
 # Service-resolve benchmark (ADR-050)
 
 Status: measurement record (2026-11-12). Backs the service-resolution decision in
-[ADR-050](../../decisions/ADR-050-opt-in-app-framework-layer.md) section 3. The benchmark is a
+[ADR-050 section 3](../../decisions/ADR-050/service-provisioning.md#3-service-provisioning-and-resolution). The benchmark is a
 standalone tool in `tools/poc/service_resolve/` ([`main.cpp`](../../tools/poc/service_resolve/main.cpp)); it links
 nothing from Tessera, is off by default (`TESSERA_BUILD_SERVICE_RESOLVE_BENCH`) and is not
 registered with ctest.

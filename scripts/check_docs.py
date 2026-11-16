@@ -10,8 +10,11 @@ Checks the repository markdown tree without writing anything:
 * code fences balance, including nested fences (CommonMark rule: only a fence of the same
   character and at least the same length closes an open fence);
 * every ``docs/**/*.md`` is reachable from ``docs/README.md`` (directly or through a folder
-  ``README.md`` index) and every ``decisions/ADR-*.md`` is listed in ``decisions/README.md``;
-* every ADR starts with an ``# `` heading and has a ``- Status:`` line;
+  ``README.md`` index) and every ADR is listed in ``decisions/README.md``. An ADR is either one
+  ``decisions/ADR-*.md`` file or a folder ``decisions/ADR-*/README.md`` whose sibling ``*.md``
+  parts must all be reachable from that index;
+* every ADR starts with an ``# `` heading and has a ``- Status:`` line (the folder index carries
+  them; the parts do not repeat the status);
 * RHI header changes (``include/tessera/rendering/rhi/**``) update ``version.hpp`` and
   ``docs/design/gpu/rhi.md`` (ADR-049).
 * markdown files stay within the 400-line target / 600-line hard limit.
@@ -265,7 +268,8 @@ class DocsChecker:
             files.extend(sorted(docs_dir.rglob("*.md")))
         decisions_dir = self.repo_root / "decisions"
         if decisions_dir.is_dir():
-            files.extend(sorted(decisions_dir.glob("*.md")))
+            # An ADR is one file or a folder whose parts are checked like any other markdown.
+            files.extend(sorted(decisions_dir.rglob("*.md")))
         for rel in ROOT_MARKDOWN + EXTRA_MARKDOWN:
             candidate = self.repo_root / rel
             if candidate.is_file():
@@ -472,6 +476,12 @@ class DocsChecker:
         decisions_dir = self.repo_root / "decisions"
         index_path = (decisions_dir / "README.md").resolve()
         adr_files = sorted(decisions_dir.glob("ADR-*.md"))
+        # A split ADR is a folder `decisions/ADR-*/` whose `README.md` is the ADR (title, status,
+        # front matter) and whose sibling `*.md` are its parts. The folder index is what the ADR
+        # index lists; every part must be reachable from it, directly or through a part index.
+        adr_dirs = sorted(
+            path for path in decisions_dir.glob("ADR-*") if path.is_dir()
+        )
         linked: Set[Path] = set()
         if index_path.is_file():
             parsed = self.parsed.get(index_path)
@@ -481,35 +491,92 @@ class DocsChecker:
                     if resolved is not None and not outside:
                         linked.add(resolved)
         else:
-            if adr_files:
+            if adr_files or adr_dirs:
                 self.add("decisions/README.md", 1, "ERROR", "ADR index is missing")
         for path in adr_files:
-            rel = self.rel_of(path)
-            parsed = self.parsed.get(path.resolve())
-            if path.resolve() not in linked:
-                self.add(rel, 1, "ERROR", "ADR is not listed in decisions/README.md")
-            if parsed is None:
-                continue
-            if parsed.adr_heading_line is None:
-                self.add(rel, 1, "ERROR", "ADR is empty")
-            else:
-                first_line = parsed.lines[parsed.adr_heading_line - 1]
-                if not first_line.startswith("# "):
-                    self.add(
-                        rel,
-                        parsed.adr_heading_line,
-                        "ERROR",
-                        "ADR must start with an '# ' heading (found {!r})".format(
-                            first_line.strip()[:60]
-                        ),
-                    )
-            if parsed.adr_status_line is None or parsed.adr_status_line > 15:
+            self.check_adr_file(path, path, linked)
+        for folder in adr_dirs:
+            index_file = folder / "README.md"
+            if not index_file.is_file():
                 self.add(
-                    rel,
+                    self.rel_of(folder),
                     1,
                     "ERROR",
-                    "ADR is missing a '- Status:' line near the top",
+                    "ADR folder has no README.md index (an ADR must start with an '# ' heading "
+                    "and carry its '- Status:' line)",
                 )
+                continue
+            self.check_adr_file(index_file, index_file, linked)
+            self.check_adr_parts(folder, index_file)
+
+    def check_adr_file(self, path: Path, listed_as: Path, linked: Set[Path]) -> None:
+        """One ADR document: listed in the ADR index, `# ` heading, `- Status:` near the top."""
+        rel = self.rel_of(path)
+        parsed = self.parsed.get(path.resolve())
+        if listed_as.resolve() not in linked:
+            self.add(rel, 1, "ERROR", "ADR is not listed in decisions/README.md")
+        if parsed is None:
+            return
+        if parsed.adr_heading_line is None:
+            self.add(rel, 1, "ERROR", "ADR is empty")
+        else:
+            first_line = parsed.lines[parsed.adr_heading_line - 1]
+            if not first_line.startswith("# "):
+                self.add(
+                    rel,
+                    parsed.adr_heading_line,
+                    "ERROR",
+                    "ADR must start with an '# ' heading (found {!r})".format(
+                        first_line.strip()[:60]
+                    ),
+                )
+        if parsed.adr_status_line is None or parsed.adr_status_line > 15:
+            self.add(
+                rel,
+                1,
+                "ERROR",
+                "ADR is missing a '- Status:' line near the top",
+            )
+
+    def check_adr_parts(self, folder: Path, index_file: Path) -> None:
+        """Every part of a split ADR is reachable from that ADR's own index, and is not itself
+        required to carry the `- Status:` line (the index owns it)."""
+        reachable: Set[Path] = set()
+        queue: List[Path] = [index_file.resolve()]
+        reachable.add(index_file.resolve())
+        while queue:
+            current = queue.pop(0)
+            parsed = self.parsed.get(current)
+            if parsed is None:
+                continue
+            for target, _ in parsed.links:
+                resolved, _, outside = resolve_link(self.repo_root, current, target)
+                if resolved is None or outside or not resolved.is_file():
+                    continue
+                if resolved.suffix.lower() != ".md" or not is_inside(resolved, folder.resolve()):
+                    continue
+                if resolved not in reachable:
+                    reachable.add(resolved)
+                    queue.append(resolved)
+        for path in sorted(folder.glob("*.md")):
+            if path.resolve() == index_file.resolve():
+                continue
+            if path.resolve() not in reachable:
+                self.add(
+                    self.rel_of(path),
+                    1,
+                    "ERROR",
+                    "ADR part is not referenced from its folder index {}".format(
+                        self.rel_of(index_file)
+                    ),
+                )
+        if not any(path.resolve() != index_file.resolve() for path in folder.glob("*.md")):
+            self.add(
+                self.rel_of(index_file),
+                1,
+                "WARN",
+                "ADR is a folder with no parts; a single file would be simpler",
+            )
 
     def _git_paths(self, *args: str) -> Optional[str]:
         """`git <args>` output, or None when the checkout is not a git work tree."""

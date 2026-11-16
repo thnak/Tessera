@@ -2,7 +2,7 @@
 
 Status: accepted (2026-11-13, owner; [ADR-052](../../decisions/ADR-052-networking-platform-stacks.md)).
 "V1" is the first-release scope ([AGENTS.md](../../AGENTS.md#non-negotiables), item 8). The `net`
-module is an app-framework module ([ADR-050](../../decisions/ADR-050-opt-in-app-framework-layer.md))
+module is an app-framework module ([ADR-050 section 1](../../decisions/ADR-050/layers-and-lifecycle.md#1-scope-an-application-framework-built-in-layers))
 and the transport under [`async-data-v1.md`](async-data-v1.md), which owns cache keys, retry policy
 and UI state. Rationale and options: [`app-framework-open-questions.md`](../design/app-framework-open-questions.md)
 section 5.

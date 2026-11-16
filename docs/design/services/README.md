@@ -37,4 +37,4 @@ Related: [`../async.md`](../async.md) (executors and the completion queue),
 [`../storage-module.md`](../storage-module.md) (the longer storage rationale),
 [`../observable.md`](../observable.md), [`../service-resolve-benchmark.md`](../service-resolve-benchmark.md),
 [`../security.md`](../security.md), and
-[ADR-050](../../../decisions/ADR-050-opt-in-app-framework-layer.md).
+[ADR-050](../../../decisions/ADR-050/README.md).

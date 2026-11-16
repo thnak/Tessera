@@ -139,6 +139,87 @@ class DocsGateTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         self.assertIn("missing a '- Status:' line", result.stdout)
 
+    # --- a split ADR is a folder: index + parts, all still gated ------------------------------
+
+    def write_adr_folder(self, with_parts: bool = True, listed: bool = True) -> None:
+        folder = self.root / "decisions" / "ADR-005-split"
+        folder.mkdir(parents=True)
+        (folder / "README.md").write_text(
+            "# ADR-005: Split fixture\n\n- Status: Accepted\n- Date: 2026-01-01\n\n"
+            "## Parts\n\n"
+            + ("| [`part.md`](part.md) | Section 1 |\n" if with_parts else ""),
+            encoding="utf-8",
+        )
+        if with_parts:
+            (folder / "part.md").write_text(
+                "# Part one\n\nPart of the [decision set](README.md).\n\n## 1. Section one\n\nBody.\n",
+                encoding="utf-8",
+            )
+        if listed:
+            self.append(
+                "decisions/README.md",
+                "\n| [ADR-005](ADR-005-split/README.md) | Split | Accepted |\n",
+            )
+
+    def test_adr_folder_is_gated_and_passes(self) -> None:
+        self.write_adr_folder()
+        result = self.run_check()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_adr_folder_not_listed_in_the_adr_index_is_an_error(self) -> None:
+        self.write_adr_folder(listed=False)
+        result = self.run_check()
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn(
+            "decisions/ADR-005-split/README.md:1 ADR is not listed in decisions/README.md",
+            result.stdout,
+        )
+
+    def test_adr_folder_index_without_a_heading_is_an_error(self) -> None:
+        self.write_adr_folder()
+        (self.root / "decisions" / "ADR-005-split" / "README.md").write_text(
+            "No heading here\n\n- Status: Accepted\n", encoding="utf-8"
+        )
+        result = self.run_check()
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("must start with an '# ' heading", result.stdout)
+
+    def test_adr_folder_index_without_a_status_is_an_error(self) -> None:
+        self.write_adr_folder()
+        (self.root / "decisions" / "ADR-005-split" / "README.md").write_text(
+            "# ADR-005: Split fixture\n\n## Parts\n", encoding="utf-8"
+        )
+        result = self.run_check()
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("missing a '- Status:' line", result.stdout)
+
+    def test_unreferenced_adr_part_is_an_error(self) -> None:
+        self.write_adr_folder()
+        (self.root / "decisions" / "ADR-005-split" / "orphan.md").write_text(
+            "# Orphan part\n\n## 2. Section two\n", encoding="utf-8"
+        )
+        result = self.run_check()
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn(
+            "ADR part is not referenced from its folder index", result.stdout
+        )
+
+    def test_adr_part_is_checked_for_links_and_size(self) -> None:
+        self.write_adr_folder()
+        (self.root / "decisions" / "ADR-005-split" / "part.md").write_text(
+            "# Part one\n\n[Missing](nope.md)\n" + ("padding\n" * 610), encoding="utf-8"
+        )
+        result = self.run_check()
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("broken relative link 'nope.md'", result.stdout)
+        self.assertIn("exceeds the 600 hard limit", result.stdout)
+
+    def test_adr_folder_without_parts_warns(self) -> None:
+        self.write_adr_folder(with_parts=False)
+        result = self.run_check()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("ADR is a folder with no parts", result.stdout)
+
     def test_warnings_only_exit_zero(self) -> None:
         self.append(
             "docs/guide.md",

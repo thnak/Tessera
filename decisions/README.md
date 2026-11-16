@@ -59,7 +59,7 @@ V1 is the first release. A feature is in V1 unless the ADR or spec that owns it 
 | [ADR-047](ADR-047-component-library-layers-and-design-language.md) | Component library layers, theme versioning, "Instrument" design language, catalog and stages (amends ADR-032) | Accepted |
 | [ADR-048](ADR-048-precompiled-embedded-stylesheets.md) | Precompiled stylesheets embedded as versioned blobs (prepare/resolve split), import-graph cascade order, library CSS in `@layer` | Accepted |
 | [ADR-049](ADR-049-backend-extensibility.md) | Backend extensibility: RHI versioning, `shader_id` and shader sources for non-Vulkan backends, conformance suite, support tiers, community backends (amends ADR-011) | Accepted |
-| [ADR-050](ADR-050-opt-in-app-framework-layer.md) | Application-framework layer above the UI runtime: app lifecycle, services with compile-time ids resolved once at mount (no RTTI), TSX `useService<Interface>()`, task scopes, timers, observable app state, native render surfaces via typed refs | Accepted |
+| [ADR-050](ADR-050/README.md) | Application-framework layer above the UI runtime: app lifecycle, services with compile-time ids resolved once at mount (no RTTI), TSX `useService<Interface>()`, task scopes, timers, observable app state, native render surfaces via typed refs (a folder of ten parts; the former `ADR-050-opt-in-app-framework-layer.md` reached the 600-line limit) | Accepted |
 | [ADR-051](ADR-051-ir-record-types-and-record-values.md) | IR record types and record values: an optional module type table and a `record` expression, additive to IR v1; unblocks object-literal prop defaults (#158). Accepted (2026-11-13, owner); slices 3-4 landed, with a per-module `<module>_types.hpp` replacing the "first using component" placement (2026-11-15) |
 | [ADR-052](ADR-052-networking-platform-stacks.md) | Networking: platform HTTP stacks (WinHTTP, NSURLSession, `fetch`, libcurl on Linux only) behind one `fetch`-shaped interface with a contract suite; WebSocket after V1. Accepted (2026-11-13, owner) |
 | [ADR-053](ADR-053-native-metal-backend.md) | Native Metal backend for macOS and iOS (MSL through the ADR-049 shader path, Tier 2 first); supersedes ADR-010 items 2, 3 and 5. Accepted (2026-11-13, owner) |
@@ -113,6 +113,6 @@ ADR-053 native Metal backend (accepted) ── ADR-010 macOS deferred (supersede
 
 1. Copy the structure of an existing ADR: Status, Date, Related, Context, Decision,
    Consequences, Alternatives, Follow-up.
-2. Use the next number after the highest ADR in the table above and a slug, in the form `ADR-NNN-short-title.md` (NNN is the three-digit number).
-3. Update the table above.
+2. Use the next number after the highest ADR in the table above and a slug, in the form `ADR-NNN-short-title.md` (NNN is the three-digit number). An ADR that would exceed the 600-line docs hard limit is a folder instead: `ADR-NNN-short-title/README.md` keeps the title, `- Status:`, `- Date:` and `- Related:` front matter plus a `## Parts` table, and the section bodies move verbatim into the linked `*.md` parts, keeping their heading numbers (see [ADR-050](ADR-050/README.md)).
+3. Update the table above. For a folder ADR, link its `README.md`.
 4. If it supersedes an ADR, update the old file's status and link the replacement.

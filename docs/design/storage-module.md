@@ -1,6 +1,6 @@
 # Storage module: atomic writes on the I/O executor (AF7, issue #179)
 
-Status: implemented. The normative contract is [ADR-050 section 8, row `storage`](../../decisions/ADR-050-opt-in-app-framework-layer.md)
+Status: implemented. The normative contract is [ADR-050 section 8, row `storage`](../../decisions/ADR-050/modules-and-tiers.md#8-module-placement-each-module-keeps-or-gets-its-own-spec)
 and the module's slice row AF7; the behavioural design record is
 [`services/storage.md`](services/storage.md#41-implemented-shape-af7-issue-179) section 4.1. This note is the longer rationale, the failure table and
 the test map. Code: `include/tessera/appfw/storage.hpp`, `src/appfw/storage*.cpp`,
