@@ -767,9 +767,34 @@ Acceptance: a real app ships and passes validation layers and golden tests in CI
 
 - [ ] #192: Crash capture, symbolication, uploader (metadata in `diagnostics/crash.hpp` landed).
 - [ ] #193: Updates and distribution (`docs/specs/updates-and-distribution-v1.md`).
-- [ ] #194: Versioning policy for RHI/IR/project config; public API listing gate (#76).
-- [ ] #195-#199: i18n/navigation/networking (ADR-052, `docs/specs/networking-v1.md`) as app-framework modules (after M5); security review; release
-      CI lanes; memory budgets in CI (#13).
+- [x] #194: Versioning policy for RHI/IR/project config; public API listing gate (#76).
+      Two gates, deliberately not one: `check_public_api.py` records declaration-level surface
+      (2,275 lines / 321 files) and **refuses removals**; `check_version_policy.py` fails an
+      unversioned breaking change to the RHI headers, IR schema or `tessera.json`. The second is
+      not a duplicate: #76 is blind to enumerators, class members, defaults and config schemas,
+      which is most of what breaks. `docs/specs/versioning-v1.md` section 11 is the policy.
+- [x] #195: i18n app-framework module. `LocaleTable::resolve` over ordered requests, a compiled
+      `MessageCatalog` with a fallback chain, and a `LocalizedText` binding whose dirty mask is
+      **computed**: a wider translation raises `Layout | Paint | Render`, a same-width one only
+      `Paint | Render`, a direction flip adds `Style`. Evidence:
+      `include/tessera/appfw/i18n_*.hpp`, `tests/unit/appfw_i18n_*`, `docs/design/services.md`
+      section 2.1. ICU MessageFormat, number/date formatting and the catalog generator are the
+      next slice, because they need the ICU data pack that CI does not enable.
+- [x] #199: release CI lanes run the validation-layer and golden suites against a declared
+      lane/suite matrix (15 suites on linux, 6 on windows, and 10 declared unable to run with the
+      reason). The gate also found that `batched2d_vulkan_validation` **passed while warning that
+      the validation layer was unavailable**, so a lane without the layer was green having
+      validated nothing; that text is now forbidden. Evidence:
+      `scripts/check_release_suites.py`, `.github/workflows/{linux,windows}.yml`,
+      `docs/guides/packaging.md`.
+- [x] #77: `tessera new` scaffolds a project the codegen CLI accepts — 12 files, two templates,
+      byte-identical on a rerun with the same name. `generate`/`build`/`run` and the prebuilt
+      toolchain are deliberately out of scope: the last needs a release archive and a CI decision.
+      Evidence: `tools/codegen/new_project*.cpp`, `src/harness/cli.cpp`.
+- [ ] #196: navigation app-framework module.
+- [ ] #197: networking app-framework module (ADR-052).
+- [ ] #198: security review.
+- [ ] #13: memory budgets in CI.
 
 ## Build & test
 
