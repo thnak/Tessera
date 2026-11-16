@@ -186,6 +186,9 @@ This page is the map and reading order for the framework.
   manifest, staging/rollback, signing/notarization, channels
 - [`specs/crash-reporting-v1.md`](specs/crash-reporting-v1.md) — dumps, symbols, version
   matching, opt-in upload, redaction
+- [`specs/security-review-v1.md`](specs/security-review-v1.md) — the #198 review:
+  trust boundaries, compiler resource limits (two confirmed stack overflows), IO, and
+  update/crash findings, plus what was not reviewed
 - [`specs/golden-tests-v1.md`](specs/golden-tests-v1.md) — golden case/report format and
   comparison rules
 - [`specs/shader-manifest-v1.md`](specs/shader-manifest-v1.md) — shared Vulkan/WebGPU shader
