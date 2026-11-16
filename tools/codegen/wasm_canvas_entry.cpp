@@ -1,73 +1,18 @@
-// SPDX-License-Identifier: MIT
-
-// The browser entry point of the WebGPU canvas preview (issue #167, P3 of
-// docs/design/reference-equantic-ui.md section 7.4).
+// The browser entry point of the WebGPU canvas preview (issues #167, #388, #387, #408).
 //
-// This module is the *canvas* half of the preview. `wasm_scene_entry.cpp` (the P2 module) answers
-// "what is the scene" as JSON on the null RHI; this one answers "draw it", against the WebGPU
-// device the page created:
+// Every export is specified in `docs/design/compiler-wasm.md` section 10, which is the normative
+// source for the module ABI: `tessera_webgpu_set_device`, `tessera_canvas_frame`,
+// `tessera_canvas_run`, `tessera_canvas_pointer`, `tessera_canvas_set_fold`, `tessera_canvas_draw`,
+// `tessera_canvas_reset`, `tessera_canvas_set_font` and `tessera_canvas_font_status`. Read that
+// before changing a signature; it also carries the "why Emscripten only" rationale and the
+// verified-status record.
 //
-//   int tessera_webgpu_set_device(void* device, void* queue)
-//       Hands the module the `WGPUDevice`/`WGPUQueue` handles for the device the page requested.
-//       They are Emscripten handles from `WebGPU.importJsDevice` / `importJsQueue`, never JS
-//       objects (an object coerces to 0 and reads as a null handle). Returns 1 on success, 0 for
-//       a null handle, -1 when wrapping threw. Until it succeeds every frame call reports "no
-//       device" instead of throwing, which is what the page's unsupported path shows.
-//   const char* tessera_canvas_frame(source, file, component, width, height, dpi, canvas_view)
-//       Runs the same `prepare_scene()` + `scene_frame_paint()` path the native CLI renders, into
-//       the canvas texture view the page hands over (`width` x `height`, RGBA8), and returns a
-//       JSON report of what it recorded (`canvas_report.cpp`). With a null `canvas_view` it draws
-//       into an offscreen target instead. A browser cannot map a buffer synchronously, so
-//       `pixelsAvailable` is false and the pixel comparison is a browser lane's job, not a claim
-//       this module makes.
-//   void tessera_free(const char* text)
-//       Releases a report returned above.
+// The one rule that lives here rather than in the doc, because it is a property of this file: the
+// exports below share one anonymous-namespace device and session, so they are not splittable into
+// separate translation units without exposing that state.
 //
-// Issue #388 adds the persistent session, which is the difference between "draw this source" and
-// "run this program":
-//
-//   const char* tessera_canvas_run(source, file, component, width, height, dpi)
-//       Evaluates the source **once** and keeps the tree, its `ui::InputRouter` and its state scope
-//       alive (`scene_canvas_session.hpp`). Returns a frame report: `error` when the source
-//       produced no scene. A Run of the identical source reuses the running evaluation.
-//   const char* tessera_canvas_pointer(kind, x, y, button)
-//       Routes one pointer event into that tree and answers whether a frame is owed. `:hover` and
-//       `:active` are set by the production `ui::InputRouter` on the scene nodes and resolved by
-//       `style::SceneStyleTree` from `Node::pseudo_state()`, so they come from the stylesheet
-//       engine rather than from a class the page writes. **Coordinates are logical pixels; the
-//       CSS-to-pixels rule is documented on the function itself and is not "divide by
-//       devicePixelRatio".**
-//   const char* tessera_canvas_draw(width, height, canvas_view)
-//       Paints the session's current tree. Never re-evaluates.
-//   void tessera_canvas_reset()
-//       Releases the session.
-//
-// Issue #387 adds the font, which is the other thing a preview needs that the module cannot
-// contain:
-//
-//   int tessera_canvas_set_font(const unsigned char* bytes, int size)
-//       Loads the preview's one face from **bytes the page fetched from its own origin**. Returns 1
-//       on success, 0 for empty data, -1 when the bytes are not a usable font. The module embeds no
-//       font and fetches nothing, so the download stays on the page and the bytes stay the page's.
-//   const char* tessera_canvas_font_status()
-//       One JSON object naming whether a font is loaded and which face it is, so the page can show
-//       the degraded state instead of a canvas of empty boxes.
-//
-// **Why bytes and not a font URL.** A Wasm module with no filesystem cannot fetch, and the page is
-// the only place a same-origin fetch is allowed by the CSP. The page hands bytes over; this module
-// hands them to the production `FontFace`/`HarfBuzzShaper`/`TextRenderer` stack behind
-// `preview_text.hpp`. Nothing here is a second text path.
-//
-// **Why the entry exists only under Emscripten.** It includes `tessera/rendering/webgpu/
-// webgpu_device.hpp`, and `tessera_webgpu` is built only for Emscripten or `TESSERA_BUILD_WEBGPU`.
-// The half that *can* be checked on a host lane - `scene_frame.cpp` (the renderer) and
-// `canvas_report.cpp` (the ABI's payload) - is compiled there as OBJECT libraries, so the code this
-// file calls is type-checked on every push even though the file itself is not.
-//
-// **Verified status.** The native half is proven locally (the same driver through Vulkan and
-// through the null backend). The device handover was first written without an Emscripten toolchain
-// and was wrong (it passed JS objects as handles); it is now built with emsdk 7.0.0 and exercised
-// in a real browser. Pixel comparison against the lavapipe golden is still a browser-lane job.
+// Notably: coordinates arriving from the page are **logical pixels**, and the CSS-to-logical rule
+// is documented on `tessera_canvas_pointer` itself -- it is not "divide by devicePixelRatio".
 
 #include "canvas_report.hpp"
 #include "preview_text.hpp"
