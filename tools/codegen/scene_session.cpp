@@ -127,8 +127,9 @@ void PreviewSession::rebuild() {
         bind_handler(handler.automation_id, handler.event, handler.handler);
     }
 
-    ui::layout::LayoutEngine engine;
-    const SceneLayoutResult laid_out = layout_scene(*root_, sheet_, engine, layout_metrics_);
+    ui::layout::LayoutEngine engine(options_.measurer);
+    const SceneLayoutResult laid_out =
+        layout_scene(*root_, sheet_, engine, layout_metrics_, options_.measurer);
     metrics_ = laid_out.metrics;
 }
 
@@ -137,12 +138,13 @@ bool PreviewSession::set_posture(hal::FoldPosture posture) {
         return false;
     }
     layout_metrics_.posture = posture;
-    ui::layout::LayoutEngine engine;
-    const SceneLayoutResult laid_out = layout_scene(*root_, sheet_, engine, layout_metrics_);
+    ui::layout::LayoutEngine engine(options_.measurer);
+    const SceneLayoutResult laid_out =
+        layout_scene(*root_, sheet_, engine, layout_metrics_, options_.measurer);
     if (!laid_out.error.empty()) {
         // The tree stays at the previous posture rather than half-applied: the error is a layout
-        // failure, not a posture the caller asked for, and the metrics are left describing what the
-        // boxes actually are.
+        // failure, not a posture the caller asked for, and the metrics are left describing what
+        // the boxes actually are.
         return false;
     }
     metrics_ = laid_out.metrics;

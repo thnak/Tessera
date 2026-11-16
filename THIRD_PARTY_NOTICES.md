@@ -109,6 +109,22 @@ modules, roles, and status is [`docs/specs/dependencies.md`](docs/specs/dependen
 - Copyright: 2020 - 2026 ThorVG Project
 - Upstream: https://github.com/thorvg/thorvg (v1.1.3)
 
+### IBM Plex Sans (preview font)
+
+- Files: `designer/web/public/fonts/IBMPlexSans-Latin.ttf`, `designer/web/public/fonts/OFL.txt`
+- Used by: the studio's Canvas preview (`designer/web/`, issue #387), which paints `Text` and `Button`
+  content with it. The page fetches the file from its own origin and passes the bytes to the preview
+  module, so the face ships as a **page asset** and not inside the Wasm module or any native binary.
+- License: SIL Open Font License 1.1 (OFL-1.1), with Reserved Font Name "Plex"
+- Copyright: Copyright (c) 2017 IBM Corp. All rights reserved.
+- Upstream: https://github.com/IBM/plex
+- The shipped file is a subset of `IBMPlexSans-Regular.ttf` (Latin-1 plus the punctuation a preview
+  sample uses; 372 glyphs, 38400 bytes raw / 19534 gzip), produced with `fontTools.subset` and the
+  `kern, liga, clig, ccmp, mark, mkmk, locl, calt` layout features. Subsetting does not change the
+  license: the OFL text travels beside the file, the family's Reserved Font Name is not used as the
+  name of a *modified* family, and the subset is not sold on its own. Issue #280 (the bundled font
+  pack) is the slice that will supersede this single preview-only subset.
+
 ### Noto Sans (test font)
 
 - Files: `tests/fixtures/fonts/NotoSans-Regular.ttf`, `tests/fixtures/fonts/NotoSansHebrew-Regular.ttf`, `tests/fixtures/fonts/OFL.txt`

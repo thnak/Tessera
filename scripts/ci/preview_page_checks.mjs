@@ -109,6 +109,9 @@ const VIEW_IDS = {
     "stat-vertices",
     "stat-nodes",
     "stat-dpr",
+  // Issue #387: the font row. The page must name the face text is painted with, or say that text is
+  // not painted, so a missing font is a statement rather than an empty canvas.
+  "stat-font",
   ],
 };
 

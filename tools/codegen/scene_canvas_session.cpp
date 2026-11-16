@@ -35,7 +35,8 @@ std::string CanvasSceneSession::start(const CanvasSessionSource& source) {
     // A Run of the identical source is a repaint, not a re-evaluation. The page hands the editor's
     // text to every frame, so re-evaluating here would drop the hover bits and the state cells
     // between two frames of the same program.
-    if (session_ != nullptr && reused_ok(text, file, component, source.width, source.height, dpi)) {
+    if (session_ != nullptr &&
+        reused_ok(text, file, component, source.width, source.height, dpi, source.measurer)) {
         reused_ = true;
         return {};
     }
@@ -77,6 +78,7 @@ std::string CanvasSceneSession::start(const CanvasSessionSource& source) {
     options.posture = source.posture;
     options.carried = &carried;
     options.live_component_ids = &live_ids;
+    options.measurer = source.measurer;
 
     session_ =
         std::make_unique<PreviewSession>(evaluated_.module, evaluated_.selected(), sheet_, options);
@@ -91,15 +93,19 @@ std::string CanvasSceneSession::start(const CanvasSessionSource& source) {
     width_ = source.width;
     height_ = source.height;
     dpi_scale_ = dpi;
+    measurer_ = source.measurer;
     fresh_ = true;
     return error_;
 }
 
-bool CanvasSceneSession::reused_ok(const std::string& text, const std::string& file,
-                                   const std::string& component, float width, float height,
-                                   float dpi) const {
+bool CanvasSceneSession::reused_ok(
+    const std::string& text, const std::string& file, const std::string& component, float width,
+    float height, float dpi, const std::shared_ptr<const text::TextMeasurer>& measurer) const {
+    // The measurer is part of the identity: a Run that arrives with font bytes when the running
+    // evaluation had none must re-evaluate, because every text box it laid out was sized by the
+    // font-free stub.
     return text == text_ && file == file_ && component == component_ && width == width_ &&
-           height == height_ && dpi == dpi_scale_;
+           height == height_ && dpi == dpi_scale_ && measurer.get() == measurer_.get();
 }
 
 bool CanvasSceneSession::set_posture(hal::FoldPosture posture) {
@@ -161,13 +167,14 @@ bool CanvasSceneSession::needs_frame() const {
 
 SceneFrameResult CanvasSceneSession::paint(rhi::Device& device, rhi::RenderTarget& target,
                                            const rhi::RenderTargetDesc& desc,
-                                           const rhi::PipelineDesc& pipeline) {
+                                           const rhi::PipelineDesc& pipeline,
+                                           PreviewTextStack* text) {
     SceneFrameResult result;
     if (!started()) {
         result.error = error_.empty() ? "the session has no scene to paint" : error_;
         return result;
     }
-    result = scene_frame_paint_tree(session_->root(), sheet_, device, target, desc, pipeline);
+    result = scene_frame_paint_tree(session_->root(), sheet_, device, target, desc, pipeline, text);
     if (!result.error.empty()) {
         return result;
     }

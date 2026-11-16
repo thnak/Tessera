@@ -7,15 +7,17 @@
 #include "tessera/ui/layout/layout_engine.hpp"
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/style/compiled_stylesheet.hpp"
+#include "tessera/ui/text/text_measure.hpp"
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <string>
 
 // Style + layout for the in-memory preview (issue #166). It runs the engine's own stages over the
 // tree `scene_build.cpp` produced: computed style through the compiled stylesheet, then Yoga
 // through `LayoutEngine`, then `apply_layout` writes absolute boxes back onto the scene nodes.
-// There is no GPU, no device and no RHI involved; the null-RHI claim of this slice is exactly that
+// There is no GPU, no device and no RHI involved; the null-RHI claim of that slice is exactly that
 // the path stops at the scene's bounds and never reaches for a render target.
 //
 // **The simulated device (issue #408).** The preview has no OS window, so it has no
@@ -49,6 +51,9 @@ struct SceneMetrics {
 // fractional extent would make the band fractional too.
 [[nodiscard]] hal::WindowMetrics simulated_metrics(const SceneMetrics& metrics) noexcept;
 
+// The text module and the scene/style modules this stage names live one namespace up.
+namespace text = tessera::ui::text;
+
 struct SceneLayoutResult {
     std::string error;
     std::size_t nodes = 0;   // scene nodes whose style was resolved
@@ -58,12 +63,9 @@ struct SceneLayoutResult {
     hal::WindowMetrics metrics;
 };
 
-// Sizes `root` to `metrics.width` x `metrics.height` (inline style, the way `AppHost` sizes a
-// window root) and lays the subtree out. `sheet` must be alive for the duration of the call only.
-// The layout viewport is the same rectangle, so the two cannot disagree about the window.
-[[nodiscard]] SceneLayoutResult layout_scene(ui::Node& root,
-                                             const ui::style::CompiledStyleSheet& sheet,
-                                             ui::layout::LayoutEngine& engine,
-                                             const SceneMetrics& metrics);
+[[nodiscard]] SceneLayoutResult
+layout_scene(ui::Node& root, const ui::style::CompiledStyleSheet& sheet,
+             ui::layout::LayoutEngine& engine, const SceneMetrics& metrics,
+             std::shared_ptr<const text::TextMeasurer> measurer = nullptr);
 
 } // namespace tessera::compiler::codegen::cli

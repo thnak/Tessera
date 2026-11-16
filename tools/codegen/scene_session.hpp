@@ -11,6 +11,7 @@
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/scene/state_snapshot.hpp"
 #include "tessera/ui/style/compiled_stylesheet.hpp"
+#include "tessera/ui/text/text_measure.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -35,6 +36,9 @@
 //     the evaluator has no record value to bind to it: it is counted in `unrun`;
 //   * the developer's C++ is never executed, and this session makes no claim to execute it.
 namespace tessera::compiler::codegen::cli {
+
+// The text module this session's measurement seam names lives one namespace up.
+namespace text = tessera::ui::text;
 
 // One normalized input event, as the browser page produces it: the subset of `ui::InputEvent` a
 // pointer or key gesture needs, flat because it crosses a C ABI (`wasm_scene_entry.cpp`).
@@ -92,6 +96,11 @@ public:
         // reported as dropped instead of being offered to a component that took its place.
         const CarriedState* carried = nullptr;
         const std::vector<std::string>* live_component_ids = nullptr;
+        // The text measurement seam for every layout this session runs, including the one a
+        // post-dispatch rebuild performs. Null keeps the deterministic stub the font-free preview
+        // has always used; a real face measures the boxes its glyphs will actually fill (issue
+        // #387).
+        std::shared_ptr<const text::TextMeasurer> measurer;
     };
 
     PreviewSession(const ir::IrModule& module, const ir::Component& component,

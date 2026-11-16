@@ -42,6 +42,22 @@
 //   void tessera_canvas_reset()
 //       Releases the session.
 //
+// Issue #387 adds the font, which is the other thing a preview needs that the module cannot
+// contain:
+//
+//   int tessera_canvas_set_font(const unsigned char* bytes, int size)
+//       Loads the preview's one face from **bytes the page fetched from its own origin**. Returns 1
+//       on success, 0 for empty data, -1 when the bytes are not a usable font. The module embeds no
+//       font and fetches nothing, so the download stays on the page and the bytes stay the page's.
+//   const char* tessera_canvas_font_status()
+//       One JSON object naming whether a font is loaded and which face it is, so the page can show
+//       the degraded state instead of a canvas of empty boxes.
+//
+// **Why bytes and not a font URL.** A Wasm module with no filesystem cannot fetch, and the page is
+// the only place a same-origin fetch is allowed by the CSP. The page hands bytes over; this module
+// hands them to the production `FontFace`/`HarfBuzzShaper`/`TextRenderer` stack behind
+// `preview_text.hpp`. Nothing here is a second text path.
+//
 // **Why the entry exists only under Emscripten.** It includes `tessera/rendering/webgpu/
 // webgpu_device.hpp`, and `tessera_webgpu` is built only for Emscripten or `TESSERA_BUILD_WEBGPU`.
 // The half that *can* be checked on a host lane - `scene_frame.cpp` (the renderer) and
@@ -54,10 +70,12 @@
 // in a real browser. Pixel comparison against the lavapipe golden is still a browser-lane job.
 
 #include "canvas_report.hpp"
+#include "preview_text.hpp"
 #include "scene_canvas_session.hpp"
 #include "scene_frame.hpp"
 #include "tessera/hal/fold_posture.hpp"
 #include "tessera/rendering/webgpu/webgpu_device.hpp"
+#include "wasm_canvas_font.hpp"
 
 #include <cmath>
 #include <cstdlib>
@@ -66,6 +84,7 @@
 #include <exception>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 
@@ -137,7 +156,8 @@ cli::SceneFrameResult paint_to_canvas(std::string_view source,
         return result;
     }
 
-    const cli::PreparedScene scene = cli::prepare_scene(source, options, component);
+    const cli::PreparedScene scene =
+        cli::prepare_scene(source, options, component, cli::canvas_measurer());
     if (!scene.error.empty() || scene.root == nullptr) {
         result.error = scene.error.empty() ? "the source produced no scene" : scene.error;
         clear_canvas(*g_device, *target, extent);
@@ -150,7 +170,8 @@ cli::SceneFrameResult paint_to_canvas(std::string_view source,
     desc.clear_color = cli::scene_frame_clear_color();
     desc.load_op = rhi::LoadOp::Clear;
     desc.store_op = rhi::StoreOp::Store;
-    cli::SceneFrameResult painted = cli::scene_frame_paint(scene, *g_device, *target, desc);
+    cli::SceneFrameResult painted =
+        cli::scene_frame_paint(scene, *g_device, *target, desc, {}, cli::canvas_text_stack());
     if (!painted.error.empty()) {
         clear_canvas(*g_device, *target, extent);
     }
@@ -212,7 +233,7 @@ cli::SceneFrameResult paint_session_to_canvas(rhi::Extent2D extent, void* canvas
         result.error = "paint_session_to_canvas: no render target";
         return result;
     }
-    result = g_session->paint(*g_device, *target, desc);
+    result = g_session->paint(*g_device, *target, desc, {}, cli::canvas_text_stack());
     if (!result.error.empty() && canvas_view != nullptr) {
         clear_canvas(*g_device, *target, extent);
     }
@@ -308,8 +329,8 @@ EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_frame(const char* source, const 
     }
 
     if (canvas_view == nullptr) {
-        const cli::SceneFrameResult result =
-            cli::scene_frame_render(source, options, *g_device, extent, name);
+        const cli::SceneFrameResult result = cli::scene_frame_render(
+            source, options, *g_device, extent, name, {}, cli::canvas_text_stack());
         return duplicate_out(cli::canvas_report_json(result, extent.width, extent.height, true));
     }
     return duplicate_out(
@@ -365,6 +386,9 @@ EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_run(const char* source, const ch
     options.height = static_cast<float>(extent.height);
     options.dpi_scale = dpi > 0.0f ? dpi : 1.0f;
     options.posture = posture;
+    // The session measures its text with the same face every frame paints with, so a line never
+    // overflows or under-fills the box it was laid out in (#387).
+    options.measurer = cli::canvas_measurer();
 
     const std::string error = g_session->start(options);
     cli::SceneFrameResult report;
@@ -486,6 +510,24 @@ EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_draw(int width, int height, void
 // which is the same thing a page reload does.
 EMSCRIPTEN_KEEPALIVE void tessera_canvas_reset() {
     g_session.reset();
+}
+
+// Loads the preview's one face from the bytes the page fetched from its own origin (issue #387).
+// Returns 1 on success, 0 for empty data, -1 when the bytes are unusable or no device exists yet.
+// The state, the replacement rule and the reason vocabulary live in `wasm_canvas_font.cpp`; this is
+// only the C spelling of them.
+EMSCRIPTEN_KEEPALIVE int tessera_canvas_set_font(const unsigned char* bytes, int size) {
+    return cli::canvas_set_font(bytes, size, g_device.get());
+}
+
+// Whether a font is loaded and which face it is, as one JSON object:
+//
+//   {"fontVersion":1,"loaded":true,"family":"IBM Plex Sans","glyphsDropped":0,"atlasPages":1}
+//
+// `loaded:false` carries the reason in `error`, so the page has a named state to show rather than a
+// canvas of empty boxes.
+EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_font_status() {
+    return duplicate_out(cli::canvas_font_status_json());
 }
 
 // The matching release, same convention as the diagnostics and scene modules.

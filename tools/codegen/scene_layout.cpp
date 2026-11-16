@@ -77,7 +77,8 @@ hal::WindowMetrics simulated_metrics(const SceneMetrics& metrics) noexcept {
 }
 
 SceneLayoutResult layout_scene(ui::Node& root, const ui::style::CompiledStyleSheet& sheet,
-                               ui::layout::LayoutEngine& engine, const SceneMetrics& metrics) {
+                               ui::layout::LayoutEngine& engine, const SceneMetrics& metrics,
+                               std::shared_ptr<const text::TextMeasurer> measurer) {
     SceneLayoutResult result;
     result.metrics = simulated_metrics(metrics);
     // The window rectangle is applied to the layout input rather than to the node's inline style:
@@ -93,7 +94,16 @@ SceneLayoutResult layout_scene(ui::Node& root, const ui::style::CompiledStyleShe
     viewport.height = metrics.height;
     viewport.dpi_scale = result.metrics.dpi_scale;
 
-    const ui::layout::LayoutResult laid_out = engine.layout(input, viewport);
+    // The caller's engine may already carry a measurer of its own (a session that keeps one across
+    // frames); only a null `measurer` leaves the engine's own choice in place. Constructing the
+    // engine here instead would throw away a session's warm text-measure cache every frame.
+    ui::layout::LayoutResult laid_out;
+    if (measurer != nullptr) {
+        ui::layout::LayoutEngine measured(measurer);
+        laid_out = measured.layout(input, viewport);
+    } else {
+        laid_out = engine.layout(input, viewport);
+    }
     if (laid_out.boxes.empty()) {
         result.error = "layout produced no boxes";
         return result;

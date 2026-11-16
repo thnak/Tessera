@@ -27,13 +27,17 @@ namespace paint = tessera::ui::paint;
 // counts the ones this preview has no input for. It wraps rather than replaces the sink, so the
 // pixels come from the same `Batched2DSink` the native window driver and the golden harness use.
 //
-// The four skipped kinds are each a missing *input*, not a missing capability (see the header): no
-// font bytes, no AssetBundle. Counting them is what keeps "the canvas is empty" attributable.
+// The skipped kinds are each a missing *input*, not a missing capability (see the header): no
+// AssetBundle for vectors and images, and - for text - no font, which is a property of this frame
+// rather than of the preview: when the caller supplied a `PreviewTextStack` the run is forwarded to
+// the real sink, which shapes and draws it through the production `TextRenderer`. Counting the
+// remainder is what keeps "the canvas is empty" attributable.
 class CountingSink final : public paint::PaintSink {
 public:
-    CountingSink(paint::PaintSink& inner, SceneFrameResult& stats)
+    CountingSink(paint::PaintSink& inner, SceneFrameResult& stats, bool has_text)
         : inner_(&inner),
-          stats_(&stats) {}
+          stats_(&stats),
+          has_text_(has_text) {}
 
     void fill_rect(const rhi::Rect& rect, const rhi::Color& color) override {
         ++stats_->backgrounds;
@@ -64,8 +68,14 @@ public:
         inner_->pop_transform();
     }
 
-    // No font in the preview module: the node's box was already painted, the run is counted.
-    void draw_text(const paint::TextDraw&) override {
+    // With a font the run goes to the nested sink, which shapes it with `HarfBuzzShaper` and draws
+    // it through `TextRenderer`'s bounded atlas - the production path, not a preview-only one.
+    // Without one, the node's box was already painted and the run is counted.
+    void draw_text(const paint::TextDraw& run) override {
+        if (has_text_) {
+            inner_->draw_text(run);
+            return;
+        }
         ++stats_->text_skipped;
     }
     void draw_vector(const paint::VectorDraw&) override {
@@ -88,6 +98,8 @@ public:
 private:
     paint::PaintSink* inner_ = nullptr;
     SceneFrameResult* stats_ = nullptr;
+    // A property of the frame, not of the sink: whether this call was given a font to draw with.
+    bool has_text_ = false;
 };
 
 // One device, one frame: everything the renderer borrows is created here and released with it. A
@@ -122,7 +134,7 @@ SceneFrameResult scene_frame_paint_tree(const ui::Node& root,
                                         const ui::style::CompiledStyleSheet& sheet,
                                         rhi::Device& device, rhi::RenderTarget& target,
                                         const rhi::RenderTargetDesc& desc,
-                                        const rhi::PipelineDesc& pipeline) {
+                                        const rhi::PipelineDesc& pipeline, PreviewTextStack* text) {
     SceneFrameResult result;
     // A pipeline is created for the target's format and sample count: a mismatch is a pipeline the
     // renderer refuses anyway, so it is settled here while the description is in hand.
@@ -155,12 +167,28 @@ SceneFrameResult scene_frame_paint_tree(const ui::Node& root,
     // different size than the box it was laid out in.
     ui::style::SceneStyleTree style_tree(root);
     paint::SceneStyleProvider styles(sheet, style_tree);
-    paint::Batched2DSink batched(renderer);
-    CountingSink sink(batched, result);
+    // The font, when the caller has one: the production shaper and atlas renderer, borrowed for the
+    // duration of the frame. Without it the sink draws boxes only and every run is counted, which
+    // is the documented degraded state.
+    paint::Batched2DSink batched(renderer, text != nullptr ? &text->renderer() : nullptr,
+                                 text != nullptr ? &text->shaper() : nullptr);
+    CountingSink sink(batched, result, text != nullptr);
 
     try {
         renderer.begin(*commands, target, desc);
-        const paint::PaintStats painted = paint::paint_scene(root, styles, sink);
+        if (text != nullptr) {
+            // Once per frame, before any draw: the atlas pins the pages this frame references so a
+            // genuine overflow is reported as a drop instead of silently evicting ink mid-frame.
+            batched.begin_text_frame();
+        }
+        // The font-free path measures text with the deterministic stub, exactly as it always has; a
+        // real face measures through the paint metrics source the stack exposes, so a wrapped
+        // line's box matches the advances the shaper will produce.
+        paint::PaintContext context;
+        if (text != nullptr) {
+            context.text_metrics_source = &text->paint_metrics();
+        }
+        const paint::PaintStats painted = paint::paint_scene(root, styles, sink, context);
         renderer.end();
         // `submit()` blocks, which is correct natively and forbidden in a browser; the WebGPU
         // backend throws there by design, so the async path is the host's choice, not this
@@ -175,6 +203,11 @@ SceneFrameResult scene_frame_paint_tree(const ui::Node& root,
         result.texts = painted.texts;
         result.draw_calls = renderer.draw_calls();
         result.vertex_count = renderer.vertex_count();
+        if (text != nullptr) {
+            // Sampled after the frame: the atlas's drop counter is cumulative, and this frame is
+            // the one whose draws could have added to it.
+            result.glyphs_dropped = static_cast<std::size_t>(text->counters().glyphs_dropped);
+        }
     } catch (const std::exception& failure) {
         result.error = std::string("scene_frame_paint: ") + failure.what();
         return result;
@@ -184,25 +217,30 @@ SceneFrameResult scene_frame_paint_tree(const ui::Node& root,
 
 SceneFrameResult scene_frame_paint(const PreparedScene& scene, rhi::Device& device,
                                    rhi::RenderTarget& target, const rhi::RenderTargetDesc& desc,
-                                   const rhi::PipelineDesc& pipeline) {
+                                   const rhi::PipelineDesc& pipeline, PreviewTextStack* text) {
     if (scene.error.empty() == false || scene.root == nullptr || !scene.sheet.has_value()) {
         SceneFrameResult result;
         result.error = scene.error.empty() ? "the source produced no scene" : scene.error;
         return result;
     }
-    return scene_frame_paint_tree(*scene.root, *scene.sheet, device, target, desc, pipeline);
+    return scene_frame_paint_tree(*scene.root, *scene.sheet, device, target, desc, pipeline, text);
 }
 
 SceneFrameResult scene_frame_render(std::string_view text, const ScenePreviewOptions& options,
                                     rhi::Device& device, rhi::Extent2D extent,
-                                    std::string_view component, const rhi::PipelineDesc& pipeline) {
+                                    std::string_view component, const rhi::PipelineDesc& pipeline,
+                                    PreviewTextStack* font) {
     SceneFrameResult result;
     if (extent.width == 0 || extent.height == 0) {
         result.error = "scene_frame_render: the target extent must be positive";
         return result;
     }
 
-    PreparedScene scene = prepare_scene(text, options, component);
+    // The measurer decides the layout of every text box, so it must be the same face the frame will
+    // paint with - or, with no font, the deterministic stub that every font-free golden was
+    // recorded against.
+    PreparedScene scene =
+        prepare_scene(text, options, component, font != nullptr ? font->measurer() : nullptr);
     if (!scene.error.empty() || scene.root == nullptr) {
         result.error = scene.error.empty() ? "the source produced no scene" : scene.error;
         return result;
@@ -222,7 +260,8 @@ SceneFrameResult scene_frame_render(std::string_view text, const ScenePreviewOpt
     }
 
     // Paint through the shared path, then read back.
-    SceneFrameResult painted = scene_frame_paint(scene, device, *target, target_desc, pipeline);
+    SceneFrameResult painted =
+        scene_frame_paint(scene, device, *target, target_desc, pipeline, font);
     if (!painted.error.empty()) {
         return painted;
     }

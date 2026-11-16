@@ -8,6 +8,7 @@
 #include "tessera/hal/window.hpp"
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/style/compiled_stylesheet.hpp"
+#include "tessera/ui/text/text_measure.hpp"
 
 #include <cstddef>
 #include <memory>
@@ -24,6 +25,9 @@
 // Deliberately no device, no filesystem, no clock: this is the part that runs natively and in Wasm
 // unchanged. Choosing a backend is the caller's job.
 namespace tessera::compiler::codegen::cli {
+
+// The text module this stage's measurer parameter names lives one namespace up.
+namespace text = tessera::ui::text;
 
 // A laid-out preview scene. Ownership is the point: `ui::Node` borrows its element metadata strings
 // from the lowered IR, so `module` is declared before `root` and is therefore still alive when the
@@ -55,8 +59,17 @@ struct PreparedScene {
 // Runs parse -> analyse -> lower -> assign identity -> pick component -> evaluate state -> build
 // the scene tree -> resolve computed style -> Yoga layout -> apply bounds for `text`, exactly as
 // `scene_preview_document()` does (they share this function, so they cannot drift).
-[[nodiscard]] PreparedScene prepare_scene(std::string_view text, const ScenePreviewOptions& options,
-                                          std::string_view component = {});
+//
+// `measurer` selects the text measurement seam, and it is the one thing about this sequence a
+// caller with a font needs to supply: null keeps the deterministic `StubTextMeasurer` (fixed 0.5 em
+// per code point) that every font-free caller and golden depends on, while a real face measures
+// with FreeType metrics and HarfBuzz advances so a text box is sized to the ink that will be
+// painted (issue #314). Nothing else about the sequence changes, so a preview with a font and one
+// without differ only in where the numbers come from.
+[[nodiscard]] PreparedScene
+prepare_scene(std::string_view text, const ScenePreviewOptions& options,
+              std::string_view component = {},
+              const std::shared_ptr<const text::TextMeasurer>& measurer = nullptr);
 
 // The preview's default stylesheet: the intrinsic element kinds get a size instead of collapsing to
 // zero. Exposed because a consumer that re-runs style resolution (the draw list, the painter) must

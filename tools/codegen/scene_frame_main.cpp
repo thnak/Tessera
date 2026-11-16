@@ -22,6 +22,7 @@
 // Exit codes: 0 frame written (or the command stream dumped); 1 the source produced no scene;
 // 2 usage/setup, including a backend this build does not have.
 
+#include "preview_text.hpp"
 #include "scene_frame.hpp"
 #include "scene_prepare.hpp"
 #include "tessera/harness/image_compare.hpp"
@@ -35,6 +36,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #if defined(TESSERA_SCENE_FRAME_HAS_VULKAN)
 #include "tessera/rendering/vulkan/batched2d_pipeline.hpp"
@@ -55,6 +57,8 @@ constexpr std::string_view kUsage =
     "  --component NAME   the component to preview (default: the first in the file)\n"
     "  --file NAME        the project-relative source name the ids are hashed with\n"
     "  --salt SALT        the project salt the ids are hashed with (default: preview)\n"
+    "  --font PATH        the font bytes to paint text with. Omit to paint boxes only, which\n"
+    "                     counts every run in text_skipped (the pre-#387 behaviour)\n"
     "  --dump-commands    print the frame's draw counters (works with the null backend)\n"
     "\n"
     "Exit codes: 0 frame written; 1 no scene (the source produced no tree); 2 usage/setup.\n";
@@ -70,6 +74,18 @@ bool read_file(const std::string& path, std::string& out) {
         return false;
     }
     out.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+    return true;
+}
+
+// The font bytes as the module would receive them: one flat buffer, no path remembered. Reading the
+// file here rather than in the stack keeps `preview_text.cpp` free of `<fstream>`, so the same
+// object builds for a browser that has no filesystem at all.
+bool read_font(const std::string& path, std::vector<std::uint8_t>& out) {
+    std::string bytes;
+    if (!read_file(path, bytes)) {
+        return false;
+    }
+    out.assign(bytes.begin(), bytes.end());
     return true;
 }
 
@@ -136,6 +152,7 @@ int main(int argc, char** argv) {
     std::string project_file;
     std::string salt = "preview";
     std::string backend = "vulkan";
+    std::string font_path;
     float width = 320.0f;
     float height = 240.0f;
     float dpi = 1.0f;
@@ -153,7 +170,7 @@ int main(int argc, char** argv) {
             continue;
         }
         if (arg == "--png" || arg == "--component" || arg == "--salt" || arg == "--size" ||
-            arg == "--file" || arg == "--backend") {
+            arg == "--file" || arg == "--backend" || arg == "--font") {
             if (i + 1 >= argc) {
                 return usage_error("`" + std::string(arg) + "` needs a value");
             }
@@ -168,6 +185,8 @@ int main(int argc, char** argv) {
                 salt = value;
             } else if (arg == "--backend") {
                 backend = value;
+            } else if (arg == "--font") {
+                font_path = value;
             } else if (!parse_size(value, width, height, dpi)) {
                 return usage_error("`--size` takes WxH or WxH@DPI, for example 320x240@2");
             }
@@ -201,6 +220,28 @@ int main(int argc, char** argv) {
         return 2;
     }
 
+    // The font is loaded from bytes, exactly as the page hands them to the browser module: one flat
+    // buffer, no path retained, nothing fetched. `--font` is optional so the font-free frame (boxes
+    // only, `text_skipped` counted) stays reproducible for the older gate.
+    std::unique_ptr<tessera::compiler::codegen::cli::PreviewTextStack> text;
+    if (!font_path.empty()) {
+        std::vector<std::uint8_t> font_bytes;
+        if (!read_font(font_path, font_bytes)) {
+            std::cerr << "tessera_scene_frame: cannot read `" << font_path << "`\n";
+            return 2;
+        }
+        auto loaded =
+            tessera::compiler::codegen::cli::PreviewTextStack::create(font_bytes, *device);
+        if (!loaded) {
+            std::cerr << "tessera_scene_frame: the font is unusable: " << loaded.error().message
+                      << "\n";
+            return 2;
+        }
+        text = std::move(*loaded);
+        std::cout << "tessera_scene_frame: font=" << text->face_name()
+                  << " bytes=" << font_bytes.size() << "\n";
+    }
+
     tessera::compiler::codegen::cli::ScenePreviewOptions options;
     options.file = project_file.empty() ? std::string_view(input) : std::string_view(project_file);
     options.salt = salt;
@@ -226,7 +267,7 @@ int main(int argc, char** argv) {
 #endif
 
     const auto result = tessera::compiler::codegen::cli::scene_frame_render(
-        source, options, *device, extent, component, pipeline);
+        source, options, *device, extent, component, pipeline, text.get());
     if (!result.error.empty()) {
         std::cerr << "tessera_scene_frame: " << result.error << "\n";
         // A scene that could not be built is exit 1 (the same distinction the P2 CLI makes between
@@ -237,7 +278,7 @@ int main(int argc, char** argv) {
     std::cout << "tessera_scene_frame: backend=" << backend << " extent=" << extent.width << "x"
               << extent.height << " nodes=" << result.nodes << " draws=" << result.draw_calls
               << " vertices=" << result.vertex_count << " text_skipped=" << result.text_skipped
-              << "\n";
+              << " glyphs_dropped=" << result.glyphs_dropped << "\n";
 
     if (dump_commands) {
         std::cout << "tessera_scene_frame: commands draws=" << result.draw_calls

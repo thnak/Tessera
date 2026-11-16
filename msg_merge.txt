@@ -1,0 +1,31 @@
+Merge main into the fold lane: compose the measurer with the simulated device
+
+#428 (text/font, merged) and #408 (foldable) are orthogonal changes that both reach into the
+same preview pipeline: one added a text measurer parameter, the other added `SceneMetrics` with
+the fold posture. Rebasing onto main conflicted in six files, and *picking a side* would have
+silently deleted a feature, so each hunk is a composition:
+
+- `layout_scene` now takes **`SceneMetrics` and the measurer**. The measurer is a
+  `shared_ptr` because that is what `LayoutEngine`'s constructor requires -- a raw pointer could
+  not construct one.
+- `SceneMetrics` keeps the posture field; `PreviewSession` keeps both `layout_metrics_` and
+  `measurer_`.
+- `prepare_scene` passes both, and its `LayoutEngine` is constructed **with** the measurer, so a
+  laid-out box and the ink painted in it cannot disagree (the exact #428 defect).
+- `wasm_canvas_entry` keeps both the posture assignment and `options.measurer`.
+- The CMake registration keeps **both** test targets rather than one replacing the other.
+
+**Verified they work together, not just separately.** Passing each feature's own tests would not
+prove the composition, so I rendered a source that uses all of them at once:
+
+```
+painted texts: ['Hello foldable', 'off', 'Toggle']
+```
+
+-- real text, the conditional's selected branch, and a `Button`'s caption in one scene, with the
+fold postures still producing their geometry. Full suite: **609 tests, 0 failed**.
+
+Also fixed from the CI run that rejected this branch: an unused `deepest()` helper in
+`scene_fold_tests.cpp` -- the first of the documented GCC-only classes, which MSVC `/W4` accepts
+silently and GCC rejects under `-Werror`. It was dead (the tests locate nodes by class token and
+by content instead), so it is deleted rather than used to avoid the warning.
