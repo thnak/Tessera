@@ -82,4 +82,13 @@ AdaptiveTargetExtent adaptive_target_extent(rendering::rhi::Extent2D presented,
     return result;
 }
 
+ContentScale content_scale_for(float device_scale, float adaptive_x, float adaptive_y) noexcept {
+    const float device = std::isfinite(device_scale) && device_scale > 0.0f ? device_scale : 1.0f;
+    const auto axis = [device](float adaptive) {
+        const float factor = std::isfinite(adaptive) && adaptive > 0.0f ? adaptive : 1.0f;
+        return device * factor;
+    };
+    return ContentScale{axis(adaptive_x), axis(adaptive_y)};
+}
+
 } // namespace tessera::ui::scale

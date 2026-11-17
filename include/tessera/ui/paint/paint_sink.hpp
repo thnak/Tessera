@@ -104,9 +104,6 @@ struct BackdropDraw {
     float saturate = 1.0f;
     float brightness = 1.0f;
     float contrast = 1.0f;
-    // CSS px -> target px for the 3 sigma reach and the half-resolution decision. The paint pass
-    // carries it so a sink does not need a second source of truth.
-    float device_scale = 1.0f;
 };
 
 // Encoded-space (sRGB byte) interpolation over sorted stops; at a duplicate offset the later stop

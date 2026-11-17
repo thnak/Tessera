@@ -1,13 +1,16 @@
 # Display-aware rendering (text and non-text anti-aliasing)
 
-Status: **S1-S4 and S6 landed; S5 and S8 landed in part; S7 is blocked on section 8.** Landed:
-the `AaPolicy` resolver and `hal::PixelGeometry` (S1), screen-space SDF edges and anti-aliased
-rounded clips in `batched2d.frag`/`.wgsl` (S2, S4), border widths snapped to device pixels in the
-paint pass (S3), glyph hinting by scale and quarter-pixel glyph origins in `TextRenderer` (S5
-hinting, S6), and the MSAA scale rule in the resolver (S8). Not landed: rasterizing text at
-`css_px * render_scale` (S5 T1), the image filter by scale (S8), LCD and the contrast LUT (S7), and
-the window integration in section 6. Extends [`antialiasing.md`](antialiasing.md) and
-[`text.md`](text.md). Decisions D2/D6 in
+Status: **S1-S6 and S8 landed, plus the T5 contrast LUT and the window integration in section 6;
+LCD text (T4) and the image filter by scale are later slices.** Landed: the `AaPolicy` resolver and
+`hal::PixelGeometry` (S1), screen-space SDF edges and anti-aliased rounded clips in
+`batched2d.frag`/`.wgsl` (S2, S4), border widths snapped to device pixels in the paint pass (S3),
+glyph hinting by scale, quarter-pixel glyph origins and text rasterized at `css_px * render_scale`
+(S5 T1/T2, S6), the MSAA scale rule in the resolver (S8), the text contrast LUT adopted as a D2
+amendment (T5, section 3.5), and the window integration: `AppWindow` resolves and applies the
+policy, sets `PaintContext::device_scale`, and pins the golden policy in golden mode (section 6).
+Not landed: LCD text (T4; the owner decided it ships in V1 in a later PR), the image filter by scale
+(S8), and the per-display `PixelGeometry` backends (every backend still reports `Unknown`). Extends
+[`antialiasing.md`](antialiasing.md) and [`text.md`](text.md). Decisions D2/D6 in
 [`rendering-production-plan.md`](rendering-production-plan.md) stay in force unless a numbered
 decision in section 8 says otherwise.
 
@@ -51,6 +54,13 @@ The atlas key already carries the scale; the missing piece is that the pixel siz
 FreeType and to the metrics provider is the device size, while layout measures in CSS px from
 design metrics so line breaks do not move between scales. Advances are rounded after scaling.
 
+Landed: `TextRenderer::draw` keeps its CSS-space contract but rasterizes each glyph at
+`round(css_px * render_scale)` device pixels, keys the atlas by that device size, and converts the
+quad back into CSS units - `pen + bearing_device / render_scale`, `bitmap_size / render_scale`,
+`baseline - y_offset - bearing_y_device / render_scale`. The pen walk, `run.advance` and every
+metric the layout engine sees stay in CSS px. Glyph origins snap in device space (a hinted stem must
+land on a device pixel), which at 1.0 is exactly the previous whole-pixel snap.
+
 ### 3.2 Hinting by scale (T2)
 
 | Render scale | FreeType load target | Why |
@@ -59,7 +69,10 @@ design metrics so line breaks do not move between scales. Advances are rounded a
 | 1.25 / 1.5 | light, vertical only | partial benefit, no horizontal distortion |
 | 2.0 | `FT_LOAD_NO_HINTING` | density hides it; shapes identical across vendors |
 
-Today `FT_LOAD_DEFAULT` follows the font's own hints. Golden mode keeps one fixed target.
+Today `FT_LOAD_DEFAULT` follows the font's own hints. Golden mode keeps one fixed target. Landed:
+the resolver's `hinting` field reaches the rasterizer through `TextRenderer::set_aa_policy`, and
+golden mode keeps `Font` (the font's own hints), so a renderer that never applies a policy draws as
+before.
 
 ### 3.3 Subpixel positioning (T3)
 
@@ -69,6 +82,10 @@ would blur) and always off in golden mode (`text.md`, determinism). Bound: 4x en
 counted against the existing bounded atlas budget; eviction rules unchanged.
 
 ### 3.4 LCD subpixel text (T4, optional)
+
+Not in this slice: the owner decided LCD text ships in V1 in a later PR. Until then the resolver
+keeps `Auto` on grayscale (`kAutoAllowsLcd == false`) and no backend fills `PixelGeometry`, so every
+window resolves `Grayscale` and the rules below are the later slice's contract.
 
 Modes: `grayscale` (today) and `lcd` (3 coverage channels). LCD is chosen only when **all** hold:
 `PixelGeometry` is a known horizontal stripe, the window is opaque, the run has a translate-only
@@ -83,9 +100,19 @@ are grayscale in V1.
 ### 3.5 Contrast and gamma (T5)
 
 Coverage blends in sRGB-encoded space (D2), so light-on-dark text looks thin and dark-on-light
-heavy. Proposal: a per-run coverage adjustment from foreground luminance, a 256-entry LUT applied
-in the atlas upload path, not a shader branch. **Needs an owner decision** (section 8): it touches
-D2 only for text coverage, not for fills.
+heavy. **Adopted as a D2 amendment** (section 8 decision 2): the sampled coverage of each run is
+multiplied by a boost taken from a 256-entry `constexpr` table indexed by the text color's encoded
+lightness (a Rec. 601 proxy, quantized to a byte). The table is flat at 1.0 at and below mid
+lightness (0.5, index 128) and rises linearly to exactly 1.4 at white, so dark-on-light text is
+untouched and a white run is compensated by at most 1.4. The lookup runs once per run, not per glyph
+and not in a shader branch.
+
+Why a table rather than the formula: the curve then has exactly 256 possible values, the frame path
+costs one index and one load, and a unit test pins the shape (monotonic, endpoints, no boost below
+mid, 1.4 at white). The color-dependent step cannot live in the atlas upload path as first sketched:
+an atlas page stores colorless coverage shared by every color, so baking a boost into it would need
+one atlas per run color. The amendment therefore touches only the per-run coverage multiplier;
+D2's fills, images and encoded blend space are unchanged.
 
 ### 3.6 What stays
 
@@ -119,6 +146,13 @@ per-node radius (`open-questions.md`, antialiasing#5). The power policy
 ([ADR-019](../../decisions/ADR-019-power-aware-runtime.md)) may force `grayscale` and `msaa=1`. A
 user setting never overrides golden mode.
 
+The `renderer.textAa` key is not wired to a window surface yet, so the resolver sees `auto`
+(grayscale). The explicit switch is `WindowOptions::display_aware_aa`, default **on**. Turning the
+policy on is what changes default text hinting from the font's own hints to light at 1.0-1.5x, so the
+switch is the deliberate opt-out that restores the pre-policy behavior. Golden mode overrides it: a
+renderer configured with `golden_mode`, or with AA disabled, always resolves the golden policy
+regardless of the switch and of the display.
+
 ## 6. Slices
 
 | Slice | Content | Tests |
@@ -129,34 +163,62 @@ user setting never overrides golden mode.
 | S4 | rounded-clip coverage AA | clip corner has intermediate alpha; nothing written outside the clip |
 | S5 | text T1 + T2 (device raster size, hinting by scale) | metrics unchanged across scales; atlas key test |
 | S6 | text T3 (subpixel positioning) | golden mode unaffected; bounded atlas growth |
-| S7 | text T4 + T5 (LCD, contrast LUT), after the section 8 decisions | LCD only on eligible runs; fallback test |
+| S7 | text T4 (LCD, a later PR) + T5 (contrast LUT, adopted as a D2 amendment and landed) | LCD only on eligible runs; fallback test; contrast LUT table test |
 | S8 | image filter by scale, MSAA policy hook | filter selection table test |
 
-Window integration (not landed): `AppWindow` does not resolve an `AaPolicy` or call
-`TextRenderer::set_aa_policy`, and it does not set `PaintContext::device_scale`, so a window runs
-today with the golden text policy and unsnapped borders; the shader changes (S2, S4) apply to every
-window because they are in the shared pipeline. The window also lays out in logical pixels and
-renders into the swapchain without a logical-to-device transform, which is why S5's device raster
-size (T1) is deferred: it needs that mapping first. Turning the policy on changes default text
-hinting from the font's own hints to light, so it is a deliberate switch, not part of these slices.
+Window integration (landed): `AppWindow` resolves one `AaPolicy` from its `hal::WindowMetrics`
+(dpi scale, pixel geometry, transparency, orientation) and the renderer configuration (`textAa`, AA
+enabled, MSAA samples, the power preset's reduced quality, golden mode) at creation and on every
+metrics change - never on the frame path - stores it as plain data, and applies it to
+`TextStack::renderer` with `TextRenderer::set_aa_policy` between frames. The timing is the one
+`set_render_scale()` already needs: a hinting change releases every atlas page, so applying it
+mid-frame would leave batched quads with dead textures. The window also sets
+`PaintContext::device_scale` to the window's device scale, which makes S3 live.
+
+The frame transform is now live too: at frame start the window composes
+`ui::scale::content_scale_for(device_scale, adaptive_x, adaptive_y)` - the device scale times the
+adaptive render-scale factor - and sets it with `Batched2DRenderer::set_content_scale`. Scene
+geometry is authored in CSS px, so that one factor is what makes T1's CSS-sized glyph quads cover
+exactly their device-pixel bitmaps (1:1 on a ladder device scale) and puts the snapped borders on
+the device grid. The same `metrics.dpi_scale` value feeds snapping, the policy's input fact and the
+transform, so they cannot drift; the policy still quantizes it to a ladder step for glyph
+rasterization by design (section 3.1). On an off-ladder display (e.g. 1.1667) text is therefore
+rasterized at the nearest step and resampled by at most half a step; scaling the geometry by the
+ladder step instead would overflow the physical target. At 1.0 both factors are exactly 1.0 and
+`set_content_scale` is never called, so the 1.0 frame - every golden - stays byte-identical.
+
+The clip path needs no separate scaling: `push_clip` scales the paint-space clip before the CPU
+scissor is derived from it (`ClipStateTable::push` -> `enclosing_scissor`), so the scissor fast path
+and the folded SDF uniform test the same target-space rectangle. `set_scissor` itself is a
+target-pixel seam: the frame scissor is the target extent and damage regions are already device
+pixels. Still missing, all later PRs: per-display `PixelGeometry` (every backend reports `Unknown`),
+LCD text (T4), and the image filter by scale (S8).
 
 S1 details: `Auto` text mode resolves to grayscale until decision 1 below is made
 (`kAutoAllowsLcd`); `WindowMetrics::pixel_geometry` and `DisplayInfo::pixel_geometry` default to
 `Unknown` and no backend fills them yet; the resolver is pure and covered by `aa_policy`.
 
-Order: S1 first (everything reads it), then S2 + S4 together, S3, S5, S6. S7 is gated on section 8.
+Order: S1 first (everything reads it), then S2 + S4 together, S3, S5, S6. T5 landed with the D2
+amendment; S7's LCD half is a later PR.
 
 ## 7. Determinism and goldens
 
 Golden mode pins `AaPolicy` to `{ scale 1.0, grayscale, fixed hinting, no subpixel positioning,
-edge radius 0, clip AA off, msaa 1 }` and ignores all facts and user settings. New behavior gets
+edge radius 0, clip AA off, msaa 1 }` and ignores all facts and user settings. At scale 1.0 the text
+path is byte-identical to the pre-T1 behavior: the device pixel size equals the CSS pixel size and
+the quad placement is the previous whole-pixel snap. The contrast LUT is a constant, not a fact read,
+so a golden run's colors choose the same boost on every machine. New behavior gets
 its own corpus only where it can be deterministic: CPU goldens stay tolerance 0
 (`antialiasing.md` section 2.2); LCD and `fwidth` edges are covered by lavapipe probes with an
 explicit tolerance, never by real-GPU goldens.
 
 ## 8. Decisions needed
 
-1. Ship LCD text in V1, or grayscale only with T1-T3? (Recommendation: T1-T3 in V1, LCD after.)
-2. Adopt the text contrast LUT (T5), and does it count as a D2 amendment?
+1. Ship LCD text in V1, or grayscale only with T1-T3? **Decided: LCD ships in V1 in a later PR.**
+   Until then `Auto` resolves to grayscale (`kAutoAllowsLcd == false`).
+2. Adopt the text contrast LUT (T5), and does it count as a D2 amendment? **Resolved: adopted as a
+   D2 amendment and implemented** (section 3.5; the amendment is recorded with D2 in
+   [`rendering-production-plan.md`](rendering-production-plan.md)). Only the per-run text coverage
+   multiplier is new; D2's encoded blend space and its fill/image rules are unchanged.
 3. Windows: take `PixelGeometry` from the OS ClearType setting, or detect per display only?
 4. Clip AA (S4) in V1, or accept hard rounded clips until MSAA? (Recommendation: S4 in V1.)

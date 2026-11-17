@@ -19,9 +19,10 @@ namespace tessera::ui::text {
 // from the atlas of the active `render_scale` (default 1.0). Page textures are keyed by (ladder
 // step, page), so two steps never share a page. A ladder change releases only the step being
 // left - its atlas entry and its page textures - and the next draw re-rasterizes that step on
-// demand; the other steps are untouched. The render scale is a cache/rasterization key, not a
-// pixel-size policy: the caller still passes the raster pixel size to draw(), so a device-scale
-// pixel-size convention is a separate slice. The rasterizer(s) must outlive the renderer.
+// demand; the other steps are untouched. The render scale is a cache/rasterization key: draw()
+// takes the CSS pixel size, rasterizes each glyph at `css_px * render_scale` device pixels, and
+// places the quad back in CSS units, so layout, the pen and every advance stay in CSS pixels
+// (display-aware-rendering.md sections 3.1). The rasterizer(s) must outlive the renderer.
 class TextRenderer {
 public:
     TextRenderer(rendering::rhi::Device& device, GlyphRasterizer& rasterizer,
@@ -55,6 +56,9 @@ public:
     [[nodiscard]] bool subpixel_position() const;
 
     // Draws the run with its baseline at (x, baseline_y) and returns the pixel advance.
+    // `pixel_size` is the run's size in CSS pixels: the bitmap is rasterized at `round(pixel_size *
+    // render_scale)` device pixels and the quad is placed back in CSS units, so a caller's
+    // coordinates and the returned advance never depend on the display scale.
     float draw(rendering::gpu::Batched2DRenderer& renderer, const ShapedRun& run, float x,
                float baseline_y, std::uint16_t pixel_size, rendering::rhi::Color color);
 

@@ -3,6 +3,8 @@
 #include "tessera/ui/scale/render_scale.hpp"
 #include "tessera/ui/text/scale_glyph_atlas.hpp"
 #include "tessera/ui/text/text_renderer.hpp"
+#include "text_contrast_lut.hpp"
+#include "text_quad.hpp"
 
 #include <algorithm>
 #include <array>
@@ -130,6 +132,12 @@ float TextRenderer::draw(rendering::gpu::Batched2DRenderer& renderer, const Shap
         return 0.0f;
     }
 
+    // The caller's pixel size is CSS: layout, the pen and every advance stay there. The bitmap is
+    // rasterized at the device pixel size it is sampled at (display-aware-rendering.md
+    // section 3.1), and the quad converts the bitmap's bearings back into CSS below.
+    const float render_scale = impl_->render_scale;
+    const std::uint16_t device_size = detail::device_pixel_size(pixel_size, render_scale);
+
     GlyphAtlas& atlas = *impl_->active;
     std::vector<Impl::PageTexture>& page_textures = impl_->textures[impl_->active_step];
 
@@ -138,20 +146,21 @@ float TextRenderer::draw(rendering::gpu::Batched2DRenderer& renderer, const Shap
     impl_->entries.clear();
     impl_->used_pages.clear();
     impl_->subpixels.clear();
-    // Subpixel positioning: each glyph origin keeps a quarter-pixel fraction, which selects the
-    // atlas bitmap rasterized at that offset. The pen walk must therefore run before the lookup.
+    // Subpixel positioning: each glyph origin keeps a quarter-device-pixel fraction, which selects
+    // the atlas bitmap rasterized at that offset. The fraction is taken in device space, because
+    // that is the grid the bitmap is hinted to; the pen walk must therefore run before the lookup.
     float lookup_pen = x;
     for (const Glyph& glyph : run.glyphs) {
         std::uint8_t subpixel = 0;
         if (impl_->subpixel_position) {
-            const float origin = lookup_pen + glyph.x_offset;
+            const float origin = (lookup_pen + glyph.x_offset) * render_scale;
             const float fraction = origin - std::floor(origin);
             subpixel = static_cast<std::uint8_t>(std::clamp(
                 std::lround(fraction * kSubpixelSteps), 0L, static_cast<long>(kSubpixelSteps) - 1));
         }
         impl_->subpixels.push_back(subpixel);
         lookup_pen += glyph.advance;
-        impl_->entries.push_back(atlas.get_glyph(glyph.id, pixel_size, glyph.face, subpixel));
+        impl_->entries.push_back(atlas.get_glyph(glyph.id, device_size, glyph.face, subpixel));
         const GlyphAtlasEntry& entry = impl_->entries.back();
         if (entry.has_bitmap && std::find(impl_->used_pages.begin(), impl_->used_pages.end(),
                                           entry.page) == impl_->used_pages.end()) {
@@ -184,10 +193,11 @@ float TextRenderer::draw(rendering::gpu::Batched2DRenderer& renderer, const Shap
         }
     }
 
-    // Coverage contrast by the text colour's lightness: none for dark text, up to 1.4 for white.
-    const float lightness =
-        0.2126f * color.r + 0.7152f * color.g + 0.0722f * color.b; // encoded, not linear: a proxy
-    const float boost = 1.0f + 0.4f * std::clamp((lightness - 0.5f) * 2.0f, 0.0f, 1.0f);
+    // Coverage contrast by the text color's encoded lightness: no boost for dark text, up to 1.4
+    // for white (display-aware-rendering.md section 3.5, adopted as a D2 amendment). One table
+    // lookup per run, never per glyph, and the table is the curve's only definition.
+    const float boost =
+        detail::kCoverageContrastLut[detail::contrast_lut_index(color.r, color.g, color.b)];
 
     float pen_x = x;
     for (std::size_t i = 0; i < run.glyphs.size(); ++i) {
@@ -196,18 +206,17 @@ float TextRenderer::draw(rendering::gpu::Batched2DRenderer& renderer, const Shap
         if (entry.has_bitmap && entry.page < page_textures.size()) {
             // Glyph bitmaps are sampled with a linear filter, so a quad that does not sit on the
             // pixel grid blends each row with its neighbour: thin strokes go faint and the last
-            // descender row fades. Both axes snap to whole pixels (a browser does the same for
-            // grayscale text); the pen keeps its fractional advance so spacing does not drift.
+            // descender row fades. Both axes snap to whole device pixels (a browser does the same
+            // for grayscale text); the pen keeps its fractional advance so spacing does not drift.
             // With subpixel positioning the bitmap already carries the fraction, so the quad sits
-            // on the floor of the origin; otherwise the whole origin rounds as before. A fraction
-            // that rounded up to the next quarter step stays below 1.0 (clamped above), so floor
-            // and the bitmap offset can never disagree by a whole pixel.
-            const float left =
-                impl_->subpixel_position
-                    ? std::floor(pen_x + glyph.x_offset) + static_cast<float>(entry.bearing_x)
-                    : std::round(pen_x + glyph.x_offset + static_cast<float>(entry.bearing_x));
-            const float top =
-                std::round(baseline_y - glyph.y_offset - static_cast<float>(entry.bearing_y));
+            // on the floor of the origin; otherwise the whole origin rounds. A fraction that
+            // rounded up to the next quarter step stays below 1.0 (clamped above), so floor and the
+            // bitmap offset can never disagree by a whole pixel. The helper divides the
+            // device-space result back into the caller's CSS space, so layout never sees a device
+            // unit.
+            const detail::GlyphQuad quad = detail::place_glyph_quad(
+                pen_x, baseline_y, glyph.x_offset, glyph.y_offset, entry.bearing_x, entry.bearing_y,
+                entry.width, entry.height, render_scale, impl_->subpixel_position);
             const rendering::rhi::Rect uv{
                 static_cast<float>(entry.x) / page_width,
                 static_cast<float>(entry.y) / page_height,
@@ -215,9 +224,8 @@ float TextRenderer::draw(rendering::gpu::Batched2DRenderer& renderer, const Shap
                 static_cast<float>(entry.height) / page_height,
             };
             renderer.push_texture(
-                {left, top, static_cast<float>(entry.width), static_cast<float>(entry.height)},
-                *page_textures[entry.page].texture, uv,
-                entry.color ? rendering::rhi::Color{1.0f, 1.0f, 1.0f, color.a} : color,
+                {quad.left, quad.top, quad.width, quad.height}, *page_textures[entry.page].texture,
+                uv, entry.color ? rendering::rhi::Color{1.0f, 1.0f, 1.0f, color.a} : color,
                 entry.color ? 1.0f : boost);
         }
         pen_x += glyph.advance;

@@ -99,11 +99,14 @@ bool GlassCompositor::compose(const FrameContext& frame, const GlassBackdropDraw
     }
 
     // Paint coordinates -> target pixels: positions scale per axis, the sigma by the mean factor.
+    // The frame's content scale already folds the device scale, so it is the whole CSS -> target
+    // factor; multiplying by a second device-scale input would double the device scale on a hi-DPI
+    // window and grow the 3-sigma dependency region with it.
     const float scale_x = frame.content_scale_x;
     const float scale_y = frame.content_scale_y;
     const rhi::Rect box{draw.clip.rect.x * scale_x, draw.clip.rect.y * scale_y,
                         draw.clip.rect.width * scale_x, draw.clip.rect.height * scale_y};
-    const float device_scale = draw.device_scale * mean_scale(scale_x, scale_y);
+    const float device_scale = mean_scale(scale_x, scale_y);
     const GlassBackdropRegion region =
         plan_glass_backdrop_region(box, draw.sigma, device_scale, limits_, frame.extent);
     if (!region.active) {

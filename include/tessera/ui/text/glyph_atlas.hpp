@@ -23,7 +23,9 @@ struct GlyphAtlasConfig {
 };
 
 // Placement of one glyph in a page. `has_bitmap` is false for whitespace and for glyphs the
-// atlas could not place this frame; such entries still carry the advance.
+// atlas could not place this frame; such entries still carry the advance. `advance` is in the
+// bitmap's device pixels - the `pixel_size` key, not the CSS size a caller passed to
+// `TextRenderer::draw`.
 struct GlyphAtlasEntry {
     std::uint32_t x = 0;
     std::uint32_t y = 0;

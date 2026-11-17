@@ -294,7 +294,6 @@ void Batched2DSink::draw_backdrop(const BackdropDraw& draw) {
     glass.saturate = draw.saturate;
     glass.brightness = draw.brightness;
     glass.contrast = draw.contrast;
-    glass.device_scale = draw.device_scale;
     if (renderer_->draw_backdrop(glass)) {
         ++glass_stats_.draws;
         return;

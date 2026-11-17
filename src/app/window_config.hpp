@@ -1,15 +1,20 @@
 // SPDX-License-Identifier: MIT
 //
-// The runtime-config keys the window driver consumes (docs/specs/runtime-config-v1.md section 6.2).
-// Pure mapping only: no GPU, no window, no allocation. WindowHost calls it once at construction;
-// unit tests exercise it directly, and the pipeline test drives the mapped FramePipelineConfig
-// through the paint seam.
+// The runtime-config keys the window driver consumes (docs/specs/runtime-config-v1.md section 6.2),
+// plus the display-aware AA policy mapping (docs/design/display-aware-rendering.md section 6). Pure
+// mapping only: no GPU, no window, no allocation. WindowHost calls it once at construction and once
+// per metrics change; unit tests exercise it directly, and the pipeline test drives the mapped
+// FramePipelineConfig through the paint seam.
 
 #pragma once
 
 #include "tessera/app/host.hpp"
+#include "tessera/hal/window.hpp"
 #include "tessera/runtime/config.hpp"
 #include "tessera/ui/frame_pipeline.hpp"
+#include "tessera/ui/scale/aa_policy.hpp"
+
+#include <cstdint>
 
 namespace tessera::app {
 
@@ -50,5 +55,34 @@ struct WindowPausePolicy {
 // so the cap stays at `maxFps` and the pacer keeps its documented deadline pacing.
 [[nodiscard]] AdaptiveQualityPolicy window_adaptive_quality_policy(const RuntimeConfig& runtime,
                                                                    double refresh_hz = 0.0);
+
+// The renderer inputs the AA resolver reads (docs/design/display-aware-rendering.md sections 5 and
+// 6), mirrored as plain data so this mapping layer stays free of GPU headers. The window driver
+// fills it from the `Batched2DConfig` it creates the renderer with, so the policy and the renderer
+// can never disagree about whether AA is on.
+struct WindowAaOptions {
+    // The explicit switch (`WindowOptions::display_aware_aa`). Off pins `golden_aa_policy()`, which
+    // is the pre-policy behaviour: turning the policy on changes default text hinting from the
+    // font's own hints to light, so it is a deliberate opt-in/out, never a side effect.
+    bool display_aware_aa = true;
+    bool aa_enabled = true;
+    // The renderer's deterministic-test mode. It wins over every other input.
+    bool golden_mode = false;
+    // 1 or 4; the resolver ignores any other value, exactly like `AaConfig`.
+    std::uint8_t msaa_samples = 1;
+    // The power policy's cheaper preset (ADR-019): grayscale text and no MSAA.
+    bool reduced_quality = false;
+};
+
+// The display facts the policy reads, copied verbatim from the window's metrics.
+[[nodiscard]] ui::scale::AaFacts window_aa_facts(const hal::WindowMetrics& metrics) noexcept;
+
+// The window's anti-aliasing policy (docs/design/display-aware-rendering.md section 6). Resolved
+// from the metrics plus the renderer inputs, once per metrics change and once at creation - never
+// on the frame path. Golden mode (the switch off, a renderer with AA disabled, or the renderer's
+// golden flag) returns `golden_aa_policy()` regardless of the metrics, so a deterministic run never
+// depends on the display.
+[[nodiscard]] ui::scale::AaPolicy window_aa_policy(const hal::WindowMetrics& metrics,
+                                                   const WindowAaOptions& renderer) noexcept;
 
 } // namespace tessera::app

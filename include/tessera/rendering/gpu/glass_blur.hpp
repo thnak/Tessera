@@ -91,9 +91,10 @@ struct GlassBackdropRegion {
                                                              rhi::Extent2D target_extent);
 
 // One resolved glass node the batched renderer can execute (issue #244, glass-v1 sections 3-5), in
-// paint coordinates: `clip` is the node's border box shaped by its border radius (the composite
-// clip), the filter values are the resolved `backdrop-filter` operands, and `device_scale` converts
-// the CSS-px sigma to device pixels. The renderer applies its own content scale on top.
+// paint coordinates (CSS px): `clip` is the node's border box shaped by its border radius (the
+// composite clip) and the filter values are the resolved `backdrop-filter` operands. The renderer
+// applies its own content scale to the box and to the CSS sigma, so there is exactly one CSS ->
+// target factor and no second device-scale input to disagree with it.
 struct GlassBackdropDraw {
     clip::RoundedRect clip;
     float sigma = 0.0f; // CSS px, already clamped to glassMaxBlurRadius by the paint pass
@@ -101,7 +102,6 @@ struct GlassBackdropDraw {
     float saturate = 1.0f;
     float brightness = 1.0f;
     float contrast = 1.0f;
-    float device_scale = 1.0f;
 };
 
 // The two pipelines one glass composite records. `blur` writes a pooled target and must not blend

@@ -314,11 +314,12 @@ WindowHost::Impl::FrameResult WindowHost::Impl::render_and_present(bool full_rep
     // frame keeps the CPU signal.
     (void)commands->begin_gpu_timestamps(static_cast<std::uint32_t>(slot));
     renderer->begin(*commands, *paint_target, desc);
-    if (scaled) {
-        // Presented pixels -> target pixels. Positions and clip rects scale; layout, glyph raster
-        // and the atlas do not (the atlas is keyed by font pixel size, never by this factor).
-        renderer->set_content_scale(adaptive.content_scale_x, adaptive.content_scale_y);
-    }
+    // CSS -> target: the device scale composed with the adaptive target/presented factor.
+    // Positions, clip rects and the T1 CSS-sized text quads all take it; at 1.0 it is not applied
+    // at all.
+    const ui::scale::ContentScale transform = apply_frame_transform(*renderer, adaptive);
+    stats.content_scale_x = transform.x;
+    stats.content_scale_y = transform.y;
     sink->begin_text_frame();
     // A presented frame is a full redraw (swapchain images are not preserved); glass limits are the
     // style sync's.
@@ -326,6 +327,7 @@ WindowHost::Impl::FrameResult WindowHost::Impl::render_and_present(bool full_rep
     context.glass.max_blur_radius = options.runtime.glass_max_blur_radius;
     context.glass.max_backdrop_area = options.runtime.glass_max_backdrop_area;
     context.text_metrics_source = text->paint_metrics.get();
+    context.device_scale = device_scale;
     host->paint_scene(*sink, context);
     renderer->end();
     if (offscreen) {
@@ -336,6 +338,8 @@ WindowHost::Impl::FrameResult WindowHost::Impl::render_and_present(bool full_rep
     stats.render_scale = host->adaptive_quality().render_scale;
     stats.present_extent = presented;
     stats.target_extent = paint_target->extent();
+    stats.device_scale = device_scale;
+    stats.aa_policy = aa_policy;
     if (scaled) {
         ++stats.scaled_frames;
     }
@@ -405,6 +409,7 @@ void WindowHost::Impl::apply_metrics(const hal::WindowMetrics& metrics) {
                      static_cast<float>(metrics.logical_height), metrics.dpi_scale);
     }
     host->set_window_metrics(metrics);
+    apply_aa_policy(metrics);
     loop->mark_render_dirty();
 }
 

@@ -50,4 +50,29 @@ AdaptiveQualityPolicy window_adaptive_quality_policy(const RuntimeConfig& runtim
     return policy;
 }
 
+ui::scale::AaFacts window_aa_facts(const hal::WindowMetrics& metrics) noexcept {
+    ui::scale::AaFacts facts;
+    facts.render_scale = metrics.dpi_scale;
+    facts.pixel_geometry = metrics.pixel_geometry;
+    facts.transparent_window = metrics.transparent;
+    facts.orientation = metrics.orientation;
+    return facts;
+}
+
+ui::scale::AaPolicy window_aa_policy(const hal::WindowMetrics& metrics,
+                                     const WindowAaOptions& renderer) noexcept {
+    ui::scale::AaConfig config;
+    // No `renderer.textAa` setting exists on the window surface yet, so `Auto` is the whole input;
+    // it resolves to grayscale until the owner decision (display-aware-rendering.md section 8).
+    config.text_aa = ui::scale::TextAaSetting::Auto;
+    config.aa_enabled = renderer.aa_enabled;
+    config.msaa_samples = renderer.msaa_samples;
+    config.reduced_quality = renderer.reduced_quality;
+    // The switch, the renderer's golden flag and a renderer with AA disabled all mean the same
+    // thing to text: pin the policy. An AA-off renderer still resolves text hinting from the facts
+    // otherwise, which would make the switch's behavior depend on a shader setting.
+    config.golden_mode = !renderer.display_aware_aa || !renderer.aa_enabled || renderer.golden_mode;
+    return ui::scale::resolve_aa_policy(window_aa_facts(metrics), config);
+}
+
 } // namespace tessera::app
