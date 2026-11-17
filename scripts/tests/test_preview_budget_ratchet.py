@@ -200,6 +200,36 @@ class RatchetArithmeticTests(unittest.TestCase):
         self.assertIn("a.js.gzip is 1", errors[0])
         self.assertIn("re-record it with --update", errors[0])
 
+    def test_an_encoder_variance_is_not_drift(self) -> None:
+        # The Pages lane measures on Linux while the pin is recorded on Windows, and gzip output for
+        # the same input differs between them: observed up to 0.52% across nine files with no source
+        # change. Comparing exactly made the check fail on every row of a correct record.
+        recorded = {"index.js.gzip": 83822.0, "font.ttf.gzip": 19534.0}
+        measured = {"index.js.gzip": 83500.0, "font.ttf.gzip": 19432.0, "e": 102932.0}
+        errors = ratchet.breakdown_drift({"e": self.recorded_entry(recorded)}, measured)
+        self.assertEqual(errors, [])
+
+    def test_a_real_per_file_growth_is_still_drift(self) -> None:
+        # The other side of the boundary: 5% is far outside encoder noise, so a file that genuinely
+        # grew must force a re-record or the reviewer is told the wrong file grew.
+        errors = ratchet.breakdown_drift(
+            {"e": self.recorded_entry({"a.js.gzip": 100.0})}, {"a.js.gzip": 105.0, "e": 105.0}
+        )
+        self.assertEqual(len(errors), 1)
+        self.assertIn("a.js.gzip", errors[0])
+
+    def test_the_slack_is_tighter_than_the_size_ratchet_tolerance(self) -> None:
+        # These answer different questions -- "is this the same file?" versus "is the total
+        # acceptable?" -- so a slack that approached the ratchet's own band would blur them.
+        self.assertLess(ratchet.BREAKDOWN_ENCODER_SLACK, 0.05)
+
+    def test_a_zero_size_is_compared_exactly(self) -> None:
+        # A ratio against zero is not defined, and a file that measured as nothing is not a rounding
+        # difference: it should fail rather than pass quietly.
+        self.assertFalse(ratchet.same_measurement(0.0, 100.0))
+        self.assertFalse(ratchet.same_measurement(100.0, 0.0))
+        self.assertTrue(ratchet.same_measurement(0.0, 0.0))
+
     def test_a_file_the_breakdown_does_not_name_is_an_error(self) -> None:
         errors = ratchet.breakdown_drift(
             {"e": self.recorded_entry({"a.js.gzip": 100.0})},

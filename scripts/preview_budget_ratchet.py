@@ -281,6 +281,35 @@ def repinned(document: Dict, measurements: Dict[str, float], encoder: str, count
     return updated
 
 
+# How far a per-file gzip size may move before the breakdown counts as stale.
+#
+# The pin is recorded on one host and checked on another (Windows locally, Linux in the Pages lane), and
+# zlib's output for the same input legitimately differs between them -- observed 0.03% to 0.52% across
+# nine files, in both directions, with no source change at all. Comparing exactly made the drift check
+# fail on every row of a correct record, which is worse than not having it: a gate that always fails is
+# a gate people switch off.
+#
+# Sized to swallow encoder variance and nothing else. A genuine growth of one file is far larger, and
+# the row it must trip is the *total* ratchet, which is percentage-based and much wider (5%/1% for the
+# size row). This one only has to answer "is this still the same file?".
+BREAKDOWN_ENCODER_SLACK = 0.015
+
+
+def same_measurement(recorded: float, measured: float) -> bool:
+    """Whether two readings of one file's size are the same measurement.
+
+    Relative, not absolute, because the files span 2 KB to 1.3 MB and a fixed byte allowance would be
+    noise on the large ones and unusable on the small ones. Zero is compared exactly: a file whose
+    size is zero cannot differ by a ratio, and that case should fail rather than divide.
+    """
+    if recorded == measured:
+        return True
+    if recorded <= 0.0 or measured <= 0.0:
+        return False
+    larger = max(recorded, measured)
+    return abs(recorded - measured) / larger <= BREAKDOWN_ENCODER_SLACK
+
+
 def breakdown_drift(entries: Dict[str, Dict], measurements: Dict[str, float]) -> List[str]:
     """Errors describing a `recorded` block that no longer matches the measurement.
 
@@ -311,7 +340,7 @@ def breakdown_drift(entries: Dict[str, Dict], measurements: Dict[str, float]) ->
                         name, key, "{:g}".format(float(recorded[key]))
                     )
                 )
-            elif round(float(recorded[key]), 3) != expected[key]:
+            elif not same_measurement(float(recorded[key]), expected[key]):
                 errors.append(
                     "{}: the recorded breakdown says {} is {} bytes but the measurement says {}; "
                     "re-record it with --update so the attribution matches the total".format(
