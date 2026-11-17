@@ -32,12 +32,16 @@ bool expect(bool condition, const char* message) {
 int main() {
     bool ok = true;
 
-    // Shape: one entry per encoded lightness value, the value being the curve's.
+    // Shape: one entry per encoded lightness value, the value being the curve's. The comparison is
+    // tolerant on purpose: the table is folded at compile time and the call below is a runtime
+    // evaluation, and a compiler that contracts `1.0f + 0.4f * t` into an FMA (GCC's default
+    // `-ffp-contract=fast`) may differ from the folded value by one ULP. An exact equality here
+    // tests the compiler's floating-point mode, not the curve.
     ok = expect(kCoverageContrastLut.size() == kCoverageContrastLutSize,
                 "the table has 256 entries") &&
          ok;
     for (std::size_t index = 0; index < kCoverageContrastLut.size(); ++index) {
-        if (kCoverageContrastLut[index] != contrast_boost_for_index(index)) {
+        if (std::abs(kCoverageContrastLut[index] - contrast_boost_for_index(index)) > 1e-6f) {
             ok = expect(false, "every entry is the documented curve") && ok;
             break;
         }
