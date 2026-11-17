@@ -6,6 +6,7 @@
 #include "scene_frame.hpp"
 #include "scene_prepare.hpp"
 #include "scene_session.hpp"
+#include "scene_stylesheet.hpp"
 #include "tessera/hal/window.hpp"
 #include "tessera/ui/scene/dirty_pass.hpp"
 #include "tessera/ui/scene/node.hpp"
@@ -70,6 +71,12 @@ struct CanvasSessionSource {
     std::string_view text;
     std::string_view file;
     std::string_view component;
+    // The author's stylesheet (issue #390), the page's second textarea. Empty means "no author
+    // CSS", which keeps the built-in `preview_stylesheet()` fallback; a non-empty sheet REPLACES it
+    // and never mixes with it (decision 2). It is part of the tuple `start()` compares, so a Run
+    // that changed only the CSS re-evaluates instead of reusing the previous sheet.
+    std::string_view stylesheet;
+    std::string_view stylesheet_file = "ui/Preview.css";
     // The project salt the ids are hashed with; it must be the one the snapshot view uses, or the
     // canvas and the diagnostics pane would name one node by two different numbers.
     std::string_view salt = "preview";
@@ -166,6 +173,12 @@ public:
     [[nodiscard]] const ui::style::CompiledStyleSheet& sheet() const noexcept {
         return sheet_;
     }
+    // The author stylesheet's parse problems from the last `start()` (issue #390), with line and
+    // column. Survives the reuse path: a Run that changed nothing still reports the diagnostics the
+    // sheet it kept produced, because the page's diagnostics area must not go blank on a re-Run.
+    [[nodiscard]] const std::vector<PreviewCssDiagnostic>& css_diagnostics() const noexcept {
+        return css_diagnostics_;
+    }
     [[nodiscard]] ui::StateSnapshot state() const {
         return session_ != nullptr ? session_->state() : ui::StateSnapshot{};
     }
@@ -175,8 +188,9 @@ public:
     [[nodiscard]] const ui::InputRouter* router() const noexcept;
 
 private:
-    [[nodiscard]] bool reused_ok(const std::string& text, const std::string& file,
-                                 const std::string& component, float width, float height, float dpi,
+    [[nodiscard]] bool reused_ok(const std::string& text, const std::string& stylesheet,
+                                 const std::string& file, const std::string& component, float width,
+                                 float height, float dpi,
                                  const std::shared_ptr<const text::TextMeasurer>& measurer) const;
 
     // The lowered IR the scene borrows its strings from: declared before the session so it outlives
@@ -189,8 +203,11 @@ private:
     // What the running evaluation was started from; a later `start()` with the same tuple reuses
     // it. Owned strings, because `CanvasSessionSource`'s views belong to the caller.
     std::string text_;
+    std::string stylesheet_;
     std::string file_;
     std::string component_;
+    // The author sheet's diagnostics from the last `start()` (issue #390), with line and column.
+    std::vector<PreviewCssDiagnostic> css_diagnostics_;
     float width_ = 320.0f;
     float height_ = 240.0f;
     float dpi_scale_ = 1.0f;

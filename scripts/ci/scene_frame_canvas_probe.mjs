@@ -56,13 +56,28 @@ async function main() {
   const fileLength = module.lengthBytesUTF8(file) + 1;
   const filePtr = module._malloc(fileLength);
   const componentPtr = module._malloc(1);
+  // Issue #390: the author stylesheet is a string argument beside the source, and null (or empty) means
+  // "no author CSS" -- which is what this probe passes, because it is here to test the no-device
+  // contract, not styling. A real page passes its second textarea; the module then applies it instead
+  // of the built-in fallback.
+  const stylesheetPtr = 0;
   let json;
   try {
     module.stringToUTF8(source, textPtr, textLength);
     module.stringToUTF8(file, filePtr, fileLength);
     module.stringToUTF8("", componentPtr, 1);
     // The last argument is the canvas view handle; 0 is "no canvas", and there is no device anyway.
-    const result = module._tessera_canvas_frame(textPtr, filePtr, componentPtr, 320, 240, 1.0, 0);
+    const result = module._tessera_canvas_frame(
+      textPtr,
+      filePtr,
+      componentPtr,
+      0,
+      stylesheetPtr,
+      320,
+      240,
+      1.0,
+      0,
+    );
     if (!result) {
       fail("tessera_canvas_frame returned null instead of a report");
       return;
@@ -95,6 +110,16 @@ async function main() {
   }
   if (typeof report.error !== "string" || report.error.length === 0) {
     fail("a no-device report must carry an error string for the page to show");
+    return;
+  }
+  // Issue #390: the stylesheet diagnostics array is appended to the report, and `canvasVersion` stays 1
+  // because no existing field changed. An empty array is what "no author CSS" must answer.
+  if (!Array.isArray(report.cssDiagnostics)) {
+    fail("the report must carry a `cssDiagnostics` array (issue #390)");
+    return;
+  }
+  if (report.cssDiagnostics.length !== 0) {
+    fail("no author CSS must report no stylesheet problems");
     return;
   }
   process.stdout.write(`CANVAS ${json.trim()}\n`);

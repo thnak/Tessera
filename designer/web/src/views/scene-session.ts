@@ -26,6 +26,7 @@ import { wasmModuleUrl } from "../lib/module-url";
 import type { SourceReader, StatusReporter, ViewSession } from "../lib/views";
 import { callExport, requireExports, type WasmModule } from "../lib/wasm-call";
 import { createInputPane } from "./scene-input";
+import { describeCss, cssProblem, readCssDiagnostics } from "./css-diagnostics";
 import { noSceneBox, renderNodes, unavailableBox, type SceneDocument } from "./scene-render";
 
 /** The module factory `tessera_scene_preview.js` exports. */
@@ -80,6 +81,12 @@ function usesSizedExport(
  * gate asserts; a moved viewport keeps using the sized export, and a fold takes precedence because
  * the sized one cannot express it.
  *
+ * The `*_styled` family (issue #390) is the same set with the author stylesheet as one more string.
+ * It is preferred whenever the author wrote CSS, because a preview that ignored the sheet would show
+ * the built-in look while claiming to show their screen. When the artifact predates those exports the
+ * run falls back to the unstyled one and `styled` comes back false, so the status line can say the
+ * sheet is not applied rather than implying it is.
+ *
  * The `folded` export falls back to the sized/plain pair when the artifact predates it: a page
  * published against an older module then shows an unfolded preview and says so, rather than failing.
  */
@@ -88,26 +95,60 @@ function chooseExport(
   viewport: { width: number; height: number },
   dpr: number,
   posture: string,
-): { name: string; numbers: number[]; extra: string[]; folded: boolean } {
-  if (posture !== "" && typeof module._tessera_scene_json_folded === "function") {
-    // `callExport` hands the trailing string arguments after the numeric ones, so the posture is
-    // appended to the source triple: (source, file, component, w, h, dpr, posture).
+  wantsStyling: boolean,
+): { name: string; numbers: number[]; postureFirst: boolean; styled: boolean } {
+  const moved =
+    viewport.width !== DEFAULT_VIEWPORT.width ||
+    viewport.height !== DEFAULT_VIEWPORT.height ||
+    dpr !== DEFAULT_DPR;
+  const foldable = posture !== "";
+  const styled = wantsStyling && hasStyledExports(module, foldable, moved);
+  if (foldable && typeof module._tessera_scene_json_folded === "function") {
+    // The folded family takes the posture and (styled) the stylesheet, then w/h/dpr.
     return {
-      name: "_tessera_scene_json_folded",
+      name: styled ? "_tessera_scene_json_folded_styled" : "_tessera_scene_json_folded",
       numbers: [viewport.width, viewport.height, dpr],
-      extra: [posture],
-      folded: true,
+      postureFirst: true,
+      styled,
     };
+  }
+  if (styled && moved) {
+    return {
+      name: "_tessera_scene_json_styled_sized",
+      numbers: [viewport.width, viewport.height, dpr],
+      postureFirst: false,
+      styled,
+    };
+  }
+  if (styled) {
+    return { name: "_tessera_scene_json_styled", numbers: [], postureFirst: false, styled };
   }
   if (usesSizedExport(module, viewport, dpr)) {
     return {
       name: "_tessera_scene_json_sized",
       numbers: [viewport.width, viewport.height, dpr],
-      extra: [],
-      folded: false,
+      postureFirst: false,
+      styled,
     };
   }
-  return { name: "_tessera_scene_json", numbers: [], extra: [], folded: false };
+  return { name: "_tessera_scene_json", numbers: [], postureFirst: false, styled };
+}
+
+/**
+ * Whether this artifact carries the styled export the chosen shape needs (issue #390).
+ *
+ * A partial set is possible -- a module built from a tree between two commits -- so the test is per
+ * shape rather than one global "the styled family exists": a fold plus a stylesheet needs the folded
+ * styled export, and a moved viewport needs the sized one.
+ */
+function hasStyledExports(module: WasmModule, foldable: boolean, moved: boolean): boolean {
+  if (foldable) {
+    return typeof module._tessera_scene_json_folded_styled === "function";
+  }
+  if (moved) {
+    return typeof module._tessera_scene_json_styled_sized === "function";
+  }
+  return typeof module._tessera_scene_json_styled === "function";
 }
 
 /** The elements React committed for the Scene pane; every one of them is a ref. */
@@ -210,23 +251,37 @@ export function createSceneSession(options: SceneSessionOptions): SceneSession {
       const module = await factory();
       const viewport = currentViewport();
       const dpr = currentDpr();
+      // The source and its stylesheet come from one reader (issue #431's `SourceReader`, extended by #390):
+      // the sheet is read when Run is pressed, exactly like the text it styles, so a session cannot lay the
+      // tree out against a sheet the author no longer has on screen.
       const target = options.source();
-      const chosen = chooseExport(module, viewport, dpr, options.foldPosture());
-      const json = callExport(
-        module,
-        chosen.name,
-        [target.text, target.file, "", ...chosen.extra],
-        chosen.numbers,
-      );
+      const sheet = target.stylesheet;
+      const chosen = chooseExport(module, viewport, dpr, options.foldPosture(), sheet !== "");
+      // The argument order every export in this module shares: the pointers first (source, file,
+      // component, then the posture and/or stylesheet when the chosen shape takes one), then the
+      // numbers. `callExport` marshals the strings in order, so a string after a number would be
+      // handed a stale integer.
+      const strings = [target.text, target.file, ""];
+      if (chosen.postureFirst) {
+        strings.push(options.foldPosture());
+      }
+      if (chosen.styled) {
+        strings.push(sheet);
+      }
+      const json = callExport(module, chosen.name, strings, chosen.numbers);
       emptyState.hidden = true;
       const document = JSON.parse(json) as SceneDocument;
       const count = renderNodes(nodes, document, (id) => input.append(id));
+      // The stylesheet's own problems are reported beside the snapshot, not instead of it (issue
+      // #390): the parser is tolerant, so a bad rule costs that rule and the tree still renders. When
+      // the sheet is set but the artifact cannot apply it, say so rather than implying it was used.
+      const css = await readCssDiagnostics(module, sheet, target.stylesheetFile);
       if (count === 0) {
         nodes.replaceChildren();
         nodes.append(noSceneBox(document.error));
         setStatus("no scene", "warning");
       } else {
-        setStatus(`${count} node(s)`, "ok");
+        setStatus(`${count} node(s)${describeCss(css)}`, cssProblem(css) ? "warning" : "ok");
       }
     } catch (error) {
       nodes.replaceChildren();

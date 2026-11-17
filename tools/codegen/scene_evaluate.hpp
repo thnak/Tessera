@@ -50,9 +50,15 @@ struct EvaluateError {
 // Evaluates `text` as the single file `file` and selects `component` (the first component when the
 // name is empty). `salt` is the project salt the ids are hashed with; an empty salt leaves identity
 // unassigned, so every `uiId` stays 0 — which is what an unsalted CLI run does.
+//
+// `stylesheet` is the author's CSS and `stylesheet_file` the virtual path it is filed under (issue
+// #390): a side-effect `import "./Preview.css";` resolves against it instead of reporting a missing
+// file, and a source that does not import it still lowers (the sheet is applied by the caller,
+// `scene_stylesheet.hpp`). Both default to empty, so every pre-#390 caller keeps its behaviour.
 [[nodiscard]] std::expected<EvaluatedScene, EvaluateError>
 evaluate_source(std::string_view text, std::string_view file, std::string_view salt,
-                std::string_view component);
+                std::string_view component, std::string_view stylesheet = {},
+                std::string_view stylesheet_file = {});
 
 // The module namespace a single in-memory file implies (a lowercased identifier-shaped file stem),
 // shared so the snapshot and interaction artifacts agree on every string that reaches a document.

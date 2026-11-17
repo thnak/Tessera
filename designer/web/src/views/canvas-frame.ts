@@ -11,6 +11,8 @@
 // canvas' backing store is set to -- a canvas whose backing store is its CSS size is blurry on every
 // high-density display, and a preview judged on blurry pixels is not a preview.
 
+import type { CssDiagnostic } from "./css-diagnostics";
+
 /** What one frame reports; the pane renders these counters. */
 export interface CanvasFrameReport {
   hasDevice?: boolean;
@@ -20,6 +22,14 @@ export interface CanvasFrameReport {
   vertices: number;
   nodes: number;
   error?: string;
+  /**
+   * The author stylesheet's problems (issue #390), appended to the report rather than replacing any
+   * field of it: `canvasVersion` stays 1, and a page built against the previous module simply never
+   * reads this. Absent from an older module, which the pane treats as "no problems to show".
+   */
+  cssDiagnostics?: CssDiagnostic[];
+  /** True when the module hit its cap and `cssDiagnostics` is not the whole list. */
+  cssDiagnosticsTruncated?: boolean;
 }
 
 /** The logical viewport the preview lays out at when the toolbar has not moved. */

@@ -60,27 +60,4 @@ DiagnosticRecord to_record(const ir::IrDiagnostic& diagnostic) {
     return record;
 }
 
-DiagnosticSpan css_span(std::string_view path, std::string_view text, std::size_t offset) {
-    std::size_t line = 1;
-    std::size_t column = 1;
-    const std::size_t end = offset < text.size() ? offset : text.size();
-    for (std::size_t i = 0; i < end; ++i) {
-        if (text[i] == '\n') {
-            ++line;
-            column = 1;
-        } else {
-            ++column;
-        }
-    }
-    DiagnosticSpan span;
-    span.file = std::string(path);
-    span.offset = static_cast<std::uint32_t>(end);
-    span.length = 0;
-    span.line = static_cast<std::uint32_t>(line);
-    span.column = static_cast<std::uint32_t>(column);
-    span.end_line = span.line;
-    span.end_column = span.column;
-    return span;
-}
-
 } // namespace tessera::compiler::codegen::cli

@@ -58,7 +58,14 @@ SALT = "preview"
 # case that should lay out a tree but reports fewer nodes on either side fails the gate. The comments
 # name what each case is here to cover; the gate asserts the count and byte equality, not the specific
 # geometry, so a layout tweak that changes boxes on both sides does not fail it while a lost node does.
-CORPUS: Tuple[Tuple[str, str, str, int], ...] = (
+# Each entry is `(name, project-relative file, source, minimum node count)` and, since issue #390,
+# optionally a fifth element: the author stylesheet. A case with one is driven through the STYLED
+# exports on both sides (`--stylesheet` natively, `_tessera_scene_json_styled` in Wasm), so the gate
+# compares the same author CSS through the same engine on two machines -- which is the acceptance the
+# issue asks for ("the parity corpus gains a styled case; native CLI and prepare_scene produce the same
+# scene JSON for it"). A case without one keeps the pre-#390 four-tuple and the unstyled exports, so
+# the existing bytes are pinned exactly as before.
+CORPUS: Tuple[Tuple[object, ...], ...] = (
     # The parity-demo sample's static shape: a column with a text leaf and two buttons, the smallest
     # tree that still exercises three element kinds and a computed-style layout.
     (
@@ -306,6 +313,30 @@ export function Host(): Node {
 """,
         3,
     ),
+    # The author stylesheet (issue #390): `:root` tokens through `var()`, a class rule, and an inline
+    # `style` that must win over it. Five elements of the tuple, so the runner drives it through the
+    # styled exports; the minimum node count is 4 because the author's sheet does NOT size anything the
+    # built-in sheet used to (that is the point: the built-in sheet is absent, not layered under).
+    (
+        "author-stylesheet",
+        "ui/Themed.tsx",
+        """export function Themed(): Node {
+  return (
+    <View className="page">
+      <Text className="title">Themed</Text>
+      <Button style={{ width: 90, height: 32 }}>Go</Button>
+    </View>
+  );
+}
+""",
+        4,
+        """:root { --brand: rgb(0, 128, 255); --gap: 6px; }
+.page { display: flex; flex-direction: column; padding-top: 4px; background-color: rgb(11, 18, 32); }
+.title { height: 24px; color: rgb(230, 237, 247); margin-bottom: var(--gap); }
+Button { background-color: var(--brand); width: 40px; height: 20px; }
+""",
+    ),
+
 )
 
 # The Node driver for the Wasm side. It imports the module factory, calls the real C export with the
@@ -317,6 +348,9 @@ const path = process.argv[2];
 const file = process.argv[3];
 const component = process.argv[4];
 const source = process.argv[5];
+// Issue #390: the author stylesheet, when the case carries one. Empty means "no author CSS", which
+// keeps the pre-#390 export and the pre-#390 bytes.
+const stylesheet = process.argv[6] ?? '';
 // `import()` needs a URL, not a bare path: on Windows a `C:\...` argument parses as a `c:` scheme and
 // Node rejects it with ERR_UNSUPPORTED_ESM_URL_SCHEME. `pathToFileURL` is correct on both platforms.
 const imported = await import(pathToFileURL(path).href);
@@ -331,10 +365,15 @@ module.stringToUTF8(file, namePtr, nameLength);
 const componentLength = module.lengthBytesUTF8(component) + 1;
 const componentPtr = module._malloc(componentLength);
 module.stringToUTF8(component, componentPtr, componentLength);
+const sheetLength = module.lengthBytesUTF8(stylesheet) + 1;
+const sheetPtr = module._malloc(sheetLength);
+module.stringToUTF8(stylesheet, sheetPtr, sheetLength);
 let out;
 try {
-  const resultPtr = module._tessera_scene_json(textPtr, namePtr, componentPtr);
-  if (!resultPtr) { throw new Error("tessera_scene_json returned null"); }
+  const resultPtr = stylesheet === ''
+    ? module._tessera_scene_json(textPtr, namePtr, componentPtr)
+    : module._tessera_scene_json_styled(textPtr, namePtr, componentPtr, sheetPtr);
+  if (!resultPtr) { throw new Error("the scene export returned null"); }
   try {
     out = module.UTF8ToString(resultPtr);
   } finally {
@@ -344,6 +383,7 @@ try {
   module._free(textPtr);
   module._free(namePtr);
   module._free(componentPtr);
+  module._free(sheetPtr);
 }
 process.stdout.write(out);
 """
@@ -369,7 +409,9 @@ def run(command: Sequence[str], cwd: Path) -> subprocess.CompletedProcess:
         raise SetupError("cannot execute {}: {}".format(command[0], exc)) from exc
 
 
-def native_document(cli: str, name: str, file: str, source: str, work_root: Path) -> str:
+def native_document(
+    cli: str, name: str, file: str, source: str, work_root: Path, stylesheet: str = ""
+) -> str:
     """Evaluates the case with the host CLI and returns its document.
 
     The CLI runs with its working directory set to the case directory and is given the *relative*
@@ -382,9 +424,16 @@ def native_document(cli: str, name: str, file: str, source: str, work_root: Path
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(source, encoding="utf-8")
     document = case_dir / "scene.json"
-    result = run(
-        [cli, "--scene-json", str(document), "--file", file, "--salt", SALT, file], case_dir
-    )
+    argv = [cli, "--scene-json", str(document), "--file", file, "--salt", SALT]
+    if stylesheet:
+        # The author stylesheet travels the same way the page sends it (issue #390): a file the CLI
+        # reads and files as `ui/Preview.css`, so an `import "./Preview.css";` in the source would
+        # resolve to it too.
+        sheet_path = case_dir / "Preview.css"
+        sheet_path.write_text(stylesheet, encoding="utf-8")
+        argv += ["--stylesheet", str(sheet_path)]
+    argv.append(file)
+    result = run(argv, case_dir)
     # Exit 1 is expected for the unsupported cases (a valid document with no nodes); above it is a
     # setup failure.
     if result.returncode > 1:
@@ -399,14 +448,23 @@ def native_document(cli: str, name: str, file: str, source: str, work_root: Path
 
 
 def wasm_document(
-    node: str, module_js: Path, name: str, file: str, source: str, work_root: Path, repo_root: Path
+    node: str,
+    module_js: Path,
+    name: str,
+    file: str,
+    source: str,
+    work_root: Path,
+    repo_root: Path,
+    stylesheet: str = "",
 ) -> str:
     """Runs the real C export through Node and returns the document it produced."""
     driver = work_root / "wasm" / name
     driver.mkdir(parents=True, exist_ok=True)
     driver_file = driver / "drive.mjs"
     driver_file.write_text(NODE_DRIVER, encoding="utf-8")
-    result = run([node, str(driver_file), str(module_js), file, "", source], repo_root)
+    result = run(
+        [node, str(driver_file), str(module_js), file, "", source, stylesheet], repo_root
+    )
     if result.returncode != 0:
         raise SetupError(
             "{}: the Wasm module failed under Node (exit {}): {}".format(
@@ -507,9 +565,19 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     failures: List[str] = []
     try:
-        for name, file, source, minimum in CORPUS:
-            native_text = native_document(str(native_cli), name, file, source, work_root)
-            wasm_text = wasm_document(str(node), module_js, name, file, source, work_root, repo_root)
+        # Each entry is a four-tuple, or a five-tuple whose last element is the author stylesheet
+        # (issue #390). Both sides then drive the styled export, so the same author CSS is compiled by
+        # the same engine on two machines -- and a case with no stylesheet keeps the four-tuple and the
+        # pre-#390 bytes.
+        for case in CORPUS:
+            name, file, source, minimum = case[0], case[1], case[2], case[3]
+            stylesheet = case[4] if len(case) > 4 else ""
+            native_text = native_document(
+                str(native_cli), name, file, source, work_root, stylesheet
+            )
+            wasm_text = wasm_document(
+                str(node), module_js, name, file, source, work_root, repo_root, stylesheet
+            )
 
             native_nodes = nodes_of(native_text, "native/" + name)
             wasm_nodes = nodes_of(wasm_text, "wasm/" + name)
@@ -533,7 +601,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
             if native_text == wasm_text:
                 print(
-                    "BYTE_IDENTICAL {:<22} {} node(s)".format(name, len(native_nodes))
+                    "BYTE_IDENTICAL {:<22} {} node(s){}".format(
+                        name, len(native_nodes), " [styled]" if stylesheet else ""
+                    )
                 )
                 continue
             failures.extend(describe_difference(name, native_text, wasm_text))

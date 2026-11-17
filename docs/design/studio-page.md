@@ -194,15 +194,48 @@ Run compiles.
 ### 3.3 What Run compiles
 
 `compileTarget()` (in `lib/project.ts`) is the rule: **the active file when it is a source file, else the
-project entry**. Selecting `styles/theme.css` edits the sheet; it does not make the sheet the compiled
-source, because author stylesheets are not in the preview yet (#390). The status line's *compile target*
-cell and the hint under the editor both name the file, so the choice is visible rather than surprising.
+project entry**. Selecting `styles/theme.css` edits that sheet; it does not make the sheet the compiled
+source, because the preview's author stylesheet is the dedicated textarea below the editor (section 3.4),
+not a project file yet. The status line's *compile target* cell and the hint under the editor both name the
+file, so the choice is visible rather than surprising.
 
 The sessions no longer read `#source.value`: the page hands each of them a `SourceReader` that returns
-`{ text, file, shown }` for the compile target, read at Run time through a ref. That keeps the Wasm
-sessions independent of React's render cycle and lets Diagnostics say, honestly, when the editor is
-showing a different file than the one a span belongs to (`shown: false` -- the row names the file instead
-of offering a jump it cannot make).
+`{ text, file, shown, stylesheet, stylesheetFile }` for the compile target, read at Run time through a ref.
+That keeps the Wasm sessions independent of React's render cycle and lets Diagnostics say, honestly, when
+the editor is showing a different file than the one a span belongs to (`shown: false` -- the row names the
+file instead of offering a jump it cannot make).
+
+### 3.4 The author stylesheet (issue #390)
+
+The code column carries a **second textarea below the source**, `#stylesheet`, in the same
+`regions/CodeRegion.tsx` region and under its own heading (`#stylesheet-heading`) with a note
+(`#stylesheet-note`). It is the page's virtual file `ui/Preview.css` (`PREVIEW_STYLESHEET_FILE` in
+`page-defaults.ts`): a source's `import "./Preview.css";` resolves to this text, so the import is optional
+rather than required, and the sheet applies whether or not the author wrote it.
+
+**Why a textarea and not a tab.** The preview's stylesheet is not a project file -- the file tree, a real
+`styles/*.css` editor and multi-file imports are #391's remaining half -- so a `styles/theme.css` tab and this
+box would be two answers to one question. The sheet is a page-owned input the way the viewport and the DPR
+are: it belongs to all three preview views, it is read at Run time, and it starts from `STARTUP_STYLESHEET`,
+which is **one comment line** so `has_author_stylesheet()` treats it as "no author CSS" and the built-in
+sheet stays in force. A visitor who wants to write CSS has a line to replace rather than an empty box.
+
+**The rule the engine implements (owner decision 2).** A sheet that is not empty and not
+whitespace/comment-only **replaces** the built-in preview sheet; it is never layered under it. Empty or
+comment-only falls back to the built-in sheet byte-for-byte, which is what keeps the bundled sample painting.
+A sheet with one *bad* rule still counts as the author's, so an invalid declaration cannot resurrect the
+built-in look while the page shows the error.
+
+**Where the sheet reaches the sessions.** It travels in the `SourceReader` snapshot, beside the text it
+styles (section 3.3), so a session cannot lay the tree out against a sheet the author no longer has on
+screen. Scene passes it to the `*_styled` export family (folded, sized and plain, chosen per shape) and asks
+`_tessera_css_diagnostics_json` for the parse problems; Canvas passes it to `tessera_canvas_frame`, which
+reports the same problems in its frame document beside the counters. A bad rule therefore costs that rule
+and never blanks the frame: the pane shows the diagnostic while the canvas keeps painting.
+
+**Not in the share link.** The `#p5=` envelope stays `v,s,w,h,d,t,f` (section 4), so a link reproduces the
+source and the environment but not the CSS; the textarea starts from its one-line sample on every load.
+Extending the envelope is a versioned-format decision, not a page change.
 
 ## 4. Old URLs and the share-link migration
 
@@ -431,12 +464,16 @@ breakdown from the same run. A **raise** is a reviewed edit of the pin in the di
 recorded in the budget file's `note` -- `--update` refuses any raise, because a re-pin on a loaded box
 records machine load as headroom. `measurement.calibration_reference_ms` gets the same treatment as
 `encoder`: changing it rebases every latency pin at once, so it is a reviewed edit, never a side effect.
-Out of scope by #392, #422 and #431 and named here so a reader does not infer them: author CSS compilation
-(#390 -- the CSS tab has nothing to compile it yet), the folder picker and the zip drop (**#391's remaining
-half**: the tree renders and selects, but nothing opens a real folder), a real code editor widget (the
-textarea is per file, which is what #431 asks for), pointer input on the canvas (#388), text drawing (#387,
-shipped), conditional children (#389), skins and the picker (#171).
+Out of scope by #392, #422, #431 and #390 and named here so a reader does not infer them: a real
+`styles/*.css` editor and multi-file author stylesheets (**#391's remaining half**; #390 shipped exactly one
+textarea, filed as `ui/Preview.css`), the folder picker and the zip drop (**#391's remaining half**: the tree
+renders and selects, but nothing opens a real folder), a real code editor widget (the textarea is per file,
+which is what #431 asks for), pointer input on the canvas (#388), text drawing (#387, shipped), conditional
+children (#389), skins and the picker (#171). The theme toolbar toggle is still carried-but-not-applied
+([`compiler-wasm.md`](compiler-wasm.md) section 10.2): `assets.theme` did not arrive with #390.
 
-#431 added **no engine feature**: it moved the page's chrome into the layout the issue draws and made the
-editor per file. The Wasm builds stay three modules, the studio stays single-threaded (ADR-045 decision 5),
-and every page-to-engine call stays a message with transferable buffers.
+#431 and #390 added **no engine feature to the page**: #431 moved the page's chrome into the layout the issue
+draws and made the editor per file; #390's page half is one textarea, its hint, one ref and the field each
+session's `SourceReader` snapshot carries. The Wasm builds stay three modules, the studio stays
+single-threaded (ADR-045 decision 5), and every page-to-engine call stays a message with transferable
+buffers.

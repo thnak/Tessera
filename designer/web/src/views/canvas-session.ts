@@ -127,12 +127,18 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
       }
       const viewPtr = handles.importJsTextureView(image);
       // Pointers first, then the numbers: `callExport` marshals the strings and hands the export
-      // `(...pointers, ...numbers)`, which is the shape every export in this page uses.
+      // `(...pointers, ...numbers)`, which is the shape every export in this page uses. The stylesheet
+      // is drained BEFORE the frame because the frame re-evaluates and re-lays out, and its report is
+      // the answer to "what did that layout compute" (issue #390). `tessera_canvas_frame` takes the
+      // stylesheet beside the source; the module reports its problems in the same document.
       report = JSON.parse(
         callExport(
           gpu.module,
           "_tessera_canvas_frame",
-          [target.text, target.file, "", foldPosture],
+          // The stylesheet travels in the same snapshot as the source it styles (issue #390 through #431's
+          // `SourceReader`): `tessera_canvas_frame` takes it beside the source and reports its problems in
+          // the same document, so the frame and the diagnostics are one answer.
+          [target.text, target.file, "", foldPosture, target.stylesheet],
           [viewport.width, viewport.height, dpr, viewPtr],
         ),
       ) as CanvasFrameReport;
@@ -216,8 +222,7 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
         pane.showUnsupported(acquired.error);
         return false;
       }
-      const handover = handOverDevice(module, acquired.device, acquired.queue, canvas);
-      if (handover.error !== undefined) {
+      const handover = handOverDevice(module, acquired.device, acquired.queue, canvas);      if (handover.error !== undefined) {
         pane.showUnsupported(handover.error);
         return false;
       }

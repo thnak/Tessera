@@ -44,8 +44,10 @@
 // docs/design/compiler-wasm.md section 2.1 for why that option is meaningless and harmful in a
 // browser build, and why it stays on the Node-only parity tool instead.
 
+#include "css_diagnostics_report.hpp"
 #include "scene_interaction.hpp"
 #include "scene_preview.hpp"
+#include "scene_stylesheet.hpp"
 #include "tessera/hal/fold_posture.hpp"
 
 #include <cstdlib>
@@ -53,6 +55,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #if defined(__EMSCRIPTEN__)
 #include <emscripten/emscripten.h>
@@ -87,7 +90,8 @@ char* duplicate_out(std::string text) {
 // passes it through this surface rather than adding a fourth export.
 tessera::compiler::codegen::cli::ScenePreviewOptions
 preview_options(const char* file, float width, float height, float dpi_scale,
-                tessera::hal::FoldPosture posture = tessera::hal::FoldPosture::None) {
+                tessera::hal::FoldPosture posture = tessera::hal::FoldPosture::None,
+                const char* stylesheet = nullptr) {
     tessera::compiler::codegen::cli::ScenePreviewOptions options;
     if (file != nullptr && file[0] != '\0') {
         options.file = file;
@@ -97,6 +101,9 @@ preview_options(const char* file, float width, float height, float dpi_scale,
     options.dpi_scale = dpi_scale;
     options.salt = "preview";
     options.posture = posture;
+    // Null or empty is "no author CSS" (issue #390): the preview keeps the built-in fallback, which
+    // is what the plain P2 export, the parity gates and an older page all rely on.
+    options.stylesheet = stylesheet != nullptr ? std::string_view(stylesheet) : std::string_view();
     return options;
 }
 
@@ -124,7 +131,8 @@ tessera::hal::FoldPosture posture_or_none(const char* name, bool& unknown) {
 
 char* document_for(const char* source, const char* file, const char* component, float width,
                    float height, float dpi_scale,
-                   tessera::hal::FoldPosture posture = tessera::hal::FoldPosture::None) {
+                   tessera::hal::FoldPosture posture = tessera::hal::FoldPosture::None,
+                   const char* stylesheet = nullptr) {
     if (source == nullptr) {
         // A page that has not run yet asks for nothing; answer with an empty document rather than a
         // null pointer, so the caller has one shape to handle. The gate's minimum-node guard is
@@ -132,7 +140,7 @@ char* document_for(const char* source, const char* file, const char* component, 
         return duplicate_out("{\"snapshotVersion\":1,\"sequence\":\"0\",\"nodes\":[]}\n");
     }
     return duplicate_out(tessera::compiler::codegen::cli::scene_preview_document(
-        source, preview_options(file, width, height, dpi_scale, posture),
+        source, preview_options(file, width, height, dpi_scale, posture, stylesheet),
         name_or_empty(component)));
 }
 
@@ -146,13 +154,40 @@ char* unknown_posture_document(const std::string_view posture) {
     return duplicate_out(document);
 }
 
+// The input-script document for `source` over the stylesheet `stylesheet`, shared by the two input
+// exports so the unstyled one cannot drift from the styled one (issue #390).
+char* input_document_for(const char* source, const char* file, const char* component,
+                         const char* script, const char* stylesheet) {
+    if (source == nullptr) {
+        return duplicate_out("{\"inputVersion\":1,\"error\":\"no source\",\"steps\":[]}\n");
+    }
+    return duplicate_out(tessera::compiler::codegen::cli::scene_input_document(
+        source,
+        preview_options(file, kDefaultWidth, kDefaultHeight, kDefaultDpiScale,
+                        tessera::hal::FoldPosture::None, stylesheet),
+        name_or_empty(component),
+        script != nullptr ? std::string_view(script) : std::string_view()));
+}
+
 } // namespace
 
 extern "C" {
 
 EMSCRIPTEN_KEEPALIVE const char* tessera_scene_json(const char* source, const char* file,
                                                     const char* component) {
+    // No stylesheet: the pre-#390 signature, kept byte-identical so the P2 parity gate's default
+    // and every caller written before author CSS existed keep the built-in fallback.
     return document_for(source, file, component, kDefaultWidth, kDefaultHeight, kDefaultDpiScale);
+}
+
+// The P2 scene document with the author's stylesheet (issue #390). `stylesheet` is appended after
+// the existing arguments so a page built against the previous module still calls the export above;
+// null or empty means "no author CSS" and produces the same bytes `tessera_scene_json` does.
+EMSCRIPTEN_KEEPALIVE const char* tessera_scene_json_styled(const char* source, const char* file,
+                                                           const char* component,
+                                                           const char* stylesheet) {
+    return document_for(source, file, component, kDefaultWidth, kDefaultHeight, kDefaultDpiScale,
+                        tessera::hal::FoldPosture::None, stylesheet);
 }
 
 EMSCRIPTEN_KEEPALIVE const char* tessera_scene_json_sized(const char* source, const char* file,
@@ -165,6 +200,19 @@ EMSCRIPTEN_KEEPALIVE const char* tessera_scene_json_sized(const char* source, co
     const float h = height > 0 ? static_cast<float>(height) : kDefaultHeight;
     const float scale = dpr > 0.0f ? dpr : kDefaultDpiScale;
     return document_for(source, file, component, w, h, scale);
+}
+
+// The styled, sized form: the Scene view's export once a stylesheet exists (issue #390). The
+// unstyled sized and folded exports are kept because a page published against an older module calls
+// them, and because the parity gates pin their bytes.
+EMSCRIPTEN_KEEPALIVE const char*
+tessera_scene_json_styled_sized(const char* source, const char* file, const char* component,
+                                const char* stylesheet, int width, int height, float dpr) {
+    const float w = width > 0 ? static_cast<float>(width) : kDefaultWidth;
+    const float h = height > 0 ? static_cast<float>(height) : kDefaultHeight;
+    const float scale = dpr > 0.0f ? dpr : kDefaultDpiScale;
+    return document_for(source, file, component, w, h, scale, tessera::hal::FoldPosture::None,
+                        stylesheet);
 }
 
 EMSCRIPTEN_KEEPALIVE const char* tessera_scene_json_folded(const char* source, const char* file,
@@ -186,21 +234,65 @@ EMSCRIPTEN_KEEPALIVE const char* tessera_scene_json_folded(const char* source, c
     return document_for(source, file, component, w, h, scale, posture);
 }
 
+// The folded AND styled form: a fold posture and an author stylesheet are independent inputs, so
+// the page would otherwise have to choose between them (issue #390). `stylesheet` is last, matching
+// `tessera_scene_json_folded`'s pointer-then-number marshalling with one more pointer in front.
+EMSCRIPTEN_KEEPALIVE const char*
+tessera_scene_json_folded_styled(const char* source, const char* file, const char* component,
+                                 const char* fold_posture, const char* stylesheet, int width,
+                                 int height, float dpr) {
+    bool unknown = false;
+    const tessera::hal::FoldPosture posture = posture_or_none(fold_posture, unknown);
+    if (unknown) {
+        return unknown_posture_document(name_or_empty(fold_posture));
+    }
+    const float w = width > 0 ? static_cast<float>(width) : kDefaultWidth;
+    const float h = height > 0 ? static_cast<float>(height) : kDefaultHeight;
+    const float scale = dpr > 0.0f ? dpr : kDefaultDpiScale;
+    return document_for(source, file, component, w, h, scale, posture, stylesheet);
+}
+
 EMSCRIPTEN_KEEPALIVE const char* tessera_input_json(const char* source, const char* file,
                                                     const char* component, const char* script) {
-    if (source == nullptr) {
-        return duplicate_out("{\"inputVersion\":1,\"error\":\"no source\",\"steps\":[]}\n");
-    }
-    return duplicate_out(tessera::compiler::codegen::cli::scene_input_document(
-        source, preview_options(file, kDefaultWidth, kDefaultHeight, kDefaultDpiScale),
-        name_or_empty(component),
-        script != nullptr ? std::string_view(script) : std::string_view()));
+    // The pre-#390 signature, unchanged: the input parity gate pins it, and an older page calls it.
+    // No author CSS, so the built-in fallback applies exactly as it did before this issue.
+    return input_document_for(source, file, component, script, nullptr);
+}
+
+// The styled form (issue #390): a scripted click resolves style against the same sheet the page
+// shows, so its state cells cannot come from a differently styled tree. Null/empty keeps the
+// fallback, which makes this byte-identical to `tessera_input_json` for a caller with no CSS.
+EMSCRIPTEN_KEEPALIVE const char* tessera_input_json_styled(const char* source, const char* file,
+                                                           const char* component,
+                                                           const char* script,
+                                                           const char* stylesheet) {
+    return input_document_for(source, file, component, script, stylesheet);
 }
 
 // The matching release, named as in the diagnostics module so a page reads "the module owns what it
 // returns and I hand it back" from the call site alone.
 EMSCRIPTEN_KEEPALIVE void tessera_free(const char* text) {
     std::free(const_cast<char*>(text));
+}
+
+// The author stylesheet's parse problems (issue #390), as one JSON document on one line:
+//
+//   {"cssVersion":1,"styled":true,"truncated":false,"file":"ui/Preview.css","diagnostics":[...]}
+//
+// `styled:false` means "no author CSS", so the page can say the built-in sheet is in force instead
+// of showing an empty list that reads as "the sheet is fine". Null or empty `stylesheet` always
+// answers `styled:false`, so a page built before this issue still gets a well-formed document.
+//
+// **Why a separate export rather than a field of the snapshot.** The snapshot document is the P2
+// parity artifact and `scene_snapshot_parity.py` pins its bytes; a stylesheet problem is not part
+// of the tree. The diagnostics module cannot carry it either: it links no stylesheet engine by
+// design, so the module that already compiled the sheet is the one that reports it. The writer is
+// `css_diagnostics_report.cpp`.
+EMSCRIPTEN_KEEPALIVE const char* tessera_css_diagnostics_json(const char* stylesheet,
+                                                              const char* stylesheet_file) {
+    return duplicate_out(tessera::compiler::codegen::cli::css_diagnostics_json(
+        stylesheet != nullptr ? std::string_view(stylesheet) : std::string_view(),
+        stylesheet_file != nullptr ? std::string_view(stylesheet_file) : std::string_view()));
 }
 
 } // extern "C"

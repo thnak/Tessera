@@ -2,6 +2,7 @@
 
 #include "scene_evaluate.hpp"
 #include "scene_interaction.hpp"
+#include "scene_stylesheet.hpp"
 #include "tessera/compiler/eval/number_text.hpp"
 #include "tessera/ui/style/compiled_stylesheet.hpp"
 
@@ -18,21 +19,6 @@ namespace tessera::compiler::codegen::cli {
 namespace {
 
 namespace ui = tessera::ui;
-
-// The preview's own stylesheet, identical to the snapshot driver's. It is repeated rather than
-// shared through a header because it is four lines of CSS, and a preview whose snapshot and
-// interaction runs laid out against different sheets would put a silent difference between the two
-// artifacts this slice compares.
-std::string_view preview_stylesheet() {
-    return "View { display: flex; flex-direction: column; }\n"
-           "Text { display: block; height: 24px; font-size: 16px; }\n"
-           "Button { width: 120px; height: 32px; }\n"
-           "TextInput { width: 180px; height: 28px; }\n"
-           "TextArea { width: 180px; height: 64px; }\n"
-           "Image { width: 64px; height: 64px; }\n"
-           "Spacer { height: 8px; }\n"
-           "Scroll { width: 200px; height: 80px; }\n";
-}
 
 void append_quoted(std::string& out, std::string_view text) {
     out.push_back('"');
@@ -183,13 +169,18 @@ InputRunResult run_input_script(std::string_view text, const ScenePreviewOptions
         result.error = std::move(error);
         return result;
     }
-    auto evaluated = evaluate_source(text, options.file, options.salt, component);
+    auto evaluated = evaluate_source(text, options.file, options.salt, component,
+                                     options.stylesheet, options.stylesheet_file);
     if (!evaluated) {
         result.error = evaluated.error().detail;
         return result;
     }
 
-    const ui::style::CompiledStyleSheet sheet = ui::style::compile_stylesheet(preview_stylesheet());
+    // The same choice the snapshot and the canvas make (issue #390): the author's sheet when there
+    // is one, the built-in fallback otherwise. A scripted click must resolve style against the
+    // sheet the page shows, or the state cells it reports would come from a differently styled
+    // tree.
+    const ui::style::CompiledStyleSheet sheet = compile_preview_stylesheet(options.stylesheet);
     PreviewSession::Options session_options;
     session_options.width = options.width;
     session_options.height = options.height;

@@ -19,6 +19,7 @@
 // renders the studio chrome, the engine draws the preview canvas.
 
 import type { CanvasFrameReport } from "./canvas-session";
+import { describeCss, describeCssDetails, type CssDiagnostic } from "./css-diagnostics";
 import type { StatusReporter } from "../lib/views";
 
 /** The elements React committed for the Canvas pane. */
@@ -118,6 +119,10 @@ export function createCanvasPane(
    * the unsupported state rather than a generic failure; a frame with `drawCalls: 0` is a real answer that
    * simply is not a picture, and saying so is the same choice the Scene view makes about an empty
    * document.
+   *
+   * **A stylesheet problem is not a failed frame** (issue #390). The parser is tolerant, so a bad rule
+   * costs that rule: the report's `cssDiagnostics` are shown *beside* the counters, and the frame is
+   * still drawn. Only `error` -- "no frame at all" -- reaches `showFailed`.
    */
   function renderReport(report: CanvasFrameReport): void {
     if (report.hasDevice !== true) {
@@ -134,14 +139,72 @@ export function createCanvasPane(
     if (pane.statusFrame) {
       pane.statusFrame.textContent = `${report.width}x${report.height}, ${report.drawCalls} draw call(s)`;
     }
+    const problems = report.cssDiagnostics ?? [];
+    renderCssProblems(pane, problems, report.cssDiagnosticsTruncated === true);
     if (report.error) {
       showFailed(report.error);
-    } else if (report.drawCalls === 0) {
-      setStatus("no draw calls (the source produced no painted boxes)", "warning");
-    } else {
-      setStatus("drew " + report.drawCalls + " draw call(s)", "ok");
+      return;
     }
+    if (report.drawCalls === 0) {
+      setStatus(
+        problems.length === 0
+          ? "no draw calls (the source produced no painted boxes)"
+          : cssStatus(problems, "no draw calls"),
+        "warning",
+      );
+      return;
+    }
+    setStatus(
+      problems.length === 0
+        ? "drew " + report.drawCalls + " draw call(s)"
+        : cssStatus(problems, "drew " + report.drawCalls + " draw call(s)"),
+      problems.length === 0 ? "ok" : "warning",
+    );
   }
 
   return { elements: pane, setStatus, showUnsupported, showFailed, hideStates, setFontState, renderReport };
+}
+
+/**
+ * The stylesheet problems, in the pane's failed area (issue #390).
+ *
+ * They go in `failedBody`, which is the pane's own diagnostics area and already styled as a named
+ * state, and the *heading* stays hidden: the stylesheet is a warning, not a failed preview. That
+ * combination is deliberate -- the paragraph is visible with the problems while the frame above it is
+ * still the author's screen, which is exactly "a bad rule must not blank the frame".
+ *
+ * Writing into a React-rendered element's `textContent` is the same rule every session follows: React
+ * rendered it childless and never reconciles it again (ADR-054 decision 3).
+ */
+function renderCssProblems(
+  pane: CanvasPaneElements,
+  problems: CssDiagnostic[],
+  truncated: boolean,
+): void {
+  if (problems.length === 0) {
+    pane.failedBody.textContent = "";
+    return;
+  }
+  const details = describeCssDetails({
+    cssVersion: 1,
+    styled: true,
+    truncated,
+    file: problems[0].file,
+    diagnostics: problems,
+  });
+  pane.failedBody.textContent = details + (truncated ? "\n(more problems than the report carries)" : "");
+  // The box is shown so the text is visible, but the heading is not the failure heading: React owns
+  // its text, so it is left alone and the box reads as the diagnostics list it is.
+  pane.failed.hidden = false;
+}
+
+/** `drew 4 draw call(s) · css 2 problem(s)` -- one sentence, the counters first. */
+function cssStatus(problems: CssDiagnostic[], unless: string): string {
+  return unless + describeCss({
+    cssVersion: 1,
+    styled: true,
+    truncated: false,
+    file: problems[0].file,
+    diagnostics: problems,
+  });
 }

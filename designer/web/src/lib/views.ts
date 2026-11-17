@@ -81,6 +81,23 @@ export interface SourceSnapshot {
    * instead of selecting an offset in a different document.
    */
   shown: boolean;
+  /**
+   * The author stylesheet's text, compiled beside `text` (issue #390).
+   *
+   * It travels in the snapshot rather than in a second reader because the two are one question: the sheet
+   * is *how the compiled file looks*, so a session that asked for one without the other could lay the
+   * source out against a sheet the author did not write. `""` means "no author CSS" and keeps the built-in
+   * preview sheet, which is the fallback every sample and every pre-#390 artifact relies on.
+   */
+  stylesheet: string;
+  /**
+   * The virtual project file that sheet is filed under: `ui/Preview.css` by default.
+   *
+   * A source's `import "./Preview.css";` resolves to this text instead of a missing file, so the import is
+   * optional rather than required -- the sheet applies either way, because the author typed it for the
+   * screen in front of them.
+   */
+  stylesheetFile: string;
 }
 
 export interface SourceReader {

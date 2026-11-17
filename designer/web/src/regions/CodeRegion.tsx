@@ -148,6 +148,7 @@ export function CodeRegion({
   text,
   revision,
   sourceRef,
+  stylesheetRef,
   editorHintRef,
   onSelectTab,
   onCloseTab,
@@ -173,6 +174,8 @@ export function CodeRegion({
    */
   revision: number;
   sourceRef: React.RefObject<HTMLTextAreaElement | null>;
+  /** The author stylesheet's textarea (issue #390), rendered below `#source` in this same column. */
+  stylesheetRef: React.RefObject<HTMLTextAreaElement | null>;
   editorHintRef: React.RefObject<HTMLParagraphElement | null>;
   onSelectTab: (path: string) => void;
   onCloseTab: (path: string) => void;
@@ -241,6 +244,39 @@ export function CodeRegion({
           onInput={(event) => onEdit(event.currentTarget.value)}
         />
       </div>
+
+      {/* The author stylesheet (issue #390). A second textarea rather than a mode switch or a tab,
+          because the two are edited together: the source is what the screen *is* and the stylesheet is
+          what it *looks like*, and Run sends both. It is filed as `PREVIEW_STYLESHEET_FILE`
+          (`ui/Preview.css`), so a source's `import "./Preview.css";` is this textarea, and the sheet
+          applies even without that import. It is not a project file -- opening `styles/theme.css` in a
+          tab edits that file, which the preview does not compile yet (#391) -- so the sheet lives here,
+          beside the source it styles, rather than in the file tree.
+
+          The value is uncontrolled and read at Run time, like `#source`: the page's `SourceReader`
+          drains it into the snapshot each session receives (ADR-054 decision 3). A stylesheet in React
+          state would re-render the page on every keystroke, around a live WebGPU surface. */}
+      <div className="editor-subheader">
+        <h2 id="stylesheet-heading">Stylesheet</h2>
+      </div>
+      <label htmlFor="stylesheet" className="visually-hidden">
+        Author stylesheet, applied as ui/Preview.css
+      </label>
+      <textarea
+        id="stylesheet"
+        ref={stylesheetRef}
+        spellCheck={false}
+        autoCapitalize="off"
+        autoComplete="off"
+        autoCorrect="off"
+        wrap="off"
+        rows={6}
+        aria-describedby="stylesheet-note"
+      />
+      <p className="hint" id="stylesheet-note">
+        Applied as <code>ui/Preview.css</code>. Any CSS here <strong>replaces</strong> the built-in
+        preview sheet; leave it empty to keep the built-in look.
+      </p>
 
       {/* The hint belongs to the page, not to a view: the editor is shared by the three preview panes,
           and a hint that said "a diagnostics run has no viewport" while the preview showed the canvas
