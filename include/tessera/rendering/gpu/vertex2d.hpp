@@ -22,9 +22,24 @@ struct Vertex2D {
     float half_height = 0;
     float radius = 0;
     float mode = 0;
+    // The carved-out box of a box shadow (issue #461): xy = its centre relative to the quad centre
+    // (local px), zw = its half size. A shadow is painted only outside this box (CSS Backgrounds 3
+    // section 7.1.1 clips an outer shadow inside the border box), and its corner radius is read
+    // back from `radius` minus the box's inset. Zero (the default) subtracts nothing, so every
+    // other primitive keeps the 44-byte prefix it always had and the shader's carve branch is
+    // skipped.
+    float carve_x = 0;
+    float carve_y = 0;
+    float carve_half_width = 0;
+    float carve_half_height = 0;
 };
 
-static_assert(sizeof(Vertex2D) == 44, "Vertex2D layout must stay stable");
+// 44 bytes of long-standing layout plus the 16-byte carve box the soft-shadow fragment stage needs.
+// The carve is per primitive, so it rides in the vertex stream: putting it in the push-constant
+// block would make it per draw and split the batch around every shadow (the batch key is texture,
+// scissor and folded clip state), and the 112-byte block has no room left inside Vulkan's 128-byte
+// minimum. See docs/design/gpu/box-shadow-clipping.md.
+static_assert(sizeof(Vertex2D) == 60, "Vertex2D layout must stay stable");
 
 // `Vertex2D::mode`: 0 solid, 1 rounded rect, 2 textured, and 3 + w for a rounded-rect outline of
 // stroke width w (the shaders read the width back as mode - 3).
@@ -36,7 +51,9 @@ inline constexpr float kRingModeBase = 3.0f;
 // the raw FreeType coverage reads thinner (about 25 % less ink on white-on-blue labels).
 inline constexpr float kCoverageBoostScale = 4.0f;
 // A soft (Gaussian) shadow is mode kSoftShadowModeBase + sigma; the quad is the shadow box grown by
-// kSoftShadowReach * sigma on every side, which the shader subtracts again to find the box.
+// kSoftShadowReach * sigma on every side, which the shader subtracts again to find the box. sigma 0
+// is the hard-edged shadow (`box-shadow: 4px 4px 0`): the same quad and the same carve test, with a
+// coverage step instead of the Gaussian.
 inline constexpr float kSoftShadowModeBase = 1024.0f;
 inline constexpr float kSoftShadowReach = 2.0f;
 
@@ -48,9 +65,10 @@ inline constexpr rhi::VertexAttribute kVertex2DAttributes[] = {
     {4, static_cast<std::uint32_t>(offsetof(Vertex2D, half_width)), rhi::VertexFormat::Float2},
     {5, static_cast<std::uint32_t>(offsetof(Vertex2D, radius)), rhi::VertexFormat::Float},
     {6, static_cast<std::uint32_t>(offsetof(Vertex2D, mode)), rhi::VertexFormat::Float},
+    {7, static_cast<std::uint32_t>(offsetof(Vertex2D, carve_x)), rhi::VertexFormat::Float4},
 };
 
-inline constexpr std::uint32_t kVertex2DAttributeCount = 7;
+inline constexpr std::uint32_t kVertex2DAttributeCount = 8;
 inline constexpr std::uint32_t kVertex2DStride = sizeof(Vertex2D);
 
 // Push-constant block shared by the batched2d vertex and fragment stages. `clips` carries the

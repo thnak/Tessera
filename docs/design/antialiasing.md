@@ -32,6 +32,19 @@ color.a *= alpha;
 - **SDF edges are screen-space.** The edge half-width is `aa_radius` device pixels, converted to
   local units with the derivative of the interpolated local coordinate, so a scaled or rotated quad
   keeps the same edge width (display-aware-rendering.md S2).
+- **Rounded clips are hard-edged.** The batched2d fragment stage multiplies alpha to 0 outside each
+  rounded clip (also without `discard`), so the clip boundary itself has no coverage AA: at 1× DPI a
+  rounded clip corner and its straight edges are aliased until MSAA lands. The clip test uses the
+  same pixel-center rule as rasterization, so it is deterministic in golden mode and never writes
+  outside the clip. MSAA (which would smooth both geometry and clip edges) remains unimplemented.
+- **A box shadow's border-box carve is hard-edged too** ([paint-pass.md](paint-pass.md) section 5,
+  issue #461). The shadow quad multiplies its coverage by 0 inside the element's rounded border box
+  with a sign test, not a smoothstep: CSS clips an outer shadow at the border edge with no coverage
+  ramp, and the element's own AA'd background sits on that edge, so a ramp would double-blend the
+  boundary. It is the same deterministic pixel-center rule the clip mask uses, and the *shadow's*
+  own edge keeps its Gaussian (or, for `sigma = 0`, the same SDF `smoothstep` a rounded fill uses).
+  On the flattening sinks the subtraction is four rectangles, so a rounded shadow loses its corner
+  triangles (bounds approximation, section 2.2).
 
 ## 2. What is not covered
 
@@ -43,6 +56,8 @@ color.a *= alpha;
 | Vector paths/strokes | [ADR-004](../../decisions/ADR-004-buy-vector-path-rasterization.md) (ThorVG/Skia); no path rasterizer yet |
 | Lines/circles/arbitrary shapes | Only rounded-box SDF; no general SDF |
 | Rounded clip edges | AA coverage from the clip SDF with AA on; hard pixel-center mask in golden mode; alpha 0, not `discard` |
+| Rounded clip edges | Hard pixel-center coverage mask (no clip AA); uses alpha 0, not `discard` |
+| Box-shadow border-box carve | Hard pixel-center cut at the rounded border box (CSS clips with no ramp); the shadow's own edge keeps its Gaussian / SDF AA |
 | MSAA | 4x color targets implemented (opt-in); 8x/per-format/depth MSAA deferred |
 | FXAA/TAA/post-process | Not implemented |
 | Transforms/DPI (device pixel ratio, see "DPI scale" in the glossary) | SDF edge width is `aa_radius` device pixels at any scale or rotation (S2); window integration of the display-aware policy is pending |

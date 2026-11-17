@@ -29,6 +29,10 @@
       "tolerance": 1,
       "max_mismatch": 0.001
     },
+    "batched2d_shadow_golden": {
+      "tolerance": 0,
+      "max_mismatch": 0.0
+    },
     "batched2d_shapes_golden": {
       "tolerance": 0,
       "max_mismatch": 0.0

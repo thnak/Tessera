@@ -52,6 +52,10 @@ Rules:
 - No implicit packing, padding, or semantic inference.
 - Stride/offset overflow and overlapping attributes are validation errors.
 - The same logical layout maps to Vulkan vertex input and WebGPU vertex buffers.
+- `Vertex2D` is 60 bytes: the long-standing 44-byte core (position, uv, colour, local, half size,
+  radius, mode) plus a 16-byte `carve` box (centre offset and half size) at location 7. The carve is
+  the element's border box for a box shadow (issue #461): it is per primitive, so it rides in the
+  vertex stream rather than the push-constant block, whose values are per draw batch (see section 6).
 
 ## 5. Fixed state
 
@@ -80,7 +84,9 @@ Custom elements:
   minimum): `vec2 viewport`, `float aa_radius`, `uint clip_count`, then up to three
   `{vec4 rect; vec4 radii}` rounded-clip uniforms. The vertex and fragment stages declare the same
   block; the block is pushed per draw batch (the renderer splits a batch only when the texture,
-  scissor, or folded clip uniform set changes).
+  scissor, or folded clip uniform set changes). Per-primitive data therefore belongs in the vertex
+  stream, not here: the 16 bytes left in the minimum would also turn every shadow into its own batch
+  (that is why a box shadow's carve box is a vertex attribute, section 4).
 - Descriptor sets are frame-slot safe; never mutate a set while a frame using it is in flight.
 - Bindless/array descriptors are deferred.
 

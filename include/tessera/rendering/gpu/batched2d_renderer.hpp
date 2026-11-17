@@ -60,6 +60,17 @@ struct CullStats {
     std::uint32_t quads_culled_empty_scissor = 0; // dropped because the scissor has no area
 };
 
+// The carved-out box of a box shadow in local px: centre relative to the quad centre and half size.
+// All zero subtracts nothing (every primitive other than a shadow quad). Declared at namespace
+// scope, not inside the renderer, so a default argument may use it (a nested class's default member
+// initializers are not available while the enclosing class is still incomplete).
+struct ShadowCarveBox {
+    float x = 0;
+    float y = 0;
+    float half_width = 0;
+    float half_height = 0;
+};
+
 // The batched 2D renderer. It owns the frame and pass lifecycle, the transform and scissor stacks
 // and the emit calls; the state clusters that used to live inside it are collaborators
 // (god-type audit slice 8, docs/architecture/god-type-audit-v1.md section 3.5):
@@ -179,8 +190,13 @@ public:
     void push_rounded_ring(const rhi::Rect& rect, rhi::Color color, float radius, float width);
     // A box shadow with a Gaussian edge of standard deviation `sigma` around the rounded `box`. One
     // quad covering the box grown by 2 sigma; the fragment shader evaluates the blurred coverage
-    // from the box's signed distance, so the falloff is continuous instead of stepped.
-    void push_soft_shadow(const rhi::Rect& box, rhi::Color color, float radius, float sigma);
+    // from the box's signed distance, so the falloff is continuous instead of stepped. `carve` is
+    // the element's border box: CSS paints an outer shadow only outside it (CSS Backgrounds 3
+    // section 7.1.1), so the shader multiplies the coverage by 0 inside it. An empty `carve` paints
+    // the whole Gaussian. `sigma` 0 draws the hard-edged shadow (`box-shadow: 4px 4px 0`) through
+    // the same quad and carve, with a coverage step instead of the Gaussian.
+    void push_soft_shadow(const rhi::Rect& box, const rhi::Rect& carve, rhi::Color color,
+                          float radius, float sigma);
     // `coverage_boost` (1 to 2) scales the sampled alpha before blending; glyph runs use it.
     void push_texture(const rhi::Rect& rect, rhi::Texture& texture, const rhi::Rect& uv,
                       rhi::Color color, float coverage_boost = 1.0f);
@@ -214,7 +230,7 @@ private:
     void bind_frame_state();
     void flush_batch();
     void emit_quad(const rhi::Rect& rect, const rhi::Rect& uv, rhi::Color color, float radius,
-                   float mode, rhi::Texture* texture);
+                   float mode, rhi::Texture* texture, const ShadowCarveBox& carve = {});
     // True when the quad's device-space bounds cannot touch any pixel the frame will draw.
     [[nodiscard]] bool cull_quad(const rhi::Rect& rect);
     void update_push_constants(std::uint32_t state_index);

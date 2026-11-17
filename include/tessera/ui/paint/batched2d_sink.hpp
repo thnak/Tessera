@@ -124,11 +124,10 @@ public:
     void fill_rounded_rect(const rhi::Rect& rect, const rhi::Color& color, float radius) override;
     void fill_rounded_ring(const rhi::Rect& rect, const rhi::Color& color, float radius,
                            float width) override;
-    [[nodiscard]] bool supports_soft_shadow() const override {
+    [[nodiscard]] bool supports_box_shadow() const override {
         return true;
     }
-    void fill_soft_shadow(const rhi::Rect& box, const rhi::Color& color, float radius,
-                          float sigma) override;
+    void fill_box_shadow(const BoxShadowDraw& draw) override;
     void fill_linear_gradient(const GradientDraw& draw) override;
     void push_clip(const RoundedClip& clip) override;
     void pop_clip() override;

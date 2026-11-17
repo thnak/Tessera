@@ -104,9 +104,16 @@ void replay_paint_ops(const std::vector<PaintOp>& ops, PaintSink& sink) {
         case PaintOp::Kind::FillRoundedRing:
             sink.fill_rounded_ring(op.rect, op.color, op.radius, op.ring_width);
             break;
-        case PaintOp::Kind::FillSoftShadow:
-            sink.fill_soft_shadow(op.rect, op.color, op.radius, op.ring_width);
+        case PaintOp::Kind::FillBoxShadow: {
+            BoxShadowDraw draw;
+            draw.box = op.rect;
+            draw.carve = op.clip;
+            draw.color = op.color;
+            draw.radius = op.radius;
+            draw.sigma = op.ring_width;
+            sink.fill_box_shadow(draw);
             break;
+        }
         case PaintOp::Kind::FillLinearGradient:
             sink.fill_linear_gradient(op.gradient);
             break;
@@ -196,20 +203,22 @@ void PaintCache::Recorder::fill_rounded_ring(const rhi::Rect& rect, const rhi::C
     target_.fill_rounded_ring(rect, color, radius, width);
 }
 
-bool PaintCache::Recorder::supports_soft_shadow() const {
-    return target_.supports_soft_shadow();
+bool PaintCache::Recorder::supports_box_shadow() const {
+    return target_.supports_box_shadow();
 }
 
-void PaintCache::Recorder::fill_soft_shadow(const rhi::Rect& box, const rhi::Color& color,
-                                            float radius, float sigma) {
+void PaintCache::Recorder::fill_box_shadow(const BoxShadowDraw& draw) {
     PaintOp op;
-    op.kind = PaintOp::Kind::FillSoftShadow;
-    op.rect = box;
-    op.color = color;
-    op.radius = radius;
-    op.ring_width = sigma;
+    op.kind = PaintOp::Kind::FillBoxShadow;
+    op.rect = draw.box;
+    // The carve box rides in clip, whose radii already carry the border radius, so the record
+    // needs no second rect and PaintOp keeps its size (the paint-cache byte budget).
+    op.clip = draw.carve;
+    op.color = draw.color;
+    op.radius = draw.radius;
+    op.ring_width = draw.sigma;
     record(std::move(op));
-    target_.fill_soft_shadow(box, color, radius, sigma);
+    target_.fill_box_shadow(draw);
 }
 
 void PaintCache::Recorder::fill_linear_gradient(const GradientDraw& draw) {

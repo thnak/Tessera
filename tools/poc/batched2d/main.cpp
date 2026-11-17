@@ -77,6 +77,10 @@ struct Options {
     bool golden = false;
     bool overlay = false;
     bool shapes = false;
+    // Issue #461: a transparent box with an outer shadow must paint nothing inside its own border
+    // box. One fixed scene, so the lavapipe golden and the local GPU/Chrome comparison use the
+    // same geometry.
+    bool shadow_clip = false;
     bool cpu_text = false;
     bool cpu_vector = false;
     bool cpu_image = false;
@@ -128,16 +132,17 @@ tessera::rendering::rhi::SurfacePlatform surface_platform_for(const tessera::hal
 }
 
 void print_usage() {
-    std::cout << "usage: batched2d_poc [--backend vulkan|null] [--out path] [--raw path]\n"
-                 "                     [--width N] [--height N] [--validation] [--golden]\n"
-                 "                     [--damage x,y,w,h]... [--font path.ttf] [--text string]\n"
-                 "                     [--text-size N] [--compare golden.png] [--tolerance N]\n"
-                 "                     [--max-mismatch ratio] [--overlay] [--shapes] "
-                 "[--cpu-text] [--cpu-vector] [--cpu-image] [--msaa N] [--simulate-loss] [--report "
-                 "report.json]\n"
-                 "                     [--frame-budget ms] [--frame-ms ms]\n"
-                 "                     [--diff diff.png] [--windowed [--frames N]] [--on-demand "
-                 "[--run-seconds S]]\n";
+    std::cout
+        << "usage: batched2d_poc [--backend vulkan|null] [--out path] [--raw path]\n"
+           "                     [--width N] [--height N] [--validation] [--golden]\n"
+           "                     [--damage x,y,w,h]... [--font path.ttf] [--text string]\n"
+           "                     [--text-size N] [--compare golden.png] [--tolerance N]\n"
+           "                     [--max-mismatch ratio] [--overlay] [--shapes] [--shadow-clip] "
+           "[--cpu-text] [--cpu-vector] [--cpu-image] [--msaa N] [--simulate-loss] [--report "
+           "report.json]\n"
+           "                     [--frame-budget ms] [--frame-ms ms]\n"
+           "                     [--diff diff.png] [--windowed [--frames N]] [--on-demand "
+           "[--run-seconds S]]\n";
 }
 
 bool parse_options(int argc, char** argv, Options& options) {
@@ -165,6 +170,8 @@ bool parse_options(int argc, char** argv, Options& options) {
             options.overlay = true;
         } else if (arg == "--shapes") {
             options.shapes = true;
+        } else if (arg == "--shadow-clip") {
+            options.shadow_clip = true;
         } else if (arg == "--cpu-text") {
             options.cpu_text = true;
         } else if (arg == "--cpu-vector") {
@@ -356,6 +363,45 @@ void build_shapes(tessera::rendering::gpu::Batched2DRenderer& renderer,
     }
     renderer.pop_transform();
     renderer.pop_scissor();
+}
+
+// Issue #461: an outer box-shadow is painted only outside the border box (CSS Backgrounds 3 section
+// 7.1.1), so a transparent box shows the page through its own (rounded) box. Four cases pin it: a
+// transparent square box, a transparent rounded box, and the same shadow under an opaque fill in
+// both shapes - where the carve changes no visible pixel, because the fill covers it.
+void build_shadow_clip(tessera::rendering::gpu::Batched2DRenderer& renderer, std::uint32_t width,
+                       std::uint32_t height) {
+    using tessera::rendering::rhi::rgba8;
+
+    const auto page = rgba8(255, 255, 255);
+    const auto card = rgba8(30, 41, 59);
+    const auto shadow = rgba8(0, 0, 0, 77); // rgba(0, 0, 0, 0.3)
+    constexpr float kBlur = 8.0f;
+    constexpr float kSigma = kBlur * 0.5f;
+    constexpr float kOffsetY = 2.0f;
+
+    renderer.push_rect({0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height)}, page);
+
+    const auto draw_case = [&](float x, float y, float w, float h, float radius,
+                               tessera::rendering::rhi::Color fill) {
+        const tessera::rendering::rhi::Rect carve{x, y, w, h};
+        const tessera::rendering::rhi::Rect box{x, y + kOffsetY, w, h};
+        // Shadow first: paint order puts it beneath the node's own fill.
+        renderer.push_soft_shadow(box, carve, shadow, radius, kSigma);
+        if (fill.a > 0.0f) {
+            if (radius > 0.0f) {
+                renderer.push_rounded_rect(carve, fill, radius);
+            } else {
+                renderer.push_rect(carve, fill);
+            }
+        }
+    };
+
+    const tessera::rendering::rhi::Color transparent = rgba8(0, 0, 0, 0);
+    draw_case(24.0f, 24.0f, 96.0f, 64.0f, 0.0f, transparent);
+    draw_case(152.0f, 24.0f, 96.0f, 64.0f, 16.0f, transparent);
+    draw_case(24.0f, 124.0f, 96.0f, 64.0f, 12.0f, card);
+    draw_case(152.0f, 124.0f, 96.0f, 64.0f, 0.0f, card);
 }
 
 std::unique_ptr<tessera::poc::batched2d::TextDemo>
@@ -565,7 +611,9 @@ int run_vulkan(const Options& options) {
     auto text_demo = make_text_demo(*device, options);
     tessera::poc::batched2d::begin_with_damage(renderer, *commands, *target, target_desc,
                                                options.damage);
-    if (options.shapes) {
+    if (options.shadow_clip) {
+        build_shadow_clip(renderer, options.width, options.height);
+    } else if (options.shapes) {
         build_shapes(renderer, *checker, options.width, options.height);
     } else {
         build_screen(renderer, *checker, options.width, options.height);
@@ -628,7 +676,9 @@ int run_null(const Options& options) {
     auto text_demo = make_text_demo(*device, options);
     tessera::poc::batched2d::begin_with_damage(renderer, *commands, *target, target_desc,
                                                options.damage);
-    if (options.shapes) {
+    if (options.shadow_clip) {
+        build_shadow_clip(renderer, options.width, options.height);
+    } else if (options.shapes) {
         build_shapes(renderer, *checker, options.width, options.height);
     } else {
         build_screen(renderer, *checker, options.width, options.height);

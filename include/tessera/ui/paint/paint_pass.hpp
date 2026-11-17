@@ -47,7 +47,7 @@ struct PaintStats {
     std::size_t vectors = 0;         // embedded-vector draws emitted (PaintKind::Vector)
     std::size_t images = 0;          // raster-image draws emitted (PaintKind::Image)
     std::size_t gradients = 0;       // linear-gradient fills emitted
-    std::size_t shadows = 0;         // box-shadow fills emitted (one per blur layer)
+    std::size_t shadows = 0;         // box-shadow primitives emitted (one per shadow layer)
     std::size_t transforms = 0;      // nodes painted in their own transformed frame
     std::size_t backdrops = 0;       // glass backdrop draws emitted
 };
