@@ -1,7 +1,7 @@
 # ADR-056: Generated components update only what changed: dependency masks, and children are scheduled, never called
 
-- Status: Proposed (2026-11-17; owner direction recorded in issue #440: pick the best fix, large
-  changes accepted while the framework is new; the text below is awaiting acceptance)
+- Status: Accepted (2026-11-17; owner direction in issue #440: pick the best fix, large changes accepted
+  while the framework is new; owner confirmed the proposal and slices "yes")
 - Date: 2026-11-17
 - Related: [observable.md](../docs/design/observable.md) section 7 (the measurement this decision
   answers), [component-model-v1.md](../docs/specs/component-model-v1.md) section 2 (hooks and
