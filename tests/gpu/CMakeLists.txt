@@ -360,6 +360,13 @@ if (TARGET tessera_rhi_vulkan)
     add_test(NAME glass_paint_gpu COMMAND glass_paint_gpu_tests)
     set_tests_properties(glass_paint_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
 
+    # Screen-space SDF edges and rounded-clip AA (display-aware-rendering.md S2 and S4).
+    add_executable(aa_edge_tests
+        batched2d/aa_edge_tests.cpp)
+    target_link_libraries(aa_edge_tests PRIVATE tessera_gpu tessera_rhi_vulkan)
+    add_test(NAME aa_edge COMMAND aa_edge_tests)
+    set_tests_properties(aa_edge PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+
     add_executable(msaa_tests
         batched2d/msaa_tests.cpp)
     target_link_libraries(msaa_tests PRIVATE tessera_gpu tessera_rhi_vulkan)

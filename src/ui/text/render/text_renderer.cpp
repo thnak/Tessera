@@ -58,7 +58,22 @@ struct TextRenderer::Impl {
         active = &scale_atlas.atlas_for(quantized);
     }
 
+    // Hinting change: every atlas and page texture is stale. The active atlas is rebuilt in place
+    // (its pointer died with the release), so the next draw re-rasterizes on demand.
+    void apply_hinting(GlyphHinting hinting) {
+        if (hinting == scale_atlas.hinting()) {
+            return;
+        }
+        scale_atlas.set_hinting(hinting);
+        for (std::vector<PageTexture>& step : textures) {
+            step.clear();
+        }
+        active = &scale_atlas.atlas_for(render_scale);
+    }
+
     rendering::rhi::Device* device = nullptr;
+    bool subpixel_position = false;
+    std::vector<std::uint8_t> subpixels;
     ScaleGlyphAtlas scale_atlas;
     float render_scale = scale::kMinRenderScale;
     std::size_t active_step = 0;
@@ -91,6 +106,24 @@ float TextRenderer::render_scale() const {
     return impl_->render_scale;
 }
 
+void TextRenderer::set_aa_policy(const scale::AaPolicy& policy) {
+    // Hinting first: select() releases the step being left, and apply_hinting() re-creates the
+    // active atlas, so doing it in this order never leaves `active` pointing at a released slot.
+    impl_->apply_hinting(policy.hinting == scale::TextHinting::Light  ? GlyphHinting::Light
+                         : policy.hinting == scale::TextHinting::None ? GlyphHinting::None
+                                                                      : GlyphHinting::Font);
+    impl_->select(policy.render_scale);
+    impl_->subpixel_position = policy.subpixel_position;
+}
+
+GlyphHinting TextRenderer::hinting() const {
+    return impl_->scale_atlas.hinting();
+}
+
+bool TextRenderer::subpixel_position() const {
+    return impl_->subpixel_position;
+}
+
 float TextRenderer::draw(rendering::gpu::Batched2DRenderer& renderer, const ShapedRun& run, float x,
                          float baseline_y, std::uint16_t pixel_size, rendering::rhi::Color color) {
     if (run.glyphs.empty() || pixel_size == 0) {
@@ -104,8 +137,21 @@ float TextRenderer::draw(rendering::gpu::Batched2DRenderer& renderer, const Shap
     // this run.
     impl_->entries.clear();
     impl_->used_pages.clear();
+    impl_->subpixels.clear();
+    // Subpixel positioning: each glyph origin keeps a quarter-pixel fraction, which selects the
+    // atlas bitmap rasterized at that offset. The pen walk must therefore run before the lookup.
+    float lookup_pen = x;
     for (const Glyph& glyph : run.glyphs) {
-        impl_->entries.push_back(atlas.get_glyph(glyph.id, pixel_size, glyph.face));
+        std::uint8_t subpixel = 0;
+        if (impl_->subpixel_position) {
+            const float origin = lookup_pen + glyph.x_offset;
+            const float fraction = origin - std::floor(origin);
+            subpixel = static_cast<std::uint8_t>(std::clamp(
+                std::lround(fraction * kSubpixelSteps), 0L, static_cast<long>(kSubpixelSteps) - 1));
+        }
+        impl_->subpixels.push_back(subpixel);
+        lookup_pen += glyph.advance;
+        impl_->entries.push_back(atlas.get_glyph(glyph.id, pixel_size, glyph.face, subpixel));
         const GlyphAtlasEntry& entry = impl_->entries.back();
         if (entry.has_bitmap && std::find(impl_->used_pages.begin(), impl_->used_pages.end(),
                                           entry.page) == impl_->used_pages.end()) {
@@ -152,8 +198,14 @@ float TextRenderer::draw(rendering::gpu::Batched2DRenderer& renderer, const Shap
             // pixel grid blends each row with its neighbour: thin strokes go faint and the last
             // descender row fades. Both axes snap to whole pixels (a browser does the same for
             // grayscale text); the pen keeps its fractional advance so spacing does not drift.
+            // With subpixel positioning the bitmap already carries the fraction, so the quad sits
+            // on the floor of the origin; otherwise the whole origin rounds as before. A fraction
+            // that rounded up to the next quarter step stays below 1.0 (clamped above), so floor
+            // and the bitmap offset can never disagree by a whole pixel.
             const float left =
-                std::round(pen_x + glyph.x_offset + static_cast<float>(entry.bearing_x));
+                impl_->subpixel_position
+                    ? std::floor(pen_x + glyph.x_offset) + static_cast<float>(entry.bearing_x)
+                    : std::round(pen_x + glyph.x_offset + static_cast<float>(entry.bearing_x));
             const float top =
                 std::round(baseline_y - glyph.y_offset - static_cast<float>(entry.bearing_y));
             const rendering::rhi::Rect uv{

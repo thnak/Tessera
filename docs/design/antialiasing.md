@@ -24,11 +24,14 @@ color.a *= alpha;
   This avoids requiring `shaderDemoteToHelperInvocation`.
 - AA is applied to SDF rounded rects (including borders built from them). It is not a
   post-process or a multisample pass.
-- **Rounded clips are hard-edged.** The batched2d fragment stage multiplies alpha to 0 outside each
-  rounded clip (also without `discard`), so the clip boundary itself has no coverage AA: at 1× DPI a
-  rounded clip corner and its straight edges are aliased until MSAA lands. The clip test uses the
-  same pixel-center rule as rasterization, so it is deterministic in golden mode and never writes
-  outside the clip. MSAA (which would smooth both geometry and clip edges) remains unimplemented.
+- **Rounded clips are anti-aliased with AA on.** The batched2d fragment stage multiplies alpha by the
+  clip's own signed-distance coverage over +/- `aa_radius` device pixels (also without `discard`); a
+  pixel-aligned clip edge stays exactly opaque inside and untouched outside. With `aa_radius` 0
+  (golden mode) the clip is the hard pixel-center test, so it is deterministic and never writes
+  outside the clip.
+- **SDF edges are screen-space.** The edge half-width is `aa_radius` device pixels, converted to
+  local units with the derivative of the interpolated local coordinate, so a scaled or rotated quad
+  keeps the same edge width (display-aware-rendering.md S2).
 
 ## 2. What is not covered
 
@@ -39,10 +42,10 @@ color.a *= alpha;
 | Text/glyphs | Text stack/atlas is B2 ([`text.md`](text.md)); expected FreeType/atlas AA + subpixel policy |
 | Vector paths/strokes | [ADR-004](../../decisions/ADR-004-buy-vector-path-rasterization.md) (ThorVG/Skia); no path rasterizer yet |
 | Lines/circles/arbitrary shapes | Only rounded-box SDF; no general SDF |
-| Rounded clip edges | Hard pixel-center coverage mask (no clip AA); uses alpha 0, not `discard` |
+| Rounded clip edges | AA coverage from the clip SDF with AA on; hard pixel-center mask in golden mode; alpha 0, not `discard` |
 | MSAA | 4x color targets implemented (opt-in); 8x/per-format/depth MSAA deferred |
 | FXAA/TAA/post-process | Not implemented |
-| Transforms/DPI (device pixel ratio, see "DPI scale" in the glossary) | AA radius is fixed in local units (0.5); scaled/rotated quads may get a different screen-space width |
+| Transforms/DPI (device pixel ratio, see "DPI scale" in the glossary) | SDF edge width is `aa_radius` device pixels at any scale or rotation (S2); window integration of the display-aware policy is pending |
 | Golden coverage | CPU goldens stay 1-sample; 4x coverage is a deterministic real-GPU readback test |
 
 ## 2.1 MSAA 4x (implemented, opt-in)
@@ -99,6 +102,9 @@ does not cover SDF/subpixel text, platform font shaping beyond the deterministic
 rounded-rect clipping (the CPU sink clips with axis-aligned bounds; the golden scene uses plain
 rects). CI can now run text goldens on the CPU (and lavapipe remains the full-fidelity software
 renderer on Linux) with no real GPU.
+The display-dependent parts (device scale, pixel geometry, text hinting/subpixel, clip AA,
+snapping) are proposed in [`display-aware-rendering.md`](display-aware-rendering.md).
+
 ## 3. Quality and configuration (proposed)
 
 AA is a quality/power knob; it must not change layout. Proposed config:
@@ -140,16 +146,21 @@ make it a quality/power option, not the default.
 
 ## 5. Screen-space correctness
 
-The current radius is in local space. With a scaled transform, the screen-space edge width
-changes. A proposed change (no release assigned): SDF AA should use derivatives:
+Landed (display-aware-rendering.md S2): the edge half-width is `aa_radius` device pixels, converted
+to local units with the derivative of the interpolated local coordinate, which is linear and so
+exact (a derivative of the distance itself, `fwidth(d)`, is not exact at rounded corners):
 
 ```glsl
-float w = max(fwidth(d), 1e-4);
-alpha = 1.0 - smoothstep(-w, w, d);
+float local_per_pixel = max(max(length(vec2(dFdx(v_local).x, dFdy(v_local).x)),
+                                length(vec2(dFdx(v_local).y, dFdy(v_local).y))), 1e-6);
+float edge_radius = pc.aa_radius * local_per_pixel;
+alpha = 1.0 - smoothstep(-edge_radius, edge_radius, d);
 ```
 
-This keeps a ~1 px edge regardless of scale/rotation/DPI. It must be validated on lavapipe (Mesa software Vulkan driver) and
-real GPUs before replacing the fixed radius.
+This keeps the same edge at 0.5x, 1x, 2x and under rotation; `aa_edge_tests` reads the same
+coverage (215/255 for a quarter-covered pixel) at all three scales on a real Vulkan device. The
+derivatives are taken before any branch so the portable (WGSL) variant stays in uniform control
+flow. It still needs a lavapipe run in CI alongside the real-GPU run above.
 
 ## 6. Color and gamma
 
@@ -168,7 +179,7 @@ real GPUs before replacing the fixed radius.
 
 ## 8. Open questions
 
-- Fixed local radius vs `fwidth` screen-space radius.
+- Fixed local radius vs screen-space radius: resolved, screen-space (section 5).
 - Whether MSAA is ever needed for a 2D UI; cost/benefit.
 - Text AA: grayscale vs subpixel; gamma-correct blending.
 - Path AA backend (ThorVG/Skia) and parity with SDF/text.

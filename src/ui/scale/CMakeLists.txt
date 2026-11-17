@@ -3,6 +3,7 @@
 # Device/render-scale quantization, the per-window scale state (design/window-resize.md §2.3) and the
 # adaptive render-target extent consumer (design/performance.md §6.1).
 add_library(tessera_scale STATIC
+    aa_policy.cpp
     render_scale.cpp
     render_target_extent.cpp
     window_render_scale.cpp)

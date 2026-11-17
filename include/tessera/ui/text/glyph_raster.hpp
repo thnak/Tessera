@@ -9,6 +9,15 @@
 
 namespace tessera::ui::text {
 
+// How FreeType hints a glyph (display-aware-rendering.md section 3.2). `Font` is the font's own
+// hints (FT_LOAD_DEFAULT, today's behavior and the golden default); `Light` is the vertical-only
+// autohinter; `None` loads the unhinted outline.
+enum class GlyphHinting : std::uint8_t { Font, Light, None };
+
+// Horizontal glyph-origin fractions are quantized to quarter pixels (display-aware-rendering.md
+// section 3.3): 0..3 is the fraction in units of 1/4 px. A larger value is clamped to 3.
+inline constexpr std::uint8_t kSubpixelSteps = 4;
+
 // An 8-bit coverage bitmap produced by FreeType. Glyphs without an outline (for example the
 // space character) keep their advance but have no coverage pixels.
 struct GlyphBitmap {
@@ -39,8 +48,12 @@ public:
 
     [[nodiscard]] std::uint32_t glyph_index(char32_t codepoint) const;
     [[nodiscard]] GlyphBitmap rasterize(char32_t codepoint, std::uint16_t pixel_size) const;
-    [[nodiscard]] GlyphBitmap rasterize_glyph(std::uint32_t glyph_index,
-                                              std::uint16_t pixel_size) const;
+    // `x_subpixel` shifts the outline right by x_subpixel / kSubpixelSteps pixels before rendering,
+    // so a glyph placed at a fractional pen position keeps its real shape instead of being
+    // resampled.
+    [[nodiscard]] GlyphBitmap rasterize_glyph(std::uint32_t glyph_index, std::uint16_t pixel_size,
+                                              GlyphHinting hinting = GlyphHinting::Font,
+                                              std::uint8_t x_subpixel = 0) const;
 
 private:
     FontFace face_;

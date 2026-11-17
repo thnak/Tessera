@@ -58,6 +58,14 @@ public:
     bool invalidate(float render_scale);
     void invalidate_all();
 
+    // Hinting applies to every atlas in the set (display-aware-rendering.md section 3.2). A change
+    // releases all of them, because their bitmaps were rasterized with the old hinting; setting the
+    // value already in force is a no-op. References from atlas_for() before a change are dead.
+    void set_hinting(GlyphHinting hinting);
+    [[nodiscard]] GlyphHinting hinting() const noexcept {
+        return config_.hinting;
+    }
+
     [[nodiscard]] std::uint32_t atlas_count() const noexcept;
     // Atlas instances created since construction. It counts instances, not live slots, so
     // re-rasterization after an invalidate() shows up here for diagnostics.

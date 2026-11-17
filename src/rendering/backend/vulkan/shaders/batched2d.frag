@@ -54,7 +54,8 @@ float erf_approx(float x) {
     return x < 0.0 ? -y : y;
 }
 
-// Hard-edged per-corner rounded-rect clip test (no clip AA in this slice; see antialiasing.md).
+// Hard-edged per-corner rounded-rect clip test, used when AA is off (golden mode, aa_radius 0): the
+// pixel-center rule keeps it deterministic and never writes outside the clip.
 // The clip arrives by index, not by value: recent glslang (16.x, the Linux distro build) lowers a
 // by-value struct parameter to a duplicated struct type plus OpCopyLogical, which naga's SPIR-V
 // front end rejects, so the cross-compiled WGSL (TESSERA_SHADER_CROSS) could not be produced on
@@ -87,16 +88,44 @@ bool inside_clip(vec2 p, uint index) {
     return true;
 }
 
+// Anti-aliased coverage of one rounded clip: the clip's own signed distance (framebuffer pixels,
+// per-corner radii) blended over +/- aa_radius pixels, the same half-pixel width as the SDF edges.
+// A pixel-aligned clip edge is fully covered on its inside pixels, so aligned clips look unchanged.
+float clip_coverage(vec2 p, uint index) {
+    vec2 origin = pc.clips[index].rect.xy;
+    vec2 half_size = pc.clips[index].rect.zw * 0.5;
+    vec4 radii = pc.clips[index].radii;
+    vec2 q = p - (origin + half_size);
+    float r = q.x < 0.0 ? (q.y < 0.0 ? radii.x : radii.w) : (q.y < 0.0 ? radii.y : radii.z);
+    r = min(r, min(half_size.x, half_size.y));
+    float d = sd_round_box(q, half_size, r);
+    return 1.0 - smoothstep(-pc.aa_radius, pc.aa_radius, d);
+}
+
 void main() {
+    // Local units per device pixel, measured from the interpolated local coordinate (linear, so
+    // the derivative is exact). It is 1.0 for an untransformed quad and 1/scale under a scale or
+    // rotation, which keeps the SDF edge about aa_radius device pixels wide instead of aa_radius
+    // local units (antialiasing.md section 5). Taken before any branch so it stays in uniform
+    // control flow for the portable (WGSL) variant.
+    vec2 local_dx = dFdx(v_local);
+    vec2 local_dy = dFdy(v_local);
+    float local_per_pixel = max(max(length(vec2(local_dx.x, local_dy.x)),
+                                    length(vec2(local_dx.y, local_dy.y))), 1e-6);
+    float edge_radius = pc.aa_radius * local_per_pixel;
+
     // Rounded clips are applied as a coverage mask: outside any clip alpha becomes 0 and the
     // alpha-blend leaves the destination untouched. This deliberately avoids `discard`, so the
     // shader does not require shaderDemoteToHelperInvocation (same policy as the SDF AA path).
+    // With AA on the mask has anti-aliased coverage; with aa_radius 0 it is the hard test.
     float clip_alpha = 1.0;
-    if (pc.clip_count > 0u) {
-        for (uint index = 0u; index < pc.clip_count; ++index) {
+    for (uint index = 0u; index < pc.clip_count; ++index) {
+        if (pc.aa_radius <= 0.0) {
             if (!inside_clip(gl_FragCoord.xy, index)) {
                 clip_alpha = 0.0;
             }
+        } else {
+            clip_alpha *= clip_coverage(gl_FragCoord.xy, index);
         }
     }
 
@@ -116,7 +145,7 @@ void main() {
         if (pc.aa_radius <= 0.0) {
             alpha = d <= 0.0 ? 1.0 : 0.0;
         } else {
-            alpha = 1.0 - smoothstep(-pc.aa_radius, pc.aa_radius, d);
+            alpha = 1.0 - smoothstep(-edge_radius, edge_radius, d);
         }
         color.a *= alpha;
     } else if (v_mode > 1.5 && v_mode < 2.5) {
@@ -139,7 +168,7 @@ void main() {
         if (pc.aa_radius <= 0.0) {
             alpha = d <= 0.0 ? 1.0 : 0.0;
         } else {
-            alpha = 1.0 - smoothstep(-pc.aa_radius, pc.aa_radius, d);
+            alpha = 1.0 - smoothstep(-edge_radius, edge_radius, d);
         }
         color.a *= alpha;
     }

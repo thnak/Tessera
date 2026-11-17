@@ -182,6 +182,23 @@ BorderWidths border_widths(const style::ComputedStyle& style, const rhi::Rect& r
     return widths;
 }
 
+float snap_border_width(float width, float device_scale) {
+    if (!(width > 0.0f) || !std::isfinite(width) || !(device_scale > 0.0f) ||
+        !std::isfinite(device_scale)) {
+        return width;
+    }
+    // The epsilon keeps 1.0 * 1.25 * (1 / 1.25) style round trips from flooring one row short.
+    const float device_pixels = std::max(1.0f, std::floor(width * device_scale + 1e-4f));
+    return device_pixels / device_scale;
+}
+
+BorderWidths snap_border_widths(const BorderWidths& widths, float device_scale) {
+    return BorderWidths{snap_border_width(widths.top, device_scale),
+                        snap_border_width(widths.right, device_scale),
+                        snap_border_width(widths.bottom, device_scale),
+                        snap_border_width(widths.left, device_scale)};
+}
+
 std::array<std::optional<rhi::Color>, 4> border_colors(const style::ComputedStyle& style,
                                                        const rhi::Color& current_color) {
     const bool rtl = is_rtl(style);

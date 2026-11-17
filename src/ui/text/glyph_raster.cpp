@@ -5,6 +5,7 @@
 
 #include <ft2build.h>
 #include FT_FREETYPE_H
+#include FT_OUTLINE_H
 
 #include <algorithm>
 #include <cstdint>
@@ -59,8 +60,8 @@ GlyphBitmap GlyphRasterizer::rasterize(char32_t codepoint, std::uint16_t pixel_s
     return rasterize_glyph(glyph_index(codepoint), pixel_size);
 }
 
-GlyphBitmap GlyphRasterizer::rasterize_glyph(std::uint32_t glyph_index,
-                                             std::uint16_t pixel_size) const {
+GlyphBitmap GlyphRasterizer::rasterize_glyph(std::uint32_t glyph_index, std::uint16_t pixel_size,
+                                             GlyphHinting hinting, std::uint8_t x_subpixel) const {
     GlyphBitmap result;
     if (!face_.valid() || pixel_size == 0) {
         return result;
@@ -73,9 +74,21 @@ GlyphBitmap GlyphRasterizer::rasterize_glyph(std::uint32_t glyph_index,
 
     // A missing codepoint maps to glyph 0 (.notdef), which keeps fallback visible instead of
     // silently dropping the character.
-    if (FT_Load_Glyph(face, static_cast<FT_UInt>(glyph_index), FT_LOAD_DEFAULT | FT_LOAD_COLOR) !=
-        0) {
+    FT_Int32 load_flags = FT_LOAD_DEFAULT | FT_LOAD_COLOR;
+    if (hinting == GlyphHinting::Light) {
+        load_flags |= FT_LOAD_TARGET_LIGHT;
+    } else if (hinting == GlyphHinting::None) {
+        load_flags |= FT_LOAD_NO_HINTING;
+    }
+    if (FT_Load_Glyph(face, static_cast<FT_UInt>(glyph_index), load_flags) != 0) {
         return result;
+    }
+    if (x_subpixel > 0 && face->glyph->format == FT_GLYPH_FORMAT_OUTLINE) {
+        // 26.6 fixed point: one quarter pixel is 16 units.
+        const FT_Pos shift =
+            static_cast<FT_Pos>(std::min<std::uint8_t>(x_subpixel, kSubpixelSteps - 1)) *
+            (64 / kSubpixelSteps);
+        FT_Outline_Translate(&face->glyph->outline, shift, 0);
     }
     if (FT_Render_Glyph(face->glyph, FT_RENDER_MODE_NORMAL) != 0) {
         return result;
