@@ -695,6 +695,14 @@ owner-planned item and is not part of this milestone.
       child twice (measured by `codegen_update_fanout`; `docs/design/observable.md` section 7). The fix is
       ADR-056 (**Accepted** 2026-11-17), in three slices, in order: #441 read-set analysis (`ready`), then
       #442 dirty masks, then #443 schedule children instead of calling them (each takes the previous).
+- [ ] #444: studio: live edit. Edits apply without pressing Run (debounce, last good frame on error); Run becomes
+      Restart app (owner direction 2026-11-17). Spec `studio-device-profiles-v1.md` section 6. `ready`; independent
+      of #445-#448.
+- [ ] #445: engine: Back and Volume input events, Home/Recents/Power mappings, unhandled Back, saved state
+      (device profiles E1). **Blocked** until the owner accepts `studio-device-profiles-v1.md`.
+- [ ] #446: studio: `platform.event` message and Wasm viewer path (E2). Takes #445.
+- [ ] #447: studio: device profiles as data, selector, restart on device change (E3). Takes #446; keep-state needs #436.
+- [ ] #448: studio: platform panel, hardware button strip, event log and replay (E4). Takes #446 and #447.
 - [ ] #434: studio: mock services (`*.mock.ts`), console and call trace (ADR-055). **Blocked** on the
       service seam (ADR-055 decision 9), #431 and #391; do not take it until those land.
 - [ ] #435: studio D-S9: startup-phase preview (freeze at P0, P2, P4). **Blocked** on startup slices

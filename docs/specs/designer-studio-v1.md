@@ -4,6 +4,7 @@ Status: proposed (Big Step D). Decision: [ADR-045](../../decisions/ADR-045-brows
 Design note: [designer.md](../design/designer.md) (architecture, hot reload, picker).
 Protocol: [designer-protocol-v1.md](designer-protocol-v1.md).
 Chrome preview: [window-chrome-v1.md](window-chrome-v1.md).
+Device profiles, platform events and live edit: [studio-device-profiles-v1.md](studio-device-profiles-v1.md).
 
 The studio is the "open a URL and work" form of the designer: the real C++ engine compiled to Wasm
 runs in the page, the page hosts the project (folder, zip or sample) and the code editor, and the
@@ -192,8 +193,8 @@ The studio reuses the [designer protocol](designer-protocol-v1.md) instead of de
 - The native CLI host remains for filesystem work and codegen; a project can move between the two
   because the protocol and the file versions are the same.
 
-The session starts with `hello` → `ready` → `project.load`, as specified; the studio adds no
-message types. `theme.applied` (protocol section 6) is what the page uses to tint the simulated
+The session starts with `hello` → `ready` → `project.load`, as specified; the studio adds one
+message, `platform.event` ([studio-device-profiles-v1.md](studio-device-profiles-v1.md)). `theme.applied` (protocol section 6) is what the page uses to tint the simulated
 system chrome from the engine's resolved record.
 
 ## 5. Simulated system chrome and skins

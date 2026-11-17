@@ -154,6 +154,8 @@ This page is the map and reading order for the framework.
   browser designer: source sync, picker, style overrides, commit as text patches
 - [`specs/designer-studio-v1.md`](specs/designer-studio-v1.md) — hosted studio: GitHub Pages deploy,
   page-as-host, skins and simulated system chrome, project import/export, MCP stdio mode
+- [`specs/studio-device-profiles-v1.md`](specs/studio-device-profiles-v1.md) — studio device profiles as data,
+  simulated platform events and hardware buttons, restart on device change, live edit without Run
 - [`specs/studio-mock-services-v1.md`](specs/studio-mock-services-v1.md) — design-time mock services:
   `*.mock.ts` project files, sandboxed studio worker, calls/responses and traces (ADR-055)
 - [`specs/compiler-diagnostics-v1.md`](specs/compiler-diagnostics-v1.md) — machine-readable compiler
