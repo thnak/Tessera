@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
-#include "scene_canvas_session.hpp"
 #include "diagnostic_record.hpp"
+#include "scene_canvas_session.hpp"
 #include "tessera/ui/dirty.hpp"
 #include "tessera/ui/style/prepared_stylesheet.hpp"
 
@@ -110,7 +110,7 @@ std::string CanvasSceneSession::start(const CanvasSessionSource& source) {
     std::optional<css_module::ModuleScanError> scan_error;
     const std::string stylesheet_text =
         preview_stylesheet_text(source.stylesheet, stylesheet_file, scan_error);
-    
+
     // The prepared form goes into the session so a later viewport change can re-resolve the same
     // data instead of re-parsing CSS (issue #436).
     std::optional<ui::style::PreparedStyleSheet> prepared;
@@ -118,8 +118,10 @@ std::string CanvasSceneSession::start(const CanvasSessionSource& source) {
         // Nothing from a sheet that cannot be scoped is compiled: painting its raw `.card` rules
         // while the tree says `card_0b82a5` is the silent-unstyled defect #463 closes. The sheet is
         // an EMPTY one, not the built-in fallback - the author did write CSS, and #390 decision 2
-        // replaces the built-in sheet with the author's rather than resurrecting it for a broken one.
-        sheet_ = resolve_preview_stylesheet(ui::style::prepare_stylesheet(std::string_view{}), media);
+        // replaces the built-in sheet with the author's rather than resurrecting it for a broken
+        // one.
+        sheet_ =
+            resolve_preview_stylesheet(ui::style::prepare_stylesheet(std::string_view{}), media);
     } else {
         prepared = prepare_preview_stylesheet(stylesheet_text);
         sheet_ = resolve_preview_stylesheet(*prepared, media);
