@@ -94,6 +94,48 @@ int main() {
         return 4;
     }
 
+    // A deeply nested condition must be *refused*, not parsed. Both recursions here were unbounded
+    // before the depth bound: 20,000 nested `(` aborted `tessera_codegen` with 0xC00000FD, and
+    // 5,000 nested `not ` reached the same depth by another route. The rejection is the point -- a
+    // stack overflow in the Wasm module loses the designer's unsaved work, and this is the code
+    // that receives *user-typed* CSS once the preview accepts an author stylesheet.
+    {
+        std::string nested_parens;
+        for (int i = 0; i < 20000; ++i) {
+            nested_parens += '(';
+        }
+        nested_parens += "display: grid";
+        for (int i = 0; i < 20000; ++i) {
+            nested_parens += ')';
+        }
+        if (!expect(!parse_supports_condition(nested_parens).ok, "deeply nested parens refused")) {
+            return 5;
+        }
+
+        std::string nested_not;
+        for (int i = 0; i < 5000; ++i) {
+            nested_not += "not ";
+        }
+        nested_not += "(display: grid)";
+        if (!expect(!parse_supports_condition(nested_not).ok, "deeply nested not refused")) {
+            return 6;
+        }
+
+        // A shallow condition is still accepted, so the bound did not accidentally become a floor:
+        // a parser that refused everything would pass the two checks above.
+        std::string shallow;
+        for (int i = 0; i < 8; ++i) {
+            shallow += '(';
+        }
+        shallow += "display: grid";
+        for (int i = 0; i < 8; ++i) {
+            shallow += ')';
+        }
+        if (!expect(parse_supports_condition(shallow).ok, "eight levels still parse")) {
+            return 7;
+        }
+    }
+
     std::cout << "supports: ok\n";
     return 0;
 }
