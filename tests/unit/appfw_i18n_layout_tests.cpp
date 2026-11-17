@@ -48,11 +48,9 @@ void the_layout_engine_produces_the_new_measurement() {
     expect(english_box != nullptr, "the English text node has a box");
     expect(english_box != nullptr && near(english_box->bounds.width, 48.0f),
            "Yoga measures Orders at 48 px");
-    // Yoga rounds the laid-out box to the pixel grid, so a 19.2 px line box becomes 20 px of
-    // layout. Both numbers are asserted, because the difference is real and a test that blurred it
-    // would hide which layer did what: the text seam measures 19.2 px, layout rounds it.
-    expect(english_box != nullptr && near(english_box->bounds.height, 20.0f),
-           "Yoga rounds the 19.2 px line box to 20 px");
+    // Layout is unrounded (paint snaps the edges), so the box keeps the measured 19.2 px line box.
+    expect(english_box != nullptr && near(english_box->bounds.height, kLineHeight),
+           "layout keeps the 19.2 px line box unrounded");
     auto seam_cache = stub_cache();
     const TextMetrics measured = seam_cache->measure("Orders", TextStyle{}, TextConstraints{});
     expect(near(measured.height, kLineHeight), "the text seam measures the line box at 19.2 px");
@@ -63,8 +61,8 @@ void the_layout_engine_produces_the_new_measurement() {
     expect(german_box != nullptr, "the German text node has a box");
     expect(german_box != nullptr && near(german_box->bounds.width, 96.0f),
            "Yoga measures Bestellungen at 96 px");
-    expect(german_box != nullptr && near(german_box->bounds.height, 20.0f),
-           "Bestellungen is still one (pixel-rounded) line");
+    expect(german_box != nullptr && near(german_box->bounds.height, kLineHeight),
+           "Bestellungen is still one line");
     expect(english_box != nullptr && german_box != nullptr &&
                german_box->bounds.width > english_box->bounds.width,
            "the German box is wider than the English box");

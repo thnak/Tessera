@@ -416,8 +416,9 @@ bool test_text_input_is_vertically_centered() {
 }
 
 // A single-line run carries its baseline when an explicit `line-height` moves it: the line layout
-// puts the baseline at ascent + half-leading, and the sink would otherwise draw at rect.y + ascent.
-// With `normal` there is no half-leading and the sink's own default is left alone.
+// puts the baseline at ascent + half-leading (whole pixels, as Blink), and the sink would otherwise
+// draw at rect.y + ascent. With `normal` there is no half-leading and the sink's own default is
+// left alone.
 bool test_single_line_baseline_follows_line_height() {
     StubPaintTextMetrics metrics;
     text::TextStyle probe;
@@ -437,7 +438,10 @@ bool test_single_line_baseline_follows_line_height() {
     };
     const RecordedText tall = run_for("40px");
     const RecordedText normal = run_for("normal");
-    const float expected = 10.0f + font.ascent + (kLine - (font.ascent + font.descent)) * 0.5f;
+    // Blink sums on whole pixels: rounded ascent and descent, floored half-leading.
+    const float ascent = std::round(font.ascent);
+    const float descent = std::round(font.descent);
+    const float expected = 10.0f + ascent + std::floor((kLine - (ascent + descent)) * 0.5f);
     return expect(tall.baseline.has_value() && std::abs(*tall.baseline - expected) < 0.01f,
                   "an explicit line-height puts the baseline at ascent + half-leading") &&
            expect(!normal.baseline.has_value(), "normal line-height leaves the sink's default");

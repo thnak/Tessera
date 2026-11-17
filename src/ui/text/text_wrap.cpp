@@ -190,13 +190,18 @@ TextLayout wrap_with(std::string_view text, const TextStyle& style, const FontMe
                                   ? style.line_height
                                   : metrics.ascent + metrics.descent + metrics.line_gap;
     // CSS half-leading: an explicit `line-height` adds (or, when smaller than the font's own
-    // ascent + descent, removes) the same amount above and below the glyphs, so the baseline sits
-    // `(line_height - (ascent + descent)) / 2` below where the font's ascent alone would put it.
+    // ascent + descent, removes) the same amount above and below the glyphs. Blink does the sum on
+    // whole pixels, which is what puts a glyph on the same row as the browser's: ascent and descent
+    // are rounded first, and the half-leading is floored. A 12 px mark in a 14 px line has
+    // ascent 12.83, descent 3.52, so the browser's baseline is 13 + floor((14 - 17) / 2) = 11;
+    // the fractional sum, 12.83 - 1.17, rounded to 12 at paint, sat a row too low.
     // `normal` keeps the font's own line box, so its baseline is the ascent.
-    const float baseline =
-        style.line_height > 0.0f
-            ? metrics.ascent + (line_height - (metrics.ascent + metrics.descent)) * 0.5f
-            : metrics.ascent;
+    float baseline = metrics.ascent;
+    if (style.line_height > 0.0f) {
+        const float ascent = std::round(metrics.ascent);
+        const float descent = std::round(metrics.descent);
+        baseline = ascent + std::floor((line_height - (ascent + descent)) * 0.5f);
+    }
     // `word-spacing` is additive to every separator advance the wrap emits: one per collapsed run
     // (its one painted space), one per preserved space byte (U+0020), and one per space inside a
     // whole-run measure. Trimming already removed the line edges, so a space that is not painted

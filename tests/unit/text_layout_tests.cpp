@@ -328,14 +328,17 @@ int main() {
         !expect(near(wrapped.lines[1].width, 40.0f), "wrapped second width") ||
         !expect(near(wrapped.width, 40.0f), "wrapped max width") ||
         !expect(near(wrapped.height, 40.0f), "wrapped height") ||
-        !expect(near(wrapped.baseline, 14.8f), "wrapped baseline carries the half-leading") ||
-        !expect(near(wrapped.lines[0].baseline, 14.8f), "line baseline carries the half-leading")) {
+        !expect(near(wrapped.baseline, 15.0f),
+                "wrapped baseline carries the whole-pixel half-leading") ||
+        !expect(near(wrapped.lines[0].baseline, 15.0f),
+                "line baseline carries the whole-pixel half-leading")) {
         return 1;
     }
 
     // CSS half-leading: the baseline sits (line-height - (ascent + descent)) / 2 below the ascent.
-    // A line-height of 20 around 16 of glyphs adds 2 above; 12 removes 2; `normal` (0) keeps the
-    // font's own line box, so the baseline is the ascent.
+    // A line-height of 20 around 16 of glyphs adds 2 above; 12 removes 2 (whole pixels: round(12.8)
+    // + floor((lh - 16) / 2)); `normal` (0) keeps the font's own line box, so the baseline is the
+    // ascent.
     TextStyle tall = style();
     TextStyle tight = style();
     tight.line_height = 12.0f;
@@ -346,10 +349,10 @@ int main() {
         layout_text("a", tight, kMetrics, TextConstraints{200.0f, false});
     const TextLayout normal_layout =
         layout_text("a", normal, kMetrics, TextConstraints{200.0f, false});
-    if (!expect(near(tall_layout.lines[0].baseline, 14.8f), "line-height above the glyphs") ||
-        !expect(near(tight_layout.lines[0].baseline, 10.8f), "line-height below the glyphs") ||
+    if (!expect(near(tall_layout.lines[0].baseline, 15.0f), "line-height above the glyphs") ||
+        !expect(near(tight_layout.lines[0].baseline, 11.0f), "line-height below the glyphs") ||
         !expect(near(normal_layout.lines[0].baseline, 12.8f), "normal line-height: the ascent") ||
-        !expect(near(tight_layout.baseline, 10.8f), "layout baseline follows the line")) {
+        !expect(near(tight_layout.baseline, 11.0f), "layout baseline follows the line")) {
         return 1;
     }
 

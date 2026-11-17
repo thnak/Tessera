@@ -161,11 +161,13 @@ Rules:
 ### 4.1 The measure/paint contract
 
 Layout and paint must measure with one font source. For a content-sized text leaf with a border and
-horizontal padding, Yoga ceils the fractional measured size to whole pixels and then adds the box
-insets, so the invariant is
+horizontal padding, layout keeps the fractional measured size (Yoga runs with its pixel rounding
+off, `YGConfigSetPointScaleFactor(0)`; with it on, Yoga floored a measured node's left edge and
+ceiled its right one, which moved a centred glyph by most of a pixel) and paint snaps the edges
+(section 5), so the invariant is
 
 ```text
-box width  == ceil(measured advance) + 2 * border + 2 * padding
+box width  == measured advance + 2 * border + 2 * padding     (before the paint snap)
 box width  >= painted ink span
 ```
 

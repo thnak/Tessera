@@ -154,7 +154,15 @@ YGNodeRef build_tree(const LayoutInput& input, const LayoutViewport& viewport,
                      text::TextMeasureCache& cache,
                      std::vector<std::unique_ptr<MeasureContext>>& measure_contexts,
                      std::vector<std::unique_ptr<GridContext>>& grid_contexts, bool as_grid_item) {
-    YGNodeRef node = YGNodeNew();
+    // Unrounded layout: Yoga's own pixel rounding floors a measured node's left edge and ceils
+    // its right one, which moved a centred glyph by most of a pixel. Positions stay fractional and
+    // paint snaps them (pixel_snap.cpp), so a centred mark is centred before it is snapped.
+    static YGConfigRef unrounded = [] {
+        YGConfigRef config = YGConfigNew();
+        YGConfigSetPointScaleFactor(config, 0.0f);
+        return config;
+    }();
+    YGNodeRef node = YGNodeNewWithConfig(unrounded);
     apply_style(node, input.style, viewport);
     if (as_grid_item) {
         // The grid engine already positions the item's border box and folds the margins into the

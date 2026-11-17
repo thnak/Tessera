@@ -12,7 +12,8 @@
 // auto-sized row:
 //
 //   1. the measurer's advance equals the advance paint shapes with   (one source, not two)
-//   2. box width == ceil(advance) + 2 * border + 2 * padding         (the box follows the text)
+//   2. box width == advance + 2 * border + 2 * padding, to within the pixel snap (the box follows
+//   the text)
 //   3. the ink fits inside the padding box                            (it never reaches the border)
 //
 // Assertion 1 is the one that fails on the old code, and it is asserted against the *shaper* - the
@@ -189,13 +190,13 @@ int main(int argc, char** argv) {
                          test.font_size, metrics.width, shaped);
             return 4;
         }
-        // (2) The box follows that advance. Yoga ceils the fractional measured size to whole pixels
-        // before adding the box insets, and the paint-time edge snap (`pixel_snap.cpp`) rounds
-        // edges the same way, so the box and the painted rect land on the same pixel.
-        const float expected = std::ceil(metrics.width) + 2.0f * kBorder + 2.0f * test.padding;
+        // (2) The box follows that advance. Layout is unrounded, so the box is the fractional
+        // advance plus the insets, and the paint-time edge snap (`pixel_snap.cpp`) rounds each
+        // edge to the nearest pixel: the snapped width is within one pixel of the exact one.
+        const float expected = metrics.width + 2.0f * kBorder + 2.0f * test.padding;
         const float box = snapped.width;
-        if (!expect(std::abs(box - expected) < 0.01f,
-                    "box width equals ceil(advance) + padding + border")) {
+        if (!expect(std::abs(box - expected) < 1.0f,
+                    "box width follows advance + padding + border to within the pixel snap")) {
             std::fprintf(stderr, "  `%s` at %.1fpx: box %.2f, expected %.2f (advance %.2f)\n",
                          test.text, test.font_size, box, expected, metrics.width);
             return 5;
