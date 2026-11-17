@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-#include "wasm_canvas_paint.hpp"
-
 #include "preview_text.hpp"
 #include "tessera/rendering/webgpu/webgpu_device.hpp"
 #include "wasm_canvas_font.hpp"
+#include "wasm_canvas_paint.hpp"
 #include "wasm_canvas_support.hpp"
 
 #include <exception>
@@ -60,7 +59,8 @@ SceneFrameResult paint_to_canvas(std::string_view source, const ScenePreviewOpti
     desc.clear_color = scene_frame_clear_color();
     desc.load_op = rhi::LoadOp::Clear;
     desc.store_op = rhi::StoreOp::Store;
-    SceneFrameResult painted = scene_frame_paint(scene, device, *target, desc, {}, canvas_text_stack());
+    SceneFrameResult painted =
+        scene_frame_paint(scene, device, *target, desc, {}, canvas_text_stack());
     if (!painted.error.empty()) {
         clear_canvas(device, *target, extent, kCanvasFormat);
     }
@@ -83,8 +83,9 @@ SceneFrameResult paint_session(CanvasSceneSession& session, rhi::Extent2D extent
 
     std::unique_ptr<rhi::RenderTarget> target;
     try {
-        target = canvas_view != nullptr ? webgpu::create_canvas_target(canvas_view, extent, kCanvasFormat)
-                                        : device.create_render_target(desc);
+        target = canvas_view != nullptr
+                     ? webgpu::create_canvas_target(canvas_view, extent, kCanvasFormat)
+                     : device.create_render_target(desc);
     } catch (const std::exception& failure) {
         result.error = std::string("paint_session_to_canvas: ") + failure.what();
         return result;

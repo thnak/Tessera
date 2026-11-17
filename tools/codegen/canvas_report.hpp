@@ -28,36 +28,31 @@ namespace tessera::compiler::codegen::cli {
 // "the page never handed over a WebGPU device" from "the frame itself failed", which are different
 // things for a page to report: the first is an unsupported browser, the second is a bug.
 //
-// `frames` is `CanvasSceneSession::frames_painted()` for the report that describes a session paint,
-// and 0 for the stateless `tessera_canvas_frame` path, which has no session to count. It is a default
-// argument so the error-path reports (which never painted) do not have to spell it out.
-[[nodiscard]] std::string canvas_report_json(const SceneFrameResult& result, std::uint32_t width,
-                                             std::uint32_t height, bool has_device,
-                                             std::uint32_t frames = 0);
-
-// The same report with the author stylesheet's parse problems appended (issue #390), as
+// `frames` is `CanvasSceneSession::frames_painted()` for the report that describes a session paint
+// (#444), and 0 for the stateless `tessera_canvas_frame` path, which has no session to count.
+//
+// `css_diagnostics` is the author stylesheet's parse problems (#390), appended as
 //
 //   "cssDiagnostics":[{"code":"TESSERA_CSS_UNKNOWN_PROPERTY","severity":"warning",
 //                      "message":"unsupported property","file":"ui/Preview.css",
 //                      "line":3,"column":5,"offset":42},...]
 //
-// `frames` is the same session counter as in the frame-only overload (#444), so a session paint can
-// report both its frame count and its stylesheet diagnostics: the two features append to the same
-// document and neither is a second report.
-//
 // The field is APPENDED, so `canvasVersion` stays 1 (docs/specs/versioning-v1.md section 2: adding
 // an optional member keeps the version, and a consumer tolerates an unknown field it was told
 // about). That matters because the frame's own fields did not change: a page built against the
-// previous module reads the same report, and an old page simply never looks at the new array.
+// previous module reads the same report, and an old page simply never looks at the new array. The
+// array is capped at `kMaxReportedCssDiagnostics` entries, and `cssDiagnosticsTruncated` says when
+// the cap was hit, so "16 problems" is never mistaken for "all of them".
 //
-// The array is capped at `kMaxReportedCssDiagnostics` entries. A bounded report is the point: a
-// stylesheet can have thousands of unknown properties, and the page's diagnostics area is a list a
-// person reads, not a log. `cssDiagnosticsTruncated` says when the cap was hit, so "16 problems" is
-// never mistaken for "all of them".
+// Both parameters are defaulted so the two features' callers keep their shapes: a pre-#444 caller
+// writes `canvas_report_json(result, w, h, has_device)` and a #390-only caller may pass just the
+// diagnostics. There is ONE report document, not two -- the merge appends both to the same
+// serializer rather than making a page pick a shape, which is what lets a session paint report its
+// frame count and its stylesheet diagnostics together.
 [[nodiscard]] std::string
 canvas_report_json(const SceneFrameResult& result, std::uint32_t width, std::uint32_t height,
-                   bool has_device, std::uint32_t frames,
-                   const std::vector<PreviewCssDiagnostic>& css_diagnostics);
+                   bool has_device, std::uint32_t frames = 0,
+                   const std::vector<PreviewCssDiagnostic>& css_diagnostics = {});
 
 // What one pointer event did, as one JSON object on one line:
 //
@@ -89,11 +84,11 @@ canvas_report_json(const SceneFrameResult& result, std::uint32_t width, std::uin
 // decision: true means draw exactly one frame, false means the picture on the canvas is already
 // the one this source describes -- which is how an auto-apply of unchanged text costs no frame.
 //
-// `frames` is `CanvasSceneSession::frames_painted()`, the session's own lifetime count. It is in this
-// report because the live edit's contract is a *frame count* ("one frame per burst", "zero frames when
-// static") and a count the page reads is evidence, where a count the engine asserts in a unit test is
-// only a promise. The page surfaces it in the Canvas pane's counters, so the browser probe can check
-// the rule against the same number the engine used.
+// `frames` is `CanvasSceneSession::frames_painted()`, the session's own lifetime count. It is in
+// this report because the live edit's contract is a *frame count* ("one frame per burst", "zero
+// frames when static") and a count the page reads is evidence, where a count the engine asserts in
+// a unit test is only a promise. The page surfaces it in the Canvas pane's counters, so the browser
+// probe can check the rule against the same number the engine used.
 //
 // `error` non-empty means the source did not evaluate and **the running evaluation was kept**:
 // `changed` is then whatever it already was, and the page shows the error as a diagnostic while the
@@ -110,10 +105,10 @@ canvas_report_json(const SceneFrameResult& result, std::uint32_t width, std::uin
 //   [{"name":"state::count","value":2}]
 //
 // It is here because "a state cell survives a text edit" is an acceptance sentence of the live edit
-// and the canvas pane is where a developer watches it. Before #444 the canvas had no way to show its
-// own state at all -- the Scene pane's input script was the only place a cell was ever printed -- so
-// a developer changing a string could not tell a carried count from a reset one. `value` is a JSON
-// scalar or string; a list cell is reported as its JSON array, which is the same shape
+// and the canvas pane is where a developer watches it. Before #444 the canvas had no way to show
+// its own state at all -- the Scene pane's input script was the only place a cell was ever printed
+// -- so a developer changing a string could not tell a carried count from a reset one. `value` is a
+// JSON scalar or string; a list cell is reported as its JSON array, which is the same shape
 // `snapshot_state()` uses.
 [[nodiscard]] std::string canvas_apply_report_json(bool changed, bool reused,
                                                    const StateCarryReport& carry,

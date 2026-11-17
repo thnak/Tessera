@@ -31,9 +31,10 @@ inline constexpr rendering::rhi::TextureFormat kCanvasFormat =
 
 // Fills the canvas with the preview's clear colour and nothing else.
 //
-// A canvas texture is presented every frame whether or not anything drew into it, and an undrawn one
-// shows as black, so a failed frame would otherwise replace the last picture with a black box that
-// looks like a crash. Failure here is swallowed: the report already carries the frame's real error.
+// A canvas texture is presented every frame whether or not anything drew into it, and an undrawn
+// one shows as black, so a failed frame would otherwise replace the last picture with a black box
+// that looks like a crash. Failure here is swallowed: the report already carries the frame's real
+// error.
 //
 // **It is declared in `wasm_canvas_support.hpp`, not here** (issue #390 split it out of the entry
 // file): it needs no device creation and no backend header, so it is host-buildable and this
@@ -41,16 +42,16 @@ inline constexpr rendering::rhi::TextureFormat kCanvasFormat =
 
 // Evaluates the source and draws one frame into the canvas texture the page holds.
 //
-// This is the **stateless** path (`tessera_canvas_frame`): it re-evaluates on every call and carries
-// no state between calls. The live edit does not use it -- see `paint_session` below.
+// This is the **stateless** path (`tessera_canvas_frame`): it re-evaluates on every call and
+// carries no state between calls. The live edit does not use it -- see `paint_session` below.
 SceneFrameResult paint_to_canvas(std::string_view source, const ScenePreviewOptions& options,
                                  std::string_view component, rendering::rhi::Extent2D extent,
                                  void* canvas_view, rendering::rhi::Device& device);
 
 // Paints the session's current tree into the canvas texture the page holds.
 //
-// Unlike `paint_to_canvas` this never re-evaluates: the tree is the one the pointer events have been
-// dispatched into, so its hover/active bits and its state are the ones the frame shows. A null
+// Unlike `paint_to_canvas` this never re-evaluates: the tree is the one the pointer events have
+// been dispatched into, so its hover/active bits and its state are the ones the frame shows. A null
 // `canvas_view` draws into an offscreen target instead, which is how the Node probe reads the
 // counters with no surface.
 SceneFrameResult paint_session(CanvasSceneSession& session, rendering::rhi::Extent2D extent,

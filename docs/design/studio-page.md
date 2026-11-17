@@ -94,7 +94,9 @@ initializer after **Restart app**.
 
 `scripts/ci/preview_browser_live_edit.mjs` is the developer-run acceptance probe for those six sentences
 (one frame per burst, zero when static, state carried, syntax error keeps the frame, Restart resets it,
-all three panes from one edit).
+all three panes from one edit). `scripts/ci/preview_browser_css_live_edit.mjs` adds the case that belongs to
+neither feature alone: with the author sheet applied (section 3.4), a source edit keeps the author's
+styling, because the sheet travels on `tessera_canvas_apply` rather than on `tessera_canvas_draw`.
 
 ## 2. The stack, and the React/engine boundary
 
@@ -356,12 +358,17 @@ exists in the HTML" check no longer proves anything -- the shipped `index.html` 
   `dist/` plus the three Wasm modules, the samples and the build id.
 - `tests/golden/perf/preview_budget.json`: `download_gzip_bytes` re-recorded (section 6).
 - **Browser verification** is the acceptance bar for a layout change, and it is developer-run (no lane has a
-  browser): `scripts/ci/preview_browser_verify.mjs` (the merged harness, 10 checks),
+  browser): `scripts/ci/preview_browser_verify.mjs` (the merged harness, 14 checks),
   `scripts/ci/preview_browser_layout.mjs` (#431's layout measurements: three columns, the tree's keyboard,
-  tabs and the compile target, the switch moving nothing, `?view=`/`#p5=`, and the 390-px scroll width), and
+  tabs and the compile target, the switch moving nothing, `?view=`/`#p5=`, and the 390-px scroll width),
   `scripts/ci/preview_browser_live_edit.mjs` (#444's six acceptance clauses: an edit applies with no click,
   the count survives it, a syntax error keeps the frame, Restart app resets it, a static scene draws zero
-  frames, and a burst is one frame). All three are Playwright scripts run from a directory that resolves
+  frames, and a burst is one frame), `scripts/ci/preview_browser_author_css.mjs` (#390's acceptance: the
+  built-in look on an empty sheet, author CSS replacing it, `var()`, and a bad rule reported while the frame
+  still paints), and `scripts/ci/preview_browser_css_live_edit.mjs` (**the combined case, and the one neither
+  feature's own probe covers**: with author CSS applied, a source edit must keep the author's styling -- a
+  sheet dropped from `tessera_canvas_apply` repaints the built-in dark, so the colour is read after a
+  keystroke, not after a button). All five are Playwright scripts run from a directory that resolves
   `playwright`; they are not repository dependencies.
 
 ## 6. The P6 budget, three times

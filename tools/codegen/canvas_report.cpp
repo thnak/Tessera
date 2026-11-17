@@ -19,14 +19,22 @@ void append_number(std::string& out, std::string_view name, std::uint64_t value)
 }
 
 // A string field, escaped for JSON. One implementation, shared with the stylesheet diagnostics
-// report
-// (`css_diagnostics_report.hpp`): both write the project's own ASCII messages, so both need exactly
-// the quote/backslash/control-character rule and nothing more.
+// report (`css_diagnostics_report.hpp`): both write the project's own ASCII messages, so both need
+// exactly the quote/backslash/control-character rule and nothing more. #444's state cells use the
+// same encoder, so a quote in a cell value cannot break the document the page parses -- one rule,
+// one function, in the file that was already the owner of it.
 void append_text(std::string& out, std::string_view name, std::string_view text) {
     out += ",";
     out.push_back('"');
     out += name;
     out += "\":";
+    out += quoted(text);
+}
+
+// One escaped JSON string, with no field name. The state cells and the array elements need this and
+// `append_text` is the same encoder plus `"name":`, so they share `quoted()` rather than a second
+// copy of the escape table.
+void append_escaped(std::string& out, std::string_view text) {
     out += quoted(text);
 }
 
@@ -58,7 +66,8 @@ void append_scalar(std::string& out, const ui::StateScalar& value) {
         return;
     }
     if (const auto* decimal = std::get_if<double>(&value)) {
-        // A whole-valued double prints without a decimal point, so `2` reads as `2` and not `2.000000`
+        // A whole-valued double prints without a decimal point, so `2` reads as `2` and not
+        // `2.000000`
         // -- the same choice `snapshot_state()` makes when it prints a cell.
         const bool whole = *decimal == static_cast<double>(static_cast<long long>(*decimal));
         if (whole) {
@@ -103,10 +112,12 @@ void append_state(std::string& out, const ui::StateSnapshot& state) {
 
 } // namespace
 
-std::string canvas_report_json(const SceneFrameResult& result, std::uint32_t width,
-                               std::uint32_t height, bool has_device, std::uint32_t frames,
-                               const std::vector<PreviewCssDiagnostic>& css_diagnostics) {
-    // The field names mirror the native CLI's printed counters, so a parity script can compare a
+std::string
+canvas_report_json(const SceneFrameResult& result, std::uint32_t width, std::uint32_t height,
+                   bool has_device, std::uint32_t frames,
+                   const std::vector<PreviewCssDiagnostic>&
+                       css_diagnostics) { // The field names mirror the native CLI's printed
+                                          // counters, so a parity script can compare a
     // browser report with a native dump without a second vocabulary.
     std::string out = "{\"canvasVersion\":1";
     append_bool(out, "hasDevice", has_device);

@@ -236,15 +236,18 @@ void test_a_failed_edit_keeps_the_running_evaluation() {
   );
 }
 )";
-    expect(session.start(source_for(kTyped, "ui/Counter.tsx")).empty(), "the finished edit applies");
+    expect(session.start(source_for(kTyped, "ui/Counter.tsx")).empty(),
+           "the finished edit applies");
     expect(!session.reused(), "the finished edit re-evaluates");
     expect(counter_value(session) == 1, "the count survives the edit that replaced its text");
     expect(session.needs_frame(), "the finished edit owes exactly the one frame it needs");
     expect(canvas.draw(session), "the finished edit paints");
     expect(session.frames_painted() == painted + 1, "the edit cost exactly one frame");
     // The carry report the page reads: one cell crossed the edit by its own identity.
-    expect(session.carry_report().carried == 1, "the edit carried the counter by component/cell id");
-    expect(session.carry_report().dropped_component == 0, "nothing was dropped on a text-only edit");
+    expect(session.carry_report().carried == 1,
+           "the edit carried the counter by component/cell id");
+    expect(session.carry_report().dropped_component == 0,
+           "nothing was dropped on a text-only edit");
 }
 
 } // namespace

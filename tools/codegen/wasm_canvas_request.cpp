@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
 
-#include "wasm_canvas_request.hpp"
-
 #include "wasm_canvas_font.hpp"
+#include "wasm_canvas_request.hpp"
 
 #include <optional>
 #include <string>
@@ -47,9 +46,9 @@ std::string canvas_session_source(std::string_view source, std::string_view file
     // stays, which is what an older page and a cleared textarea both mean.
     out.stylesheet = stylesheet;
     out.salt = kPreviewSalt;
-    // A zero viewport is replaced by the module's long-standing 320x240 default rather than refused:
-    // a page that has not laid the canvas out yet still gets a preview, and the counters it reports
-    // are the ones a default-sized device would produce.
+    // A zero viewport is replaced by the module's long-standing 320x240 default rather than
+    // refused: a page that has not laid the canvas out yet still gets a preview, and the counters
+    // it reports are the ones a default-sized device would produce.
     out.width = width > 0.0f ? width : 320.0F;
     out.height = height > 0.0f ? height : 240.0F;
     out.dpi_scale = dpi > 0.0f ? dpi : 1.0F;

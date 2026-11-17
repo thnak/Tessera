@@ -55,8 +55,8 @@ like the native binary: paths on the command line mean host paths.
 
 `NODERAWFS` is **only** valid for a Node artifact. A browser has no synchronous host filesystem, so
 the option is meaningless there and would break the module; it must never be added globally, and it
-must never apply to a sample app or any browser-shipped artifact. That is why it lives on this one
-target as a `target_link_options` under `if (EMSCRIPTEN)`, not as a directory or project-wide option.
+must never apply to a sample app or any browser-shipped artifact — hence a `target_link_options` on
+that one target under `if (EMSCRIPTEN)`, not a directory or project-wide option.
 
 ## 3. The native-versus-Wasm parity gate
 
@@ -98,8 +98,8 @@ emsdk cache and install steps (cache key on `tools/emsdk-version.txt`) and then:
    `tessera_codegen_cli`, so the job pays for one native compiler binary, not the whole native tree,
 3. runs the parity script with `--repeat 2`.
 
-The Wasm preset has `TESSERA_BUILD_TESTS=OFF`, so this cannot be a ctest case in that preset; it is
-a script invocation, which also makes the same command runnable on a developer box.
+The Wasm preset has `TESSERA_BUILD_TESTS=OFF`, so this cannot be a ctest case in that preset; it is a
+script invocation, which also makes the same command runnable on a developer box.
 
 ## 5. Verification and status
 
@@ -164,7 +164,7 @@ The tree is built on the **same `ui::Node` surface generated C++ uses** (`set_el
 `set_automation_id`, `set_element_id`, `set_class_name`, `set_role`, `set_aria`, `set_inline_style`,
 `set_paint_data`, `set_focusable`, the scroll flags, `add_child`) in the order
 `emit_node_attributes.cpp` and `emit_node_behavior.cpp` apply them, so a preview tree is the tree a
-native build would have built, not a parallel model of it.
+native build would have built rather than a parallel model of it.
 
 **Not evaluated by this slice**, and reported as `TESSERA_SCENE_UNSUPPORTED` with an empty `nodes`
 array rather than approximated: user component instances (`NodeKind::Component`, which needs prop
@@ -190,9 +190,9 @@ The scene → snapshot walk used to live inside `src/harness/engine_host_snapsho
   equal to a partial snapshot from the other side and pass a gate it should fail.
 - Source-level identity is a callback (`SceneAnnotationFn`), not the automation lane's
   `NodeAnnotations` map, so the header stays free of that module; the harness binds its manifest
-  through it.
-- `tessera_automation` remains a leaf that links nothing. The walk is its own small target
-  (`tessera_automation_scene` = `tessera_automation` + `tessera_scene`) because it reads a live scene.
+  through it, and `tessera_automation` remains a leaf that links nothing. The walk is its own small
+  target (`tessera_automation_scene` = `tessera_automation` + `tessera_scene`) because it reads a live
+  scene.
 
 ### 7.3 The two artifacts and the gate
 
@@ -208,17 +208,15 @@ an **OBJECT library on host lanes** (`tessera_scene_preview_entry`, so the entry
 type-checked on every push) and as a `--no-entry` Emscripten module only under `EMSCRIPTEN`. It is
 *not* a verb on `tessera_codegen_cli`: that target is the Node tool the `wasm-compiler` preset builds
 for P0's IR parity, and linking the engine into it would drag Yoga and the text stack into that
-artifact. The driver is shared instead of the binary, and there is a second executable because the
-comparison needs a native command.
-`scripts/ci/scene_snapshot_parity.py` copies the shape of `wasm_diagnostics_parity.py`: it runs both
-sides over one corpus and requires **byte-identical** documents, decodes both to check
-`snapshotVersion`, and — the anti-vacuity rule — every case declares a **minimum node count**, so
-"both empty" cannot pass. A case may carry an author stylesheet (issue #390), and both sides then drive
-the styled export, so the same author CSS is compiled by the same engine on two machines. Both sides run
-with `cwd` set to a scratch case directory, so the script resolves the CLI, module and Node to
-**absolute** paths first (P1 shipped a relative-path bug that failed on CI). The salt and the file name
-go to *both* sides because both are inputs to every `uiId` (ids spec section 2); `--file` exists
-precisely so a Windows `\` cannot give a document no Linux run could reproduce.
+artifact; the driver is shared instead, and a second executable exists because the comparison needs a
+native command. `scripts/ci/scene_snapshot_parity.py` copies `wasm_diagnostics_parity.py`: one corpus,
+both sides executed, **byte-identical** documents, `snapshotVersion` decoded on both, and — the
+anti-vacuity rule — a **minimum node count** per case, so "both empty" cannot pass. A case may carry an
+author stylesheet (issue #390), and both sides then drive the styled export. Both sides run with `cwd`
+set to a scratch directory so the script resolves the CLI, module and Node to **absolute** paths first
+(P1 shipped a relative-path bug that failed on CI), and the salt and file name go to *both* sides
+because both are inputs to every `uiId`; `--file` exists so a Windows `\` cannot give a document no
+Linux run could reproduce.
 
 `scripts/ci/scene_snapshot_native.py` is the half that runs without Emscripten: it imports the gate's
 corpus and salt (so the two cannot drift), and asserts the version, the minimum counts, the
@@ -243,17 +241,16 @@ therefore P2's acceptance sentence — is proven only where the `wasm-parity` st
 ## 8. P3: the WebGPU canvas
 
 P3's acceptance is **"the canvas render is within tolerance of the lavapipe golden for the parity
-samples"**: one sentence about two artifacts produced by different machines, so this section is mostly
-about which half is proven where — because the tempting shortcut (Node loads the module, compares
-pixels) is not available, and a fake version of it would be worse than no gate.
+samples"**: one sentence about two artifacts from different machines, so this section is mostly about
+which half is proven where — the tempting shortcut (Node loads the module, compares pixels) is not
+available, and a fake version of it would be worse than no gate.
 
 ### 8.1 One pipeline, three consumers
 
 P2 ended at the scene's bounds. P3 needs the same laid-out tree twice more (recorded as a draw list,
 and painted through an RHI device), so the stage sequence of 7.1 moved out of `scene_preview.cpp` into
-**`tools/codegen/scene_prepare.cpp`**. `prepare_scene()` returns a `PreparedScene` (the lowered IR the
-tree borrows its strings from, the root node, the stylesheet the layout resolved against, and that
-stylesheet's diagnostics), and three consumers walk that one value:
+**`tools/codegen/scene_prepare.cpp`**. `prepare_scene()` returns a `PreparedScene` (the lowered IR, the
+root node, the resolved stylesheet and its diagnostics), and three consumers walk that one value:
 
 | Consumer | File | Artifact |
 |---|---|---|
@@ -262,11 +259,10 @@ stylesheet's diagnostics), and three consumers walk that one value:
 | P3 browser frame | `scene_frame.cpp` (`scene_frame_paint`), called by `wasm_canvas_entry.cpp` | a WebGPU frame on a canvas-owned target |
 
 `scene_preview.cpp` is now a thin wrapper, so the P2 parity gate keeps comparing exactly what it did
-before — verified byte-identical on the same corpus.
-
-The paint half is `ui::paint::paint_scene()` through `Batched2DSink`/`Batched2DRenderer`, the same
-objects the native window driver and the golden harness use. A preview frame and a native frame are
-therefore the same command stream by construction, not by agreement between two implementations.
+before — verified byte-identical on the same corpus. The paint half is `ui::paint::paint_scene()` through
+`Batched2DSink`/`Batched2DRenderer`, the same objects the native window driver and the golden harness use,
+so a preview frame and a native frame are the same command stream by construction rather than by
+agreement between two implementations.
 
 **Text is painted, from font bytes the page supplies (issue #387).** The module still embeds no font:
 the page fetches one face from its own origin and hands over the bytes through
@@ -276,7 +272,6 @@ shaped and atlased as a native frame draws them, and `textSkipped` is 0 for a sa
 Before the bytes arrive — and after a failed fetch — the old behaviour stands, so a missing font
 degrades rather than breaks the preview. A glyph the bounded atlas cannot place is counted in
 `glyphsDropped` and the run still advances, so the layout is unaffected.
-
 **What else a preview frame does not paint, and why.** The module ships no `AssetBundle`, so a
 vector/image payload is counted in `vectors_skipped`/`images_skipped` and the node's box is still painted.
 This is a missing *input*, not a missing capability, and it is reported rather than approximated; the
@@ -288,9 +283,8 @@ P2's sheet gave the intrinsic element kinds a size and nothing else, which was r
 wrong for a render gate: a sheet that paints nothing leaves both images a single clear colour, and two
 clear-colour images are byte-identical — the render equivalent of "both sides returned `{"nodes":[]}`".
 The sheet now carries background colours and one `border-radius`, and the gate declares a **minimum
-draw-call count** per case, the anti-vacuity rule P2 applies to node counts. The clear colour is the app
-window background (`rgba8(11, 18, 32)`, `detail::frame_clear_color()` in `src/app/window_internal.hpp`),
-not black, so a preview and the native window of the same stylesheet start from the same pixel.
+draw-call count** per case. The clear colour is the app window background (`rgba8(11, 18, 32)`,
+`detail::frame_clear_color()`), not black, so a preview and the native window start from one pixel.
 
 **The author's stylesheet replaces it (issue #390, owner decision 2).** The page has a second textarea,
 filed as the virtual file `ui/Preview.css`, so a source's `import "./Preview.css";` is that textarea and a
@@ -308,18 +302,18 @@ The exports that carry it — `tessera_canvas_frame`/`tessera_canvas_run`/`tesse
 `tessera_scene_json_styled*`, `tessera_scene_json_folded_styled`, `tessera_input_json_styled`,
 `tessera_css_diagnostics_json` — take the text beside the source, and **null or empty means "no author
 CSS"**, which keeps the Node probe and every pre-#390 caller working. `tessera_canvas_draw` deliberately
-does **not** take it (see 8.3a): it paints the tree the last apply built, so the sheet belongs on the
-call that re-evaluates. The frame report gained an appended `cssDiagnostics` array and kept
-`canvasVersion: 1`, because no existing field changed.
+does **not** (see 8.3a): it paints the tree the last apply built, so the sheet belongs on the call that
+re-evaluates. The frame report gained an appended `cssDiagnostics` array and kept `canvasVersion: 1`,
+because no existing field changed.
 
 **Diagnostics are reported, never fatal.** A CSS problem is a record with the spec's `TESSERA_CSS_*` code
 and a 1-based line/column into the CSS text (`author_stylesheet_diagnostics()`); the tolerant parser drops
 the bad rule and the frame is still drawn. A stack overflow in Wasm aborts the module — losing a designer's
 unsaved work — so the recursion budgets are proven, not assumed: #410 bounded nested selectors (16) and
 at-rules (32), and #390 added the `@supports` condition bound (32) that #410 left open, where 20000 nested
-`not`s or `(`s crashed `tessera_codegen` with 0xC00000FD. `scene_stylesheet` ctest feeds all four grammars
-thousands deep plus a 7 KB hostile sheet through the preview path and requires a diagnostic and a laid-out
-frame, so the bound is asserted where a person sees it.
+`not`s or `(`s crashed `tessera_codegen` with 0xC00000FD. `scene_stylesheet` ctest feeds all four grammars,
+thousands deep plus a 7 KB hostile sheet, through the preview path and requires a diagnostic and a
+laid-out frame, so the bound is asserted where a person sees it.
 
 ### 8.3 What can and cannot be proven, and by what
 
@@ -331,26 +325,17 @@ frame, so the bound is asserted where a person sees it.
 | WebGPU candidate render | **nowhere automatically** | needs a browser with a real WebGPU device |
 | the pixel comparison itself | `tessera_scene_frame_compare`, any host | the two PNGs are within `webgpu_vs_lavapipe` |
 
-**The honest statement.** The pixel acceptance cannot be proven on this machine or a hosted CI runner.
-Three independent facts block it: Node has no `navigator.gpu`, so a module loaded there has no device to
-draw with; the WebGPU candidate is a *browser* artifact and a hosted runner has no GPU, so a headless
-browser would draw through a software adapter, not the user's frame; and the golden must be lavapipe
-(ADR-009), whose manifest this box lacks, so `--write-goldens` **refuses**.
-
-So the slice lands three things and names the fourth as remaining:
-
-- (a) the whole native path, proven by `scene_frame` (5 cases, deterministic, non-vacuous) and by the
-  `canvas-native-parity` job rendering the lavapipe reference;
-- (b) the canvas page, the device plumbing, render-on-demand, and the unsupported-browser path;
-- (c) the node-count-equivalent of a pixel gate: the compare tool plus the script that would apply it;
-- (d) **remaining**: the WebGPU candidate. It needs a real browser with a real device, which is a new CI
-  dependency (Playwright-class, plus a GPU runner) — a spec/ADR decision, so it is reported, not added.
-  The plan: a browser job serving `build/pages`, drawing into `canvas.html`, reading it back with
-  `toDataURL()`, and feeding `scene_frame_parity.py --mode compare`. Only the browser is missing.
-
-Measuring the delta between a hardware WebGPU frame and a lavapipe golden is what
-`tests/golden/tolerance.json`'s `webgpu_vs_lavapipe` pair (8/255 per channel, 2% of pixels, SSIM >=
-0.99, deltaE <= 2.0) was written for, so the browser lane adds no policy, only a device.
+**The honest statement.** The pixel acceptance cannot be proven on this machine or a hosted CI runner:
+Node has no `navigator.gpu`, so a module loaded there has no device to draw with; the WebGPU candidate is
+a *browser* artifact and a hosted runner has no GPU, so a headless browser would draw through a software
+adapter, not the user's frame; and the golden must be lavapipe (ADR-009), whose manifest this box lacks,
+so `--write-goldens` **refuses**. So the slice lands the whole native path, the canvas page with its
+device plumbing, render-on-demand and unsupported-browser state, and the node-count-equivalent of a pixel
+gate. **Remaining** is the WebGPU candidate itself: a real browser with a real device is a new CI
+dependency (Playwright-class, plus a GPU runner), so a spec/ADR decision rather than a patch — a job
+serves `build/pages`, draws into `canvas.html`, reads it back with `toDataURL()` and feeds
+`scene_frame_parity.py --mode compare` at `tests/golden/tolerance.json`'s `webgpu_vs_lavapipe` pair. Only
+the device is missing.
 
 ### 8.3a How the frame reaches the canvas
 
@@ -359,47 +344,44 @@ The page owns the surface, the module owns the drawing:
 1. `canvas.js` requests the device, then turns the JS `GPUDevice`/`GPUQueue` into Emscripten handles with
    `WebGPU.importJsDevice` / `importJsQueue` (the module exports `WebGPU` for this) and calls
    `tessera_webgpu_set_device`, which returns 1, 0 (null handle) or -1 (wrapping threw). Passing the JS
-   objects themselves does not work: they coerce to 0 and read as a null handle.
-2. It configures the canvas context once (`rgba8unorm`, opaque).
-3. Each frame it imports `getCurrentTexture().createView()` with `importJsTextureView` and passes
+   objects themselves does not work: they coerce to 0 and read as a null handle. It configures the canvas
+   context once (`rgba8unorm`, opaque), then each frame passes a texture view as below.
+2. Each frame it imports `getCurrentTexture().createView()` with `importJsTextureView` and passes
    that handle to `tessera_canvas_draw`, which paints the running session into it and releases the view
-   when the target is destroyed. A null view draws offscreen instead, which the Node probe uses. (A
-   one-shot `tessera_canvas_frame` still exists for the parity probe; the page does not use it, because
-   it re-evaluates per call and so can neither carry state nor keep a picture across a failed edit.)
-   `tessera_canvas_draw` takes **no strings**: the tree it paints, and the author stylesheet that tree
-   was laid out with, are the ones the last `run`/`apply` left in the module (the sheet argument
-   belongs on those two, per #390's append-only ABI). The draw report still carries
-   `cssDiagnostics`, so a bad rule is reported by the frame that paints its effect.
+   when the target is destroyed; a null view draws offscreen, which the Node probe uses. (A one-shot
+   `tessera_canvas_frame` still exists for the parity probe; the page does not use it, because it
+   re-evaluates per call and so can neither carry state nor keep a picture across a failed edit.) Draw
+   takes **no strings**: the tree, and the sheet that tree was laid out with, are the ones the last
+   `run`/`apply` left in the module (#390's append-only ABI puts the sheet argument on those two), and
+   its report still carries `cssDiagnostics`.
 
 Both target kinds derive from `WebGpuTargetViews`, and the command list casts to that. A cast to the
 concrete offscreen class made a canvas target read the wrong memory and begin a pass with no view.
-
 The module still ships no font, but a frame now paints text when the page has supplied one: once per
 device the page fetches `fonts/IBMPlexSans-Latin.ttf` from its own origin, writes the bytes into the
-module's heap and calls `tessera_canvas_set_font(ptr, size)`, after which a draw shapes and draws its runs
-through the production text stack. Without that call (and after a failed fetch, which the pane names) text
-nodes paint their boxes only, unchanged from before issue #387.
-
+module's heap and calls `tessera_canvas_set_font(ptr, size)`, after which a draw shapes and draws its
+runs through the production text stack. Without that call (and after a failed fetch, which the pane
+names) text nodes paint their boxes only, unchanged from before issue #387.
 ### 8.4 Render on demand
 
 The page does not run a frame loop: it draws once per *change* (an applied edit, a device-pixel-ratio
 change, or the tab becoming visible again). `requestAnimationFrame` coalesces a burst of notifications
 into one frame and aligns the draw with the display, but nothing re-arms it after a frame, so a static
-scene stops drawing — the browser form of the idle rule (a static UI presents nothing). Since #444 the
-edit is the main trigger: `tessera_canvas_apply` (evaluate, carry, answer `changed`) then
-`tessera_canvas_draw` only when `changed`, so unchanged text costs no frame and a failed source keeps the
-picture. The 150 ms debounce and this coalescer compose once each, and both reports carry
-`frames_painted()`, so "one frame per burst, zero when static" is read rather than asserted.
+scene stops drawing — the browser form of the idle rule. Since #444 the edit is the main trigger:
+`tessera_canvas_apply` (evaluate, carry, answer `changed`) then `tessera_canvas_draw` only when
+`changed`, so unchanged text costs no frame and a failed source keeps the picture. The 150 ms debounce
+and this coalescer compose once each, and both reports carry `frames_painted()`, so "one frame per
+burst, zero when static" is read rather than asserted.
 
 ### 8.5 The unsupported path
 
 The page ships the unsupported state as its *default* pane content and swaps in the canvas only once a
 device exists. Each way to get there — no `navigator.gpu`, no adapter, a rejecting `requestDevice()` —
 names its cause and points at the Scene tab, which needs no GPU; a module that fails to load, or one
-without the canvas exports, reports that too. A blank canvas is never the outcome.
-`scene_frame_parity.py --mode canvas-report` checks the same contract without a browser, loading
-`tessera_canvas.js` under Node (which has no `navigator.gpu`, like a browser without WebGPU) and
-requiring a `hasDevice:false` report rather than a crash.
+without the canvas exports, reports that too, and a blank canvas is never the outcome.
+`scene_frame_parity.py --mode canvas-report` checks the same contract without a browser: it loads
+`tessera_canvas.js` under Node (no `navigator.gpu`, like a browser without WebGPU) and requires a
+`hasDevice:false` report, not a crash.
 
 ### 8.6 Verification and status
 
@@ -420,14 +402,11 @@ Verified on this Windows host (2026-11-16), native side only:
   path works, **not** a golden, and the script refuses to save it as one.
 - `tessera_scene_frame_compare` classifies an identical pair as a pass (`ssim=1 deltaE=0`) and two
   different scenes as a structural failure (`mismatch=0.207 ssim=0.879`), so it is not vacuous.
-- `ctest -R scene_stylesheet` (issue #390): the accepted cases plus the depth-bound proof. Nested
-  selectors at 2000, at-rules at 2000, `@supports` conditions at 2000 and 20000, and a 7 KB sheet of all
-  of them through `prepare_scene()` — each yields a `cssDiagnostics` record and a laid-out frame, so the
-  bound is asserted here rather than trusted. Plus the three owner decisions as behavior: empty/comment
-  sheets keep the built-in 120x32 blue, any author rule removes it, a `:root` token changes a computed
-  colour through `var()`, and inline `style` wins over a class rule.
-- `tessera_scene_preview --stylesheet` agrees with the module: the `author-stylesheet` parity corpus case
-  produces the same bytes on both sides (below).
+- `ctest -R scene_stylesheet` (issue #390): the accepted cases plus the depth-bound proof of 8.2, and
+  the three owner decisions as behavior — empty/comment sheets keep the built-in 120x32 blue, any
+  author rule removes it, a `:root` token changes a computed colour through `var()`, and inline `style`
+  wins over a class rule. `tessera_scene_preview --stylesheet` agrees with the module on the
+  `author-stylesheet` parity corpus case, so the same author CSS produces the same bytes on both sides.
 
 **What runs only in CI:** the *browser* half. `wasm_canvas_entry.cpp`, `wasm_canvas_support.cpp`,
 `wasm_canvas_paint.cpp` and `webgpu_canvas_target.cpp` compile under the `wasm-webgpu` preset (verified
@@ -479,9 +458,9 @@ PreviewInput -> ui::InputEvent -> ui::InputRouter::dispatch(root, event)
 ```
 
 Everything up to the callback is the production code path, unchanged: hit testing, capture, the
-common-ancestor click rule, focus and capture/target/bubble propagation are `src/ui/scene/`, not a
-preview copy; the callback then runs the handler's **TSX preview body** through the evaluator, the same
-action list `parity::run_parity` executes for a `click <automationId>` step. Consequently:
+common-ancestor click rule, focus and propagation are `src/ui/scene/`, not a preview copy; the callback
+then runs the handler's **TSX preview body** through the evaluator, the same action list
+`parity::run_parity` executes for a `click <automationId>` step. Consequently:
 
 - a handler that is a native `bind::` binding with no `preview` body runs **no** actions, exactly as
   in the parity runner, because its body is the developer's C++;
@@ -493,7 +472,7 @@ action list `parity::run_parity` executes for a `click <automationId>` step. Con
 
 ### 9.2 State kept across edits: the exact rule
 
-`tools/codegen/scene_state.hpp` states it in full; the operative sentence is:
+`tools/codegen/scene_state.hpp` states it in full:
 
 > A state cell is carried across an edit when, and only when, the new evaluation has a component with
 > the same **component id** that declares a cell with the same **cell id** (`state::count`) and the
@@ -504,10 +483,10 @@ action list `parity::run_parity` executes for a `click <automationId>` step. Con
   `ids::assign_identity`. It is a pure function of the text, so two separate evaluations of edited
   text are directly comparable. Inserting, deleting or reordering components cannot hand one
   component's state to another, and a moved file is a different component.
-- The cell id, not a position, is the cell identity: reordering `useState` calls or inserting one
-  above keeps every existing value; renaming a variable makes it a different cell.
-- The IR type is part of the key because the generated C++ field's type comes from it: carrying an
-  `int` into a `float` cell would be a conversion the native build never performs.
+- The cell id, not a position, is the cell identity: reordering `useState` calls keeps every
+  existing value; renaming a variable makes it a different cell. The IR type is part of the key
+  because the generated C++ field's type comes from it, and carrying an `int` into a `float` cell
+  would be a conversion the native build never performs.
 - The **initializer expression is deliberately not** part of the key, so editing `useState(0)` to
   `useState(10)` does not reset a live counter. `build_scene()` seeds only the cells a carried scope
   does not already hold, so a carried value is never recomputed.
@@ -520,8 +499,7 @@ child as unsupported (section 7.1), so no keyed component instance can exist. Wh
 the key extends to `(componentId, itemKey, cellId)`; adding it only narrows the matches, so a value
 carried correctly today stays correct. That extension — and whether a page may ever persist cells
 across a reload — is an ADR/protocol question: `docs/specs/designer-protocol-v1.md` section 14 states
-V1 has **no** state snapshot or restore, and this slice does not add one. The carry is in-process,
-between two evaluations in one session.
+V1 has **no** state snapshot or restore, and this slice does not add one.
 
 ### 9.3 The artifacts and the gate
 
@@ -540,7 +518,7 @@ executed, **byte-identical** documents, absolute paths resolved before any `cwd`
 anti-vacuity rule. For input the vacuity that matters is different: every case declares a **minimum
 state-cell count and a minimum number of handlers that must run**, and any non-empty `unrun` fails, so
 "both sides clicked nothing" cannot pass. `scripts/ci/scene_input_native.py` is the half that runs
-without Emscripten; it imports the gate's corpus and salt so the two cannot drift.
+without Emscripten, importing the gate's corpus and salt so the two cannot drift.
 
 `tests/parity/scene_input_tests.cpp` is the acceptance test: it hands the scene session to the real
 `parity::run_parity` as that runner's **native side**, so "scripted clicks give the same state cells
@@ -583,23 +561,20 @@ siblings rather than rewritten as TypeScript (a bundled copy is not the shipped 
 imperative half lives in `designer/web/src/views/*-session.ts`: each session owns one Wasm module
 instance, fills the childless leaves React committed, and calls
 `import(wasmModuleUrl("tessera_<name>.js"))` with a `@vite-ignore`, so Vite neither bundles nor
-preloads a module. [`studio-page.md`](studio-page.md) section 2 is the normative record of the whole
-layout, including the manifest, the gallery and the toolbar.
+preloads a module. [`studio-page.md`](studio-page.md) section 2 is the normative layout record.
 
 ### 10.2 What the toggles actually do
 
 `viewport` and `dpr` are real layout inputs: `tessera_scene_json_sized` passes them to
-`ScenePreviewOptions`, so the scene page re-lays-out at the chosen rectangle. Measured with the native CLI
-at 320×240 / 390×844 / 1280×800: the root node's bounds follow the request (`--size 390x844` gives a
-390×844 root) and the node count is unchanged, which is the difference between "the toggle is wired" and
-"the toggle re-renders the same picture".
+`ScenePreviewOptions`, so the scene page re-lays-out at the chosen rectangle. Measured with the native
+CLI at 320×240 / 390×844 / 1280×800, the root node's bounds follow the request and the node count is
+unchanged — the difference between "the toggle is wired" and "the toggle re-renders the same picture".
 
 `theme` is carried in the link and persisted locally, but it is **not applied**: the null-RHI
-snapshot path has no theme asset, so a themed preview would be a claim the module cannot keep. That
-is a spec-level gap, not a bug in this slice, and it is recorded rather than papered over.
-
-The sized export itself is `tessera_scene_json_sized(...)` in `tools/codegen/wasm_scene_entry.cpp`; the P2
-signature is untouched because the parity gate pins its defaults.
+snapshot path has no theme asset, so a themed preview would be a claim the module cannot keep — a
+spec-level gap, recorded rather than papered over. The sized export itself is
+`tessera_scene_json_sized(...)` in `tools/codegen/wasm_scene_entry.cpp`; the P2 signature is untouched
+because the parity gate pins its defaults.
 
 ### 10.3 Verification and status
 
@@ -620,7 +595,6 @@ normative record; here the summary is that every one of them passes against the 
 (Chrome 143 with WebGPU, against `build/pages`), so the result above is recorded rather than deferred
 to the deploy. They still do not cover a browser without WebGPU: that state is asserted in the pane's
 markup, not by hiding the adapter, and a human opening the deployed URL remains the last word on CSS.
-
-**The merge, then the conversion.** The three pages above are now one `index.html` with three views
-(#392), and its chrome is React 19 + TypeScript built by Vite (#422, ADR-054).
-[`studio-page.md`](studio-page.md) records both, with the two budget re-records.
+The three pages above are now one `index.html` with three views (#392), and its chrome is React 19 +
+TypeScript built by Vite (#422, ADR-054); [`studio-page.md`](studio-page.md) records both, with the
+budget re-records.

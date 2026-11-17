@@ -2,10 +2,10 @@
 //
 // Every export is specified in `docs/design/compiler-wasm.md` section 10, which is the normative
 // source for the module ABI: `tessera_webgpu_set_device`, `tessera_canvas_frame`,
-// `tessera_canvas_run`, `tessera_canvas_apply`, `tessera_canvas_pointer`, `tessera_canvas_set_fold`,
-// `tessera_canvas_draw`, `tessera_canvas_reset`, `tessera_canvas_set_font` and
-// `tessera_canvas_font_status`. Read that before changing a signature; it also carries the "why
-// Emscripten only" rationale and the verified-status record.
+// `tessera_canvas_run`, `tessera_canvas_apply`, `tessera_canvas_pointer`,
+// `tessera_canvas_set_fold`, `tessera_canvas_draw`, `tessera_canvas_reset`,
+// `tessera_canvas_set_font` and `tessera_canvas_font_status`. Read that before changing a
+// signature; it also carries the "why Emscripten only" rationale and the verified-status record.
 //
 // The one rule that lives here rather than in the doc, because it is a property of this file: the
 // exports below share one anonymous-namespace device and session, so they are not splittable into
@@ -74,8 +74,8 @@ std::string frame_report(const cli::SceneFrameResult& result,
         cli::author_stylesheet_diagnostics(options.stylesheet, options.stylesheet_file));
 }
 
-// The same report with a session's already-collected diagnostics (a Run, an Apply or a Draw does not
-// re-prepare the sheet, so it reports what `start()` found) and the session's own frame count.
+// The same report with a session's already-collected diagnostics (a Run, an Apply or a Draw does
+// not re-prepare the sheet, so it reports what `start()` found) and the session's own frame count.
 std::string report_with_css(const cli::SceneFrameResult& result, rhi::Extent2D extent,
                             const std::vector<cli::PreviewCssDiagnostic>& css,
                             std::uint32_t frames = 0) {
@@ -87,8 +87,6 @@ std::string report_with_css(const cli::SceneFrameResult& result, rhi::Extent2D e
 // state cells across the edit (`scene_canvas_session.hpp`). Declared here rather than beside
 // `g_device` because it must die before any device it painted through.
 std::unique_ptr<cli::CanvasSceneSession> g_session;
-
-} // namespace
 
 } // namespace
 
@@ -125,6 +123,7 @@ EMSCRIPTEN_KEEPALIVE int tessera_webgpu_set_device(void* device, void* queue) {
 // working unchanged. A non-empty sheet REPLACES the built-in one (decision 2) and never mixes with
 // it.
 EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_frame(const char* source, const char* file,
+                                                      const char* component,
                                                       const char* fold_posture,
                                                       const char* stylesheet, int width, int height,
                                                       float dpi, void* canvas_view) {
@@ -244,34 +243,36 @@ EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_run(const char* source, const ch
 //
 // This is `tessera_canvas_run` with two differences that the live edit needs and a button does not:
 //
-//  1. **It reports `changed`.** `run` answers "was the source evaluated", because the page then draws
+//  1. **It reports `changed`.** `run` answers "was the source evaluated", because the page then
+//  draws
 //     unconditionally; an auto-apply of text that did not change must cost no frame, so this one
 //     answers the session's own `needs_frame()` and the page draws only when it is true. A `reused`
 //     apply (identical text) is therefore `changed:false` and zero frames.
 //  2. **It reports the carry split.** `carried`/`droppedComponent`/`droppedCell`/`droppedType` come
-//     from `StateCarryReport` (`scene_state.hpp`), so the page can say which cells survived the edit
-//     and, when a component was removed, that the spec's reset case happened rather than a silent
-//     loss.
+//     from `StateCarryReport` (`scene_state.hpp`), so the page can say which cells survived the
+//     edit and, when a component was removed, that the spec's reset case happened rather than a
+//     silent loss.
 //
 // A source that does not evaluate leaves the running evaluation and its picture untouched (see
 // `CanvasSceneSession::start`), and this returns `error` with `changed` as it already was: the page
-// shows the diagnostic and draws nothing, which is what keeps the canvas from blanking mid-keystroke.
+// shows the diagnostic and draws nothing, which is what keeps the canvas from blanking
+// mid-keystroke.
 //
-// `width`/`height`/`dpi` are the same logical viewport and DPR `tessera_canvas_run` takes, and are part
-// of the tuple that decides reuse: a toolbar change is an apply too (one frame), and a font that
-// arrived after the last evaluation re-lays out.
+// `width`/`height`/`dpi` are the same logical viewport and DPR `tessera_canvas_run` takes, and are
+// part of the tuple that decides reuse: a toolbar change is an apply too (one frame), and a font
+// that arrived after the last evaluation re-lays out.
 //
 // `stylesheet` is the author's CSS (issue #390) and travels **here**, on the apply, for exactly the
-// reason it travels on `run`: an apply is the call that re-evaluates, so it is the call that decides
-// which sheet the tree is laid out with. `tessera_canvas_draw` takes no strings at all -- it paints
-// the tree the last apply left -- so a sheet handed to `draw` would have nowhere to go. That is the
-// whole shape of the live edit with an author stylesheet: the edit re-applies the sheet, and the
-// frame that follows keeps the author's look.
+// reason it travels on `run`: an apply is the call that re-evaluates, so it is the call that
+// decides which sheet the tree is laid out with. `tessera_canvas_draw` takes no strings at all --
+// it paints the tree the last apply left -- so a sheet handed to `draw` would have nowhere to go.
+// That is the whole shape of the live edit with an author stylesheet: the edit re-applies the
+// sheet, and the frame that follows keeps the author's look.
 EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_apply(const char* source, const char* file,
                                                       const char* component,
                                                       const char* fold_posture,
-                                                      const char* stylesheet, int width,
-                                                      int height, float dpi) {
+                                                      const char* stylesheet, int width, int height,
+                                                      float dpi) {
     const auto extent = rhi::Extent2D{static_cast<std::uint32_t>(width > 0 ? width : 0),
                                       static_cast<std::uint32_t>(height > 0 ? height : 0)};
     if (g_device == nullptr) {
@@ -299,19 +300,20 @@ EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_apply(const char* source, const 
         return duplicate_out(cli::canvas_report_json(none, extent.width, extent.height, true));
     }
 
-    // The posture is not part of the tuple `start()` compares to decide reuse (it is a layout input,
-    // not a source), so a reused apply must still hand the new one to `set_posture()`. That is the
-    // #408 path: the running tree is re-laid out in place, keeping hover, focus and the state cells,
-    // and reporting whether a layout pass ran - which is what makes this frame the first to show the
-    // new posture. On a fresh evaluation `start()` already laid the tree out at this posture, and
-    // `set_posture()` answers false, so this is one call in both cases and never a second pass.
+    // The posture is not part of the tuple `start()` compares to decide reuse (it is a layout
+    // input, not a source), so a reused apply must still hand the new one to `set_posture()`. That
+    // is the #408 path: the running tree is re-laid out in place, keeping hover, focus and the
+    // state cells, and reporting whether a layout pass ran - which is what makes this frame the
+    // first to show the new posture. On a fresh evaluation `start()` already laid the tree out at
+    // this posture, and `set_posture()` answers false, so this is one call in both cases and never
+    // a second pass.
     const std::string error = g_session->start(options);
     if (error.empty() && g_session->reused()) {
         (void)g_session->set_posture(options.posture);
     }
-    return duplicate_out(cli::canvas_apply_report_json(g_session->needs_frame(), g_session->reused(),
-                                                       g_session->carry_report(), g_session->state(),
-                                                       g_session->frames_painted(), error));
+    return duplicate_out(cli::canvas_apply_report_json(
+        g_session->needs_frame(), g_session->reused(), g_session->carry_report(),
+        g_session->state(), g_session->frames_painted(), error));
 }
 
 // Routes one pointer event into the running session and returns what it did. The page calls this
@@ -424,14 +426,15 @@ EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_draw(int width, int height, void
                         g_session->css_diagnostics(), g_session->frames_painted()));
 }
 
-// Releases the session (and with it the tree, its handlers and its carried state). The page calls it
-// from **Restart app** and when it leaves the Canvas view; the next apply starts a fresh session with
-// nothing carried, which is the same thing a page reload does.
+// Releases the session (and with it the tree, its handlers and its carried state). The page calls
+// it from **Restart app** and when it leaves the Canvas view; the next apply starts a fresh session
+// with nothing carried, which is the same thing a page reload does.
 //
-// It returns a one-line JSON object like every other export in this module, and for the same reason:
-// the page's `callExport` treats a null return as an error, and a void export read through it would
-// surface as "_tessera_canvas_reset returned no document" on the first restart -- a crash-shaped
-// message for a successful cold start. The document says what was released so the page can log it.
+// It returns a one-line JSON object like every other export in this module, and for the same
+// reason: the page's `callExport` treats a null return as an error, and a void export read through
+// it would surface as "_tessera_canvas_reset returned no document" on the first restart -- a
+// crash-shaped message for a successful cold start. The document says what was released so the page
+// can log it.
 EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_reset() {
     const bool had_session = g_session != nullptr;
     const std::uint32_t frames = g_session != nullptr ? g_session->frames_painted() : 0;

@@ -106,10 +106,10 @@ public:
     // (component id + cell id + IR type; `scene_state.hpp`). Returns why a source produced no
     // scene, or an empty string on success.
     //
-    // Calling it again is an *apply*: a new evaluation at the new source, with the old state carried.
-    // A call with the identical source reuses the running evaluation instead, because the page hands
-    // the editor's text to every frame and re-evaluating would drop hover and state between two
-    // frames of one program.
+    // Calling it again is an *apply*: a new evaluation at the new source, with the old state
+    // carried. A call with the identical source reuses the running evaluation instead, because the
+    // page hands the editor's text to every frame and re-evaluating would drop hover and state
+    // between two frames of one program.
     //
     // **A source that does not evaluate leaves the running evaluation untouched** (issue #444). The
     // new text is parsed before anything is replaced, so a failed edit returns its reason while
