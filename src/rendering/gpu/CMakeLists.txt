@@ -2,6 +2,7 @@
 
 add_library(tessera_gpu STATIC
     batched2d_renderer.cpp
+    batched2d_cull.cpp
     batched2d_seam.cpp
     clip_state_table.cpp
     glass_blur.cpp
