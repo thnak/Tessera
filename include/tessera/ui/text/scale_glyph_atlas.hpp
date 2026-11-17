@@ -66,6 +66,15 @@ public:
         return config_.hinting;
     }
 
+    // The AA mode applies to every atlas in the set, exactly like hinting
+    // (display-aware-rendering.md section 3.4): a change releases all of them, because their
+    // bitmaps were rasterized in the old mode and a page never mixes coverage layouts. Setting the
+    // value already in force is a no-op. References from atlas_for() before a change are dead.
+    void set_aa_mode(GlyphAaMode aa_mode);
+    [[nodiscard]] GlyphAaMode aa_mode() const noexcept {
+        return config_.aa_mode;
+    }
+
     [[nodiscard]] std::uint32_t atlas_count() const noexcept;
     // Atlas instances created since construction. It counts instances, not live slots, so
     // re-rasterization after an invalidate() shows up here for diagnostics.

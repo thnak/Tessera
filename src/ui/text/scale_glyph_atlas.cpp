@@ -74,6 +74,14 @@ void ScaleGlyphAtlas::set_hinting(GlyphHinting hinting) {
     invalidate_all();
 }
 
+void ScaleGlyphAtlas::set_aa_mode(GlyphAaMode aa_mode) {
+    if (aa_mode == config_.aa_mode) {
+        return;
+    }
+    config_.aa_mode = aa_mode;
+    invalidate_all();
+}
+
 std::uint32_t ScaleGlyphAtlas::atlas_count() const noexcept {
     std::uint32_t count = 0;
     for (const std::unique_ptr<GlyphAtlas>& slot : slots_) {

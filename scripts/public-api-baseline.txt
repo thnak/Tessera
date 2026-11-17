@@ -2663,7 +2663,9 @@ struct include/tessera/ui/text/glyph_atlas.hpp tessera::ui::text::GlyphAtlasStat
 header include/tessera/ui/text/glyph_raster.hpp
 class include/tessera/ui/text/glyph_raster.hpp tessera::ui::text::GlyphRasterizer
 struct include/tessera/ui/text/glyph_raster.hpp tessera::ui::text::GlyphBitmap
+enum include/tessera/ui/text/glyph_raster.hpp tessera::ui::text::GlyphAaMode
 enum include/tessera/ui/text/glyph_raster.hpp tessera::ui::text::GlyphHinting
+function include/tessera/ui/text/glyph_raster.hpp tessera::ui::text::coverage_channels
 constant include/tessera/ui/text/glyph_raster.hpp tessera::ui::text::kSubpixelSteps
 
 header include/tessera/ui/text/harfbuzz_shaper.hpp

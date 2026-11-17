@@ -61,7 +61,8 @@ GlyphBitmap GlyphRasterizer::rasterize(char32_t codepoint, std::uint16_t pixel_s
 }
 
 GlyphBitmap GlyphRasterizer::rasterize_glyph(std::uint32_t glyph_index, std::uint16_t pixel_size,
-                                             GlyphHinting hinting, std::uint8_t x_subpixel) const {
+                                             GlyphHinting hinting, std::uint8_t x_subpixel,
+                                             GlyphAaMode aa_mode) const {
     GlyphBitmap result;
     if (!face_.valid() || pixel_size == 0) {
         return result;
@@ -90,8 +91,20 @@ GlyphBitmap GlyphRasterizer::rasterize_glyph(std::uint32_t glyph_index, std::uin
             (64 / kSubpixelSteps);
         FT_Outline_Translate(&face->glyph->outline, shift, 0);
     }
-    if (FT_Render_Glyph(face->glyph, FT_RENDER_MODE_NORMAL) != 0) {
-        return result;
+    // LCD is only meaningful for an outline: FreeType's smooth renderer accepts no other glyph
+    // format. A bitmap-strike glyph is rejected here, before the render; a color glyph is still an
+    // outline at this point, but FreeType composites its COLR layers into a BGRA bitmap before any
+    // renderer runs, so the pixel-mode check below catches it. Both end up as the grayscale/color
+    // bitmap with `aa_mode` reporting what was actually produced, rather than a lost glyph.
+    const bool lcd = aa_mode == GlyphAaMode::Lcd && face->glyph->format == FT_GLYPH_FORMAT_OUTLINE;
+    if (FT_Render_Glyph(face->glyph, lcd ? FT_RENDER_MODE_LCD : FT_RENDER_MODE_NORMAL) != 0) {
+        // An LCD render can still fail where a grayscale one would not (a raster overflow, a
+        // renderer that declines the mode). Losing the glyph is worse than losing subpixel
+        // coverage, so retry grayscale before giving up. The copy below reads the pixel mode the
+        // render actually produced, so a successful retry reports Grayscale on its own.
+        if (!lcd || FT_Render_Glyph(face->glyph, FT_RENDER_MODE_NORMAL) != 0) {
+            return result;
+        }
     }
 
     const FT_GlyphSlot slot = face->glyph;
@@ -134,13 +147,17 @@ GlyphBitmap GlyphRasterizer::rasterize_glyph(std::uint32_t glyph_index, std::uin
         }
         return result;
     }
-    // The atlas stores 8-bit coverage; hinted grayscale is the deterministic default.
-    if (bitmap.pixel_mode != FT_PIXEL_MODE_GRAY) {
+    // The atlas stores 8-bit coverage; hinted grayscale is the deterministic default. LCD coverage
+    // arrives as FT_PIXEL_MODE_LCD, which is the same one-byte-per-sample layout, three samples per
+    // pixel, so the copy below is shared and only the width differs.
+    if (bitmap.pixel_mode != FT_PIXEL_MODE_GRAY && bitmap.pixel_mode != FT_PIXEL_MODE_LCD) {
         return result;
     }
 
     result.width = bitmap.width;
     result.height = bitmap.rows;
+    result.aa_mode =
+        bitmap.pixel_mode == FT_PIXEL_MODE_LCD ? GlyphAaMode::Lcd : GlyphAaMode::Grayscale;
     result.coverage.resize(static_cast<std::size_t>(result.width) * result.height);
     for (std::uint32_t row = 0; row < result.height; ++row) {
         std::memcpy(result.coverage.data() + static_cast<std::size_t>(row) * result.width,

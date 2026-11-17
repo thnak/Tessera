@@ -1,7 +1,8 @@
 # Display-aware rendering (text and non-text anti-aliasing)
 
-Status: **S1-S6 and S8 landed, plus the T5 contrast LUT and the window integration in section 6;
-LCD text (T4) is a later slice.** Landed: the `AaPolicy` resolver and `hal::PixelGeometry` (S1),
+Status: **S1-S6 and S8 landed, plus the T5 contrast LUT, the window integration in section 6, and
+the rasterizer and atlas half of S7 (T4); LCD text is not composited yet.** Landed: the `AaPolicy`
+resolver and `hal::PixelGeometry` (S1),
 screen-space SDF edges and anti-aliased rounded clips in `batched2d.frag`/`.wgsl` (S2, S4), border
 widths snapped to device pixels in the paint pass (S3), glyph hinting by scale, quarter-pixel glyph
 origins and text rasterized at `css_px * render_scale` (S5 T1/T2, S6), the MSAA scale rule in the
@@ -9,12 +10,16 @@ resolver (S8), the text contrast LUT adopted as a D2 amendment (T5, section 3.5)
 integration: `AppWindow` resolves and applies the policy, sets `PaintContext::device_scale`, and
 pins the golden policy in golden mode (section 6). S8 also landed the image filter-by-scale rule
 (nearest at aligned 1:1, linear otherwise; the mip case is blocked on RHI mip support, section 6)
-and consumes the resolver's MSAA decision in the window's presentation. S7's first half landed:
+and consumes the resolver's MSAA decision in the window's presentation. S7 landed in two halves:
 the Windows backend fills `PixelGeometry` from the user's ClearType configuration (section 2), the
-only subpixel source the OS has, and says honestly that it is desktop-wide rather than per-monitor.
-Not landed: LCD text (T4 - section 3.4 records exactly what the second half needs and why it is not
-one safe landing), the mip-chain downscale case (needs `TextureDesc` mip levels and backend chain
-generation), and the X11/Wayland `PixelGeometry` sources (both still report `Unknown`). Extends
+only subpixel source the OS has, and says honestly that it is desktop-wide rather than per-monitor;
+and `GlyphAaMode` gives the rasterizer and atlas an LCD mode (`FT_RENDER_MODE_LCD`, three coverage
+samples per pixel, the mode in the atlas identity, RGB upload, and a quad one third of the page
+extent, section 3.4.1). Not landed: **LCD compositing** - the per-run eligibility predicate, the
+renderer's pipeline axis and the paint-seam fact (section 3.4.1 step 3), so every run still
+composites through the grayscale pipeline; the mip-chain downscale case (needs `TextureDesc` mip
+levels and backend chain generation); and the X11/Wayland `PixelGeometry` sources (both still report
+`Unknown`). Extends
 [`antialiasing.md`](antialiasing.md) and [`text.md`](text.md). Decisions D2/D6 in
 [`rendering-production-plan.md`](rendering-production-plan.md) stay in force unless a numbered
 decision in section 8 says otherwise.
@@ -104,20 +109,21 @@ counted against the existing bounded atlas budget; eviction rules unchanged.
 
 ### 3.4 LCD subpixel text (T4, optional)
 
-Not in this slice: the owner decided LCD text ships in V1 in a later PR. The Windows backend now
-fills `PixelGeometry` (section 2), but the resolver keeps `Auto` on grayscale until the text path
-can consume it (`kAutoAllowsLcd == false`), so every window still resolves `Grayscale` and the rules
-below are the later slice's contract.
+Landed in two slices (section 3.4.1): the rasterizer and atlas half, and the compositing half that
+is still to come. The Windows backend fills `PixelGeometry` (section 2), but the resolver keeps
+`Auto` on grayscale until compositing exists (`kAutoAllowsLcd == false`), so every window still
+resolves `Grayscale` and the eligibility rules below are the compositing slice's contract.
 
-Modes: `grayscale` (today) and `lcd` (3 coverage channels). LCD is chosen only when **all** hold:
-`PixelGeometry` is a known horizontal stripe, the window is opaque, the run has a translate-only
-transform and effective opacity 1, and nothing translucent, glass, or animated lies beneath it.
-Otherwise the run uses grayscale; fringes are never mixed into a run. Rasterize with
-`FT_RENDER_MODE_LCD` (FreeType's Harmony renderer; verify the pinned version supports it and that
-no patent-encumbered filter is needed) into an RGB coverage atlas page. Compositing needs a
-per-channel blend: dual-source blending where `dualSrcBlend` is supported; reading the destination
-in the shader is not allowed, so the fallback is grayscale. Rotated screens and vertical stripes
-are grayscale in V1.
+Modes: `grayscale` (the default) and `lcd` (3 coverage channels). LCD is chosen only when **all**
+hold: `PixelGeometry` is a known horizontal stripe, the window is opaque, the run has a
+translate-only transform and effective opacity 1, and nothing translucent, glass, or animated lies
+beneath it. Otherwise the run uses grayscale; fringes are never mixed into a run. Rasterize with
+`FT_RENDER_MODE_LCD` into an RGB coverage atlas page - verified against the pinned FreeType
+(VER-2-13-3) and needing no patent-encumbered filter, because that build has
+`FT_CONFIG_OPTION_SUBPIXEL_RENDERING` off and therefore applies no LCD filter (section 3.4.1).
+Compositing needs a per-channel blend: dual-source blending where `dualSrcBlend` is supported;
+reading the destination in the shader is not allowed, so the fallback is grayscale. Rotated screens
+and vertical stripes are grayscale in V1.
 
 The Win32 fact behind the first condition is one desktop-wide ClearType answer, not a per-monitor
 one (section 2). A mixed-panel desktop therefore takes the same decision for every monitor: LCD text
@@ -167,11 +173,20 @@ byte-identical:
    (`include/tessera/rendering/gpu/batched2d_renderer.hpp:238`). A per-run pipeline adds a fourth
    axis to the split rule that already holds texture, scissor and folded clip state, and to both
    replay loops in `flush()`.
-3. **Atlas identity.** `GlyphAtlasConfig` carries `hinting` only
-   (`include/tessera/ui/text/glyph_atlas.hpp:22`), the page upload writes coverage into alpha, and
-   the rasterizer hard-codes `FT_RENDER_MODE_NORMAL` (`src/ui/text/glyph_raster.cpp:93`). LCD text
-   doubles the atlas set (mode x ladder step), uploads 3-channel coverage, and takes the quad width
-   from `bitmap.width / 3`.
+3. **Atlas identity.** *Landed in slice 2 (#471).* `GlyphAtlasConfig` now carries `aa_mode`
+   alongside `hinting` (`include/tessera/ui/text/glyph_atlas.hpp`), so one atlas is one (mode,
+   hinting) pair; `ScaleGlyphAtlas::set_aa_mode()` mirrors `set_hinting()` and releases the whole
+   set; the rasterizer takes a `GlyphAaMode` and asks FreeType for `FT_RENDER_MODE_LCD`
+   (`src/ui/text/glyph_raster.cpp`); the page upload writes the three subpixel coverages into RGB
+   with the per-pixel maximum in alpha, so the page format and the texture upload are unchanged;
+   and `GlyphAtlasEntry::channels` (1 or 3) is what the renderer divides the quad width by. Before
+   slice 2: `GlyphAtlasConfig` carried `hinting` only, the page upload wrote coverage into alpha,
+   and the rasterizer hard-coded `FT_RENDER_MODE_NORMAL`. The atlas identity space therefore
+   doubles (mode x ladder step), but the *live* set does not: a mode change releases every atlas the
+   way a hinting change does, so the set is still one atlas per ladder step, and a mode switch costs
+   one re-rasterization exactly like a DPI change. What LCD does cost per frame is bytes: three
+   coverage samples per pixel means a page holds about a third as many glyphs, so the unchanged page
+   budget (`max_pages`, same LRU) fills up sooner.
 4. **Eligibility has no home in the paint seam.** `TextDraw`
    (`include/tessera/ui/paint/paint_sink.hpp:19`) carries no backdrop, transform or opacity fact;
    `PaintContext` (`include/tessera/ui/paint/paint_pass.hpp:95`) has no "the window is opaque" fact;
@@ -196,6 +211,37 @@ eligibility predicate, the paint-seam fact and `kAutoAllowsLcd`. Nothing in step
 which is what makes it reviewable and revertible. Step 1 landed as RHI 1.5 (#471): the
 pipeline-creation test is `tests/gpu/rhi/dual_source_blend_tests.cpp`, and no renderer, window, paint
 or text file was touched, so the golden corpus is unchanged.
+
+Step 2 landed as the rasterizer and atlas half of #471. `GlyphAaMode` (`Grayscale` / `Lcd`) is a
+parameter of `GlyphRasterizer::rasterize_glyph` and a field of `GlyphAtlasConfig`, so the mode is
+atlas identity exactly like hinting; `ScaleGlyphAtlas::set_aa_mode()` releases the set for the same
+reason `set_hinting()` does. `TextRenderer::set_aa_policy` maps `TextAaMode::LcdWhenEligible` onto
+`GlyphAaMode::Lcd` and `draw()` takes the quad width from `entry.width / entry.channels`. Three
+things are deliberately *not* in step 2, and the code says so where it matters:
+
+- **The eligibility predicate and the pipeline axis are step 3.** `LcdWhenEligible` is the
+  window-level permission, so the atlas rasterizes LCD for the whole window; nothing yet decides
+  per run whether a run may *composite* LCD. Until step 3 an LCD atlas is drawn through the
+  grayscale pipeline, which is why the upload also stores the per-pixel maximum in alpha: the run
+  renders as grayscale rather than disappearing. That is a correctness fallback, not the feature.
+- **FreeType's LCD renderer is available on the pinned build** (VER-2-13-3, built without
+  `FT_CONFIG_OPTION_SUBPIXEL_RENDERING`): `FT_RENDER_MODE_LCD` produces `FT_PIXEL_MODE_LCD`, three
+  interleaved coverage bytes per pixel, and the three channels genuinely differ across a stem
+  (`tests/unit/scale/text_lcd_raster_tests.cpp` asserts a spread above 32). Without
+  `FT_CONFIG_OPTION_SUBPIXEL_RENDERING` there is no LCD filter, so the three samples are the raw
+  shifted-outline coverages - deterministic, and the reason no patent-encumbered filter is needed.
+- **A glyph FreeType cannot render as LCD falls back to grayscale per glyph.** A bitmap-strike
+  glyph is not an outline, and a color glyph is composited into a BGRA bitmap before any renderer
+  runs, so neither can produce LCD coverage; the rasterizer detects the first from the glyph format
+  and the second from the resulting pixel mode, and reports the mode it actually produced. The atlas
+  entry then carries `channels == 1` for that glyph inside an LCD page, so the renderer's quad width
+  stays right. A run therefore never loses a glyph because the display asked for subpixel coverage,
+  and the fallback is repeated for a glyph with no outline at all (whitespace keeps its advance and
+  has no bitmap in either mode).
+
+The golden corpus is unchanged: `GlyphAaMode::Grayscale` is the default of both the rasterizer
+parameter and the atlas config, `golden_aa_policy()` pins `TextAaMode::Grayscale`, and the grayscale
+upload path and page background are byte-identical to before.
 
 ### 3.5 Contrast and gamma (T5)
 
@@ -263,7 +309,7 @@ regardless of the switch and of the display.
 | S4 | rounded-clip coverage AA | clip corner has intermediate alpha; nothing written outside the clip |
 | S5 | text T1 + T2 (device raster size, hinting by scale) | metrics unchanged across scales; atlas key test |
 | S6 | text T3 (subpixel positioning) | golden mode unaffected; bounded atlas growth |
-| S7 | text T4 (LCD, a later PR) + T5 (contrast LUT, adopted as a D2 amendment and landed) | LCD only on eligible runs; fallback test; contrast LUT table test |
+| S7 | text T4 (LCD: RHI primitive, rasterizer + atlas mode landed; eligibility + pipeline later) + T5 (contrast LUT, adopted as a D2 amendment and landed) | LCD only on eligible runs; fallback test; contrast LUT table test |
 | S8 | image filter by scale, MSAA policy hook | filter selection table test |
 
 Window integration (landed): `AppWindow` resolves one `AaPolicy` from its `hal::WindowMetrics`
@@ -292,7 +338,8 @@ scissor is derived from it (`ClipStateTable::push` -> `enclosing_scissor`), so t
 and the folded SDF uniform test the same target-space rectangle. `set_scissor` itself is a
 target-pixel seam: the frame scissor is the target extent and damage regions are already device
 pixels. Still missing, all later PRs: X11/Wayland `PixelGeometry` sources (they report `Unknown`),
-LCD text (T4, section 3.4), and the mip-chain downscale case below.
+LCD compositing (T4's eligibility predicate and pipeline axis, section 3.4.1 step 3 - the
+rasterizer and atlas half landed), and the mip-chain downscale case below.
 
 S8 image filter (landed): RHI sampler state is fixed at texture creation, so the filter is part of
 `ImageTextureKey` and `Batched2DSink::draw_image` picks it per draw with the pure

@@ -75,6 +75,44 @@ target_include_directories(text_contrast_lut_tests PRIVATE
 
 add_test(NAME text_contrast_lut COMMAND text_contrast_lut_tests)
 
+# LCD glyph rasterization (display-aware-rendering.md section 3.4, slice 2 of #471): FT_RENDER_MODE_LCD
+# produces three coverage samples per pixel, and a glyph with no outline falls back to grayscale.
+# argv[1] is NotoSans, argv[2] is ColorTest.ttf (the color-glyph fallback). The color fixture is
+# resolved from TESSERA_FONT_FIXTURE's directory, because this directory is one level deeper than
+# the parent that defines it.
+get_filename_component(TESSERA_FONT_FIXTURE_DIR "${TESSERA_FONT_FIXTURE}" DIRECTORY)
+set(TESSERA_COLOR_FONT_FIXTURE "${TESSERA_FONT_FIXTURE_DIR}/ColorTest.ttf")
+
+add_executable(text_lcd_raster_tests
+    text_lcd_raster_tests.cpp)
+
+target_link_libraries(text_lcd_raster_tests PRIVATE tessera_text)
+
+add_test(NAME text_lcd_raster COMMAND text_lcd_raster_tests
+    "${TESSERA_FONT_FIXTURE}"
+    "${TESSERA_COLOR_FONT_FIXTURE}")
+
+# The AA mode is atlas identity: two modes are two atlases with their own pages, the LCD upload
+# writes per-subpixel coverage into RGB, and set_aa_mode releases the set.
+add_executable(glyph_atlas_lcd_tests
+    glyph_atlas_lcd_tests.cpp)
+
+target_link_libraries(glyph_atlas_lcd_tests PRIVATE tessera_text)
+
+add_test(NAME glyph_atlas_lcd COMMAND glyph_atlas_lcd_tests
+    "${TESSERA_FONT_FIXTURE}"
+    "${TESSERA_COLOR_FONT_FIXTURE}")
+
+# TextRenderer draws an LCD entry: the quad is one third of the page extent and lands in the same
+# CSS-space place as the grayscale path. The vertices are read back through the null device, so no
+# GPU is needed.
+add_executable(text_renderer_lcd_tests
+    text_renderer_lcd_tests.cpp)
+
+target_link_libraries(text_renderer_lcd_tests PRIVATE tessera_text_render tessera_rhi_null)
+
+add_test(NAME text_renderer_lcd COMMAND text_renderer_lcd_tests "${TESSERA_FONT_FIXTURE}")
+
 # The logical-to-device frame transform (display-aware-rendering.md section 6): the composition of
 # the device scale with the adaptive factor, and the proof that the CPU clip scissor follows it into
 # target pixels. The null device records the scissor each draw ran with, so no GPU is needed.

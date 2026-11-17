@@ -73,6 +73,19 @@ struct TextRenderer::Impl {
         active = &scale_atlas.atlas_for(render_scale);
     }
 
+    // AA-mode change: same contract as a hinting change, for the same reason - the pages hold
+    // bitmaps rasterized in the old mode, so every one of them is stale.
+    void apply_aa_mode(GlyphAaMode aa_mode) {
+        if (aa_mode == scale_atlas.aa_mode()) {
+            return;
+        }
+        scale_atlas.set_aa_mode(aa_mode);
+        for (std::vector<PageTexture>& step : textures) {
+            step.clear();
+        }
+        active = &scale_atlas.atlas_for(render_scale);
+    }
+
     rendering::rhi::Device* device = nullptr;
     bool subpixel_position = false;
     std::vector<std::uint8_t> subpixels;
@@ -109,17 +122,28 @@ float TextRenderer::render_scale() const {
 }
 
 void TextRenderer::set_aa_policy(const scale::AaPolicy& policy) {
-    // Hinting first: select() releases the step being left, and apply_hinting() re-creates the
+    // Hinting and AA mode first: select() releases the step being left, and apply_*() re-create the
     // active atlas, so doing it in this order never leaves `active` pointing at a released slot.
     impl_->apply_hinting(policy.hinting == scale::TextHinting::Light  ? GlyphHinting::Light
                          : policy.hinting == scale::TextHinting::None ? GlyphHinting::None
                                                                       : GlyphHinting::Font);
+    // `LcdWhenEligible` is the window-level permission, not a per-run decision: the atlas is
+    // rasterized for LCD and slice 3's predicate picks the pipeline per run. Until that predicate
+    // exists the atlas is still correct, and the grayscale pipeline reads the per-pixel maximum the
+    // upload stores in alpha, so a run drawn from it is grayscale rather than missing.
+    impl_->apply_aa_mode(policy.text_mode == scale::TextAaMode::LcdWhenEligible
+                             ? GlyphAaMode::Lcd
+                             : GlyphAaMode::Grayscale);
     impl_->select(policy.render_scale);
     impl_->subpixel_position = policy.subpixel_position;
 }
 
 GlyphHinting TextRenderer::hinting() const {
     return impl_->scale_atlas.hinting();
+}
+
+GlyphAaMode TextRenderer::aa_mode() const {
+    return impl_->scale_atlas.aa_mode();
 }
 
 bool TextRenderer::subpixel_position() const {
@@ -204,6 +228,11 @@ float TextRenderer::draw(rendering::gpu::Batched2DRenderer& renderer, const Shap
         const Glyph& glyph = run.glyphs[i];
         const GlyphAtlasEntry& entry = impl_->entries[i];
         if (entry.has_bitmap && entry.page < page_textures.size()) {
+            // An LCD entry's page extent is three samples per pixel, so its pixel footprint is
+            // `width / channels`; the UV still covers the whole physical extent, because that is
+            // what the page holds. Grayscale entries have channels == 1 and are unchanged.
+            const std::uint32_t channels = entry.channels == 0 ? 1u : entry.channels;
+            const std::uint32_t footprint_width = entry.width / channels;
             // Glyph bitmaps are sampled with a linear filter, so a quad that does not sit on the
             // pixel grid blends each row with its neighbour: thin strokes go faint and the last
             // descender row fades. Both axes snap to whole device pixels (a browser does the same
@@ -216,7 +245,7 @@ float TextRenderer::draw(rendering::gpu::Batched2DRenderer& renderer, const Shap
             // unit.
             const detail::GlyphQuad quad = detail::place_glyph_quad(
                 pen_x, baseline_y, glyph.x_offset, glyph.y_offset, entry.bearing_x, entry.bearing_y,
-                entry.width, entry.height, render_scale, impl_->subpixel_position);
+                footprint_width, entry.height, render_scale, impl_->subpixel_position);
             const rendering::rhi::Rect uv{
                 static_cast<float>(entry.x) / page_width,
                 static_cast<float>(entry.y) / page_height,
