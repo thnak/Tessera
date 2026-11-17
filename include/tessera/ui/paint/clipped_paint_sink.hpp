@@ -85,6 +85,26 @@ public:
         }
     }
 
+    // A ring wholly inside a damage region goes through unchanged. A ring cut by a region has no
+    // PaintSink representation, so it falls back to the four edge strips, each clipped like any
+    // other rect through this sink.
+    void fill_rounded_ring(const rhi::Rect& rect, const rhi::Color& color, float radius,
+                           float width) override {
+        if (!transformed()) {
+            bool covered = !regions_->empty();
+            for (const rhi::Scissor& scissor : *regions_) {
+                covered = covered && detail::covers(detail::region_rect(scissor), rect);
+            }
+            if (covered) {
+                for (std::size_t i = 0; i < regions_->size(); ++i) {
+                    target_->fill_rounded_ring(rect, color, radius, width);
+                }
+                return;
+            }
+        }
+        PaintSink::fill_rounded_ring(rect, color, radius, width);
+    }
+
     // Clips are orthogonal to damage: forward them unchanged so the target sink applies the same
     // rounded-clip stack the full paint would have used.
     void push_clip(const RoundedClip& clip) override {

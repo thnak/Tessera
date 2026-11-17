@@ -101,6 +101,9 @@ void replay_paint_ops(const std::vector<PaintOp>& ops, PaintSink& sink) {
         case PaintOp::Kind::FillRoundedRect:
             sink.fill_rounded_rect(op.rect, op.color, op.radius);
             break;
+        case PaintOp::Kind::FillRoundedRing:
+            sink.fill_rounded_ring(op.rect, op.color, op.radius, op.ring_width);
+            break;
         case PaintOp::Kind::FillLinearGradient:
             sink.fill_linear_gradient(op.gradient);
             break;
@@ -176,6 +179,18 @@ void PaintCache::Recorder::fill_rounded_rect(const rhi::Rect& rect, const rhi::C
     op.radius = radius;
     record(std::move(op));
     target_.fill_rounded_rect(rect, color, radius);
+}
+
+void PaintCache::Recorder::fill_rounded_ring(const rhi::Rect& rect, const rhi::Color& color,
+                                             float radius, float width) {
+    PaintOp op;
+    op.kind = PaintOp::Kind::FillRoundedRing;
+    op.rect = rect;
+    op.color = color;
+    op.radius = radius;
+    op.ring_width = width;
+    record(std::move(op));
+    target_.fill_rounded_ring(rect, color, radius, width);
 }
 
 void PaintCache::Recorder::fill_linear_gradient(const GradientDraw& draw) {

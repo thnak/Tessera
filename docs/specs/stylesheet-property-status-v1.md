@@ -62,10 +62,10 @@ property that is *documented* as applied and is not, which is what the cross-che
 | `border-right-color` | applied | `paint_properties.cpp`; `paint_pass` |
 | `border-bottom-color` | applied | `paint_properties.cpp`; `paint_pass` |
 | `border-left-color` | applied | `paint_properties.cpp`; `paint_pass` |
-| `border-top-left-radius` | applied | `paint_properties.cpp` corner radii; `paint_clip`; a border follows it only as an opaque uniform ring (`paint_pass.cpp`, [chrome-parity.md](../guides/chrome-parity.md) section 6) |
-| `border-top-right-radius` | applied | `paint_properties.cpp` corner radii; `paint_clip`; a border follows it only as an opaque uniform ring (`paint_pass.cpp`, [chrome-parity.md](../guides/chrome-parity.md) section 6) |
-| `border-bottom-right-radius` | applied | `paint_properties.cpp` corner radii; `paint_clip`; a border follows it only as an opaque uniform ring (`paint_pass.cpp`, [chrome-parity.md](../guides/chrome-parity.md) section 6) |
-| `border-bottom-left-radius` | applied | `paint_properties.cpp` corner radii; `paint_clip`; a border follows it only as an opaque uniform ring (`paint_pass.cpp`, [chrome-parity.md](../guides/chrome-parity.md) section 6) |
+| `border-top-left-radius` | applied | `paint_properties.cpp` corner radii; `paint_clip`; a uniform border follows it as one anti-aliased ring (`fill_rounded_ring`, `paint_pass`); per-side widths or colours keep square edge strips |
+| `border-top-right-radius` | applied | `paint_properties.cpp` corner radii; `paint_clip`; a uniform border follows it as one anti-aliased ring (`fill_rounded_ring`, `paint_pass`); per-side widths or colours keep square edge strips |
+| `border-bottom-right-radius` | applied | `paint_properties.cpp` corner radii; `paint_clip`; a uniform border follows it as one anti-aliased ring (`fill_rounded_ring`, `paint_pass`); per-side widths or colours keep square edge strips |
+| `border-bottom-left-radius` | applied | `paint_properties.cpp` corner radii; `paint_clip`; a uniform border follows it as one anti-aliased ring (`fill_rounded_ring`, `paint_pass`); per-side widths or colours keep square edge strips |
 | `flex-direction` | applied | `layout_style.cpp`; `layout` |
 | `flex-wrap` | applied | `layout_style.cpp`; `layout` |
 | `flex-grow` | applied | `layout_style.cpp`; `layout` |

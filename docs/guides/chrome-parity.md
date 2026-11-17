@@ -65,14 +65,13 @@ These are not bugs; a markup author who writes for both has to know them.
 | Difference | Fix |
 |---|---|
 | An item with `grid-column: 1 / 3` was placed before the items ahead of it in the document | `grid_placement.cpp` places an item with a definite line on the flow's own axis in document order ([grid-v1.md](../specs/grid-v1.md) section 3) |
-| A border ignored `border-radius`: a rounded background inside a square outline | `paint_pass.cpp` draws an opaque uniform border on a rounded box as a ring |
+| A border ignored `border-radius`: a rounded background inside a square outline | a uniform border on a rounded box is one ring: `PaintSink::fill_rounded_ring`, `Batched2DRenderer::push_rounded_ring`, and a ring mode (`mode = 3 + width`) in `batched2d.frag` and `batched2d.wgsl` that subtracts the inner rounded box |
 | Text in a single-line `TextInput` sat at the top of the field | `paint_text.cpp` centres the line in the content box ([text-editing-v1.md](../specs/text-editing-v1.md)) |
 
 ## 6. Known limits
 
-- The ring needs an opaque border colour, an opaque background, a uniform width and radius, no
-  gradient and an effective opacity of 1. Any other rounded border (a disabled button, a box with no
-  background) keeps the square edge strips.
+- A border with different widths or colours per side is not one ring and keeps the square edge strips
+  on a rounded box.
 - The font has one weight, so bold is not compared. Only the light theme at device scale 1 is
   covered; dark, high contrast, RTL and scale 2 need their own runs.
 - The engine's element boxes are not exported, so layout is compared through the overlay, not as

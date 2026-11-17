@@ -50,6 +50,11 @@ void Batched2DSink::fill_rounded_rect(const rhi::Rect& rect, const rhi::Color& c
     renderer_->push_rounded_rect(rect, color, radius);
 }
 
+void Batched2DSink::fill_rounded_ring(const rhi::Rect& rect, const rhi::Color& color, float radius,
+                                      float width) {
+    renderer_->push_rounded_ring(rect, color, radius, width);
+}
+
 // V1 gradient emission: 64 dominant-axis bands sampled with the shared encoded-space ramp, inside
 // the node's border-rounded clip. This keeps the existing solid-quad pipeline (no new shader) and
 // is exact for 0/90/180/270 degrees; other angles are a documented banded approximation

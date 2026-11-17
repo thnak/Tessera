@@ -117,8 +117,7 @@ void emit_rect(PaintSink& sink, const rhi::Rect& rect, const std::optional<rhi::
 }
 
 void paint_background(const style::ComputedStyle& style, const rhi::Rect& rect, float opacity,
-                      const rhi::Color& current, PaintSink& sink, PaintStats& stats,
-                      std::optional<float> radius_override = std::nullopt) {
+                      const rhi::Color& current, PaintSink& sink, PaintStats& stats) {
     const std::optional<rhi::Color> color = detail::color_value(style, "background-color", current);
     if (!color || color->a <= 0.0f || opacity <= 0.0f) {
         return;
@@ -129,8 +128,7 @@ void paint_background(const style::ComputedStyle& style, const rhi::Rect& rect, 
         return;
     }
 
-    const std::optional<float> radius =
-        radius_override ? radius_override : detail::uniform_radius(style);
+    const std::optional<float> radius = detail::uniform_radius(style);
     if (radius && *radius > 0.0f) {
         sink.fill_rounded_rect(rect, value, clamp_radius(*radius, rect));
     } else {
@@ -159,13 +157,10 @@ void paint_borders(const style::ComputedStyle& style, const rhi::Rect& rect, flo
               stats.borders);
 }
 
-// A border on a rounded box. The edge strips are rectangles and cannot follow a corner, so when
-// the stroke can be drawn as a ring it is: the outer rounded box in the border colour, then the
-// background over the inner box with the radius reduced by the border width. That is exact only
-// where the border and the background are both opaque and the box is not faded, so the ring is
-// used for exactly that case (uniform width, uniform opaque colour, uniform radius, opaque
-// background, no gradient, effective opacity 1). Anything else keeps the square edge strips; the
-// limitation is listed in stylesheet-property-status-v1.md.
+// A border on a rounded box. The edge strips are rectangles and cannot follow a corner, so a
+// uniform border (one width, one colour, one radius) is drawn as a ring: the rounded box minus the
+// same box inset by the width, anti-aliased on both edges by the sink. A border with different
+// widths or colours per side keeps the edge strips.
 struct RingBorder {
     rhi::Color color;
     float width = 0.0f;
@@ -176,35 +171,29 @@ bool same_rgba(const rhi::Color& lhs, const rhi::Color& rhs) {
     return lhs.r == rhs.r && lhs.g == rhs.g && lhs.b == rhs.b && lhs.a == rhs.a;
 }
 
-std::optional<RingBorder> rounded_ring(const Node& node, const style::ComputedStyle& style,
-                                       const rhi::Rect& rect, float opacity,
-                                       const rhi::Color& current) {
-    if (opacity < 1.0f) {
-        return std::nullopt;
-    }
+std::optional<RingBorder> rounded_ring(const style::ComputedStyle& style, const rhi::Rect& rect,
+                                       float opacity, const rhi::Color& current) {
     const std::optional<float> radius = detail::uniform_radius(style);
     if (!radius || *radius <= 0.0f) {
         return std::nullopt;
     }
     const detail::BorderWidths widths = detail::border_widths(style, rect);
     if (widths.top <= 0.0f || widths.top != widths.right || widths.top != widths.bottom ||
-        widths.top != widths.left || widths.top * 2.0f >= std::min(rect.width, rect.height)) {
+        widths.top != widths.left) {
         return std::nullopt;
     }
     const std::array<std::optional<rhi::Color>, 4> colors = detail::border_colors(style, current);
-    if (!colors[0] || !colors[1] || !colors[2] || !colors[3] || colors[0]->a != 1.0f ||
+    if (!colors[0] || !colors[1] || !colors[2] || !colors[3] ||
         !same_rgba(*colors[0], *colors[1]) || !same_rgba(*colors[0], *colors[2]) ||
         !same_rgba(*colors[0], *colors[3])) {
         return std::nullopt;
     }
-    const std::optional<rhi::Color> background =
-        detail::color_value(style, "background-color", current);
-    const auto& data = node.paint_data();
-    const bool gradient = data && data->gradient && data->gradient->stop_count > 0;
-    if (!background || background->a != 1.0f || gradient) {
+    rhi::Color color = *colors[0];
+    color.a *= opacity;
+    if (color.a <= 0.0f) {
         return std::nullopt;
     }
-    return RingBorder{*colors[0], widths.top, clamp_radius(*radius, rect)};
+    return RingBorder{color, widths.top, clamp_radius(*radius, rect)};
 }
 
 // Glass backdrop (docs/specs/glass-v1.md sections 2, 3 and 5): emitted before the node's own box
@@ -296,17 +285,13 @@ void paint_linear_gradient(const Node& node, const style::ComputedStyle& style,
 void paint_box_and_border(const Node& node, const style::ComputedStyle& style,
                           const rhi::Rect& rect, float opacity, const rhi::Color& current,
                           PaintSink& sink, PaintStats& stats) {
-    if (const std::optional<RingBorder> ring = rounded_ring(node, style, rect, opacity, current)) {
-        sink.fill_rounded_rect(rect, ring->color, ring->radius);
-        ++stats.borders;
-        const rhi::Rect inner{rect.x + ring->width, rect.y + ring->width,
-                              rect.width - 2.0f * ring->width, rect.height - 2.0f * ring->width};
-        paint_background(style, inner, opacity, current, sink, stats,
-                         std::max(0.0f, ring->radius - ring->width));
-        return;
-    }
     paint_background(style, rect, opacity, current, sink, stats);
     paint_linear_gradient(node, style, rect, opacity, sink, stats);
+    if (const std::optional<RingBorder> ring = rounded_ring(style, rect, opacity, current)) {
+        sink.fill_rounded_ring(rect, ring->color, ring->radius, ring->width);
+        ++stats.borders;
+        return;
+    }
     paint_borders(style, rect, opacity, current, sink, stats);
 }
 

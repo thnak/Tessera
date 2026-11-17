@@ -63,22 +63,28 @@ private:
 };
 
 struct RecordedOp {
-    enum class Kind { Rect, Rounded };
+    enum class Kind { Rect, Rounded, Ring };
 
     Kind kind = Kind::Rect;
     Rect rect;
     Color color;
     float radius = 0.0f;
+    float width = 0.0f;
 };
 
 class RecordingSink final : public PaintSink {
 public:
     void fill_rect(const Rect& rect, const Color& color) override {
-        ops.push_back({RecordedOp::Kind::Rect, rect, color, 0.0f});
+        ops.push_back({RecordedOp::Kind::Rect, rect, color, 0.0f, 0.0f});
     }
 
     void fill_rounded_rect(const Rect& rect, const Color& color, float radius) override {
-        ops.push_back({RecordedOp::Kind::Rounded, rect, color, radius});
+        ops.push_back({RecordedOp::Kind::Rounded, rect, color, radius, 0.0f});
+    }
+
+    void fill_rounded_ring(const Rect& rect, const Color& color, float radius,
+                           float width) override {
+        ops.push_back({RecordedOp::Kind::Ring, rect, color, radius, width});
     }
 
     std::vector<RecordedOp> ops;
@@ -373,9 +379,8 @@ bool test_null_backend_integration() {
     return ok;
 }
 
-// A border on a rounded box follows the radius. With an opaque uniform border and an opaque
-// background it is drawn as a ring: the outer rounded box in the border colour, then the background
-// over the inner box with the radius reduced by the border width. No square edge strips.
+// A uniform border on a rounded box is one ring over the background: the rounded box minus the same
+// box inset by the width. No square edge strips, whatever the opacity or the background.
 bool test_rounded_border_is_a_ring() {
     Node root(1);
     root.set_bounds({0, 0, 100, 60});
@@ -402,22 +407,22 @@ bool test_rounded_border_is_a_ring() {
     RecordingSink sink;
     const PaintStats stats = paint_scene(root, styles, sink);
 
-    return expect(sink.ops.size() == 2, "a ring and the inner background, no edge strips") &&
-           expect(sink.ops[0].kind == RecordedOp::Kind::Rounded && sink.ops[0].radius == 6.0f &&
-                      same_rect(sink.ops[0].rect, {0, 0, 100, 60}) &&
-                      same_color(sink.ops[0].color, tessera::rendering::rhi::rgba8(0, 0, 0)),
-                  "the outer rounded box in the border colour") &&
-           expect(sink.ops[1].kind == RecordedOp::Kind::Rounded && sink.ops[1].radius == 4.0f &&
-                      same_rect(sink.ops[1].rect, {2, 2, 96, 56}) &&
-                      same_color(sink.ops[1].color, tessera::rendering::rhi::rgba8(255, 255, 255)),
-                  "the background over the inner box, radius minus the border width") &&
+    return expect(sink.ops.size() == 2, "the background and one ring") &&
+           expect(sink.ops[0].kind == RecordedOp::Kind::Rounded &&
+                      same_color(sink.ops[0].color, tessera::rendering::rhi::rgba8(255, 255, 255)),
+                  "the rounded background first") &&
+           expect(sink.ops[1].kind == RecordedOp::Kind::Ring && sink.ops[1].radius == 6.0f &&
+                      sink.ops[1].width == 2.0f && same_rect(sink.ops[1].rect, {0, 0, 100, 60}) &&
+                      same_color(sink.ops[1].color, tessera::rendering::rhi::rgba8(0, 0, 0)),
+                  "the ring: outer box, radius, width, border colour") &&
            expect(stats.borders == 1 && stats.backgrounds == 1, "one border, one background");
 }
 
-// Where the ring would be wrong the square strips stay: a faded box (the ring and the inner fill
-// would blend through each other) and a box with no opaque background.
-bool test_rounded_border_falls_back_to_strips() {
-    const auto ops_for = [](std::initializer_list<std::pair<const char*, const char*>> extra) {
+// A faded box and a box with no background still get a true ring; the node's opacity folds into the
+// ring's alpha. Different widths per side cannot be one ring and keep the four edge strips.
+bool test_ring_follows_opacity_and_uneven_borders_keep_strips() {
+    const auto ops_for = [](std::initializer_list<std::pair<const char*, const char*>> extra,
+                            bool uneven) {
         Node root(1);
         root.set_bounds({0, 0, 100, 60});
         StubStyles styles;
@@ -437,6 +442,9 @@ bool test_rounded_border_falls_back_to_strips() {
                                       {"border-top-right-radius", "6px"},
                                       {"border-bottom-right-radius", "6px"},
                                       {"border-bottom-left-radius", "6px"}});
+        if (uneven) {
+            style.set("border-left-width", "3px");
+        }
         for (const auto& [property, value] : extra) {
             style.set(property, value);
         }
@@ -445,14 +453,13 @@ bool test_rounded_border_falls_back_to_strips() {
         paint_scene(root, styles, sink);
         return sink.ops;
     };
-    const std::vector<RecordedOp> faded =
-        ops_for({{"background-color", "white"}, {"opacity", "0.5"}});
-    const std::vector<RecordedOp> transparent = ops_for({});
-    return expect(faded.size() == 5 && faded[0].kind == RecordedOp::Kind::Rounded &&
-                      faded[1].kind == RecordedOp::Kind::Rect,
-                  "a faded box keeps the background and the four strips") &&
-           expect(transparent.size() == 4 && transparent[0].kind == RecordedOp::Kind::Rect,
-                  "no background: the four strips only");
+    const std::vector<RecordedOp> faded = ops_for({{"opacity", "0.5"}}, false);
+    const std::vector<RecordedOp> uneven = ops_for({}, true);
+    return expect(faded.size() == 1 && faded[0].kind == RecordedOp::Kind::Ring &&
+                      std::abs(faded[0].color.a - 0.5f) < 1.0e-5f,
+                  "a faded box with no background: one ring at half alpha") &&
+           expect(uneven.size() == 4 && uneven[0].kind == RecordedOp::Kind::Rect,
+                  "uneven widths keep the four strips");
 }
 
 } // namespace
@@ -465,7 +472,7 @@ int main() {
     ok = test_border_edges() && ok;
     ok = test_border_none_is_not_painted() && ok;
     ok = test_rounded_border_is_a_ring() && ok;
-    ok = test_rounded_border_falls_back_to_strips() && ok;
+    ok = test_ring_follows_opacity_and_uneven_borders_keep_strips() && ok;
     ok = test_rounded_radius_and_clamp() && ok;
     ok = test_opacity_and_current_color() && ok;
     ok = test_empty_scene() && ok;

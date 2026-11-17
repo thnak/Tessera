@@ -108,8 +108,21 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             alpha = 1.0 - smoothstep(-pc.aa_radius, pc.aa_radius, d);
         }
         color.a = color.a * alpha;
-    } else if (in.mode > 1.5) {
+    } else if (in.mode > 1.5 && in.mode < 2.5) {
         color = color * sampled;
+    } else if (in.mode > 2.5) {
+        // Rounded-rect outline: mode is 3 + the stroke width (see batched2d.frag).
+        let w = in.mode - 3.0;
+        let outer = sd_round_box(in.local, in.half_size, in.radius);
+        let inner = sd_round_box(in.local, in.half_size - vec2<f32>(w, w), max(in.radius - w, 0.0));
+        let d = max(outer, -inner);
+        var alpha = 0.0;
+        if (pc.aa_radius <= 0.0) {
+            alpha = select(0.0, 1.0, d <= 0.0);
+        } else {
+            alpha = 1.0 - smoothstep(-pc.aa_radius, pc.aa_radius, d);
+        }
+        color.a = color.a * alpha;
     }
     color.a = color.a * clip_alpha;
     return color;

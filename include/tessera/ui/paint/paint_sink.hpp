@@ -159,6 +159,18 @@ public:
     virtual void fill_rounded_rect(const rhi::Rect& rect, const rhi::Color& color,
                                    float radius) = 0;
 
+    // A uniform border on a rounded box: the rounded `rect` minus the same box inset by `width`.
+    // The default draws the four square edge strips, which is what a sink without ring support
+    // always produced; a sink that can draw the true outline overrides it.
+    virtual void fill_rounded_ring(const rhi::Rect& rect, const rhi::Color& color, float /*radius*/,
+                                   float width) {
+        const float middle = rect.height - 2.0f * width;
+        fill_rect({rect.x, rect.y, rect.width, width}, color);
+        fill_rect({rect.x + rect.width - width, rect.y + width, width, middle}, color);
+        fill_rect({rect.x, rect.y + rect.height - width, rect.width, width}, color);
+        fill_rect({rect.x, rect.y + width, width, middle}, color);
+    }
+
     // Optional linear-gradient hook (default no-op); emitted after the background fill and before
     // borders/content, so it paints where the background would be.
     virtual void fill_linear_gradient(const GradientDraw& /*draw*/) {}

@@ -75,7 +75,7 @@ until layout supplies padding-box scrollport insets; scrollbars and physics are 
 | `border-{top,right,bottom,left}-width` | edge thickness in px |
 | `border-{top,right,bottom,left}-style` | `none`/`hidden` (or missing) skips the edge; any other keyword paints solid |
 | `border-{top,right,bottom,left}-color` | edge color; `currentColor` uses `color` |
-| `border-*-radius` | when all four are equal and > 0, the background is one rounded rect |
+| `border-*-radius` | when all four are equal and > 0, the background is one rounded rect and a uniform border is one ring |
 | `color` | inherited `currentColor` base; invalid/missing falls back to black |
 | `opacity` | effective opacity: own value x ancestor product, multiplies every emitted color (§14.1) |
 
@@ -107,8 +107,7 @@ bottom { x, y + h - bottom,       w,              bottom }
 left   { x, y + top,              left,           h - top - bottom }
 ```
 
-With a rounded background the border strips keep square corners: corner radii are a background
-property in this slice, not a border ring.
+A uniform border on a uniformly rounded box is one ring, `PaintSink::fill_rounded_ring` (one quad, `mode = 3 + width`, shader subtracts the inner box); per-side widths or colours, or a sink without ring support, keep the square strips.
 
 ## 6. Deliberate limits
 

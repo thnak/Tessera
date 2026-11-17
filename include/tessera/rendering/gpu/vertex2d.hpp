@@ -26,6 +26,10 @@ struct Vertex2D {
 
 static_assert(sizeof(Vertex2D) == 44, "Vertex2D layout must stay stable");
 
+// `Vertex2D::mode`: 0 solid, 1 rounded rect, 2 textured, and 3 + w for a rounded-rect outline of
+// stroke width w (the shaders read the width back as mode - 3).
+inline constexpr float kRingModeBase = 3.0f;
+
 inline constexpr rhi::VertexAttribute kVertex2DAttributes[] = {
     {0, static_cast<std::uint32_t>(offsetof(Vertex2D, x)), rhi::VertexFormat::Float2},
     {1, static_cast<std::uint32_t>(offsetof(Vertex2D, u)), rhi::VertexFormat::Float2},

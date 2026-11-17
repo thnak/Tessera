@@ -101,6 +101,7 @@ struct PaintOp {
     enum class Kind : std::uint8_t {
         FillRect,
         FillRoundedRect,
+        FillRoundedRing,
         FillLinearGradient,
         PushClip,
         PushTransform,
@@ -111,14 +112,15 @@ struct PaintOp {
     };
 
     Kind kind = Kind::FillRect;
-    rhi::Rect rect;        // FillRect, FillRoundedRect, DrawText, DrawVector, DrawImage
-    rhi::Color color;      // FillRect, FillRoundedRect, DrawText, tint of DrawVector/DrawImage
-    float radius = 0.0f;   // FillRoundedRect
-    RoundedClip clip;      // PushClip
-    rhi::Mat3 transform;   // PushTransform
-    GradientDraw gradient; // FillLinearGradient (its own rect/clip/stops are authoritative)
-    BackdropDraw backdrop; // DrawBackdrop (its own rect/clip/filter are authoritative)
-    std::string text;      // DrawText text bytes, or the borrowed asset name of DrawVector/Image
+    rhi::Rect rect;          // FillRect, FillRoundedRect, DrawText, DrawVector, DrawImage
+    rhi::Color color;        // FillRect, FillRoundedRect, DrawText, tint of DrawVector/DrawImage
+    float radius = 0.0f;     // FillRoundedRect, FillRoundedRing
+    float ring_width = 0.0f; // FillRoundedRing
+    RoundedClip clip;        // PushClip
+    rhi::Mat3 transform;     // PushTransform
+    GradientDraw gradient;   // FillLinearGradient (its own rect/clip/stops are authoritative)
+    BackdropDraw backdrop;   // DrawBackdrop (its own rect/clip/filter are authoritative)
+    std::string text;        // DrawText text bytes, or the borrowed asset name of DrawVector/Image
     float font_size = 0.0f;
     int font_weight = 400;
     std::optional<float> baseline;
@@ -249,6 +251,8 @@ public:
         void fill_rect(const rhi::Rect& rect, const rhi::Color& color) override;
         void fill_rounded_rect(const rhi::Rect& rect, const rhi::Color& color,
                                float radius) override;
+        void fill_rounded_ring(const rhi::Rect& rect, const rhi::Color& color, float radius,
+                               float width) override;
         void fill_linear_gradient(const GradientDraw& draw) override;
         void push_clip(const RoundedClip& clip) override;
         void pop_clip() override;

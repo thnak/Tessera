@@ -158,6 +158,11 @@ public:
 
     void push_rect(const rhi::Rect& rect, rhi::Color color);
     void push_rounded_rect(const rhi::Rect& rect, rhi::Color color, float radius);
+    // A rounded-rect outline: the area of the rounded box that is not inside the same box inset by
+    // `width` on every side (inner radius `radius - width`, at least 0). One quad; the fragment
+    // shader subtracts the inner signed distance, so the stroke follows the corners and is
+    // anti-aliased on both edges. `width` is clamped so the inner box does not invert.
+    void push_rounded_ring(const rhi::Rect& rect, rhi::Color color, float radius, float width);
     void push_texture(const rhi::Rect& rect, rhi::Texture& texture, const rhi::Rect& uv,
                       rhi::Color color);
 

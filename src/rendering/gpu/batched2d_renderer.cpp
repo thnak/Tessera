@@ -250,6 +250,20 @@ void Batched2DRenderer::push_rounded_rect(const rhi::Rect& rect, rhi::Color colo
     emit_quad(rect, rhi::Rect{}, color, clamped_radius, 1, white_texture_);
 }
 
+void Batched2DRenderer::push_rounded_ring(const rhi::Rect& rect, rhi::Color color, float radius,
+                                          float width) {
+    const float max_radius = std::min(rect.width, rect.height) * 0.5f;
+    const float clamped_radius = std::clamp(radius, 0.0f, max_radius);
+    const float clamped_width = std::clamp(width, 0.0f, max_radius);
+    if (clamped_width <= 0.0f) {
+        return;
+    }
+    // The ring is a mode of the existing quad: `mode` is 3 plus the stroke width, so no vertex
+    // attribute is added and the vertex layout stays 44 bytes.
+    emit_quad(rect, rhi::Rect{}, color, clamped_radius, kRingModeBase + clamped_width,
+              white_texture_);
+}
+
 void Batched2DRenderer::push_texture(const rhi::Rect& rect, rhi::Texture& texture,
                                      const rhi::Rect& uv, rhi::Color color) {
     emit_quad(rect, uv, color, 0, 2, &texture);

@@ -109,8 +109,22 @@ void main() {
             alpha = 1.0 - smoothstep(-pc.aa_radius, pc.aa_radius, d);
         }
         color.a *= alpha;
-    } else if (v_mode > 1.5) {
+    } else if (v_mode > 1.5 && v_mode < 2.5) {
         color *= TESSERA_TEXEL;
+    } else if (v_mode > 2.5) {
+        // Rounded-rect outline: mode is 3 + the stroke width. The ring is the outer box minus the
+        // same box inset by the width, so its distance is max(outer, -inner).
+        float w = v_mode - 3.0;
+        float outer = sd_round_box(v_local, v_half_size, v_radius);
+        float inner = sd_round_box(v_local, v_half_size - vec2(w), max(v_radius - w, 0.0));
+        float d = max(outer, -inner);
+        float alpha;
+        if (pc.aa_radius <= 0.0) {
+            alpha = d <= 0.0 ? 1.0 : 0.0;
+        } else {
+            alpha = 1.0 - smoothstep(-pc.aa_radius, pc.aa_radius, d);
+        }
+        color.a *= alpha;
     }
 
     color.a *= clip_alpha;
