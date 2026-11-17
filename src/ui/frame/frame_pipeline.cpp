@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "redraw_cull.hpp"
 #include "tessera/runtime/runtime_loop.hpp"
 #include "tessera/ui/animation/loop_bridge.hpp"
 #include "tessera/ui/animation/property_dirty.hpp"
@@ -459,6 +460,12 @@ FramePaint FramePipeline::paint_frame(const Node& root, paint::StyleProvider& st
     }
     if (!view.empty()) {
         context.view = &view;
+    }
+    if (config_.cull_paint) {
+        // The painted region is the plan's scissors; anything that cannot touch it is skipped
+        // (issue #487). A full-redraw plan yields nullopt here, so its paint is unclipped and
+        // unculled, byte-identical to the full paint overload above.
+        context.cull = detail::plan_cull_rect(plan, config_.dpi_scale);
     }
     if (plan.full_redraw) {
         result.stats = paint::paint_scene(root, styles, sink, context);

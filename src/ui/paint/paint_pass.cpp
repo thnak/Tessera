@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "paint_cache_internal.hpp"
+#include "paint_cull.hpp"
 #include "paint_frame.hpp"
 #include "paint_image.hpp"
 #include "paint_properties.hpp"
@@ -154,24 +155,6 @@ void paint_backdrop(const style::ComputedStyle& style, const rhi::Rect& rect, fl
     ++stats.backdrops;
 }
 
-// A scroll container clips its children to its scrollport. When the scene owner set
-// `scrollport_insets` (typically to the painted border widths), the clip uses them so clamping,
-// painting, and hit testing agree; otherwise it falls back to the style-derived padding box, which
-// keeps the default output byte-identical for borderless and bordered containers.
-std::optional<rhi::Rect> scrollport_clip(const Node& node, const style::ComputedStyle& style,
-                                         const rhi::Rect& rect) {
-    if (!node.has_scrollport_insets()) {
-        return detail::padding_box(style, rect);
-    }
-    const float width = rect.width - node.scrollport_left() - node.scrollport_right();
-    const float height = rect.height - node.scrollport_top() - node.scrollport_bottom();
-    if (width <= 0.0f || height <= 0.0f) {
-        return std::nullopt;
-    }
-    return rhi::Rect{rect.x + node.scrollport_left(), rect.y + node.scrollport_top(), width,
-                     height};
-}
-
 // Linear-gradient background: emitted after the solid background and before borders/content, at
 // the node box clipped by the node's own border radius. Stops are clamped to [0,1] and stably
 // sorted; equal offsets keep input order (the later stop wins at the duplicate point). Node opacity
@@ -263,9 +246,8 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
         painted_world = node.world_transform();
     }
 
-    // A node with its own transform opens a new local frame when the sink can apply the matrix. The
-    // decision is taken before any emission so a cache hit can replay the recorded push instead of
-    // emitting one twice.
+    // A node with its own transform opens a new local frame when the sink can apply the matrix; the
+    // decision is taken before any emission so a cache hit can replay the recorded push.
     Frame painted_frame = frame;
     bool open_frame = false;
     if (!is_identity(local) && sink.supports_transform()) {
@@ -286,6 +268,48 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
     if (interpolated) {
         child_scope.content_world =
             painted_world * rhi::Mat3::translation(-node.scroll_x(), -node.scroll_y());
+    }
+
+    // Paint-pass culling (PaintContext::cull; issue #487, dirty-rendering.md section 6.8): the
+    // reach test is style-free, and a node painted in its own transform frame is never culled (its
+    // children are expressed relative to the matrix it would push). A dirty node with a cache
+    // record is painted too, so its record is refreshed rather than going stale for a later clean
+    // paint; the pipeline's damage always covers a dirty node, a caller's rect need not.
+    const bool records_dirty = pass.cacheable && node.dirty() != Dirty::Clean;
+    std::optional<style::ComputedStyle> culled_style;
+    detail::CullVerdict verdict = detail::CullVerdict::Paint;
+    if (pass.cull != nullptr && !open_frame && !records_dirty &&
+        !detail::reaches_cull(node, painted_world, *pass.cull)) {
+        if (!node.children().empty()) {
+            // A culled node with children pays the cascade anyway: whether its children can escape
+            // its box is a style question (overflow), and so is the opacity they compose with.
+            culled_style.emplace(styles.compute(node));
+            if (context.view != nullptr) {
+                context.view->overlay_style(node.id(), *culled_style);
+            }
+        }
+        verdict = detail::cull_verdict(node, rect, painted_frame,
+                                       culled_style.has_value() ? &*culled_style : nullptr);
+    }
+    if (verdict != detail::CullVerdict::Paint) {
+        ++stats.culled_nodes;
+        if (verdict == detail::CullVerdict::Subtree) {
+            ++stats.culled_subtrees;
+            return;
+        }
+        if (verdict == detail::CullVerdict::Node) {
+            return;
+        }
+        child_scope.opacity = scope.opacity * detail::opacity_value(*culled_style);
+        for_each_by_z(node.children(), false, [&](const Node& child) {
+            if (is_inline_span_child(node, child)) {
+                return false;
+            }
+            paint_node(child, styles, sink, stats, context, painted_frame, child_scope, clip_scope,
+                       pass);
+            return false;
+        });
+        return;
     }
 
     if (pass.cache != nullptr && context.view != nullptr) {
@@ -334,7 +358,8 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
         }
     }
 
-    style::ComputedStyle style = styles.compute(node);
+    style::ComputedStyle style =
+        culled_style.has_value() ? std::move(*culled_style) : styles.compute(node);
     if (context.view != nullptr) {
         // Paint-only: the override is applied to this local copy, never to the scene or the
         // caller's style provider.
@@ -399,9 +424,8 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
             }
         }
     }
-    // Text and vector runs are content: paint them after the element's own background/borders and
-    // inside its own overflow/scroll clip, before the children (paint order). PaintKind selects one
-    // active payload; the other is ignored.
+    // Content runs (one active payload per node): after the element's own background/borders and
+    // inside its own overflow/scroll clip, before the children (paint order).
     detail::paint_text_lines(node, style, rect, effective_opacity, *own, stats, context);
     detail::paint_vector_content(node, style, rect, effective_opacity, *own, stats);
     detail::paint_image_content(node, style, rect, effective_opacity, *own, stats);
@@ -466,6 +490,7 @@ PaintStats paint_scene(const Node& root, StyleProvider& styles, PaintSink& sink,
     pass.high_contrast = context.high_contrast;
     pass.glass_max_blur_radius = context.glass.max_blur_radius;
     pass.glass_max_backdrop_area = context.glass.max_backdrop_area;
+    pass.cull = context.cull.has_value() ? &*context.cull : nullptr;
     paint_node(root, styles, sink, stats, effective_context, Frame{}, PaintScope{},
                detail::ClipScope{}, pass);
     return stats;

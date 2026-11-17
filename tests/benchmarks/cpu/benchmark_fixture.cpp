@@ -88,6 +88,8 @@ PaintOutcome Fixture::paint(bool force, const rendering::RedrawPlan* plan) {
     outcome.images = counts.images;
     outcome.backdrops = counts.backdrops;
     outcome.paint_nodes = painted.stats.nodes;
+    outcome.culled_nodes = painted.stats.culled_nodes;
+    outcome.culled_subtrees = painted.stats.culled_subtrees;
     return outcome;
 }
 
@@ -169,6 +171,9 @@ Measurement Fixture::measure() {
     result.damaged_quads = damaged.quads;
     result.damaged_quads_culled = damaged.quads_culled;
     result.damaged_draw_calls = damaged.draw_calls;
+    result.damaged_paint_nodes = damaged.paint_nodes;
+    result.damaged_culled_nodes = damaged.culled_nodes;
+    result.damaged_culled_subtrees = damaged.culled_subtrees;
     driver_->end_frame();
 
     // Glass (issue #244): the same full paint with the fixed bar blurred. The first glass frame

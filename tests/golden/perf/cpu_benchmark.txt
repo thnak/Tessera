@@ -33,6 +33,12 @@ max_damaged_paint_ms = 500
 # The one-node edit reaches 2 quads; without the paint pass's damage clip it would be ~33, so 8 is
 # a regression detector, not a tight bound.
 max_damaged_quads = 8
+# Nodes that resolve a style in the damaged paint (issue #487, docs/design/performance.md section
+# 9.1). Deterministic: the culled paint is 9353 on the reference scene, 2397 nodes are culled and 2
+# clip-bounded subtrees are skipped whole. The whole tree is 12000, so this fails if the traversal
+# regresses to painting everything (cull_paint off measures exactly 12000); the ~7% headroom keeps a
+# platform difference in the culled-node set from failing the gate.
+max_damaged_paint_nodes = 10000
 
 # Redraw and batching counters from the full paint. These are deterministic on every run, so they
 # are compared with a small headroom rather than a factor; a changed count means the draw-list or

@@ -11,6 +11,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 
 namespace tessera::ui::paint {
 
@@ -38,7 +39,9 @@ private:
 };
 
 struct PaintStats {
-    std::size_t nodes = 0;           // visible nodes whose style was resolved (cache hits excluded)
+    // Nodes that painted their own visuals (a cache hit replays instead of counting). A culled node
+    // is counted in `culled_nodes`, including the ones whose style was resolved to decide the clip.
+    std::size_t nodes = 0;
     std::size_t backgrounds = 0;     // background quads emitted
     std::size_t borders = 0;         // border edge quads emitted
     std::size_t hidden_subtrees = 0; // invisible roots skipped (their subtrees are not visited)
@@ -50,6 +53,11 @@ struct PaintStats {
     std::size_t shadows = 0;         // box-shadow fills emitted (one per blur layer)
     std::size_t transforms = 0;      // nodes painted in their own transformed frame
     std::size_t backdrops = 0;       // glass backdrop draws emitted
+    // Paint-pass culling (issue #487): nodes whose own emission could not reach the cull rect and
+    // was skipped, and of those, how many were clipping parents whose whole subtree was skipped.
+    // Both are zero for an unculled paint.
+    std::size_t culled_nodes = 0;
+    std::size_t culled_subtrees = 0;
 };
 
 // Read-only, paint-only override of a node's visual state, used by fixed-step interpolation
@@ -109,6 +117,18 @@ struct PaintContext {
     // Optional paint-only visual override (fixed-step interpolation). Null paints the scene's
     // authoritative visual state. The view never mutates the scene.
     const PaintView* view = nullptr;
+    // Paint-pass culling (issue #487). A world-space rect - the coordinates of Node::world_bounds()
+    // - that bounds everything the paint can show; the frame pipeline sets it to the redraw plan's
+    // scissor bounding box. A node whose painted reach (border box grown by the synced box-shadow
+    // outsets, three glass sigmas and a pixel of anti-aliasing slack) misses it skips style
+    // resolution and emission, and a node the pass clips its children to skips the whole subtree.
+    // Unset paints everything, byte-identical to before this field existed.
+    //
+    // Soundness rules (dirty-rendering.md section 6.7): a node that paints in its own transform
+    // frame is never culled, a node whose own content can leave its box (an unclipped text payload,
+    // whose wrapped lines advance past the content box) only has its children considered, and a
+    // subtree is skipped only when the pass actually pushes a clip around those children.
+    std::optional<rendering::rhi::Rect> cull;
 };
 
 // Paints the box visuals of a scene subtree: background-color and the four border edges, in
