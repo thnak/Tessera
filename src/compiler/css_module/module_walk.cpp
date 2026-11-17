@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT
 
 #include "module_rewrite.hpp"
 
@@ -20,11 +20,6 @@ bool is_grouping_at_rule(std::string_view name) {
 
 bool is_keyframes_at_rule(std::string_view name) {
     return name == "keyframes" || name == "-webkit-keyframes";
-}
-
-bool is_animation_property(std::string_view name) {
-    return name == "animation" || name == "animation-name" || name == "-webkit-animation" ||
-           name == "-webkit-animation-name";
 }
 
 } // namespace
