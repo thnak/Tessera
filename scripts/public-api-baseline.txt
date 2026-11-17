@@ -1013,6 +1013,7 @@ function include/tessera/rendering/golden/perceptual.hpp tessera::rendering::gol
 header include/tessera/rendering/gpu/batched2d_renderer.hpp
 class include/tessera/rendering/gpu/batched2d_renderer.hpp tessera::rendering::gpu::Batched2DRenderer
 struct include/tessera/rendering/gpu/batched2d_renderer.hpp tessera::rendering::gpu::Batched2DConfig
+struct include/tessera/rendering/gpu/batched2d_renderer.hpp tessera::rendering::gpu::CullStats
 
 header include/tessera/rendering/gpu/clip.hpp
 struct include/tessera/rendering/gpu/clip.hpp tessera::rendering::gpu::clip::RoundedRect
