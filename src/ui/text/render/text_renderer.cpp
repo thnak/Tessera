@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <span>
 #include <utility>
@@ -137,13 +138,24 @@ float TextRenderer::draw(rendering::gpu::Batched2DRenderer& renderer, const Shap
         }
     }
 
+    // Coverage contrast by the text colour's lightness: none for dark text, up to 1.4 for white.
+    const float lightness =
+        0.2126f * color.r + 0.7152f * color.g + 0.0722f * color.b; // encoded, not linear: a proxy
+    const float boost = 1.0f + 0.4f * std::clamp((lightness - 0.5f) * 2.0f, 0.0f, 1.0f);
+
     float pen_x = x;
     for (std::size_t i = 0; i < run.glyphs.size(); ++i) {
         const Glyph& glyph = run.glyphs[i];
         const GlyphAtlasEntry& entry = impl_->entries[i];
         if (entry.has_bitmap && entry.page < page_textures.size()) {
-            const float left = pen_x + glyph.x_offset + static_cast<float>(entry.bearing_x);
-            const float top = baseline_y - glyph.y_offset - static_cast<float>(entry.bearing_y);
+            // Glyph bitmaps are sampled with a linear filter, so a quad that does not sit on the
+            // pixel grid blends each row with its neighbour: thin strokes go faint and the last
+            // descender row fades. Both axes snap to whole pixels (a browser does the same for
+            // grayscale text); the pen keeps its fractional advance so spacing does not drift.
+            const float left =
+                std::round(pen_x + glyph.x_offset + static_cast<float>(entry.bearing_x));
+            const float top =
+                std::round(baseline_y - glyph.y_offset - static_cast<float>(entry.bearing_y));
             const rendering::rhi::Rect uv{
                 static_cast<float>(entry.x) / page_width,
                 static_cast<float>(entry.y) / page_height,
@@ -153,7 +165,8 @@ float TextRenderer::draw(rendering::gpu::Batched2DRenderer& renderer, const Shap
             renderer.push_texture(
                 {left, top, static_cast<float>(entry.width), static_cast<float>(entry.height)},
                 *page_textures[entry.page].texture, uv,
-                entry.color ? rendering::rhi::Color{1.0f, 1.0f, 1.0f, color.a} : color);
+                entry.color ? rendering::rhi::Color{1.0f, 1.0f, 1.0f, color.a} : color,
+                entry.color ? 1.0f : boost);
         }
         pen_x += glyph.advance;
     }

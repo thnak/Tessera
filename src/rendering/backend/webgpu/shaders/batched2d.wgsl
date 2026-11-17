@@ -118,7 +118,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         }
         color.a = color.a * alpha;
     } else if (in.mode > 1.5 && in.mode < 2.5) {
-        color = color * sampled;
+        var texel = sampled;
+        texel.a = min(texel.a * (1.0 + (in.mode - 2.0) * 4.0), 1.0);
+        color = color * texel;
     } else if (in.mode > 1000.0) {
         // Soft shadow: mode is 1024 + sigma (see batched2d.frag).
         let sigma = in.mode - 1024.0;

@@ -76,6 +76,8 @@ These are not bugs; a markup author who writes for both has to know them.
 | An explicit `line-height` did not move the glyphs: the baseline was always the font's ascent, so a mark in a 14 px line around a 16 px font sat about 2 px low | `text_wrap.cpp` puts the baseline at `ascent + (line-height - (ascent + descent)) / 2` and the single-line paint path passes it to the sink ([text.md](../design/text.md)); the worst remaining text offset on the form is 1 px |
 | A blurred `box-shadow` was a stack of 3 to 8 concentric fills, so the falloff showed countable steps | `PaintSink::fill_soft_shadow` and `Batched2DRenderer::push_soft_shadow`: one quad whose shader (`batched2d.frag`, `batched2d.wgsl`) evaluates `0.5 * (1 - erf(d / (sigma * sqrt 2)))` from the rounded box's signed distance. Below the card the engine's vertical profile is within 3 of 255 levels of Chrome's. The CPU reference sinks keep the stack |
 | Edges were blended over a 2 px band (`aa_radius` 1.0), so a pixel-aligned edge left its inside pixels 16 % transparent: a 1 px border read lighter than Chrome's and a 2 px ring let the fill under it show through | `Batched2DRenderer` passes 0.5, the exact one-pixel box coverage ([antialiasing.md](../design/antialiasing.md)); pixel difference 4.1 to 3.6 % on the form, 3.3 to 2.9 % on the dashboard |
+| Text looked faint and its descenders short: a glyph quad sat on a fractional pixel position and the atlas is sampled with a linear filter, so every row blended with its neighbour | `text_renderer.cpp` snaps each glyph quad to whole pixels (the pen keeps its fractional advance). Dark text ink went from 0.91 to 0.97 of Chrome's to 1.00 to 1.02 |
+| Light text on a dark surface carried 20 to 28 % less ink than Chrome's | glyph quads add a coverage boost to the textured mode (`kCoverageBoostScale`, `batched2d.frag`, `batched2d.wgsl`), 1.0 for dark text up to 1.4 for white; ink is now 0.95 to 0.96 of Chrome's |
 | Text in a single-line `TextInput` sat at the top of the field | `paint_text.cpp` centres the line in the content box ([text-editing-v1.md](../specs/text-editing-v1.md)) |
 
 ## 6. Known limits
@@ -83,12 +85,9 @@ These are not bugs; a markup author who writes for both has to know them.
 - `background-image: linear-gradient(...)` from a stylesheet paints nothing: `PaintData::gradient` exists but no
   style property feeds it ([stylesheet-v1.md](../specs/stylesheet-v1.md) lists gradients as a V1 non-goal). The
   dashboard therefore uses a solid hero; a gradient there is the clearest visible gap against Chrome.
-- Light text on a dark surface is thinner than Chrome's: summed over a text block the engine's ink is about 20 to 25 %
-  less (peak pixels match). Chrome's rasterizer applies contrast and gamma to glyph coverage; the engine blends the
-  FreeType coverage as is.
 - A border with different widths or colours per side is not one ring and keeps the square edge strips
   on a rounded box.
-- The font has one weight, so bold is not compared. Only the light theme at device scale 1 is
-  covered; dark, high contrast, RTL and scale 2 need their own runs.
+- The font has one weight, so bold is not compared. The form runs in the light theme and the dashboard in the dark one, both at
+  device scale 1; high contrast, RTL and scale 2 need their own runs.
 - The engine's element boxes are not exported, so layout is compared through the overlay, not as
   numbers.

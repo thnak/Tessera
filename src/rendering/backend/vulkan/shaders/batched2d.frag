@@ -120,7 +120,9 @@ void main() {
         }
         color.a *= alpha;
     } else if (v_mode > 1.5 && v_mode < 2.5) {
-        color *= TESSERA_TEXEL;
+        vec4 texel_color = TESSERA_TEXEL;
+        texel_color.a = min(texel_color.a * (1.0 + (v_mode - 2.0) * 4.0), 1.0);
+        color *= texel_color;
     } else if (v_mode > 1000.0) {
         // Soft shadow: mode is 1024 + sigma and the quad is the box grown by 2 sigma.
         float sigma = v_mode - 1024.0;

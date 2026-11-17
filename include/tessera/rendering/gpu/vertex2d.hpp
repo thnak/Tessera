@@ -29,6 +29,12 @@ static_assert(sizeof(Vertex2D) == 44, "Vertex2D layout must stay stable");
 // `Vertex2D::mode`: 0 solid, 1 rounded rect, 2 textured, and 3 + w for a rounded-rect outline of
 // stroke width w (the shaders read the width back as mode - 3).
 inline constexpr float kRingModeBase = 3.0f;
+
+// A textured quad is mode 2. A glyph quad may add `(boost - 1) / kCoverageBoostScale` to it (so
+// mode stays in [2, 2.5)): the shader multiplies the sampled alpha by `boost`, clamped to 1. Light
+// text on a dark surface needs it; a browser's rasterizer applies contrast to glyph coverage, and
+// the raw FreeType coverage reads thinner (about 25 % less ink on white-on-blue labels).
+inline constexpr float kCoverageBoostScale = 4.0f;
 // A soft (Gaussian) shadow is mode kSoftShadowModeBase + sigma; the quad is the shadow box grown by
 // kSoftShadowReach * sigma on every side, which the shader subtracts again to find the box.
 inline constexpr float kSoftShadowModeBase = 1024.0f;

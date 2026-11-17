@@ -167,8 +167,9 @@ public:
     // quad covering the box grown by 2 sigma; the fragment shader evaluates the blurred coverage
     // from the box's signed distance, so the falloff is continuous instead of stepped.
     void push_soft_shadow(const rhi::Rect& box, rhi::Color color, float radius, float sigma);
+    // `coverage_boost` (1 to 2) scales the sampled alpha before blending; glyph runs use it.
     void push_texture(const rhi::Rect& rect, rhi::Texture& texture, const rhi::Rect& uv,
-                      rhi::Color color);
+                      rhi::Color color, float coverage_boost = 1.0f);
 
     void flush();
 

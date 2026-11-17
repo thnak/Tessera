@@ -278,8 +278,9 @@ void Batched2DRenderer::push_soft_shadow(const rhi::Rect& box, rhi::Color color,
 }
 
 void Batched2DRenderer::push_texture(const rhi::Rect& rect, rhi::Texture& texture,
-                                     const rhi::Rect& uv, rhi::Color color) {
-    emit_quad(rect, uv, color, 0, 2, &texture);
+                                     const rhi::Rect& uv, rhi::Color color, float coverage_boost) {
+    const float boost = std::clamp(coverage_boost, 1.0f, 2.0f);
+    emit_quad(rect, uv, color, 0, 2.0f + (boost - 1.0f) / kCoverageBoostScale, &texture);
 }
 
 std::uint32_t Batched2DRenderer::vertex_count() const {
