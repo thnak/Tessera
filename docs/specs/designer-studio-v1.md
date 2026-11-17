@@ -349,7 +349,13 @@ and the link that carries it.
   File System Access API the studio reads and writes that folder in place on explicit save (section 7,
   Save), so the native CLI, a coding agent and the studio all work on the same files; a change made on
   disk meanwhile is detected when the tab regains focus. Without that API a zip is a copy, not a work
-  folder. `*.mock.ts` mock files
+  folder. **Stale generated files are flagged** (owner decision 2026-11-17): a view-only generated
+  file whose `lastModified` is older than the source file it was generated from shows a "may be
+  out of date, regenerate with the native CLI" badge in the tree and the editor. This is a heuristic,
+  not a guarantee: generated headers carry no source digest today, and a checkout or copy resets
+  modification times, so the badge says "may be" and never blocks anything. An exact check needs the
+  codegen to emit a source digest line, which moves every committed golden and is a separate decision.
+  `*.mock.ts` mock files
   are the exception defined in [studio-mock-services-v1.md](studio-mock-services-v1.md): accepted,
   host-only, and never sent to the viewer either.
 - **Validation**: `tessera.json` and assets are validated by the same in-tree validator compiled to
