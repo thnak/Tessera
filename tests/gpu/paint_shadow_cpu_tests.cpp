@@ -45,12 +45,19 @@ private:
     ComputedStyle style_;
 };
 
-std::vector<std::uint8_t> render(const char* shadow, const char* background) {
+std::vector<std::uint8_t> render(const char* shadow, const char* background,
+                                 const char* radius = nullptr) {
     Node node(1);
     node.set_bounds({40, 30, 80, 60});
     ComputedStyle style;
     style.set("box-shadow", shadow);
     style.set("background-color", background);
+    if (radius != nullptr) {
+        style.set("border-top-left-radius", radius);
+        style.set("border-top-right-radius", radius);
+        style.set("border-bottom-right-radius", radius);
+        style.set("border-bottom-left-radius", radius);
+    }
     StubStyles styles(style);
     CpuCanvas canvas(kWidth, kHeight);
     canvas.clear({1.0f, 1.0f, 1.0f, 1.0f});
@@ -95,6 +102,32 @@ bool sharp_offset_is_exact() {
            expect(red_at(pixels, 131, 95) == 255, "the shadow ends at the offset edge");
 }
 
+// Issue #461: an outer shadow is clipped inside the border box, so a transparent node shows only
+// the page background where its own box covers the shadow - and the shadow outside is untouched.
+bool nothing_inside_transparent_box() {
+    const auto blurred = render("0 2px 8px rgba(0, 0, 0, 0.3)", "transparent");
+    bool ok =
+        expect(red_at(blurred, 80, 60) == 255,
+               "the centre of a transparent blurred box is the page background") &&
+        expect(red_at(blurred, 41, 31) == 255 && red_at(blurred, 118, 88) == 255,
+               "the whole border box stays untouched") &&
+        expect(red_at(blurred, 80, 95) < 255, "the blurred shadow still paints below the box") &&
+        expect(red_at(blurred, 10, 60) == 255 && red_at(blurred, 80, 5) == 255,
+               "and nothing beyond its reach");
+    const auto sharp = render("8px 8px 0 #000000", "transparent");
+    ok = expect(red_at(sharp, 60, 60) == 255 && red_at(sharp, 110, 80) == 255,
+                "the overlap of a sharp offset shadow stays the page background") &&
+         expect(red_at(sharp, 125, 95) == 0, "the sharp shadow outside the box is unchanged") && ok;
+    // A rounded box: the CPU sink approximates rounding by bounds, so the assertion is the stronger
+    // one - nothing at all inside the border box, corner triangles included.
+    const auto rounded = render("0 2px 8px rgba(0, 0, 0, 0.3)", "transparent", "12px");
+    ok = expect(red_at(rounded, 80, 60) == 255 && red_at(rounded, 41, 31) == 255 &&
+                    red_at(rounded, 44, 34) == 255,
+                "a rounded transparent box shows no shadow inside either") &&
+         ok;
+    return ok;
+}
+
 bool deterministic() {
     return expect(render("0 0 12px rgba(0, 0, 0, 0.6)", "#336699") ==
                       render("0 0 12px rgba(0, 0, 0, 0.6)", "#336699"),
@@ -107,6 +140,7 @@ int main() {
     bool ok = true;
     ok = blur_fades_with_distance() && ok;
     ok = sharp_offset_is_exact() && ok;
+    ok = nothing_inside_transparent_box() && ok;
     ok = deterministic() && ok;
     if (!ok) {
         std::cerr << "paint_shadow_cpu: FAILED\n";

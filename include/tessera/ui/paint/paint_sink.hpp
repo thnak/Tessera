@@ -148,6 +148,20 @@ struct BackdropDraw {
     return draw.stops[draw.stop_count - 1].color;
 }
 
+// One resolved outer `box-shadow` layer (issue #461). `box` is the shadow's own rounded box, with
+// the offset, the spread and - for a blurred shadow - the Gaussian reach already applied by the
+// sink. `carve` is the node's border box: CSS paints an outer shadow only outside it (CSS
+// Backgrounds 3 section 7.1.1), corner radius included, so a sink that draws the whole layer must
+// not paint it inside that box. `sigma` 0 is a hard-edged shadow (a `0` blur), which goes through
+// the same shape rather than a plain fill so the carve applies to it too.
+struct BoxShadowDraw {
+    rhi::Rect box;
+    RoundedClip carve;                        // the node's border box shaped by its border-radius
+    rhi::Color color{0.0f, 0.0f, 0.0f, 1.0f}; // alpha already folded with node opacity
+    float radius = 0.0f; // box corner radius, grown by the spread like CSS does
+    float sigma = 0.0f;  // Gaussian standard deviation (blur / 2); 0 = hard edge
+};
+
 // Receives the flat, axis-aligned paint commands produced by paint_scene(). The pass owns no
 // draw list and no backend state: a recording sink is enough to test it, and Batched2DSink
 // forwards the same commands to rendering::gpu::Batched2DRenderer.
@@ -207,15 +221,16 @@ public:
     // but for PaintKind::Image payloads. Missing/corrupt assets are silent no-ops in real sinks.
     virtual void draw_image(const ImageDraw& /*draw*/) {}
 
-    // Optional soft box shadow (default: unsupported). A sink that returns true draws the blurred
-    // edge of `box` (corner `radius`) as a Gaussian of standard deviation `sigma` in one call; the
-    // paint pass then emits it instead of the stack of concentric fills it uses everywhere else,
-    // which steps visibly. The CPU reference sinks keep the stack, so their goldens do not move.
-    [[nodiscard]] virtual bool supports_soft_shadow() const {
+    // Optional one-shape box shadow (default: unsupported). A sink that returns true draws an outer
+    // shadow - sharp or blurred - as the shape in BoxShadowDraw minus the node's border box, so a
+    // transparent node shows nothing inside its own box and the Gaussian edge is continuous instead
+    // of stepped. The paint pass emits one call per shadow for such a sink and the stack of
+    // concentric fills (four strips per layer, so the border box is subtracted there too) for the
+    // rest, which is what the CPU reference sinks use.
+    [[nodiscard]] virtual bool supports_box_shadow() const {
         return false;
     }
-    virtual void fill_soft_shadow(const rhi::Rect& /*box*/, const rhi::Color& /*color*/,
-                                  float /*radius*/, float /*sigma*/) {}
+    virtual void fill_box_shadow(const BoxShadowDraw& /*draw*/) {}
 
     // Optional glass hook (default no-op), emitted before the node's own box visuals. A sink that
     // returns false from supports_backdrop() paints the node without the effect, which is the

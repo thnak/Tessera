@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: MIT
 //
-// Vulkan-free CPU paint goldens for the three remaining V1 paint capabilities: borders, nested
-// clips and linear gradients. Each case is an ordinary scene graph painted by the shared paint pass
+// Vulkan-free CPU paint goldens for four V1 paint capabilities: borders, nested clips, linear
+// gradients and the carved outer box shadow (#461). Each case is an ordinary scene graph painted by
+// the shared paint pass
 // (`ui::paint::paint_scene`) into `CpuPaintSink` (`tools/poc/batched2d/cpu_paint_sink.hpp`), which
 // maps the commands onto the deterministic `CpuCanvas`: axis-aligned fills, an intersecting clip
 // stack, the documented rounded-bounds approximation, and 64-band gradients sampled through
 // `ui::paint::sample_linear_gradient`. `ui::paint::Batched2DSink` is the GPU twin of that sink (see
 // `paint_gradient_tests.cpp`); it needs a device, so the committed CPU baselines use the CPU sink.
 //
-// The three baselines under `tests/golden/baseline/cpu_wide/` are generated on the CPU path only,
+// The four baselines under `tests/golden/baseline/cpu_wide/` are generated on the CPU path only,
 // through this executable's own write mode:
 //
 //     cpu_wide_golden_tests --update-goldens
@@ -17,22 +18,15 @@
 // Windows and Linux: no GPU, lavapipe, wall clock, random id or system font is involved and no text
 // is painted. Regenerating them must not change a byte.
 
-#include "cpu_paint_sink.hpp"
+// Shared scaffolding (canvas, sink, stub style provider, pixel helpers, scene colours) lives in
+// `cpu_wide_scene_support.hpp`, so each case below reads as a scene.
+#include "cpu_wide_scene_support.hpp"
 #include "tessera/rendering/golden/image_diff.hpp"
-#include "tessera/rendering/software/cpu_canvas.hpp"
-#include "tessera/ui/paint/paint_pass.hpp"
-#include "tessera/ui/scene/node.hpp"
 
-#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
-#include <initializer_list>
-#include <iostream>
-#include <map>
-#include <memory>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include <stb_image.h>
@@ -44,125 +38,14 @@
 
 namespace {
 
+using namespace tessera::poc::batched2d::cpu_wide_support;
+
 using tessera::poc::batched2d::CpuPaintSink;
 using tessera::rendering::golden::ImageSize;
-using tessera::rendering::rhi::rgba8;
-using tessera::rendering::software::CpuCanvas;
-using tessera::ui::LinearGradient;
-using tessera::ui::LinearGradientStop;
-using tessera::ui::Node;
-using tessera::ui::PaintData;
-using tessera::ui::paint::PaintStats;
-using tessera::ui::paint::StyleProvider;
-using tessera::ui::style::ComputedStyle;
-
-constexpr std::uint32_t kWidth = 320;
-constexpr std::uint32_t kHeight = 200;
-
-using Pixel = std::array<std::uint8_t, 4>;
 
 // `--update-goldens` rewrites the committed baselines from the CPU path only; ctest never passes
 // it.
 bool update_goldens = false;
-
-bool expect(bool condition, const std::string& message) {
-    if (!condition) {
-        std::cerr << "cpu-wide-golden: " << message << "\n";
-    }
-    return condition;
-}
-
-Pixel pixel(const CpuCanvas& canvas, std::uint32_t x, std::uint32_t y) {
-    const std::size_t index = (static_cast<std::size_t>(y) * canvas.width() + x) * 4;
-    return {canvas.pixels()[index], canvas.pixels()[index + 1], canvas.pixels()[index + 2],
-            canvas.pixels()[index + 3]};
-}
-
-bool is_pixel(const CpuCanvas& canvas, std::uint32_t x, std::uint32_t y, const Pixel& expected) {
-    return pixel(canvas, x, y) == expected;
-}
-
-// Channel order is R, G, B, A; returning the raw byte keeps gradient assertions about dominance
-// instead of pinning a libm-dependent ramp value.
-std::uint8_t channel(const CpuCanvas& canvas, std::uint32_t x, std::uint32_t y, std::size_t index) {
-    return pixel(canvas, x, y)[index];
-}
-
-std::vector<std::uint8_t> bytes(const CpuCanvas& canvas) {
-    return {canvas.pixels().begin(), canvas.pixels().end()};
-}
-
-class StubStyles final : public StyleProvider {
-public:
-    void set(tessera::ui::NodeId id, ComputedStyle style) {
-        styles_[id] = std::move(style);
-    }
-
-    void add(tessera::ui::NodeId id, const char* property, const char* value) {
-        styles_[id].set(property, value);
-    }
-
-    ComputedStyle compute(const Node& node) override {
-        const auto found = styles_.find(node.id());
-        return found == styles_.end() ? ComputedStyle{} : found->second;
-    }
-
-private:
-    std::map<tessera::ui::NodeId, ComputedStyle> styles_;
-};
-
-ComputedStyle styled(std::initializer_list<std::pair<const char*, const char*>> values) {
-    ComputedStyle style;
-    for (const auto& [property, value] : values) {
-        style.set(property, value);
-    }
-    return style;
-}
-
-Node& add_node(Node& parent, tessera::ui::NodeId id, const tessera::rendering::rhi::Rect& bounds) {
-    auto owner = std::make_unique<Node>(id);
-    owner->set_bounds(bounds);
-    return parent.add_child(std::move(owner));
-}
-
-void clip_children(StubStyles& styles, tessera::ui::NodeId id) {
-    styles.add(id, "overflow-x", "hidden");
-    styles.add(id, "overflow-y", "hidden");
-}
-
-PaintData gradient_payload(float angle_degrees, std::initializer_list<LinearGradientStop> stops) {
-    LinearGradient gradient;
-    gradient.angle_degrees = angle_degrees;
-    gradient.stop_count = stops.size();
-    std::size_t index = 0;
-    for (const LinearGradientStop& stop : stops) {
-        gradient.stops[index++] = stop;
-    }
-    PaintData data;
-    data.gradient = gradient;
-    return data;
-}
-
-// Scene colours. Opaque fills round-trip every byte exactly through `CpuCanvas::blend`.
-constexpr Pixel kRoot{11, 17, 32, 255};             // #0B1120
-constexpr Pixel kCard{30, 41, 59, 255};             // #1E293B
-constexpr Pixel kCardAlt{17, 24, 39, 255};          // #111827
-constexpr Pixel kInner{226, 232, 240, 255};         // #E2E8F0
-constexpr Pixel kAccent{56, 189, 248, 255};         // #38BDF8
-constexpr Pixel kBorderRight{244, 114, 182, 255};   // #F472B6
-constexpr Pixel kBorderBottom{250, 204, 21, 255};   // #FACC15
-constexpr Pixel kBorderLeft{34, 197, 94, 255};      // #22C55E
-constexpr Pixel kBorderUniform{167, 139, 250, 255}; // #A78BFA
-constexpr Pixel kMiddle{51, 65, 85, 255};           // #334155
-constexpr Pixel kLeaf{239, 68, 68, 255};            // #EF4444
-constexpr Pixel kOrange{249, 115, 22, 255};         // #F97316
-constexpr Pixel kSlate{71, 85, 105, 255};           // #475569
-
-CpuCanvas make_canvas() {
-    CpuCanvas canvas(kWidth, kHeight);
-    canvas.clear(rgba8(kRoot[0], kRoot[1], kRoot[2]));
-    return canvas;
-}
 
 // -------------------------------------------------------------------------------------------------
 // borders: a rounded card with four distinct border sides, a square card with a uniform border, and
@@ -367,6 +250,66 @@ bool check_gradients(const PaintStats& stats, const CpuCanvas& canvas) {
     return ok;
 }
 
+// -------------------------------------------------------------------------------------------------
+// shadows (issue #461): a transparent square box, a transparent rounded box and an opaque card, all
+// with the same blurred shadow. CSS paints an outer shadow only outside the border box, so the two
+// transparent boxes keep the page colour inside - corner triangles of the rounded one included, the
+// CPU sink's bounds approximation of rounding - while the shadow shows around and below them. The
+// opaque card pins the unchanged case: its background covers everything the carve removed.
+// -------------------------------------------------------------------------------------------------
+constexpr Pixel kShadowInside = kRoot;
+
+void build_shadows_scene(Node& root, StubStyles& styles) {
+    root.set_bounds({0, 0, static_cast<float>(kWidth), static_cast<float>(kHeight)});
+    styles.set(1, styled({{"background-color", "#0B1120"}}));
+
+    add_node(root, 2, {24, 24, 96, 64});
+    styles.set(2, styled({{"box-shadow", "0px 2px 8px rgba(56, 189, 248, 0.55)"}}));
+
+    add_node(root, 3, {152, 24, 96, 64});
+    styles.set(3, styled({{"box-shadow", "0px 2px 8px rgba(56, 189, 248, 0.55)"},
+                          {"border-top-left-radius", "16px"},
+                          {"border-top-right-radius", "16px"},
+                          {"border-bottom-right-radius", "16px"},
+                          {"border-bottom-left-radius", "16px"}}));
+
+    add_node(root, 4, {24, 124, 96, 64});
+    styles.set(4, styled({{"background-color", "#1E293B"},
+                          {"box-shadow", "0px 2px 8px rgba(56, 189, 248, 0.55)"}}));
+}
+
+bool check_shadows(const PaintStats& stats, const CpuCanvas& canvas) {
+    bool ok =
+        expect(stats.nodes == 4, "shadows: four nodes painted") &&
+        expect(stats.shadows == 12, "shadows: four blur layers for each of the three shadows");
+    ok =
+        expect(is_pixel(canvas, 72, 56, kShadowInside) && is_pixel(canvas, 26, 26, kShadowInside) &&
+                   is_pixel(canvas, 118, 86, kShadowInside),
+               "shadows: a transparent square box keeps the page colour inside") &&
+        ok;
+    ok = expect(channel(canvas, 72, 92, 2) > channel(canvas, 72, 92, 0),
+                "shadows: the blurred shadow still paints below the transparent box") &&
+         ok;
+    ok = expect(is_pixel(canvas, 200, 56, kShadowInside) &&
+                    is_pixel(canvas, 154, 26, kShadowInside) &&
+                    is_pixel(canvas, 246, 86, kShadowInside),
+                "shadows: a transparent rounded box keeps it inside, corners included") &&
+         ok;
+    ok = expect(channel(canvas, 200, 92, 2) > channel(canvas, 200, 92, 0),
+                "shadows: the rounded box's shadow paints below it") &&
+         ok;
+    ok = expect(is_pixel(canvas, 72, 156, kCard),
+                "shadows: the opaque card is unchanged over its own shadow") &&
+         ok;
+    ok = expect(channel(canvas, 72, 192, 2) > channel(canvas, 72, 192, 0),
+                "shadows: the opaque card's shadow paints below it") &&
+         ok;
+    ok = expect(is_pixel(canvas, 300, 10, kRoot),
+                "shadows: nothing paints outside the three boxes") &&
+         ok;
+    return ok;
+}
+
 using BuildFn = void (*)(Node&, StubStyles&);
 using CheckFn = bool (*)(const PaintStats&, const CpuCanvas&);
 
@@ -448,6 +391,7 @@ int main(int argc, char** argv) {
     bool ok = run_case("borders", build_borders_scene, check_borders);
     ok = run_case("clips", build_clips_scene, check_clips) && ok;
     ok = run_case("gradients", build_gradients_scene, check_gradients) && ok;
+    ok = run_case("shadows", build_shadows_scene, check_shadows) && ok;
     if (!ok) {
         std::cerr << "cpu-wide-golden: FAILED\n";
         return 1;

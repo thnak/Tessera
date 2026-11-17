@@ -1014,6 +1014,7 @@ header include/tessera/rendering/gpu/batched2d_renderer.hpp
 class include/tessera/rendering/gpu/batched2d_renderer.hpp tessera::rendering::gpu::Batched2DRenderer
 struct include/tessera/rendering/gpu/batched2d_renderer.hpp tessera::rendering::gpu::Batched2DConfig
 struct include/tessera/rendering/gpu/batched2d_renderer.hpp tessera::rendering::gpu::CullStats
+struct include/tessera/rendering/gpu/batched2d_renderer.hpp tessera::rendering::gpu::ShadowCarveBox
 
 header include/tessera/rendering/gpu/clip.hpp
 struct include/tessera/rendering/gpu/clip.hpp tessera::rendering::gpu::clip::RoundedRect
@@ -2101,6 +2102,7 @@ function include/tessera/ui/paint/paint_pass.hpp tessera::ui::paint::paint_scene
 header include/tessera/ui/paint/paint_sink.hpp
 class include/tessera/ui/paint/paint_sink.hpp tessera::ui::paint::PaintSink
 struct include/tessera/ui/paint/paint_sink.hpp tessera::ui::paint::BackdropDraw
+struct include/tessera/ui/paint/paint_sink.hpp tessera::ui::paint::BoxShadowDraw
 struct include/tessera/ui/paint/paint_sink.hpp tessera::ui::paint::GradientDraw
 struct include/tessera/ui/paint/paint_sink.hpp tessera::ui::paint::ImageDraw
 struct include/tessera/ui/paint/paint_sink.hpp tessera::ui::paint::RoundedClip

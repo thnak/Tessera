@@ -25,6 +25,7 @@
 #include "canvas_report.hpp"
 #include "scene_frame_test_support.hpp"
 #include "tessera/rendering/golden/parity.hpp"
+#include "tessera/rendering/gpu/vertex2d.hpp"
 
 #include <cstdint>
 #include <cstring>
@@ -295,7 +296,8 @@ void test_parity_policy() {
     expect(!desc.shader_id.empty(), "the preview pipeline names a logical shader id");
     expect(desc.vertex_spirv == nullptr && desc.vertex_spirv_size == 0,
            "the preview pipeline carries no SPIR-V, so a Wasm build can create it");
-    expect(desc.vertex_layout.stride == 44, "the preview pipeline uses the shared Vertex2D layout");
+    expect(desc.vertex_layout.stride == tessera::rendering::gpu::kVertex2DStride,
+           "the preview pipeline uses the shared Vertex2D layout");
     expect(desc.push_constant_size == 112, "the preview pipeline matches Batched2DPushConstants");
     // The null backend accepts that description with no SPIR-V at all, which is the property the
     // WebGPU backend relies on.

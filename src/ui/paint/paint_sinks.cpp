@@ -55,9 +55,8 @@ void Batched2DSink::fill_rounded_ring(const rhi::Rect& rect, const rhi::Color& c
     renderer_->push_rounded_ring(rect, color, radius, width);
 }
 
-void Batched2DSink::fill_soft_shadow(const rhi::Rect& box, const rhi::Color& color, float radius,
-                                     float sigma) {
-    renderer_->push_soft_shadow(box, color, radius, sigma);
+void Batched2DSink::fill_box_shadow(const BoxShadowDraw& draw) {
+    renderer_->push_soft_shadow(draw.box, draw.carve.rect, draw.color, draw.radius, draw.sigma);
 }
 
 // V1 gradient emission: 64 dominant-axis bands sampled with the shared encoded-space ramp, inside
