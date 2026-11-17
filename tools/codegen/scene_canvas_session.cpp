@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: MIT
 
 #include "scene_canvas_session.hpp"
+#include "diagnostic_record.hpp"
 #include "tessera/ui/dirty.hpp"
+#include "tessera/ui/style/prepared_stylesheet.hpp"
 
+#include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -100,9 +104,43 @@ std::string CanvasSceneSession::start(const CanvasSessionSource& source) {
     // form goes into the session so a later viewport change can re-resolve the same data instead of
     // re-parsing CSS.
     const ui::style::MediaContext media = preview_media_context(source.width, source.height, dpi);
-    auto prepared = prepare_preview_stylesheet(source.stylesheet);
-    sheet_ = resolve_preview_stylesheet(prepared, media);
-    css_diagnostics_ = author_stylesheet_diagnostics(source.stylesheet, stylesheet_file);
+    // A `*.module.css` is scoped before it is compiled (issue #463), so the class names the tree
+    // carries match the rules. The same text feeds the diagnostics below, so the pane can never
+    // report one sheet's problems beside another sheet's pixels.
+    std::optional<css_module::ModuleScanError> scan_error;
+    const std::string stylesheet_text =
+        preview_stylesheet_text(source.stylesheet, stylesheet_file, scan_error);
+    
+    // The prepared form goes into the session so a later viewport change can re-resolve the same
+    // data instead of re-parsing CSS (issue #436).
+    std::optional<ui::style::PreparedStyleSheet> prepared;
+    if (scan_error) {
+        // Nothing from a sheet that cannot be scoped is compiled: painting its raw `.card` rules
+        // while the tree says `card_0b82a5` is the silent-unstyled defect #463 closes. The sheet is
+        // an EMPTY one, not the built-in fallback - the author did write CSS, and #390 decision 2
+        // replaces the built-in sheet with the author's rather than resurrecting it for a broken one.
+        sheet_ = resolve_preview_stylesheet(ui::style::prepare_stylesheet(std::string_view{}), media);
+    } else {
+        prepared = prepare_preview_stylesheet(stylesheet_text);
+        sheet_ = resolve_preview_stylesheet(*prepared, media);
+    }
+    css_diagnostics_ = author_stylesheet_diagnostics(stylesheet_text, stylesheet_file);
+    if (scan_error) {
+        // The scan's offset indexes the AUTHOR's text, which is the file the author is looking at.
+        const std::string_view sheet_file =
+            stylesheet_file.empty() ? kPreviewStylesheetFile : stylesheet_file;
+        const DiagnosticSpan span = css_span(sheet_file, source.stylesheet, scan_error->offset);
+        PreviewCssDiagnostic diagnostic;
+        diagnostic.code = scan_error->code;
+        diagnostic.message = scan_error->message;
+        diagnostic.file = std::string(sheet_file);
+        diagnostic.offset = span.offset;
+        diagnostic.line = span.line;
+        diagnostic.column = span.column;
+        // An error, not a warning: unlike an unknown property, this one costs the whole sheet.
+        diagnostic.warning = false;
+        css_diagnostics_.push_back(std::move(diagnostic));
+    }
     evaluated_ = std::move(*evaluated);
 
     // Every component id in the new evaluation, so a carried cell whose component disappeared is

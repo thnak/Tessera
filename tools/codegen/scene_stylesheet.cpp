@@ -11,10 +11,13 @@
 // with different sheets, which is exactly the drift the one-pipeline rule exists to prevent.
 
 #include "diagnostic_record.hpp"
+#include "scene_evaluate.hpp"
 #include "scene_stylesheet.hpp"
 #include "tessera/ui/style/prepared_stylesheet.hpp"
 #include "tessera/ui/style/tokenizer.hpp"
 
+#include <optional>
+#include <string>
 #include <string_view>
 #include <utility>
 
@@ -22,6 +25,11 @@ namespace tessera::compiler::codegen::cli {
 namespace {
 
 namespace style = tessera::ui::style;
+
+// The one suffix that makes a stylesheet a CSS module (issue #463). The codegen CLI tests the same
+// string (`kModuleSuffix` in `regenerate_stylesheets.cpp`), so the preview and a native build scope
+// the same set of files.
+constexpr std::string_view kModuleSuffix = ".module.css";
 
 // The spec's code for a diagnostic kind (docs/specs/stylesheet-v1.md section 15). `StyleDiagnostic`
 // carries the kind, never the spelling, so this is the one conversion -- the same shape
@@ -115,6 +123,27 @@ style::CompiledStyleSheet resolve_preview_stylesheet(const style::PreparedStyleS
 style::CompiledStyleSheet compile_preview_stylesheet(std::string_view stylesheet,
                                                      const style::MediaContext& media) {
     return resolve_preview_stylesheet(prepare_preview_stylesheet(stylesheet), media);
+}
+
+std::string preview_stylesheet_text(std::string_view stylesheet, std::string_view stylesheet_file,
+                                    std::optional<css_module::ModuleScanError>& error) {
+    error.reset();
+    // The path is the project-relative one the virtual sheet is filed under, normalized exactly as
+    // `evaluate_source()` files it: the scoped name is a hash of that string, so a backslash left
+    // in place would scope to a name the tree never carries.
+    const std::string file =
+        normalize_path(stylesheet_file.empty() ? kPreviewStylesheetFile : stylesheet_file);
+    if (!file.ends_with(kModuleSuffix)) {
+        return std::string(stylesheet);
+    }
+    // The scan is the compiler's own, not a preview copy: a class the preview scopes differently
+    // from what `tessera_codegen` embeds would be the same drift #497 removed from the CLI.
+    const auto scanned = css_module::scan_module_css(file, stylesheet);
+    if (!scanned) {
+        error = scanned.error();
+        return {};
+    }
+    return scanned->rewritten;
 }
 
 std::vector<PreviewCssDiagnostic> author_stylesheet_diagnostics(std::string_view stylesheet,

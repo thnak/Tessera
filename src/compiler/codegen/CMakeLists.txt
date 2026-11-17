@@ -186,6 +186,11 @@ set(_tessera_scene_preview_sources
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_prepare.cpp
     # The author-stylesheet choice (issue #390): which sheet a preview compiles, and its diagnostics.
     # One TU so `prepare_scene`, the canvas session and the input path cannot disagree.
+    #
+    # It scans a `*.module.css` before compiling it (issue #463), so every target that compiles this
+    # list names `tessera_css_module` directly. The scanner is already reachable through
+    # `tessera_lowering` (which uses it for the same reason), but the preview must not depend on
+    # that: a unit that includes `css_module/module_scan.hpp` says so on its own link line.
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_stylesheet.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_build.cpp
     # The IR -> scene walk, split out of `scene_build.cpp` when conditional and repeated children
@@ -223,6 +228,7 @@ if (NOT EMSCRIPTEN)
     target_include_directories(tessera_scene_preview PUBLIC ${CMAKE_SOURCE_DIR}/tools/codegen)
     target_link_libraries(tessera_scene_preview PUBLIC
         tessera_automation_scene
+        tessera_css_module
         tessera_ir_eval
         tessera_ir_ids
         tessera_layout
@@ -250,6 +256,7 @@ if (NOT EMSCRIPTEN)
         PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
     target_link_libraries(tessera_scene_frame_entry PRIVATE
         tessera_automation_scene
+        tessera_css_module
         tessera_gpu
         tessera_ir_eval
         tessera_ir_ids
@@ -279,6 +286,7 @@ if (NOT EMSCRIPTEN)
         PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
     target_link_libraries(tessera_canvas_report PRIVATE
         tessera_automation_scene
+        tessera_css_module
         tessera_gpu
         tessera_ir
         tessera_ir_eval
@@ -323,6 +331,7 @@ if (NOT EMSCRIPTEN)
         PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
     target_link_libraries(tessera_scene_frame_cli PRIVATE
         tessera_automation_scene
+        tessera_css_module
         tessera_gpu
         tessera_harness_image
         tessera_ir_eval
@@ -370,6 +379,7 @@ else ()
         PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
     target_link_libraries(tessera_scene_preview_wasm PRIVATE
         tessera_automation_scene
+        tessera_css_module
         tessera_ir_eval
         tessera_ir_ids
         tessera_layout
@@ -420,6 +430,7 @@ else ()
         PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
     target_link_libraries(tessera_canvas_wasm PRIVATE
         tessera_automation_scene
+        tessera_css_module
         tessera_gpu
         tessera_ir_eval
         tessera_ir_ids
@@ -732,6 +743,7 @@ if (TESSERA_BUILD_TESTS)
         TESSERA_PREVIEW_FONT_PATH="${CMAKE_SOURCE_DIR}/designer/web/public/fonts/IBMPlexSans-Latin.ttf")
     target_link_libraries(scene_frame_tests PRIVATE
         tessera_automation_scene
+        tessera_css_module
         tessera_golden
         tessera_gpu
         tessera_ir_eval
@@ -750,13 +762,20 @@ if (TESSERA_BUILD_TESTS)
     # depth-bound proof that hostile CSS (nested selectors, at-rules and `@supports` conditions, a 7 KB
     # file of them) produces a diagnostic instead of a stack overflow. A stack overflow in Wasm aborts
     # the module, so this must fail here, where a person sees it, not in a browser.
+    # Two translation units make one ctest case, split for the source size limit and sharing
+    # `scene_stylesheet_test_support.hpp` (the same pattern `scene_frame_tests` uses):
+    # `scene_stylesheet_tests.cpp` covers the sheet compiled as written and
+    # `scene_stylesheet_module_tests.cpp` covers the `*.module.css` that is scanned first (issue
+    # #463), so the `scene_stylesheet` case still proves the whole path in one run.
     add_executable(scene_stylesheet_tests
         ${CMAKE_SOURCE_DIR}/tests/unit/scene_stylesheet_tests.cpp
+        ${CMAKE_SOURCE_DIR}/tests/unit/scene_stylesheet_module_tests.cpp
         ${_tessera_scene_preview_sources})
     target_include_directories(scene_stylesheet_tests
         PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
     target_link_libraries(scene_stylesheet_tests PRIVATE
         tessera_automation_scene
+        tessera_css_module
         tessera_ir_eval
         tessera_ir_ids
         tessera_layout
@@ -777,6 +796,7 @@ if (TESSERA_BUILD_TESTS)
         PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
     target_link_libraries(scene_dynamic_tests PRIVATE
         tessera_automation_scene
+        tessera_css_module
         tessera_ir_eval
         tessera_ir_ids
         tessera_layout
@@ -797,6 +817,7 @@ if (TESSERA_BUILD_TESTS)
     target_link_libraries(scene_fold_tests PRIVATE
         tessera_app
         tessera_automation_scene
+        tessera_css_module
         tessera_hal_metrics
         tessera_ir_eval
         tessera_ir_ids
@@ -829,6 +850,7 @@ if (TESSERA_BUILD_TESTS)
             PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
         target_link_libraries(${_canvas_test}_tests PRIVATE
             tessera_automation_scene
+            tessera_css_module
             tessera_gpu
             tessera_ir_eval
             tessera_ir_ids
@@ -862,6 +884,7 @@ if (TESSERA_BUILD_TESTS)
     target_link_libraries(scene_viewport_tests PRIVATE
         tessera_app
         tessera_automation_scene
+        tessera_css_module
         tessera_gpu
         tessera_ir_eval
         tessera_ir_ids

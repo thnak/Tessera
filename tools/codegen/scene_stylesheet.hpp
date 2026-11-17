@@ -2,11 +2,13 @@
 
 #pragma once
 
+#include "tessera/compiler/css_module/module_scan.hpp"
 #include "tessera/compiler/lowering/node_lowering.hpp"
 #include "tessera/ui/style/compiled_stylesheet.hpp"
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -100,6 +102,27 @@ resolve_preview_stylesheet(const tessera::ui::style::PreparedStyleSheet& prepare
 [[nodiscard]] tessera::ui::style::CompiledStyleSheet
 compile_preview_stylesheet(std::string_view stylesheet,
                            const tessera::ui::style::MediaContext& media);
+
+// The text the preview compiles, and the one decision "is this a CSS module" is made in (issue
+// #463). The author's bytes are returned unchanged unless `stylesheet_file` names a
+// `*.module.css`; a module sheet is returned as its scanned rewrite, so the class names the lowered
+// tree carries on `className` are the selectors the compiled sheet defines.
+//
+// **The suffix decides, not the import graph.** A preview compiles the author's textarea even when
+// the source never imports it (#390 decision 1), so "nothing imported it" says nothing about
+// whether its class names are scoped. The codegen CLI scopes by the same suffix
+// (`regenerate_stylesheets.cpp`), which is what keeps the preview and a native build of the same
+// file identical. An empty `stylesheet_file` falls back to `kPreviewStylesheetFile`, a plain name,
+// so every caller written before #463 compiles exactly the bytes it did before.
+//
+// `error` is set -- and the result left empty -- when a module sheet cannot be scanned. The empty
+// result is "this sheet compiles to no rules"; it is NOT "no author CSS", so a caller must not hand
+// it to `compile_preview_stylesheet()`, whose empty-input rule would resurrect the built-in sheet
+// over an author sheet that exists but is broken. Report the error as a `PreviewCssDiagnostic` and
+// compile an empty sheet with `resolve_preview_stylesheet()`.
+[[nodiscard]] std::string
+preview_stylesheet_text(std::string_view stylesheet, std::string_view stylesheet_file,
+                        std::optional<css_module::ModuleScanError>& error);
 
 // The author sheet's diagnostics, in source order, bounded by `limit`. Empty when there is no
 // author CSS, because a stylesheet the author never wrote cannot have problems.

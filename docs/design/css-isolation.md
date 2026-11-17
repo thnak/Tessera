@@ -110,6 +110,23 @@ so the page's class and the blob's selector are the same name. `StylesheetRef::h
 file's own bytes, because it identifies the source file: what is scoped is the text the blob compiles,
 not the file the IR points at.
 
+## Preview
+
+The design-time preview compiles the **scanned** text when its stylesheet file is a module. The
+studio files its sheet under a path like `ui/Preview.module.css`, so `preview_stylesheet_text()`
+(`tools/codegen/scene_stylesheet.cpp`) scans it first and the compiled rules carry the same scoped
+names the lowering already put on `className`. Without that, a tree full of `card_0b82a5` would be
+matched against a sheet that only defines `.card`: nothing applies, no diagnostic is reported, and
+the component is silently unstyled. The suffix decides, not whether the source imports the sheet —
+the preview applies the author's CSS whether or not it is imported (issue #390), so an unimported
+module sheet is scoped the same way `tessera_codegen` scopes the blob it embeds. Every other sheet
+is compiled byte-for-byte as written, so no pre-existing preview, snapshot or golden moves.
+
+A module sheet the scan rejects is reported as a `PreviewCssDiagnostic` carrying the scan's stable
+`TESSERA_CSS_MODULE_*` code and message, and the preview compiles an empty sheet — not the raw
+bytes (the silently-unstyled failure again) and not the built-in fallback (author CSS replaces it,
+it is never resurrected for a broken sheet).
+
 ## `:global`
 
 `:global(.x)` leaves one class unrenamed; `:global { ... }` is not supported in V1. One syntax, the

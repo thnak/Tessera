@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: MIT
 
+#include "diagnostic_record.hpp"
 #include "scene_build.hpp"
 #include "scene_evaluate.hpp"
 #include "scene_layout.hpp"
 #include "scene_prepare.hpp"
 #include "scene_stylesheet.hpp"
 #include "tessera/ui/layout/layout_engine.hpp"
+#include "tessera/ui/style/prepared_stylesheet.hpp"
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -101,11 +104,45 @@ PreparedScene prepare_scene(std::string_view text, const ScenePreviewOptions& op
     // document is laid out at and the DPI scale, so `@media (max-width: 600px)` and the viewport
     // units answer for the rectangle the boxes are in - which is what makes a device preset
     // trigger a breakpoint at all.
-    scene.sheet = compile_preview_stylesheet(
-        options.stylesheet,
-        preview_media_context(options.width, options.height, options.dpi_scale));
-    scene.css_diagnostics =
-        author_stylesheet_diagnostics(options.stylesheet, options.stylesheet_file);
+    const ui::style::MediaContext media =
+        preview_media_context(options.width, options.height, options.dpi_scale);
+    // A `*.module.css` is compiled as its SCANNED rewrite (issue #463): the lowering above already
+    // put the scoped names on `className` (`card_0b82a5`), so the sheet has to define those
+    // selectors or the component paints unstyled. One text feeds the compile and the diagnostics,
+    // so a reported problem and the rule it describes are the same bytes; a scoped name only
+    // lengthens an identifier and never adds a newline, so a diagnostic's line is the author's
+    // line (a column is the author's column unless a rename earlier on that line lengthened it).
+    std::optional<css_module::ModuleScanError> scan_error;
+    const std::string stylesheet_text =
+        preview_stylesheet_text(options.stylesheet, options.stylesheet_file, scan_error);
+    if (scan_error) {
+        // Nothing from a sheet that cannot be scoped is compiled: painting its raw `.card` rules
+        // while the tree says `card_0b82a5` is exactly the silent-unstyled defect #463 closes. The
+        // sheet compiled here is an EMPTY one, not the built-in fallback - the author did write
+        // CSS, and #390 decision 2 replaces the built-in sheet with the author's rather than
+        // resurrecting it for a broken one.
+        scene.sheet =
+            resolve_preview_stylesheet(ui::style::prepare_stylesheet(std::string_view{}), media);
+    } else {
+        scene.sheet = compile_preview_stylesheet(stylesheet_text, media);
+    }
+    scene.css_diagnostics = author_stylesheet_diagnostics(stylesheet_text, options.stylesheet_file);
+    if (scan_error) {
+        // The scan's offset indexes the AUTHOR's text, which is the file the author is looking at.
+        const std::string_view file =
+            options.stylesheet_file.empty() ? kPreviewStylesheetFile : options.stylesheet_file;
+        const DiagnosticSpan span = css_span(file, options.stylesheet, scan_error->offset);
+        PreviewCssDiagnostic diagnostic;
+        diagnostic.code = scan_error->code;
+        diagnostic.message = scan_error->message;
+        diagnostic.file = std::string(file);
+        diagnostic.offset = span.offset;
+        diagnostic.line = span.line;
+        diagnostic.column = span.column;
+        // An error, not a warning: unlike an unknown property, this one costs the whole sheet.
+        diagnostic.warning = false;
+        scene.css_diagnostics.push_back(std::move(diagnostic));
+    }
     ui::layout::LayoutEngine engine(measurer);
     SceneMetrics metrics;
     metrics.width = options.width;
