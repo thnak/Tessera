@@ -699,7 +699,7 @@ owner-planned item and is not part of this milestone.
       Restart app (owner direction 2026-11-17). Spec `studio-device-profiles-v1.md` section 6. `ready`; independent
       of #445-#448.
 - [ ] #445: engine: Back and Volume input events, Home/Recents/Power mappings, unhandled Back, saved state
-      (device profiles E1). **Blocked** until the owner accepts `studio-device-profiles-v1.md`.
+      (device profiles E1). `ready`; spec accepted 2026-11-17, process death by the P4 snapshot rule.
 - [ ] #446: studio: `platform.event` message and Wasm viewer path (E2). Takes #445.
 - [ ] #447: studio: device profiles as data, selector, restart on device change (E3). Takes #446; keep-state needs #436.
 - [ ] #448: studio: platform panel, hardware button strip, event log and replay (E4). Takes #446 and #447.

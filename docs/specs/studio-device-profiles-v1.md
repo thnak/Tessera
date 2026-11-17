@@ -1,6 +1,7 @@
 # Studio device profiles, platform events and live edit v1
 
-Status: proposed (design-time, V1-M4/D). Owner direction, 2026-11-17 (paraphrased from the owner):
+Status: accepted (design-time, V1-M4/D; owner accepted the spec on 2026-11-17, with the working choices of
+section 9 below). Owner direction, 2026-11-17 (paraphrased from the owner):
 the emulator's device is fixed today; changing the device must be allowed to restart the app state, but
 the platform's events must exist so the UI can simulate them (an Android device needs simulated
 hardware buttons, and the runtime simulates the events); and the developer must not have to press Run
@@ -148,11 +149,15 @@ the camera; vendor device art; user-provided profiles; a second window or pictur
 
 E5 does not depend on E1 to E4 and can land first.
 
-## 9. Open questions
+## 9. Working choices (revisable)
 
-1. **Process death fidelity.** Does the app declare saved state through a hook (the Android
-   `onSaveInstanceState` shape), or does the emulator snapshot the state cells by the P4 rule? The second is
-   cheaper and already exists; the first matches what a device does.
-2. **Gesture navigation.** Android's back gesture and iOS's home swipe are pointer gestures at the screen
-   edge; the panel can offer buttons for them now and the gesture itself later.
-3. **Which bundled profiles.** Tied to the skin list (open question 3 of `designer-studio-v1.md`).
+The owner accepted the spec without answering these, so the farm proceeds on the first option of each and
+the owner can change them later; changing one is an edit to the slice named, not a redesign.
+
+1. **Process death fidelity (E1).** Working choice: the emulator snapshots the state cells by the P4 rule.
+   It is cheaper and already exists. The alternative, an app-declared hook in the Android
+   `onSaveInstanceState` shape, matches a device more closely.
+2. **Gesture navigation (E4).** Working choice: buttons now. Android's back gesture and iOS's home swipe are
+   pointer gestures at the screen edge; the gesture itself comes later.
+3. **Which bundled profiles (E3).** Still open: tied to the skin list (open question 3 of
+   `designer-studio-v1.md`). E3 starts with the list in section 2.
