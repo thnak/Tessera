@@ -147,8 +147,12 @@ await page.waitForTimeout(2200);
 check('Canvas survives a second Run', /draw call/.test((await status()) ?? ''), await status());
 
 // 5. Every fold posture still draws (issue #408 feeds the fold through the app's safe-area path).
-const fold = page.locator('#control-fold');
-if (await fold.count()) {
+const fold = page.locator('#control-foldPosture');
+// The posture control is unconditional page chrome (`StudioChrome` renders every control), so its
+// absence is a regression and not an unsupported environment. A `count()` guard here previously turned
+// a wrong id into three silently skipped checks while still reporting "all checks passed".
+check('the fold-posture control is present', (await fold.count()) === 1);
+if ((await fold.count()) === 1) {
   for (const posture of ['book', 'tabletop', 'flat']) {
     await fold.selectOption(posture);
     await page.waitForTimeout(1300);
