@@ -340,7 +340,16 @@ and the link that carries it.
 - **Accepted files**: `tessera.json`, `.tsx`/`.jsx`, `.css`, theme JSON, and the fonts/images listed
   in `tessera.json`. Other files are shown read-only with a lock badge and are never sent to the
   viewer. C++ and generated files are read-only; the developer class is never edited
-  ([ADR-040](../../decisions/ADR-040-generated-base-and-developer-class.md)). `*.mock.ts` mock files
+  ([ADR-040](../../decisions/ADR-040-generated-base-and-developer-class.md)). **Locked does not mean
+  hidden** (owner decision 2026-11-17): a text file the studio does not accept, such as
+  `gen/AppBase.hpp`, opens in the editor **view-only** with a lock badge, so a developer can read the
+  generated base. It is read from disk only when opened, under the same per-file cap, shown as text and
+  never executed, never sent to the viewer and never written back; a binary or over-cap file shows its
+  name and size only. **The opened folder is the work folder** (owner decision 2026-11-17): with the
+  File System Access API the studio reads and writes that folder in place on explicit save (section 7,
+  Save), so the native CLI, a coding agent and the studio all work on the same files; a change made on
+  disk meanwhile is detected when the tab regains focus. Without that API a zip is a copy, not a work
+  folder. `*.mock.ts` mock files
   are the exception defined in [studio-mock-services-v1.md](studio-mock-services-v1.md): accepted,
   host-only, and never sent to the viewer either.
 - **Validation**: `tessera.json` and assets are validated by the same in-tree validator compiled to

@@ -109,8 +109,11 @@ than the build compiles, so the cases are copied from the C++ function.
 `source` (`.tsx`/`.jsx`), `stylesheet` (`.css`), `config` (`tessera.json`), `theme` (`assets.theme`), and
 `asset` (a font or image the config names). Everything else — C++, generated output, `node_modules`,
 build output, a stray binary — is `other`, `isTextKind(kind)` is false, and that single decision produces
-the tree's lock badge *and* the "never read into memory beyond its name and size, never sent to the
-viewer" guarantee. ADR-040's "the developer class is never edited" is therefore one branch, not a check
+the tree's lock badge *and* the "never sent to the viewer, never written" guarantee. **Superseded in part
+by the owner's decision of 2026-11-17** (`designer-studio-v1.md` section 7): a locked text file is
+**viewable**, read lazily when opened and under the per-file cap, so "never read into memory beyond its
+name and size" no longer holds for it; the classifier needs a view-only text kind beside `other`, and a
+binary stays name and size only. ADR-040's "the developer class is never edited" is therefore one branch, not a check
 the UI has to remember.
 
 **The limits are the real ones**, not `ui.limits.*` (documented but unread, issue #405):
