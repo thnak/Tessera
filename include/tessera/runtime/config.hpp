@@ -72,6 +72,12 @@ struct RuntimeConfig {
     float glass_max_blur_radius = 64.0f;
     std::uint32_t glass_max_blur_targets = 4;
     std::uint32_t glass_max_backdrop_area = 4'000'000;
+    // CPU culling (docs/specs/runtime-config-v1.md section 6.2, issue #474): the renderer drops a
+    // quad whose transformed bounds cannot touch the active scissor or the damage bounding box.
+    // `false` stages every quad as before, so the two can be compared when debugging; the pixels
+    // are identical either way. Last in the struct, like the glass fields, so positional aggregate
+    // initialization of the older fields keeps its meaning.
+    bool cull_draws = true;
 
     [[nodiscard]] bool operator==(const RuntimeConfig&) const = default;
 };

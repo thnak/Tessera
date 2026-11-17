@@ -90,6 +90,9 @@ bool WindowHost::Impl::create_presentation() {
     // The same limits the paint pass applies: the sigma clamp and the half-resolution threshold.
     renderer_config.glass.max_blur_radius = options.runtime.glass_max_blur_radius;
     renderer_config.glass.max_backdrop_area = options.runtime.glass_max_backdrop_area;
+    // The CPU cull of quads outside the scissor or damage (issue #474); off means every quad is
+    // staged, for a pixel-identical comparison when debugging.
+    renderer_config.cull_draws = options.runtime.cull_draws;
     glass_blur_pipeline = std::move(glass.blur);
     glass_composite_pipeline = std::move(glass.composite);
     renderer = std::make_unique<rendering::gpu::Batched2DRenderer>(

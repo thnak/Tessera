@@ -30,7 +30,7 @@ namespace json = runtime::internal;
 // stack for a config file.
 constexpr std::size_t kMaxDocumentDepth = 16;
 
-constexpr std::array<std::string_view, 43> kKnownKeys = {
+constexpr std::array<std::string_view, 44> kKnownKeys = {
     "fixedTimestepHz",
     "maxFps",
     "vsync",
@@ -62,6 +62,7 @@ constexpr std::array<std::string_view, 43> kKnownKeys = {
     "asyncTraceTasks",
     "dirtyRendering",
     "damageRects",
+    "cullDraws",
     "maxDamageRects",
     "fullRedrawThreshold",
     "layerCacheBudgetMb",
@@ -384,6 +385,7 @@ validate_runtime_object(const json::JsonValue& runtime) {
     reader.boolean("asyncTraceTasks", config.async_trace_tasks);
     reader.enumeration("dirtyRendering", config.dirty_rendering, kDirtyModes);
     reader.boolean("damageRects", config.damage_rects);
+    reader.boolean("cullDraws", config.cull_draws);
     reader.integer("maxDamageRects", config.max_damage_rects, 1, 64);
     reader.number("fullRedrawThreshold", config.full_redraw_threshold, 0.0, 1.0);
     reader.integer("layerCacheBudgetMb", config.layer_cache_budget_mb, 0, 4096);
