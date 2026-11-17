@@ -88,7 +88,9 @@ color.a *= alpha;
   by a deterministic real-GPU readback test (edge-differ/interior-equal/repeat-identical). A
   lavapipe 4x golden would be CI-only (software Vulkan) if added later.
 - Deferred: MSAA 8x, per-format sample-count sets beyond 1/4, depth/stencil MSAA, other resolve
-  modes, HDR/wide-gamut interactions, and tying sample count to a quality/power policy.
+  modes, and HDR/wide-gamut interactions. Tying the sample count to a quality/power policy landed as
+  S8 (`display-aware-rendering.md` section 4): the window resolves the policy's MSAA decision per
+  presentation generation and presents a 4x frame through its resolved image.
 
 
 ## 2.2 CPU text reference (software goldens)

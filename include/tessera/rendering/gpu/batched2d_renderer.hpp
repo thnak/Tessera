@@ -205,6 +205,24 @@ public:
     void push_texture(const rhi::Rect& rect, rhi::Texture& texture, const rhi::Rect& uv,
                       rhi::Color color, float coverage_boost = 1.0f);
 
+    // --- 4x presentation (docs/design/display-aware-rendering.md section 4, S8) ----------------
+    // Draws `source`'s readable image into `destination` as one full-target textured quad with
+    // `pipeline`. A 4x target is read through its resolved image (RHI 1.3), so this is the GPU-only
+    // way to present a multisampled frame: `blit_target` accepts 1-sample sources only, so an
+    // adaptive render-scale target can be blitted while a 4x one cannot. The quad stretches the
+    // source to the destination with the source target's own sampler state (linear by default),
+    // which also covers a simultaneous adaptive-scale downgrade.
+    //
+    // Call after end(): the source's pass must be closed, and RHI 1.3 requires the sampled bind
+    // outside a render pass. `pipeline` must be single-sampled and match `destination`/
+    // `destination_desc` (the present pass renders into the 1-sample frame target); the caller's
+    // `destination_desc` carries the frame's clear color and is normally the same desc a direct
+    // frame would use. `source` must be a non-presentable target that already holds rendered
+    // content. Contract violations throw (std::logic_error/std::invalid_argument), like begin().
+    void present_target(rhi::CommandList& commands, const rhi::RenderTarget& destination,
+                        const rhi::RenderTargetDesc& destination_desc,
+                        const rhi::RenderTarget& source, rhi::Pipeline& pipeline);
+
     void flush();
 
     [[nodiscard]] std::uint32_t draw_calls() const {

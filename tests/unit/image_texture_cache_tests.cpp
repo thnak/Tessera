@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 //
-// ImageTextureCache contract: one upload per (content hash, raster extent, format), deterministic
-// nearest resample to the requested extent, stable handles, bounded LRU eviction, entry-size guard,
-// upload-failure value and D7 generation invalidation.
+// ImageTextureCache contract: one upload per (content hash, raster extent, format, filter),
+// deterministic nearest resample to the requested extent, stable handles, bounded LRU eviction,
+// entry-size guard, upload-failure value and D7 generation invalidation.
 
 #include "path_texture_cache_test_fakes.hpp"
 #include "tessera/rendering/image/image_texture_cache.hpp"
@@ -71,6 +71,42 @@ bool hit_and_upload_once() {
                 "the second request is a cache hit with no upload") &&
          expect(second.has_value() && first.has_value() && second->texture == first->texture,
                 "the hit returns the same stable texture") &&
+         ok;
+    return ok;
+}
+
+// The sampling filter is part of the identity (S8): sampler state is fixed at texture creation, so
+// one image drawn at an aligned 1:1 position and at a scaled position needs two entries. Both
+// variants are uploads of the same bytes and the cache bounds count them separately.
+bool filter_is_part_of_the_identity() {
+    FakeDevice device;
+    image::ImageTextureCache cache(device);
+    const image::DecodedImage decoded = solid_image(4, 4, 10, 20, 30, 255);
+    image::ImageTextureKey nearest_key{decoded.content_hash, 4, 4,
+                                       rhi::TextureFormat::R8G8B8A8Unorm};
+    image::ImageTextureKey linear_key = nearest_key;
+    linear_key.filter = rhi::Filter::Linear;
+
+    const auto nearest = cache.acquire(decoded, nearest_key);
+    const auto linear = cache.acquire(decoded, linear_key);
+    bool ok =
+        expect(nearest.has_value() && linear.has_value(), "both filter variants upload") &&
+        expect(cache.stats().uploads == 2 && cache.entry_count() == 2,
+               "the filter is part of the key: one entry per variant") &&
+        expect(nearest.has_value() && as_fake(*nearest) != nullptr &&
+                   as_fake(*nearest)->filter() == rhi::Filter::Nearest,
+               "the nearest entry's sampler state is nearest") &&
+        expect(linear.has_value() && as_fake(*linear) != nullptr &&
+                   as_fake(*linear)->filter() == rhi::Filter::Linear,
+               "the linear entry's sampler state is linear") &&
+        expect(nearest.has_value() && linear.has_value() && nearest->texture != linear->texture,
+               "the two variants are distinct textures");
+
+    // Re-acquiring either variant is a hit; a different filter never aliases the other entry.
+    const auto nearest_again = cache.acquire(decoded, nearest_key);
+    ok = expect(nearest_again.has_value() && cache.stats().hits == 1 &&
+                    cache.stats().uploads == 2 && nearest_again->texture == nearest->texture,
+                "a repeated variant hits its own entry") &&
          ok;
     return ok;
 }
@@ -222,6 +258,7 @@ bool evicted_texture_outlives_the_frame() {
 int main() {
     bool ok = true;
     ok = hit_and_upload_once() && ok;
+    ok = filter_is_part_of_the_identity() && ok;
     ok = resamples_to_requested_extent() && ok;
     ok = eviction_and_entry_guard() && ok;
     ok = upload_failure_and_device_loss() && ok;

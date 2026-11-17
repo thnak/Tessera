@@ -2,8 +2,10 @@
 //
 // PaintData image contract: precedence among text/vector/image, emission order (after
 // background/borders, inside the node clip, before children), content box/padding, tint/opacity
-// folding, size/scale passthrough, skip cases and damage-region replay.
+// folding, size/scale passthrough, skip cases, damage-region replay, and the S8 sampling-filter
+// decision table (nearest at aligned 1:1, linear otherwise).
 
+#include "image_filter.hpp"
 #include "tessera/ui/paint/clipped_paint_sink.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
 #include "tessera/ui/paint/vector_raster.hpp"
@@ -11,6 +13,7 @@
 
 #include <cmath>
 #include <iostream>
+#include <limits>
 #include <map>
 #include <memory>
 #include <string>
@@ -308,6 +311,96 @@ bool damage_replay() {
     return ok;
 }
 
+// S8 filter-selection table (docs/design/display-aware-rendering.md section 4). The decision is
+// geometric: nearest only when the drawn device extent equals the uploaded raster extent within
+// half a device pixel on both axes AND the device-space origin is a whole pixel.
+//
+// Note what the raster-size rule means for the "fractional scale" cases: an image is decoded at
+// display size x DPR (issue #14), so at device scale 1.25 an integer CSS box whose device origin is
+// whole has a raster extent exactly as large as the drawn extent, and nearest is exact. A
+// fractional scale flips to linear when it lands on a fractional device origin, which is the common
+// case for non-multiple-of-four CSS geometry, or when an explicit raster extent disagrees with the
+// draw.
+bool filter_selection_table() {
+    using tessera::ui::paint::image_filter_for_draw;
+
+    const auto decide = [](float css_x, float css_y, float css_w, float css_h, float scale,
+                           std::uint32_t raster_w, std::uint32_t raster_h) {
+        const rhi::Rect device{css_x * scale, css_y * scale, css_w * scale, css_h * scale};
+        return image_filter_for_draw(device, rhi::Extent2D{raster_w, raster_h}, device.x, device.y);
+    };
+
+    // Exact 1:1 integer geometry: the CpuCanvas/parity case, the previous fixed filter.
+    bool ok = expect(decide(8.0f, 8.0f, 64.0f, 64.0f, 1.0f, 64, 64) == rhi::Filter::Nearest,
+                     "aligned 1:1 integer positions sample nearest");
+    ok = expect(decide(0.0f, 0.0f, 10.0f, 10.0f, 1.0f, 10, 10) == rhi::Filter::Nearest,
+                "a whole-pixel origin at 0 samples nearest") &&
+         ok;
+
+    // Fractional device scale. 9 * 1.25 = 11.25 (fractional origin); 1 * 0.5 = 0.5.
+    ok = expect(decide(9.0f, 0.0f, 10.0f, 10.0f, 1.25f, 13, 13) == rhi::Filter::Linear,
+                "a fractional scale on a fractional device origin samples linear") &&
+         ok;
+    ok = expect(decide(1.0f, 0.0f, 64.0f, 64.0f, 0.5f, 32, 32) == rhi::Filter::Linear,
+                "a half scale on a half-pixel origin samples linear") &&
+         ok;
+    // The raster is decoded at display size, so 8 * 1.25 = 10 (whole) and 64 * 1.25 == 80 == the
+    // raster extent: this draw really is 1:1 with its texture, fractional device scale or not.
+    ok = expect(decide(8.0f, 0.0f, 64.0f, 64.0f, 1.25f, 80, 80) == rhi::Filter::Nearest,
+                "a fractional scale on a whole origin and matching raster stays nearest") &&
+         ok;
+
+    // 1:1 extent with a fractional origin.
+    ok = expect(decide(8.5f, 8.0f, 64.0f, 64.0f, 1.0f, 64, 64) == rhi::Filter::Linear,
+                "a 1:1 extent with a fractional x origin samples linear") &&
+         ok;
+    ok = expect(decide(8.0f, 8.25f, 64.0f, 64.0f, 1.0f, 64, 64) == rhi::Filter::Linear,
+                "a 1:1 extent with a fractional y origin samples linear") &&
+         ok;
+
+    // Downscaled draw: the draw covers fewer device pixels than the texture has (the design's mip
+    // case; without mips it is plain linear minification).
+    ok = expect(decide(0.0f, 0.0f, 64.0f, 64.0f, 1.0f, 128, 128) == rhi::Filter::Linear,
+                "a draw smaller than its raster samples linear") &&
+         ok;
+    // Stretched on one axis only.
+    ok = expect(decide(0.0f, 0.0f, 64.0f, 64.0f, 1.0f, 64, 32) == rhi::Filter::Linear,
+                "an aspect-stretched draw samples linear") &&
+         ok;
+
+    // The extent tolerance is exactly half a device pixel (rounding can never exceed it).
+    ok = expect(decide(0.0f, 0.0f, 64.0f, 64.0f, 1.0f, 64, 64) == rhi::Filter::Nearest,
+                "an exact extent samples nearest") &&
+         ok;
+    ok = expect(decide(0.0f, 0.0f, 64.5f, 64.0f, 1.0f, 64, 64) == rhi::Filter::Nearest,
+                "half a device pixel past the raster still samples nearest") &&
+         ok;
+    ok = expect(decide(0.0f, 0.0f, 64.6f, 64.0f, 1.0f, 64, 64) == rhi::Filter::Linear,
+                "beyond half a device pixel samples linear") &&
+         ok;
+
+    // Degenerate requests: the paint pass skips them, so the deterministic default is the answer.
+    ok = expect(image_filter_for_draw(rhi::Rect{}, rhi::Extent2D{64, 64}, 0.0f, 0.0f) ==
+                    rhi::Filter::Nearest,
+                "a zero-extent rect takes the safe default") &&
+         ok;
+    ok = expect(image_filter_for_draw(rhi::Rect{0.0f, 0.0f, 64.0f, 64.0f}, rhi::Extent2D{0, 64},
+                                      0.0f, 0.0f) == rhi::Filter::Nearest,
+                "a zero raster extent takes the safe default") &&
+         ok;
+    ok = expect(image_filter_for_draw(rhi::Rect{0.0f, 0.0f, -64.0f, 64.0f}, rhi::Extent2D{64, 64},
+                                      0.0f, 0.0f) == rhi::Filter::Nearest,
+                "a negative extent takes the safe default") &&
+         ok;
+    ok = expect(image_filter_for_draw(
+                    rhi::Rect{0.0f, 0.0f, std::numeric_limits<float>::quiet_NaN(), 64.0f},
+                    rhi::Extent2D{64, 64}, 0.0f, 0.0f) == rhi::Filter::Nearest,
+                "a non-finite extent takes the safe default") &&
+         ok;
+
+    return ok;
+}
+
 bool decode_target_follows_the_draw() {
     ImageDraw draw;
     draw.rect = {0.0f, 0.0f, 200.0f, 150.0f};
@@ -339,6 +432,7 @@ int main() {
     ok = precedence_one_kind() && ok;
     ok = clipping_and_skips() && ok;
     ok = damage_replay() && ok;
+    ok = filter_selection_table() && ok;
     ok = decode_target_follows_the_draw() && ok;
     if (!ok) {
         std::cerr << "paint_image: FAILED\n";

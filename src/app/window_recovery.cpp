@@ -72,18 +72,6 @@ bool WindowHost::Impl::create_presentation() {
     // scale) can be resampled into the presented images (docs/design/performance.md section 6.1).
     scaled_targets.reset(swapchain->supports_scaled_present());
 
-    pipeline = detail::create_pipeline(*device, swapchain->format());
-    if (pipeline == nullptr) {
-        return false;
-    }
-    detail::GlassPipelines glass = detail::create_glass_pipelines(*device, swapchain->format());
-    if (glass.blur == nullptr || glass.composite == nullptr) {
-        return false;
-    }
-    white = detail::create_white(*device);
-    if (white == nullptr) {
-        return false;
-    }
     rendering::gpu::Batched2DConfig renderer_config{4096, true, false};
     renderer_config.frames_in_flight = static_cast<std::uint32_t>(detail::kFramesInFlight);
     // Glass bounds the blurred-backdrop pool (glass-v1 section 5); 0 disables the pool and a frame
@@ -102,8 +90,39 @@ bool WindowHost::Impl::create_presentation() {
     aa_options.aa_enabled = renderer_config.enable_aa;
     aa_options.golden_mode = renderer_config.golden_mode;
     aa_options.msaa_samples =
-        static_cast<std::uint8_t>(std::min<std::uint32_t>(renderer_config.sample_count, 255u));
+        static_cast<std::uint8_t>(std::min<std::uint32_t>(options.msaa_samples, 255u));
     aa_options.reduced_quality = options.runtime.power_policy == PowerPolicy::PowerSave;
+    // The policy is resolved before the pipeline exists because its MSAA decision selects the
+    // pipeline, the renderer config and the offscreen frame target's sample count together (S8).
+    // Everything is derived from this one value so the renderer's sample-count check can never see
+    // a mismatched pipeline/desc/target. Applying the policy to the text renderer still happens
+    // after the text stack exists, below.
+    const ui::scale::AaPolicy resolved_policy = window_aa_policy(metrics, aa_options);
+    presentation_sample_count_ =
+        presentation_sample_count(resolved_policy.msaa_samples, aa_options.golden_mode,
+                                  device->supports_sample_count(swapchain->format(), 4));
+    if (presentation_sample_count_ > 1) {
+        // The 4x frame is presented through its resolved image on a single-sample, no-blend
+        // pipeline; a device that refuses that pipeline falls back to the 1-sample path rather than
+        // failing the window.
+        present_pipeline = detail::create_present_pipeline(*device, swapchain->format());
+        if (present_pipeline == nullptr) {
+            presentation_sample_count_ = 1;
+        }
+    }
+    pipeline = detail::create_pipeline(*device, swapchain->format(), presentation_sample_count_);
+    if (pipeline == nullptr) {
+        return false;
+    }
+    renderer_config.sample_count = presentation_sample_count_;
+    detail::GlassPipelines glass = detail::create_glass_pipelines(*device, swapchain->format());
+    if (glass.blur == nullptr || glass.composite == nullptr) {
+        return false;
+    }
+    white = detail::create_white(*device);
+    if (white == nullptr) {
+        return false;
+    }
     glass_blur_pipeline = std::move(glass.blur);
     glass_composite_pipeline = std::move(glass.composite);
     renderer = std::make_unique<rendering::gpu::Batched2DRenderer>(
@@ -132,6 +151,8 @@ void WindowHost::Impl::release_presentation() {
     scaled_targets.reset(false);
     frame_time.reset(false);
     pipeline.reset();
+    present_pipeline.reset();
+    presentation_sample_count_ = 1;
     glass_blur_pipeline.reset();
     glass_composite_pipeline.reset();
     swapchain.reset();

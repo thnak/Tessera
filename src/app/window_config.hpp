@@ -85,4 +85,11 @@ struct WindowAaOptions {
 [[nodiscard]] ui::scale::AaPolicy window_aa_policy(const hal::WindowMetrics& metrics,
                                                    const WindowAaOptions& renderer) noexcept;
 
+// The sample count the presentation stack may use for the policy's MSAA decision (display-aware
+// rendering S8, section 4): 4 only when the resolver asked for it, the run is not golden, and the
+// device reports 4x support for the frame format; otherwise 1. Pure, so the capability/golden gate
+// is unit-testable without a window, a GPU or a display.
+[[nodiscard]] std::uint32_t presentation_sample_count(std::uint8_t policy_samples, bool golden_mode,
+                                                      bool device_supports_4) noexcept;
+
 } // namespace tessera::app

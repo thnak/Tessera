@@ -78,4 +78,17 @@ ui::scale::AaPolicy window_aa_policy(const hal::WindowMetrics& metrics,
     return ui::scale::resolve_aa_policy(window_aa_facts(metrics), config);
 }
 
+std::uint32_t presentation_sample_count(std::uint8_t policy_samples, bool golden_mode,
+                                        bool device_supports_4) noexcept {
+    // The resolver already returns 1 for every non-request and reduced-quality/golden path; the
+    // explicit golden test here keeps the presentation rule true even if a caller hands in a
+    // golden policy by another route (a deterministic run must never get a 4x target). The device
+    // gate is the RHI capability, never inferred from the backend name: a device that cannot create
+    // a 4x target or pipeline must present 1 sample, not fail the frame.
+    if (policy_samples != 4 || golden_mode || !device_supports_4) {
+        return 1;
+    }
+    return 4;
+}
+
 } // namespace tessera::app

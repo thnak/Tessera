@@ -94,6 +94,9 @@ if (TESSERA_BUILD_VULKAN AND NOT CMAKE_CROSSCOMPILING)
         window_internal.hpp
         window_lifecycle.cpp
         window_lifecycle_seam.cpp
+        # The frame's paint-target decision (adaptive render scale, glass, 4x MSAA presentation),
+        # split out of window.cpp for its size budget.
+        window_present_targets.cpp
         window_recovery.cpp)
 
     target_include_directories(tessera_app_window PUBLIC

@@ -204,26 +204,6 @@ void WindowHost::Impl::recreate_swapchain() {
     swapchain->resize({current.physical_width, current.physical_height});
 }
 
-// The offscreen target a downgraded frame renders into. It is created on the first frame of a new
-// decided extent and reused while that extent lasts, so a held downgrade costs one image per frame
-// slot and no per-frame allocation; an upgrade to full quality stops using it (and the next
-// downgrade at the same extent reuses it). A backend refusal is a value, not a failure: the frame
-// presents at full quality instead (ADR-025 boundary, and a lost frame would be worse than a sharp
-// one).
-bool WindowHost::Impl::ensure_scaled_target(std::size_t frame_slot, rhi::Extent2D extent) {
-    if (swapchain == nullptr || device == nullptr) {
-        return false;
-    }
-    bool fallback = false;
-    rhi::RenderTarget* target =
-        scaled_targets.ensure(*device, frame_slot, extent, swapchain->format(),
-                              detail::frame_clear_color(translucent_presentation), fallback);
-    if (fallback) {
-        ++stats.scale_fallbacks;
-    }
-    return target != nullptr;
-}
-
 // One rendered frame: reuse a free slot, acquire, paint the whole scene, submit async and present.
 // `full_repaint` is the plan's verdict from the host frame; it is recorded so a caller can prove a
 // resume repainted the whole target.
@@ -253,6 +233,22 @@ WindowHost::Impl::FrameResult WindowHost::Impl::render_and_present(bool full_rep
         in_flight[slot].reset();
     }
 
+    // Adaptive render scale (docs/design/performance.md section 6, step 2): the scene may render
+    // into a target of the presented pixel grid times the controller's renderScale, and the frame
+    // is presented through it. The multiplier is read from the decision in force, so a change lands
+    // at this frame boundary. At scale 1.0 the extents are equal and the frame takes the direct
+    // path, byte for byte the full-quality frame. The offscreen choice itself (adaptive scale,
+    // glass, 4x MSAA) is prepare_paint_target's, resolved before the image is acquired: a 4x
+    // presentation whose offscreen target cannot be allocated skips the attempt without leaving an
+    // acquired image unpresented.
+    const rhi::Extent2D presented = swapchain->extent();
+    const ui::scale::AdaptiveTargetExtent adaptive =
+        ui::scale::adaptive_target_extent(presented, host->adaptive_quality().render_scale);
+    std::optional<PaintTarget> paint = prepare_paint_target(slot, presented, adaptive);
+    if (!paint.has_value()) {
+        return FrameResult::Skipped;
+    }
+
     std::optional<std::uint32_t> image;
     for (int attempt = 0; attempt < 4 && !image; ++attempt) {
         const auto acquired = swapchain->acquire_next_image(100);
@@ -277,37 +273,14 @@ WindowHost::Impl::FrameResult WindowHost::Impl::render_and_present(bool full_rep
     if (target == nullptr) {
         return FrameResult::Skipped;
     }
-
-    // Adaptive render scale (docs/design/performance.md section 6, step 2): the scene renders into
-    // a target of the presented pixel grid times the controller's renderScale, and the present
-    // resamples it up. The multiplier is read from the decision in force, so a change lands at this
-    // frame boundary - never mid-frame and never per pixel. At scale 1.0 the extents are equal and
-    // the frame takes the direct path below, byte for byte today's full-quality frame.
-    const rhi::Extent2D presented = swapchain->extent();
-    const ui::scale::AdaptiveTargetExtent adaptive =
-        ui::scale::adaptive_target_extent(presented, host->adaptive_quality().render_scale);
-    // A backend whose swapchain images cannot be resampled keeps the direct path instead of
-    // dropping frames; the capability is fixed for this swapchain generation.
-    const bool scaled = adaptive.scaled && scaled_targets.resample_supported() &&
-                        ensure_scaled_target(slot, adaptive.extent);
-    // A glass frame reads the target it paints into (the backdrop copy is a region of the frame
-    // target), and a swapchain image is neither a copy source nor samplable (RHI 1.1/1.3). So a
-    // scene with a glass node renders into the per-slot offscreen target at the presented extent
-    // and the same submission resamples it into the acquired image - the path the adaptive render
-    // scale already uses, at content scale 1 (a 1:1 blit is exact, so the pixels are unchanged).
-    // Without the resample capability the frame paints directly and the sink reports the glass
-    // draws as unsupported, which is the documented fallback rather than an unbounded target.
-    const bool glass_frame = !scaled && root.glass_subtree() &&
-                             scaled_targets.resample_supported() &&
-                             ensure_scaled_target(slot, presented);
-    const bool offscreen = scaled || glass_frame;
-    const rhi::Color clear_color = detail::frame_clear_color(translucent_presentation);
-    rhi::RenderTarget* paint_target = target;
-    rhi::RenderTargetDesc desc = detail::target_desc(presented, swapchain->format(), clear_color);
-    if (offscreen) {
-        paint_target = scaled_targets.get(slot);
-        desc = detail::target_desc(paint_target->extent(), swapchain->format(), clear_color);
+    if (!paint->offscreen) {
+        paint->target = target;
     }
+    const bool msaa = paint->msaa;
+    rhi::RenderTarget* paint_target = paint->target;
+    const rhi::RenderTargetDesc& desc = paint->desc;
+    const bool offscreen = paint->offscreen;
+    const rhi::Color clear_color = detail::frame_clear_color(translucent_presentation);
     auto commands = device->create_command_list();
     // Arm the GPU timestamp pair before the first command is recorded. A false return (the probe
     // says timestamps are unusable, or the backend does not implement them) costs nothing and the
@@ -330,7 +303,16 @@ WindowHost::Impl::FrameResult WindowHost::Impl::render_and_present(bool full_rep
     context.device_scale = device_scale;
     host->paint_scene(*sink, context);
     renderer->end();
-    if (offscreen) {
+    if (msaa) {
+        // A 4x target's multisample image is not a copy/blit source, so the frame is presented
+        // through its resolved image instead (RHI 1.3 sampled target): one full-target quad on the
+        // single-sample, no-blend present pipeline. This is the GPU-only present path - the POC's
+        // CPU readback bridge is not used. The same submission still carries the acquire wait and
+        // the present semaphore, exactly like a render pass into the acquired image would.
+        renderer->present_target(*commands, *target,
+                                 detail::target_desc(presented, swapchain->format(), clear_color),
+                                 *paint_target, *present_pipeline);
+    } else if (offscreen) {
         // The same submission records the resample into the acquired image, so it carries the
         // acquire wait and the present semaphore exactly like a render pass into that image would.
         commands->blit_target(*scaled_targets.get(slot), *target, rhi::Filter::Linear);
@@ -340,7 +322,8 @@ WindowHost::Impl::FrameResult WindowHost::Impl::render_and_present(bool full_rep
     stats.target_extent = paint_target->extent();
     stats.device_scale = device_scale;
     stats.aa_policy = aa_policy;
-    if (scaled) {
+    stats.sample_count = presentation_sample_count_;
+    if (paint->scaled) {
         ++stats.scaled_frames;
     }
     commands->submit_async();

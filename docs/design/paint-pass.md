@@ -547,10 +547,10 @@ per damage region under the region clip exactly like glyphs and vectors.
 
 `Batched2DSink` implements the hook with constructor injection (`ImagePaintConfig`: asset bundle,
 `ImageDecodeCache`, `ImageTextureCache`, device scale, texture format matching the target color
-space). One decode per content hash and one texture per (content, raster extent, format); missing,
-corrupt, unsupported and unconfigured cases are silent no-ops counted in `ImagePaintStats` (paint
-never crashes because an image is absent). PNG/JPEG bytes are authored sRGB, so the upload format
-follows the target color space (the D2 rule); the full contract, caps, cache keys and measurements
+space). One decode per content hash and one texture per (content, raster extent, format, sampling
+filter; S8: nearest at an aligned 1:1 draw, linear otherwise, no mips). Missing, corrupt and
+unconfigured cases are silent no-ops counted in `ImagePaintStats`; authored-sRGB PNG/JPEG bytes
+follow the target color space (the D2 rule). The full contract, caps, cache keys and measurements
 are in [`thorvg-spike/12-image-assets.md`](thorvg-spike/12-image-assets.md).
 
 ### 10.3 Bidirectional visual-run emission

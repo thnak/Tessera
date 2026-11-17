@@ -85,7 +85,9 @@ public:
 
     explicit FakeTexture(const rhi::TextureDesc& desc)
         : extent_(desc.extent),
-          format_(desc.format) {
+          format_(desc.format),
+          filter_(desc.filter),
+          address_(desc.address) {
         ++live_count;
         const std::size_t bytes_per_pixel = desc.format == rhi::TextureFormat::R8Unorm ? 1U : 4U;
         bytes_.assign(static_cast<std::size_t>(extent_.width) * extent_.height * bytes_per_pixel,
@@ -115,6 +117,14 @@ public:
     [[nodiscard]] rhi::TextureFormat format() const override {
         return format_;
     }
+    // Sampler state is fixed at creation, so a cache test can read back the filter its key asked
+    // for (ImageTextureKey::filter, S8).
+    [[nodiscard]] rhi::Filter filter() const {
+        return filter_;
+    }
+    [[nodiscard]] rhi::AddressMode address() const {
+        return address_;
+    }
     void write(const void* data, std::size_t size) override {
         if (data != nullptr && size == bytes_.size()) {
             std::memcpy(bytes_.data(), data, size);
@@ -128,6 +138,8 @@ public:
 private:
     rhi::Extent2D extent_;
     rhi::TextureFormat format_;
+    rhi::Filter filter_ = rhi::Filter::Nearest;
+    rhi::AddressMode address_ = rhi::AddressMode::ClampToEdge;
     std::vector<std::uint8_t> bytes_;
 };
 

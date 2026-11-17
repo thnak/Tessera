@@ -6,7 +6,9 @@
 //  - a frame that never breaks a pass records exactly today's single-pass command stream;
 //  - copy_target_region rejects the misuse a validating backend rejects;
 //  - the pooled offscreen target is reused for 300 frames without growing past the
-//    glassMaxBlurTargets cap, and respects frames in flight.
+//    glassMaxBlurTargets cap, and respects frames in flight;
+//  - a 4x frame is presented through its resolved image (S8): the sampled bind is recorded outside
+//    a pass, between the present pipeline bind and the single-sample present pass.
 
 #include "tessera/rendering/gpu/batched2d_renderer.hpp"
 #include "tessera/rendering/null/null_device.hpp"
@@ -297,6 +299,91 @@ bool check_pool_grows_a_free_target() {
                   "the recycled target grew to the requested extent");
 }
 
+// A 4x frame is presented through its resolved image with one sampled-quad pass (S8): the
+// multisample image is not a copy/blit source, so this is the only GPU-only present path. On the
+// null backend the recorded order is the contract: scene pass, sampled bind, then a single-sample
+// present pass.
+bool check_present_target_through_the_resolved_image() {
+    Fixture fixture;
+    const rhi::RenderTargetDesc scene_desc = [] {
+        rhi::RenderTargetDesc desc = target_desc();
+        desc.sample_count = 4;
+        return desc;
+    }();
+    auto scene_target = fixture.device->create_render_target(scene_desc);
+    auto destination = fixture.device->create_render_target(target_desc());
+    auto pipeline4 = fixture.device->create_pipeline([] {
+        rhi::PipelineDesc desc;
+        desc.sample_count = 4;
+        return desc;
+    }());
+    auto present_pipeline = fixture.device->create_pipeline([] {
+        rhi::PipelineDesc desc;
+        desc.sample_count = 1;
+        desc.blend = rhi::BlendMode::None;
+        return desc;
+    }());
+
+    gpu::Batched2DConfig config;
+    config.sample_count = 4;
+    gpu::Batched2DRenderer renderer(*fixture.device, *pipeline4, *fixture.white, config);
+    auto commands = fixture.device->create_command_list();
+    renderer.begin(*commands, *scene_target, scene_desc);
+    renderer.push_rect({0, 0, 32, 32}, rhi::rgba8(255, 0, 0));
+    renderer.end();
+
+    // The present call is only legal after end(): the source cannot be sampled inside its own pass.
+    // Checked on its own renderer so the main frame's command list keeps one frame's vertex data.
+    bool rejected_in_frame = false;
+    {
+        gpu::Batched2DRenderer in_frame_renderer(*fixture.device, *pipeline4, *fixture.white,
+                                                 config);
+        auto in_frame_commands = fixture.device->create_command_list();
+        in_frame_renderer.begin(*in_frame_commands, *scene_target, scene_desc);
+        try {
+            in_frame_renderer.present_target(*in_frame_commands, *destination, target_desc(),
+                                             *scene_target, *present_pipeline);
+        } catch (const std::logic_error&) {
+            rejected_in_frame = true;
+        }
+        in_frame_renderer.end();
+    }
+
+    renderer.present_target(*commands, *destination, target_desc(), *scene_target,
+                            *present_pipeline);
+    commands->submit();
+
+    const null::NullCommandStats& stats = stats_of(commands);
+    bool ok = expect(rejected_in_frame, "present_target inside a frame is rejected") &&
+              expect(stats.begin_render_passes == 2 && stats.end_render_passes == 2,
+                     "the present records its own pass after the scene pass") &&
+              expect(stats.sampled_targets.size() == 1, "one sampled target is bound") &&
+              expect(stats.sampled_targets.front().sample_count == 4,
+                     "the 4x target is sampled through its resolved image") &&
+              expect(stats.last_render_pass_sample_count == 1,
+                     "the present pass renders into the 1-sample destination") &&
+              expect(stats.draws == 2 && stats.vertices == 2 * kQuadVertices,
+                     "the presentation is one full-target quad") &&
+              expect(renderer.draw_calls() == 2, "the renderer counts the present draw");
+    if (!ok) {
+        return false;
+    }
+    // The sampled bind is recorded outside a pass, after the pipeline bind and before the present
+    // pass opens: bind_pipeline -> bind_sampled_target -> begin_render_pass.
+    const std::vector<null::NullCommandKind>& order = stats.command_order;
+    const auto sampled =
+        std::find(order.begin(), order.end(), null::NullCommandKind::BindSampledTarget);
+    if (!expect(sampled != order.end(), "the sampled bind is recorded") ||
+        !expect(sampled != order.begin() && sampled + 1 != order.end(),
+                "the sampled bind has a recorded neighbour")) {
+        return false;
+    }
+    return expect(*(sampled - 1) == null::NullCommandKind::BindPipeline,
+                  "the present pipeline is bound before the sampled target") &&
+           expect(*(sampled + 1) == null::NullCommandKind::BeginRenderPass,
+                  "the present pass opens after the sampled bind");
+}
+
 } // namespace
 
 int main() {
@@ -320,6 +407,9 @@ int main() {
     }
     if (!check_pool_grows_a_free_target()) {
         return 7;
+    }
+    if (!check_present_target_through_the_resolved_image()) {
+        return 8;
     }
     std::cout << "renderer_seam: ok\n";
     return 0;

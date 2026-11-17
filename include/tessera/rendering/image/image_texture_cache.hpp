@@ -11,14 +11,24 @@
 
 namespace tessera::rendering::image {
 
-// Texture identity for one decoded image at one raster size. Images have no scale-relative
-// geometry, so the raster extent is explicit: the decoded pixels are resampled (deterministic
-// nearest) to this extent before upload, and the quad draws the texture into the node content box.
+// Texture identity for one decoded image at one raster size and sampling filter. Images have no
+// scale-relative geometry, so the raster extent is explicit: the decoded pixels are resampled
+// (deterministic nearest) to this extent before upload, and the quad draws the texture into the
+// node content box.
+//
+// The filter is part of the identity because RHI sampler state is fixed at texture creation: an
+// image drawn once at an aligned 1:1 position (nearest) and once scaled (linear) needs one texture
+// per filter. The cache limits below are per entry, so caching both variants of one image doubles
+// its entries and can evict another image's; that is the documented cost of a per-draw choice.
 struct ImageTextureKey {
     std::uint64_t content_hash = 0;
     std::uint32_t width = 0; // raster extent in device pixels
     std::uint32_t height = 0;
     rhi::TextureFormat format = rhi::TextureFormat::R8G8B8A8Unorm;
+    // Nearest keeps the deterministic reference exact and matches CpuCanvas::blit_texture; linear
+    // is the choice for a draw that is not aligned 1:1 with the uploaded raster (S8). The cache
+    // never overrides it: the key's filter is the texture's sampler state.
+    rhi::Filter filter = rhi::Filter::Nearest;
 
     [[nodiscard]] bool operator==(const ImageTextureKey&) const noexcept = default;
 };
@@ -30,10 +40,8 @@ struct ImageTextureCacheConfig {
     // goldens), sRGB for sRGB targets (sampling decodes to linear and the attachment re-encodes, so
     // the authored bytes round-trip instead of being encoded twice). PNG/JPEG are authored sRGB, so
     // the image path must use the target's color space; this is the same rule as the vector path.
+    // The per-entry sampling filter lives on `ImageTextureKey`, not here: it is chosen per draw.
     rhi::TextureFormat format = rhi::TextureFormat::R8G8B8A8Unorm;
-    // Nearest keeps the deterministic reference exact and matches CpuCanvas::blit_texture; linear
-    // filtering is a caller choice for on-screen quality.
-    rhi::Filter filter = rhi::Filter::Nearest;
     rhi::AddressMode address = rhi::AddressMode::ClampToEdge;
 };
 
