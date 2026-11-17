@@ -4,6 +4,7 @@
 
 #include "project_identity.hpp"
 #include "regenerate.hpp"
+#include "regenerate_stylesheets.hpp"
 #include "tessera/compiler/codegen/codegen.hpp"
 
 #include <optional>
@@ -19,14 +20,14 @@
 // (parse, lower, validate, report, write) and `regenerate.cpp` stays within the file size rules.
 namespace tessera::compiler::codegen::cli::internal {
 
-// Compiled stylesheet blobs of one module, in the order the paths were given:
+// Compiled stylesheet blobs of one module, in the order the sheets were collected:
 // `StylesheetEmbed::bytes` is exactly `serialize_stylesheet()` output, so the codegen library never
-// sees a stylesheet engine header. A stylesheet with a lexical error reports it and returns
-// nullopt; a `::part(name)` selector naming a part no library component declares is a warning, not
-// an error (stylesheet-v1 section 6.3).
+// sees a stylesheet engine header. The blob of a `*.module.css` compiles its scoped rewrite
+// (issue #463), so its selectors are the ones the lowering puts on `className`. A stylesheet with a
+// lexical error reports it and returns nullopt; a `::part(name)` selector naming a part no library
+// component declares is a warning, not an error (stylesheet-v1 section 6.3).
 [[nodiscard]] std::optional<std::vector<StylesheetEmbed>>
-build_stylesheet_embeds(std::span<const std::string> paths, std::span<const std::string> texts,
-                        Outcome& outcome);
+build_stylesheet_embeds(std::span<const StylesheetSource> sheets, Outcome& outcome);
 
 // The embedded theme asset: a project without `assets.theme` has no asset and therefore no
 // generated theme file. A configured asset is parsed, its `assets.themePins` checked and serialized

@@ -70,6 +70,7 @@ add_executable(tessera_codegen_cli
     ${CMAKE_SOURCE_DIR}/tools/codegen/main.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate_source_file.cpp
+    ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate_stylesheets.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate_text.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate_assets.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/diagnostics_json.cpp
@@ -85,6 +86,8 @@ target_link_libraries(tessera_codegen_cli PRIVATE
     tessera_harness
     tessera_ir_ids
     tessera_lowering
+    # A `*.module.css` is scoped before it is embedded (issue #463).
+    tessera_css_module
     # The CLI compiles CSS into the blobs codegen embeds (issue #81, ADR-048); the library does not.
     tessera_style)
 set_target_properties(tessera_codegen_cli PROPERTIES OUTPUT_NAME tessera_codegen)
@@ -898,6 +901,24 @@ if (TESSERA_BUILD_TESTS)
     add_test(NAME codegen_stylesheet_embed
         COMMAND codegen_stylesheet_embed_tests $<TARGET_FILE:tessera_codegen_cli>)
 
+    # CSS module scoping of the embedded blob (issue #463): a `*.module.css` must compile into the
+    # blob as its scoped rewrite, while a plain sheet in the same run keeps its authored bytes. Its
+    # own executable because `codegen_stylesheet_embed_tests` is at the 500-line file size limit; the
+    # test name keeps that prefix so `-R codegen_stylesheet_embed` runs both.
+    add_executable(codegen_stylesheet_embed_module_tests
+        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_stylesheet_embed_module_tests.cpp)
+
+    target_link_libraries(codegen_stylesheet_embed_module_tests PRIVATE
+        tessera_codegen
+        tessera_style)
+
+    if (CMAKE_SYSTEM_NAME MATCHES "^(iOS|tvOS|watchOS)$")
+        target_compile_definitions(codegen_stylesheet_embed_module_tests PRIVATE TESSERA_NO_SUBPROCESS=1)
+    endif ()
+
+    add_test(NAME codegen_stylesheet_embed_module
+        COMMAND codegen_stylesheet_embed_module_tests $<TARGET_FILE:tessera_codegen_cli>)
+
     # Embedded theme asset (issue #81, ADR-048): the `<module>_theme.hpp` file codegen emits, its
     # determinism, and the CLI path that parses `assets.theme` and fails with the typed code on a
     # broken asset. The CLI part needs subprocess execution.
@@ -1400,6 +1421,7 @@ if (TESSERA_BUILD_TESTS)
         ${CMAKE_SOURCE_DIR}/tools/codegen/diagnose.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate_source_file.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate_stylesheets.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate_text.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate_assets.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/project_identity.cpp
@@ -1415,6 +1437,7 @@ if (TESSERA_BUILD_TESTS)
         tessera_harness
         tessera_ir_ids
         tessera_lowering
+        tessera_css_module
         tessera_style)
 
     # The scratch directory lives under the build tree, never %TEMP%: a confined sandbox denies a

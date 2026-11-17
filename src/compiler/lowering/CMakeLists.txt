@@ -99,6 +99,7 @@ if (NOT CMAKE_CROSSCOMPILING)
         ${CMAKE_SOURCE_DIR}/tools/codegen/main.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate_source_file.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate_stylesheets.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate_text.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate_assets.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/diagnostics_json.cpp
@@ -114,7 +115,8 @@ if (NOT CMAKE_CROSSCOMPILING)
         tessera_ir_ids
         tessera_lowering_core
         tessera_lowering_bootstrap
-            tessera_style)
+        tessera_css_module
+        tessera_style)
 
     set(_tessera_library_generated_dir ${CMAKE_CURRENT_BINARY_DIR}/generated)
     set(_tessera_library_generated_cpp

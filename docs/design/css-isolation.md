@@ -101,6 +101,15 @@ import-graph order of its file ([`stylesheet-v1.md`](../specs/stylesheet-v1.md) 
 exactly like a plain sheet. Layer names are for ordering, not scope, so they stay global. Library
 CSS keeps `@layer tessera-ui`, and unlayered module CSS beats it.
 
+## Codegen
+
+The compiler embeds each stylesheet as a compiled blob
+([`compiled-stylesheet-v1.md`](../specs/compiled-stylesheet-v1.md)), and a module sheet's blob is
+compiled from the **rewritten** text — the same scoping the lowering applies to `className` values,
+so the page's class and the blob's selector are the same name. `StylesheetRef::hash` still hashes the
+file's own bytes, because it identifies the source file: what is scoped is the text the blob compiles,
+not the file the IR points at.
+
 ## `:global`
 
 `:global(.x)` leaves one class unrenamed; `:global { ... }` is not supported in V1. One syntax, the
