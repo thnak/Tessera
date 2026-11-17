@@ -48,6 +48,7 @@ target_sources(tessera_mcp_core PRIVATE
     # cannot drift from the CLI's (the acceptance of issue #406).
     ${PROJECT_SOURCE_DIR}/tools/codegen/regenerate.cpp
     ${PROJECT_SOURCE_DIR}/tools/codegen/regenerate_assets.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/regenerate_output.cpp
     ${PROJECT_SOURCE_DIR}/tools/codegen/project_identity.cpp
     ${PROJECT_SOURCE_DIR}/tools/codegen/package_manifest.cpp
     ${PROJECT_SOURCE_DIR}/tools/codegen/emit_library_components.cpp
@@ -195,9 +196,13 @@ if (TESSERA_BUILD_TESTS)
 
     # The project-folder tools (issue #406): `list_files`, the folder-wide `diagnostics` / `get_ir`,
     # root resolution (explicit path, client `roots`, working directory) and the named refusals. The
-    # scratch folder lives under the build tree for the same reason as the process test's.
+    # scratch folder lives under the build tree for the same reason as the process test's. The cases
+    # are split by responsibility (the project folder, then `generate` of issue #407) with their
+    # fixtures in a third unit, so no one file outgrows the size rules.
     add_executable(mcp_project_tests
-        ${PROJECT_SOURCE_DIR}/tests/unit/mcp/project_tests.cpp)
+        ${PROJECT_SOURCE_DIR}/tests/unit/mcp/project_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/mcp/project_fixtures.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/mcp/project_generate_tests.cpp)
 
     target_include_directories(mcp_project_tests
         PRIVATE
