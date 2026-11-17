@@ -688,6 +688,11 @@ owner-planned item and is not part of this milestone.
       `#p5=` links work. Room must be left for #171's panes and #433's overlay.
 - [ ] #433: studio: draw the fold hinge and the safe-area insets as a page-only overlay (the
       follow-up #408 left in `designer-studio-v1.md` section 6.1). Takes #431.
+- [ ] #434: studio: mock services (`*.mock.ts`), console and call trace (ADR-055). **Blocked** on the
+      service seam (ADR-055 decision 9), #431 and #391; do not take it until those land.
+- [ ] #435: studio D-S9: startup-phase preview (freeze at P0, P2, P4). **Blocked** on startup slices
+      S3 and S5 in Wasm and on #171's skins; one open question first (real `AppHost` or reduced stage
+      machine).
 
 ### V1-M5 Application framework ([milestone 5](https://github.com/thnak/Tessera/milestone/5))
 ADR-050 is Accepted (roadmap AF1-AF8); start with AF1.
