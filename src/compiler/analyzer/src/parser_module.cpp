@@ -17,6 +17,12 @@ bool is_line_break(char c) {
     return c == '\n' || c == '\r';
 }
 
+// Absolute, drive-letter and UNC specifiers are malformed for every import form (spec section 4).
+bool is_absolute_source(const std::string& source) {
+    return source.starts_with("/") || source.starts_with("\\") ||
+           (source.size() > 1 && source[1] == ':');
+}
+
 } // namespace
 
 // A token that can start a top-level item at the start of its line. Spec section 14 asks for
@@ -140,8 +146,17 @@ void Parser::check_module_source(ModuleItem& item, Span span) {
         }
         return;
     }
-    if (source.empty() || source.starts_with("/") || source.starts_with("\\") ||
-        (source.size() > 1 && source[1] == ':')) {
+    if (!item.css_module_binding.empty()) {
+        // A CSS-module default import names a stylesheet rather than a module, so the package
+        // rules do not apply to it; the path rules still do (issue #463).
+        if (is_absolute_source(source)) {
+            report("TESSERA_JSX_SUBSET_IMPORT",
+                   "an import source must be a package name or a relative path", span,
+                   "use `from \"./Card.module.css\"`");
+        }
+        return;
+    }
+    if (source.empty() || is_absolute_source(source)) {
         report("TESSERA_JSX_SUBSET_IMPORT",
                "an import source must be a package name or a relative path", span,
                "use `from \"tessera\"`, `from \"pkg/Name\"` or `from \"./Name\"`");
@@ -199,13 +214,43 @@ bool Parser::parse_import(ModuleItem& item) {
         advance(LexMode::Code);
         return expect_semicolon();
     }
-    if (!at_punct("{")) {
-        if (cur_.kind == TokenKind::Identifier || at_punct("*")) {
-            fail("TESSERA_JSX_SUBSET_IMPORT", "default and namespace imports are not supported",
-                 cur_.span, "use named imports: `import { Name } from \"...\";`");
-        } else {
-            fail_unexpected("`{` or a string after `import`");
+    if (cur_.kind == TokenKind::Identifier) {
+        // The one default import the subset accepts (issue #463): `import styles from
+        // "./Card.module.css";` binds a CSS module's class map. The grammar is unambiguous here —
+        // `{` starts named imports and `*` a namespace import — so an identifier directly after
+        // `import` can only be a default binding, and no lookahead is needed.
+        const std::string binding(cur_.text);
+        const Span binding_span = cur_.span;
+        advance(LexMode::Code);
+        if (!cur_.is_keyword("from")) {
+            fail_unexpected("`from`");
+            return false;
         }
+        advance(LexMode::Code);
+        if (cur_.kind != TokenKind::String) {
+            fail_unexpected("a module path string");
+            return false;
+        }
+        item.source = cur_.value;
+        // `import type styles from ...` binds a type, and a class map is not one, so the
+        // type-only form keeps the generic rejection.
+        if (!item.type_only && item.source.ends_with(".module.css")) {
+            item.css_module_binding = binding;
+            check_module_source(item, cur_.span);
+            advance(LexMode::Code);
+            return expect_semicolon();
+        }
+        fail("TESSERA_JSX_SUBSET_IMPORT", "default and namespace imports are not supported",
+             binding_span, "use named imports: `import { Name } from \"...\";`");
+        return false;
+    }
+    if (at_punct("*")) {
+        fail("TESSERA_JSX_SUBSET_IMPORT", "default and namespace imports are not supported",
+             cur_.span, "use named imports: `import { Name } from \"...\";`");
+        return false;
+    }
+    if (!at_punct("{")) {
+        fail_unexpected("`{` or a string after `import`");
         return false;
     }
     if (!parse_import_names(item)) {

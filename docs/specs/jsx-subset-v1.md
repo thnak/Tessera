@@ -125,6 +125,7 @@ A file is a sequence of top-level items in any order:
 ```ebnf
 Module        = { Import | ReExport | TypeAlias | ComponentDecl | ConstDecl } ;
 Import        = "import" [ "type" ] NamedImports "from" STRING ";"
+              | "import" IDENT "from" STRING ";"   (* STRING must end in ".module.css" *)
               | "import" STRING ";" ;
 NamedImports  = "{" [ ImportName { "," ImportName } [ "," ] ] "}" ;
 ImportName    = IDENT [ "as" IDENT ] ;
@@ -136,10 +137,12 @@ ConstDecl     = [ "export" ] "const" IDENT [ ":" TypeExpr ] "=" PureExpr ";" ;
 ```
 
 Rules:
-- **Imports**: named imports only, with an optional `as` rename
-  (`import { CardProps as Props } from "./types";`). No default imports, no namespace imports
-  (`* as x`), no dynamic `import()`, no `require`. `import type { T } from "./types";` binds type
-  names only and adds no runtime import edge (so type-only imports do not form an import cycle).
+- **Imports**: named imports, with an optional `as` rename
+  (`import { CardProps as Props } from "./types";`). A default import is allowed only for a
+  `*.module.css` specifier, which binds that module's class map (issue #463); every other default
+  import is `TESSERA_JSX_SUBSET_IMPORT`. No namespace imports (`* as x`), no dynamic `import()`, no
+  `require`. `import type { T } from "./types";` binds type names only and adds no runtime import
+  edge (so type-only imports do not form an import cycle).
   - `from "tessera"` imports built-in intrinsics and hooks (for example `useState`, `View`,
     `CustomElement`). Library components such as `Field` and `Form` are not built in: importing one
     from `"tessera"` is `TESSERA_IR_UNSUPPORTED` naming `tessera-ui`. `from "react"` is accepted for `useState`, `useEffect`, `useRef` only, as an alias
@@ -177,6 +180,20 @@ Rules:
     `TESSERA_IR_STYLESHEET_MISSING` at the import span. Generated code does not embed the CSS
     yet, so codegen warns `TESSERA_CG_STYLESHEET_NOT_EMBEDDED` naming the file (apply it with
     `compile_stylesheet()` or `tessera.json` `ui.styles` until embedding lands).
+  - `import styles from "./Card.module.css";` (CSS module, issue #463) registers a **scoped**
+    stylesheet and binds its class map to `styles`. Its class selectors, its `@keyframes` names and
+    the `animation-name`/`animation` references to them in the same file are renamed to
+    `<local>_<hash>`, where `<hash>` is 6 lowercase hex digits of FNV-1a 64 over the file's
+    project-relative POSIX path ([`stylesheet-v1.md`](stylesheet-v1.md) section 3). The specifier
+    must end in `.module.css`, and the path rules of every other import still apply (absolute, drive
+    and UNC paths are errors). **`styles.<ident>` is its only allowed use**: a static member access
+    that lowers to the scoped class name. `styles[k]`, a spread of `styles`, and passing `styles` to
+    a function or a prop are `TESSERA_JSX_STYLES_DYNAMIC` (the same reason `style` keys must be
+    static, section 10.3). A `styles.<ident>` with no matching class in the file is
+    `TESSERA_CSS_MODULE_UNKNOWN_CLASS`, an error naming the file and the class. `:global(.x)` leaves
+    one class unrenamed; the block form `:global { ... }` is not supported. `import type` binds
+    types, and a class map is a value, so `import type styles from "./Card.module.css";` stays
+    `TESSERA_JSX_SUBSET_IMPORT`. A plain `import "./x.css";` keeps its global meaning.
 - **Exports**: named exports only. `export default` is rejected in V1.
 - **Type re-exports**: `export type { A, B as C } [from "./X"];` re-exports type names, from another
   file or from the file's own imports. Other re-exports (`export { A }`, `export *`) are rejected. A

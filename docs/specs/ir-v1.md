@@ -40,8 +40,33 @@ both parts, so every `section N` reference stays valid.
 | `module.imports` | string[] | no | Resolved module ids; no file paths |
 | `components` | Component[] | yes | Deterministic order (source path, then name) |
 | `bindings` | Binding[] | no | Sorted by id |
-| `stylesheets` | StylesheetRef[] | no | One per imported `.css` (`id`, `path`, `hash` = `fnv1a64:` of the file bytes), sorted by path |
+| `stylesheets` | StylesheetRef[] | no | One per imported `.css` (`id`, `path`, `hash` = `fnv1a64:` of the file bytes), sorted by path. A `*.module.css` also carries `classes` (section 1.1) |
 | `types` | RecordType[] | no | Declared record types, sorted by `name` (section 2.2). Omitted when a module declares no record |
+
+### 1.1 Scoped classes of a CSS module (additive, issue #463)
+
+A `*.module.css` stylesheet ([`css-isolation.md`](../design/css-isolation.md)) carries the class map
+its TSX reads, so the inspector can show the authored name and the selector index can see the scoped
+one. `classes` is optional and omitted when empty, so a module with no `.module.css` stays
+byte-identical to the IR before it (the same rule as `types`, section 2.2); no `ir_version` bump.
+
+```json
+"stylesheets": [
+  {
+    "id": "css::ui/Card.module",
+    "path": "ui/Card.module.css",
+    "hash": "fnv1a64:...",
+    "classes": [
+      { "local": "card", "scoped": "card_0b82a5" },
+      { "local": "title", "scoped": "title_0b82a5" }
+    ]
+  }
+]
+```
+
+`classes` is sorted by `local` and unique. `scoped` is `<local>_<h>`, where `<h>` is 6 lowercase hex
+digits of FNV-1a 64 over `path`; the compiler computes it, so the native CLI and the Wasm preview
+agree. `hash` stays the hash of the file bytes — it identifies the source file, not the rewrite.
 
 ## 2. Component
 

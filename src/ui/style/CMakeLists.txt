@@ -1,5 +1,13 @@
 # SPDX-License-Identifier: MIT
 
+# The CSS tokenizer is scene-free (it includes only its own header, `<cstdlib>` and `<string>`), so
+# it is its own target: the compiler's CSS-module scan tokenizes a module file without linking the
+# scene graph, the cascade or the rest of the style engine. The headers stay where they are
+# (`include/tessera/ui/style/{token,tokenizer}.hpp`), so the public API baseline does not move.
+add_library(tessera_css_tokenizer STATIC tokenizer.cpp)
+target_include_directories(tessera_css_tokenizer PUBLIC ${PROJECT_SOURCE_DIR}/include)
+target_compile_features(tessera_css_tokenizer PUBLIC cxx_std_23)
+
 add_library(tessera_style STATIC
     backdrop_filter.cpp
     cascade.cpp
@@ -44,7 +52,6 @@ add_library(tessera_style STATIC
     theme_generate_tokens.cpp
     theme_solve.cpp
     theme_stylesheet.cpp
-    tokenizer.cpp
     transform.cpp
     var_resolve.cpp)
 
@@ -52,6 +59,9 @@ target_include_directories(tessera_style PUBLIC
     ${PROJECT_SOURCE_DIR}/include)
 
 target_link_libraries(tessera_style PUBLIC tessera_scene)
+# The tokenizer split above: `tessera_style` keeps its own tokenizer, and the compiler's CSS-module
+# scan links the same one instead of a second copy.
+target_link_libraries(tessera_style PUBLIC tessera_css_tokenizer)
 # The SafeArea inset arithmetic and the fold-posture mapping are the platform-NEUTRAL half of the
 # HAL (`tessera_hal_metrics`), deliberately not `tessera_hal_window`: this library builds for Wasm,
 # where no OS window backend exists, and ADR-020's rule is that UI code sees normalized types only.

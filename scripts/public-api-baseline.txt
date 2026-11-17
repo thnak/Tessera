@@ -373,6 +373,15 @@ class include/tessera/automation/virtual_collection.hpp tessera::automation::Vir
 struct include/tessera/automation/virtual_collection.hpp tessera::automation::VirtualScrollOutcome
 enum include/tessera/automation/virtual_collection.hpp tessera::automation::VirtualCollectionError
 
+header include/tessera/compiler/css_module/module_scan.hpp
+struct include/tessera/compiler/css_module/module_scan.hpp tessera::compiler::css_module::ModuleClass
+struct include/tessera/compiler/css_module/module_scan.hpp tessera::compiler::css_module::ModuleKeyframes
+struct include/tessera/compiler/css_module/module_scan.hpp tessera::compiler::css_module::ModuleScan
+struct include/tessera/compiler/css_module/module_scan.hpp tessera::compiler::css_module::ModuleScanError
+function include/tessera/compiler/css_module/module_scan.hpp tessera::compiler::css_module::module_hash
+function include/tessera/compiler/css_module/module_scan.hpp tessera::compiler::css_module::scan_module_css
+function include/tessera/compiler/css_module/module_scan.hpp tessera::compiler::css_module::scoped_name
+
 header include/tessera/dbus/address.hpp
 struct include/tessera/dbus/address.hpp tessera::dbus::BusAddress
 struct include/tessera/dbus/address.hpp tessera::dbus::SessionEnvironment
