@@ -497,10 +497,26 @@ from **12 000 to 9 353 painted nodes** (2 397 culled, 2 clip-bounded subtrees sk
 2 -> 1), while the full paint, which never sets the rect, is unchanged (46.0 / 44.5 ms vs 45.4 /
 44.4 ms). The time win is smaller than the node count suggests because 78% of the tree is text leaves:
 an unclipped text payload can paint outside its own box (a wrapped line advances past the content
-box), so a text node is only culled as part of a clipping subtree, and the nodes still painted are
-exactly the ones a box test cannot bound. That is the deliberate conservative rule - a text-fit flag
-from layout would unlock the rest, see the issue's follow-up. `max_damaged_paint_nodes` (10 000) gates
-the counter: a trip back to the whole tree fails it.
+box), so a text node was only culled as part of a clipping subtree, and the nodes still painted were
+exactly the ones a box test cannot bound. `max_damaged_paint_nodes` (10 000) gated the counter: a trip
+back to the whole tree fails it.
+
+**Text-fit hint (issue #490, [`dirty-rendering.md`](dirty-rendering.md) section 6.8).** That
+conservative rule is now lifted where layout can prove it is unnecessary. `LayoutBox::text_fit` is a
+three-state fact (`Unknown`/`Fits`/`Overflows`) the layout engine computes in `collect_boxes` from the
+same inputs paint uses: the border box minus the style's `padding-*` longhands (not
+`LayoutBox::content_insets`, which also counts the border), paint's own wrap decision
+(`PaintData::wrap == PaintWrap::Wrap` AND `white-space` wraps, forwarded on `LayoutInput::text_wrap`),
+and the engine's `TextMeasureCache`. `apply_layout` copies `Fits` onto the node as
+`Node::text_fits_box()` (one flag bit, no `sizeof(Node)` growth), and `own_emission_bounded` trusts it
+only for a payload that is still the plain text layout measured - no spans, no decoration, no
+`max_lines`, no font-size/weight override - and only when paint's rect is at least the layout box.
+Measured on the reference machine (MSVC Release, median of 7 runs): the damaged frame's deterministic
+counter drops from **9 353 to 5 painted nodes** (11 721 culled, 2 clip-bounded subtrees skipped whole),
+and damaged paint falls from 37.6 ms to **3.3-7.2 ms** across runs. The full paint is unchanged at
+12 000 nodes, because the cull only applies to a damaged plan. `max_damaged_paint_nodes` is now **6**,
+the smallest integer with headroom above 5: a platform difference in the culled set cannot fail the
+gate, while a trip back to the whole tree still does.
 
 **Trigger.** Revisit the V1 decision of no render thread and no worker recording when
 `paint_time_ms` exceeds about 4 ms or 30% of `frameBudgetMs` at 10k nodes. At 12 000 nodes the

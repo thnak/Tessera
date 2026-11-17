@@ -13,11 +13,18 @@
 //   - the reach is a superset of what the node paints (border box + box-shadow outsets + 3 glass
 //     sigmas + a pixel of antialiasing/pixel-snap slack), mapped through the matrix it paints with;
 //   - a text payload can paint outside its own box (wrapped lines advance past the content box), so
-//     a node that paints text is only ever culled as a `Subtree`, and only when the pass clips it;
+//     a node that paints text is only culled on the box test when layout proved the payload fits
+//     (`Node::text_fits_box`, issue #490) and the payload is still the plain text layout measured -
+//     see `own_emission_bounded`; otherwise it is only ever culled as a `Subtree`, and only when
+//     the pass clips it;
 //   - children are only bounded by an actual clip push (overflow or scroll), never by the box: a
 //     non-clipping parent's children may overflow anywhere, so its own emission is skipped but its
 //     children are still walked (`Own`).
-// A node painted in its own transform frame never reaches this decision (the caller refuses it).
+// The fit fact is a layout output, so it is exactly as fresh as the last layout pass:
+// `apply_layout` rewrites it (including `Unknown`) on every pass and a node that has never been
+// laid out reads false, so a hint can only ever be *more* conservative than the truth, never stale
+// in the unsafe direction. A node painted in its own transform frame never reaches this decision
+// (the caller refuses it).
 
 #pragma once
 
@@ -72,12 +79,46 @@ inline bool reaches_cull(const Node& node, const rhi::Mat3& painted_world, const
            reach.bottom() > cull.y;
 }
 
+// True when the payload paint would emit for a text node is exactly the plain text run layout
+// measured, so `Node::text_fits_box` actually describes it. Layout's measure never sees
+// `PaintData`, so anything the paint pass adds on top of that plain text disqualifies the hint and
+// the node falls back to the pre-#490 conservative rule. Inline spans paint one run per span with
+// that span's own resolved style, which is not the plain-text measure. Any caret/selection/IME
+// decoration paints the laid-out line verbatim (no ellipsis truncation) and draws its caret rect at
+// the line end, where its own 1-2 device px width reaches past the measured line; an active
+// composition also paints the uncommitted preedit run, which is not part of the measured text at
+// all. Disqualifying every decoration rather than only `composition_active` is deliberate: the
+// caret is the tighter of the two cases and the cost is a field that is edited rather than scrolled
+// past. `max_lines` truncation is measured by layout with the full text, so the truncation itself
+// is not covered by the measure. A payload `font_size` override re-measures the run with metrics
+// layout never saw (advances scale with the size), so only the absence of an override is provable
+// without resolving the style; a `font_weight` override is refused for the same reason, because the
+// hint is about the computed style. `text-overflow: ellipsis` is deliberately not listed: it only
+// ever shortens a line, so it cannot make paint exceed the content box. `clip` paints the laid-out
+// line verbatim, which is exactly the geometry the measure bounds.
+inline bool text_payload_is_plain(const PaintData& data) {
+    return data.spans.empty() && !data.decoration.has_value() && data.max_lines == 0 &&
+           data.text_style.font_size <= 0.0f && data.text_style.font_weight <= 0;
+}
+
 // True when everything the node paints for itself is inside the reach: box visuals (background,
 // border, gradient, backdrop, box shadow) are inside the border box or its synced shadow outsets,
 // and the vector and image payloads are placed at the content box. Text is the one payload that can
 // leave the box: `paint_text_lines` advances the line origin past the content box for every wrapped
-// line it emits and does not clip, so a box test alone cannot bound an unclipped text run.
-inline bool own_emission_bounded(const Node& node) {
+// line it emits and does not clip, so a box test alone cannot bound an unclipped text run. Layout
+// answers that question for a plain payload (`Node::text_fits_box`, issue #490); when it has not,
+// or the payload is richer than what layout measured, the node stays unbounded here.
+//
+// `rect` is the rect paint passes to `paint_text_lines`. The fit fact was computed from the
+// *layout* box, so it is only trusted while paint's content box is at least as large as the
+// measured one: a transform frame or a PaintView interpolation can make paint's rect the
+// transformed AABB of the box (a scaled-down ancestor shrinks it), and the text is still laid out
+// at the unscaled font size in that rect. `rect.width >= bounds.width` is the provable form of
+// "paint has at least the room layout measured"; the tolerance only absorbs the float rounding of
+// the box origin when `world_bounds()` maps a translation (below a device pixel, and below the
+// one-pixel AA slack `reaches_cull` already carries). A real scale changes the size by far more and
+// falls back to unbounded.
+inline bool own_emission_bounded(const Node& node, const rhi::Rect& rect) {
     const auto& data = node.paint_data();
     if (!data.has_value() || data->kind != PaintKind::Text) {
         return true;
@@ -85,7 +126,15 @@ inline bool own_emission_bounded(const Node& node) {
     const bool paints_content =
         !data->text.empty() || !data->spans.empty() ||
         (data->decoration.has_value() && data->decoration->composition_active);
-    return !paints_content;
+    if (!paints_content) {
+        return true;
+    }
+    if (!node.text_fits_box() || !text_payload_is_plain(*data)) {
+        return false;
+    }
+    constexpr float kOriginRounding = 1.0e-3f;
+    return rect.width + kOriginRounding >= node.bounds().width &&
+           rect.height + kOriginRounding >= node.bounds().height;
 }
 
 // True when the pass pushes a clip around this node's children that lies inside the node's border
@@ -116,7 +165,7 @@ inline bool clipped_children(const Node& node, const style::ComputedStyle& style
 // leave it null for a leaf, which is the point: a leaf outside the rect never resolves a style.
 inline CullVerdict cull_verdict(const Node& node, const rhi::Rect& rect, const Frame& frame,
                                 const style::ComputedStyle* style) {
-    const bool bounded = own_emission_bounded(node);
+    const bool bounded = own_emission_bounded(node, rect);
     if (node.children().empty()) {
         return bounded ? CullVerdict::Node : CullVerdict::Paint;
     }

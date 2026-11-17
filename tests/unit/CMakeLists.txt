@@ -1336,6 +1336,19 @@ target_link_libraries(layout_cache_tests PRIVATE tessera_layout)
 
 add_test(NAME layout_cache COMMAND layout_cache_tests)
 
+# Layout's text-fit fact (issue #490): a node's plain-text payload provably stays inside the content
+# box paint uses (the border box minus the `padding-*` longhands, with paint's own wrap decision), so
+# the paint-pass cull can stop refusing every text node. Fits / Overflows / Unknown, the padding-only
+# content box, and `apply_layout` copying the fact onto the node. Pure CPU, stub text metrics.
+add_executable(layout_text_fit_tests
+    layout_text_fit_tests.cpp)
+
+target_link_libraries(layout_text_fit_tests PRIVATE
+    tessera_layout
+    tessera_text)
+
+add_test(NAME layout_text_fit COMMAND layout_text_fit_tests)
+
 add_executable(text_measure_tests
     text_measure_tests.cpp)
 
@@ -1859,6 +1872,20 @@ target_link_libraries(paint_cull_tests PRIVATE
     tessera_software)
 
 add_test(NAME paint_cull COMMAND paint_cull_tests)
+
+# The paint side of layout's text-fit hint (issue #490): `Node::text_fits_box` lets the paint-pass cull
+# bound a plain-text payload by its box, so a fitting text node outside the rect is skipped and counted.
+# Every payload paint adds on top of the plain text layout measured (spans, decoration, `max_lines`, a
+# font override) and any rect that is not the layout box stays unbounded. Pure CPU, stub metrics.
+add_executable(paint_cull_text_fit_tests
+    paint_cull_text_fit_tests.cpp)
+
+target_link_libraries(paint_cull_text_fit_tests PRIVATE
+    tessera_frame
+    tessera_paint
+    tessera_software)
+
+add_test(NAME paint_cull_text_fit COMMAND paint_cull_text_fit_tests)
 
 # Effective opacity (#227): the ancestor product multiplies each emitted primitive (box visuals and
 # text/vector/image content), an animated ancestor fade repaints the subtree, and the paint cache

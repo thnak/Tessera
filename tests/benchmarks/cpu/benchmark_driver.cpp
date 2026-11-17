@@ -146,6 +146,8 @@ ui::layout::LayoutInput build_layout_input(const ui::Node& node, ui::paint::Styl
     const auto& paint = node.paint_data();
     if (paint && paint->kind == ui::PaintKind::Text) {
         input.text = paint->text;
+        // Layout's text-fit fact must use paint's own wrap decision (issue #490).
+        input.text_wrap = paint->wrap == ui::PaintWrap::Wrap;
     }
     for (const auto& child : node.children()) {
         input.children.push_back(build_layout_input(*child, styles));

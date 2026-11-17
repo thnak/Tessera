@@ -37,6 +37,7 @@ using tessera::ui::Node;
 using tessera::ui::NodeId;
 using tessera::ui::PaintData;
 using tessera::ui::PaintKind;
+using tessera::ui::PaintWrap;
 using tessera::ui::a11y::A11ySnapshot;
 using tessera::ui::a11y::build_a11y_tree;
 using tessera::ui::a11y::BuildStats;
@@ -101,6 +102,7 @@ LayoutInput build_layout_input(const Node& node, StyleProvider& styles) {
     const auto& paint = node.paint_data();
     if (paint && paint->kind == PaintKind::Text) {
         input.text = paint->text;
+        input.text_wrap = paint->wrap == PaintWrap::Wrap;
     }
     for (const auto& child : node.children()) {
         input.children.push_back(build_layout_input(*child, styles));
