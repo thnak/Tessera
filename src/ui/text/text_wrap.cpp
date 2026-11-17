@@ -189,6 +189,14 @@ TextLayout wrap_with(std::string_view text, const TextStyle& style, const FontMe
     const float line_height = style.line_height > 0.0f
                                   ? style.line_height
                                   : metrics.ascent + metrics.descent + metrics.line_gap;
+    // CSS half-leading: an explicit `line-height` adds (or, when smaller than the font's own
+    // ascent + descent, removes) the same amount above and below the glyphs, so the baseline sits
+    // `(line_height - (ascent + descent)) / 2` below where the font's ascent alone would put it.
+    // `normal` keeps the font's own line box, so its baseline is the ascent.
+    const float baseline =
+        style.line_height > 0.0f
+            ? metrics.ascent + (line_height - (metrics.ascent + metrics.descent)) * 0.5f
+            : metrics.ascent;
     // `word-spacing` is additive to every separator advance the wrap emits: one per collapsed run
     // (its one painted space), one per preserved space byte (U+0020), and one per space inside a
     // whole-run measure. Trimming already removed the line edges, so a space that is not painted
@@ -210,7 +218,7 @@ TextLayout wrap_with(std::string_view text, const TextStyle& style, const FontMe
     };
 
     auto add_line = [&](float width, std::size_t begin, std::size_t end) {
-        result.lines.push_back(TextLine{width, line_height, metrics.ascent, begin, end, {}});
+        result.lines.push_back(TextLine{width, line_height, baseline, begin, end, {}});
         result.width = std::max(result.width, width);
     };
 
@@ -226,7 +234,7 @@ TextLayout wrap_with(std::string_view text, const TextStyle& style, const FontMe
             add_line(measure_run(text), 0, text.size());
         }
         result.height = line_height;
-        result.baseline = metrics.ascent;
+        result.baseline = baseline;
         return finalize_bidi(std::move(result), text);
     }
 
@@ -320,7 +328,7 @@ TextLayout wrap_with(std::string_view text, const TextStyle& style, const FontMe
     }
 
     result.height = static_cast<float>(result.lines.size()) * line_height;
-    result.baseline = metrics.ascent;
+    result.baseline = baseline;
     return finalize_bidi(std::move(result), text);
 }
 

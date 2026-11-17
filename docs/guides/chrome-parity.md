@@ -66,6 +66,7 @@ These are not bugs; a markup author who writes for both has to know them.
 |---|---|
 | An item with `grid-column: 1 / 3` was placed before the items ahead of it in the document | `grid_placement.cpp` places an item with a definite line on the flow's own axis in document order ([grid-v1.md](../specs/grid-v1.md) section 3) |
 | A border ignored `border-radius`: a rounded background inside a square outline | a uniform border on a rounded box is one ring: `PaintSink::fill_rounded_ring`, `Batched2DRenderer::push_rounded_ring`, and a ring mode (`mode = 3 + width`) in `batched2d.frag` and `batched2d.wgsl` that subtracts the inner rounded box |
+| An explicit `line-height` did not move the glyphs: the baseline was always the font's ascent, so a mark in a 14 px line around a 16 px font sat about 2 px low | `text_wrap.cpp` puts the baseline at `ascent + (line-height - (ascent + descent)) / 2` and the single-line paint path passes it to the sink ([text.md](../design/text.md)); the worst remaining text offset on the form is 1 px |
 | Text in a single-line `TextInput` sat at the top of the field | `paint_text.cpp` centres the line in the content box ([text-editing-v1.md](../specs/text-editing-v1.md)) |
 
 ## 6. Known limits

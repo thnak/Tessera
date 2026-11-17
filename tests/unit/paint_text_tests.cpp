@@ -15,6 +15,7 @@
 #include <iostream>
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -94,6 +95,7 @@ struct RecordedText {
     int font_weight = 0;
     Color color;
     int active_clips = 0;
+    std::optional<float> baseline;
 };
 
 class RecordingSink final : public PaintSink {
@@ -115,7 +117,7 @@ public:
     }
     void draw_text(const TextDraw& run) override {
         texts.push_back(RecordedText{run.rect, std::string(run.text), run.font_size,
-                                     run.font_weight, run.color, active_clips});
+                                     run.font_weight, run.color, active_clips, run.baseline});
         text_after_fills.push_back(fills);
     }
 
@@ -413,6 +415,34 @@ bool test_text_input_is_vertically_centered() {
            expect(first_run_top("TextArea") == 0.0f, "a TextArea stays top-aligned");
 }
 
+// A single-line run carries its baseline when an explicit `line-height` moves it: the line layout
+// puts the baseline at ascent + half-leading, and the sink would otherwise draw at rect.y + ascent.
+// With `normal` there is no half-leading and the sink's own default is left alone.
+bool test_single_line_baseline_follows_line_height() {
+    StubPaintTextMetrics metrics;
+    text::TextStyle probe;
+    probe.font_size = 16.0f;
+    const text::FontMetrics font = metrics.metrics(probe);
+    constexpr float kLine = 40.0f;
+
+    const auto run_for = [&](const char* line_height) {
+        Node root(1);
+        root.set_bounds({0, 10, 200, kLine});
+        StubStyles styles;
+        styles.set(1, styled({{"font-size", "16px"}, {"line-height", line_height}}));
+        root.set_paint_data(text_run("Hello"));
+        RecordingSink sink;
+        paint_scene(root, styles, sink);
+        return sink.texts.empty() ? RecordedText{} : sink.texts[0];
+    };
+    const RecordedText tall = run_for("40px");
+    const RecordedText normal = run_for("normal");
+    const float expected = 10.0f + font.ascent + (kLine - (font.ascent + font.descent)) * 0.5f;
+    return expect(tall.baseline.has_value() && std::abs(*tall.baseline - expected) < 0.01f,
+                  "an explicit line-height puts the baseline at ascent + half-leading") &&
+           expect(!normal.baseline.has_value(), "normal line-height leaves the sink's default");
+}
+
 } // namespace
 
 int main() {
@@ -425,6 +455,7 @@ int main() {
     ok = test_damage_clipped_text() && ok;
     ok = test_single_line_alignment() && ok;
     ok = test_text_input_is_vertically_centered() && ok;
+    ok = test_single_line_baseline_follows_line_height() && ok;
 
     if (!ok) {
         std::cerr << "paint_text: failed\n";

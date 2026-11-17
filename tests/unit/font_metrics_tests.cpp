@@ -69,7 +69,8 @@ int main() {
     const TextMetrics explicit_metrics =
         custom_measurer.measure("abc", explicit_height, constraints);
     if (!expect(near(explicit_metrics.height, 30.0f), "explicit line height") ||
-        !expect(near(explicit_metrics.baseline, 10.0f), "explicit baseline")) {
+        !expect(near(explicit_metrics.baseline, 19.0f),
+                "explicit baseline: ascent + half-leading")) {
         return 4;
     }
 

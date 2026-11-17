@@ -42,7 +42,7 @@ int main() {
     if (!expect(near(wrapped.width, 40.0f), "wrapped width") ||
         !expect(near(wrapped.height, 40.0f), "wrapped height") ||
         !expect(wrapped.line_count == 2, "wrapped lines") ||
-        !expect(near(wrapped.baseline, 12.8f), "baseline")) {
+        !expect(near(wrapped.baseline, 14.8f), "baseline with the half-leading of a 20 px line")) {
         return 1;
     }
 

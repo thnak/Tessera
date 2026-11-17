@@ -409,6 +409,12 @@ void paint_text_lines(const Node& node, const style::ComputedStyle& style, const
         // left from the aligned origin, matching `available_width` the run-sequence path already
         // uses.
         run.rect = {line_x, content_y, available_width, content_height};
+        // The sink puts the baseline at `rect.y + ascent` unless told otherwise; an explicit
+        // `line-height` moves it by the half-leading, so say where the line layout put it.
+        const float half_leading = line.baseline - metrics_source->metrics(text_style).ascent;
+        if (std::abs(half_leading) > 0.01f) {
+            run.baseline = content_y + line.baseline;
+        }
         // The whole line paints as one run: emit the transformed bytes, exactly what the measured
         // wrap used, so the painted sequence matches the (transformed) line width.
         std::string transformed;

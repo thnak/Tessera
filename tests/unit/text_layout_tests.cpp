@@ -328,8 +328,28 @@ int main() {
         !expect(near(wrapped.lines[1].width, 40.0f), "wrapped second width") ||
         !expect(near(wrapped.width, 40.0f), "wrapped max width") ||
         !expect(near(wrapped.height, 40.0f), "wrapped height") ||
-        !expect(near(wrapped.baseline, 12.8f), "wrapped baseline") ||
-        !expect(near(wrapped.lines[0].baseline, 12.8f), "line baseline")) {
+        !expect(near(wrapped.baseline, 14.8f), "wrapped baseline carries the half-leading") ||
+        !expect(near(wrapped.lines[0].baseline, 14.8f), "line baseline carries the half-leading")) {
+        return 1;
+    }
+
+    // CSS half-leading: the baseline sits (line-height - (ascent + descent)) / 2 below the ascent.
+    // A line-height of 20 around 16 of glyphs adds 2 above; 12 removes 2; `normal` (0) keeps the
+    // font's own line box, so the baseline is the ascent.
+    TextStyle tall = style();
+    TextStyle tight = style();
+    tight.line_height = 12.0f;
+    TextStyle normal = style();
+    normal.line_height = 0.0f;
+    const TextLayout tall_layout = layout_text("a", tall, kMetrics, TextConstraints{200.0f, false});
+    const TextLayout tight_layout =
+        layout_text("a", tight, kMetrics, TextConstraints{200.0f, false});
+    const TextLayout normal_layout =
+        layout_text("a", normal, kMetrics, TextConstraints{200.0f, false});
+    if (!expect(near(tall_layout.lines[0].baseline, 14.8f), "line-height above the glyphs") ||
+        !expect(near(tight_layout.lines[0].baseline, 10.8f), "line-height below the glyphs") ||
+        !expect(near(normal_layout.lines[0].baseline, 12.8f), "normal line-height: the ascent") ||
+        !expect(near(tight_layout.baseline, 10.8f), "layout baseline follows the line")) {
         return 1;
     }
 

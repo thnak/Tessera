@@ -282,8 +282,8 @@ Remaining contract, not implemented in this slice:
   selection already walk the painted segments, so collapsing a point-to-caret map is a follow-up.
 - `text-align`: start/end/left/right/center/justify (justify is not in V1, per ADR-006 item 6).
 - Bidi: visual order per line; alignment uses the paragraph direction.
-- Baseline: layout uses the first line's baseline for alignment; multi-line boxes document
-  their baseline choice.
+- Baseline: layout uses the first line's baseline for alignment. An explicit `line-height` puts it at
+  `ascent + (line-height - (ascent + descent)) / 2` (CSS half-leading); `normal` keeps the ascent.
 
 ### 6.2 Paint-time segment transform
 
