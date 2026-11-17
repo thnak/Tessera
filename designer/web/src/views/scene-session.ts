@@ -27,16 +27,11 @@ import type { SourceReader, StatusReporter, ViewSession } from "../lib/views";
 import { callExport, requireExports, type WasmModule } from "../lib/wasm-call";
 import { createInputPane } from "./scene-input";
 import { describeCss, cssProblem, readCssDiagnostics } from "./css-diagnostics";
+import { DEFAULT_VIEWPORT, chooseExport } from "./scene-export";
 import { noSceneBox, renderNodes, unavailableBox, type SceneDocument } from "./scene-render";
 
 /** The module factory `tessera_scene_preview.js` exports. */
 type ModuleFactory = () => Promise<WasmModule>;
-
-// The preview's default layout rectangle (wasm_scene_entry.cpp's kDefaultWidth/Height/DpiScale): the
-// plain `tessera_scene_json` export lays the tree out at exactly this, so the sized export is only
-// needed when the toolbar has moved off it.
-const DEFAULT_VIEWPORT = { width: 320, height: 240 };
-const DEFAULT_DPR = 1;
 
 /**
  * The parity-demo-shaped sample: a static tree the preview evaluates, so the first Run shows a real
@@ -56,100 +51,6 @@ export const SAMPLE = `export function Counter(): Node {
 `;
 
 const SAMPLE_SCRIPT = "click 101\nclick 101\nclick 101\n";
-
-// The plain export is the parity gate's contract (byte-identical to the native CLI's 320x240 DPR 1) and
-// is what a default run must keep calling; the sized one is for a moved toolbar. The fallback covers an
-// artifact built before P5 landed next to this page.
-function usesSizedExport(
-  module: WasmModule,
-  viewport: { width: number; height: number },
-  dpr: number,
-): boolean {
-  const moved =
-    viewport.width !== DEFAULT_VIEWPORT.width ||
-    viewport.height !== DEFAULT_VIEWPORT.height ||
-    dpr !== DEFAULT_DPR;
-  return moved && typeof module._tessera_scene_json_sized === "function";
-}
-
-/**
- * The export this run should call, and why.
- *
- * `_tessera_scene_json_folded` (issue #408) is the only export that carries the fold posture, so a
- * foldable preview has to use it. A run with no posture keeps calling the plain export when nothing
- * else moved, because that byte-for-byte equality with the native CLI's default is what the parity
- * gate asserts; a moved viewport keeps using the sized export, and a fold takes precedence because
- * the sized one cannot express it.
- *
- * The `*_styled` family (issue #390) is the same set with the author stylesheet as one more string.
- * It is preferred whenever the author wrote CSS, because a preview that ignored the sheet would show
- * the built-in look while claiming to show their screen. When the artifact predates those exports the
- * run falls back to the unstyled one and `styled` comes back false, so the status line can say the
- * sheet is not applied rather than implying it is.
- *
- * The `folded` export falls back to the sized/plain pair when the artifact predates it: a page
- * published against an older module then shows an unfolded preview and says so, rather than failing.
- */
-function chooseExport(
-  module: WasmModule,
-  viewport: { width: number; height: number },
-  dpr: number,
-  posture: string,
-  wantsStyling: boolean,
-): { name: string; numbers: number[]; postureFirst: boolean; styled: boolean } {
-  const moved =
-    viewport.width !== DEFAULT_VIEWPORT.width ||
-    viewport.height !== DEFAULT_VIEWPORT.height ||
-    dpr !== DEFAULT_DPR;
-  const foldable = posture !== "";
-  const styled = wantsStyling && hasStyledExports(module, foldable, moved);
-  if (foldable && typeof module._tessera_scene_json_folded === "function") {
-    // The folded family takes the posture and (styled) the stylesheet, then w/h/dpr.
-    return {
-      name: styled ? "_tessera_scene_json_folded_styled" : "_tessera_scene_json_folded",
-      numbers: [viewport.width, viewport.height, dpr],
-      postureFirst: true,
-      styled,
-    };
-  }
-  if (styled && moved) {
-    return {
-      name: "_tessera_scene_json_styled_sized",
-      numbers: [viewport.width, viewport.height, dpr],
-      postureFirst: false,
-      styled,
-    };
-  }
-  if (styled) {
-    return { name: "_tessera_scene_json_styled", numbers: [], postureFirst: false, styled };
-  }
-  if (usesSizedExport(module, viewport, dpr)) {
-    return {
-      name: "_tessera_scene_json_sized",
-      numbers: [viewport.width, viewport.height, dpr],
-      postureFirst: false,
-      styled,
-    };
-  }
-  return { name: "_tessera_scene_json", numbers: [], postureFirst: false, styled };
-}
-
-/**
- * Whether this artifact carries the styled export the chosen shape needs (issue #390).
- *
- * A partial set is possible -- a module built from a tree between two commits -- so the test is per
- * shape rather than one global "the styled family exists": a fold plus a stylesheet needs the folded
- * styled export, and a moved viewport needs the sized one.
- */
-function hasStyledExports(module: WasmModule, foldable: boolean, moved: boolean): boolean {
-  if (foldable) {
-    return typeof module._tessera_scene_json_folded_styled === "function";
-  }
-  if (moved) {
-    return typeof module._tessera_scene_json_styled_sized === "function";
-  }
-  return typeof module._tessera_scene_json_styled === "function";
-}
 
 /** The elements React committed for the Scene pane; every one of them is a ref. */
 export interface SceneElements {
