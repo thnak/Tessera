@@ -1,8 +1,13 @@
 // SPDX-License-Identifier: MIT
 //
-// The Windows appearance source (issue #187): the OS color-scheme and reduced-motion preferences
-// through the same `SystemParametersInfoW`/registry queries the reduced-motion slice already used,
-// so Windows gains the color-scheme half without a second mechanism.
+// The Windows user-setting source (issue #187 and the S7 ClearType fact): the OS color scheme,
+// reduced motion and text-smoothing preferences through the same `SystemParametersInfoW`/registry
+// queries, so Windows gains each new user preference without a second mechanism.
+//
+// The ClearType geometry query lives here rather than in `window_display_win.cpp` for the same
+// reason as the appearance snapshot: it reads a USER setting, and it keeps the per-monitor display
+// TU inside its file-size budget. `query_win32_pixel_geometry` is declared in
+// `window_display_win.hpp` next to the other display capabilities it feeds.
 //
 // This mirrors `app::system_prefers_reduced_motion` (`SPI_GETCLIENTAREAANIMATION`) rather than
 // inventing a new shape, and adds the color scheme from
@@ -17,20 +22,10 @@
 // a hot path, or throws.
 
 #include "tessera/hal/appearance.hpp"
-
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#ifndef _WIN32_WINNT
-#define _WIN32_WINNT 0x0A00
-#endif
-#ifndef WINVER
-#define WINVER 0x0A00
-#endif
-#include <windows.h>
+#include "tessera/hal/display.hpp"
+// The platform header owns the SDK include order (windows.h before dbt.h) and the _WIN32_WINNT /
+// WINVER definitions, so this TU does not repeat them.
+#include "window_display_win.hpp"
 
 namespace tessera::hal::detail {
 namespace {
@@ -68,6 +63,43 @@ ColorSchemePreference query_win32_color_scheme() noexcept {
 }
 
 } // namespace
+
+PixelGeometry query_win32_pixel_geometry() noexcept {
+    // Smoothing off is answered by the first query alone: the OS will not rasterize subpixel
+    // coverage, so the type and orientation (which may still hold a stale ClearType value) say
+    // nothing about what the screen will show.
+    BOOL smoothing = FALSE;
+    if (SystemParametersInfoW(SPI_GETFONTSMOOTHING, 0, &smoothing, 0) == FALSE) {
+        return PixelGeometry::Unknown;
+    }
+    if (smoothing == FALSE) {
+        return clear_type_geometry(false, FontSmoothingOrientation::Rgb, FontSmoothingType::None);
+    }
+
+    UINT type = 0;
+    UINT orientation = 0;
+    if (SystemParametersInfoW(SPI_GETFONTSMOOTHINGTYPE, 0, &type, 0) == FALSE ||
+        SystemParametersInfoW(SPI_GETFONTSMOOTHINGORIENTATION, 0, &orientation, 0) == FALSE) {
+        return PixelGeometry::Unknown;
+    }
+    // Map the raw SDK values and let the pure mapper decide: a value this build does not understand
+    // is reported as Unknown rather than passed off as a stripe (ADR-023 rule 7).
+    FontSmoothingType smoothing_type = FontSmoothingType::None;
+    if (type == FE_FONTSMOOTHINGSTANDARD) {
+        smoothing_type = FontSmoothingType::Standard;
+    } else if (type == FE_FONTSMOOTHINGCLEARTYPE) {
+        smoothing_type = FontSmoothingType::ClearType;
+    } else {
+        return PixelGeometry::Unknown;
+    }
+    FontSmoothingOrientation stripe = FontSmoothingOrientation::Rgb;
+    if (orientation == FE_FONTSMOOTHINGORIENTATIONBGR) {
+        stripe = FontSmoothingOrientation::Bgr;
+    } else if (orientation != FE_FONTSMOOTHINGORIENTATIONRGB) {
+        return PixelGeometry::Unknown;
+    }
+    return clear_type_geometry(true, stripe, smoothing_type);
+}
 
 AppearancePreference query_win32_appearance() noexcept {
     AppearancePreference appearance;

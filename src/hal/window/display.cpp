@@ -54,6 +54,28 @@ bool orientation_is_known(Orientation orientation) noexcept {
     return orientation == Orientation::Landscape || orientation == Orientation::Portrait;
 }
 
+PixelGeometry clear_type_geometry(bool font_smoothing, FontSmoothingOrientation orientation,
+                                  FontSmoothingType type) noexcept {
+    // Smoothing off wins over the type: the OS will not rasterize subpixel coverage at all, so
+    // there is no stripe to report even if the user once selected ClearType.
+    if (!font_smoothing || type == FontSmoothingType::None) {
+        return PixelGeometry::None;
+    }
+    if (type != FontSmoothingType::ClearType) {
+        // `Standard` is greyscale antialiasing; any value outside the enumerators is not a type
+        // this build understands, and an unparseable answer must not claim a known stripe.
+        return type == FontSmoothingType::Standard ? PixelGeometry::None : PixelGeometry::Unknown;
+    }
+    switch (orientation) {
+    case FontSmoothingOrientation::Rgb:
+        return PixelGeometry::RgbHorizontal;
+    case FontSmoothingOrientation::Bgr:
+        return PixelGeometry::BgrHorizontal;
+    }
+    // ClearType never selects a vertical stripe, so the Vertical enumerators stay unreachable here.
+    return PixelGeometry::Unknown;
+}
+
 const DisplayInfo* find_display(std::span<const DisplayInfo> displays, DisplayId id) noexcept {
     if (id == kNoDisplayId) {
         return nullptr;

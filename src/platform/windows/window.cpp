@@ -276,10 +276,10 @@ WindowMetrics Win32Window::metrics() const {
     metrics.caption_regions = caption_.regions;
     metrics.cursor = cursor_;
     // Display capabilities (docs/specs/os-events-v1.md section 4): the monitor's id, refresh, work
-    // area and orientation, each with its assumption flag set when the OS could not answer. This is
-    // the per-event snapshot, not a topology query: a DisplayAdded/Removed event tells the loop the
-    // list is stale and it re-reads `displays()` then. The read is a handful of cached OS calls, so
-    // it costs no round trip on the event path.
+    // area, orientation and subpixel geometry, each with its assumption flag set when the OS could
+    // not answer. This is the per-event snapshot, not a topology query: a DisplayAdded/Removed
+    // event tells the loop the list is stale and it re-reads `displays()` then. The ClearType
+    // geometry is desktop-wide rather than per-monitor (see query_win32_pixel_geometry).
     detail::fill_win32_display_capabilities(hwnd_, metrics);
     return metrics;
 }

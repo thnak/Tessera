@@ -116,6 +116,18 @@ void fill_win32_display_capabilities(HWND window, WindowMetrics& metrics) noexce
 // one `GetMonitorInfoW` sets. Returns 0 (and leaves `out` untouched) when enumeration fails.
 std::size_t query_win32_displays(std::span<DisplayInfo> out) noexcept;
 
+// The user's ClearType configuration as the display fact `PixelGeometry`
+// (docs/design/display-aware-rendering.md section 2). Win32 exposes the subpixel stripe as a
+// per-USER preference, not a per-monitor capability: `SPI_GETFONTSMOOTHING`,
+// `SPI_GETFONTSMOOTHINGTYPE` and `SPI_GETFONTSMOOTHINGORIENTATION` read one desktop-wide setting
+// (mirrored under `HKCU\Control Panel\Desktop`), and neither HMONITOR nor DXGI reports one panel's
+// stripe order. Every display therefore answers the same value - the layout text will actually be
+// rendered for on any of them - instead of a per-panel answer this API cannot support. A failed or
+// unparseable read is `PixelGeometry::Unknown`; nothing here guesses. Three window-free
+// `SystemParametersInfoW` calls, no allocation. Implemented in `window_appearance_win.cpp` - the
+// user-setting TU - so this display TU stays inside its file-size budget.
+[[nodiscard]] PixelGeometry query_win32_pixel_geometry() noexcept;
+
 // The display id this build assigns to `monitor`. Stable for the monitor's lifetime and equal to
 // the id `query_win32_displays` reports for the same monitor: the GDI device name is hashed into a
 // 64-bit value, so a `DisplayAdded`/`DisplayRemoved` event names the same display the topology list

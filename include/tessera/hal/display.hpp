@@ -55,9 +55,16 @@ enum class ColorGamut : std::uint8_t { Unknown, Srgb, DisplayP3, Rec2020 };
 
 // The physical subpixel layout of the display, as the platform reports it
 // (docs/design/display-aware-rendering.md section 2). `Unknown` is the honest answer for a backend
-// with no query (every backend today); a consumer that needs a known stripe, such as LCD text,
-// treats `Unknown` as grayscale-only. `None` is a panel with no usable stripe; the Horizontal and
-// Vertical suffix is the stripe axis.
+// with no query (every backend except Win32 today, and Win32 when the OS does not answer); a
+// consumer that needs a known stripe, such as LCD text, treats `Unknown` as grayscale-only. `None`
+// is "the platform states there is no stripe in use" - smoothing off or greyscale smoothing - and
+// the Horizontal and Vertical suffix is the stripe axis.
+//
+// What a platform can actually answer differs from what this enum can express: Win32 has no
+// per-monitor stripe query at all. It exposes the user's ClearType configuration (see
+// `clear_type_geometry` below), which is one desktop-wide answer, so every display reports the same
+// value there rather than a fabricated per-panel one. The Vertical enumerators stay unreachable on
+// every desktop backend in V1: no OS reports a vertical stripe.
 enum class PixelGeometry : std::uint8_t {
     Unknown,
     None,
@@ -66,6 +73,27 @@ enum class PixelGeometry : std::uint8_t {
     RgbVertical,
     BgrVertical
 };
+
+// How the OS smooths text (Win32 `SPI_GETFONTSMOOTHINGTYPE`): `None` is smoothing off, `Standard`
+// is greyscale coverage, `ClearType` is subpixel RGB coverage. `ClearType` is the only value that
+// says anything about a subpixel stripe.
+enum class FontSmoothingType : std::uint8_t { None, Standard, ClearType };
+
+// The stripe order the user selected for subpixel text (Win32 `SPI_GETFONTSMOOTHINGORIENTATION`).
+enum class FontSmoothingOrientation : std::uint8_t { Rgb, Bgr };
+
+// The `PixelGeometry` a ClearType configuration implies. Pure, so the mapping is tested without an
+// OS: the platform TU only reads the three raw values and hands them over.
+//
+// Honest answers, in the order the rules apply:
+//  - smoothing off, or `None` type      -> `None` (the OS will not use subpixel coverage)
+//  - `Standard` (greyscale) smoothing   -> `None` (there is no stripe in use to describe)
+//  - `ClearType`                        -> `RgbHorizontal` / `BgrHorizontal` by orientation
+//  - any other type or orientation value -> `Unknown` (a value this build does not understand is
+//    not evidence of a stripe)
+[[nodiscard]] PixelGeometry clear_type_geometry(bool font_smoothing,
+                                                FontSmoothingOrientation orientation,
+                                                FontSmoothingType type) noexcept;
 
 // True for a stripe LCD rendering can use (horizontal RGB or BGR).
 // Inline so the render-scale library can use it without linking a window backend.
@@ -112,6 +140,10 @@ struct DisplayInfo {
     bool vrr = false;
     bool hdr = false;
     ColorGamut gamut = ColorGamut::Unknown;
+    // The display's subpixel layout (docs/design/display-aware-rendering.md section 2). Win32 fills
+    // it from the user's ClearType configuration - the only source the OS has, and a desktop-wide
+    // one, so every listed display carries the same value; a backend with no source leaves
+    // `Unknown`.
     PixelGeometry pixel_geometry = PixelGeometry::Unknown;
 };
 
