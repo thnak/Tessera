@@ -579,6 +579,7 @@ header include/tessera/hal/display.hpp
 struct include/tessera/hal/display.hpp tessera::hal::DisplayInfo
 enum include/tessera/hal/display.hpp tessera::hal::ColorGamut
 enum include/tessera/hal/display.hpp tessera::hal::Orientation
+enum include/tessera/hal/display.hpp tessera::hal::PixelGeometry
 alias include/tessera/hal/display.hpp tessera::hal::DisplayId
 alias include/tessera/hal/display.hpp tessera::hal::WindowId
 function include/tessera/hal/display.hpp tessera::hal::display_info_name
@@ -588,6 +589,8 @@ function include/tessera/hal/display.hpp tessera::hal::find_display
 function include/tessera/hal/display.hpp tessera::hal::orientation_from_extent
 function include/tessera/hal/display.hpp tessera::hal::orientation_is_known
 function include/tessera/hal/display.hpp tessera::hal::orientation_name
+function include/tessera/hal/display.hpp tessera::hal::pixel_geometry_is_horizontal_stripe
+function include/tessera/hal/display.hpp tessera::hal::pixel_geometry_is_known_value
 function include/tessera/hal/display.hpp tessera::hal::resolve_display_scale
 function include/tessera/hal/display.hpp tessera::hal::resolve_work_area
 constant include/tessera/hal/display.hpp tessera::hal::kAssumedDisplayRefreshHz
@@ -2131,6 +2134,21 @@ constant include/tessera/ui/paint/vector_raster.hpp tessera::ui::paint::kMaxCont
 constant include/tessera/ui/paint/vector_raster.hpp tessera::ui::paint::kMaxContentScale
 constant include/tessera/ui/paint/vector_raster.hpp tessera::ui::paint::kMinContentScale
 
+header include/tessera/ui/scale/aa_policy.hpp
+struct include/tessera/ui/scale/aa_policy.hpp tessera::ui::scale::AaConfig
+struct include/tessera/ui/scale/aa_policy.hpp tessera::ui::scale::AaFacts
+struct include/tessera/ui/scale/aa_policy.hpp tessera::ui::scale::AaPolicy
+enum include/tessera/ui/scale/aa_policy.hpp tessera::ui::scale::EdgeMode
+enum include/tessera/ui/scale/aa_policy.hpp tessera::ui::scale::TextAaMode
+enum include/tessera/ui/scale/aa_policy.hpp tessera::ui::scale::TextAaSetting
+enum include/tessera/ui/scale/aa_policy.hpp tessera::ui::scale::TextHinting
+function include/tessera/ui/scale/aa_policy.hpp tessera::ui::scale::golden_aa_policy
+function include/tessera/ui/scale/aa_policy.hpp tessera::ui::scale::resolve_aa_policy
+constant include/tessera/ui/scale/aa_policy.hpp tessera::ui::scale::kAutoAllowsLcd
+constant include/tessera/ui/scale/aa_policy.hpp tessera::ui::scale::kMsaaMaxScale
+constant include/tessera/ui/scale/aa_policy.hpp tessera::ui::scale::kNoHintingMinScale
+constant include/tessera/ui/scale/aa_policy.hpp tessera::ui::scale::kSubpixelPositionMinScale
+
 header include/tessera/ui/scale/render_scale.hpp
 enum include/tessera/ui/scale/render_scale.hpp tessera::ui::scale::RenderScaleError
 function include/tessera/ui/scale/render_scale.hpp tessera::ui::scale::device_scale_for_dpi
@@ -2625,6 +2643,8 @@ struct include/tessera/ui/text/glyph_atlas.hpp tessera::ui::text::GlyphAtlasStat
 header include/tessera/ui/text/glyph_raster.hpp
 class include/tessera/ui/text/glyph_raster.hpp tessera::ui::text::GlyphRasterizer
 struct include/tessera/ui/text/glyph_raster.hpp tessera::ui::text::GlyphBitmap
+enum include/tessera/ui/text/glyph_raster.hpp tessera::ui::text::GlyphHinting
+constant include/tessera/ui/text/glyph_raster.hpp tessera::ui::text::kSubpixelSteps
 
 header include/tessera/ui/text/harfbuzz_shaper.hpp
 class include/tessera/ui/text/harfbuzz_shaper.hpp tessera::ui::text::HarfBuzzShaper
