@@ -131,6 +131,19 @@ Editing source applies automatically; the developer does not press Run.
 - This is the **browser** live edit. The native app's hot reload is a separate, blocked item
   ([devtools-protocol-v1.md](devtools-protocol-v1.md) section 8) and is not changed here.
 
+**Status: implemented in the browser studio (issue #444).** The browser half of this section is one source
+of edits driving all three panes ([designer-studio-v1.md](designer-studio-v1.md) section 1), not one pane at
+a time. How it is built, and the surfaces the acceptance is measured on, is
+[studio-page.md](../design/studio-page.md) section 1: one debounce timer in `designer/web/src/page-live.ts`,
+`apply()` (carrying) distinguished from `run()` (**Restart app**, cold), the canvas module's apply-then-draw
+pair rather than a stateless frame (which is what makes a failed parse cost a diagnostic and not the
+picture), and `tessera_canvas_apply`'s `changed`/`frames` fields -- the engine's own counters, so "one frame
+per burst, zero when static" is read rather than asserted. The two reset cases are detected exactly as this
+section states them: a removed node as the carry rule's `droppedComponent`, and a non-source project file
+from the edited file's `FILE_KIND`. `scripts/ci/preview_browser_live_edit.mjs` is the developer-run probe for
+the five bullets above. The native app's hot reload remains the blocked item named in the last bullet, and
+nothing in this slice changes it.
+
 ## 7. Not in scope
 
 Emulating the OS or running Android code; sensors (accelerometer, GPS), telephony, notifications and
@@ -147,7 +160,7 @@ the camera; vendor device art; user-provided profiles; a second window or pictur
 | E4 (#448) | Platform panel: control strip, event buttons, ordered log, export and replay | a recorded session replays to the same final state |
 | E5 (#444) | Live edit: debounce, Restart replaces Run, last good frame on error | an edit re-renders with state kept and no Run; a syntax error keeps the frame |
 
-E5 does not depend on E1 to E4 and can land first.
+E5 does not depend on E1 to E4 and can land first. It has: its browser half is implemented (section 6).
 
 ## 9. Working choices (revisable)
 

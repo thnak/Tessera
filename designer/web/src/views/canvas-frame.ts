@@ -18,6 +18,14 @@ export interface CanvasFrameReport {
   hasDevice?: boolean;
   width: number;
   height: number;
+  /**
+   * The session's lifetime frame count (`CanvasSceneSession::frames_painted()`).
+   *
+   * This is the number the live edit's contract is written in: "one frame per burst", "zero frames
+   * while static". The pane shows it so a browser probe (and a developer) can check the rule against
+   * the engine's own counter instead of inferring it from a repaint.
+   */
+  frames?: number;
   drawCalls: number;
   vertices: number;
   nodes: number;
@@ -30,6 +38,42 @@ export interface CanvasFrameReport {
   cssDiagnostics?: CssDiagnostic[];
   /** True when the module hit its cap and `cssDiagnostics` is not the whole list. */
   cssDiagnosticsTruncated?: boolean;
+}
+
+/** One state cell of the running evaluation, as `tessera_canvas_apply` reports it. */
+export interface CanvasStateCell {
+  name: string;
+  /** A scalar cell's value; absent for a list cell, which carries `items` instead. */
+  value?: boolean | number | string;
+  items?: Array<boolean | number | string>;
+}
+
+/**
+ * What one *apply* reports (issue #444), from `tessera_canvas_apply`.
+ *
+ * `changed` is the module's own answer to "is a frame owed", so an automatic apply of unchanged text
+ * costs zero frames while an edit costs exactly one. `error` non-empty means the source did not
+ * evaluate and the running evaluation was **kept**: the page shows the diagnostic and draws nothing,
+ * which is why the canvas cannot blank while a developer is typing. The carry counters are
+ * `StateCarryReport`'s split (`tools/codegen/scene_state.hpp`): `droppedComponent` non-zero is the
+ * spec's structural-change reset.
+ *
+ * `state` is the running evaluation's cells after the apply. The canvas pane prints them, because "a
+ * state cell survives a text edit" is something a developer must be able to *see* rather than
+ * believe: before #444 the canvas had no state display at all.
+ */
+export interface CanvasApplyReport {
+  changed: boolean;
+  reused: boolean;
+  carried: number;
+  droppedComponent: number;
+  droppedCell: number;
+  droppedType: number;
+  added: number;
+  /** The session's lifetime frame count, so the page can report the cost of an edit. */
+  frames?: number;
+  state?: CanvasStateCell[];
+  error: string;
 }
 
 /** The logical viewport the preview lays out at when the toolbar has not moved. */

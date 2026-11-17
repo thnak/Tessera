@@ -5,6 +5,7 @@
 
 #include <string>
 #include <string_view>
+#include <variant>
 
 namespace tessera::compiler::codegen::cli {
 namespace {
@@ -18,14 +19,22 @@ void append_number(std::string& out, std::string_view name, std::uint64_t value)
 }
 
 // A string field, escaped for JSON. One implementation, shared with the stylesheet diagnostics
-// report
-// (`css_diagnostics_report.hpp`): both write the project's own ASCII messages, so both need exactly
-// the quote/backslash/control-character rule and nothing more.
+// report (`css_diagnostics_report.hpp`): both write the project's own ASCII messages, so both need
+// exactly the quote/backslash/control-character rule and nothing more. #444's state cells use the
+// same encoder, so a quote in a cell value cannot break the document the page parses -- one rule,
+// one function, in the file that was already the owner of it.
 void append_text(std::string& out, std::string_view name, std::string_view text) {
     out += ",";
     out.push_back('"');
     out += name;
     out += "\":";
+    out += quoted(text);
+}
+
+// One escaped JSON string, with no field name. The state cells and the array elements need this and
+// `append_text` is the same encoder plus `"name":`, so they share `quoted()` rather than a second
+// copy of the escape table.
+void append_escaped(std::string& out, std::string_view text) {
     out += quoted(text);
 }
 
@@ -45,22 +54,79 @@ void append_bool(std::string& out, std::string_view name, bool value) {
     out += value ? "true" : "false";
 }
 
-} // namespace
-
-std::string canvas_report_json(const SceneFrameResult& result, std::uint32_t width,
-                               std::uint32_t height, bool has_device) {
-    return canvas_report_json(result, width, height, has_device, {});
+// One state scalar as JSON. `u8string` is the JSON spelling this serializer already uses for string
+// fields (a quote or a backslash in a cell value must not break the document the page parses).
+void append_scalar(std::string& out, const ui::StateScalar& value) {
+    if (const auto* flag = std::get_if<bool>(&value)) {
+        out += *flag ? "true" : "false";
+        return;
+    }
+    if (const auto* number = std::get_if<int>(&value)) {
+        out += std::to_string(*number);
+        return;
+    }
+    if (const auto* decimal = std::get_if<double>(&value)) {
+        // A whole-valued double prints without a decimal point, so `2` reads as `2` and not
+        // `2.000000`
+        // -- the same choice `snapshot_state()` makes when it prints a cell.
+        const bool whole = *decimal == static_cast<double>(static_cast<long long>(*decimal));
+        if (whole) {
+            out += std::to_string(static_cast<long long>(*decimal));
+        } else {
+            out += std::to_string(*decimal);
+        }
+        return;
+    }
+    append_escaped(out, std::get<std::string>(value));
 }
 
-std::string canvas_report_json(const SceneFrameResult& result, std::uint32_t width,
-                               std::uint32_t height, bool has_device,
-                               const std::vector<PreviewCssDiagnostic>& css_diagnostics) {
-    // The field names mirror the native CLI's printed counters, so a parity script can compare a
+// The state cells as one JSON array: `[{"name":"state::count","value":2}]`. A list cell is reported
+// with its items and no `value`, which is the shape `ui::StateCell` itself uses (a list leaves
+// `value` at its default).
+void append_state(std::string& out, const ui::StateSnapshot& state) {
+    out += ",\"state\":[";
+    for (std::size_t index = 0; index < state.size(); ++index) {
+        if (index != 0) {
+            out.push_back(',');
+        }
+        const ui::StateCell& cell = state[index];
+        out += "{\"name\":";
+        append_escaped(out, cell.name);
+        if (cell.is_list) {
+            out += ",\"items\":[";
+            for (std::size_t item = 0; item < cell.items.size(); ++item) {
+                if (item != 0) {
+                    out.push_back(',');
+                }
+                append_scalar(out, cell.items[item]);
+            }
+            out += "]";
+        } else {
+            out += ",\"value\":";
+            append_scalar(out, cell.value);
+        }
+        out += "}";
+    }
+    out += "]";
+}
+
+} // namespace
+
+std::string
+canvas_report_json(const SceneFrameResult& result, std::uint32_t width, std::uint32_t height,
+                   bool has_device, std::uint32_t frames,
+                   const std::vector<PreviewCssDiagnostic>&
+                       css_diagnostics) { // The field names mirror the native CLI's printed
+                                          // counters, so a parity script can compare a
     // browser report with a native dump without a second vocabulary.
     std::string out = "{\"canvasVersion\":1";
     append_bool(out, "hasDevice", has_device);
     append_number(out, "width", width);
     append_number(out, "height", height);
+    // The session's lifetime frame count, which the live edit's contract is written in (#444): the
+    // page surfaces it so a browser probe can check "one frame per burst, zero when static" against
+    // the engine's own number rather than inferring it from a repaint.
+    append_number(out, "frames", frames);
     append_number(out, "nodes", result.nodes);
     append_number(out, "drawCalls", result.draw_calls);
     append_number(out, "vertices", result.vertex_count);
@@ -141,6 +207,24 @@ std::string canvas_fold_report_json(const SceneFrameResult& result, bool changed
     std::string out = "{\"foldVersion\":1";
     append_bool(out, "changed", changed);
     append_text(out, "error", result.error);
+    out += "}\n";
+    return out;
+}
+
+std::string canvas_apply_report_json(bool changed, bool reused, const StateCarryReport& carry,
+                                     const ui::StateSnapshot& state, std::uint32_t frames,
+                                     std::string_view error) {
+    std::string out = "{\"applyVersion\":1";
+    append_bool(out, "changed", changed);
+    append_bool(out, "reused", reused);
+    append_number(out, "carried", carry.carried);
+    append_number(out, "droppedComponent", carry.dropped_component);
+    append_number(out, "droppedCell", carry.dropped_cell);
+    append_number(out, "droppedType", carry.dropped_type);
+    append_number(out, "added", carry.added);
+    append_number(out, "frames", frames);
+    append_state(out, state);
+    append_text(out, "error", error);
     out += "}\n";
     return out;
 }

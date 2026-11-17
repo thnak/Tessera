@@ -40,8 +40,21 @@ export interface EnvironmentReader {
 export interface ViewSession {
   /** Loads the view's Wasm module; the page calls this the first time the view is shown. */
   load(): Promise<void>;
-  /** The shared Run button's action on this view. */
+  /** The shared **Restart app** button's action on this view: an explicit cold start, state reset. */
   run(): Promise<void> | void;
+  /**
+   * Applies the current source *without* resetting anything (issue #444's live edit).
+   *
+   * This is the hot path: the page calls it ~150 ms after the last keystroke, and again immediately
+   * for `Ctrl+Enter`. It must carry state across the edit (the P4 rule: component id, cell id and IR
+   * type), and it must be safe to call with a source that does not compile -- a half-typed file
+   * leaves the last good frame and its diagnostics, never a blank pane.
+   *
+   * A view whose work is a pure function of the source (Diagnostics, Scene) implements this as its
+   * own re-evaluation; the Canvas view keeps one running session and only re-evaluates when the
+   * source actually changed.
+   */
+  apply?(): Promise<void> | void;
   /**
    * The view's own sample text, when it has one (issue #431).
    *
@@ -110,7 +123,7 @@ export interface ViewDefinition {
   label: string;
   /** The page subtitle's sentence for this view. */
   hint: string;
-  /** The hint under the shared editor: what Run will do to it on this view. */
+  /** The hint under the shared editor: what pressing Enter, or just typing, does on this view. */
   editorHint: string;
 }
 
@@ -121,8 +134,9 @@ export const VIEWS: readonly ViewDefinition[] = Object.freeze([
     label: "Diagnostics",
     hint: "Compiles your TSX with the same compiler the native build runs, in your browser.",
     editorHint:
-      "Ctrl+Enter (or Cmd+Enter) runs. A diagnostics run has no viewport: the toolbar is carried " +
-      "into the share link, not applied to the compiler.",
+      "Edits apply as you type; Ctrl+Enter (or Cmd+Enter) applies now, and Restart app starts over. " +
+      "A diagnostics run has no viewport: the toolbar is carried into the share link, not applied to " +
+      "the compiler.",
   },
   {
     id: "scene",
@@ -131,8 +145,8 @@ export const VIEWS: readonly ViewDefinition[] = Object.freeze([
       "Evaluates your TSX with the same evaluator, style and layout engine, then lists the scene " +
       "snapshot and the state cells a click script produces.",
     editorHint:
-      "Ctrl+Enter (or Cmd+Enter) runs. The viewport and DPR are layout inputs here: the toolbar " +
-      "re-runs the layout at the new size.",
+      "Edits apply as you type; Ctrl+Enter (or Cmd+Enter) applies now, and Restart app resets the " +
+      "state. The viewport and DPR are layout inputs here: the toolbar re-lays out at the new size.",
   },
   {
     id: "canvas",
@@ -141,8 +155,9 @@ export const VIEWS: readonly ViewDefinition[] = Object.freeze([
       "Paints the evaluated scene through WebGPU, on demand: the canvas redraws only when " +
       "something actually changed.",
     editorHint:
-      "Ctrl+Enter (or Cmd+Enter) runs. The canvas is sized from the toolbar and the device pixel " +
-      "ratio, and redraws only when something changed.",
+      "Edits apply as you type; Ctrl+Enter (or Cmd+Enter) applies now, and Restart app resets the " +
+      "state. The canvas is sized from the toolbar and the device pixel ratio, and redraws only when " +
+      "something changed.",
   },
 ]);
 

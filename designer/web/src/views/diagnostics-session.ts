@@ -163,6 +163,14 @@ export function createDiagnosticsSession(options: {
     load,
     run,
     /**
+     * An edit was applied (issue #444). On this view that is exactly a Run: compiling is a pure function
+     * of the source, there is no state to carry and nothing to reset, and a source that does not compile
+     * is already a *successful* answer here (the diagnostics list is the point). What the live edit
+     * changes for this pane is only *when* it happens -- the page's debounce, not a button -- so there is
+     * deliberately no second implementation.
+     */
+    apply: run,
+    /**
      * "Load sample" on this view, split across the page (issue #431): `sampleSource` is the text the page
      * writes into the entry file, and `loadSample` is what is left for the view to do afterwards -- nothing
      * here, because the compile happens when the visitor presses Run.

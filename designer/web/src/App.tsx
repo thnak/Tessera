@@ -55,6 +55,7 @@ import {
   type ViewDefinition,
 } from "./lib/views";
 import { PREVIEW_STYLESHEET_FILE, STARTUP_SAMPLE, STARTUP_STYLESHEET } from "./page-defaults";
+import { createLiveEdit, type LiveEdit } from "./page-live";
 import { setStatusText, usePageState, usePaneRefs } from "./page-state";
 import { useSessions } from "./page-sessions";
 import { useWorkspace } from "./page-workspace";
@@ -119,6 +120,9 @@ export function App() {
   targetRef.current = target;
   const shownRef = useRef(workspace.state.active);
   shownRef.current = workspace.state.active;
+  // The file the editor is showing, for the live edit's "did the keystroke land in a source file?" test.
+  const activeRef = useRef(workspace.state.active);
+  activeRef.current = workspace.state.active;
   const textOfRef = useRef(workspace.textOf);
   textOfRef.current = workspace.textOf;
   const stylesheetRef = refs.stylesheet;
@@ -231,6 +235,36 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ---- the live edit (issue #444) -------------------------------------------------------------------
+  //
+  // The developer does not press Run. One controller owns the 150 ms debounce, and every path that
+  // changes the source goes through it (`page-live.ts` explains why there is exactly one timer):
+  //
+  //   * a keystroke      -> `schedule()`, applied once 150 ms after the burst ends;
+  //   * `Ctrl+Enter`     -> `applyNow()`, immediately, cancelling the debounce;
+  //   * **Restart app**  -> `restart()`, a cold start of every mounted pane.
+  //
+  // The page hands it readers rather than values, for the same reason the sessions do: this object is
+  // created once and must never be recreated by a render (a second controller would be a second timer).
+  const live = useRef<LiveEdit | null>(null);
+  if (live.current === null) {
+    live.current = createLiveEdit({
+      sessions: () => sessions,
+      currentView: () => viewRef.current,
+      // The file the *keystroke* landed in, which is the file the spec's reset case is about: typing in
+      // `theme.css` edits a non-source project file, so it restarts rather than live-applying. Only the
+      // path is read, never the text.
+      editedFile: () => activeRef.current,
+      // `targetRef` holds the compile target, which is the project record with its `kind` on it, so this
+      // needs no second lookup and no second copy of `project-paths.js`'s classification.
+      kindOf: (path: string) => {
+        const file = workspace.state.files.find((candidate) => candidate.path === path);
+        return file?.kind ?? "other";
+      },
+      onStateChange: (next) => state_.setApplying(next.applying),
+    });
+  }
+
   // ---- show the view: mount its module on first open, and tell every session which one is visible ----
   //
   // The view no longer decides the page's shape -- it selects which preview pane the right column shows --
@@ -240,38 +274,47 @@ export function App() {
       candidate?.setVisible?.(id === view);
     }
     const session = sessions[view];
-    // A view that is already mounted can be run; one whose module is still loading cannot, and its own
-    // `onReady` enables the button when it is.
+    // A view that is already mounted can be restarted; one whose module is still loading cannot, and its
+    // own `onReady` enables the button when it is.
     state_.setRunEnabled(Boolean(session) && started.current[view] === true);
     if (!session || started.current[view]) {
       return;
     }
     started.current[view] = true;
-    void session.load().catch((error: unknown) => {
-      // A view module that fails to import is that view's problem: it is reported in that pane's own status
-      // line, and the other views keep working. The console carries the detail because a pane whose module
-      // never loaded may have no status node to write into.
-      setStatusText(
-        view === "diagnostics"
-          ? refs.diagStatus.current
-          : view === "scene"
-            ? refs.sceneStatus.current
-            : refs.canvasStatus.current,
-        "view unavailable",
-        "warning",
-      );
-      console.error(`the ${view} view failed to load:`, error);
-    });
+    void session
+      .load()
+      // **The first automatic apply (issue #444).** The page used to open on "not started; press Run",
+      // with an empty preview as its resting state; the spec says the first load starts the preview
+      // automatically once the module is ready. `applyNow()` is exactly the debounce's action with the
+      // wait removed, so the first paint is not a different code path from every later edit -- and it is
+      // what acquires the WebGPU device (lazily, here, never on page load). A source the compiler rejects
+      // leaves the panes' own named states alone, which is why this is not wrapped in a second handler.
+      .then(() => live.current?.applyNow())
+      .catch((error: unknown) => {
+        // A view module that fails to import is that view's problem: it is reported in that pane's own
+        // status line, and the other views keep working. The console carries the detail because a pane
+        // whose module never loaded may have no status node to write into.
+        setStatusText(
+          view === "diagnostics"
+            ? refs.diagStatus.current
+            : view === "scene"
+              ? refs.sceneStatus.current
+              : refs.canvasStatus.current,
+          "view unavailable",
+          "warning",
+        );
+        console.error(`the ${view} view failed to load:`, error);
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, toolbarSettled]);
 
   // ---- the shared buttons and the editor's keyboard shortcut ----------------------------------------
-  const runActiveView = useCallback(() => {
-    const session = sessions[viewRef.current];
-    if (session && typeof session.run === "function") {
-      void session.run();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  //
+  // **Restart app** is the cold start (spec section 3): it discards state and re-runs from a launch. It
+  // is deliberately *not* what an edit does -- `apply` is -- so a developer who wants the counter back
+  // at 0 has one button for it, and the button is named for what it does.
+  const restartActiveView = useCallback(() => {
+    void live.current?.restart();
   }, []);
 
   const loadSampleForActiveView = useCallback(() => {
@@ -293,10 +336,11 @@ export function App() {
     (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
         event.preventDefault();
-        runActiveView();
+        // "Apply now", not "run": `Ctrl+Enter` skips the debounce, it does not reset the app.
+        void live.current?.applyNow();
       }
     },
-    [runActiveView],
+    [],
   );
 
   const onSelectView = useCallback((id: ViewDefinition["id"]) => {
@@ -321,6 +365,10 @@ export function App() {
   const onEdit = useCallback(
     (text: string) => {
       workspace.writeBuffer(workspace.state.active, text);
+      // The live edit (issue #444): the trigger owns the debounce, so this is one call per keystroke and
+      // one apply per burst. It reads the file the workspace compiles through the refs above, so a
+      // keystroke in a stylesheet tab applies nothing until the spec's restart case fires.
+      live.current?.schedule();
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [workspace.state.active],
@@ -445,9 +493,10 @@ export function App() {
           onSelectTab={onSelectTab}
           onCloseTab={workspace.closeTab}
           onEdit={onEdit}
-          onRun={runActiveView}
+          onRestart={restartActiveView}
           onLoadSample={loadSampleForActiveView}
-          runDisabled={!state.runEnabled}
+          restartDisabled={!state.runEnabled}
+          applying={state.applying}
           onKeyDown={onEditorKeyDown}
         />
 
