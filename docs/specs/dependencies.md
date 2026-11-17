@@ -465,6 +465,8 @@ renderer -> [lavapipe | CPU rasterizer] -> RGBA buffer
 
 ### What is *not* a dependency
 
+**Developer-run, not a dependency:** Playwright with headless Chromium (`scripts/ci/preview_browser_verify.mjs`, Apache-2.0 / BSD-style) opens the assembled studio in a real browser. It is not in `designer/web/package.json` and no lane runs it, so nothing shipped pulls in a browser engine; see the script header.
+
 The scene graph, layout integration, CSS subset, renderer batching, game clock, dirty-flag
 invalidation, IR, codegen, golden runner, and the AI-agent feedback loop are our
 code. They are the differentiators and are not delegated.
