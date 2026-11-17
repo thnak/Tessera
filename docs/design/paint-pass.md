@@ -90,11 +90,9 @@ Parsing rules:
 
 ## 5. Paint order and edges
 
-Per node, in this order:
-
-1. background (rounded when the shared radius is > 0, clamped to half the shorter side);
-2. top edge, right edge, bottom edge, left edge;
-3. children, in `Node::children()` order (paint order, last child on top).
+Per node, in this order: the background (rounded when the shared radius is > 0, clamped to half the
+shorter side), the top, right, bottom and left edges, then the children in `Node::children()` order
+(last child on top).
 
 Edge rects are inside the node box, so borders paint over the background. Opposite widths are
 clamped (`top + bottom <= height`, `left + right <= width`) and the side strips exclude the corners
@@ -107,7 +105,11 @@ bottom { x, y + h - bottom,       w,              bottom }
 left   { x, y + top,              left,           h - top - bottom }
 ```
 
-A blurred `box-shadow` is one `fill_soft_shadow` quad on a sink that supports it (a Gaussian edge per pixel), else the stack of concentric fills. A uniform border on a uniformly rounded box is one ring, `PaintSink::fill_rounded_ring` (one quad, `mode = 3 + width`, shader subtracts the inner box); per-side widths or colours, or a sink without ring support, keep the square strips.
+A `box-shadow` is one `PaintSink::fill_box_shadow` shape on a sink that supports it, else the stack of
+concentric fills, and either way it is clipped to outside the node's rounded border box
+([box-shadow-clipping.md](gpu/box-shadow-clipping.md)). A uniform border on a uniformly rounded box is one
+ring, `PaintSink::fill_rounded_ring` (`mode = 3 + width`); per-side widths or colours, or a sink without
+ring support, keep the square strips.
 
 ## 6. Deliberate limits
 
@@ -139,11 +141,9 @@ submits; effective opacity is covered by `paint_opacity` (§14.1).
 Determinism: no clock, fonts, network, or GPU; colors and rects are compared exactly (alpha within a
 small epsilon), and the recorder captures emission order.
 
-Overflow clips (§9) are covered in `paint_pass`: push/pop order, per-corner radius clamping,
-rectangular clips, `overflow: visible`, nesting, and the bordered padding-box rect. Scroll containers
-are covered in [`tests/unit/scroll_tests.cpp`](../../tests/unit/scroll_tests.cpp) (`scroll_core`:
-child rects shifted by `-scroll`, padding-box clip, balanced pop, deterministic repeat) and
-`tests/unit/paint_clip_tests.cpp` (bordered padding-box clip, scrolled child position).
+Overflow clips (§9) and scroll containers are covered in `paint_pass`, `scroll_core` and
+`paint_clip_tests`: push/pop order, per-corner radius clamping, rectangular clips, `overflow:
+visible`, nesting, the bordered padding-box rect, `-scroll` child offsets and balanced pops.
 
 ## 8. Frame integration
 
@@ -191,7 +191,8 @@ Contract:
   provider; tests use a recording sink and a stub provider.
 - **Stats are pre-clip.** `FramePaint::stats` are the counters `paint_scene` produced while feeding
   the sink (nodes visited, background/border candidates). A command the clip decorator drops still
-  increments its counter; the sink is the source of truth for emitted geometry.
+  increments its counter; the sink is the source of truth for emitted geometry. The paint-pass cull
+  ([`dirty-rendering.md`](dirty-rendering.md) §6.8) runs upstream: a node it skips is not counted.
 - **Repeatable.** Painting twice in one due frame is allowed and deterministic: the same commands
   and the same `PaintStats` are produced by either overload.
 

@@ -49,10 +49,17 @@ namespace tessera::compiler::codegen::cli {
 // diagnostics. There is ONE report document, not two -- the merge appends both to the same
 // serializer rather than making a page pick a shape, which is what lets a session paint report its
 // frame count and its stylesheet diagnostics together.
+//
+// `cascade_generation` is `CanvasSceneSession::cascade_generation()` (issue #436): how many times
+// the running evaluation's cascade has been resolved. It is in the frame report because "a resize
+// that crosses no `@media` breakpoint does not rebuild the cascade" is otherwise invisible from the
+// page, and a developer watching the Canvas pane - or the browser probe - can read the counter move
+// by one per crossed breakpoint instead of inferring it from a picture.
 [[nodiscard]] std::string
 canvas_report_json(const SceneFrameResult& result, std::uint32_t width, std::uint32_t height,
                    bool has_device, std::uint32_t frames = 0,
-                   const std::vector<PreviewCssDiagnostic>& css_diagnostics = {});
+                   const std::vector<PreviewCssDiagnostic>& css_diagnostics = {},
+                   std::uint64_t cascade_generation = 0);
 
 // What one pointer event did, as one JSON object on one line:
 //
@@ -74,6 +81,22 @@ canvas_report_json(const SceneFrameResult& result, std::uint32_t width, std::uin
 // inside the call, so a page that draws once on `changed` paints the new posture on its first
 // frame, which is the "no frame of stale padding" rule this serializer exists to make observable.
 [[nodiscard]] std::string canvas_fold_report_json(const SceneFrameResult& result, bool changed);
+
+// What one viewport change did (issue #436), as one JSON object on one line:
+//
+//   {"viewportVersion":1,"changed":true,"width":390,"height":844,"dpr":1,"cascadeGeneration":2,
+//    "error":""}
+//
+// `changed` is `CanvasSceneSession::set_viewport()`'s answer: true when a layout pass ran, false
+// when the rectangle was already in force (so the page draws no extra frame). `cascadeGeneration`
+// is the session's own count of cascade resolutions, and it is the field that makes the breakpoint
+// rule observable from outside: a size that crosses no `@media` breakpoint lays out without moving
+// the counter, and one that crosses a breakpoint moves it by exactly one. `width`/`height`/`dpr`
+// are what the session was asked for, so a page can report the device it actually got rather than
+// the one it requested.
+[[nodiscard]] std::string canvas_viewport_report_json(bool changed, float width, float height,
+                                                      float dpi, std::uint64_t cascade_generation,
+                                                      std::string_view error);
 
 // What one *apply* did (issue #444: the editor's live edit), as one JSON object on one line:
 //

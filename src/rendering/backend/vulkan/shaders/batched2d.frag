@@ -6,6 +6,7 @@ layout(location = 2) in vec2 v_local;
 layout(location = 3) in vec2 v_half_size;
 layout(location = 4) in float v_radius;
 layout(location = 5) flat in float v_mode;
+layout(location = 6) in vec4 v_carve;
 
 // TESSERA_SHADER_PORTABLE selects the cross-compilation interface (ADR-049): the push-constant
 // block becomes a std140 uniform buffer at binding 0 and the combined image sampler splits into a
@@ -153,10 +154,33 @@ void main() {
         texel_color.a = min(texel_color.a * (1.0 + (v_mode - 2.0) * 4.0), 1.0);
         color *= texel_color;
     } else if (v_mode > 1000.0) {
-        // Soft shadow: mode is 1024 + sigma and the quad is the box grown by 2 sigma.
+        // Box shadow: mode is 1024 + sigma and the quad is the box grown by 2 sigma. sigma 0 is the
+        // hard-edged shadow (`box-shadow: 4px 4px 0`): the same shape with a coverage step, so the
+        // sharp and blurred cases share one quad and one carve test.
         float sigma = v_mode - 1024.0;
-        float d = sd_round_box(v_local, v_half_size - vec2(2.0 * sigma), v_radius);
-        color.a *= 0.5 * (1.0 - erf_approx(d / (sigma * 1.41421356)));
+        vec2 shadow_half = v_half_size - vec2(2.0 * sigma);
+        float d = sd_round_box(v_local, shadow_half, v_radius);
+        float cover;
+        if (sigma > 0.0) {
+            cover = 0.5 * (1.0 - erf_approx(d / (sigma * 1.41421356)));
+        } else if (pc.aa_radius <= 0.0) {
+            cover = d <= 0.0 ? 1.0 : 0.0;
+        } else {
+            cover = 1.0 - smoothstep(-pc.aa_radius, pc.aa_radius, d);
+        }
+        // CSS paints an outer shadow only outside the border box (CSS Backgrounds 3 section 7.1.1):
+        // `v_carve` is that box, so the coverage is 0 inside it. Its corner radius is the shadow's
+        // radius minus the uniform inset (an engine `border-radius` is one length), which also keeps
+        // the cut inside a clamped radius.
+        if (v_carve.z > 0.0 && v_carve.w > 0.0) {
+            float inset = v_half_size.x - 2.0 * sigma - v_carve.z;
+            vec2 hole_half = v_carve.zw;
+            float hole_radius = clamp(v_radius - inset, 0.0, min(hole_half.x, hole_half.y));
+            if (sd_round_box(v_local - v_carve.xy, hole_half, hole_radius) <= 0.0) {
+                cover = 0.0;
+            }
+        }
+        color.a *= cover;
     } else if (v_mode > 2.5) {
         // Rounded-rect outline: mode is 3 + the stroke width. The ring is the outer box minus the
         // same box inset by the width, so its distance is max(outer, -inner).

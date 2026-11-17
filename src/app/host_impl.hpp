@@ -24,11 +24,41 @@
 
 namespace tessera::app {
 
+namespace detail {
+
+// The physical extent of a logical size at a DPI scale: the damage target's rectangle. Shared by
+// the constructor and by a size change, so a target and a viewport cannot round differently.
+[[nodiscard]] rendering::rhi::Extent2D extent_for(float width, float height, float dpi_scale);
+
+// Marks every node of `node`'s subtree: what a new style generation or a viewport change implies.
+// One implementation, shared by the cascade rebuild (host.cpp) and the media half of a resize
+// (host_viewport.cpp, issue #436).
+void mark_subtree(ui::Node& node, ui::Dirty dirty);
+
+} // namespace detail
+
+// The media context of a window `width` x `height` at `dpi_scale` (issue #436): the logical client
+// area as the viewport, the DPI scale as CSS dpi (96 dpi at scale 1), and `appearance` folded in by
+// the one HAL-to-CSS mapping. Both constructors and every size change go through it, so the
+// derivation exists once (`host_viewport.cpp`).
+[[nodiscard]] ui::style::MediaContext
+window_media_context(float width, float height, float dpi_scale,
+                     const hal::AppearancePreference& appearance) noexcept;
+
 struct AppHost::Impl {
     Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet, runtime::RuntimeLoop& loop,
          HostConfig config);
 
     void apply_root_size();
+    // One window-rectangle change, whoever reported it: the driver's `resize()` and a
+    // `set_window_metrics()` that names a different extent both land here (issue #436).
+    void apply_size(float width, float height, float dpi_scale);
+    // The media half of `apply_size()`: moves `media_context` and re-resolves the cascade only when
+    // a `@media` answer can actually change. A resize that crosses no breakpoint marks `dirty_mask`
+    // and stops there.
+    void apply_viewport(ui::Dirty dirty_mask);
+    [[nodiscard]] bool media_answer_can_change(const ui::style::MediaContext& before,
+                                               const ui::style::MediaContext& after) const;
     void rebuild_style_tree();
     void rebuild_cascade();
     // Rebuilds the cascade and style tree, drops the paint cache and marks `dirty` on the subtree.
@@ -95,6 +125,10 @@ struct AppHost::Impl {
     // theme switch takes, so the stylesheet never grows a second "theme changed" mechanism.
     hal::AppearancePreference appearance{};
     ui::style::MediaContext media_context;
+    // Cascade generations: 1 after construction, +1 for every rebuild of the resolved cascade
+    // (`rebuild_cascade`). It is how "a resize that crosses no breakpoint does not rebuild the
+    // cascade" is asserted in a test instead of inferred from a picture (issue #436).
+    std::uint64_t cascade_generation = 0;
     std::size_t rejected_stylesheet_count = 0;
     std::size_t rejected_theme_count = 0;
 

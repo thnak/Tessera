@@ -1,11 +1,13 @@
 // The browser entry point of the WebGPU canvas preview (issues #167, #388, #387, #408, #444).
 //
 // Every export is specified in `docs/design/compiler-wasm.md` section 10, which is the normative
-// source for the module ABI: `tessera_webgpu_set_device`, `tessera_canvas_frame`,
-// `tessera_canvas_run`, `tessera_canvas_apply`, `tessera_canvas_pointer`,
-// `tessera_canvas_set_fold`, `tessera_canvas_draw`, `tessera_canvas_reset`,
-// `tessera_canvas_set_font` and `tessera_canvas_font_status`. Read that before changing a
-// signature; it also carries the "why Emscripten only" rationale and the verified-status record.
+// source for the module ABI, with the canvas session's own table in
+// `docs/design/canvas-input-session.md` section 5: `tessera_webgpu_set_device`,
+// `tessera_canvas_frame`, `tessera_canvas_run`, `tessera_canvas_apply`, `tessera_canvas_pointer`,
+// `tessera_canvas_set_fold`, `tessera_canvas_set_viewport`, `tessera_canvas_draw`,
+// `tessera_canvas_reset`, `tessera_canvas_set_font` and `tessera_canvas_font_status`. Read that
+// before changing a signature; it also carries the "why Emscripten only" rationale and the
+// verified-status record.
 //
 // The one rule that lives here rather than in the doc, because it is a property of this file: the
 // exports below share one anonymous-namespace device and session, so they are not splittable into
@@ -75,11 +77,12 @@ std::string frame_report(const cli::SceneFrameResult& result,
 }
 
 // The same report with a session's already-collected diagnostics (a Run, an Apply or a Draw does
-// not re-prepare the sheet, so it reports what `start()` found) and the session's own frame count.
+// not re-prepare the sheet, so it reports what `start()` found), the session's own frame count, and
+// its cascade generation (#436: the counter that says whether a resize re-resolved `@media`).
 std::string report_with_css(const cli::SceneFrameResult& result, rhi::Extent2D extent,
                             const std::vector<cli::PreviewCssDiagnostic>& css,
-                            std::uint32_t frames = 0) {
-    return cli::canvas_report_json(result, extent.width, extent.height, true, frames, css);
+                            std::uint32_t frames = 0, std::uint64_t cascade = 0) {
+    return cli::canvas_report_json(result, extent.width, extent.height, true, frames, css, cascade);
 }
 
 // The persistent session (#388): one evaluation the pointer events feed and every later frame
@@ -300,17 +303,12 @@ EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_apply(const char* source, const 
         return duplicate_out(cli::canvas_report_json(none, extent.width, extent.height, true));
     }
 
-    // The posture is not part of the tuple `start()` compares to decide reuse (it is a layout
-    // input, not a source), so a reused apply must still hand the new one to `set_posture()`. That
-    // is the #408 path: the running tree is re-laid out in place, keeping hover, focus and the
-    // state cells, and reporting whether a layout pass ran - which is what makes this frame the
-    // first to show the new posture. On a fresh evaluation `start()` already laid the tree out at
-    // this posture, and `set_posture()` answers false, so this is one call in both cases and never
-    // a second pass.
+    // The posture and the viewport are not part of the tuple `start()` compares to decide reuse
+    // (they are layout inputs, not source), so a reused apply re-lays the running tree out at the
+    // new ones - in ONE pass, inside that call (issues #408 and #436). `start()` does it itself,
+    // which is why there is no second call here: a posture or size change keeps hover, focus and
+    // the state cells, and the answer this report needs is the session's own `needs_frame()`.
     const std::string error = g_session->start(options);
-    if (error.empty() && g_session->reused()) {
-        (void)g_session->set_posture(options.posture);
-    }
     return duplicate_out(cli::canvas_apply_report_json(
         g_session->needs_frame(), g_session->reused(), g_session->carry_report(),
         g_session->state(), g_session->frames_painted(), error));
@@ -398,6 +396,32 @@ EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_set_fold(const char* posture) {
     return duplicate_out(cli::canvas_fold_report_json(report, changed));
 }
 
+// Changes the simulated viewport of the RUNNING session (issue #436) and re-lays the tree out in
+// place: `width`/`height` are the **logical** layout viewport (the space `tessera_canvas_pointer`
+// takes its coordinates in) and `dpi` is the device pixel ratio, which reaches `@media
+// (resolution)` as 96 dpi times it. No re-evaluation: the state cells, the hover and the focus
+// belong to the running evaluation, and re-running would lose them - which is exactly what a
+// device-preset switch used to do. It is the size equivalent of `tessera_canvas_set_fold`, and an
+// orientation swap is this same call with the two sizes exchanged. The report's `cascadeGeneration`
+// moves by one only when the size crosses an `@media` breakpoint (a resize is a layout pass
+// otherwise), and `changed` says whether a frame is owed.
+EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_set_viewport(int width, int height, float dpi) {
+    const cli::CanvasViewportRequest request = cli::canvas_viewport_request(width, height, dpi);
+    if (g_session == nullptr || !g_session->started() || !request.error.empty()) {
+        const std::string error =
+            request.error.empty() ? std::string("no canvas session: call tessera_canvas_run first")
+                                  : request.error;
+        return duplicate_out(cli::canvas_viewport_report_json(false, request.width, request.height,
+                                                              request.dpi, 0, error));
+    }
+    // The layout pass (and, when the size crosses a breakpoint, the cascade re-resolve) completes
+    // INSIDE this call, so the page's next `tessera_canvas_draw` paints the new device on its first
+    // frame - no pending state a later frame applies, and no frame of stale padding.
+    const bool changed = g_session->set_viewport(request.width, request.height, request.dpi);
+    return duplicate_out(cli::canvas_viewport_report_json(
+        changed, request.width, request.height, request.dpi, g_session->cascade_generation(), {}));
+}
+
 // Draws the running session's current tree into the canvas texture view the page hands over, and
 // returns the frame report. Called after `tessera_canvas_run` and after any
 // `tessera_canvas_pointer` that answered `changed: true`. Nothing here re-evaluates the source, so
@@ -423,7 +447,8 @@ EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_draw(int width, int height, void
     }
     return duplicate_out(
         report_with_css(cli::paint_session(*g_session, extent, canvas_view, *g_device), extent,
-                        g_session->css_diagnostics(), g_session->frames_painted()));
+                        g_session->css_diagnostics(), g_session->frames_painted(),
+                        g_session->cascade_generation()));
 }
 
 // Releases the session (and with it the tree, its handlers and its carried state). The page calls

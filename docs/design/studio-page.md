@@ -98,6 +98,15 @@ all three panes from one edit). `scripts/ci/preview_browser_css_live_edit.mjs` a
 neither feature alone: with the author sheet applied (section 3.4), a source edit keeps the author's
 styling, because the sheet travels on `tessera_canvas_apply` rather than on `tessera_canvas_draw`.
 
+**Device and orientation changes are layout inputs, not re-evaluations (issue #436).** The Viewport and
+DPR selects do not make the Canvas view re-run the source: the session calls
+`tessera_canvas_set_viewport`, which re-lays the running evaluation out in place -- one pass, no
+evaluation -- and re-resolves `@media` only when the size crosses a breakpoint. So `#stat-state` keeps
+its cells and hover/focus survive a preset switch, and the frame counter moves by exactly one. The Scene
+view is a document per call, so its own re-run already answered for the new rectangle; what it could not
+do before #436 was resolve `@media` for it at all (the sheet kept `MediaContext`'s default 1280x720).
+`scripts/ci/preview_browser_viewport.mjs` is the developer-run probe for colour, state and frames.
+
 ## 2. The stack, and the React/engine boundary
 
 `designer/web` is a **Vite + React 19 + TypeScript** project (ADR-054 decisions 1-4):

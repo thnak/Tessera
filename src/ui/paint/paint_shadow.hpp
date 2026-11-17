@@ -48,12 +48,17 @@ struct ShadowOutsets {
 };
 ShadowOutsets shadow_outsets(const style::ComputedStyle& style);
 
-// Paints the outer shadows of `rect` beneath the node's own background: one rounded fill for a
-// sharp shadow, and a deterministic stack of concentric fills whose cumulative alpha follows the
-// Gaussian edge profile for a blurred one. `radius` is the node's uniform corner radius.
+// Paints the outer shadows of `rect` beneath the node's own background, and never inside `rect`'s
+// rounded border box: CSS clips an outer shadow inside the border box (CSS Backgrounds 3 section
+// 7.1.1), so a transparent node shows nothing where its own box covers the shadow (issue #461). A
+// sink that supports the one-shape box shadow gets one `fill_box_shadow` call per shadow, sharp or
+// blurred (the batched 2D shader subtracts the rounded border box per pixel and evaluates the
+// Gaussian edge); the others get the layer's area minus `rect` as four strips, a deterministic
+// stack of concentric fills whose cumulative alpha follows the Gaussian edge profile for a blurred
+// shadow. `radius` is the node's uniform corner radius.
 //
 // `reduce_effects` caps a blurred shadow at kReducedBlurLayers layers: same box, reach and colour,
-// a coarser edge, fewer fills. Sharp shadows are a single fill already and do not change.
+// a coarser edge, fewer fills. Sharp shadows are a single layer already and do not change.
 void paint_box_shadows(const style::ComputedStyle& style, const rhi::Rect& rect, float radius,
                        float opacity, const rhi::Color& current_color, PaintSink& sink,
                        PaintStats& stats, bool reduce_effects = false);

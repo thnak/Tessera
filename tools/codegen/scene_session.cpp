@@ -3,6 +3,7 @@
 #include "scene_build.hpp"
 #include "scene_layout.hpp"
 #include "scene_session.hpp"
+#include "scene_stylesheet.hpp"
 
 #include <algorithm>
 #include <cstdint>
@@ -87,11 +88,18 @@ struct PreviewSession::HandlerSlot {
 };
 
 PreviewSession::PreviewSession(const ir::IrModule& module, const ir::Component& component,
-                               const ui::style::CompiledStyleSheet& sheet, const Options& options)
+                               const ui::style::CompiledStyleSheet& sheet, Options options)
     : module_(module),
       component_(component),
-      sheet_(sheet),
-      options_(options) {
+      // A session given the media-independent form resolves it itself against the viewport it was
+      // asked for (issue #436), so a caller cannot hand it a sheet compiled for a different
+      // rectangle. A caller that passes a compiled sheet keeps it, which is every pre-#436 caller.
+      sheet_(options.prepared.has_value()
+                 ? ui::style::CompiledStyleSheet(*options.prepared, ui::style::Origin::Author, {},
+                                                 options.media)
+                 : sheet),
+      options_(std::move(options)),
+      media_(options_.media) {
     layout_metrics_.width = options_.width;
     layout_metrics_.height = options_.height;
     layout_metrics_.dpi_scale = options_.dpi_scale;
@@ -133,21 +141,73 @@ void PreviewSession::rebuild() {
     metrics_ = laid_out.metrics;
 }
 
-bool PreviewSession::set_posture(hal::FoldPosture posture) {
-    if (!built_ || layout_metrics_.posture == posture) {
-        return false;
-    }
-    layout_metrics_.posture = posture;
+bool PreviewSession::relayout() {
     ui::layout::LayoutEngine engine(options_.measurer);
     const SceneLayoutResult laid_out =
         layout_scene(*root_, sheet_, engine, layout_metrics_, options_.measurer);
     if (!laid_out.error.empty()) {
-        // The tree stays at the previous posture rather than half-applied: the error is a layout
-        // failure, not a posture the caller asked for, and the metrics are left describing what
-        // the boxes actually are.
         return false;
     }
     metrics_ = laid_out.metrics;
+    // A frame is owed even in the case where every box happens to land where it already was: the
+    // viewport the picture is painted into changed, and `needs_frame()` is the caller's only
+    // signal.
+    root_->mark_dirty(ui::Dirty::Layout | ui::Dirty::Paint | ui::Dirty::Render);
+    return true;
+}
+
+bool PreviewSession::set_posture(hal::FoldPosture posture) {
+    return relayout_at(layout_metrics_.width, layout_metrics_.height, layout_metrics_.dpi_scale,
+                       posture);
+}
+
+bool PreviewSession::set_viewport(float width, float height, float dpi_scale) {
+    return relayout_at(width, height, dpi_scale, layout_metrics_.posture);
+}
+
+bool PreviewSession::relayout_at(float width, float height, float dpi_scale,
+                                 hal::FoldPosture posture) {
+    if (!built_) {
+        return false;
+    }
+    SceneMetrics next = layout_metrics_;
+    next.width = width;
+    next.height = height;
+    next.dpi_scale = dpi_scale > 0.0f ? dpi_scale : 1.0f;
+    next.posture = posture;
+    if (next == layout_metrics_) {
+        return false; // both layout inputs are already in force: no pass, and no frame owed
+    }
+
+    // The media context is the viewport, so the move can change what `@media` answers (issue #436).
+    // It is re-resolved only when it actually can: the boolean comparison below is the same
+    // `evaluate(list, context)` the cascade's resolve step makes, so a size that crosses no
+    // breakpoint leaves `sheet_` - and the whole paint cache behind it - untouched.
+    const ui::style::MediaContext media =
+        preview_media_context(next.width, next.height, next.dpi_scale);
+    const bool restyle =
+        options_.prepared.has_value() && options_.prepared->media_answer_can_change(media_, media);
+    const SceneMetrics previous = layout_metrics_;
+    const ui::style::MediaContext previous_media = media_;
+
+    layout_metrics_ = next;
+    if (restyle) {
+        sheet_ = resolve_preview_stylesheet(*options_.prepared, media);
+    }
+    media_ = media;
+    if (!relayout()) {
+        // The tree is left describing the boxes it actually has, so a caller cannot report a
+        // viewport that was never applied. The re-resolve is undone with it.
+        layout_metrics_ = previous;
+        media_ = previous_media;
+        if (restyle) {
+            sheet_ = resolve_preview_stylesheet(*options_.prepared, previous_media);
+        }
+        return false;
+    }
+    if (restyle) {
+        ++cascade_generation_;
+    }
     return true;
 }
 

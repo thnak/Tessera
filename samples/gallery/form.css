@@ -182,7 +182,9 @@
   justify-content: center;
   height: 30px;
   border-radius: 6px;
-  background-color: var(--surface-sunken);
+  /* Transparent, so the selected segment fades in from nothing as a browser does. This was an
+     opaque `var(--surface-sunken)` while an outer shadow was painted inside its own box (#461). */
+  background-color: transparent;
   transition: background-color 200ms ease;
 }
 

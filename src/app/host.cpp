@@ -20,8 +20,6 @@
 namespace tessera::app {
 namespace {
 
-namespace rhi = tessera::rendering::rhi;
-
 constexpr float kMinExtent = 1.0f;
 constexpr float kMaxExtent = 65535.0f;
 
@@ -59,12 +57,8 @@ void mark_safe_area_nodes(ui::Node& node) {
     }
 }
 
-void mark_subtree(ui::Node& node, ui::Dirty dirty) {
-    node.mark_dirty(dirty);
-    for (const auto& child : node.children()) {
-        mark_subtree(*child, dirty);
-    }
-}
+// `mark_subtree()` lives in host_viewport.cpp beside `extent_for()`: both are shared with the
+// viewport half of a resize, and this file is over its size budget.
 
 // One layout tree of computed styles (the paint pass resolves the same provider, so both agree).
 ui::layout::LayoutInput build_layout_input(const ui::Node& node, ui::paint::StyleProvider& styles,
@@ -99,14 +93,6 @@ bool has_inline_style(const ui::Node& node, std::string_view name) {
         }
     }
     return false;
-}
-
-rhi::Extent2D extent_for(float width, float height, float dpi_scale) {
-    const auto physical = [](float logical, float scale) {
-        const float scaled = std::ceil(logical * scale);
-        return static_cast<std::uint32_t>(std::clamp(scaled, 1.0f, kMaxExtent));
-    };
-    return rhi::Extent2D{physical(width, dpi_scale), physical(height, dpi_scale)};
 }
 
 const char* blob_error_name(ui::style::BlobErrorCode code) {
@@ -159,8 +145,9 @@ AppHost::Impl::Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet, runtime
       loop(loop),
       config(config),
       engine(config.text_measurer),
-      damage(std::make_unique<rendering::DamageAccumulator>(rendering::DamageConfig{
-          extent_for(config.width, config.height, config.dpi_scale), config.damage_max_rects})),
+      damage(std::make_unique<rendering::DamageAccumulator>(
+          rendering::DamageConfig{detail::extent_for(config.width, config.height, config.dpi_scale),
+                                  config.damage_max_rects})),
       // A decision either changes pixels (reduced effects, so a full repaint covers it) or stops
       // animations (so resuming has to wake an idle loop). Both rules live in the stage.
       quality(detail::QualityStageContext{&scene_has_blurred_shadow_callback,
@@ -169,11 +156,14 @@ AppHost::Impl::Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet, runtime
                                           &set_animations_paused_callback, &frame_diagnostics,
                                           this},
               quality_controller_config(config.adaptive_quality)) {
-    // The OS appearance the window reported at creation (issue #187). It must be in place BEFORE
-    // the first cascade: `@media (prefers-color-scheme)` / `(prefers-reduced-motion)` are resolved
-    // there, so a host built with the appearance applied already matches the desktop.
+    // The OS appearance the window reported at creation (issue #187), and the media context the
+    // very first cascade resolves against. The context is the WINDOW, not a default rectangle
+    // (issue #436): `@media (max-width: 600px)` and the viewport units must see the size the app
+    // starts at, so `viewport_width/height` are the logical client area and `resolution_dpi` the
+    // DPI scale. Both must be in place BEFORE the first cascade: they are resolved there, once per
+    // generation.
     appearance = config.appearance;
-    media_context = ui::style::with_appearance(media_context, appearance);
+    media_context = window_media_context(config.width, config.height, config.dpi_scale, appearance);
     // A caller that set `reduced_motion` explicitly keeps it; otherwise the OS flag is the answer.
     // Keeping one source of truth avoids a host whose animations and media queries disagree.
     if (config.reduced_motion) {
@@ -234,10 +224,14 @@ void AppHost::Impl::rebuild_style_tree() {
 // section 9.1). The theme rule cannot win an author declaration of the same token because the
 // theme origin ranks below author, and only the active theme is present.
 //
-// Every sheet is resolved against `media_context` (issue #187): `@media (prefers-color-scheme)` and
-// `(prefers-reduced-motion)` are evaluated here, once per cascade generation, not per frame. A
-// color-scheme change therefore goes through the same rebuild a theme switch does.
+// Every sheet is resolved against `media_context` (issue #187): `@media (prefers-color-scheme)`,
+// `(prefers-reduced-motion)` and - since issue #436 - the viewport itself are evaluated here, once
+// per cascade generation, not per frame. So an appearance change, a theme switch and a resize that
+// crosses a breakpoint all go through this one rebuild.
 void AppHost::Impl::rebuild_cascade() {
+    // One generation per resolved cascade; `AppHost::cascade_generation()` is how a test tells a
+    // re-resolve from a layout pass (issue #436).
+    ++cascade_generation;
     // The re-resolvable form (issue #187, ADR-048 decision 2): the prepared sheet is media
     // independent, so re-resolving the SAME data against a new `MediaContext` is how a color-scheme
     // change is applied. `base_sheet` is the compiled copy that this then replaces.
@@ -270,7 +264,7 @@ void AppHost::Impl::apply_style_generation(ui::Dirty dirty_mask) {
     pipeline->set_style_keyframes(&this->sheet.keyframes());
     rebuild_style_tree();
     pipeline->invalidate_paint_cache();
-    mark_subtree(root, dirty_mask);
+    detail::mark_subtree(root, dirty_mask);
     loop.mark_render_dirty();
 }
 
@@ -388,10 +382,12 @@ AppHost::AppHost(ui::Node& root, const ui::style::PreparedStyleSheet& laid_out_s
     config.width = checked_extent(config.width, "width");
     config.height = checked_extent(config.height, "height");
     config.dpi_scale = checked_scale(config.dpi_scale);
-    // Resolve the prepared data once with the startup appearance, then keep it for every rebuild.
-    ui::style::MediaContext media;
-    media = ui::style::with_appearance(media, config.appearance);
-    ui::style::CompiledStyleSheet resolved(laid_out_sheet, origin, {}, media);
+    // Resolve the prepared data once with the startup appearance AND the startup window (issue
+    // #436: a host that starts at 390x844 must resolve `@media (max-width: 600px)` on its first
+    // cascade, not when it is first resized), then keep the prepared data for every rebuild.
+    ui::style::CompiledStyleSheet resolved(
+        laid_out_sheet, origin, {},
+        window_media_context(config.width, config.height, config.dpi_scale, config.appearance));
     impl_ = std::make_unique<Impl>(root, std::move(resolved), loop, config);
     impl_->base_prepared = laid_out_sheet;
     impl_->base_origin = origin;
@@ -511,37 +507,27 @@ const ui::paint::PaintCacheStats& AppHost::paint_cache_stats() const {
     return impl_->pipeline->paint_cache_stats();
 }
 
+// The whole size change lives in host_viewport.cpp: the media context is part of it now (issue
+// #436), and the rule that separates "re-resolve the cascade" from "re-lay out" is worth reading in
+// one place rather than at the bottom of this file.
 void AppHost::resize(float width, float height, float dpi_scale) {
-    Impl& state = *impl_;
     checked_extent(width, "width");
     checked_extent(height, "height");
     checked_scale(dpi_scale);
-    if (width == state.config.width && height == state.config.height &&
-        dpi_scale == state.config.dpi_scale) {
-        return;
-    }
-    state.config.width = width;
-    state.config.height = height;
-    state.config.dpi_scale = dpi_scale;
-    state.apply_root_size();
-
-    // The damage target and the pipeline borrow the accumulator, so both are recreated. Old damage
-    // rectangles belong to the previous size; a full redraw is the only safe plan.
-    state.tracker.clear();
-    state.damage = std::make_unique<rendering::DamageAccumulator>(rendering::DamageConfig{
-        extent_for(width, height, dpi_scale), state.config.damage_max_rects});
-    state.damage->force_full_redraw();
-    state.pipeline = std::make_unique<ui::frame::FramePipeline>(state.animations, state.loop,
-                                                                state.tracker, *state.damage,
-                                                                state.dirty, state.config.pipeline);
-    state.pipeline->set_update_scheduler(state.scheduler);
-    // The new pipeline starts at full quality; carry the controller's decision over.
-    state.pipeline->set_reduce_effects(state.quality.decision().effects_reduced);
-    mark_subtree(state.root, ui::Dirty::Layout | ui::Dirty::Paint | ui::Dirty::Render);
+    impl_->apply_size(width, height, dpi_scale);
 }
 
 void AppHost::set_window_metrics(const hal::WindowMetrics& metrics) {
     Impl& state = *impl_;
+    // A snapshot that names a usable extent is a size change too (issue #436), and it goes through
+    // the same path `resize()` does: the media context is the window, so a driver that only feeds
+    // metrics must not leave `@media` resolved against the previous rectangle. A snapshot without
+    // one (a synthetic event that carries insets only) is not a zero-sized window, so it only moves
+    // the safe-area snapshot.
+    if (metrics.logical_width >= 1 && metrics.logical_height >= 1 && metrics.dpi_scale > 0.0f) {
+        state.apply_size(static_cast<float>(metrics.logical_width),
+                         static_cast<float>(metrics.logical_height), metrics.dpi_scale);
+    }
     if (!state.safe_area.set_metrics(metrics, state.reduced_motion)) {
         return;
     }
@@ -611,6 +597,10 @@ bool AppHost::reduced_motion() const {
 
 const ui::style::MediaContext& AppHost::media_context() const {
     return impl_->media_context;
+}
+
+std::uint64_t AppHost::cascade_generation() const {
+    return impl_->cascade_generation;
 }
 
 bool AppHost::frame_due() const {

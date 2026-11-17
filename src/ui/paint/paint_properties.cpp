@@ -223,6 +223,20 @@ std::optional<rhi::Rect> padding_box(const style::ComputedStyle& style, const rh
     return rhi::Rect{rect.x + widths.left, rect.y + widths.top, width, height};
 }
 
+std::optional<rhi::Rect> scrollport_clip(const Node& node, const style::ComputedStyle& style,
+                                         const rhi::Rect& rect) {
+    if (!node.has_scrollport_insets()) {
+        return padding_box(style, rect);
+    }
+    const float width = rect.width - node.scrollport_left() - node.scrollport_right();
+    const float height = rect.height - node.scrollport_top() - node.scrollport_bottom();
+    if (width <= 0.0f || height <= 0.0f) {
+        return std::nullopt;
+    }
+    return rhi::Rect{rect.x + node.scrollport_left(), rect.y + node.scrollport_top(), width,
+                     height};
+}
+
 std::optional<float> uniform_radius(const style::ComputedStyle& style) {
     static constexpr const char* kRadiusProperties[4] = {
         "border-top-left-radius", "border-top-right-radius", "border-bottom-right-radius",

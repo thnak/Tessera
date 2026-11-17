@@ -34,6 +34,8 @@ struct PassState {
     bool high_contrast = false;
     float glass_max_blur_radius = 0.0f;
     std::uint64_t glass_max_backdrop_area = 0;
+    // PaintContext::cull, world space; null paints everything (paint-pass culling, issue #487).
+    const rhi::Rect* cull = nullptr;
 };
 
 inline std::uint32_t float_bits(float value) {

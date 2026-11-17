@@ -7,6 +7,7 @@ layout(location = 3) in vec2 in_local;
 layout(location = 4) in vec2 in_half_size;
 layout(location = 5) in float in_radius;
 layout(location = 6) in float in_mode;
+layout(location = 7) in vec4 in_carve;
 
 struct ClipUniform {
     vec4 rect;  // xy = origin, zw = size in target pixels
@@ -34,6 +35,7 @@ layout(location = 2) out vec2 v_local;
 layout(location = 3) out vec2 v_half_size;
 layout(location = 4) out float v_radius;
 layout(location = 5) flat out float v_mode;
+layout(location = 6) out vec4 v_carve;
 
 void main() {
     vec2 ndc = vec2(in_position.x / pc.viewport.x * 2.0 - 1.0,
@@ -46,4 +48,5 @@ void main() {
     v_half_size = in_half_size;
     v_radius = in_radius;
     v_mode = in_mode;
+    v_carve = in_carve;
 }

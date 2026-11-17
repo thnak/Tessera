@@ -27,6 +27,7 @@ struct VertexInput {
     @location(4) half_size: vec2<f32>,
     @location(5) radius: f32,
     @location(6) mode: f32,
+    @location(7) carve: vec4<f32>,
 };
 
 struct VertexOutput {
@@ -37,6 +38,7 @@ struct VertexOutput {
     @location(3) half_size: vec2<f32>,
     @location(4) radius: f32,
     @location(5) @interpolate(flat) mode: f32,
+    @location(6) carve: vec4<f32>,
 };
 
 @vertex
@@ -52,6 +54,7 @@ fn vs_main(in: VertexInput) -> VertexOutput {
     out.half_size = in.half_size;
     out.radius = in.radius;
     out.mode = in.mode;
+    out.carve = in.carve;
     return out;
 }
 
@@ -146,10 +149,29 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         texel.a = min(texel.a * (1.0 + (in.mode - 2.0) * 4.0), 1.0);
         color = color * texel;
     } else if (in.mode > 1000.0) {
-        // Soft shadow: mode is 1024 + sigma (see batched2d.frag).
+        // Box shadow: mode is 1024 + sigma (see batched2d.frag); sigma 0 is the hard-edged shadow.
         let sigma = in.mode - 1024.0;
-        let d = sd_round_box(in.local, in.half_size - vec2<f32>(2.0 * sigma, 2.0 * sigma), in.radius);
-        color.a = color.a * 0.5 * (1.0 - erf_approx(d / (sigma * 1.41421356)));
+        let shadow_half = in.half_size - vec2<f32>(2.0 * sigma, 2.0 * sigma);
+        let d = sd_round_box(in.local, shadow_half, in.radius);
+        var cover = 0.0;
+        if (sigma > 0.0) {
+            cover = 0.5 * (1.0 - erf_approx(d / (sigma * 1.41421356)));
+        } else if (pc.aa_radius <= 0.0) {
+            cover = select(0.0, 1.0, d <= 0.0);
+        } else {
+            cover = 1.0 - smoothstep(-pc.aa_radius, pc.aa_radius, d);
+        }
+        // CSS clips an outer shadow inside the border box (CSS Backgrounds 3 section 7.1.1); the
+        // carved box arrives in the vertex stream and its radius is the shadow's minus the inset.
+        if (in.carve.z > 0.0 && in.carve.w > 0.0) {
+            let inset = in.half_size.x - 2.0 * sigma - in.carve.z;
+            let hole_half = in.carve.zw;
+            let hole_radius = clamp(in.radius - inset, 0.0, min(hole_half.x, hole_half.y));
+            if (sd_round_box(in.local - in.carve.xy, hole_half, hole_radius) <= 0.0) {
+                cover = 0.0;
+            }
+        }
+        color.a = color.a * cover;
     } else if (in.mode > 2.5) {
         // Rounded-rect outline: mode is 3 + the stroke width (see batched2d.frag).
         let w = in.mode - 3.0;

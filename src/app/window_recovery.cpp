@@ -92,6 +92,9 @@ bool WindowHost::Impl::create_presentation() {
     // The same limits the paint pass applies: the sigma clamp and the half-resolution threshold.
     renderer_config.glass.max_blur_radius = options.runtime.glass_max_blur_radius;
     renderer_config.glass.max_backdrop_area = options.runtime.glass_max_backdrop_area;
+    // The CPU cull of quads outside the scissor or damage (issue #474); off means every quad is
+    // staged, for a pixel-identical comparison when debugging.
+    renderer_config.cull_draws = options.runtime.cull_draws;
     // The AA policy's renderer inputs are the config the renderer is actually built with, so the
     // policy can never claim AA is on when the pipeline has it off (section 6). `reduce_effects` is
     // the paint pass's own consumer; the AA policy reads the same power preset directly.

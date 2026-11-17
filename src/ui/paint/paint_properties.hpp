@@ -4,6 +4,7 @@
 
 #include "tessera/rendering/rhi/types.hpp"
 #include "tessera/ui/paint/paint_sink.hpp"
+#include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/style/backdrop_filter.hpp"
 #include "tessera/ui/style/cascade.hpp"
 
@@ -68,6 +69,14 @@ std::array<std::optional<rhi::Color>, 4> border_colors(const style::ComputedStyl
 // so children cannot paint over the border. Empty when the insets consume the box, so callers skip
 // the clip instead of pushing a degenerate one.
 std::optional<rhi::Rect> padding_box(const style::ComputedStyle& style, const rhi::Rect& rect);
+
+// The clip a scroll container pushes around its children (the scrollport). When the scene owner set
+// `scrollport_insets` (typically to the painted border widths), the clip uses them so clamping,
+// painting, and hit testing agree; otherwise it falls back to the style-derived padding box, which
+// keeps the default output byte-identical for borderless and bordered containers. Empty when the
+// insets consume the box.
+std::optional<rhi::Rect> scrollport_clip(const Node& node, const style::ComputedStyle& style,
+                                         const rhi::Rect& rect);
 
 // The shared corner radius when all four radii are equal, else nullopt. Missing radii count as 0.
 std::optional<float> uniform_radius(const style::ComputedStyle& style);

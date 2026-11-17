@@ -204,11 +204,11 @@ bool test_paint_frame() {
     DamageAccumulator damage(DamageConfig{Extent2D{200, 200}, 8});
     DamageTracker tracker;
     DirtyPass dirty;
-    // This test pins the uncached paint composition (`PaintStats::nodes` counts resolved styles),
-    // so the pipeline's per-node paint cache is switched off; frame_paint_cache_tests covers the
-    // cached path and its byte-identical output.
+    // This test pins the uncached, unculled paint composition (`PaintStats::nodes` counts resolved
+    // styles): the paint cache and the paint-pass cull are off, and their own tests cover them.
     FramePipelineConfig uncached_config;
     uncached_config.paint_cache = false;
+    uncached_config.cull_paint = false;
     FramePipeline pipeline(animations, loop, tracker, damage, dirty, uncached_config);
 
     RecordingSink sink;

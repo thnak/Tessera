@@ -87,6 +87,11 @@ void accumulate(benchmark::Totals& totals, const benchmark::Measurement& sample)
     totals.damaged_draw_calls = std::max(totals.damaged_draw_calls, sample.damaged_draw_calls);
     totals.damaged_damage_rects =
         std::max(totals.damaged_damage_rects, sample.damaged_damage_rects);
+    totals.damaged_paint_nodes = std::max(totals.damaged_paint_nodes, sample.damaged_paint_nodes);
+    totals.damaged_culled_nodes =
+        std::max(totals.damaged_culled_nodes, sample.damaged_culled_nodes);
+    totals.damaged_culled_subtrees =
+        std::max(totals.damaged_culled_subtrees, sample.damaged_culled_subtrees);
     totals.damaged_partial = totals.damaged_partial || sample.damaged_partial;
     totals.primitives = std::max(totals.primitives, sample.primitives);
     totals.text_runs = std::max(totals.text_runs, sample.text_runs);
@@ -186,6 +191,13 @@ int main(int argc, char** argv) {
                 totals.damaged_quads, totals.damaged_quads_culled,
                 totals.damaged_quads + totals.damaged_quads_culled, totals.damaged_draw_calls,
                 totals.damaged_damage_rects);
+    // Paint-pass culling (issue #487): the deterministic node counts of that same damaged paint.
+    // The budget is what fails if the traversal regresses to the whole tree.
+    std::printf("cpu_benchmark: damaged frame: nodes painted %zu (budget %llu), culled %zu, culled "
+                "subtrees %zu\n",
+                totals.damaged_paint_nodes,
+                static_cast<unsigned long long>(budget.max_damaged_paint_nodes),
+                totals.damaged_culled_nodes, totals.damaged_culled_subtrees);
     std::printf("cpu_benchmark: text runs %zu (stub metrics, not rasterized), image draws %zu\n",
                 totals.text_runs, totals.images);
     std::printf("cpu_benchmark: nodes painted by the full pass %zu\n", totals.paint_nodes);
@@ -212,6 +224,9 @@ int main(int argc, char** argv) {
         ok = false;
     }
     ok = within("damaged paint ms", damaged.median, budget.max_damaged_paint_ms) && ok;
+    ok =
+        within("damaged paint nodes", totals.damaged_paint_nodes, budget.max_damaged_paint_nodes) &&
+        ok;
     ok = within("damaged quads", totals.damaged_quads, budget.max_damaged_quads) && ok;
     // The counter is exact: the glass scenario has one glass node, and a frame that stops
     // compositing it (a fallback silently taking over) is a regression, not noise.

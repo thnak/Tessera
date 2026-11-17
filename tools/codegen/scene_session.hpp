@@ -16,6 +16,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -91,6 +92,13 @@ public:
         // this posture; `set_posture()` re-lays it out in place for a later change, so a posture
         // switch costs no re-evaluation and keeps the state the session has accumulated.
         tessera::hal::FoldPosture posture = tessera::hal::FoldPosture::None;
+        // The media-independent sheet and the media context it is resolved against (issue #436).
+        // A session that owns the prepared form can re-resolve `@media` IN PLACE when its viewport
+        // changes (`set_viewport`), instead of being re-evaluated from source. Empty `prepared`
+        // keeps the caller's already-compiled `sheet` for the session's whole life, which is what
+        // every caller before this issue passes.
+        std::optional<tessera::ui::style::PreparedStyleSheet> prepared;
+        tessera::ui::style::MediaContext media;
         // State carried from the previous evaluation of an edited source. `live_component_ids` is
         // every component id the new evaluation has, so a cell whose component disappeared is
         // reported as dropped instead of being offered to a component that took its place.
@@ -104,7 +112,7 @@ public:
     };
 
     PreviewSession(const ir::IrModule& module, const ir::Component& component,
-                   const ui::style::CompiledStyleSheet& sheet, const Options& options);
+                   const ui::style::CompiledStyleSheet& sheet, Options options);
     ~PreviewSession();
 
     PreviewSession(const PreviewSession&) = delete;
@@ -140,6 +148,40 @@ public:
     // Returns false when the posture was already the requested one (and therefore nothing was laid
     // out again) or when this session built no tree; true when a layout pass ran.
     bool set_posture(tessera::hal::FoldPosture posture);
+
+    // Resizes the RUNNING tree in place (issue #436): the viewport and the DPI scale are layout
+    // inputs like the posture, so a device preset or an orientation swap re-lays the tree out and
+    // re-resolves `@media` - it never evaluates the source again. Hover, focus, the state cells and
+    // the router's capture all survive, which is what a breakpoint is supposed to feel like in a
+    // preview.
+    //
+    // `@media` is re-resolved only when the move can change an answer
+    // (`PreparedStyleSheet::media_answer_can_change`): a size that crosses no breakpoint is one
+    // layout pass and no cascade rebuild. When it does cross one, the SAME prepared data is
+    // resolved against the new context - the ADR-048 resolve step, never a re-parse - so the frame
+    // the caller paints next is already the responsive one. `cascade_generation()` counts those
+    // rebuilds.
+    //
+    // Returns false when nothing moved (no layout pass ran) or the session built no tree.
+    bool set_viewport(float width, float height, float dpi_scale);
+
+    // One pass for both layout inputs, so a call that changes the size AND the posture costs one
+    // layout pass, not two. The two setters above are the narrow spellings of this.
+    bool relayout_at(float width, float height, float dpi_scale, tessera::hal::FoldPosture posture);
+
+    // How many times this session's cascade has been resolved: 1 at construction, +1 per re-resolve
+    // (`set_viewport` crossing a breakpoint). The counter a test asserts on to tell "the cascade
+    // was rebuilt" from "the boxes were laid out again" (issue #436).
+    [[nodiscard]] std::uint64_t cascade_generation() const noexcept {
+        return cascade_generation_;
+    }
+
+    // The sheet the tree is CURRENTLY laid out with. After `set_viewport` crosses a breakpoint this
+    // is a different sheet from the one the session was constructed with, which is why a painter
+    // must read it here rather than keep its own copy.
+    [[nodiscard]] const ui::style::CompiledStyleSheet& sheet() const noexcept {
+        return sheet_;
+    }
 
     // The `WindowMetrics` the current tree was laid out against, fold included. A caller reports or
     // compares what the tree was actually sized to rather than rebuilding the snapshot.
@@ -184,6 +226,9 @@ private:
     struct HandlerSlot;
 
     void rebuild();
+    // Lays `root_` out against `layout_metrics_` and the current `sheet_`. One pass, no
+    // re-evaluation: everything a size or posture change needs, and nothing else.
+    [[nodiscard]] bool relayout();
     void bind_handler(std::uint64_t automation_id, const std::string& event,
                       const std::string& handler_id);
     static void on_scene_event(void* context, const ui::Event& event);
@@ -195,6 +240,10 @@ private:
     const ir::Component& component_;
     ui::style::CompiledStyleSheet sheet_;
     Options options_;
+    // The media context `sheet_` was resolved against (issue #436), so a viewport change can ask
+    // whether a `@media` answer moves before resolving anything.
+    ui::style::MediaContext media_;
+    std::uint64_t cascade_generation_ = 1;
     eval::Scope scope_;
     StateCarryReport carry_report_;
     std::unique_ptr<ui::Node> root_;

@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 //
 // CSS box-shadow: parsing (lengths, colors, lists, invalid values), emission order (beneath the
-// node's own background, first listed on top), spread, offset, radius, opacity, the blurred layer
-// stack's Gaussian edge profile, and the outsets damage uses.
+// node's own background, first listed on top), spread, offset, opacity, the fact that an outer
+// shadow is never painted inside the node's border box (#461), the blurred layer stack's Gaussian
+// edge profile, the one-shape box shadow a shader sink gets, and the outsets damage uses.
 
 #include "paint_shadow.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
@@ -28,6 +29,9 @@ using tessera::ui::paint::StyleProvider;
 using tessera::ui::paint::detail::parse_box_shadows;
 using tessera::ui::paint::detail::shadow_outsets;
 using tessera::ui::style::ComputedStyle;
+
+// The node every case paints: {10, 10, 50, 40}.
+constexpr Rect kNode{10, 10, 50, 40};
 
 bool expect(bool condition, const char* message) {
     if (!condition) {
@@ -61,16 +65,17 @@ private:
 struct Op {
     Rect rect;
     Color color;
-    float radius = 0.0f;
 };
 
+// A flattened sink: no one-shape box shadow, so every layer arrives as the strips around the border
+// box that the paint pass emits.
 class RecordingSink final : public PaintSink {
 public:
     void fill_rect(const Rect& rect, const Color& color) override {
-        ops.push_back({rect, color, 0.0f});
+        ops.push_back({rect, color});
     }
-    void fill_rounded_rect(const Rect& rect, const Color& color, float radius) override {
-        ops.push_back({rect, color, radius});
+    void fill_rounded_rect(const Rect& rect, const Color& color, float) override {
+        ops.push_back({rect, color});
     }
     std::vector<Op> ops;
 };
@@ -80,14 +85,16 @@ struct Painted {
     PaintStats stats;
 };
 
-Painted paint(ComputedStyle style) {
+Painted paint(ComputedStyle style, bool reduce_effects = false) {
     Node node(1);
-    node.set_bounds({10, 10, 50, 40});
+    node.set_bounds(kNode);
     StubStyles styles;
     styles.set(1, std::move(style));
     RecordingSink sink;
+    tessera::ui::paint::PaintContext context;
+    context.reduce_effects = reduce_effects;
     Painted result;
-    result.stats = paint_scene(node, styles, sink);
+    result.stats = paint_scene(node, styles, sink, context);
     result.ops = std::move(sink.ops);
     return result;
 }
@@ -96,38 +103,79 @@ bool near(float a, float b) {
     return std::abs(a - b) < 0.01f;
 }
 
-bool sharp_offset_spread_and_order() {
-    const Painted plain = paint(styled({{"box-shadow", "4px 6px 0 0 #000000"}}));
-    const Painted spread = paint(styled({{"box-shadow", "0 0 0 5px #ff0000"}}));
-    const Painted with_background =
-        paint(styled({{"box-shadow", "2px 2px #000000"}, {"background-color", "#ffffff"}}));
-    return expect(plain.ops.size() == 1 && plain.stats.shadows == 1, "one sharp fill") &&
-           expect(near(plain.ops[0].rect.x, 14) && near(plain.ops[0].rect.y, 16) &&
-                      near(plain.ops[0].rect.width, 50) && near(plain.ops[0].rect.height, 40),
-                  "the shadow is the node box moved by the offset") &&
-           expect(near(plain.ops[0].color.a, 1.0f), "the shadow keeps the color alpha") &&
-           expect(spread.ops.size() == 1 && near(spread.ops[0].rect.x, 5) &&
-                      near(spread.ops[0].rect.width, 60) && near(spread.ops[0].rect.height, 50),
-                  "spread grows the box on every side") &&
-           expect(with_background.ops.size() == 2 && with_background.ops[0].color.r < 0.1f &&
-                      with_background.ops[1].color.r > 0.9f,
-                  "the shadow is painted beneath the background");
+bool same_rect(const Rect& rect, float x, float y, float width, float height) {
+    return near(rect.x, x) && near(rect.y, y) && near(rect.width, width) &&
+           near(rect.height, height);
 }
 
-bool radius_opacity_and_lists() {
-    const Painted rounded = paint(styled({{"box-shadow", "0 0 0 2px #000000"},
-                                          {"border-top-left-radius", "8px"},
-                                          {"border-top-right-radius", "8px"},
-                                          {"border-bottom-left-radius", "8px"},
-                                          {"border-bottom-right-radius", "8px"}}));
+// True when `rect` shares no area with the node's border box: the outer-shadow clipping rule.
+bool outside(const Rect& rect) {
+    const float left = std::max(rect.x, kNode.x);
+    const float top = std::max(rect.y, kNode.y);
+    const float right = std::min(rect.x + rect.width, kNode.x + kNode.width);
+    const float bottom = std::min(rect.y + rect.height, kNode.y + kNode.height);
+    return left >= right || top >= bottom;
+}
+
+bool sharp_shadow_is_carved() {
+    // 4 px right and 6 px down: only the band below the node and the band right of it survive.
+    const Painted offset = paint(styled({{"box-shadow", "4px 6px 0 0 #000000"}}));
+    bool ok = expect(offset.ops.size() == 2 && offset.stats.shadows == 1,
+                     "a sharp offset shadow is two strips and one primitive");
+    if (ok) {
+        const bool below = same_rect(offset.ops[0].rect, 14, 50, 50, 6);
+        const bool right = same_rect(offset.ops[1].rect, 60, 16, 4, 34);
+        ok = expect(below && right, "the strips are the node box minus the border box") && ok;
+    }
+    ok = expect(std::all_of(offset.ops.begin(), offset.ops.end(),
+                            [](const Op& op) { return outside(op.rect); }),
+                "no strip touches the border box") &&
+         ok;
+
+    // A spread grows the box on every side and yields all four strips.
+    const Painted spread = paint(styled({{"box-shadow", "0 0 0 5px #ff0000"}}));
+    ok = expect(spread.ops.size() == 4, "a concentric spread paints four strips") && ok;
+    if (spread.ops.size() == 4) {
+        ok = expect(same_rect(spread.ops[0].rect, 5, 5, 60, 5) &&
+                        same_rect(spread.ops[1].rect, 5, 50, 60, 5) &&
+                        same_rect(spread.ops[2].rect, 5, 10, 5, 40) &&
+                        same_rect(spread.ops[3].rect, 60, 10, 5, 40),
+                    "the strips wrap the border box") &&
+             ok;
+    }
+    ok = expect(near(spread.ops.empty() ? 0.0f : spread.ops[0].color.a, 1.0f),
+                "the shadow keeps the color alpha") &&
+         ok;
+
+    // The background paints over the shadow, and the shadow never covers the node's own box.
+    const Painted with_background =
+        paint(styled({{"box-shadow", "2px 2px #000000"}, {"background-color", "#ffffff"}}));
+    ok = expect(with_background.ops.size() == 3 && with_background.ops.back().color.r > 0.9f,
+                "the shadow is painted beneath the background") &&
+         ok;
+    return ok;
+}
+
+bool background_is_carved_too() {
+    // A blurred shadow entirely under a transparent box paints nothing inside it, and every strip
+    // it does paint stays outside.
+    const Painted blurred = paint(styled({{"box-shadow", "0 0 12px #000000"}}));
+    bool ok = expect(!blurred.ops.empty(), "the blurred shadow still paints its visible bands");
+    ok = expect(std::all_of(blurred.ops.begin(), blurred.ops.end(),
+                            [](const Op& op) { return outside(op.rect); }),
+                "a blurred shadow never paints inside the border box") &&
+         ok;
+    return ok;
+}
+
+bool opacity_and_lists() {
     const Painted faded = paint(styled({{"box-shadow", "1px 1px #000000"}, {"opacity", "0.5"}}));
     const Painted two =
         paint(styled({{"box-shadow", "1px 1px #ff0000, 2px 2px rgba(0, 0, 255, 1)"}}));
-    return expect(rounded.ops.size() == 1 && near(rounded.ops[0].radius, 10),
-                  "spread adds to the node corner radius") &&
-           expect(faded.ops.size() == 1 && near(faded.ops[0].color.a, 0.5f),
+    return expect(!faded.ops.empty() && near(faded.ops[0].color.a, 0.5f),
                   "node opacity multiplies the shadow alpha") &&
-           expect(two.ops.size() == 2 && two.ops[0].color.b > 0.9f && two.ops[1].color.r > 0.9f,
+           expect(two.ops.size() == 4 && two.ops.back().color.r > 0.9f &&
+                      two.ops.front().color.b > 0.9f,
                   "the first listed shadow paints on top (emitted last)");
 }
 
@@ -151,63 +199,51 @@ bool invalid_none_and_inset() {
 
 bool blur_follows_a_gaussian_edge() {
     const Painted blurred = paint(styled({{"box-shadow", "0 0 12px #000000"}}));
-    bool ok = expect(blurred.ops.size() >= 3 && blurred.stats.shadows == blurred.ops.size(),
-                     "a blurred shadow is a stack of layers");
-    if (!ok) {
-        return false;
-    }
-    // Layers shrink monotonically, stay centered on the node, and the outermost reaches the blur.
-    bool shrinking = true;
-    for (std::size_t i = 1; i < blurred.ops.size(); ++i) {
-        shrinking = shrinking && blurred.ops[i].rect.width < blurred.ops[i - 1].rect.width;
-    }
-    const Op& outer = blurred.ops.front();
-    ok = expect(shrinking, "layers shrink toward the box") &&
-         expect(near(outer.rect.x, 10 - 12) && near(outer.rect.width, 50 + 24),
+    // Six layers of four strips; the layers that fit inside the border box are carved away
+    // entirely.
+    bool ok = expect(blurred.stats.shadows == 6, "a blurred shadow is a stack of six layers");
+    ok = expect(!blurred.ops.empty() && blurred.ops.size() % 4 == 0,
+                "each visible layer emits the four strips") &&
+         ok;
+    // The outermost group reaches one blur radius out on every side.
+    ok = expect(same_rect(blurred.ops[0].rect, 10 - 12, 10 - 12, 50 + 24, 12),
                 "the outermost layer reaches one blur radius out") &&
          ok;
-    // The composite alpha inside the innermost layer equals the shadow color alpha (here 1), and
-    // the composite in the outermost band is the faint tail of the Gaussian.
-    float interior = 0.0f;
-    for (const Op& op : blurred.ops) {
-        interior = 1.0f - (1.0f - interior) * (1.0f - op.color.a);
-    }
-    const float tail = blurred.ops.front().color.a;
-    ok = expect(near(interior, 1.0f), "the interior composites to the full shadow alpha") && ok;
+    // The outermost band is the faint tail of the Gaussian, and the composite rises toward the box.
+    const float tail = blurred.ops[0].color.a;
     ok = expect(tail > 0.0f && tail < 0.2f, "the outer band is a faint tail") && ok;
-    // Cumulative alpha rises monotonically from outside to inside.
     float cumulative = 0.0f;
     bool rising = true;
-    for (const Op& op : blurred.ops) {
-        const float next = 1.0f - (1.0f - cumulative) * (1.0f - op.color.a);
+    for (std::size_t i = 0; i < blurred.ops.size(); i += 4) {
+        const float next = 1.0f - (1.0f - cumulative) * (1.0f - blurred.ops[i].color.a);
         rising = rising && next >= cumulative;
         cumulative = next;
     }
-    return expect(rising, "coverage never decreases toward the interior") && ok;
+    ok = expect(rising, "coverage never decreases toward the interior") && ok;
+    // The band that touches the border box carries roughly half the shadow, as the Gaussian edge
+    // does at the box: 0.5 * (1 - erf(0)) = 0.5, minus the layer quantisation.
+    ok = expect(cumulative > 0.25f && cumulative < 0.6f,
+                "the innermost visible band is about half the shadow alpha") &&
+         ok;
+    return ok;
 }
 
 bool reduced_effects_keep_the_reach_with_fewer_layers() {
-    Node node(1);
-    node.set_bounds({10, 10, 50, 40});
-    StubStyles styles;
-    styles.set(1, styled({{"box-shadow", "0 0 12px #000000"}}));
-    RecordingSink full_sink;
-    const PaintStats full = paint_scene(node, styles, full_sink);
-    RecordingSink reduced_sink;
-    tessera::ui::paint::PaintContext context;
-    context.reduce_effects = true;
-    const PaintStats reduced = paint_scene(node, styles, reduced_sink, context);
-    bool ok = expect(reduced.shadows == 2 && reduced.shadows < full.shadows,
+    const Painted full = paint(styled({{"box-shadow", "0 0 12px #000000"}}));
+    const Painted reduced = paint(styled({{"box-shadow", "0 0 12px #000000"}}), true);
+    bool ok = expect(reduced.stats.shadows == 2 && reduced.stats.shadows < full.stats.shadows,
                      "reduced effects emit the capped number of blur layers");
     // The outermost layer is the shadow's full reach, so damage and the visible silhouette hold.
-    ok = expect(!reduced_sink.ops.empty() && !full_sink.ops.empty() &&
-                    near(reduced_sink.ops.front().rect.width, full_sink.ops.front().rect.width) &&
-                    near(reduced_sink.ops.front().rect.height, full_sink.ops.front().rect.height),
+    ok = expect(!reduced.ops.empty() && !full.ops.empty() &&
+                    same_rect(reduced.ops[0].rect, full.ops[0].rect.x, full.ops[0].rect.y,
+                              full.ops[0].rect.width, full.ops[0].rect.height),
                 "the outer extent of a reduced shadow equals the full one") &&
          ok;
-    // The innermost layer is still painted with a visible alpha: the shadow keeps its colour.
-    ok = expect(reduced_sink.ops.back().color.a > 0.0f,
-                "a reduced shadow still paints a visible innermost layer") &&
+    // A sharp shadow is one layer already: reduction changes nothing.
+    const Painted sharp_full = paint(styled({{"box-shadow", "4px 4px 0 #000000"}}));
+    const Painted sharp_reduced = paint(styled({{"box-shadow", "4px 4px 0 #000000"}}), true);
+    ok = expect(sharp_full.stats.shadows == 1 && sharp_reduced.stats.shadows == 1,
+                "a sharp shadow is unaffected by reduction") &&
          ok;
     // The sync flag the controller's stage probe reads: only a blurred outer shadow counts.
     ok = expect(shadow_outsets(styled({{"box-shadow", "0 0 12px #000000"}})).blurred,
@@ -218,14 +254,6 @@ bool reduced_effects_keep_the_reach_with_fewer_layers() {
                     !shadow_outsets(styled({{"box-shadow", "inset 0 0 8px #000000"}})).blurred,
                 "sharp, absent and inset shadows are not flagged") &&
          ok;
-    // A sharp shadow is already one fill: reduction changes nothing.
-    styles.set(1, styled({{"box-shadow", "4px 4px 0 #000000"}}));
-    RecordingSink sharp_full;
-    RecordingSink sharp_reduced;
-    const PaintStats a = paint_scene(node, styles, sharp_full);
-    const PaintStats b = paint_scene(node, styles, sharp_reduced, context);
-    ok =
-        expect(a.shadows == 1 && b.shadows == 1, "a sharp shadow is unaffected by reduction") && ok;
     return ok;
 }
 
@@ -252,59 +280,77 @@ bool list_is_bounded() {
 
 } // namespace
 
-// A sink that can draw a Gaussian edge gets one call per blurred shadow instead of the stack of
-// concentric fills: the box (offset and spread applied), the colour with the node's alpha, the
-// corner radius grown by the spread, and sigma = blur / 2. A sharp shadow still uses a plain fill.
-class SoftSink final : public PaintSink {
+// A sink that can draw a whole shadow shape gets one call per shadow instead of the strips: the
+// shadow box (offset and spread applied), the node's border box to carve out, the colour with the
+// node's alpha, the corner radius grown by the spread, and sigma = blur / 2 (0 for a sharp shadow).
+class OneShapeSink final : public PaintSink {
 public:
-    struct Soft {
-        Rect box;
-        Color color;
-        float radius = 0.0f;
-        float sigma = 0.0f;
-    };
     void fill_rect(const Rect&, const Color&) override {
         ++fills;
     }
     void fill_rounded_rect(const Rect&, const Color&, float) override {
         ++fills;
     }
-    [[nodiscard]] bool supports_soft_shadow() const override {
+    [[nodiscard]] bool supports_box_shadow() const override {
         return true;
     }
-    void fill_soft_shadow(const Rect& box, const Color& color, float radius, float sigma) override {
-        softs.push_back({box, color, radius, sigma});
+    void fill_box_shadow(const tessera::ui::paint::BoxShadowDraw& draw) override {
+        draws.push_back(draw);
     }
-    std::vector<Soft> softs;
+    std::vector<tessera::ui::paint::BoxShadowDraw> draws;
     int fills = 0;
 };
 
-bool soft_shadow_is_one_call() {
+bool one_shape_shadow_is_one_call() {
     Node node(1);
-    node.set_bounds({10, 10, 50, 40});
+    node.set_bounds(kNode);
     StubStyles styles;
     styles.set(1, styled({{"box-shadow", "3px 4px 12px 2px rgba(0,0,0,0.5)"},
                           {"border-top-left-radius", "6px"},
                           {"border-top-right-radius", "6px"},
                           {"border-bottom-right-radius", "6px"},
                           {"border-bottom-left-radius", "6px"}}));
-    SoftSink sink;
+    OneShapeSink sink;
     const PaintStats stats = paint_scene(node, styles, sink);
-    return expect(sink.softs.size() == 1 && sink.fills == 0 && stats.shadows == 1,
-                  "one soft shadow call and no concentric fills") &&
-           expect(near(sink.softs[0].box.x, 11) && near(sink.softs[0].box.y, 12) &&
-                      near(sink.softs[0].box.width, 54) && near(sink.softs[0].box.height, 44),
-                  "the box is the node box moved by the offset and grown by the spread") &&
-           expect(near(sink.softs[0].sigma, 6.0f) && near(sink.softs[0].radius, 8.0f),
-                  "sigma is half the blur and the radius grows with the spread") &&
-           expect(near(sink.softs[0].color.a, 0.5f), "the colour keeps the shadow alpha");
+    bool ok = expect(sink.draws.size() == 1 && sink.fills == 0 && stats.shadows == 1,
+                     "one box-shadow call and no strips");
+    if (!ok) {
+        return false;
+    }
+    const auto& draw = sink.draws[0];
+    ok = expect(same_rect(draw.box, 11, 12, 54, 44),
+                "the box is the node box moved by the offset and grown by the spread") &&
+         ok;
+    ok = expect(same_rect(draw.carve.rect, kNode.x, kNode.y, kNode.width, kNode.height) &&
+                    near(draw.carve.top_left, 6.0f) && near(draw.carve.bottom_right, 6.0f),
+                "the carve box is the node's rounded border box") &&
+         ok;
+    ok = expect(near(draw.sigma, 6.0f) && near(draw.radius, 8.0f),
+                "sigma is half the blur and the radius grows with the spread") &&
+         ok;
+    ok = expect(near(draw.color.a, 0.5f), "the colour keeps the shadow alpha") && ok;
+
+    // A sharp shadow goes through the same call with sigma 0, so it is carved too.
+    styles.set(1, styled({{"box-shadow", "0 0 0 2px #000000"},
+                          {"border-top-left-radius", "6px"},
+                          {"border-top-right-radius", "6px"},
+                          {"border-bottom-right-radius", "6px"},
+                          {"border-bottom-left-radius", "6px"}}));
+    OneShapeSink sharp;
+    paint_scene(node, styles, sharp);
+    ok = expect(sharp.draws.size() == 1 && near(sharp.draws[0].sigma, 0.0f) &&
+                    near(sharp.draws[0].radius, 8.0f) && near(sharp.draws[0].carve.top_left, 6.0f),
+                "a sharp shadow is one call with sigma 0, carved and rounded") &&
+         ok;
+    return ok;
 }
 
 int main() {
     bool ok = true;
-    ok = soft_shadow_is_one_call() && ok;
-    ok = sharp_offset_spread_and_order() && ok;
-    ok = radius_opacity_and_lists() && ok;
+    ok = one_shape_shadow_is_one_call() && ok;
+    ok = sharp_shadow_is_carved() && ok;
+    ok = background_is_carved_too() && ok;
+    ok = opacity_and_lists() && ok;
     ok = invalid_none_and_inset() && ok;
     ok = blur_follows_a_gaussian_edge() && ok;
     ok = reduced_effects_keep_the_reach_with_fewer_layers() && ok;

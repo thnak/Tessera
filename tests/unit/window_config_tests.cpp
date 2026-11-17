@@ -103,6 +103,7 @@ bool pipeline_config_equals_default(const FramePipelineConfig& config) {
     ok = expect(config.redraw_policy.max_scissors == 8, "default max scissors is 8") && ok;
     ok = expect(config.interpolation, "default interpolation is on") && ok;
     ok = expect(config.paint_cache, "default paint cache is on") && ok;
+    ok = expect(config.cull_paint, "default paint-pass cull is on") && ok;
     return ok;
 }
 
@@ -147,6 +148,27 @@ bool interpolation_key_maps_to_the_pipeline_config() {
                         enabled.redraw_policy.full_redraw_area_ratio &&
                     disabled.redraw_policy.max_scissors == enabled.redraw_policy.max_scissors,
                 "the interpolation key changes interpolation only") &&
+         ok;
+    return ok;
+}
+
+// `cullDraws` is the one "CPU culling" switch (issue #487): it gates the renderer's quad cull and
+// the paint pass's subtree cull together, so `false` measures a frame that does all the work.
+bool cull_draws_key_maps_to_the_paint_cull() {
+    const FramePipelineConfig enabled = window_pipeline_config(RuntimeConfig{});
+    RuntimeConfig disabled_runtime;
+    disabled_runtime.cull_draws = false;
+    const FramePipelineConfig disabled = window_pipeline_config(disabled_runtime);
+
+    bool ok = expect(enabled.cull_paint, "cullDraws=true keeps the paint-pass cull on");
+    ok = expect(!disabled.cull_paint, "cullDraws=false disables the paint-pass cull") && ok;
+    ok = expect(disabled.dpi_scale == enabled.dpi_scale &&
+                    disabled.damage_margin == enabled.damage_margin &&
+                    disabled.interpolation == enabled.interpolation &&
+                    disabled.paint_cache == enabled.paint_cache &&
+                    disabled.glass.max_blur_radius == enabled.glass.max_blur_radius &&
+                    disabled.glass.max_backdrop_area == enabled.glass.max_backdrop_area,
+                "the cullDraws key changes the paint cull only") &&
          ok;
     return ok;
 }
@@ -310,6 +332,7 @@ int main() {
     bool ok = true;
     ok = defaults_match_runtime_config_defaults() && ok;
     ok = interpolation_key_maps_to_the_pipeline_config() && ok;
+    ok = cull_draws_key_maps_to_the_paint_cull() && ok;
     ok = pause_key_maps_to_the_lifecycle_policy() && ok;
     ok = adaptive_quality_keys_map_to_the_policy() && ok;
     ok = mapped_interpolation_reaches_the_paint_seam() && ok;

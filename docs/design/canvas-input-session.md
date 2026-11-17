@@ -114,11 +114,23 @@ this module is given.
 | `tessera_canvas_run(source, file, component, width, height, dpi)` | evaluate once, keep it; returns a frame report with `error` set when the source produced no scene. A Run of the identical source reuses the evaluation instead of rebuilding it |
 | `tessera_canvas_pointer(kind, x, y, button)` | `kind` is `"move" \| "down" \| "up" \| "cancel"`; coordinates are logical pixels; returns `{"pointerVersion":1,"dispatched":…,"changed":…,"targetId":"…","hoveredId":"…","activeId":"…","ran":[…],"unrun":[…]}`, all ids as decimal **strings** |
 | `tessera_canvas_draw(width, height, canvas_view)` | paint the session's current tree into the canvas view; never re-evaluates |
+| `tessera_canvas_set_fold(posture)` | re-lay the RUNNING tree out at a simulated fold posture (`flat`, `book`, `tabletop`), one pass, no re-evaluation (issue #408, [§6.1](../specs/designer-studio-v1.md)) |
+| `tessera_canvas_set_viewport(width, height, dpi)` | re-lay the RUNNING tree out at a new logical viewport and DPR, one pass, no re-evaluation; returns `{"viewportVersion":1,"changed":…,"width":…,"height":…,"dpr":…,"cascadeGeneration":…,"error":""}` (issue #436) |
 | `tessera_canvas_reset()` | release the session |
 
 `changed` is the page's whole decision: schedule one frame when true, none when false. An unknown
 `kind` and a secondary `button` answer a well-formed report with `dispatched:false, changed:false`, so
 a page typo costs no frame and raises nothing across the FFI boundary.
+
+**Why the size is its own export (issue #436).** A viewport change must not re-evaluate the source:
+the state cells, the hover and the focus belong to the running evaluation. `set_viewport` therefore
+does what `set_fold` does — one layout pass inside the call, on the same tree — and, unlike the
+posture, it can also move the CASCADE, because the logical size is the `@media` context. It
+re-resolves the prepared sheet only when a breakpoint is actually crossed, and `cascadeGeneration` in
+its report (and in the frame report's `cascade` field) is the count that makes the difference
+observable: a resize inside one breakpoint moves the boxes and leaves the number alone. The rule is
+[`responsive.md`](responsive.md) section 2.1; the labels of both fields (`changed`, `frames`,
+`cascade`) are what `scripts/ci/preview_browser_viewport.mjs` asserts in a real browser.
 
 ## 6. The page half is deferred
 

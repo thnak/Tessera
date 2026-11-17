@@ -482,18 +482,35 @@ bounding box culls none of them, because the paint pass already clips emission t
 regions. Measured on the reference machine (MSVC Release, median of 7 runs) in two runs: full paint
 43.2 and 46.3 ms, damaged paint 44.0 and 46.7 ms. The paint is therefore still dominated by walking
 the 12 000 nodes, not by staging their quads: the cull removes vertex work the GPU scissor would
-have thrown away, and the traversal does not shrink. That is the argument for culling subtrees in
-the paint pass; #474 keeps it out of scope and it needs its own measurement. `max_quads` and the
-new `max_damaged_quads` gate the two counters, and `max_damaged_paint_ms` guards the damaged row at
-the same order of magnitude as `max_full_paint_ms`.
+have thrown away, and the traversal does not shrink. That is the argument for culling in the paint
+pass itself, which #487 implements (measured next). `max_quads` and the new `max_damaged_quads` gate
+the two counters, and `max_damaged_paint_ms` guards the damaged row at the same order of magnitude as
+`max_full_paint_ms`.
+
+**Paint-pass cull (issue #487, [`dirty-rendering.md`](dirty-rendering.md) section 6.8).** The damaged
+frame above now shrinks its traversal: `FramePipelineConfig::cull_paint` (default on, from the runtime
+`cullDraws` key) hands the paint pass the redraw plan's scissor bounding box, and a node whose painted
+reach misses it skips its style read and its own emission. Measured on the reference machine (MSVC
+Release, median of 7 runs, two consecutive runs each; the only difference between the arms is
+`cull_paint`): damaged paint **45.5 / 45.0 ms -> 41.1 / 39.3 ms**, and its deterministic counter drops
+from **12 000 to 9 353 painted nodes** (2 397 culled, 2 clip-bounded subtrees skipped whole, draw calls
+2 -> 1), while the full paint, which never sets the rect, is unchanged (46.0 / 44.5 ms vs 45.4 /
+44.4 ms). The time win is smaller than the node count suggests because 78% of the tree is text leaves:
+an unclipped text payload can paint outside its own box (a wrapped line advances past the content
+box), so a text node is only culled as part of a clipping subtree, and the nodes still painted are
+exactly the ones a box test cannot bound. That is the deliberate conservative rule - a text-fit flag
+from layout would unlock the rest, see the issue's follow-up. `max_damaged_paint_nodes` (10 000) gates
+the counter: a trip back to the whole tree fails it.
 
 **Trigger.** Revisit the V1 decision of no render thread and no worker recording when
 `paint_time_ms` exceeds about 4 ms or 30% of `frameBudgetMs` at 10k nodes. At 12 000 nodes the
-measured paint is 75 ms, about nineteen times the 4 ms trigger and 4.5x the 60 Hz frame budget
+recorded paint is 75 ms in the #241 measurement (43-46 ms for a full paint on the same machine in the
+#474/#487 runs), about eleven to nineteen times the 4 ms trigger and 2.6-4.5x the 60 Hz frame budget
 (16.7 ms), so the trigger is currently exceeded; issue #241 records the measurement and the V1
 design is unchanged pending that discussion. The paint number is draw-list building only: glyph
-rasterization is excluded because the benchmark runs without a font, and the scene paints all
-12 000 nodes because the paint pass has no viewport culling. "First style + layout" includes the
+rasterization is excluded because the benchmark runs without a font, and a full paint still paints
+all 12 000 nodes because the paint-pass cull only applies to a damaged plan. "First style + layout"
+includes the
 full CSS cascade; the benchmark's resolved-style table drops longhands that still equal their
 registry initial value, which keeps 12 000 computed styles at a few megabytes and lets layout and
 paint measure their own work instead of re-copying ~90 default longhands per node. Do not claim

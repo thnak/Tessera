@@ -14,6 +14,9 @@ ui::frame::FramePipelineConfig window_pipeline_config(const RuntimeConfig& runti
     // half-resolution decision and the 3 sigma damage dependency, so one config drives all three.
     config.glass.max_blur_radius = runtime.glass_max_blur_radius;
     config.glass.max_backdrop_area = runtime.glass_max_backdrop_area;
+    // `cullDraws` is the one "CPU culling" switch: it also gates the paint pass's subtree cull
+    // (issue #487), so `false` measures the frame with every node painted and every quad staged.
+    config.cull_paint = runtime.cull_draws;
     return config;
 }
 

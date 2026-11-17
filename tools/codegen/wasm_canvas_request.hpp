@@ -51,4 +51,17 @@ namespace tessera::compiler::codegen::cli {
                                                 std::string_view stylesheet, float width,
                                                 float height, float dpi, CanvasSessionSource& out);
 
+// One `tessera_canvas_set_viewport` request (issue #436): the logical rectangle and the DPR, or the
+// reason it was refused. A non-positive extent is an error rather than a fallback, because laying a
+// tree out at a degenerate rectangle and then reporting success would show the next frame at a size
+// nobody asked for.
+struct CanvasViewportRequest {
+    float width = 0.0f;
+    float height = 0.0f;
+    float dpi = 1.0f;
+    std::string error; // empty when the request is usable
+};
+
+[[nodiscard]] CanvasViewportRequest canvas_viewport_request(int width, int height, float dpi);
+
 } // namespace tessera::compiler::codegen::cli

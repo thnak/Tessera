@@ -43,7 +43,7 @@ std::expected<RuntimeConfig, RuntimeConfigError> parse_one(std::string_view fiel
 
 // The documented section 3 defaults, written out positionally in struct order. This is the
 // drift guard: changing a default in the header without changing the spec fails the comparisons
-// that use it.
+// that use it. The glass limits and the culling switch share the tail of the struct.
 constexpr RuntimeConfig kDocumentedDefaults{60.0,
                                             0,
                                             VsyncMode::On,
@@ -83,7 +83,11 @@ constexpr RuntimeConfig kDocumentedDefaults{60.0,
                                             2,
                                             true,
                                             0.0625f,
-                                            false};
+                                            false,
+                                            64.0f,
+                                            4,
+                                            4'000'000,
+                                            true};
 
 bool expect_defaults(const RuntimeConfig& config) {
     return expect(config == kDocumentedDefaults, "documented defaults");
@@ -307,7 +311,7 @@ bool check_section_2_sample() {
         "swapchainRecreateDelayMs":16,"maxPendingResizes":1,"layoutObservationMaxRounds":4,
         "asyncWorkerThreads":0,"asyncIoThreads":1,"asyncQueueCapacity":4096,
         "asyncMainThreadBudgetMs":2.0,"asyncTraceTasks":false,"dirtyRendering":"auto",
-        "damageRects":true,"maxDamageRects":16,"fullRedrawThreshold":0.6,
+        "damageRects":true,"cullDraws":true,"maxDamageRects":16,"fullRedrawThreshold":0.6,
         "layerCacheBudgetMb":64,"drawListCacheBudgetMb":32,"viewTransitionMaxMb":64,
         "gpuFramesInFlight":2,"animationInterpolation":true,"deterministic":false}})");
     if (!expect(sample.has_value(), "section 2 sample parses") || !expect_defaults(*sample)) {
@@ -315,8 +319,16 @@ bool check_section_2_sample() {
     }
     // A non-default override still reads through the same path (the sample itself is all defaults).
     const auto overridden = parse_one("maxFps", "120");
-    return expect(overridden.has_value() && overridden->max_fps == 120,
-                  "an explicit value overrides the default");
+    if (!expect(overridden.has_value() && overridden->max_fps == 120,
+                "an explicit value overrides the default")) {
+        return false;
+    }
+    // `cullDraws` (issue #474) is the renderer's CPU cull switch: on by default, and an explicit
+    // `false` must read through so the two can be compared.
+    const auto cull_off = parse_one("cullDraws", "false");
+    return expect(sample->cull_draws, "cullDraws defaults to on") &&
+           expect(cull_off.has_value() && !cull_off->cull_draws,
+                  "cullDraws=false turns the renderer cull off");
 }
 
 bool check_errors() {
@@ -337,8 +349,9 @@ bool check_errors() {
         const char* literal;
     };
     constexpr TypeCase kTypeCases[] = {
-        {"maxFps", "60.0"}, {"maxFps", "60.5"}, {"maxFps", "\"60\""},       {"maxFps", "true"},
-        {"maxFps", "null"}, {"vsync", "1"},     {"renderScale", "\"1.0\""}, {"damageRects", "1"},
+        {"maxFps", "60.0"},         {"maxFps", "60.5"},   {"maxFps", "\"60\""},
+        {"maxFps", "true"},         {"maxFps", "null"},   {"vsync", "1"},
+        {"renderScale", "\"1.0\""}, {"damageRects", "1"}, {"cullDraws", "1"},
     };
     for (const TypeCase& test : kTypeCases) {
         const auto parsed = parse_one(test.field, test.literal);

@@ -116,17 +116,21 @@ std::string
 canvas_report_json(const SceneFrameResult& result, std::uint32_t width, std::uint32_t height,
                    bool has_device, std::uint32_t frames,
                    const std::vector<PreviewCssDiagnostic>&
-                       css_diagnostics) { // The field names mirror the native CLI's printed
-                                          // counters, so a parity script can compare a
-    // browser report with a native dump without a second vocabulary.
+                       css_diagnostics, // The field names mirror the native CLI's printed
+                                        // counters, so a parity script can compare a
+                   std::uint64_t cascade_generation) { // browser report with a native dump
+                                                       // without a second vocabulary.
     std::string out = "{\"canvasVersion\":1";
     append_bool(out, "hasDevice", has_device);
     append_number(out, "width", width);
     append_number(out, "height", height);
     // The session's lifetime frame count, which the live edit's contract is written in (#444): the
     // page surfaces it so a browser probe can check "one frame per burst, zero when static" against
-    // the engine's own number rather than inferring it from a repaint.
+    // the engine's own number rather than inferring it from a repaint. `cascade` is the same idea
+    // for the viewport rule (#436): a resize re-resolves the cascade only when a breakpoint is
+    // crossed.
     append_number(out, "frames", frames);
+    append_number(out, "cascade", cascade_generation);
     append_number(out, "nodes", result.nodes);
     append_number(out, "drawCalls", result.draw_calls);
     append_number(out, "vertices", result.vertex_count);
@@ -207,6 +211,21 @@ std::string canvas_fold_report_json(const SceneFrameResult& result, bool changed
     std::string out = "{\"foldVersion\":1";
     append_bool(out, "changed", changed);
     append_text(out, "error", result.error);
+    out += "}\n";
+    return out;
+}
+
+std::string canvas_viewport_report_json(bool changed, float width, float height, float dpi,
+                                        std::uint64_t cascade_generation, std::string_view error) {
+    std::string out = "{\"viewportVersion\":1";
+    append_bool(out, "changed", changed);
+    append_number(out, "width", static_cast<std::uint64_t>(width > 0.0f ? width : 0.0f));
+    append_number(out, "height", static_cast<std::uint64_t>(height > 0.0f ? height : 0.0f));
+    // The DPR is a scale, not a count, so it keeps its fraction (`1.5` is a real device).
+    out += ",\"dpr\":";
+    out += std::to_string(dpi > 0.0f ? dpi : 1.0f);
+    append_number(out, "cascadeGeneration", cascade_generation);
+    append_text(out, "error", error);
     out += "}\n";
     return out;
 }

@@ -26,6 +26,13 @@ export interface CanvasFrameReport {
    * the engine's own counter instead of inferring it from a repaint.
    */
   frames?: number;
+  /**
+   * How many times the running evaluation's cascade has been resolved (issue #436). The pane shows
+   * it beside the frame count, because "a resize that crosses no `@media` breakpoint does not
+   * rebuild the cascade" is a claim about this number: it moves by exactly one per crossed
+   * breakpoint and not at all for a resize that stays inside one.
+   */
+  cascade?: number;
   drawCalls: number;
   vertices: number;
   nodes: number;
@@ -73,6 +80,25 @@ export interface CanvasApplyReport {
   /** The session's lifetime frame count, so the page can report the cost of an edit. */
   frames?: number;
   state?: CanvasStateCell[];
+  error: string;
+}
+
+/**
+ * What one *viewport change* reports (issue #436), from `tessera_canvas_set_viewport`.
+ *
+ * `changed` is true when a layout pass ran, so the page draws one frame; a viewport already in
+ * force answers false and costs nothing. `cascadeGeneration` is the session's own count of cascade
+ * resolutions: it starts at 1 per Run and moves by exactly one when a size crosses an `@media`
+ * breakpoint, so it is the engine's evidence that a resize that crosses none was a layout pass
+ * rather than a re-resolve. `width`/`height`/`dpr` are what the session was asked for, so the pane
+ * can report the device it actually got.
+ */
+export interface CanvasViewportReport {
+  changed: boolean;
+  width: number;
+  height: number;
+  dpr: number;
+  cascadeGeneration?: number;
   error: string;
 }
 

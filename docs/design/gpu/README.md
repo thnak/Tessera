@@ -24,6 +24,7 @@ or asset decoding. Those have their own docs.
 | [`frames.md`](frames.md) | Frame lifecycle, in-flight frames, barriers, uploads, resize |
 | [`resources.md`](resources.md) | Buffers/textures/targets/samplers/memory |
 | [`pipelines.md`](pipelines.md) | Pipeline cache, descriptors, vertex layout, shaders |
+| [`box-shadow-clipping.md`](box-shadow-clipping.md) | An outer `box-shadow` is painted only outside the rounded border box: the vertex carve, the strip fallback, corner triangles, tests (#461) |
 | [`backends.md`](backends.md) | Vulkan/WebGPU/null/software parity and capabilities |
 | [`offscreen-layers.md`](offscreen-layers.md) | Render-pass break, `copy_target_region`, bounded offscreen pool (#242) |
 | [`webgpu-backend.md`](webgpu-backend.md) | WebGPU backend first slice, status, remaining work |

@@ -105,19 +105,17 @@ public:
         PaintSink::fill_rounded_ring(rect, color, radius, width);
     }
 
-    // A soft shadow reaches 2 sigma past its box, so it replays like a text run: once per damage
-    // region it touches, under a clip for that region, with its geometry unchanged.
-    [[nodiscard]] bool supports_soft_shadow() const override {
-        return target_->supports_soft_shadow();
+    // A shadow quad reaches 2 sigma past its box, so it replays like a text run: once per damage
+    // region it touches, under a clip for that region, with its geometry unchanged. The carve box
+    // only removes coverage, so it never widens the reach.
+    [[nodiscard]] bool supports_box_shadow() const override {
+        return target_->supports_box_shadow();
     }
-    void fill_soft_shadow(const rhi::Rect& box, const rhi::Color& color, float radius,
-                          float sigma) override {
-        const float reach = 2.0f * sigma;
-        const rhi::Rect bounds{box.x - reach, box.y - reach, box.width + 2.0f * reach,
-                               box.height + 2.0f * reach};
-        replay([this, &box, &color, radius,
-                sigma] { target_->fill_soft_shadow(box, color, radius, sigma); },
-               device_bounds(bounds));
+    void fill_box_shadow(const BoxShadowDraw& draw) override {
+        const float reach = 2.0f * draw.sigma;
+        const rhi::Rect bounds{draw.box.x - reach, draw.box.y - reach,
+                               draw.box.width + 2.0f * reach, draw.box.height + 2.0f * reach};
+        replay([this, &draw] { target_->fill_box_shadow(draw); }, device_bounds(bounds));
     }
 
     // Clips are orthogonal to damage: forward them unchanged so the target sink applies the same

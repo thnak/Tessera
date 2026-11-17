@@ -196,6 +196,8 @@ if (TARGET batched2d_poc)
     tessera_golden_tolerances(batched2d_text_golden TESSERA_TOL_TEXT TESSERA_MAX_TEXT)
     tessera_golden_tolerances(batched2d_shapes_golden
         TESSERA_TOL_SHAPES TESSERA_MAX_SHAPES)
+    tessera_golden_tolerances(batched2d_shadow_golden
+        TESSERA_TOL_SHADOW TESSERA_MAX_SHADOW)
 endif()
 
 if (TARGET batched2d_poc)
@@ -308,6 +310,22 @@ if (UNIX AND TARGET batched2d_poc)
         set_tests_properties(batched2d_shapes_golden PROPERTIES
             ENVIRONMENT "VK_ICD_FILENAMES=${TESSERA_LAVAPIPE_ICD}")
 
+        # An outer box-shadow is painted only outside the border box (issue #461), so a transparent
+        # box shows the page through its own (rounded) box. The baseline is lavapipe-only and is
+        # generated on a Linux lane with:
+        #   VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json \
+        #   ./build/dev/tools/poc/batched2d/batched2d_poc --backend vulkan --golden --shadow-clip \
+        #       --width 320 --height 200 \
+        #       --out tests/golden/baseline/batched2d/shadow_clip.png
+        add_test(
+            NAME batched2d_shadow_golden
+            COMMAND batched2d_poc --backend vulkan --golden --shadow-clip --width 320 --height 200
+                --tolerance ${TESSERA_TOL_SHADOW} --max-mismatch ${TESSERA_MAX_SHADOW}
+                --out ${CMAKE_CURRENT_BINARY_DIR}/batched2d_shadow_golden.png
+                --compare ${CMAKE_CURRENT_SOURCE_DIR}/../golden/baseline/batched2d/shadow_clip.png)
+        set_tests_properties(batched2d_shadow_golden PROPERTIES
+            ENVIRONMENT "VK_ICD_FILENAMES=${TESSERA_LAVAPIPE_ICD}")
+
         add_test(
             NAME batched2d_windowed_smoke
             COMMAND batched2d_poc --backend vulkan --windowed --frames 3 --width 256 --height 256)
@@ -336,6 +354,18 @@ if (TARGET tessera_rhi_vulkan)
     target_link_libraries(rounded_clip_tests PRIVATE tessera_gpu tessera_rhi_vulkan)
     add_test(NAME rounded_clip COMMAND rounded_clip_tests)
     set_tests_properties(rounded_clip PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+
+    # An outer box-shadow is painted only outside the border box (issue #461): a real readback
+    # proves a transparent node shows the page colour inside its own (rounded) box, through the
+    # renderer's Gaussian quad and through the paint pass for both the sharp and the blurred path.
+    add_executable(shadow_clip_gpu_tests
+        batched2d/shadow_clip_gpu_tests.cpp)
+    target_link_libraries(shadow_clip_gpu_tests PRIVATE
+        tessera_gpu tessera_paint tessera_rhi_vulkan)
+    add_test(NAME shadow_clip_gpu COMMAND shadow_clip_gpu_tests)
+    set_tests_properties(shadow_clip_gpu PROPERTIES
+        SKIP_REGULAR_EXPRESSION "skipped"
+        FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
 
     # Isolated-layer seam (#242) pixel test: draw, break the pass, copy a region, resume, draw.
     add_executable(renderer_seam_gpu_tests

@@ -46,13 +46,14 @@ import { wasmModuleUrl } from "../lib/module-url";
 import type { SourceReader, StatusReporter, ViewSession } from "../lib/views";
 import { callExport, requireExports, type WasmModule } from "../lib/wasm-call";
 import { acquireDevice, handOverDevice, type CanvasModule } from "./canvas-device";
-import { FONT_FAMILY, handOverFont, loadPreviewFont, readFontStatus } from "./canvas-font";
+import { loadFontFor } from "./canvas-font";
 import {
   requestedViewport,
   sizeToDevicePixels,
   type CanvasApplyReport,
   type CanvasFrameReport,
   type CanvasStateCell,
+  type CanvasViewportReport,
 } from "./canvas-frame";
 import { createCanvasPane, type CanvasPane, type CanvasPaneElements } from "./canvas-pane";
 
@@ -269,11 +270,12 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
 
     try {
       // Both exports are required: `apply` is what an edit and the first automatic load call, `draw`
-      // paints the running session, and a module built without either would fail as "not a function"
-      // on the first keystroke, which is the least useful moment to find out.
+      // paints the running session, and `set_viewport` is how the toolbar changes the device without
+      // re-evaluating (issue #436).
       requireExports(module, [
         "_tessera_canvas_apply",
         "_tessera_canvas_draw",
+        "_tessera_canvas_set_viewport",
         "_tessera_webgpu_set_device",
       ]);
     } catch (error) {
@@ -309,25 +311,11 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
   }
 
   /**
-   * Hands the module its font, once per device: the bytes are fetched from this site and copied into the
-   * module's heap (issue #387). A failure is **not** fatal -- the preview then paints boxes only and the
-   * pane says so, which is the documented degraded state -- so this never returns a reason the caller must
-   * act on, only the sentence to show.
+   * Hands the module its font, once per device (issue #387). A failure is **not** fatal: the preview then
+   * paints boxes only and the pane says so. The steps live in `canvas-font.ts`.
    */
   async function loadFont(module: WasmModule & CanvasModule): Promise<string | null> {
-    const loaded = await loadPreviewFont();
-    if (loaded.error !== undefined) {
-      return loaded.error;
-    }
-    const handover = handOverFont(module as never, loaded.bytes);
-    if (handover.error !== undefined) {
-      return handover.error;
-    }
-    const status = readFontStatus(module as never);
-    // The module copies the bytes into its own `FontFace`, so the buffer stays cached on the page for a
-    // later module instance rather than being kept alive per device.
-    pane.setFontState(status?.loaded === true ? (status.family ?? FONT_FAMILY) : null);
-    return status?.loaded === true ? null : (status?.error ?? "the module reported no font");
+    return loadFontFor(module as never, (family) => pane.setFontState(family));
   }
 
   // **Restart app** (issue #444): a cold start. The module's session is released, so the next frame
@@ -472,14 +460,35 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
     },
     /**
      * The toolbar moved: on this view the viewport, the DPR and the fold posture are what the canvas is
-     * sized and laid out for. One frame is requested; the posture's layout pass happens inside the
-     * engine call that frame makes, so the picture is never a frame behind the control (issue #408).
+     * sized and laid out for, and the layout pass happens inside the engine call this makes (issues #408
+     * and #436). **A viewport change is not a reason to re-evaluate.** `_tessera_canvas_set_viewport`
+     * re-lays the running evaluation out in place — no re-run, `@media` re-resolved only when the size
+     * crosses a breakpoint — so `state::count`, hover and focus survive a preset or orientation swap.
      */
     onEnvironmentChange: () => {
-      if (gpu !== null && visible) {
-        resize();
-        requestFrame();
+      if (gpu === null || !visible) {
+        return;
       }
+      resize();
+      const viewport = requestedViewport(options.environment);
+      try {
+        const report = JSON.parse(
+          callExport(gpu.module, "_tessera_canvas_set_viewport", [], [
+            viewport.width,
+            viewport.height,
+            viewport.dpr,
+          ]),
+        ) as CanvasViewportReport;
+        if (report.error !== "") {
+          // A refused viewport (a degenerate size) is named, and the picture already there stays.
+          pane.setStatus("viewport not applied: " + report.error, "warning");
+          return;
+        }
+      } catch (error) {
+        pane.showFailed(String(error));
+        return;
+      }
+      requestFrame();
     },
     /** A gallery pick changes what would be drawn; redraw only if a device already exists. */
     onSample: () => {
