@@ -60,6 +60,8 @@ target_link_libraries(tessera_app PUBLIC
     # The RHI seam only: ScaledTargets creates offscreen render targets through it, and stays
     # backend-agnostic (the null backend in tests, Vulkan in the window driver).
     tessera_rhi
+    # The display-aware AA resolver (`window_config.cpp`, docs/design/display-aware-rendering.md).
+    tessera_scale
     tessera_style
     tessera_scene
     tessera_runtime)
@@ -78,6 +80,9 @@ if (TESSERA_BUILD_VULKAN AND NOT CMAKE_CROSSCOMPILING)
     add_library(tessera_app_window STATIC
         frame_capture.cpp
         window.cpp
+        # The window's display-aware AA policy resolution and application (display-aware-rendering
+        # section 6), shared by creation and the metrics-change path.
+        window_aa.cpp
         # WindowHost's accessibility adapters (issues #185/#186): the paint->a11y style provider and
         # the action execution on the scene, outside window.cpp's size budget.
         window_accessibility.cpp

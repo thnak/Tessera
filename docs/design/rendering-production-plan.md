@@ -3,9 +3,9 @@
 Status: plan for the rendering workstream from the current B1/B2/B3 state to the production
 milestone. The project owner approved **D1 (ThorVG first)** and **D2 (sRGB-encoded formats)** on
 2026-11-09; D2 is implemented (RHI sRGB formats, swapchain preference policy, UNORM goldens
-unchanged), D1's integration spike is next, and D3-D8 are engineering defaults enforced by the
-release gates and remain open to owner review. The acceptance gates are normative for the release
-build. Related:
+unchanged), plus its text-coverage contrast amendment (section 3), D1's integration spike is next,
+and D3-D8 are engineering defaults enforced by the release gates and remain open to owner review.
+The acceptance gates are normative for the release build. Related:
 [`renderer.md`](renderer.md), [`gpu/README.md`](gpu/README.md),
 [`dependencies.md`](../specs/dependencies.md), [`THIRD_PARTY_NOTICES.md`](../../THIRD_PARTY_NOTICES.md),
 [ADR-012](../../decisions/ADR-012-static-linking.md), [ADR-013](../../decisions/ADR-013-project-license-mit.md),
@@ -59,6 +59,14 @@ the release gates enforce; they can be revisited by the owner without changing t
 | D7 | **Device loss is a production requirement**: explicit recoverable failure, no UI-thread indefinite waits; device-loss UX policy can stay minimal (recreate device once, surface error). | No license impact. |
 | D8 | **Correctness gates**: validation-layer-clean debug runs, bit-exact software goldens, damage-redraw equivalence, resize/DPI tests. | No license impact. |
 | D9 | **Text paint payload (Lead engineering default, owner-reviewable).** Scene nodes carry an optional `ui::PaintData` text payload (content + minimal font/color descriptor); visual properties keep coming from computed style. Rationale: no full text-node model in V1, layout and style stay authoritative, and the decision is reversible when rich text lands. | No license impact; keeps text drawing on the existing shaped-text/atlas path. |
+
+**D2 amendment (2026-11-17): text coverage contrast.** Adopted for text only. D2's encoded-space
+blending makes light-on-dark text read thinner than the same outline dark-on-light, so a run's
+sampled glyph coverage is multiplied by a 256-entry `constexpr` LUT boost indexed by the text
+color's encoded lightness: flat at 1.0 at and below mid lightness (0.5) and rising to exactly 1.4 at
+white. It is one lookup per run, not per glyph and not a shader branch, and it does not touch fills,
+images or the blend space itself, so **D2 stands as approved**; the rationale, curve and tests are
+in [`display-aware-rendering.md`](display-aware-rendering.md) section 3.5.
 
 Open questions that stay parked (not production blockers): VRR capability APIs, HDR/linear color,
 custom-element 3D depth ordering, native Dawn feature floor, ICU data subset. Their features stay

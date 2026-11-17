@@ -155,6 +155,47 @@ bool content_scale_maps_presented_to_target() {
     return ok;
 }
 
+// The composed CSS -> target transform the window applies every frame (display-aware-rendering.md
+// section 6): the device scale times the adaptive factor. Its identity case is what keeps the 1.0
+// frame on the pre-transform path.
+bool composed_content_scale() {
+    using tessera::ui::scale::content_scale_for;
+    using tessera::ui::scale::ContentScale;
+    bool ok = true;
+
+    const ContentScale identity = content_scale_for(1.0f, 1.0f, 1.0f);
+    ok = expect(identity == ContentScale{} && identity.is_identity(),
+                "device 1 and adaptive 1 compose to exactly the identity") &&
+         ok;
+
+    // A hi-DPI window with no downgrade scales by the device scale alone.
+    const ContentScale doubled = content_scale_for(2.0f);
+    ok = expect(doubled == ContentScale{2.0f, 2.0f} && !doubled.is_identity(),
+                "device 2 with no downgrade doubles the scene") &&
+         ok;
+
+    // The factors compose per axis: the adaptive ratio is exact per axis (75/101 vs 57/77), so the
+    // composed value is the device scale times each axis.
+    const auto adaptive = adaptive_target_extent(Extent2D{101, 77}, 0.75f);
+    const ContentScale composed =
+        content_scale_for(1.25f, adaptive.content_scale_x, adaptive.content_scale_y);
+    ok = expect(composed.x == 1.25f * adaptive.content_scale_x &&
+                    composed.y == 1.25f * adaptive.content_scale_y,
+                "the device and adaptive factors compose per axis") &&
+         ok;
+
+    // A bad metric or a bad decision falls back per axis instead of collapsing or mirroring.
+    ok = expect(content_scale_for(0.0f) == ContentScale{} &&
+                    content_scale_for(-2.0f) == ContentScale{},
+                "an invalid device scale falls back to 1") &&
+         ok;
+    const ContentScale mixed = content_scale_for(2.0f, 0.0f, 0.5f);
+    ok = expect(mixed.x == 2.0f && mixed.y == 1.0f,
+                "an invalid adaptive axis falls back to 1 on that axis alone") &&
+         ok;
+    return ok;
+}
+
 bool device_ladder_keys_glyphs_not_the_adaptive_scale() {
     // Text/glyph rasterization is keyed by the quantized device scale. The adaptive multiplier is
     // not an input, so every downgrade step leaves it exactly where it was.
@@ -194,6 +235,7 @@ int main() {
     ok = scale_one_is_identity() && ok;
     ok = one_pixel_floor_and_bad_inputs() && ok;
     ok = content_scale_maps_presented_to_target() && ok;
+    ok = composed_content_scale() && ok;
     ok = device_ladder_keys_glyphs_not_the_adaptive_scale() && ok;
     if (!ok) {
         return 1;

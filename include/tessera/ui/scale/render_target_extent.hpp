@@ -62,4 +62,29 @@ struct AdaptiveTargetExtent {
 [[nodiscard]] AdaptiveTargetExtent adaptive_target_extent(rendering::rhi::Extent2D presented,
                                                           float adaptive_scale) noexcept;
 
+// The composed CSS -> render-target factor a frame applies with
+// `Batched2DRenderer::set_content_scale` (display-aware-rendering.md section 6). It is the window's
+// device scale times the adaptive render-scale factor from AdaptiveTargetExtent (target/presented,
+// per axis). Scene geometry is authored in CSS px, so this one value is what makes a glyph quad
+// placed back in CSS units cover exactly its device-pixel bitmap at a device scale of 2, and what
+// lets the rounded-clip and border-snapping math (both in CSS px) land on the target's device grid.
+struct ContentScale {
+    float x = 1.0f;
+    float y = 1.0f;
+
+    // True only when both axes are exactly 1.0, i.e. the pre-transform call path: a frame that sets
+    // this would be byte-identical anyway, so a caller can skip set_content_scale() entirely.
+    [[nodiscard]] bool is_identity() const noexcept {
+        return x == 1.0f && y == 1.0f;
+    }
+
+    friend bool operator==(const ContentScale&, const ContentScale&) = default;
+};
+
+// Composes the two independent factors. A non-finite or non-positive input falls back to 1 for that
+// axis, so a bad metric or a bad quality decision can never collapse or mirror the frame; the
+// identity inputs return exactly (1, 1).
+[[nodiscard]] ContentScale content_scale_for(float device_scale, float adaptive_x = 1.0f,
+                                             float adaptive_y = 1.0f) noexcept;
+
 } // namespace tessera::ui::scale

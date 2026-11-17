@@ -14,6 +14,8 @@
 #include "tessera/app/recovery_policy.hpp"
 #include "window_impl.hpp"
 
+#include <algorithm>
+#include <cstdint>
 #include <cstdio>
 #include <stdexcept>
 #include <utility>
@@ -93,6 +95,15 @@ bool WindowHost::Impl::create_presentation() {
     // The CPU cull of quads outside the scissor or damage (issue #474); off means every quad is
     // staged, for a pixel-identical comparison when debugging.
     renderer_config.cull_draws = options.runtime.cull_draws;
+    // The AA policy's renderer inputs are the config the renderer is actually built with, so the
+    // policy can never claim AA is on when the pipeline has it off (section 6). `reduce_effects` is
+    // the paint pass's own consumer; the AA policy reads the same power preset directly.
+    aa_options.display_aware_aa = options.display_aware_aa;
+    aa_options.aa_enabled = renderer_config.enable_aa;
+    aa_options.golden_mode = renderer_config.golden_mode;
+    aa_options.msaa_samples =
+        static_cast<std::uint8_t>(std::min<std::uint32_t>(renderer_config.sample_count, 255u));
+    aa_options.reduced_quality = options.runtime.power_policy == PowerPolicy::PowerSave;
     glass_blur_pipeline = std::move(glass.blur);
     glass_composite_pipeline = std::move(glass.composite);
     renderer = std::make_unique<rendering::gpu::Batched2DRenderer>(
@@ -103,6 +114,10 @@ bool WindowHost::Impl::create_presentation() {
     text = std::make_unique<detail::TextStack>(*device, options.font_path);
     sink = std::make_unique<ui::paint::Batched2DSink>(*renderer, text->renderer.get(),
                                                       text->shaper.get());
+    // Creation is a between-frames moment exactly like a metrics change, so the fresh text renderer
+    // (which starts on the golden policy) adopts the window's policy here. A device-loss recovery
+    // calls this again, which is why the policy is not applied from the constructor instead.
+    apply_aa_policy(metrics);
     return true;
 }
 

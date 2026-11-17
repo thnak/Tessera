@@ -169,12 +169,11 @@ repo ships Noto Sans and Twemoji only as test fixtures).
   `set_render_scale()` is a DPI/monitor-change call, never a frame-path call: it belongs between
   frames, and selecting the step already active is a no-op, while a real change invalidates
   **only the step being left** (its atlas entry and its page textures), which the next draw at
-  that step rebuilds on demand. The other
-  steps are untouched, so page eviction on one scale never affects another. `begin_frame()`
-  advances every live step's page LRU. The scale keys the cache only: the raster pixel size is
-  still the caller's `pixel_size`, so a device-scale pixel-size policy is a separate slice. Test
-  `text_renderer_scale` pins the quantization mapping, the previous-step release/re-rasterization,
-  and the unchanged 1.0 draw records.
+  that step rebuilds on demand. The other steps are untouched, so page eviction on one scale never
+  affects another. `begin_frame()` advances every live step's page LRU. The scale both keys the
+  cache and the raster size: `draw` takes CSS px and rasterizes at `round(css_px * render_scale)`
+  device px, placing the quad back in CSS so layout metrics never move (section 3.1 of
+  `display-aware-rendering.md`); `text_device_raster` and `text_contrast_lut` pin it.
 - Not implemented: skyline packing, subpixel positioning, SDF/MSDF, async
   uploads, and per-glyph (rather than per-page) eviction.
 - Hinting/AA settings come from the pinned FreeType build; no system FreeType configuration is

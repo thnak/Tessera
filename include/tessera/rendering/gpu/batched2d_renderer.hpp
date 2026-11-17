@@ -155,17 +155,21 @@ public:
     [[nodiscard]] std::uint32_t glass_draws() const;
 
     void set_viewport(rhi::Extent2D extent);
+    // Scissors are in target pixels: `begin()` sets the frame scissor from the target extent and
+    // `begin_damaged()`'s regions are already device pixels. A clip rect, which is authored in
+    // paint (CSS) coordinates, must go through push_clip() instead, because that is where the
+    // frame's content scale is applied before the scissor is derived from it.
     void set_scissor(const rhi::Scissor& scissor);
     void push_scissor(const rhi::Scissor& scissor);
     void pop_scissor();
 
-    // Global output scale applied to every emitted position and every clip rect, per axis. It lets
-    // one scene - laid out and painted in the window's presented pixel coordinates - be rendered
-    // into a smaller target (the adaptive render scale of docs/design/performance.md section 6) and
-    // resampled back up on present. It is not a device/render-scale change: glyphs keep the atlas
-    // raster they were shaped at, and the SDF/AA radii stay in local (pre-scale) units, so a
-    // downgrade only resamples pixels. `begin()` resets it to (1, 1), which is the byte-identical
-    // full-quality path.
+    // Global output scale applied to every emitted position and every clip rect, per axis. It maps
+    // paint (CSS) coordinates to the frame target's pixels: the window composes its device scale
+    // with the adaptive render-scale factor (ui::scale::content_scale_for), so one scene reaches a
+    // target that is larger than its logical size (a hi-DPI window) or smaller (a downgraded frame
+    // resampled back up on present). Glyph rasterization keeps the atlas it was shaped at and the
+    // SDF/AA radii stay in local (pre-scale) units, so this scales geometry, never the raster.
+    // `begin()` resets it to (1, 1), which is the byte-identical 1.0 path.
     void set_content_scale(float x, float y);
 
     // Rounded-rect clip stack. The scissor is still intersected with each clip rect (fast path),

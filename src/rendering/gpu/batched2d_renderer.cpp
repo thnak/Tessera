@@ -202,7 +202,9 @@ void Batched2DRenderer::push_clip(const clip::RoundedRect& input) {
     }
     // Clips are tested in target-pixel space (gl_FragCoord), so they take the same global content
     // scale as the positions they guard. Radii use the mean of the two axes: they are exact for the
-    // uniform scale a render-target downgrade uses, and only an approximation otherwise.
+    // uniform scale a render-target downgrade uses, and only an approximation otherwise. The CPU
+    // scissor is derived from this scaled rect by ClipStateTable::push (enclosing_scissor), so the
+    // scissor fast path and the shader clip agree on the same target-space rectangle.
     clip::RoundedRect scaled = input;
     if (content_scale_x_ != 1.0f || content_scale_y_ != 1.0f) {
         const float radius_scale = (content_scale_x_ + content_scale_y_) * 0.5f;

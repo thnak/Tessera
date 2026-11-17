@@ -60,7 +60,7 @@ color.a *= alpha;
 | Box-shadow border-box carve | Hard pixel-center cut at the rounded border box (CSS clips with no ramp); the shadow's own edge keeps its Gaussian / SDF AA |
 | MSAA | 4x color targets implemented (opt-in); 8x/per-format/depth MSAA deferred |
 | FXAA/TAA/post-process | Not implemented |
-| Transforms/DPI (device pixel ratio, see "DPI scale" in the glossary) | SDF edge width is `aa_radius` device pixels at any scale or rotation (S2); window integration of the display-aware policy is pending |
+| Transforms/DPI (device pixel ratio, see "DPI scale" in the glossary) | SDF edge width is `aa_radius` device pixels at any scale or rotation (S2); the window resolves and applies the display-aware policy (`display-aware-rendering.md` section 6) |
 | Golden coverage | CPU goldens stay 1-sample; 4x coverage is a deterministic real-GPU readback test |
 
 ## 2.1 MSAA 4x (implemented, opt-in)
@@ -180,7 +180,9 @@ flow. It still needs a lavapipe run in CI alongside the real-GPU run above.
 ## 6. Color and gamma
 
 - Alpha blending currently assumes a simple alpha blend; sRGB/gamma policy is not scheduled and no decision has been made (see "B2 / known limits" in [`renderer.md`](renderer.md) and [ADR-001](../../decisions/ADR-001-vulkan-1-3-baseline.md)).
-- Text AA in linear vs sRGB space can look different; pin the policy in golden mode.
+- Text AA in linear vs sRGB space can look different; pin the policy in golden mode. Text coverage
+  contrast is the adopted per-run LUT (`display-aware-rendering.md` section 3.5, a D2 amendment);
+  the encoded blend space itself is unchanged.
 - Overlapping translucent edges need a deterministic blend order (painter's order).
 
 ## 7. Tests

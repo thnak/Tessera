@@ -5,6 +5,7 @@
 // fractional device width floors, and scale 1 and 2 keep integral widths unchanged.
 
 #include "tessera/ui/paint/paint_pass.hpp"
+#include "tessera/ui/scale/render_target_extent.hpp"
 
 #include <cmath>
 #include <initializer_list>
@@ -141,6 +142,13 @@ int main() {
     const RectSink second = paint_box("1px", false, 1.25f);
     ok &= expect(first.rects.size() == second.rects.size() && first.rects.size() == 4,
                  "four strips, repeatable");
+
+    // The snapped CSS width meets the frame transform the window composes at the same device scale:
+    // a 1 CSS px border at device scale 2 is exactly 2 device pixels (display-aware-rendering.md
+    // section 6). Snapping and the transform share one device scale, so they cannot disagree.
+    const tessera::ui::scale::ContentScale transform = tessera::ui::scale::content_scale_for(2.0f);
+    ok &= expect(near(top_width("1px", 2.0f) * transform.x, 2.0f),
+                 "a 1px border at device scale 2 is 2 device pixels after the transform");
 
     return ok ? 0 : 1;
 }

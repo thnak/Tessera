@@ -2166,8 +2166,10 @@ constant include/tessera/ui/scale/render_scale.hpp tessera::ui::scale::kRenderSc
 
 header include/tessera/ui/scale/render_target_extent.hpp
 struct include/tessera/ui/scale/render_target_extent.hpp tessera::ui::scale::AdaptiveTargetExtent
+struct include/tessera/ui/scale/render_target_extent.hpp tessera::ui::scale::ContentScale
 function include/tessera/ui/scale/render_target_extent.hpp tessera::ui::scale::adaptive_extent_pixels
 function include/tessera/ui/scale/render_target_extent.hpp tessera::ui::scale::adaptive_target_extent
+function include/tessera/ui/scale/render_target_extent.hpp tessera::ui::scale::content_scale_for
 function include/tessera/ui/scale/render_target_extent.hpp tessera::ui::scale::glyph_raster_scale
 function include/tessera/ui/scale/render_target_extent.hpp tessera::ui::scale::presented_extent_pixels
 constant include/tessera/ui/scale/render_target_extent.hpp tessera::ui::scale::kMaxRenderTargetExtent

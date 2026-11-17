@@ -5,6 +5,7 @@
 // no presentation surface (the host reports available() == false instead of failing).
 
 #include "tessera/app/window.hpp"
+#include "tessera/ui/scale/render_scale.hpp"
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/scene/paint_data.hpp"
 #include "tessera/ui/style/compiled_stylesheet.hpp"
@@ -69,7 +70,27 @@ int main() {
         !expect(second.presented >= 2, "a second run presents frames")) {
         return 2;
     }
+
+    // The window resolves and applies the display-aware AA policy between frames
+    // (display-aware-rendering.md section 6): the painted frame reports the device scale and a
+    // policy whose scale is that device scale quantized. The default switch is on, so text uses the
+    // policy's hinting rather than the golden font hints.
+    using tessera::ui::scale::quantize_render_scale;
+    using tessera::ui::scale::TextHinting;
+    if (!expect(stats.device_scale == host.host().dpi_scale(),
+                "the reported device scale is the window's metrics scale") ||
+        !expect(stats.aa_policy.render_scale == quantize_render_scale(stats.device_scale),
+                "the policy's render scale is the quantized device scale") ||
+        !expect(stats.aa_policy.hinting != TextHinting::Font,
+                "the default window applies the policy, not the golden font hints") ||
+        !expect(stats.content_scale_x == 1.0f && stats.content_scale_y == 1.0f,
+                "a 1.0 window reports the identity frame transform")) {
+        return 3;
+    }
     std::cout << "app_window_smoke: ok (frames=" << stats.frames << " presented=" << stats.presented
-              << " idle_waits=" << stats.idle_waits << " second_frames=" << second.frames << ")\n";
+              << " idle_waits=" << stats.idle_waits << " second_frames=" << second.frames
+              << " device_scale=" << stats.device_scale
+              << " aa_scale=" << stats.aa_policy.render_scale
+              << " content_scale=" << stats.content_scale_x << ")\n";
     return 0;
 }

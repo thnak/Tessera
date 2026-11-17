@@ -165,7 +165,6 @@ bool backdrop_placement() {
     ok = expect(same_rect(draw.clip.rect, draw.rect), "the composite clip is the node's box") && ok;
     ok = expect(draw.sigma == 8.0f, "the sigma is the declared blur length") && ok;
     ok = expect(draw.opacity == 1.0f, "an opaque node composites the backdrop fully") && ok;
-    ok = expect(draw.device_scale == 1.0f, "the default device scale is 1") && ok;
     return ok;
 }
 

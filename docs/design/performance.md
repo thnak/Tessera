@@ -371,9 +371,11 @@ extent ratio `target / P`, so the resample always covers the whole image.
 **What it never touches.** The device scale (the monitor-derived value quantized onto the render-scale
 ladder, [`window-resize.md`](window-resize.md) §2.3), and therefore everything keyed by it: glyph
 rasterization, the text atlas, and caret/metrics values. Layout does not change either — the scene is
-laid out, style-resolved and painted in the presented pixel space exactly as before; only the
-mapping from those coordinates to the smaller target changes. The window and its swapchain keep the
-physical size, so a quality change never resizes the OS window or recreates the swapchain.
+laid out, style-resolved and painted in CSS pixels exactly as before; only the mapping from those
+coordinates to the smaller target changes. The frame's content scale composes this adaptive ratio
+with the window's device scale (`ui::scale::content_scale_for`, `display-aware-rendering.md` §6), so
+a downgrade only multiplies the device factor by the quality factor. The window and its swapchain
+keep the physical size, so a quality change never resizes the OS window or recreates the swapchain.
 
 **When it applies.** At the next frame boundary: the multiplier is read from the decision in force
 when the frame begins, the target is (re)created only when the decided extent changed, and the

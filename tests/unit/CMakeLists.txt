@@ -348,6 +348,20 @@ target_link_libraries(window_config_tests PRIVATE tessera_app tessera_frame tess
 
 add_test(NAME window_config COMMAND window_config_tests)
 
+# The window's display-aware AA policy mapping (docs/design/display-aware-rendering.md sections 2, 5
+# and 6): window metrics plus the renderer inputs resolve to an AaPolicy, the explicit switch and a
+# golden/AA-off renderer pin `golden_aa_policy()`, and the power preset and MSAA rules reach the
+# resolver. Pure CPU: no GPU, window or display.
+add_executable(window_aa_policy_tests
+    window_aa_policy_tests.cpp)
+
+target_include_directories(window_aa_policy_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src/app)
+
+target_link_libraries(window_aa_policy_tests PRIVATE tessera_app)
+
+add_test(NAME window_aa_policy COMMAND window_aa_policy_tests)
+
 # Adaptive quality (docs/design/performance.md section 6; runtime-config-v1.md 5.7 and 6.2): the
 # deterministic controller's thresholds, clamps, disabled paths, hysteresis and determinism, plus the
 # host wiring that feeds it one observed frame at a time and records a change - not a raw frame time

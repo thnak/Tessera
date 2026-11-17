@@ -148,9 +148,6 @@ void paint_backdrop(const style::ComputedStyle& style, const rhi::Rect& rect, fl
     draw.saturate = filter->saturate;
     draw.brightness = filter->brightness;
     draw.contrast = filter->contrast;
-    draw.device_scale = context.device_scale > 0.0f && std::isfinite(context.device_scale)
-                            ? context.device_scale
-                            : 1.0f;
     sink.draw_backdrop(draw);
     ++stats.backdrops;
 }

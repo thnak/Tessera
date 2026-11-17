@@ -8,6 +8,7 @@
 #include "tessera/rendering/rhi/types.hpp"
 #include "tessera/runtime/config.hpp"
 #include "tessera/runtime/diagnostics.hpp"
+#include "tessera/ui/scale/aa_policy.hpp"
 
 #include <cstdint>
 #include <functional>
@@ -87,6 +88,14 @@ struct WindowOptions {
     // Opts into the undocumented Windows 10 acrylic accent policy. Off by default; ignored on
     // Windows 11 and every other platform (glass-v1.md section 6).
     bool win10_acrylic = false;
+    // The deliberate switch for display-aware anti-aliasing (docs/design/display-aware-rendering.md
+    // section 6). On (the default) the window resolves a `ui::scale::AaPolicy` from its metrics and
+    // applies it to text rasterization and border snapping, re-resolving it between frames on a
+    // metrics change. Off pins `golden_aa_policy()` - the pre-policy text behavior - because
+    // turning it on changes the default text hinting from the font's own hints to light
+    // at 1.0-1.5x. Golden mode overrides the switch: a renderer configured with `golden_mode` (or
+    // with AA disabled) uses the golden policy regardless of this value and of the display.
+    bool display_aware_aa = true;
 };
 
 // Device health when run() returned. A caller distinguishes a clean exit (Ready, or Unavailable for
@@ -169,6 +178,19 @@ struct WindowFrameStats {
     // already observable through `WindowMetrics`, so they are not duplicated here.
     std::uint32_t refresh_rate_changes = 0;
     std::uint8_t display_count = 0;
+    // Display-aware AA (docs/design/display-aware-rendering.md section 6): the device scale the
+    // last frame was painted at and the policy resolved from the window's latest metrics. Both are
+    // resolved between frames - at creation and on a metrics change - so a frame never moves them;
+    // they are reported here so a test can prove the window wired the policy rather than leaving
+    // the renderer on its golden default.
+    float device_scale = 1.0f;
+    ui::scale::AaPolicy aa_policy = ui::scale::golden_aa_policy();
+    // The frame's composed CSS -> target factor (device scale x adaptive render-scale factor),
+    // which the window hands to the batched renderer so the CSS-painted scene and the T1 glyph
+    // quads land on the physical pixel grid. 1.0/1.0 is the path where the transform is not applied
+    // at all.
+    float content_scale_x = 1.0f;
+    float content_scale_y = 1.0f;
 };
 
 // The production window driver: owns the platform window, the Vulkan device + swapchain, the

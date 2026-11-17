@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-// Text consumes the AA policy (display-aware-rendering.md S5 hinting and S6 subpixel positioning):
-// the rasterizer honours the hinting mode and a quarter-pixel origin offset, the atlas keys glyphs
-// by that offset, a hinting change releases every atlas, and TextRenderer::set_aa_policy applies
+// Text consumes the AA policy (display-aware-rendering.md S5 hinting, S6 subpixel positioning and
+// T1 device raster size): the rasterizer honours the hinting mode and a quarter-pixel origin
+// offset, the atlas keys glyphs by that offset and by the device pixel size the policy's render
+// scale asks for, a hinting change releases every atlas, and TextRenderer::set_aa_policy applies
 // the policy's hinting and subpixel flag. The default stays the golden policy. The null device
 // keeps draw records deterministic; argv[1] is NotoSans-Regular.ttf.
 
@@ -17,6 +18,7 @@
 #include "tessera/ui/text/text_renderer.hpp"
 #include "tessera/ui/text/text_shaper.hpp"
 
+#include <cmath>
 #include <cstdint>
 #include <iostream>
 #include <vector>
@@ -154,13 +156,21 @@ int main(int argc, char** argv) {
     draw_at(4.3f);
     const std::uint32_t pages = text.page_texture_count();
     ok &= expect(pages > 0, "a draw uploads a page");
-    // The first glyph's origin is 4.3 + x_offset: a quarter-pixel offset is cached, whole is not.
-    const float origin = 4.3f + run.glyphs[0].x_offset;
-    const float fraction = origin - static_cast<float>(static_cast<int>(origin));
-    const std::uint8_t expected_offset = static_cast<std::uint8_t>(fraction * 4.0f + 0.5f) % 4;
-    ok &= expect(text.atlas().find_glyph(run.glyphs[0].id, kPixelSize, run.glyphs[0].face,
+    // The glyph is rasterized at css_px * 1.25 device pixels, and its origin fraction is taken on
+    // that device grid: a quarter-device-pixel offset is cached, whole is not.
+    ok &= expect(text.render_scale() == 1.25f, "the policy's 1.25 step is active");
+    const std::uint16_t device_size =
+        static_cast<std::uint16_t>(std::lround(static_cast<float>(kPixelSize) * 1.25f));
+    const float origin = (4.3f + run.glyphs[0].x_offset) * 1.25f;
+    const float fraction = origin - std::floor(origin);
+    const std::uint8_t expected_offset =
+        static_cast<std::uint8_t>(std::lround(fraction * 4.0f)) % 4;
+    ok &= expect(text.atlas().find_glyph(run.glyphs[0].id, device_size, run.glyphs[0].face,
                                          expected_offset) != nullptr,
-                 "the glyph was rasterized at its quarter-pixel offset");
+                 "the glyph was rasterized at its quarter-device-pixel offset");
+    ok &= expect(text.atlas().find_glyph(run.glyphs[0].id, kPixelSize, run.glyphs[0].face,
+                                         expected_offset) == nullptr,
+                 "the atlas is keyed by the device pixel size, not the CSS size");
 
     text.set_aa_policy(policy_at(1.25f));
     ok &= expect(text.page_texture_count() == pages, "re-applying the same policy keeps the pages");

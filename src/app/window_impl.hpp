@@ -25,6 +25,7 @@
 #include "tessera/runtime/runtime_loop.hpp"
 #include "tessera/runtime/steady_clock.hpp"
 #include "tessera/ui/input_pump.hpp"
+#include "tessera/ui/scale/render_target_extent.hpp"
 #include "tessera/ui/text/caret_blink.hpp"
 #include "window_config.hpp"
 #include "window_internal.hpp"
@@ -196,6 +197,26 @@ struct WindowHost::Impl {
     // Reports the unsupported platform once, on the first request, so a button that stays clicked
     // cannot spam the log. Cleared by nothing: the capability does not change for a window's life.
     bool fullscreen_unsupported_reported = false;
+
+    // --- display-aware anti-aliasing (docs/design/display-aware-rendering.md section 6) ---------
+    // Resolves the policy from `metrics` and the renderer inputs and applies it to the text
+    // renderer. Creation and a metrics change call it; the frame path only reads the resolved
+    // values. A hinting change releases every atlas page, so this must never run while quads still
+    // reference those pages - between frames, exactly like set_render_scale().
+    void apply_aa_policy(const hal::WindowMetrics& metrics);
+    // Composes the frame's CSS -> target transform (device scale x adaptive factor) and applies it
+    // to the batched renderer, right after begin() reset it to 1:1. A no-op when both factors are
+    // 1.0, so the 1.0 path records exactly the commands it did before the transform existed.
+    // Returns the composed value so the frame stats can report it.
+    [[nodiscard]] ui::scale::ContentScale
+    apply_frame_transform(rendering::gpu::Batched2DRenderer& batched,
+                          const ui::scale::AdaptiveTargetExtent& adaptive) const;
+    // The renderer inputs, mapped once when the presentation (and its renderer config) is created.
+    WindowAaOptions aa_options;
+    // The resolved policy and the device scale it was resolved from. Plain data: a display fact is
+    // read only by apply_aa_policy(), never on the frame path.
+    ui::scale::AaPolicy aa_policy = ui::scale::golden_aa_policy();
+    float device_scale = 1.0f;
 
     // --- pointer shape (window-chrome-v1.md section 8.5, issue #191) -------------------------
     // Maps the deepest hovered scene node's resolved CSS cursor onto the HAL's `CursorShape` and

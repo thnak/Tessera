@@ -158,6 +158,19 @@ TextInput { width: 180px; height: 28px; background-color: #0f172a; }
         return 4;
     }
 
+    // The same metrics change re-resolved the display-aware policy and moved the frame transform
+    // (display-aware-rendering.md section 6): at device scale 2 a CSS px is 2 target pixels, and
+    // the policy moved to the 2.0 glyph raster step, so text is rasterized at the device size the
+    // transform displays.
+    if (!expect(host.stats().device_scale == 2.0f,
+                "the metrics change moved the window's device scale") ||
+        !expect(host.stats().aa_policy.render_scale == 2.0f,
+                "the AA policy re-resolved to the 2.0 glyph step") ||
+        !expect(host.stats().content_scale_x == 2.0f && host.stats().content_scale_y == 2.0f,
+                "the frame transform composes the device scale")) {
+        return 5;
+    }
+
     std::cout << "app_window_input: ok\n";
     return 0;
 }
