@@ -69,6 +69,51 @@ void test_import_rejections() {
     }
 }
 
+void test_css_module_imports() {
+    // Issue #463: the one default import the subset accepts binds a CSS module's class map.
+    const auto card = parse_module("import styles from \"./Card.module.css\";");
+    check(card.ok(), "a CSS-module default import parses: " + codes(card));
+    if (card.root && card.root->items.size() == 1) {
+        const auto& item = card.root->items[0];
+        check_eq(item.css_module_binding, "styles", "the binding is the local name");
+        check_eq(item.source, "./Card.module.css", "the source is the specifier");
+        check(item.kind == ItemKind::Import, "the item is an import");
+        check(!item.side_effect, "a CSS-module import is not a side-effect import");
+        check(item.names.empty(), "a CSS-module import binds no named import");
+    } else {
+        check(false, "one item for the CSS-module import");
+    }
+
+    const auto nested = parse_module("import s from \"../a/b.module.css\";");
+    check(nested.ok(), "a parent-relative CSS-module path parses: " + codes(nested));
+    if (nested.root && nested.root->items.size() == 1) {
+        check_eq(nested.root->items[0].css_module_binding, "s", "the binding of the nested path");
+        check_eq(nested.root->items[0].source, "../a/b.module.css", "the nested source");
+    } else {
+        check(false, "one item for the parent-relative CSS-module import");
+    }
+
+    // Only `.module.css` is a CSS module: a plain stylesheet default import stays rejected.
+    check_eq(codes(parse_module("import styles from \"./Card.css\";")),
+             "TESSERA_JSX_SUBSET_IMPORT;", "a plain `.css` default import is rejected");
+    check_eq(codes(parse_module("import Foo from \"./Foo\";")), "TESSERA_JSX_SUBSET_IMPORT;",
+             "a component default import is rejected");
+    // The rejection keeps its message, its hint and its span on the binding (issue #463).
+    check_eq(format_diagnostic(first_diag(parse_module("import Foo from \"./Foo\";"))),
+             "1:8: error[TESSERA_JSX_SUBSET_IMPORT]: default and namespace imports are not "
+             "supported\n  help: use named imports: `import { Name } from \"...\";`",
+             "the default-import rejection is unchanged");
+    check_eq(codes(parse_module("import * as ns from \"./x\";")), "TESSERA_JSX_SUBSET_IMPORT;",
+             "a namespace import is rejected");
+    // A class map is a value, so the type-only form of the same specifier stays rejected.
+    check_eq(codes(parse_module("import type styles from \"./Card.module.css\";")),
+             "TESSERA_JSX_SUBSET_IMPORT;", "a type-only CSS-module import is rejected");
+    check_eq(codes(parse_module("import styles from \"/abs/Card.module.css\";")),
+             "TESSERA_JSX_SUBSET_IMPORT;", "an absolute CSS-module path is rejected");
+    check_eq(validity(parse_module("import styles from \"/abs/Card.module.css\";")), "I",
+             "the absolute CSS-module item is invalid");
+}
+
 void test_types_and_constants() {
     check_eq(dump_module("export type Props = { initial: int };"),
              "(module\n  (type Props {initial:int}))", "type alias");
@@ -329,6 +374,7 @@ void test_determinism() {
 int main() {
     test_imports();
     test_import_rejections();
+    test_css_module_imports();
     test_types_and_constants();
     test_component_with_hooks();
     test_component_shapes();

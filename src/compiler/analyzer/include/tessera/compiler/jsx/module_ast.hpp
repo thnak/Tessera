@@ -65,6 +65,10 @@ struct ModuleItem {
     std::string source;
     std::vector<ImportName> names;
     bool side_effect = false;
+    // `import styles from "./Card.module.css";` (issue #463): the local name the module's class map
+    // is bound to. Empty for every other import. A default import of any other specifier stays
+    // TESSERA_JSX_SUBSET_IMPORT.
+    std::string css_module_binding;
     // `import type { ... }` / `export type { ... }`: the binding introduces types only, so it adds
     // no runtime import edge (docs/specs/jsx-subset-v1.md section 4).
     bool type_only = false;
