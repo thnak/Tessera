@@ -361,6 +361,7 @@ This page is the map and reading order for the framework.
 - [`guides/real-gpu-ci.md`](guides/real-gpu-ci.md) — the real-GPU lane: a local script (not a GitHub workflow) that runs the window and Vulkan tests hosted CI skips
 - [`guides/code-style.md`](guides/code-style.md) — style, file size, build-cache rules
 - [`guides/testing.md`](guides/testing.md) — run/add tests, sanitizers, CI, triage
+- [`guides/chrome-parity.md`](guides/chrome-parity.md) — compare what the engine paints with Chrome for the same markup and stylesheet
 - [`guides/packaging.md`](guides/packaging.md) — release checklist: gates, per-OS install/package,
   artifact names, manual signing/notarization
 - [`guides/debugging.md`](guides/debugging.md) — validation, GPU tools, common failures

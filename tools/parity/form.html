@@ -1,0 +1,111 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: MIT -->
+<!--
+  The browser twin of samples/gallery/FormPage.tsx. The structure is the same, element for element
+  (View -> div, Text -> span, TextInput -> input, the library Button -> the div it renders), and the
+  stylesheets are the very files the engine loads: packages/tessera-ui/button.css and
+  samples/gallery/form.css. scripts/ci/chrome_parity.mjs adds the theme tokens as :root variables
+  from instrument.theme.json and the font; nothing else is styled here except the reset below.
+
+  The reset is the engine's own box model written as CSS, because the engine does not apply the
+  browser defaults: every View is a flex container laid out by Yoga (column, stretch, no shrink;
+  the box model stays the CSS default, content-box, which is what the engine implements). Without it the browser would be comparing against a different layout algorithm and
+  the diff would measure the reset, not the renderer.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tessera parity form</title>
+<style>
+  html, body { margin: 0; padding: 0; }
+  body { width: 100vw; height: 100vh; overflow: hidden; }
+  span { display: block; }
+  div, input {
+    display: flex; flex-direction: column;
+    flex-shrink: 0; position: relative; margin: 0; min-width: 0;
+    align-items: stretch; align-content: flex-start;
+    font: inherit; color: inherit; background: transparent; border: 0; outline: 0;
+  }
+  span { flex-shrink: 0; position: relative; margin: 0; min-width: 0; font: inherit; color: inherit; }
+  #root { width: 100%; height: 100%; }
+</style>
+<link rel="stylesheet" href="../../packages/tessera-ui/button.css">
+<link rel="stylesheet" href="../../samples/gallery/form.css">
+</head>
+<body>
+<div id="root">
+<div class="f-page">
+  <div class="f-card">
+    <div class="f-head">
+      <div class="f-logo"><span class="f-logo-mark">T</span></div>
+      <div class="f-head-text">
+        <span class="f-title">Create workspace</span>
+        <span class="f-sub">Invite your team and pick a plan. You can change this later.</span>
+      </div>
+      <div class="f-badge"><span class="f-badge-text">Pro trial</span></div>
+    </div>
+
+    <div class="f-grid">
+      <div class="f-field">
+        <span class="f-label">First name</span>
+        <input class="f-input" aria-label="First name" value="Ada">
+      </div>
+      <div class="f-field">
+        <span class="f-label">Last name</span>
+        <input class="f-input" aria-label="Last name" value="Lovelace">
+      </div>
+      <div class="f-field f-span">
+        <span class="f-label">Work email</span>
+        <input class="f-input f-input-error" aria-label="Work email" value="ada@analytical">
+        <span class="f-error">Enter a full address, for example ada@analytical.engine</span>
+      </div>
+      <div class="f-field f-span">
+        <span class="f-label">Region</span>
+        <div class="f-select">
+          <span class="f-select-value">Europe / Berlin (UTC+01:00)</span>
+          <span class="f-select-caret">v</span>
+        </div>
+        <span class="f-help f-ellipsis">Data stays in this region. Backups are kept in the same country unless you opt in to a second site later.</span>
+      </div>
+    </div>
+
+    <div class="f-segment">
+      <div class="f-seg f-seg-on"><span class="f-seg-text f-seg-text-on">Monthly</span></div>
+      <div class="f-seg"><span class="f-seg-text">Yearly</span></div>
+      <div class="f-seg"><span class="f-seg-text">Invoice</span></div>
+    </div>
+
+    <div class="f-rows">
+      <div class="f-row">
+        <div class="f-row-text">
+          <span class="f-row-title">Weekly digest</span>
+          <span class="f-help">A summary every Monday morning.</span>
+        </div>
+        <div class="f-switch f-switch-on"><div class="f-knob f-knob-on"></div></div>
+      </div>
+      <div class="f-row">
+        <div class="f-row-text">
+          <span class="f-row-title">Two-step sign in</span>
+          <span class="f-help">Recommended for every admin.</span>
+        </div>
+        <div class="f-switch"><div class="f-knob"></div></div>
+      </div>
+      <div class="f-check-row">
+        <div class="f-check f-check-on"><span class="f-check-mark">x</span></div>
+        <span class="f-check-label">I agree to the terms and the data processing addendum</span>
+      </div>
+    </div>
+
+    <div class="f-rule"></div>
+
+    <div class="f-foot">
+      <div class="host"><div role="button" tabindex="0" aria-label="Delete draft" aria-disabled="true" class="tbtn tbtn-ghost tbtn-md tbtn-disabled"><span>Delete draft</span></div></div>
+      <div class="f-spacer"></div>
+      <div class="host"><div role="button" tabindex="0" aria-label="Cancel" class="tbtn tbtn-secondary tbtn-md tbtn-idle"><span>Cancel</span></div></div>
+      <div class="host"><div role="button" tabindex="0" aria-label="Create workspace" class="tbtn tbtn-primary tbtn-md tbtn-idle"><span>Create workspace</span></div></div>
+    </div>
+  </div>
+</div>
+</div>
+</body>
+</html>

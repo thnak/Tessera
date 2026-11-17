@@ -10,7 +10,7 @@
 //   --rtl              `direction: rtl` on the window root (inherited)
 //   --state S          none (default), hover, active or focus: forces that pseudo-state on every
 //                      enabled Button, so a capture shows the state without a pointer
-//   --page P           buttons (default) or safe-area
+//   --page P           buttons (default), safe-area or form (the parity form, tools/parity)
 //   --device D         none (default), notch, gesture, keyboard or fold: scripts the window metrics
 //                      a SafeArea reads (insets, cutout, keyboard, hinge) and, unless --width and
 //                      --height are given, the window size of that device
@@ -22,6 +22,7 @@
 //                                 rewrites)
 //   gallery [--hidden] [--frames N]  window; the switches above set its initial state
 
+#include "FormPage.hpp"
 #include "Gallery.hpp"
 #include "SafeAreaPage.hpp"
 #include "golden.hpp"
@@ -92,6 +93,7 @@ struct Resources {
     style::PreparedStyleSheet library_sheet;
     style::PreparedStyleSheet safe_area_sheet;
     style::PreparedStyleSheet gallery_sheet;
+    style::PreparedStyleSheet form_sheet;
     std::vector<std::uint8_t> theme_blob;
 };
 
@@ -99,8 +101,9 @@ std::optional<Resources> load_resources() {
     const auto button_css = read_file(TESSERA_GALLERY_BUTTON_CSS);
     const auto safe_area_css = read_file(TESSERA_GALLERY_SAFE_AREA_CSS);
     const auto gallery_css = read_file(TESSERA_GALLERY_CSS);
+    const auto form_css = read_file(TESSERA_GALLERY_FORM_CSS);
     const auto theme_json = read_file(TESSERA_GALLERY_THEME);
-    if (!button_css || !safe_area_css || !gallery_css || !theme_json) {
+    if (!button_css || !safe_area_css || !gallery_css || !form_css || !theme_json) {
         std::cerr << "gallery: cannot read the library CSS, gallery CSS or theme asset\n";
         return std::nullopt;
     }
@@ -113,6 +116,7 @@ std::optional<Resources> load_resources() {
     resources.library_sheet = style::prepare_stylesheet(*button_css);
     resources.safe_area_sheet = style::prepare_stylesheet(*safe_area_css);
     resources.gallery_sheet = style::prepare_stylesheet(*gallery_css);
+    resources.form_sheet = style::prepare_stylesheet(*form_css);
     resources.theme_blob = style::serialize_theme_asset(*theme);
     return resources;
 }
@@ -122,6 +126,7 @@ style::CompiledStyleSheet make_sheet(const Resources& resources) {
         {"button.css", &resources.library_sheet, style::Origin::Author, true},
         {"safe-area.css", &resources.safe_area_sheet, style::Origin::Author, true},
         {"gallery.css", &resources.gallery_sheet, style::Origin::Author, false},
+        {"form.css", &resources.form_sheet, style::Origin::Author, false},
     };
     return style::CompiledStyleSheet(sources);
 }
@@ -364,7 +369,7 @@ Args parse_args(int argc, char** argv) {
         args.text_scale == 100 || args.text_scale == 125 || args.text_scale == 150;
     const bool state_ok = args.state == "none" || args.state == "hover" || args.state == "active" ||
                           args.state == "focus";
-    const bool page_ok = args.page == "buttons" || args.page == "safe-area";
+    const bool page_ok = args.page == "buttons" || args.page == "safe-area" || args.page == "form";
     const std::optional<Device> device = device_for(args.device);
     if (!density_ok || !scale_ok || !state_ok || !page_ok || !device) {
         std::cerr << "gallery: invalid --density, --text-scale, --state, --page or --device\n";
@@ -401,6 +406,10 @@ int main(int argc, char** argv) {
     };
     if (args.page == "safe-area") {
         Scene<gallery::SafeAreaPage> scene;
+        return run(scene);
+    }
+    if (args.page == "form") {
+        Scene<gallery::FormPage> scene;
         return run(scene);
     }
     Scene<gallery::Gallery> scene;
