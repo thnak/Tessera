@@ -234,7 +234,7 @@ This page is the map and reading order for the framework.
 - [`design/gpu/metal-backend.md`](design/gpu/metal-backend.md) — Metal backend design: completion values,
   resource lifetime, `CAMetalLayer` presentation, errors
 - [`design/gpu/testing.md`](design/gpu/testing.md) — GPU test pyramid/tree, goldens, CI
-- [`design/antialiasing.md`](design/antialiasing.md) — current SDF (signed distance field) AA, text/path/MSAA gaps
+- [`design/antialiasing.md`](design/antialiasing.md) — current SDF (signed distance field) AA, text/path/MSAA gaps; display-dependent AA proposal in [`design/display-aware-rendering.md`](design/display-aware-rendering.md)
 - [`design/startup-and-loading.md`](design/startup-and-loading.md) — startup, loading screen,
   auth gate, route load, failure/offline
 - [`design/scene-graph.md`](design/scene-graph.md) — node tree, hit-testing, events, dirty bits

@@ -99,6 +99,9 @@ does not cover SDF/subpixel text, platform font shaping beyond the deterministic
 rounded-rect clipping (the CPU sink clips with axis-aligned bounds; the golden scene uses plain
 rects). CI can now run text goldens on the CPU (and lavapipe remains the full-fidelity software
 renderer on Linux) with no real GPU.
+The display-dependent parts (device scale, pixel geometry, text hinting/subpixel, clip AA,
+snapping) are proposed in [`display-aware-rendering.md`](display-aware-rendering.md).
+
 ## 3. Quality and configuration (proposed)
 
 AA is a quality/power knob; it must not change layout. Proposed config:
