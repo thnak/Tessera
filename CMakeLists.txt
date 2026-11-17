@@ -183,6 +183,9 @@ add_subdirectory(src/compiler/ids)
 add_subdirectory(src/compiler/rules)
 add_subdirectory(src/compiler/lowering)
 add_subdirectory(src/compiler/codegen)
+# CSS modules (issue #463): the scan that scopes a `.module.css` file's classes and keyframes. It
+# links the scene-free tokenizer only, so it sits beside codegen rather than under `src/ui`.
+add_subdirectory(src/compiler/css_module)
 add_subdirectory(tools/schema_dump)
 # `tessera icons add` (ADR-047 item 8): build-time Iconify import with the license gate.
 add_subdirectory(tools/icons)
