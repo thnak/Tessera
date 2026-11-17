@@ -967,6 +967,19 @@ if (TESSERA_BUILD_TESTS)
         target_compile_features(codegen_instances_runtime_tests PRIVATE cxx_std_23)
 
         add_test(NAME codegen_instances_runtime COMMAND codegen_instances_runtime_tests)
+
+        # #440: how many update() calls one state change costs. The same committed Page/Row bases
+        # under a counting developer class for Row (fixtures/update_count).
+        add_executable(codegen_update_fanout_tests
+            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_update_fanout_tests.cpp)
+
+        target_include_directories(codegen_update_fanout_tests PRIVATE
+            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures/update_count
+            ${_tessera_codegen_instances_golden_dir})
+        target_link_libraries(codegen_update_fanout_tests PRIVATE tessera_scene)
+        target_compile_features(codegen_update_fanout_tests PRIVATE cxx_std_23)
+
+        add_test(NAME codegen_update_fanout COMMAND codegen_update_fanout_tests)
     endif ()
 
     if (EXISTS ${_tessera_codegen_golden_dir}/Button.g.hpp AND EXISTS
