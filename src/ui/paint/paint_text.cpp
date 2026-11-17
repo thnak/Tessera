@@ -307,9 +307,9 @@ void paint_text_lines(const Node& node, const style::ComputedStyle& style, const
     const float padding_top = detail::length_value(style, "padding-top").value_or(0.0f);
     const float padding_bottom = detail::length_value(style, "padding-bottom").value_or(0.0f);
     const float content_width = std::max(0.0f, rect.width - padding_left - padding_right);
-    const float content_height = std::max(0.0f, rect.height - padding_top - padding_bottom);
+    float content_height = std::max(0.0f, rect.height - padding_top - padding_bottom);
     const float content_x = rect.x + padding_left;
-    const float content_y = rect.y + padding_top;
+    float content_y = rect.y + padding_top;
 
     rhi::Color color = data->text_style.color.value_or(detail::current_color(style));
     color.a *= opacity;
@@ -326,6 +326,22 @@ void paint_text_lines(const Node& node, const style::ComputedStyle& style, const
     StubPaintTextMetrics stub_source;
     const PaintTextMetricsSource* metrics_source =
         context.text_metrics_source != nullptr ? context.text_metrics_source : &stub_source;
+    if (node.element_kind() == "TextInput" && !wrap) {
+        // A single-line field centers its line in the content box, as a browser's <input> does; a
+        // `TextArea` and ordinary `Text` stay top-aligned. Caret and selection are placed from the
+        // same content box, so they move with the text.
+        text::TextConstraints one_line;
+        one_line.wrap = false;
+        one_line.max_width = content_width;
+        const text::TextLayout probe = metrics_source->layout(
+            data->text.empty() ? std::string("x") : data->text, text_style, one_line);
+        if (!probe.lines.empty()) {
+            const float offset =
+                std::max(0.0f, (content_height - probe.lines.front().height) * 0.5f);
+            content_y += offset;
+            content_height = std::max(0.0f, content_height - offset);
+        }
+    }
     if (!data->spans.empty() && !data->decoration) {
         // Inline spans: one measured paragraph, per-span painted runs (issue #229).
         paint_spanned_text(node, text_style, {content_x, content_y, content_width, content_height},

@@ -379,6 +379,40 @@ bool test_single_line_alignment() {
     return left_ok && center_ok && right_ok && distinct;
 }
 
+// A single-line TextInput centers its line in a taller box, as a browser's <input> does; the same
+// text in an ordinary node (or a node of any other kind) stays at the top.
+bool test_text_input_is_vertically_centered() {
+    constexpr float kBoxHeight = 40.0f;
+    StubPaintTextMetrics metrics;
+    text::TextStyle style;
+    style.font_size = 16.0f;
+    text::TextConstraints no_wrap;
+    no_wrap.wrap = false;
+    no_wrap.max_width = 100.0f;
+    const text::TextLayout layout = metrics.layout("Ada", style, no_wrap);
+    if (!expect(!layout.lines.empty() && layout.lines.front().height < kBoxHeight,
+                "stub line is shorter than the box")) {
+        return false;
+    }
+    const float expected_top = (kBoxHeight - layout.lines.front().height) * 0.5f;
+
+    const auto first_run_top = [&](const char* kind) {
+        Node root(1);
+        root.set_bounds({0, 0, 100, kBoxHeight});
+        root.set_element_kind(kind);
+        StubStyles styles;
+        styles.set(1, styled({{"font-size", "16px"}}));
+        root.set_paint_data(text_run("Ada"));
+        RecordingSink sink;
+        paint_scene(root, styles, sink);
+        return sink.texts.empty() ? -1.0f : sink.texts[0].rect.y;
+    };
+    return expect(std::abs(first_run_top("TextInput") - expected_top) < 0.01f,
+                  "TextInput line is centered in the content box") &&
+           expect(first_run_top("Text") == 0.0f, "an ordinary text node stays top-aligned") &&
+           expect(first_run_top("TextArea") == 0.0f, "a TextArea stays top-aligned");
+}
+
 } // namespace
 
 int main() {
@@ -390,6 +424,7 @@ int main() {
     ok = test_paint_data_node_contract() && ok;
     ok = test_damage_clipped_text() && ok;
     ok = test_single_line_alignment() && ok;
+    ok = test_text_input_is_vertically_centered() && ok;
 
     if (!ok) {
         std::cerr << "paint_text: failed\n";

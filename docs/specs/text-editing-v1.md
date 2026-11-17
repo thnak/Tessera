@@ -183,7 +183,7 @@ Events: `onChange`, `onSubmit`, `onFocus`, `onBlur`, `onSelectionChange`,
 - Controlled mode: the field applies edits optimistically, then syncs `value`; a rejected value
   restores the previous state deterministically.
 - Uncontrolled mode owns state internally and exposes it via ref/snapshot.
-- `TextArea` scrolls the caret into view; `TextInput` never wraps.
+- `TextArea` scrolls the caret into view; `TextInput` never wraps and centres its line vertically in the content box (a `TextArea` is top-aligned).
 - Validation/errors are form concerns, not text editing; see [`forms-and-validation-v1.md`](forms-and-validation-v1.md).
 
 ## 8. Layout, paint, and accessibility

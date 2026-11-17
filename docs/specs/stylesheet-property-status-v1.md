@@ -62,10 +62,10 @@ property that is *documented* as applied and is not, which is what the cross-che
 | `border-right-color` | applied | `paint_properties.cpp`; `paint_pass` |
 | `border-bottom-color` | applied | `paint_properties.cpp`; `paint_pass` |
 | `border-left-color` | applied | `paint_properties.cpp`; `paint_pass` |
-| `border-top-left-radius` | applied | `paint_properties.cpp` corner radii; `paint_clip` |
-| `border-top-right-radius` | applied | `paint_properties.cpp` corner radii; `paint_clip` |
-| `border-bottom-right-radius` | applied | `paint_properties.cpp` corner radii; `paint_clip` |
-| `border-bottom-left-radius` | applied | `paint_properties.cpp` corner radii; `paint_clip` |
+| `border-top-left-radius` | applied | `paint_properties.cpp` corner radii; `paint_clip`; a border follows it only as an opaque uniform ring (`paint_pass.cpp`, [chrome-parity.md](../guides/chrome-parity.md) section 6) |
+| `border-top-right-radius` | applied | `paint_properties.cpp` corner radii; `paint_clip`; a border follows it only as an opaque uniform ring (`paint_pass.cpp`, [chrome-parity.md](../guides/chrome-parity.md) section 6) |
+| `border-bottom-right-radius` | applied | `paint_properties.cpp` corner radii; `paint_clip`; a border follows it only as an opaque uniform ring (`paint_pass.cpp`, [chrome-parity.md](../guides/chrome-parity.md) section 6) |
+| `border-bottom-left-radius` | applied | `paint_properties.cpp` corner radii; `paint_clip`; a border follows it only as an opaque uniform ring (`paint_pass.cpp`, [chrome-parity.md](../guides/chrome-parity.md) section 6) |
 | `flex-direction` | applied | `layout_style.cpp`; `layout` |
 | `flex-wrap` | applied | `layout_style.cpp`; `layout` |
 | `flex-grow` | applied | `layout_style.cpp`; `layout` |

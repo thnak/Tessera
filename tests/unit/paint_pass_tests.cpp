@@ -373,6 +373,88 @@ bool test_null_backend_integration() {
     return ok;
 }
 
+// A border on a rounded box follows the radius. With an opaque uniform border and an opaque
+// background it is drawn as a ring: the outer rounded box in the border colour, then the background
+// over the inner box with the radius reduced by the border width. No square edge strips.
+bool test_rounded_border_is_a_ring() {
+    Node root(1);
+    root.set_bounds({0, 0, 100, 60});
+
+    StubStyles styles;
+    styles.set(1, styled({{"background-color", "white"},
+                          {"border-top-width", "2px"},
+                          {"border-top-style", "solid"},
+                          {"border-top-color", "black"},
+                          {"border-right-width", "2px"},
+                          {"border-right-style", "solid"},
+                          {"border-right-color", "black"},
+                          {"border-bottom-width", "2px"},
+                          {"border-bottom-style", "solid"},
+                          {"border-bottom-color", "black"},
+                          {"border-left-width", "2px"},
+                          {"border-left-style", "solid"},
+                          {"border-left-color", "black"},
+                          {"border-top-left-radius", "6px"},
+                          {"border-top-right-radius", "6px"},
+                          {"border-bottom-right-radius", "6px"},
+                          {"border-bottom-left-radius", "6px"}}));
+
+    RecordingSink sink;
+    const PaintStats stats = paint_scene(root, styles, sink);
+
+    return expect(sink.ops.size() == 2, "a ring and the inner background, no edge strips") &&
+           expect(sink.ops[0].kind == RecordedOp::Kind::Rounded && sink.ops[0].radius == 6.0f &&
+                      same_rect(sink.ops[0].rect, {0, 0, 100, 60}) &&
+                      same_color(sink.ops[0].color, tessera::rendering::rhi::rgba8(0, 0, 0)),
+                  "the outer rounded box in the border colour") &&
+           expect(sink.ops[1].kind == RecordedOp::Kind::Rounded && sink.ops[1].radius == 4.0f &&
+                      same_rect(sink.ops[1].rect, {2, 2, 96, 56}) &&
+                      same_color(sink.ops[1].color, tessera::rendering::rhi::rgba8(255, 255, 255)),
+                  "the background over the inner box, radius minus the border width") &&
+           expect(stats.borders == 1 && stats.backgrounds == 1, "one border, one background");
+}
+
+// Where the ring would be wrong the square strips stay: a faded box (the ring and the inner fill
+// would blend through each other) and a box with no opaque background.
+bool test_rounded_border_falls_back_to_strips() {
+    const auto ops_for = [](std::initializer_list<std::pair<const char*, const char*>> extra) {
+        Node root(1);
+        root.set_bounds({0, 0, 100, 60});
+        StubStyles styles;
+        ComputedStyle style = styled({{"border-top-width", "1px"},
+                                      {"border-top-style", "solid"},
+                                      {"border-top-color", "black"},
+                                      {"border-right-width", "1px"},
+                                      {"border-right-style", "solid"},
+                                      {"border-right-color", "black"},
+                                      {"border-bottom-width", "1px"},
+                                      {"border-bottom-style", "solid"},
+                                      {"border-bottom-color", "black"},
+                                      {"border-left-width", "1px"},
+                                      {"border-left-style", "solid"},
+                                      {"border-left-color", "black"},
+                                      {"border-top-left-radius", "6px"},
+                                      {"border-top-right-radius", "6px"},
+                                      {"border-bottom-right-radius", "6px"},
+                                      {"border-bottom-left-radius", "6px"}});
+        for (const auto& [property, value] : extra) {
+            style.set(property, value);
+        }
+        styles.set(1, style);
+        RecordingSink sink;
+        paint_scene(root, styles, sink);
+        return sink.ops;
+    };
+    const std::vector<RecordedOp> faded =
+        ops_for({{"background-color", "white"}, {"opacity", "0.5"}});
+    const std::vector<RecordedOp> transparent = ops_for({});
+    return expect(faded.size() == 5 && faded[0].kind == RecordedOp::Kind::Rounded &&
+                      faded[1].kind == RecordedOp::Kind::Rect,
+                  "a faded box keeps the background and the four strips") &&
+           expect(transparent.size() == 4 && transparent[0].kind == RecordedOp::Kind::Rect,
+                  "no background: the four strips only");
+}
+
 } // namespace
 
 int main() {
@@ -382,6 +464,8 @@ int main() {
     ok = test_transparent_and_invalid_colors_skipped() && ok;
     ok = test_border_edges() && ok;
     ok = test_border_none_is_not_painted() && ok;
+    ok = test_rounded_border_is_a_ring() && ok;
+    ok = test_rounded_border_falls_back_to_strips() && ok;
     ok = test_rounded_radius_and_clamp() && ok;
     ok = test_opacity_and_current_color() && ok;
     ok = test_empty_scene() && ok;
