@@ -372,10 +372,17 @@ jobs:
       #   - it is the only lane that has both Node ($EMSDK_NODE) and the module at the same time.
       #
       # What each row does to the build:
-      #   download_gzip_bytes  ENFORCED. Deterministic, so a regression fails this job.
-      #   cold_engine_ready_ms WARN. Wall clock; printed every run and never fails the lane.
-      #   edit_compile_ms      WARN. Same.
-      # The header of scripts/check_preview_budget.py explains both choices, and
+      #   download_gzip_bytes  ENFORCED. Deterministic (the built page plus all three modules the
+      #                        studio loads), so a regression fails this job, and the per-file
+      #                        recorded breakdown must agree with the measurement so a growth names
+      #                        the file that caused it.
+      #   cold_engine_ready_ms ENFORCED. Wall clock made portable: the probe times a fixed integer
+      #                        workload and the row is measured_ms * reference_ms / calibration_ms,
+      #                        so this runner's speed cancels. The raw figure is printed beside it as
+      #                        cold_engine_ready_raw_ms for triage.
+      #   edit_compile_ms      ENFORCED. Same normalization; edit_compile_raw_ms is printed beside it.
+      # The header of scripts/check_preview_budget.py explains the choice, the limits of that
+      # normalization (measured on one host) and what to do if it stops holding, and
       # tests/golden/perf/preview_budget.json records the pins, tolerances and the reason.
       #
       # A missing module is a setup error (exit 2), not a pass: a budget nobody measured is not a

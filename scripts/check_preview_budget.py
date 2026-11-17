@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-"""Preview size and latency budgets with a two-sided ratchet (issue #170, stage P6).
+"""Preview size and latency budgets with a two-sided ratchet (issue #170, stage P6; #395 the rest).
 
 Stage P6 of `docs/design/reference-equantic-ui.md` section 7.4 and the consequences of
 [ADR-045](../../decisions/ADR-045-browser-hosted-studio.md): the preview page is reached by a URL, so
@@ -8,27 +8,48 @@ its download size and its time to first frame are product concerns. This CLI is 
 their ratchet; the policy lives in `preview_budget_ratchet.py` and the numbers in
 `preview_budget_measure.py`, so each can be read and tested apart.
 
-## The three budgets
+## The budgets
 
 | Entry | What it measures | Status |
 |---|---|---|
-| `download_gzip_bytes` | gzip-9 bytes of the module + its loader + the page's HTML/CSS/JS: the transfer a browser pays | **enforce** |
-| `cold_engine_ready_ms` | instantiate the module plus the first compile, minimum of 5 fresh processes | **warn** |
-| `edit_compile_ms` | minimum per-edit compile over 30 edits x 5 fresh processes, after warm-up | **warn** |
+| `download_gzip_bytes` | gzip-9 bytes of every module the studio loads, its loaders, and the page's HTML/CSS/JS | **enforce** |
+| `cold_engine_ready_ms` | instantiate a module plus the first compile, calibration-normalized, minimum of 5 fresh processes | **enforce** |
+| `edit_compile_ms` | calibration-normalized per-edit compile over 30 edits x 5 fresh processes, after warm-up | **enforce** |
+
+Each module's own compressed size is also reported on every run (`tessera_canvas.wasm.gzip` and
+friends) but is not gated: one entry on the total fails once rather than N times for one change, and
+the breakdown names the file that grew.
 
 **Why the size row is enforced.** It is fully deterministic: the same files and the same zlib build
 give the same count on every machine and every run, so its 5%/1% band is measurement slack rather than
-noise cover. It is also the row the slice's acceptance is actually about ("compressed download"),
-and shrinking the module is a product win the ratchet should protect.
+noise cover.
 
-**Why the latency rows only warn.** Wall clock on a shared runner is not reproducible to a useful
-tolerance; this repository says so in `docs/guides/testing.md` section 7 and enforced it in the
-counter-only design of `tests/benchmarks/stylesheet`. The mitigations -- a 300% worse-side allowance
-and the minimum over fresh processes (contention only ever *adds* time, so the smallest sample is the
-closest to the true cost) -- make the warning a real order-of-magnitude detector, but "a gate that
-fails at random is worse than no gate". Two entries, two verdicts, and the reason is the noise, not
-the importance: cold first frame and edit-to-view matter more than the download size, which is exactly
-why they get measured and reported on every run instead of being trusted to an unreliable gate.
+**What the latency rows measure, and why that is now enforceable (issue #395).** They used to warn,
+because a wall-clock number on a shared runner moves with the runner: the eight Pages runs of
+2026-11-16/17 saw `cold_engine_ready_ms` between 16.552 and 28.272 ms and `edit_compile_ms` between
+0.083 and 0.223 ms with no relevant source change. A band tight enough to catch a real regression
+would have failed at random. The row is therefore no longer raw wall clock. Each probe process times
+a fixed integer workload, and the row is `measured_ms * reference_ms / calibration_ms`: the reference
+box's speed cancels, so the number means "how long this takes on the recorded reference profile"
+rather than "how fast the machine that ran this happened to be".
+
+Measured on one box, 15 fresh processes: raw spread 1.06x (1.08x with twelve CPU-burner processes on
+twelve threads), normalized spread 1.04x. The calibration absorbs both CPU-speed and contention,
+because the loop and the compile share a core, a governor and a process.
+
+**What that does not prove, stated so a reviewer can disagree.** It assumes the ratio between integer
+arithmetic speed and Wasm-compile speed is roughly constant across x86-64 runner generations. Only
+one box was measured. The `worse` allowance on the latency rows is set generously for exactly that
+reason, and `*_raw_ms` is printed on every run so a human can tell "the code got slower" from "the
+runner class changed". If a future lane shows the ratio is not stable across hosts, the honest
+response is to demote these rows back to `warn` and ratchet a work counter instead -- the ratchet
+code is unchanged either way, so that is a `status` edit plus a note in the budget file, not a
+redesign.
+
+**Why every module is weighed.** ADR-054 decision 3 ships three lazy `import()`s and the studio loads
+all three: diagnostics for the default view, scene preview for the Scene tab, canvas for the Canvas
+tab. Measuring diagnostics alone left the largest module (canvas, ~1.29 MB gzip against
+diagnostics' ~0.38 MB) outside the budget entirely.
 
 Tolerances are **per side** (`{"better": %, "worse": %}`). A single symmetric band cannot express both
 claims: wide enough for a noisy timing row means 300%, and `budget * (1 - 3)` is negative, so no entry
@@ -46,6 +67,7 @@ time. The budget file's `note` says the same thing where a reader of the data wi
     python -B scripts/check_preview_budget.py --check
     python -B scripts/check_preview_budget.py --update
     python -B scripts/check_preview_budget.py --check --size-only     # no Node, size rows only
+    python -B scripts/check_preview_budget.py --check --no-build      # no module: validate only
 
 Exit codes: 0 no error, 1 a regression, a stale budget, a malformed budget file or a refused
 `--update`, 2 usage error or a missing input (an unbuilt module is not a pass).
@@ -136,7 +158,8 @@ def parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
     parser.add_argument(
         "--module-dir",
         default=None,
-        help="directory holding tessera_diagnostics.js and .wasm (default: build/pages, then "
+        help="directory holding every module the studio loads (tessera_diagnostics, "
+        "tessera_scene_preview and tessera_canvas, .js and .wasm; default: build/pages, then "
         "build/wasm-webgpu/src/compiler/codegen)",
     )
     parser.add_argument(
@@ -151,6 +174,12 @@ def parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
         action="store_true",
         help="measure the size rows only (no Node, no latency rows)",
     )
+    parser.add_argument(
+        "--no-build",
+        action="store_true",
+        help="this lane has no built modules: validate the budget file only, and report that the "
+        "numbers are measured by the Pages lane (used by scripts/gates.py)",
+    )
     return parser.parse_args(argv)
 
 
@@ -159,6 +188,7 @@ def run_update(
     document: Dict,
     measurements: Dict[str, float],
     checked: Dict[str, Dict],
+    reference_ms: float,
 ) -> int:
     refused = ratchet.refused_by_update(checked, measurements)
     if refused:
@@ -172,7 +202,7 @@ def run_update(
         )
         return 1
     updated = ratchet.repinned(
-        document, measurements, measure.encoder(), measure.measurement_counts()
+        document, measurements, measure.encoder(), measure.measurement_counts(reference_ms)
     )
     try:
         budget_path.write_text(json.dumps(updated, indent=2) + "\n", encoding="utf-8")
@@ -189,6 +219,59 @@ def run_update(
     return 0
 
 
+def reference_calibration(document: Dict, required: bool) -> float:
+    """The calibration the latency pins were recorded against, or a `UsageError`.
+
+    It lives in the budget file rather than in code because it is part of the claim: every latency
+    pin is `measured_ms * reference_ms / calibration_ms`, so changing `reference_ms` rebases every
+    latency number. That is the same reason `encoder` is stored for the size rows -- a silent change
+    must be impossible, and a deliberate one must show up in a diff.
+    """
+    measurement = document.get("measurement")
+    value = measurement.get("calibration_reference_ms") if isinstance(measurement, dict) else None
+    if value is None:
+        if not required:
+            return 0.0
+        raise ratchet.UsageError(
+            "the budget file has no `measurement.calibration_reference_ms`; the latency rows are "
+            "calibration-normalized, so the reference they were pinned against must be recorded"
+        )
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
+        raise ratchet.UsageError(
+            "`measurement.calibration_reference_ms` is {!r}; it must be a positive number of "
+            "milliseconds".format(value)
+        )
+    return float(value)
+
+
+def run_no_build(budget_path: Path, document: Dict) -> int:
+    """`--no-build`: validate the file and report what this lane could not measure.
+
+    The aggregator (`scripts/gates.py`) runs in a job that is a checkout and a few lint tools: no
+    Emscripten, no assembled site, no Node. That job can still check the half that needs no numbers
+    -- the file's shape, its tolerances and its calibration contract -- and must say plainly that the
+    numbers were not measured here rather than print a pass that reads like the budgets passed.
+    """
+    entries: Dict[str, Dict] = document["entries"]
+    enforced = sorted(name for name, entry in entries.items() if entry["status"] == "enforce")
+    warned = sorted(name for name, entry in entries.items() if entry["status"] == "warn")
+    print("preview budget: {}".format(relative(budget_path)))
+    print(
+        "note: --no-build: the budget file is valid ({} enforce, {} warn); the numbers are measured "
+        "by the Pages lane (`.github/workflows/pages.yml`, `--module-dir build/pages --node "
+        "$EMSDK_NODE`), which is where a regression fails".format(len(enforced), len(warned))
+    )
+    print("note: enforced here: {}".format(", ".join(enforced) if enforced else "(none)"))
+    if warned:
+        print("note: warn-only here: {}".format(", ".join(warned)))
+    # Validate the calibration contract too, even though this lane cannot measure: a file that names
+    # a latency pin without the reference it was recorded against is malformed, and this is the one
+    # lane that runs on every PR -- the cheapest place to catch it. `required=False` so a file whose
+    # only measured rows are sizes stays valid.
+    reference_calibration(document, required=False)
+    return 0
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = parse_args(argv)
     budget_path = Path(args.budget)
@@ -200,19 +283,36 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return 2
     entries: Dict[str, Dict] = document["entries"]
 
+    if args.no_build:
+        try:
+            return run_no_build(budget_path, document)
+        except ratchet.UsageError as exc:
+            print("error: {}".format(exc), file=sys.stderr)
+            return 2
+
+    # Whether a latency row is in scope decides whether the calibration contract is required: a
+    # size-only run never divides by it, so demanding it there would fail a lane that only weighs bytes.
+    checks_latency = not args.size_only
+    try:
+        reference_ms = reference_calibration(document, required=checks_latency)
+    except ratchet.UsageError as exc:
+        print("error: {}".format(exc), file=sys.stderr)
+        return 2
+
     module_dir = Path(args.module_dir) if args.module_dir else measure.default_module_dir()
     if module_dir is None:
         print(
-            "SETUP ERROR: no Wasm module found. Build `tessera_diagnostics_wasm` or pass "
-            "--module-dir; checked {}.".format(
-                ", ".join(relative(candidate) for candidate in measure.MODULE_CANDIDATES)
-            ),
+            "SETUP ERROR: no Wasm module found. Build `tessera_diagnostics_wasm`, "
+            "`tessera_scene_preview_wasm` and `tessera_canvas_wasm` or pass --module-dir; checked "
+            "{}.".format(", ".join(relative(candidate) for candidate in measure.MODULE_CANDIDATES)),
             file=sys.stderr,
         )
         return 2
 
     try:
-        measurements = measure.measure(module_dir, args.node, size_only=args.size_only)
+        measurements = measure.measure(
+            module_dir, args.node, reference_ms, size_only=args.size_only
+        )
     except measure.SetupError as exc:
         print("SETUP ERROR: {}".format(exc), file=sys.stderr)
         return 2
@@ -223,9 +323,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     )
 
     if args.update:
-        return run_update(budget_path, document, measurements, checked)
+        return run_update(budget_path, document, measurements, checked, reference_ms)
 
     errors, warnings, notes = ratchet.compare(checked, measurements, document["tolerance"])
+    # The per-file breakdown is checked on both a full and a size-only run: it is a size fact, and a
+    # size-only lane is exactly the cheap run that can hold it to the measurement.
+    errors = errors + ratchet.breakdown_drift(checked, measurements)
     report(budget_path, measurements, errors, warnings, notes, len(checked), args.as_json)
 
     if errors:

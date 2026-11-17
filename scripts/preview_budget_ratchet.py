@@ -246,15 +246,82 @@ def update_notes(
     return notes
 
 
+def recorded_breakdown(entries: Dict[str, Dict], measurements: Dict[str, float]) -> Dict[str, float]:
+    """The size rows that make up an entry's total, as the measurement reports them.
+
+    A row belongs in the breakdown when it is a gzip size and is not itself a budget entry: the total
+    is not a component of itself, and a latency row is a duration rather than a file. Which rows those
+    are is therefore decided by the measurement, not by a list kept here that could fall out of date.
+    """
+    recorded: Dict[str, float] = {}
+    for name, value in measurements.items():
+        if not name.endswith(".gzip") or name in entries:
+            continue
+        recorded[name] = round(float(value), 3)
+    return dict(sorted(recorded.items()))
+
+
 def repinned(document: Dict, measurements: Dict[str, float], encoder: str, counts: Dict) -> Dict:
-    """The budget document after `--update`: pinned numbers, encoder and sample counts refreshed."""
+    """The budget document after `--update`: pinned numbers, encoder and sample counts refreshed.
+
+    An entry with a `recorded` block also has it refreshed from the same measurement, so the
+    per-file attribution a reviewer reads is the measurement that produced the pin rather than a
+    number someone copied out of a terminal once (issue #395: a growth of the download budget has to
+    be attributable to a file).
+    """
     updated = copy.deepcopy(document)
     updated["encoder"] = encoder
     updated["measurement"] = counts
+    breakdown = recorded_breakdown(updated["entries"], measurements)
     for name, entry in updated["entries"].items():
         if name in measurements:
             entry["budget"] = round(float(measurements[name]), 3)
+        if isinstance(entry.get("recorded"), dict):
+            entry["recorded"] = dict(breakdown)
     return updated
+
+
+def breakdown_drift(entries: Dict[str, Dict], measurements: Dict[str, float]) -> List[str]:
+    """Errors describing a `recorded` block that no longer matches the measurement.
+
+    The breakdown is what makes a growth *attributable*, so it is checked alongside the total: a file
+    whose size moved while the block was not re-recorded means the reviewer reading the diff is told
+    the wrong file grew. This is not a second ratchet on the same number -- it does not care what the
+    total is, only that the attribution agrees with it. A row the measurement produces but the file
+    does not name is an error too: an unrecorded file is an unattributed one, which is exactly the
+    state the module coverage in issue #395 exists to end.
+    """
+    expected = recorded_breakdown(entries, measurements)
+    errors: List[str] = []
+    for name in sorted(entries):
+        recorded = entries[name].get("recorded")
+        if not isinstance(recorded, dict):
+            continue
+        for key in sorted(set(recorded) | set(expected)):
+            if key not in recorded:
+                errors.append(
+                    "{}: the recorded breakdown does not name {}, which the measurement weighs "
+                    "({} bytes); an unrecorded file is an unattributed one, so re-record it with "
+                    "--update".format(name, key, "{:g}".format(expected[key]))
+                )
+            elif key not in expected:
+                errors.append(
+                    "{}: the recorded breakdown names {}, which the measurement no longer weighs "
+                    "({} bytes); re-record it with --update".format(
+                        name, key, "{:g}".format(float(recorded[key]))
+                    )
+                )
+            elif round(float(recorded[key]), 3) != expected[key]:
+                errors.append(
+                    "{}: the recorded breakdown says {} is {} bytes but the measurement says {}; "
+                    "re-record it with --update so the attribution matches the total".format(
+                        name,
+                        key,
+                        "{:g}".format(float(recorded[key])),
+                        "{:g}".format(expected[key]),
+                    )
+                )
+    return errors
 
 
 def format_rows(measurements: Dict[str, float]) -> List[str]:

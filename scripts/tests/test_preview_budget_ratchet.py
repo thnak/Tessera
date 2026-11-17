@@ -168,6 +168,88 @@ class RatchetArithmeticTests(unittest.TestCase):
         )
         self.assertEqual(notes, ["a: tightened from 100 to 90 u"])
 
+    # --- the recorded breakdown (issue #395) ---------------------------------------------------
+
+    def recorded_entry(self, recorded: dict) -> dict:
+        entry = self.entry(100.0)
+        entry["unit"] = "bytes"
+        entry["recorded"] = recorded
+        return entry
+
+    def test_recorded_breakdown_names_every_gzip_row_but_the_entry_itself(self) -> None:
+        # The total is not a component of itself, and a duration is not a file: the breakdown is the
+        # per-file gzip rows and nothing else.
+        measurements = {
+            "a.js.gzip": 100.0,
+            "a.wasm.gzip": 200.0,
+            "download_gzip_bytes": 300.0,
+            "cold_engine_ready_ms": 15.0,
+        }
+        self.assertEqual(
+            ratchet.recorded_breakdown({"download_gzip_bytes": {}}, measurements),
+            {"a.js.gzip": 100.0, "a.wasm.gzip": 200.0},
+        )
+
+    def test_a_breakdown_that_disagrees_with_the_measurement_is_an_error(self) -> None:
+        # The attribution is what makes a growth reviewable: a block that names the wrong size tells
+        # the reviewer the wrong file grew, even when the total is inside its band.
+        errors = ratchet.breakdown_drift(
+            {"e": self.recorded_entry({"a.js.gzip": 1.0})}, {"a.js.gzip": 100.0, "e": 100.0}
+        )
+        self.assertEqual(len(errors), 1)
+        self.assertIn("a.js.gzip is 1", errors[0])
+        self.assertIn("re-record it with --update", errors[0])
+
+    def test_a_file_the_breakdown_does_not_name_is_an_error(self) -> None:
+        errors = ratchet.breakdown_drift(
+            {"e": self.recorded_entry({"a.js.gzip": 100.0})},
+            {"a.js.gzip": 100.0, "b.wasm.gzip": 7.0, "e": 107.0},
+        )
+        self.assertEqual(len(errors), 1)
+        self.assertIn("does not name b.wasm.gzip", errors[0])
+        self.assertIn("unattributed", errors[0])
+
+    def test_a_file_the_measurement_dropped_is_an_error(self) -> None:
+        # The other direction: a breakdown naming a file that no longer ships is attribution that has
+        # outlived its asset.
+        errors = ratchet.breakdown_drift(
+            {"e": self.recorded_entry({"a.js.gzip": 100.0, "gone.wasm.gzip": 5.0})},
+            {"a.js.gzip": 100.0, "e": 100.0},
+        )
+        self.assertEqual(len(errors), 1)
+        self.assertIn("no longer weighs", errors[0])
+
+    def test_a_matching_breakdown_has_no_errors(self) -> None:
+        measurements = {"a.js.gzip": 100.0, "e": 100.0}
+        self.assertEqual(
+            ratchet.breakdown_drift({"e": self.recorded_entry({"a.js.gzip": 100.0})}, measurements),
+            [],
+        )
+
+    def test_update_refreshes_the_breakdown_from_the_same_measurement(self) -> None:
+        # The pin and the attribution must come from one run: a hand-copied breakdown drifts from the
+        # total the first time someone re-pins and forgets.
+        document = {
+            "schema": 1,
+            "tolerance": {"default": 1.0},
+            "entries": {"e": self.recorded_entry({"a.js.gzip": 1.0})},
+        }
+        updated = ratchet.repinned(
+            document, {"a.js.gzip": 100.0, "b.wasm.gzip": 5.0, "e": 105.0}, "enc", {}
+        )
+        self.assertEqual(
+            updated["entries"]["e"]["recorded"], {"a.js.gzip": 100.0, "b.wasm.gzip": 5.0}
+        )
+        self.assertEqual(updated["entries"]["e"]["budget"], 105.0)
+        # The input is untouched, like the pin computation itself.
+        self.assertEqual(document["entries"]["e"]["recorded"], {"a.js.gzip": 1.0})
+
+    def test_an_entry_without_a_breakdown_is_left_alone(self) -> None:
+        # Latency entries have no files; `--update` must not invent a breakdown for them.
+        document = {"schema": 1, "tolerance": {"default": 1.0}, "entries": {"e": self.entry(1.0)}}
+        updated = ratchet.repinned(document, {"kind": 2.0, "e": 1.0}, "enc", {})
+        self.assertNotIn("recorded", updated["entries"]["e"])
+
 
 if __name__ == "__main__":
     unittest.main()
