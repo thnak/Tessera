@@ -61,6 +61,13 @@ constexpr std::string_view kUsage =
     "                     `tessera_scene_json_folded` passes the same value to the same driver, "
     "so\n"
     "                     a posture's snapshot can be compared across the two.\n"
+    "  --stylesheet FILE  the author stylesheet (issue #390), the page's second textarea (`-` for\n"
+    "                     stdin). Filed as the virtual file ui/Preview.css, so a source's\n"
+    "                     `import \"./Preview.css\";` resolves to it. When given, it REPLACES the\n"
+    "                     preview's built-in sheet; without it, the built-in sheet is the "
+    "fallback.\n"
+    "                     This is the native half of author CSS: the same text the page sends to\n"
+    "                     `tessera_scene_json_styled` produces the same document here.\n"
     "\n"
     "Exit codes: 0 document written; 1 no scene (an empty `nodes` array); 2 usage/setup.\n";
 
@@ -121,6 +128,7 @@ int main(int argc, char** argv) {
     std::string script_path;
     std::string component;
     std::string project_file;
+    std::string stylesheet_path;
     std::string salt = "preview";
     float width = 320.0f;
     float height = 240.0f;
@@ -135,7 +143,7 @@ int main(int argc, char** argv) {
         }
         if (arg == "--scene-json" || arg == "--input-json" || arg == "--script" ||
             arg == "--component" || arg == "--salt" || arg == "--size" || arg == "--file" ||
-            arg == "--fold") {
+            arg == "--fold" || arg == "--stylesheet") {
             if (i + 1 >= argc) {
                 return usage_error("`" + std::string(arg) + "` needs a value");
             }
@@ -150,6 +158,8 @@ int main(int argc, char** argv) {
                 component = value;
             } else if (arg == "--file") {
                 project_file = value;
+            } else if (arg == "--stylesheet") {
+                stylesheet_path = value;
             } else if (arg == "--salt") {
                 salt = value;
             } else if (arg == "--fold") {
@@ -195,6 +205,15 @@ int main(int argc, char** argv) {
     options.width = width;
     options.height = height;
     options.posture = posture;
+    // The author stylesheet (issue #390). Read like the source, so `--stylesheet -` takes it from
+    // stdin and the parity script can drive both sides with one string. Its text has to outlive
+    // `options`, which borrows it.
+    std::string stylesheet;
+    if (!stylesheet_path.empty() && !read_file(stylesheet_path, stylesheet)) {
+        std::cerr << "tessera_scene_preview: cannot read `" << stylesheet_path << "`\n";
+        return 2;
+    }
+    options.stylesheet = stylesheet;
 
     std::string document;
     if (!input_output.empty()) {

@@ -54,7 +54,7 @@ import {
   type SourceSnapshot,
   type ViewDefinition,
 } from "./lib/views";
-import { STARTUP_SAMPLE } from "./page-defaults";
+import { PREVIEW_STYLESHEET_FILE, STARTUP_SAMPLE, STARTUP_STYLESHEET } from "./page-defaults";
 import { setStatusText, usePageState, usePaneRefs } from "./page-state";
 import { useSessions } from "./page-sessions";
 import { useWorkspace } from "./page-workspace";
@@ -102,11 +102,18 @@ export function App() {
     [state.controls],
   );
 
-  // ---- what Run compiles (issue #431) --------------------------------------------------------------
+  // ---- what Run compiles (issue #431), and the stylesheet it sends beside it (issue #390) ----------
   //
   // The editor holds one project file at a time; Run compiles the workspace's *compile target* (the active
   // source file, else the project entry). The sessions read this at Run time, through a ref, so a keystroke
   // never re-creates a session and a stylesheet tab never becomes the compiled source.
+  //
+  // **The author stylesheet travels in the same snapshot.** Before #431 the sessions reached into two
+  // textareas (`#source` and `#stylesheet`); now they ask one reader, and Run's two inputs -- the file it
+  // compiles and the sheet it compiles it against -- are answered together, so a session cannot use one
+  // without the other. The sheet is the page's virtual file `ui/Preview.css` (`page-defaults.ts`), read from
+  // its own textarea at Run time: a stylesheet in React state would re-render the page on every keystroke,
+  // and the sessions deliberately live outside the render cycle (ADR-054 decision 3).
   const target = workspace.target;
   const targetRef = useRef<ProjectFile | null>(target);
   targetRef.current = target;
@@ -114,10 +121,18 @@ export function App() {
   shownRef.current = workspace.state.active;
   const textOfRef = useRef(workspace.textOf);
   textOfRef.current = workspace.textOf;
+  const stylesheetRef = refs.stylesheet;
   const currentSource = useCallback((): SourceSnapshot => {
+    const stylesheet = stylesheetRef.current?.value ?? STARTUP_STYLESHEET;
     const file = targetRef.current;
     if (file === null) {
-      return { text: "", file: DEFAULT_FILE, shown: false };
+      return {
+        text: "",
+        file: DEFAULT_FILE,
+        shown: false,
+        stylesheet,
+        stylesheetFile: PREVIEW_STYLESHEET_FILE,
+      };
     }
     // The project's text, not the textarea's: when the editor is showing another file, the buffer that
     // belongs to `file` is the one the compiler must see.
@@ -125,8 +140,10 @@ export function App() {
       text: textOfRef.current(file.path),
       file: file.path,
       shown: shownRef.current === file.path,
+      stylesheet,
+      stylesheetFile: PREVIEW_STYLESHEET_FILE,
     };
-  }, []);
+  }, [stylesheetRef]);
 
   const isCurrent = useCallback((id: ViewDefinition["id"]): boolean => viewRef.current === id, []);
 
@@ -168,6 +185,13 @@ export function App() {
             setRevision((value) => value + 1);
           }
         }
+        // A share link carries the source, never the stylesheet (#390 keeps the link envelope frozen at
+        // `v,s,w,h,d,t,f`), so the stylesheet starts from the page's own one-line sample on every load.
+        // The source itself is the workspace's now (#431): a link's text replaces the entry file's
+        // buffer above, so there is no `#source.value` to write here.
+        if (refs.stylesheet.current) {
+          refs.stylesheet.current.value = STARTUP_STYLESHEET;
+        }
         state_.setControls({
           viewport: `${loaded.width || 320}x${loaded.height || 240}`,
           dpr: String(loaded.dpr ?? 1),
@@ -175,6 +199,11 @@ export function App() {
           foldPosture: String(loaded.foldPosture ?? ""),
         });
       } catch (error) {
+        // The seeded project is what the page shows when the link is broken (#431): the workspace's entry
+        // buffer is already the sample, so only the stylesheet's own starting text is written here.
+        if (refs.stylesheet.current) {
+          refs.stylesheet.current.value = STARTUP_STYLESHEET;
+        }
         state_.setControls({
           viewport: "320x240",
           dpr: "1",
@@ -411,6 +440,7 @@ export function App() {
           text={activeText}
           revision={revision}
           sourceRef={refs.source}
+          stylesheetRef={refs.stylesheet}
           editorHintRef={refs.editorHint}
           onSelectTab={onSelectTab}
           onCloseTab={workspace.closeTab}

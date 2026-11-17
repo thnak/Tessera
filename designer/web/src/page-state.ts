@@ -36,6 +36,8 @@ export interface PaneRefs {  /**
    * the live viewport to the hint, so both are written from outside React's render cycle.
    */
   source: React.RefObject<HTMLTextAreaElement | null>;
+  /** The author stylesheet's textarea (issue #390): the page-owned `ui/Preview.css`. */
+  stylesheet: React.RefObject<HTMLTextAreaElement | null>;
   editorHint: React.RefObject<HTMLParagraphElement | null>;
   buildId: React.RefObject<HTMLSpanElement | null>;
   shareStatus: React.RefObject<HTMLSpanElement | null>;
@@ -80,6 +82,9 @@ export function usePaneRefs(): PaneRefs {
     // The editor React renders once as a childless textarea; no session writes its text (the page owns
     // the buffers), but a diagnostic's "show in source" and the Scene hint do reach it.
     source: useRef<HTMLTextAreaElement>(null),
+    // The author stylesheet (issue #390). A ref for the same reason `source` is: its value is read at
+    // Run time, and a stylesheet in React state would re-render the page on every keystroke.
+    stylesheet: useRef<HTMLTextAreaElement>(null),
     editorHint: useRef<HTMLParagraphElement>(null),
     buildId: useRef<HTMLSpanElement>(null),
     shareStatus: useRef<HTMLSpanElement>(null),

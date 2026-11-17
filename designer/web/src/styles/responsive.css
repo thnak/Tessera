@@ -100,6 +100,18 @@
 
   #source { padding: 10px 12px; font-size: 12px; }
 
+  /* The stylesheet editor on a phone (issue #390): the code column is a fixed 46vh, so the two editors
+   * share it. The source keeps most of the height and the sheet gets a small, scrollable box of its own
+   * rather than `max-height: 30vh` (which is most of the column at this size). `resize: none` because a
+   * touch drag on the corner handle fights the page scroll. */
+  #stylesheet {
+    min-height: 64px;
+    max-height: 20vh;
+    padding: 8px 12px;
+    font-size: 12px;
+    resize: none;
+  }
+
   .page-header, .toolbar, .gallery, .link-note, .page-footer {
     padding-left: 16px;
     padding-right: 16px;

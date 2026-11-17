@@ -294,6 +294,14 @@ def repinned(document: Dict, measurements: Dict[str, float], encoder: str, count
 # size row). This one only has to answer "is this still the same file?".
 BREAKDOWN_ENCODER_SLACK = 0.015
 
+# ...and an absolute floor, because a relative band is the wrong shape across a 178-byte-to-1.3-MB
+# range. The smallest file in the set (`samples.json.gzip`) is mostly gzip header and Huffman table,
+# so the same two zlib implementations that differ by 0.03-0.52% on the large files differ by a whole
+# handful of bytes on it -- 182 recorded vs 178 measured, which is 2.2% and would fail a pure ratio.
+# Widening the ratio to cover that would allow 20 KB of slack on a 1.3 MB file. So a difference is
+# encoder variance when it is within the ratio OR within this many bytes.
+BREAKDOWN_ENCODER_FLOOR_BYTES = 32
+
 
 def same_measurement(recorded: float, measured: float) -> bool:
     """Whether two readings of one file's size are the same measurement.
@@ -306,8 +314,10 @@ def same_measurement(recorded: float, measured: float) -> bool:
         return True
     if recorded <= 0.0 or measured <= 0.0:
         return False
-    larger = max(recorded, measured)
-    return abs(recorded - measured) / larger <= BREAKDOWN_ENCODER_SLACK
+    difference = abs(recorded - measured)
+    if difference <= BREAKDOWN_ENCODER_FLOOR_BYTES:
+        return True
+    return difference / max(recorded, measured) <= BREAKDOWN_ENCODER_SLACK
 
 
 def breakdown_drift(entries: Dict[str, Dict], measurements: Dict[str, float]) -> List[str]:

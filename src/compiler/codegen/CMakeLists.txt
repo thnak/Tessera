@@ -179,6 +179,9 @@ set(_tessera_scene_preview_sources
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_evaluate.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_preview.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_prepare.cpp
+    # The author-stylesheet choice (issue #390): which sheet a preview compiles, and its diagnostics.
+    # One TU so `prepare_scene`, the canvas session and the input path cannot disagree.
+    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_stylesheet.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_build.cpp
     # The IR -> scene walk, split out of `scene_build.cpp` when conditional and repeated children
     # (issue #389) pushed that file past the size limit: one TU per node, one per child set.
@@ -223,7 +226,8 @@ if (NOT EMSCRIPTEN)
         tessera_style)
 
     add_library(tessera_scene_preview_entry OBJECT
-        ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_scene_entry.cpp)
+        ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_scene_entry.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/css_diagnostics_report.cpp)
     target_include_directories(tessera_scene_preview_entry
         PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
     target_link_libraries(tessera_scene_preview_entry PRIVATE tessera_scene_preview)
@@ -257,6 +261,7 @@ if (NOT EMSCRIPTEN)
     # cannot see.
     add_library(tessera_canvas_report OBJECT
         ${CMAKE_SOURCE_DIR}/tools/codegen/canvas_report.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/css_diagnostics_report.cpp
         ${_tessera_canvas_session_sources})
     target_include_directories(tessera_canvas_report
         PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
@@ -347,6 +352,7 @@ else ()
     # (docs/design/compiler-wasm.md section 2.1).
     add_executable(tessera_scene_preview_wasm
         ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_scene_entry.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/css_diagnostics_report.cpp
         ${_tessera_scene_preview_sources})
     target_include_directories(tessera_scene_preview_wasm
         PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
@@ -366,7 +372,7 @@ else ()
         -sEXPORT_NAME=createTesseraScenePreview
         -sENVIRONMENT=web,node
         -sALLOW_MEMORY_GROWTH=1
-        -sEXPORTED_FUNCTIONS=["_tessera_scene_json","_tessera_scene_json_sized","_tessera_input_json","_tessera_free","_malloc","_free"]
+        -sEXPORTED_FUNCTIONS=["_tessera_scene_json","_tessera_scene_json_sized","_tessera_scene_json_styled","_tessera_scene_json_styled_sized","_tessera_scene_json_folded","_tessera_scene_json_folded_styled","_tessera_input_json","_tessera_input_json_styled","_tessera_css_diagnostics_json","_tessera_free","_malloc","_free"]
         -sEXPORTED_RUNTIME_METHODS=["UTF8ToString","lengthBytesUTF8","stringToUTF8"])
 
     # The canvas module (issue #167, P3): the same prepared scene plus the GPU half, drawing through
@@ -381,8 +387,10 @@ else ()
     # page needs to run a frame. No NODERAWFS: nothing here reads a file (section 2.1).
     add_executable(tessera_canvas_wasm
         ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_entry.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_support.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_font.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/canvas_report.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/css_diagnostics_report.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/scene_frame.cpp
         ${_tessera_preview_text_sources}
         ${_tessera_canvas_session_sources}
@@ -689,6 +697,7 @@ if (TESSERA_BUILD_TESTS)
         ${CMAKE_SOURCE_DIR}/tools/codegen/scene_frame.cpp
         ${_tessera_preview_text_sources}
         ${CMAKE_SOURCE_DIR}/tools/codegen/canvas_report.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/css_diagnostics_report.cpp
         ${_tessera_scene_preview_sources})
     target_include_directories(scene_frame_tests
         PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen
@@ -710,6 +719,27 @@ if (TESSERA_BUILD_TESTS)
         tessera_scene
         tessera_style)
     add_test(NAME scene_frame COMMAND scene_frame_tests)
+
+    # The author stylesheet in the preview (issue #390): the built-in sheet replaced rather than
+    # layered, `:root` tokens through `var()`, inline `style`/`className` through the same cascade, the
+    # line/column diagnostics, and -- the reason this is a ctest case and not a manual check -- the
+    # depth-bound proof that hostile CSS (nested selectors, at-rules and `@supports` conditions, a 7 KB
+    # file of them) produces a diagnostic instead of a stack overflow. A stack overflow in Wasm aborts
+    # the module, so this must fail here, where a person sees it, not in a browser.
+    add_executable(scene_stylesheet_tests
+        ${CMAKE_SOURCE_DIR}/tests/unit/scene_stylesheet_tests.cpp
+        ${_tessera_scene_preview_sources})
+    target_include_directories(scene_stylesheet_tests
+        PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
+    target_link_libraries(scene_stylesheet_tests PRIVATE
+        tessera_automation_scene
+        tessera_ir_eval
+        tessera_ir_ids
+        tessera_layout
+        tessera_lowering
+        tessera_scene
+        tessera_style)
+    add_test(NAME scene_stylesheet COMMAND scene_stylesheet_tests)
 
     # Conditional and repeated children in the preview (issue #389): a branch selected by the state the
     # session's scope holds, a re-evaluation after a click changes that state, one subtree per list
@@ -766,6 +796,7 @@ if (TESSERA_BUILD_TESTS)
         add_executable(${_canvas_test}_tests
             ${CMAKE_SOURCE_DIR}/tests/unit/${_canvas_test}_tests.cpp
             ${CMAKE_SOURCE_DIR}/tools/codegen/canvas_report.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/css_diagnostics_report.cpp
             ${CMAKE_SOURCE_DIR}/tools/codegen/scene_frame.cpp
             ${_tessera_preview_text_sources}
             ${_tessera_canvas_session_sources}

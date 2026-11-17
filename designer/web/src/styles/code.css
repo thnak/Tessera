@@ -110,3 +110,48 @@
 }
 
 #source:focus { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* --- the author stylesheet (issue #390) ---------------------------------------------------------
+ *
+ * A second textarea under the source, not a tab: the two are read together and Run sends both, so hiding
+ * one behind a switch would hide half of what the preview is made of. It is bounded (`flex: 0 0 auto` plus
+ * a max height) rather than sharing the flex space, because the source is the larger document and the
+ * sheet is the smaller annotation on it; at phone width the whole code column is a fixed 46vh, so
+ * `min-height: 0` here is what keeps the larger textarea from being squeezed to nothing.
+ *
+ * The heading is the editor's own sub-header rather than a `.region-header`: the region has one header
+ * (the Run/Load sample row), and a second one styled as a region header would read as a second region.
+ */
+
+.editor-subheader {
+  flex: none;
+  display: flex;
+  align-items: center;
+  padding: 8px 14px 4px;
+  border-top: 1px solid var(--border);
+}
+
+.editor-subheader h2 {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+}
+
+#stylesheet {
+  flex: 0 0 auto;
+  width: 100%;
+  min-height: 88px;
+  max-height: 30vh;
+  resize: vertical;
+  padding: 8px 14px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: 13px/1.6 var(--mono);
+  tab-size: 2;
+}
+
+#stylesheet:focus { outline: 2px solid var(--accent); outline-offset: -2px; }

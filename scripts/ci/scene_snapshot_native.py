@@ -70,8 +70,15 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     failures: List[str] = []
     try:
-        for name, file, source, minimum in gate.CORPUS:
-            first = gate.native_document(str(native_cli), name, file, source, work_root)
+        # A case is a four-tuple, or a five-tuple whose last element is the author stylesheet (issue
+        # #390). The stylesheet is part of the inputs the determinism check and the node counts are
+        # about, so it travels into every `native_document()` call below rather than only the first.
+        for case in gate.CORPUS:
+            name, file, source, minimum = case[0], case[1], case[2], case[3]
+            stylesheet = case[4] if len(case) > 4 else ""
+            first = gate.native_document(
+                str(native_cli), name, file, source, work_root, stylesheet
+            )
             nodes = gate.nodes_of(first, "native/" + name)
 
             if len(nodes) < minimum:
@@ -92,7 +99,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             # Determinism: the document is a pure function of the input and the options, so a second
             # run of the same case must be byte-identical. This is what makes the byte comparison
             # against the Wasm side meaningful rather than a coincidence of one lucky run.
-            second = gate.native_document(str(native_cli), name, file, source, work_root)
+            second = gate.native_document(
+                str(native_cli), name, file, source, work_root, stylesheet
+            )
             if second != first:
                 failures.extend(gate.describe_difference(name + " (native rerun)", first, second))
                 continue
@@ -109,7 +118,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                     )
                     continue
 
-            print("NATIVE_OK {:<22} {} node(s)".format(name, len(nodes)))
+            print(
+                "NATIVE_OK {:<22} {} node(s){}".format(
+                    name, len(nodes), " [styled]" if stylesheet else ""
+                )
+            )
 
         if failures:
             print("\n".join(failures))

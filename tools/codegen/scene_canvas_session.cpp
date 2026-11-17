@@ -22,21 +22,24 @@ constexpr ui::Dirty kFrameDomains =
 } // namespace
 
 CanvasSceneSession::CanvasSceneSession()
-    : sheet_(ui::style::compile_stylesheet(preview_stylesheet())) {}
+    : sheet_(compile_preview_stylesheet({})) {}
 
 CanvasSceneSession::~CanvasSceneSession() = default;
 
 std::string CanvasSceneSession::start(const CanvasSessionSource& source) {
     const std::string text(source.text);
+    const std::string stylesheet(source.stylesheet);
     const std::string file = normalize_path(source.file.empty() ? "ui/Preview.tsx" : source.file);
     const std::string component(source.component);
     const float dpi = source.dpi_scale > 0.0f ? source.dpi_scale : 1.0f;
 
     // A Run of the identical source is a repaint, not a re-evaluation. The page hands the editor's
     // text to every frame, so re-evaluating here would drop the hover bits and the state cells
-    // between two frames of the same program.
-    if (session_ != nullptr &&
-        reused_ok(text, file, component, source.width, source.height, dpi, source.measurer)) {
+    // between two frames of the same program. The stylesheet is part of the identity: a Run that
+    // changed only the CSS must re-resolve style, or the canvas would keep painting the previous
+    // sheet while the diagnostics area reported the new one.
+    if (session_ != nullptr && reused_ok(text, stylesheet, file, component, source.width,
+                                         source.height, dpi, source.measurer)) {
         reused_ = true;
         return {};
     }
@@ -52,7 +55,14 @@ std::string CanvasSceneSession::start(const CanvasSessionSource& source) {
     reused_ = false;
     fresh_ = false;
 
-    auto evaluated = evaluate_source(text, file, source.salt, component);
+    // The sheet is resolved before the evaluation: a source that does not parse must still report
+    // its CSS problems, because the page shows one diagnostics area and a visitor who fixed the TSX
+    // should not have to Run twice to learn the stylesheet was also wrong.
+    css_diagnostics_ = author_stylesheet_diagnostics(source.stylesheet, source.stylesheet_file);
+    sheet_ = compile_preview_stylesheet(source.stylesheet);
+
+    auto evaluated = evaluate_source(text, file, source.salt, component, source.stylesheet,
+                                     source.stylesheet_file);
     if (!evaluated) {
         evaluated_ = EvaluatedScene{};
         error_ = evaluated.error().detail;
@@ -88,6 +98,7 @@ std::string CanvasSceneSession::start(const CanvasSessionSource& source) {
     }
     metrics_ = session_->metrics();
     text_ = text;
+    stylesheet_ = stylesheet;
     file_ = file;
     component_ = component;
     width_ = source.width;
@@ -99,13 +110,15 @@ std::string CanvasSceneSession::start(const CanvasSessionSource& source) {
 }
 
 bool CanvasSceneSession::reused_ok(
-    const std::string& text, const std::string& file, const std::string& component, float width,
-    float height, float dpi, const std::shared_ptr<const text::TextMeasurer>& measurer) const {
+    const std::string& text, const std::string& stylesheet, const std::string& file,
+    const std::string& component, float width, float height, float dpi,
+    const std::shared_ptr<const text::TextMeasurer>& measurer) const {
     // The measurer is part of the identity: a Run that arrives with font bytes when the running
     // evaluation had none must re-evaluate, because every text box it laid out was sized by the
     // font-free stub.
-    return text == text_ && file == file_ && component == component_ && width == width_ &&
-           height == height_ && dpi == dpi_scale_ && measurer.get() == measurer_.get();
+    return text == text_ && stylesheet == stylesheet_ && file == file_ && component == component_ &&
+           width == width_ && height == height_ && dpi == dpi_scale_ &&
+           measurer.get() == measurer_.get();
 }
 
 bool CanvasSceneSession::set_posture(hal::FoldPosture posture) {

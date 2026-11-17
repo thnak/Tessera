@@ -4,9 +4,12 @@
 
 #include "scene_canvas_session.hpp"
 #include "scene_frame.hpp"
+#include "scene_stylesheet.hpp"
 
+#include <cstddef>
 #include <cstdint>
 #include <string>
+#include <vector>
 
 // The reports the canvas module returns to the page (issue #167, P3 of
 // docs/design/reference-equantic-ui.md section 7.4; the pointer report is issue #388).
@@ -23,6 +26,25 @@ namespace tessera::compiler::codegen::cli {
 // things for a page to report: the first is an unsupported browser, the second is a bug.
 [[nodiscard]] std::string canvas_report_json(const SceneFrameResult& result, std::uint32_t width,
                                              std::uint32_t height, bool has_device);
+
+// The same report with the author stylesheet's parse problems appended (issue #390), as
+//
+//   "cssDiagnostics":[{"code":"TESSERA_CSS_UNKNOWN_PROPERTY","severity":"warning",
+//                      "message":"unsupported property","file":"ui/Preview.css",
+//                      "line":3,"column":5,"offset":42},...]
+//
+// The field is APPENDED, so `canvasVersion` stays 1 (docs/specs/versioning-v1.md section 2: adding
+// an optional member keeps the version, and a consumer tolerates an unknown field it was told
+// about). That matters because the frame's own fields did not change: a page built against the
+// previous module reads the same report, and an old page simply never looks at the new array.
+//
+// The array is capped at `kMaxReportedCssDiagnostics` entries. A bounded report is the point: a
+// stylesheet can have thousands of unknown properties, and the page's diagnostics area is a list a
+// person reads, not a log. `cssDiagnosticsTruncated` says when the cap was hit, so "16 problems" is
+// never mistaken for "all of them".
+[[nodiscard]] std::string
+canvas_report_json(const SceneFrameResult& result, std::uint32_t width, std::uint32_t height,
+                   bool has_device, const std::vector<PreviewCssDiagnostic>& css_diagnostics);
 
 // What one pointer event did, as one JSON object on one line:
 //

@@ -4,6 +4,7 @@
 
 #include "scene_layout.hpp"
 #include "scene_preview.hpp"
+#include "scene_stylesheet.hpp"
 #include "tessera/compiler/ir/module.hpp"
 #include "tessera/hal/window.hpp"
 #include "tessera/ui/scene/node.hpp"
@@ -15,6 +16,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 // The stage sequence the preview runs, factored out of `scene_preview.cpp` (issue #167, P3). P2
 // produced a scene snapshot; P3 needs the *same laid-out tree* twice more - once recorded as a draw
@@ -41,11 +43,18 @@ struct PreparedScene {
     // The root `ui::Node` (id 1) whose child is the component's tree, styled and laid out with
     // absolute boxes written back by `apply_layout`.
     std::unique_ptr<tessera::ui::Node> root;
-    // The preview's own stylesheet (`preview_stylesheet()`), the sheet the layout and the paint
-    // pass both used. Kept so a painter resolves the same computed styles the layout did. Optional
-    // because `CompiledStyleSheet` has no default constructor: empty exactly when `error` is
-    // non-empty.
+    // The stylesheet the layout and the paint pass both used: the author's when the options carried
+    // one, the built-in `preview_stylesheet()` fallback otherwise (issue #390, decision 2). Kept so
+    // a painter resolves the same computed styles the layout did. Optional because
+    // `CompiledStyleSheet` has no default constructor: empty exactly when `error` is non-empty.
     std::optional<tessera::ui::style::CompiledStyleSheet> sheet;
+    // The author stylesheet's parse problems, with line and column (issue #390). Empty when the
+    // preview fell back to the built-in sheet, because a sheet the author never wrote has none.
+    //
+    // These are REPORTED, never fatal: the parser is tolerant, so a bad rule costs that rule and
+    // the frame is still drawn. A caller shows them beside the frame, which is what the issue's
+    // "the page's failed/diagnostics area" asks for.
+    std::vector<PreviewCssDiagnostic> css_diagnostics;
     // Scene nodes whose style was resolved, and nodes `apply_layout` wrote a box to.
     std::size_t nodes = 0;
     std::size_t applied = 0;
@@ -71,9 +80,7 @@ prepare_scene(std::string_view text, const ScenePreviewOptions& options,
               std::string_view component = {},
               const std::shared_ptr<const text::TextMeasurer>& measurer = nullptr);
 
-// The preview's default stylesheet: the intrinsic element kinds get a size instead of collapsing to
-// zero. Exposed because a consumer that re-runs style resolution (the draw list, the painter) must
-// use the sheet the layout used.
-[[nodiscard]] std::string_view preview_stylesheet() noexcept;
+// `preview_stylesheet()` -- the built-in fallback -- is declared by `scene_stylesheet.hpp`
+// (included above), beside the rule that decides when it is used at all (issue #390, decision 2).
 
 } // namespace tessera::compiler::codegen::cli

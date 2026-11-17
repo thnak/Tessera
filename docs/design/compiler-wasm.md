@@ -74,21 +74,18 @@ For each sample it runs both compilers and compares:
 
 1. **IR** (`--emit-ir`): the canonical IR JSON, size and SHA-256, required to match exactly. This is
    the acceptance artifact.
-2. **Generated C++** (`--write`), unless `--ir-only` is passed: `Counter.g.hpp`,
-   `Counter.hpp`, `Counter.cpp` and `automation.manifest.json`, each byte-compared and the file
-   *sets* compared too (a silently dropped artifact fails). The generated C++ is what the preview
-   pipeline consumes downstream, so comparing it extends the gate from the front end to codegen;
-   it was verified byte-identical when the gate was written, so the assertion is drift coverage
-   rather than an aspiration.
+2. **Generated C++** (`--write`), unless `--ir-only` is passed: `Counter.g.hpp`, `Counter.hpp`,
+   `Counter.cpp` and `automation.manifest.json`, each byte-compared and the file *sets* compared
+   too (a silently dropped artifact fails). Comparing codegen's output extends the gate from the
+   front end to the artifacts the preview pipeline consumes downstream; it was byte-identical when
+   the gate was written, so the assertion is drift coverage rather than an aspiration.
 
-On success it prints one line per artifact (`BYTE_IDENTICAL … bytes sha256 …`), a determinism line
-per side, and `PARITY OK`. On any difference it prints a `MISMATCH` block with both sizes and
-digests plus a unified diff (the first differing bytes are shown when the files are not UTF-8), so
-the failure names the record that drifted. `--repeat N` runs the comparison N times and requires a
-single digest per side, which is how the gate detects non-determinism instead of just inequality.
-
-Exit codes: `0` byte-identical, `1` a difference or an unstable repeat, `2` setup failure (a CLI is
-missing or could not run). Scratch output goes to the gitignored `build/wasm-parity/` tree.
+On success: one line per artifact (`BYTE_IDENTICAL . bytes sha256 .`), a determinism line per
+side, and `PARITY OK`. On any difference: a `MISMATCH` block with both sizes and digests plus a
+unified diff (the first differing bytes when the files are not UTF-8), so the failure names the
+record that drifted. `--repeat N` runs it N times and requires one digest per side, which detects
+non-determinism rather than only inequality. Exit codes: `0` byte-identical, `1` a difference or an
+unstable repeat, `2` setup failure. Scratch output goes to the gitignored `build/wasm-parity/`.
 
 ## 4. CI lane
 
@@ -121,8 +118,8 @@ building from a clean `wasm-webgpu` configure:
 - Parity, native CLI versus the Wasm CLI under `$EMSDK_NODE`: the IR is 4542 bytes with SHA-256
   `fa9989b12293632e4ec73c9da718a7524e3423445ff572c0c065fc3270f52fa9` on both sides, and the four
   generated files match too. Three repeated gate runs each reported `unique_digests=1` per side.
-- `cmp` on the two IR files exits 0 (`BYTE_IDENTICAL_IR`), so the equality does not depend on the
-  script's own comparison code.
+- `cmp` on the two IR files exits 0, so the equality does not depend on the script's own
+  comparison code.
 
 Not verified: a browser build of the compiler (P0 is a Node tool by design), the pin on the hosted
 GitHub runner (the lane had not run when this note was written), and IR parity beyond the one P0
@@ -134,9 +131,9 @@ code.
 P1 (the diagnostics-only page) can call the same lowered module from a browser without
 `NODERAWFS`, because its input arrives as an in-memory string rather than a path; the Node tool and
 the browser tool then differ only in their file seam. P2's evaluator and P3's WebGPU canvas build on
-the same `wasm-webgpu` configure preset. The parity gate itself stays the reference: every later
-stage that claims "matches native" should name the native artifact it compared against, the way this
-stage names the IR digest.
+the same `wasm-webgpu` configure preset. The parity gate stays the reference: every later stage that
+claims "matches native" names the native artifact it compared against (the IR digest above; the
+scene snapshot in 7.3; the author-stylesheet case in 8.2).
 
 ## 7. P2: evaluator, scene and layout on the null RHI
 
@@ -201,27 +198,24 @@ The scene → snapshot walk used to live inside `src/harness/engine_host_snapsho
 
 | Side | Artifact | Invocation |
 |---|---|---|
-| native | `tessera_scene_preview` | `--scene-json OUT --file FILE --salt SALT FILE.tsx` |
-| Wasm | `tessera_scene_preview.js` | `tessera_scene_json(source, file, component)` + `tessera_free` |
+| native | `tessera_scene_preview` | `--scene-json OUT --file FILE --salt SALT [--stylesheet CSS] FILE.tsx` |
+| Wasm | `tessera_scene_preview.js` | `tessera_scene_json[_styled](source, file, component[, css])` + `tessera_free` |
 
 Both are the same driver. The browser module follows P1's ABI convention exactly: **the module owns
-the buffer it returns and the caller hands it back through `tessera_free`** (not a static buffer,
-which the next call would invalidate). `src/compiler/codegen/CMakeLists.txt` compiles the sources as
-an **OBJECT library on host lanes** (`tessera_scene_preview_entry`, so the entry point is
-type-checked on every push) and as a `--no-entry` Emscripten module only under `EMSCRIPTEN`. It is
-*not* a verb on `tessera_codegen_cli`: that target is the Node tool the `wasm-compiler` preset builds
-for P0's IR parity, and linking the engine into it would drag Yoga and the text stack into that
-artifact. The driver is shared instead of the binary, and there is a second executable because the
-comparison needs a native command.
+the buffer it returns and the caller hands it back through `tessera_free`**. It is *not* a verb on
+`tessera_codegen_cli`: that target is the Node tool the `wasm-compiler` preset builds for P0's IR
+parity, and linking the engine into it would drag Yoga and the text stack into that artifact, so the
+driver is shared instead of the binary.
 
 `scripts/ci/scene_snapshot_parity.py` copies the shape of `wasm_diagnostics_parity.py`: it runs both
 sides over one corpus and requires **byte-identical** documents, decodes both to check
 `snapshotVersion`, and — the anti-vacuity rule — every case declares a **minimum node count**, so
-"both empty" cannot pass. Both sides are executed with `cwd` set to a scratch case directory, so the
-script resolves the CLI, module and Node to **absolute** paths first (P1 shipped a relative-path bug
-that failed on CI). The salt and the file name are passed to *both* sides because both are inputs to
-every `uiId` (section 2 of the ids spec); `--file` exists precisely so a Windows `\` cannot give a
-document no Linux run could reproduce.
+"both empty" cannot pass. A case may carry an author stylesheet (issue #390), and both sides then drive
+the styled export, so the same author CSS is compiled by the same engine on two machines. Both sides run
+with `cwd` set to a scratch case directory, so the script resolves the CLI, module and Node to
+**absolute** paths first (P1 shipped a relative-path bug that failed on CI). The salt and the file name
+go to *both* sides because both are inputs to every `uiId` (ids spec section 2); `--file` exists
+precisely so a Windows `\` cannot give a document no Linux run could reproduce.
 
 `scripts/ci/scene_snapshot_native.py` is the half that runs without Emscripten: it imports the gate's
 corpus and salt (so the two cannot drift), and asserts the version, the minimum counts, the
@@ -253,17 +247,10 @@ pixels) is not available, and a fake version of it would be worse than no gate.
 ### 8.1 One pipeline, three consumers
 
 P2 ended at the scene's bounds. P3 needs the same laid-out tree twice more (recorded as a draw list,
-and painted through an RHI device), so the stage sequence moved out of `scene_preview.cpp` into
-**`tools/codegen/scene_prepare.cpp`**:
-
-```text
-source text -> jsx parse -> analyse -> lower -> assign_identity(salt)
-            -> pick component -> evaluate initial state -> build the ui::Node tree
-            -> compiled stylesheet -> Yoga layout -> apply_layout
-```
-
-`prepare_scene()` returns a `PreparedScene` (the lowered IR the tree borrows its strings from, the
-root node, and the stylesheet the layout resolved against). Three consumers walk that one value:
+and painted through an RHI device), so the stage sequence of 7.1 moved out of `scene_preview.cpp` into
+**`tools/codegen/scene_prepare.cpp`**. `prepare_scene()` returns a `PreparedScene` (the lowered IR the
+tree borrows its strings from, the root node, the stylesheet the layout resolved against, and that
+stylesheet's diagnostics), and three consumers walk that one value:
 
 | Consumer | File | Artifact |
 |---|---|---|
@@ -302,6 +289,33 @@ draw-call count** per case, the anti-vacuity rule P2 applies to node counts. The
 window background (`rgba8(11, 18, 32)`, `detail::frame_clear_color()` in `src/app/window_internal.hpp`),
 not black, so a preview and the native window of the same stylesheet start from the same pixel.
 
+**The author's stylesheet replaces it (issue #390, owner decision 2).** The page has a second textarea,
+filed as the virtual file `ui/Preview.css`, so a source's `import "./Preview.css";` is that textarea and a
+source without the import still previews with it. `ScenePreviewOptions::stylesheet` carries the text;
+`compile_preview_stylesheet()` (`tools/codegen/scene_stylesheet.cpp`) is the single place that decides
+which sheet a preview compiles: any rule at all means exactly the author's text — the built-in sheet is
+**not** compiled and never layers under it — while empty, whitespace-only or comment-only text keeps
+`preview_stylesheet()` as the fallback, so the bundled samples and the parity corpus keep today's bytes.
+
+A sheet with one bad rule is still the author's sheet, so an invalid declaration cannot resurrect the
+built-in blue `Button` while the page shows the error that explains it. `style`, `className` and `var()`
+take the ordinary cascade (`style::SceneStyleTree::compute()`), so an inline `style` wins over a class
+rule and a `:root` custom property resolves exactly as native resolves it; the preview invents no tokens.
+The exports that carry it — `tessera_canvas_frame`/`tessera_canvas_run`, `tessera_scene_json_styled*`,
+`tessera_scene_json_folded_styled`, `tessera_input_json_styled`, `tessera_css_diagnostics_json` — take the
+text beside the source, and **null or empty means "no author CSS"**, which keeps the Node probe and every
+pre-#390 caller working. The frame report gained an appended `cssDiagnostics` array and kept
+`canvasVersion: 1`, because no existing field changed.
+
+**Diagnostics are reported, never fatal.** A CSS problem is a record with the spec's `TESSERA_CSS_*` code
+and a 1-based line/column into the CSS text (`author_stylesheet_diagnostics()`); the tolerant parser drops
+the bad rule and the frame is still drawn. A stack overflow in Wasm aborts the module — losing a designer's
+unsaved work — so the recursion budgets are proven, not assumed: #410 bounded nested selectors (16) and
+at-rules (32), and #390 added the `@supports` condition bound (32) that #410 left open, where 20000 nested
+`not`s or `(`s crashed `tessera_codegen` with 0xC00000FD. `scene_stylesheet` ctest feeds all four grammars
+thousands deep plus a 7 KB hostile sheet through the preview path and requires a diagnostic and a laid-out
+frame, so the bound is asserted where a person sees it.
+
 ### 8.3 What can and cannot be proven, and by what
 
 | Half | Where it runs | What it proves |
@@ -312,43 +326,32 @@ not black, so a preview and the native window of the same stylesheet start from 
 | WebGPU candidate render | **nowhere automatically** | needs a browser with a real WebGPU device |
 | the pixel comparison itself | `tessera_scene_frame_compare`, any host | the two PNGs are within `webgpu_vs_lavapipe` |
 
-**The honest statement.** The pixel acceptance cannot be proven on this machine or on a hosted CI
-runner. Three independent facts block it, and none is a matter of effort: Node has no `navigator.gpu`,
-so a module loaded there has no device to draw with; the WebGPU candidate is a *browser* artifact and a
-hosted runner has no GPU, so a headless browser would fall back to a software adapter and the frame
-would not be the frame a user sees; and the golden must be lavapipe (ADR-009), whose manifest this dev
-box does not have, so `--write-goldens` **refuses** here rather than committing hardware pixels.
-
-So the slice lands three things and names the fourth as remaining:
-
-- (a) the whole native path, proven by `scene_frame` (5 cases, deterministic, non-vacuous) and by the
-  `canvas-native-parity` job rendering the lavapipe reference;
-- (b) the canvas page, the device plumbing, render-on-demand, and the unsupported-browser path;
-- (c) the node-count-equivalent of a pixel gate: the compare tool plus the script that would apply it;
-- (d) **remaining**: the WebGPU candidate. It needs a real browser with a real device. That is a new
-  CI dependency (Playwright-class, plus a GPU runner), which is a spec/ADR decision — `docs/specs/
-  dependencies.md` and `THIRD_PARTY_NOTICES.md` entries, and probably an ADR — so it is reported, not
-  added. The concrete plan: a browser job that serves `build/pages`, runs `canvas.html`, calls
-  `tessera_canvas_frame`, reads the canvas back with `toDataURL()`, and feeds the PNG directory to
-  `scene_frame_parity.py --mode compare`. Every piece of that exists except the browser.
-
-Measuring the delta between a hardware WebGPU frame and a lavapipe golden is exactly what
-`tests/golden/tolerance.json`'s `webgpu_vs_lavapipe` pair (8/255 per channel, 2% of pixels, SSIM >=
-0.99, deltaE <= 2.0) was written for, so the browser lane adds no policy, only a device.
+**The honest statement.** The pixel acceptance cannot be proven here or on a hosted CI runner, and none
+of it is a matter of effort: Node has no `navigator.gpu`; the WebGPU candidate is a *browser* artifact and
+a hosted runner has no GPU, so a headless browser would fall back to a software adapter and the frame would
+not be the frame a user sees; and the golden must be lavapipe (ADR-009), whose manifest this dev box lacks,
+so `--write-goldens` **refuses** here rather than committing hardware pixels. The slice therefore lands
+(a) the whole native path, (b) the canvas page and its unsupported-browser state, and (c) the
+node-count-equivalent of a pixel gate: the compare tool plus the script that would apply it. It does
+**not** land the candidate frame, which needs a browser and a real device — a new CI dependency
+(Playwright-class, plus a GPU runner), and so a spec/ADR decision rather than a patch. The plan adds no
+policy: a job serves `build/pages`, runs the Canvas view, calls `tessera_canvas_frame`, reads the canvas
+back with `toDataURL()` and feeds the PNG directory to `scene_frame_parity.py --mode compare` at
+`tests/golden/tolerance.json`'s `webgpu_vs_lavapipe` pair. Every piece exists except the browser.
 
 ### 8.3a How the frame reaches the canvas
 
 The page owns the surface, the module owns the drawing:
 
-1. `canvas.js` requests the device, then turns the JS `GPUDevice`/`GPUQueue` into Emscripten handles
-   with `WebGPU.importJsDevice` / `importJsQueue` (the module exports `WebGPU` for this) and calls
+1. `canvas.js` requests the device, then turns the JS `GPUDevice`/`GPUQueue` into Emscripten handles with
+   `WebGPU.importJsDevice` / `importJsQueue` (the module exports `WebGPU` for this) and calls
    `tessera_webgpu_set_device`, which returns 1, 0 (null handle) or -1 (wrapping threw). Passing the JS
    objects themselves does not work: they coerce to 0 and read as a null handle.
 2. It configures the canvas context once (`rgba8unorm`, opaque).
-3. Each frame it imports `getCurrentTexture().createView()` with `importJsTextureView` and passes
-   that handle to `tessera_canvas_frame`. The module wraps it in `create_canvas_target`, paints the
-   scene into it with `scene_frame_paint`, and releases the view when the target is destroyed.
-   A null view draws offscreen instead, which is what the Node probe uses.
+3. Each frame it imports `getCurrentTexture().createView()` with `importJsTextureView` and passes that
+   handle to `tessera_canvas_frame`. The module wraps it in `create_canvas_target`, paints the scene into
+   it with `scene_frame_paint`, and releases the view when the target is destroyed. A null view draws
+   offscreen instead, which is what the Node probe uses.
 
 Both target kinds derive from `WebGpuTargetViews`, and the command list casts to that. A cast to the
 concrete offscreen class made a canvas target read the wrong memory and begin a pass with no view.
@@ -369,12 +372,12 @@ stops drawing — the browser form of the repository's idle rule (a static UI pr
 ### 8.5 The unsupported path
 
 The page ships the unsupported state as its *default* pane content and swaps in the canvas only once a
-device exists. The three ways to get there — no `navigator.gpu`, no adapter, a rejecting
-`requestDevice()` — each name their cause and point at the Scene tab, which needs no GPU; a module
-that fails to load, or one without the canvas exports, reports that too. A blank canvas is never the
-outcome. `scene_frame_parity.py --mode canvas-report` checks the same contract without a browser,
-loading `tessera_canvas.js` under Node (which has no `navigator.gpu`, like a browser without WebGPU)
-and requiring a `hasDevice:false` report rather than a crash.
+device exists. Each way to get there — no `navigator.gpu`, no adapter, a rejecting `requestDevice()` —
+names its cause and points at the Scene tab, which needs no GPU; a module that fails to load, or one
+without the canvas exports, reports that too. A blank canvas is never the outcome.
+`scene_frame_parity.py --mode canvas-report` checks the same contract without a browser, loading
+`tessera_canvas.js` under Node (which has no `navigator.gpu`, like a browser without WebGPU) and
+requiring a `hasDevice:false` report rather than a crash.
 
 ### 8.6 Verification and status
 
@@ -395,12 +398,20 @@ Verified on this Windows host (2026-11-16), native side only:
   path works, **not** a golden, and the script refuses to save it as one.
 - `tessera_scene_frame_compare` classifies an identical pair as a pass (`ssim=1 deltaE=0`) and two
   different scenes as a structural failure (`mismatch=0.207 ssim=0.879`), so it is not vacuous.
+- `ctest -R scene_stylesheet` (issue #390): the accepted cases plus the depth-bound proof. Nested
+  selectors at 2000, at-rules at 2000, `@supports` conditions at 2000 and 20000, and a 7 KB sheet of all
+  of them through `prepare_scene()` — each yields a `cssDiagnostics` record and a laid-out frame, so the
+  bound is asserted here rather than trusted. Plus the three owner decisions as behavior: empty/comment
+  sheets keep the built-in 120x32 blue, any author rule removes it, a `:root` token changes a computed
+  colour through `var()`, and inline `style` wins over a class rule.
+- `tessera_scene_preview --stylesheet` agrees with the module: the `author-stylesheet` parity corpus case
+  produces the same bytes on both sides (below).
 
-**What runs only in CI:** the *browser* half. `wasm_canvas_entry.cpp` and `webgpu_canvas_target.cpp`
-compile under the `wasm-webgpu` preset (verified here with emsdk 7.0.0, producing `tessera_canvas.wasm`)
-and the host lanes type-check `scene_frame.cpp`/`canvas_report.cpp` as OBJECT libraries, but a real
-WebGPU device still needs a browser: `pages.yml` / `webgpu.yml` run the no-device contract, and **the
-pixel comparison has not run anywhere yet** — see 8.3.
+**What runs only in CI:** the *browser* half. `wasm_canvas_entry.cpp`, `wasm_canvas_support.cpp` and
+`webgpu_canvas_target.cpp` compile under the `wasm-webgpu` preset (verified here with emsdk 7.0.0,
+producing all three `tessera_*.wasm`) and the host lanes type-check `scene_frame.cpp`/`canvas_report.cpp`
+as OBJECT libraries, but a real WebGPU device still needs a browser: `pages.yml` / `webgpu.yml` run the
+no-device contract, and **the pixel comparison has not run anywhere yet** — see 8.3.
 
 ### 8.7 Files
 
@@ -538,29 +549,24 @@ implemented, what is proven locally, and what only CI can prove.
 
 ### 10.1 The pieces
 
-The page's chrome is **React 19 + TypeScript built by Vite** since issue #422 (ADR-054), and this table is
-about that page. What did **not** move is the rule the round trip depends on: the codec and the state
-vocabulary are still plain ES modules with no DOM and no React, imported directly from source by
-`scripts/ci/preview_share_roundtrip.mjs`.
-
-| Piece | Where | Why it is there and not in a page |
-|---|---|---|
-| Codec | `designer/web/src/lib/share.js` | Plain ES module: no DOM, no `fetch`, no Wasm, so the round trip is testable in Node and the page and the test import the same bytes. Typed by `share.d.ts`, never rewritten as TypeScript -- a bundled copy is not the shipped source |
-| State vocabulary | `designer/web/src/lib/preview-state.js` | The constants and validation, shared by the codec and the toolbar; keeping it separate is what lets the codec be tested without the DOM (`preview-state.d.ts` types it) |
-| Page chrome | `designer/web/src/regions/*.tsx` + `src/App.tsx` | React components for the four regions (`designer-studio-v1.md` section 3): header/tabs/toolbar, gallery, editor and three panes, canvas pane, status line. The old `studio.js` + `shell.js` + `studio-page.js` split existed to keep three hand-written modules under the size limit; a component tree does that by composition |
-| View sessions | `designer/web/src/views/*-session.ts` | The imperative half React hosts but does not render (ADR-054 decision 3): each owns one Wasm module instance, fills the childless leaves React committed, and drives its pane's status line. The canvas session also owns the WebGPU device and the one surface the engine draws |
-| Toolbar and fragment behaviour | `designer/web/src/lib/preferences.ts` | DOM-free: the local-storage toggles, the `#p5=` decode and the share link; the React toolbar and the Node smoke test call the same code |
-| Gallery | `designer/web/src/lib/gallery.ts` + `src/regions/GalleryRegion.tsx` | The manifest fetch, sample fetch and derived titles are DOM-free (Node-testable); the component fetches nothing until the strip is opened, so the manifest stays off the first-paint path |
-| Manifest | `designer/web/public/samples.json` | Generated from `samples/**/*.tsx` by `scripts/ci/gen_sample_manifest.py`; committed so a deploy runs no generator step. Vite copies it from `public/` into `dist/` |
-| Wasm loader imports | `designer/web/src/views/*-session.ts` | Each view calls `import(wasmModuleUrl("tessera_<name>.js"))` with a `@vite-ignore`, so Vite neither bundles nor preloads it: Diagnostics at first paint, Scene on its first open, Canvas plus its device on the first Run there |
+The page's chrome is **React 19 + TypeScript built by Vite** since issue #422 (ADR-054). What did
+**not** move is the rule the round trip depends on: the codec (`designer/web/src/lib/share.js`) and
+the state vocabulary (`preview-state.js`) are still plain ES modules with no DOM and no React,
+imported directly from source by `scripts/ci/preview_share_roundtrip.mjs`, typed by their `.d.ts`
+siblings rather than rewritten as TypeScript (a bundled copy is not the shipped source). The
+imperative half lives in `designer/web/src/views/*-session.ts`: each session owns one Wasm module
+instance, fills the childless leaves React committed, and calls
+`import(wasmModuleUrl("tessera_<name>.js"))` with a `@vite-ignore`, so Vite neither bundles nor
+preloads a module. [`studio-page.md`](studio-page.md) section 2 is the normative record of the whole
+layout, including the manifest, the gallery and the toolbar.
 
 ### 10.2 What the toggles actually do
 
 `viewport` and `dpr` are real layout inputs: `tessera_scene_json_sized` passes them to
-`ScenePreviewOptions`, so the scene page re-lays-out at the chosen rectangle. Measured on this host
-with the native CLI at 320×240 / 390×844 / 1280×800: the root node's bounds follow the request
-(`--size 390x844` gives a 390×844 root) and the node count is unchanged, which is the difference
-between "the toggle is wired" and "the toggle re-renders the same picture".
+`ScenePreviewOptions`, so the scene page re-lays-out at the chosen rectangle. Measured with the native CLI
+at 320×240 / 390×844 / 1280×800: the root node's bounds follow the request (`--size 390x844` gives a
+390×844 root) and the node count is unchanged, which is the difference between "the toggle is wired" and
+"the toggle re-renders the same picture".
 
 `theme` is carried in the link and persisted locally, but it is **not applied**: the null-RHI
 snapshot path has no theme asset, so a themed preview would be a claim the module cannot keep. That
@@ -571,30 +577,24 @@ signature is untouched because the parity gate pins its defaults.
 
 ### 10.3 Verification and status
 
-Verified on this Windows host (2026-11-15 for P5; re-run 2026-11-16 after the React conversion, #422):
+Verified on this Windows host (2026-11-15 for P5; re-run 2026-11-16 after the React conversion,
+#422). The per-script case lists live in [`studio-page.md`](studio-page.md) section 5, which is their
+normative record; here the summary is that every one of them passes against the built site:
 
-- `preview_share_roundtrip.mjs`: 19 cases, all pass, importing the codec **from source**. Covers `z`/`g`/`u`,
-  every viewport × DPR × theme combination, multi-byte and empty sources, determinism, whole-URL and bare
-  fragments, the version refusal, the malformed/invalid refusals, the 8 KiB cap both ways, the
-  decompression-bomb cap, `samples/parity-demo/Counter.tsx` at 584 characters, and a fragment recorded from
-  the pre-merge codec decoding to the same state.
-- `preview_studio_smoke.mjs`: 11 cases against the built `dist-ssr/` entries under a stub browser. Covers the
-  rendered chrome's four regions and the toolbar's option sets, persistence (environment only, never the
-  source), the fragment winning over storage, the share link through the address bar, a good link restoring
-  source/viewport/theme, a broken link reported with its code, the lazy manifest, and manifest validation.
-- `preview_page_checks.mjs`: 15 checks against the built page: the CSP (no inline or remote script, every
-  referenced asset present), every id the chrome and the three sessions resolve (from
-  `renderToStaticMarkup`, per view), the redirect's query/fragment preservation for six old-URL shapes, the
-  manifest paths, the pure codec modules, the three lazy Wasm imports, and dangling calls.
-- `preview_browser_check.mjs`: 11 browser checks against the assembled site, all pass (three views, the lazy
-  request set, a `#p5=` share link, both stubs forwarding, and a real WebGPU frame).
+- `preview_share_roundtrip.mjs` (19 cases, importing the codec **from source**),
+  `preview_studio_smoke.mjs` (11, against `dist-ssr/` under a stub browser) and
+  `preview_page_checks.mjs` (15, against the built page) all pass, as does
+  `preview_browser_check.mjs` (11 browser checks against `build/pages`, including a real WebGPU
+  frame).
 - `python -B -m unittest discover -s scripts/tests`: 239 tests, OK; `check_source_size.py`: 0 errors.
+- `node scripts/ci/preview_page_checks.mjs` gained the second textarea's two ids (issue #390) and
+  `node scripts/ci/preview_browser_verify.mjs` is the 10-check browser gate; both pass here.
 
 **The browser half.** The browser checks could not run on the authoring box before #422; they now do
-(Chrome 143 with WebGPU, against `build/pages`), so the result above is recorded rather than deferred to the
-deploy. They still do not cover a browser without WebGPU: that state is asserted in the pane's markup, not
-by hiding the adapter, and a human opening the deployed URL remains the last word on CSS.
+(Chrome 143 with WebGPU, against `build/pages`), so the result above is recorded rather than deferred
+to the deploy. They still do not cover a browser without WebGPU: that state is asserted in the pane's
+markup, not by hiding the adapter, and a human opening the deployed URL remains the last word on CSS.
 
-**§11 and §12: the merge, then the conversion.** The three pages above are now one `index.html` with three
-views (#392), and its chrome is React 19 + TypeScript built by Vite (#422, ADR-054). Both are recorded in
-[`studio-page.md`](studio-page.md), together with the two budget re-records (§5.1, §5.2).
+**The merge, then the conversion.** The three pages above are now one `index.html` with three views
+(#392), and its chrome is React 19 + TypeScript built by Vite (#422, ADR-054).
+[`studio-page.md`](studio-page.md) records both, with the two budget re-records.

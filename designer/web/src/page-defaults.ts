@@ -38,3 +38,24 @@ export const INITIAL_ENVIRONMENT = Object.freeze({
   /** The simulated fold posture (issue #408): `""` is no fold, which is the desktop default. */
   foldPosture: "",
 });
+
+/**
+ * The virtual project file the page's stylesheet textarea is filed under (issue #390).
+ *
+ * A source's `import "./Preview.css";` resolves to this textarea, so an author can either write the
+ * import or not: the sheet applies either way, because they typed it for the screen in front of them.
+ * The value is the page's, not the engine's -- the engine only defaults to the same string -- so a
+ * future folder IDE (#391) can name a real project path here without touching the module.
+ */
+export const PREVIEW_STYLESHEET_FILE = "ui/Preview.css";
+
+/**
+ * The stylesheet textarea's starting text: **one line, and deliberately not CSS**.
+ *
+ * The owner's decision 2 makes the built-in sheet the fallback for "no stylesheet at all", and the
+ * bundled samples must keep painting exactly what they paint today. A comment is therefore the right
+ * starting value: `has_author_stylesheet()` treats a comment-only sheet as "no author CSS", so the
+ * built-in sheet stays in force, and a visitor who wants to start writing CSS has a line to replace
+ * instead of a blank box that looks broken.
+ */
+export const STARTUP_STYLESHEET = "/* Author CSS for this screen, applied as ui/Preview.css. */\n";

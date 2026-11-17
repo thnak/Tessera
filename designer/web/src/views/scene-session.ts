@@ -26,16 +26,12 @@ import { wasmModuleUrl } from "../lib/module-url";
 import type { SourceReader, StatusReporter, ViewSession } from "../lib/views";
 import { callExport, requireExports, type WasmModule } from "../lib/wasm-call";
 import { createInputPane } from "./scene-input";
+import { describeCss, cssProblem, readCssDiagnostics } from "./css-diagnostics";
+import { DEFAULT_VIEWPORT, chooseExport } from "./scene-export";
 import { noSceneBox, renderNodes, unavailableBox, type SceneDocument } from "./scene-render";
 
 /** The module factory `tessera_scene_preview.js` exports. */
 type ModuleFactory = () => Promise<WasmModule>;
-
-// The preview's default layout rectangle (wasm_scene_entry.cpp's kDefaultWidth/Height/DpiScale): the
-// plain `tessera_scene_json` export lays the tree out at exactly this, so the sized export is only
-// needed when the toolbar has moved off it.
-const DEFAULT_VIEWPORT = { width: 320, height: 240 };
-const DEFAULT_DPR = 1;
 
 /**
  * The parity-demo-shaped sample: a static tree the preview evaluates, so the first Run shows a real
@@ -55,60 +51,6 @@ export const SAMPLE = `export function Counter(): Node {
 `;
 
 const SAMPLE_SCRIPT = "click 101\nclick 101\nclick 101\n";
-
-// The plain export is the parity gate's contract (byte-identical to the native CLI's 320x240 DPR 1) and
-// is what a default run must keep calling; the sized one is for a moved toolbar. The fallback covers an
-// artifact built before P5 landed next to this page.
-function usesSizedExport(
-  module: WasmModule,
-  viewport: { width: number; height: number },
-  dpr: number,
-): boolean {
-  const moved =
-    viewport.width !== DEFAULT_VIEWPORT.width ||
-    viewport.height !== DEFAULT_VIEWPORT.height ||
-    dpr !== DEFAULT_DPR;
-  return moved && typeof module._tessera_scene_json_sized === "function";
-}
-
-/**
- * The export this run should call, and why.
- *
- * `_tessera_scene_json_folded` (issue #408) is the only export that carries the fold posture, so a
- * foldable preview has to use it. A run with no posture keeps calling the plain export when nothing
- * else moved, because that byte-for-byte equality with the native CLI's default is what the parity
- * gate asserts; a moved viewport keeps using the sized export, and a fold takes precedence because
- * the sized one cannot express it.
- *
- * The `folded` export falls back to the sized/plain pair when the artifact predates it: a page
- * published against an older module then shows an unfolded preview and says so, rather than failing.
- */
-function chooseExport(
-  module: WasmModule,
-  viewport: { width: number; height: number },
-  dpr: number,
-  posture: string,
-): { name: string; numbers: number[]; extra: string[]; folded: boolean } {
-  if (posture !== "" && typeof module._tessera_scene_json_folded === "function") {
-    // `callExport` hands the trailing string arguments after the numeric ones, so the posture is
-    // appended to the source triple: (source, file, component, w, h, dpr, posture).
-    return {
-      name: "_tessera_scene_json_folded",
-      numbers: [viewport.width, viewport.height, dpr],
-      extra: [posture],
-      folded: true,
-    };
-  }
-  if (usesSizedExport(module, viewport, dpr)) {
-    return {
-      name: "_tessera_scene_json_sized",
-      numbers: [viewport.width, viewport.height, dpr],
-      extra: [],
-      folded: false,
-    };
-  }
-  return { name: "_tessera_scene_json", numbers: [], extra: [], folded: false };
-}
 
 /** The elements React committed for the Scene pane; every one of them is a ref. */
 export interface SceneElements {
@@ -210,23 +152,37 @@ export function createSceneSession(options: SceneSessionOptions): SceneSession {
       const module = await factory();
       const viewport = currentViewport();
       const dpr = currentDpr();
+      // The source and its stylesheet come from one reader (issue #431's `SourceReader`, extended by #390):
+      // the sheet is read when Run is pressed, exactly like the text it styles, so a session cannot lay the
+      // tree out against a sheet the author no longer has on screen.
       const target = options.source();
-      const chosen = chooseExport(module, viewport, dpr, options.foldPosture());
-      const json = callExport(
-        module,
-        chosen.name,
-        [target.text, target.file, "", ...chosen.extra],
-        chosen.numbers,
-      );
+      const sheet = target.stylesheet;
+      const chosen = chooseExport(module, viewport, dpr, options.foldPosture(), sheet !== "");
+      // The argument order every export in this module shares: the pointers first (source, file,
+      // component, then the posture and/or stylesheet when the chosen shape takes one), then the
+      // numbers. `callExport` marshals the strings in order, so a string after a number would be
+      // handed a stale integer.
+      const strings = [target.text, target.file, ""];
+      if (chosen.postureFirst) {
+        strings.push(options.foldPosture());
+      }
+      if (chosen.styled) {
+        strings.push(sheet);
+      }
+      const json = callExport(module, chosen.name, strings, chosen.numbers);
       emptyState.hidden = true;
       const document = JSON.parse(json) as SceneDocument;
       const count = renderNodes(nodes, document, (id) => input.append(id));
+      // The stylesheet's own problems are reported beside the snapshot, not instead of it (issue
+      // #390): the parser is tolerant, so a bad rule costs that rule and the tree still renders. When
+      // the sheet is set but the artifact cannot apply it, say so rather than implying it was used.
+      const css = await readCssDiagnostics(module, sheet, target.stylesheetFile);
       if (count === 0) {
         nodes.replaceChildren();
         nodes.append(noSceneBox(document.error));
         setStatus("no scene", "warning");
       } else {
-        setStatus(`${count} node(s)`, "ok");
+        setStatus(`${count} node(s)${describeCss(css)}`, cssProblem(css) ? "warning" : "ok");
       }
     } catch (error) {
       nodes.replaceChildren();

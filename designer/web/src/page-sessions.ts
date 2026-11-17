@@ -13,7 +13,7 @@
 // page's `SourceReader` at Run time (issue #431: Run compiles the project file, not whatever is on screen).
 
 import { useEffect, useRef } from "react";
-import type { ViewDefinition, ViewSession } from "./lib/views";
+import type { SourceReader, ViewDefinition, ViewSession } from "./lib/views";
 import type { PageRefs, PageStateSetters } from "./page-state";
 import { setStatusText } from "./page-state";
 import { createCanvasSession } from "./views/canvas-session";
@@ -30,8 +30,13 @@ export interface SessionDeps {
   environmentOf: () => { width: number; height: number; dpr: number };
   /** The fold posture (issue #408); `""` is no fold. */
   foldPosture: () => string;
-  /** The workspace's compile target, read at Run time. */
-  source: () => { text: string; file: string; shown: boolean };
+  /**
+   * The workspace's compile target plus the author stylesheet it is styled with, read at Run time.
+   *
+   * The stylesheet travels in the snapshot (issue #390, through #431's `SourceReader`), so a session asks
+   * one question and gets the file to compile and the sheet to compile it against together.
+   */
+  source: SourceReader;
   /** `true` while `id` is the view the preview column is showing (a readiness callback's guard). */
   isCurrent: (id: ViewDefinition["id"]) => boolean;
 }

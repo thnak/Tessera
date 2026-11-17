@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "canvas_report.hpp"
+#include "css_diagnostics_report.hpp"
 
 #include <string>
 #include <string_view>
@@ -16,51 +17,16 @@ void append_number(std::string& out, std::string_view name, std::uint64_t value)
     out += std::to_string(value);
 }
 
-// A string field, escaped for JSON. The only text that reaches here is this module's own ASCII
-// error messages, so escaping quotes, backslashes and control characters is the whole job; pulling
-// a general encoder into a module this small would be a second implementation of a solved problem.
-void append_escaped(std::string& out, std::string_view text) {
-    out.push_back('"');
-    for (const char character : text) {
-        const auto code = static_cast<unsigned char>(character);
-        switch (character) {
-        case '"':
-            out += "\\\"";
-            break;
-        case '\\':
-            out += "\\\\";
-            break;
-        case '\n':
-            out += "\\n";
-            break;
-        case '\r':
-            out += "\\r";
-            break;
-        case '\t':
-            out += "\\t";
-            break;
-        default:
-            if (code < 0x20U) {
-                // U+0000..U+001F must not appear raw in a JSON string.
-                constexpr char kHex[] = "0123456789abcdef";
-                out += "\\u00";
-                out.push_back(kHex[code >> 4U]);
-                out.push_back(kHex[code & 0x0FU]);
-            } else {
-                out.push_back(character);
-            }
-            break;
-        }
-    }
-    out.push_back('"');
-}
-
+// A string field, escaped for JSON. One implementation, shared with the stylesheet diagnostics
+// report
+// (`css_diagnostics_report.hpp`): both write the project's own ASCII messages, so both need exactly
+// the quote/backslash/control-character rule and nothing more.
 void append_text(std::string& out, std::string_view name, std::string_view text) {
     out += ",";
     out.push_back('"');
     out += name;
     out += "\":";
-    append_escaped(out, text);
+    out += quoted(text);
 }
 
 // One element of a JSON string array, with the comma the caller does not have to place.
@@ -68,7 +34,7 @@ void append_string_element(std::string& out, bool first, std::string_view text) 
     if (!first) {
         out.push_back(',');
     }
-    append_escaped(out, text);
+    out += quoted(text);
 }
 
 void append_bool(std::string& out, std::string_view name, bool value) {
@@ -83,6 +49,12 @@ void append_bool(std::string& out, std::string_view name, bool value) {
 
 std::string canvas_report_json(const SceneFrameResult& result, std::uint32_t width,
                                std::uint32_t height, bool has_device) {
+    return canvas_report_json(result, width, height, has_device, {});
+}
+
+std::string canvas_report_json(const SceneFrameResult& result, std::uint32_t width,
+                               std::uint32_t height, bool has_device,
+                               const std::vector<PreviewCssDiagnostic>& css_diagnostics) {
     // The field names mirror the native CLI's printed counters, so a parity script can compare a
     // browser report with a native dump without a second vocabulary.
     std::string out = "{\"canvasVersion\":1";
@@ -105,6 +77,35 @@ std::string canvas_report_json(const SceneFrameResult& result, std::uint32_t wid
     append_number(out, "imagesSkipped", result.images_skipped);
     append_bool(out, "pixelsAvailable", result.pixels_available);
     append_text(out, "error", result.error);
+    // The author stylesheet's parse problems (issue #390), appended so the report keeps its version
+    // (see the header). A bad rule is reported here, never as `error`: `error` means "no frame",
+    // and the whole point of the tolerant parser is that a bad rule costs that rule and nothing
+    // else.
+    out += ",\"cssDiagnostics\":[";
+    std::size_t written = 0;
+    for (const PreviewCssDiagnostic& diagnostic : css_diagnostics) {
+        if (written == kMaxReportedCssDiagnostics) {
+            break;
+        }
+        if (written != 0) {
+            out.push_back(',');
+        }
+        out += "{\"code\":";
+        out += quoted(diagnostic.code);
+        out += ",\"severity\":";
+        out += quoted(diagnostic.warning ? "warning" : "error");
+        out += ",\"message\":";
+        out += quoted(diagnostic.message);
+        out += ",\"file\":";
+        out += quoted(diagnostic.file);
+        append_number(out, "line", diagnostic.line);
+        append_number(out, "column", diagnostic.column);
+        append_number(out, "offset", diagnostic.offset);
+        out.push_back('}');
+        ++written;
+    }
+    out += "]";
+    append_bool(out, "cssDiagnosticsTruncated", css_diagnostics.size() > written);
     out += "}\n";
     return out;
 }
