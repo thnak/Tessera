@@ -162,8 +162,8 @@ copy of uncommitted work.
 
 ## A green Windows build is not a green lane: the GCC-only warnings
 
-`vs2026` uses MSVC `/W4 /WX`; `linux`/`icu-text` use GCC `-Wall -Wextra -Wpedantic -Werror`. Four
-classes of defect pass MSVC and fail GCC. They broke **five** PRs in one session, and CI cannot tell
+`vs2026` uses MSVC `/W4 /WX`; `linux`/`icu-text` use GCC `-Wall -Wextra -Wpedantic -Werror`. Five
+classes of defect pass MSVC and fail GCC. They broke **seven** PRs in one session, and CI cannot tell
 you until the whole Linux build has run — so check your own diff before pushing.
 
 1. **An unused function or variable in an anonymous namespace** — `-Werror=unused-function` /
@@ -179,6 +179,13 @@ you until the whole Linux build has run — so check your own diff before pushin
 4. **An unused named parameter** — `-Werror=unused-parameter`. Leave the parameter **unnamed**
    (`void f(int)` not `void f(int n)`) when the body does not read it. Coroutine bodies whose leading
    context argument is consumed by the promise type are the usual case.
+5. **An incomplete aggregate initialization after a struct gains a field** —
+   `-Werror=missing-field-initializers`. MSVC does not diagnose it. This one is created *by* a
+   correct change: appending a member to a struct that other code brace-initializes turns every one
+   of those initializations into a warning, and the Windows build stays green. When you add a field,
+   grep for `StructName{` across `src`, `tests` and `tools` and name the new member explicitly
+   (`{a, b, c, {}}`) at every site. Adding `classes` to `ir::StylesheetRef` broke five lanes this
+   way.
 
 **The deepest version of class 2 is a preprocessor-conditional *member*.** Anything behind
 `#if defined(TESSERA_VULKAN_HAS_PRESENT_SURFACE)` is invisible on Windows, because MSVC always
