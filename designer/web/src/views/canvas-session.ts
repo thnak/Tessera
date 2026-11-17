@@ -182,12 +182,22 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
     if (factory === null) {
       return false;
     }
+    // **The module is instantiated once, not once per Run.** A Wasm instance owns the GPU device, the
+    // running session and the loaded font, so calling the factory again built a fresh instance whose
+    // `g_device` is null by definition -- and the reuse branch below then swapped that device-less
+    // instance in for the working one. Every Run after the first therefore reported "no WebGPU device"
+    // (reproduced in a browser; a Viewport change only made it visible). One instance is also what the
+    // rest of this file assumes: `gpu.module`, the font and the session are all per-instance state.
     let module: WasmModule & CanvasModule;
-    try {
-      module = await factory();
-    } catch (error) {
-      pane.showFailed(`The preview module failed to instantiate: ${String(error)}`);
-      return false;
+    if (gpu !== null) {
+      module = gpu.module;
+    } else {
+      try {
+        module = await factory();
+      } catch (error) {
+        pane.showFailed(`The preview module failed to instantiate: ${String(error)}`);
+        return false;
+      }
     }
 
     try {
@@ -219,8 +229,6 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
             "reacquire it.",
         );
       });
-    } else {
-      gpu.module = module;
     }
 
     resize();
