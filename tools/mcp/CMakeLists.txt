@@ -47,6 +47,8 @@ target_sources(tessera_mcp_core PRIVATE
     # `Options::query`, the same function `tessera_codegen --diagnostics-json` runs, so the document
     # cannot drift from the CLI's (the acceptance of issue #406).
     ${PROJECT_SOURCE_DIR}/tools/codegen/regenerate.cpp
+    ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate_source_file.cpp
+    ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate_text.cpp
     ${PROJECT_SOURCE_DIR}/tools/codegen/regenerate_assets.cpp
     ${PROJECT_SOURCE_DIR}/tools/codegen/project_identity.cpp
     ${PROJECT_SOURCE_DIR}/tools/codegen/package_manifest.cpp
@@ -197,7 +199,9 @@ if (TESSERA_BUILD_TESTS)
     # root resolution (explicit path, client `roots`, working directory) and the named refusals. The
     # scratch folder lives under the build tree for the same reason as the process test's.
     add_executable(mcp_project_tests
-        ${PROJECT_SOURCE_DIR}/tests/unit/mcp/project_tests.cpp)
+        ${PROJECT_SOURCE_DIR}/tests/unit/mcp/project_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/mcp/project_test_support.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/mcp/mcp_project_generate_tests.cpp)
 
     target_include_directories(mcp_project_tests
         PRIVATE
