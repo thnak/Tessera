@@ -10,8 +10,15 @@
 namespace tessera::ui::text {
 namespace {
 
-std::vector<std::uint8_t> make_page_pixels(std::uint32_t width, std::uint32_t height) {
-    std::vector<std::uint8_t> pixels(static_cast<std::size_t>(width) * height * 4, 255);
+// A cleared page. Grayscale pages keep the long-standing white RGB with zero alpha: the shader
+// multiplies the text color by the texel, so white is the identity and only alpha carries coverage.
+// An LCD page instead stores coverage in RGB, so its cleared value must be zero coverage - a white
+// background would bleed full coverage into a glyph's edge through the linear filter.
+std::vector<std::uint8_t> make_page_pixels(std::uint32_t width, std::uint32_t height,
+                                           GlyphAaMode aa_mode) {
+    const std::uint8_t background =
+        static_cast<std::uint8_t>(aa_mode == GlyphAaMode::Lcd ? 0 : 255);
+    std::vector<std::uint8_t> pixels(static_cast<std::size_t>(width) * height * 4, background);
     for (std::size_t i = 3; i < pixels.size(); i += 4) {
         pixels[i] = 0;
     }
@@ -58,14 +65,18 @@ const GlyphAtlasEntry& GlyphAtlas::get_glyph(std::uint32_t glyph_index, std::uin
     }
 
     ++stats_.misses;
-    const GlyphBitmap bitmap =
-        rasterizers_[face]->rasterize_glyph(glyph_index, pixel_size, config_.hinting, x_subpixel);
+    const GlyphBitmap bitmap = rasterizers_[face]->rasterize_glyph(
+        glyph_index, pixel_size, config_.hinting, x_subpixel, config_.aa_mode);
 
     GlyphAtlasEntry entry;
     entry.bearing_x = bitmap.bearing_x;
     entry.bearing_y = bitmap.bearing_y;
     entry.advance = bitmap.advance;
     entry.color = bitmap.color;
+    // The bitmap reports the layout it actually got, which is grayscale for a glyph FreeType could
+    // not render as LCD (a color glyph, a bitmap glyph). The entry carries that per glyph, so the
+    // renderer's quad width is right even inside an LCD atlas.
+    entry.channels = static_cast<std::uint8_t>(coverage_channels(bitmap.aa_mode));
 
     if (bitmap.width != 0 && bitmap.height != 0) {
         bool placed = false;
@@ -90,7 +101,8 @@ const GlyphAtlasEntry& GlyphAtlas::get_glyph(std::uint32_t glyph_index, std::uin
 
         if (!placed && pages_.size() < config_.max_pages) {
             Page page;
-            page.pixels = make_page_pixels(config_.page_width, config_.page_height);
+            page.pixels =
+                make_page_pixels(config_.page_width, config_.page_height, config_.aa_mode);
             pages_.push_back(std::move(page));
             Page& candidate = pages_.back();
             std::uint32_t x = 0;
@@ -206,7 +218,10 @@ bool GlyphAtlas::pack(Page& page, std::uint32_t width, std::uint32_t height, std
 }
 
 void GlyphAtlas::reset_page(Page& page) {
-    std::fill(page.pixels.begin(), page.pixels.end(), std::uint8_t{255});
+    // Same cleared value a fresh page gets, so an evicted page and a new page are indistinguishable
+    // to the shader (see make_page_pixels).
+    std::fill(page.pixels.begin(), page.pixels.end(),
+              static_cast<std::uint8_t>(config_.aa_mode == GlyphAaMode::Lcd ? 0 : 255));
     for (std::size_t i = 3; i < page.pixels.size(); i += 4) {
         page.pixels[i] = 0;
     }
@@ -254,6 +269,37 @@ void GlyphAtlas::upload(Page& page, const GlyphBitmap& bitmap, std::uint32_t x, 
                         static_cast<std::size_t>(bitmap.width) * 4,
                         page.pixels.data() +
                             (static_cast<std::size_t>(y + row) * config_.page_width + x) * 4);
+        }
+        return;
+    }
+    if (bitmap.aa_mode == GlyphAaMode::Lcd) {
+        // FreeType's LCD row is one RGB triple per pixel (R0 G0 B0 R1 G1 B1 ...), while the page
+        // rect is three texels per pixel - one per sample column - so the entry's width stays the
+        // bitmap's physical width and the renderer divides it by `channels`. Each of a pixel's
+        // three texels carries that pixel's whole triple: the quad samples the page at one third of
+        // its texel density, and three identical texels make the linear filter return the pixel's
+        // coverage at every sample point, including at the boundary with the next pixel. The
+        // redundancy is the documented three-fold page cost of LCD. Alpha carries the per-pixel
+        // maximum, the standard "how much ink" reduction, so the same page also renders through the
+        // grayscale pipeline (which reads alpha) instead of drawing nothing before slice 3's
+        // per-channel pipeline exists.
+        for (std::uint32_t row = 0; row < bitmap.height; ++row) {
+            std::uint8_t* destination =
+                page.pixels.data() +
+                (static_cast<std::size_t>(y + row) * config_.page_width + x) * 4;
+            const std::uint8_t* source =
+                bitmap.coverage.data() + static_cast<std::size_t>(row) * bitmap.width;
+            for (std::uint32_t column = 0; column < bitmap.width; ++column) {
+                const std::uint8_t* pixel = source + static_cast<std::size_t>(column / 3) * 3;
+                const std::uint8_t red = pixel[0];
+                const std::uint8_t green = pixel[1];
+                const std::uint8_t blue = pixel[2];
+                std::uint8_t* texel = destination + static_cast<std::size_t>(column) * 4;
+                texel[0] = red;
+                texel[1] = green;
+                texel[2] = blue;
+                texel[3] = std::max(red, std::max(green, blue));
+            }
         }
         return;
     }

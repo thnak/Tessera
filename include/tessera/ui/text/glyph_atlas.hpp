@@ -20,6 +20,14 @@ struct GlyphAtlasConfig {
     // How every glyph in this atlas is hinted. One atlas is one render scale, so the hinting that
     // scale selects is a property of the whole atlas, not of a glyph key.
     GlyphHinting hinting = GlyphHinting::Font;
+    // How every glyph in this atlas is rasterized (display-aware-rendering.md section 3.4). Like
+    // `hinting`, this is atlas identity rather than a glyph key: one atlas is one (mode, hinting)
+    // pair, so a page never mixes coverage layouts and the shader that samples it is fixed.
+    //
+    // Cost: LCD stores three coverage bytes per pixel, so a page holds about a third as many glyphs
+    // as the same page in grayscale. The page count, the shelf packing and the LRU eviction rule
+    // are unchanged - the budget is still `max_pages` pages, they simply fill up sooner.
+    GlyphAaMode aa_mode = GlyphAaMode::Grayscale;
 };
 
 // Placement of one glyph in a page. `has_bitmap` is false for whitespace and for glyphs the
@@ -29,6 +37,10 @@ struct GlyphAtlasConfig {
 struct GlyphAtlasEntry {
     std::uint32_t x = 0;
     std::uint32_t y = 0;
+    // The bitmap's physical extent in page pixels. For an LCD entry `width` is three times the
+    // glyph's pixel footprint, because the page stores one sample per subpixel; `channels` says
+    // which it is, so a renderer never has to guess from the atlas config (a glyph that fell back
+    // to grayscale inside an LCD atlas keeps `channels == 1`).
     std::uint32_t width = 0;
     std::uint32_t height = 0;
     std::int32_t bearing_x = 0;
@@ -36,6 +48,9 @@ struct GlyphAtlasEntry {
     float advance = 0.0f;
     std::uint16_t page = 0;
     bool has_bitmap = false;
+    // Coverage samples per pixel in the page: 1 for grayscale, 3 for LCD (R, G, B interleaved). The
+    // glyph's pixel footprint is `width / channels`.
+    std::uint8_t channels = 1;
     // The page pixels hold the glyph's own colors (straight alpha) instead of white coverage, so a
     // renderer draws it untinted, keeping only the text color's opacity.
     bool color = false;
@@ -51,7 +66,10 @@ struct GlyphAtlasStats {
 // Bounded, deterministic glyph atlas. Pages are packed in insertion order with shelves; when all
 // pages are full the least-recently-used page is cleared, but never a page touched in the current
 // frame. Pages store RGBA8 (white RGB, coverage alpha) so the batched 2D shader needs no special
-// swizzle.
+// swizzle. An LCD atlas keeps the same page format but stores coverage in RGB instead: one texel
+// per subpixel sample, with the per-pixel maximum in alpha so the page still means something to the
+// grayscale pipeline. The texture upload is therefore unchanged; only the entry's `channels` and
+// the quad width differ.
 class GlyphAtlas {
 public:
     explicit GlyphAtlas(GlyphRasterizer& rasterizer, GlyphAtlasConfig config = {});
@@ -95,6 +113,9 @@ public:
     }
     [[nodiscard]] const GlyphAtlasStats& stats() const {
         return stats_;
+    }
+    [[nodiscard]] GlyphAaMode aa_mode() const noexcept {
+        return config_.aa_mode;
     }
 
 private:

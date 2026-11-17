@@ -45,14 +45,21 @@ public:
     void set_render_scale(float render_scale);
     [[nodiscard]] float render_scale() const;
 
-    // Applies the per-window AA policy (display-aware-rendering.md sections 3.2 and 3.3): the
-    // policy's render scale, its glyph hinting and whether glyph origins keep a quarter-pixel
-    // fraction. A hinting change releases every atlas and page texture (their bitmaps are stale);
-    // everything else behaves like set_render_scale(). Same timing rule: between frames only. The
-    // default state is the golden policy (font hints, whole-pixel glyph origins), so a renderer
-    // that never calls this draws exactly as before.
+    // Applies the per-window AA policy (display-aware-rendering.md sections 3.2, 3.3 and 3.4): the
+    // policy's render scale, its glyph hinting, whether glyph origins keep a quarter-pixel
+    // fraction, and whether the atlas rasterizes LCD coverage. A hinting or AA-mode change releases
+    // every atlas and page texture (their bitmaps are stale); everything else behaves like
+    // set_render_scale(). Same timing rule: between frames only. The default state is the golden
+    // policy (font hints, whole-pixel glyph origins, grayscale coverage), so a renderer that never
+    // calls this draws exactly as before.
+    //
+    // `TextAaMode::LcdWhenEligible` selects LCD coverage for the whole atlas. The per-run
+    // eligibility predicate and the LCD pipeline are slice 3; until then an LCD atlas is drawn
+    // through the grayscale pipeline, which reads the per-pixel maximum the upload also stores in
+    // alpha, so the run still renders (as grayscale) instead of disappearing.
     void set_aa_policy(const scale::AaPolicy& policy);
     [[nodiscard]] GlyphHinting hinting() const;
+    [[nodiscard]] GlyphAaMode aa_mode() const;
     [[nodiscard]] bool subpixel_position() const;
 
     // Draws the run with its baseline at (x, baseline_y) and returns the pixel advance.
