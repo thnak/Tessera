@@ -751,6 +751,11 @@ ADR-050 is Accepted (roadmap AF1-AF8); start with AF1.
       `FileSystem` that fails at one named step so atomicity is proved rather than hoped for.
 - [ ] #180, #181: Multi-window, then tray apps, each its own slice.
 - [ ] #228: One `Application` loop and one `rhi::Device` for several windows (before AF6).
+- [ ] #450: Platform shell implementation behind `ShellService` (`ready`): fake first, Windows clipboard, drop, dialogs, context menu.
+- [ ] #451: Permissions: `permissions-v1` spec and `PermissionService` (spec first; #452 and #455 need it).
+- [ ] #452: Notifications: `notifications-v1` spec and `NotificationService` (spec first; after #451).
+- [ ] #453: Background work policy: design note, in-process `TaskScope` or OS-scheduled jobs (decision, no code).
+- [ ] #454: App-level test support `tessera_testing` and a guide (`ready`): service fakes, lifecycle injection, `tap/find/advance`.
 - [x] #234: Library stage 0: bare package imports of `tessera-ui` —
       `packages/tessera-ui/` (Field, Form, `tessera-package.json`), `tools/codegen/package_manifest.cpp`
       (version check), `src/compiler/lowering/src/module_lowering.cpp` (bundled `tessera-ui` imports,
@@ -864,6 +869,7 @@ Acceptance: a streaming dashboard at target frame rate with deterministic golden
       unsupported platform reports one `TESSERA_WINDOW_CURSOR_UNSUPPORTED`. Contract in
       `docs/specs/window-chrome-v1.md` §8.5; tests `window_cursor`, `window_cursor_fake`,
       `window_win32`, `window_x11`, `interaction_style`.
+- [ ] #455: Media capture: `media-capture-v1` spec (camera, microphone, recording) with a fake device; after #451.
 
 ### V1-M8 Release readiness ([milestone 8](https://github.com/thnak/Tessera/milestone/8))
 Acceptance: a real app ships and passes validation layers and golden tests in CI.
