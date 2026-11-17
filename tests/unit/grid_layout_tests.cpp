@@ -305,20 +305,23 @@ int main() {
         return 14;
     }
 
-    // 14. Explicit line numbers, including negative lines counting back from the explicit grid.
+    // 14. Explicit line numbers, including negative lines counting back from the explicit grid. The
+    //    cursor is on column 3 after the second item, so `grid-column: 1` starts a new row (CSS
+    //    Grid 1, 8.5 step 4), it does not return to the first row with room.
     const LayoutInput lines = node(120,
                                    style({{"display", "grid"},
                                           {"width", "300px"},
-                                          {"height", "100px"},
+                                          {"height", "150px"},
                                           {"grid-template-columns", "repeat(3, 1fr)"},
-                                          {"grid-template-rows", "50px 50px"}}),
+                                          {"grid-template-rows", "50px 50px 50px"}}),
                                    {node(121, style({{"grid-column", "2 / 4"}})),
                                     node(122, style({{"grid-column", "-2 / -1"}})),
                                     node(123, style({{"grid-column", "1"}}))});
-    const LayoutResult lines_result = engine.layout(lines, LayoutViewport{300.0f, 100.0f});
+    const LayoutResult lines_result = engine.layout(lines, LayoutViewport{300.0f, 150.0f});
     if (!expect(box_is(lines_result, 121, 100, 0, 200, 50), "grid-column: 2 / 4") ||
         !expect(box_is(lines_result, 122, 200, 50, 100, 50), "negative lines -2 / -1") ||
-        !expect(box_is(lines_result, 123, 0, 0, 100, 50), "first free row in column 1")) {
+        !expect(box_is(lines_result, 123, 0, 100, 100, 50),
+                "column 1 is before the cursor: next row")) {
         return 15;
     }
 
@@ -367,6 +370,49 @@ int main() {
                     "deterministic repeat")) {
             return 19;
         }
+    }
+
+    // 17b. An item with a definite column and an auto row is placed in document order by the
+    //     cursor (CSS Grid 1, 8.5 step 4); it does not jump ahead of the items before it. A full
+    //     width `grid-column: 1 / 3` item after two cells lands on the second row, and the cell
+    //     after it on the third.
+    const LayoutInput ordered = node(150,
+                                     style({{"display", "grid"},
+                                            {"width", "200px"},
+                                            {"height", "150px"},
+                                            {"grid-template-columns", "100px 100px"},
+                                            {"grid-template-rows", "50px 50px 50px"}}),
+                                     {node(151, {}), node(152, {}),
+                                      node(153, style({{"grid-column", "1 / 3"}})), node(154, {})});
+    const LayoutResult ordered_result = engine.layout(ordered, LayoutViewport{200.0f, 150.0f});
+    if (!expect(box_is(ordered_result, 151, 0, 0, 100, 50), "ordered cell 1") ||
+        !expect(box_is(ordered_result, 152, 100, 0, 100, 50), "ordered cell 2") ||
+        !expect(box_is(ordered_result, 153, 0, 50, 200, 50), "full-width item keeps its turn") ||
+        !expect(box_is(ordered_result, 154, 0, 100, 100, 50), "cell after the full-width item")) {
+        return 22;
+    }
+
+    // 17c. A definite column before the cursor's column starts the next row; one at or after it
+    //     stays on the cursor's row. `grid-column: 2` after one cell shares row 1, and the cell
+    //     that follows wraps to row 2.
+    const LayoutInput columns_first =
+        node(160,
+             style({{"display", "grid"},
+                    {"width", "200px"},
+                    {"height", "150px"},
+                    {"grid-template-columns", "100px 100px"},
+                    {"grid-template-rows", "50px 50px 50px"}}),
+             {node(161, {}), node(162, style({{"grid-column", "2"}})), node(163, {}),
+              node(164, style({{"grid-column", "1"}}))});
+    const LayoutResult columns_first_result =
+        engine.layout(columns_first, LayoutViewport{200.0f, 150.0f});
+    if (!expect(box_is(columns_first_result, 161, 0, 0, 100, 50), "column-first cell 1") ||
+        !expect(box_is(columns_first_result, 162, 100, 0, 100, 50),
+                "grid-column: 2 shares row 1") ||
+        !expect(box_is(columns_first_result, 163, 0, 50, 100, 50), "next cell wraps to row 2") ||
+        !expect(box_is(columns_first_result, 164, 0, 100, 100, 50),
+                "column before cursor -> next row")) {
+        return 23;
     }
 
     // 18. A 1,000-item grid stays well inside the #241 layout budget (45 ms per 1000 nodes is

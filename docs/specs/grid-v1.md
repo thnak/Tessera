@@ -63,10 +63,15 @@ Items are placed in `order`-modified document order (the same stable `order` sor
 uses), then:
 
 1. An item with both axes definite is placed at its lines.
-2. Items locked to one axis fill the first free position on the other axis.
-3. The remaining items are auto-placed with a sparse cursor in the `grid-auto-flow` direction
-   (`row`: fill a row, then the next row; `column`: fill a column, then the next column). The cursor
-   never moves backwards, so there is no dense packing.
+2. In a `row` flow an item with a definite row and an auto column fills the first free column of that
+   row; in a `column` flow an item with a definite column fills the first free row of that column.
+   These are placed before any cursor placement, as in CSS Grid 1, section 8.5.
+3. The remaining items, in document order, are placed by a sparse cursor in the `grid-auto-flow`
+   direction (`row`: fill a row, then the next row; `column`: fill a column, then the next column).
+   An item with a definite line on the flow's own axis (a `row` flow with `grid-column: 1 / 3`) moves
+   the cursor to that line, starting the next row when the line is before the cursor, and takes the
+   first row where it fits; it does **not** jump ahead of the items before it in the document. The
+   cursor never moves backwards, so there is no dense packing.
 4. Implicit tracks created outside the explicit template are `auto`; V1 has no
    `grid-auto-columns`/`grid-auto-rows`.
 

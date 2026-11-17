@@ -133,7 +133,11 @@ void GridEngine::place_items() {
         }
     }
 
-    // 2./3. Items locked to one axis: the flow axis picks which one is filled first.
+    // 2. Items whose line on the *cross* axis of the flow is definite (CSS Grid 1, 8.5 step 2: a
+    // row definite item in a `row` flow, a column definite item in a `column` flow) fill the first
+    // free position on the other axis before any cursor placement. An item definite only on the
+    // flow's own axis is not pre-placed: it is placed in document order by the cursor pass below,
+    // so `grid-column: 1 / 3` on a later item no longer jumps ahead of the items before it.
     const auto place_locked_to_row = [&occupied](Item& item) {
         int column = 1;
         while (!occupied.is_free(item.row_start, column, item.row_span, item.column_span)) {
@@ -152,27 +156,11 @@ void GridEngine::place_items() {
         item.row_auto = false;
         occupied.mark(item.row_start, item.column_start, item.row_span, item.column_span);
     };
-    if (column_flow_) {
-        for (Item& item : items_) {
-            if (!item.column_auto && item.row_auto) {
-                place_locked_to_column(item);
-            }
-        }
-        for (Item& item : items_) {
-            if (item.column_auto && !item.row_auto) {
-                place_locked_to_row(item);
-            }
-        }
-    } else {
-        for (Item& item : items_) {
-            if (item.column_auto && !item.row_auto) {
-                place_locked_to_row(item);
-            }
-        }
-        for (Item& item : items_) {
-            if (!item.column_auto && item.row_auto) {
-                place_locked_to_column(item);
-            }
+    for (Item& item : items_) {
+        if (column_flow_ && !item.column_auto && item.row_auto) {
+            place_locked_to_column(item);
+        } else if (!column_flow_ && item.column_auto && !item.row_auto) {
+            place_locked_to_row(item);
         }
     }
 
@@ -192,10 +180,32 @@ void GridEngine::place_items() {
     int cursor_row = 1;
     int cursor_column = 1;
     for (Item& item : items_) {
-        if (!item.column_auto || !item.row_auto) {
-            continue;
+        if (item.column_auto == false && item.row_auto == false) {
+            continue; // already placed (both axes definite, or pre-placed above)
         }
-        if (column_flow_) {
+        if (column_flow_ && !item.row_auto) {
+            // Definite row, auto column (CSS Grid 1, 8.5 step 4): the cursor takes the item's row;
+            // a row before the cursor's starts the next column.
+            if (item.row_start < cursor_row) {
+                ++cursor_column;
+            }
+            cursor_row = item.row_start;
+            while (!occupied.is_free(cursor_row, cursor_column, item.row_span, item.column_span)) {
+                ++cursor_column;
+            }
+            item.column_start = cursor_column;
+        } else if (!column_flow_ && !item.column_auto) {
+            // Definite column, auto row: the cursor takes the item's column; a column before the
+            // cursor's starts the next row.
+            if (item.column_start < cursor_column) {
+                ++cursor_row;
+            }
+            cursor_column = item.column_start;
+            while (!occupied.is_free(cursor_row, cursor_column, item.row_span, item.column_span)) {
+                ++cursor_row;
+            }
+            item.row_start = cursor_row;
+        } else if (column_flow_) {
             while (true) {
                 if (cursor_row + item.row_span - 1 > row_count) {
                     ++cursor_column;
