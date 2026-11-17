@@ -34,6 +34,15 @@ target_link_libraries(scale_atlas_tests PRIVATE tessera_text)
 
 add_test(NAME scale_atlas COMMAND scale_atlas_tests "${TESSERA_FONT_FIXTURE}")
 
+# Text consumes the AA policy: hinting by scale and quarter-pixel glyph origins
+# (display-aware-rendering.md S5 and S6). The fixture font is resolved by the parent directory.
+add_executable(text_aa_policy_tests
+    text_aa_policy_tests.cpp)
+
+target_link_libraries(text_aa_policy_tests PRIVATE tessera_text_render tessera_rhi_null)
+
+add_test(NAME text_aa_policy COMMAND text_aa_policy_tests "${TESSERA_FONT_FIXTURE}")
+
 # TextRenderer's atlas-per-ladder-step contract. The null device keeps the draw records
 # deterministic, so no GPU/lavapipe is needed.
 add_executable(text_renderer_scale_tests

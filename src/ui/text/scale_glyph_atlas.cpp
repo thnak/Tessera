@@ -66,6 +66,14 @@ void ScaleGlyphAtlas::invalidate_all() {
     }
 }
 
+void ScaleGlyphAtlas::set_hinting(GlyphHinting hinting) {
+    if (hinting == config_.hinting) {
+        return;
+    }
+    config_.hinting = hinting;
+    invalidate_all();
+}
+
 std::uint32_t ScaleGlyphAtlas::atlas_count() const noexcept {
     std::uint32_t count = 0;
     for (const std::unique_ptr<GlyphAtlas>& slot : slots_) {

@@ -48,6 +48,16 @@ struct BorderWidths {
 };
 BorderWidths border_widths(const style::ComputedStyle& style, const rhi::Rect& rect);
 
+// One border width snapped to whole device pixels (display-aware-rendering.md S3): a visible width
+// never rounds below 1 device px, and a fractional device width floors, so a 1 CSS px border at
+// scale 1.25 or 1.5 is one crisp row instead of a blurred 1.25 or 1.5. A zero width, or a scale
+// that is not finite and positive, is returned unchanged.
+float snap_border_width(float width, float device_scale);
+
+// `widths` with each side passed through snap_border_width. Opposing sides cannot overlap because a
+// snapped width never exceeds the unsnapped one except when it rises to the 1 device px minimum.
+BorderWidths snap_border_widths(const BorderWidths& widths, float device_scale);
+
 // The four painted border colors in top, right, bottom, left order. A declared logical inline-side
 // longhand overrides the physical side it maps to for the computed direction, so one stylesheet
 // mirrors its borders between LTR and RTL (stylesheet-v1 section 11).

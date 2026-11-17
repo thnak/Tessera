@@ -17,6 +17,9 @@ struct GlyphAtlasConfig {
     std::uint32_t page_height = 512;
     std::uint32_t max_pages = 4;
     std::uint32_t padding = 1;
+    // How every glyph in this atlas is hinted. One atlas is one render scale, so the hinting that
+    // scale selects is a property of the whole atlas, not of a glyph key.
+    GlyphHinting hinting = GlyphHinting::Font;
 };
 
 // Placement of one glyph in a page. `has_bitmap` is false for whitespace and for glyphs the
@@ -60,12 +63,16 @@ public:
     // References stay valid until the next get() that inserts or evicts.
     const GlyphAtlasEntry& get(char32_t codepoint, std::uint16_t pixel_size,
                                std::uint16_t face = 0);
+    // `x_subpixel` (0..3, quarter pixels) is part of the key: the same glyph at two origin
+    // fractions is two bitmaps. 0 is the whole-pixel bitmap every existing caller uses.
     const GlyphAtlasEntry& get_glyph(std::uint32_t glyph_index, std::uint16_t pixel_size,
-                                     std::uint16_t face = 0);
+                                     std::uint16_t face = 0, std::uint8_t x_subpixel = 0);
     [[nodiscard]] const GlyphAtlasEntry* find(char32_t codepoint, std::uint16_t pixel_size,
                                               std::uint16_t face = 0) const;
-    [[nodiscard]] const GlyphAtlasEntry*
-    find_glyph(std::uint32_t glyph_index, std::uint16_t pixel_size, std::uint16_t face = 0) const;
+    [[nodiscard]] const GlyphAtlasEntry* find_glyph(std::uint32_t glyph_index,
+                                                    std::uint16_t pixel_size,
+                                                    std::uint16_t face = 0,
+                                                    std::uint8_t x_subpixel = 0) const;
     [[nodiscard]] std::size_t face_count() const {
         return rasterizers_.size();
     }
@@ -93,10 +100,11 @@ private:
         std::uint32_t glyph_index = 0;
         std::uint16_t pixel_size = 0;
         std::uint16_t face = 0;
+        std::uint8_t x_subpixel = 0;
 
         bool operator==(const Key& other) const {
             return glyph_index == other.glyph_index && pixel_size == other.pixel_size &&
-                   face == other.face;
+                   face == other.face && x_subpixel == other.x_subpixel;
         }
     };
 
@@ -105,7 +113,8 @@ private:
             const std::uint64_t value = (static_cast<std::uint64_t>(key.glyph_index) << 32) |
                                         (static_cast<std::uint64_t>(key.face) << 16) |
                                         key.pixel_size;
-            return std::hash<std::uint64_t>{}(value);
+            return std::hash<std::uint64_t>{}(value ^
+                                              (static_cast<std::uint64_t>(key.x_subpixel) << 61));
         }
     };
 

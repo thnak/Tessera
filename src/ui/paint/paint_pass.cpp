@@ -60,8 +60,10 @@ void paint_background(const style::ComputedStyle& style, const rhi::Rect& rect, 
 }
 
 void paint_borders(const style::ComputedStyle& style, const rhi::Rect& rect, float opacity,
-                   const rhi::Color& current, PaintSink& sink, PaintStats& stats) {
-    const detail::BorderWidths widths = detail::border_widths(style, rect);
+                   const rhi::Color& current, float device_scale, PaintSink& sink,
+                   PaintStats& stats) {
+    const detail::BorderWidths widths =
+        detail::snap_border_widths(detail::border_widths(style, rect), device_scale);
     const float top = widths.top;
     const float right = widths.right;
     const float bottom = widths.bottom;
@@ -94,12 +96,14 @@ bool same_rgba(const rhi::Color& lhs, const rhi::Color& rhs) {
 }
 
 std::optional<RingBorder> rounded_ring(const style::ComputedStyle& style, const rhi::Rect& rect,
-                                       float opacity, const rhi::Color& current) {
+                                       float opacity, const rhi::Color& current,
+                                       float device_scale) {
     const std::optional<float> radius = detail::uniform_radius(style);
     if (!radius || *radius <= 0.0f) {
         return std::nullopt;
     }
-    const detail::BorderWidths widths = detail::border_widths(style, rect);
+    const detail::BorderWidths widths =
+        detail::snap_border_widths(detail::border_widths(style, rect), device_scale);
     if (widths.top <= 0.0f || widths.top != widths.right || widths.top != widths.bottom ||
         widths.top != widths.left) {
         return std::nullopt;
@@ -206,15 +210,16 @@ void paint_linear_gradient(const Node& node, const style::ComputedStyle& style,
 // The node's own box visuals in paint order: background, gradient, border.
 void paint_box_and_border(const Node& node, const style::ComputedStyle& style,
                           const rhi::Rect& rect, float opacity, const rhi::Color& current,
-                          PaintSink& sink, PaintStats& stats) {
+                          float device_scale, PaintSink& sink, PaintStats& stats) {
     paint_background(style, rect, opacity, current, sink, stats);
     paint_linear_gradient(node, style, rect, opacity, sink, stats);
-    if (const std::optional<RingBorder> ring = rounded_ring(style, rect, opacity, current)) {
+    if (const std::optional<RingBorder> ring =
+            rounded_ring(style, rect, opacity, current, device_scale)) {
         sink.fill_rounded_ring(rect, ring->color, ring->radius, ring->width);
         ++stats.borders;
         return;
     }
-    paint_borders(style, rect, opacity, current, sink, stats);
+    paint_borders(style, rect, opacity, current, device_scale, sink, stats);
 }
 
 // Painted state inherited from the parent: the painted world matrix of the parent's content space
@@ -367,7 +372,8 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
         const std::optional<float> shadow_radius = detail::uniform_radius(style);
         detail::paint_box_shadows(style, rect, shadow_radius.value_or(0.0f), effective_opacity,
                                   current, *own, stats, context.reduce_effects);
-        paint_box_and_border(node, style, rect, effective_opacity, current, *own, stats);
+        paint_box_and_border(node, style, rect, effective_opacity, current, context.device_scale,
+                             *own, stats);
     }
 
     // `overflow` clipping applies to the children (the element's own background/border are painted

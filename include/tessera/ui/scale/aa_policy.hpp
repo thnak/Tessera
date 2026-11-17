@@ -71,6 +71,9 @@ inline constexpr bool kAutoAllowsLcd = false;
 inline constexpr float kSubpixelPositionMinScale = 1.25f;
 // Render scale from which hinting is switched off (density hides it).
 inline constexpr float kNoHintingMinScale = 2.0f;
+// Render scale from which MSAA is not worth its bandwidth: at 2x the geometry edges are already
+// half a CSS pixel wide, so a 4x request resolves to one sample (display-aware-rendering.md S8).
+inline constexpr float kMsaaMaxScale = 2.0f;
 
 // The fixed policy golden mode pins: scale 1.0, grayscale, the font's own hints, whole-pixel glyph
 // origins, hard edges, no clip AA, one sample.

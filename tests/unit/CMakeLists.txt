@@ -2389,3 +2389,11 @@ target_compile_definitions(library_safe_area_lowering_tests PRIVATE
     TESSERA_SAFE_AREA_TSX="${CMAKE_SOURCE_DIR}/packages/tessera-ui/SafeArea.tsx"
     TESSERA_CODEGEN_GOLDEN_DIR="${PROJECT_SOURCE_DIR}/tests/golden/codegen")
 add_test(NAME library_safe_area_lowering COMMAND library_safe_area_lowering_tests)
+
+# Border widths snap to whole device pixels at paint time (display-aware-rendering.md S3).
+add_executable(paint_border_snap_tests
+    paint_border_snap_tests.cpp)
+
+target_link_libraries(paint_border_snap_tests PRIVATE tessera_paint)
+
+add_test(NAME paint_border_snap COMMAND paint_border_snap_tests)

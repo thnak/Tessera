@@ -154,6 +154,10 @@ bool reduced_quality_and_aa_off_presets() {
                  "4x MSAA passes through");
     ok &= expect(tessera::ui::scale::resolve_aa_policy(facts_at(1.0f), odd).msaa_samples == 1,
                  "unsupported sample count resolves to 1");
+    ok &= expect(tessera::ui::scale::resolve_aa_policy(facts_at(1.5f), msaa).msaa_samples == 4,
+                 "4x MSAA is kept below 2x");
+    ok &= expect(tessera::ui::scale::resolve_aa_policy(facts_at(2.0f), msaa).msaa_samples == 1,
+                 "4x MSAA resolves to one sample at 2x");
     return ok;
 }
 

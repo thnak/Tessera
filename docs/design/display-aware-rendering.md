@@ -1,7 +1,12 @@
 # Display-aware rendering (text and non-text anti-aliasing)
 
-Status: **proposal; S1 landed** (`AaPolicy` resolver in `include/tessera/ui/scale/aa_policy.hpp`
-and `hal::PixelGeometry`, nothing consumes them yet; S2-S8 are not implemented). Extends [`antialiasing.md`](antialiasing.md) and
+Status: **S1-S4 and S6 landed; S5 and S8 landed in part; S7 is blocked on section 8.** Landed:
+the `AaPolicy` resolver and `hal::PixelGeometry` (S1), screen-space SDF edges and anti-aliased
+rounded clips in `batched2d.frag`/`.wgsl` (S2, S4), border widths snapped to device pixels in the
+paint pass (S3), glyph hinting by scale and quarter-pixel glyph origins in `TextRenderer` (S5
+hinting, S6), and the MSAA scale rule in the resolver (S8). Not landed: rasterizing text at
+`css_px * render_scale` (S5 T1), the image filter by scale (S8), LCD and the contrast LUT (S7), and
+the window integration in section 6. Extends [`antialiasing.md`](antialiasing.md) and
 [`text.md`](text.md). Decisions D2/D6 in
 [`rendering-production-plan.md`](rendering-production-plan.md) stay in force unless a numbered
 decision in section 8 says otherwise.
@@ -93,7 +98,7 @@ The same facts apply to the rest of the renderer; each row is independent of tex
 
 | Component | Today | Display-aware change | Slice |
 |---|---|---|---|
-| SDF rounded rect and border | fixed `aa_radius` 0.5 local | edge width from `fwidth(d)`, clamped to [0.5, 1.0] device px; golden keeps radius 0 | S2 |
+| SDF rounded rect and border | fixed `aa_radius` 0.5 local | edge half-width is `aa_radius` device px: the local-per-pixel factor comes from the derivative of the interpolated local coordinate (exact, unlike `fwidth(d)` at rounded corners); golden keeps radius 0 | S2 |
 | Hairlines / 1 CSS px borders | width follows scale, not snapped | snap to whole device px, minimum 1; reuse `pixel_snap` (`src/ui/layout/pixel_snap.cpp`) at paint time | S3 |
 | Rounded clip edge | hard pixel-center mask | coverage from the clip's SDF with the same `fwidth` width; clip stack multiplies coverage | S4 |
 | Axis-aligned quads, fractional edges | can alias | snap at paint (S3); only transformed quads stay soft | S3 |
@@ -126,6 +131,14 @@ user setting never overrides golden mode.
 | S6 | text T3 (subpixel positioning) | golden mode unaffected; bounded atlas growth |
 | S7 | text T4 + T5 (LCD, contrast LUT), after the section 8 decisions | LCD only on eligible runs; fallback test |
 | S8 | image filter by scale, MSAA policy hook | filter selection table test |
+
+Window integration (not landed): `AppWindow` does not resolve an `AaPolicy` or call
+`TextRenderer::set_aa_policy`, and it does not set `PaintContext::device_scale`, so a window runs
+today with the golden text policy and unsnapped borders; the shader changes (S2, S4) apply to every
+window because they are in the shared pipeline. The window also lays out in logical pixels and
+renders into the swapchain without a logical-to-device transform, which is why S5's device raster
+size (T1) is deferred: it needs that mapping first. Turning the policy on changes default text
+hinting from the font's own hints to light, so it is a deliberate switch, not part of these slices.
 
 S1 details: `Auto` text mode resolves to grayscale until decision 1 below is made
 (`kAutoAllowsLcd`); `WindowMetrics::pixel_geometry` and `DisplayInfo::pixel_geometry` default to

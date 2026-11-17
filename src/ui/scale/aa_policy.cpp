@@ -47,7 +47,10 @@ AaPolicy resolve_aa_policy(const AaFacts& facts, const AaConfig& config) noexcep
 
     policy.edge_mode = EdgeMode::ScreenSpace;
     policy.clip_aa = true;
-    policy.msaa_samples = (config.msaa_samples == 4 && !config.reduced_quality) ? 4 : 1;
+    policy.msaa_samples =
+        (config.msaa_samples == 4 && !config.reduced_quality && policy.render_scale < kMsaaMaxScale)
+            ? 4
+            : 1;
 
     const bool wants_lcd = config.text_aa == TextAaSetting::Subpixel ||
                            (config.text_aa == TextAaSetting::Auto && kAutoAllowsLcd);

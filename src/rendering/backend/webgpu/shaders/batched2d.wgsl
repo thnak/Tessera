@@ -95,13 +95,37 @@ fn erf_approx(x: f32) -> f32 {
     return select(y, -y, x < 0.0);
 }
 
+fn clip_coverage(p: vec2<f32>, clip: ClipUniform) -> f32 {
+    // See batched2d.frag: the clip's own signed distance over +/- aa_radius pixels.
+    let half_size = clip.rect.zw * 0.5;
+    let q = p - (clip.rect.xy + half_size);
+    var r = select(select(clip.radii.w, clip.radii.x, q.y < 0.0),
+                   select(clip.radii.z, clip.radii.y, q.y < 0.0), q.x >= 0.0);
+    r = min(r, min(half_size.x, half_size.y));
+    let d = sd_round_box(q, half_size, r);
+    return 1.0 - smoothstep(-pc.aa_radius, pc.aa_radius, d);
+}
+
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    // Coverage-mask clipping instead of discard, matching the GLSL shader.
+    // Local units per device pixel (see batched2d.frag), taken before any branch so the derivative
+    // stays in uniform control flow.
+    let local_dx = dpdx(in.local);
+    let local_dy = dpdy(in.local);
+    let local_per_pixel = max(max(length(vec2<f32>(local_dx.x, local_dy.x)),
+                                  length(vec2<f32>(local_dx.y, local_dy.y))), 1e-6);
+    let edge_radius = pc.aa_radius * local_per_pixel;
+
+    // Coverage-mask clipping instead of discard, matching the GLSL shader: hard test with AA off,
+    // anti-aliased coverage with AA on.
     var clip_alpha = 1.0;
     for (var index = 0u; index < pc.clip_count; index = index + 1u) {
-        if (!inside_clip(in.position.xy, pc.clips[index])) {
-            clip_alpha = 0.0;
+        if (pc.aa_radius <= 0.0) {
+            if (!inside_clip(in.position.xy, pc.clips[index])) {
+                clip_alpha = 0.0;
+            }
+        } else {
+            clip_alpha = clip_alpha * clip_coverage(in.position.xy, pc.clips[index]);
         }
     }
 
@@ -114,7 +138,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         if (pc.aa_radius <= 0.0) {
             alpha = select(0.0, 1.0, d <= 0.0);
         } else {
-            alpha = 1.0 - smoothstep(-pc.aa_radius, pc.aa_radius, d);
+            alpha = 1.0 - smoothstep(-edge_radius, edge_radius, d);
         }
         color.a = color.a * alpha;
     } else if (in.mode > 1.5 && in.mode < 2.5) {
@@ -136,7 +160,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         if (pc.aa_radius <= 0.0) {
             alpha = select(0.0, 1.0, d <= 0.0);
         } else {
-            alpha = 1.0 - smoothstep(-pc.aa_radius, pc.aa_radius, d);
+            alpha = 1.0 - smoothstep(-edge_radius, edge_radius, d);
         }
         color.a = color.a * alpha;
     }

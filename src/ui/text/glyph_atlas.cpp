@@ -42,13 +42,14 @@ const GlyphAtlasEntry& GlyphAtlas::get(char32_t codepoint, std::uint16_t pixel_s
 }
 
 const GlyphAtlasEntry& GlyphAtlas::get_glyph(std::uint32_t glyph_index, std::uint16_t pixel_size,
-                                             std::uint16_t face) {
+                                             std::uint16_t face, std::uint8_t x_subpixel) {
     if (face >= rasterizers_.size()) {
         ++stats_.dropped;
         uncached_ = GlyphAtlasEntry{};
         return uncached_;
     }
-    const Key key{glyph_index, pixel_size, face};
+    x_subpixel = std::min<std::uint8_t>(x_subpixel, kSubpixelSteps - 1);
+    const Key key{glyph_index, pixel_size, face, x_subpixel};
     const auto found = entries_.find(key);
     if (found != entries_.end()) {
         ++stats_.hits;
@@ -57,7 +58,8 @@ const GlyphAtlasEntry& GlyphAtlas::get_glyph(std::uint32_t glyph_index, std::uin
     }
 
     ++stats_.misses;
-    const GlyphBitmap bitmap = rasterizers_[face]->rasterize_glyph(glyph_index, pixel_size);
+    const GlyphBitmap bitmap =
+        rasterizers_[face]->rasterize_glyph(glyph_index, pixel_size, config_.hinting, x_subpixel);
 
     GlyphAtlasEntry entry;
     entry.bearing_x = bitmap.bearing_x;
@@ -148,8 +150,9 @@ const GlyphAtlasEntry* GlyphAtlas::find(char32_t codepoint, std::uint16_t pixel_
 }
 
 const GlyphAtlasEntry* GlyphAtlas::find_glyph(std::uint32_t glyph_index, std::uint16_t pixel_size,
-                                              std::uint16_t face) const {
-    const auto found = entries_.find(Key{glyph_index, pixel_size, face});
+                                              std::uint16_t face, std::uint8_t x_subpixel) const {
+    x_subpixel = std::min<std::uint8_t>(x_subpixel, kSubpixelSteps - 1);
+    const auto found = entries_.find(Key{glyph_index, pixel_size, face, x_subpixel});
     return found == entries_.end() ? nullptr : &found->second;
 }
 
