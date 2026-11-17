@@ -182,10 +182,18 @@ consumers:
 |---|---|---|---|---|---|---|
 | `batched2d` | vertex, fragment | `batched2d.vert`, `batched2d.frag` | `batched2d.wgsl` | `gpu::kBatched2dShaderId` | `vulkan::batched2d_pipeline_desc()`; `webgpu::builtin_shader_registry()` | `Batched2DRenderer` (`src/app/window_internal.hpp`) |
 | `glass_blur` | vertex, fragment | `fullscreen.vert`, `glass_blur.frag` | `glass_blur.wgsl` | `gpu::kGlassBlurShaderId` | `vulkan::glass_blur_pipeline_desc()` | `Batched2DRenderer::draw_backdrop` (glass, `docs/specs/glass-v1.md` section 5) |
+| `batched2d_lcd` | vertex, fragment | `batched2d.vert`, `batched2d_lcd.frag` | *(none: `element` with Vulkan sources only, section 3)* | `gpu::kBatched2dLcdShaderId` | `vulkan::batched2d_lcd_pipeline_desc()` (`BlendMode::DualSource`) | none yet: no frame path creates it (issue #471 slice 1, `docs/design/display-aware-rendering.md` section 3.4) |
 
 `fullscreen.vert` is a fullscreen triangle from `gl_VertexIndex` with no vertex buffer, so the
 manifest's `vertexLayout` is empty; it is a shared source for `glass_blur` only (the Vulkan
 `fullscreen.frag` PoC shader is not a manifest entry and has no id).
+
+`batched2d_lcd` is the LCD subpixel variant of `batched2d`: the same vertex interface and
+push-constant block, a fragment program that also writes per-channel coverage to output index 1, and
+no WGSL source. WGSL has no fragment output index and WebGPU has no SRC1 blend factor, so the entry
+is Vulkan-only by construction (section 3's note on optional `sources.webgpu`, section 7's
+Vulkan-only element rule); it is compiled by `tessera_add_spv_c` so `glslc` and the manifest check
+validate it in every Vulkan build, and the cross lane (which names its two ids explicitly) ignores it.
 
 `glass_blur.wgsl` is authored and validated (`scripts/ci/validate_wgsl.py`, the `webgpu.yml` lane)
 but is **not yet registered** in `builtin_shader_registry()`: no WebGPU path draws glass, so adding

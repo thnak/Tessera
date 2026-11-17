@@ -75,6 +75,16 @@ struct WgpuBlendState {
 [[nodiscard]] WgpuStoreOp store_op(rhi::StoreOp op);
 [[nodiscard]] WgpuVertexFormat vertex_format(rhi::VertexFormat format);
 [[nodiscard]] std::uint32_t vertex_format_size(rhi::VertexFormat format);
+// True when `mode` has a WebGPU blend state at all. False for `DualSource`: WebGPU exposes one
+// fragment output per target and no SRC1 blend factor, so per-channel coverage cannot be expressed.
+// A caller asks this (or `Device::supports_dual_source_blend()`, which WebGPU reports false for)
+// before requesting the pipeline, and takes its documented fallback of grayscale coverage.
+[[nodiscard]] constexpr bool blend_mode_supported(rhi::BlendMode mode) {
+    return mode != rhi::BlendMode::DualSource;
+}
+// `std::invalid_argument` for a mode `blend_mode_supported()` rejects, never the "blend disabled"
+// state: mapping dual-source coverage to no blend would write the raw coverage channel to the
+// target instead of falling back to grayscale, which is a silently wrong picture (issue #471).
 [[nodiscard]] WgpuBlendState blend_state(rhi::BlendMode mode);
 [[nodiscard]] constexpr WgpuPrimitiveTopology primitive_topology() {
     return WgpuPrimitiveTopology::TriangleList;

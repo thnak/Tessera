@@ -22,6 +22,14 @@ WebGpuPipeline::WebGpuPipeline(std::shared_ptr<WebGpuContext> context,
     if (validate_vertex_layout(desc.vertex_layout) != VertexLayoutError::None) {
         throw std::invalid_argument("WebGpuPipeline: invalid vertex layout");
     }
+    // Reject dual-source before allocating anything: `blend_state()` would throw later, after the
+    // shader module and the bind-group layouts exist, and a constructor that throws must not leak
+    // them. WebGPU has no SRC1 blend factor and one fragment output per target, so the mode is
+    // simply not expressible; the caller's documented fallback is grayscale coverage (issue #471).
+    if (!blend_mode_supported(desc.blend)) {
+        throw std::invalid_argument(
+            "WebGpuPipeline: dual-source blending is not supported by WebGPU");
+    }
     // The vertex and fragment stages share one WGSL module named by the manifest shader id; the
     // SPIR-V words are Vulkan's and are ignored here (ADR-049).
     const WgslProgram* program = context_->shaders.find(desc.shader_id);

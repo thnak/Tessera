@@ -189,7 +189,16 @@ enum class Filter { Nearest, Linear };
 
 enum class AddressMode { ClampToEdge, Repeat };
 
-enum class BlendMode { None, Alpha };
+// How a pipeline's fragment output is combined with the destination.
+//
+// `DualSource` is per-channel coverage (RHI 1.5, issue #471): the fragment shader writes colour to
+// output 0 and coverage to output 1, and the blend is `src0 * src1 + dst * (1 - src1)` per channel.
+// It exists for LCD subpixel text, where the three coverage channels differ per pixel and a single
+// alpha cannot express them. It is a capability, not floor: a device without dual-source blending
+// reports false from `Device::supports_dual_source_blend()` and a pipeline request for it must fail
+// at creation, because the documented fallback is grayscale coverage (one alpha), not a silently
+// different blend. `None` and `Alpha` are unchanged.
+enum class BlendMode { None, Alpha, DualSource };
 
 enum class LoadOp { Clear, Load, DontCare };
 

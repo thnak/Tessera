@@ -6,6 +6,7 @@
 #include "tessera/rendering/webgpu/webgpu_mapping.hpp"
 
 #include <iostream>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 
@@ -124,6 +125,33 @@ void test_blend() {
                alpha.alpha.dst == wg::WgpuBlendFactor::OneMinusSrcAlpha &&
                alpha.alpha.op == wg::WgpuBlendOp::Add,
            "alpha alpha factors match the Vulkan backend");
+}
+
+// RHI 1.5 (issue #471): WebGPU has one fragment output per target and no SRC1 blend factor, so
+// per-channel coverage cannot be expressed. It must be refused, not mapped: the old mapping turned
+// every non-Alpha mode into "blend disabled", which for dual-source coverage writes the raw
+// coverage channel instead of the documented grayscale fallback. This is the host-buildable half of
+// the WebGPU rejection; WebGpuPipeline's constructor calls blend_mode_supported() before allocating
+// a GPU object, and WebGpuDevice::supports_dual_source_blend() reports false (that file only builds
+// under Emscripten or TESSERA_BUILD_WEBGPU).
+void test_dual_source_is_rejected() {
+    using rhi::BlendMode;
+    expect(!wg::blend_mode_supported(BlendMode::DualSource),
+           "WebGPU has no blend state for DualSource");
+    expect(wg::blend_mode_supported(BlendMode::None) && wg::blend_mode_supported(BlendMode::Alpha),
+           "WebGPU still expresses None and Alpha");
+
+    bool thrown = false;
+    std::string message;
+    try {
+        (void)wg::blend_state(BlendMode::DualSource);
+    } catch (const std::invalid_argument& error) {
+        thrown = true;
+        message = error.what();
+    }
+    expect(thrown, "blend_state throws std::invalid_argument for DualSource");
+    expect(message.find("dual-source") != std::string::npos,
+           "the rejection names dual-source blending");
 }
 
 void test_sizes_and_alignment() {
@@ -247,6 +275,7 @@ int main() {
     test_sampler_and_ops();
     test_vertex_formats();
     test_blend();
+    test_dual_source_is_rejected();
     test_sizes_and_alignment();
     test_vertex_layout_validation();
     test_shader_registry();

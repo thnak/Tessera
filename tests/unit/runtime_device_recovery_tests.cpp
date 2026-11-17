@@ -49,6 +49,11 @@ public:
     [[nodiscard]] Backend backend() const override {
         return Backend::Null;
     }
+    // This fake never creates a pipeline, so the capability is unreachable; false is the honest
+    // answer for a device that cannot create one (RHI 1.5, issue #471).
+    [[nodiscard]] bool supports_dual_source_blend() const override {
+        return false;
+    }
     std::unique_ptr<tessera::rendering::rhi::Buffer> create_buffer(const BufferDesc&) override {
         return nullptr;
     }

@@ -15,5 +15,10 @@ inline constexpr std::string_view kBatched2dShaderId = "batched2d";
 // Glass backdrop blur (docs/specs/glass-v1.md section 5). Both passes share the one id; the pass
 // (horizontal blur vs vertical blur + composite) is a push-constant mode, not a second program.
 inline constexpr std::string_view kGlassBlurShaderId = "glass_blur";
+// LCD subpixel variant of the batched2d program (issue #471 slice 1,
+// docs/design/display-aware-rendering.md section 3.4). It is Vulkan-only by contract: the manifest
+// entry has no WebGPU source because WGSL has no fragment output index, so no backend resolves this
+// id against a WGSL program. The value is the manifest name, per docs/specs/shader-manifest-v1.md.
+inline constexpr std::string_view kBatched2dLcdShaderId = "batched2d_lcd";
 
 } // namespace tessera::rendering::gpu

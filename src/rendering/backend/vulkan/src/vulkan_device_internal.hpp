@@ -27,6 +27,12 @@ public:
     [[nodiscard]] rhi::RhiCapabilities capabilities() const override;
     [[nodiscard]] bool supports_sample_count(rhi::TextureFormat format,
                                              std::uint32_t sample_count) const override;
+    // The dualSrcBlend feature the physical device reported and this generation enabled
+    // (vulkan_instance.cpp create_device()). Re-probed on every device creation, so a recovered
+    // device reports the new device's answer; false when the feature is unavailable.
+    [[nodiscard]] bool supports_dual_source_blend() const override {
+        return dual_source_blend_;
+    }
     // The RHI timestamp probe: the selected queue family's timestampValidBits, that family's
     // graphics capability, and the device's timestampPeriod (docs/design/performance.md 6.1).
     [[nodiscard]] rhi::GpuTimestampCapability timestamp_capability() const override {
@@ -220,6 +226,9 @@ private:
     std::int64_t image_bytes_ = 0;
     rhi::GpuTimestampCapability timestamp_capability_{};
     VkQueryPool timestamp_query_pool_ = VK_NULL_HANDLE;
+    // dualSrcBlend, probed and enabled in create_device() only when the physical device reports it
+    // (RHI 1.5, issue #471). Cleared with the rest of the device generation.
+    bool dual_source_blend_ = false;
 
     void account(std::int64_t& counter, std::int64_t delta, std::uint32_t epoch) {
         if (epoch == epoch_) {

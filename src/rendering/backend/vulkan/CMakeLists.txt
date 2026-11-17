@@ -46,6 +46,12 @@ tessera_add_spv_c(fullscreen.vert TESSERA_VERT_SPV)
 tessera_add_spv_c(fullscreen.frag TESSERA_FRAG_SPV)
 tessera_add_spv_c(batched2d.vert TESSERA_BATCHED2D_VERT_SPV)
 tessera_add_spv_c(batched2d.frag TESSERA_BATCHED2D_FRAG_SPV)
+# LCD subpixel variant of the batched 2D fragment program (issue #471 slice 1,
+# docs/design/display-aware-rendering.md section 3.4): the same program plus the second fragment
+# output a dual-source coverage blend reads. Compiled here so glslc and the manifest check validate
+# it in every Vulkan build; no pipeline creates it yet (slice 3 wires it up), and the manifest entry
+# deliberately has no WebGPU source because WGSL has no output index.
+tessera_add_spv_c(batched2d_lcd.frag TESSERA_BATCHED2D_LCD_FRAG_SPV)
 # Glass two-pass Gaussian (issue #244, docs/specs/glass-v1.md section 5): the fragment pass pairs
 # with fullscreen.vert (gl_VertexIndex triangle, no vertex buffer). Compiled here so glslc and the
 # manifest check validate it in every Vulkan build, and embedded by glass_blur_pipeline_desc() -
@@ -55,7 +61,7 @@ tessera_add_spv_c(glass_blur.frag TESSERA_GLASS_BLUR_FRAG_SPV)
 add_custom_target(tessera_vulkan_shaders DEPENDS ${TESSERA_VERT_SPV} ${TESSERA_FRAG_SPV})
 add_custom_target(tessera_batched2d_shaders
     DEPENDS ${TESSERA_BATCHED2D_VERT_SPV} ${TESSERA_BATCHED2D_FRAG_SPV}
-            ${TESSERA_GLASS_BLUR_FRAG_SPV})
+            ${TESSERA_BATCHED2D_LCD_FRAG_SPV} ${TESSERA_GLASS_BLUR_FRAG_SPV})
 
 add_library(tessera_vulkan STATIC
     src/offscreen_renderer.cpp
@@ -90,6 +96,7 @@ set(TESSERA_VULKAN_RHI_SOURCES
     src/glass_blur_pipeline.cpp
     ${TESSERA_BATCHED2D_VERT_SPV}
     ${TESSERA_BATCHED2D_FRAG_SPV}
+    ${TESSERA_BATCHED2D_LCD_FRAG_SPV}
     ${TESSERA_VERT_SPV}
     ${TESSERA_GLASS_BLUR_FRAG_SPV}
     ${PROJECT_SOURCE_DIR}/third_party/volk/volk.c)

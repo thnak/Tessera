@@ -77,6 +77,26 @@ struct NullCommandStats {
     std::vector<NullDrawRecord> draw_records;
 };
 
+// The null backend's pipeline record: what a creation request asked for, and nothing else, because
+// the null backend rasterizes nothing. Both fields are the request as made, so a structural test
+// can assert the state a real backend would have had to honour (the blend mode is what RHI 1.5's
+// `BlendMode::DualSource` needs, since no pixel exists to inspect).
+class NullPipeline final : public rhi::Pipeline {
+public:
+    explicit NullPipeline(const rhi::PipelineDesc& desc)
+        : desc_(desc) {}
+
+    [[nodiscard]] std::uint32_t sample_count() const override {
+        return desc_.sample_count;
+    }
+    [[nodiscard]] rhi::BlendMode blend_mode() const {
+        return desc_.blend;
+    }
+
+private:
+    rhi::PipelineDesc desc_;
+};
+
 class NullCommandList final : public rhi::CommandList {
 public:
     void begin_render_pass(const rhi::RenderTarget& target,

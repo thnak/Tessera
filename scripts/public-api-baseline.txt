@@ -1058,6 +1058,7 @@ class include/tessera/rendering/gpu/offscreen_target_pool.hpp tessera::rendering
 struct include/tessera/rendering/gpu/offscreen_target_pool.hpp tessera::rendering::gpu::OffscreenTargetPoolConfig
 
 header include/tessera/rendering/gpu/shader_ids.hpp
+constant include/tessera/rendering/gpu/shader_ids.hpp tessera::rendering::gpu::kBatched2dLcdShaderId
 constant include/tessera/rendering/gpu/shader_ids.hpp tessera::rendering::gpu::kBatched2dShaderId
 constant include/tessera/rendering/gpu/shader_ids.hpp tessera::rendering::gpu::kGlassBlurShaderId
 
@@ -1111,6 +1112,7 @@ enum include/tessera/rendering/image/image_texture_cache.hpp tessera::rendering:
 
 header include/tessera/rendering/null/null_device.hpp
 class include/tessera/rendering/null/null_device.hpp tessera::rendering::null::NullCommandList
+class include/tessera/rendering/null/null_device.hpp tessera::rendering::null::NullPipeline
 struct include/tessera/rendering/null/null_device.hpp tessera::rendering::null::NullCommandStats
 struct include/tessera/rendering/null/null_device.hpp tessera::rendering::null::NullDrawRecord
 struct include/tessera/rendering/null/null_device.hpp tessera::rendering::null::NullSampledTargetBind
@@ -1250,6 +1252,7 @@ header include/tessera/rendering/software/cpu_canvas.hpp
 class include/tessera/rendering/software/cpu_canvas.hpp tessera::rendering::software::CpuCanvas
 
 header include/tessera/rendering/vulkan/batched2d_pipeline.hpp
+function include/tessera/rendering/vulkan/batched2d_pipeline.hpp tessera::rendering::vulkan::batched2d_lcd_pipeline_desc
 function include/tessera/rendering/vulkan/batched2d_pipeline.hpp tessera::rendering::vulkan::batched2d_pipeline_desc
 
 header include/tessera/rendering/vulkan/glass_blur_pipeline.hpp

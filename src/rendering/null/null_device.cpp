@@ -116,19 +116,6 @@ private:
     std::vector<std::uint8_t> data_;
 };
 
-class NullPipeline final : public rhi::Pipeline {
-public:
-    explicit NullPipeline(std::uint32_t sample_count)
-        : sample_count_(sample_count) {}
-
-    [[nodiscard]] std::uint32_t sample_count() const override {
-        return sample_count_;
-    }
-
-private:
-    std::uint32_t sample_count_ = 1;
-};
-
 class NullRenderTarget final : public rhi::RenderTarget {
 public:
     explicit NullRenderTarget(rhi::RenderTargetDesc desc)
@@ -197,6 +184,16 @@ public:
         return rhi::is_supported_sample_count(sample_count);
     }
 
+    // Null parity for the dual-source capability (RHI 1.5, issue #471). The null backend consumes
+    // no fragment output and rasterizes nothing, so every blend mode the RHI defines is equally
+    // representable: it records the request (NullPipeline::blend_mode) instead of blending.
+    // Reporting true is what lets the structural tests exercise the mode on any machine, and it is
+    // paired with that record so "supported" is never an unobserved claim; a test asserts the
+    // recorded mode.
+    [[nodiscard]] bool supports_dual_source_blend() const override {
+        return true;
+    }
+
     std::unique_ptr<rhi::Buffer> create_buffer(const rhi::BufferDesc& desc) override {
         return std::make_unique<NullBuffer>(desc.size);
     }
@@ -212,7 +209,10 @@ public:
         if (!rhi::is_supported_sample_count(desc.sample_count)) {
             throw std::invalid_argument("null create_pipeline: unsupported sample count");
         }
-        return std::make_unique<NullPipeline>(desc.sample_count);
+        // The whole descriptor is kept, not just the sample count: the blend mode is the state RHI
+        // 1.5's dual-source contract is about, and a structural test has no pixels to inspect
+        // (issue #471). Nothing is rejected here because nothing is blended.
+        return std::make_unique<NullPipeline>(desc);
     }
 
     std::unique_ptr<rhi::RenderTarget>

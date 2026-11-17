@@ -134,6 +134,13 @@ public:
         return is_supported_sample_count(sample_count);
     }
 
+    // WebGPU exposes one fragment output per color target and no SRC1 blend factor, so the
+    // per-channel coverage of `BlendMode::DualSource` has no expression here. Reporting false is
+    // what routes LCD text to grayscale coverage on this backend (issue #471).
+    [[nodiscard]] bool supports_dual_source_blend() const override {
+        return false;
+    }
+
     [[nodiscard]] rhi::DeviceStatus status() const override {
         return context_->lost ? rhi::DeviceStatus::Lost : rhi::DeviceStatus::Ready;
     }
