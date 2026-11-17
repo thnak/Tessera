@@ -11,24 +11,32 @@
 //
 // Four things this module is careful about, because each is a requirement rather than a detail:
 //
-//  1. **Render on demand.** A static scene draws once. A frame is requested only when something changed: a
-//     Run, a device-pixel-ratio change, a toolbar change, or the pane becoming visible again. There is no
-//     `requestAnimationFrame` loop spinning at 60 Hz -- the repository's idle rule (a static UI must present
-//     nothing) applies to the browser page too. The frame callback is gated on the view being visible, so a
-//     hidden pane never draws.
+//  1. **Render on demand.** A static scene draws once. A frame is requested only when something changed: an
+//     applied edit that the module answered `changed:true`, a device-pixel-ratio change, a toolbar change, or
+//     the pane becoming visible again. There is no `requestAnimationFrame` loop spinning at 60 Hz -- the
+//     repository's idle rule (a static UI must present nothing) applies to the browser page too. The frame
+//     callback is gated on the view being visible, so a hidden pane never draws.
 //
 //  2. **The unsupported path is a state, not a blank canvas.** `canvas-device.ts` turns every way of
 //     failing -- no `navigator.gpu`, no adapter, `requestDevice()` rejecting, a module without the handover
 //     export -- into a sentence the pane shows with a pointer at the Scene tab.
 //
-//  3. **The device handover is explicit and happens once.** A device is acquired on the first Run and
-//     reused; re-running the handover per Run would leak a device per click. A *lost* device is the one case
-//     that re-acquires, and it says so.
+//  3. **The device handover is explicit and happens once.** A device is acquired on the first *apply* and
+//     reused; re-running the handover per apply would leak a device per keystroke. A *lost* device is the one
+//     case that re-acquires, and it says so.
 //
-//  4. **The module and the device are lazy.** The module is imported, and the device acquired, only when the
-//     Canvas view is first opened and Run is first pressed there. The unsupported state is decided from
-//     `navigator.gpu`'s presence, which needs no async work and no download, and is shown the moment the tab
-//     opens -- so a browser without WebGPU never downloads `tessera_canvas.wasm`.
+//  4. **The module and the device are lazy.** The module is imported when the Canvas view is first opened, and
+//     the device is acquired by the first apply there -- which, since #444, is the first automatic one rather
+//     than a button press. The unsupported state is decided from `navigator.gpu`'s presence, which needs no
+//     async work and no download, and is shown the moment the tab opens -- so a browser without WebGPU never
+//     downloads `tessera_canvas.wasm`, and a visitor who never opens Canvas takes no GPU.
+//
+//  5. **Applying an edit is not a restart (issue #444).** `apply()` re-evaluates the running session and lets
+//     the engine carry state by its own rule; a source that does not evaluate leaves the evaluation and the
+//     picture alone. Only `run()` -- the **Restart app** button -- releases the session, which is what resets
+//     every cell to its initializer. Nothing on the edit path may call `pane.hideStates()`, `showFailed` or
+//     any other state transition: those are the ways a canvas goes blank, and a blank canvas mid-word is the
+//     failure this slice exists to prevent.
 //
 // What the view does NOT claim: the pixels are the module's, but the comparison against the lavapipe golden
 // is a CI/browser-lane job (`scripts/ci/scene_frame_parity.py`). This module cannot read pixels back
@@ -42,11 +50,13 @@ import { FONT_FAMILY, handOverFont, loadPreviewFont, readFontStatus } from "./ca
 import {
   requestedViewport,
   sizeToDevicePixels,
+  type CanvasApplyReport,
   type CanvasFrameReport,
+  type CanvasStateCell,
 } from "./canvas-frame";
 import { createCanvasPane, type CanvasPane, type CanvasPaneElements } from "./canvas-pane";
 
-export type { CanvasFrameReport };
+export type { CanvasApplyReport, CanvasFrameReport, CanvasStateCell };
 
 /** The module factory `tessera_canvas.js` exports. */
 type ModuleFactory = () => Promise<WasmModule & CanvasModule>;
@@ -102,6 +112,15 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
   }
   // Draws the current source. Called from a `requestAnimationFrame` callback, never from the input handler,
   // so a fast typist cannot make the paint path reentrant and the canvas updates in step with the display.
+  //
+  // **Two module calls, not one, since #444.** The old path was `tessera_canvas_frame`, which evaluates
+  // and paints in one stateless call -- so every keystroke re-evaluated from scratch, the state cells
+  // were gone with the tree, and a failed parse made the module `clear_canvas` and hand back an error:
+  // a blank rectangle exactly while a developer was mid-word. Now the session *applies* the source
+  // (`tessera_canvas_apply`: evaluate, carry state, report whether a frame is owed) and then *draws*
+  // (`tessera_canvas_draw`: paint the running tree, never re-evaluate). A source that does not evaluate
+  // leaves the running tree in the module, so `draw` either is not called at all (no frame owed) or
+  // paints the tree that is still there.
   function drawFrame(): void {
     framePending = false;
     if (factory === null || gpu === null || !visible) {
@@ -116,6 +135,47 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
     const viewport = requestedViewport(options.environment);
     const foldPosture = options.foldPosture();
     const target = source();
+    let applied: CanvasApplyReport;
+    try {
+      // The strings are the source the page owns; the numbers are the logical viewport and the DPR.
+      // `tessera_canvas_apply` takes the same arguments `tessera_canvas_run` does, plus no canvas
+      // handle: applying and painting are separate steps so a failed apply cannot clear the picture.
+      //
+      // `target.stylesheet` travels **here** (issue #390 on issue #444's export): the apply is the call
+      // that re-evaluates, so it is the call that decides which sheet the tree is laid out with. The
+      // draw below takes no strings, which is why the author's CSS must ride with the apply -- an edit
+      // that re-applied the source without the sheet would silently paint the built-in look.
+      applied = JSON.parse(
+        callExport(
+          gpu.module,
+          "_tessera_canvas_apply",
+          [target.text, target.file, "", foldPosture, target.stylesheet],
+          [viewport.width, viewport.height, dpr],
+        ),
+      ) as CanvasApplyReport;
+    } catch (error) {
+      pane.showFailed(String(error));
+      options.onReady(true);
+      return;
+    }
+    // The apply failed: the module kept the running evaluation, so nothing is drawn and the last good
+    // frame stays on the canvas. The reason goes to the pane's status line, never to a blank surface.
+    if (applied.error !== "") {
+      pane.setStatus("source not applied: " + applied.error, "warning");
+      options.onReady(true);
+      return;
+    }
+    // The state row follows every successful apply, `changed` or not: a cell that was carried is the
+    // point of the edit, and it is the one fact a developer wants to see *while* the picture is still
+    // the previous one (a reused apply reports it too).
+    pane.renderState(applied.state ?? []);
+    // No frame owed: the source is byte-identical to what is painted (a debounce that fired on an
+    // unchanged buffer, or a reuse after a DPR-resize that changed nothing). Drawing would repaint
+    // identical pixels, which is the idle rule this view exists to honour.
+    if (!applied.changed) {
+      options.onReady(true);
+      return;
+    }
     let report: CanvasFrameReport;
     try {
       // One texture-view reference per frame: the module takes ownership and releases it, and the canvas
@@ -131,16 +191,15 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
       // is drained BEFORE the frame because the frame re-evaluates and re-lays out, and its report is
       // the answer to "what did that layout compute" (issue #390). `tessera_canvas_frame` takes the
       // stylesheet beside the source; the module reports its problems in the same document.
+      // `_tessera_canvas_draw` takes **no strings**: the tree it paints is the one the apply above
+      // left in the module, which already carries the author's stylesheet. The stylesheet argument
+      // therefore travels on `_tessera_canvas_apply` (see the call above), not here.
       report = JSON.parse(
-        callExport(
-          gpu.module,
-          "_tessera_canvas_frame",
-          // The stylesheet travels in the same snapshot as the source it styles (issue #390 through #431's
-          // `SourceReader`): `tessera_canvas_frame` takes it beside the source and reports its problems in
-          // the same document, so the frame and the diagnostics are one answer.
-          [target.text, target.file, "", foldPosture, target.stylesheet],
-          [viewport.width, viewport.height, dpr, viewPtr],
-        ),
+        callExport(gpu.module, "_tessera_canvas_draw", [], [
+          viewport.width,
+          viewport.height,
+          viewPtr,
+        ]),
       ) as CanvasFrameReport;
     } catch (error) {
       pane.showFailed(String(error));
@@ -209,7 +268,14 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
     }
 
     try {
-      requireExports(module, ["_tessera_canvas_frame", "_tessera_webgpu_set_device"]);
+      // Both exports are required: `apply` is what an edit and the first automatic load call, `draw`
+      // paints the running session, and a module built without either would fail as "not a function"
+      // on the first keystroke, which is the least useful moment to find out.
+      requireExports(module, [
+        "_tessera_canvas_apply",
+        "_tessera_canvas_draw",
+        "_tessera_webgpu_set_device",
+      ]);
     } catch (error) {
       pane.showUnsupported(String(error));
       return false;
@@ -264,13 +330,19 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
     return status?.loaded === true ? null : (status?.error ?? "the module reported no font");
   }
 
+  // **Restart app** (issue #444): a cold start. The module's session is released, so the next frame
+  // evaluates from nothing, takes no carried state and every cell starts at its initializer -- the same
+  // thing a page reload or a launch of the app does. This is the only path that discards state; an
+  // edit never does (`apply`).
   async function run(): Promise<void> {
     if (factory === null) {
       return;
     }
     options.onReady(false);
-    pane.setStatus("running", null);
-    pane.hideStates();
+    pane.setStatus("restarting", null);
+    // The reasoning behind `hideStates` here and not on an apply: a restart is an explicit, expected
+    // cold start, so replacing the pane's content is honest. A live edit must never do it (#444: the
+    // canvas cannot blank while typing), which is why `apply` below touches no state but the status.
     const ready = await startGpu();
     if (!ready) {
       options.onReady(true);
@@ -284,6 +356,52 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
         // Named, not silent: a designer must be able to tell "this source has no text" from "the font
         // did not load", and the status line is where the pane already reports that class of fact.
         pane.setStatus("font unavailable; text is not drawn", "warning");
+        pane.setFontState(null, fontError);
+      }
+    }
+    if (gpu !== null) {
+      // The cold start itself: `tessera_canvas_reset` drops the running evaluation, so the draw that
+      // follows evaluates the source afresh with nothing carried. It returns a small document (the
+      // released session's frame count) rather than void, because `callExport` reads every export as a
+      // returned document -- a void export would surface as "returned no document", a crash-shaped
+      // message for a successful restart.
+      callExport(gpu.module, "_tessera_canvas_reset");
+      // The state row belongs to the evaluation that was just released, so it goes with it: after a
+      // restart the count is whatever the initializer says, and showing the old value until the next
+      // frame lands would be the one stale reading on the page.
+      pane.renderState([]);
+    }
+    requestFrame();
+  }
+
+  /**
+   * Applies an edit without resetting anything (issue #444).
+   *
+   * This is the hot path the debounced trigger calls ~150 ms after a keystroke, and the same thing
+   * `Ctrl+Enter` calls immediately. It must never take a destructive action: the frame it requests
+   * either paints the re-evaluated tree (state carried by the engine's own rule) or, when the source
+   * does not compile, paints nothing at all and leaves the last good picture plus a status sentence.
+   *
+   * It also must not *cost* a frame when nothing changed, which is the module's answer (`changed`),
+   * not a decision made here.
+   */
+  async function apply(): Promise<void> {
+    if (factory === null) {
+      return;
+    }
+    // The device is acquired here, lazily, on the first apply -- never on page load. A session that has
+    // not drawn yet has no device, and an apply is the first thing that needs one.
+    const ready = await startGpu();
+    if (!ready) {
+      return;
+    }
+    if (gpu !== null && lastDpr === 0) {
+      // The font is handed over once per device, and the first apply is where a device first exists.
+      // `lastDpr === 0` is exactly "this session has not resized yet", i.e. no frame has been drawn, so
+      // this runs on the first apply and never again -- and never on a restart, which the `run` path
+      // above has already handled.
+      const fontError = await loadFont(gpu.module);
+      if (fontError !== null) {
         pane.setFontState(null, fontError);
       }
     }
@@ -325,11 +443,20 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
       }
       await loadModule();
       if (factory !== null) {
-        pane.setStatus("not started; press Run", null);
+        pane.setStatus("ready", null);
       }
     },
-    /** The Run button's action. */
+    /** The **Restart app** button's action: an explicit cold start, state reset. */
     run,
+    /**
+     * An edit was applied (issue #444): the debounced trigger, `Ctrl+Enter`, and the first load.
+     *
+     * It is the same entry point for all three on purpose. The first automatic apply is what acquires
+     * the device, so "the preview starts itself once the module and the device are ready" costs no
+     * separate code path -- and a page whose Canvas tab has never been opened has no session to apply
+     * to, so a visitor who never looks at Canvas still takes no GPU.
+     */
+    apply,
     /** "Load sample": the canvas draws whatever the shared editor holds, so only a live device redraws. */
     loadSample: () => {
       if (gpu !== null && visible) {

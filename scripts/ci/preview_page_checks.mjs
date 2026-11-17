@@ -94,7 +94,13 @@ const SHELL_IDS = [
   "view-diagnostics",
   "view-scene",
   "view-canvas",
-  "run",
+  // The primary action is the cold start since issue #444: the edit applies itself, so the old `run`
+  // button became **Restart app** and its id moved with it. `apply-status` is the debounce's own visible
+  // state ("applying…"), which is what makes the automatic apply distinguishable from a preview that
+  // lags; the check below requires it, so a rename cannot silently drop the only feedback a keystroke
+  // gets.
+  "restart-app",
+  "apply-status",
   "load-sample",
   "build-id",
   "page-hint",
@@ -138,6 +144,11 @@ const VIEW_IDS = {
   // Issue #387: the font row. The page must name the face text is painted with, or say that text is
   // not painted, so a missing font is a statement rather than an empty canvas.
   "stat-font",
+  // The running evaluation's state row (issue #444). `preview_browser_live_edit.mjs` reads both the
+  // row and its value cell to prove a carried cell survives an edit and a restart resets it, so a
+  // rename here would silently disarm the live edit's acceptance evidence.
+  "state-row",
+  "stat-state",
   ],
 };
 

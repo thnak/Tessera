@@ -344,16 +344,17 @@ async function main() {
     }
 
     // --- 1. the merged page, diagnostics by default ------------------------------------------
+    // Since issue #444 the first load applies itself: the pane leaving "ready" for a compiled answer is
+    // the automatic first apply, and no button is pressed to make it happen.
     await test('the merged page loads with Diagnostics and compiles the source', async () => {
       await navigate(`${base}/index.html`, {
         ready: `document.getElementById('diag-status') && document.getElementById('diag-status').textContent === 'ready'`,
         what: 'the diagnostics module to load',
       });
-      await cdp.evaluate(`document.getElementById('run').click()`);
       await waitUntil(
         cdp,
         `document.getElementById('diag-status').textContent === 'no diagnostics'`,
-        'the diagnostics run to finish',
+        'the automatic first apply to finish',
       );
       const state = await cdp.evaluate(`(() => ({
         title: document.title,
@@ -545,7 +546,7 @@ async function main() {
         })()`,
         'the canvas view to decide its state',
       );
-      await cdp.evaluate(`document.getElementById('run').click()`);
+      await cdp.evaluate(`document.getElementById('restart-app').click()`);
       await waitUntil(
         cdp,
         `(() => {

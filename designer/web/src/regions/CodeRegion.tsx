@@ -136,9 +136,12 @@ function EditorTabs({
 /**
  * The code column: the tab strip, the editor, the actions above the text and the hint below it.
  *
- * The actions (Run, Load sample) are here rather than in the preview column because they act on *this*
- * text: Run compiles the file the editor shows, and the preview column only displays the result. The
- * `run`/`load-sample` ids are the page's contract (`scripts/ci/preview_page_checks.mjs`) and stay.
+ * The actions (**Restart app**, Load sample) are here rather than in the preview column because they act
+ * on *this* text: the editor is what the developer is changing, and the preview column only displays the
+ * result. Since issue #444 the edit itself needs no button -- it applies ~150 ms after the last keystroke
+ * -- so the primary action is the *cold start*, and it is named for what it does rather than for what it
+ * used to do. The `restart-app`/`load-sample` ids are the page's contract
+ * (`scripts/ci/preview_page_checks.mjs`).
  */
 export function CodeRegion({
   open,
@@ -153,9 +156,10 @@ export function CodeRegion({
   onSelectTab,
   onCloseTab,
   onEdit,
-  onRun,
+  onRestart,
   onLoadSample,
-  runDisabled,
+  restartDisabled,
+  applying,
   onKeyDown,
 }: {
   open: readonly string[];
@@ -180,9 +184,12 @@ export function CodeRegion({
   onSelectTab: (path: string) => void;
   onCloseTab: (path: string) => void;
   onEdit: (text: string) => void;
-  onRun: () => void;
+  /** **Restart app**: the explicit cold start, state reset (issue #444). */
+  onRestart: () => void;
   onLoadSample: () => void;
-  runDisabled: boolean;
+  restartDisabled: boolean;
+  /** A live edit is scheduled or running: the hint says so instead of pretending nothing is happening. */
+  applying: boolean;
   onKeyDown: (event: React.KeyboardEvent<HTMLTextAreaElement>) => void;
 }) {
   // Writing the textarea from an effect (not a `value` prop) keeps it out of React's render cycle. The
@@ -205,8 +212,18 @@ export function CodeRegion({
       <div className="region-header">
         <h2 id="editor-heading">Code</h2>
         <div className="pane-actions">
-          <button id="run" type="button" className="primary" onClick={onRun} disabled={runDisabled}>
-            Run
+          {/* Issue #444: the edit applies itself, so this button is the cold start rather than a
+              trigger. It keeps a stable id (`restart-app`) instead of reusing `run`, because a page
+              check that clicked "Run" and got a restart is exactly the confusion the rename prevents. */}
+          <button
+            id="restart-app"
+            type="button"
+            className="primary"
+            onClick={onRestart}
+            disabled={restartDisabled}
+            title="Start the app over from a cold start: every state cell goes back to its initializer."
+          >
+            Restart app
           </button>
           <button id="load-sample" type="button" onClick={onLoadSample}>
             Load sample
@@ -281,9 +298,14 @@ export function CodeRegion({
       {/* The hint belongs to the page, not to a view: the editor is shared by the three preview panes,
           and a hint that said "a diagnostics run has no viewport" while the preview showed the canvas
           would be wrong. The page swaps it per active preview view; the Scene session appends the live
-          rectangle to it. */}
+          rectangle to it. Since #444 it also carries the edit's own state: the page is applying the
+          change, or it has applied it, and saying which is what keeps the debounce from looking like a
+          preview that lags. */}
       <p className="hint" id="editor-hint" ref={editorHintRef}>
-        Ctrl+Enter (or Cmd+Enter) runs.
+        Ctrl+Enter (or Cmd+Enter) applies now.
+      </p>
+      <p className="hint" id="apply-status" role="status" aria-live="polite" hidden={!applying}>
+        applying…
       </p>
       {current ? (
         <p className="hint" id="editor-file" data-path={current.path}>

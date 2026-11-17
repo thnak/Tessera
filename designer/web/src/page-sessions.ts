@@ -136,7 +136,9 @@ export function useSessions(deps: SessionDeps, settled: boolean): Sessions {
       pane.statVertices.current &&
       pane.statNodes.current &&
       pane.statDpr.current &&
-      pane.statFont.current
+      pane.statFont.current &&
+      pane.stateRow.current &&
+      pane.statState.current
     ) {
       const status = pane.canvasStatus.current;
       sessions.current.canvas = createCanvasSession({
@@ -156,6 +158,9 @@ export function useSessions(deps: SessionDeps, settled: boolean): Sessions {
           statNodes: pane.statNodes.current,
           statDpr: pane.statDpr.current,
           statFont: pane.statFont.current,
+          // The state row (#444): what the running evaluation's cells read after an apply.
+          stateRow: pane.stateRow.current,
+          statState: pane.statState.current,
           statusFrame: pane.statusFrame.current,
         },
         source: deps.source,

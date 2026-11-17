@@ -1,15 +1,17 @@
-// The browser entry point of the WebGPU canvas preview (issues #167, #388, #387, #408).
+// The browser entry point of the WebGPU canvas preview (issues #167, #388, #387, #408, #444).
 //
 // Every export is specified in `docs/design/compiler-wasm.md` section 10, which is the normative
 // source for the module ABI: `tessera_webgpu_set_device`, `tessera_canvas_frame`,
-// `tessera_canvas_run`, `tessera_canvas_pointer`, `tessera_canvas_set_fold`, `tessera_canvas_draw`,
-// `tessera_canvas_reset`, `tessera_canvas_set_font` and `tessera_canvas_font_status`. Read that
-// before changing a signature; it also carries the "why Emscripten only" rationale and the
-// verified-status record.
+// `tessera_canvas_run`, `tessera_canvas_apply`, `tessera_canvas_pointer`, `tessera_canvas_set_fold`,
+// `tessera_canvas_draw`, `tessera_canvas_reset`, `tessera_canvas_set_font` and
+// `tessera_canvas_font_status`. Read that before changing a signature; it also carries the "why
+// Emscripten only" rationale and the verified-status record.
 //
 // The one rule that lives here rather than in the doc, because it is a property of this file: the
 // exports below share one anonymous-namespace device and session, so they are not splittable into
-// separate translation units without exposing that state.
+// separate translation units without exposing that state. What *is* split out is the argument
+// parsing (`wasm_canvas_request.cpp`), because that is where a signature change lands and where a
+// drift between two exports would show as a preview of the wrong device.
 //
 // Notably: coordinates arriving from the page are **logical pixels**, and the CSS-to-logical rule
 // is documented on `tessera_canvas_pointer` itself -- it is not "divide by devicePixelRatio".
@@ -22,18 +24,19 @@
 #include "tessera/hal/fold_posture.hpp"
 #include "tessera/rendering/webgpu/webgpu_device.hpp"
 #include "wasm_canvas_font.hpp"
+#include "wasm_canvas_paint.hpp"
+#include "wasm_canvas_request.hpp"
 #include "wasm_canvas_support.hpp"
 
 #include <cmath>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <emscripten/emscripten.h>
-#include <exception>
 #include <memory>
-#include <optional>
-#include <span>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace {
 
@@ -58,64 +61,25 @@ char* duplicate_out(std::string_view text) {
 
 // The frame report for one painted frame, with the author stylesheet's problems beside its counters
 // (issue #390). One helper because the offscreen and canvas paths must report one document shape.
+//
+// `frames` is the session's lifetime count where there is one (#444) and 0 on the stateless
+// `tessera_canvas_frame` path, which has no session to count; a frame report is the same document
+// whether or not the caller has one, so the two features append to one serializer rather than
+// producing two report shapes.
 std::string frame_report(const cli::SceneFrameResult& result,
-                         const cli::ScenePreviewOptions& options, rhi::Extent2D extent) {
+                         const cli::ScenePreviewOptions& options, rhi::Extent2D extent,
+                         std::uint32_t frames = 0) {
     return cli::canvas_report_json(
-        result, extent.width, extent.height, true,
+        result, extent.width, extent.height, true, frames,
         cli::author_stylesheet_diagnostics(options.stylesheet, options.stylesheet_file));
 }
 
-// The same report with a session's already-collected diagnostics (a Run or a Draw does not
-// re-prepare the sheet, so it reports what `start()` found).
+// The same report with a session's already-collected diagnostics (a Run, an Apply or a Draw does not
+// re-prepare the sheet, so it reports what `start()` found) and the session's own frame count.
 std::string report_with_css(const cli::SceneFrameResult& result, rhi::Extent2D extent,
-                            const std::vector<cli::PreviewCssDiagnostic>& css) {
-    return cli::canvas_report_json(result, extent.width, extent.height, true, css);
-}
-
-// The canvas format the page configures. RGBA8 is one of the two formats WebGPU requires every
-// canvas to support, and it is the format the paint path and the lavapipe goldens already use, so
-// the preview paints the same bytes the reference does.
-constexpr rhi::TextureFormat kCanvasFormat = rhi::TextureFormat::R8G8B8A8Unorm;
-
-// Draws one frame into the canvas texture the page holds. The target takes ownership of the view
-// first so that no later failure (a bad source) leaks the per-frame reference.
-cli::SceneFrameResult paint_to_canvas(std::string_view source,
-                                      const cli::ScenePreviewOptions& options,
-                                      std::string_view component, rhi::Extent2D extent,
-                                      void* canvas_view) {
-    cli::SceneFrameResult result;
-    if (extent.width == 0 || extent.height == 0) {
-        result.error = "paint_to_canvas: the canvas extent must be positive";
-        return result;
-    }
-    std::unique_ptr<rhi::RenderTarget> target;
-    try {
-        target = webgpu::create_canvas_target(canvas_view, extent, kCanvasFormat);
-    } catch (const std::exception& failure) {
-        result.error = std::string("paint_to_canvas: ") + failure.what();
-        return result;
-    }
-
-    const cli::PreparedScene scene =
-        cli::prepare_scene(source, options, component, cli::canvas_measurer());
-    if (!scene.error.empty() || scene.root == nullptr) {
-        result.error = scene.error.empty() ? "the source produced no scene" : scene.error;
-        cli::clear_canvas(*g_device, *target, extent, kCanvasFormat);
-        return result;
-    }
-
-    rhi::RenderTargetDesc desc;
-    desc.extent = extent;
-    desc.format = kCanvasFormat;
-    desc.clear_color = cli::scene_frame_clear_color();
-    desc.load_op = rhi::LoadOp::Clear;
-    desc.store_op = rhi::StoreOp::Store;
-    cli::SceneFrameResult painted =
-        cli::scene_frame_paint(scene, *g_device, *target, desc, {}, cli::canvas_text_stack());
-    if (!painted.error.empty()) {
-        cli::clear_canvas(*g_device, *target, extent, kCanvasFormat);
-    }
-    return painted;
+                            const std::vector<cli::PreviewCssDiagnostic>& css,
+                            std::uint32_t frames = 0) {
+    return cli::canvas_report_json(result, extent.width, extent.height, true, frames, css);
 }
 
 // The persistent session (#388): one evaluation the pointer events feed and every later frame
@@ -124,41 +88,7 @@ cli::SceneFrameResult paint_to_canvas(std::string_view source,
 // `g_device` because it must die before any device it painted through.
 std::unique_ptr<cli::CanvasSceneSession> g_session;
 
-// Paints the session's tree into the canvas texture the page holds. Unlike `paint_to_canvas` this
-// never re-evaluates: the tree is the one the pointer events have been dispatched into, so its
-// hover/active bits and its state are the ones the frame shows.
-cli::SceneFrameResult paint_session_to_canvas(rhi::Extent2D extent, void* canvas_view) {
-    cli::SceneFrameResult result;
-    if (extent.width == 0 || extent.height == 0) {
-        result.error = "paint_session_to_canvas: the canvas extent must be positive";
-        return result;
-    }
-    rhi::RenderTargetDesc desc;
-    desc.extent = extent;
-    desc.format = kCanvasFormat;
-    desc.clear_color = cli::scene_frame_clear_color();
-    desc.load_op = rhi::LoadOp::Clear;
-    desc.store_op = rhi::StoreOp::Store;
-
-    std::unique_ptr<rhi::RenderTarget> target;
-    try {
-        target = canvas_view != nullptr
-                     ? webgpu::create_canvas_target(canvas_view, extent, kCanvasFormat)
-                     : g_device->create_render_target(desc);
-    } catch (const std::exception& failure) {
-        result.error = std::string("paint_session_to_canvas: ") + failure.what();
-        return result;
-    }
-    if (target == nullptr) {
-        result.error = "paint_session_to_canvas: no render target";
-        return result;
-    }
-    result = g_session->paint(*g_device, *target, desc, {}, cli::canvas_text_stack());
-    if (!result.error.empty() && canvas_view != nullptr) {
-        cli::clear_canvas(*g_device, *target, extent, kCanvasFormat);
-    }
-    return result;
-}
+} // namespace
 
 } // namespace
 
@@ -195,14 +125,12 @@ EMSCRIPTEN_KEEPALIVE int tessera_webgpu_set_device(void* device, void* queue) {
 // working unchanged. A non-empty sheet REPLACES the built-in one (decision 2) and never mixes with
 // it.
 EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_frame(const char* source, const char* file,
-                                                      const char* component,
                                                       const char* fold_posture,
                                                       const char* stylesheet, int width, int height,
                                                       float dpi, void* canvas_view) {
     // Two different rectangles, and the whole point of this block is not to confuse them:
     //   * `width` x `height` are the LOGICAL layout viewport (the page's CSS box), which is what
-    //   the
-    //     layout engine and `WindowMetrics` take;
+    //     the layout engine and `WindowMetrics` take;
     //   * `extent` is the device-pixel render target, `logical * dpi`, which is what the GPU draws
     //     into. Deriving it here rather than trusting a second pair of arguments keeps one source
     //     of truth (logical size plus DPR) on the page side.
@@ -222,16 +150,11 @@ EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_frame(const char* source, const 
     tessera::hal::FoldPosture posture = tessera::hal::FoldPosture::None;
     const std::string_view posture_text =
         fold_posture != nullptr ? std::string_view(fold_posture) : std::string_view();
-    if (!posture_text.empty()) {
-        const std::optional<tessera::hal::FoldPosture> parsed =
-            tessera::hal::parse_fold_posture(posture_text);
-        if (!parsed) {
-            cli::SceneFrameResult none;
-            none.error = "TESSERA_STUDIO_FOLD_POSTURE: `" + std::string(posture_text) +
-                         "` is not a fold posture; expected flat, book or tabletop";
-            return duplicate_out(cli::canvas_report_json(none, extent.width, extent.height, true));
-        }
-        posture = *parsed;
+    const std::string posture_error = cli::posture_from(posture_text, posture);
+    if (!posture_error.empty()) {
+        cli::SceneFrameResult none;
+        none.error = posture_error;
+        return duplicate_out(cli::canvas_report_json(none, extent.width, extent.height, true));
     }
 
     cli::ScenePreviewOptions options;
@@ -266,7 +189,8 @@ EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_frame(const char* source, const 
         return duplicate_out(frame_report(result, options, extent));
     }
     return duplicate_out(
-        frame_report(paint_to_canvas(source, options, name, extent, canvas_view), options, extent));
+        frame_report(cli::paint_to_canvas(source, options, name, extent, canvas_view, *g_device),
+                     options, extent));
 }
 
 // Starts (or restarts) the persistent session: one evaluation that later `tessera_canvas_pointer`
@@ -288,50 +212,106 @@ EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_run(const char* source, const ch
         none.error = "no WebGPU device: call tessera_webgpu_set_device first";
         return duplicate_out(cli::canvas_report_json(none, extent.width, extent.height, false));
     }
-    // The posture is validated before anything is built: a typo must not silently start the session
-    // unfolded, because the page would then show a plausible picture of the wrong device.
-    tessera::hal::FoldPosture posture = tessera::hal::FoldPosture::None;
-    const std::string_view posture_text =
-        fold_posture != nullptr ? std::string_view(fold_posture) : std::string_view();
-    if (!posture_text.empty()) {
-        const std::optional<tessera::hal::FoldPosture> parsed =
-            tessera::hal::parse_fold_posture(posture_text);
-        if (!parsed) {
-            cli::SceneFrameResult none;
-            none.error = "TESSERA_STUDIO_FOLD_POSTURE: `" + std::string(posture_text) +
-                         "` is not a fold posture; expected flat, book or tabletop";
-            return duplicate_out(cli::canvas_report_json(none, extent.width, extent.height, true));
-        }
-        posture = *parsed;
-    }
     if (g_session == nullptr) {
         g_session = std::make_unique<cli::CanvasSceneSession>();
     }
     cli::CanvasSessionSource options;
-    options.text = source != nullptr ? std::string_view(source) : std::string_view();
-    // The author stylesheet (issue #390). Null/empty is "no author CSS": the built-in fallback
-    // stays, which is what an older page and a cleared textarea both mean.
-    options.stylesheet = stylesheet != nullptr ? std::string_view(stylesheet) : std::string_view();
-    options.file = file != nullptr ? std::string_view(file) : std::string_view();
-    options.component = component != nullptr ? std::string_view(component) : std::string_view();
-    // The page's salt is the project namespace it shows; the same constant the scene module uses so
-    // the two views name one node by one number.
-    options.salt = "preview";
-    options.width = static_cast<float>(extent.width);
-    options.height = static_cast<float>(extent.height);
-    options.dpi_scale = dpi > 0.0f ? dpi : 1.0f;
-    options.posture = posture;
-    // The session measures its text with the same face every frame paints with, so a line never
-    // overflows or under-fills the box it was laid out in (#387).
-    options.measurer = cli::canvas_measurer();
+    const std::string request_error = cli::canvas_session_source(
+        source != nullptr ? std::string_view(source) : std::string_view(),
+        file != nullptr ? std::string_view(file) : std::string_view(),
+        component != nullptr ? std::string_view(component) : std::string_view(),
+        fold_posture != nullptr ? std::string_view(fold_posture) : std::string_view(),
+        // The author stylesheet (issue #390). Null/empty is "no author CSS": the built-in fallback
+        // stays, which is what an older page and a cleared textarea both mean.
+        stylesheet != nullptr ? std::string_view(stylesheet) : std::string_view(),
+        static_cast<float>(extent.width), static_cast<float>(extent.height), dpi, options);
+    if (!request_error.empty()) {
+        cli::SceneFrameResult none;
+        none.error = request_error;
+        return duplicate_out(cli::canvas_report_json(none, extent.width, extent.height, true));
+    }
 
     const std::string error = g_session->start(options);
     cli::SceneFrameResult report;
     report.error = error;
     // A Run reports the author sheet's problems even when the source itself produced no scene: the
-    // page shows one diagnostics area, so a visitor who fixed the TSX need not Run twice to learn
-    // the stylesheet was also wrong.
+    // page shows one diagnostics area, so a visitor who fixed the TSX need not Restart twice to
+    // learn the stylesheet was also wrong.
     return duplicate_out(report_with_css(report, extent, g_session->css_diagnostics()));
+}
+
+// Applies an edit to the RUNNING session (issue #444: the page's live edit), without resetting it.
+//
+// This is `tessera_canvas_run` with two differences that the live edit needs and a button does not:
+//
+//  1. **It reports `changed`.** `run` answers "was the source evaluated", because the page then draws
+//     unconditionally; an auto-apply of text that did not change must cost no frame, so this one
+//     answers the session's own `needs_frame()` and the page draws only when it is true. A `reused`
+//     apply (identical text) is therefore `changed:false` and zero frames.
+//  2. **It reports the carry split.** `carried`/`droppedComponent`/`droppedCell`/`droppedType` come
+//     from `StateCarryReport` (`scene_state.hpp`), so the page can say which cells survived the edit
+//     and, when a component was removed, that the spec's reset case happened rather than a silent
+//     loss.
+//
+// A source that does not evaluate leaves the running evaluation and its picture untouched (see
+// `CanvasSceneSession::start`), and this returns `error` with `changed` as it already was: the page
+// shows the diagnostic and draws nothing, which is what keeps the canvas from blanking mid-keystroke.
+//
+// `width`/`height`/`dpi` are the same logical viewport and DPR `tessera_canvas_run` takes, and are part
+// of the tuple that decides reuse: a toolbar change is an apply too (one frame), and a font that
+// arrived after the last evaluation re-lays out.
+//
+// `stylesheet` is the author's CSS (issue #390) and travels **here**, on the apply, for exactly the
+// reason it travels on `run`: an apply is the call that re-evaluates, so it is the call that decides
+// which sheet the tree is laid out with. `tessera_canvas_draw` takes no strings at all -- it paints
+// the tree the last apply left -- so a sheet handed to `draw` would have nowhere to go. That is the
+// whole shape of the live edit with an author stylesheet: the edit re-applies the sheet, and the
+// frame that follows keeps the author's look.
+EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_apply(const char* source, const char* file,
+                                                      const char* component,
+                                                      const char* fold_posture,
+                                                      const char* stylesheet, int width,
+                                                      int height, float dpi) {
+    const auto extent = rhi::Extent2D{static_cast<std::uint32_t>(width > 0 ? width : 0),
+                                      static_cast<std::uint32_t>(height > 0 ? height : 0)};
+    if (g_device == nullptr) {
+        cli::SceneFrameResult none;
+        none.error = "no WebGPU device: call tessera_webgpu_set_device first";
+        return duplicate_out(cli::canvas_report_json(none, extent.width, extent.height, false));
+    }
+    if (g_session == nullptr) {
+        // No running evaluation yet (the first automatic apply): this is a start, carrying nothing.
+        // Treated exactly as an apply with no carry, so the page has one code path for both.
+        g_session = std::make_unique<cli::CanvasSceneSession>();
+    }
+    cli::CanvasSessionSource options;
+    const std::string request_error = cli::canvas_session_source(
+        source != nullptr ? std::string_view(source) : std::string_view(),
+        file != nullptr ? std::string_view(file) : std::string_view(),
+        component != nullptr ? std::string_view(component) : std::string_view(),
+        fold_posture != nullptr ? std::string_view(fold_posture) : std::string_view(),
+        stylesheet != nullptr ? std::string_view(stylesheet) : std::string_view(),
+        static_cast<float>(extent.width > 0 ? extent.width : 0),
+        static_cast<float>(extent.height > 0 ? extent.height : 0), dpi, options);
+    if (!request_error.empty()) {
+        cli::SceneFrameResult none;
+        none.error = request_error;
+        return duplicate_out(cli::canvas_report_json(none, extent.width, extent.height, true));
+    }
+
+    // The posture is not part of the tuple `start()` compares to decide reuse (it is a layout input,
+    // not a source), so a reused apply must still hand the new one to `set_posture()`. That is the
+    // #408 path: the running tree is re-laid out in place, keeping hover, focus and the state cells,
+    // and reporting whether a layout pass ran - which is what makes this frame the first to show the
+    // new posture. On a fresh evaluation `start()` already laid the tree out at this posture, and
+    // `set_posture()` answers false, so this is one call in both cases and never a second pass.
+    const std::string error = g_session->start(options);
+    if (error.empty() && g_session->reused()) {
+        (void)g_session->set_posture(options.posture);
+    }
+    return duplicate_out(cli::canvas_apply_report_json(g_session->needs_frame(), g_session->reused(),
+                                                       g_session->carry_report(), g_session->state(),
+                                                       g_session->frames_painted(), error));
 }
 
 // Routes one pointer event into the running session and returns what it did. The page calls this
@@ -400,16 +380,11 @@ EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_set_fold(const char* posture) {
     const std::string_view text =
         posture != nullptr ? std::string_view(posture) : std::string_view();
     tessera::hal::FoldPosture parsed = tessera::hal::FoldPosture::None;
-    if (!text.empty()) {
-        const std::optional<tessera::hal::FoldPosture> known =
-            tessera::hal::parse_fold_posture(text);
-        if (!known) {
-            cli::SceneFrameResult none;
-            none.error = "TESSERA_STUDIO_FOLD_POSTURE: `" + std::string(text) +
-                         "` is not a fold posture; expected flat, book or tabletop";
-            return duplicate_out(cli::canvas_report_json(none, extent.width, extent.height, false));
-        }
-        parsed = *known;
+    const std::string posture_error = cli::posture_from(text, parsed);
+    if (!posture_error.empty()) {
+        cli::SceneFrameResult none;
+        none.error = posture_error;
+        return duplicate_out(cli::canvas_report_json(none, extent.width, extent.height, false));
     }
     // `set_posture()` lays the tree out INSIDE this call, so the page's next `tessera_canvas_draw`
     // paints the new posture on its first frame - there is no "pending" state a later frame
@@ -426,6 +401,11 @@ EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_set_fold(const char* posture) {
 // `tessera_canvas_pointer` that answered `changed: true`. Nothing here re-evaluates the source, so
 // the picture is the state the pointer events produced; a caller that draws without a change
 // repaints identical pixels.
+//
+// **It takes no strings** (issue #444): the tree it paints, and the author stylesheet that tree was
+// laid out with (#390), are the ones the last `run`/`apply` left in the module. The report carries
+// both the session's frame count and the sheet's diagnostics, so the page still learns about a bad
+// CSS rule from the frame that paints its effect.
 EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_draw(int width, int height, void* canvas_view) {
     const auto extent = rhi::Extent2D{static_cast<std::uint32_t>(width > 0 ? width : 0),
                                       static_cast<std::uint32_t>(height > 0 ? height : 0)};
@@ -439,16 +419,30 @@ EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_draw(int width, int height, void
         none.error = "no canvas session: call tessera_canvas_run first";
         return duplicate_out(cli::canvas_report_json(none, extent.width, extent.height, true));
     }
-    return duplicate_out(cli::canvas_report_json(paint_session_to_canvas(extent, canvas_view),
-                                                 extent.width, extent.height, true,
-                                                 g_session->css_diagnostics()));
+    return duplicate_out(
+        report_with_css(cli::paint_session(*g_session, extent, canvas_view, *g_device), extent,
+                        g_session->css_diagnostics(), g_session->frames_painted()));
 }
 
-// Releases the session (and with it the tree, its handlers and its carried state). The page calls
-// it when it leaves the Canvas view; a later Run starts a fresh session with no carried state,
-// which is the same thing a page reload does.
-EMSCRIPTEN_KEEPALIVE void tessera_canvas_reset() {
+// Releases the session (and with it the tree, its handlers and its carried state). The page calls it
+// from **Restart app** and when it leaves the Canvas view; the next apply starts a fresh session with
+// nothing carried, which is the same thing a page reload does.
+//
+// It returns a one-line JSON object like every other export in this module, and for the same reason:
+// the page's `callExport` treats a null return as an error, and a void export read through it would
+// surface as "_tessera_canvas_reset returned no document" on the first restart -- a crash-shaped
+// message for a successful cold start. The document says what was released so the page can log it.
+EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_reset() {
+    const bool had_session = g_session != nullptr;
+    const std::uint32_t frames = g_session != nullptr ? g_session->frames_painted() : 0;
     g_session.reset();
+    std::string out = "{\"resetVersion\":1";
+    out += ",\"released\":";
+    out += had_session ? "true" : "false";
+    out += ",\"frames\":";
+    out += std::to_string(frames);
+    out += "}\n";
+    return duplicate_out(out);
 }
 
 // Loads the preview's one face from the bytes the page fetched from its own origin (issue #387).

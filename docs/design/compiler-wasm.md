@@ -202,11 +202,14 @@ The scene → snapshot walk used to live inside `src/harness/engine_host_snapsho
 | Wasm | `tessera_scene_preview.js` | `tessera_scene_json[_styled](source, file, component[, css])` + `tessera_free` |
 
 Both are the same driver. The browser module follows P1's ABI convention exactly: **the module owns
-the buffer it returns and the caller hands it back through `tessera_free`**. It is *not* a verb on
-`tessera_codegen_cli`: that target is the Node tool the `wasm-compiler` preset builds for P0's IR
-parity, and linking the engine into it would drag Yoga and the text stack into that artifact, so the
-driver is shared instead of the binary.
-
+the buffer it returns and the caller hands it back through `tessera_free`** (not a static buffer,
+which the next call would invalidate). `src/compiler/codegen/CMakeLists.txt` compiles the sources as
+an **OBJECT library on host lanes** (`tessera_scene_preview_entry`, so the entry point is
+type-checked on every push) and as a `--no-entry` Emscripten module only under `EMSCRIPTEN`. It is
+*not* a verb on `tessera_codegen_cli`: that target is the Node tool the `wasm-compiler` preset builds
+for P0's IR parity, and linking the engine into it would drag Yoga and the text stack into that
+artifact. The driver is shared instead of the binary, and there is a second executable because the
+comparison needs a native command.
 `scripts/ci/scene_snapshot_parity.py` copies the shape of `wasm_diagnostics_parity.py`: it runs both
 sides over one corpus and requires **byte-identical** documents, decodes both to check
 `snapshotVersion`, and — the anti-vacuity rule — every case declares a **minimum node count**, so
@@ -275,9 +278,9 @@ degrades rather than breaks the preview. A glyph the bounded atlas cannot place 
 `glyphsDropped` and the run still advances, so the layout is unaffected.
 
 **What else a preview frame does not paint, and why.** The module ships no `AssetBundle`, so a
-vector/image payload is counted in `vectors_skipped`/`images_skipped` and the node's box is still
-painted. This is a missing *input*, not a missing capability, and it is reported rather than
-approximated; the parity corpus has no such payloads, so it does not affect the comparison.
+vector/image payload is counted in `vectors_skipped`/`images_skipped` and the node's box is still painted.
+This is a missing *input*, not a missing capability, and it is reported rather than approximated; the
+parity corpus has no such payloads, so the comparison is unaffected.
 
 ### 8.2 The preview stylesheet now paints
 
@@ -301,10 +304,12 @@ A sheet with one bad rule is still the author's sheet, so an invalid declaration
 built-in blue `Button` while the page shows the error that explains it. `style`, `className` and `var()`
 take the ordinary cascade (`style::SceneStyleTree::compute()`), so an inline `style` wins over a class
 rule and a `:root` custom property resolves exactly as native resolves it; the preview invents no tokens.
-The exports that carry it — `tessera_canvas_frame`/`tessera_canvas_run`, `tessera_scene_json_styled*`,
-`tessera_scene_json_folded_styled`, `tessera_input_json_styled`, `tessera_css_diagnostics_json` — take the
-text beside the source, and **null or empty means "no author CSS"**, which keeps the Node probe and every
-pre-#390 caller working. The frame report gained an appended `cssDiagnostics` array and kept
+The exports that carry it — `tessera_canvas_frame`/`tessera_canvas_run`/`tessera_canvas_apply`,
+`tessera_scene_json_styled*`, `tessera_scene_json_folded_styled`, `tessera_input_json_styled`,
+`tessera_css_diagnostics_json` — take the text beside the source, and **null or empty means "no author
+CSS"**, which keeps the Node probe and every pre-#390 caller working. `tessera_canvas_draw` deliberately
+does **not** take it (see 8.3a): it paints the tree the last apply built, so the sheet belongs on the
+call that re-evaluates. The frame report gained an appended `cssDiagnostics` array and kept
 `canvasVersion: 1`, because no existing field changed.
 
 **Diagnostics are reported, never fatal.** A CSS problem is a record with the spec's `TESSERA_CSS_*` code
@@ -326,18 +331,26 @@ frame, so the bound is asserted where a person sees it.
 | WebGPU candidate render | **nowhere automatically** | needs a browser with a real WebGPU device |
 | the pixel comparison itself | `tessera_scene_frame_compare`, any host | the two PNGs are within `webgpu_vs_lavapipe` |
 
-**The honest statement.** The pixel acceptance cannot be proven here or on a hosted CI runner, and none
-of it is a matter of effort: Node has no `navigator.gpu`; the WebGPU candidate is a *browser* artifact and
-a hosted runner has no GPU, so a headless browser would fall back to a software adapter and the frame would
-not be the frame a user sees; and the golden must be lavapipe (ADR-009), whose manifest this dev box lacks,
-so `--write-goldens` **refuses** here rather than committing hardware pixels. The slice therefore lands
-(a) the whole native path, (b) the canvas page and its unsupported-browser state, and (c) the
-node-count-equivalent of a pixel gate: the compare tool plus the script that would apply it. It does
-**not** land the candidate frame, which needs a browser and a real device — a new CI dependency
-(Playwright-class, plus a GPU runner), and so a spec/ADR decision rather than a patch. The plan adds no
-policy: a job serves `build/pages`, runs the Canvas view, calls `tessera_canvas_frame`, reads the canvas
-back with `toDataURL()` and feeds the PNG directory to `scene_frame_parity.py --mode compare` at
-`tests/golden/tolerance.json`'s `webgpu_vs_lavapipe` pair. Every piece exists except the browser.
+**The honest statement.** The pixel acceptance cannot be proven on this machine or a hosted CI runner.
+Three independent facts block it: Node has no `navigator.gpu`, so a module loaded there has no device to
+draw with; the WebGPU candidate is a *browser* artifact and a hosted runner has no GPU, so a headless
+browser would draw through a software adapter, not the user's frame; and the golden must be lavapipe
+(ADR-009), whose manifest this box lacks, so `--write-goldens` **refuses**.
+
+So the slice lands three things and names the fourth as remaining:
+
+- (a) the whole native path, proven by `scene_frame` (5 cases, deterministic, non-vacuous) and by the
+  `canvas-native-parity` job rendering the lavapipe reference;
+- (b) the canvas page, the device plumbing, render-on-demand, and the unsupported-browser path;
+- (c) the node-count-equivalent of a pixel gate: the compare tool plus the script that would apply it;
+- (d) **remaining**: the WebGPU candidate. It needs a real browser with a real device, which is a new CI
+  dependency (Playwright-class, plus a GPU runner) — a spec/ADR decision, so it is reported, not added.
+  The plan: a browser job serving `build/pages`, drawing into `canvas.html`, reading it back with
+  `toDataURL()`, and feeding `scene_frame_parity.py --mode compare`. Only the browser is missing.
+
+Measuring the delta between a hardware WebGPU frame and a lavapipe golden is what
+`tests/golden/tolerance.json`'s `webgpu_vs_lavapipe` pair (8/255 per channel, 2% of pixels, SSIM >=
+0.99, deltaE <= 2.0) was written for, so the browser lane adds no policy, only a device.
 
 ### 8.3a How the frame reaches the canvas
 
@@ -348,26 +361,35 @@ The page owns the surface, the module owns the drawing:
    `tessera_webgpu_set_device`, which returns 1, 0 (null handle) or -1 (wrapping threw). Passing the JS
    objects themselves does not work: they coerce to 0 and read as a null handle.
 2. It configures the canvas context once (`rgba8unorm`, opaque).
-3. Each frame it imports `getCurrentTexture().createView()` with `importJsTextureView` and passes that
-   handle to `tessera_canvas_frame`. The module wraps it in `create_canvas_target`, paints the scene into
-   it with `scene_frame_paint`, and releases the view when the target is destroyed. A null view draws
-   offscreen instead, which is what the Node probe uses.
+3. Each frame it imports `getCurrentTexture().createView()` with `importJsTextureView` and passes
+   that handle to `tessera_canvas_draw`, which paints the running session into it and releases the view
+   when the target is destroyed. A null view draws offscreen instead, which the Node probe uses. (A
+   one-shot `tessera_canvas_frame` still exists for the parity probe; the page does not use it, because
+   it re-evaluates per call and so can neither carry state nor keep a picture across a failed edit.)
+   `tessera_canvas_draw` takes **no strings**: the tree it paints, and the author stylesheet that tree
+   was laid out with, are the ones the last `run`/`apply` left in the module (the sheet argument
+   belongs on those two, per #390's append-only ABI). The draw report still carries
+   `cssDiagnostics`, so a bad rule is reported by the frame that paints its effect.
 
 Both target kinds derive from `WebGpuTargetViews`, and the command list casts to that. A cast to the
 concrete offscreen class made a canvas target read the wrong memory and begin a pass with no view.
 
 The module still ships no font, but a frame now paints text when the page has supplied one: once per
 device the page fetches `fonts/IBMPlexSans-Latin.ttf` from its own origin, writes the bytes into the
-module's heap and calls `tessera_canvas_set_font(ptr, size)`, after which `tessera_canvas_frame`
-shapes and draws its runs through the production text stack. Without that call (and after a failed
-fetch, which the pane names) text nodes paint their boxes only, unchanged from before issue #387.
+module's heap and calls `tessera_canvas_set_font(ptr, size)`, after which a draw shapes and draws its runs
+through the production text stack. Without that call (and after a failed fetch, which the pane names) text
+nodes paint their boxes only, unchanged from before issue #387.
 
 ### 8.4 Render on demand
 
-The page does not run a frame loop: it draws once per *change* (a Run, a device-pixel-ratio change, or
-the tab becoming visible again). `requestAnimationFrame` coalesces a burst of notifications into one
-frame and aligns the draw with the display, but nothing re-arms it after a frame, so a static scene
-stops drawing — the browser form of the repository's idle rule (a static UI presents nothing).
+The page does not run a frame loop: it draws once per *change* (an applied edit, a device-pixel-ratio
+change, or the tab becoming visible again). `requestAnimationFrame` coalesces a burst of notifications
+into one frame and aligns the draw with the display, but nothing re-arms it after a frame, so a static
+scene stops drawing — the browser form of the idle rule (a static UI presents nothing). Since #444 the
+edit is the main trigger: `tessera_canvas_apply` (evaluate, carry, answer `changed`) then
+`tessera_canvas_draw` only when `changed`, so unchanged text costs no frame and a failed source keeps the
+picture. The 150 ms debounce and this coalescer compose once each, and both reports carry
+`frames_painted()`, so "one frame per burst, zero when static" is read rather than asserted.
 
 ### 8.5 The unsupported path
 
@@ -407,11 +429,12 @@ Verified on this Windows host (2026-11-16), native side only:
 - `tessera_scene_preview --stylesheet` agrees with the module: the `author-stylesheet` parity corpus case
   produces the same bytes on both sides (below).
 
-**What runs only in CI:** the *browser* half. `wasm_canvas_entry.cpp`, `wasm_canvas_support.cpp` and
-`webgpu_canvas_target.cpp` compile under the `wasm-webgpu` preset (verified here with emsdk 7.0.0,
-producing all three `tessera_*.wasm`) and the host lanes type-check `scene_frame.cpp`/`canvas_report.cpp`
-as OBJECT libraries, but a real WebGPU device still needs a browser: `pages.yml` / `webgpu.yml` run the
-no-device contract, and **the pixel comparison has not run anywhere yet** — see 8.3.
+**What runs only in CI:** the *browser* half. `wasm_canvas_entry.cpp`, `wasm_canvas_support.cpp`,
+`wasm_canvas_paint.cpp` and `webgpu_canvas_target.cpp` compile under the `wasm-webgpu` preset (verified
+here with emsdk 7.0.0, producing all three `tessera_*.wasm`) and the host lanes type-check
+`scene_frame.cpp`/`canvas_report.cpp`/`wasm_canvas_request.cpp` as OBJECT libraries, but a real WebGPU
+device still needs a browser: `pages.yml` / `webgpu.yml` run the no-device contract, and **the pixel
+comparison has not run anywhere yet** — see 8.3.
 
 ### 8.7 Files
 
@@ -422,8 +445,11 @@ no-device contract, and **the pixel comparison has not run anywhere yet** — se
 | `tools/codegen/scene_frame_main.cpp` | `tessera_scene_frame`: renders a PNG (vulkan or null) |
 | `tools/codegen/scene_frame_compare.cpp` | `tessera_scene_frame_compare`: the pixel comparison |
 | `tools/codegen/canvas_report.{hpp,cpp}` | the JSON report the page parses (host-compilable) |
+| `tools/codegen/wasm_canvas_request.{hpp,cpp}` | the ABI's argument parsing, host-compilable (#444) |
+| `tools/codegen/wasm_canvas_paint.{hpp,cpp}` | clear/paint into the page's canvas texture (#444) |
+| `tools/codegen/wasm_canvas_support.{hpp,cpp}` | `clear_canvas` and the pointer vocabulary (#390) |
 | `tools/codegen/preview_text.{hpp,cpp}` | the text stack over caller-supplied font bytes (#387) |
-| `tools/codegen/wasm_canvas_entry.cpp` | the browser ABI: device handover, frame, `set_font` |
+| `tools/codegen/wasm_canvas_entry.cpp` | the browser ABI: device handover, frame, apply, draw, `set_font` |
 | `src/rendering/backend/webgpu/src/webgpu_canvas_target.cpp` | an RHI target over a host-owned view |
 | `designer/web/src/views/canvas-{session,pane,device,frame,font}.ts` | the Canvas view (ADR-054) |
 | `designer/web/public/fonts/` | the one shipped face and its OFL text (#387) |

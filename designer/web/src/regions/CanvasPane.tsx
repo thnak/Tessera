@@ -37,6 +37,8 @@ export function CanvasPane({
   statNodesRef,
   statDprRef,
   statFontRef,
+  stateRowRef,
+  statStateRef,
 }: {
   view: ViewDefinition;
   statusRef: RefObject<HTMLDivElement | null>;
@@ -53,6 +55,9 @@ export function CanvasPane({
   statNodesRef: RefObject<HTMLElement | null>;
   statDprRef: RefObject<HTMLElement | null>;
   statFontRef: RefObject<HTMLElement | null>;
+  /** Issue #444: the state row's `<dt>` and `<dd>`, hidden until a cell exists. */
+  stateRowRef: RefObject<HTMLElement | null>;
+  statStateRef: RefObject<HTMLElement | null>;
 }) {
   return (
     <section
@@ -120,6 +125,16 @@ export function CanvasPane({
             already describe. */}
         <dt>Font</dt>
         <dd id="stat-font" ref={statFontRef}>
+          -
+        </dd>
+        {/* Issue #444: the running evaluation's state cells. In the counters rather than a separate
+            box, for the same reason the font row is: "did the count survive the edit" is a property
+            of the evaluation these counters already describe, and the row appears only when the
+            source actually declares a cell. */}
+        <dt id="state-row" ref={stateRowRef} hidden>
+          State
+        </dt>
+        <dd id="stat-state" ref={statStateRef} hidden>
           -
         </dd>
       </dl>

@@ -66,6 +66,10 @@ export interface PaneRefs {  /**
   statDpr: React.RefObject<HTMLElement | null>;
   /** The font row (issue #387): the painted face's name, or why text is absent. */
   statFont: React.RefObject<HTMLElement | null>;
+  /** Issue #444: the state row's `<dt>`, hidden until the running evaluation declares a cell. */
+  stateRow: React.RefObject<HTMLElement | null>;
+  /** Issue #444: the state row's `<dd>`, which the pane fills with one `name=value` per cell. */
+  statState: React.RefObject<HTMLElement | null>;
   /**
    * The status line's mirror cells (issue #431). The status line spans the bottom of the workspace, so
    * the two facts it reports from the engine -- the diagnostics count and the last frame -- are written
@@ -114,6 +118,9 @@ export function usePaneRefs(): PaneRefs {
     statNodes: useRef<HTMLElement>(null),
     statDpr: useRef<HTMLElement>(null),
     statFont: useRef<HTMLElement>(null),
+    // Issue #444: the running evaluation's state cells, and the row that hides when there are none.
+    stateRow: useRef<HTMLElement>(null),
+    statState: useRef<HTMLElement>(null),
     statusDiagnostics: useRef<HTMLSpanElement>(null),
     statusFrame: useRef<HTMLSpanElement>(null),
   };
@@ -127,7 +134,16 @@ export interface PageState {
   linkNote: string | null;
   buildId: string;
   buildIdTitle: string | undefined;
+  /** Whether the active view's session can be restarted (its module is loaded). */
   runEnabled: boolean;
+  /**
+   * Whether a live edit is scheduled or in flight (issue #444).
+   *
+   * The editor's hint says so while it is true: "applying..." is the whole point of the debounce being
+   * visible rather than magic, and it is the only feedback a keystroke gets that does not move the
+   * preview's own status line (which belongs to the pane, not the page).
+   */
+  applying: boolean;
 }
 
 /** The page's state and its one setter per field, created once. */
@@ -141,8 +157,9 @@ export function usePageState(): [PageState, PageStateSetters] {
     "The build this page came from",
   );
   const [runEnabled, setRunEnabled] = useState(false);
+  const [applying, setApplying] = useState(false);
   return [
-    { controls, galleryOpen, shareStatus, linkNote, buildId, buildIdTitle, runEnabled },
+    { controls, galleryOpen, shareStatus, linkNote, buildId, buildIdTitle, runEnabled, applying },
     {
       setControls,
       setGalleryOpen,
@@ -151,6 +168,7 @@ export function usePageState(): [PageState, PageStateSetters] {
       setBuildId,
       setBuildIdTitle,
       setRunEnabled,
+      setApplying,
     },
   ];
 }
@@ -164,6 +182,7 @@ export interface PageStateSetters {
   setBuildId: React.Dispatch<React.SetStateAction<string>>;
   setBuildIdTitle: React.Dispatch<React.SetStateAction<string | undefined>>;
   setRunEnabled: React.Dispatch<React.SetStateAction<boolean>>;
+  setApplying: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 /** The refs bundle under the name the session hook uses it by; one object, two readable names. */

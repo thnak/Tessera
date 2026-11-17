@@ -115,24 +115,32 @@ const hasGpu = await page.evaluate(async () => {
 });
 check('WebGPU device is available', hasGpu);
 
-// 2. The diagnostics module compiles the sample.
-await page.locator('#run').click();
-await page.waitForTimeout(1800);
-check('Diagnostics runs', (await status()) !== null);
+// 2. The diagnostics module compiles the sample, **with no click**: since issue #444 the first load
+//    applies itself once the module is ready, so the pane leaving "not run yet" is the acceptance
+//    sentence for the automatic first apply. Waiting rather than clicking is the point.
+await page.waitForFunction(
+  () => {
+    const text = document.querySelector('#diag-status')?.textContent ?? '';
+    return text !== '' && text !== 'not run yet';
+  },
+  undefined,
+  { timeout: 10000 },
+);
+check('Diagnostics applies the sample without a click',
+  (await page.evaluate(() => document.querySelector('#diag-status')?.textContent ?? '')) !== 'not run yet');
 
 // 3. The scene module evaluates.
 await page.locator('#tab-scene').click();
 await page.waitForTimeout(900);
 check('Scene view opens', (await page.evaluate(() => document.body.innerText)).length > 0);
 
-// 4. The canvas draws -- and keeps drawing. The second Run is the #430 regression: the module used to
-//    be re-instantiated per Run, so the new instance had no device and the frame was replaced by
-//    "no WebGPU device: call tessera_webgpu_set_device first".
+// 4. The canvas draws on its first open, also without a click, and keeps drawing. The *Restart app*
+//    click below is the #430 regression: the module used to be re-instantiated per Run, so the new
+//    instance had no device and the frame was replaced by "no WebGPU device: call
+//    tessera_webgpu_set_device first".
 await page.locator('#tab-canvas').click();
-await page.waitForTimeout(600);
-await page.locator('#run').click();
 await page.waitForTimeout(2200);
-check('Canvas draws a frame', /draw call/.test((await status()) ?? ''), await status());
+check('Canvas draws a frame on its first open', /draw call/.test((await status()) ?? ''), await status());
 
 const viewport = page.locator('#control-viewport');
 if (await viewport.count()) {
@@ -142,9 +150,9 @@ if (await viewport.count()) {
   check('Canvas survives a viewport change', /draw call/.test((await status()) ?? ''), await status());
 }
 
-await page.locator('#run').click();
+await page.locator('#restart-app').click();
 await page.waitForTimeout(2200);
-check('Canvas survives a second Run', /draw call/.test((await status()) ?? ''), await status());
+check('Canvas survives a restart', /draw call/.test((await status()) ?? ''), await status());
 
 // 5. Every fold posture still draws (issue #408 feeds the fold through the app's safe-area path).
 const fold = page.locator('#control-foldPosture');

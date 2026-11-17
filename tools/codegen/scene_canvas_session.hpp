@@ -106,10 +106,18 @@ public:
     // (component id + cell id + IR type; `scene_state.hpp`). Returns why a source produced no
     // scene, or an empty string on success.
     //
-    // Calling it again is a *Run*: a new evaluation at the new source, with the old state carried.
-    // A Run of the identical source reuses the running evaluation instead, because the page hands
+    // Calling it again is an *apply*: a new evaluation at the new source, with the old state carried.
+    // A call with the identical source reuses the running evaluation instead, because the page hands
     // the editor's text to every frame and re-evaluating would drop hover and state between two
     // frames of one program.
+    //
+    // **A source that does not evaluate leaves the running evaluation untouched** (issue #444). The
+    // new text is parsed before anything is replaced, so a failed edit returns its reason while
+    // `started()`, `root()`, the state cells and `frames_painted()` describe the tree that is still
+    // on screen, and `needs_frame()` keeps whatever it already answered. That is what lets the
+    // browser apply every keystroke without the canvas ever blanking: a half-typed expression costs
+    // a diagnostic, not the picture. A cold start (a `restart`) is `tessera_canvas_reset` followed
+    // by a `start()` - a different operation, and the page's Run button is the only caller.
     std::string start(const CanvasSessionSource& source);
 
     [[nodiscard]] bool started() const noexcept {
@@ -165,6 +173,14 @@ public:
 
     [[nodiscard]] std::uint32_t frames_painted() const noexcept {
         return frames_painted_;
+    }
+    // The split of the cells the last *evaluating* apply carried, so the page can say which state
+    // survived an edit and why the rest did not (`scene_state.hpp` is the rule). A non-zero
+    // `dropped_component` is the structural change the spec calls a reset: a component the state
+    // lived on is gone. A failed apply changes nothing here, like every other part of the running
+    // evaluation it leaves alone.
+    [[nodiscard]] const StateCarryReport& carry_report() const noexcept {
+        return carry_report_;
     }
     // The live tree and the sheet it was laid out with; null before a successful `start()`. Exposed
     // so a caller can resolve computed style (the browser lane's colour comparison) and so a test
@@ -222,6 +238,8 @@ private:
     bool reused_ = false;
     bool fresh_ = false; // a Run happened and its frame has not been painted yet
     std::uint32_t frames_painted_ = 0;
+    // What the last evaluating apply carried; unchanged by an apply that failed to evaluate.
+    StateCarryReport carry_report_;
 };
 
 } // namespace tessera::compiler::codegen::cli
