@@ -441,7 +441,7 @@ DPI scale 1, 7 measured runs after 2 warm-up runs; median and p95):
 | Layout + paint after changing one text node | 296 ms (301 ms) | 1800 ms |
 | Layout + paint after changing one container's size | 296 ms (313 ms) | 1800 ms |
 | Redraw plan regions (max of the three frames) | 2 | 8 |
-| Draw calls / quads / draw-list primitives | 44 / 65 / 9596 | 64 / 128 / 12000 |
+| Draw calls / quads emitted (of produced) / draw-list primitives | 19 / 33 (65) / 9596 | 64 / 128 / 12000 |
 
 The budget file is `tests/golden/perf/cpu_benchmark.txt`; each time budget is about six times the
 reference median, which keeps roughly a factor of two on top of a presumed 3x-slower two-core
@@ -469,6 +469,21 @@ work. Compare the two numbers of a single run rather than against the table abov
 recorded on an earlier, quieter machine state. `max_glass_paint_ms` therefore guards the same
 order of magnitude as `max_full_paint_ms`: it catches a regression that turns glass into per-pixel
 CPU work, not the GPU blur, which the exact-pixel tests and the (unbudgeted) GPU timings cover.
+
+**CPU culling (issue #474, [`dirty-rendering.md`](dirty-rendering.md) section 6.4).** The same
+reference scene produces 65 quads per full paint; with `Batched2DConfig::cull_draws` on (the
+default) 32 of them cannot touch the viewport scissor and are dropped before staging, so 33 reach
+the vertex buffer in 19 draw calls instead of 44 - the counters are deterministic, and a dropped
+quad no longer splits a batch. The separate damaged-frame scenario (one text edit painted through
+`begin_damaged`) measures the partial path: 1 damage region, 2 quads, 2 draw calls, and the damage
+bounding box culls none of them, because the paint pass already clips emission to the plan's
+regions. Measured on the reference machine (MSVC Release, median of 7 runs) in two runs: full paint
+43.2 and 46.3 ms, damaged paint 44.0 and 46.7 ms. The paint is therefore still dominated by walking
+the 12 000 nodes, not by staging their quads: the cull removes vertex work the GPU scissor would
+have thrown away, and the traversal does not shrink. That is the argument for culling subtrees in
+the paint pass; #474 keeps it out of scope and it needs its own measurement. `max_quads` and the
+new `max_damaged_quads` gate the two counters, and `max_damaged_paint_ms` guards the damaged row at
+the same order of magnitude as `max_full_paint_ms`.
 
 **Trigger.** Revisit the V1 decision of no render thread and no worker recording when
 `paint_time_ms` exceeds about 4 ms or 30% of `frameBudgetMs` at 10k nodes. At 12 000 nodes the

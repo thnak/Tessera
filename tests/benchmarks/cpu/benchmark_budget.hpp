@@ -28,6 +28,10 @@ struct Budget {
     // glass bar, and the number of backdrop composites that paint records.
     std::uint64_t max_glass_paint_ms = 0;
     std::uint64_t glass_backdrops = 0;
+    // Damaged scenario (issue #474): paint of one one-node edit through `begin_damaged`, where the
+    // CPU culling also tests the plan's damage bounding box.
+    std::uint64_t max_damaged_paint_ms = 0;
+    std::uint64_t max_damaged_quads = 0;
     std::uint64_t max_damage_rects = 0;
     std::uint64_t max_draw_calls = 0;
     std::uint64_t max_quads = 0;

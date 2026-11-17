@@ -62,11 +62,16 @@ Fixture::Fixture()
 
 Fixture::~Fixture() = default;
 
-PaintOutcome Fixture::paint(bool force) {
+PaintOutcome Fixture::paint(bool force, const rendering::RedrawPlan* plan) {
     sink_.reset();
     const rhi::RenderTargetDesc desc{{kTargetWidth, kTargetHeight}};
+    const bool partial = plan != nullptr && !plan->full_redraw;
     const Clock::time_point begin = Clock::now();
-    renderer_->begin(*commands_, *target_, desc);
+    if (partial) {
+        renderer_->begin_damaged(*commands_, *target_, desc, *plan);
+    } else {
+        renderer_->begin(*commands_, *target_, desc);
+    }
     const ui::frame::FramePaint painted = driver_->paint(sink_, force);
     renderer_->end();
     PaintOutcome outcome;
@@ -76,6 +81,7 @@ PaintOutcome Fixture::paint(bool force) {
     }
     outcome.draw_calls = renderer_->draw_calls();
     outcome.quads = renderer_->vertex_count() / 6u;
+    outcome.quads_culled = renderer_->cull_stats().quads_culled;
     const DrawListCounts& counts = sink_.counts();
     outcome.primitives = counts.primitives();
     outcome.text_runs = counts.text_runs;
@@ -96,10 +102,12 @@ void Fixture::enable_glass_bar() {
     targets_.glass_bar->mark_dirty(ui::Dirty::Style | ui::Dirty::Paint);
 }
 
-void Fixture::edit_text() {
+void Fixture::edit_text(const char* text) {
     ui::PaintData data;
     data.kind = ui::PaintKind::Text;
-    data.text = "Card 0 summary title, rewritten by the benchmark to force a text remeasure";
+    data.text = text != nullptr
+                    ? text
+                    : "Card 0 summary title, rewritten by the benchmark to force a text remeasure";
     targets_.text_node->set_paint_data(std::move(data));
     // A paint payload never marks layout by itself; the app owns the decision that a text change
     // can move boxes.
@@ -123,6 +131,7 @@ Measurement Fixture::measure() {
     result.full_paint_ms = full.ms;
     result.draw_calls = full.draw_calls;
     result.quads = full.quads;
+    result.quads_culled = full.quads_culled;
     result.primitives = full.primitives;
     result.text_runs = full.text_runs;
     result.images = full.images;
@@ -143,6 +152,23 @@ Measurement Fixture::measure() {
     (void)paint(false);
     result.layout_paint_container_ms = milliseconds(begin, Clock::now());
     result.damage_rects_container = container_frame.render.redraw_plan.scissors.size();
+    driver_->end_frame();
+
+    // Damaged frame (issue #474): a fresh one-node text edit, painted through `begin_damaged` so
+    // the CPU culling tests against the plan's damage bounding box instead of the whole target.
+    // Only the paint is timed; the counters show what the damaged path drops, which on this scene
+    // is nothing beyond the paint pass's own clip. A text that actually differs is required:
+    // re-applying the same payload is a true no-op frame (no damage, no paint).
+    edit_text("Card 0 summary title, edited again so exactly one node is damaged");
+    const FrameWork damaged_frame = driver_->begin_frame();
+    const rendering::RedrawPlan damaged_plan = damaged_frame.render.redraw_plan;
+    result.damaged_partial = !damaged_plan.full_redraw;
+    result.damaged_damage_rects = damaged_plan.scissors.size();
+    const PaintOutcome damaged = paint(false, &damaged_plan);
+    result.damaged_paint_ms = damaged.ms;
+    result.damaged_quads = damaged.quads;
+    result.damaged_quads_culled = damaged.quads_culled;
+    result.damaged_draw_calls = damaged.draw_calls;
     driver_->end_frame();
 
     // Glass (issue #244): the same full paint with the fixed bar blurred. The first glass frame

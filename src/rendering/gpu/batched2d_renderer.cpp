@@ -66,6 +66,7 @@ void Batched2DRenderer::begin_damaged(rhi::CommandList& commands, const rhi::Ren
         commands_ = nullptr;
         in_frame_ = false;
         draw_calls_ = 0;
+        cull_stats_ = CullStats{};
         vertices_.cancel_frame();
         return;
     }
@@ -100,9 +101,25 @@ void Batched2DRenderer::begin_frame(rhi::CommandList& commands, const rhi::Rende
     scissor_ = base_scissor_;
     scissor_stack_.clear();
     damage_regions_.clear();
+    damage_bounds_ = base_scissor_;
     if (damage_regions != nullptr) {
         damage_regions_ = *damage_regions;
+        // Disjoint regions: their bounding box is the smallest rectangle holding every pixel the
+        // frame may touch.
+        std::int32_t left = INT32_MAX;
+        std::int32_t top = INT32_MAX;
+        std::int32_t right = INT32_MIN;
+        std::int32_t bottom = INT32_MIN;
+        for (const rhi::Scissor& region : damage_regions_) {
+            left = std::min(left, region.x);
+            top = std::min(top, region.y);
+            right = std::max(right, region.x + static_cast<std::int32_t>(region.width));
+            bottom = std::max(bottom, region.y + static_cast<std::int32_t>(region.height));
+        }
+        damage_bounds_ = rhi::Scissor{left, top, static_cast<std::uint32_t>(right - left),
+                                      static_cast<std::uint32_t>(bottom - top)};
     }
+    cull_stats_ = CullStats{};
     clips_.reset();
     transform_ = rhi::Mat3::identity();
     transform_stack_.clear();
@@ -359,6 +376,11 @@ void Batched2DRenderer::emit_quad(const rhi::Rect& rect, const rhi::Rect& uv, rh
     if (!in_frame_) {
         return;
     }
+    // Before the texture switch, so a culled quad never splits a batch.
+    if (cull_quad(rect)) {
+        return;
+    }
+    ++cull_stats_.quads_emitted;
     if (texture != current_texture_) {
         flush_batch();
         current_texture_ = texture;

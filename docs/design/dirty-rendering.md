@@ -283,6 +283,21 @@ the full-redraw entry point and its command stream is unchanged.
   follows the same fallback.
 - **Determinism:** the null backend records the active scissor for every draw
   (`NullCommandStats::draw_records`), so containment is asserted without a GPU.
+- **CPU culling (#474):** `emit_quad` drops a quad whose device-space bounds - the axis-aligned box
+  of its four transformed corners, after the transform stack and the content scale - cannot touch
+  `rhi::intersect(scissor_, damage_bounds_)`, where `damage_bounds_` is the bounding box of the
+  plan's disjoint regions and the whole target for a full redraw. The quad is dropped before any
+  vertex is built, so nothing is staged or uploaded and a batch is not split. Pixels do not change:
+  the GPU scissor discarded the same fragments, and a paint that already runs through
+  `ClippedPaintSink` has pruned the quads outside the plan before they reach the renderer, so the
+  damage term only adds a drop where a caller paints unclipped. The test is conservative in every
+  direction - the box is a superset of the regions, a shadow's reach and the anti-aliased edge stay
+  inside the quad's own rect, and a NaN box is kept for the GPU to discard - and it culls quads, not
+  nodes: the paint pass still walks the tree. `CullStats` (`quads_emitted`, `quads_culled`,
+  `quads_culled_empty_scissor`) resets every frame, and `Batched2DConfig::cull_draws` (default on)
+  turns the cull off to compare the two when debugging. `tests/gpu/batched2d/cull_tests.cpp`
+  (ctest `cull`) covers the viewport, nested and empty scissors, damage regions, rotation, content
+  scale and the batch boundary.
 
 Swapchain dirty rects and incremental present remain B3.
 

@@ -64,6 +64,11 @@ add_executable(damage_redraw_tests
 target_link_libraries(damage_redraw_tests PRIVATE tessera_gpu tessera_rhi_null tessera_damage)
 add_test(NAME damage_redraw COMMAND damage_redraw_tests)
 
+add_executable(cull_tests
+    batched2d/cull_tests.cpp)
+target_link_libraries(cull_tests PRIVATE tessera_gpu tessera_rhi_null tessera_damage)
+add_test(NAME cull COMMAND cull_tests)
+
 set(TESSERA_FONT_FIXTURE
     "${CMAKE_CURRENT_SOURCE_DIR}/../fixtures/fonts/NotoSans-Regular.ttf")
 get_filename_component(TESSERA_FONT_FIXTURE "${TESSERA_FONT_FIXTURE}" REALPATH)
