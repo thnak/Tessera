@@ -210,18 +210,35 @@ class RatchetArithmeticTests(unittest.TestCase):
         self.assertEqual(errors, [])
 
     def test_a_real_per_file_growth_is_still_drift(self) -> None:
-        # The other side of the boundary: 5% is far outside encoder noise, so a file that genuinely
-        # grew must force a re-record or the reviewer is told the wrong file grew.
+        # The other side of the boundary. Real sizes, not toy ones: a 5% growth of an 80 KB bundle is
+        # 4 KB, far outside both the ratio and the floor, so it must force a re-record or the reviewer is
+        # told the wrong file grew. (An earlier version of this test used `100 -> 105` -- 5 bytes -- which
+        # the floor correctly absorbs, and the test was wrong rather than the rule.)
         errors = ratchet.breakdown_drift(
-            {"e": self.recorded_entry({"a.js.gzip": 100.0})}, {"a.js.gzip": 105.0, "e": 105.0}
+            {"e": self.recorded_entry({"a.js.gzip": 83822.0})},
+            {"a.js.gzip": 88017.0, "e": 88017.0},
         )
         self.assertEqual(len(errors), 1)
         self.assertIn("a.js.gzip", errors[0])
+
+    def test_the_floor_covers_the_smallest_measured_file(self) -> None:
+        # `samples.json.gzip` is the smallest row and the one that failed CI: 182 recorded, 178 measured
+        # on Linux. It is mostly gzip header and Huffman table, so a ratio alone cannot cover it, and a
+        # ratio widened enough to cover it would allow tens of KB of slack on a 1.3 MB module.
+        self.assertTrue(ratchet.same_measurement(182.0, 178.0))
+
+    def test_the_floor_does_not_disable_drift_on_small_files(self) -> None:
+        # The floor must not become a licence to ignore a small file entirely: a real difference on one
+        # is still a difference. 178 -> 400 is 222 bytes and must fail.
+        self.assertFalse(ratchet.same_measurement(400.0, 178.0))
 
     def test_the_slack_is_tighter_than_the_size_ratchet_tolerance(self) -> None:
         # These answer different questions -- "is this the same file?" versus "is the total
         # acceptable?" -- so a slack that approached the ratchet's own band would blur them.
         self.assertLess(ratchet.BREAKDOWN_ENCODER_SLACK, 0.05)
+        # ...and the absolute floor must stay small: it exists for a 178-byte file, not as a
+        # blanket allowance that would hide a real change to any file.
+        self.assertLessEqual(ratchet.BREAKDOWN_ENCODER_FLOOR_BYTES, 64)
 
     def test_a_zero_size_is_compared_exactly(self) -> None:
         # A ratio against zero is not defined, and a file that measured as nothing is not a rounding
