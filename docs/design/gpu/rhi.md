@@ -35,15 +35,16 @@ RHI versioning and capabilities (ADR-049):
 
 - `include/tessera/rendering/rhi/version.hpp` defines the published RHI contract version as
   `kRhiVersionMajor`, `kRhiVersionMinor`, and `kRhiVersion = (major << 16) | minor`
-  (`1.0` / `0x00010000` for the first published version). The current contract is **1.4**
-  (`0x00010004`): 1.0 is the B1 surface; 1.1 adds `CommandList::copy_target_region` for the
+  (`1.0` / `0x00010000` for the first published version). The current contract is **1.5**
+  (`0x00010005`): 1.0 is the B1 surface; 1.1 adds `CommandList::copy_target_region` for the
   isolated-layer seam (issue #242, [`offscreen-layers.md`](offscreen-layers.md)); 1.2 adds the
   swapchain composite-alpha request and the resolved-mode query (glass-v1.md section 6, issue #243);
   1.3 adds the sampled view of an offscreen render target (`CommandList::bind_sampled_target` plus
   the target's sampler state, issue #254, section 5.1 below); 1.4 adds
   `DeviceDesc::surface`/`SurfacePlatform`, the presentation surface family a device is created for
-  (issue #155, Wayland window + `VK_KHR_wayland_surface`). All later versions are additive
-  compatible changes.
+  (issue #155, Wayland window + `VK_KHR_wayland_surface`); 1.5 adds `BlendMode::DualSource` and the
+  capability that gates it, `Device::supports_dual_source_blend()` (issue #471, section 4.1 below).
+  All later versions are additive compatible changes.
 - `RhiCapabilities { Backend backend; std::uint32_t rhi_version; GpuTimestampCapability timestamps; }`
   is reported by `Device::capabilities()` (default: current backend, `kRhiVersion`,
   `timestamp_capability()`). Backends declare the implemented major version with a compile-time
@@ -116,6 +117,40 @@ Rules:
 - Descriptor structs are plain data; no pointers except transient upload/creation data.
 - B2 adds explicit `usage`/`stage` flags where the backend needs them; additions keep B1 fields
   source-compatible.
+
+### 4.1 Blend modes, and dual-source coverage (RHI 1.5)
+
+`PipelineDesc::blend` is one of:
+
+| Mode | Blend |
+|---|---|
+| `None` | no blending: the fragment output replaces the destination |
+| `Alpha` | `src.rgb * src.a + dst.rgb * (1 - src.a)`, alpha `src.a + dst.a * (1 - src.a)` |
+| `DualSource` | per channel: `src0 * src1 + dst * (1 - src1)` |
+
+`DualSource` (issue #471, [`display-aware-rendering.md`](../display-aware-rendering.md) section 3.4)
+exists for LCD subpixel text, where the three coverage channels differ per pixel and one alpha
+cannot express them. The fragment shader writes colour to output 0 and coverage to output 1 (GLSL:
+`layout(location = 0, index = 1) out vec4`; SPIR-V: `Location 0` with `Index 1`), and the pipeline's
+blend multiplies the two. `None` and `Alpha` are unchanged, so every existing caller keeps
+byte-identical output.
+
+It is a **capability**, not floor ([`backends.md`](backends.md) section 2.1): the fallback is
+grayscale coverage, which is a correct picture, and the mode is optional on Vulkan.
+
+- `Device::supports_dual_source_blend()` is the only authority. It is pure virtual so a backend cannot
+  inherit a convenient answer; consumers must not infer it from `backend()`.
+- When it reports false, `create_pipeline` with `DualSource` **throws** (`std::runtime_error` on
+  Vulkan, `std::invalid_argument` on WebGPU). A backend must never map the mode to another blend: on
+  Vulkan the SRC1 factors without the feature is undefined, and mapping it to "blend off" would write
+  raw coverage instead of the fallback.
+- Vulkan enables `VkPhysicalDeviceFeatures::dualSrcBlend` at device creation only when
+  `vkGetPhysicalDeviceFeatures2` reports it, uses `VK_BLEND_FACTOR_SRC1_COLOR` /
+  `VK_BLEND_FACTOR_ONE_MINUS_SRC1_COLOR` for colour and alpha alike, and records the probe answer on
+  the device (re-probed when a lost device is recovered).
+- WebGPU reports false: it has one fragment output per color target and no SRC1 blend factor, so the
+  mode is not expressible. The null backend reports true because it rasterizes nothing; it records
+  the requested mode on the created pipeline instead, which is what a structural test asserts.
 
 ## 5. Command list
 
@@ -239,6 +274,8 @@ The null backend implements the same object/command API with no GPU. It records:
 - render-pass begin/end
 - pipeline/vertex/texture binds, including `bind_sampled_target` with the sampled target's slot,
   extent, format, sample count and sampler state
+- the state a created pipeline asked for (`NullPipeline::sample_count`/`blend_mode`), so a pipeline
+  request - including `BlendMode::DualSource`, which has no pixels to inspect - is assertable
 - viewports/scissors
 - push-constant size
 - draw calls/vertices

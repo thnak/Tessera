@@ -21,8 +21,12 @@ namespace tessera::rendering::rhi {
 // 1.4 (2026-11-14): additive `DeviceDesc::surface` (`SurfacePlatform`) selecting the presentation
 // surface family, so a build that can present through both Xlib and Wayland picks the one the HAL
 // window belongs to (issue #155, platform(linux) Wayland window + Vulkan surface).
+// 1.5 (2026-11-18): additive `BlendMode::DualSource` (per-channel coverage, `src0 * src1 + dst *
+// (1 - src1)`) and the capability that gates it, `Device::supports_dual_source_blend()`. The
+// capability is pure virtual because a backend that cannot answer it cannot honour the contract;
+// the fallback is grayscale coverage, so no frame changes (issue #471 slice 1).
 inline constexpr std::uint32_t kRhiVersionMajor = 1;
-inline constexpr std::uint32_t kRhiVersionMinor = 4;
+inline constexpr std::uint32_t kRhiVersionMinor = 5;
 inline constexpr std::uint32_t kRhiVersion = (kRhiVersionMajor << 16) | kRhiVersionMinor;
 
 } // namespace tessera::rendering::rhi

@@ -309,6 +309,12 @@ void VulkanDevice::create_device() {
     if (supported_12.timelineSemaphore == VK_FALSE) {
         throw std::runtime_error("device does not support Vulkan 1.2 timeline semaphores");
     }
+    // Dual-source blending is an optional Vulkan 1.0 feature (RHI 1.5, issue #471): enable it only
+    // when the physical device reports it, so a driver that lacks it never sees a feature it cannot
+    // honour. The answer is recorded on the device (`supports_dual_source_blend()`), which is the
+    // only thing a caller may consult; enabling is not a guarantee to anyone else.
+    const bool dual_source_blend = supported_2.features.dualSrcBlend == VK_TRUE;
+
     VkPhysicalDeviceVulkan13Features enabled_13{};
     enabled_13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
     enabled_13.dynamicRendering = VK_TRUE;
@@ -320,6 +326,9 @@ void VulkanDevice::create_device() {
     VkPhysicalDeviceFeatures2 enabled_2{};
     enabled_2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
     enabled_2.pNext = &enabled_13;
+    // VkPhysicalDeviceFeatures2::features is the Vulkan 1.0 core feature set, where dualSrcBlend
+    // lives. It starts zeroed, so every other core feature stays disabled exactly as before.
+    enabled_2.features.dualSrcBlend = dual_source_blend ? VK_TRUE : VK_FALSE;
 
     const float priority = 1.0f;
     VkDeviceQueueCreateInfo queue_info{};
@@ -348,6 +357,9 @@ void VulkanDevice::create_device() {
     check_vk(vkCreateDevice(physical_device_, &create_info, nullptr, &device_), "vkCreateDevice");
     volkLoadDevice(device_);
     vkGetDeviceQueue(device_, queue_family_, 0, &queue_);
+    // Recorded after creation so the answer describes the live device generation: a recover()
+    // recreates the device and re-probes, and destroy_device_objects() clears it.
+    dual_source_blend_ = dual_source_blend;
 
     // GPU timestamp probe (docs/design/performance.md section 6.1): validity of timestamps on the
     // frame-submission queue family, that family's graphics capability, and a usable period. The

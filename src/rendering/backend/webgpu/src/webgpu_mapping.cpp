@@ -2,6 +2,8 @@
 
 #include "tessera/rendering/webgpu/webgpu_mapping.hpp"
 
+#include <stdexcept>
+
 namespace tessera::rendering::webgpu {
 
 WgpuTextureFormat texture_format(rhi::TextureFormat format) {
@@ -124,9 +126,17 @@ std::uint32_t vertex_format_size(rhi::VertexFormat format) {
     return 0;
 }
 
-// Same factors as the Vulkan backend.
+// Same factors as the Vulkan backend, for the modes WebGPU can express. `DualSource` is rejected
+// rather than mapped: WebGPU has one fragment output per target and no SRC1 blend factor, so the
+// per-channel coverage of LCD text cannot be expressed at all. Returning the disabled state for it
+// (which is what this function used to do for every non-Alpha mode) would write the raw coverage
+// channel instead of the documented grayscale fallback, so the request throws instead (issue #471).
 WgpuBlendState blend_state(rhi::BlendMode mode) {
     WgpuBlendState state;
+    if (mode == rhi::BlendMode::DualSource) {
+        throw std::invalid_argument("blend_state: dual-source blending is not supported by WebGPU; "
+                                    "the caller must fall back to grayscale coverage");
+    }
     if (mode != rhi::BlendMode::Alpha) {
         return state;
     }

@@ -147,6 +147,9 @@ public:
     [[nodiscard]] rhi::Backend backend() const override {
         return inner_->backend();
     }
+    [[nodiscard]] bool supports_dual_source_blend() const override {
+        return inner_->supports_dual_source_blend();
+    }
     std::unique_ptr<rhi::Buffer> create_buffer(const rhi::BufferDesc& desc) override {
         return std::make_unique<RecordingBuffer>(inner_->create_buffer(desc), log_);
     }

@@ -282,6 +282,15 @@ public:
         return sample_count == 1;
     }
 
+    // True when this device can create a `BlendMode::DualSource` pipeline (RHI 1.5, issue #471).
+    // This is the only authority on the capability: consumers must not infer it from the backend
+    // name, because dual-source blending is an optional feature on Vulkan and absent on WebGPU.
+    // When it is false, `create_pipeline` with `BlendMode::DualSource` throws instead of mapping
+    // the mode to another blend, and the caller takes the documented fallback (grayscale coverage,
+    // one alpha channel). Pure virtual on purpose: a backend that does not answer cannot honour the
+    // contract, and the answer is a single recorded device fact, not a guess.
+    [[nodiscard]] virtual bool supports_dual_source_blend() const = 0;
+
     // The device's GPU-timestamp probe (docs/design/performance.md section 6.1). This is the only
     // authority on whether a GPU frame-time sample exists; consumers must not infer it from the
     // backend name or any other device fact. The default is the CPU fallback every backend without

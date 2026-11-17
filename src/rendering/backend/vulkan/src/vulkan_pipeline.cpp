@@ -18,6 +18,14 @@ std::unique_ptr<rhi::Pipeline> VulkanDevice::create_pipeline(const rhi::Pipeline
         throw std::invalid_argument(
             "create_pipeline: a vertex attribute layout needs a non-zero stride");
     }
+    // Dual-source blend factors are only legal with the dualSrcBlend feature, so a device without
+    // it would either fail validation or produce an undefined blend. Report the request instead of
+    // mapping it to another mode: the caller's documented fallback is grayscale coverage, which is
+    // a different pipeline, not a different blend state on this one (RHI 1.5, issue #471).
+    if (desc.blend == rhi::BlendMode::DualSource && !dual_source_blend_) {
+        throw std::runtime_error(
+            "create_pipeline: dual-source blending is not supported on this device");
+    }
     VkShaderModule vertex_module = VK_NULL_HANDLE;
     VkShaderModule fragment_module = VK_NULL_HANDLE;
 
@@ -111,7 +119,21 @@ std::unique_ptr<rhi::Pipeline> VulkanDevice::create_pipeline(const rhi::Pipeline
     VkPipelineColorBlendAttachmentState blend_attachment{};
     blend_attachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
                                       VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-    if (desc.blend == rhi::BlendMode::Alpha) {
+    if (desc.blend == rhi::BlendMode::DualSource) {
+        // Per-channel coverage (RHI 1.5, issue #471): `src0 * src1 + dst * (1 - src1)`, where src1
+        // is the fragment shader's second output at location 0 index 1. The SRC1 colour factors are
+        // used for the alpha attachment too, so one coverage value drives all four channels exactly
+        // as the RHI contract states; the coverage alpha is not a separate weight. These factors
+        // are only legal with VkPhysicalDeviceFeatures::dualSrcBlend enabled, which is why the
+        // request is refused above instead of reaching the driver.
+        blend_attachment.blendEnable = VK_TRUE;
+        blend_attachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC1_COLOR;
+        blend_attachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC1_COLOR;
+        blend_attachment.colorBlendOp = VK_BLEND_OP_ADD;
+        blend_attachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC1_COLOR;
+        blend_attachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC1_COLOR;
+        blend_attachment.alphaBlendOp = VK_BLEND_OP_ADD;
+    } else if (desc.blend == rhi::BlendMode::Alpha) {
         blend_attachment.blendEnable = VK_TRUE;
         blend_attachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
         blend_attachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;

@@ -145,12 +145,20 @@ which is the only place the field is mandatory), and a probe fragment shader wit
 five layers below, none of which can be verified in isolation while the golden corpus must stay
 byte-identical:
 
-1. **RHI.** `BlendMode` has two values (`include/tessera/rendering/rhi/types.hpp:192`); the Vulkan
-   blend state implements Alpha only
-   (`src/rendering/backend/vulkan/src/vulkan_pipeline.cpp:111-122`); device creation enables
+1. **RHI.** *Landed in RHI 1.5 (#471).* `BlendMode::DualSource` is in
+   [`types.hpp`](../../include/tessera/rendering/rhi/types.hpp),
+   `Device::supports_dual_source_blend()` is the capability that gates it, Vulkan enables
+   `dualSrcBlend` only when the physical device reports it and implements the SRC1 factors, WebGPU
+   answers false and rejects the pipeline request instead of mapping it, the null backend records the
+   mode on the created pipeline, and `batched2d_lcd` is a compiled Vulkan-only manifest entry no
+   frame path creates ([`gpu/rhi.md`](gpu/rhi.md) section 4.1). The remaining text below is the
+   analysis that ordered the work, kept because steps 2 and 3 still depend on it.
+   Before 1.5: `BlendMode` had two values (`include/tessera/rendering/rhi/types.hpp:192`); the Vulkan
+   blend state implemented Alpha only
+   (`src/rendering/backend/vulkan/src/vulkan_pipeline.cpp:111-122`); device creation enabled
    `dynamicRendering` and `timelineSemaphore` and nothing else
-   (`src/rendering/backend/vulkan/src/vulkan_instance.cpp:298-322`), so `dualSrcBlend` needs both a
-   feature probe and a capability the window can consult; and the WebGPU mapping silently turns any
+   (`src/rendering/backend/vulkan/src/vulkan_instance.cpp:298-322`), so `dualSrcBlend` needed both a
+   feature probe and a capability the window can consult; and the WebGPU mapping silently turned any
    non-Alpha mode into blending *off* (`src/rendering/backend/webgpu/src/webgpu_mapping.cpp:128`),
    which for dual-source coverage would write raw coverage instead of falling back - it must reject
    the mode, not map it.
@@ -185,7 +193,9 @@ factors, WebGPU rejection, and the Vulkan-only `batched2d_lcd` entry compiled by
 with a pipeline-creation test; (2) the rasterizer and atlas mode - `FT_RENDER_MODE_LCD`, the mode in
 the atlas identity, the RGB upload and the 3x-width quad; (3) the renderer pipeline axis, the pure
 eligibility predicate, the paint-seam fact and `kAutoAllowsLcd`. Nothing in step 1 changes a frame,
-which is what makes it reviewable and revertible.
+which is what makes it reviewable and revertible. Step 1 landed as RHI 1.5 (#471): the
+pipeline-creation test is `tests/gpu/rhi/dual_source_blend_tests.cpp`, and no renderer, window, paint
+or text file was touched, so the golden corpus is unchanged.
 
 ### 3.5 Contrast and gamma (T5)
 

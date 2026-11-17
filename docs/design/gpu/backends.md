@@ -43,6 +43,9 @@ Optional capabilities are queried, not assumed:
 - depth/stencil, multiple render targets, compute, timestamp queries, indirect draws
 - texture formats beyond the 8-bit set (`R8G8B8A8`/`B8G8R8A8` UNORM and their sRGB siblings,
   `R8_UNORM`)
+- dual-source blending (`BlendMode::DualSource`, `Device::supports_dual_source_blend()`,
+  [`rhi.md`](rhi.md) section 4.1): Vulkan only when the device reports `dualSrcBlend`, WebGPU never.
+  The fallback is grayscale coverage, so LCD text degrades to today's picture rather than changing it
 - bindless/descriptor indexing, multi-draw, geometry shaders
 
 A missing optional capability uses the documented fallback or fails at creation.
@@ -150,6 +153,10 @@ Format policy:
 - No raw GPU pointers; resource creation goes through the same RHI contract.
 - Browser surface/swapchain is owned by the platform/Wasm host.
 - Feature detection follows the WebGPU floor; unsupported features use fallbacks.
+- No dual-source blending: WebGPU exposes one fragment output per color target and no SRC1 blend
+  factor, so `Device::supports_dual_source_blend()` is false and a `BlendMode::DualSource` pipeline
+  request is rejected (`std::invalid_argument`) rather than mapped to "no blend", which would write
+  raw coverage; LCD text takes its grayscale fallback.
 - Wasm memory/async limits mean uploads are chunked and bounded.
 
 ## 5. Null backend

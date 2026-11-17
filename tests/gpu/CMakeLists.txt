@@ -23,6 +23,25 @@ if (TARGET tessera_rhi_vulkan)
 endif()
 add_test(NAME rhi_memory COMMAND rhi_memory_tests)
 
+# RHI 1.5 dual-source blend contract (issue #471 slice 1): `BlendMode::DualSource` plus
+# `Device::supports_dual_source_blend()`. The null half runs everywhere and asserts the recorded
+# blend mode; the Vulkan half creates a DualSource pipeline on a device that reports the feature and
+# asserts the request is rejected on one that does not. A device without `dualSrcBlend` prints an
+# explicit skip (ctest SKIP_REGULAR_EXPRESSION) rather than passing without creating anything.
+# WebGPU's rejection is pinned in tests/unit/webgpu_mapping_tests.cpp, the host-buildable half of
+# that backend.
+add_executable(dual_source_blend_tests
+    rhi/dual_source_blend_tests.cpp)
+target_link_libraries(dual_source_blend_tests PRIVATE tessera_rhi_null)
+if (TARGET tessera_rhi_vulkan)
+    target_link_libraries(dual_source_blend_tests PRIVATE tessera_rhi_vulkan)
+    target_compile_definitions(dual_source_blend_tests PRIVATE TESSERA_TEST_HAS_VULKAN)
+endif()
+add_test(NAME dual_source_blend COMMAND dual_source_blend_tests)
+set_tests_properties(dual_source_blend PROPERTIES
+    SKIP_REGULAR_EXPRESSION "skipped"
+    FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+
 add_executable(batched2d_tests
     batched2d/batched2d_tests.cpp)
 target_link_libraries(batched2d_tests PRIVATE tessera_gpu tessera_rhi_null)

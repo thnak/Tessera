@@ -14,10 +14,11 @@ int main() {
     // the swapchain composite-alpha request and the resolved-mode query (glass-v1.md section 6,
     // issue #243); 1.3 added the sampled view of a render target (`bind_sampled_target` and the
     // target's sampler state, issue #254); 1.4 added `DeviceDesc::surface`/`SurfacePlatform`, the
-    // presentation surface family a device is created for (issue #155). All are additive compatible
-    // changes.
-    if (rhi::kRhiVersionMajor != 1 || rhi::kRhiVersionMinor != 4 ||
-        rhi::kRhiVersion != ((1u << 16) | 4u)) {
+    // presentation surface family a device is created for (issue #155); 1.5 added
+    // `BlendMode::DualSource` and `Device::supports_dual_source_blend()` (issue #471). All are
+    // additive compatible changes.
+    if (rhi::kRhiVersionMajor != 1 || rhi::kRhiVersionMinor != 5 ||
+        rhi::kRhiVersion != ((1u << 16) | 5u)) {
         std::cerr << "unexpected RHI version constants\n";
         return 1;
     }

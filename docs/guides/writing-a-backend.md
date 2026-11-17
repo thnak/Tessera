@@ -58,6 +58,7 @@ Do not claim a tier in a PR without the matrix row and the CI evidence it implie
 | `backend()` | The backend enum value. |
 | `capabilities()` | Reports `RhiCapabilities { backend, rhi_version, timestamps }`. Override it; the default reports the current backend, `kRhiVersion` and your `timestamp_capability()`. |
 | `supports_sample_count()` | 1 or 4, per format. Report honestly; never silently fall back to 1 sample. |
+| `supports_dual_source_blend()` | Whether `BlendMode::DualSource` is expressible (RHI 1.5). Pure virtual, so every backend answers. False means `create_pipeline` must reject the mode, never map it; the caller's fallback is grayscale coverage. |
 | `timestamp_capability()` | The only authority on GPU frame-time samples. A backend without query support returns the default (all false) and the runtime keeps the CPU signal. |
 | `status()` / `recover()` | Loss is recoverable state, not an exception. A backend with no recovery path returns `NotSupported`. |
 | `create_buffer/texture/render_target/pipeline/command_list` | Creation validates descriptors and throws on invalid input; releases partial allocations on failure. |

@@ -151,6 +151,11 @@ public:
     [[nodiscard]] rhi::Backend backend() const override {
         return rhi::Backend::Null;
     }
+    // The cache under test never creates a pipeline, so the capability is unreachable here; false
+    // is the honest answer for a fake that cannot create one.
+    [[nodiscard]] bool supports_dual_source_blend() const override {
+        return false;
+    }
 
     std::unique_ptr<rhi::Texture> create_texture(const rhi::TextureDesc& desc) override {
         if (fail_textures > 0) {
