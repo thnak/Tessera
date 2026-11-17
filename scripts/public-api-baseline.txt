@@ -1062,6 +1062,7 @@ enum include/tessera/rendering/gpu/surface_renderer.hpp tessera::rendering::Surf
 header include/tessera/rendering/gpu/vertex2d.hpp
 struct include/tessera/rendering/gpu/vertex2d.hpp tessera::rendering::gpu::Batched2DPushConstants
 struct include/tessera/rendering/gpu/vertex2d.hpp tessera::rendering::gpu::Vertex2D
+constant include/tessera/rendering/gpu/vertex2d.hpp tessera::rendering::gpu::kRingModeBase
 constant include/tessera/rendering/gpu/vertex2d.hpp tessera::rendering::gpu::kVertex2DAttributeCount
 constant include/tessera/rendering/gpu/vertex2d.hpp tessera::rendering::gpu::kVertex2DStride
 
