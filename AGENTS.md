@@ -691,6 +691,10 @@ owner-planned item and is not part of this milestone.
 - [ ] #436: engine: a window or emulator resize re-resolves `@media` (`AppHost::resize` never updates
       `media_context`) and re-lays out the running preview in place (`set_viewport`, like
       `set_posture`) without re-evaluating the source. `ready`; does not wait on #431.
+- [ ] #440: perf: one state change costs n + 1 child `update()` calls, and a dirty parent plus child run the
+      child twice (measured by `codegen_update_fanout`; `docs/design/observable.md` section 7). The fix is
+      ADR-056 (**Proposed**: do not start until it is Accepted), in three slices: #441 read-set analysis,
+      #442 dirty masks, #443 schedule children instead of calling them.
 - [ ] #434: studio: mock services (`*.mock.ts`), console and call trace (ADR-055). **Blocked** on the
       service seam (ADR-055 decision 9), #431 and #391; do not take it until those land.
 - [ ] #435: studio D-S9: startup-phase preview (freeze at P0, P2, P4). **Blocked** on startup slices
