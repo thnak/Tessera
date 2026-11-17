@@ -1,46 +1,41 @@
 // SPDX-License-Identifier: MIT
 
-// The Diagnostics view's session (P1, issue #165; the React host is issue #422).
+// The Diagnostics view's session (P1, issue #165; the React host is issue #422; the multi-file workspace
+// is issue #431).
 //
-// It compiles the shared source with `tessera_diagnostics`, the same compiler the native CLI runs, and
-// lists the diagnostics with their source spans. The rendering is `diagnostics-render.ts`; this file is
-// the Wasm lifecycle and the pane's status line.
+// It compiles the source the workspace selects with `tessera_diagnostics`, the same compiler the native
+// CLI runs, and lists the diagnostics with their source spans. The rendering is
+// `diagnostics-render.ts`; this file is the Wasm lifecycle and the pane's status line.
 //
-// It never trusts that the module loaded: a missing or failed module leaves the view in an explicit
-// "preview unavailable" state, because the Wasm artifacts are built by CI and a local checkout that has
-// not built them must say so rather than show a blank pane. The module is imported on first use
-// (`load()`), so the diagnostics bundle is the only one on the first-paint path -- and it is the one
-// every visitor needs, because it is the default view.
-//
-// A diagnostics run has no viewport and no DPR: the compiler is handed a file name and nothing else.
-// The toolbar's environment is *carried* by the share link on this view but not applied here, and the
-// view says so rather than reporting a rectangle the compiler never used.
+// **What it compiles.** Before #431 this session read `#source.value`, which was the page's one textarea
+// and therefore always the right text. Now the editor shows one project file at a time and Run compiles
+// the *compile target* (`lib/project.ts`: the active source file, else the project entry), so the text
+// and the file name both come from the page's `SourceReader` -- and the file name is the canonical
+// project path, which is what every `uiId` and every span is derived from.
 //
 // **What React owns here.** The pane's header, status line, list element and empty state are React's
-// (rendered childless, in `regions/ViewPanes.tsx`). This session fills the list and the empty state and
-// writes the status text; it never creates or removes a node React rendered. That is the ADR-054
-// decision 3 split: React draws the chrome, the engine draws the preview.
+// (rendered childless, in `regions/ViewPanes.tsx`). This session fills the list and the empty state,
+// writes the status text, and mirrors the count into the page's status line through a ref. That is the
+// ADR-054 decision 3 split: React draws the chrome, the engine draws the preview.
 
 import { wasmModuleUrl } from "../lib/module-url";
+import type { StatusReporter, SourceReader, ViewSession } from "../lib/views";
 import { callExport, requireExports, type WasmModule } from "../lib/wasm-call";
-import type { StatusReporter, ViewSession } from "../lib/views";
 import { renderDiagnostics, type DiagnosticsDocument } from "./diagnostics-render";
 import { unavailableBox } from "./dom";
-
-
-
-/** The file name the compiler is handed. A link may carry another (the sample's path). */
-const FILE = "ui/Preview.tsx";
 
 /** The module factory `tessera_diagnostics.js` exports (Emscripten `MODULARIZE`+`EXPORT_ES6`). */
 type ModuleFactory = () => Promise<WasmModule>;
 
 /** The elements React committed for this pane; every one of them is a ref. */
 export interface DiagnosticsElements {
-  source: HTMLTextAreaElement;
   status: HTMLElement;
   list: HTMLElement;
   emptyState: HTMLElement;
+  /** The editor, for "show in source". The page decides whether it holds the compiled text. */
+  editor: HTMLTextAreaElement;
+  /** The status line's diagnostics cell (issue #431): the count, where it stays visible. */
+  statusCount: HTMLElement | null;
 }
 
 export interface DiagnosticsSession extends ViewSession {
@@ -51,15 +46,16 @@ export interface DiagnosticsSession extends ViewSession {
  * Creates the diagnostics session.
  *
  * `elements` is read once: the nodes are stable for the page's lifetime because React renders them
- * childless and never conditionally. `setStatus` is the pane's own status line, and `onReady` tells the
- * page whether the shared Run button should be enabled.
+ * childless and never conditionally. `source` is the page's `SourceReader`, `setStatus` is the pane's own
+ * status line, and `onReady` tells the page whether the shared Run button should be enabled.
  */
 export function createDiagnosticsSession(options: {
   elements: DiagnosticsElements;
+  source: SourceReader;
   setStatus: StatusReporter;
   onReady: (ready: boolean) => void;
 }): DiagnosticsSession {
-  const { source, list, emptyState } = options.elements;
+  const { editor, list, emptyState, statusCount } = options.elements;
   const setStatus = options.setStatus;
 
   // The module factory, or null when the artifacts are absent or refused to start.
@@ -81,6 +77,12 @@ export function createDiagnosticsSession(options: {
   }
 
   function report(counts: { total: number; errors: number; warnings: number }): void {
+    // The status line's count first: it is the one place the number survives a view switch, and the
+    // pane's own status is the sentence a reader of *this* pane wants.
+    if (statusCount) {
+      statusCount.textContent =
+        counts.total === 0 ? "0" : `${counts.errors} error(s), ${counts.warnings} warning(s)`;
+    }
     if (counts.total === 0) {
       setStatus("no diagnostics", "ok");
       return;
@@ -105,17 +107,17 @@ export function createDiagnosticsSession(options: {
       // One module instance per view: the compiler keeps no state between calls that the page needs,
       // and re-instantiating per Run would re-download and re-initialise the heap.
       const module = await factory();
+      const target = options.source();
       // The marshalling and the two release paths live in `lib/wasm-call.ts`: the three views share the
       // same C ABI shape, so the lifetime rule is written once instead of three times.
-      const json = callExport(module, "_tessera_diagnostics_json", [source.value, FILE]);
-      report(
-        renderDiagnostics(
-          list,
-          emptyState,
-          JSON.parse(json) as DiagnosticsDocument,
-          source,
-        ),
+      const json = callExport(module, "_tessera_diagnostics_json", [target.text, target.file]);
+      const counts = renderDiagnostics(
+        list,
+        emptyState,
+        JSON.parse(json) as DiagnosticsDocument,
+        { element: editor, shown: target.shown, file: target.file },
       );
+      report(counts);
     } catch (error) {
       list.replaceChildren();
       emptyState.hidden = true;
@@ -160,12 +162,14 @@ export function createDiagnosticsSession(options: {
     id: "diagnostics",
     load,
     run,
-    /** "Load sample" on this view: the compiler's zero-network default into the shared editor. */
-    loadSample: () => {
-      source.value = SAMPLE;
-      source.focus();
-    },
-    /** A gallery pick: the text is already in the textarea, so only the status line changes. */
+    /**
+     * "Load sample" on this view, split across the page (issue #431): `sampleSource` is the text the page
+     * writes into the entry file, and `loadSample` is what is left for the view to do afterwards -- nothing
+     * here, because the compile happens when the visitor presses Run.
+     */
+    sampleSource: SAMPLE,
+    loadSample: () => {},
+    /** A gallery pick: the page has written the file, so only the status line changes. */
     onSample: (path: string) => setStatus(`loaded ${path}`, "ok"),
     /** This view has no layout, so an environment change is carried into the link and nothing more. */
     onEnvironmentChange: () => {},
