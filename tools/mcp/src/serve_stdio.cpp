@@ -6,7 +6,9 @@
 
 #include <chrono>
 #include <string>
+#include <string_view>
 #include <thread>
+#include <vector>
 
 namespace tessera::mcp {
 
@@ -84,16 +86,24 @@ ServeResult serve_stdio(harness::LineTransport& transport, McpSession& session,
             result.failed = true;
             return result;
         }
-        if (!reply->answered) {
-            continue; // a notification: JSON-RPC forbids a response
+        // A notification is not answered (JSON-RPC forbids it); the session may still have lines
+        // of its own to send, such as the `roots/list` request.
+        std::vector<std::string_view> lines;
+        if (reply->answered) {
+            lines.push_back(reply->reply);
         }
-        auto written = transport.write_line(reply->reply);
-        if (!written && !retryable(written.error().code)) {
-            result.failed = true;
-            return result;
+        for (const std::string& outbound : reply->outbound) {
+            lines.push_back(outbound);
         }
-        if (written) {
-            ++result.lines_written;
+        for (const std::string_view text : lines) {
+            auto written = transport.write_line(text);
+            if (!written && !retryable(written.error().code)) {
+                result.failed = true;
+                return result;
+            }
+            if (written) {
+                ++result.lines_written;
+            }
         }
     }
     return result;

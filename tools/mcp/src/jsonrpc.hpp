@@ -29,18 +29,22 @@ struct RpcId {
     }
 };
 
-// One decoded incoming message. The server issues no requests of its own (MCP is client-driven in
-// this adapter), so a message is always a request or a notification.
+// One decoded incoming message: a request, a notification, or the client's response to the one
+// request this server issues itself (`roots/list`).
 struct IncomingMessage {
     RpcId id;
     std::string method;
     JsonValue params{JsonValue::object()};
+    // A response: an `id` and a `result` (or `error`) and no `method`. `result` holds the `result`
+    // member, or null when the client answered with an error, so a caller reads one field.
+    bool is_response = false;
+    JsonValue result;
     // `"params": null` and a missing `params` are both "no parameters"; this flag is only used to
     // report a non-object params value as InvalidParams for a method that needs an object.
     bool params_were_object = true;
 
     [[nodiscard]] bool is_request() const noexcept {
-        return !method.empty() && id.present;
+        return !is_response && !method.empty() && id.present;
     }
     [[nodiscard]] bool is_notification() const noexcept {
         return !method.empty() && !id.present;

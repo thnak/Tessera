@@ -36,14 +36,19 @@ constexpr std::string_view kUsage =
     "\n"
     "Tools: open_project, list_files, diagnostics, get_ir, apply_edits, set_viewport, snapshot,\n"
     "query_style, pick, screenshot, run_script. This build implements the compile-only subset\n"
-    "(open_project, diagnostics, get_ir); list_files and the rest are declared and answer with\n"
-    "TESSERA_MCP_TOOL_UNIMPLEMENTED.\n";
+    "(open_project, list_files, diagnostics, get_ir) and the preview pair (set_viewport,\n"
+    "snapshot); the rest are declared and answer with TESSERA_MCP_TOOL_UNIMPLEMENTED.\n"
+    "\n"
+    "The project folder is, in order: an explicit open_project path, the first root the client\n"
+    "returns for roots/list, else the working directory the server was started in.\n";
 
 } // namespace
 
 int main(int argc, char** argv) {
-    for (int index = 1; index < argc; ++index) {
-        const std::string_view argument(argv[index]);
+    // Every option ends the run, so only the first argument is ever read: a second one would never
+    // be reached, and a loop that always returns trips MSVC's unreachable-code check (C4702).
+    if (argc > 1) {
+        const std::string_view argument(argv[1]);
         if (argument == "--help" || argument == "-h") {
             std::cout << kUsage;
             return 0;

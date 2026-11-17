@@ -52,7 +52,8 @@ that has a documented fallback may instead be returned as an `Error` value.
 | `TESSERA_NET_` | networking | TLS, timeout, HTTP status |
 | `TESSERA_IO_` | storage/filesystem | open/read/write/atomic rename |
 | `TESSERA_DIAG_` | diagnostics | sink failure, redaction |
-| `TESSERA_SEC_` | security | path traversal, invalid payload |
+| `TESSERA_SEC_` | security | path traversal, invalid payload, `TESSERA_SEC_PATH_ESCAPE`, `TESSERA_SEC_FILE_LIMIT` (project-file policy, [designer-studio-v1.md](designer-studio-v1.md) section 7) |
+| `TESSERA_MCP_` | MCP server (`tools/mcp`, [designer-studio-v1.md](designer-studio-v1.md) section 8) | unknown tool, not initialized, invalid params, input too large, tool unimplemented |
 | `TESSERA_MOCK_` | design-time mock services ([`studio-mock-services-v1.md`](studio-mock-services-v1.md)) | file limits, rejected constructs, binding, sandbox violation, trace |
 
 Codes are stable strings; do not renumber. Add new codes in the owning module and document

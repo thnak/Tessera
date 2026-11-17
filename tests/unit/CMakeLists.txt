@@ -2047,6 +2047,14 @@ target_link_libraries(schema_tests PRIVATE tessera_schema)
 
 add_test(NAME schema_table COMMAND schema_tests)
 
+# The project-file policy the MCP server and the Wasm module share (designer-studio-v1.md section 7).
+add_executable(schema_project_files_tests
+    schema_project_files_tests.cpp)
+
+target_link_libraries(schema_project_files_tests PRIVATE tessera_schema)
+
+add_test(NAME schema_project_files COMMAND schema_project_files_tests)
+
 add_executable(schema_layering_tests
     schema_layering_tests.cpp)
 

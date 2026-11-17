@@ -2,7 +2,9 @@
 
 #include "compile_tools.hpp"
 #include "mcp_protocol.hpp"
+#include "project_tools.hpp"
 #include "session.hpp"
+#include "tessera/harness/json_write.hpp"
 #include "tool_registry.hpp"
 
 #include <string>
@@ -11,6 +13,8 @@
 
 namespace tessera::mcp {
 namespace {
+
+using tessera::harness::to_json;
 
 // A project path is a host path, not a source file: 4 KiB is far beyond any real path and bounded
 // so a client cannot make the session hold an arbitrary string in its state.
@@ -74,16 +78,23 @@ JsonValue initialize_result(std::string_view requested_version) {
     result.set("capabilities", std::move(capabilities));
     result.set("serverInfo", std::move(info));
     // The section 8 adapter is a tool surface only: no prompts, no resources, no sampling.
-    result.set("instructions",
-               JsonValue::string(
-                   "Tessera compile-only adapter. `diagnostics` and `get_ir` run the real compiler "
-                   "front end over text you send, in memory; `open_project` records a project path "
-                   "for later tools. Every other tool is declared in `tools/list` and answers with "
-                   "TESSERA_MCP_TOOL_UNIMPLEMENTED."));
+    result.set(
+        "instructions",
+        JsonValue::string(
+            "Tessera compile-only adapter. `list_files`, `diagnostics` and `get_ir` read the "
+            "project folder (an explicit `open_project`, else your first root, else the "
+            "server's working directory) and run the real compiler front end over it; with "
+            "`source` they compile that text in memory instead. Every tool that is not "
+            "implemented is declared in `tools/list` and answers with "
+            "TESSERA_MCP_TOOL_UNIMPLEMENTED."));
     return result;
 }
 
 std::expected<JsonValue, RpcError> McpSession::initialize(const JsonValue& params) {
+    // The client's `roots` capability decides whether this server asks for its roots after the
+    // handshake; without it the working directory is the root.
+    const JsonValue* capabilities = params.find("capabilities");
+    state_.set_client_roots(capabilities != nullptr && capabilities->find("roots") != nullptr);
     // A client that sends no version at all is answered with this server's newest one rather than
     // refused: the handshake is the first line of a session and being strict there helps nobody.
     return initialize_result(string_member(params, "protocolVersion"));
@@ -153,6 +164,17 @@ std::expected<JsonValue, RpcError> McpSession::call_tool(const JsonValue& params
             run_snapshot_tool(state_.viewport(), *source, string_member(**arguments, "file")));
     }
 
+    if (name == "list_files") {
+        return tool_result_json(run_list_files_tool(state_));
+    }
+
+    if ((name == "diagnostics" || name == "get_ir") && (*arguments)->find("source") == nullptr) {
+        // No `source`: the call is about the opened project folder, compiled as a whole the way the
+        // native driver does. A call that sends `source` keeps the in-memory behaviour below.
+        return tool_result_json(name == "diagnostics" ? run_project_diagnostics_tool(state_)
+                                                      : run_project_ir_tool(state_));
+    }
+
     if (name == "diagnostics" || name == "get_ir") {
         auto source = string_argument(**arguments, "source", "`source` must be a non-empty string");
         if (!source) {
@@ -183,8 +205,42 @@ std::expected<JsonValue, RpcError> McpSession::call_tool(const JsonValue& params
     return tool_result_json(unimplemented_tool_result(*tool));
 }
 
+std::string McpSession::next_roots_request() {
+    pending_roots_id_ = "tessera-roots-" + std::to_string(++roots_requests_);
+    JsonValue request = JsonValue::object();
+    request.set("jsonrpc", JsonValue::string(std::string(kJsonRpcVersion)));
+    request.set("id", JsonValue::string(pending_roots_id_));
+    request.set("method", JsonValue::string("roots/list"));
+    auto text = to_json(request);
+    return text ? std::move(*text) : std::string();
+}
+
+void McpSession::handle_roots_response(const IncomingMessage& message) {
+    if (pending_roots_id_.empty() || !message.id.value.is_string() ||
+        *message.id.value.as_string() != pending_roots_id_) {
+        return;
+    }
+    pending_roots_id_.clear();
+    std::vector<std::string> uris;
+    const JsonValue* roots = message.result.find("roots");
+    if (roots != nullptr && roots->is_array()) {
+        for (const JsonValue& root : *roots->as_array()) {
+            const JsonValue* uri = root.find("uri");
+            if (uri != nullptr && uri->is_string()) {
+                uris.emplace_back(*uri->as_string());
+            }
+        }
+    }
+    state_.apply_roots(uris);
+}
+
 std::expected<SessionReply, std::string_view>
 McpSession::handle_message(const IncomingMessage& message) {
+    if (message.is_response) {
+        // The only request this server issues is `roots/list`; anything else is not ours.
+        handle_roots_response(message);
+        return SessionReply{};
+    }
     const bool is_request = message.is_request();
     const auto respond = [&message, is_request](std::expected<JsonValue, RpcError> result)
         -> std::expected<SessionReply, std::string_view> {
@@ -198,13 +254,13 @@ McpSession::handle_message(const IncomingMessage& message) {
             if (!text) {
                 return std::unexpected(text.error());
             }
-            return SessionReply{std::move(*text), true};
+            return SessionReply{std::move(*text), true, {}};
         }
         auto text = encode_result(message.id, *result);
         if (!text) {
             return std::unexpected(text.error());
         }
-        return SessionReply{std::move(*text), true};
+        return SessionReply{std::move(*text), true, {}};
     };
 
     if (!message.params_were_object) {
@@ -224,9 +280,21 @@ McpSession::handle_message(const IncomingMessage& message) {
         // it has not initialized yet should get an answer, not a lifecycle error.
         return respond(JsonValue::object());
     }
-    if (message.method == "notifications/initialized") {
-        // The client's acknowledgement of the handshake. Nothing to do, and never answered.
-        return respond(JsonValue::object());
+    if (message.method == "notifications/initialized" ||
+        message.method == "notifications/roots/list_changed") {
+        // The client's acknowledgement of the handshake (never answered), or its roots changed.
+        // A client that declared the `roots` capability is asked for them, once per event; the
+        // answer re-resolves the project unless the client opened one explicitly.
+        SessionReply reply;
+        if (initialized_ && state_.client_roots()) {
+            if (std::string request = next_roots_request(); !request.empty()) {
+                reply.outbound.push_back(std::move(request));
+            }
+        }
+        if (is_request) {
+            return respond(JsonValue::object());
+        }
+        return reply;
     }
     if (!initialized_) {
         return respond(std::unexpected(RpcError{RpcErrorCode::NotInitialized,
@@ -246,7 +314,7 @@ McpSession::handle_message(const IncomingMessage& message) {
 std::expected<SessionReply, std::string_view> McpSession::handle_line(std::string_view line) {
     auto message = decode_message(line);
     if (!message) {
-        return SessionReply{encode_decode_failure(message.error()), true};
+        return SessionReply{encode_decode_failure(message.error()), true, {}};
     }
     return handle_message(*message);
 }

@@ -41,28 +41,37 @@ std::vector<ToolDefinition> make_tools() {
     // --- Compile-only surface (D-S6): these exist because the front end exists. ---
     list.push_back(ToolDefinition{
         "open_project",
-        "Open a project directory so later tools resolve project-relative paths against it. This "
-        "build validates the path and records it; it does not read or write the directory.",
+        "Open a project directory so later tools resolve project-relative paths against it. An "
+        "explicit path overrides the client's `roots`, which override the server's working "
+        "directory. This call validates the path and records it; it reads and writes nothing.",
         ToolStatus::Implemented, ToolSource::Compiler,
         schema(JsonValue::Object{{"path", property("Project directory to open.")}})});
     list.push_back(ToolDefinition{
         "diagnostics",
-        "Compile one TSX source with the real front end and return the machine-readable "
-        "diagnostics document of docs/specs/compiler-diagnostics-v1.md, byte-identical to "
-        "`tessera_codegen --diagnostics-json` for the same input.",
+        "Compile TSX with the real front end and return the machine-readable diagnostics document "
+        "of docs/specs/compiler-diagnostics-v1.md, byte-identical to `tessera_codegen "
+        "--diagnostics-json` for the same input. With `source` it compiles that text in memory; "
+        "without it, it compiles the whole open project folder.",
         ToolStatus::Implemented, ToolSource::Compiler,
-        schema(compile_properties("The .tsx text to compile (in memory; no file is read)."))});
+        schema(compile_properties(
+            "The .tsx text to compile in memory. Omit it to compile the open project folder."))});
     list.push_back(ToolDefinition{
         "get_ir",
-        "Lower one TSX source and return its canonical IR JSON (docs/specs/ir-v1.md). A source "
-        "that "
-        "does not reach the IR returns the diagnostics document with `isError` instead of an empty "
-        "module.",
+        "Lower TSX and return its canonical IR JSON (docs/specs/ir-v1.md): the text of `source`, "
+        "or the whole open project folder when `source` is omitted. Input that does not reach the "
+        "IR returns the diagnostics document with `isError` instead of an empty module.",
         ToolStatus::Implemented, ToolSource::Compiler,
-        schema(compile_properties("The .tsx text to lower."))});
+        schema(compile_properties(
+            "The .tsx text to lower. Omit it to lower the open project folder."))});
     list.push_back(ToolDefinition{
-        "list_files", "List the files of the open project, with their kinds and versions.",
-        ToolStatus::Declared, ToolSource::DesignerProtocol, schema({})});
+        "list_files",
+        "List the files of the open project folder: project-relative path, kind (`source`, "
+        "`style`, "
+        "`config`, `theme`, `asset`, `other`), size, `readable` and a content digest. A file that "
+        "is not accepted UI code, a `node_modules` or dot directory and a symbolic link are listed "
+        "as `other` and never read. The folder is the opened project, else the client's first "
+        "root, else the server's working directory; the result names `rootSource`.",
+        ToolStatus::Implemented, ToolSource::Compiler, schema({})});
 
     // --- The rest of the section 8 surface, declared so the listing is the whole surface. ---
     list.push_back(ToolDefinition{
@@ -186,11 +195,12 @@ JsonValue tool_result_json(const ToolResult& result) {
 
 ToolResult unimplemented_tool_result(const ToolDefinition& tool) {
     return ToolResult{
-        true, "TESSERA_MCP_TOOL_UNIMPLEMENTED: `" + std::string(tool.name) +
-                  "` is declared but not implemented in this build (it maps to " +
-                  std::string(source_name(tool.source)) +
-                  "). The compile-only subset (open_project, diagnostics, get_ir) ships first; see "
-                  "docs/specs/designer-studio-v1.md section 8."};
+        true,
+        "TESSERA_MCP_TOOL_UNIMPLEMENTED: `" + std::string(tool.name) +
+            "` is declared but not implemented in this build (it maps to " +
+            std::string(source_name(tool.source)) +
+            "). The compile-only subset (open_project, list_files, diagnostics, get_ir) ships "
+            "first; see docs/specs/designer-studio-v1.md section 8."};
 }
 
 } // namespace tessera::mcp

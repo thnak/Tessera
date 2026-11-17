@@ -197,7 +197,10 @@ std::optional<std::string> read_file(const fs::path& path) {
 }
 
 std::optional<ProjectIdentity> resolve_identity(const Options& options, Outcome& outcome) {
-    const fs::path first = fs::absolute(fs::path(options.inputs.front())).parent_path();
+    const fs::path first_input =
+        options.base_dir.empty() ? fs::path(options.inputs.front())
+                                 : fs::path(options.base_dir) / fs::path(options.inputs.front());
+    const fs::path first = fs::absolute(first_input).parent_path();
     const std::optional<fs::path> config =
         find_config(options.root.empty() ? first : fs::absolute(fs::path(options.root)));
     ProjectIdentity identity;

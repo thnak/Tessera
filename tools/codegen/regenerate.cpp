@@ -254,6 +254,13 @@ void handle_developer_files(const ir::IrModule& module, const fs::path& output_d
 
 namespace {
 
+// The file on disk an input names: relative to `base_dir` when the caller gave one, else as the
+// command line spelled it (relative to the working directory, or absolute).
+fs::path disk_input(const Options& options, const std::string& input) {
+    return options.base_dir.empty() ? fs::path(input)
+                                    : fs::path(options.base_dir) / fs::path(input);
+}
+
 // The body of run(), split out so the `--diagnostics-json` document is written on every exit path
 // (success, a diagnostic, a setup failure) without repeating the write at each return.
 Outcome run_impl(const Options& options) {
@@ -263,9 +270,9 @@ Outcome run_impl(const Options& options) {
         outcome.exit_code = 2;
         return outcome;
     }
-    const int output_modes = (!options.emit_ir_path.empty() ? 1 : 0) +
-                             (!options.emit_library_cpp_path.empty() ? 1 : 0) +
-                             (!options.diagnostics_json_path.empty() ? 1 : 0);
+    const int output_modes =
+        (!options.emit_ir_path.empty() ? 1 : 0) + (!options.emit_library_cpp_path.empty() ? 1 : 0) +
+        (!options.diagnostics_json_path.empty() ? 1 : 0) + (options.query ? 1 : 0);
     if (output_modes > 1) {
         report(outcome, true,
                "tessera_codegen: choose one of --emit-ir, --emit-library-cpp and "
@@ -275,7 +282,7 @@ Outcome run_impl(const Options& options) {
     }
     const bool emits = !options.emit_ir_path.empty() || !options.emit_library_cpp_path.empty();
     // `--diagnostics-json` needs no --out: it is another "write one file, generate no C++" mode.
-    const bool diagnostics_only = !options.diagnostics_json_path.empty();
+    const bool diagnostics_only = !options.diagnostics_json_path.empty() || options.query;
     if (!emits && !diagnostics_only && options.output_dir.empty()) {
         report(outcome, true, "tessera_codegen: --out is required");
         outcome.exit_code = 2;
@@ -306,7 +313,7 @@ Outcome run_impl(const Options& options) {
             const fs::path& root = identity->root;
             std::error_code relative_error;
             const fs::path relative =
-                fs::relative(fs::absolute(fs::path(input)), root, relative_error);
+                fs::relative(fs::absolute(disk_input(options, input)), root, relative_error);
             if (relative_error || relative.empty() || *relative.begin() == "..") {
                 report(outcome, true,
                        "tessera_codegen: `" + input + "` is outside the project root `" +
@@ -317,7 +324,7 @@ Outcome run_impl(const Options& options) {
             path = relative.generic_string();
         }
         if (seen.insert(path).second) {
-            pending.emplace_back(std::move(path), fs::path(input));
+            pending.emplace_back(std::move(path), disk_input(options, input));
         }
     }
     while (!pending.empty()) {
@@ -412,9 +419,10 @@ Outcome run_impl(const Options& options) {
                 continue;
             }
             const fs::path on_disk =
-                project_paths ? identity->root / fs::path(path)
-                              : (fs::path(source->path).parent_path() / fs::path(item.source))
-                                    .lexically_normal();
+                project_paths
+                    ? identity->root / fs::path(path)
+                    : (disk_input(options, source->path).parent_path() / fs::path(item.source))
+                          .lexically_normal();
             std::optional<std::string> text = read_file(on_disk);
             if (!text) {
                 // A missing file stays lowering's error at the import's span (TESSERA_IR_
@@ -513,6 +521,9 @@ Outcome run_impl(const Options& options) {
     // `diagnostics` array and exit 0 (docs/specs/compiler-diagnostics-v1.md section 3). No
     // "written" message is reported here: the document holds diagnostics, not progress notes.
     if (diagnostics_only) {
+        if (options.capture_ir) {
+            outcome.ir_json = ir::write_ir_json(module);
+        }
         return outcome;
     }
 
@@ -636,15 +647,10 @@ Outcome run_impl(const Options& options) {
 
 } // namespace
 
-Outcome run(const Options& options) {
-    Outcome outcome = run_impl(options);
-    if (options.diagnostics_json_path.empty()) {
-        return outcome;
-    }
+std::vector<DiagnosticRecord> diagnostic_records(const Outcome& outcome) {
     // Every message of the run, in report order, becomes one record. `Message::record` was filled
     // where a real diagnostic was in hand; the rest (setup, usage, drift, developer-file warnings)
-    // carry their text and severity only, with no invented span. The document is written even when
-    // the run failed, because "why did it fail" is the question the page exists to answer.
+    // carry their text and severity only, with no invented span.
     std::vector<DiagnosticRecord> records;
     records.reserve(outcome.messages.size());
     for (const Message& message : outcome.messages) {
@@ -655,6 +661,23 @@ Outcome run(const Options& options) {
         record.severity = message.is_error ? "error" : "warning";
         records.push_back(std::move(record));
     }
+    return records;
+}
+
+std::string diagnostics_document(const Options& options, const Outcome& outcome) {
+    const std::string primary_file =
+        options.inputs.empty() ? std::string() : options.inputs.front();
+    return write_diagnostics_json(primary_file, diagnostic_records(outcome));
+}
+
+Outcome run(const Options& options) {
+    Outcome outcome = run_impl(options);
+    if (options.diagnostics_json_path.empty()) {
+        return outcome;
+    }
+    // The document is written even when the run failed, because "why did it fail" is the question
+    // the page exists to answer.
+    const std::vector<DiagnosticRecord> records = diagnostic_records(outcome);
     const std::string primary_file =
         options.inputs.empty() ? std::string() : options.inputs.front();
     std::string error;

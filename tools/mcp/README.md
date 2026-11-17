@@ -24,7 +24,7 @@ encoded, or stdout closed), `2` a usage error.
 
 ## Tool surface
 
-This is the compile-only slice (D-S6). A tool is **implemented** when this build can perform it, and
+This is the compile-only slice (D-S6) plus the project folder (issue #406). A tool is **implemented** when this build can perform it, and
 **declared** when it is part of the surface but a later slice owns the work. `tools/list` publishes
 the difference in each entry's `annotations.tesseraStatus`, so an agent can tell the two apart before
 calling; a declared tool answers with `isError: true` and `TESSERA_MCP_TOOL_UNIMPLEMENTED` rather than
@@ -32,22 +32,32 @@ returning an empty result that looks like success.
 
 | Tool | Status | Maps to |
 |---|---|---|
-| `open_project` | implemented | validates and records a project path (`project.load` until the host reads files) |
-| `diagnostics` | implemented | the compiler front end + `write_diagnostics_json` |
-| `get_ir` | implemented | the same stages, then the canonical IR writer (`ir-v1.md`) |
-| `list_files` | declared | host file tree |
+| `open_project` | implemented | validates and records a project path; it reads and writes nothing |
+| `diagnostics` | implemented | the compiler front end + `write_diagnostics_json`; over `source`, or the whole folder without it |
+| `get_ir` | implemented | the same stages, then the canonical IR writer (`ir-v1.md`); over `source`, or the whole folder |
+| `list_files` | implemented | the project folder: path, kind, size, readable, digest |
 | `apply_edits` | declared | `source.patch` |
-| `set_viewport` | declared | `viewport.set` |
-| `snapshot` | declared | harness `snapshot` |
+| `set_viewport` | implemented | `viewport.set` |
+| `snapshot` | implemented | harness `snapshot` |
 | `query_style` | declared | `style.inspect` |
 | `pick` | declared | `selection.set` |
 | `screenshot` | declared | the native headless renderer |
 | `run_script` | declared | the harness script runner |
 
-`diagnostics` and `get_ir` compile **in memory**: the client sends the TSX text, no file is read, and
-the spans are reported against the project-relative `file` the client names (default `buffer.tsx`).
-That keeps the adapter free of a filesystem and security surface; reading a project is a later slice
-(`designer-studio-v1.md` section 10, D-S7).
+With a `source` argument, `diagnostics` and `get_ir` compile **in memory**: the client sends the TSX
+text, no file is read, and the spans are reported against the project-relative `file` the client names
+(default `buffer.tsx`). Without `source` they compile the project folder (next section).
+
+## The project folder
+
+The tools that read a folder (`list_files`, and `diagnostics` / `get_ir` without `source`) resolve it
+from an explicit `open_project`, else the first root the client returns for `roots/list`, else the
+working directory the server was started in, so a harness that launches `tessera-mcp` in the project
+folder needs no configuration. Results name `rootSource` and the folder name, never an absolute path.
+The slice is read-only. Which files count, the limits and the `TESSERA_SEC_` refusals are one shared
+policy (`tessera/schema/project_files.hpp`, also linked by the Wasm module); the rules are normative in
+[`mcp-server-v1.md`](../../docs/specs/mcp-server-v1.md). `mcp_project` covers the listing, the three
+ways of choosing the folder, the refusals, and the folder document against the CLI's.
 
 ## Why `diagnostics` is byte-identical to the CLI
 

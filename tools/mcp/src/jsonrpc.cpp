@@ -59,14 +59,22 @@ std::expected<IncomingMessage, DecodeFailure> decode_message(std::string_view li
                     std::move(message.id));
     }
     const JsonValue* method = object.find("method");
+    if (method == nullptr && message.id.present && !message.id.is_null() &&
+        (object.find("result") != nullptr || object.find("error") != nullptr)) {
+        // The client's answer to a request this server sent. Anything else without a method is
+        // still an invalid request, below.
+        message.is_response = true;
+        if (const JsonValue* result = object.find("result"); result != nullptr) {
+            message.result = *result;
+        }
+        return message;
+    }
     if (method == nullptr || !method->is_string() || method->as_string()->empty()) {
         return fail(RpcErrorCode::InvalidRequest, "`method` must be a non-empty string", "",
                     std::move(message.id));
     }
     message.method = std::string(*method->as_string());
 
-    // A response to a server-initiated request is not something this server can use: it issues no
-    // requests, so a `result`/`error` member with no `method` was already rejected above.
     if (const JsonValue* params = object.find("params"); params != nullptr) {
         if (!params->is_object()) {
             // Only object params exist in MCP today. Recording the type lets the method report

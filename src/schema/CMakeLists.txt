@@ -11,6 +11,7 @@ add_library(tessera_schema STATIC
     src/json_utf8.cpp
     src/json_value.cpp
     src/lookups.cpp
+    src/project_files.cpp
     src/shader_manifest.cpp
     src/shader_manifest_entry.cpp
     src/shader_manifest_fields.cpp

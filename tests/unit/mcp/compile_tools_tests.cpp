@@ -130,14 +130,16 @@ void test_argument_validation() {
         expect(error_data_code(response) == std::string(mcp::kUnknownToolCode),
                "mcp_compile: an unknown tool is a typed invalid-params error");
     }
-    // A missing `source` names the argument, so an agent can fix the call from the message alone.
-    {
-        const harness::JsonValue response = call(session, "diagnostics", "{}", "mcp_compile");
+    // An empty or non-string `source` names the argument, so an agent can fix the call from the
+    // message alone. (No `source` at all is the folder-wide mode of issue #406, covered by
+    // `mcp_project`.)
+    for (const std::string_view arguments : {R"({"source":""})", R"({"source":7})"}) {
+        const harness::JsonValue response = call(session, "diagnostics", arguments, "mcp_compile");
         const harness::JsonValue* error = response.find("error");
-        expect(error != nullptr, "mcp_compile: a missing `source` is refused");
+        expect(error != nullptr, "mcp_compile: an unusable `source` is refused");
         if (error != nullptr) {
             expect(string_at(*error, "message").find("`source`") != std::string::npos,
-                   "mcp_compile: the message names the missing argument");
+                   "mcp_compile: the message names the unusable argument");
         }
     }
     // A `file` that escapes the project has no project-relative span, so it is refused instead of

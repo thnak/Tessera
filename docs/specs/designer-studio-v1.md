@@ -465,8 +465,8 @@ there is no third protocol to keep in sync.
 
 | Tool | Maps to | Purpose |
 |---|---|---|
-| `open_project` | `project.load` + `project.state` | Load a project directory (local path) |
-| `list_files` | host file tree | Files, kinds, versions |
+| `open_project` | `project.load` + `project.state` | Choose the project directory; reads nothing. Folder, file policy: [mcp-server-v1.md](mcp-server-v1.md) |
+| `list_files` | host file tree | Files, kinds, sizes, digests of the project folder |
 | `diagnostics` | `diagnostic` events | Compile errors with file/line/column |
 | `get_ir` | `project.state` + IR access | The lowered IR for a component (early mode) |
 | `apply_edits` | `source.patch` TextEdits | Apply edits in memory by default; `write: true` writes them to the project directory |
@@ -583,6 +583,9 @@ Owner decisions recorded 2026-11-16: the studio front end is React 19 + TypeScri
 `*.mock.ts` project files run in a sandboxed studio worker, never in the engine
 ([ADR-055](../../decisions/ADR-055-studio-mock-services.md)).
 
+Owner decisions recorded 2026-11-17: MCP error codes, tool naming, schema and surface version:
+[mcp-server-v1.md](mcp-server-v1.md) section 3.
+
 Open questions (no decision yet):
 
 1. Concrete budget numbers and the first-paint target for the designer page; when the warnings turn
@@ -594,4 +597,4 @@ Open questions (no decision yet):
    headless renderer, and how CI behaves without a GPU.
 5. Startup preview fidelity: which stages are pinnable, whether it runs the real `AppHost` or a
    reduced stage machine, and how fixtures pin a frozen stage.
-6. MCP tool naming, published JSON Schema, and versioning policy for the tool surface.
+6. ~~MCP tool naming, schema, versioning~~ decided ([mcp-server-v1.md](mcp-server-v1.md) section 3).

@@ -12,7 +12,8 @@
 # edits the shared tests/unit registry or the root CMakeLists subdirectory list beyond one line.
 
 # The core library, so the CLI, the tests and any in-process embedding exercise the same bytes. It
-# holds no `main` and no filesystem access of its own.
+# holds no `main`. It reads the open project folder (read-only, `project_files.cpp`), judged by the
+# shared policy of `tessera_schema` that the Wasm module links as well.
 add_library(tessera_mcp_core STATIC
     src/compile_tools.cpp
     src/in_memory_ir.cpp
@@ -22,6 +23,10 @@ add_library(tessera_mcp_core STATIC
     # calls the SAME `scene_preview_document()` the browser module exports, so a posture set through
     # MCP reaches one layout path, not a second one.
     src/preview_tools.cpp
+    # The project folder (issue #406): the host walk of the shared file policy, and the tools that
+    # read it (`list_files`, folder-wide `diagnostics` and `get_ir`).
+    src/project_files.cpp
+    src/project_tools.cpp
     src/serve_stdio.cpp
     src/session.cpp
     src/tool_registry.cpp
@@ -37,7 +42,16 @@ target_include_directories(tessera_mcp_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/s
 target_sources(tessera_mcp_core PRIVATE
     ${PROJECT_SOURCE_DIR}/tools/codegen/diagnose.cpp
     ${PROJECT_SOURCE_DIR}/tools/codegen/diagnostics_json.cpp
-    ${PROJECT_SOURCE_DIR}/tools/codegen/diagnostic_record.cpp)
+    ${PROJECT_SOURCE_DIR}/tools/codegen/diagnostic_record.cpp
+    # The file-driven CLI driver: a folder-wide `diagnostics` / `get_ir` runs `cli::run` with
+    # `Options::query`, the same function `tessera_codegen --diagnostics-json` runs, so the document
+    # cannot drift from the CLI's (the acceptance of issue #406).
+    ${PROJECT_SOURCE_DIR}/tools/codegen/regenerate.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/regenerate_assets.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/project_identity.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/package_manifest.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/emit_library_components.cpp
+    ${PROJECT_SOURCE_DIR}/tools/codegen/emit_library_components_expr.cpp)
 
 target_include_directories(tessera_mcp_core PRIVATE ${PROJECT_SOURCE_DIR}/tools/codegen)
 
@@ -48,6 +62,8 @@ target_link_libraries(tessera_mcp_core PUBLIC
     tessera_ir
     tessera_ir_ids
     tessera_lowering
+    tessera_schema
+    tessera_style
     # `snapshot` and `set_viewport` (issue #408): the preview driver the browser module and the
     # native preview CLI also link, so the agent's snapshot is one implementation rather than a
     # third one. The library is host-only-built and links no GPU/paint target, which keeps this
@@ -127,13 +143,7 @@ if (TESSERA_BUILD_TESTS)
     # holds both drivers over one serializer. Same source list as `codegen_diagnostics_json_tests` in
     # src/compiler/codegen/CMakeLists.txt, minus the three units the core already provides.
     add_executable(mcp_diagnostics_parity_tests
-        ${PROJECT_SOURCE_DIR}/tests/unit/mcp/diagnostics_parity_tests.cpp
-        ${PROJECT_SOURCE_DIR}/tools/codegen/regenerate.cpp
-        ${PROJECT_SOURCE_DIR}/tools/codegen/regenerate_assets.cpp
-        ${PROJECT_SOURCE_DIR}/tools/codegen/project_identity.cpp
-        ${PROJECT_SOURCE_DIR}/tools/codegen/package_manifest.cpp
-        ${PROJECT_SOURCE_DIR}/tools/codegen/emit_library_components.cpp
-        ${PROJECT_SOURCE_DIR}/tools/codegen/emit_library_components_expr.cpp)
+        ${PROJECT_SOURCE_DIR}/tests/unit/mcp/diagnostics_parity_tests.cpp)
 
     target_include_directories(mcp_diagnostics_parity_tests
         PRIVATE
@@ -180,6 +190,25 @@ if (TESSERA_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/unit/mcp/process_tests.cpp)
 
     target_link_libraries(mcp_process_tests PRIVATE tessera_harness)
+
+    # The project-folder tools (issue #406): `list_files`, the folder-wide `diagnostics` / `get_ir`,
+    # root resolution (explicit path, client `roots`, working directory) and the named refusals. The
+    # scratch folder lives under the build tree for the same reason as the process test's.
+    add_executable(mcp_project_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/mcp/project_tests.cpp)
+
+    target_include_directories(mcp_project_tests
+        PRIVATE
+            ${PROJECT_SOURCE_DIR}/tools/codegen
+            ${PROJECT_SOURCE_DIR}/tools/mcp/src)
+
+    target_link_libraries(mcp_project_tests PRIVATE tessera_mcp_core tessera_schema)
+
+    if (NOT CMAKE_SYSTEM_NAME MATCHES "^(iOS|tvOS|watchOS)$")
+        add_test(NAME mcp_project
+            COMMAND mcp_project_tests $<TARGET_FILE:tessera_mcp>
+                    ${CMAKE_CURRENT_BINARY_DIR}/mcp_project-work)
+    endif ()
 
     if (NOT CMAKE_SYSTEM_NAME MATCHES "^(iOS|tvOS|watchOS)$")
         add_test(NAME mcp_process

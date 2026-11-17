@@ -56,8 +56,8 @@ void test_surface_is_declared() {
     // advertisement honest as later slices fill tools in: `open_project`, the three compile tools,
     // and since issue #408 the preview pair (`set_viewport` and `snapshot`), which share the scene
     // driver the browser module and the native preview CLI call.
-    const std::string_view implemented[] = {"open_project", "diagnostics", "get_ir", "set_viewport",
-                                            "snapshot"};
+    const std::string_view implemented[] = {"open_project", "list_files",   "diagnostics",
+                                            "get_ir",       "set_viewport", "snapshot"};
     for (const mcp::ToolDefinition& tool : tools) {
         bool should_be_implemented = false;
         for (const std::string_view name : implemented) {

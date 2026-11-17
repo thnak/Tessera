@@ -638,10 +638,15 @@ owner-planned item and is not part of this milestone.
 - [ ] #395: P6b: promote the latency budgets from `warn` to `enforce` and count the scene and canvas
       modules in the download budget. Needs a measurement first; take it after #392.
 - [ ] #396: `tessera-mcp`: the eight unimplemented tools (designer D-S7) and the spec decisions #350
-      reported. Owner decisions first; take it after #391.
-- [ ] #406: `tessera-mcp`: project root from the agent's workdir (`roots/list`, else the working
-      directory), `list_files` and folder-wide `diagnostics`. Slice 1 of the MCP follow-up, `ready`;
-      #396 keeps the other tools.
+      reported. The decisions are recorded (`mcp-server-v1.md` section 3: `TESSERA_MCP_` family,
+      `tools/mcp/schema/tools.json`, `toolSurfaceVersion`); the schema file and the version field are
+      still to implement. Take the read-only tools first.
+- [x] #406: `tessera-mcp`: project root from the agent's workdir (`roots/list`, else the working
+      directory), `list_files` and folder-wide `diagnostics` / `get_ir`. Done: `tools/mcp/src/
+      project_files.cpp` and `project_tools.cpp`, the shared file policy `src/schema/src/
+      project_files.cpp` (also for the Wasm module), `cli::run` with `Options::query` and `base_dir`;
+      tests `mcp_project`, `schema_project_files`; spec `docs/specs/mcp-server-v1.md`. #396 keeps the
+      other tools.
 - [ ] #407: `tessera-mcp`: a `generate` tool for the C++ of the folder (ADR-040). Owner decisions
       first; takes #406.
 - [ ] #408: studio: foldable simulation (hinge, fold posture, two-pane) on the Wasm viewer. Takes the
@@ -680,6 +685,13 @@ owner-planned item and is not part of this milestone.
 - [ ] #390: author stylesheet (second textarea), `style` and `className` in the preview; user CSS
       replaces the built-in sheet, which stays only as the no-stylesheet fallback; tokens come
       from user code.
+- [ ] #461: paint: an outer `box-shadow` is painted inside a translucent box (CSS clips it to outside the
+      border box). Found by the Chrome parity form page; `form.css` keeps an opaque segment fill until
+      it lands.
+- [ ] #462: animation: `box-shadow` does not transition (it snaps to the end value). `form.css` leaves
+      the shadow out of the segment transition until it lands.
+- [ ] #463: style: CSS isolation for components (`*.module.css` scoped class names, `ready`); the
+      decisions and the checked premises are in the issue.
 - [ ] #457: `background-image: linear-gradient()` from a stylesheet (`ready`): the paint path
       (`PaintData::gradient`) exists, no property feeds it; found by the Chrome parity dashboard page.
 - [ ] #391: studio D-S2 + D-S4: open a project folder (File System Access API, zip elsewhere), file
