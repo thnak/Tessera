@@ -682,10 +682,10 @@ owner-planned item and is not part of this milestone.
       from user code.
 - [ ] #391: studio D-S2 + D-S4: open a project folder (File System Access API, zip elsewhere), file
       tree, edit, explicit save, multi-file preview. Waits on #390 and the ADR-054 conversion.
-- [ ] #431: studio: one three-column workspace (project tree, tabbed code, preview panes for
+- [x] #431: studio: one three-column workspace (project tree, tabbed code, preview panes for
       scene/canvas/diagnostics) replacing the three top-level tabs (owner direction 2026-11-17).
       Builds on #391's IO layer (zip and path confinement landed in PR #425); keep `?view=` so
-      `#p5=` links work. Room must be left for #171's panes and #433's overlay.
+      `#p5=` links work. Room must be left for #171's panes and #433's overlay. Landed in #439.
 - [ ] #433: studio: draw the fold hinge and the safe-area insets as a page-only overlay (the
       follow-up #408 left in `designer-studio-v1.md` section 6.1). Takes #431.
 - [ ] #436: engine: a window or emulator resize re-resolves `@media` (`AppHost::resize` never updates
