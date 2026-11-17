@@ -125,7 +125,8 @@ void parent_and_child_dirty(std::size_t n) {
     check(m.ticket == 2, tag("parent+child", n) + "two tickets ran (page and the static Row)");
     const int row_runs = m.direct + static_cast<int>(m.ticket) - 1; // minus the page ticket
     check(row_runs == static_cast<int>(n) + 2,
-          tag("parent+child", n) + "Row runs: n + 1 distinct Rows plus the static Row's second run");
+          tag("parent+child", n) +
+              "Row runs: n + 1 distinct Rows plus the static Row's second run");
     check(m.passes == 1, tag("parent+child", n) + "still one pass");
 }
 
