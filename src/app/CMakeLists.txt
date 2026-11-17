@@ -17,6 +17,9 @@ add_library(tessera_app STATIC
     # The OS appearance rule of issue #187 (`AppHost::set_appearance`): a media-affecting change
     # re-resolves the cascade. Split out of host.cpp, which is at its size budget.
     host_appearance.cpp
+    # The viewport rule of issue #436 (`resize` / `set_window_metrics`): the window IS the media
+    # context, and the cascade is re-resolved only when a `@media` answer can actually change.
+    host_viewport.cpp
     safe_area_state.cpp
     safe_area_state.hpp
     system_motion.cpp

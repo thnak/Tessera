@@ -839,6 +839,38 @@ if (TESSERA_BUILD_TESTS)
         add_test(NAME ${_canvas_test} COMMAND ${_canvas_test}_tests)
     endforeach ()
 
+    # A resize is a layout pass, not a re-run (issue #436): `@media` re-resolves for the new
+    # viewport, a size that crosses no breakpoint does not rebuild the cascade (the session's
+    # generation counter), the resize carries state/hover/focus, its frame equals a cold evaluation
+    # at the same size (snapshot digest), and a real `AppHost` resolves the same fixture the same
+    # way. Registered here rather than in tests/unit/CMakeLists.txt for the same reason
+    # `scene_frame` is: this lane does not edit the shared registry while other lanes work in it.
+    add_executable(scene_viewport_tests
+        ${CMAKE_SOURCE_DIR}/tests/unit/scene_viewport_tests.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/canvas_report.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/css_diagnostics_report.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/scene_frame.cpp
+        ${_tessera_preview_text_sources}
+        ${_tessera_canvas_session_sources}
+        ${_tessera_scene_preview_sources})
+    target_include_directories(scene_viewport_tests
+        PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen
+                ${CMAKE_SOURCE_DIR}/tests/unit)
+    target_link_libraries(scene_viewport_tests PRIVATE
+        tessera_app
+        tessera_automation_scene
+        tessera_gpu
+        tessera_ir_eval
+        tessera_ir_ids
+        tessera_layout
+        tessera_lowering
+        tessera_paint
+        tessera_rhi
+        tessera_rhi_null
+        tessera_scene
+        tessera_style)
+    add_test(NAME scene_viewport COMMAND scene_viewport_tests)
+
     add_executable(codegen_layering_tests
         ${CMAKE_SOURCE_DIR}/tests/unit/codegen_layering_tests.cpp)
 

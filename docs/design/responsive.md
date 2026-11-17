@@ -36,6 +36,36 @@ Breakpoints are app-authored; Tessera does not impose a fixed set. Recommended d
 dashboard-style apps: compact < 600 dp, medium 600–839 dp, expanded >= 840 dp. These values
 are guidance, not semantics.
 
+### 2.1 The window is the media context (issue #436)
+
+Every `@media width/height/orientation/resolution` answer must be resolved against the **window the
+tree is in**, not against a default rectangle. `MediaContext::viewport_width/height` are the logical
+client area and `resolution_dpi` is the DPI scale in CSS dpi (96 at scale 1, so a 2x display answers
+`(min-resolution: 2dppx)`). Both `AppHost::resize` and a `set_window_metrics` snapshot that names a
+different extent move it, and so does a design-time device preset (the preview sessions derive the
+same context from the simulated viewport). Before #436 the context kept its 1280x720 defaults, so
+`@media (max-width: 600px)` was evaluated for a rectangle no window had: the boxes re-laid out and
+the responsive stylesheet did not respond.
+
+**Re-resolve only when an answer can change.** A drag-resize arrives as many size changes per
+second, and rebuilding the cascade on each of them throws the paint cache away for nothing. The host
+therefore asks the prepared (media-independent) sheet whether the move can flip any `@media` answer:
+`PreparedStyleSheet::media_answer_can_change` compares `evaluate(list, context)` - the very boolean
+the resolve step uses - for the old and the new context. When none flips, the resize is a **layout
+pass and nothing else**; when one does, the cascade is re-resolved from the same prepared data
+(ADR-048's resolve step, never a re-parse) in the same pass. The rule is exactly "rebuild when a
+breakpoint is crossed", computed without parsing a length, special-casing `orientation` or guessing
+at `vw`/`vh`, so it is exact rather than a superset.
+
+`AppHost::cascade_generation()` (`PreviewSession`/`CanvasSceneSession::cascade_generation()` in the
+preview) counts the resolutions, which is how the rule is asserted: a resize that crosses no
+breakpoint leaves the counter alone while the boxes move. A design-time viewport change goes through
+`CanvasSceneSession::set_viewport()`, which re-lays the running tree out in place and re-resolves
+`@media` on the same condition - no re-evaluation, so the state cells, hover and focus survive.
+
+`@supports` and `@container` are unaffected: neither is a function of the window rectangle
+(container queries are relative to an ancestor's box, section 10).
+
 `@container` size queries are evaluated by the style engine (ADR-041 slice 8; the settle-loop observer that re-resolves on a crossed condition exists, the app host that wires it does not yet). Until a host wires it, use size classes derived
 from metrics or explicit props.
 
@@ -94,7 +124,10 @@ Rules:
 ## 8. Invalidation
 
 - Size/orientation/safe-area/fold/text-scale/locale changes -> root layout dirty (dirty = needs recomputation, see [`dirty-rendering.md`](dirty-rendering.md)).
-- Breakpoint changes -> style dirty for affected rules; layout/paint follow computed changes.
+- Breakpoint changes -> style dirty for affected rules; layout/paint follow computed changes. A size
+  change that crosses no breakpoint is a layout pass only: the cascade keeps its generation and the
+  paint cache keeps its records (section 2.1 is the rule, and `AppHost::cascade_generation()` is the
+  counter that proves it).
 - Fold posture changes -> style/layout dirty (container/query inputs).
 - Display/DPI change -> style/layout/paint; target may recreate ([`window-resize.md`](window-resize.md)).
 - No full-tree rebuild unless the platform forces a restart; preserve state.

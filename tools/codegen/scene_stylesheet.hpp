@@ -71,10 +71,35 @@ struct PreviewCssDiagnostic {
 // the same bytes.
 [[nodiscard]] bool has_author_stylesheet(std::string_view stylesheet);
 
+// The media context a preview resolves `@media` against (issue #436): the **logical** layout
+// viewport and the DPI scale as CSS dpi (96 at scale 1, so a 2x device answers
+// `(min-resolution: 2dppx)`).
+//
+// The preview has no OS window, so this is the only place its device preset becomes a media query's
+// answer. It is derived from the same two numbers the layout engine is given, so a
+// `@media (max-width: 600px)` rule and the box it styles cannot disagree. Before this existed the
+// previews resolved against `MediaContext`'s default 1280x720 rectangle, which is why a device
+// preset could not trigger a breakpoint.
+[[nodiscard]] tessera::ui::style::MediaContext preview_media_context(float width, float height,
+                                                                     float dpi_scale) noexcept;
+
+// The media-independent form of the preview's sheet (ADR-048 decision 2): prepared once, resolved
+// against each viewport. Kept separate from the compiled form so a viewport change re-resolves the
+// same data instead of parsing CSS again - the resolve step `AppHost` uses, in the preview.
+[[nodiscard]] tessera::ui::style::PreparedStyleSheet
+prepare_preview_stylesheet(std::string_view stylesheet);
+
+// The compiled form of an already prepared sheet for one media context: `@media` is evaluated
+// against `media`, and nothing is tokenized or parsed again.
+[[nodiscard]] tessera::ui::style::CompiledStyleSheet
+resolve_preview_stylesheet(const tessera::ui::style::PreparedStyleSheet& prepared,
+                           const tessera::ui::style::MediaContext& media);
+
 // The sheet the preview lays out and paints with: the author's when `has_author_stylesheet()` is
 // true, the built-in `preview_stylesheet()` otherwise. Never a combination of the two.
 [[nodiscard]] tessera::ui::style::CompiledStyleSheet
-compile_preview_stylesheet(std::string_view stylesheet);
+compile_preview_stylesheet(std::string_view stylesheet,
+                           const tessera::ui::style::MediaContext& media);
 
 // The author sheet's diagnostics, in source order, bounded by `limit`. Empty when there is no
 // author CSS, because a stylesheet the author never wrote cannot have problems.

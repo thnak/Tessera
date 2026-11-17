@@ -22,7 +22,7 @@ constexpr ui::Dirty kFrameDomains =
 } // namespace
 
 CanvasSceneSession::CanvasSceneSession()
-    : sheet_(compile_preview_stylesheet({})) {}
+    : sheet_(compile_preview_stylesheet({}, preview_media_context(320.0f, 240.0f, 1.0f))) {}
 
 CanvasSceneSession::~CanvasSceneSession() = default;
 
@@ -38,9 +38,15 @@ std::string CanvasSceneSession::start(const CanvasSessionSource& source) {
     // between two frames of the same program. The stylesheet is part of the identity: a Run that
     // changed only the CSS must re-resolve style, or the canvas would keep painting the previous
     // sheet while the diagnostics area reported the new one.
-    if (session_ != nullptr && reused_ok(text, stylesheet, file, component, source.width,
-                                         source.height, dpi, source.measurer)) {
+    //
+    // **The viewport and the posture are NOT part of it** (issue #436). They are layout inputs, so
+    // a Run that only moved the device preset re-lays the RUNNING tree out in place - one pass, no
+    // evaluation - which is what keeps hover/focus/active and the state cells across a device or
+    // orientation change. Before this, width/height were in `reused_ok`, so a toolbar change
+    // re-evaluated the source and lost exactly that.
+    if (session_ != nullptr && reused_ok(text, stylesheet, file, component, source.measurer)) {
         reused_ = true;
+        (void)apply_layout_inputs(source.width, source.height, dpi, source.posture);
         return {};
     }
 
@@ -89,7 +95,13 @@ std::string CanvasSceneSession::start(const CanvasSessionSource& source) {
     // The sheet and its diagnostics, from the same text and in that order: the diagnostics describe
     // the sheet the tree below is laid out with, so the pane can never report one sheet's problems
     // beside another sheet's pixels.
-    sheet_ = compile_preview_stylesheet(source.stylesheet);
+    //
+    // The sheet is PREPARED once and resolved against the viewport (issue #436), and the prepared
+    // form goes into the session so a later viewport change can re-resolve the same data instead of
+    // re-parsing CSS.
+    const ui::style::MediaContext media = preview_media_context(source.width, source.height, dpi);
+    auto prepared = prepare_preview_stylesheet(source.stylesheet);
+    sheet_ = resolve_preview_stylesheet(prepared, media);
     css_diagnostics_ = author_stylesheet_diagnostics(source.stylesheet, stylesheet_file);
     evaluated_ = std::move(*evaluated);
 
@@ -109,9 +121,11 @@ std::string CanvasSceneSession::start(const CanvasSessionSource& source) {
     options.carried = &carried;
     options.live_component_ids = &live_ids;
     options.measurer = source.measurer;
+    options.prepared = std::move(prepared);
+    options.media = media;
 
-    session_ =
-        std::make_unique<PreviewSession>(evaluated_.module, evaluated_.selected(), sheet_, options);
+    session_ = std::make_unique<PreviewSession>(evaluated_.module, evaluated_.selected(), sheet_,
+                                                std::move(options));
     if (!session_->built()) {
         error_ = "TESSERA_SCENE_UNSUPPORTED: the source's tree cannot be previewed";
         return error_;
@@ -125,6 +139,7 @@ std::string CanvasSceneSession::start(const CanvasSessionSource& source) {
     width_ = source.width;
     height_ = source.height;
     dpi_scale_ = dpi;
+    posture_ = source.posture;
     measurer_ = source.measurer;
     fresh_ = true;
     return error_;
@@ -132,23 +147,46 @@ std::string CanvasSceneSession::start(const CanvasSessionSource& source) {
 
 bool CanvasSceneSession::reused_ok(
     const std::string& text, const std::string& stylesheet, const std::string& file,
-    const std::string& component, float width, float height, float dpi,
-    const std::shared_ptr<const text::TextMeasurer>& measurer) const {
+    const std::string& component, const std::shared_ptr<const text::TextMeasurer>& measurer) const {
     // The measurer is part of the identity: a Run that arrives with font bytes when the running
     // evaluation had none must re-evaluate, because every text box it laid out was sized by the
     // font-free stub.
+    //
+    // The viewport and the DPI scale are deliberately NOT here (issue #436): they are layout inputs
+    // the running tree can be re-laid out for, not properties of the source. Keeping them in this
+    // tuple is what made a device-preset change re-evaluate - and lose hover, focus and active.
     return text == text_ && stylesheet == stylesheet_ && file == file_ && component == component_ &&
-           width == width_ && height == height_ && dpi == dpi_scale_ &&
            measurer.get() == measurer_.get();
 }
 
 bool CanvasSceneSession::set_posture(hal::FoldPosture posture) {
-    if (!started() || !session_->set_posture(posture)) {
+    return apply_layout_inputs(width_, height_, dpi_scale_, posture);
+}
+
+bool CanvasSceneSession::set_viewport(float width, float height, float dpi_scale) {
+    return apply_layout_inputs(width, height, dpi_scale, posture_);
+}
+
+bool CanvasSceneSession::apply_layout_inputs(float width, float height, float dpi_scale,
+                                             hal::FoldPosture posture) {
+    if (!started()) {
         return false;
     }
-    // The layer-1 layout pass already rewrote every box and every SafeArea padding, so this is a
-    // report - not a second pass, and not a "pending" change a later frame would apply. That is
-    // what makes the frame the page draws next the FIRST one to show the new posture.
+    const float dpi = dpi_scale > 0.0f ? dpi_scale : 1.0f;
+    if (width == width_ && height == height_ && dpi == dpi_scale_ && posture == posture_) {
+        return false;
+    }
+    // One pass for both inputs, inside this call: the boxes (and, when the size crosses a
+    // breakpoint, the cascade) are already the new ones when it returns, so the frame the page
+    // draws next is the FIRST to show the new device - no frame of stale padding or stale
+    // breakpoint (issues #408 and #436).
+    if (!session_->relayout_at(width, height, dpi, posture)) {
+        return false;
+    }
+    width_ = width;
+    height_ = height;
+    dpi_scale_ = dpi;
+    posture_ = posture;
     metrics_ = session_->metrics();
     return true;
 }
@@ -208,7 +246,8 @@ SceneFrameResult CanvasSceneSession::paint(rhi::Device& device, rhi::RenderTarge
         result.error = error_.empty() ? "the session has no scene to paint" : error_;
         return result;
     }
-    result = scene_frame_paint_tree(session_->root(), sheet_, device, target, desc, pipeline, text);
+    result =
+        scene_frame_paint_tree(session_->root(), sheet(), device, target, desc, pipeline, text);
     if (!result.error.empty()) {
         return result;
     }

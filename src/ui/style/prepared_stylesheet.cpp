@@ -263,4 +263,20 @@ PreparedStyleSheet prepare_stylesheet(std::string_view source, const PropertyReg
     return prepared;
 }
 
+bool PreparedStyleSheet::media_answer_can_change(const MediaContext& before,
+                                                 const MediaContext& after) const {
+    // The same `evaluate(list, context)` call the resolve step (`CompiledStyleSheet::resolve`)
+    // makes, so this cannot disagree with the cascade about which rules apply: an item's
+    // participation is determined by that boolean alone. Two contexts that agree on every list
+    // produce the same cascade, so a resize between them is a layout pass and nothing more.
+    for (const PreparedItem& item : items) {
+        for (const MediaQueryList& list : item.media) {
+            if (evaluate(list, before) != evaluate(list, after)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 } // namespace tessera::ui::style

@@ -89,11 +89,32 @@ bool has_author_stylesheet(std::string_view stylesheet) {
     return !stylesheet.empty() && !has_no_css(stylesheet);
 }
 
-style::CompiledStyleSheet compile_preview_stylesheet(std::string_view stylesheet) {
-    if (has_author_stylesheet(stylesheet)) {
-        return style::compile_stylesheet(stylesheet);
-    }
-    return style::compile_stylesheet(preview_stylesheet());
+style::MediaContext preview_media_context(float width, float height, float dpi_scale) noexcept {
+    style::MediaContext media;
+    // The logical extent is the layout viewport, so the media query and the boxes it sizes are the
+    // same rectangle. `dpi_scale` is a multiple of the CSS reference density of 96 dpi
+    // (`hal::WindowMetrics::dpi_scale`'s meaning), which is what `resolution` compares against.
+    media.viewport_width = static_cast<double>(width);
+    media.viewport_height = static_cast<double>(height);
+    media.resolution_dpi = 96.0 * static_cast<double>(dpi_scale > 0.0f ? dpi_scale : 1.0f);
+    return media;
+}
+
+style::PreparedStyleSheet prepare_preview_stylesheet(std::string_view stylesheet) {
+    // Decision 2 (issue #390) is made here and nowhere else: the author's sheet REPLACES the
+    // built-in one once it holds any CSS at all.
+    return style::prepare_stylesheet(has_author_stylesheet(stylesheet) ? stylesheet
+                                                                       : preview_stylesheet());
+}
+
+style::CompiledStyleSheet resolve_preview_stylesheet(const style::PreparedStyleSheet& prepared,
+                                                     const style::MediaContext& media) {
+    return style::CompiledStyleSheet(prepared, style::Origin::Author, {}, media);
+}
+
+style::CompiledStyleSheet compile_preview_stylesheet(std::string_view stylesheet,
+                                                     const style::MediaContext& media) {
+    return resolve_preview_stylesheet(prepare_preview_stylesheet(stylesheet), media);
 }
 
 std::vector<PreviewCssDiagnostic> author_stylesheet_diagnostics(std::string_view stylesheet,

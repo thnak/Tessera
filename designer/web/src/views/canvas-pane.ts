@@ -153,10 +153,12 @@ export function createCanvasPane(
     // The frame count comes from the session, not from this pane: it is the engine's own tally of
     // what it painted, which is the number the issue's "one frame per burst, zero when static"
     // acceptance is about. Shown beside the size so a developer can watch it stay put while a static
-    // preview is left alone.
+    // preview is left alone. `cN` is the cascade generation (#436): a viewport change that crosses
+    // an `@media` breakpoint moves it by one, and one that does not leaves it alone.
+    const cascade = report.cascade === undefined ? "" : `, c${report.cascade}`;
     pane.statFrame.textContent =
       report.frames === undefined ? report.width + "x" + report.height
-                                  : `${report.width}x${report.height} (#${report.frames})`;
+                                  : `${report.width}x${report.height} (#${report.frames}${cascade})`;
     pane.statDraws.textContent = String(report.drawCalls);
     pane.statVertices.textContent = String(report.vertices);
     pane.statNodes.textContent = String(report.nodes);

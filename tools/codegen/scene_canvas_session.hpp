@@ -63,10 +63,11 @@ struct CanvasPointerResult {
 // sizes the tree to, which is also the coordinate space pointer events arrive in: the page derives
 // them from its CSS box and never hands this layer a device pixel ratio.
 //
-// `posture` is the simulated foldable posture (issue #408). It is part of the tuple a later
-// `start()` compares to decide reuse, so changing the posture does NOT re-evaluate the source:
-// `set_posture()` re-lays the running tree out in place instead, which is what keeps hover, focus
-// and state across a posture switch.
+// **The viewport and the posture are layout inputs, not part of the source's identity** (issue
+// #436). They are on this struct because a `start()` has to lay a FRESH evaluation out at the right
+// rectangle, but `start()` does not compare them when it decides to reuse a running evaluation:
+// `set_viewport()` and `set_posture()` re-lay the running tree out in place instead, which is what
+// keeps hover, focus and the state cells across a device, orientation or posture change.
 struct CanvasSessionSource {
     std::string_view text;
     std::string_view file;
@@ -109,7 +110,9 @@ public:
     // Calling it again is an *apply*: a new evaluation at the new source, with the old state
     // carried. A call with the identical source reuses the running evaluation instead, because the
     // page hands the editor's text to every frame and re-evaluating would drop hover and state
-    // between two frames of one program.
+    // between two frames of one program. "Identical" is the SOURCE - text, stylesheet, file,
+    // component and the measured face - never the viewport or the posture, which are re-applied to
+    // the running tree in place (issue #436).
     //
     // **A source that does not evaluate leaves the running evaluation untouched** (issue #444). The
     // new text is parsed before anything is replaced, so a failed edit returns its reason while
@@ -146,6 +149,31 @@ public:
     // posture on its first frame. Returns false when there is no running evaluation or the posture
     // is already the current one (nothing was laid out again).
     bool set_posture(tessera::hal::FoldPosture posture);
+
+    // Resizes the RUNNING evaluation in place (issue #436): the device preset or an orientation
+    // swap re-lays the tree out and re-resolves `@media` for the new rectangle - it never evaluates
+    // the source again. That is the whole point: `start()` keeps its identity rule for SOURCE
+    // changes only (width/height left `reused_ok`), so a viewport change keeps the state cells, the
+    // hover and the focus the router holds, exactly like `set_posture()`.
+    //
+    // **One layout pass inside the call, and the cascade only when a breakpoint is crossed.** The
+    // session asks the prepared sheet whether a `@media` answer can move
+    // (`PreparedStyleSheet::media_answer_can_change`); if none can, the sheet and its paint cache
+    // are untouched and this is a layout pass. If one can, the SAME prepared data is resolved
+    // against the new context (ADR-048's resolve step) before the pass, and
+    // `cascade_generation()` counts it. Safe-area padding is re-applied in the same pass by the
+    // metrics the pass is given, so a resize to a foldable or phone size cannot show a frame with
+    // stale padding.
+    //
+    // Returns false when nothing moved (no pass ran) or there is no running evaluation.
+    bool set_viewport(float width, float height, float dpi_scale);
+
+    // How many times the running evaluation's cascade has been resolved (issue #436): 1 at each
+    // `start()`, +1 per `set_viewport` that crossed a breakpoint. The counter a test - and the
+    // module's viewport report - use to tell "the cascade was rebuilt" from "the boxes moved".
+    [[nodiscard]] std::uint64_t cascade_generation() const noexcept {
+        return session_ != nullptr ? session_->cascade_generation() : 0;
+    }
 
     // The `WindowMetrics` the live tree was laid out against, fold included; a fresh, fold-free
     // snapshot before `start()`.
@@ -186,8 +214,11 @@ public:
     // so a caller can resolve computed style (the browser lane's colour comparison) and so a test
     // can assert what a pseudo-class resolved to without re-implementing the cascade.
     [[nodiscard]] const ui::Node* root() const noexcept;
+    // The sheet the running tree is laid out with, which is NOT the one `start()` compiled once a
+    // `set_viewport()` has crossed a breakpoint (issue #436): the session owns the current one, so
+    // a painter and a test read it from here rather than keeping a copy that can go stale.
     [[nodiscard]] const ui::style::CompiledStyleSheet& sheet() const noexcept {
-        return sheet_;
+        return session_ != nullptr ? session_->sheet() : sheet_;
     }
     // The author stylesheet's parse problems from the last `start()` (issue #390), with line and
     // column. Survives the reuse path: a Run that changed nothing still reports the diagnostics the
@@ -205,9 +236,14 @@ public:
 
 private:
     [[nodiscard]] bool reused_ok(const std::string& text, const std::string& stylesheet,
-                                 const std::string& file, const std::string& component, float width,
-                                 float height, float dpi,
+                                 const std::string& file, const std::string& component,
                                  const std::shared_ptr<const text::TextMeasurer>& measurer) const;
+
+    // One layout pass for both layout inputs (viewport and posture), inside the call. Shared by
+    // `set_posture()`, `set_viewport()` and the reuse path of `start()`, so a call that changes
+    // both costs one pass, not two.
+    [[nodiscard]] bool apply_layout_inputs(float width, float height, float dpi_scale,
+                                           tessera::hal::FoldPosture posture);
 
     // The lowered IR the scene borrows its strings from: declared before the session so it outlives
     // the tree, which is the ownership rule `PreparedScene` states.
@@ -227,6 +263,9 @@ private:
     float width_ = 320.0f;
     float height_ = 240.0f;
     float dpi_scale_ = 1.0f;
+    // The simulated fold posture the running tree was laid out at, so `set_viewport()` can re-lay
+    // it out without changing it (issue #436).
+    tessera::hal::FoldPosture posture_ = tessera::hal::FoldPosture::None;
     // The simulated window of the live tree. `session_` owns the authoritative copy; this one is
     // readable before the first `start()` and after the session is gone, so `metrics()` has one
     // answer in every state.

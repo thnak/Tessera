@@ -59,6 +59,21 @@ struct PreparedStyleSheet {
     std::vector<PreparedItem> items;
     // Media-independent diagnostics (unsupported properties, invalid at-rules).
     std::vector<StyleDiagnostic> diagnostics;
+
+    // True when resolving this sheet against `before` and against `after` can produce a different
+    // cascade (issue #436). A window resize asks this before it re-resolves anything, so a
+    // drag-resize that crosses no breakpoint stays a layout pass.
+    //
+    // **Why the answer is exact rather than a breakpoint list.** A rule participates or not
+    // depending on `evaluate(list, context)` for each enclosing `@media` (at-rule blocks sit in
+    // `PreparedItem::media`), and that boolean is a pure function of the context. So comparing the
+    // booleans is the same question as "did a breakpoint get crossed", answered without parsing a
+    // length, special-casing `orientation` or guessing at `vw`/`vh`: a unit-, negation- or
+    // comma-list-shaped query is handled by the same evaluation the cascade itself would run. A
+    // threshold list can only ever be a superset of this answer, and a superset that is wrong in
+    // the common case is exactly the "rebuild the cascade on every pixel" bug this exists to stop.
+    [[nodiscard]] bool media_answer_can_change(const MediaContext& before,
+                                               const MediaContext& after) const;
 };
 
 [[nodiscard]] std::uint64_t fnv1a64(std::string_view bytes);
