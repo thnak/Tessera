@@ -100,6 +100,10 @@ accessibility snapshot publication, which each have their own documents.
   scene root and the `RuntimeLoop`; it owns no window, swapchain, device or paint sink.
 - `paint()` takes the plan from the last `begin_frame()`. A forced paint with an empty plan (first
   exposure, post-recovery) paints the whole frame instead of returning nothing.
+- `paint_scene(sink, context)` is the one full-scene paint the window driver and the frame capture
+  share. It sets the tick's sampled transition and animation values as `context.view`; the two
+  drivers used to call `paint::paint_scene` themselves, and neither set it, so a transition ticked
+  and never reached the pixels. A new driver calls this, not `paint::paint_scene`.
 - `FramePipelineConfig` (DPI scale, damage margin, redraw policy, interpolation) is `HostConfig`'s
   `pipeline` field; `text_measurer` injects a real layout measurer (null keeps the deterministic
   stub used by the goldens).

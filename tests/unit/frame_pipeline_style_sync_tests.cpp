@@ -293,11 +293,13 @@ bool interpolation_blends_values_and_colors() {
                 "alpha 0/0.5/1 blend color in sRGB") &&
          ok;
     const ColorRgba background = tessera::ui::style::parse_color("rgba(100, 200, 0, 1)").color;
-    ok = expect(near(half.background_color->r, background.r * 0.5f) &&
-                    near(half.background_color->g, background.g * 0.5f) &&
+    // Premultiplied (CSS Color 4): fading in from transparent keeps the colour and moves the alpha,
+    // it does not pass through a darker one.
+    ok = expect(near(half.background_color->r, background.r) &&
+                    near(half.background_color->g, background.g) &&
                     near(half.background_color->a, 0.5f) &&
                     near_color(*one.background_color, background),
-                "background alpha blends to the halfway value") &&
+                "background alpha blends to the halfway value, premultiplied") &&
          ok;
 
     // Out-of-range and broken alphas clamp; alpha 0 never extrapolates backwards.

@@ -43,6 +43,19 @@ the engine capture, so a layout difference reads as an outline that does not hug
 square, `letter-spacing` with `text-transform`, right-aligned numbers, `opacity`, an underline tab and table rows
 (per-side `border-bottom`), progress fills clipped to a rounded track, wrapping chips and an absolutely placed dot.
 
+### Animation
+
+The plan control of the form (`Monthly`, `Yearly`, `Invoice`) is interactive and declares a
+`background-color` and `color` transition (200 ms, ease). Both sides click the second segment and stop at
+the same instant: the engine with `--click f-seg:1 --advance-ms N` (a manual clock, so the instant is
+exact), Chrome with `--click f-seg:1 --advance-ms N` (it pauses every running transition and sets its
+`currentTime`). `tools/parity/form.html` carries the one script that mirrors `FormPage.tsx`'s `onClick`.
+
+```bash
+build/dev/samples/gallery/gallery --page form --click f-seg:1 --advance-ms 100 --capture out/parity/engine.png
+node scripts/ci/chrome_parity.mjs --click f-seg:1 --advance-ms 100 --out out/parity
+```
+
 ## 3. Reading the numbers
 
 | Number | Meaning |
@@ -79,9 +92,18 @@ These are not bugs; a markup author who writes for both has to know them.
 | Text looked faint and its descenders short: a glyph quad sat on a fractional pixel position and the atlas is sampled with a linear filter, so every row blended with its neighbour | `text_renderer.cpp` snaps each glyph quad to whole pixels (the pen keeps its fractional advance). Dark text ink went from 0.91 to 0.97 of Chrome's to 1.00 to 1.02 |
 | Light text on a dark surface carried 20 to 28 % less ink than Chrome's | glyph quads add a coverage boost to the textured mode (`kCoverageBoostScale`, `batched2d.frag`, `batched2d.wgsl`), 1.0 for dark text up to 1.4 for white; ink is now 0.95 to 0.96 of Chrome's |
 | A single glyph in a centred box sat a row too low and most of a pixel left of centre (the `x` of the checkbox) | the baseline uses Blink's whole-pixel sum, `round(ascent) + floor((line-height - (round(ascent) + round(descent))) / 2)` (`text_wrap.cpp`); layout runs with Yoga's pixel rounding off (`layout_engine.cpp`), because Yoga floored a measured node's left edge and ceiled its right one. The mark's ink centre is now 0.14 px from the box centre, as in Chrome |
+| A transition ticked and never reached the pixels | the window driver and the frame capture each called `paint::paint_scene` and neither set the tick's sampled values as `PaintContext::view`; both now call `AppHost::paint_scene` ([app-host.md](../design/app-host.md)) |
+| A running transition never finished (63 % after its full duration) | the style stage retargeted it on every frame, from the displayed value to the unchanged target; only a changed property is retargeted ([animation-runtime.md](../design/animation-runtime.md) section 9) |
+| The frame that applied a change painted the destination, then jumped back to the start | `FramePipeline::sample_started_animations` paints the first value in that frame |
+| Fading in from `transparent` passed through dark grey | colour interpolation is premultiplied (CSS Color 4) |
 | Text in a single-line `TextInput` sat at the top of the field | `paint_text.cpp` centres the line in the content box ([text-editing-v1.md](../specs/text-editing-v1.md)) |
 
 ## 6. Known limits
+
+- Animation, measured on the segment: the selected segment's fill matches Chrome to within 1 of 255 levels at
+  0, 50, 100, 150 and 400 ms. Two differences remain. `box-shadow` is not transitioned (it snaps to its end value,
+  where Chrome fades it), and a shadow is painted inside a translucent box, where CSS paints it only outside the
+  border box. The segment therefore has an opaque base fill and does not transition its shadow.
 
 - `background-image: linear-gradient(...)` from a stylesheet paints nothing: `PaintData::gradient` exists but no
   style property feeds it ([stylesheet-v1.md](../specs/stylesheet-v1.md) lists gradients as a V1 non-goal). The

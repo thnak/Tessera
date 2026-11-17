@@ -359,12 +359,18 @@ std::string format_color(const ColorRgba& color) {
 
 ColorRgba interpolate_color(const ColorRgba& from, const ColorRgba& to, float t) {
     const float clamped = clamp01(t);
-    return ColorRgba{
-        from.r + (to.r - from.r) * clamped,
-        from.g + (to.g - from.g) * clamped,
-        from.b + (to.b - from.b) * clamped,
-        from.a + (to.a - from.a) * clamped,
+    // CSS Color 4 interpolates with premultiplied alpha: `transparent` is rgba(0,0,0,0), and a
+    // plain per-channel blend of it with white passes through dark grey (a segment fading in looked
+    // like a shadow). Blend the premultiplied channels and the alpha, then divide the alpha back
+    // out.
+    const float alpha = from.a + (to.a - from.a) * clamped;
+    if (alpha <= 0.0f) {
+        return ColorRgba{to.r, to.g, to.b, 0.0f};
+    }
+    const auto blend = [&](float a, float b) {
+        return (a * from.a + (b * to.a - a * from.a) * clamped) / alpha;
     };
+    return ColorRgba{blend(from.r, to.r), blend(from.g, to.g), blend(from.b, to.b), alpha};
 }
 
 } // namespace tessera::ui::style

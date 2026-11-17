@@ -289,6 +289,11 @@ public:
     [[nodiscard]] std::size_t layout_runs() const;
     [[nodiscard]] std::size_t layout_cache_hits() const;
     [[nodiscard]] ui::animation::AnimationRuntime& animations();
+    // The one full-scene paint every driver uses (the window driver and the frame capture): it
+    // paints the scene through the host's style provider and sets the tick's sampled transition
+    // and animation values as `context.view`. Two drivers each calling `paint::paint_scene` was
+    // how a transition could start, tick and never reach the pixels: one of them forgot the view.
+    void paint_scene(ui::paint::PaintSink& sink, ui::paint::PaintContext context = {});
     // Style-property springs, owned and ticked by the frame pipeline (see FramePipeline::springs).
     [[nodiscard]] ui::animation::SpringRuntime& springs();
     [[nodiscard]] float width() const;

@@ -326,7 +326,7 @@ WindowHost::Impl::FrameResult WindowHost::Impl::render_and_present(bool full_rep
     context.glass.max_blur_radius = options.runtime.glass_max_blur_radius;
     context.glass.max_backdrop_area = options.runtime.glass_max_backdrop_area;
     context.text_metrics_source = text->paint_metrics.get();
-    ui::paint::paint_scene(root, host->styles(), *sink, context);
+    host->paint_scene(*sink, context);
     renderer->end();
     if (offscreen) {
         // The same submission records the resample into the acquired image, so it carries the

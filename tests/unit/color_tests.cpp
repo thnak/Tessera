@@ -81,6 +81,20 @@ int main() {
         return 6;
     }
 
+    // CSS Color 4 interpolates premultiplied: fading white in from transparent keeps white and
+    // moves the alpha; a plain per-channel blend with rgba(0,0,0,0) passes through dark grey.
+    const ColorRgba fade = interpolate_color(parsed("transparent"), parsed("white"), 0.5f);
+    if (!expect(color_is(fade, 1, 1, 1, 0.5f), "transparent to white keeps white at half alpha")) {
+        return 7;
+    }
+    const ColorRgba half_red =
+        interpolate_color(ColorRgba{1, 0, 0, 0.5f}, ColorRgba{0, 0, 1, 1}, 0.5f);
+    // premultiplied: (0.25, 0, 0.5) over alpha 0.75
+    if (!expect(color_is(half_red, 1.0f / 3.0f, 0, 2.0f / 3.0f, 0.75f),
+                "half-transparent red to opaque blue, premultiplied")) {
+        return 8;
+    }
+
     std::cout << "color: ok\n";
     return 0;
 }

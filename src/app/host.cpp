@@ -448,6 +448,7 @@ HostFrame AppHost::begin_frame(double dt, double alpha) {
         state.run_layout_pass();
         frame.layout = state.last_applied;
         frame.sync = state.pipeline->sync_style(state.root, *state.provider, frame.tick, true);
+        state.pipeline->sample_started_animations(state.root);
     };
     const bool geometry_work = frame.tick.needs_style || frame.tick.needs_layout;
     if (geometry_work) {
@@ -618,6 +619,14 @@ bool AppHost::frame_due() const {
 
 const ui::frame::FrameRender& AppHost::last_render() const {
     return impl_->last_render;
+}
+
+void AppHost::paint_scene(ui::paint::PaintSink& sink, ui::paint::PaintContext context) {
+    const ui::frame::InterpolationPaintView animated = impl_->pipeline->interpolation_view();
+    if (!animated.empty()) {
+        context.view = &animated;
+    }
+    ui::paint::paint_scene(impl_->root, *impl_->provider, sink, context);
 }
 
 ui::paint::StyleProvider& AppHost::styles() {

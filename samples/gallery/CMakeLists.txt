@@ -77,7 +77,10 @@ if (TESSERA_BUILD_TESTS)
     set(_gallery_cases
         "compact|--density compact"
         "scale_150|--text-scale 150"
-        "rtl|--rtl")
+        "rtl|--rtl"
+        # A transition caught part-way: the form, click on `Yearly`, 100 ms later. It pins the whole
+        # path (click, style stage, first sample, ticks, the one AppHost paint), not just the maths.
+        "form_plan_mid|--page form --click f-seg:1 --advance-ms 100 --width 640 --height 720")
     foreach (_theme light dark high_contrast)
         string(REPLACE "_" "-" _theme_id "${_theme}")
         foreach (_state none hover active focus)

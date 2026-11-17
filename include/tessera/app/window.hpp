@@ -319,6 +319,10 @@ struct CaptureOptions {
     // embedded stylesheets and the theme asset, or activates a theme (`AppHost::set_theme`), the
     // same calls an app makes before its frame loop.
     std::function<void(AppHost&)> configure_host;
+    // When positive, one more frame of this many seconds runs after `prepare`'s change has been
+    // applied, so a transition or animation the change started is captured part-way. The clock is
+    // manual: the instant is exact. Zero keeps the capture at the instant of the change.
+    double advance_seconds = 0.0;
 };
 
 struct CapturedFrame {

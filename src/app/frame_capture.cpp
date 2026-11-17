@@ -7,6 +7,7 @@
 #include "tessera/ui/paint/paint_pass.hpp"
 #include "window_internal.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <stdexcept>
@@ -75,7 +76,15 @@ std::optional<CapturedFrame> capture_frame(ui::Node& root, ui::style::CompiledSt
     if (prepare) {
         prepare();
     }
-    (void)host.begin_frame(0.0);
+    (void)host.begin_frame(0.0, 1.0);
+    // A real loop runs animations in 60 Hz frames; one frame as long as the whole advance would
+    // not show what a window shows, so the advance is cut into frames of that size.
+    double remaining = options.advance_seconds;
+    while (remaining > 1e-9) {
+        const double step = std::min(remaining, 1.0 / 60.0);
+        (void)host.begin_frame(step, 1.0);
+        remaining -= step;
+    }
 
     const rhi::RenderTargetDesc desc = detail::target_desc(extent, format);
     auto target = device->create_render_target(desc);
@@ -86,7 +95,7 @@ std::optional<CapturedFrame> capture_frame(ui::Node& root, ui::style::CompiledSt
     // against the stub line boxes is what made the gallery goldens show a 1-3px shortfall.
     ui::paint::PaintContext paint_context;
     paint_context.text_metrics_source = text.paint_metrics.get();
-    ui::paint::paint_scene(root, host.styles(), sink, paint_context);
+    host.paint_scene(sink, paint_context);
     renderer.end();
     commands->submit();
 

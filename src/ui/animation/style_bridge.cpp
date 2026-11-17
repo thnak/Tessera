@@ -77,6 +77,18 @@ void StyleBridge::sync_node(AnimationRuntime& runtime, const Node& node, StyleBr
             // snapshot stays the computed style, so the next diff still compares computed values.
             style::ComputedStyle before = found->second.style;
             for (const TransitionSpec& spec : parsed.transitions) {
+                // Only a property whose computed value changed is retargeted. A running transition
+                // whose target did not move must be left alone: continuing "from what is shown to
+                // the unchanged target" restarts it on every style stage, and a transition then
+                // converges geometrically (about 63 percent of the way after the first 200 ms of a
+                // 200 ms transition, still short of the end after twice that) instead of finishing.
+                const std::string* was = found->second.style.find(spec.property);
+                const std::string* now = current.find(spec.property);
+                const bool changed = (was == nullptr) != (now == nullptr) ||
+                                     (was != nullptr && now != nullptr && *was != *now);
+                if (!changed) {
+                    continue;
+                }
                 const std::string shown = displayed_value(runtime, node.id(), spec.property);
                 if (!shown.empty()) {
                     before.set(spec.property, shown);

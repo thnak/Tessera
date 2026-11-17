@@ -306,6 +306,31 @@ paint::SceneStyleSyncResult FramePipeline::sync_style(Node& root, paint::StylePr
     return result;
 }
 
+void FramePipeline::sample_started_animations(Node& root) {
+    if (!interpolate_ || style_bridge_snapshot_.ids.empty()) {
+        return;
+    }
+    const animation::AnimationTickResult first =
+        animation::tick_animations(*animations_, *loop_, 0.0);
+    std::unordered_map<NodeId, Node*> index;
+    index_nodes(root, index);
+    for (const animation::AnimationSample& sample : first.samples) {
+        const auto found = index.find(sample.target);
+        if (found == index.end()) {
+            continue;
+        }
+        capture_paint_sample(current_samples_, *found->second, sample.declarations);
+        if (const auto captured = current_samples_.find(sample.target);
+            captured != current_samples_.end() && !previous_samples_.contains(sample.target)) {
+            previous_samples_[sample.target] = captured->second;
+        }
+        const Dirty dirty = animation::dirty_for_declarations(sample.declarations);
+        if (dirty != Dirty::Clean) {
+            found->second->mark_dirty(dirty);
+        }
+    }
+}
+
 FrameRender FramePipeline::finish_frame(Node& root) {
     FrameRender result;
     dirty_->collect(root, Dirty::Paint | Dirty::Render);

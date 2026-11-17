@@ -107,5 +107,17 @@
   </div>
 </div>
 </div>
+<script>
+  /* The behaviour FormPage.tsx gives the plan control: the clicked segment becomes the selected one.
+     It is the only script on the page, there so the parity tool can click and compare the
+     transition the stylesheet declares. */
+  const segs = [...document.querySelectorAll('.f-seg')];
+  segs.forEach((seg, i) => seg.addEventListener('click', () => {
+    segs.forEach((other, j) => {
+      other.classList.toggle('f-seg-on', i === j);
+      other.querySelector('.f-seg-text').classList.toggle('f-seg-text-on', i === j);
+    });
+  }));
+</script>
 </body>
 </html>

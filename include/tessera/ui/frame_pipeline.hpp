@@ -128,6 +128,13 @@ public:
         return style_bridge_snapshot_;
     }
 
+    // Paints the transitions and animations `sync_style` just started at their first value. They
+    // start after this frame's tick, so without it the frame that applies a change paints the
+    // destination style and the next one jumps back to the start (a one-frame flash). Samples the
+    // new entries at zero elapsed time and marks their targets paint-dirty; a no-op when the last
+    // `sync_style` started nothing or interpolation is off. Call before `finish_frame`.
+    void sample_started_animations(Node& root);
+
     FrameRender finish_frame(Node& root);
 
     // Paints the whole scene into `sink` only when the most recent finish_frame() decided the frame

@@ -182,6 +182,8 @@
   justify-content: center;
   height: 30px;
   border-radius: 6px;
+  background-color: var(--surface-sunken);
+  transition: background-color 200ms ease;
 }
 
 .f-seg-on {
@@ -191,6 +193,7 @@
 
 .f-seg-text {
   color: var(--on-surface-muted);
+  transition: color 200ms ease;
 }
 
 .f-seg-text-on {

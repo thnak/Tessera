@@ -214,6 +214,20 @@ follow and are accepted:
 A zero duration starts no entry. The new computed value is already the final value, so an entry
 would only leave a settled fill behind; CSS gives a zero-duration transition no run either.
 
+**Only a changed property is retargeted.** The host runs the style stage on every frame with style
+or layout work, so the bridge sees a running transition's node many times. A property whose
+computed value did not change since the last stage keeps its entry; continuing "from the displayed
+value to the unchanged target" instead restarted it every stage, so a transition converged
+geometrically (about 63 percent of the way after a full duration, still short after twice that)
+and never finished. Pinned by `transition_wiring`.
+
+**The first frame shows the first value.** A transition starts inside the style stage, after that
+frame's tick, so the frame that applies the change has no sample and would paint the destination
+style, then jump back to the start on the next frame. `FramePipeline::sample_started_animations`
+samples the new entries at zero elapsed time and marks their targets paint-dirty, so that frame
+paints the start value. Colour channels interpolate premultiplied (CSS Color 4), so fading in from
+`transparent` keeps the colour instead of passing through a darker one.
+
 **Cost.** The style stage is change-driven, so this walk never runs on a paint-only frame. It
 resolves one computed style per rendered node, which the stage already does twice (scene sync and
 interaction sync); the snapshots are the only retained memory, bounded by the transition-declaring

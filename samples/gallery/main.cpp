@@ -10,6 +10,10 @@
 //   --rtl              `direction: rtl` on the window root (inherited)
 //   --state S          none (default), hover, active or focus: forces that pseudo-state on every
 //                      enabled Button, so a capture shows the state without a pointer
+//   --click C[:N]      clicks the Nth (default 0) node carrying class C, as an accessibility
+//                      activation, before the capture (a page's own onClick runs)
+//   --advance-ms N     runs N more milliseconds after the click, so a transition it started is
+//                      captured part-way (the clock is manual: the instant is exact)
 //   --page P           buttons (default), safe-area, form or dash (the parity pages, tools/parity)
 //   --device D         none (default), notch, gesture, keyboard or fold: scripts the window metrics
 //                      a SafeArea reads (insets, cutout, keyboard, hinge) and, unless --width and
@@ -67,6 +71,8 @@ struct Args {
     std::string theme = "instrument-light";
     std::string density = "comfortable";
     std::string state = "none";
+    std::string click;
+    int advance_ms = 0;
     int text_scale = 100;
     bool rtl = false;
     bool hidden = false;
@@ -184,6 +190,50 @@ void apply_state(Node& root, std::string_view state) {
     }
 }
 
+bool has_class(const Node& node, std::string_view token) {
+    std::string_view classes = node.class_name();
+    while (!classes.empty()) {
+        const std::size_t end = classes.find(' ');
+        const std::string_view word = classes.substr(0, end);
+        if (word == token) {
+            return true;
+        }
+        classes = end == std::string_view::npos ? std::string_view{} : classes.substr(end + 1);
+    }
+    return false;
+}
+
+Node* find_by_class(Node& node, std::string_view token, int& skip) {
+    if (has_class(node, token) && skip-- == 0) {
+        return &node;
+    }
+    for (const auto& child : node.children()) {
+        if (Node* found = find_by_class(*child, token, skip)) {
+            return found;
+        }
+    }
+    return nullptr;
+}
+
+// `--click C[:N]`: activates the Nth node with class C the way an accessibility invoke does, so the
+// page's generated onClick handler runs and its state change reaches the next frame.
+void apply_click(Node& root, const std::string& spec) {
+    if (spec.empty()) {
+        return;
+    }
+    const std::size_t colon = spec.find(':');
+    int skip = colon == std::string::npos ? 0 : std::atoi(spec.c_str() + colon + 1);
+    Node* target = find_by_class(root, std::string_view(spec).substr(0, colon), skip);
+    if (target == nullptr) {
+        std::cerr << "gallery: --click found no node `" << spec << "`\n";
+        std::exit(2);
+    }
+    tessera::ui::Event event;
+    event.type = tessera::ui::EventType::Click;
+    event.click_source = tessera::ui::ClickSource::Accessibility;
+    (void)tessera::ui::dispatch_event_to(*target, event);
+}
+
 // The scripted devices of safe-area-v1 section 9. Sizes are logical pixels.
 struct Device {
     int width;
@@ -273,8 +323,12 @@ int run_capture(const Args& args, const Resources& resources, Scene& scene) {
     options.font_path = args.font;
     options.scheduler = &scene.scheduler;
     options.configure_host = [&](tessera::app::AppHost& host) { configure(host, resources, args); };
-    const std::optional<tessera::app::CapturedFrame> frame = tessera::app::capture_frame(
-        scene.root, make_sheet(resources), options, [&] { apply_state(scene.root, args.state); });
+    options.advance_seconds = static_cast<double>(args.advance_ms) / 1000.0;
+    const std::optional<tessera::app::CapturedFrame> frame =
+        tessera::app::capture_frame(scene.root, make_sheet(resources), options, [&] {
+            apply_state(scene.root, args.state);
+            apply_click(scene.root, args.click);
+        });
     if (!frame) {
         std::cout << "gallery: skipped (Vulkan device unavailable)\n";
         return 0;
@@ -320,6 +374,7 @@ int run_window(const Args& args, const Resources& resources, Scene& scene) {
         << "usage: gallery [--capture out.png] [--theme ID] [--density comfortable|compact]\n"
            "               [--text-scale 100|125|150] [--rtl] [--state none|hover|active|focus]\n"
            "               [--page buttons|safe-area] [--device none|notch|gesture|keyboard|fold]\n"
+           "               [--click CLASS[:N]] [--advance-ms N]\n"
            "               [--hidden] [--frames N] [--width N] [--height N] [--font path]\n";
     std::exit(code);
 }
@@ -344,6 +399,10 @@ Args parse_args(int argc, char** argv) {
             args.density = argv[++index];
         } else if (arg == "--state" && has_value) {
             args.state = argv[++index];
+        } else if (arg == "--click" && has_value) {
+            args.click = argv[++index];
+        } else if (arg == "--advance-ms" && has_value) {
+            args.advance_ms = std::atoi(argv[++index]);
         } else if (arg == "--page" && has_value) {
             args.page = argv[++index];
         } else if (arg == "--device" && has_value) {

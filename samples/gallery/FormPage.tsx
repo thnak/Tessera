@@ -12,6 +12,7 @@ import { Button } from "./Button";
 
 export function FormPage() {
   const [submits, setSubmits] = useState<int>(0);
+  const [plan, setPlan] = useState<int>(0);
   return (
     <View className="f-page">
       <View className="f-card">
@@ -53,9 +54,15 @@ export function FormPage() {
         </View>
 
         <View className="f-segment">
-          <View className="f-seg f-seg-on"><Text className="f-seg-text f-seg-text-on">Monthly</Text></View>
-          <View className="f-seg"><Text className="f-seg-text">Yearly</Text></View>
-          <View className="f-seg"><Text className="f-seg-text">Invoice</Text></View>
+          <View className={`f-seg ${plan === 0 ? "f-seg-on" : ""}`} onClick={() => setPlan(0)}>
+            <Text className={`f-seg-text ${plan === 0 ? "f-seg-text-on" : ""}`}>Monthly</Text>
+          </View>
+          <View className={`f-seg ${plan === 1 ? "f-seg-on" : ""}`} onClick={() => setPlan(1)}>
+            <Text className={`f-seg-text ${plan === 1 ? "f-seg-text-on" : ""}`}>Yearly</Text>
+          </View>
+          <View className={`f-seg ${plan === 2 ? "f-seg-on" : ""}`} onClick={() => setPlan(2)}>
+            <Text className={`f-seg-text ${plan === 2 ? "f-seg-text-on" : ""}`}>Invoice</Text>
+          </View>
         </View>
 
         <View className="f-rows">

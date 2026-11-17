@@ -36,6 +36,11 @@ const dpr = Number(argument('--dpr', '1'));
 const themeName = argument('--theme', 'instrument-light');
 const chromePath = argument('--chrome', null);
 const pageName = argument('--page', 'form');
+// `--click CLASS[:N]` clicks the Nth element with that class, and `--advance-ms` then freezes every
+// running transition and animation at that many milliseconds, the instant the engine's
+// `gallery --click ... --advance-ms` captures.
+const clickSpec = argument('--click', null);
+const advanceMs = Number(argument('--advance-ms', '0'));
 
 let chromium;
 try {
@@ -65,6 +70,20 @@ await page.goto(pathToFileURL(join(root, `tools/parity/${pageName}.html`)).href)
 await page.addStyleTag({ content: tokenCss });
 await page.evaluate(() => document.fonts.ready);
 await page.waitForTimeout(150);
+if (clickSpec) {
+  const [cls, index = '0'] = clickSpec.split(':');
+  await page.locator(`.${cls}`).nth(Number(index)).click({ force: true });
+  await page.evaluate(
+    (ms) => {
+      document.body.offsetHeight; // flush style so the transitions exist
+      for (const animation of document.getAnimations()) {
+        animation.pause();
+        animation.currentTime = ms;
+      }
+    },
+    advanceMs,
+  );
+}
 await page.screenshot({ path: join(out, 'chrome.png') });
 const boxes = await page.evaluate(() =>
   [...document.querySelectorAll('[class]')].map((el) => {

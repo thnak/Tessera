@@ -132,6 +132,9 @@ public:
     [[nodiscard]] ComputedStyle compute(const Node& node) {
         return provider_->compute(node);
     }
+    [[nodiscard]] SceneStyleProvider& provider() {
+        return *provider_;
+    }
 
 private:
     ManualClock clock_;
@@ -247,6 +250,61 @@ int main() {
         if (!expect(!end.animation.finished.empty(), "the transition finishes") ||
             !expect(fixture.animations().empty(), "the runtime settles")) {
             return 11;
+        }
+    }
+
+    // --- a style stage whose target did not move leaves the running transition alone -------------
+    // The host runs the style stage on every frame that has style or layout work. Retargeting a
+    // transition "from what is shown to the unchanged target" each time restarted it, so it
+    // converged geometrically and never finished: 63 percent after a full duration, still short
+    // after twice that.
+    {
+        const CompiledStyleSheet sheet =
+            compile_stylesheet(".box { opacity: 1; }"
+                               ".box.dim { opacity: 0.25; }"
+                               ".animating { transition: opacity 200ms linear; }");
+        Fixture fixture(sheet);
+        Node& box = fixture.add_box("box animating");
+        fixture.frame(1.0 / 60.0);
+        fixture.set_classes(box, "box dim animating");
+        fixture.frame(1.0 / 60.0);
+        if (!expect(fixture.animations().active() == 1, "the change starts the transition")) {
+            return 12;
+        }
+        // 250 ms in 50 ms frames, each one running the style stage with no further change.
+        for (int step = 0; step < 5; ++step) {
+            fixture.frame(0.05);
+        }
+        if (!expect(fixture.animations().empty(),
+                    "a 200 ms transition finishes within 250 ms of style stages")) {
+            return 13;
+        }
+    }
+
+    // --- the frame that applies a change paints the transition's first value ------------------
+    {
+        const CompiledStyleSheet sheet =
+            compile_stylesheet(".box { opacity: 1; }"
+                               ".box.dim { opacity: 0.25; }"
+                               ".animating { transition: opacity 200ms linear; }");
+        Fixture fixture(sheet);
+        Node& box = fixture.add_box("box animating");
+        fixture.frame(1.0 / 60.0);
+        fixture.set_classes(box, "box dim animating");
+        // The host's order: tick (with the interpolation alpha), style stage, sample the new
+        // entries, finish. The transition starts inside the style stage, after the tick, so
+        // without `sample_started_animations` this frame has no sample and paints the destination.
+        const FrameTick tick = fixture.pipeline().tick(fixture.root(), 0.0, 1.0);
+        fixture.pipeline().sync_style(fixture.root(), fixture.provider(), tick, true);
+        fixture.pipeline().sample_started_animations(fixture.root());
+        const auto view = fixture.pipeline().interpolation_view();
+        ComputedStyle shown = fixture.compute(box);
+        view.overlay_style(2, shown);
+        bool found = false;
+        const float opacity = number(shown, "opacity", found);
+        if (!expect(found && near(opacity, 1.0f),
+                    "the first frame of a 1 to 0.25 transition shows 1, not the destination")) {
+            return 14;
         }
     }
 
