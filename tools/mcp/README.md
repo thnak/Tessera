@@ -36,6 +36,7 @@ returning an empty result that looks like success.
 | `diagnostics` | implemented | the compiler front end + `write_diagnostics_json`; over `source`, or the whole folder without it |
 | `get_ir` | implemented | the same stages, then the canonical IR writer (`ir-v1.md`); over `source`, or the whole folder |
 | `list_files` | implemented | the project folder: path, kind, size, readable, digest |
+| `generate` | implemented | the C++ of the folder by `tessera_codegen`'s driver: dry run by default, `write: true` regenerates the bases (`mcp-server-v1.md` section 4) |
 | `apply_edits` | declared | `source.patch` |
 | `set_viewport` | implemented | `viewport.set` |
 | `snapshot` | implemented | harness `snapshot` |

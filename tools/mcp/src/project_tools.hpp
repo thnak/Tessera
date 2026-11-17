@@ -5,6 +5,8 @@
 #include "tool_registry.hpp"
 #include "tool_session.hpp"
 
+#include <string_view>
+
 // The tools that read the open project folder (docs/specs/designer-studio-v1.md section 8):
 // `list_files`, and `diagnostics` / `get_ir` when the call carries no `source`. They are read-only:
 // the server writes nothing, runs no shell and never reads outside the root. The project is the
@@ -24,5 +26,12 @@ namespace tessera::mcp {
 // The folder's canonical IR (ir-v1.md), or the diagnostics document with `isError` when the
 // project does not reach one.
 [[nodiscard]] ToolResult run_project_ir_tool(SessionState& state);
+
+// `generate` (ADR-040, issue #407): the C++ of the folder, by the same driver as `tessera_codegen`.
+// Without `write` it is a dry run: it reports the generated files (size, SHA-256, new / changed /
+// unchanged) and writes nothing. With `write` it regenerates the generated bases inside the output
+// directory and scaffolds developer classes that do not exist; it never modifies an existing
+// developer file. `path` returns one generated file's text instead of the summary.
+[[nodiscard]] ToolResult run_generate_tool(SessionState& state, bool write, std::string_view path);
 
 } // namespace tessera::mcp

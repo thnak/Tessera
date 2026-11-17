@@ -187,6 +187,11 @@ void handle_developer_files(const ir::IrModule& module, const fs::path& output_d
         const fs::path source = output_dir / (component + ".cpp");
         const bool exists = fs::exists(header) || fs::exists(source);
         if (!exists) {
+            for (const GeneratedFile& stub : *stubs) {
+                if (fs::path(stub.path).stem().string() == component) {
+                    outcome.scaffolded.push_back(stub.path);
+                }
+            }
             if (check_only) {
                 continue; // developer files are not generated content: nothing to drift from
             }
@@ -588,7 +593,9 @@ Outcome run_impl(const Options& options) {
 
     const fs::path output_dir(options.output_dir);
     std::error_code error;
-    fs::create_directories(output_dir, error);
+    if (!options.dry_run) {
+        fs::create_directories(output_dir, error);
+    }
     if (error) {
         report(outcome, true,
                "tessera_codegen: cannot create output directory `" + output_dir.string() +
@@ -609,6 +616,19 @@ Outcome run_impl(const Options& options) {
         const std::optional<std::string> existing =
             fs::exists(target) ? read_file(target) : std::nullopt;
         std::string content = file.text;
+        if (options.dry_run || options.collect_generated) {
+            outcome.generated.push_back(GeneratedEntry{file.path, content,
+                                                       !existing ? GeneratedStatus::New
+                                                       : *existing == content
+                                                           ? GeneratedStatus::Unchanged
+                                                           : GeneratedStatus::Changed});
+        }
+        if (options.dry_run) {
+            if (!existing || *existing != content) {
+                outcome.drift = true;
+            }
+            continue;
+        }
         if (existing) {
             // The generated base and the manifest are rewritten wholesale: they carry no
             // developer-owned content, only the scaffolded `<Component>.hpp/.cpp` does, and those
@@ -637,7 +657,8 @@ Outcome run_impl(const Options& options) {
         }
     }
     if (outcome.exit_code == 0) {
-        handle_developer_files(module, output_dir, options.check_only, options.verbose, outcome);
+        handle_developer_files(module, output_dir, options.check_only || options.dry_run,
+                               options.verbose, outcome);
     }
     if (drift) {
         outcome.exit_code = 1;

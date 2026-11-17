@@ -4,6 +4,7 @@
 #include "project_tools.hpp"
 #include "regenerate.hpp"
 #include "tessera/harness/json_write.hpp"
+#include "tessera/ui/automation/sha256.hpp"
 
 #include <algorithm>
 #include <string>
@@ -61,6 +62,68 @@ cli::Options folder_options(const Loaded& loaded) {
     return options;
 }
 
+void replace_all(std::string& text, const std::string& from, const std::string& to) {
+    if (from.empty()) {
+        return;
+    }
+    for (std::size_t at = text.find(from); at != std::string::npos;
+         at = text.find(from, at + to.size())) {
+        text.replace(at, from.size(), to);
+    }
+}
+
+// Removes the host's absolute project path from text the driver wrote (a setup error, a warning
+// that names a developer file): the server never sends an absolute path to the client. The path
+// appears in its generic, native and JSON-escaped native spellings.
+std::string redact(std::string text, const std::filesystem::path& directory) {
+    const std::string generic = directory.generic_string();
+    const std::string native = directory.string();
+    std::string escaped;
+    for (const char c : native) {
+        escaped += c;
+        if (c == '\\') {
+            escaped += c;
+        }
+    }
+    for (const std::string& form : {escaped, native, generic}) {
+        replace_all(text, form + "\\\\", "");
+        replace_all(text, form + "\\", "");
+        replace_all(text, form + "/", "");
+        replace_all(text, form, ".");
+    }
+    return text;
+}
+
+// True when a symbolic link at `link` lies on the way to `out_dir`, or inside it.
+bool link_touches(std::string_view link, std::string_view out_dir) {
+    const auto prefix_of = [](std::string_view shorter, std::string_view longer) {
+        return longer == shorter ||
+               (longer.size() > shorter.size() && longer.compare(0, shorter.size(), shorter) == 0 &&
+                longer[shorter.size()] == '/');
+    };
+    return prefix_of(link, out_dir) || prefix_of(out_dir, link);
+}
+
+JsonValue string_array(const std::vector<std::string>& values) {
+    JsonValue array = JsonValue::array();
+    for (const std::string& value : values) {
+        array.push_back(JsonValue::string(value));
+    }
+    return array;
+}
+
+std::string_view status_name(cli::GeneratedStatus status) {
+    switch (status) {
+    case cli::GeneratedStatus::New:
+        return "new";
+    case cli::GeneratedStatus::Changed:
+        return "changed";
+    case cli::GeneratedStatus::Unchanged:
+        return "unchanged";
+    }
+    return "unchanged";
+}
+
 } // namespace
 
 ToolResult run_list_files_tool(SessionState& state) {
@@ -113,6 +176,111 @@ ToolResult run_project_ir_tool(SessionState& state) {
         return ToolResult{true, cli::diagnostics_document(options, outcome)};
     }
     return ToolResult{false, outcome.ir_json};
+}
+
+} // namespace tessera::mcp
+
+namespace tessera::mcp {
+
+ToolResult run_generate_tool(SessionState& state, bool write, std::string_view path) {
+    auto loaded = load(state);
+    if (!loaded) {
+        return loaded.error();
+    }
+    const std::string out_dir = loaded->listing.out_dir;
+    // The output directory is a project path like any other, and one tool never writes into a
+    // directory the walk does not enter or through a link it never follows.
+    if (auto bad = policy::check_project_path(out_dir)) {
+        return failure(*bad);
+    }
+    const std::string first = out_dir.substr(0, out_dir.find('/'));
+    if (policy::is_pruned_directory(first)) {
+        return ToolResult{true, "TESSERA_SEC_PATH_ESCAPE: the output directory `" + out_dir +
+                                    "` is inside a directory the server does not enter"};
+    }
+    for (const ListedFile& file : loaded->listing.files) {
+        if (file.link && link_touches(file.path, out_dir)) {
+            return ToolResult{true,
+                              "TESSERA_SEC_PATH_ESCAPE: `" + file.path +
+                                  "` is a symbolic link on the path of the output directory `" +
+                                  out_dir + "`"};
+        }
+    }
+
+    // Reading one file never writes: `path` makes the call a dry run whatever `write` says.
+    const bool dry = !write || !path.empty();
+    cli::Options options = folder_options(*loaded);
+    options.query = false;
+    options.output_dir = (loaded->project->directory / std::filesystem::path(out_dir)).string();
+    options.dry_run = dry;
+    options.collect_generated = true;
+    const cli::Outcome outcome = cli::run(options);
+    if (outcome.exit_code != 0) {
+        // A blocking diagnostic: nothing was written (every file is computed before the first
+        // write), and the client gets the document that says why.
+        return ToolResult{
+            true, redact(cli::diagnostics_document(options, outcome), loaded->project->directory)};
+    }
+
+    const std::string prefix = out_dir + "/";
+    if (!path.empty()) {
+        for (const cli::GeneratedEntry& entry : outcome.generated) {
+            if (path == entry.path || path == prefix + entry.path) {
+                return ToolResult{false, entry.text};
+            }
+        }
+        std::string names;
+        for (const cli::GeneratedEntry& entry : outcome.generated) {
+            names += (names.empty() ? "" : ", ") + prefix + entry.path;
+        }
+        return ToolResult{true,
+                          "TESSERA_MCP_INVALID_PARAMS: `" + std::string(path) +
+                              "` is not a generated file of this project; the generated files "
+                              "are " +
+                              names};
+    }
+
+    JsonValue files = JsonValue::array();
+    std::vector<std::string> written;
+    bool drift = false;
+    for (const cli::GeneratedEntry& entry : outcome.generated) {
+        JsonValue item = JsonValue::object();
+        item.set("path", JsonValue::string(prefix + entry.path));
+        item.set("size", JsonValue::integer(static_cast<std::int64_t>(entry.text.size())));
+        item.set("digest",
+                 JsonValue::string("sha256:" + tessera::ui::automation::to_hex(
+                                                   tessera::ui::automation::sha256(entry.text))));
+        item.set("status", JsonValue::string(std::string(status_name(entry.status))));
+        files.push_back(std::move(item));
+        if (entry.status != cli::GeneratedStatus::Unchanged) {
+            drift = true;
+            written.push_back(prefix + entry.path);
+        }
+    }
+    std::vector<std::string> scaffold;
+    for (const std::string& stub : outcome.scaffolded) {
+        scaffold.push_back(prefix + stub);
+    }
+    std::vector<std::string> warnings;
+    for (const cli::Message& message : outcome.messages) {
+        warnings.push_back(redact(message.text, loaded->project->directory));
+    }
+
+    JsonValue document = JsonValue::object();
+    document.set("write", JsonValue::boolean(!dry));
+    document.set("outDir", JsonValue::string(out_dir));
+    // `check` semantics of the CLI: 1 when a dry run finds a file that is new or differs.
+    document.set("exitCode", JsonValue::integer(dry && drift ? 1 : 0));
+    document.set("drift", JsonValue::boolean(drift));
+    document.set("files", std::move(files));
+    document.set("written", string_array(dry ? std::vector<std::string>{} : written));
+    document.set("scaffold", string_array(scaffold));
+    document.set("warnings", string_array(warnings));
+    auto text = tessera::harness::to_json(document);
+    if (!text) {
+        return ToolResult{true, "TESSERA_MCP_INVALID_PARAMS: the summary cannot be encoded"};
+    }
+    return ToolResult{false, std::move(*text)};
 }
 
 } // namespace tessera::mcp

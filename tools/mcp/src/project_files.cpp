@@ -86,11 +86,13 @@ std::optional<policy::ProjectFileError> walk(Walk& state, const fs::path& direct
                                    "` is a symbolic link that leaves the project root");
             }
             // Inside the root, but never followed: listed and never read.
-            state.files.push_back(ListedFile{relative, policy::ProjectFileKind::Other, 0, {}});
+            state.files.push_back(
+                ListedFile{relative, policy::ProjectFileKind::Other, 0, {}, true});
             state.pinned.insert(relative);
         } else if (fs::is_directory(link_status)) {
             if (policy::is_pruned_directory(name)) {
-                state.files.push_back(ListedFile{relative, policy::ProjectFileKind::Other, 0, {}});
+                state.files.push_back(
+                    ListedFile{relative, policy::ProjectFileKind::Other, 0, {}, false});
                 state.pinned.insert(relative);
             } else if (auto bad = walk(state, entry.path(), relative)) {
                 return bad;
@@ -100,7 +102,8 @@ std::optional<policy::ProjectFileError> walk(Walk& state, const fs::path& direct
             state.files.push_back(ListedFile{relative,
                                              policy::ProjectFileKind::Other,
                                              error ? 0 : static_cast<std::uint64_t>(size),
-                                             {}});
+                                             {},
+                                             false});
         }
         if (state.files.size() > policy::kMaxProjectFiles) {
             return refusal(policy::kFileLimitCode, "the project has more than " +
@@ -115,6 +118,7 @@ std::optional<policy::ProjectFileError> walk(Walk& state, const fs::path& direct
 // does not parse contributes nothing: the compiler reports the broken config itself.
 struct ConfigFacts {
     std::string entry;
+    std::string out_dir = "generated";
     std::string theme;
     std::vector<std::string> assets;
 };
@@ -127,6 +131,12 @@ ConfigFacts read_config(std::string_view text) {
     }
     if (const auto* entry = parsed->find("entry"); entry != nullptr && entry->is_string()) {
         facts.entry = std::string(*entry->as_string());
+    }
+    if (const auto* codegen = parsed->find("codegen"); codegen != nullptr && codegen->is_object()) {
+        const auto* out_dir = codegen->find("outDir");
+        if (out_dir != nullptr && out_dir->is_string() && !out_dir->as_string()->empty()) {
+            facts.out_dir = std::string(*out_dir->as_string());
+        }
     }
     const auto* assets = parsed->find("assets");
     if (assets == nullptr || !assets->is_object()) {
@@ -192,7 +202,7 @@ std::expected<ProjectListing, policy::ProjectFileError> list_project(const fs::p
             }
         }
     }
-    return ProjectListing{std::move(state.files), std::move(facts.entry)};
+    return ProjectListing{std::move(state.files), std::move(facts.entry), std::move(facts.out_dir)};
 }
 
 std::expected<std::string, policy::ProjectFileError> read_project_file(const fs::path& root,

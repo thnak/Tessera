@@ -168,6 +168,27 @@ std::expected<JsonValue, RpcError> McpSession::call_tool(const JsonValue& params
         return tool_result_json(run_list_files_tool(state_));
     }
 
+    if (name == "generate") {
+        // `write` is a boolean and `path` a string, both optional; a wrong type is refused rather
+        // than read as the default, because `write` decides whether the disk changes.
+        bool write = false;
+        if (const JsonValue* flag = (*arguments)->find("write"); flag != nullptr) {
+            const std::optional<bool> value = flag->as_bool();
+            if (!value) {
+                return std::unexpected(RpcError{RpcErrorCode::InvalidParams,
+                                                "`write` must be a boolean", kInvalidParamsCode});
+            }
+            write = *value;
+        }
+        const JsonValue* path = (*arguments)->find("path");
+        if (path != nullptr && !path->is_string()) {
+            return std::unexpected(RpcError{RpcErrorCode::InvalidParams, "`path` must be a string",
+                                            kInvalidParamsCode});
+        }
+        return tool_result_json(run_generate_tool(
+            state_, write, path == nullptr ? std::string_view() : *path->as_string()));
+    }
+
     if ((name == "diagnostics" || name == "get_ir") && (*arguments)->find("source") == nullptr) {
         // No `source`: the call is about the opened project folder, compiled as a whole the way the
         // native driver does. A call that sends `source` keeps the in-memory behaviour below.

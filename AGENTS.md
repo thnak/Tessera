@@ -647,8 +647,10 @@ owner-planned item and is not part of this milestone.
       project_files.cpp` (also for the Wasm module), `cli::run` with `Options::query` and `base_dir`;
       tests `mcp_project`, `schema_project_files`; spec `docs/specs/mcp-server-v1.md`. #396 keeps the
       other tools.
-- [ ] #407: `tessera-mcp`: a `generate` tool for the C++ of the folder (ADR-040). Owner decisions
-      first; takes #406.
+- [x] #407: `tessera-mcp`: a `generate` tool for the C++ of the folder (ADR-040). Done: `run_generate_tool`
+      in `tools/mcp/src/project_tools.cpp` over `cli::run` with `Options::dry_run` /
+      `collect_generated`; test `mcp_project` (dry run, byte-identity with the CLI, developer class
+      untouched, outDir and link refusals); spec `mcp-server-v1.md` section 4.
 - [ ] #408: studio: foldable simulation (hinge, fold posture, two-pane) on the Wasm viewer. Takes the
       ADR-054 conversion.
 - [x] #397: security: nested `:not()`/`:is()`/`:where()`/`:has()` overflowed the stack in the stylesheet

@@ -62,6 +62,8 @@ target_link_libraries(tessera_mcp_core PUBLIC
     tessera_ir
     tessera_ir_ids
     tessera_lowering
+    # `generate` hashes the generated files with the in-tree SHA-256 (issue #407).
+    tessera_automation
     tessera_schema
     tessera_style
     # `snapshot` and `set_viewport` (issue #408): the preview driver the browser module and the
