@@ -62,6 +62,7 @@ style/layout/paint/render invalidation scopes (see the [glossary](../reference/g
     "asyncTraceTasks": false,
     "dirtyRendering": "auto",
     "damageRects": true,
+    "cullDraws": true,
     "maxDamageRects": 16,
     "fullRedrawThreshold": 0.6,
     "layerCacheBudgetMb": 64,
@@ -117,6 +118,7 @@ style/layout/paint/render invalidation scopes (see the [glossary](../reference/g
 | `asyncTraceTasks` | boolean | `false` | | Trace task spans/queue latency; debug overhead. |
 | `dirtyRendering` | string | `auto` | `auto`, `on`, `off` | `auto` enables dirty paths with the safety fallbacks of [`dirty-rendering.md`](../design/dirty-rendering.md) section 6.2; no other criterion is specified. |
 | `damageRects` | boolean | `true` | | Partial redraw when the present path supports it. |
+| `cullDraws` | boolean | `true` | | CPU culling of quads that cannot touch the active scissor or the damage bounding box (`Batched2DConfig::cull_draws`, [`dirty-rendering.md`](../design/dirty-rendering.md) section 6.4). `false` stages every quad as before, for a pixel-identical comparison; it never changes output. |
 | `maxDamageRects` | integer | `16` | `1..64` | Exceeding this falls back to full redraw. |
 | `fullRedrawThreshold` | number | `0.6` | `0.0..1.0` | Damage area ratio above which to full-redraw. |
 | `layerCacheBudgetMb` | integer | `64` | `0..4096` | Retained layer cache budget. `0` disables layers. |
@@ -206,6 +208,12 @@ VRR never overrides `maxFps`; a non-zero cap still applies.
 
 `damageRects` is a separate switch. Even with `dirtyRendering=on`, the renderer may full-redraw
 when damage is unsafe or above `fullRedrawThreshold`.
+
+`cullDraws` is a third, independent switch inside the renderer and the last stage of the same
+story: a quad whose transformed bounds cannot touch the active scissor or the damage bounding box
+is dropped before it is staged. It only removes work the GPU scissor would have discarded, so
+`false` (every quad staged) is the reference for a pixel-identical comparison, never a different
+picture; it is not a performance policy and does not affect invariants in section 1.
 
 ### 5.5 Deterministic mode
 
@@ -419,8 +427,8 @@ it with default `4`. This is model-only unless the key appears in section 6.2.
 
 ### 6.2 Consumed keys (wiring status)
 
-The loader lands first; consumers wire one key at a time. Seven keys reach runtime code today,
-through the pure mapping layer `src/app/window_config.hpp`:
+The loader lands first; consumers wire one key at a time. The keys below reach runtime code today,
+most of them through the pure mapping layer `src/app/window_config.hpp`:
 
 | Key | Consumer | Effect |
 |---|---|---|
@@ -430,6 +438,7 @@ through the pure mapping layer `src/app/window_config.hpp`:
 | `adaptiveQuality`, `powerPolicy`, `renderScale`, `minRenderScale`, `frameBudgetMs` | `AdaptiveQualityPolicy` -> the controller in [`src/runtime/adaptive_quality.hpp`](../../src/runtime/adaptive_quality.hpp) -> the render target sized by [`src/ui/scale/render_target_extent.hpp`](../../include/tessera/ui/scale/render_target_extent.hpp) and the present cap of [`src/runtime/present_cap.hpp`](../../src/runtime/present_cap.hpp) | The deterministic decision layer of [`performance.md`](../design/performance.md) section 6.1 plus its step-2 render-target consumer and its step-3 present cap. `powerPolicy` is consumed only as the `benchmark` disable bit (the preset's present/dirty defaults stay unwired). |
 | `glassMaxBlurRadius`, `glassMaxBackdropArea` | `FramePipelineConfig::glass` -> `paint::PaintContext::glass` (paint pass) and `Batched2DConfig::glass` (renderer) | The paint pass clamps the emitted blur sigma and chooses half resolution from the same `rendering::gpu::GlassLimits`; the resolved sigma also lands on `Node::set_glass_blur_sigma` for the 3 sigma damage dependency ([`glass-v1.md`](glass-v1.md) section 7). The renderer re-clamps with the same limits before planning the region, so the copy cannot be smaller than the blur's reach. Both default to the values above, so an unset config paints the documented defaults. |
 | `glassMaxBlurTargets` | `Batched2DConfig::max_offscreen_targets` | The bounded offscreen target pool of the render-pass seam; `0` disables it. It is read where the window creates the renderer, next to the two glass pipelines ([`offscreen-layers.md`](../design/gpu/offscreen-layers.md) section 5.1). |
+| `cullDraws` | `Batched2DConfig::cull_draws` | The renderer's CPU cull of quads outside the scissor and the damage bounding box ([`dirty-rendering.md`](../design/dirty-rendering.md) section 6.4). `false` stages every quad, for a pixel-identical comparison; it is read where the window creates the renderer, like the glass limits. |
 
 The adaptive-quality keys reach the **render target** and the **present cap**. The host feeds the
 controller one observed frame time per presented frame, reports its decision in
