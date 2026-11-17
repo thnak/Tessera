@@ -14,7 +14,11 @@
     "edit_probe_runs": 5,
     "edit_samples_per_run": 30,
     "edit_warmup": 5,
-    "statistic": "min"
+    "statistic": "min",
+    "normalization": "measured_ms * calibration_reference_ms / calibration_ms",
+    "calibration_reference_ms": 15.69,
+    "calibration_iterations": 4000000,
+    "calibration_checksum": 40185732
   },
   "tolerance": {
     "default": {
