@@ -134,8 +134,20 @@ await test("the built chrome renders the page's four regions", async () => {
   for (const id of ["page-hint", "controls", "source", "gallery", "link-note", "build-id"]) {
     assert.ok(MARKUP.includes(`id="${id}"`), `the chrome carries #${id}`);
   }
-  assert.match(MARKUP, /class="layout"/, "the two-pane workspace is rendered");
+  // Issue #431: the two-pane split became a three-column workspace -- the project tree, the tabbed code
+  // column and the preview column -- with the status line spanning the bottom. The old `class="layout"`
+  // assertion is what caught the move, so it is replaced rather than dropped.
+  assert.match(MARKUP, /class="workspace"/, "the three-column workspace is rendered");
+  assert.match(MARKUP, /role="tree"/, "the project tree is rendered");
+  assert.match(MARKUP, /role="tablist"[^>]*aria-label="Open files"/, "the editor's tabs are rendered");
+  assert.match(MARKUP, /role="tablist"[^>]*aria-label="Preview views"/, "the preview switch is rendered");
   assert.match(MARKUP, /class="page-footer"/, "the status line is rendered");
+  // The page itself is not a tablist any more: exactly the two strips above, and no third.
+  assert.equal(
+    (MARKUP.match(/role="tablist"/g) || []).length,
+    2,
+    "the page has two tab strips (files, preview) and no page-level one",
+  );
 });
 
 await test("the toolbar's selects carry the documented option sets", async () => {

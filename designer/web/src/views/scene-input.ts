@@ -19,7 +19,7 @@
 //
 // or `{"error":"..."}` when the script or the source produced nothing to click.
 
-import type { StatusReporter } from "../lib/views";
+import type { SourceReader, StatusReporter } from "../lib/views";
 import { element, unavailableBox } from "./dom";
 
 /** One state cell, as the document spells it. */
@@ -54,9 +54,11 @@ export interface InputPaneElements {
 /** What the session lends this pane: the document request and the pane's status line. */
 export interface InputPaneOptions {
   elements: InputPaneElements;
-  source: HTMLTextAreaElement;
-  /** The source path the current sample is laid out under; the same one the node list used. */
-  file: () => string;
+  /**
+   * What Run compiles (issue #431): the workspace's compile target. The click script is applied to the
+   * same source the node list was built from, so the two cannot describe different documents.
+   */
+  source: SourceReader;
   /** Asks the session for the module's document text, so the heap stays the session's. */
   request: (name: string, args: string[]) => Promise<string>;
   setStatus: StatusReporter;
@@ -149,9 +151,10 @@ export function createInputPane(options: InputPaneOptions): InputPane {
     }
     setStatus("clicking", null);
     try {
+      const target = options.source();
       const json = await options.request("_tessera_input_json", [
-        options.source.value,
-        options.file(),
+        target.text,
+        target.file,
         "",
         script.value,
       ]);

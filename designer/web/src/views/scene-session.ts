@@ -23,7 +23,7 @@
 
 import { parseViewport } from "../lib/preview-state.js";
 import { wasmModuleUrl } from "../lib/module-url";
-import type { StatusReporter, ViewSession } from "../lib/views";
+import type { SourceReader, StatusReporter, ViewSession } from "../lib/views";
 import { callExport, requireExports, type WasmModule } from "../lib/wasm-call";
 import { createInputPane } from "./scene-input";
 import { noSceneBox, renderNodes, unavailableBox, type SceneDocument } from "./scene-render";
@@ -112,7 +112,6 @@ function chooseExport(
 
 /** The elements React committed for the Scene pane; every one of them is a ref. */
 export interface SceneElements {
-  source: HTMLTextAreaElement;
   status: HTMLElement;
   nodes: HTMLElement;
   emptyState: HTMLElement;
@@ -125,6 +124,11 @@ export interface SceneElements {
 
 export interface SceneSessionOptions {
   elements: SceneElements;
+  /**
+   * What Run compiles (issue #431): the workspace's compile target, not the textarea's current value.
+   * A stylesheet tab being active does not make the stylesheet the source.
+   */
+  source: SourceReader;
   /** The pane's own status line (the node list's). */
   setStatus: StatusReporter;
   /** The input pane's status line (the state cells'). */
@@ -138,8 +142,6 @@ export interface SceneSessionOptions {
    * native protocol and MCP use.
    */
   foldPosture: () => string;
-  /** The source path the current sample is previewed under. */
-  file: () => string;
   /** Reports readiness to the page's shared Run button. */
   onReady: (ready: boolean) => void;
 }
@@ -149,7 +151,7 @@ export interface SceneSession extends ViewSession {
 }
 
 export function createSceneSession(options: SceneSessionOptions): SceneSession {
-  const { source, nodes, emptyState, editorHint, script, cells, runInput } = options.elements;
+  const { nodes, emptyState, editorHint, script, cells, runInput } = options.elements;
   const setStatus = options.setStatus;
 
   // The module factory, or null when the artifacts are absent or refused to start.
@@ -183,8 +185,7 @@ export function createSceneSession(options: SceneSessionOptions): SceneSession {
 
   const input = createInputPane({
     elements: { script, cells, button: runInput },
-    source,
-    file: options.file,
+    source: options.source,
     request: async (name, args) => {
       if (factory === null) {
         throw new Error("the WebAssembly module is not loaded");
@@ -209,12 +210,12 @@ export function createSceneSession(options: SceneSessionOptions): SceneSession {
       const module = await factory();
       const viewport = currentViewport();
       const dpr = currentDpr();
-      const file = options.file();
+      const target = options.source();
       const chosen = chooseExport(module, viewport, dpr, options.foldPosture());
       const json = callExport(
         module,
         chosen.name,
-        [source.value, file, "", ...chosen.extra],
+        [target.text, target.file, "", ...chosen.extra],
         chosen.numbers,
       );
       emptyState.hidden = true;
@@ -283,9 +284,12 @@ export function createSceneSession(options: SceneSessionOptions): SceneSession {
     load,
     /** The Run button's action. */
     run,
-    /** "Load sample" on this view: its own sample plus the three-click demo script. */
+    /**
+     * "Load sample" on this view, split across the page (issue #431): the page writes `sampleSource` into
+     * the entry file, and this runs the view's own part -- its three-click demo script over that source.
+     */
+    sampleSource: SAMPLE,
     loadSample: () => {
-      source.value = SAMPLE;
       script.value = SAMPLE_SCRIPT;
       input.reset();
       if (factory !== null) {

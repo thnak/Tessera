@@ -35,7 +35,7 @@
 // synchronously, which is why no report it returns claims `pixelsAvailable`.
 
 import { wasmModuleUrl } from "../lib/module-url";
-import type { StatusReporter, ViewSession } from "../lib/views";
+import type { SourceReader, StatusReporter, ViewSession } from "../lib/views";
 import { callExport, requireExports, type WasmModule } from "../lib/wasm-call";
 import { acquireDevice, handOverDevice, type CanvasModule } from "./canvas-device";
 import { FONT_FAMILY, handOverFont, loadPreviewFont, readFontStatus } from "./canvas-font";
@@ -53,7 +53,11 @@ type ModuleFactory = () => Promise<WasmModule & CanvasModule>;
 
 export interface CanvasSessionOptions {
   elements: CanvasPaneElements;
-  source: HTMLTextAreaElement;
+  /**
+   * What Run draws (issue #431): the workspace's compile target, not the textarea's value. A stylesheet
+   * tab being active does not make the stylesheet the source.
+   */
+  source: SourceReader;
   setStatus: StatusReporter;
   /** The toolbar's current `{width, height, dpr}`; a canvas run must not be stuck at 320x240. */
   environment: () => { width: number; height: number; dpr: number };
@@ -62,8 +66,6 @@ export interface CanvasSessionOptions {
    * `tabletop`. It is a layout input, so a change draws again rather than waiting for a Run.
    */
   foldPosture: () => string;
-  /** The source path the current sample is previewed under. */
-  file: () => string;
   /** Reports readiness to the page's shared Run button. */
   onReady: (ready: boolean) => void;
 }
@@ -77,7 +79,6 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
   const pane = createCanvasPane(options.elements, options.setStatus);
   const { canvas } = options.elements;
   const source = options.source;
-
   // The module factory, or null before it loads. `gpu` holds the device the page acquired.
   let factory: ModuleFactory | null = null;
   let gpu: {
@@ -114,6 +115,7 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
     // 780x1688 and show the top-left quarter. The C ABI takes both, separately, for this reason.
     const viewport = requestedViewport(options.environment);
     const foldPosture = options.foldPosture();
+    const target = source();
     let report: CanvasFrameReport;
     try {
       // One texture-view reference per frame: the module takes ownership and releases it, and the canvas
@@ -130,7 +132,7 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
         callExport(
           gpu.module,
           "_tessera_canvas_frame",
-          [source.value, options.file(), "", foldPosture],
+          [target.text, target.file, "", foldPosture],
           [viewport.width, viewport.height, dpr, viewPtr],
         ),
       ) as CanvasFrameReport;

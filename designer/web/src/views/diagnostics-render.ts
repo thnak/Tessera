@@ -73,19 +73,39 @@ function spotlight(text: string, span: Span): HTMLElement | null {
   return box;
 }
 
-/** Selects the span in the editor: there is no editor widget, so this is the whole "go to" affordance. */
-function reveal(source: HTMLTextAreaElement, span: Span): void {
-  source.focus();
-  const start = Math.min(span.offset ?? 0, source.value.length);
-  const length = Math.max(0, span.length ?? 0);
-  source.setSelectionRange(start, Math.min(start + length, source.value.length));
-  // Scroll the textarea so the caret is visible: a rough line-height estimate is enough and avoids
-  // measuring the DOM for a diagnostics list.
-  const lineHeight = parseFloat(getComputedStyle(source).lineHeight) || 20;
-  source.scrollTop = Math.max(0, ((span.line ?? 1) - 3) * lineHeight);
+/**
+ * The source an open file would reveal, or `null` when the editor is showing a different document.
+ *
+ * Since issue #431 the editor holds one project file at a time and Run compiles another (the project
+ * entry, when the active tab is a stylesheet). "Show in source" can only mean "select this span in the
+ * editor" when the editor is showing *this* text; otherwise the pane names the file and says where to
+ * open it, rather than highlighting an offset in a document the diagnostic is not about.
+ */
+export interface RevealableSource {
+  /** The textarea, which holds the text Run compiled. */
+  element: HTMLTextAreaElement;
+  /** `false` when the editor is showing another project file. */
+  shown: boolean;
+  /** The canonical project path the diagnostics are about, for the sentence when it is not shown. */
+  file: string;
 }
 
-function renderDiagnostic(diagnostic: Diagnostic, source: HTMLTextAreaElement): HTMLElement {
+/** Selects the span in the editor: there is no editor widget, so this is the whole "go to" affordance. */
+function reveal(element: HTMLTextAreaElement, span: Span): void {
+  element.focus();
+  const start = Math.min(span.offset ?? 0, element.value.length);
+  const length = Math.max(0, span.length ?? 0);
+  element.setSelectionRange(start, Math.min(start + length, element.value.length));
+  // Scroll the textarea so the caret is visible: a rough line-height estimate is enough and avoids
+  // measuring the DOM for a diagnostics list.
+  const lineHeight = parseFloat(getComputedStyle(element).lineHeight) || 20;
+  element.scrollTop = Math.max(0, ((span.line ?? 1) - 3) * lineHeight);
+}
+
+function renderDiagnostic(
+  diagnostic: Diagnostic,
+  source: RevealableSource | null,
+): HTMLElement {
   const severity = diagnostic.severity === "warning" ? "warning" : "error";
   const item = element("li", "diagnostic " + severity);
 
@@ -103,15 +123,34 @@ function renderDiagnostic(diagnostic: Diagnostic, source: HTMLTextAreaElement): 
     const meta = element("div", "diagnostic-span");
     meta.append(element("span", null, `${span.file}:${span.line}:${span.column}`));
 
-    const jump = element("button", null, "Show in source");
-    jump.type = "button";
-    jump.addEventListener("click", () => reveal(source, span));
-    meta.append(jump);
-    item.append(meta);
+    if (source && source.shown) {
+      const jump = element("button", null, "Show in source");
+      jump.type = "button";
+      jump.addEventListener("click", () => {
+        if (source.element) {
+          reveal(source.element, span);
+        }
+      });
+      meta.append(jump);
+      item.append(meta);
 
-    const context = spotlight(source.value, span);
-    if (context) {
-      item.append(context);
+      const context = spotlight(source.element.value, span);
+      if (context) {
+        item.append(context);
+      }
+    } else {
+      // The span is real but its text is not in the editor: name the file, so a reader can open the
+      // tab rather than wonder why the button is gone.
+      if (span.file) {
+        meta.append(
+          element(
+            "span",
+            "diagnostic-elsewhere",
+            "open " + span.file + " to see the span",
+          ),
+        );
+      }
+      item.append(meta);
     }
   }
 
@@ -132,12 +171,16 @@ function renderDiagnostic(diagnostic: Diagnostic, source: HTMLTextAreaElement): 
  *
  * The caller owns the status line, because "no diagnostics" and "three warnings" are phrased
  * differently by a page that also has a scene view to talk about.
+ *
+ * `source` is the editor as a *revealable* document (issue #431): `null` means the page has no editor
+ * for this text at all, and `shown: false` means the editor is holding another project file. Both show
+ * the span's location and neither pretends the row leads anywhere it does not.
  */
 export function renderDiagnostics(
   list: HTMLElement,
   emptyState: HTMLElement,
   document_: DiagnosticsDocument,
-  source: HTMLTextAreaElement,
+  source: RevealableSource | null,
 ): DiagnosticCounts {
   const diagnostics = Array.isArray(document_.diagnostics) ? document_.diagnostics : [];
   list.replaceChildren();

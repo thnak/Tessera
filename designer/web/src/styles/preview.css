@@ -1,0 +1,355 @@
+/* SPDX-License-Identifier: MIT
+ *
+ * The preview column's sheet (issue #431 moved the three views into this column; #167/#166/#165 built
+ * the panes themselves).
+ *
+ * The column is four stacked rows: the header with the **view switch**, the environment toolbar, the
+ * well that holds the three panes, and (in the canvas pane) the frame counters. The panes are `hidden`
+ * rather than unmounted, so switching a view changes what the well shows and nothing else -- neither the
+ * page's shape nor the WebGPU device.
+ *
+ * The view switch is a real `role="tablist"` with a roving tabindex: one tab stop, arrow keys inside it,
+ * `aria-selected` mirroring the visible pane. Styled as a quiet segmented control so it reads as a mode
+ * switch rather than three competing primary actions.
+ */
+
+.region-preview { grid-column: 3; }
+
+.preview-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.tab {
+  padding: 4px 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.tab:hover:not(:disabled) { color: var(--text); border-color: var(--border); }
+
+.tab[aria-selected="true"] {
+  border-color: var(--border);
+  background: var(--pane-bg);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* The well is the panes' shared frame: one visible pane at a time, each scrolling its own content. */
+.preview-well {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+}
+
+.pane {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  background: var(--pane-bg);
+}
+
+/* The view panes scroll their own content: a long node list or a tall canvas must not drag another
+ * pane's scroll position with it. */
+.view {
+  overflow-y: auto;
+}
+
+.pane-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.pane-header h2 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+
+/* --- diagnostics (view 1) --------------------------------------------------------------------- */
+
+.diagnostics {
+  flex: 1 1 auto;
+  margin: 0;
+  padding: 8px;
+  overflow-y: auto;
+  list-style: none;
+  min-height: 0;
+}
+
+.diagnostic {
+  margin: 0 0 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-left-width: 3px;
+  border-radius: var(--radius);
+  background: var(--pane-bg);
+}
+
+.diagnostic.error { border-left-color: var(--error); background: var(--error-bg); }
+.diagnostic.warning { border-left-color: var(--warning); background: var(--warning-bg); }
+
+.diagnostic-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.diagnostic-code {
+  font: 600 12px/1.4 var(--mono);
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.diagnostic-severity {
+  flex: none;
+  font: 600 11px/1.4 var(--mono);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.diagnostic.error .diagnostic-severity { color: var(--error); }
+.diagnostic.warning .diagnostic-severity { color: var(--warning); }
+
+.diagnostic-message {
+  margin: 6px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.diagnostic-span {
+  margin: 8px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font: 12px/1.5 var(--mono);
+  color: var(--text-dim);
+}
+
+.diagnostic-span button {
+  padding: 2px 8px;
+  font-size: 12px;
+}
+
+/* The span is in a file the editor is not showing (issue #431): name it rather than offer a jump the
+ * page cannot make. */
+.diagnostic-elsewhere { color: var(--text-dim); }
+
+.diagnostic-spotlight {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-radius: 4px;
+  background: rgba(127, 127, 127, 0.12);
+  font: 12px/1.6 var(--mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.diagnostic-spotlight .marked {
+  text-decoration: underline wavy currentColor;
+  text-underline-offset: 3px;
+}
+
+.diagnostic-suggestion,
+.diagnostic-related {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.diagnostic-suggestion::before { content: "help: "; font-weight: 600; }
+.diagnostic-related::before { content: "note: "; font-weight: 600; }
+
+.empty-state {
+  padding: 24px 16px;
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+/* --- the scene snapshot (view 2) -------------------------------------------------------------- */
+
+.nodes {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+  overflow: auto;
+}
+
+.node {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: baseline;
+  padding: 3px 8px;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.node-kind {
+  min-width: 8ch;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.node-path { color: var(--text-dim); }
+
+.node-bounds {
+  color: var(--text-dim);
+  margin-left: auto;
+}
+
+.node-text { color: var(--ok); }
+
+.node-id {
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+/* The id picker beside a node (P4, issue #168): appends `click <id>` to the input script. Kept small
+ * and borderless so it reads as part of the row rather than a competing primary action. */
+.node-pick {
+  margin-left: 6px;
+  padding: 0 6px;
+  font: inherit;
+  font-size: 11px;
+  color: var(--accent);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.node-pick:hover { background: var(--ok-bg); }
+
+#script {
+  flex: 0 0 auto;
+  width: auto;
+  margin: 8px 14px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+  font: 12px/1.6 var(--mono);
+  resize: vertical;
+  tab-size: 2;
+}
+
+#script:focus { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* State cells (P4): one row for the initial state and one per scripted step, so a reader sees the
+ * sequence and not only the final value. */
+.cells {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 8px;
+  list-style: none;
+  overflow-y: auto;
+  max-height: 40%;
+  font-family: var(--mono);
+  font-size: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.cell {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  padding: 3px 0;
+  align-items: baseline;
+}
+
+.cell.step { border-top: 1px dotted var(--border); }
+
+.cell-when {
+  min-width: 12ch;
+  color: var(--text-dim);
+}
+
+.cell-pair { display: inline-flex; gap: 4px; }
+.cell-name { color: var(--text); }
+
+.cell-value {
+  color: var(--ok);
+  font-weight: 600;
+}
+
+/* --- the canvas (view 3) ---------------------------------------------------------------------- */
+
+.unavailable {
+  margin: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--warning);
+  border-radius: var(--radius);
+  background: var(--warning-bg);
+}
+
+.unavailable h3 {
+  margin: 0 0 6px;
+  font-size: 13px;
+}
+
+.unavailable p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.unavailable code { font-family: var(--mono); }
+
+/* canvas.js sizes the backing store in device pixels, so CSS keeps the element at the logical viewport;
+ * letting the browser rescale it would make the preview blurry. */
+.canvas-frame {
+  display: flex;
+  justify-content: center;
+  padding: 12px;
+  overflow: auto;
+  min-width: 0;
+}
+
+.canvas-frame canvas {
+  display: block;
+  max-width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: #0b1220;
+  /* A preview is a picture of a UI, not a UI: not selectable, and no text caret on a click. */
+  user-select: none;
+}
+
+/* The frame counters: name/value pairs, two columns so the labels line up without a table. */
+.frame-stats {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 2px 12px;
+  margin: 0;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.frame-stats dt { color: var(--text-dim); }
+.frame-stats dd { margin: 0; color: var(--text); }

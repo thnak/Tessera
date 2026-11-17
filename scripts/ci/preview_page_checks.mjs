@@ -51,7 +51,12 @@ const WEB = resolve(REPO_ROOT, "designer", "web");
 const DIST = resolve(WEB, "dist");
 const DIST_SSR = resolve(WEB, "dist-ssr");
 
-// The ids the shared chrome (`App`, `StudioChrome`, `ViewPanes`) resolves. One page, so one list.
+// The ids the shared chrome (`App`, `StudioChrome`, `ProjectTree`, `CodeRegion`) resolves. One page, so
+// one list.
+//
+// Issue #431 split the page into three columns and moved the view switch into the preview column, so this
+// list grew by the workspace's own ids (`workspace`, `project-tree`, the tab strip, the status line's
+// cells) and lost nothing: every id a pre-#431 link or gate depended on is still here.
 const SHARED_IDS = [
   "controls",
   "share",
@@ -61,10 +66,21 @@ const SHARED_IDS = [
   "gallery-list",
   "link-note",
   "source",
+  // The three-column workspace (issue #431). `workspace` is the grid, `project-tree` is its left column,
+  // `editor-panel` is the middle column's tab panel, and the three `status-*` ids are the status line.
+  "workspace",
+  "project-tree",
+  "project-status",
+  "editor-panel",
+  "editor-hint",
+  "status-file",
+  "status-diagnostics",
+  "status-frame",
 ];
 
 // The page shell's own ids: `App` and the four regions resolve these, and nothing else would catch one
-// being renamed out from under them.
+// being renamed out from under them. The three `tab-*`/`view-*` pairs are the preview switch, which #431
+// moved into the preview column but did not rename: `?view=` and every `#p5=` link still resolve them.
 const SHELL_IDS = [
   "tab-diagnostics",
   "tab-scene",
@@ -76,9 +92,6 @@ const SHELL_IDS = [
   "load-sample",
   "build-id",
   "page-hint",
-  // The hint under the shared editor: the page owns it (the Scene session appends the live rectangle),
-  // so it is a shell id rather than any one view's.
-  "editor-hint",
 ];
 
 // Each view session's own ids, kept separate so a failure names the view whose pane is wrong.
@@ -357,29 +370,111 @@ if (!requireBuilt()) {
     }
   }
 
-  // The tablist is role-bearing chrome, and the three tabs must be tabs with a roving tabindex. A pane
-  // switched by plain buttons would still "work" and would be invisible to a screen reader.
+  // The two tab strips are role-bearing chrome, and each must be a real tablist: one tab stop, one
+  // selection, arrow-key reachable. Issue #431 made them two -- the open files in the code column and the
+  // preview switch in the preview column -- and *removed* the page-level one. So the checks are (a) the
+  // preview switch is still three tabs with exactly one selection, exactly as before, and (b) the page
+  // carries no third tablist and no fourth preview tab: a layout that put the switch back at the top
+  // would pass (a) and fail (b), which is the regression this issue exists to prevent.
   {
     const problems = [];
-    if (!/role="tablist"/.test(markup)) {
-      problems.push("no role=tablist");
+    // The markup is split at each `role="tablist"`, so a strip's tabs are the `role="tab"` elements
+    // between its opening tag and the next strip. The regions are in DOM order (tree, code, preview), so
+    // the editor's strip precedes the preview's in the markup; slicing by position keeps the two apart
+    // without depending on which order the components happen to be declared in.
+    const starts = [...markup.matchAll(/role="tablist"/g)].map((match) => match.index ?? 0);
+    const strips = starts.map((start, index) => {
+      const end = index + 1 < starts.length ? starts[index + 1] : markup.length;
+      const block = markup.slice(start, end);
+      const label = /aria-label="([^"]*)"/.exec(block)?.[1] ?? "";
+      const tabs = [...block.matchAll(/role="tab"([^>]*)>/g)].map((match) => match[1]);
+      return { label, tabs };
+    });
+    const labels = strips.map((strip) => strip.label);
+    if (strips.length !== 2) {
+      problems.push(`${strips.length} tablist(s), expected 2 (the open files and the preview switch)`);
     }
-    const tabs = [...markup.matchAll(/role="tab"([^>]*)>/g)].map((match) => match[1]);
-    if (tabs.length !== 3) {
-      problems.push(`${tabs.length} role=tab element(s), expected 3`);
+    if (!labels.includes("Preview views")) {
+      problems.push("no `Preview views` tablist (the view switch left the page)");
     }
-    const selected = tabs.filter((attributes) => /aria-selected="true"/.test(attributes)).length;
+    if (!labels.includes("Open files")) {
+      problems.push("no `Open files` tablist (the editor has no tabs)");
+    }
+
+    /** One strip's roles: n tabs, exactly one selected, exactly one tab stop. */
+    const checkStrip = (name, expected) => {
+      const strip = strips.find((candidate) => candidate.label === name);
+      if (!strip) {
+        return 0;
+      }
+      if (expected !== null && strip.tabs.length !== expected) {
+        problems.push(`${strip.tabs.length} ${name} role=tab element(s), expected ${expected}`);
+      }
+      const selected = strip.tabs.filter((attributes) => /aria-selected="true"/.test(attributes)).length;
+      if (selected !== 1) {
+        problems.push(`${selected} selected ${name} tab(s), expected exactly 1`);
+      }
+      const focusable = strip.tabs.filter((attributes) => !/tabindex="-1"/.test(attributes)).length;
+      if (focusable !== 1) {
+        problems.push(`${focusable} tab stop(s) in the ${name} strip, expected exactly 1 (roving tabindex)`);
+      }
+      return strip.tabs.length;
+    };
+
+    // The preview switch: still three tabs, one selection, one tab stop -- exactly the strip the
+    // pre-#431 page had at the top, now inside the column it controls.
+    checkStrip("Preview views", 3);
+    // The editor: the seeded project opens its entry file, so there is at least one tab.
+    const editorTabs = checkStrip("Open files", null);
+    if (editorTabs < 1) {
+      problems.push("no editor tabs (the workspace has no open file)");
+    }
+
+    if (problems.length > 0) {
+      fail(`the rendered tab strips ${problems.join("; ")}`);
+    } else {
+      ok(
+        `the preview switch is one tab stop with three tabs and one selection; the editor has ` +
+          `${editorTabs} tab(s) with one selection`,
+      );
+    }
+  }
+
+  // The workspace's shape (issue #431): three columns with a tree in the first one. A page that went back
+  // to top-level view tabs would still render every id above, so the *layout* is asserted separately.
+  {
+    const problems = [];
+    if (!/class="workspace"/.test(markup)) {
+      problems.push("no .workspace three-column grid");
+    }
+    if (!/role="tree"/.test(markup)) {
+      problems.push("no role=tree (the project tree is missing)");
+    }
+    const items = [...markup.matchAll(/role="treeitem"([^>]*)>/g)].map((match) => match[1]);
+    if (items.length < 3) {
+      problems.push(`${items.length} treeitem(s), expected the seeded project's rows`);
+    }
+    // One tab stop in the tree, on the selected row: a tree that is keyboard navigable has one entry
+    // point, and the arrow keys move it.
+    const selected = items.filter((attributes) => /aria-selected="true"/.test(attributes)).length;
     if (selected !== 1) {
-      problems.push(`${selected} selected tab(s), expected exactly 1`);
+      problems.push(`${selected} selected tree row(s), expected exactly 1`);
     }
-    const focusable = tabs.filter((attributes) => !/tabindex="-1"/.test(attributes)).length;
-    if (focusable !== 1) {
-      problems.push(`${focusable} tab stop(s) in the strip, expected exactly 1 (roving tabindex)`);
+    const stops = items.filter((attributes) => !/tabindex="-1"/.test(attributes)).length;
+    if (stops !== 1) {
+      problems.push(`${stops} tab stop(s) in the tree, expected exactly 1`);
+    }
+    if (!/aria-level="\d+"/.test(markup)) {
+      problems.push("no aria-level on a treeitem (the tree has no depth)");
+    }
+    // The status line spans the bottom: it is a `footer` and it carries the three cells the issue names.
+    if (!/<footer[^>]*class="page-footer"/.test(markup)) {
+      problems.push("no status-line footer");
     }
     if (problems.length > 0) {
-      fail(`the rendered tab strip ${problems.join("; ")}`);
+      fail(`the rendered workspace ${problems.join("; ")}`);
     } else {
-      ok("the rendered tab strip is one tab stop with three tabs and one selection");
+      ok(`the workspace is three columns with a keyboard tree (${items.length} rows) and a status line`);
     }
   }
 
