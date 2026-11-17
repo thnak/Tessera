@@ -77,8 +77,28 @@ A **missing** `span` is meaningful: a setup or usage error (a bad flag, an unrea
 source position, and placing it at `1:1` would underline the first character of a file it never
 examined. Consumers must render such a diagnostic without a location, not with a guessed one.
 
-## 4. Bounded text
+### 3.1 CSS-module codes (issue #463)
 
+A `*.module.css` file is scoped at compile time
+([`css-isolation.md`](../design/css-isolation.md)), so its class map is known exactly and a mistake
+in it is a hard error rather than a warning:
+
+| Code | Severity | Meaning |
+|---|---|---|
+| `TESSERA_CSS_MODULE_UNKNOWN_CLASS` | error | `styles.x` names no `.x` in the imported module file; the message names the file and the class |
+| `TESSERA_CSS_MODULE_UNUSED_CLASS` | warning | a class in a module file that no TSX in the project reads |
+| `TESSERA_CSS_MODULE_HASH_COLLISION` | error | two module files in one project share a 24-bit path hash; the message names both |
+| `TESSERA_CSS_MODULE_GLOBAL_BLOCK` | error | `:global { ... }` block form; only `:global(.x)` is supported |
+| `TESSERA_CSS_MODULE_MALFORMED_GLOBAL` | error | a `:global(` with no matching `)` |
+| `TESSERA_CSS_MODULE_MALFORMED` | error | unbalanced braces or a truncated construct in a module file |
+| `TESSERA_JSX_STYLES_DYNAMIC` | error | `styles[k]`, a spread of `styles`, or passing `styles` around; only a static `styles.<ident>` is allowed |
+
+`TESSERA_CSS_MODULE_UNKNOWN_CLASS` is an error, unlike the unknown-class warning of a plain
+`className` ([`jsx-subset-v1-jsx.md`](jsx-subset-v1-jsx.md) section 10.3): a plain class name may be
+defined by any sheet in the project, so the compiler cannot know it is wrong, while a module class is
+defined by exactly one file the compiler has read.
+
+## 4. Bounded text
 A document never grows with the input through its messages. The guarantee is the front end's, not a
 second limit applied here: `jsx::DiagnosticSink` truncates every `message`, `suggestion` and related
 message at `jsx::kMaxDiagnosticTextBytes` (256 bytes) on a UTF-8 code-point boundary, and enforces

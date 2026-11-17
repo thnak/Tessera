@@ -59,8 +59,8 @@ on a browser, a DOM, JavaScript, or the platform text stack.
 - Full CSS Grid (subgrid, masonry, dense auto-placement) and full CSS Tables.
 - Full SVG/CSS path/filter/shader effects.
 - Every color space and every `@`-rule.
-- CSS nesting and `@scope` evaluation in V1 (they are parsed only; the release that evaluates them
-  is not specified, see section 17).
+- CSS nesting and `@scope` evaluation in V1 (parsed only; the release that evaluates them is not
+  specified, see section 17). Isolation is by class scoping ([`css-isolation.md`](../design/css-isolation.md)).
 - Web fonts beyond committed test fonts ([ADR-006](../../decisions/ADR-006-text-stack.md), text stack).
 - Browser-style quirks modes, vendor prefixes semantics, or UA stylesheet parity.
 
@@ -593,8 +593,8 @@ fail the build only when configured to do so; runtime diagnostics go to the dev 
 - ~~Build-time precompilation format~~ decided by [ADR-048](../../decisions/ADR-048-precompiled-embedded-stylesheets.md): versioned binary blob, see [`compiled-stylesheet-v1.md`](compiled-stylesheet-v1.md).
 - Whether to adopt a mature parser (for example `libcss`) behind `CssParser` if full syntax
   coverage becomes a maintenance burden. Decision must be recorded in a follow-up ADR.
-- CSS nesting, `@scope`, `@container`, `:has()` evaluation order and invalidation.
-- Full color-management and wide-gamut color handling.
+- CSS nesting, `@scope`, `@container`, `:has()` evaluation order and invalidation. `@scope` is the
+  later standard-CSS isolation path; V1 isolates by class scoping (section 3).- Full color-management and wide-gamut color handling.
 - Typed custom properties (`@property`) and animation of custom properties.
 - Window-wide theme switch effects use view transitions (`view-transitions-v1.md`), not per-token
   animation; the update recalc suppresses style transitions.

@@ -278,8 +278,8 @@ This page is the map and reading order for the framework.
 - [`design/studio-page.md`](design/studio-page.md) — the hosted studio `index.html` (#392, #422, #431):
   React 19 + Vite chrome over **one three-column workspace** — a project tree, a tabbed code column and a
   preview column whose own tablist switches scene/canvas/diagnostics — the React/engine boundary (React
-  never renders the canvas), the old-URL redirect that keeps `#p5=` links working, the gates that moved
-  with the stack, and the three re-recorded P6 download budgets and the three re-recorded P6 download budgets (#395 weighs all three Wasm modules and enforces both latency rows on a calibration-normalized number).
+  never renders the canvas), the old-URL redirect keeping `#p5=` links working, the gates that moved with
+  the stack, and the three re-recorded P6 download budgets (#395 weighs all three Wasm modules).
 - [`design/canvas-input-session.md`](design/canvas-input-session.md) — the persistent canvas session
   (#388): pointer events into one kept evaluation, `:hover`/`:active` through the stylesheet engine,
   one frame per change, and the CSS-to-logical coordinate rule (page wiring deferred to #422)
@@ -292,10 +292,10 @@ This page is the map and reading order for the framework.
 - [`design/preview-dynamic-children.md`](design/preview-dynamic-children.md) — conditional and
   repeated children in the preview (#389): which state a branch reads, what supplies a `map`'s items,
   the bounded subset, why both branches build, and the item-key rule
-- [`design/jsx-frontend.md`](design/jsx-frontend.md) — own JSX/TSX lexer/parser: slice plan,
-  modes, diagnostics, spec gaps decided
+- [`design/jsx-frontend.md`](design/jsx-frontend.md) — own JSX/TSX lexer/parser: slice plan, modes, diagnostics, spec gaps decided
 - [`design/jsx-ir-lowering.md`](design/jsx-ir-lowering.md) — AST to IR lowering design: construct
   mapping, analysis pass, spans, bind ids, layout, tests, slices, open questions
+- [`design/css-isolation.md`](design/css-isolation.md) — CSS isolation: `*.module.css` class scoping
 - [`design/designer.md`](design/designer.md) — Wasm/WebGPU preview, IPC (inter-process communication), hot reload
 - [`design/threading-and-memory.md`](design/threading-and-memory.md) — threads, ownership,
   allocators, GPU memory, shutdown
