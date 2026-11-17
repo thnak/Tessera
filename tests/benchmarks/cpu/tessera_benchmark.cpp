@@ -79,6 +79,7 @@ void accumulate(benchmark::Totals& totals, const benchmark::Measurement& sample)
                                     sample.damage_rects_text, sample.damage_rects_container});
     totals.draw_calls = std::max(totals.draw_calls, sample.draw_calls);
     totals.quads = std::max(totals.quads, sample.quads);
+    totals.quads_culled = std::max(totals.quads_culled, sample.quads_culled);
     totals.primitives = std::max(totals.primitives, sample.primitives);
     totals.text_runs = std::max(totals.text_runs, sample.text_runs);
     totals.images = std::max(totals.images, sample.images);
@@ -164,6 +165,8 @@ int main(int argc, char** argv) {
                 totals.damage_rects, static_cast<unsigned long long>(budget.max_damage_rects));
     std::printf("cpu_benchmark: draw calls %zu, quads %zu, draw-list primitives %zu\n",
                 totals.draw_calls, totals.quads, totals.primitives);
+    std::printf("cpu_benchmark: quads culled before staging %zu (of %zu produced)\n",
+                totals.quads_culled, totals.quads + totals.quads_culled);
     std::printf("cpu_benchmark: text runs %zu (stub metrics, not rasterized), image draws %zu\n",
                 totals.text_runs, totals.images);
     std::printf("cpu_benchmark: nodes painted by the full pass %zu\n", totals.paint_nodes);

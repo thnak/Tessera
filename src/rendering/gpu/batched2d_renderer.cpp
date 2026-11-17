@@ -66,6 +66,7 @@ void Batched2DRenderer::begin_damaged(rhi::CommandList& commands, const rhi::Ren
         commands_ = nullptr;
         in_frame_ = false;
         draw_calls_ = 0;
+        cull_stats_ = CullStats{};
         vertices_.cancel_frame();
         return;
     }
@@ -100,9 +101,25 @@ void Batched2DRenderer::begin_frame(rhi::CommandList& commands, const rhi::Rende
     scissor_ = base_scissor_;
     scissor_stack_.clear();
     damage_regions_.clear();
+    damage_bounds_ = base_scissor_;
     if (damage_regions != nullptr) {
         damage_regions_ = *damage_regions;
+        // Disjoint regions: their bounding box is the smallest rectangle holding every pixel the
+        // frame may touch.
+        std::int32_t left = INT32_MAX;
+        std::int32_t top = INT32_MAX;
+        std::int32_t right = INT32_MIN;
+        std::int32_t bottom = INT32_MIN;
+        for (const rhi::Scissor& region : damage_regions_) {
+            left = std::min(left, region.x);
+            top = std::min(top, region.y);
+            right = std::max(right, region.x + static_cast<std::int32_t>(region.width));
+            bottom = std::max(bottom, region.y + static_cast<std::int32_t>(region.height));
+        }
+        damage_bounds_ = rhi::Scissor{left, top, static_cast<std::uint32_t>(right - left),
+                                      static_cast<std::uint32_t>(bottom - top)};
     }
+    cull_stats_ = CullStats{};
     clips_.reset();
     transform_ = rhi::Mat3::identity();
     transform_stack_.clear();
@@ -354,11 +371,69 @@ void Batched2DRenderer::flush_batch() {
     current_batch_.clip_state = clips_.index();
 }
 
+bool Batched2DRenderer::cull_quad(const rhi::Rect& rect) {
+    if (!config_.cull_draws) {
+        return false;
+    }
+    // The pixels the next draw can reach: the active scissor (clips and scroll) inside the damage
+    // regions. An empty one drops everything until the scissor widens again.
+    const rhi::Scissor reach = rhi::intersect(scissor_, damage_bounds_);
+    if (reach.width == 0 || reach.height == 0) {
+        ++cull_stats_.quads_culled;
+        ++cull_stats_.quads_culled_empty_scissor;
+        return true;
+    }
+    // Bounds of the four transformed corners, in the same target pixels as the scissor, so a
+    // rotation is covered by its axis-aligned box. Anti-aliasing stays inside the quad (the shader
+    // blends inward from its edge) and a shadow's reach is already part of `rect`, so the quad's
+    // own bounds are exact. A fragment is drawn only when its centre is inside the quad, hence the
+    // strict comparisons: a quad merely touching the scissor edge is kept. A NaN compares false
+    // everywhere and is kept, which leaves the GPU to discard it as before.
+    const float corners[4][2] = {{rect.x, rect.y},
+                                 {rect.right(), rect.y},
+                                 {rect.right(), rect.bottom()},
+                                 {rect.x, rect.bottom()}};
+    float min_x = 0.0f;
+    float min_y = 0.0f;
+    float max_x = 0.0f;
+    float max_y = 0.0f;
+    for (int i = 0; i < 4; ++i) {
+        float px = 0.0f;
+        float py = 0.0f;
+        transform_.transform_point(corners[i][0], corners[i][1], px, py);
+        px *= content_scale_x_;
+        py *= content_scale_y_;
+        if (i == 0) {
+            min_x = max_x = px;
+            min_y = max_y = py;
+        } else {
+            min_x = std::min(min_x, px);
+            max_x = std::max(max_x, px);
+            min_y = std::min(min_y, py);
+            max_y = std::max(max_y, py);
+        }
+    }
+    const float left = static_cast<float>(reach.x);
+    const float top = static_cast<float>(reach.y);
+    const float right = static_cast<float>(reach.x) + static_cast<float>(reach.width);
+    const float bottom = static_cast<float>(reach.y) + static_cast<float>(reach.height);
+    if (max_x < left || min_x > right || max_y < top || min_y > bottom) {
+        ++cull_stats_.quads_culled;
+        return true;
+    }
+    return false;
+}
+
 void Batched2DRenderer::emit_quad(const rhi::Rect& rect, const rhi::Rect& uv, rhi::Color color,
                                   float radius, float mode, rhi::Texture* texture) {
     if (!in_frame_) {
         return;
     }
+    // Before the texture switch, so a culled quad never splits a batch.
+    if (cull_quad(rect)) {
+        return;
+    }
+    ++cull_stats_.quads_emitted;
     if (texture != current_texture_) {
         flush_batch();
         current_texture_ = texture;

@@ -44,6 +44,20 @@ struct Batched2DConfig {
     // the renderer blur further than the paint pass's damage region) and `max_backdrop_area` is
     // `glassMaxBackdropArea` (the half-resolution threshold).
     GlassLimits glass{};
+
+    // CPU culling (issue #474): a quad whose transformed bounds cannot touch the active scissor or
+    // the frame's damage regions is never staged, so its vertices are neither built nor uploaded.
+    // The pixels are identical either way (the GPU scissor would have discarded the same
+    // fragments); the switch exists to compare the two when debugging. On by default.
+    bool cull_draws = true;
+};
+
+// Per-frame culling counters, reset by every begin. `quads_emitted` counts quads that reached the
+// vertex buffer; the two culled counters are quads dropped before it.
+struct CullStats {
+    std::uint32_t quads_emitted = 0;
+    std::uint32_t quads_culled = 0;               // outside the scissor or the damage regions
+    std::uint32_t quads_culled_empty_scissor = 0; // dropped because the scissor has no area
 };
 
 // The batched 2D renderer. It owns the frame and pass lifecycle, the transform and scissor stacks
@@ -178,6 +192,9 @@ public:
     }
     [[nodiscard]] std::uint32_t vertex_count() const;
     [[nodiscard]] std::uint32_t pending_batches() const;
+    [[nodiscard]] const CullStats& cull_stats() const {
+        return cull_stats_;
+    }
 
 private:
     struct Batch {
@@ -198,6 +215,8 @@ private:
     void flush_batch();
     void emit_quad(const rhi::Rect& rect, const rhi::Rect& uv, rhi::Color color, float radius,
                    float mode, rhi::Texture* texture);
+    // True when the quad's device-space bounds cannot touch any pixel the frame will draw.
+    [[nodiscard]] bool cull_quad(const rhi::Rect& rect);
     void update_push_constants(std::uint32_t state_index);
     void apply_clip_state(const ClipStateTable::Update& update);
     static void resume_pass_callback(void* context);
@@ -224,6 +243,10 @@ private:
     rhi::Scissor scissor_;
     std::vector<rhi::Scissor> scissor_stack_;
     std::vector<rhi::Scissor> damage_regions_;
+    // Bounding box of `damage_regions_` (the whole target for a full redraw). A quad outside it is
+    // outside every region, so the per-region replay in flush() would draw nothing for it.
+    rhi::Scissor damage_bounds_;
+    CullStats cull_stats_;
 
     rhi::Mat3 transform_;
     std::vector<rhi::Mat3> transform_stack_;

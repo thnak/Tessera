@@ -25,6 +25,9 @@ struct PaintOutcome {
     double ms = 0.0;
     std::size_t draw_calls = 0;
     std::size_t quads = 0;
+    // Quads the renderer dropped before staging them (issue #474); quads + quads_culled is what the
+    // paint produced.
+    std::size_t quads_culled = 0;
     std::size_t primitives = 0;
     std::size_t text_runs = 0;
     std::size_t images = 0;
@@ -46,6 +49,7 @@ struct Measurement {
     std::size_t damage_rects_container = 0;
     std::size_t draw_calls = 0;
     std::size_t quads = 0;
+    std::size_t quads_culled = 0;
     std::size_t primitives = 0;
     std::size_t text_runs = 0;
     std::size_t images = 0;
@@ -59,6 +63,7 @@ struct Totals {
     std::size_t damage_rects = 0;
     std::size_t draw_calls = 0;
     std::size_t quads = 0;
+    std::size_t quads_culled = 0;
     std::size_t primitives = 0;
     std::size_t text_runs = 0;
     std::size_t images = 0;

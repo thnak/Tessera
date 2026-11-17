@@ -76,6 +76,7 @@ PaintOutcome Fixture::paint(bool force) {
     }
     outcome.draw_calls = renderer_->draw_calls();
     outcome.quads = renderer_->vertex_count() / 6u;
+    outcome.quads_culled = renderer_->cull_stats().quads_culled;
     const DrawListCounts& counts = sink_.counts();
     outcome.primitives = counts.primitives();
     outcome.text_runs = counts.text_runs;
@@ -123,6 +124,7 @@ Measurement Fixture::measure() {
     result.full_paint_ms = full.ms;
     result.draw_calls = full.draw_calls;
     result.quads = full.quads;
+    result.quads_culled = full.quads_culled;
     result.primitives = full.primitives;
     result.text_runs = full.text_runs;
     result.images = full.images;
