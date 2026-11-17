@@ -53,6 +53,41 @@ enum class Orientation : std::uint8_t { Landscape, Portrait };
 // desktop backend fills this in V1 (the HDR/color rows of the OS event tables are post-V1).
 enum class ColorGamut : std::uint8_t { Unknown, Srgb, DisplayP3, Rec2020 };
 
+// The physical subpixel layout of the display, as the platform reports it
+// (docs/design/display-aware-rendering.md section 2). `Unknown` is the honest answer for a backend
+// with no query (every backend today); a consumer that needs a known stripe, such as LCD text,
+// treats `Unknown` as grayscale-only. `None` is a panel with no usable stripe; the Horizontal and
+// Vertical suffix is the stripe axis.
+enum class PixelGeometry : std::uint8_t {
+    Unknown,
+    None,
+    RgbHorizontal,
+    BgrHorizontal,
+    RgbVertical,
+    BgrVertical
+};
+
+// True for a stripe LCD rendering can use (horizontal RGB or BGR).
+// Inline so the render-scale library can use it without linking a window backend.
+[[nodiscard]] constexpr bool pixel_geometry_is_horizontal_stripe(PixelGeometry geometry) noexcept {
+    return geometry == PixelGeometry::RgbHorizontal || geometry == PixelGeometry::BgrHorizontal;
+}
+
+// True when `geometry` is one of the enumerators (a wire value or a corrupt platform answer is
+// not).
+[[nodiscard]] constexpr bool pixel_geometry_is_known_value(PixelGeometry geometry) noexcept {
+    switch (geometry) {
+    case PixelGeometry::Unknown:
+    case PixelGeometry::None:
+    case PixelGeometry::RgbHorizontal:
+    case PixelGeometry::BgrHorizontal:
+    case PixelGeometry::RgbVertical:
+    case PixelGeometry::BgrVertical:
+        return true;
+    }
+    return false;
+}
+
 // One monitor. `bounds` is the monitor rectangle in *logical* pixels in the virtual-desktop
 // coordinate space (the space a window's position lives in), so a 200 %-scaled 4K panel presents
 // 1920x1080 logical pixels with `physical_width/height` still 3840x2160.
@@ -77,6 +112,7 @@ struct DisplayInfo {
     bool vrr = false;
     bool hdr = false;
     ColorGamut gamut = ColorGamut::Unknown;
+    PixelGeometry pixel_geometry = PixelGeometry::Unknown;
 };
 
 // The NUL-terminated name of `display` as a view. Never reads past the buffer.

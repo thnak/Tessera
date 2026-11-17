@@ -116,6 +116,10 @@ struct WindowMetrics {
     // The window's aspect orientation, derived from its logical size when the platform has no
     // rotation source (which is every desktop backend).
     Orientation orientation = Orientation::Landscape;
+    // The display's subpixel layout. `Unknown` when the platform has no query (every backend
+    // today); there is no "assumed" bit because `Unknown` already says so, like
+    // `ColorGamut::Unknown`.
+    PixelGeometry pixel_geometry = PixelGeometry::Unknown;
     // ADR-023 rule 7: every capability the platform may not be able to measure carries an
     // "assumed" bit here, so a consumer can never mistake the documented fallback (60 Hz, 1.0) for
     // a measurement. Packed into one byte instead of four separate bools + padding: the metrics are

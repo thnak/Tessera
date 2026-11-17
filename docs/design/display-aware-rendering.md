@@ -1,6 +1,7 @@
 # Display-aware rendering (text and non-text anti-aliasing)
 
-Status: **proposal, nothing implemented.** Extends [`antialiasing.md`](antialiasing.md) and
+Status: **proposal; S1 landed** (`AaPolicy` resolver in `include/tessera/ui/scale/aa_policy.hpp`
+and `hal::PixelGeometry`, nothing consumes them yet; S2-S8 are not implemented). Extends [`antialiasing.md`](antialiasing.md) and
 [`text.md`](text.md). Decisions D2/D6 in
 [`rendering-production-plan.md`](rendering-production-plan.md) stay in force unless a numbered
 decision in section 8 says otherwise.
@@ -125,6 +126,10 @@ user setting never overrides golden mode.
 | S6 | text T3 (subpixel positioning) | golden mode unaffected; bounded atlas growth |
 | S7 | text T4 + T5 (LCD, contrast LUT), after the section 8 decisions | LCD only on eligible runs; fallback test |
 | S8 | image filter by scale, MSAA policy hook | filter selection table test |
+
+S1 details: `Auto` text mode resolves to grayscale until decision 1 below is made
+(`kAutoAllowsLcd`); `WindowMetrics::pixel_geometry` and `DisplayInfo::pixel_geometry` default to
+`Unknown` and no backend fills them yet; the resolver is pure and covered by `aa_policy`.
 
 Order: S1 first (everything reads it), then S2 + S4 together, S3, S5, S6. S7 is gated on section 8.
 

@@ -10,6 +10,14 @@ target_link_libraries(scale_quantize_tests PRIVATE tessera_scale)
 
 add_test(NAME scale_quantize COMMAND scale_quantize_tests)
 
+# The per-window AA policy resolver (display-aware-rendering.md): pure CPU, no window or GPU.
+add_executable(aa_policy_tests
+    aa_policy_tests.cpp)
+
+target_link_libraries(aa_policy_tests PRIVATE tessera_scale)
+
+add_test(NAME aa_policy COMMAND aa_policy_tests)
+
 add_executable(scale_state_tests
     scale_state_tests.cpp)
 
