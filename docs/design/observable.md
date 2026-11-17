@@ -173,3 +173,41 @@ true for a service-level observable that no component subscribes to directly, an
 acceptance clause is stated against. Both share one scheduler and one dirty bit, so the choice is
 additive; the question is whether the framework should ever require a component ticket (today it
 does not), and that is a contract question rather than an implementation one.
+
+## 7. What one state change costs: measured update fan-out (issue #440)
+
+`UpdateScheduler` coalesces writes into one `update()` per queued component per flush, but a generated
+`update()` also calls `update()` on every static child instance and every live per-item instance it
+owns (`emit_lifecycle.cpp`), and each of those components attaches its **own** ticket too. The numbers
+below are measured by `codegen_update_fanout` (`tests/unit/codegen_update_fanout_tests.cpp`) on the
+committed `instances/{Page,Row}.g.hpp`: the static `Row` plus a keyed list of `n` per-item `Row`
+instances, with a counting developer class for `Row` (`fixtures/update_count/Row.hpp`).
+`ticket` is `UpdateFlushStats::updated`; `direct` is `Row::update()` calls made by an owner's generated
+`update()`. Every scenario is one flush and **one pass**.
+
+| Scenario | ticket | direct | `Row` runs in total |
+|---|---|---|---|
+| The static `Row`'s own state changes | 1 | 0 | 1 |
+| The page's state changes (it feeds no `Row`) | 1 | n + 1 | n + 1 |
+| The page and the static `Row` are both dirty | 2 | n + 1 | n + 2 |
+
+Rows 1 to 3 held identically at n = 10, 100 and 1000. Reading them:
+
+- **A change in a child's own state is cheap and local.** Only that child's ticket runs; the parent and
+  the siblings are not touched. State kept per item is therefore the cheap shape.
+- **A change in the owner's state fans out to every child, whether or not it feeds them.** n + 1
+  `update()` calls for one setter, each re-hashing its component's bindings. The hash gate keeps the
+  *output* small (only changed nodes are marked dirty), but the CPU is O(n x bindings). State kept in a
+  parent array is the expensive shape, and it is the one React-style code writes by default.
+- **A parent and a child dirty in the same flush run the child twice.** The parent calls
+  `child.update()` directly, which does not clear the child's queued mark, so the scheduler then runs
+  the child's ticket as well. The second run is hash-gated no-ops but it is counted in `updated`.
+
+Not measured here: the per-binding hash evaluations (not observable from the developer class), a
+parent array whose items feed the `Row`s' props, and virtual collections, whose per-item content pass
+is separate from `update()`. Per-item `Row` state is private to the generated code, so the "child's own
+state" row uses the one static child as the stand-in.
+
+No fix is made or proposed here. Tracking which state each binding reads, or skipping a child whose
+props hash did not change, would remove the fan-out and the double run, but it changes the codegen
+contract and needs an owner decision (see #440).

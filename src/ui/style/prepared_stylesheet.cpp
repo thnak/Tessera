@@ -215,7 +215,11 @@ void Preparer::at_rule(const AtRule& source, std::uint32_t layer, int depth) {
     if (name == "supports") {
         const SupportsParseResult condition = parse_supports_condition(source.prelude);
         if (!condition.ok) {
-            diagnose(source, name, "invalid supports condition");
+            // The whole block is dropped, which is the "a failed nested parse fails the compound"
+            // rule: a condition the parser could not finish must not apply half its rules. The
+            // message names both causes because a condition that exceeds the nesting budget is
+            // refused by the same path as a malformed one (see kMaxSupportsDepth).
+            diagnose(source, name, "invalid or too deeply nested supports condition");
             return;
         }
         if (evaluate_supports(condition.condition, registry_)) {

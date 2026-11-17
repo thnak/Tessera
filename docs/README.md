@@ -154,6 +154,8 @@ This page is the map and reading order for the framework.
   browser designer: source sync, picker, style overrides, commit as text patches
 - [`specs/designer-studio-v1.md`](specs/designer-studio-v1.md) — hosted studio: GitHub Pages deploy,
   page-as-host, skins and simulated system chrome, project import/export, MCP stdio mode
+- [`specs/studio-device-profiles-v1.md`](specs/studio-device-profiles-v1.md) — studio device profiles as data,
+  simulated platform events and hardware buttons, restart on device change, live edit without Run
 - [`specs/studio-mock-services-v1.md`](specs/studio-mock-services-v1.md) — design-time mock services:
   `*.mock.ts` project files, sandboxed studio worker, calls/responses and traces (ADR-055)
 - [`specs/compiler-diagnostics-v1.md`](specs/compiler-diagnostics-v1.md) — machine-readable compiler
@@ -271,11 +273,11 @@ This page is the map and reading order for the framework.
 - [`design/compiler.md`](design/compiler.md) — JSX/TSX -> IR -> C++ pipeline
 - [`design/compiler-wasm.md`](design/compiler-wasm.md) — the compiler built to Wasm for the
   design-time preview (Emscripten target, `NODERAWFS`, the native-versus-Wasm IR parity gate)
-- [`design/studio-page.md`](design/studio-page.md) — the hosted studio `index.html` (#392, #422): React
-  19 + Vite chrome over one page with three lazy views, the React/engine boundary (React never renders the
-  canvas), the old-URL redirect that keeps `#p5=` links working, the gates that moved with the stack, and
-  the P6 budgets (#395: all three modules weighed, the latency rows enforced on a calibration-normalized
-  number)
+- [`design/studio-page.md`](design/studio-page.md) — the hosted studio `index.html` (#392, #422, #431):
+  React 19 + Vite chrome over **one three-column workspace** — a project tree, a tabbed code column and a
+  preview column whose own tablist switches scene/canvas/diagnostics — the React/engine boundary (React
+  never renders the canvas), the old-URL redirect that keeps `#p5=` links working, the gates that moved
+  with the stack, and the three re-recorded P6 download budgets and the three re-recorded P6 download budgets (#395 weighs all three Wasm modules and enforces both latency rows on a calibration-normalized number).
 - [`design/canvas-input-session.md`](design/canvas-input-session.md) — the persistent canvas session
   (#388): pointer events into one kept evaluation, `:hover`/`:active` through the stylesheet engine,
   one frame per change, and the CSS-to-logical coordinate rule (page wiring deferred to #422)

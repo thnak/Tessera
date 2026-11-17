@@ -42,7 +42,15 @@ export interface ViewSession {
   load(): Promise<void>;
   /** The shared Run button's action on this view. */
   run(): Promise<void> | void;
-  /** "Load sample" on this view: its own sample (and script), or nothing when it has none. */
+  /**
+   * The view's own sample text, when it has one (issue #431).
+   *
+   * The page owns the file buffers, so a view no longer writes the editor: it names the text it would
+   * load and the page writes it into the file Run compiles. A view whose sample is only a viewport
+   * (Canvas) leaves this undefined.
+   */
+  sampleSource?: string;
+  /** "Load sample" on this view: its own script or reset, after the page has written `sampleSource`. */
   loadSample?(): void;
   /** The pane became (in)visible: a hidden Canvas pane must not draw. */
   setVisible?(visible: boolean): void;
@@ -50,6 +58,33 @@ export interface ViewSession {
   onEnvironmentChange?(): void;
   /** A gallery pick landed in the shared editor. */
   onSample?(path: string): void;
+}
+
+/**
+ * What Run compiles, read at the moment Run is pressed (issue #431).
+ *
+ * The page owns the file buffers, so a session is handed a reader rather than the editor element: Run
+ * compiles the *project file* the workspace selects -- the active source tab, or the project entry when
+ * a stylesheet or the config is active. Reading `textarea.value` would compile whatever happens to be
+ * on screen, which after this issue is not the same question.
+ */
+export interface SourceSnapshot {
+  /** The text to compile. */
+  text: string;
+  /** The canonical project path it is compiled under: what `ModuleSource::file` and the uiIds use. */
+  file: string;
+  /**
+   * Whether the editor is currently showing this file.
+   *
+   * A diagnostic's "show in source" affordance reveals a span in the *editor*, so it can only work when
+   * the editor holds the text the diagnostic is about. When it does not, the pane says where the file is
+   * instead of selecting an offset in a different document.
+   */
+  shown: boolean;
+}
+
+export interface SourceReader {
+  (): SourceSnapshot;
 }
 
 /** One of the page's three views. */

@@ -4,6 +4,7 @@ Status: proposed (Big Step D). Decision: [ADR-045](../../decisions/ADR-045-brows
 Design note: [designer.md](../design/designer.md) (architecture, hot reload, picker).
 Protocol: [designer-protocol-v1.md](designer-protocol-v1.md).
 Chrome preview: [window-chrome-v1.md](window-chrome-v1.md).
+Device profiles, platform events and live edit: [studio-device-profiles-v1.md](studio-device-profiles-v1.md).
 
 The studio is the "open a URL and work" form of the designer: the real C++ engine compiled to Wasm
 runs in the page, the page hosts the project (folder, zip or sample) and the code editor, and the
@@ -192,8 +193,8 @@ The studio reuses the [designer protocol](designer-protocol-v1.md) instead of de
 - The native CLI host remains for filesystem work and codegen; a project can move between the two
   because the protocol and the file versions are the same.
 
-The session starts with `hello` → `ready` → `project.load`, as specified; the studio adds no
-message types. `theme.applied` (protocol section 6) is what the page uses to tint the simulated
+The session starts with `hello` → `ready` → `project.load`, as specified; the studio adds one
+message, `platform.event` ([studio-device-profiles-v1.md](studio-device-profiles-v1.md)). `theme.applied` (protocol section 6) is what the page uses to tint the simulated
 system chrome from the engine's resolved record.
 
 ## 5. Simulated system chrome and skins
@@ -340,7 +341,22 @@ and the link that carries it.
 - **Accepted files**: `tessera.json`, `.tsx`/`.jsx`, `.css`, theme JSON, and the fonts/images listed
   in `tessera.json`. Other files are shown read-only with a lock badge and are never sent to the
   viewer. C++ and generated files are read-only; the developer class is never edited
-  ([ADR-040](../../decisions/ADR-040-generated-base-and-developer-class.md)). `*.mock.ts` mock files
+  ([ADR-040](../../decisions/ADR-040-generated-base-and-developer-class.md)). **Locked does not mean
+  hidden** (owner decision 2026-11-17): a text file the studio does not accept, such as
+  `gen/AppBase.hpp`, opens in the editor **view-only** with a lock badge, so a developer can read the
+  generated base. It is read from disk only when opened, under the same per-file cap, shown as text and
+  never executed, never sent to the viewer and never written back; a binary or over-cap file shows its
+  name and size only. **The opened folder is the work folder** (owner decision 2026-11-17): with the
+  File System Access API the studio reads and writes that folder in place on explicit save (section 7,
+  Save), so the native CLI, a coding agent and the studio all work on the same files; a change made on
+  disk meanwhile is detected when the tab regains focus. Without that API a zip is a copy, not a work
+  folder. **Stale generated files are flagged** (owner decision 2026-11-17): a view-only generated
+  file whose `lastModified` is older than the source file it was generated from shows a "may be
+  out of date, regenerate with the native CLI" badge in the tree and the editor. This is a heuristic,
+  not a guarantee: generated headers carry no source digest today, and a checkout or copy resets
+  modification times, so the badge says "may be" and never blocks anything. An exact check needs the
+  codegen to emit a source digest line, which moves every committed golden and is a separate decision.
+  `*.mock.ts` mock files
   are the exception defined in [studio-mock-services-v1.md](studio-mock-services-v1.md): accepted,
   host-only, and never sent to the viewer either.
 - **Validation**: `tessera.json` and assets are validated by the same in-tree validator compiled to

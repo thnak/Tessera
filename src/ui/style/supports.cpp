@@ -171,13 +171,35 @@ std::string_view selector_argument(std::string_view content) {
     return text.substr(kKeyword.size(), text.size() - kKeyword.size() - 1);
 }
 
+// The nesting budget for a `@supports` condition, matching the at-rule, selector and var() bounds
+// in spirit: a stylesheet must not be able to abort the compiler by nesting conditions. Both ways
+// this grammar nests are counted by the same counter, because both build the same tree -- a
+// parenthesised group (`( ( ... ) )`, which recurses through a nested parser) and a run of `not`
+// (which recurses through `parse_unary`). Exceeding it is a diagnostic, not a crash.
+//
+// The number matters for one reason beyond taste: this parser runs on the compiled stylesheet of
+// the NATIVE app, so a stylesheet from an untrusted source reaches it on the build side, not only
+// in the design-time preview. #410 bounded the at-rule and selector recursion; this grammar is the
+// one it left open, and a 40 KB file of nested `(` crashed `tessera_codegen` with a stack overflow
+// (0xC00000FD) until this bound existed.
+inline constexpr int kMaxSupportsDepth = 32;
+
 class SupportsParser {
 public:
-    explicit SupportsParser(std::string_view text)
-        : text_(text) {}
+    explicit SupportsParser(std::string_view text, int depth = 0)
+        : text_(text),
+          depth_(depth) {}
 
     SupportsParseResult parse() {
         SupportsParseResult result;
+        // A nested parser is a nested parenthesised group, so its own depth is the entry point of
+        // that recursion. Refusing here is what makes `((((...))))` a failed condition instead of a
+        // stack overflow: the group is dropped with a diagnostic like any other bad condition.
+        if (depth_ >= kMaxSupportsDepth) {
+            result.ok = false;
+            result.error_offset = position_;
+            return result;
+        }
         result.condition = parse_or();
         skip_space();
         if (!ok_ || position_ != text_.size()) {
@@ -310,9 +332,17 @@ private:
     SupportsCondition parse_unary() {
         skip_space();
         if (consume_word("not")) {
+            // `not` recurses through parse_unary, so a run of them is a nesting level like a
+            // parenthesised group: count it and refuse rather than recurse off the stack.
+            if (depth_ + 1 >= kMaxSupportsDepth) {
+                ok_ = false;
+                return {};
+            }
+            ++depth_;
             SupportsCondition condition;
             condition.kind = SupportsKind::Not;
             condition.children.push_back(parse_unary());
+            --depth_;
             return condition;
         }
         return parse_primary();
@@ -374,7 +404,7 @@ private:
             return condition;
         }
 
-        SupportsParser nested(content);
+        SupportsParser nested(content, depth_ + 1);
         SupportsParseResult parsed = nested.parse();
         if (!parsed.ok) {
             ok_ = false;
@@ -386,6 +416,8 @@ private:
     std::string_view text_;
     std::size_t position_ = 0;
     bool ok_ = true;
+    // How many `@supports` groups enclose this parser (see kMaxSupportsDepth).
+    int depth_ = 0;
 };
 
 } // namespace

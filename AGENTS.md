@@ -682,6 +682,32 @@ owner-planned item and is not part of this milestone.
       from user code.
 - [ ] #391: studio D-S2 + D-S4: open a project folder (File System Access API, zip elsewhere), file
       tree, edit, explicit save, multi-file preview. Waits on #390 and the ADR-054 conversion.
+- [x] #431: studio: one three-column workspace (project tree, tabbed code, preview panes for
+      scene/canvas/diagnostics) replacing the three top-level tabs (owner direction 2026-11-17).
+      Builds on #391's IO layer (zip and path confinement landed in PR #425); keep `?view=` so
+      `#p5=` links work. Room must be left for #171's panes and #433's overlay. Landed in #439.
+- [ ] #433: studio: draw the fold hinge and the safe-area insets as a page-only overlay (the
+      follow-up #408 left in `designer-studio-v1.md` section 6.1). Takes #431.
+- [ ] #436: engine: a window or emulator resize re-resolves `@media` (`AppHost::resize` never updates
+      `media_context`) and re-lays out the running preview in place (`set_viewport`, like
+      `set_posture`) without re-evaluating the source. `ready`; does not wait on #431.
+- [ ] #440: perf: one state change costs n + 1 child `update()` calls, and a dirty parent plus child run the
+      child twice (measured by `codegen_update_fanout`; `docs/design/observable.md` section 7). The fix is
+      ADR-056 (**Accepted** 2026-11-17), in three slices, in order: #441 read-set analysis (`ready`), then
+      #442 dirty masks, then #443 schedule children instead of calling them (each takes the previous).
+- [ ] #444: studio: live edit. Edits apply without pressing Run (debounce, last good frame on error); Run becomes
+      Restart app (owner direction 2026-11-17). Spec `studio-device-profiles-v1.md` section 6. `ready`; independent
+      of #445-#448.
+- [ ] #445: engine: Back and Volume input events, Home/Recents/Power mappings, unhandled Back, saved state
+      (device profiles E1). `ready`; spec accepted 2026-11-17, process death by the P4 snapshot rule.
+- [ ] #446: studio: `platform.event` message and Wasm viewer path (E2). Takes #445.
+- [ ] #447: studio: device profiles as data, selector, restart on device change (E3). Takes #446; keep-state needs #436.
+- [ ] #448: studio: platform panel, hardware button strip, event log and replay (E4). Takes #446 and #447.
+- [ ] #434: studio: mock services (`*.mock.ts`), console and call trace (ADR-055). **Blocked** on the
+      service seam (ADR-055 decision 9), #431 and #391; do not take it until those land.
+- [ ] #435: studio D-S9: startup-phase preview (freeze at P0, P2, P4). **Blocked** on startup slices
+      S3 and S5 in Wasm and on #171's skins; one open question first (real `AppHost` or reduced stage
+      machine).
 
 ### V1-M5 Application framework ([milestone 5](https://github.com/thnak/Tessera/milestone/5))
 ADR-050 is Accepted (roadmap AF1-AF8); start with AF1.
@@ -725,6 +751,11 @@ ADR-050 is Accepted (roadmap AF1-AF8); start with AF1.
       `FileSystem` that fails at one named step so atomicity is proved rather than hoped for.
 - [ ] #180, #181: Multi-window, then tray apps, each its own slice.
 - [ ] #228: One `Application` loop and one `rhi::Device` for several windows (before AF6).
+- [ ] #450: Platform shell implementation behind `ShellService` (`ready`): fake first, Windows clipboard, drop, dialogs, context menu.
+- [ ] #451: Permissions: `permissions-v1` spec and `PermissionService` (spec first; #452 and #455 need it).
+- [ ] #452: Notifications: `notifications-v1` spec and `NotificationService` (spec first; after #451).
+- [ ] #453: Background work policy: design note, in-process `TaskScope` or OS-scheduled jobs (decision, no code).
+- [ ] #454: App-level test support `tessera_testing` and a guide (`ready`): service fakes, lifecycle injection, `tap/find/advance`.
 - [x] #234: Library stage 0: bare package imports of `tessera-ui` —
       `packages/tessera-ui/` (Field, Form, `tessera-package.json`), `tools/codegen/package_manifest.cpp`
       (version check), `src/compiler/lowering/src/module_lowering.cpp` (bundled `tessera-ui` imports,
@@ -838,6 +869,7 @@ Acceptance: a streaming dashboard at target frame rate with deterministic golden
       unsupported platform reports one `TESSERA_WINDOW_CURSOR_UNSUPPORTED`. Contract in
       `docs/specs/window-chrome-v1.md` §8.5; tests `window_cursor`, `window_cursor_fake`,
       `window_win32`, `window_x11`, `interaction_style`.
+- [ ] #455: Media capture: `media-capture-v1` spec (camera, microphone, recording) with a fake device; after #451.
 
 ### V1-M8 Release readiness ([milestone 8](https://github.com/thnak/Tessera/milestone/8))
 Acceptance: a real app ships and passes validation layers and golden tests in CI.

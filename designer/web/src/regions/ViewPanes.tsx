@@ -1,72 +1,19 @@
 // SPDX-License-Identifier: MIT
 
-// Region 3 of `designer-studio-v1.md` section 3: the **workspace pane**, as far as #392 and #422 have
-// built it -- the shared source editor and the three view panes it feeds.
-//
-// #391 (file tree, editor, save) replaces the plain textarea with a real editor and adds the tree; nothing
-// here blocks that, because the editor is one component with one ref and the panes take the textarea as a
-// layout input rather than owning it. What matters now is the invariant this file keeps: **one editor for
-// all three views**, so the same source is compiled, laid out and painted without being copied between
-// pages. That was the merge's product claim (#392) and it survives the conversion unchanged.
+// The three preview panes that fill the right-hand column of the studio workspace (issue #431 moved them
+// out of the top-level tablist; #392 and #422 built them).
 //
 // **Every subtree the engine writes into is rendered childless and by ref.** The two `<ol>`s, the empty
 // states, the input list and the canvas are leaves React renders once; the sessions fill them
 // (`src/views/*-session.ts`). That is what lets React own the chrome without putting compiled documents or
 // a GPU surface inside its render cycle (ADR-054 decision 3).
+//
+// The panes are `hidden` by the *view*, not unmounted: the Canvas view holds a WebGPU surface and the
+// Scene view holds a Wasm instance, and neither may be destroyed because a visitor looked at Diagnostics.
+// `regions/PreviewColumn.tsx` is what switches between them.
 
 import type { RefObject } from "react";
 import type { ViewDefinition } from "../lib/views";
-
-/** The page's one source editor, plus the actions and the per-view hint beneath it. */
-export function EditorPane({
-  sourceRef,
-  editorHintRef,
-  onRun,
-  onLoadSample,
-  runDisabled,
-  onKeyDown,
-}: {
-  sourceRef: RefObject<HTMLTextAreaElement | null>;
-  editorHintRef: RefObject<HTMLParagraphElement | null>;
-  onRun: () => void;
-  onLoadSample: () => void;
-  runDisabled: boolean;
-  onKeyDown: (event: React.KeyboardEvent<HTMLTextAreaElement>) => void;
-}) {  return (
-    <section className="pane editor-pane" aria-labelledby="editor-heading">
-      <div className="pane-header">
-        <h2 id="editor-heading">Source</h2>
-        <div className="pane-actions">
-          <button id="run" type="button" className="primary" onClick={onRun} disabled={runDisabled}>
-            Run
-          </button>
-          <button id="load-sample" type="button" onClick={onLoadSample}>
-            Load sample
-          </button>
-        </div>
-      </div>
-      <label htmlFor="source" className="visually-hidden">
-        TSX source
-      </label>
-      <textarea
-        id="source"
-        ref={sourceRef}
-        spellCheck={false}
-        autoCapitalize="off"
-        autoComplete="off"
-        autoCorrect="off"
-        wrap="off"
-        onKeyDown={onKeyDown}
-      />
-      {/* The hint belongs to the *page*, not to a view: the editor is shared, and a hint that said "a
-          diagnostics run has no viewport" while the Scene tab was open would be wrong. The page swaps it
-          per active view; the Scene view appends the live rectangle to it. */}
-      <p className="hint" id="editor-hint" ref={editorHintRef}>
-        Ctrl+Enter (or Cmd+Enter) runs.
-      </p>
-    </section>
-  );
-}
 
 /** View 1: the diagnostics list (P1, issue #165). The default pane and the first-paint one. */
 export function DiagnosticsPane({
@@ -97,7 +44,7 @@ export function DiagnosticsPane({
       </div>
       <ol className="diagnostics" id="diagnostics" ref={listRef} />
       <div className="empty-state" id="diag-empty" ref={emptyRef}>
-        Press <strong>Run</strong> to compile the source.
+        Press <strong>Run</strong> to compile the active file.
       </div>
     </section>
   );

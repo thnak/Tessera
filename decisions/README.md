@@ -65,6 +65,7 @@ V1 is the first release. A feature is in V1 unless the ADR or spec that owns it 
 | [ADR-053](ADR-053-native-metal-backend.md) | Native Metal backend for macOS and iOS (MSL through the ADR-049 shader path, Tier 2 first); supersedes ADR-010 items 2, 3 and 5. Accepted (2026-11-13, owner) |
 | [ADR-054](ADR-054-studio-front-end-react-vite.md) | Studio front end is a React 19 + Vite application over the static Wasm host page; chrome only, design-time mock services are host TypeScript modules (amends the page-stack wording of ADR-045, which is not superseded). Accepted (2026-11-16, owner) |
 | [ADR-055](ADR-055-studio-mock-services.md) | Design-time mock services are `*.mock.ts` project files compiled and run in a sandboxed studio worker; the engine never executes TypeScript; narrows ADR-045 decision 7 for mock files only. Accepted (2026-11-16, owner chose option B); implementation gated on the service seam |
+| [ADR-056](ADR-056-update-dependency-masks-and-scheduled-children.md) | Generated components re-evaluate only bindings whose compile-time dependency bits are dirty, and a parent schedules a child's ticket on a prop change instead of calling its `update()`; answers the #440 fan-out measurement. Accepted (2026-11-17); slices #441, #442, #443 |
 
 ## Dependency overview
 
@@ -109,6 +110,7 @@ ADR-052 networking (accepted) ── ADR-050 app framework, ADR-021 async, ADR-0
 ADR-053 native Metal backend (accepted) ── ADR-010 macOS deferred (superseded in part), ADR-049 backend extensibility, ADR-003 thin RHI
 ADR-054 studio front end React 19 + Vite (accepted) ── ADR-045 browser-hosted studio (page stack amended), ADR-024 boundaries (unchanged), ADR-050 section 3.1 item 6 (preview fakes)
 ADR-055 studio mock services (accepted) ── ADR-054 studio stack, ADR-045 decision 7 (narrowed for mock files), ADR-050 preview fakes, services design (post-V1)
+ADR-056 update dependency masks (accepted) ── ADR-040 generated base, ADR-018 dirty rendering, observable design note
 ```
 
 [ADR-035](ADR-035-view-transitions.md), [ADR-036](ADR-036-own-jsx-frontend-and-react-like-model.md), and [ADR-037](ADR-037-self-contained-wasm-designer.md) are listed in the table above but are not drawn in this diagram.

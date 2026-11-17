@@ -38,6 +38,12 @@ export interface CanvasPaneElements {
   statDpr: HTMLElement;
   /** The font row's value cell (issue #387): the face's name, or the reason text is absent. */
   statFont: HTMLElement;
+  /**
+   * The status line's frame cell (issue #431): the same reading as the frame counters, in the one place
+   * that stays visible after a view switch. Optional, because a pane without a status line is a valid
+   * pane (the SSR chrome renders one, and the smoke test does not need the write).
+   */
+  statusFrame: HTMLElement | null;
 }
 
 export interface CanvasPane {
@@ -74,12 +80,20 @@ export function createCanvasPane(
     pane.frame.hidden = true;
     pane.frameStats.hidden = true;
     setStatus("WebGPU unavailable", "warning");
+    // The status line is the one cell that survives a view switch, so it is never left describing a
+    // frame that is no longer there.
+    if (pane.statusFrame) {
+      pane.statusFrame.textContent = "WebGPU unavailable";
+    }
   }
 
   function showFailed(message: string): void {
     pane.failedBody.textContent = message;
     pane.failed.hidden = false;
     setStatus("failed", "warning");
+    if (pane.statusFrame) {
+      pane.statusFrame.textContent = "failed";
+    }
   }
 
   function hideStates(): void {
@@ -117,6 +131,9 @@ export function createCanvasPane(
     pane.statDraws.textContent = String(report.drawCalls);
     pane.statVertices.textContent = String(report.vertices);
     pane.statNodes.textContent = String(report.nodes);
+    if (pane.statusFrame) {
+      pane.statusFrame.textContent = `${report.width}x${report.height}, ${report.drawCalls} draw call(s)`;
+    }
     if (report.error) {
       showFailed(report.error);
     } else if (report.drawCalls === 0) {
