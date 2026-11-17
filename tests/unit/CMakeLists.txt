@@ -1833,6 +1833,19 @@ target_link_libraries(paint_pass_tests PRIVATE
 
 add_test(NAME paint_pass COMMAND paint_pass_tests)
 
+# Paint-pass culling (issue #487): a node whose painted reach misses PaintContext::cull skips its
+# style read and emission, a clip-bounded subtree is skipped whole, and the pixels inside the rect
+# (deterministic CPU canvas) and the emitted commands are identical to an unculled paint. Text that
+# leaves its own box, transform frames and non-clipping parents are never culled. Pure CPU.
+add_executable(paint_cull_tests
+    paint_cull_tests.cpp)
+
+target_link_libraries(paint_cull_tests PRIVATE
+    tessera_paint
+    tessera_software)
+
+add_test(NAME paint_cull COMMAND paint_cull_tests)
+
 # Effective opacity (#227): the ancestor product multiplies each emitted primitive (box visuals and
 # text/vector/image content), an animated ancestor fade repaints the subtree, and the paint cache
 # never replays a record under a different inherited product.

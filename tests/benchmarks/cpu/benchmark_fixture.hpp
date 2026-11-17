@@ -32,6 +32,10 @@ struct PaintOutcome {
     std::size_t text_runs = 0;
     std::size_t images = 0;
     std::size_t paint_nodes = 0;
+    // Paint-pass culling (issue #487): nodes whose own emission this paint skipped, and clipping
+    // subtrees it skipped whole.
+    std::size_t culled_nodes = 0;
+    std::size_t culled_subtrees = 0;
     std::size_t backdrops = 0;
 };
 
@@ -49,6 +53,11 @@ struct Measurement {
     // describe a full paint again.
     double damaged_paint_ms = 0.0;
     bool damaged_partial = false;
+    // Nodes that resolved a style in that paint, and what the paint-pass cull (issue #487) skipped.
+    // Deterministic: the same plan and scene produce the same counts on every run.
+    std::size_t damaged_paint_nodes = 0;
+    std::size_t damaged_culled_nodes = 0;
+    std::size_t damaged_culled_subtrees = 0;
     std::size_t damaged_quads = 0;
     std::size_t damaged_quads_culled = 0;
     std::size_t damaged_draw_calls = 0;
@@ -78,6 +87,9 @@ struct Totals {
     std::size_t damaged_draw_calls = 0;
     std::size_t damaged_damage_rects = 0;
     bool damaged_partial = false;
+    std::size_t damaged_paint_nodes = 0;
+    std::size_t damaged_culled_nodes = 0;
+    std::size_t damaged_culled_subtrees = 0;
     std::size_t primitives = 0;
     std::size_t text_runs = 0;
     std::size_t images = 0;

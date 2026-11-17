@@ -32,6 +32,10 @@ struct Budget {
     // CPU culling also tests the plan's damage bounding box.
     std::uint64_t max_damaged_paint_ms = 0;
     std::uint64_t max_damaged_quads = 0;
+    // Paint-pass culling (issue #487): the nodes that resolve a style in that damaged paint. A
+    // deterministic counter, so it is compared with the whole-tree count (12000) as the regression
+    // it catches: a paint that walks everything again cannot pass.
+    std::uint64_t max_damaged_paint_nodes = 0;
     std::uint64_t max_damage_rects = 0;
     std::uint64_t max_draw_calls = 0;
     std::uint64_t max_quads = 0;

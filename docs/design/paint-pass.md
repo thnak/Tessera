@@ -191,7 +191,8 @@ Contract:
   provider; tests use a recording sink and a stub provider.
 - **Stats are pre-clip.** `FramePaint::stats` are the counters `paint_scene` produced while feeding
   the sink (nodes visited, background/border candidates). A command the clip decorator drops still
-  increments its counter; the sink is the source of truth for emitted geometry.
+  increments its counter; the sink is the source of truth for emitted geometry. The paint-pass cull
+  ([`dirty-rendering.md`](dirty-rendering.md) §6.8) runs upstream: a node it skips is not counted.
 - **Repeatable.** Painting twice in one due frame is allowed and deterministic: the same commands
   and the same `PaintStats` are produced by either overload.
 

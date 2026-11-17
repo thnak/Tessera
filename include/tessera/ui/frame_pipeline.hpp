@@ -51,6 +51,14 @@ struct FramePipelineConfig {
     // (the 3 sigma damage dependency) and the paint context (the emitted sigma / half-resolution
     // decision), so one pair of values bounds the effect everywhere.
     rendering::gpu::GlassLimits glass{};
+    // Paint-pass culling (issue #487, docs/design/dirty-rendering.md section 6.8), from the runtime
+    // config key `cullDraws`: the same "CPU culling" concept as the renderer's quad cull, so one
+    // key turns both stages off for a full-work comparison. On by default. When the redraw plan is
+    // partial, the damage-clipped `paint_frame` overload hands the paint pass the bounding box of
+    // the plan's scissors as `PaintContext::cull`, so nodes that cannot reach any painted pixel
+    // skip style resolution and emission. A full-redraw plan never culls (its paint is unclipped),
+    // which is why a full repaint stays byte-identical.
+    bool cull_paint = true;
 };
 
 struct FrameTick {

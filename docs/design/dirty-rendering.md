@@ -374,23 +374,18 @@ previous frame, and a redraw may change only what the plan authorizes.
 - **Empty partial plan**: no render pass, no draws, no pixels changed.
 
 This is tested portably on the **CPU canvas** (`tests/unit/damage_equivalence_cpu_tests.cpp`,
-`tessera_software`), which needs no GPU, lavapipe, font, wall clock or network:
+`tessera_software`), which needs no GPU, lavapipe, font, wall clock or network: frame 0 paints the
+whole scene into a persistent `CpuCanvas` (the previous frame) and seeds `DamageTracker` with every
+node's bounds; a scripted change then derives damage, old+new bounds and the normalized `RedrawPlan`,
+`paint_frame(plan)` paints the updated scene through `ClippedPaintSink` (the same per-region rule as
+`Batched2DRenderer::begin_damaged`), and the result is compared byte-for-byte with a fresh full paint.
 
-1. Frame 0 paints the whole scene into a persistent `CpuCanvas` (the previous frame) and seeds
-   `DamageTracker` with every node's bounds.
-2. A scripted change marks the affected nodes; `FramePipeline::tick`/`finish_frame` derive damage,
-   old+new bounds and the normalized `RedrawPlan` (`should_full_redraw` applied).
-3. `FramePipeline::paint_frame(plan)` paints the updated scene through `ClippedPaintSink`, i.e.
-   the same per-region clipping rule as `Batched2DRenderer::begin_damaged`, over the persistent
-   canvas.
-4. The result is compared byte-for-byte with a fresh full paint of the updated scene.
-
-Covered cases: paint-only recolor (one scissor), a layout move with the old and new bounds both
-damaged (two scissors), a shrinking resize (merged region restores the revealed background), the
-**area policy** fallback (whole-target background change -> full plan), the **scissor-count policy**
-fallback (nine disjoint recolors exceed the default eight-region cap -> full plan), and a repeated
-run producing the same plan and pixels. A negative control repaints with an undersized region and
-asserts stale pixels remain, so the equality assertions are sensitive to real under-damage.
+Covered cases: paint-only recolor (one scissor), a layout move with the old and new bounds both damaged
+(two scissors), a shrinking resize (the merged region restores the revealed background), the **area
+policy** fallback (whole-target background change -> full plan), the **scissor-count policy** fallback
+(nine disjoint recolors exceed the default eight-region cap -> full plan), and a repeated run producing
+the same plan and pixels. A negative control repaints with an undersized region and asserts stale
+pixels remain, so the equality assertions are sensitive to real under-damage.
 
 The GPU-side proof stays `damage_equivalence` (lavapipe, `LoadOp::Load`, two frames and the stale
 pixel control) and the null backend keeps `damage_redraw`'s containment assertion (every partial
@@ -402,6 +397,24 @@ acquired image is not guaranteed to preserve the previous frame's contents; B3 s
 full surface, and the on-demand POC uses a full redraw for every presented frame. The equivalence
 above is for preserved offscreen/CPU targets. The unsupported overlap/backdrop/shadow cases from
 §6.2 still force the full-redraw fallback rather than being asserted as partial.
+
+### 6.8 Paint-pass cull (implemented, issue #487)
+
+The damage clip (§6.4) only drops commands already produced; the pass still walked every node and
+resolved every style. `paint_frame(plan)` now hands `paint_scene` a world-space cull rect (the plan's
+scissor box over the DPI scale), and `paint_node` tests a node's painted reach before its style - the
+border box grown by the synced shadow outsets, three glass sigmas (glass-v1 §7) and one pixel of AA
+slack, through the matrix it paints with. A miss skips the style read and the node's own emission. The
+subtree goes too only when the pass actually clips it (`overflow` other than `visible`, or a scroll
+container), since then the clip is inside the reach; a non-clipping parent keeps walking its children
+(they may overflow back in, and keep its effective opacity). Refused: a node in its own transform frame
+(children are relative to the skipped push) and a node whose text can leave its box (wrapped lines
+advance past the content box), which is only culled inside a clipped subtree.
+Invariants: paint never mutates the scene, so dirty flags, damage, animation and hit testing are
+untouched; a full redraw sets no rect; a dirty cached node is painted, not culled; no pixel inside the
+plan's regions changes (`paint_cull_tests.cpp`); and the reach uses what `sync_style` already stores for
+damage, so a paint without a prior sync paints more, never less. `cullDraws` (default on, also gating
+the renderer's quad cull) turns both stages off via `FramePipelineConfig::cull_paint`.
 
 ## 7. GPU resources and synchronization
 
