@@ -119,6 +119,10 @@ bool fill_monitor(HMONITOR monitor, bool primary, DisplayInfo& display) noexcept
     }
     display.name[copied] = '\0';
     display.primary = primary;
+    // The subpixel layout the OS describes (display-aware-rendering.md section 2). Win32 has one
+    // desktop-wide ClearType answer, not a per-monitor one, so every enumerated display carries the
+    // same value; `Unknown` when the queries fail.
+    display.pixel_geometry = query_win32_pixel_geometry();
 
     const RECT& rect = info.rcMonitor;
     display.bounds = WindowRect{static_cast<float>(rect.left), static_cast<float>(rect.top),
@@ -187,6 +191,7 @@ void fill_win32_display_capabilities(HWND window, WindowMetrics& metrics) noexce
     metrics.assumed.work_area = true;
     metrics.orientation = orientation_from_extent(metrics.logical_width, metrics.logical_height);
     metrics.assumed.orientation = true;
+    metrics.pixel_geometry = PixelGeometry::Unknown;
 
     if (window == nullptr) {
         return;
@@ -203,6 +208,10 @@ void fill_win32_display_capabilities(HWND window, WindowMetrics& metrics) noexce
     metrics.display = display.id;
     metrics.refresh_hz = display.refresh_hz;
     metrics.assumed.refresh_hz = display.refresh_hz_assumed;
+    // The window's ClearType fact travels with the same snapshot as its monitor id, refresh and
+    // work area, so `WindowMetrics` and the per-display `DisplayInfo` list can never disagree about
+    // the display the window is on.
+    metrics.pixel_geometry = display.pixel_geometry;
 
     // The work area is in virtual-screen physical pixels; the metrics are logical pixels, so it is
     // divided by the same scale the size uses. `GetMonitorInfoW` already excludes the taskbar.

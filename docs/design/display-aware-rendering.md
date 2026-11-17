@@ -9,11 +9,13 @@ resolver (S8), the text contrast LUT adopted as a D2 amendment (T5, section 3.5)
 integration: `AppWindow` resolves and applies the policy, sets `PaintContext::device_scale`, and
 pins the golden policy in golden mode (section 6). S8 also landed the image filter-by-scale rule
 (nearest at aligned 1:1, linear otherwise; the mip case is blocked on RHI mip support, section 6)
-and consumes the resolver's MSAA decision in the window's presentation. Not landed: LCD text (T4;
-the owner decided it ships in V1 in a later PR), the mip-chain downscale case (needs `TextureDesc`
-mip levels and backend chain generation), and the per-display `PixelGeometry` backends (every
-backend still reports `Unknown`). Extends [`antialiasing.md`](antialiasing.md) and
-[`text.md`](text.md). Decisions D2/D6 in
+and consumes the resolver's MSAA decision in the window's presentation. S7's first half landed:
+the Windows backend fills `PixelGeometry` from the user's ClearType configuration (section 2), the
+only subpixel source the OS has, and says honestly that it is desktop-wide rather than per-monitor.
+Not landed: LCD text (T4 - section 3.4 records exactly what the second half needs and why it is not
+one safe landing), the mip-chain downscale case (needs `TextureDesc` mip levels and backend chain
+generation), and the X11/Wayland `PixelGeometry` sources (both still report `Unknown`). Extends
+[`antialiasing.md`](antialiasing.md) and [`text.md`](text.md). Decisions D2/D6 in
 [`rendering-production-plan.md`](rendering-production-plan.md) stay in force unless a numbered
 decision in section 8 says otherwise.
 
@@ -35,7 +37,7 @@ layout independent of them, and keep golden mode pinned.
 | Fact | Source | Status |
 |---|---|---|
 | Device scale (ladder step) | `WindowMetrics::dpi_scale` -> `quantize_render_scale` | exists |
-| Pixel geometry (RGB/BGR stripe, H/V, none/unknown) | HAL, per display | **new** `PixelGeometry` field |
+| Pixel geometry (RGB/BGR stripe, H/V, none/unknown) | HAL, per display | exists; Win32 fills it from ClearType (desktop-wide, see below) |
 | Screen rotation / orientation | `WindowMetrics` orientation | exists, unused by AA |
 | Surface opacity (opaque window vs translucent/glass) | window config | exists |
 | Node transform (translate-only, scale, rotate), layer opacity | scene | exists |
@@ -43,6 +45,22 @@ layout independent of them, and keep golden mode pinned.
 Rules: a fact change is a *between-frames* event like `set_render_scale()`. No fact is read on the
 frame path except through an already-resolved per-window `AaPolicy` value. Layout never reads
 them (AA must not change layout, `antialiasing.md` section 3).
+
+**Win32 cannot report a per-monitor stripe.** The Desktop Window Manager never exposes a monitor's
+subpixel order: there is no `HMONITOR`, `DISPLAYCONFIG_*` or DXGI query for it, because the panel's
+stripe layout is not a property Windows models. What the OS does expose is the user's ClearType
+configuration - `SPI_GETFONTSMOOTHING`, `SPI_GETFONTSMOOTHINGTYPE` and
+`SPI_GETFONTSMOOTHINGORIENTATION` (the same values mirrored under
+`HKCU\Control Panel\Desktop\FontSmoothing{,Type,Orientation}`) - which is *per user and
+desktop-wide*, not per display. `hal::clear_type_geometry` maps it honestly: ClearType with the RGB
+orientation is `RgbHorizontal`, ClearType with BGR is `BgrHorizontal`, smoothing off or greyscale
+("standard") smoothing is `None` (the OS will not blend subpixel coverage, so there is no stripe in
+use), and a failed or unrecognised read is `Unknown`. Every `DisplayInfo` therefore carries the same
+value, and it is the value the OS will actually rasterize text with on any of the monitors. A
+mixed-panel desktop (an RGB laptop panel next to a BGR monitor) cannot be described by this API;
+reporting one desktop-wide answer is the honest option, and inventing a per-display one would be a
+fabrication. Vertical stripes are unreachable: ClearType only offers horizontal RGB/BGR. X11 and
+Wayland report `Unknown` in V1.
 
 `AaPolicy` (plain data, resolved once per window and per fact change):
 `{ render_scale, text_mode, hinting, subpixel_position, edge_mode, clip_aa, msaa }`.
@@ -86,9 +104,10 @@ counted against the existing bounded atlas budget; eviction rules unchanged.
 
 ### 3.4 LCD subpixel text (T4, optional)
 
-Not in this slice: the owner decided LCD text ships in V1 in a later PR. Until then the resolver
-keeps `Auto` on grayscale (`kAutoAllowsLcd == false`) and no backend fills `PixelGeometry`, so every
-window resolves `Grayscale` and the rules below are the later slice's contract.
+Not in this slice: the owner decided LCD text ships in V1 in a later PR. The Windows backend now
+fills `PixelGeometry` (section 2), but the resolver keeps `Auto` on grayscale until the text path
+can consume it (`kAutoAllowsLcd == false`), so every window still resolves `Grayscale` and the rules
+below are the later slice's contract.
 
 Modes: `grayscale` (today) and `lcd` (3 coverage channels). LCD is chosen only when **all** hold:
 `PixelGeometry` is a known horizontal stripe, the window is opaque, the run has a translate-only
@@ -99,6 +118,74 @@ no patent-encumbered filter is needed) into an RGB coverage atlas page. Composit
 per-channel blend: dual-source blending where `dualSrcBlend` is supported; reading the destination
 in the shader is not allowed, so the fallback is grayscale. Rotated screens and vertical stripes
 are grayscale in V1.
+
+The Win32 fact behind the first condition is one desktop-wide ClearType answer, not a per-monitor
+one (section 2). A mixed-panel desktop therefore takes the same decision for every monitor: LCD text
+uses the stripe order the user selected, which is what the OS itself rasterizes with. A future
+backend with a real per-panel query (DXGI `DISPLAYCONFIG_*` output technology does not report it
+today) can fill a different value per `DisplayInfo` without changing this rule.
+
+#### 3.4.1 What the LCD half still needs, and why it is not one landing
+
+The shader tooling is *not* the blocker, and that was verified rather than assumed: the manifest
+schema makes `sources.webgpu` optional for an `element` and requires it only for a
+`view-transition-effect` ([`shader-manifest-v1.md`](../specs/shader-manifest-v1.md) section 3;
+`src/schema/src/shader_manifest_rules.cpp:195`), the cross lane names each shader explicitly
+(`tools/shaders/cross/CMakeLists.txt:9` and `:15`) and its workflow builds and inspects only those
+two ids (`.github/workflows/linux.yml:261`), so a Vulkan-only `batched2d_lcd` entry with no cross
+target is ignored there; `scripts/ci/validate_wgsl.py` validates authored `*.wgsl` files it finds
+under `src/`, so a shader with no WGSL source is invisible to the `wgsl-validation` lane; and the
+Wasm/WebGPU lane resolves programs through `webgpu::ShaderRegistry` by `shader_id`, so an id only
+the Vulkan pipeline descriptor names is never looked up. That was also checked empirically: a
+throwaway manifest carrying a Vulkan-only `batched2d_lcd` entry passes `tessera_shader_manifest_check`
+(the same entry declared as a `view-transition-effect` is rejected at `$.shaders[n].sources.webgpu`,
+which is the only place the field is mandatory), and a probe fragment shader with
+`layout(location = 0, index = 1) out vec4` compiles with `glslc`, validates under
+`glslangValidator`/`spirv-val`, and disassembles with `Index 1` on that output. The blocker is the
+five layers below, none of which can be verified in isolation while the golden corpus must stay
+byte-identical:
+
+1. **RHI.** `BlendMode` has two values (`include/tessera/rendering/rhi/types.hpp:192`); the Vulkan
+   blend state implements Alpha only
+   (`src/rendering/backend/vulkan/src/vulkan_pipeline.cpp:111-122`); device creation enables
+   `dynamicRendering` and `timelineSemaphore` and nothing else
+   (`src/rendering/backend/vulkan/src/vulkan_instance.cpp:298-322`), so `dualSrcBlend` needs both a
+   feature probe and a capability the window can consult; and the WebGPU mapping silently turns any
+   non-Alpha mode into blending *off* (`src/rendering/backend/webgpu/src/webgpu_mapping.cpp:128`),
+   which for dual-source coverage would write raw coverage instead of falling back - it must reject
+   the mode, not map it.
+2. **Batch identity.** The renderer binds one pipeline per pass
+   (`src/rendering/gpu/batched2d_renderer.cpp:135`) and `Batch` has no pipeline field
+   (`include/tessera/rendering/gpu/batched2d_renderer.hpp:238`). A per-run pipeline adds a fourth
+   axis to the split rule that already holds texture, scissor and folded clip state, and to both
+   replay loops in `flush()`.
+3. **Atlas identity.** `GlyphAtlasConfig` carries `hinting` only
+   (`include/tessera/ui/text/glyph_atlas.hpp:22`), the page upload writes coverage into alpha, and
+   the rasterizer hard-codes `FT_RENDER_MODE_NORMAL` (`src/ui/text/glyph_raster.cpp:93`). LCD text
+   doubles the atlas set (mode x ladder step), uploads 3-channel coverage, and takes the quad width
+   from `bitmap.width / 3`.
+4. **Eligibility has no home in the paint seam.** `TextDraw`
+   (`include/tessera/ui/paint/paint_sink.hpp:19`) carries no backdrop, transform or opacity fact;
+   `PaintContext` (`include/tessera/ui/paint/paint_pass.hpp:95`) has no "the window is opaque" fact;
+   and the per-node paint cache replays recorded `DrawText` ops
+   (`src/ui/paint/paint_cache.cpp:126-134`) from a signature
+   (`src/ui/paint/paint_pass.cpp:324`) that would not carry the new fact, so a cached run could
+   claim LCD over a backdrop that changed since it was recorded. That is four coordinated edits to a
+   public struct, the context, the cache signature and both replay paths.
+5. **Presentation and determinism.** The window owns the pipeline
+   (`src/app/window_recovery.cpp:113`), so the LCD pipeline must be created only when the resolved
+   policy permits it and the device reports dual-source support, and handed to the renderer, the
+   text renderer and the sink through all three composition roots (window, frame capture, designer
+   preview). Goldens stay pinned to grayscale (section 7), so the only evidence for the feature is a
+   lavapipe/real-GPU probe with an explicit tolerance.
+
+Landing order that keeps each step verifiable on its own (each is a slice, not a commit inside this
+one): (1) the RHI primitive only - `DualSource`, the device feature plus capability, the Vulkan
+factors, WebGPU rejection, and the Vulkan-only `batched2d_lcd` entry compiled by `tessera_add_spv_c`,
+with a pipeline-creation test; (2) the rasterizer and atlas mode - `FT_RENDER_MODE_LCD`, the mode in
+the atlas identity, the RGB upload and the 3x-width quad; (3) the renderer pipeline axis, the pure
+eligibility predicate, the paint-seam fact and `kAutoAllowsLcd`. Nothing in step 1 changes a frame,
+which is what makes it reviewable and revertible.
 
 ### 3.5 Contrast and gamma (T5)
 
@@ -160,7 +247,7 @@ regardless of the switch and of the display.
 
 | Slice | Content | Tests |
 |---|---|---|
-| S1 | `AaPolicy` resolver + HAL `PixelGeometry` (Unknown default; Win32/X11 fill later) | policy table unit test with fake displays |
+| S1 | `AaPolicy` resolver + HAL `PixelGeometry` (Unknown default; Win32 fills it from ClearType in S7, X11/Wayland later) | policy table unit test with fake displays |
 | S2 | `fwidth` edge in `batched2d.frag` for SDF and border | edge-width probe at 0.5x/1x/2x/45 deg; golden unchanged |
 | S3 | paint-time snap of hairlines and borders | 1.25/1.5 scale fixtures, 1-device-px assertion |
 | S4 | rounded-clip coverage AA | clip corner has intermediate alpha; nothing written outside the clip |
@@ -194,8 +281,8 @@ The clip path needs no separate scaling: `push_clip` scales the paint-space clip
 scissor is derived from it (`ClipStateTable::push` -> `enclosing_scissor`), so the scissor fast path
 and the folded SDF uniform test the same target-space rectangle. `set_scissor` itself is a
 target-pixel seam: the frame scissor is the target extent and damage regions are already device
-pixels. Still missing, all later PRs: per-display `PixelGeometry` (every backend reports `Unknown`),
-LCD text (T4), and the mip-chain downscale case below.
+pixels. Still missing, all later PRs: X11/Wayland `PixelGeometry` sources (they report `Unknown`),
+LCD text (T4, section 3.4), and the mip-chain downscale case below.
 
 S8 image filter (landed): RHI sampler state is fixed at texture creation, so the filter is part of
 `ImageTextureKey` and `Batched2DSink::draw_image` picks it per draw with the pure
@@ -229,12 +316,21 @@ generation (a metrics change that crosses `kMsaaMaxScale` takes effect at the ne
 exactly like the swapchain format), and a 4x frame target cannot be read by the glass backdrop copy,
 so glass reports its draws unsupported for that generation (the documented bounded fallback).
 
-S1 details: `Auto` text mode resolves to grayscale until decision 1 below is made
-(`kAutoAllowsLcd`); `WindowMetrics::pixel_geometry` and `DisplayInfo::pixel_geometry` default to
-`Unknown` and no backend fills them yet; the resolver is pure and covered by `aa_policy`.
+S1 details: `Auto` text mode resolves to grayscale until LCD text lands (`kAutoAllowsLcd`);
+`WindowMetrics::pixel_geometry` and `DisplayInfo::pixel_geometry` default to `Unknown`, and Win32
+fills both from `hal::clear_type_geometry` (section 2). The resolver is pure and covered by
+`aa_policy`.
+
+S7 first half (landed): `hal::clear_type_geometry(font_smoothing, orientation, type)` is the pure
+mapping the unit test exercises without Windows APIs; `query_win32_pixel_geometry()` reads the three
+`SystemParametersInfoW` values, maps anything it does not understand to `Unknown`, and both
+`fill_monitor` (the `DisplayInfo` list) and `fill_win32_display_capabilities` (the per-event
+`WindowMetrics`) call it, so the topology and the window snapshot can never disagree. The mapping
+distinguishes "the OS says subpixel AA is off" (`None`) from "this build could not ask" (`Unknown`)
+instead of collapsing both into a guess.
 
 Order: S1 first (everything reads it), then S2 + S4 together, S3, S5, S6. T5 landed with the D2
-amendment; S7's LCD half is a later PR.
+amendment; S7's ClearType fact landed separately from its LCD half (section 3.4).
 
 ## 7. Determinism and goldens
 
@@ -259,4 +355,8 @@ explicit tolerance, never by real-GPU goldens.
    [`rendering-production-plan.md`](rendering-production-plan.md)). Only the per-run text coverage
    multiplier is new; D2's encoded blend space and its fill/image rules are unchanged.
 3. Windows: take `PixelGeometry` from the OS ClearType setting, or detect per display only?
+   **Decided: detect per display, Windows first - and the honest Windows answer is the user's
+   ClearType setting, because no per-monitor query exists** (section 2). Both
+   `DisplayInfo::pixel_geometry` and `WindowMetrics::pixel_geometry` are filled from it, and the
+   desktop-wide limitation is documented rather than hidden behind a fabricated per-panel value.
 4. Clip AA (S4) in V1, or accept hard rounded clips until MSAA? (Recommendation: S4 in V1.)

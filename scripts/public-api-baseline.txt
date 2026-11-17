@@ -578,10 +578,13 @@ function include/tessera/hal/cutout.hpp tessera::hal::make_cutout_info
 header include/tessera/hal/display.hpp
 struct include/tessera/hal/display.hpp tessera::hal::DisplayInfo
 enum include/tessera/hal/display.hpp tessera::hal::ColorGamut
+enum include/tessera/hal/display.hpp tessera::hal::FontSmoothingOrientation
+enum include/tessera/hal/display.hpp tessera::hal::FontSmoothingType
 enum include/tessera/hal/display.hpp tessera::hal::Orientation
 enum include/tessera/hal/display.hpp tessera::hal::PixelGeometry
 alias include/tessera/hal/display.hpp tessera::hal::DisplayId
 alias include/tessera/hal/display.hpp tessera::hal::WindowId
+function include/tessera/hal/display.hpp tessera::hal::clear_type_geometry
 function include/tessera/hal/display.hpp tessera::hal::display_info_name
 function include/tessera/hal/display.hpp tessera::hal::display_scale_from_dpi
 function include/tessera/hal/display.hpp tessera::hal::display_scale_usable

@@ -345,6 +345,48 @@ void check_coalescing() {
     expect(hal::coalesce_window_events({}, merged) == 0, "an empty batch is empty");
 }
 
+// The Windows ClearType setting -> `PixelGeometry` rules (display-aware-rendering.md section 2):
+// the pure mapping, so this check needs no Windows API and no display. The three arguments are the
+// values the platform TU reads from `SPI_GETFONTSMOOTHING`, `SPI_GETFONTSMOOTHINGORIENTATION` and
+// `SPI_GETFONTSMOOTHINGTYPE`.
+void check_clear_type_geometry() {
+    using hal::FontSmoothingOrientation;
+    using hal::FontSmoothingType;
+    using hal::PixelGeometry;
+
+    // The only two configurations that describe a stripe LCD text can use.
+    expect(hal::clear_type_geometry(true, FontSmoothingOrientation::Rgb,
+                                    FontSmoothingType::ClearType) == PixelGeometry::RgbHorizontal,
+           "ClearType with an RGB stripe is RgbHorizontal");
+    expect(hal::clear_type_geometry(true, FontSmoothingOrientation::Bgr,
+                                    FontSmoothingType::ClearType) == PixelGeometry::BgrHorizontal,
+           "ClearType with a BGR stripe is BgrHorizontal");
+    // Smoothing off wins over a stale ClearType type: the OS will not blend subpixel coverage.
+    expect(hal::clear_type_geometry(false, FontSmoothingOrientation::Rgb,
+                                    FontSmoothingType::ClearType) == PixelGeometry::None,
+           "smoothing off is None even if ClearType is still selected as the type");
+    // Greyscale ("standard") smoothing has no stripe to describe.
+    expect(hal::clear_type_geometry(true, FontSmoothingOrientation::Rgb,
+                                    FontSmoothingType::Standard) == PixelGeometry::None,
+           "greyscale smoothing is None");
+    expect(hal::clear_type_geometry(true, FontSmoothingOrientation::Bgr, FontSmoothingType::None) ==
+               PixelGeometry::None,
+           "a None smoothing type is None");
+    // A value this build does not understand is never promoted to a known stripe.
+    expect(hal::clear_type_geometry(true, FontSmoothingOrientation::Rgb,
+                                    static_cast<FontSmoothingType>(200)) == PixelGeometry::Unknown,
+           "an unknown smoothing type is Unknown");
+    expect(hal::clear_type_geometry(true, static_cast<FontSmoothingOrientation>(200),
+                                    FontSmoothingType::ClearType) == PixelGeometry::Unknown,
+           "an unknown stripe orientation is Unknown");
+    // Win32 never reports a vertical stripe, and no mapping invents one.
+    expect(!hal::pixel_geometry_is_horizontal_stripe(hal::clear_type_geometry(
+               true, FontSmoothingOrientation::Rgb, FontSmoothingType::Standard)) &&
+               !hal::pixel_geometry_is_horizontal_stripe(hal::clear_type_geometry(
+                   false, FontSmoothingOrientation::Bgr, FontSmoothingType::ClearType)),
+           "only a ClearType horizontal configuration is an LCD-usable stripe");
+}
+
 void check_metrics_assumptions() {
     // ADR-023 rule 7 through the type's defaults: an unmeasured display reports 60 Hz / 1.0 and the
     // flags say so. A consumer that reads only a value must not be able to mistake it for a
@@ -379,6 +421,7 @@ int main() {
     check_conversion();
     check_coalescing();
     check_metrics_assumptions();
+    check_clear_type_geometry();
 
     if (failures != 0) {
         std::cerr << "os_event: " << failures << " check(s) failed\n";
