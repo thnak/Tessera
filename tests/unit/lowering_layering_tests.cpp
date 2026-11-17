@@ -4,8 +4,10 @@
 // includes the JSX AST, the analysis result, the shared schema table and the IR; the IR includes
 // neither the front end nor the analysis, and the lowering core links exactly those four libraries
 // (section 6, "tessera_lowering links front end, rules and tessera_ir"; slice 12 adds the leaf
-// schema library, which every compiler layer may link). The public `tessera_lowering` combines the
-// core with the build-generated library component registry (issue #70).
+// schema library, which every compiler layer may link). Issue #463 adds `tessera_css_module`, whose
+// scan is scene-free (it links only `tessera_css_tokenizer`), so the layering rule holds. The
+// public `tessera_lowering` combines the core with the build-generated library component registry
+// (issue #70).
 
 #include "lowering_test_util.hpp"
 
@@ -86,10 +88,14 @@ int main() {
             // Slice 12: the shared intrinsic/style table is a leaf every compiler layer may use.
             const bool schema = starts_with(include, "tessera/schema/");
             const bool ir = starts_with(include, "tessera/compiler/ir/");
-            check(own || jsx || rules || schema || ir || include.find('/') == std::string::npos,
-                  "lowering includes only the AST, the analysis, the schema, the IR or its own "
-                  "headers: " +
-                      include);
+            // Issue #463: the CSS module scan is scene-free, so lowering may read its class map.
+            const bool css_module = starts_with(include, "tessera/compiler/css_module/");
+            check(
+                own || jsx || rules || schema || ir || css_module ||
+                    include.find('/') == std::string::npos,
+                "lowering includes only the AST, the analysis, the schema, the IR, the CSS module "
+                "scan or its own headers: " +
+                    include);
             saw_jsx = saw_jsx || jsx;
             saw_rules = saw_rules || rules;
             saw_schema = saw_schema || schema;
@@ -105,8 +111,9 @@ int main() {
     const std::string cmake = read_file((lowering / "CMakeLists.txt").string());
     check(cmake.find("target_link_libraries(tessera_lowering_core PUBLIC") != std::string::npos &&
               cmake.find("tessera_react_rules") != std::string::npos &&
-              cmake.find("tessera_schema)") != std::string::npos,
-          "tessera_lowering_core links the front end, the IR, the analysis and the schema");
+              cmake.find("tessera_css_module)") != std::string::npos,
+          "tessera_lowering_core links the front end, the IR, the analysis, the schema and the CSS "
+          "module scan");
     check(cmake.find("target_link_libraries(tessera_lowering INTERFACE") != std::string::npos &&
               cmake.find("tessera_lowering_core") != std::string::npos &&
               cmake.find("tessera_library_components") != std::string::npos,

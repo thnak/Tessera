@@ -36,10 +36,22 @@ struct Binding {
     std::optional<Preview> preview;
 };
 
+// Issue #463: one class a `*.module.css` declares, as authored and as scoped. The inspector shows
+// `local` while the selector index sees `scoped`.
+struct StylesheetClass {
+    std::string local;
+    std::string scoped;
+};
+
 struct StylesheetRef {
     std::string id;
     std::string path;
+    // FNV-1a of the file bytes: it identifies the source file, not the scoped rewrite.
     std::string hash;
+    // Issue #463: the class map a CSS module carries, sorted by `local` and unique. Omitted from
+    // the JSON when empty, so a project with no `.module.css` stays byte-identical (the same rule
+    // as `types`, section 2.2).
+    std::vector<StylesheetClass> classes;
 };
 
 // docs/specs/ir-v1.md section 1.

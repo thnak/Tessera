@@ -411,6 +411,11 @@ Outcome run_impl(const Options& options) {
     }
 
     lowering::LoweredModule lowered_module = std::move(*lowered);
+    // Issue #463: a finding that is not an error (an unread CSS-module class) still has to reach
+    // the author, so lowering's warning channel is printed the same way codegen's is.
+    for (const lowering::LoweringWarning& warning : lowered_module.warnings) {
+        report_diagnostic(outcome, warning.file, warning.diagnostic);
+    }
     ir::IrModule module;
     module.name = lowered_module.name;
     module.components = std::move(lowered_module.components);

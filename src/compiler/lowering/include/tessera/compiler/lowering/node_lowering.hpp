@@ -27,6 +27,9 @@ namespace tessera::compiler::lowering {
 struct LoweredComponent {
     ir::Component component;
     std::vector<ir::Binding> bindings; // sorted by id, from slice 6
+    // Issue #463: the `styles.<class>` references this component resolved, so the module pass can
+    // report a class of its CSS module that no TSX reads.
+    std::vector<CssModuleUse> css_module_uses;
 };
 
 using NodeLoweringErrors = std::vector<jsx::Diagnostic>;
@@ -51,6 +54,13 @@ struct ModuleSource {
     const jsx::SourceMap* source_map = nullptr;
 };
 
+// One non-fatal finding of the project pass. `file` is the project-relative POSIX path the
+// diagnostic's span is measured in, so a consumer prints the right location without guessing.
+struct LoweringWarning {
+    std::string file;
+    jsx::Diagnostic diagnostic;
+};
+
 // All components of a project plus its module-level data. `components` are sorted by source file
 // and then by name (ir-v1 section 11) and `bindings` by id; `componentId`/`uiId` stay empty for
 // slice 10. `types` is the record type table of ADR-051, sorted by `name` and empty when the
@@ -62,6 +72,11 @@ struct LoweredModule {
     std::vector<ir::Binding> bindings;
     std::vector<ir::StylesheetRef> stylesheets; // sorted by path, one entry per file
     std::vector<ir::RecordType> types;          // sorted by name, empty when none is declared
+    // Issue #463: non-fatal findings of the project pass, sorted by file then class, for example
+    // `TESSERA_CSS_MODULE_UNUSED_CLASS`. Empty when there is nothing to report. The file is
+    // carried alongside because a `jsx::Diagnostic` span is relative to the file it was resolved
+    // through, and an unused-class warning points at the import site in the importing TSX.
+    std::vector<LoweringWarning> warnings;
 };
 
 using ModuleLoweringResult = std::expected<LoweredModule, NodeLoweringErrors>;

@@ -91,7 +91,7 @@ in it is a hard error rather than a warning:
 | `TESSERA_CSS_MODULE_GLOBAL_BLOCK` | error | `:global { ... }` block form; only `:global(.x)` is supported |
 | `TESSERA_CSS_MODULE_MALFORMED_GLOBAL` | error | a `:global(` with no matching `)` |
 | `TESSERA_CSS_MODULE_MALFORMED` | error | unbalanced braces or a truncated construct in a module file |
-| `TESSERA_JSX_STYLES_DYNAMIC` | error | `styles[k]`, a spread of `styles`, or passing `styles` around; only a static `styles.<ident>` is allowed |
+| `TESSERA_JSX_STYLES_DYNAMIC` | error | a `className` reads a CSS module but does not fold to one class string: a bare `styles`, a conditional, or any expression the compiler cannot evaluate. `styles[k]` and `{...styles}` are refused earlier, by `TESSERA_JSX_SUBSET_MEMBER` and `TESSERA_JSX_SUBSET_SPREAD` |
 
 `TESSERA_CSS_MODULE_UNKNOWN_CLASS` is an error, unlike the unknown-class warning of a plain
 `className` ([`jsx-subset-v1-jsx.md`](jsx-subset-v1-jsx.md) section 10.3): a plain class name may be

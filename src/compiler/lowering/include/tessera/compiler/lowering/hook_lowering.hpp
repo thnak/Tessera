@@ -37,6 +37,22 @@ struct ComponentRef {
     bool imported = false;
 };
 
+// Issue #463: a CSS module bound in one file by `import styles from "./X.module.css"`. `classes` is
+// the scan's class map (sorted by `local`, unique), so a `styles.<ident>` resolves without a second
+// read of the CSS file; `path` is the project-relative path its diagnostics name.
+struct CssModuleBinding {
+    std::string binding; // the local name the class map is bound to (`styles`)
+    std::string path;    // project-relative POSIX path of the module sheet
+    std::vector<ir::StylesheetClass> classes;
+};
+
+// Issue #463: one class a component read through a binding. The module pass compares the union of
+// these against each module sheet's class map to report `TESSERA_CSS_MODULE_UNUSED_CLASS`.
+struct CssModuleUse {
+    std::string path;  // project-relative POSIX path of the module sheet
+    std::string local; // the authored class name
+};
+
 // One component: its AST item, the analysis of that item, and where its spans live. The analysis
 // must be the one produced from `component`; `source_map` must be the map of the same source.
 struct HookLoweringContext {
@@ -59,6 +75,9 @@ struct HookLoweringContext {
     // literal that becomes an `ir::Record`. Null in the single-component entry points, where an
     // object literal in such a position stays unsupported.
     const std::vector<ir::RecordType>* records = nullptr;
+    // Issue #463: the CSS modules this file imports, so `className={styles.title}` can resolve the
+    // authored class against that file's own map. Empty when the file imports no module sheet.
+    std::span<const CssModuleBinding> css_modules{};
     // The component's declared prop records, lowered before its handlers and nodes so a callback
     // prop can be forwarded or called with its declared type (issue #286). Null when the props type
     // has no resolvable object type.
