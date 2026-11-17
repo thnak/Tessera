@@ -238,8 +238,23 @@ export function createSceneSession(options: SceneSessionOptions): SceneSession {
     id: "scene",
     /** Loads the Wasm module (and lays the current source out once) on the view's first open. */
     load,
-    /** The Run button's action. */
+    /** The **Restart app** button's action. */
     run,
+    /**
+     * An edit was applied (issue #444).
+     *
+     * `tessera_scene_json` evaluates from source on every call, so this pane's picture is already a pure
+     * function of the source and a re-evaluation *is* the live edit. What it must not do is throw away
+     * the click script's cells: those describe the document on screen, and a keystroke in the editor is
+     * not "the visitor started over". So this re-runs the layout and leaves the input pane's own state
+     * for `run` (Restart) and `onSample` (a different document) to reset.
+     */
+    apply: () => {
+      describeEnvironment();
+      if (factory !== null) {
+        void run();
+      }
+    },
     /**
      * "Load sample" on this view, split across the page (issue #431): the page writes `sampleSource` into
      * the entry file, and this runs the view's own part -- its three-click demo script over that source.

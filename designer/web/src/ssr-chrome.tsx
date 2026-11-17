@@ -41,5 +41,9 @@ export const VIEW_IDS = {
     "stat-vertices",
     "stat-nodes",
     "stat-dpr",
+    // Issue #387's font row: in the pane, in `preview_page_checks.mjs`'s copy of this list, and now
+    // here too. It was missing from this list only, which is why the two could disagree without a
+    // failure; the canvas session writes it unconditionally, so a rename must fail one of them.
+    "stat-font",
   ],
 } as const;

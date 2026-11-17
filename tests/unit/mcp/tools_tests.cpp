@@ -32,7 +32,7 @@ void test_surface_is_declared() {
     // extra one is a surface nobody decided on.
     const std::string_view expected[] = {
         "open_project", "list_files",  "diagnostics", "get_ir",     "apply_edits", "set_viewport",
-        "snapshot",     "query_style", "pick",        "screenshot", "run_script"};
+        "snapshot",     "query_style", "pick",        "screenshot", "run_script",  "generate"};
     expect(tools.size() == std::size(expected),
            "mcp_tools: the listing is exactly the section 8 tools");
     for (const std::string_view name : expected) {
@@ -56,8 +56,8 @@ void test_surface_is_declared() {
     // advertisement honest as later slices fill tools in: `open_project`, the three compile tools,
     // and since issue #408 the preview pair (`set_viewport` and `snapshot`), which share the scene
     // driver the browser module and the native preview CLI call.
-    const std::string_view implemented[] = {"open_project", "list_files",   "diagnostics",
-                                            "get_ir",       "set_viewport", "snapshot"};
+    const std::string_view implemented[] = {"open_project", "list_files", "diagnostics", "get_ir",
+                                            "set_viewport", "snapshot",   "generate"};
     for (const mcp::ToolDefinition& tool : tools) {
         bool should_be_implemented = false;
         for (const std::string_view name : implemented) {

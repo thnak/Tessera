@@ -18,7 +18,7 @@
 // the session below binds the WebGPU context to it. That is ADR-054 decision 3 in one sentence: React
 // renders the studio chrome, the engine draws the preview canvas.
 
-import type { CanvasFrameReport } from "./canvas-session";
+import type { CanvasFrameReport, CanvasStateCell } from "./canvas-session";
 import { describeCss, describeCssDetails, type CssDiagnostic } from "./css-diagnostics";
 import type { StatusReporter } from "../lib/views";
 
@@ -39,6 +39,12 @@ export interface CanvasPaneElements {
   statDpr: HTMLElement;
   /** The font row's value cell (issue #387): the face's name, or the reason text is absent. */
   statFont: HTMLElement;
+  /**
+   * The state row's value cell (issue #444): the running evaluation's cells, as the apply reported
+   * them. The row is hidden while there is no state to show.
+   */
+  stateRow: HTMLElement;
+  statState: HTMLElement;
   /**
    * The status line's frame cell (issue #431): the same reading as the frame counters, in the one place
    * that stays visible after a view switch. Optional, because a pane without a status line is a valid
@@ -67,6 +73,18 @@ export interface CanvasPane {
   setFontState(family: string | null, reason?: string): void;
   /** Shows what a frame produced: the counters, and a named state when it produced nothing. */
   renderReport(report: CanvasFrameReport): void;
+  /**
+   * Shows the running evaluation's state cells (issue #444).
+   *
+   * This is what makes a carried cell *observable* on the pane the edit is about: a developer who
+   * changes a string in a component with a `count` cell can see the count stay where it was, and can
+   * see it go back to its initializer after **Restart app**. Before this the canvas showed no state
+   * at all, so "state survives the edit" was only checkable in the Scene pane's click script.
+   *
+   * An empty list clears the row rather than printing "none": a source with no state cells has
+   * nothing to report, and a row that said "none" would look like a failed carry.
+   */
+  renderState(cells: readonly CanvasStateCell[]): void;
 }
 
 export function createCanvasPane(
@@ -132,12 +150,20 @@ export function createCanvasPane(
     hideStates();
     pane.frame.hidden = false;
     pane.frameStats.hidden = false;
-    pane.statFrame.textContent = report.width + "x" + report.height;
+    // The frame count comes from the session, not from this pane: it is the engine's own tally of
+    // what it painted, which is the number the issue's "one frame per burst, zero when static"
+    // acceptance is about. Shown beside the size so a developer can watch it stay put while a static
+    // preview is left alone.
+    pane.statFrame.textContent =
+      report.frames === undefined ? report.width + "x" + report.height
+                                  : `${report.width}x${report.height} (#${report.frames})`;
     pane.statDraws.textContent = String(report.drawCalls);
     pane.statVertices.textContent = String(report.vertices);
     pane.statNodes.textContent = String(report.nodes);
     if (pane.statusFrame) {
-      pane.statusFrame.textContent = `${report.width}x${report.height}, ${report.drawCalls} draw call(s)`;
+      pane.statusFrame.textContent =
+        `${report.width}x${report.height}, ${report.drawCalls} draw call(s)` +
+        (report.frames === undefined ? "" : `, ${report.frames} frame(s)`);
     }
     const problems = report.cssDiagnostics ?? [];
     renderCssProblems(pane, problems, report.cssDiagnosticsTruncated === true);
@@ -162,7 +188,53 @@ export function createCanvasPane(
     );
   }
 
-  return { elements: pane, setStatus, showUnsupported, showFailed, hideStates, setFontState, renderReport };
+  /**
+   * The state row (#444): one `name=value` pair per cell, in declaration order.
+   *
+   * A cell's name is the IR id (`state::count`), which is what the carry rule matches on, so a
+   * developer reading this row is reading the identity the engine used. `data-cell` carries the raw
+   * name and `data-value` the scalar, so a probe can assert a cell's value without parsing prose.
+   */
+  function renderState(cells: readonly CanvasStateCell[]): void {
+    if (cells.length === 0) {
+      pane.statState.replaceChildren();
+      pane.statState.removeAttribute("data-value");
+      pane.statState.hidden = true;
+      pane.stateRow.hidden = true;
+      return;
+    }
+    const nodes = cells.map((cell) => {
+      const row = document.createElement("span");
+      row.className = "state-cell";
+      row.dataset.cell = cell.name;
+      const shown = cell.items !== undefined ? cell.items.join(",") : String(cell.value ?? "");
+      row.dataset.value = shown;
+      row.textContent = `${cell.name}=${shown}`;
+      return row;
+    });
+    pane.statState.replaceChildren(...nodes);
+    // The single-scalar case gets its value on the row itself, which is what a one-cell sample
+    // (the Counter) needs to be assertable without hunting for the span.
+    const scalar = cells.length === 1 && cells[0].items === undefined ? cells[0].value : undefined;
+    if (scalar === undefined) {
+      pane.statState.removeAttribute("data-value");
+    } else {
+      pane.statState.dataset.value = String(scalar);
+    }
+    pane.statState.hidden = false;
+    pane.stateRow.hidden = false;
+  }
+
+  return {
+    elements: pane,
+    setStatus,
+    showUnsupported,
+    showFailed,
+    hideStates,
+    setFontState,
+    renderReport,
+    renderState,
+  };
 }
 
 /**

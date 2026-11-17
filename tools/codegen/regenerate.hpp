@@ -56,6 +56,14 @@ struct Options {
     // `capture_ir` (with `query`): on a clean run keep the canonical IR JSON of the lowered module
     // in `Outcome::ir_json`, as `--emit-ir` would write it.
     bool capture_ir = false;
+    // `dry_run`: compute what a write would produce and report it in `Outcome::generated` and
+    // `Outcome::scaffolded`, but create no directory and write no file. The `tessera-mcp`
+    // `generate` tool uses it for its default mode. Drift is `Outcome::drift`, not a message, so a
+    // caller reports it in its own words.
+    bool dry_run = false;
+    // `collect_generated`: keep the generated files' text in `Outcome::generated` on any run that
+    // reaches generation (a write run too), so a caller can return it without reading the disk.
+    bool collect_generated = false;
 };
 
 // One reported message. `text` is the human form the CLI prints (unchanged); `record` is the same
@@ -68,12 +76,31 @@ struct Message {
     DiagnosticRecord record;
 };
 
+// How a generated file compares with the file on disk before the run.
+enum class GeneratedStatus {
+    New,       // not on disk
+    Changed,   // on disk with other bytes
+    Unchanged, // on disk with the same bytes
+};
+
+struct GeneratedEntry {
+    std::string path; // relative to the output directory
+    std::string text;
+    GeneratedStatus status = GeneratedStatus::New;
+};
+
 struct Outcome {
     // 0: ok; 1: diagnostics or drift; 2: usage/setup.
     int exit_code = 0;
     std::vector<Message> messages;
     // Set only by `Options::capture_ir` on a run that reached the IR without a diagnostic.
     std::string ir_json;
+    // Set by `Options::dry_run` / `collect_generated`: every generated file of the run (path
+    // relative to the output directory, in generation order), how it compares with the file on
+    // disk before the run, and the developer-class files that are missing and would be scaffolded.
+    std::vector<GeneratedEntry> generated;
+    std::vector<std::string> scaffolded;
+    bool drift = false; // some generated file is new or differs from the disk (dry run only)
 };
 
 // Regenerates the C++ of one project. Deterministic: first-error-only diagnostics, no partial

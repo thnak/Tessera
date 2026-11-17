@@ -10,15 +10,18 @@
 // Deterministic: fixed files, no clock, no network. Exit 0 pass, 1 failure, 2 usage.
 
 #include "mcp_test_support.hpp"
+#include "project_test_support.hpp"
 #include "regenerate.hpp"
 #include "session.hpp"
 #include "tessera/schema/project_files.hpp"
+#include "tessera/ui/automation/sha256.hpp"
 #include "tool_session.hpp"
 
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -38,6 +41,11 @@ namespace fs = std::filesystem;
 namespace mcp = tessera::mcp;
 namespace harness = tessera::harness;
 namespace cli = tessera::compiler::codegen::cli;
+using mcp_project_test::file_entry;
+using mcp_project_test::file_uri;
+using mcp_project_test::quoted_arg;
+using mcp_project_test::send;
+using mcp_project_test::sha256_of;
 using mcp_test::call;
 using mcp_test::decode;
 using mcp_test::expect;
@@ -45,90 +53,13 @@ using mcp_test::result_is_error;
 using mcp_test::result_text;
 using mcp_test::string_at;
 
+using mcp_project_test::listing_of;
+using mcp_project_test::make_project;
+using mcp_project_test::open_project;
+using mcp_project_test::read_file;
+using mcp_project_test::write_file;
+
 constexpr std::string_view kWho = "mcp_project";
-
-void write_file(const fs::path& path, std::string_view text) {
-    fs::create_directories(path.parent_path());
-    std::ofstream out(path, std::ios::binary | std::ios::trunc);
-    out << text;
-}
-
-std::string read_file(const fs::path& path) {
-    std::ifstream in(path, std::ios::binary);
-    std::ostringstream text;
-    text << in.rdbuf();
-    return text.str();
-}
-
-// The fixture project: a config, a broken entry (so the diagnostics document is not empty), a clean
-// second component, a stylesheet, a C++ file and a dependency directory the walk must not enter.
-fs::path make_project(const fs::path& base, std::string_view name, bool broken) {
-    const fs::path root = base / name;
-    fs::remove_all(root);
-    write_file(root / "tessera.json",
-               R"({"app":{"namespace":"mcp.fixture"},"entry":"ui/App.tsx"})");
-    write_file(root / "ui/App.tsx", broken ? "export function App() {\n  return <NotAThing />;\n}\n"
-                                           : "export function App() {\n  return <View />;\n}\n");
-    write_file(root / "ui/Ok.tsx", "export function Ok() {\n  return <View />;\n}\n");
-    write_file(root / "ui/app.css", ".a { color: red; }\n");
-    write_file(root / "src/Impl.cpp", "int main() { return 0; }\n");
-    write_file(root / "node_modules/dep/index.tsx", "export function Dep() { return <View />; }\n");
-    return root;
-}
-
-[[maybe_unused]] std::string quoted_arg(const std::string& path) {
-    return "\"" + path + "\"";
-}
-
-mcp::SessionReply send(mcp::McpSession& session, std::string_view line) {
-    auto reply = session.handle_line(line);
-    if (!reply) {
-        std::cerr << kWho << ": the session could not handle a line\n";
-        ++mcp_test::failures;
-        return {};
-    }
-    return std::move(*reply);
-}
-
-harness::JsonValue listing_of(mcp::McpSession& session) {
-    const harness::JsonValue response = call(session, "list_files", "{}", kWho);
-    return decode(result_text(response), kWho);
-}
-
-const harness::JsonValue* file_entry(const harness::JsonValue& listing, std::string_view path) {
-    const harness::JsonValue* files = listing.find("files");
-    if (files == nullptr || files->as_array() == nullptr) {
-        return nullptr;
-    }
-    for (const harness::JsonValue& file : *files->as_array()) {
-        if (string_at(file, "path") == path) {
-            return &file;
-        }
-    }
-    return nullptr;
-}
-
-void open_project(mcp::McpSession& session, const fs::path& root) {
-    const std::string args = R"({"path":")" + std::string([&] {
-                                 std::string escaped;
-                                 for (const char c : root.generic_string()) {
-                                     if (c == '"' || c == '\\') {
-                                         escaped.push_back('\\');
-                                     }
-                                     escaped.push_back(c);
-                                 }
-                                 return escaped;
-                             }()) +
-                             R"("})";
-    const harness::JsonValue response = call(session, "open_project", args, kWho);
-    expect(!result_is_error(response), "mcp_project: the fixture project opens");
-}
-
-// The file URI a client would put in `roots/list` for a directory.
-std::string file_uri(const fs::path& directory) {
-    const std::string path = fs::absolute(directory).generic_string();
-    return path.front() == '/' ? "file://" + path : "file:///" + path;
-}
 
 void test_listing(const fs::path& base) {
     const fs::path root = make_project(base, "listing", true);
@@ -436,8 +367,10 @@ void test_refusals(const fs::path& base) {
                "mcp_project: an unaccepted large file is listed as other");
     }
 }
-
 #if !defined(TESSERA_MCP_NO_SUBPROCESS)
+
+// ---- `generate` (issue #407) ----------------------------------------------------------------
+
 // The real process started in the project folder, with no `open_project` and no roots capability:
 // `list_files` answers for the working directory.
 void test_process_in_project_directory(const fs::path& executable, const fs::path& base) {
@@ -460,7 +393,10 @@ void test_process_in_project_directory(const fs::path& executable, const fs::pat
     const std::string command = "cd '" + root.string() + "' && '" + executable.string() + "' < '" +
                                 input.string() + "' > '" + output.string() + "' 2>&1";
 #endif
-    (void)std::system(command.c_str());
+    // `-1` means the command could not be run at all (no shell, or the path is wrong), which would
+    // make every assertion below report something misleading. A nonzero exit from the server
+    // itself is legitimate and is not what this test is about.
+    expect(std::system(command.c_str()) != -1, "mcp_project: the server process could be started");
     const std::string responses = read_file(output);
     std::vector<std::string> lines;
     std::istringstream stream(responses);
@@ -503,6 +439,8 @@ int main(int argc, char** argv) {
     test_folder_ir(base);
     test_root_resolution(base);
     test_refusals(base);
+    mcp_project_generate_tests::test_generate(base);
+    mcp_project_generate_tests::test_generate_refusals(base);
 #if !defined(TESSERA_MCP_NO_SUBPROCESS)
     if (fs::is_regular_file(executable, ignored)) {
         test_process_in_project_directory(executable, base);

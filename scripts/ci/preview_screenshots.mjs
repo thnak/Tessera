@@ -227,14 +227,14 @@ async function main() {
       process.stdout.write(`wrote ${file}\n`);
     }
 
-    // Diagnostics: the default view, after a Run.
+    // Diagnostics: the default view, after the first *automatic* apply (issue #444: nothing is clicked
+    // to make the preview appear).
     await load(
       `${base}/index.html`,
       `document.getElementById('diag-status')?.textContent === 'ready'`,
       'the diagnostics module',
     );
-    await cdp.evaluate(`document.getElementById('run').click()`);
-    await waitUntil(cdp, `document.getElementById('diag-status').textContent === 'no diagnostics'`, 'the run');
+    await waitUntil(cdp, `document.getElementById('diag-status').textContent === 'no diagnostics'`, 'the first apply');
     await shoot('round-392-diagnostics');
 
     // Scene: its tab, its own sample (the one with an automationId), and three clicks.
@@ -246,17 +246,10 @@ async function main() {
     await waitUntil(cdp, `document.querySelectorAll('#cells .cell').length >= 2`, 'the state cells');
     await shoot('round-392-scene');
 
-    // Canvas: its tab, then a Run. The tab's first open imports the module, so the Run is pressed only
-    // once the shared Run button is enabled again -- pressing it earlier is a click on a disabled
-    // button, which does nothing and then looks like the canvas never started.
+    // Canvas: its tab, which applies the source itself. The button is **Restart app** (issue #444), so
+    // it cannot be what makes the first picture: this waits for the automatic first apply to produce a
+    // frame, the same thing a visitor sees on opening the tab.
     await cdp.evaluate(`document.getElementById('tab-canvas').click()`);
-    await waitUntil(
-      cdp,
-      `!document.getElementById('run').disabled ||
-        !document.getElementById('unsupported').hidden`,
-      'the canvas module to load (or the browser to refuse WebGPU)',
-    );
-    await cdp.evaluate(`document.getElementById('run').click()`);
     await waitUntil(
       cdp,
       `!document.getElementById('canvas-frame').hidden || !document.getElementById('unsupported').hidden ||

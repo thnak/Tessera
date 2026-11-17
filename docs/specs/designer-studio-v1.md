@@ -469,6 +469,7 @@ there is no third protocol to keep in sync.
 | `list_files` | host file tree | Files, kinds, sizes, digests of the project folder |
 | `diagnostics` | `diagnostic` events | Compile errors with file/line/column |
 | `get_ir` | `project.state` + IR access | The lowered IR for a component (early mode) |
+| `generate` | codegen driver (`tessera_codegen`) | C++ of the folder: dry run by default, `write: true` regenerates the bases ([mcp-server-v1.md](mcp-server-v1.md) section 4) |
 | `apply_edits` | `source.patch` TextEdits | Apply edits in memory by default; `write: true` writes them to the project directory |
 | `set_viewport` | `viewport.set` | Device size, DPR, theme, locale, safe areas, fold |
 | `snapshot` | harness `snapshot` | Node tree, bounds, roles, text, focus |
@@ -486,7 +487,7 @@ there is no third protocol to keep in sync.
   are best-effort visual evidence, never goldens, and CI skips GPU screenshots unless a device is
   provisioned ([golden-tests-v1.md](golden-tests-v1.md)).
 - **Security**: stdio only (no listener), local paths only, no shell execution, project files are
-  untrusted, and the server never edits C++ or files outside the project.
+  untrusted, and the server never edits developer C++ or files outside the project.
 
 ## 9. Hosting workflow
 
@@ -583,8 +584,7 @@ Owner decisions recorded 2026-11-16: the studio front end is React 19 + TypeScri
 `*.mock.ts` project files run in a sandboxed studio worker, never in the engine
 ([ADR-055](../../decisions/ADR-055-studio-mock-services.md)).
 
-Owner decisions recorded 2026-11-17: MCP error codes, tool naming, schema and surface version:
-[mcp-server-v1.md](mcp-server-v1.md) section 3.
+Owner decisions 2026-11-17: MCP codes, schema, version, `generate`: [mcp-server-v1.md](mcp-server-v1.md) 3, 4.
 
 Open questions (no decision yet):
 

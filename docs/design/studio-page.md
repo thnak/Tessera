@@ -40,7 +40,7 @@ The three preview views are **panes inside the right-hand column**, not three to
 |---|---|---|---|
 | Diagnostics | the diagnostics list with source spans | `tessera_diagnostics` | at first paint (the default view) |
 | Scene | the scene snapshot plus the `<automationId>` click script and its state cells | `tessera_scene_preview` | when the Scene tab is first shown |
-| Canvas | the evaluated scene painted through WebGPU, with the frame counters | `tessera_canvas` | when the Canvas tab is first shown (device on the first Run there) |
+| Canvas | the evaluated scene painted through WebGPU, with the frame counters and the running evaluation's state cells | `tessera_canvas` | when the Canvas tab is first shown (the device is acquired by the first *apply* there, which since #444 is the automatic one) |
 
 **No view switch changes the workspace's shape.** That is #431's acceptance sentence and the reason the
 switch left the header: the tablist moved into the column it controls (`regions/PreviewColumn.tsx`), and the
@@ -55,10 +55,48 @@ than the page blank ([`reference-equantic-ui.md`](reference-equantic-ui.md) sect
 
 **Laziness is the constraint all three issues had to satisfy.** Diagnostics is the default view and the only
 module on the first-paint path. A view's Wasm module is imported by a dynamic `import()` when its tab is
-first shown, and the canvas view additionally defers its `requestAdapter`/`requestDevice` to the first Run on
-that view -- a visitor who never opens Canvas never downloads `tessera_canvas.wasm` and never takes a GPU.
+first shown, and the canvas view additionally defers its `requestAdapter`/`requestDevice` to the first
+**apply** on that view -- since #444 that is the automatic one rather than a button, but it is still not page
+load: a visitor who never opens Canvas never downloads `tessera_canvas.wasm` and never takes a GPU.
 `scripts/ci/preview_page_checks.mjs` asserts that each of the three module URLs appears exactly once in the
 built bundle, inside a dynamic import, and the browser-verify run records the request log.
+
+**Live edit (issue #444).** The developer does not press Run. One controller
+(`designer/web/src/page-live.ts`) owns the page's only debounce timer, and every path that changes the
+source goes through it:
+
+- a keystroke schedules an apply 150 ms after the burst ends (`schedule`);
+- `Ctrl+Enter` cancels the timer and applies immediately (`applyNow`);
+- **Restart app** cold-starts every mounted pane (`restart`) -- the explicit state reset, and the only
+  thing on the page that discards state.
+
+The apply is not a restart. Each session's `apply()` re-evaluates carrying state by the engine's own rule
+(component id, cell id, IR type -- `scene_state.hpp`), and the Canvas session applies the source and then
+paints it as two module calls (`tessera_canvas_apply` then `tessera_canvas_draw`) rather than one stateless
+`tessera_canvas_frame`. That split is what makes the two hard requirements hold: an apply of text that did
+not change reports `changed:false` and costs **no frame**, and an apply that does not compile leaves the
+running evaluation and its picture untouched -- the page shows the diagnostic and draws nothing, so the
+canvas cannot blank mid-keystroke. The old `tessera_canvas_frame` path was the blanking mechanism: it
+re-evaluated per call and called `clear_canvas` on any failure.
+
+Two changes restart instead of applying, both because the state cannot survive them: a **structural change
+that removes the node a cell lives on** (the engine reports it as `droppedComponent`), and a **change to a
+project file that is not a source file** (a config, a theme). The trigger notices the second from the
+edited file's `FILE_KIND` before it starts the debounce.
+
+The 150 ms timer and the pane's `requestFrame()` compose rather than duplicate: the timer turns a burst of
+keystrokes into one apply, and `requestFrame()` turns a burst of applies into one frame (it returns while a
+frame is already pending). Neither re-arms itself, so a static scene draws zero frames after the edit
+settles. The Canvas pane's frame counter is the engine's own `frames_painted()`, surfaced in the counters
+and the status line so the rule is observable rather than asserted. `#stat-state` shows the running
+evaluation's cells, which is how a developer sees a carried `count` -- and sees it go back to its
+initializer after **Restart app**.
+
+`scripts/ci/preview_browser_live_edit.mjs` is the developer-run acceptance probe for those six sentences
+(one frame per burst, zero when static, state carried, syntax error keeps the frame, Restart resets it,
+all three panes from one edit). `scripts/ci/preview_browser_css_live_edit.mjs` adds the case that belongs to
+neither feature alone: with the author sheet applied (section 3.4), a source edit keeps the author's
+styling, because the sheet travels on `tessera_canvas_apply` rather than on `tessera_canvas_draw`.
 
 ## 2. The stack, and the React/engine boundary
 
@@ -89,7 +127,7 @@ the preview canvas -- and the page remains its host.
 |---|---|
 | studio chrome (header, Samples, share) | `regions/StudioChrome.tsx` (`PageHeader`), `regions/GalleryRegion.tsx` |
 | the project tree (left column) | `regions/ProjectTree.tsx`, over `lib/project.ts` |
-| the code column (middle: tabs, editor, Run) | `regions/CodeRegion.tsx` |
+| the code column (middle: tabs, editor, Restart app) | `regions/CodeRegion.tsx` |
 | the preview column (right: the view switch, the environment toolbar, the three panes) | `regions/PreviewColumn.tsx`, `regions/ViewPanes.tsx`, `regions/CanvasPane.tsx` |
 | status line | `regions/StatusLine.tsx` |
 
@@ -152,7 +190,7 @@ The rest of the page is TypeScript:
 | `public/redirect.js` | the pre-merge URLs' forwarding (section 3) |
 | `public/{scene,canvas}.html` | the redirect stubs |
 
-## 3. The workspace: tree, tabs, and what Run compiles
+## 3. The workspace: tree, tabs, and what an edit compiles
 
 ### 3.1 The project tree (left)
 
@@ -189,9 +227,10 @@ compares against the project's copy and re-renders **only when the dirty state c
 in state would re-render the tree, the tabs, the preview column and the canvas host on every character. The
 textarea is deliberately the editor (a real code editor is a dependency, and #431 keeps the no-new-
 dependency rule): what the issue changes is that it is *per file* and that the active file's text is what
-Run compiles.
+the preview evaluates. A keystroke also calls the live-edit trigger (section 1), which is what makes the
+preview follow the text without a button.
 
-### 3.3 What Run compiles
+### 3.3 What an edit compiles
 
 `compileTarget()` (in `lib/project.ts`) is the rule: **the active file when it is a source file, else the
 project entry**. Selecting `styles/theme.css` edits that sheet; it does not make the sheet the compiled
@@ -200,10 +239,10 @@ not a project file yet. The status line's *compile target* cell and the hint und
 file, so the choice is visible rather than surprising.
 
 The sessions no longer read `#source.value`: the page hands each of them a `SourceReader` that returns
-`{ text, file, shown, stylesheet, stylesheetFile }` for the compile target, read at Run time through a ref.
-That keeps the Wasm sessions independent of React's render cycle and lets Diagnostics say, honestly, when
-the editor is showing a different file than the one a span belongs to (`shown: false` -- the row names the
-file instead of offering a jump it cannot make).
+`{ text, file, shown, stylesheet, stylesheetFile }` for the compile target, read at apply time through a
+ref. That keeps the Wasm sessions independent of React's render cycle and lets Diagnostics say, honestly,
+when the editor is showing a different file than the one a span belongs to (`shown: false` -- the row
+names the file instead of offering a jump it cannot make).
 
 ### 3.4 The author stylesheet (issue #390)
 
@@ -216,7 +255,7 @@ rather than required, and the sheet applies whether or not the author wrote it.
 **Why a textarea and not a tab.** The preview's stylesheet is not a project file -- the file tree, a real
 `styles/*.css` editor and multi-file imports are #391's remaining half -- so a `styles/theme.css` tab and this
 box would be two answers to one question. The sheet is a page-owned input the way the viewport and the DPR
-are: it belongs to all three preview views, it is read at Run time, and it starts from `STARTUP_STYLESHEET`,
+are: it belongs to all three preview views, it is read at apply time, and it starts from `STARTUP_STYLESHEET`,
 which is **one comment line** so `has_author_stylesheet()` treats it as "no author CSS" and the built-in
 sheet stays in force. A visitor who wants to write CSS has a line to replace rather than an empty box.
 
@@ -229,9 +268,13 @@ built-in look while the page shows the error.
 **Where the sheet reaches the sessions.** It travels in the `SourceReader` snapshot, beside the text it
 styles (section 3.3), so a session cannot lay the tree out against a sheet the author no longer has on
 screen. Scene passes it to the `*_styled` export family (folded, sized and plain, chosen per shape) and asks
-`_tessera_css_diagnostics_json` for the parse problems; Canvas passes it to `tessera_canvas_frame`, which
-reports the same problems in its frame document beside the counters. A bad rule therefore costs that rule
-and never blanks the frame: the pane shows the diagnostic while the canvas keeps painting.
+`_tessera_css_diagnostics_json` for the parse problems. Canvas passes it to **`tessera_canvas_apply`** (and
+to `tessera_canvas_run`, a restart), which is the call that re-evaluates and therefore decides the sheet the
+tree is laid out with; `tessera_canvas_draw` takes no strings at all, because it only paints the tree the
+last apply left. Both of those reports carry the same `cssDiagnostics` array beside the counters, so a bad
+rule costs that rule and never blanks the frame: the pane shows the diagnostic while the canvas keeps
+painting -- including on the live-edit path, where the edit re-applies the sheet and the frame that follows
+keeps the author's look.
 
 **Not in the share link.** The `#p5=` envelope stays `v,s,w,h,d,t,f` (section 4), so a link reproduces the
 source and the environment but not the CSS; the textarea starts from its one-line sample on every load.
@@ -315,17 +358,25 @@ exists in the HTML" check no longer proves anything -- the shipped `index.html` 
   `dist/` plus the three Wasm modules, the samples and the build id.
 - `tests/golden/perf/preview_budget.json`: `download_gzip_bytes` re-recorded (section 6).
 - **Browser verification** is the acceptance bar for a layout change, and it is developer-run (no lane has a
-  browser): `scripts/ci/preview_browser_verify.mjs` (the merged harness, 10 checks) and
+  browser): `scripts/ci/preview_browser_verify.mjs` (the merged harness, 14 checks),
   `scripts/ci/preview_browser_layout.mjs` (#431's layout measurements: three columns, the tree's keyboard,
-  tabs and the compile target, the switch moving nothing, `?view=`/`#p5=`, and the 390-px scroll width). Both
-  are Playwright scripts run from a directory that resolves `playwright`; they are not repository
-  dependencies.
+  tabs and the compile target, the switch moving nothing, `?view=`/`#p5=`, and the 390-px scroll width),
+  `scripts/ci/preview_browser_live_edit.mjs` (#444's six acceptance clauses: an edit applies with no click,
+  the count survives it, a syntax error keeps the frame, Restart app resets it, a static scene draws zero
+  frames, and a burst is one frame), `scripts/ci/preview_browser_author_css.mjs` (#390's acceptance: the
+  built-in look on an empty sheet, author CSS replacing it, `var()`, and a bad rule reported while the frame
+  still paints), and `scripts/ci/preview_browser_css_live_edit.mjs` (**the combined case, and the one neither
+  feature's own probe covers**: with author CSS applied, a source edit must keep the author's styling -- a
+  sheet dropped from `tessera_canvas_apply` repaints the built-in dark, so the colour is read after a
+  keystroke, not after a button). All five are Playwright scripts run from a directory that resolves
+  `playwright`; they are not repository dependencies.
 
 ## 6. The P6 budget, three times
 
-`download_gzip_bytes` went 417327 -> 436794 (#392) -> 470568 (#422) -> 492748 (#387) -> **497988 (#431)**.
-Every one is a reviewed edit of the budget file with the reason in the diff, because `--update` refuses to
-loosen an entry (a re-pin on a loaded box would record machine load as headroom).
+`download_gzip_bytes` went 417327 -> 436794 (#392) -> 470568 (#422) -> 492748 (#387) -> 497988 (#431) ->
+2378778 (#444's re-measurement of the enlarged tree). Every one is a reviewed edit of the budget file with
+the reason in the diff, because `--update` refuses to loosen an entry (a re-pin on a loaded box would record
+machine load as headroom).
 
 ### 6.1 #392 and #422
 
@@ -374,6 +425,29 @@ The CSS delta is the split by region (one `app.css` at 2.44 kB gzip -> six files
 13.24 kB raw; the split is required by the 500-line source limit, and Vite still emits **one** hashed CSS
 file): a three-column grid, the tree's rows, the editor's tab strip and two breakpoint blocks. The result is
 inside the 6 MB product budget (`designer-studio-v1.md` section 2.3) with 5.5 MB to spare.
+
+### 6.3 #444 (live edit): +1030 gzip bytes (+0.04%)
+
+Three numbers moved, all of them the change itself:
+
+| Component | Î” gzip bytes | Why |
+|---|---|---|
+| page JS 88017 -> 88863 | **+846** | `page-live.ts` (the debounce controller) plus the apply path split out of `canvas-session.ts` |
+| `index.html` 1210 -> 1211 | **+1** | the state row's two elements |
+| `tessera_canvas.wasm` 1289503 -> 1289640 | **+137** | the one new export (`tessera_canvas_apply`) and its carry/state serializer |
+
+The diagnostics and scene-preview modules, the font, the CSS and the four public files are byte-identical,
+so the enforced total moved by exactly those three. The page delta is a *replacement*, not an addition: the
+canvas session now calls two exports (`tessera_canvas_apply`, `tessera_canvas_draw`) where it called the one
+stateless `tessera_canvas_frame`, and the old path's per-frame argument marshalling (`texture-view` handle
+plus the source strings every frame) is what the new one removes. Nothing on the page is a new dependency:
+the debounce is `setTimeout`, which the page already used.
+
+The re-pin was a reviewed edit rather than `--update` (which refuses a raise), recorded from the
+measurement with `--check --size-only`. `edit_compile_ms` is untouched by this slice -- the module it times
+is byte-identical (SHA-256 `7A6FF0AD...095E7F`) and gained no compile work -- and its row fails on a box
+whose calibration lands near 4.5 ms, which is a fact about the measuring host rather than about this change;
+section 5 describes the cross-host history of that row.
 
 ## 7. What this does not do
 
@@ -464,13 +538,20 @@ breakdown from the same run. A **raise** is a reviewed edit of the pin in the di
 recorded in the budget file's `note` -- `--update` refuses any raise, because a re-pin on a loaded box
 records machine load as headroom. `measurement.calibration_reference_ms` gets the same treatment as
 `encoder`: changing it rebases every latency pin at once, so it is a reviewed edit, never a side effect.
-Out of scope by #392, #422, #431 and #390 and named here so a reader does not infer them: a real
+Out of scope by #392, #422, #431, #390 and #444 and named here so a reader does not infer them: a real
 `styles/*.css` editor and multi-file author stylesheets (**#391's remaining half**; #390 shipped exactly one
 textarea, filed as `ui/Preview.css`), the folder picker and the zip drop (**#391's remaining half**: the tree
 renders and selects, but nothing opens a real folder), a real code editor widget (the textarea is per file,
-which is what #431 asks for), pointer input on the canvas (#388), text drawing (#387, shipped), conditional
-children (#389), skins and the picker (#171). The theme toolbar toggle is still carried-but-not-applied
+which is what #431 asks for), pointer input on the canvas (**#388's page half**: the engine dispatch and
+`tessera_canvas_pointer` exist, but the page does not yet wire pointer events to them, so an edit is the only
+way to change state in the browser), text drawing (#387, shipped), conditional children (#389), skins and the
+picker (#171). The theme toolbar toggle is still carried-but-not-applied
 ([`compiler-wasm.md`](compiler-wasm.md) section 10.2): `assets.theme` did not arrive with #390.
+
+#444 added **one engine export** (`tessera_canvas_apply`) and the state/`frames` fields of its report; it
+did not change the evaluation, the carry rule or the paint path. The Wasm builds stay three modules, the
+studio stays single-threaded (ADR-045 decision 5), and every page-to-engine call stays a message with
+transferable buffers.
 
 #431 and #390 added **no engine feature to the page**: #431 moved the page's chrome into the layout the issue
 draws and made the editor per file; #390's page half is one textarea, its hint, one ref and the field each

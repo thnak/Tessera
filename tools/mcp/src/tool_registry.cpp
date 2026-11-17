@@ -19,6 +19,13 @@ JsonValue schema(JsonValue::Object properties) {
     return schema_value;
 }
 
+JsonValue boolean_property(std::string_view description) {
+    JsonValue value = JsonValue::object();
+    value.set("type", JsonValue::string("boolean"));
+    value.set("description", JsonValue::string(std::string(description)));
+    return value;
+}
+
 JsonValue property(std::string_view description) {
     JsonValue value = JsonValue::object();
     value.set("type", JsonValue::string("string"));
@@ -63,6 +70,22 @@ std::vector<ToolDefinition> make_tools() {
         ToolStatus::Implemented, ToolSource::Compiler,
         schema(compile_properties(
             "The .tsx text to lower. Omit it to lower the open project folder."))});
+    list.push_back(ToolDefinition{
+        "generate",
+        "Generate the C++ of the open project folder with the same driver as `tessera_codegen` "
+        "(ADR-040). By default a dry run: it reports every generated file (size, SHA-256, `new`, "
+        "`changed` or `unchanged`), the developer classes it would scaffold, and `exitCode` 1 when "
+        "something differs, and writes nothing. With `write: true` it rewrites the generated bases "
+        "inside the output directory (`codegen.outDir`, default `generated`) and scaffolds missing "
+        "developer classes; it never modifies an existing developer file and never writes outside "
+        "the project root. With `path` it returns that one generated file's text (always a dry "
+        "run). A project with a blocking diagnostic returns the diagnostics document with "
+        "`isError` and writes nothing.",
+        ToolStatus::Implemented, ToolSource::Compiler,
+        schema(JsonValue::Object{
+            {"write", boolean_property("Write the generated files. Omitted or false: dry run.")},
+            {"path", property("A generated file (`generated/App.g.hpp` or `App.g.hpp`): return its "
+                              "text instead of the summary.")}})});
     list.push_back(ToolDefinition{
         "list_files",
         "List the files of the open project folder: project-relative path, kind (`source`, "
@@ -194,13 +217,12 @@ JsonValue tool_result_json(const ToolResult& result) {
 }
 
 ToolResult unimplemented_tool_result(const ToolDefinition& tool) {
-    return ToolResult{
-        true,
-        "TESSERA_MCP_TOOL_UNIMPLEMENTED: `" + std::string(tool.name) +
-            "` is declared but not implemented in this build (it maps to " +
-            std::string(source_name(tool.source)) +
-            "). The compile-only subset (open_project, list_files, diagnostics, get_ir) ships "
-            "first; see docs/specs/designer-studio-v1.md section 8."};
+    return ToolResult{true, "TESSERA_MCP_TOOL_UNIMPLEMENTED: `" + std::string(tool.name) +
+                                "` is declared but not implemented in this build (it maps to " +
+                                std::string(source_name(tool.source)) +
+                                "). The compile-only subset (open_project, list_files, "
+                                "diagnostics, get_ir, generate) ships "
+                                "first; see docs/specs/designer-studio-v1.md section 8."};
 }
 
 } // namespace tessera::mcp

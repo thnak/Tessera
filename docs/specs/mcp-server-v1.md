@@ -72,5 +72,33 @@ resolved against the root (`Options::base_dir`); its document is byte-identical 
   one release with a deprecation note in the result. A declared tool keeps answering
   `TESSERA_MCP_TOOL_UNIMPLEMENTED`, never an empty result.
 
+## 4. `generate` (issue #407, ADR-040)
+
+`generate` produces the C++ of the folder with the same driver as `tessera_codegen` (`cli::run`), over
+the same inputs as the folder compile (section 2). Owner decisions of 2026-11-16:
+
+- **Default mode.** A dry run. Without `write: true` it reports and changes nothing on disk; it does
+  not even create the output directory.
+- **Where it writes.** Only into the output directory: `codegen.outDir` of `tessera.json`, default
+  `generated` ([project-config-v1.md](project-config-v1.md)). The directory is a project path (section 2),
+  not inside a pruned directory, and neither it nor any directory on its way is a symbolic link; any of
+  these is `TESSERA_SEC_PATH_ESCAPE` and nothing is written. The generated bases
+  (`<Component>.g.hpp`, `automation.manifest.json`) are rewritten wholesale; a developer class
+  (`<Component>.hpp` / `.cpp`) is scaffolded once when it does not exist and is **never modified**
+  afterwards (ADR-040).
+- **What it returns.** `{write, outDir, exitCode, drift, files, written, scaffold, warnings}`: each file
+  has `path` (project-relative), `size`, `digest` (`sha256:<64 hex>`, unlike the `fnv1a64` of
+  `list_files`) and `status` (`new`, `changed`, `unchanged` against the disk before the call);
+  `exitCode` is the CLI `--check` meaning (1 when a dry run finds drift); `scaffold` lists the developer
+  files missing or just created; `warnings` are the driver's messages with the host path removed. A
+  second call after `write: true` reports `drift: false`. With a `path` argument it returns that one
+  generated file's text (`generated/App.g.hpp` or `App.g.hpp`) and is always a dry run, so an agent
+  can read a generated base without filesystem access.
+- **Blocking diagnostics.** The driver computes every file before it writes the first, so a project
+  that does not lower returns the diagnostics document with `isError` and writes nothing.
+- **Wording.** The studio spec's "never edits C++" now reads "never edits developer C++".
+
+Out of scope: building or running the generated C++, and editing developer classes.
+
 Related: [designer-studio-v1.md](designer-studio-v1.md) sections 7, 8 and 10,
 [compiler-diagnostics-v1.md](compiler-diagnostics-v1.md), [project-config-v1.md](project-config-v1.md).

@@ -11,6 +11,8 @@
 #include "project_identity.hpp"
 #include "regenerate.hpp"
 #include "regenerate_assets.hpp"
+#include "regenerate_source_file.hpp"
+#include "regenerate_text.hpp"
 #include "tessera/compiler/codegen/codegen.hpp"
 #include "tessera/compiler/ids/assign_identity.hpp"
 #include "tessera/compiler/ids/manifest.hpp"
@@ -54,80 +56,17 @@ namespace ir = tessera::compiler::ir;
 namespace jsx = tessera::compiler::jsx;
 namespace lowering = tessera::compiler::lowering;
 namespace rules = tessera::compiler::rules;
-
-struct SourceFile {
-    SourceFile(std::string file_path, std::string file_text)
-        : path(std::move(file_path)),
-          text(std::move(file_text)),
-          parsed(jsx::parse_module(text)),
-          map(text),
-          analyzed(parsed.root != nullptr ? rules::analyze_module(*parsed.root, map)
-                                          : rules::AnalyzedModule{}) {}
-
-    SourceFile(const SourceFile&) = delete;
-    SourceFile& operator=(const SourceFile&) = delete;
-
-    [[nodiscard]] bool parses() const {
-        return parsed.root != nullptr && !parsed.has_errors();
-    }
-
-    [[nodiscard]] lowering::ModuleSource module_source() const {
-        return lowering::ModuleSource{path, parsed.root.get(), &analyzed, &map};
-    }
-
-    std::string path;
-    std::string text;
-    jsx::ModuleParseResult parsed;
-    jsx::SourceMap map;
-    rules::AnalyzedModule analyzed;
-};
-
-std::string diagnostic_text(std::string_view path, const jsx::Diagnostic& diagnostic) {
-    return std::string(path) + ":" + jsx::format_diagnostic(diagnostic);
-}
+using detail::derive_module_name;
+using detail::diagnostic_text;
+using detail::ir_diagnostic_text;
+using detail::safe_file_name;
+using detail::SourceFile;
 
 // Reports a front-end, rules or lowering diagnostic: the printed text is unchanged, and the record
 // carries the code and span the pipeline already had (docs/specs/compiler-diagnostics-v1.md).
 void report_diagnostic(Outcome& outcome, std::string_view path, const jsx::Diagnostic& diagnostic) {
     report(outcome, diagnostic.severity == jsx::Severity::Error, diagnostic_text(path, diagnostic),
            to_record(diagnostic, path));
-}
-
-std::string ir_diagnostic_text(const ir::IrDiagnostic& diagnostic) {
-    const ir::SourceSpan& span = diagnostic.span;
-    std::string text;
-    if (!span.file.empty()) {
-        text +=
-            span.file + ":" + std::to_string(span.line) + ":" + std::to_string(span.column) + ": ";
-    }
-    return text + diagnostic.code + ": " + diagnostic.message;
-}
-
-bool safe_file_name(std::string_view name) {
-    return !name.empty() && name.find('/') == std::string_view::npos &&
-           name.find('\\') == std::string_view::npos && name.find("..") == std::string_view::npos;
-}
-
-// A module namespace when --namespace is absent: the file stem with non-identifier characters
-// replaced, leading digits prefixed, and lowercased (C++ namespace convention).
-std::string derive_module_name(const std::string& input) {
-    const fs::path path(input);
-    std::string stem = path.stem().string();
-    std::string name;
-    for (const char c : stem) {
-        const auto ch = static_cast<unsigned char>(c);
-        name += ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') ||
-                 c == '_')
-                    ? static_cast<char>(ch >= 'A' && ch <= 'Z' ? c - 'A' + 'a' : c)
-                    : '_';
-    }
-    if (name.empty()) {
-        name = "module";
-    }
-    if (name.front() >= '0' && name.front() <= '9') {
-        name.insert(name.begin(), '_');
-    }
-    return name;
 }
 
 bool generate_files(const ir::IrModule& module, std::span<const StylesheetEmbed> embeds,
@@ -187,6 +126,11 @@ void handle_developer_files(const ir::IrModule& module, const fs::path& output_d
         const fs::path source = output_dir / (component + ".cpp");
         const bool exists = fs::exists(header) || fs::exists(source);
         if (!exists) {
+            for (const GeneratedFile& stub : *stubs) {
+                if (fs::path(stub.path).stem().string() == component) {
+                    outcome.scaffolded.push_back(stub.path);
+                }
+            }
             if (check_only) {
                 continue; // developer files are not generated content: nothing to drift from
             }
@@ -588,7 +532,9 @@ Outcome run_impl(const Options& options) {
 
     const fs::path output_dir(options.output_dir);
     std::error_code error;
-    fs::create_directories(output_dir, error);
+    if (!options.dry_run) {
+        fs::create_directories(output_dir, error);
+    }
     if (error) {
         report(outcome, true,
                "tessera_codegen: cannot create output directory `" + output_dir.string() +
@@ -609,6 +555,19 @@ Outcome run_impl(const Options& options) {
         const std::optional<std::string> existing =
             fs::exists(target) ? read_file(target) : std::nullopt;
         std::string content = file.text;
+        if (options.dry_run || options.collect_generated) {
+            outcome.generated.push_back(GeneratedEntry{file.path, content,
+                                                       !existing ? GeneratedStatus::New
+                                                       : *existing == content
+                                                           ? GeneratedStatus::Unchanged
+                                                           : GeneratedStatus::Changed});
+        }
+        if (options.dry_run) {
+            if (!existing || *existing != content) {
+                outcome.drift = true;
+            }
+            continue;
+        }
         if (existing) {
             // The generated base and the manifest are rewritten wholesale: they carry no
             // developer-owned content, only the scaffolded `<Component>.hpp/.cpp` does, and those
@@ -637,7 +596,8 @@ Outcome run_impl(const Options& options) {
         }
     }
     if (outcome.exit_code == 0) {
-        handle_developer_files(module, output_dir, options.check_only, options.verbose, outcome);
+        handle_developer_files(module, output_dir, options.check_only || options.dry_run,
+                               options.verbose, outcome);
     }
     if (drift) {
         outcome.exit_code = 1;

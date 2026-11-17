@@ -15,6 +15,9 @@
 //  3. State and the tree survive a Run of the same source, and state crosses an edit with the P4
 //     carry rule.
 //  4. A source that does not evaluate reports a reason and paints nothing.
+//  5. An edit that does not evaluate keeps the running evaluation, its state and its picture
+//     (issue #444: the browser applies every keystroke, so a half-typed source must cost a
+//     diagnostic only, never the frame).
 
 #include "scene_canvas_test_support.hpp"
 
@@ -177,6 +180,76 @@ void test_pointer_report_json() {
     expect(escaped.find("\\\\") != std::string::npos, "a backslash in a handler id is escaped");
 }
 
+// Issue #444's engine half: an edit that does not evaluate must not cost the running evaluation.
+//
+// This is the property the browser's live edit rests on. A developer typing passes through sources
+// that do not parse, and each must leave the last good frame, its state cells and its painted
+// picture exactly where they were; only a source that *does* evaluate may replace them.
+void test_a_failed_edit_keeps_the_running_evaluation() {
+    cli::CanvasSceneSession session;
+    expect(session.start(source_for(kCounter, "ui/Counter.tsx")).empty(), "the counter starts");
+    const ui::Node* button = find_kind(*session.root(), "Button");
+    if (button == nullptr) {
+        expect(false, "the counter has a button");
+        return;
+    }
+    const Point centre = centre_of(*button);
+
+    CanvasHarness canvas;
+    if (!canvas.ready()) {
+        expect(false, "the harness has a device and a target");
+        return;
+    }
+    expect(canvas.draw(session), "the first frame is painted");
+    (void)canvas.event(session, cli::PreviewInput::Kind::PointerMove, centre);
+    (void)canvas.event(session, cli::PreviewInput::Kind::PointerDown, centre);
+    (void)canvas.event(session, cli::PreviewInput::Kind::PointerUp, centre);
+    expect(counter_value(session) == 1, "the click incremented the counter");
+    expect(!session.needs_frame(), "the click's frame has been painted");
+    // The baseline the next two assertions are about: whatever the click cost, it is painted.
+    const std::uint32_t painted = session.frames_painted();
+    expect(painted >= 2, "the click's changing frames were painted, not left owed");
+
+    // The half-typed edit: it does not parse. The session must answer with the reason and change
+    // nothing else -- no new tree, no lost state, and no frame owed (so the page draws nothing and
+    // the last good picture stays on the canvas).
+    const std::string error =
+        session.start(source_for("export function Counter(: Node {", "ui/Counter.tsx"));
+    expect(!error.empty(), "a half-typed edit reports why it did not apply");
+    expect(session.started(), "a failed edit leaves the running evaluation started");
+    expect(session.root() != nullptr, "a failed edit leaves the running tree in place");
+    expect(!session.reused(), "a failed edit is not reported as a reuse");
+    expect(counter_value(session) == 1, "a failed edit keeps the state cell it carried");
+    expect(!session.needs_frame(), "a failed edit owes no frame, so nothing repaints");
+    expect(!canvas.draw(session), "a failed edit paints nothing, leaving the picture up");
+    expect(session.frames_painted() == painted, "the failed edit cost no painted frame");
+
+    // The completed edit evaluates, and the state the running tree held crosses it: this is what
+    // makes "type a syntax error, fix it, the count is still 1" true end to end.
+    constexpr std::string_view kTyped = R"(export function Counter(): Node {
+  const [count, setCount] = useState<int>(0);
+  return (
+    <View>
+      <Text>Total: {count}</Text>
+      <Button onClick={() => setCount(count + 1)}>Add</Button>
+    </View>
+  );
+}
+)";
+    expect(session.start(source_for(kTyped, "ui/Counter.tsx")).empty(),
+           "the finished edit applies");
+    expect(!session.reused(), "the finished edit re-evaluates");
+    expect(counter_value(session) == 1, "the count survives the edit that replaced its text");
+    expect(session.needs_frame(), "the finished edit owes exactly the one frame it needs");
+    expect(canvas.draw(session), "the finished edit paints");
+    expect(session.frames_painted() == painted + 1, "the edit cost exactly one frame");
+    // The carry report the page reads: one cell crossed the edit by its own identity.
+    expect(session.carry_report().carried == 1,
+           "the edit carried the counter by component/cell id");
+    expect(session.carry_report().dropped_component == 0,
+           "nothing was dropped on a text-only edit");
+}
+
 } // namespace
 
 int main() {
@@ -184,6 +257,7 @@ int main() {
     test_static_scene_presents_nothing();
     test_state_and_tree_survive_a_run();
     test_bad_source_reports_a_reason();
+    test_a_failed_edit_keeps_the_running_evaluation();
     test_pointer_report_json();
     if (failures() != 0) {
         std::cerr << "scene_canvas_session: " << failures() << " failure(s)\n";

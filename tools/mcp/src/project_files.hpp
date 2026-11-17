@@ -23,11 +23,13 @@ struct ListedFile {
     policy::ProjectFileKind kind = policy::ProjectFileKind::Other;
     std::uint64_t size = 0;
     std::string digest; // empty for an unreadable (`Other`) file
+    bool link = false;  // a symbolic link: listed, never followed
 };
 
 struct ProjectListing {
     std::vector<ListedFile> files; // sorted by path, byte order
     std::string entry;             // `tessera.json` `entry`, empty when absent
+    std::string out_dir;           // `codegen.outDir`, `generated` when the config names none
 };
 
 // Lists `root`. Fails with a `TESSERA_SEC_` error when a path is unusable, a symbolic link leaves

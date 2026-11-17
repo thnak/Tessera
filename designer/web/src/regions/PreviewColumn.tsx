@@ -106,6 +106,9 @@ export type PreviewRefs = Pick<
   | "statNodes"
   | "statDpr"
   | "statFont"
+  // Issue #444: the state row, which the canvas pane fills with the running evaluation's cells.
+  | "stateRow"
+  | "statState"
 >;
 
 export function PreviewColumn({
@@ -165,6 +168,8 @@ export function PreviewColumn({
           statNodesRef={refs.statNodes}
           statDprRef={refs.statDpr}
           statFontRef={refs.statFont}
+          stateRowRef={refs.stateRow}
+          statStateRef={refs.statState}
         />
       </div>
     </section>

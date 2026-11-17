@@ -229,14 +229,14 @@ async function open(width, height, path = '/index.html') {
 
   if (shots) {
     await mkdir(shots, { recursive: true });
-    // Three pictures, because a layout is what a reviewer has to see: the empty-ish diagnostics default,
-    // the scene snapshot after a Run (the device-frame column doing its job), and the tab/compile-target
-    // state the file clicks above produced.
+    // Three pictures, because a layout is what a reviewer has to see: the diagnostics default (which
+    // compiles itself since #444), the scene snapshot (the device-frame column doing its job), and the
+    // tab/compile-target state the file clicks above produced. Nothing here clicks a button to make a
+    // preview appear: the first automatic apply is what a visitor sees.
     await page.locator('#tab-diagnostics').click();
     await page.waitForTimeout(300);
     await page.screenshot({ path: join(shots, '431-1440x900.png') });
-    await page.locator('#run').click();
-    await page.waitForTimeout(1500);
+    await page.waitForTimeout(1200);
     await page.locator('#tab-scene').click();
     await page.waitForTimeout(1200);
     await page.screenshot({ path: join(shots, '431-1440x900-scene.png') });

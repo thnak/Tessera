@@ -44,7 +44,7 @@ export function DiagnosticsPane({
       </div>
       <ol className="diagnostics" id="diagnostics" ref={listRef} />
       <div className="empty-state" id="diag-empty" ref={emptyRef}>
-        Press <strong>Run</strong> to compile the active file.
+        The diagnostics for this file appear here as you type.
       </div>
     </section>
   );
@@ -92,7 +92,7 @@ export function ScenePane({
       </div>
       <ol className="nodes" id="nodes" ref={nodesRef} />
       <div className="empty-state" id="scene-empty" ref={emptyRef}>
-        Press <strong>Run</strong> to evaluate the source.
+        The evaluated scene appears here as you type.
       </div>
       <p className="hint" id="scene-hint">
         One line of the input script is one step: <code>click &lt;automationId&gt;</code>. Clicking a

@@ -69,6 +69,8 @@ endif ()
 add_executable(tessera_codegen_cli
     ${CMAKE_SOURCE_DIR}/tools/codegen/main.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate.cpp
+    ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate_source_file.cpp
+    ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate_text.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate_assets.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/diagnostics_json.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/diagnostic_record.cpp
@@ -262,6 +264,13 @@ if (NOT EMSCRIPTEN)
     add_library(tessera_canvas_report OBJECT
         ${CMAKE_SOURCE_DIR}/tools/codegen/canvas_report.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/css_diagnostics_report.cpp
+        # The ABI argument parsing (issue #444) is host-buildable on purpose: it includes no
+        # Emscripten and no WebGPU header, so listing it here is what makes the host lanes
+        # type-check the one file a signature change lands in. `wasm_canvas_support.cpp` (issue
+        # #390) is here for the same reason - `clear_canvas` and the pointer vocabulary are pure
+        # over their arguments.
+        ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_request.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_support.cpp
         ${_tessera_canvas_session_sources})
     target_include_directories(tessera_canvas_report
         PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
@@ -391,6 +400,15 @@ else ()
         ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_font.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/canvas_report.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/css_diagnostics_report.cpp
+        # The ABI argument parsing (issue #444), split out of `wasm_canvas_entry.cpp` when the live
+        # edit's `apply` export pushed it past the size limit. It is Emscripten-free and WebGPU-free
+        # on purpose, so the parsing rules are type-checked on the host lanes too.
+        ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_request.cpp
+        # Painting a frame into the page's canvas texture, split from the entry for the same reason
+        # and on a real boundary: these functions take the device and the tree they paint, so they
+        # cannot reach the module's globals, and the entry no longer has to include the WebGPU
+        # target-creation header.
+        ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_paint.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/scene_frame.cpp
         ${_tessera_preview_text_sources}
         ${_tessera_canvas_session_sources}
@@ -416,7 +434,10 @@ else ()
         -sEXPORT_NAME=createTesseraCanvas
         -sENVIRONMENT=web,node
         -sALLOW_MEMORY_GROWTH=1
-        -sEXPORTED_FUNCTIONS=["_tessera_canvas_frame","_tessera_canvas_run","_tessera_canvas_pointer","_tessera_canvas_draw","_tessera_canvas_reset","_tessera_canvas_set_font","_tessera_canvas_font_status","_tessera_webgpu_set_device","_tessera_free","_malloc","_free"]
+        # `_tessera_canvas_apply` is the live edit's export (issue #444): the same evaluation the
+        # `run` export performs, answered with `changed` and the state-carry split so an auto-apply
+        # of unchanged text costs no frame and a failed one keeps the last good picture.
+        -sEXPORTED_FUNCTIONS=["_tessera_canvas_frame","_tessera_canvas_run","_tessera_canvas_apply","_tessera_canvas_pointer","_tessera_canvas_draw","_tessera_canvas_reset","_tessera_canvas_set_font","_tessera_canvas_font_status","_tessera_webgpu_set_device","_tessera_free","_malloc","_free"]
         # `WebGPU` is the emdawnwebgpu port's handle table: the page needs `WebGPU.importJsDevice` and
         # `importJsQueue` to turn a JS GPUDevice/GPUQueue into the integer handles the C ABI takes.
         # `HEAPU8` is the view the page writes font bytes through (issue #387): `_malloc` returns a
@@ -1346,6 +1367,8 @@ if (TESSERA_BUILD_TESTS)
         ${CMAKE_SOURCE_DIR}/tools/codegen/diagnostic_record.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/diagnose.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate_source_file.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate_text.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate_assets.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/project_identity.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/package_manifest.cpp
