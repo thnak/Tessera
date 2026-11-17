@@ -105,6 +105,21 @@ public:
         PaintSink::fill_rounded_ring(rect, color, radius, width);
     }
 
+    // A soft shadow reaches 2 sigma past its box, so it replays like a text run: once per damage
+    // region it touches, under a clip for that region, with its geometry unchanged.
+    [[nodiscard]] bool supports_soft_shadow() const override {
+        return target_->supports_soft_shadow();
+    }
+    void fill_soft_shadow(const rhi::Rect& box, const rhi::Color& color, float radius,
+                          float sigma) override {
+        const float reach = 2.0f * sigma;
+        const rhi::Rect bounds{box.x - reach, box.y - reach, box.width + 2.0f * reach,
+                               box.height + 2.0f * reach};
+        replay([this, &box, &color, radius,
+                sigma] { target_->fill_soft_shadow(box, color, radius, sigma); },
+               device_bounds(bounds));
+    }
+
     // Clips are orthogonal to damage: forward them unchanged so the target sink applies the same
     // rounded-clip stack the full paint would have used.
     void push_clip(const RoundedClip& clip) override {

@@ -104,6 +104,9 @@ void replay_paint_ops(const std::vector<PaintOp>& ops, PaintSink& sink) {
         case PaintOp::Kind::FillRoundedRing:
             sink.fill_rounded_ring(op.rect, op.color, op.radius, op.ring_width);
             break;
+        case PaintOp::Kind::FillSoftShadow:
+            sink.fill_soft_shadow(op.rect, op.color, op.radius, op.ring_width);
+            break;
         case PaintOp::Kind::FillLinearGradient:
             sink.fill_linear_gradient(op.gradient);
             break;
@@ -191,6 +194,22 @@ void PaintCache::Recorder::fill_rounded_ring(const rhi::Rect& rect, const rhi::C
     op.ring_width = width;
     record(std::move(op));
     target_.fill_rounded_ring(rect, color, radius, width);
+}
+
+bool PaintCache::Recorder::supports_soft_shadow() const {
+    return target_.supports_soft_shadow();
+}
+
+void PaintCache::Recorder::fill_soft_shadow(const rhi::Rect& box, const rhi::Color& color,
+                                            float radius, float sigma) {
+    PaintOp op;
+    op.kind = PaintOp::Kind::FillSoftShadow;
+    op.rect = box;
+    op.color = color;
+    op.radius = radius;
+    op.ring_width = sigma;
+    record(std::move(op));
+    target_.fill_soft_shadow(box, color, radius, sigma);
 }
 
 void PaintCache::Recorder::fill_linear_gradient(const GradientDraw& draw) {

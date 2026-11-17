@@ -221,6 +221,22 @@ void paint_box_shadows(const style::ComputedStyle& style, const rhi::Rect& rect,
             continue;
         }
 
+        // A sink that can evaluate the Gaussian per pixel draws the whole edge as one quad, with
+        // no steps; the others get the stack of concentric fills below.
+        if (sink.supports_soft_shadow()) {
+            const rhi::Rect box{
+                rect.x + shadow.offset_x - shadow.spread, rect.y + shadow.offset_y - shadow.spread,
+                rect.width + 2.0f * shadow.spread, rect.height + 2.0f * shadow.spread};
+            if (box.width > 0.0f && box.height > 0.0f) {
+                rhi::Color color = shadow.color;
+                color.a = alpha;
+                sink.fill_soft_shadow(box, color, radius > 0.0f ? radius + shadow.spread : 0.0f,
+                                      shadow.blur * 0.5f);
+                ++stats.shadows;
+            }
+            continue;
+        }
+
         // Gaussian edge: sigma = blur / 2, so the edge fades over [-blur, +blur] around the
         // (spread) shadow edge. Layer j sits at signed distance x_j outward from that edge; the
         // alpha of each layer is chosen so the cumulative "over" composite inside layer j equals

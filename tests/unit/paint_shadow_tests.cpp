@@ -252,8 +252,57 @@ bool list_is_bounded() {
 
 } // namespace
 
+// A sink that can draw a Gaussian edge gets one call per blurred shadow instead of the stack of
+// concentric fills: the box (offset and spread applied), the colour with the node's alpha, the
+// corner radius grown by the spread, and sigma = blur / 2. A sharp shadow still uses a plain fill.
+class SoftSink final : public PaintSink {
+public:
+    struct Soft {
+        Rect box;
+        Color color;
+        float radius = 0.0f;
+        float sigma = 0.0f;
+    };
+    void fill_rect(const Rect&, const Color&) override {
+        ++fills;
+    }
+    void fill_rounded_rect(const Rect&, const Color&, float) override {
+        ++fills;
+    }
+    [[nodiscard]] bool supports_soft_shadow() const override {
+        return true;
+    }
+    void fill_soft_shadow(const Rect& box, const Color& color, float radius, float sigma) override {
+        softs.push_back({box, color, radius, sigma});
+    }
+    std::vector<Soft> softs;
+    int fills = 0;
+};
+
+bool soft_shadow_is_one_call() {
+    Node node(1);
+    node.set_bounds({10, 10, 50, 40});
+    StubStyles styles;
+    styles.set(1, styled({{"box-shadow", "3px 4px 12px 2px rgba(0,0,0,0.5)"},
+                          {"border-top-left-radius", "6px"},
+                          {"border-top-right-radius", "6px"},
+                          {"border-bottom-right-radius", "6px"},
+                          {"border-bottom-left-radius", "6px"}}));
+    SoftSink sink;
+    const PaintStats stats = paint_scene(node, styles, sink);
+    return expect(sink.softs.size() == 1 && sink.fills == 0 && stats.shadows == 1,
+                  "one soft shadow call and no concentric fills") &&
+           expect(near(sink.softs[0].box.x, 11) && near(sink.softs[0].box.y, 12) &&
+                      near(sink.softs[0].box.width, 54) && near(sink.softs[0].box.height, 44),
+                  "the box is the node box moved by the offset and grown by the spread") &&
+           expect(near(sink.softs[0].sigma, 6.0f) && near(sink.softs[0].radius, 8.0f),
+                  "sigma is half the blur and the radius grows with the spread") &&
+           expect(near(sink.softs[0].color.a, 0.5f), "the colour keeps the shadow alpha");
+}
+
 int main() {
     bool ok = true;
+    ok = soft_shadow_is_one_call() && ok;
     ok = sharp_offset_spread_and_order() && ok;
     ok = radius_opacity_and_lists() && ok;
     ok = invalid_none_and_inset() && ok;

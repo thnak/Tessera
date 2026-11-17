@@ -86,6 +86,15 @@ fn inside_clip(p: vec2<f32>, clip: ClipUniform) -> bool {
     return true;
 }
 
+// erf, Abramowitz and Stegun 7.1.26 (see batched2d.frag).
+fn erf_approx(x: f32) -> f32 {
+    let a = abs(x);
+    let t = 1.0 / (1.0 + 0.3275911 * a);
+    let poly = t * (0.254829592 + t * (-0.284496736 + t * (1.421413741 + t * (-1.453152027 + t * 1.061405429))));
+    let y = 1.0 - poly * exp(-a * a);
+    return select(y, -y, x < 0.0);
+}
+
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Coverage-mask clipping instead of discard, matching the GLSL shader.
@@ -110,6 +119,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         color.a = color.a * alpha;
     } else if (in.mode > 1.5 && in.mode < 2.5) {
         color = color * sampled;
+    } else if (in.mode > 1000.0) {
+        // Soft shadow: mode is 1024 + sigma (see batched2d.frag).
+        let sigma = in.mode - 1024.0;
+        let d = sd_round_box(in.local, in.half_size - vec2<f32>(2.0 * sigma, 2.0 * sigma), in.radius);
+        color.a = color.a * 0.5 * (1.0 - erf_approx(d / (sigma * 1.41421356)));
     } else if (in.mode > 2.5) {
         // Rounded-rect outline: mode is 3 + the stroke width (see batched2d.frag).
         let w = in.mode - 3.0;

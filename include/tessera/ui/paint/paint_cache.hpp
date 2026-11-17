@@ -102,6 +102,7 @@ struct PaintOp {
         FillRect,
         FillRoundedRect,
         FillRoundedRing,
+        FillSoftShadow,
         FillLinearGradient,
         PushClip,
         PushTransform,
@@ -115,7 +116,7 @@ struct PaintOp {
     rhi::Rect rect;          // FillRect, FillRoundedRect, DrawText, DrawVector, DrawImage
     rhi::Color color;        // FillRect, FillRoundedRect, DrawText, tint of DrawVector/DrawImage
     float radius = 0.0f;     // FillRoundedRect, FillRoundedRing
-    float ring_width = 0.0f; // FillRoundedRing
+    float ring_width = 0.0f; // FillRoundedRing; the sigma of FillSoftShadow
     RoundedClip clip;        // PushClip
     rhi::Mat3 transform;     // PushTransform
     GradientDraw gradient;   // FillLinearGradient (its own rect/clip/stops are authoritative)
@@ -253,6 +254,9 @@ public:
                                float radius) override;
         void fill_rounded_ring(const rhi::Rect& rect, const rhi::Color& color, float radius,
                                float width) override;
+        [[nodiscard]] bool supports_soft_shadow() const override;
+        void fill_soft_shadow(const rhi::Rect& box, const rhi::Color& color, float radius,
+                              float sigma) override;
         void fill_linear_gradient(const GradientDraw& draw) override;
         void push_clip(const RoundedClip& clip) override;
         void pop_clip() override;

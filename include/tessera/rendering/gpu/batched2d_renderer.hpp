@@ -163,6 +163,10 @@ public:
     // shader subtracts the inner signed distance, so the stroke follows the corners and is
     // anti-aliased on both edges. `width` is clamped so the inner box does not invert.
     void push_rounded_ring(const rhi::Rect& rect, rhi::Color color, float radius, float width);
+    // A box shadow with a Gaussian edge of standard deviation `sigma` around the rounded `box`. One
+    // quad covering the box grown by 2 sigma; the fragment shader evaluates the blurred coverage
+    // from the box's signed distance, so the falloff is continuous instead of stepped.
+    void push_soft_shadow(const rhi::Rect& box, rhi::Color color, float radius, float sigma);
     void push_texture(const rhi::Rect& rect, rhi::Texture& texture, const rhi::Rect& uv,
                       rhi::Color color);
 

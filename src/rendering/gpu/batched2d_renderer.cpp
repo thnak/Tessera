@@ -264,6 +264,19 @@ void Batched2DRenderer::push_rounded_ring(const rhi::Rect& rect, rhi::Color colo
               white_texture_);
 }
 
+void Batched2DRenderer::push_soft_shadow(const rhi::Rect& box, rhi::Color color, float radius,
+                                         float sigma) {
+    if (sigma <= 0.0f || box.width <= 0.0f || box.height <= 0.0f) {
+        return;
+    }
+    const float reach = kSoftShadowReach * sigma;
+    const float clamped_radius = std::clamp(radius, 0.0f, std::min(box.width, box.height) * 0.5f);
+    const rhi::Rect quad{box.x - reach, box.y - reach, box.width + 2.0f * reach,
+                         box.height + 2.0f * reach};
+    emit_quad(quad, rhi::Rect{}, color, clamped_radius, kSoftShadowModeBase + sigma,
+              white_texture_);
+}
+
 void Batched2DRenderer::push_texture(const rhi::Rect& rect, rhi::Texture& texture,
                                      const rhi::Rect& uv, rhi::Color color) {
     emit_quad(rect, uv, color, 0, 2, &texture);

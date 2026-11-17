@@ -207,6 +207,16 @@ public:
     // but for PaintKind::Image payloads. Missing/corrupt assets are silent no-ops in real sinks.
     virtual void draw_image(const ImageDraw& /*draw*/) {}
 
+    // Optional soft box shadow (default: unsupported). A sink that returns true draws the blurred
+    // edge of `box` (corner `radius`) as a Gaussian of standard deviation `sigma` in one call; the
+    // paint pass then emits it instead of the stack of concentric fills it uses everywhere else,
+    // which steps visibly. The CPU reference sinks keep the stack, so their goldens do not move.
+    [[nodiscard]] virtual bool supports_soft_shadow() const {
+        return false;
+    }
+    virtual void fill_soft_shadow(const rhi::Rect& /*box*/, const rhi::Color& /*color*/,
+                                  float /*radius*/, float /*sigma*/) {}
+
     // Optional glass hook (default no-op), emitted before the node's own box visuals. A sink that
     // returns false from supports_backdrop() paints the node without the effect, which is the
     // documented CPU-reference behavior (glass-v1 section 9): the stylesheet's opaque fallback

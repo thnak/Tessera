@@ -107,7 +107,7 @@ bottom { x, y + h - bottom,       w,              bottom }
 left   { x, y + top,              left,           h - top - bottom }
 ```
 
-A uniform border on a uniformly rounded box is one ring, `PaintSink::fill_rounded_ring` (one quad, `mode = 3 + width`, shader subtracts the inner box); per-side widths or colours, or a sink without ring support, keep the square strips.
+A blurred `box-shadow` is one `fill_soft_shadow` quad on a sink that supports it (a Gaussian edge per pixel), else the stack of concentric fills. A uniform border on a uniformly rounded box is one ring, `PaintSink::fill_rounded_ring` (one quad, `mode = 3 + width`, shader subtracts the inner box); per-side widths or colours, or a sink without ring support, keep the square strips.
 
 ## 6. Deliberate limits
 

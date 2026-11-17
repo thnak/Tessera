@@ -44,6 +44,16 @@ float sd_round_box(vec2 p, vec2 b, float r) {
     return min(max(q.x, q.y), 0.0) + length(max(q, vec2(0.0))) - r;
 }
 
+// erf, Abramowitz and Stegun 7.1.26 (maximum error about 1.5e-7): the Gaussian edge of a soft
+// shadow is 0.5 * (1 - erf(d / (sigma * sqrt(2)))).
+float erf_approx(float x) {
+    float a = abs(x);
+    float t = 1.0 / (1.0 + 0.3275911 * a);
+    float poly = t * (0.254829592 + t * (-0.284496736 + t * (1.421413741 + t * (-1.453152027 + t * 1.061405429))));
+    float y = 1.0 - poly * exp(-a * a);
+    return x < 0.0 ? -y : y;
+}
+
 // Hard-edged per-corner rounded-rect clip test (no clip AA in this slice; see antialiasing.md).
 // The clip arrives by index, not by value: recent glslang (16.x, the Linux distro build) lowers a
 // by-value struct parameter to a duplicated struct type plus OpCopyLogical, which naga's SPIR-V
@@ -111,6 +121,11 @@ void main() {
         color.a *= alpha;
     } else if (v_mode > 1.5 && v_mode < 2.5) {
         color *= TESSERA_TEXEL;
+    } else if (v_mode > 1000.0) {
+        // Soft shadow: mode is 1024 + sigma and the quad is the box grown by 2 sigma.
+        float sigma = v_mode - 1024.0;
+        float d = sd_round_box(v_local, v_half_size - vec2(2.0 * sigma), v_radius);
+        color.a *= 0.5 * (1.0 - erf_approx(d / (sigma * 1.41421356)));
     } else if (v_mode > 2.5) {
         // Rounded-rect outline: mode is 3 + the stroke width. The ring is the outer box minus the
         // same box inset by the width, so its distance is max(outer, -inner).
