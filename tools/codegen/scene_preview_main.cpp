@@ -29,10 +29,12 @@
 
 #include "scene_interaction.hpp"
 #include "scene_preview.hpp"
+#include "tessera/hal/fold_posture.hpp"
 
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -53,6 +55,12 @@ constexpr std::string_view kUsage =
     "                     must give both sides one spelling\n"
     "  --salt SALT        the project salt the ids are hashed with (default: preview)\n"
     "  --size WxH         the layout viewport in logical pixels (default: 320x240)\n"
+    "  --fold POSTURE     simulate a foldable posture: flat, book (half-opened, vertical hinge)\n"
+    "                     or tabletop (half-opened, horizontal hinge). Default: no fold. This is\n"
+    "                     the native half of the studio's foldable control (issue #408):\n"
+    "                     `tessera_scene_json_folded` passes the same value to the same driver, "
+    "so\n"
+    "                     a posture's snapshot can be compared across the two.\n"
     "\n"
     "Exit codes: 0 document written; 1 no scene (an empty `nodes` array); 2 usage/setup.\n";
 
@@ -116,6 +124,7 @@ int main(int argc, char** argv) {
     std::string salt = "preview";
     float width = 320.0f;
     float height = 240.0f;
+    tessera::hal::FoldPosture posture = tessera::hal::FoldPosture::None;
     std::string input;
 
     for (int i = 1; i < argc; ++i) {
@@ -125,7 +134,8 @@ int main(int argc, char** argv) {
             return 0;
         }
         if (arg == "--scene-json" || arg == "--input-json" || arg == "--script" ||
-            arg == "--component" || arg == "--salt" || arg == "--size" || arg == "--file") {
+            arg == "--component" || arg == "--salt" || arg == "--size" || arg == "--file" ||
+            arg == "--fold") {
             if (i + 1 >= argc) {
                 return usage_error("`" + std::string(arg) + "` needs a value");
             }
@@ -142,6 +152,14 @@ int main(int argc, char** argv) {
                 project_file = value;
             } else if (arg == "--salt") {
                 salt = value;
+            } else if (arg == "--fold") {
+                const std::optional<tessera::hal::FoldPosture> parsed =
+                    tessera::hal::parse_fold_posture(value);
+                if (!parsed) {
+                    return usage_error("`--fold` takes flat, book or tabletop, got `" + value +
+                                       "`");
+                }
+                posture = *parsed;
             } else if (!parse_size(value, width, height)) {
                 return usage_error("`--size` takes WxH, for example 320x240");
             }
@@ -176,6 +194,7 @@ int main(int argc, char** argv) {
     options.salt = salt;
     options.width = width;
     options.height = height;
+    options.posture = posture;
 
     std::string document;
     if (!input_output.empty()) {

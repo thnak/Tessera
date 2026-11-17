@@ -127,6 +127,32 @@ std::expected<JsonValue, RpcError> McpSession::call_tool(const JsonValue& params
         return tool_result_json(ToolResult{false, "project opened: " + std::string(*path)});
     }
 
+    if (name == "set_viewport") {
+        // Every field is optional: `viewport.set` is "omitted fields keep their value", so a client
+        // changing only the posture does not have to resend the size (docs/specs/
+        // designer-protocol-v1.md section 6).
+        return tool_result_json(run_set_viewport_tool(
+            state_.viewport(), string_member(**arguments, "width"),
+            string_member(**arguments, "height"), string_member(**arguments, "dpr"),
+            string_member(**arguments, "foldPosture")));
+    }
+
+    if (name == "snapshot") {
+        auto source = string_argument(**arguments, "source", "`source` must be a non-empty string");
+        if (!source) {
+            return std::unexpected(source.error());
+        }
+        if (source->size() > kMaxSourceBytes) {
+            return std::unexpected(
+                RpcError{RpcErrorCode::InvalidParams,
+                         "`source` exceeds the 1 MiB per-file limit of docs/specs/jsx-subset-v1.md "
+                         "section 15",
+                         kInputTooLargeCode});
+        }
+        return tool_result_json(
+            run_snapshot_tool(state_.viewport(), *source, string_member(**arguments, "file")));
+    }
+
     if (name == "diagnostics" || name == "get_ir") {
         auto source = string_argument(**arguments, "source", "`source` must be a non-empty string");
         if (!source) {

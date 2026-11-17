@@ -731,6 +731,29 @@ if (TESSERA_BUILD_TESTS)
         tessera_style)
     add_test(NAME scene_dynamic COMMAND scene_dynamic_tests)
 
+    # The studio's foldable preview (issue #408): a simulated `FoldInfo` reaches the same metrics and
+    # safe-area path the app runs, a posture change is one layout pass, and the preview's SafeArea
+    # box equals a real `AppHost`'s for the same snapshot. Registered here rather than in
+    # tests/unit/CMakeLists.txt for the same reason `scene_frame` is.
+    add_executable(scene_fold_tests
+        ${CMAKE_SOURCE_DIR}/tests/unit/scene_fold_tests.cpp
+        ${_tessera_scene_preview_sources})
+    target_include_directories(scene_fold_tests
+        PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
+    target_link_libraries(scene_fold_tests PRIVATE
+        tessera_app
+        tessera_automation_scene
+        tessera_hal_metrics
+        tessera_ir_eval
+        tessera_ir_ids
+        tessera_layout
+        tessera_lowering
+        tessera_scene
+        tessera_runtime
+        tessera_scene
+        tessera_style)
+    add_test(NAME scene_fold COMMAND scene_fold_tests)
+
     # The persistent canvas session (issue #388): pointer input into one evaluation, the
     # `:hover`/`:active` path through the stylesheet engine, and the on-demand frame accounting.
     # Registered here rather than in tests/unit/CMakeLists.txt for the same reason `scene_frame` is:

@@ -6,6 +6,7 @@
 #include "scene_frame.hpp"
 #include "scene_prepare.hpp"
 #include "scene_session.hpp"
+#include "tessera/hal/window.hpp"
 #include "tessera/ui/scene/dirty_pass.hpp"
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/style/compiled_stylesheet.hpp"
@@ -60,6 +61,11 @@ struct CanvasPointerResult {
 // What a session is started from. `width`/`height` are the **logical** viewport the layout engine
 // sizes the tree to, which is also the coordinate space pointer events arrive in: the page derives
 // them from its CSS box and never hands this layer a device pixel ratio.
+//
+// `posture` is the simulated foldable posture (issue #408). It is part of the tuple a later
+// `start()` compares to decide reuse, so changing the posture does NOT re-evaluate the source:
+// `set_posture()` re-lays the running tree out in place instead, which is what keeps hover, focus
+// and state across a posture switch.
 struct CanvasSessionSource {
     std::string_view text;
     std::string_view file;
@@ -70,6 +76,7 @@ struct CanvasSessionSource {
     float width = 320.0f;
     float height = 240.0f;
     float dpi_scale = 1.0f;
+    tessera::hal::FoldPosture posture = tessera::hal::FoldPosture::None;
     // The face the layout measures text with, or null for the deterministic stub. The session does
     // **not** own it: the device-backed stack belongs to whoever painted the last frame (the Wasm
     // entry, or a test), so the session stores the measurer `start()` was given and reuses it when
@@ -114,6 +121,22 @@ public:
     // secondary press dispatched as a left press would run an `onClick` nobody asked for.
     CanvasPointerResult pointer(PreviewInput::Kind kind, float x, float y,
                                 std::uint32_t button = 0);
+
+    // Changes the simulated fold posture of the RUNNING evaluation (issue #408): the tree is
+    // re-laid out in place, so `SafeArea` padding and every box follow the new hinge without the
+    // source being evaluated again and without hover, focus or the state cells being lost.
+    //
+    // **One layout pass, no stale frame.** The pass completes inside this call, before any paint
+    // can observe the tree, so a page that repaints only when `needs_frame()` says so draws the new
+    // posture on its first frame. Returns false when there is no running evaluation or the posture
+    // is already the current one (nothing was laid out again).
+    bool set_posture(tessera::hal::FoldPosture posture);
+
+    // The `WindowMetrics` the live tree was laid out against, fold included; a fresh, fold-free
+    // snapshot before `start()`.
+    [[nodiscard]] const tessera::hal::WindowMetrics& metrics() const noexcept {
+        return metrics_;
+    }
 
     // True when the scene owes a frame: a fresh evaluation, or a dispatch that moved a style/paint
     // dirty domain since the last `paint()`. False for a static scene, which is the
@@ -171,6 +194,10 @@ private:
     float width_ = 320.0f;
     float height_ = 240.0f;
     float dpi_scale_ = 1.0f;
+    // The simulated window of the live tree. `session_` owns the authoritative copy; this one is
+    // readable before the first `start()` and after the session is gone, so `metrics()` has one
+    // answer in every state.
+    tessera::hal::WindowMetrics metrics_;
     // The measurer the running evaluation was laid out with; a later `start()` compares it by
     // identity so a font arriving after the first Run is a re-evaluation, not a reuse.
     std::shared_ptr<const text::TextMeasurer> measurer_;

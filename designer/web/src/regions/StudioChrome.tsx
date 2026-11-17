@@ -17,14 +17,19 @@
 // arrive with.
 
 import type { RefObject } from "react";
-import { DPRS, THEMES, VIEWPORTS } from "../lib/preferences";
+import { DPRS, FOLD_POSTURES, FOLD_POSTURE_LABELS, THEMES, VIEWPORTS } from "../lib/preferences";
 import { VIEWS, type ViewDefinition } from "../lib/views";
 
-/** The toolbar's three toggles, as the strings a `<select>` holds. */
+/** The toolbar's toggles, as the strings a `<select>` holds. */
 export interface ControlValues {
   viewport: string;
   dpr: string;
   theme: string;
+  /**
+   * The simulated fold posture (issue #408): `""` for no fold, else `flat` | `book` | `tabletop`.
+   * A layout input like the viewport, so changing it re-lays the preview out in one pass.
+   */
+  foldPosture: string;
 }
 
 /** The view tab strip (region 1's navigation). */
@@ -203,6 +208,26 @@ export function EnvironmentToolbar({
           value={controls.theme}
           values={[...THEMES]}
           format={(value) => value}
+          onChange={onChange}
+        />
+        {/*
+          The fold posture (issue #408, `designer-studio-v1.md` section 6: "Fold posture
+          (foldables)" -> `viewport.set` `foldPosture`).
+
+          It is always present rather than appearing only for a `foldable` skin, because this page
+          has no skin picker yet: `designer-studio-v1.md` section 5.2 assigns skins to #171, and a
+          control that waits for a skin category nobody can select would be dead chrome. The issue
+          requires it "when the skin category is `foldable`"; until #171 lands, the posture IS how a
+          visitor chooses a foldable, and the note in docs/design/studio-page.md section 6 records
+          that. `None` is the unfolded desktop case, so a visitor who ignores the control sees
+          exactly what they saw before this slice.
+        */}
+        <Control
+          label="Fold"
+          name="foldPosture"
+          value={controls.foldPosture}
+          values={[...FOLD_POSTURES]}
+          format={(value) => FOLD_POSTURE_LABELS[value] ?? value}
           onChange={onChange}
         />
       </div>

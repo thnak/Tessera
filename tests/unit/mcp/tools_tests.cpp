@@ -52,9 +52,12 @@ void test_surface_is_declared() {
                std::string("mcp_tools: `") + std::string(tool.name) + "` publishes its properties");
     }
 
-    // The compile-only subset is implemented and nothing else claims to be. This is the assertion
-    // that keeps the advertisement honest as later slices fill tools in.
-    const std::string_view implemented[] = {"open_project", "diagnostics", "get_ir"};
+    // The implemented subset, and nothing else claims to be. This is the assertion that keeps the
+    // advertisement honest as later slices fill tools in: `open_project`, the three compile tools,
+    // and since issue #408 the preview pair (`set_viewport` and `snapshot`), which share the scene
+    // driver the browser module and the native preview CLI call.
+    const std::string_view implemented[] = {"open_project", "diagnostics", "get_ir", "set_viewport",
+                                            "snapshot"};
     for (const mcp::ToolDefinition& tool : tools) {
         bool should_be_implemented = false;
         for (const std::string_view name : implemented) {

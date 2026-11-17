@@ -57,6 +57,11 @@ export interface CanvasSessionOptions {
   setStatus: StatusReporter;
   /** The toolbar's current `{width, height, dpr}`; a canvas run must not be stuck at 320x240. */
   environment: () => { width: number; height: number; dpr: number };
+  /**
+   * The toolbar's simulated fold posture (issue #408): `""` for no fold, else `flat` | `book` |
+   * `tabletop`. It is a layout input, so a change draws again rather than waiting for a Run.
+   */
+  foldPosture: () => string;
   /** The source path the current sample is previewed under. */
   file: () => string;
   /** Reports readiness to the page's shared Run button. */
@@ -94,7 +99,6 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
     lastDpr = sized.dpr;
     return sized;
   }
-
   // Draws the current source. Called from a `requestAnimationFrame` callback, never from the input handler,
   // so a fast typist cannot make the paint path reentrant and the canvas updates in step with the display.
   function drawFrame(): void {
@@ -102,8 +106,14 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
     if (factory === null || gpu === null || !visible) {
       return;
     }
-    const { dpr, width, height } = resize();
+    const { dpr } = resize();
     options.elements.statDpr.textContent = String(dpr);
+    // The layout viewport is the LOGICAL rectangle, and `width`/`height` above are the device-pixel
+    // backing store. Passing the backing store as the viewport would lay the tree out at
+    // `logical * dpr` and then scale it into the canvas - a 390x844 phone at DPR 2 would lay out at
+    // 780x1688 and show the top-left quarter. The C ABI takes both, separately, for this reason.
+    const viewport = requestedViewport(options.environment);
+    const foldPosture = options.foldPosture();
     let report: CanvasFrameReport;
     try {
       // One texture-view reference per frame: the module takes ownership and releases it, and the canvas
@@ -114,13 +124,15 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
         throw new Error("the module dropped its WebGPU handle table");
       }
       const viewPtr = handles.importJsTextureView(image);
+      // Pointers first, then the numbers: `callExport` marshals the strings and hands the export
+      // `(...pointers, ...numbers)`, which is the shape every export in this page uses.
       report = JSON.parse(
-        callExport(gpu.module, "_tessera_canvas_frame", [source.value, options.file(), ""], [
-          width,
-          height,
-          dpr,
-          viewPtr,
-        ]),
+        callExport(
+          gpu.module,
+          "_tessera_canvas_frame",
+          [source.value, options.file(), "", foldPosture],
+          [viewport.width, viewport.height, dpr, viewPtr],
+        ),
       ) as CanvasFrameReport;
     } catch (error) {
       pane.showFailed(String(error));
@@ -316,7 +328,11 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
         requestFrame();
       }
     },
-    /** The toolbar moved: on this view the viewport and DPR are what the canvas is sized for. */
+    /**
+     * The toolbar moved: on this view the viewport, the DPR and the fold posture are what the canvas is
+     * sized and laid out for. One frame is requested; the posture's layout pass happens inside the
+     * engine call that frame makes, so the picture is never a frame behind the control (issue #408).
+     */
     onEnvironmentChange: () => {
       if (gpu !== null && visible) {
         resize();

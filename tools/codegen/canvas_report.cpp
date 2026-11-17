@@ -134,4 +134,14 @@ std::string canvas_pointer_report_json(const CanvasPointerResult& result) {
     return out;
 }
 
+std::string canvas_fold_report_json(const SceneFrameResult& result, bool changed) {
+    // Versioned like the other two reports, so a page built against one module revision can tell an
+    // older artifact apart instead of reading a missing field as "no change".
+    std::string out = "{\"foldVersion\":1";
+    append_bool(out, "changed", changed);
+    append_text(out, "error", result.error);
+    out += "}\n";
+    return out;
+}
+
 } // namespace tessera::compiler::codegen::cli

@@ -13,6 +13,8 @@
 
 export {
   DEFAULT_FILE,
+  FOLD_POSTURES,
+  FOLD_POSTURE_LABELS,
   THEMES,
   VIEWPORTS,
   DPRS,
@@ -29,13 +31,19 @@ import { encodeShare, stateFromHash } from "./share";
 const STORAGE_KEY = "tessera.preview.p5";
 
 /** The fields a previous visit may restore. The source never is one of them. */
-const PREFERENCE_KEYS = ["viewport", "dpr", "theme", "file"] as const;
+const PREFERENCE_KEYS = ["viewport", "dpr", "theme", "file", "foldPosture"] as const;
 
 /** The toolbar's values, as the strings a `<select>` holds. */
 export interface Controls {
   viewport: string;
   dpr: string;
   theme: string;
+  /**
+   * The simulated fold posture (issue #408): `""` (no fold), `flat`, `book` or `tabletop`. It is a
+   * layout input exactly like the viewport, so a change re-lays the preview out rather than waiting
+   * for a Run.
+   */
+  foldPosture: string;
 }
 
 /** The stored preference fields: the toolbar's three plus the file name a link carried. */
@@ -54,6 +62,8 @@ export interface EnvironmentState {
   height: number;
   dpr: number;
   theme: string;
+  /** The simulated fold posture; `""` is no fold (issue #408). */
+  foldPosture: string;
   from?: "link" | "local" | "default";
 }
 
@@ -62,6 +72,7 @@ export const DEFAULT_CONTROLS: Controls = Object.freeze({
   viewport: "320x240",
   dpr: "1",
   theme: "system",
+  foldPosture: "",
 });
 
 function safeStorage(): Storage | null {
@@ -144,6 +155,8 @@ export async function initialState(
       height: viewport ? viewport.height : fallback.height,
       dpr: Number.isFinite(dpr) && dpr > 0 ? dpr : fallback.dpr,
       theme: typeof stored.theme === "string" && stored.theme !== "" ? stored.theme : fallback.theme,
+      foldPosture:
+        typeof stored.foldPosture === "string" ? stored.foldPosture : fallback.foldPosture,
       from: "local",
     };
   }
@@ -176,6 +189,7 @@ export function shareStateOf(
     height: viewport.height,
     dpr: Number(controls.dpr),
     theme: String(controls.theme),
+    foldPosture: String(controls.foldPosture),
   };
 }
 

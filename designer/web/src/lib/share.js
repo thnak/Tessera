@@ -20,7 +20,7 @@
 // The decoded bytes are a UTF-8 JSON envelope. Keys are one character because the fragment is the
 // product here: every byte is a byte somebody pastes into a chat window or an issue.
 //
-//   {"v":1,"s":"<source>","w":320,"h":240,"d":1,"t":"system"[,"f":"ui/Counter.tsx"]}
+//   {"v":1,"s":"<source>","w":320,"h":240,"d":1,"t":"system"[,"f":"ui/Counter.tsx"][,"p":"book"]}
 //
 //   v  format version, must equal SHARE_FORMAT_VERSION (an unknown one is an error, never a guess)
 //   s  the source text, verbatim (the single source of truth; never a sample id and never a diff)
@@ -28,6 +28,8 @@
 //   d  device pixel ratio (DPR)
 //   t  theme: "system" | "light" | "dark"
 //   f  source file name, optional; absent means DEFAULT_FILE (so the common case pays no bytes)
+//   p  simulated fold posture (issue #408): "flat" | "book" | "tabletop"; absent means no fold, so
+//      an unfolded preview pays no bytes and a pre-#408 link decodes to the same state it always did
 //
 // ## The size cap, and what happens when a link exceeds it
 //
@@ -163,6 +165,11 @@ function envelopeOf(state) {
     d: state.dpr,
     t: state.theme,
     ...(state.file === DEFAULT_FILE ? {} : { f: state.file }),
+    // `p` is the fold posture (issue #408). An unfolded preview omits the key, so every link a
+    // pre-#408 page wrote decodes identically and every link this page writes for the common case
+    // costs zero extra bytes. `f` keeps meaning the file name: renaming it would make every link in
+    // the wild decode with the wrong field.
+    ...(state.foldPosture ? { p: state.foldPosture } : {}),
   };
 }
 
@@ -270,6 +277,8 @@ export async function decodeShare(text) {
     height: envelope.h,
     dpr: envelope.d,
     theme: envelope.t,
+    // Absent means "no fold", which is what a pre-#408 link says and what the page's default is.
+    foldPosture: envelope.p === undefined ? '' : envelope.p,
   });
 }
 

@@ -615,6 +615,15 @@ alias include/tessera/hal/filesystem.hpp tessera::hal::FileReadResult
 alias include/tessera/hal/filesystem.hpp tessera::hal::FileResult
 function include/tessera/hal/filesystem.hpp tessera::hal::create_native_file_system
 
+header include/tessera/hal/fold_posture.hpp
+enum include/tessera/hal/fold_posture.hpp tessera::hal::FoldPosture
+function include/tessera/hal/fold_posture.hpp tessera::hal::fold_changed
+function include/tessera/hal/fold_posture.hpp tessera::hal::fold_info_for
+function include/tessera/hal/fold_posture.hpp tessera::hal::fold_posture_name
+function include/tessera/hal/fold_posture.hpp tessera::hal::parse_fold_posture
+function include/tessera/hal/fold_posture.hpp tessera::hal::rotate_fold
+constant include/tessera/hal/fold_posture.hpp tessera::hal::kSimulatedHingeSize
+
 header include/tessera/hal/fullscreen.hpp
 struct include/tessera/hal/fullscreen.hpp tessera::hal::FullscreenState
 function include/tessera/hal/fullscreen.hpp tessera::hal::fullscreen_enter
@@ -2425,6 +2434,13 @@ function include/tessera/ui/style/pseudo_state.hpp tessera::ui::style::operator_
 function include/tessera/ui/style/pseudo_state.hpp tessera::ui::style::operator_or_assign
 function include/tessera/ui/style/pseudo_state.hpp tessera::ui::style::operator_pipe
 function include/tessera/ui/style/pseudo_state.hpp tessera::ui::style::operator_tilde
+
+header include/tessera/ui/style/safe_area_style.hpp
+struct include/tessera/ui/style/safe_area_style.hpp tessera::ui::style::SafeAreaSpec
+function include/tessera/ui/style/safe_area_style.hpp tessera::ui::style::apply_safe_area
+function include/tessera/ui/style/safe_area_style.hpp tessera::ui::style::apply_safe_area_style
+function include/tessera/ui/style/safe_area_style.hpp tessera::ui::style::is_safe_area_node
+function include/tessera/ui/style/safe_area_style.hpp tessera::ui::style::read_safe_area_spec
 
 header include/tessera/ui/style/scene_style.hpp
 class include/tessera/ui/style/scene_style.hpp tessera::ui::style::SceneStyleTree

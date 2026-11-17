@@ -15,6 +15,7 @@ namespace tessera::compiler::codegen::cli {
 namespace {
 
 namespace ui = tessera::ui;
+namespace hal = tessera::hal;
 
 // The fixed step between events of one gesture. Deterministic on purpose: the preview owns no
 // clock, so one script produces the same timestamps on every run and every platform.
@@ -91,6 +92,10 @@ PreviewSession::PreviewSession(const ir::IrModule& module, const ir::Component& 
       component_(component),
       sheet_(sheet),
       options_(options) {
+    layout_metrics_.width = options_.width;
+    layout_metrics_.height = options_.height;
+    layout_metrics_.dpi_scale = options_.dpi_scale;
+    layout_metrics_.posture = options_.posture;
     if (options_.carried != nullptr) {
         const std::vector<std::string> only_this{component.component_id};
         carry_report_ = apply_state(
@@ -123,8 +128,27 @@ void PreviewSession::rebuild() {
     }
 
     ui::layout::LayoutEngine engine(options_.measurer);
-    (void)layout_scene(*root_, sheet_, engine, options_.width, options_.height, options_.dpi_scale,
-                       options_.measurer);
+    const SceneLayoutResult laid_out =
+        layout_scene(*root_, sheet_, engine, layout_metrics_, options_.measurer);
+    metrics_ = laid_out.metrics;
+}
+
+bool PreviewSession::set_posture(hal::FoldPosture posture) {
+    if (!built_ || layout_metrics_.posture == posture) {
+        return false;
+    }
+    layout_metrics_.posture = posture;
+    ui::layout::LayoutEngine engine(options_.measurer);
+    const SceneLayoutResult laid_out =
+        layout_scene(*root_, sheet_, engine, layout_metrics_, options_.measurer);
+    if (!laid_out.error.empty()) {
+        // The tree stays at the previous posture rather than half-applied: the error is a layout
+        // failure, not a posture the caller asked for, and the metrics are left describing what
+        // the boxes actually are.
+        return false;
+    }
+    metrics_ = laid_out.metrics;
+    return true;
 }
 
 void PreviewSession::bind_handler(std::uint64_t automation_id, const std::string& event,

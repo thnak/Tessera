@@ -35,4 +35,6 @@ export const INITIAL_ENVIRONMENT = Object.freeze({
   viewport: "320x240",
   dpr: "1",
   theme: "system",
+  /** The simulated fold posture (issue #408): `""` is no fold, which is the desktop default. */
+  foldPosture: "",
 });

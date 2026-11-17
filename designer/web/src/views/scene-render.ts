@@ -26,7 +26,19 @@ export interface SceneNode {
 
 export interface SceneDocument {
   nodes?: SceneNode[];
+  /**
+   * The engine's refusal, when it produced a document but no tree (`scene_preview.cpp` writes
+   * `error` for an unsupported construct or an unknown fold posture). Reading it is what lets the
+   * pane say *why* there is no scene instead of showing the generic unsupported-construct sentence.
+   */
+  error?: string;
 }
+
+/**
+ * The sentence for a document that carries an engine error, or the generic one when it does not.
+ * The engine's own text is quoted rather than replaced: it names the construct or the bad posture,
+ * which is the part a visitor can act on.
+ */
 
 // The bounds are fixed three-decimal numbers in the document; this only makes them readable.
 function describeBounds(bounds: SceneNode["bounds"]): string {
@@ -78,8 +90,15 @@ export function renderNodes(
 }
 
 /** The "no scene" box: an empty document is a documented answer, not a successful empty page. */
-export function noSceneBox(): HTMLElement {
+export function noSceneBox(error?: string): HTMLElement {
   const note = element("div", "unavailable");
+  if (typeof error === "string" && error !== "") {
+    note.append(
+      element("h3", null, "No scene"),
+      element("p", null, `The preview reported: ${error}`),
+    );
+    return note;
+  }
   note.append(
     element("h3", null, "No scene"),
     element(

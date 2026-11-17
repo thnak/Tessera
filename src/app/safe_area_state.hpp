@@ -4,14 +4,17 @@
 
 // The host's SafeArea state (docs/specs/safe-area-v1.md sections 4 and 6): the window metrics the
 // insets come from, and the animated value of each inset edge. Private to src/app.
+//
+// The **node** half of SafeArea - which nodes are `SafeArea` instances, what their class tokens
+// say, and how resolved insets become `padding-*`/`margin-*` - is
+// `tessera/ui/style/safe_area_style.hpp` since issue #408. It moved there because the design-time
+// preview is a second layout consumer and must resolve a `SafeArea` through the same code the app
+// does. What remains here is the part a preview cannot have: an ease-out over successive frames,
+// which needs a clock.
 
 #include "tessera/hal/safe_area.hpp"
 #include "tessera/hal/window.hpp"
-#include "tessera/ui/scene/node.hpp"
-#include "tessera/ui/style/cascade.hpp"
-
-#include <optional>
-#include <string>
+#include "tessera/ui/style/safe_area_style.hpp"
 
 namespace tessera::app {
 
@@ -40,6 +43,13 @@ public:
         return current_;
     }
 
+    // The metrics a layout consumer resolves through, or nullptr before the first snapshot. The
+    // shared `ui::style::apply_safe_area_style()` takes exactly this pointer, so the app and the
+    // preview pass the same kind of value and neither invents a "no metrics yet" convention.
+    [[nodiscard]] const hal::WindowMetrics* metrics_or_null() const noexcept {
+        return has_metrics_ ? &current_ : nullptr;
+    }
+
     // The resolved insets of one SafeArea node under the current (possibly mid-animation) values.
     [[nodiscard]] hal::WindowInsets resolve(const hal::SafeAreaConfig& config) const noexcept {
         return hal::resolve_safe_area(current_, config);
@@ -51,26 +61,5 @@ private:
     bool has_metrics_ = false;
     bool animating_ = false;
 };
-
-// The spec of a SafeArea node, read from its class tokens (a `Node` has no room for a new member,
-// and the JSX subset has no custom-property `style` keys). A node is a SafeArea when its class has
-// the token `tsafe`; the library component adds the others:
-//   safe-edges-<a>+<b>    `top right bottom left start end` (default: all four)
-//   safe-sources-<a>+<b>  `system-bars cutout ime gestures hinge` (default: all but gestures)
-//   safe-min-<n>          a floor of n px per applying side (default 0)
-//   safe-mode-margin      `margin` mode; absent means `padding`
-// `rtl` comes from the node's computed `direction`. Allocation-free.
-struct SafeAreaSpec {
-    hal::SafeAreaConfig config;
-    bool margin = false;
-};
-
-[[nodiscard]] bool is_safe_area_node(const ui::Node& node);
-[[nodiscard]] std::optional<SafeAreaSpec> read_safe_area_spec(const ui::Node& node, bool rtl);
-
-// Writes the resolved insets of `spec` as `padding-*` or `margin-*` pixel declarations into a
-// computed style, replacing any physical or logical value the node had on those sides.
-void apply_safe_area(ui::style::ComputedStyle& style, const SafeAreaSpec& spec,
-                     const hal::WindowInsets& insets);
 
 } // namespace tessera::app

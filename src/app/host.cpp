@@ -51,7 +51,7 @@ void write_pixels(std::array<char, 32>& buffer, float value) {
 // Marks every SafeArea node for layout: their padding or margin comes from the host's insets, which
 // no style or scene mutation reports.
 void mark_safe_area_nodes(ui::Node& node) {
-    if (is_safe_area_node(node)) {
+    if (ui::style::is_safe_area_node(node)) {
         node.mark_dirty(ui::Dirty::Layout);
     }
     for (const auto& child : node.children()) {
@@ -72,14 +72,11 @@ ui::layout::LayoutInput build_layout_input(const ui::Node& node, ui::paint::Styl
     ui::layout::LayoutInput input;
     input.id = node.id();
     input.style = styles.compute(node);
-    // A SafeArea node's padding or margin is host-owned: the resolved insets replace the sides.
-    if (safe_area.has_metrics()) {
-        const std::string* direction = input.style.find("direction");
-        if (const auto spec =
-                read_safe_area_spec(node, direction != nullptr && *direction == "rtl")) {
-            apply_safe_area(input.style, *spec, safe_area.resolve(spec->config));
-        }
-    }
+    // A SafeArea node's padding or margin is host-owned, and the resolution is the SAME function
+    // the design-time preview calls (issue #408): the app's metrics come from the OS and the
+    // preview's from a simulated posture, but the token parsing and the padding writer are one
+    // implementation.
+    (void)ui::style::apply_safe_area_style(input.style, node, safe_area.metrics_or_null());
     const auto& paint = node.paint_data();
     const bool text_payload = paint && paint->kind == ui::PaintKind::Text;
     if (text_payload) {

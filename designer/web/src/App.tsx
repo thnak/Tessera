@@ -88,6 +88,13 @@ export function App() {
     const [width, height] = state.controls.viewport.split("x").map(Number);
     return { width, height, dpr: Number(state.controls.dpr) };
   }, [state.controls]);
+  // The fold posture (issue #408) is a layout input like the viewport, so both sessions read it the
+  // same way they read the size and the DPR. A `""` value is "no fold", which is what every page
+  // shows until a visitor picks a posture.
+  const currentFoldPosture = useCallback(
+    () => state.controls.foldPosture ?? "",
+    [state.controls],
+  );
   const currentFile = useCallback(() => fileRef.current, []);
 
   // ---- the shared chrome mounts before the first view is shown (issue #392's ordering rule) ---------
@@ -104,6 +111,7 @@ export function App() {
           height: 240,
           dpr: 1,
           theme: "system",
+          foldPosture: "",
         });
         if (refs.source.current) {
           refs.source.current.value = loaded.source === "" ? STARTUP_SAMPLE : loaded.source;
@@ -113,13 +121,19 @@ export function App() {
           viewport: `${loaded.width || 320}x${loaded.height || 240}`,
           dpr: String(loaded.dpr ?? 1),
           theme: String(loaded.theme ?? "system"),
+          foldPosture: String(loaded.foldPosture ?? ""),
         });
       } catch (error) {
         if (refs.source.current) {
           refs.source.current.value = STARTUP_SAMPLE;
         }
         fileRef.current = DEFAULT_FILE;
-        state_.setControls({ viewport: "320x240", dpr: "1", theme: "system" });
+        state_.setControls({
+          viewport: "320x240",
+          dpr: "1",
+          theme: "system",
+          foldPosture: "",
+        });
         state_.setLinkNote(linkProblemMessage(error));
       } finally {
         setToolbarSettled(true);
@@ -190,6 +204,7 @@ export function App() {
         setStatus: (text, kind) => setStatusText(status, text, kind ?? null),
         setInputStatus: (text, kind) => setStatusText(inputStatus, text, kind ?? null),
         environment,
+        foldPosture: currentFoldPosture,
         file: currentFile,
         onReady: (ready) => {
           if (isCurrent("scene")) {
@@ -238,6 +253,7 @@ export function App() {
         source,
         setStatus: (text, kind) => setStatusText(status, text, kind ?? null),
         environment: environmentOf,
+        foldPosture: currentFoldPosture,
         file: currentFile,
         onReady: (ready) => {
           if (isCurrent("canvas")) {
@@ -247,7 +263,7 @@ export function App() {
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [toolbarSettled, environment, environmentOf, currentFile]);
+  }, [toolbarSettled, environment, environmentOf, currentFoldPosture, currentFile]);
 
   // ---- show the view: mount its module on first open, and tell every session which one is visible ----
   useEffect(() => {

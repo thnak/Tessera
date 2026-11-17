@@ -71,6 +71,45 @@ function usesSizedExport(
   return moved && typeof module._tessera_scene_json_sized === "function";
 }
 
+/**
+ * The export this run should call, and why.
+ *
+ * `_tessera_scene_json_folded` (issue #408) is the only export that carries the fold posture, so a
+ * foldable preview has to use it. A run with no posture keeps calling the plain export when nothing
+ * else moved, because that byte-for-byte equality with the native CLI's default is what the parity
+ * gate asserts; a moved viewport keeps using the sized export, and a fold takes precedence because
+ * the sized one cannot express it.
+ *
+ * The `folded` export falls back to the sized/plain pair when the artifact predates it: a page
+ * published against an older module then shows an unfolded preview and says so, rather than failing.
+ */
+function chooseExport(
+  module: WasmModule,
+  viewport: { width: number; height: number },
+  dpr: number,
+  posture: string,
+): { name: string; numbers: number[]; extra: string[]; folded: boolean } {
+  if (posture !== "" && typeof module._tessera_scene_json_folded === "function") {
+    // `callExport` hands the trailing string arguments after the numeric ones, so the posture is
+    // appended to the source triple: (source, file, component, w, h, dpr, posture).
+    return {
+      name: "_tessera_scene_json_folded",
+      numbers: [viewport.width, viewport.height, dpr],
+      extra: [posture],
+      folded: true,
+    };
+  }
+  if (usesSizedExport(module, viewport, dpr)) {
+    return {
+      name: "_tessera_scene_json_sized",
+      numbers: [viewport.width, viewport.height, dpr],
+      extra: [],
+      folded: false,
+    };
+  }
+  return { name: "_tessera_scene_json", numbers: [], extra: [], folded: false };
+}
+
 /** The elements React committed for the Scene pane; every one of them is a ref. */
 export interface SceneElements {
   source: HTMLTextAreaElement;
@@ -92,6 +131,13 @@ export interface SceneSessionOptions {
   setInputStatus: StatusReporter;
   /** The toolbar's current viewport and DPR, as layout inputs. */
   environment: () => { viewport: string; dpr: string };
+  /**
+   * The toolbar's simulated fold posture (issue #408): `""` for no fold, else `flat` | `book` |
+   * `tabletop`. A layout input exactly like the viewport, so a change re-runs the layout rather than
+   * waiting for the next Run, and the posture travels through the same `set_viewport` field the
+   * native protocol and MCP use.
+   */
+  foldPosture: () => string;
   /** The source path the current sample is previewed under. */
   file: () => string;
   /** Reports readiness to the page's shared Run button. */
@@ -164,19 +210,19 @@ export function createSceneSession(options: SceneSessionOptions): SceneSession {
       const viewport = currentViewport();
       const dpr = currentDpr();
       const file = options.file();
-      const json = usesSizedExport(module, viewport, dpr)
-        ? callExport(
-            module,
-            "_tessera_scene_json_sized",
-            [source.value, file, ""],
-            [viewport.width, viewport.height, dpr],
-          )
-        : callExport(module, "_tessera_scene_json", [source.value, file, ""]);
+      const chosen = chooseExport(module, viewport, dpr, options.foldPosture());
+      const json = callExport(
+        module,
+        chosen.name,
+        [source.value, file, "", ...chosen.extra],
+        chosen.numbers,
+      );
       emptyState.hidden = true;
-      const count = renderNodes(nodes, JSON.parse(json) as SceneDocument, (id) => input.append(id));
+      const document = JSON.parse(json) as SceneDocument;
+      const count = renderNodes(nodes, document, (id) => input.append(id));
       if (count === 0) {
         nodes.replaceChildren();
-        nodes.append(noSceneBox());
+        nodes.append(noSceneBox(document.error));
         setStatus("no scene", "warning");
       } else {
         setStatus(`${count} node(s)`, "ok");

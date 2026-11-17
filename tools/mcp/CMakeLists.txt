@@ -18,6 +18,10 @@ add_library(tessera_mcp_core STATIC
     src/in_memory_ir.cpp
     src/jsonrpc.cpp
     src/mcp_protocol.cpp
+    # `set_viewport` and `snapshot` (issue #408): the agent-facing half of the studio preview. It
+    # calls the SAME `scene_preview_document()` the browser module exports, so a posture set through
+    # MCP reaches one layout path, not a second one.
+    src/preview_tools.cpp
     src/serve_stdio.cpp
     src/session.cpp
     src/tool_registry.cpp
@@ -39,10 +43,16 @@ target_include_directories(tessera_mcp_core PRIVATE ${PROJECT_SOURCE_DIR}/tools/
 
 target_link_libraries(tessera_mcp_core PUBLIC
     tessera_codegen
+    tessera_hal_metrics
     tessera_harness
     tessera_ir
     tessera_ir_ids
-    tessera_lowering)
+    tessera_lowering
+    # `snapshot` and `set_viewport` (issue #408): the preview driver the browser module and the
+    # native preview CLI also link, so the agent's snapshot is one implementation rather than a
+    # third one. The library is host-only-built and links no GPU/paint target, which keeps this
+    # adapter as light as the compile tools already made it.
+    tessera_scene_preview)
 
 target_compile_features(tessera_mcp_core PUBLIC cxx_std_23)
 
@@ -81,6 +91,24 @@ if (TESSERA_BUILD_TESTS)
     target_link_libraries(mcp_tools_tests PRIVATE tessera_mcp_core)
 
     add_test(NAME mcp_tools COMMAND mcp_tools_tests)
+
+    # `set_viewport` and `snapshot` (issue #408): the sticky viewport, the refusal of a bad posture,
+    # and the acceptance's parity claim - a posture set through MCP produces the SAME scene snapshot
+    # as the driver the browser module and the native preview CLI call, byte for byte.
+    add_executable(mcp_preview_tools_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/mcp/preview_tools_tests.cpp)
+
+    target_include_directories(mcp_preview_tools_tests
+        PRIVATE
+            ${PROJECT_SOURCE_DIR}/tools/codegen
+            ${PROJECT_SOURCE_DIR}/tools/mcp/src)
+
+    target_link_libraries(mcp_preview_tools_tests PRIVATE
+        tessera_hal_metrics
+        tessera_mcp_core
+        tessera_scene_preview)
+
+    add_test(NAME mcp_preview_tools COMMAND mcp_preview_tools_tests)
 
     # The implemented compile tools and the dispatch contract around them: which channel a failure
     # uses (protocol error for bad arguments, tool error for a call that ran and failed), and what
