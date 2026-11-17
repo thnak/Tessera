@@ -156,3 +156,33 @@ export function readFontStatus(module: {
     free(pointer);
   }
 }
+
+/** What the font steps need from a module: the heap for the handover, and the status reader. */
+export type FontModule = Parameters<typeof handOverFont>[0] & Parameters<typeof readFontStatus>[0];
+
+/**
+ * The whole font step for one device: fetch the bytes, hand them over, and report the face.
+ *
+ * Returns null when text is drawn, or the sentence saying why it is not. A failed font is the
+ * documented degraded state (boxes, no glyphs), never a failed canvas, so the caller shows the
+ * sentence and keeps drawing. It lives here beside the fetch and the handover so the Canvas session
+ * states the policy once per device instead of restating the three steps.
+ */
+export async function loadFontFor(
+  module: FontModule,
+  report: (family: string | null) => void,
+): Promise<string | null> {
+  const loaded = await loadPreviewFont();
+  if (loaded.error !== undefined) {
+    return loaded.error;
+  }
+  const handover = handOverFont(module, loaded.bytes);
+  if (handover.error !== undefined) {
+    return handover.error;
+  }
+  const status = readFontStatus(module);
+  // The module copies the bytes into its own `FontFace`, so the cached buffer stays on the page for a
+  // later module instance rather than being kept alive per device.
+  report(status?.loaded === true ? (status.family ?? FONT_FAMILY) : null);
+  return status?.loaded === true ? null : (status?.error ?? "the module reported no font");
+}

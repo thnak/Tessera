@@ -24,6 +24,7 @@
 #include "tessera/ui/style/theme_asset.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <span>
@@ -151,6 +152,11 @@ public:
     // cutouts, keyboard and hinge. The first call and reduced motion apply them at once; later
     // ones animate each inset edge independently over the next frames. A node with a safe-area spec
     // gets its padding or margin from the result before layout. Cheap when nothing changed.
+    //
+    // A snapshot that reports a usable logical extent which differs from the host's size is also a
+    // size change (issue #436): it goes through the same path `resize()` does, media context
+    // included, so a driver that feeds only metrics cannot leave `@media` resolved against the
+    // previous rectangle. A snapshot with no usable extent (insets only) moves the safe area alone.
     void set_window_metrics(const hal::WindowMetrics& metrics);
 
     // The window's default OverlayHost (docs/specs/overlays-and-layers-v1.md, issue #302), created
@@ -212,6 +218,14 @@ public:
     // Client-area change: updates the root's inline size, the layout viewport, the damage target
     // and the pipeline's DPI scale, then marks the whole subtree for layout/paint and forces a
     // full redraw (the old target's damage rectangles are meaningless at the new size).
+    //
+    // Since issue #436 it also moves the media context the stylesheet is resolved against: the
+    // logical size becomes `viewport_width/height` and the DPI scale becomes `resolution_dpi` (96
+    // dpi at scale 1), so `@media (min-width|max-width|orientation|resolution)` and the viewport
+    // units follow the window. The cascade is re-resolved **only when a media answer can actually
+    // change**
+    // - when a breakpoint is crossed - so a drag-resize that crosses none costs one layout pass and
+    // no cascade rebuild. `cascade_generation()` is the counter that distinguishes the two.
     void resize(float width, float height, float dpi_scale);
 
     // Latches a full-target repaint for the next begin_frame(). Use it when the damage/redraw state
@@ -279,6 +293,12 @@ public:
     // else costs nothing. The media context the host resolves against is also readable.
     void set_appearance(const hal::AppearancePreference& appearance);
     [[nodiscard]] const ui::style::MediaContext& media_context() const;
+    // How many times the cascade has been resolved: 1 after construction, +1 for every rebuild
+    // (a theme switch, an appearance change, an embedded-sheet registration, and a resize that
+    // crosses a `@media` breakpoint - issue #436). It is the counter that separates "the cascade
+    // was re-resolved" from "the boxes were laid out again", which is the difference between a
+    // responsive stylesheet and one that never sees the window.
+    [[nodiscard]] std::uint64_t cascade_generation() const;
 
     [[nodiscard]] bool frame_due() const;
     [[nodiscard]] const ui::frame::FrameRender& last_render() const;

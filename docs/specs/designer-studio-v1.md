@@ -285,6 +285,12 @@ V1 controls and their protocol mapping:
 | Screenshot | page canvas readback (WebGPU `copyTextureToBuffer` + PNG) | Artifacts for review |
 | Pick mode | `pick.mode` | Selection from the preview |
 
+**A device preset or an orientation swap re-resolves `@media`** (issue #436): the viewer's logical
+size and DPR ARE its media context, so `@media (min-width|max-width|orientation|resolution)` and the
+viewport units answer for the rectangle on screen. A change re-lays the running evaluation out in
+place and re-resolves only when a breakpoint is crossed ([`responsive.md`](../design/responsive.md)
+section 2.1), so state, hover and focus survive it.
+
 Deferred: multi-window split, picture-in-picture, network throttling/offline, memory-pressure and
 thermal simulation, and animation timeline scrubbing.
 
@@ -304,33 +310,27 @@ Both half-opened postures are `FoldOcclusion::Full` and `separating`: that is th
 for layout, and it is the one `safe-area-v1.md` section 4 specifies.
 
 **One layout path, by construction.** The posture becomes `WindowMetrics::fold` and is consumed by
-`hal::resolve_safe_area` and the host's safe-area injection — the same functions the native app runs,
-with the same `ComposeStyle` writer. There is no preview-only resolution of the tokens and no second
-padding writer: a previewed foldable and a device differ only in who filled the metrics in. The
-mapping from a posture name to a `FoldInfo` lives once, in `tessera/hal/fold_posture.hpp`, and is
-what the Wasm viewer, the native preview CLI and MCP `set_viewport` all call.
+`hal::resolve_safe_area` and the host's safe-area injection — the same functions and the same
+`ComposeStyle` writer the native app runs, so a previewed foldable and a device differ only in who
+filled the metrics in. The posture-to-`FoldInfo` mapping lives once, in
+`tessera/hal/fold_posture.hpp`, and is what the Wasm viewer, the native preview CLI and MCP
+`set_viewport` all call.
 
-**One layout pass.** A posture change re-lays out a single time, inside the call that applies it,
-before any paint can observe the tree. `safe-area-v1.md` section 4's "never a flash of stale
-padding" is therefore structural rather than a timing assumption: there is no pending posture a
-later frame applies. A posture already in force runs no pass at all, so a repeated control event
-costs nothing.
+**One layout pass.** A posture or size change re-lays out a single time, inside the call that applies
+it, before any paint can observe the tree: `safe-area-v1.md` section 4's "never a flash of stale
+padding" is structural rather than a timing assumption, and a change already in force runs no pass.
 
-**Where the control appears.** Section 5.2 assigns the `foldable` skin category to a later slice
-(#171) and this one has no skin picker, so the posture control is offered on the toolbar for every
-skin: until a category can be selected, the posture *is* how a foldable is chosen. The absent value
-is the unfolded desktop case, so a visitor who ignores the control previews what they previewed
-before it existed.
-
-**What does not ship here.** The hinge is not drawn as an overlay yet: the table row "Safe-area and
-cutout overlay" above is its own page-only overlay, and the hinge joins it when that overlay lands.
-Until then the hinge is observable through the layout it causes — the single pane and its inset in
-the Scene view's node bounds — which is what the acceptance asks for and what the evidence below
-asserts. The `foldable` skin category and its art remain #171's.
+**Where the control appears.** Section 5.2 assigns the `foldable` skin category to #171 and this
+slice has no skin picker, so the posture control is on the toolbar for every skin: until a category
+can be selected, the posture *is* how a foldable is chosen, and the absent value is the unfolded
+desktop case. The hinge is not drawn as an overlay yet (the "Safe-area and cutout overlay" row above
+is its own slice, #433); until then it is observable through the layout it causes — the single pane
+and its inset in the Scene view's node bounds, which is what the acceptance asks for.
 
 Evidence: ctest `fold_posture` (the posture to `FoldInfo` mapping and the rotation rule),
 `scene_fold` (the preview's insets against a real `AppHost` on the same metrics, and one-pass
-posture changes), `mcp_preview_tools` (MCP snapshots byte-identical to the driver);
+posture changes), `scene_viewport` (a resize re-resolving `@media` in place and the generation
+counter), `mcp_preview_tools` (MCP snapshots byte-identical to the driver);
 `scripts/ci/preview_studio_smoke.mjs` and `scripts/ci/preview_share_roundtrip.mjs` for the control
 and the link that carries it.
 

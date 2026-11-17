@@ -213,6 +213,12 @@ path replays a settled scene instead of re-emitting it.
   `FramePipeline` user that swaps a style generation must call `invalidate_paint_cache()` itself.
   An interpolated (`PaintView`) frame bypasses the cache instead of invalidating it, so its records
   stay valid for the next non-interpolated paint of the same generation.
+  **A resize is a new generation only when it crosses a `@media` breakpoint** (issue #436): the
+  window is the media context, and `AppHost::resize` re-resolves the cascade - and therefore drops
+  the records - only when a `@media` answer can actually change. A resize that crosses none marks
+  layout/paint/render and keeps the cache, which is the difference the browser lane measures as a
+  frame count. The rule and its counter are in
+  [`responsive.md`](responsive.md) section 2.1 (`AppHost::cascade_generation()`).
 - **Config:** `FramePipelineConfig::paint_cache` (default `true`) selects the pipeline-owned cache.
   When false the paint context gets a null cache and the pass is byte-identical to the pre-cache
   pipeline.

@@ -96,7 +96,14 @@ PreparedScene prepare_scene(std::string_view text, const ScenePreviewOptions& op
     // frame and the browser session cannot disagree about which sheet a source was laid out
     // against. The diagnostics come from the same call, so a rule the sheet reports is a rule
     // layout also saw.
-    scene.sheet = compile_preview_stylesheet(options.stylesheet);
+    //
+    // The media context is the preview's simulated device (issue #436): the logical viewport this
+    // document is laid out at and the DPI scale, so `@media (max-width: 600px)` and the viewport
+    // units answer for the rectangle the boxes are in - which is what makes a device preset
+    // trigger a breakpoint at all.
+    scene.sheet = compile_preview_stylesheet(
+        options.stylesheet,
+        preview_media_context(options.width, options.height, options.dpi_scale));
     scene.css_diagnostics =
         author_stylesheet_diagnostics(options.stylesheet, options.stylesheet_file);
     ui::layout::LayoutEngine engine(measurer);

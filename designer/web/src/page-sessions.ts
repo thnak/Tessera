@@ -57,6 +57,13 @@ export interface Sessions {
 export function useSessions(deps: SessionDeps, settled: boolean): Sessions {
   const sessions = useRef<Partial<Record<ViewDefinition["id"], ViewSession>>>({});
   const started = useRef<Partial<Record<ViewDefinition["id"], boolean>>>({});
+  // The toolbar readers, read through a ref (issue #436). The effect below runs once, but `deps`'s
+  // `environment`/`environmentOf`/`foldPosture` are `useCallback`s over the toolbar state, so they are
+  // NEW functions after every control change. Capturing the first ones gave the Canvas session a
+  // permanently stale viewport: the select moved, `onEnvironmentChange` fired, and the module was
+  // handed 320x240 forever. The sessions therefore ask this ref, which always holds the newest deps.
+  const latest = useRef(deps);
+  latest.current = deps;
 
   useEffect(() => {
     const pane = deps.refs;
@@ -111,8 +118,8 @@ export function useSessions(deps: SessionDeps, settled: boolean): Sessions {
         source: deps.source,
         setStatus: (text, kind) => setStatusText(status, text, kind ?? null),
         setInputStatus: (text, kind) => setStatusText(inputStatus, text, kind ?? null),
-        environment: deps.environment,
-        foldPosture: deps.foldPosture,
+        environment: () => latest.current.environment(),
+        foldPosture: () => latest.current.foldPosture(),
         onReady: (ready) => {
           if (deps.isCurrent("scene")) {
             deps.setters.setRunEnabled(ready);
@@ -165,8 +172,8 @@ export function useSessions(deps: SessionDeps, settled: boolean): Sessions {
         },
         source: deps.source,
         setStatus: (text, kind) => setStatusText(status, text, kind ?? null),
-        environment: deps.environmentOf,
-        foldPosture: deps.foldPosture,
+        environment: () => latest.current.environmentOf(),
+        foldPosture: () => latest.current.foldPosture(),
         onReady: (ready) => {
           if (deps.isCurrent("canvas")) {
             deps.setters.setRunEnabled(ready);

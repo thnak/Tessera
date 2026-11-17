@@ -179,8 +179,10 @@ InputRunResult run_input_script(std::string_view text, const ScenePreviewOptions
     // The same choice the snapshot and the canvas make (issue #390): the author's sheet when there
     // is one, the built-in fallback otherwise. A scripted click must resolve style against the
     // sheet the page shows, or the state cells it reports would come from a differently styled
-    // tree.
-    const ui::style::CompiledStyleSheet sheet = compile_preview_stylesheet(options.stylesheet);
+    // tree. The viewport is the media context too (issue #436), exactly as in `prepare_scene()`.
+    const ui::style::CompiledStyleSheet sheet = compile_preview_stylesheet(
+        options.stylesheet,
+        preview_media_context(options.width, options.height, options.dpi_scale));
     PreviewSession::Options session_options;
     session_options.width = options.width;
     session_options.height = options.height;
