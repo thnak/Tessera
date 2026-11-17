@@ -104,8 +104,9 @@ codegen::CodegenResult generate_base(const ir::IrModule& module,
 ir::IrModule make_module() {
     ir::IrModule module;
     module.name = "demo";
-    module.stylesheets = {ir::StylesheetRef{"css::ui/app", "ui/app.css", "fnv1a64:0"},
-                          ir::StylesheetRef{"css::ui/sub/card", "ui/sub/card.css", "fnv1a64:1"}};
+    module.stylesheets = {
+        ir::StylesheetRef{"css::ui/app", "ui/app.css", "fnv1a64:0", {}},
+        ir::StylesheetRef{"css::ui/sub/card", "ui/sub/card.css", "fnv1a64:1", {}}};
     return module;
 }
 

@@ -6,6 +6,7 @@
 // another project file, and becomes a `Component` node naming it (never an inlined subtree). File
 // reading stays with the caller.
 
+#include "module_css.hpp"
 #include "node_lowering_internal.hpp"
 #include "record_internal.hpp"
 #include "tessera/compiler/lowering/library_components.hpp"
@@ -13,7 +14,6 @@
 
 #include <algorithm>
 #include <cstddef>
-#include <cstdint>
 #include <expected>
 #include <optional>
 #include <span>
@@ -31,6 +31,8 @@ struct FileEntry {
     std::vector<ComponentRef> component_refs; // local declarations and imported components
     std::vector<std::size_t> import_targets;  // indices of files this file value-imports from
     std::vector<std::string> declared_names;  // component names declared here
+    // Issue #463: the CSS modules this file imports as a class map (`import styles from ...`).
+    std::vector<CssModuleBinding> css_modules;
     // Names still to resolve (issue #70): named imports and type re-exports of the project. Module
     // paths are resolved here; `build_type_names` follows the names.
     std::vector<internal::ProjectModuleRef> named_imports;
@@ -39,58 +41,23 @@ struct FileEntry {
 
 struct ProjectState {
     std::vector<FileEntry> files;
-    std::vector<std::size_t> order;             // file indices sorted by path, the lowering order
-    std::vector<ir::StylesheetRef> stylesheets; // deduplicated, sorted at the end
+    std::vector<std::size_t> order; // file indices sorted by path, the lowering order
+    internal::StylesheetSet css;
     std::optional<jsx::Diagnostic> error;
 };
-
-// FNV-1a 64 over the file bytes: deterministic, dependency-free, and enough to detect a changed
-// stylesheet (it is a change marker, not a security digest).
-std::string stylesheet_hash(std::string_view text) {
-    std::uint64_t hash = 14695981039346656037ULL;
-    for (const char c : text) {
-        hash = (hash ^ static_cast<unsigned char>(c)) * 1099511628211ULL;
-    }
-    constexpr std::string_view kHex = "0123456789abcdef";
-    std::string out = "fnv1a64:";
-    for (int shift = 60; shift >= 0; shift -= 4) {
-        out.push_back(kHex[(hash >> shift) & 0xF]);
-    }
-    return out;
-}
-
-jsx::Diagnostic make_diagnostic(const ModuleSource& source, std::string_view code,
-                                std::string_view message, jsx::Span span,
-                                std::string_view suggestion = {}) {
-    return jsx::Diagnostic{code,
-                           jsx::Severity::Error,
-                           std::string(message),
-                           source.source_map != nullptr ? source.source_map->resolve(span)
-                                                        : jsx::ResolvedSpan{},
-                           std::string(suggestion),
-                           std::nullopt};
-}
 
 void fail(ProjectState& state, const ModuleSource& source, std::string_view code,
           std::string_view message, jsx::Span span, std::string_view suggestion = {}) {
     if (!state.error) {
-        state.error = make_diagnostic(source, code, message, span, suggestion);
+        state.error = internal::make_diagnostic(source, jsx::Severity::Error, code,
+                                                std::string(message), span, suggestion);
     }
 }
 
-std::string directory_of(std::string_view file) {
-    const std::size_t slash = file.rfind('/');
-    return slash == std::string_view::npos ? std::string() : std::string(file.substr(0, slash));
-}
-
-// "ui/Counter.tsx" -> "ui/Counter"; an import source omits the extension (subset section 4).
-std::string without_extension(std::string_view path) {
-    const std::size_t dot = path.rfind('.');
-    const std::size_t slash = path.rfind('/');
-    if (dot == std::string_view::npos || (slash != std::string_view::npos && dot < slash)) {
-        return std::string(path);
+void fail(ProjectState& state, jsx::Diagnostic diagnostic) {
+    if (!state.error) {
+        state.error = std::move(diagnostic);
     }
-    return std::string(path.substr(0, dot));
 }
 
 const jsx::ModuleItem* find_declaration(const jsx::Module& module, std::string_view name) {
@@ -136,34 +103,24 @@ constexpr std::size_t kNoFile = static_cast<std::size_t>(-1);
 // Index of the project file whose path (without its extension) is `key`, or kNoFile.
 std::size_t find_project_file(const ProjectState& state, std::string_view key) {
     for (std::size_t candidate = 0; candidate < state.files.size(); ++candidate) {
-        if (without_extension(state.files[candidate].source->file) == key) {
+        if (internal::without_extension(state.files[candidate].source->file) == key) {
             return candidate;
         }
     }
     return kNoFile;
 }
 
-// Resolves a side-effect CSS import against the caller-provided files and records it once.
-bool resolve_stylesheet(ProjectState& state, const ModuleSource& source,
+// Resolves one CSS import of `source`: a side-effect import records the sheet, and a CSS module
+// import (issue #463) also scans its class map into the file's bindings.
+bool resolve_stylesheet(ProjectState& state, const ModuleSource& source, FileEntry& entry,
                         const jsx::ModuleItem& item, std::span<const StylesheetFile> stylesheets) {
-    const std::string path = join_project_path(directory_of(source.file), item.source);
-    const auto found =
-        std::find_if(stylesheets.begin(), stylesheets.end(),
-                     [&](const StylesheetFile& sheet) { return sheet.path == path; });
-    if (found == stylesheets.end()) {
-        fail(state, source, "TESSERA_IR_STYLESHEET_MISSING",
-             "stylesheet `" + item.source + "` (`" + path + "`) is missing or unreadable",
-             item.span, "create the file or fix the import path");
-        return false;
+    std::optional<jsx::Diagnostic> diagnostic =
+        state.css.resolve(source, item, stylesheets, entry.css_modules);
+    if (!diagnostic) {
+        return true;
     }
-    const bool known =
-        std::any_of(state.stylesheets.begin(), state.stylesheets.end(),
-                    [&](const ir::StylesheetRef& sheet) { return sheet.path == path; });
-    if (!known) {
-        state.stylesheets.push_back(ir::StylesheetRef{"css::" + without_extension(path), path,
-                                                      stylesheet_hash(found->text)});
-    }
-    return true;
+    fail(state, std::move(*diagnostic));
+    return false;
 }
 
 // The project file a relative or package specifier names, or nullopt after reporting why it does
@@ -203,7 +160,7 @@ std::optional<std::size_t> resolve_project_file(ProjectState& state, const Modul
         target_key = sub.empty() ? join_project_path(package->root, "index")
                                  : join_project_path(package->root, sub);
     } else {
-        target_key = join_project_path(directory_of(source.file), item.source);
+        target_key = join_project_path(internal::directory_of(source.file), item.source);
     }
     const std::size_t target = find_project_file(state, target_key);
     if (target == kNoFile) {
@@ -301,8 +258,11 @@ bool resolve_imports(ProjectState& state, std::size_t index, std::span<const Pac
             entry.re_exports.push_back(internal::ProjectModuleRef{&item, *target});
             continue;
         }
-        if (item.kind == jsx::ItemKind::Import && item.side_effect) {
-            if (!resolve_stylesheet(state, source, item, stylesheets)) {
+        // Issue #463: a CSS module default import names a stylesheet and binds its class map, so it
+        // is resolved here like a side-effect import (never as a project file).
+        if (item.kind == jsx::ItemKind::Import &&
+            (item.side_effect || !item.css_module_binding.empty())) {
+            if (!resolve_stylesheet(state, source, entry, item, stylesheets)) {
                 return false;
             }
             continue;
@@ -370,6 +330,7 @@ std::optional<LoweredModule> finish(ProjectState& state, std::string_view module
     if (records != nullptr) {
         lower.types = *records;
     }
+    std::vector<CssModuleUse> css_uses;
     for (const std::size_t index : state.order) {
         const FileEntry& entry = state.files[index];
         const ModuleSource& source = *entry.source;
@@ -391,7 +352,8 @@ std::optional<LoweredModule> finish(ProjectState& state, std::string_view module
                                               entry.component_refs,
                                               source.module,
                                               types,
-                                              records};
+                                              records,
+                                              entry.css_modules};
             LoweredComponentResult component = lower_component(context);
             if (!component) {
                 if (!state.error && !component.error().empty()) {
@@ -402,9 +364,27 @@ std::optional<LoweredModule> finish(ProjectState& state, std::string_view module
             for (ir::Binding& binding : component->bindings) {
                 lower.bindings.push_back(std::move(binding));
             }
+            for (CssModuleUse& use : component->css_module_uses) {
+                css_uses.push_back(std::move(use));
+            }
             lower.components.push_back(std::move(component->component));
         }
     }
+    // Issue #463: a class of a module sheet that no component read is a warning. Uses are per
+    // component, so collapse them first; the sheets are sorted by path and their classes by name.
+    std::sort(css_uses.begin(), css_uses.end(),
+              [](const CssModuleUse& left, const CssModuleUse& right) {
+                  if (left.path != right.path) {
+                      return left.path < right.path;
+                  }
+                  return left.local < right.local;
+              });
+    css_uses.erase(std::unique(css_uses.begin(), css_uses.end(),
+                               [](const CssModuleUse& left, const CssModuleUse& right) {
+                                   return left.path == right.path && left.local == right.local;
+                               }),
+                   css_uses.end());
+    lower.warnings = state.css.unused_classes(css_uses);
     // Library components are IR data, not project files: include each referenced one once. A
     // project component of the same name wins (the local declaration is the reference target), so
     // the built-in declaration is only added when the name is not declared anywhere.
@@ -436,7 +416,7 @@ std::optional<LoweredModule> finish(ProjectState& state, std::string_view module
             lower.components.push_back(make_library_component(*find_library_component(name)));
         }
     }
-    lower.stylesheets = state.stylesheets;
+    lower.stylesheets = state.css.stylesheets;
     std::sort(lower.stylesheets.begin(), lower.stylesheets.end(),
               [](const ir::StylesheetRef& left, const ir::StylesheetRef& right) {
                   return left.path < right.path;
@@ -463,9 +443,9 @@ ModuleLoweringResult lower_files(std::span<const ModuleSource> sources,
     for (std::size_t i = 0; i < sources.size(); ++i) {
         if (sources[i].module == nullptr || sources[i].analysis == nullptr ||
             sources[i].source_map == nullptr) {
-            state.error =
-                make_diagnostic(sources[i], "TESSERA_IR_MALFORMED",
-                                "a module source needs its module, analysis and map", jsx::Span{});
+            state.error = internal::make_diagnostic(
+                sources[i], jsx::Severity::Error, "TESSERA_IR_MALFORMED",
+                "a module source needs its module, analysis and map", jsx::Span{});
             return std::unexpected(NodeLoweringErrors{*state.error});
         }
         state.files[i].source = &sources[i];
@@ -473,8 +453,8 @@ ModuleLoweringResult lower_files(std::span<const ModuleSource> sources,
     for (std::size_t i = 0; i < sources.size(); ++i) {
         for (std::size_t j = i + 1; j < sources.size(); ++j) {
             if (sources[i].file == sources[j].file) {
-                state.error = make_diagnostic(
-                    sources[i], "TESSERA_IR_MALFORMED",
+                state.error = internal::make_diagnostic(
+                    sources[i], jsx::Severity::Error, "TESSERA_IR_MALFORMED",
                     "the same file is lowered twice: " + std::string(sources[i].file), jsx::Span{});
                 return std::unexpected(NodeLoweringErrors{*state.error});
             }
@@ -493,6 +473,12 @@ ModuleLoweringResult lower_files(std::span<const ModuleSource> sources,
             return std::unexpected(NodeLoweringErrors{*state.error});
         }
     }
+    // Issue #463: two module sheets whose 24-bit path hash collides would silently share a scope.
+    // The set keeps its sheets sorted by path, so the reported pair is deterministic.
+    if (std::optional<jsx::Diagnostic> collision = state.css.check_collisions()) {
+        fail(state, std::move(*collision));
+        return std::unexpected(NodeLoweringErrors{*state.error});
+    }
     // A component name is project-wide unique (design decision 3).
     for (std::size_t i = 0; i < state.files.size(); ++i) {
         for (std::size_t j = i + 1; j < state.files.size(); ++j) {
@@ -500,8 +486,8 @@ ModuleLoweringResult lower_files(std::span<const ModuleSource> sources,
                 if (std::find(state.files[j].declared_names.begin(),
                               state.files[j].declared_names.end(),
                               name) != state.files[j].declared_names.end()) {
-                    state.error = make_diagnostic(
-                        *state.files[i].source, "TESSERA_IR_DUPLICATE_ID",
+                    state.error = internal::make_diagnostic(
+                        *state.files[i].source, jsx::Severity::Error, "TESSERA_IR_DUPLICATE_ID",
                         "component `" + name + "` is declared in two files", jsx::Span{});
                     return std::unexpected(NodeLoweringErrors{*state.error});
                 }
@@ -511,8 +497,9 @@ ModuleLoweringResult lower_files(std::span<const ModuleSource> sources,
     std::vector<int> color(state.files.size(), 0);
     for (std::size_t i = 0; i < state.files.size(); ++i) {
         if (has_import_cycle(state.files, i, color)) {
-            state.error = make_diagnostic(*state.files[i].source, "TESSERA_IR_UNSUPPORTED",
-                                          "import cycle between project files", jsx::Span{});
+            state.error = internal::make_diagnostic(
+                *state.files[i].source, jsx::Severity::Error, "TESSERA_IR_UNSUPPORTED",
+                "import cycle between project files", jsx::Span{});
             return std::unexpected(NodeLoweringErrors{*state.error});
         }
     }

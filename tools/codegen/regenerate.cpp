@@ -12,6 +12,7 @@
 #include "regenerate.hpp"
 #include "regenerate_assets.hpp"
 #include "regenerate_source_file.hpp"
+#include "regenerate_stylesheets.hpp"
 #include "regenerate_text.hpp"
 #include "tessera/compiler/codegen/codegen.hpp"
 #include "tessera/compiler/ids/assign_identity.hpp"
@@ -344,57 +345,23 @@ Outcome run_impl(const Options& options) {
     for (const PackageRootSpec& spec : identity->packages) {
         packages.push_back(lowering::PackageRoot{spec.name, spec.root});
     }
-    // Stylesheets of side-effect CSS imports (issue #80): read here, hashed by lowering. A file
-    // that cannot be read is simply not offered, so lowering reports it at the import's span.
-    std::vector<std::string> stylesheet_paths;
-    std::vector<std::string> stylesheet_texts;
-    for (const auto& source : sources) {
-        for (const jsx::ModuleItem& item : source->parsed.root->items) {
-            if (item.kind != jsx::ItemKind::Import || !item.side_effect) {
-                continue;
-            }
-            const std::size_t slash = source->path.rfind('/');
-            std::string path = lowering::join_project_path(
-                slash == std::string::npos ? std::string_view()
-                                           : std::string_view(source->path).substr(0, slash),
-                item.source);
-            if (std::find(stylesheet_paths.begin(), stylesheet_paths.end(), path) !=
-                stylesheet_paths.end()) {
-                continue;
-            }
-            const fs::path on_disk =
-                project_paths
-                    ? identity->root / fs::path(path)
-                    : (disk_input(options, source->path).parent_path() / fs::path(item.source))
-                          .lexically_normal();
-            std::optional<std::string> text = read_file(on_disk);
-            if (!text) {
-                // A missing file stays lowering's error at the import's span (TESSERA_IR_
-                // STYLESHEET_MISSING); an existing file the CLI cannot read is a build failure.
-                std::error_code exists_error;
-                if (fs::exists(on_disk, exists_error)) {
-                    report(outcome, true,
-                           path + ":1:1: TESSERA_CSS_READ: cannot read the stylesheet `" + path +
-                               "`");
-                    outcome.exit_code = 1;
-                    return outcome;
-                }
-                continue;
-            }
-            stylesheet_paths.push_back(std::move(path));
-            stylesheet_texts.push_back(std::move(*text));
-        }
+    // Stylesheets of the module's CSS imports (issues #80, #463): read here, hashed by lowering.
+    // A `*.module.css` contributes its scoped rewrite to the blob and its own bytes to the hash, so
+    // the page's scoped `className` values and the blob's selectors agree.
+    std::vector<internal::StylesheetSource> stylesheets;
+    if (!internal::collect_stylesheets(sources, options, *identity, project_paths, stylesheets,
+                                       outcome)) {
+        return outcome;
     }
     const std::optional<std::vector<StylesheetEmbed>> embeds =
-        build_stylesheet_embeds(stylesheet_paths, stylesheet_texts, outcome);
+        build_stylesheet_embeds(stylesheets, outcome);
     if (!embeds) {
         return outcome;
     }
     std::vector<lowering::StylesheetFile> stylesheet_files;
-    stylesheet_files.reserve(stylesheet_paths.size());
-    for (std::size_t i = 0; i < stylesheet_paths.size(); ++i) {
-        stylesheet_files.push_back(
-            lowering::StylesheetFile{stylesheet_paths[i], stylesheet_texts[i]});
+    stylesheet_files.reserve(stylesheets.size());
+    for (const internal::StylesheetSource& sheet : stylesheets) {
+        stylesheet_files.push_back(lowering::StylesheetFile{sheet.path, sheet.file_text});
     }
     lowering::ModuleLoweringResult lowered =
         lowering::lower_project(std::span<const lowering::ModuleSource>(module_sources),
@@ -411,6 +378,11 @@ Outcome run_impl(const Options& options) {
     }
 
     lowering::LoweredModule lowered_module = std::move(*lowered);
+    // Issue #463: a finding that is not an error (an unread CSS-module class) still has to reach
+    // the author, so lowering's warning channel is printed the same way codegen's is.
+    for (const lowering::LoweringWarning& warning : lowered_module.warnings) {
+        report_diagnostic(outcome, warning.file, warning.diagnostic);
+    }
     ir::IrModule module;
     module.name = lowered_module.name;
     module.components = std::move(lowered_module.components);

@@ -34,6 +34,9 @@ struct NodeState {
     unsigned loop_depth = 0;              // enclosing `.map` loops; at most 2 (ir-v1 section 5)
     unsigned slot_count = 0;              // `{children}` positions; at most one (ir-v1 section 3.4)
     unsigned span_depth = 0; // inside a Text inline span (elements-basic.md section 2.1)
+    // Issue #463: the `styles.<class>` reads resolved so far, collected into the lowered component
+    // so the module pass can report classes no TSX reads.
+    std::vector<CssModuleUse> css_module_uses;
 };
 
 // Reports a TESSERA_IR_* error at `span` unless one was already reported. The diagnostic keeps a
@@ -156,6 +159,18 @@ struct ChildItem {
 // `style={{...}}`: object literal only; camelCase keys become kebab-case and numbers of length
 // properties become "<n>px" (decision 10). The property names are checked against the schema.
 [[nodiscard]] bool lower_style(NodeState& state, const jsx::Expr& object, ir::Node& node);
+
+// Issue #463: folds a `className` expression whose `styles.<class>` references resolve to their
+// scoped names (`styles.title`, a template of them, or `+` concatenation). `NotApplicable` when the
+// expression reads no CSS module at all, so the ordinary expression lowering handles it; `Resolved`
+// carries the folded class string; `Error` means a diagnostic was reported.
+struct CssModuleClass {
+    enum class Kind : std::uint8_t { NotApplicable, Resolved, Error };
+
+    Kind kind = Kind::NotApplicable;
+    std::string text;
+};
+[[nodiscard]] CssModuleClass resolve_css_module_class(NodeState& state, const jsx::Expr& expr);
 
 // `backgroundColor` -> `background-color` (subset 10.3).
 [[nodiscard]] std::string style_property_name(std::string_view camel_case);

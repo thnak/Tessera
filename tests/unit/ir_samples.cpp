@@ -67,7 +67,7 @@ ir::IrModule make_counter_module() {
     binding.region = "on_click";
     module.bindings.push_back(std::move(binding));
 
-    module.stylesheets.push_back({"css::app", "ui/app.css", "sha256:placeholder"});
+    module.stylesheets.push_back({"css::app", "ui/app.css", "sha256:placeholder", {}});
     return module;
 }
 

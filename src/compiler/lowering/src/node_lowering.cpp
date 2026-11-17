@@ -187,6 +187,9 @@ LoweredComponentResult lower_component(const HookLoweringContext& base_context) 
     component.animated_values = std::move(hooks->animated_values);
     component.root = std::move(*root);
     lowered.bindings = std::move(hooks->bindings);
+    // Issue #463: the CSS module reads belong to the module pass, which compares them against every
+    // scanned sheet to report a class no TSX reads.
+    lowered.css_module_uses = std::move(state.css_module_uses);
     return lowered;
 }
 

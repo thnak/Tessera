@@ -187,9 +187,13 @@ Rules:
     project-relative POSIX path ([`stylesheet-v1.md`](stylesheet-v1.md) section 3). The specifier
     must end in `.module.css`, and the path rules of every other import still apply (absolute, drive
     and UNC paths are errors). **`styles.<ident>` is its only allowed use**: a static member access
-    that lowers to the scoped class name. `styles[k]`, a spread of `styles`, and passing `styles` to
-    a function or a prop are `TESSERA_JSX_STYLES_DYNAMIC` (the same reason `style` keys must be
-    static, section 10.3). A `styles.<ident>` with no matching class in the file is
+    that lowers to the scoped class name. A `className` that reads a CSS module must fold to one
+    class string at compile time; anything else — a bare `styles`, a conditional, any expression
+    the compiler cannot evaluate — is `TESSERA_JSX_STYLES_DYNAMIC` (the same reason `style` keys
+    must be static, section 10.3). Two forms are refused earlier by the subset's own rules:
+    `styles[k]` is `TESSERA_JSX_SUBSET_MEMBER` (indexing is never supported) and `{...styles}` is
+    `TESSERA_JSX_SUBSET_SPREAD`, since a more fundamental error is the more useful one to report.
+    A `styles.<ident>` with no matching class in the file is
     `TESSERA_CSS_MODULE_UNKNOWN_CLASS`, an error naming the file and the class. `:global(.x)` leaves
     one class unrenamed; the block form `:global { ... }` is not supported. `import type` binds
     types, and a class map is a value, so `import type styles from "./Card.module.css";` stays

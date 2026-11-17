@@ -207,7 +207,7 @@ void test_determinism_and_order() {
 
     // With stylesheet blobs too, the theme file is exactly one more file and comes after them.
     ir::IrModule module = make_module();
-    module.stylesheets = {ir::StylesheetRef{"css::ui/app", "ui/app.css", "fnv1a64:0"}};
+    module.stylesheets = {ir::StylesheetRef{"css::ui/app", "ui/app.css", "fnv1a64:0", {}}};
     const std::vector<codegen::StylesheetEmbed> embeds{{"ui/app.css", {0xaa, 0xbb}}};
     const auto both = generate_base(module, embeds, codegen::EmbeddedTheme{bytes});
     check(both.has_value(), "a module with a sheet and a theme generates");

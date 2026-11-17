@@ -133,6 +133,16 @@ bool apply_expression_attribute(NodeState& state, const ElementInfo& element, st
                       span);
             return false;
         }
+        // Issue #463: a `styles.<class>` read folds to its scoped name before the ordinary
+        // expression rules see it (an expression with no CSS module reference passes through).
+        CssModuleClass css = resolve_css_module_class(state, value);
+        if (css.kind == CssModuleClass::Kind::Error) {
+            return false;
+        }
+        if (css.kind == CssModuleClass::Kind::Resolved) {
+            put_prop(node, "className", ir::make_literal(std::move(css.text)));
+            return true;
+        }
         ir::ExprPtr lowered = lower_node_expression(state, value);
         if (!lowered) {
             return false;

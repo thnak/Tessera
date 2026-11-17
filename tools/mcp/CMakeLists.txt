@@ -48,6 +48,7 @@ target_sources(tessera_mcp_core PRIVATE
     # cannot drift from the CLI's (the acceptance of issue #406).
     ${PROJECT_SOURCE_DIR}/tools/codegen/regenerate.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate_source_file.cpp
+    ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate_stylesheets.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate_text.cpp
     ${PROJECT_SOURCE_DIR}/tools/codegen/regenerate_assets.cpp
     ${PROJECT_SOURCE_DIR}/tools/codegen/project_identity.cpp
@@ -67,6 +68,8 @@ target_link_libraries(tessera_mcp_core PUBLIC
     # `generate` hashes the generated files with the in-tree SHA-256 (issue #407).
     tessera_automation
     tessera_schema
+    # A `*.module.css` is scoped before it is embedded (issue #463).
+    tessera_css_module
     tessera_style
     # `snapshot` and `set_viewport` (issue #408): the preview driver the browser module and the
     # native preview CLI also link, so the agent's snapshot is one implementation rather than a

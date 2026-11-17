@@ -119,18 +119,18 @@ style::ComponentPartRegistry library_part_registry() {
 // so `StylesheetEmbed::bytes` is exactly `serialize_stylesheet()` output and the codegen library
 // never sees a stylesheet engine header.
 std::optional<std::vector<StylesheetEmbed>>
-build_stylesheet_embeds(std::span<const std::string> paths, std::span<const std::string> texts,
-                        Outcome& outcome) {
+build_stylesheet_embeds(std::span<const StylesheetSource> sheets, Outcome& outcome) {
     std::vector<StylesheetEmbed> embeds;
-    embeds.reserve(paths.size());
+    embeds.reserve(sheets.size());
     const style::ComponentPartRegistry parts = library_part_registry();
-    for (std::size_t i = 0; i < paths.size(); ++i) {
-        if (const std::optional<std::string> error = stylesheet_syntax_error(paths[i], texts[i])) {
+    for (const StylesheetSource& sheet : sheets) {
+        if (const std::optional<std::string> error =
+                stylesheet_syntax_error(sheet.path, sheet.blob_text)) {
             report(outcome, true, *error);
             outcome.exit_code = 1;
             return std::nullopt;
         }
-        const style::PreparedStyleSheet prepared = style::prepare_stylesheet(texts[i]);
+        const style::PreparedStyleSheet prepared = style::prepare_stylesheet(sheet.blob_text);
         // `::part(name)` on a library component that does not declare `name` is a warning, not an
         // error: the rule simply never matches (stylesheet-v1 section 6.3).
         for (const style::StyleDiagnostic& diagnostic :
@@ -141,13 +141,13 @@ build_stylesheet_embeds(std::span<const std::string> paths, std::span<const std:
             record.code = "TESSERA_CSS_UNDECLARED_PART";
             record.severity = "warning";
             record.message = diagnostic.message;
-            record.span = css_span(paths[i], texts[i], diagnostic.offset);
+            record.span = css_span(sheet.path, sheet.blob_text, diagnostic.offset);
             report(outcome, false,
-                   css_diagnostic_text(paths[i], texts[i], diagnostic.offset,
+                   css_diagnostic_text(sheet.path, sheet.blob_text, diagnostic.offset,
                                        "TESSERA_CSS_UNDECLARED_PART: " + diagnostic.message),
                    std::move(record));
         }
-        embeds.push_back(StylesheetEmbed{paths[i], style::serialize_stylesheet(prepared)});
+        embeds.push_back(StylesheetEmbed{sheet.path, style::serialize_stylesheet(prepared)});
     }
     return embeds;
 }

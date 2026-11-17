@@ -14,6 +14,7 @@ set(_tessera_lowering_core_sources
     src/component_names.cpp
     src/control_lowering.cpp
     src/callback_forward.cpp
+    src/css_module_class_name.cpp
     src/event_lowering.cpp
     src/expression_lowering.cpp
     src/handler_actions.cpp
@@ -22,6 +23,7 @@ set(_tessera_lowering_core_sources
     src/hook_lookups.cpp
     src/hook_type.cpp
     src/literal_lowering.cpp
+    src/module_css.cpp
     src/module_lowering.cpp
     src/node_attributes.cpp
     src/node_children.cpp
@@ -50,17 +52,21 @@ target_link_libraries(tessera_lowering_core PUBLIC
     tessera_jsx_frontend
     tessera_ir
     tessera_react_rules
-    tessera_schema)
+    tessera_schema
+    tessera_css_module)
 target_compile_features(tessera_lowering_core PUBLIC cxx_std_23)
 
 # Layering rule of docs/design/jsx-ir-lowering.md section 6: lowering is the only layer that sees
 # the AST, the analysis, the shared schema and the IR. Keep the core dependency list closed.
+# `tessera_css_module` (issue #463) is allowed because its scan is scene-free: it links only
+# `tessera_css_tokenizer`, never the scene graph or the cascade, so the layering rule holds.
 get_target_property(_tessera_lowering_core_links tessera_lowering_core LINK_LIBRARIES)
 if (NOT _tessera_lowering_core_links STREQUAL
-    "tessera_jsx_frontend;tessera_ir;tessera_react_rules;tessera_schema")
+    "tessera_jsx_frontend;tessera_ir;tessera_react_rules;tessera_schema;tessera_css_module")
     message(FATAL_ERROR
         "tessera_lowering_core must link exactly tessera_jsx_frontend, tessera_ir, "
-        "tessera_react_rules and tessera_schema, found: ${_tessera_lowering_core_links}")
+        "tessera_react_rules, tessera_schema and tessera_css_module, found: "
+        "${_tessera_lowering_core_links}")
 endif ()
 
 # The build-time bootstrap registry: the generator lowers the library TSX before the generated
@@ -93,6 +99,7 @@ if (NOT CMAKE_CROSSCOMPILING)
         ${CMAKE_SOURCE_DIR}/tools/codegen/main.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate_source_file.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate_stylesheets.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate_text.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/regenerate_assets.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/diagnostics_json.cpp
@@ -108,7 +115,8 @@ if (NOT CMAKE_CROSSCOMPILING)
         tessera_ir_ids
         tessera_lowering_core
         tessera_lowering_bootstrap
-            tessera_style)
+        tessera_css_module
+        tessera_style)
 
     set(_tessera_library_generated_dir ${CMAKE_CURRENT_BINARY_DIR}/generated)
     set(_tessera_library_generated_cpp

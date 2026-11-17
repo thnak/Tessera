@@ -189,6 +189,16 @@ JsonValue to_json(const IrModule& module) {
         entry.set("id", JsonValue::string(sheet.id));
         entry.set("path", JsonValue::string(sheet.path));
         entry.set("hash", JsonValue::string(sheet.hash));
+        JsonValue classes = JsonValue::array();
+        for (const StylesheetClass& declared : sheet.classes) {
+            JsonValue item = JsonValue::object();
+            item.set("local", JsonValue::string(declared.local));
+            item.set("scoped", JsonValue::string(declared.scoped));
+            classes.push(std::move(item));
+        }
+        // Section 1.1: omitted when empty, so a plain `.css` sheet writes exactly the bytes it
+        // wrote before `classes` existed (issue #463).
+        add_if_not_empty(entry, "classes", std::move(classes));
         sheets.push(std::move(entry));
     }
     json.set("stylesheets", std::move(sheets));
