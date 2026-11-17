@@ -150,6 +150,8 @@ if (TESSERA_BUILD_TESTS)
 
     add_executable(paint_image_tests
         ${PROJECT_SOURCE_DIR}/tests/unit/paint_image_tests.cpp)
+    target_include_directories(paint_image_tests PRIVATE
+        ${PROJECT_SOURCE_DIR}/src/ui/paint)
     target_link_libraries(paint_image_tests PRIVATE
         tessera_paint
         tessera_rhi_null)

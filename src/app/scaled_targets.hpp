@@ -50,13 +50,15 @@ public:
         return resample_supported_;
     }
 
-    // Ensures `slot` has a target of exactly `extent` in `format`, creating or reusing it, and
-    // returns it. Null when the backend refuses or the request is empty; the caller then paints at
-    // full quality rather than dropping the frame (ADR-025 boundary). `fallback` is set when a
-    // creation attempt failed, so the host can count it without this type knowing about stats.
+    // Ensures `slot` has a target of exactly `extent` in `format` and with `sample_count` samples
+    // (1, or 4 for the MSAA presentation), creating or reusing it, and returns it. Null when the
+    // backend refuses or the request is empty; the caller then paints at full quality rather than
+    // dropping the frame (ADR-025 boundary). `fallback` is set when a creation attempt failed, so
+    // the host can count it without this type knowing about stats.
     [[nodiscard]] rhi::RenderTarget* ensure(rhi::Device& device, std::size_t slot,
                                             rhi::Extent2D extent, rhi::TextureFormat format,
-                                            rhi::Color clear_color, bool& fallback);
+                                            rhi::Color clear_color, std::uint32_t sample_count,
+                                            bool& fallback);
 
     // Releases every target without touching the capability, for teardown of the images alone.
     void release();
@@ -70,10 +72,13 @@ public:
 
 private:
     // The extent a slot's target holds; a mismatch means the target must be recreated, and the
-    // format is compared against the live target itself (it is a property of the generation).
+    // format and sample count are compared against the live target itself (they are properties of
+    // the generation). The sample count is the presentation's (1 without MSAA, 4 with it), so a
+    // policy change that recreated the stack starts from a fresh target.
     struct Entry {
         std::unique_ptr<rhi::RenderTarget> target;
         rhi::Extent2D extent{};
+        std::uint32_t sample_count = 1;
     };
 
     bool resample_supported_ = false;

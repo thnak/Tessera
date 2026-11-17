@@ -6,11 +6,15 @@
 //   - `pauseWhenOccluded`      -> WindowPausePolicy for occluded and minimized windows;
 //   - the adaptive-quality keys -> AdaptiveQualityPolicy (the controller itself is tested in
 //     adaptive_quality_tests.cpp).
+// It also pins the S8 presentation gate: the AA policy's MSAA decision is what the window consumes,
+// and only a capable, non-golden device may present 4x (display-aware-rendering.md section 4).
 //
 // The mapping layer is pure, so it is tested without a GPU or a window. The last case drives the
 // mapped FramePipelineConfig through FramePipeline's paint seam: with the key off the painted
 // transform is the authoritative tick state, with it on the frame paints the blended value.
 
+#include "tessera/app/window.hpp"
+#include "tessera/hal/window.hpp"
 #include "tessera/runtime/config.hpp"
 #include "tessera/runtime/runtime_loop.hpp"
 #include "tessera/ui/frame_pipeline.hpp"
@@ -326,6 +330,71 @@ bool adaptive_quality_keys_map_to_the_policy() {
     return ok;
 }
 
+// The presentation sample-count gate (display-aware S8): the resolver's MSAA decision reaches the
+// pipeline/target only when the device can do it, and golden mode never does, so the presentation
+// rule is tested here without a window or a GPU.
+bool msaa_rule_reaches_the_presentation() {
+    using tessera::app::presentation_sample_count;
+    using tessera::app::window_aa_policy;
+    using tessera::app::WindowAaOptions;
+    using tessera::hal::WindowMetrics;
+    using tessera::ui::scale::AaPolicy;
+
+    bool ok = expect(presentation_sample_count(1, false, true) == 1,
+                     "a single-sample policy stays single-sampled");
+    ok = expect(presentation_sample_count(4, false, true) == 4,
+                "a 4x policy on a capable device presents 4x") &&
+         ok;
+    ok = expect(presentation_sample_count(4, false, false) == 1,
+                "a device without 4x support falls back to one sample") &&
+         ok;
+    ok = expect(presentation_sample_count(4, true, true) == 1, "golden mode never presents 4x") &&
+         ok;
+    ok = expect(presentation_sample_count(0, false, true) == 1 &&
+                    presentation_sample_count(2, false, true) == 1 &&
+                    presentation_sample_count(8, false, true) == 1,
+                "only an exact 4x request can present 4x") &&
+         ok;
+
+    // The resolver's own rules reach the presentation gate: scale >= kMsaaMaxScale, reduced quality
+    // and golden mode all resolve 1 sample before the device capability is even consulted.
+    WindowMetrics metrics;
+    metrics.dpi_scale = 1.0f;
+    WindowAaOptions renderer;
+    renderer.msaa_samples = 4;
+    const AaPolicy at_1x = window_aa_policy(metrics, renderer);
+    metrics.dpi_scale = tessera::ui::scale::kMsaaMaxScale;
+    const AaPolicy at_2x = window_aa_policy(metrics, renderer);
+    metrics.dpi_scale = 1.0f;
+    WindowAaOptions reduced = renderer;
+    reduced.reduced_quality = true;
+    const AaPolicy reduced_policy = window_aa_policy(metrics, reduced);
+    WindowAaOptions golden = renderer;
+    golden.display_aware_aa = false;
+    const AaPolicy golden_policy = window_aa_policy(metrics, golden);
+
+    ok =
+        expect(at_1x.msaa_samples == 4, "the resolver keeps a 4x request below the scale cutoff") &&
+        ok;
+    ok = expect(at_2x.msaa_samples == 1, "the 2x cutoff resolves one sample") && ok;
+    ok = expect(reduced_policy.msaa_samples == 1,
+                "the reduced-quality preset resolves one sample") &&
+         ok;
+    ok = expect(golden_policy.msaa_samples == 1, "the golden policy resolves one sample") && ok;
+    ok = expect(presentation_sample_count(at_1x.msaa_samples, false, true) == 4 &&
+                    presentation_sample_count(at_2x.msaa_samples, false, true) == 1 &&
+                    presentation_sample_count(reduced_policy.msaa_samples, false, true) == 1 &&
+                    presentation_sample_count(golden_policy.msaa_samples, false, true) == 1,
+                "the resolver's decision is what the presentation gate consumes") &&
+         ok;
+
+    // The window options default to the byte-identical 1-sample request.
+    ok = expect(tessera::app::WindowOptions{}.msaa_samples == 1,
+                "WindowOptions defaults to one sample") &&
+         ok;
+    return ok;
+}
+
 } // namespace
 
 int main() {
@@ -335,6 +404,7 @@ int main() {
     ok = cull_draws_key_maps_to_the_paint_cull() && ok;
     ok = pause_key_maps_to_the_lifecycle_policy() && ok;
     ok = adaptive_quality_keys_map_to_the_policy() && ok;
+    ok = msaa_rule_reaches_the_presentation() && ok;
     ok = mapped_interpolation_reaches_the_paint_seam() && ok;
     if (!ok) {
         std::cerr << "window_config: FAILED\n";

@@ -145,8 +145,28 @@ struct WindowHost::Impl {
     // --- adaptive render scale (docs/design/performance.md section 6.1) ----------------------
     // The per-slot offscreen targets the controller's renderScale below full quality renders into,
     // and the swapchain generation's resample capability. Both live in detail::ScaledTargets; see
-    // its header for the one-target-per-slot hazard.
-    [[nodiscard]] bool ensure_scaled_target(std::size_t frame_slot, rhi::Extent2D extent);
+    // its header for the one-target-per-slot hazard. The same pool holds the MSAA presentation
+    // target (sample_count 4) when the AA policy resolved 4x (S8).
+    [[nodiscard]] bool ensure_scaled_target(std::size_t frame_slot, rhi::Extent2D extent,
+                                            std::uint32_t sample_count = 1);
+
+    // The target this frame paints into. One decision covers the three reasons a frame does not
+    // paint straight into the acquired swapchain image: an adaptive render-scale downgrade
+    // (rendered smaller and resampled), a glass frame (the backdrop copy needs a readable target),
+    // and the S8 4x presentation (a multisampled frame resolved and sampled). `target` stays null
+    // for the direct path; the caller fills it with the acquired swapchain image. Nullopt means the
+    // frame cannot be painted this attempt - a 4x target allocation failed - which the caller
+    // reports as a skipped frame before acquiring an image, instead of starting a mismatched pass.
+    struct PaintTarget {
+        rhi::RenderTarget* target = nullptr;
+        rhi::RenderTargetDesc desc;
+        bool offscreen = false;
+        bool msaa = false;
+        bool scaled = false;
+    };
+    [[nodiscard]] std::optional<PaintTarget>
+    prepare_paint_target(std::size_t frame_slot, const rhi::Extent2D& presented,
+                         const ui::scale::AdaptiveTargetExtent& adaptive);
 
     // --- GPU frame-time signal (docs/design/performance.md section 6.1) ----------------------
     // The device probe's answer, the pending interval of a completed submission and the selection
@@ -202,7 +222,10 @@ struct WindowHost::Impl {
     // Resolves the policy from `metrics` and the renderer inputs and applies it to the text
     // renderer. Creation and a metrics change call it; the frame path only reads the resolved
     // values. A hinting change releases every atlas page, so this must never run while quads still
-    // reference those pages - between frames, exactly like set_render_scale().
+    // reference those pages - between frames, exactly like set_render_scale(). The presentation
+    // sample count is NOT changed here: the pipeline and renderer were built with one sample count,
+    // so a metrics change that would move it takes effect at the next presentation generation
+    // (create_presentation) instead of silently mismatching the renderer.
     void apply_aa_policy(const hal::WindowMetrics& metrics);
     // Composes the frame's CSS -> target transform (device scale x adaptive factor) and applies it
     // to the batched renderer, right after begin() reset it to 1:1. A no-op when both factors are
@@ -262,6 +285,16 @@ struct WindowHost::Impl {
     // recreation during a run does not repeat TESSERA_GLASS_WINDOW_UNSUPPORTED.
     bool alpha_fallback_reported = false;
     std::unique_ptr<rhi::Pipeline> pipeline;
+    // The single-sample, no-blend pipeline that presents a 4x frame through its resolved image
+    // (S8). Null on the 1-sample path, which presents directly and records exactly the pre-S8
+    // commands.
+    std::unique_ptr<rhi::Pipeline> present_pipeline;
+    // The sample count the presentation stack was created with: 1 (default) or 4. Resolved once per
+    // presentation generation from the AA policy and the device capability, because the pipeline,
+    // the renderer config and the offscreen frame target must all agree. A metrics change
+    // re-resolves the policy for text and scale but never changes this: the stack is recreated on
+    // the next presentation generation instead, like the swapchain format.
+    std::uint32_t presentation_sample_count_ = 1;
     // Glass composite pipelines (issue #244): the horizontal blur pass (no blending) and the
     // composite pass (alpha blending over the frame target). Recreated with the device generation
     // and borrowed by the renderer, like `pipeline`.

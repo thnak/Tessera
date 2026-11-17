@@ -134,10 +134,22 @@ create_device(bool validation = false, rhi::SurfacePlatform surface = rhi::Surfa
     }
 }
 
-inline std::unique_ptr<rhi::Pipeline> create_pipeline(rhi::Device& device,
-                                                      rhi::TextureFormat format) {
-    auto desc = tessera::rendering::vulkan::batched2d_pipeline_desc();
+inline std::unique_ptr<rhi::Pipeline>
+create_pipeline(rhi::Device& device, rhi::TextureFormat format, std::uint32_t sample_count = 1) {
+    auto desc = tessera::rendering::vulkan::batched2d_pipeline_desc(format, sample_count);
     desc.color_format = format;
+    return device.create_pipeline(desc);
+}
+
+// The single-sample pipeline that presents a 4x frame (S8, display-aware-rendering section 4): the
+// same batched2d shader and vertex layout, one sample, and no blending. No blending matters: the
+// present quad replaces the frame target with the resolved image's own encoded pixels, so the
+// result equals what a direct 1-sample frame would have written (a second alpha composite over the
+// clear would darken a translucent frame). Created only when the presentation resolves to 4x.
+inline std::unique_ptr<rhi::Pipeline> create_present_pipeline(rhi::Device& device,
+                                                              rhi::TextureFormat format) {
+    auto desc = tessera::rendering::vulkan::batched2d_pipeline_desc(format, 1);
+    desc.blend = rhi::BlendMode::None;
     return device.create_pipeline(desc);
 }
 
@@ -179,13 +191,15 @@ inline rhi::Color frame_clear_color(bool translucent_presentation) {
 // window clears to transparent black instead: the OS material shows through where the stylesheet
 // paints nothing (glass-v1.md section 6).
 inline rhi::RenderTargetDesc target_desc(rhi::Extent2D extent, rhi::TextureFormat format,
-                                         rhi::Color clear_color = rhi::rgba8(11, 18, 32)) {
+                                         rhi::Color clear_color = rhi::rgba8(11, 18, 32),
+                                         std::uint32_t sample_count = 1) {
     rhi::RenderTargetDesc desc;
     desc.extent = extent;
     desc.format = format;
     desc.load_op = rhi::LoadOp::Clear;
     desc.store_op = rhi::StoreOp::Store;
     desc.clear_color = clear_color;
+    desc.sample_count = sample_count;
     return desc;
 }
 

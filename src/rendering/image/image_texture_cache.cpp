@@ -27,6 +27,7 @@ struct ImageTextureKeyHash {
     mix(key.width);
     mix(key.height);
     mix(static_cast<std::uint64_t>(key.format));
+    mix(static_cast<std::uint64_t>(key.filter));
     return static_cast<std::size_t>(hash);
 }
 
@@ -189,7 +190,9 @@ ImageTextureCache::acquire(const DecodedImage& image, const ImageTextureKey& key
     desc.format = key.format;
     desc.pixels = pixels.data();
     desc.row_pitch = static_cast<std::size_t>(row_bytes);
-    desc.filter = impl_->config.filter;
+    // Sampler state is fixed at creation, so the key's filter is the texture's filter: a second
+    // variant of the same image at a different filter is a separate entry.
+    desc.filter = key.filter;
     desc.address = impl_->config.address;
 
     std::unique_ptr<rhi::Texture> texture;

@@ -28,10 +28,17 @@ damage and opacity rules. Paint rules are summarized in
   a bounded LRU (64 entries / 32 MiB default). Hits return a shared, immutable decode; one image
   decodes once regardless of how many nodes draw it. A single image larger than the byte bound is
   returned but not retained.
-- `ImageTextureCache`: one texture per **(content hash, raster width, raster height, format)**, LRU
-  bounded (64 entries / 64 MiB), nearest resampling of the decoded pixels to the requested extent
-  with the same integer pixel-center rule as `CpuCanvas::blit_texture`. Stable handles; D7 device
-  loss clears every texture and bumps the generation, exactly like `PathTextureCache`.
+- `ImageTextureCache`: one texture per **(content hash, raster width, raster height, format,
+  filter)**, LRU bounded (64 entries / 64 MiB), nearest resampling of the decoded pixels to the
+  requested extent with the same integer pixel-center rule as `CpuCanvas::blit_texture`. Stable
+  handles; D7 device loss clears every texture and bumps the generation, exactly like
+  `PathTextureCache`.
+- The filter is part of the key because RHI sampler state is fixed at creation
+  (`ImageTextureKey::filter`). `Batched2DSink::draw_image` chooses it per draw (S8,
+  `display-aware-rendering.md` section 4): nearest when the draw is aligned 1:1 with the uploaded
+  raster in device space, linear otherwise. One image drawn both ways is two entries, and the cache
+  bounds are per entry, so the second variant can evict another image's; the mip case is blocked on
+  RHI mip support and is not implemented.
 - Size/scale comes from the shared D10/D12 helper (`resolve_image_raster` →
   `resolve_content_raster`): content box × device scale, explicit axis derives the other from the
   image aspect, `scale_milli` uniform over the image width. GPU and CPU sinks use the same helper.

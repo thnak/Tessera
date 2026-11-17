@@ -1,16 +1,19 @@
 # Display-aware rendering (text and non-text anti-aliasing)
 
 Status: **S1-S6 and S8 landed, plus the T5 contrast LUT and the window integration in section 6;
-LCD text (T4) and the image filter by scale are later slices.** Landed: the `AaPolicy` resolver and
-`hal::PixelGeometry` (S1), screen-space SDF edges and anti-aliased rounded clips in
-`batched2d.frag`/`.wgsl` (S2, S4), border widths snapped to device pixels in the paint pass (S3),
-glyph hinting by scale, quarter-pixel glyph origins and text rasterized at `css_px * render_scale`
-(S5 T1/T2, S6), the MSAA scale rule in the resolver (S8), the text contrast LUT adopted as a D2
-amendment (T5, section 3.5), and the window integration: `AppWindow` resolves and applies the
-policy, sets `PaintContext::device_scale`, and pins the golden policy in golden mode (section 6).
-Not landed: LCD text (T4; the owner decided it ships in V1 in a later PR), the image filter by scale
-(S8), and the per-display `PixelGeometry` backends (every backend still reports `Unknown`). Extends
-[`antialiasing.md`](antialiasing.md) and [`text.md`](text.md). Decisions D2/D6 in
+LCD text (T4) is a later slice.** Landed: the `AaPolicy` resolver and `hal::PixelGeometry` (S1),
+screen-space SDF edges and anti-aliased rounded clips in `batched2d.frag`/`.wgsl` (S2, S4), border
+widths snapped to device pixels in the paint pass (S3), glyph hinting by scale, quarter-pixel glyph
+origins and text rasterized at `css_px * render_scale` (S5 T1/T2, S6), the MSAA scale rule in the
+resolver (S8), the text contrast LUT adopted as a D2 amendment (T5, section 3.5), and the window
+integration: `AppWindow` resolves and applies the policy, sets `PaintContext::device_scale`, and
+pins the golden policy in golden mode (section 6). S8 also landed the image filter-by-scale rule
+(nearest at aligned 1:1, linear otherwise; the mip case is blocked on RHI mip support, section 6)
+and consumes the resolver's MSAA decision in the window's presentation. Not landed: LCD text (T4;
+the owner decided it ships in V1 in a later PR), the mip-chain downscale case (needs `TextureDesc`
+mip levels and backend chain generation), and the per-display `PixelGeometry` backends (every
+backend still reports `Unknown`). Extends [`antialiasing.md`](antialiasing.md) and
+[`text.md`](text.md). Decisions D2/D6 in
 [`rendering-production-plan.md`](rendering-production-plan.md) stay in force unless a numbered
 decision in section 8 says otherwise.
 
@@ -129,10 +132,10 @@ The same facts apply to the rest of the renderer; each row is independent of tex
 | Hairlines / 1 CSS px borders | width follows scale, not snapped | snap to whole device px, minimum 1; reuse `pixel_snap` (`src/ui/layout/pixel_snap.cpp`) at paint time | S3 |
 | Rounded clip edge | hard pixel-center mask | coverage from the clip's SDF with the same `fwidth` width; clip stack multiplies coverage | S4 |
 | Axis-aligned quads, fractional edges | can alias | snap at paint (S3); only transformed quads stay soft | S3 |
-| Images / textured quads | nearest or linear by flag | filter by scale: nearest at aligned 1:1, linear otherwise, mips when downscaling; decode at display size x DPR (#14) | S8 |
+| Images / textured quads | nearest or linear by flag | filter by scale: nearest at aligned 1:1, linear otherwise, mips when downscaling; decode at display size x DPR (#14) | S8 (filter; mips blocked on the RHI) |
 | Vector paths | no rasterizer yet | rasterize at device scale, cache per ladder step; strokes clamp to 1 device px minimum | with ThorVG (D1) |
 | Offscreen layers / glass | layer at 1x unless told | layer targets allocated at the window's render scale and keyed by it | with layers |
-| MSAA 4x | per-target opt-in | policy picks it only for non-SDF, non-text geometry and scale < 2.0; never default | S8 |
+| MSAA 4x | per-target opt-in | policy picks it only for non-SDF, non-text geometry and scale < 2.0; never default | S8 (rule and presentation hook) |
 | FXAA / TAA / post AA | out of V1 | unchanged, out | - |
 
 Rule: SDF AA plus pixel snapping carries the 2D UI; MSAA is the exception, not the answer. Clip AA
@@ -192,7 +195,39 @@ scissor is derived from it (`ClipStateTable::push` -> `enclosing_scissor`), so t
 and the folded SDF uniform test the same target-space rectangle. `set_scissor` itself is a
 target-pixel seam: the frame scissor is the target extent and damage regions are already device
 pixels. Still missing, all later PRs: per-display `PixelGeometry` (every backend reports `Unknown`),
-LCD text (T4), and the image filter by scale (S8).
+LCD text (T4), and the mip-chain downscale case below.
+
+S8 image filter (landed): RHI sampler state is fixed at texture creation, so the filter is part of
+`ImageTextureKey` and `Batched2DSink::draw_image` picks it per draw with the pure
+`ui::paint::image_filter_for_draw(rect_device, raster_extent, offset_device)`: `Nearest` when the
+drawn device extent equals the uploaded raster extent within half a device pixel on both axes and
+the device-space origin is a whole pixel, `Linear` otherwise. Because an image is decoded at display
+size x DPR (#14), the raster extent already follows the device scale, so an integer CSS box whose
+device origin is whole stays 1:1 (and nearest) even on a fractional ladder step; the linear path is
+what covers fractional device origins, explicit raster extents and minification. Keeping two
+variants of one image doubles its cache entries (the limits are per entry), which is the documented
+cost of a per-draw choice.
+
+**The design's third case, mips when downscaling, is blocked on the RHI, not on the policy.**
+`rhi::TextureDesc` has no mip-level count and no backend generates a chain, so a magnified texture
+has no lower level to sample; this slice deliberately does not fake it. A downscaled draw therefore
+resolves `Linear` at level 0, and the filter decision covers only the aligned-1:1 and scale cases
+until the RHI grows mip levels (then the key gains the level count and minification selects a
+level). No doc or test claims mip sampling works.
+
+S8 MSAA presentation hook (landed): the resolver's `msaa_samples` is consumed per presentation
+generation. `window_aa_policy` is resolved before the pipeline is created, and
+`presentation_sample_count(policy, golden, device->supports_sample_count(format, 4))` gates it: the
+scene pipeline, `Batched2DConfig::sample_count` and the per-slot offscreen frame target all get the
+same value, so the renderer's sample-count check can never see a mismatch. At 1 (the default) no
+offscreen target or present pipeline is created and the frame records exactly the pre-S8 commands.
+At 4 the scene renders into a 4x offscreen target and the frame is presented by sampling that
+target's resolved image into the swapchain image (RHI 1.3 sampled target) with one full-target quad
+on a single-sample, no-blend pipeline - `blit_target` rejects multisampled sources, so this GPU-only
+path replaces the POC's demo CPU readback bridge. The sample count is fixed for a presentation
+generation (a metrics change that crosses `kMsaaMaxScale` takes effect at the next generation,
+exactly like the swapchain format), and a 4x frame target cannot be read by the glass backdrop copy,
+so glass reports its draws unsupported for that generation (the documented bounded fallback).
 
 S1 details: `Auto` text mode resolves to grayscale until decision 1 below is made
 (`kAutoAllowsLcd`); `WindowMetrics::pixel_geometry` and `DisplayInfo::pixel_geometry` default to
@@ -207,7 +242,10 @@ Golden mode pins `AaPolicy` to `{ scale 1.0, grayscale, fixed hinting, no subpix
 edge radius 0, clip AA off, msaa 1 }` and ignores all facts and user settings. At scale 1.0 the text
 path is byte-identical to the pre-T1 behavior: the device pixel size equals the CSS pixel size and
 the quad placement is the previous whole-pixel snap. The contrast LUT is a constant, not a fact read,
-so a golden run's colors choose the same boost on every machine. New behavior gets
+so a golden run's colors choose the same boost on every machine. The S8 filter table resolves
+`Nearest` for the 1:1 integer geometry every golden uses, and the CPU reference sink always blits
+nearest, so image goldens keep their sampling; a golden run also pins MSAA to one sample, so the 4x
+present path never records a command in a deterministic corpus. New behavior gets
 its own corpus only where it can be deterministic: CPU goldens stay tolerance 0
 (`antialiasing.md` section 2.2); LCD and `fwidth` edges are covered by lavapipe probes with an
 explicit tolerance, never by real-GPU goldens.

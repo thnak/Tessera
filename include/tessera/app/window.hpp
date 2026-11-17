@@ -96,6 +96,13 @@ struct WindowOptions {
     // at 1.0-1.5x. Golden mode overrides the switch: a renderer configured with `golden_mode` (or
     // with AA disabled) uses the golden policy regardless of this value and of the display.
     bool display_aware_aa = true;
+    // Requested MSAA sample count for the presentation frame: 1 (the default) or 4. The window does
+    // not take the request verbatim: the AA policy resolves it (docs/design/display-aware-rendering
+    // section 4, S8), keeping 4 only when AA is on, the power preset is not reduced, the render
+    // scale is below `kMsaaMaxScale`, the device reports 4x support for the swapchain format, and
+    // the run is not golden. Anything else presents a single sample, which is the byte-identical
+    // default path. Any value other than 4 is treated as 1.
+    std::uint32_t msaa_samples = 1;
 };
 
 // Device health when run() returned. A caller distinguishes a clean exit (Ready, or Unavailable for
@@ -191,6 +198,12 @@ struct WindowFrameStats {
     // at all.
     float content_scale_x = 1.0f;
     float content_scale_y = 1.0f;
+    // MSAA sample count the presentation stack was created with (1 or 4). 1 is the byte-identical
+    // default path; 4 means the scene rendered into a 4x offscreen target whose resolved image was
+    // presented through the single-sample present pass (docs/design/display-aware-rendering.md
+    // section 4, S8). Resolved once per presentation generation from the AA policy, so a metrics
+    // change that crosses `kMsaaMaxScale` keeps the current count until the stack is recreated.
+    std::uint32_t sample_count = 1;
 };
 
 // The production window driver: owns the platform window, the Vulkan device + swapchain, the

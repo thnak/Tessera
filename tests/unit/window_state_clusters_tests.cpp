@@ -144,14 +144,14 @@ bool check_scaled_allocates_and_reuses() {
     targets.reset(true);
     bool fallback = true;
     auto* first = targets.ensure(*fixture.device, 0, kSmall, TextureFormat::R8G8B8A8Unorm,
-                                 tessera::rendering::rhi::rgba8(0, 0, 0), fallback);
+                                 tessera::rendering::rhi::rgba8(0, 0, 0), 1, fallback);
     if (!expect(first != nullptr, "a small target is created") ||
         !expect(!fallback, "a successful creation is not a fallback")) {
         return false;
     }
     fallback = true;
     auto* again = targets.ensure(*fixture.device, 0, kSmall, TextureFormat::R8G8B8A8Unorm,
-                                 tessera::rendering::rhi::rgba8(0, 0, 0), fallback);
+                                 tessera::rendering::rhi::rgba8(0, 0, 0), 1, fallback);
     return expect(again == first,
                   "the same extent reuses the image, so a held downgrade costs no allocation") &&
            expect(!fallback, "a reuse is not a fallback") &&
@@ -166,9 +166,9 @@ bool check_scaled_recreates_on_a_new_extent() {
     targets.reset(true);
     bool fallback = false;
     auto* small = targets.ensure(*fixture.device, 0, kSmall, TextureFormat::R8G8B8A8Unorm,
-                                 tessera::rendering::rhi::rgba8(0, 0, 0), fallback);
+                                 tessera::rendering::rhi::rgba8(0, 0, 0), 1, fallback);
     auto* large = targets.ensure(*fixture.device, 0, kLarge, TextureFormat::R8G8B8A8Unorm,
-                                 tessera::rendering::rhi::rgba8(0, 0, 0), fallback);
+                                 tessera::rendering::rhi::rgba8(0, 0, 0), 1, fallback);
     return expect(small != nullptr && large != nullptr, "both targets were created") &&
            expect(large != small, "a different extent allocates a new image") &&
            expect(targets.extent(0).width == kLarge.width, "the new extent replaces the old");
@@ -180,9 +180,9 @@ bool check_scaled_keeps_slots_independent() {
     targets.reset(true);
     bool fallback = false;
     auto* slot0 = targets.ensure(*fixture.device, 0, kSmall, TextureFormat::R8G8B8A8Unorm,
-                                 tessera::rendering::rhi::rgba8(0, 0, 0), fallback);
+                                 tessera::rendering::rhi::rgba8(0, 0, 0), 1, fallback);
     auto* slot1 = targets.ensure(*fixture.device, 1, kSmall, TextureFormat::R8G8B8A8Unorm,
-                                 tessera::rendering::rhi::rgba8(0, 0, 0), fallback);
+                                 tessera::rendering::rhi::rgba8(0, 0, 0), 1, fallback);
     // One image shared across two frames in flight would be a cross-submission read/write hazard.
     return expect(slot0 != nullptr && slot1 != nullptr, "both slots have a target") &&
            expect(slot0 != slot1, "each frame slot owns its own image");
@@ -194,9 +194,9 @@ bool check_scaled_reset_releases_every_generation_target() {
     targets.reset(true);
     bool fallback = false;
     static_cast<void>(targets.ensure(*fixture.device, 0, kSmall, TextureFormat::R8G8B8A8Unorm,
-                                     tessera::rendering::rhi::rgba8(0, 0, 0), fallback));
+                                     tessera::rendering::rhi::rgba8(0, 0, 0), 1, fallback));
     static_cast<void>(targets.ensure(*fixture.device, 1, kSmall, TextureFormat::R8G8B8A8Unorm,
-                                     tessera::rendering::rhi::rgba8(0, 0, 0), fallback));
+                                     tessera::rendering::rhi::rgba8(0, 0, 0), 1, fallback));
     // The images belong to the old device.
     targets.reset(false);
     return expect(targets.get(0) == nullptr && targets.get(1) == nullptr,
@@ -211,14 +211,14 @@ bool check_scaled_rejects_an_empty_or_out_of_range_request() {
     targets.reset(true);
     bool fallback = true;
     auto* empty = targets.ensure(*fixture.device, 0, Extent2D{0, 0}, TextureFormat::R8G8B8A8Unorm,
-                                 tessera::rendering::rhi::rgba8(0, 0, 0), fallback);
+                                 tessera::rendering::rhi::rgba8(0, 0, 0), 1, fallback);
     if (!expect(empty == nullptr, "a zero extent is refused") ||
         !expect(!fallback, "a refused empty request is not a backend fallback")) {
         return false;
     }
     fallback = true;
     auto* out_of_range = targets.ensure(*fixture.device, 7, kSmall, TextureFormat::R8G8B8A8Unorm,
-                                        tessera::rendering::rhi::rgba8(0, 0, 0), fallback);
+                                        tessera::rendering::rhi::rgba8(0, 0, 0), 1, fallback);
     return expect(out_of_range == nullptr, "an out-of-range slot is refused") &&
            expect(targets.get(7) == nullptr, "and nothing is allocated for it");
 }

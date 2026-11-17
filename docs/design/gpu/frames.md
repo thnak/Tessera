@@ -184,8 +184,10 @@ gate as presentation instead of adding a second one:
 - Resize does not reorder UI state or drop queued input; rendering catches up at the new size.
 - A failed acquire/present is a normal state (out-of-date) and recreates the swapchain.
 - Swapchain images are 1-sample; opt-in 4x presentation uses an offscreen 4x target + end-of-pass
-  resolve and, until the RHI grows an image-to-image copy, a CPU readback -> texture -> fullscreen
-  quad bridge (demo only; encoded-space/sRGB caveat documented in `window-resize.md` 7.1).
+  resolve and reads the resolved image back through `CommandList::bind_sampled_target` in one
+  full-target quad (the `WindowHost` path). `blit_target` still rejects multisampled sources, so the
+  POC keeps its older CPU readback -> texture -> fullscreen quad bridge as a demo; an RHI
+  image-to-image copy would replace both.
 
 ## 8. Failure and recovery
 
