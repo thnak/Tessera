@@ -16,7 +16,8 @@ alpha = 1.0 - smoothstep(-pc.aa_radius, pc.aa_radius, d);
 color.a *= alpha;
 ```
 
-- `Batched2DConfig::enable_aa` (default `true`) controls the radius.
+- `Batched2DConfig::enable_aa` (default `true`) controls the radius: 0.5 (half a pixel each side of the edge, the exact
+  one-pixel box coverage, so a pixel-aligned edge is fully opaque on its inside pixels), or 0 when off.
 - `Batched2DConfig::golden_mode` (deterministic-test mode; see "Golden" in the [glossary](../reference/glossary.md)) forces `aa_radius = 0.0`, producing hard, pixel-stable edges
   (`--golden` on the demo).
 - No `discard`; transparent fragments write alpha 0 and disappear through alpha blending.
@@ -41,7 +42,7 @@ color.a *= alpha;
 | Rounded clip edges | Hard pixel-center coverage mask (no clip AA); uses alpha 0, not `discard` |
 | MSAA | 4x color targets implemented (opt-in); 8x/per-format/depth MSAA deferred |
 | FXAA/TAA/post-process | Not implemented |
-| Transforms/DPI (device pixel ratio, see "DPI scale" in the glossary) | AA radius is fixed in local units (1.0); scaled/rotated quads may get a different screen-space width |
+| Transforms/DPI (device pixel ratio, see "DPI scale" in the glossary) | AA radius is fixed in local units (0.5); scaled/rotated quads may get a different screen-space width |
 | Golden coverage | CPU goldens stay 1-sample; 4x coverage is a deterministic real-GPU readback test |
 
 ## 2.1 MSAA 4x (implemented, opt-in)

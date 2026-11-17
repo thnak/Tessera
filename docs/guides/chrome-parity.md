@@ -7,8 +7,11 @@ same stylesheet, how far is what the engine paints from what a browser paints?
 
 | Side | Source | Run by |
 |---|---|---|
-| Engine | `samples/gallery/FormPage.tsx` painted by `gallery --page form --capture` (lavapipe, so the pixels are deterministic) | the gallery sample |
-| Chrome | `tools/parity/form.html`, the same structure as HTML | `scripts/ci/chrome_parity.mjs` |
+| Engine | a gallery page painted by `gallery --page P --capture` (lavapipe, so the pixels are deterministic) | the gallery sample |
+| Chrome | `tools/parity/P.html`, the same structure as HTML | `scripts/ci/chrome_parity.mjs --page P` |
+
+Two pages: `form` (`FormPage.tsx`, `form.css`, light theme) and `dash` (`DashPage.tsx`, `dash.css`, run with
+`--theme instrument-dark` on both sides).
 
 Both read the same files: `packages/tessera-ui/button.css`, `samples/gallery/form.css`, the theme
 tokens of `instrument.theme.json` (written into the page as `:root` variables) and the font
@@ -35,6 +38,10 @@ python scripts/ci/chrome_parity_compare.py --dir out/parity
 The comparison writes `side_by_side.png`, `diff.png`, `overlay.png` (Chrome's element boxes drawn over
 the engine capture, so a layout difference reads as an outline that does not hug its element) and
 `report.json`.
+
+`DashPage.tsx` covers what the form does not: round avatars, a solid hero with a coloured shadow, a rotated
+square, `letter-spacing` with `text-transform`, right-aligned numbers, `opacity`, an underline tab and table rows
+(per-side `border-bottom`), progress fills clipped to a rounded track, wrapping chips and an absolutely placed dot.
 
 ## 3. Reading the numbers
 
@@ -68,10 +75,17 @@ These are not bugs; a markup author who writes for both has to know them.
 | A border ignored `border-radius`: a rounded background inside a square outline | a uniform border on a rounded box is one ring: `PaintSink::fill_rounded_ring`, `Batched2DRenderer::push_rounded_ring`, and a ring mode (`mode = 3 + width`) in `batched2d.frag` and `batched2d.wgsl` that subtracts the inner rounded box |
 | An explicit `line-height` did not move the glyphs: the baseline was always the font's ascent, so a mark in a 14 px line around a 16 px font sat about 2 px low | `text_wrap.cpp` puts the baseline at `ascent + (line-height - (ascent + descent)) / 2` and the single-line paint path passes it to the sink ([text.md](../design/text.md)); the worst remaining text offset on the form is 1 px |
 | A blurred `box-shadow` was a stack of 3 to 8 concentric fills, so the falloff showed countable steps | `PaintSink::fill_soft_shadow` and `Batched2DRenderer::push_soft_shadow`: one quad whose shader (`batched2d.frag`, `batched2d.wgsl`) evaluates `0.5 * (1 - erf(d / (sigma * sqrt 2)))` from the rounded box's signed distance. Below the card the engine's vertical profile is within 3 of 255 levels of Chrome's. The CPU reference sinks keep the stack |
+| Edges were blended over a 2 px band (`aa_radius` 1.0), so a pixel-aligned edge left its inside pixels 16 % transparent: a 1 px border read lighter than Chrome's and a 2 px ring let the fill under it show through | `Batched2DRenderer` passes 0.5, the exact one-pixel box coverage ([antialiasing.md](../design/antialiasing.md)); pixel difference 4.1 to 3.6 % on the form, 3.3 to 2.9 % on the dashboard |
 | Text in a single-line `TextInput` sat at the top of the field | `paint_text.cpp` centres the line in the content box ([text-editing-v1.md](../specs/text-editing-v1.md)) |
 
 ## 6. Known limits
 
+- `background-image: linear-gradient(...)` from a stylesheet paints nothing: `PaintData::gradient` exists but no
+  style property feeds it ([stylesheet-v1.md](../specs/stylesheet-v1.md) lists gradients as a V1 non-goal). The
+  dashboard therefore uses a solid hero; a gradient there is the clearest visible gap against Chrome.
+- Light text on a dark surface is thinner than Chrome's: summed over a text block the engine's ink is about 20 to 25 %
+  less (peak pixels match). Chrome's rasterizer applies contrast and gamma to glyph coverage; the engine blends the
+  FreeType coverage as is.
 - A border with different widths or colours per side is not one ring and keeps the square edge strips
   on a rounded box.
 - The font has one weight, so bold is not compared. Only the light theme at device scale 1 is

@@ -425,7 +425,11 @@ void Batched2DRenderer::apply_clip_state(const ClipStateTable::Update& update) {
 
 void Batched2DRenderer::update_push_constants(std::uint32_t state_index) {
     Batched2DPushConstants push;
-    const float aa_radius = (config_.enable_aa && !config_.golden_mode) ? 1.0f : 0.0f;
+    // The shaders blend over [-aa_radius, +aa_radius] around the edge. Half a pixel is the exact
+    // one-pixel box coverage: a pixel-aligned edge fills its inside pixels completely (a 1.0
+    // radius left them 16 % transparent, so a 1 px border or a 2 px ring read lighter than a
+    // browser's).
+    const float aa_radius = (config_.enable_aa && !config_.golden_mode) ? 0.5f : 0.0f;
     clips_.pack_push_constants(state_index, extent_, aa_radius, push);
     commands_->push_constants(&push, sizeof(push));
 }

@@ -35,6 +35,7 @@ const height = Number(argument('--height', '720'));
 const dpr = Number(argument('--dpr', '1'));
 const themeName = argument('--theme', 'instrument-light');
 const chromePath = argument('--chrome', null);
+const pageName = argument('--page', 'form');
 
 let chromium;
 try {
@@ -60,7 +61,7 @@ const tokenCss =
 await mkdir(out, { recursive: true });
 const browser = await chromium.launch(chromePath ? { executablePath: chromePath } : {});
 const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: dpr });
-await page.goto(pathToFileURL(join(root, 'tools/parity/form.html')).href);
+await page.goto(pathToFileURL(join(root, `tools/parity/${pageName}.html`)).href);
 await page.addStyleTag({ content: tokenCss });
 await page.evaluate(() => document.fonts.ready);
 await page.waitForTimeout(150);

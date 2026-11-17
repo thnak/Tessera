@@ -1,0 +1,91 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: MIT -->
+<!--
+  The browser twin of samples/gallery/DashPage.tsx. The structure is the same, element for element
+  (View -> div, Text -> span, TextInput -> input, the library Button -> the div it renders), and the
+  stylesheets are the very files the engine loads: packages/tessera-ui/button.css and
+  samples/gallery/dash.css. scripts/ci/chrome_parity.mjs adds the theme tokens as :root variables
+  from instrument.theme.json and the font; nothing else is styled here except the reset below.
+
+  The reset is the engine's own box model written as CSS, because the engine does not apply the
+  browser defaults: every View is a flex container laid out by Yoga (column, stretch, no shrink;
+  the box model stays the CSS default, content-box, which is what the engine implements). Without it the browser would be comparing against a different layout algorithm and
+  the diff would measure the reset, not the renderer.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tessera parity dashboard</title>
+<style>
+  html, body { margin: 0; padding: 0; }
+  body { width: 100vw; height: 100vh; overflow: hidden; }
+  span { display: block; }
+  div, input {
+    display: flex; flex-direction: column;
+    flex-shrink: 0; position: relative; margin: 0; min-width: 0;
+    align-items: stretch; align-content: flex-start;
+    font: inherit; color: inherit; background: transparent; border: 0; outline: 0;
+  }
+  span { flex-shrink: 0; position: relative; margin: 0; min-width: 0; font: inherit; color: inherit; }
+  #root { width: 100%; height: 100%; }
+</style>
+<link rel="stylesheet" href="../../samples/gallery/dash.css">
+</head>
+<body>
+<div id="root">
+<div class="d-page">
+  <div class="d-top">
+    <div class="d-avatar d-avatar-a"><span class="d-avatar-text">AL</span></div>
+    <div class="d-top-text">
+      <span class="d-hello">Good evening, Ada</span>
+      <span class="d-date">Tuesday, 17 November</span>
+    </div>
+    <div class="d-bell">
+      <div class="d-bell-body"></div>
+      <div class="d-dot"></div>
+    </div>
+  </div>
+
+  <div class="d-hero">
+    <span class="d-eyebrow">Monthly revenue</span>
+    <span class="d-big">$48,210</span>
+    <span class="d-delta">+12.4% from last month</span>
+    <div class="d-spark">
+      <div class="d-bar d-bar-1"></div><div class="d-bar d-bar-2"></div><div class="d-bar d-bar-3"></div>
+      <div class="d-bar d-bar-4"></div><div class="d-bar d-bar-5"></div><div class="d-bar d-bar-6"></div>
+    </div>
+  </div>
+
+  <div class="d-tabs">
+    <div class="d-tab d-tab-on"><span class="d-tab-text d-tab-text-on">Overview</span></div>
+    <div class="d-tab"><span class="d-tab-text">Orders</span></div>
+    <div class="d-tab"><span class="d-tab-text">Customers</span></div>
+    <div class="d-tab d-tab-dim"><span class="d-tab-text">Reports</span></div>
+  </div>
+
+  <div class="d-stats">
+    <div class="d-stat"><span class="d-stat-label">Conversion</span><span class="d-stat-value">3.8%</span><div class="d-track"><div class="d-fill d-fill-a"></div></div></div>
+    <div class="d-stat"><span class="d-stat-label">Refunds</span><span class="d-stat-value">0.9%</span><div class="d-track"><div class="d-fill d-fill-b"></div></div></div>
+    <div class="d-stat"><span class="d-stat-label">Uptime</span><span class="d-stat-value">99.97%</span><div class="d-track"><div class="d-fill d-fill-c"></div></div></div>
+  </div>
+
+  <div class="d-table">
+    <div class="d-tr d-th"><span class="d-th-text d-c1">Order</span><span class="d-th-text d-c2">Customer</span><span class="d-th-text d-c3">Total</span></div>
+    <div class="d-tr"><span class="d-td d-c1">#1042</span><span class="d-td d-c2">Grace Hopper</span><span class="d-td d-c3">$1,240.00</span></div>
+    <div class="d-tr d-tr-alt"><span class="d-td d-c1">#1041</span><span class="d-td d-c2">Alan Turing</span><span class="d-td d-c3">$86.50</span></div>
+    <div class="d-tr"><span class="d-td d-c1">#1040</span><span class="d-td d-c2">Katherine Johnson</span><span class="d-td d-c3">$9,310.25</span></div>
+  </div>
+
+  <div class="d-chips">
+    <div class="d-chip"><div class="d-chip-dot"></div><span class="d-chip-text">Design</span></div>
+    <div class="d-chip d-chip-on"><span class="d-chip-text d-chip-text-on">Engineering</span></div>
+    <div class="d-chip"><span class="d-chip-text">Support</span></div>
+    <div class="d-chip"><span class="d-chip-text">Finance</span></div>
+    <div class="d-chip d-chip-on"><span class="d-chip-text d-chip-text-on">Operations</span></div>
+    <div class="d-chip"><span class="d-chip-text">Legal</span></div>
+    <div class="d-chip"><div class="d-chip-turn"></div><span class="d-chip-text">Archive</span></div>
+  </div>
+</div>
+</div>
+</body>
+</html>

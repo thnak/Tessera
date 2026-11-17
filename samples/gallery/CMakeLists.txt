@@ -17,7 +17,8 @@ set(_gallery_outputs
     ${_gallery_gen}/SafeArea.g.hpp ${_gallery_gen}/SafeArea.hpp ${_gallery_gen}/SafeArea.cpp
     ${_gallery_gen}/SafeAreaPage.g.hpp ${_gallery_gen}/SafeAreaPage.hpp
     ${_gallery_gen}/SafeAreaPage.cpp
-    ${_gallery_gen}/FormPage.g.hpp ${_gallery_gen}/FormPage.hpp ${_gallery_gen}/FormPage.cpp)
+    ${_gallery_gen}/FormPage.g.hpp ${_gallery_gen}/FormPage.hpp ${_gallery_gen}/FormPage.cpp
+    ${_gallery_gen}/DashPage.g.hpp ${_gallery_gen}/DashPage.hpp ${_gallery_gen}/DashPage.cpp)
 add_custom_command(
     OUTPUT ${_gallery_outputs}
     COMMAND ${CMAKE_COMMAND} -E make_directory ${_gallery_gen}/src
@@ -26,14 +27,15 @@ add_custom_command(
     COMMAND ${CMAKE_COMMAND} -E copy ${_gallery_safe_area} ${_gallery_gen}/src/SafeArea.tsx
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/SafeAreaPage.tsx ${_gallery_gen}/src/SafeAreaPage.tsx
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/FormPage.tsx ${_gallery_gen}/src/FormPage.tsx
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/DashPage.tsx ${_gallery_gen}/src/DashPage.tsx
     COMMAND $<TARGET_FILE:tessera_codegen_cli> --write --out ${_gallery_gen}
             --namespace gallery --salt gallery --root ${_gallery_gen}/src
             ${_gallery_gen}/src/Button.tsx ${_gallery_gen}/src/Gallery.tsx
             ${_gallery_gen}/src/SafeArea.tsx ${_gallery_gen}/src/SafeAreaPage.tsx
-            ${_gallery_gen}/src/FormPage.tsx
+            ${_gallery_gen}/src/FormPage.tsx ${_gallery_gen}/src/DashPage.tsx
     DEPENDS tessera_codegen_cli ${_gallery_button} ${_gallery_safe_area}
             ${CMAKE_CURRENT_SOURCE_DIR}/Gallery.tsx ${CMAKE_CURRENT_SOURCE_DIR}/SafeAreaPage.tsx
-            ${CMAKE_CURRENT_SOURCE_DIR}/FormPage.tsx
+            ${CMAKE_CURRENT_SOURCE_DIR}/FormPage.tsx ${CMAKE_CURRENT_SOURCE_DIR}/DashPage.tsx
     COMMENT "Generating the gallery page"
     VERBATIM)
 
@@ -53,6 +55,7 @@ target_compile_definitions(gallery PRIVATE
     TESSERA_GALLERY_BUTTON_CSS="${PROJECT_SOURCE_DIR}/packages/tessera-ui/button.css"
     TESSERA_GALLERY_CSS="${CMAKE_CURRENT_SOURCE_DIR}/gallery.css"
     TESSERA_GALLERY_FORM_CSS="${CMAKE_CURRENT_SOURCE_DIR}/form.css"
+    TESSERA_GALLERY_DASH_CSS="${CMAKE_CURRENT_SOURCE_DIR}/dash.css"
     TESSERA_GALLERY_THEME="${PROJECT_SOURCE_DIR}/packages/tessera-ui/themes/instrument.theme.json")
 target_compile_features(gallery PRIVATE cxx_std_23)
 

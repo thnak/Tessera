@@ -680,6 +680,8 @@ owner-planned item and is not part of this milestone.
 - [ ] #390: author stylesheet (second textarea), `style` and `className` in the preview; user CSS
       replaces the built-in sheet, which stays only as the no-stylesheet fallback; tokens come
       from user code.
+- [ ] #457: `background-image: linear-gradient()` from a stylesheet (`ready`): the paint path
+      (`PaintData::gradient`) exists, no property feeds it; found by the Chrome parity dashboard page.
 - [ ] #391: studio D-S2 + D-S4: open a project folder (File System Access API, zip elsewhere), file
       tree, edit, explicit save, multi-file preview. Waits on #390 and the ADR-054 conversion.
 - [x] #431: studio: one three-column workspace (project tree, tabbed code, preview panes for
