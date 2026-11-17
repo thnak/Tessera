@@ -226,6 +226,7 @@ modules, roles, and status is [`docs/specs/dependencies.md`](docs/specs/dependen
 | DirectX Shader Compiler (dxc) | University of Illinois/NCSA | from the pinned Vulkan SDK; only validates generated HLSL under `TESSERA_SHADER_CROSS=ON` |
 | naga-cli 30.0.1 | MIT OR Apache-2.0 | `cargo install naga-cli --version 30.0.1 --locked` (pin in `tools/naga-version.txt`); `TESSERA_SHADER_CROSS=ON` and the WebGPU CI lane; SPIR-V to WGSL and WGSL validation |
 | emsdk 6.0.13 (Emscripten SDK manager, bundled Node.js and Python) | MIT | installs the pinned Emscripten (`tools/emsdk-version.txt`) outside the repository for the `wasm-webgpu` preset and the WebGPU CI lane |
+| Playwright + headless Chromium | Apache-2.0 / BSD-style | optional, **developer-run only**: `scripts/ci/preview_browser_verify.mjs` drives the assembled studio page in a real browser to check WebGPU device acquisition, the canvas draw path and share-link round-trips. Not a repository dependency and not in any CI lane; installed outside the tree on demand. |
 
 ## Not linked
 
