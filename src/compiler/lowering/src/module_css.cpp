@@ -182,11 +182,11 @@ StylesheetSet::unused_classes(std::span<const CssModuleUse> uses) const {
             }
             warnings.push_back(LoweringWarning{
                 std::string(module.source->file),
-                make_diagnostic(
-                    *module.source, jsx::Severity::Warning, "TESSERA_CSS_MODULE_UNUSED_CLASS",
-                    "class `" + declared.local + "` of `" + module.path +
-                        "` is never read by a `className` of the project",
-                    module.span, "read it through the module binding or delete it")});
+                make_diagnostic(*module.source, jsx::Severity::Warning,
+                                "TESSERA_CSS_MODULE_UNUSED_CLASS",
+                                "class `" + declared.local + "` of `" + module.path +
+                                    "` is never read by a `className` of the project",
+                                module.span, "read it through the module binding or delete it")});
         }
     }
     return warnings;
