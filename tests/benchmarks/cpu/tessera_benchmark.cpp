@@ -75,11 +75,19 @@ constexpr double kFrameBudgetMs = 1000.0 / 60.0;
 
 // Accumulates the per-run counters (deterministic, so the maximum is the reported value).
 void accumulate(benchmark::Totals& totals, const benchmark::Measurement& sample) {
-    totals.damage_rects = std::max({totals.damage_rects, sample.damage_rects_full,
-                                    sample.damage_rects_text, sample.damage_rects_container});
+    totals.damage_rects =
+        std::max({totals.damage_rects, sample.damage_rects_full, sample.damage_rects_text,
+                  sample.damage_rects_container, sample.damaged_damage_rects});
     totals.draw_calls = std::max(totals.draw_calls, sample.draw_calls);
     totals.quads = std::max(totals.quads, sample.quads);
     totals.quads_culled = std::max(totals.quads_culled, sample.quads_culled);
+    totals.damaged_quads = std::max(totals.damaged_quads, sample.damaged_quads);
+    totals.damaged_quads_culled =
+        std::max(totals.damaged_quads_culled, sample.damaged_quads_culled);
+    totals.damaged_draw_calls = std::max(totals.damaged_draw_calls, sample.damaged_draw_calls);
+    totals.damaged_damage_rects =
+        std::max(totals.damaged_damage_rects, sample.damaged_damage_rects);
+    totals.damaged_partial = totals.damaged_partial || sample.damaged_partial;
     totals.primitives = std::max(totals.primitives, sample.primitives);
     totals.text_runs = std::max(totals.text_runs, sample.text_runs);
     totals.images = std::max(totals.images, sample.images);
@@ -124,6 +132,7 @@ int main(int argc, char** argv) {
     std::vector<double> layout_paint_text;
     std::vector<double> layout_paint_container;
     std::vector<double> glass_paint;
+    std::vector<double> damaged_paint;
     benchmark::Totals totals;
     for (std::uint64_t run = 0; run < budget.runs; ++run) {
         benchmark::Fixture fixture;
@@ -138,6 +147,7 @@ int main(int argc, char** argv) {
         layout_paint_text.push_back(sample.layout_paint_text_ms);
         layout_paint_container.push_back(sample.layout_paint_container_ms);
         glass_paint.push_back(sample.glass_paint_ms);
+        damaged_paint.push_back(sample.damaged_paint_ms);
         accumulate(totals, sample);
     }
     const benchmark::Percentiles first = benchmark::summarize(std::move(first_style_layout));
@@ -146,6 +156,7 @@ int main(int argc, char** argv) {
     const benchmark::Percentiles container =
         benchmark::summarize(std::move(layout_paint_container));
     const benchmark::Percentiles glass = benchmark::summarize(std::move(glass_paint));
+    const benchmark::Percentiles damaged = benchmark::summarize(std::move(damaged_paint));
 
     std::printf("cpu_benchmark: metric                              median      p95    budget\n");
     std::printf("cpu_benchmark: first style+layout (ms)       %10.2f %8.2f %8llu\n", first.median,
@@ -159,14 +170,22 @@ int main(int argc, char** argv) {
                 static_cast<unsigned long long>(budget.max_layout_paint_container_ms));
     std::printf("cpu_benchmark: full paint, glass bar (ms)    %10.2f %8.2f %8llu\n", glass.median,
                 glass.p95, static_cast<unsigned long long>(budget.max_glass_paint_ms));
+    std::printf("cpu_benchmark: paint of one damaged frame (ms) %10.2f %8.2f %8llu\n",
+                damaged.median, damaged.p95,
+                static_cast<unsigned long long>(budget.max_damaged_paint_ms));
     std::printf("cpu_benchmark: glass backdrops per glass frame %zu (budget %llu)\n",
                 totals.glass_backdrops, static_cast<unsigned long long>(budget.glass_backdrops));
-    std::printf("cpu_benchmark: damage rects (max of the three frames) %zu (budget %llu)\n",
+    std::printf("cpu_benchmark: damage rects (max of the four frames) %zu (budget %llu)\n",
                 totals.damage_rects, static_cast<unsigned long long>(budget.max_damage_rects));
     std::printf("cpu_benchmark: draw calls %zu, quads %zu, draw-list primitives %zu\n",
                 totals.draw_calls, totals.quads, totals.primitives);
     std::printf("cpu_benchmark: quads culled before staging %zu (of %zu produced)\n",
                 totals.quads_culled, totals.quads + totals.quads_culled);
+    std::printf("cpu_benchmark: damaged frame: quads %zu (culled %zu of %zu produced), draw calls "
+                "%zu, rects %zu\n",
+                totals.damaged_quads, totals.damaged_quads_culled,
+                totals.damaged_quads + totals.damaged_quads_culled, totals.damaged_draw_calls,
+                totals.damaged_damage_rects);
     std::printf("cpu_benchmark: text runs %zu (stub metrics, not rasterized), image draws %zu\n",
                 totals.text_runs, totals.images);
     std::printf("cpu_benchmark: nodes painted by the full pass %zu\n", totals.paint_nodes);
@@ -184,6 +203,16 @@ int main(int argc, char** argv) {
                 budget.max_layout_paint_container_ms) &&
          ok;
     ok = within("glass paint ms", glass.median, budget.max_glass_paint_ms) && ok;
+    // The damaged row only means anything through the partial path: a fallback to a full redraw
+    // would report the full-paint counters under a damaged-looking label.
+    if (!totals.damaged_partial) {
+        std::fprintf(stderr,
+                     "cpu_benchmark: the damaged scenario fell back to a full redraw, so its "
+                     "counters do not describe a partial paint\n");
+        ok = false;
+    }
+    ok = within("damaged paint ms", damaged.median, budget.max_damaged_paint_ms) && ok;
+    ok = within("damaged quads", totals.damaged_quads, budget.max_damaged_quads) && ok;
     // The counter is exact: the glass scenario has one glass node, and a frame that stops
     // compositing it (a fallback silently taking over) is a regression, not noise.
     if (totals.glass_backdrops != budget.glass_backdrops) {

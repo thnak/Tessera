@@ -25,6 +25,14 @@ max_layout_paint_container_ms = 1800
 # RHI. Same ~6x headroom as the other times: the composite adds a bounded number of commands, and
 # the GPU blur itself is not measured here (see docs/design/performance.md section 9.1).
 max_glass_paint_ms = 500
+# Damaged scenario (issue #474): paint of a one-node edit through `begin_damaged`, with the CPU
+# culling testing the plan's damage bounding box. Same ~6x time headroom; the quad count is a
+# deterministic counter with small headroom, and it is what catches a culling regression (the
+# whole-target count is `max_quads`).
+max_damaged_paint_ms = 500
+# The one-node edit reaches 2 quads; without the paint pass's damage clip it would be ~33, so 8 is
+# a regression detector, not a tight bound.
+max_damaged_quads = 8
 
 # Redraw and batching counters from the full paint. These are deterministic on every run, so they
 # are compared with a small headroom rather than a factor; a changed count means the draw-list or

@@ -44,6 +44,15 @@ struct Measurement {
     // Glass scenario (issue #244): a full paint of the reference scene with the glass bar active.
     double glass_paint_ms = 0.0;
     std::size_t glass_backdrops = 0;
+    // Damaged scenario (issue #474): paint only, after a one-node edit, through `begin_damaged`.
+    // `damaged_partial` false means the plan fell back to a full redraw and the counters below
+    // describe a full paint again.
+    double damaged_paint_ms = 0.0;
+    bool damaged_partial = false;
+    std::size_t damaged_quads = 0;
+    std::size_t damaged_quads_culled = 0;
+    std::size_t damaged_draw_calls = 0;
+    std::size_t damaged_damage_rects = 0;
     std::size_t damage_rects_full = 0;
     std::size_t damage_rects_text = 0;
     std::size_t damage_rects_container = 0;
@@ -64,6 +73,11 @@ struct Totals {
     std::size_t draw_calls = 0;
     std::size_t quads = 0;
     std::size_t quads_culled = 0;
+    std::size_t damaged_quads = 0;
+    std::size_t damaged_quads_culled = 0;
+    std::size_t damaged_draw_calls = 0;
+    std::size_t damaged_damage_rects = 0;
+    bool damaged_partial = false;
     std::size_t primitives = 0;
     std::size_t text_runs = 0;
     std::size_t images = 0;
@@ -85,8 +99,13 @@ public:
     }
 
 private:
-    [[nodiscard]] PaintOutcome paint(bool force);
-    void edit_text();
+    // `plan` selects the renderer entry point: null (or a full plan) is `begin()`, a partial plan
+    // is `begin_damaged()`, so the culling sees the plan's damage bounding box instead of the
+    // target.
+    [[nodiscard]] PaintOutcome paint(bool force, const rendering::RedrawPlan* plan = nullptr);
+    // `text == nullptr` uses the default rewrite; a different string is a different edit, which the
+    // damaged scenario needs to produce a real (non-empty) damage plan.
+    void edit_text(const char* text = nullptr);
     void edit_container();
     void enable_glass_bar();
 
