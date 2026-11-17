@@ -246,15 +246,111 @@ def update_notes(
     return notes
 
 
+def recorded_breakdown(entries: Dict[str, Dict], measurements: Dict[str, float]) -> Dict[str, float]:
+    """The size rows that make up an entry's total, as the measurement reports them.
+
+    A row belongs in the breakdown when it is a gzip size and is not itself a budget entry: the total
+    is not a component of itself, and a latency row is a duration rather than a file. Which rows those
+    are is therefore decided by the measurement, not by a list kept here that could fall out of date.
+    """
+    recorded: Dict[str, float] = {}
+    for name, value in measurements.items():
+        if not name.endswith(".gzip") or name in entries:
+            continue
+        recorded[name] = round(float(value), 3)
+    return dict(sorted(recorded.items()))
+
+
 def repinned(document: Dict, measurements: Dict[str, float], encoder: str, counts: Dict) -> Dict:
-    """The budget document after `--update`: pinned numbers, encoder and sample counts refreshed."""
+    """The budget document after `--update`: pinned numbers, encoder and sample counts refreshed.
+
+    An entry with a `recorded` block also has it refreshed from the same measurement, so the
+    per-file attribution a reviewer reads is the measurement that produced the pin rather than a
+    number someone copied out of a terminal once (issue #395: a growth of the download budget has to
+    be attributable to a file).
+    """
     updated = copy.deepcopy(document)
     updated["encoder"] = encoder
     updated["measurement"] = counts
+    breakdown = recorded_breakdown(updated["entries"], measurements)
     for name, entry in updated["entries"].items():
         if name in measurements:
             entry["budget"] = round(float(measurements[name]), 3)
+        if isinstance(entry.get("recorded"), dict):
+            entry["recorded"] = dict(breakdown)
     return updated
+
+
+# How far a per-file gzip size may move before the breakdown counts as stale.
+#
+# The pin is recorded on one host and checked on another (Windows locally, Linux in the Pages lane), and
+# zlib's output for the same input legitimately differs between them -- observed 0.03% to 0.52% across
+# nine files, in both directions, with no source change at all. Comparing exactly made the drift check
+# fail on every row of a correct record, which is worse than not having it: a gate that always fails is
+# a gate people switch off.
+#
+# Sized to swallow encoder variance and nothing else. A genuine growth of one file is far larger, and
+# the row it must trip is the *total* ratchet, which is percentage-based and much wider (5%/1% for the
+# size row). This one only has to answer "is this still the same file?".
+BREAKDOWN_ENCODER_SLACK = 0.015
+
+
+def same_measurement(recorded: float, measured: float) -> bool:
+    """Whether two readings of one file's size are the same measurement.
+
+    Relative, not absolute, because the files span 2 KB to 1.3 MB and a fixed byte allowance would be
+    noise on the large ones and unusable on the small ones. Zero is compared exactly: a file whose
+    size is zero cannot differ by a ratio, and that case should fail rather than divide.
+    """
+    if recorded == measured:
+        return True
+    if recorded <= 0.0 or measured <= 0.0:
+        return False
+    larger = max(recorded, measured)
+    return abs(recorded - measured) / larger <= BREAKDOWN_ENCODER_SLACK
+
+
+def breakdown_drift(entries: Dict[str, Dict], measurements: Dict[str, float]) -> List[str]:
+    """Errors describing a `recorded` block that no longer matches the measurement.
+
+    The breakdown is what makes a growth *attributable*, so it is checked alongside the total: a file
+    whose size moved while the block was not re-recorded means the reviewer reading the diff is told
+    the wrong file grew. This is not a second ratchet on the same number -- it does not care what the
+    total is, only that the attribution agrees with it. A row the measurement produces but the file
+    does not name is an error too: an unrecorded file is an unattributed one, which is exactly the
+    state the module coverage in issue #395 exists to end.
+    """
+    expected = recorded_breakdown(entries, measurements)
+    errors: List[str] = []
+    for name in sorted(entries):
+        recorded = entries[name].get("recorded")
+        if not isinstance(recorded, dict):
+            continue
+        for key in sorted(set(recorded) | set(expected)):
+            if key not in recorded:
+                errors.append(
+                    "{}: the recorded breakdown does not name {}, which the measurement weighs "
+                    "({} bytes); an unrecorded file is an unattributed one, so re-record it with "
+                    "--update".format(name, key, "{:g}".format(expected[key]))
+                )
+            elif key not in expected:
+                errors.append(
+                    "{}: the recorded breakdown names {}, which the measurement no longer weighs "
+                    "({} bytes); re-record it with --update".format(
+                        name, key, "{:g}".format(float(recorded[key]))
+                    )
+                )
+            elif not same_measurement(float(recorded[key]), expected[key]):
+                errors.append(
+                    "{}: the recorded breakdown says {} is {} bytes but the measurement says {}; "
+                    "re-record it with --update so the attribution matches the total".format(
+                        name,
+                        key,
+                        "{:g}".format(float(recorded[key])),
+                        "{:g}".format(expected[key]),
+                    )
+                )
+    return errors
 
 
 def format_rows(measurements: Dict[str, float]) -> List[str]:

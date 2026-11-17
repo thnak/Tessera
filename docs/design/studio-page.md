@@ -276,7 +276,8 @@ exists in the HTML" check no longer proves anything -- the shipped `index.html` 
 - `scripts/ci/preview_studio_smoke.mjs` drives the built `preferences`/`gallery` entries and the rendered
   chrome under a stub browser; the codec is still imported from source.
 - `scripts/preview_budget_measure.py` walks the built `designer/web/dist/` as a **directory** instead of
-  naming files, so an asset that ships is weighed by construction.
+  naming files, so an asset that ships is weighed by construction, and measures all three Wasm modules
+  the studio loads (section 5.3).
 - `.github/workflows/pages.yml` runs `npm ci` + `npm run build` in `designer/web` and assembles the site from
   `dist/` plus the three Wasm modules, the samples and the build id.
 - `tests/golden/perf/preview_budget.json`: `download_gzip_bytes` re-recorded (section 6).
@@ -306,6 +307,11 @@ loosen an entry (a re-pin on a loaded box would record machine load as headroom)
 
 ### 6.2 #431 (the one-workspace layout): +5240 gzip bytes (+1.06%)
 
+The two latency rows were left alone. Their values on this box moved with no C++ change at all, and the
+ratchet's rule is that a warned wall-clock row is never re-pinned on whatever machine happened to measure it.
+They still warn and still pass. (Section 5.3 is where they stopped warning: #395 gave them a number that
+does not move with the box.) The `recorded` breakdown in the same entry was also left alone here, which
+turned out to matter -- section 5.3 explains the 22180-byte gap that opened as a result.
 Measured on the same box with the same zlib, decomposed with an **esbuild metafile** against a control build
 of the same sources at `origin/main` 8efe707c (same lockfile, same Vite):
 
@@ -338,6 +344,93 @@ inside the 6 MB product budget (`designer-studio-v1.md` section 2.3) with 5.5 MB
 
 ## 7. What this does not do
 
+The diagnostics module is unchanged (379406 gzip bytes, the same two files), which is why the download moved
+by exactly the page delta. The result is inside the 6 MB product budget (`designer-studio-v1.md` section
+2.3) with 5.5 MB to spare. The pinned total and the pinned `recorded` breakdown then disagreed for the
+next two landings; section 5.3 is where that was found and closed.
+
+### 5.3 Why every module is now weighed, and what the latency rows became (#395)
+
+Issue #395 finished what P6 deferred. Two things changed, and only one of them is a number.
+
+**The download budget covers all three modules.** ADR-054 decision 3 ships three lazy `import()`s and the
+studio loads all three: diagnostics for the default view, scene preview for the Scene tab, canvas for the
+Canvas tab. Until now only diagnostics was weighed, and it is the *smallest* of the three -- so the
+largest file the studio ever downloads was outside the budget. Measured on a local `wasm-webgpu` build:
+
+| File | gzip bytes |
+|---|---|
+| `tessera_diagnostics.wasm` + `.js` | 379406 |
+| `tessera_scene_preview.wasm` + `.js` | 565929 |
+| `tessera_canvas.wasm` + `.js` | 1313831 |
+| **the two newly weighed modules** | **1879760** |
+
+`download_gzip_bytes` therefore goes from 492748 to **2372834** bytes (+1880086), and the growth
+decomposes exactly:
+
+| Component | Δ gzip bytes |
+|---|---|
+| `tessera_scene_preview` (never weighed before) | +565929 |
+| `tessera_canvas` (never weighed before) | +1313831 |
+| the page + diagnostics, re-measured on this host | +326 |
+| **net** | **+1880086** |
+
+The +326 is *not* new page code: it is the difference between this host's measurement of the page plus
+diagnostics, which #387 had already pinned, and that pin. #392 and #422 both recorded the same
+phenomenon -- the diagnostics module is byte-identical across those rebuilds and its gzip delta comes
+from the zlib build on the measuring host. No page number was deliberately re-pinned here (#431 is
+restructuring `designer/web`); the page rows inside the entry's `recorded` breakdown did move, because
+that breakdown is now checked against the measurement and must agree with it.
+
+**A stale breakdown was found on the way.** The old entry's `recorded` block summed to 470568 -- the
+#422 pin -- while its own `budget` was 492748, the #387 pin. The font re-record of #387 had raised the
+pin without updating the per-file table, so for two landings the file's attribution was 22180 bytes
+short of its own total and nobody could have noticed. That is the failure `breakdown_drift` now closes:
+the attribution can no longer disagree with the number it explains.
+
+The budget stays **one entry on the total** rather than one per module, so a regression fails once rather
+than three times, and every module's own size now rides in the entry's `recorded` breakdown. That
+breakdown is **checked**, not decorative: `preview_budget_ratchet.breakdown_drift` fails when a recorded
+file's size disagrees with the measurement, or when a file the measurement weighs is not named. The
+attribution a reviewer reads is therefore the measurement that produced the pin -- `--update` regenerates
+it from the same run -- instead of a table someone copied out of a terminal once.
+
+**The latency rows are enforced, on a normalized number.** They warned because wall clock on a shared
+runner is not reproducible: the eight Pages runs of 2026-11-16/17 measured `cold_engine_ready_ms` between
+16.552 and 28.272 ms and `edit_compile_ms` between 0.083 and 0.223 ms with no relevant source change.
+That is 1.7x and 2.7x of runner noise, and no band can both cover it and catch a regression.
+
+Rather than abandon the measurement or pretend the noise away, the row changed what it measures. Every
+probe process now times a fixed integer workload, and the enforced value is
+`measured_ms * calibration_reference_ms / calibration_ms`: the reference box's speed cancels, so the pin
+means "this much time on the recorded reference profile". Measured on one box over 15 fresh processes,
+the raw spread was 1.06x idle and 1.08x with twelve CPU-burner processes on twelve threads; the
+normalized spread was 1.04x in both. The calibration absorbs contention because the loop and the compile
+share a core, a governor and a process.
+
+This is a real claim with a real limit, so it is written where a reviewer can attack it: it assumes the
+*ratio* of integer-arithmetic speed to Wasm-compile speed is roughly constant across x86-64 runner
+generations, and only one host was measured. Both sides of the band are wide for that unmeasured
+component (`worse` 100%, `better` 50% -- against 5%/1% for the deterministic size row): the ratios are
+not symmetric in risk, because a host whose compile speed *relative to arithmetic* is 60% worse is a
+real possibility while a 20% improvement is what a genuine code win looks like, and the better side
+still has to be tight enough to notice one. Every run prints `cold_engine_ready_raw_ms`,
+`edit_compile_raw_ms` and `calibration_ms` so a human can tell "the code got slower" from "the runner
+class changed". If a later lane shows the ratio is not stable across hosts, the honest response is to
+demote the two rows back to `warn` and ratchet a work counter instead: the ratchet code does not change,
+so that is a `status` edit and a paragraph here.
+
+**What was deliberately not done.** The page numbers were not re-pinned (#431 moves them), and the two
+new modules' sizes were *not* folded into the page measurement -- they stay measured from the module
+directory, because they are linked engine artifacts the Pages lane copies next to the page, never
+bundled.
+
+**How a re-record happens.** Two mechanisms, and they are different on purpose. A **tightening** is
+`python -B scripts/check_preview_budget.py --update`, which lowers a pin and refreshes the `recorded`
+breakdown from the same run. A **raise** is a reviewed edit of the pin in the diff, with the reason
+recorded in the budget file's `note` -- `--update` refuses any raise, because a re-pin on a loaded box
+records machine load as headroom. `measurement.calibration_reference_ms` gets the same treatment as
+`encoder`: changing it rebases every latency pin at once, so it is a reviewed edit, never a side effect.
 Out of scope by #392, #422 and #431 and named here so a reader does not infer them: author CSS compilation
 (#390 -- the CSS tab has nothing to compile it yet), the folder picker and the zip drop (**#391's remaining
 half**: the tree renders and selects, but nothing opens a real folder), a real code editor widget (the

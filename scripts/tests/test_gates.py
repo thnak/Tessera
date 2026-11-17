@@ -36,6 +36,7 @@ GATE_FILES = {
     "pins": "check_pins.py",
     "version-policy": "check_version_policy.py",
     "memory-budget": "check_memory_budget.py",
+    "preview-budget": "check_preview_budget.py",
     "release-manifest": "check_release_manifest.py",
 }
 PACKAGE_FILE = "check_package.py"

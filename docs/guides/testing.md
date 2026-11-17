@@ -559,13 +559,13 @@ until the executables accept a CLI override.
   counters exact, allocation counters within `tolerance.allocation_percent`). The label is the
   opt-in handle and `DISABLED` gates it; run it with `-DTESSERA_BENCHMARK_STYLESHEET=ON`.
 - `scripts/check_preview_budget.py` (gate `preview-budget`, issue #170, P6 of
-  [`../design/reference-equantic-ui.md`](../design/reference-equantic-ui.md) section 7.4) budgets the
-  preview page's compressed download, cold engine-ready time and edit-to-view compile against
-  `tests/golden/perf/preview_budget.json`. Two-sided ratchet (the same policy as the memory gate
-  below): an entry fails when worse by `tolerance.worse` *and* when better by `tolerance.better`,
-  because unrecorded improvement means the budget went stale; `--update` re-pins a tightening and
-  refuses to loosen. `download_gzip_bytes` is **enforced** (deterministic); the latency rows are
-  **warn**, a minimum over fresh processes. Runs in `pages.yml`, not `gates.py`.
+  [`../design/reference-equantic-ui.md`](../design/reference-equantic-ui.md) section 7.4; #395) budgets
+  the preview's download, cold engine-ready and edit-to-view compile against
+  `tests/golden/perf/preview_budget.json`, two-sided (as the memory gate below): worse by
+  `tolerance.worse` *and* better by `tolerance.better` both fail, because unrecorded improvement means
+  the budget went stale; `--update` tightens but refuses to loosen. **All three rows are enforced**,
+  the download covering every studio module with a checked per-file breakdown, and the latencies
+  dividing out a fixed workload so the runner's speed cancels (5.3 of `../design/studio-page.md`).
 - `scripts/check_memory_budget.py` (gate `memory-budget`, issue #13) is the memory counterpart:
   `tests/benchmarks/memory/memory_sizes_probe.cpp` prints the quantities and the gate ratchets
   `tests/golden/perf/memory_budget.json` two-sided. `sizeof`/allocation rows are **enforced** at 0%

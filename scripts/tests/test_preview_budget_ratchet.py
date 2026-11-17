@@ -168,6 +168,118 @@ class RatchetArithmeticTests(unittest.TestCase):
         )
         self.assertEqual(notes, ["a: tightened from 100 to 90 u"])
 
+    # --- the recorded breakdown (issue #395) ---------------------------------------------------
+
+    def recorded_entry(self, recorded: dict) -> dict:
+        entry = self.entry(100.0)
+        entry["unit"] = "bytes"
+        entry["recorded"] = recorded
+        return entry
+
+    def test_recorded_breakdown_names_every_gzip_row_but_the_entry_itself(self) -> None:
+        # The total is not a component of itself, and a duration is not a file: the breakdown is the
+        # per-file gzip rows and nothing else.
+        measurements = {
+            "a.js.gzip": 100.0,
+            "a.wasm.gzip": 200.0,
+            "download_gzip_bytes": 300.0,
+            "cold_engine_ready_ms": 15.0,
+        }
+        self.assertEqual(
+            ratchet.recorded_breakdown({"download_gzip_bytes": {}}, measurements),
+            {"a.js.gzip": 100.0, "a.wasm.gzip": 200.0},
+        )
+
+    def test_a_breakdown_that_disagrees_with_the_measurement_is_an_error(self) -> None:
+        # The attribution is what makes a growth reviewable: a block that names the wrong size tells
+        # the reviewer the wrong file grew, even when the total is inside its band.
+        errors = ratchet.breakdown_drift(
+            {"e": self.recorded_entry({"a.js.gzip": 1.0})}, {"a.js.gzip": 100.0, "e": 100.0}
+        )
+        self.assertEqual(len(errors), 1)
+        self.assertIn("a.js.gzip is 1", errors[0])
+        self.assertIn("re-record it with --update", errors[0])
+
+    def test_an_encoder_variance_is_not_drift(self) -> None:
+        # The Pages lane measures on Linux while the pin is recorded on Windows, and gzip output for
+        # the same input differs between them: observed up to 0.52% across nine files with no source
+        # change. Comparing exactly made the check fail on every row of a correct record.
+        recorded = {"index.js.gzip": 83822.0, "font.ttf.gzip": 19534.0}
+        measured = {"index.js.gzip": 83500.0, "font.ttf.gzip": 19432.0, "e": 102932.0}
+        errors = ratchet.breakdown_drift({"e": self.recorded_entry(recorded)}, measured)
+        self.assertEqual(errors, [])
+
+    def test_a_real_per_file_growth_is_still_drift(self) -> None:
+        # The other side of the boundary: 5% is far outside encoder noise, so a file that genuinely
+        # grew must force a re-record or the reviewer is told the wrong file grew.
+        errors = ratchet.breakdown_drift(
+            {"e": self.recorded_entry({"a.js.gzip": 100.0})}, {"a.js.gzip": 105.0, "e": 105.0}
+        )
+        self.assertEqual(len(errors), 1)
+        self.assertIn("a.js.gzip", errors[0])
+
+    def test_the_slack_is_tighter_than_the_size_ratchet_tolerance(self) -> None:
+        # These answer different questions -- "is this the same file?" versus "is the total
+        # acceptable?" -- so a slack that approached the ratchet's own band would blur them.
+        self.assertLess(ratchet.BREAKDOWN_ENCODER_SLACK, 0.05)
+
+    def test_a_zero_size_is_compared_exactly(self) -> None:
+        # A ratio against zero is not defined, and a file that measured as nothing is not a rounding
+        # difference: it should fail rather than pass quietly.
+        self.assertFalse(ratchet.same_measurement(0.0, 100.0))
+        self.assertFalse(ratchet.same_measurement(100.0, 0.0))
+        self.assertTrue(ratchet.same_measurement(0.0, 0.0))
+
+    def test_a_file_the_breakdown_does_not_name_is_an_error(self) -> None:
+        errors = ratchet.breakdown_drift(
+            {"e": self.recorded_entry({"a.js.gzip": 100.0})},
+            {"a.js.gzip": 100.0, "b.wasm.gzip": 7.0, "e": 107.0},
+        )
+        self.assertEqual(len(errors), 1)
+        self.assertIn("does not name b.wasm.gzip", errors[0])
+        self.assertIn("unattributed", errors[0])
+
+    def test_a_file_the_measurement_dropped_is_an_error(self) -> None:
+        # The other direction: a breakdown naming a file that no longer ships is attribution that has
+        # outlived its asset.
+        errors = ratchet.breakdown_drift(
+            {"e": self.recorded_entry({"a.js.gzip": 100.0, "gone.wasm.gzip": 5.0})},
+            {"a.js.gzip": 100.0, "e": 100.0},
+        )
+        self.assertEqual(len(errors), 1)
+        self.assertIn("no longer weighs", errors[0])
+
+    def test_a_matching_breakdown_has_no_errors(self) -> None:
+        measurements = {"a.js.gzip": 100.0, "e": 100.0}
+        self.assertEqual(
+            ratchet.breakdown_drift({"e": self.recorded_entry({"a.js.gzip": 100.0})}, measurements),
+            [],
+        )
+
+    def test_update_refreshes_the_breakdown_from_the_same_measurement(self) -> None:
+        # The pin and the attribution must come from one run: a hand-copied breakdown drifts from the
+        # total the first time someone re-pins and forgets.
+        document = {
+            "schema": 1,
+            "tolerance": {"default": 1.0},
+            "entries": {"e": self.recorded_entry({"a.js.gzip": 1.0})},
+        }
+        updated = ratchet.repinned(
+            document, {"a.js.gzip": 100.0, "b.wasm.gzip": 5.0, "e": 105.0}, "enc", {}
+        )
+        self.assertEqual(
+            updated["entries"]["e"]["recorded"], {"a.js.gzip": 100.0, "b.wasm.gzip": 5.0}
+        )
+        self.assertEqual(updated["entries"]["e"]["budget"], 105.0)
+        # The input is untouched, like the pin computation itself.
+        self.assertEqual(document["entries"]["e"]["recorded"], {"a.js.gzip": 1.0})
+
+    def test_an_entry_without_a_breakdown_is_left_alone(self) -> None:
+        # Latency entries have no files; `--update` must not invent a breakdown for them.
+        document = {"schema": 1, "tolerance": {"default": 1.0}, "entries": {"e": self.entry(1.0)}}
+        updated = ratchet.repinned(document, {"kind": 2.0, "e": 1.0}, "enc", {})
+        self.assertNotIn("recorded", updated["entries"]["e"])
+
 
 if __name__ == "__main__":
     unittest.main()

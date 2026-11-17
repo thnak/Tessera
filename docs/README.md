@@ -277,7 +277,7 @@ This page is the map and reading order for the framework.
   React 19 + Vite chrome over **one three-column workspace** — a project tree, a tabbed code column and a
   preview column whose own tablist switches scene/canvas/diagnostics — the React/engine boundary (React
   never renders the canvas), the old-URL redirect that keeps `#p5=` links working, the gates that moved
-  with the stack, and the three re-recorded P6 download budgets
+  with the stack, and the three re-recorded P6 download budgets and the three re-recorded P6 download budgets (#395 weighs all three Wasm modules and enforces both latency rows on a calibration-normalized number).
 - [`design/canvas-input-session.md`](design/canvas-input-session.md) — the persistent canvas session
   (#388): pointer events into one kept evaluation, `:hover`/`:active` through the stylesheet engine,
   one frame per change, and the CSS-to-logical coordinate rule (page wiring deferred to #422)
