@@ -239,6 +239,53 @@ cmake --build --preset vs2026-release --target gallery
 A **lane that built the same target before the generator changed** is the trap: it reports green on
 the stale artifact. A fresh worktree or `git clean -xdf <generated dir>` is the honest check.
 
+## Verifying the studio page in a real browser
+
+A page lane that reports green on a page it never opened is a lane that cannot see a whole class of
+defect. The repository learned this the hard way: **the canvas view lost its WebGPU device on every Run
+after the first (#430)**, and no unit test, parity gate or static page check could see it -- it existed
+only in that order of operations, in a browser.
+
+Headless Chromium **does** provide a WebGPU device. Use
+`scripts/ci/preview_browser_verify.mjs`:
+
+```powershell
+# 1. The front end.
+npm ci --prefix designer/web
+npm run build --prefix designer/web
+
+# 2. The three Wasm modules. emsdk 7.0.0 (tools/emsdk-version.txt) lives
+#    outside the tree.
+$env:EMSDK = 'C:\emsdk392'    # this machine's install; any 7.0.0 tree works
+cmake --preset wasm-webgpu
+cmake --build build/wasm-webgpu --target tessera_canvas_wasm tessera_scene_preview_wasm tessera_diagnostics_wasm --parallel 12
+
+# 3. Assemble the site the way the Pages lane does: designer/web/dist/ plus the three
+#    tessera_*.js/.wasm pairs, samples/, and a build-id.txt. Then:
+
+# 4. Playwright is developer-run, not a repository dependency, so install it where you run it.
+npm install playwright
+npx playwright install chromium
+
+node scripts/ci/preview_browser_verify.mjs --site build/pages --shot build/verify.png
+```
+
+It exits non-zero on a failed check, so it can gate a lane's own report.
+
+**Two traps, both hit for real:**
+
+1. **Stale Wasm artifacts read as a code regression.** A module built *before* the change under test
+   makes the page fail with a plausible-looking WebGPU error (`Failed to read the 'view' property ...
+   Required member is undefined`). Rebuild the module targets after every change to the preview path
+   before believing a browser failure.
+2. **`import(path)` with a Windows path does not work in ESM** (`ERR_UNSUPPORTED_ESM_URL_SCHEME`). Use
+   `pathToFileURL` in any Node driver that loads a file by path -- this is why the parity scripts could
+   not run on Windows at all until it was fixed.
+
+`--enable-unsafe-webgpu --enable-features=Vulkan --use-angle=swiftshader --disable-vulkan-surface` is
+the launch set the script uses. It proves the page acquires a device, hands it to the module and draws;
+it is **not** a pixel golden, which still needs lavapipe.
+
 ## Related
 
 - [AGENTS.md, Subagent lanes](../../../AGENTS.md#subagent-lanes) — normative delegation policy.
