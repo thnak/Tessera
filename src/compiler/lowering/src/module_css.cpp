@@ -124,8 +124,10 @@ std::optional<jsx::Diagnostic> StylesheetSet::resolve(const ModuleSource& source
                      [&](const ir::StylesheetRef& sheet) { return sheet.path == path; });
     if (!scan) {
         if (existing == stylesheets.end()) {
-            stylesheets.push_back(ir::StylesheetRef{"css::" + without_extension(path), path,
-                                                    stylesheet_hash(found->text)});
+            // `classes` is named explicitly: GCC's -Wmissing-field-initializers rejects an
+            // aggregate init that omits a member, and MSVC does not diagnose it.
+            stylesheets.push_back(ir::StylesheetRef{
+                "css::" + without_extension(path), path, stylesheet_hash(found->text), {}});
         }
         return std::nullopt;
     }

@@ -109,7 +109,7 @@ void test_codegen_warns_for_each_stylesheet() {
     module.name = "m";
     check(tessera::compiler::codegen::codegen_warnings(module).empty(),
           "no stylesheet, no warning");
-    module.stylesheets.push_back(ir::StylesheetRef{"css::ui/app", "ui/app.css", "h"});
+    module.stylesheets.push_back(ir::StylesheetRef{"css::ui/app", "ui/app.css", "h", {}});
     const std::vector<std::string> warnings = tessera::compiler::codegen::codegen_warnings(module);
     check_eq(std::to_string(warnings.size()), "1", "one warning");
     check(warnings[0].starts_with("TESSERA_CG_STYLESHEET_NOT_EMBEDDED:"), "the code");
