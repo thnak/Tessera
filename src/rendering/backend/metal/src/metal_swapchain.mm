@@ -19,6 +19,12 @@
 #include <vector>
 
 #import <QuartzCore/CAMetalLayer.h>
+// NSView lives in AppKit, not QuartzCore: the layer is attached to the window's view, so this
+// translation unit needs the view type. The stub header used for the non-Apple syntax check puts
+// NSView in QuartzCore, which hid this until it was checked against the real framework layout.
+#if defined(TESSERA_METAL_HAS_APPKIT)
+#import <AppKit/AppKit.h>
+#endif
 
 namespace tessera::rendering::metal {
 namespace {

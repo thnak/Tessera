@@ -122,4 +122,11 @@ if (TESSERA_BUILD_METAL)
         "-framework Metal"
         "-framework Foundation"
         "-framework QuartzCore")
+
+    # The swapchain attaches a CAMetalLayer to the window's view, and NSView is an AppKit type
+    # (UIKit on iOS). The macro keeps that import out of an iOS build, where AppKit does not exist.
+    if (NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
+        target_compile_definitions(tessera_rhi_metal PRIVATE TESSERA_METAL_HAS_APPKIT=1)
+        target_link_libraries(tessera_rhi_metal PRIVATE "-framework AppKit")
+    endif()
 endif()
