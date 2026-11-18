@@ -5,9 +5,8 @@
 // that surfaced as a bare vkAllocateDescriptorSets failure; the list grows instead and reports a
 // named error at its own cap.
 
-#include "vulkan_internal.hpp"
-
 #include "vulkan_device_internal.hpp"
+#include "vulkan_internal.hpp"
 
 #include <stdexcept>
 #include <string>

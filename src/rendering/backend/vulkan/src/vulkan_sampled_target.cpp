@@ -67,7 +67,8 @@ VkDescriptorSet VulkanDevice::sampled_descriptor(const VulkanRenderTarget& targe
     ScopeGuard sampler_guard([&] { vkDestroySampler(device_, sampler, nullptr); });
 
     VkDescriptorPool descriptor_pool = VK_NULL_HANDLE;
-    VkDescriptorSet descriptor_set = allocate_descriptor_set("bind_sampled_target", descriptor_pool);
+    VkDescriptorSet descriptor_set =
+        allocate_descriptor_set("bind_sampled_target", descriptor_pool);
     ScopeGuard set_guard(
         [&] { vkFreeDescriptorSets(device_, descriptor_pool, 1, &descriptor_set); });
 
