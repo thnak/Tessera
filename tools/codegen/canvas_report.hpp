@@ -136,6 +136,8 @@ canvas_report_json(const SceneFrameResult& result, std::uint32_t width, std::uin
 [[nodiscard]] std::string canvas_apply_report_json(bool changed, bool reused,
                                                    const StateCarryReport& carry,
                                                    const ui::StateSnapshot& state,
-                                                   std::uint32_t frames, std::string_view error);
+                                                   std::uint32_t frames, std::string_view error,
+                                                   const std::vector<std::string>& components = {},
+                                                   std::string_view component = {});
 
 } // namespace tessera::compiler::codegen::cli

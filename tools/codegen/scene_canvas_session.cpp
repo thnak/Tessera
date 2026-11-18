@@ -141,6 +141,16 @@ std::string CanvasSceneSession::start(const ProjectInput& project,
     }
     carry_report_ = session_->carry_report();
     metrics_ = session_->metrics();
+    // The compiler's own answer to "which components can this entry preview": the ones declared in
+    // the entry file, not the building blocks it imports.
+    entry_components_.clear();
+    const std::string entry_path = normalize_path(project.entry);
+    for (const auto& candidate : evaluated_.module.components) {
+        if (normalize_path(candidate.source.file) == entry_path) {
+            entry_components_.push_back(candidate.name);
+        }
+    }
+    component_name_ = evaluated_.selected().name;
     project_ = OwnedProject::of(project);
     component_ = component;
     width_ = source.width;

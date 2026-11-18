@@ -168,7 +168,8 @@ EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_apply(const char* component,
     const std::string error = g_session->start(stage.input(), options);
     return duplicate_out(cli::canvas_apply_report_json(
         g_session->needs_frame(), g_session->reused(), g_session->carry_report(),
-        g_session->state(), g_session->frames_painted(), error));
+        g_session->state(), g_session->frames_painted(), error, g_session->entry_components(),
+        g_session->component_name()));
 }
 
 // Routes one pointer event into the running session and returns what it did. The page calls this

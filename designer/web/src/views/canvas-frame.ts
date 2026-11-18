@@ -80,6 +80,10 @@ export interface CanvasApplyReport {
   /** The session's lifetime frame count, so the page can report the cost of an edit. */
   frames?: number;
   state?: CanvasStateCell[];
+  /** The components the entry file declares, in source order (the compiler's own list; #391). */
+  components?: string[];
+  /** The one previewed: the requested name, or the entry's first when none was asked for. */
+  component?: string;
   error: string;
 }
 

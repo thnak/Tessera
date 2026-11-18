@@ -107,6 +107,27 @@ export function App() {
     [state.controls],
   );
 
+  // The entry's component the preview shows (issue #391). `""` is the entry's first; the canvas reports the
+  // compiler's list after each apply, and the dropdown offers it. Read through a ref so picking one never
+  // re-creates a session.
+  const [previewComponent, setPreviewComponent] = useState("");
+  const [componentList, setComponentList] = useState<{ names: string[]; chosen: string }>({
+    names: [],
+    chosen: "",
+  });
+  const previewComponentRef = useRef(previewComponent);
+  previewComponentRef.current = previewComponent;
+  const currentComponent = useCallback(() => previewComponentRef.current, []);
+  const onComponents = useCallback((names: string[], chosen: string) => {
+    setComponentList((previous) =>
+      previous.chosen === chosen &&
+      previous.names.length === names.length &&
+      previous.names.every((name, index) => name === names[index])
+        ? previous
+        : { names, chosen },
+    );
+  }, []);
+
   // ---- what Run previews: the whole project, read at Run time ---------------------------------------
   //
   // The sessions ask one reader and get the project's sources, its stylesheets and the entry
@@ -137,6 +158,8 @@ export function App() {
       environment,
       environmentOf,
       foldPosture: currentFoldPosture,
+      component: currentComponent,
+      onComponents,
       source: currentSource,
       isCurrent,
     },
@@ -309,9 +332,21 @@ export function App() {
       return;
     }
     setRevision((value) => value + 1);
+    setPreviewComponent("");
+    previewComponentRef.current = "";
     restartActiveView();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectIo.epoch]);
+
+  // Picking another component re-evaluates the entry with that name; the canvas draws one frame.
+  const onPickComponent = useCallback(
+    (name: string) => {
+      setPreviewComponent(name);
+      previewComponentRef.current = name;
+      sessions.canvas?.onSample?.(entryPath ?? "");
+    },
+    [sessions],
+  );
 
   const onEditorKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -507,6 +542,9 @@ export function App() {
           controls={state.controls}
           onControlChange={onControlChange}
           refs={refs}
+          components={componentList.names}
+          component={componentList.chosen}
+          onPickComponent={onPickComponent}
         />
       </main>
 

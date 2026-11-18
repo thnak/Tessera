@@ -134,6 +134,15 @@ public:
     [[nodiscard]] const std::string& error() const noexcept {
         return error_;
     }
+    // The components the running evaluation's ENTRY file declares, in source order, and the name of
+    // the one it previews (issue #391's entry dropdown). They describe the tree still on screen, so
+    // a half-typed edit that does not evaluate leaves the last good list in place.
+    [[nodiscard]] const std::vector<std::string>& entry_components() const noexcept {
+        return entry_components_;
+    }
+    [[nodiscard]] const std::string& component_name() const noexcept {
+        return component_name_;
+    }
     // True when the last `start()` reused the running evaluation rather than re-evaluating.
     [[nodiscard]] bool reused() const noexcept {
         return reused_;
@@ -260,6 +269,8 @@ private:
     // it. Owned strings, because `CanvasSessionSource`'s views belong to the caller.
     OwnedProject project_;
     std::string component_;
+    std::vector<std::string> entry_components_;
+    std::string component_name_;
     // The author sheet's diagnostics from the last `start()` (issue #390), with line and column.
     std::vector<PreviewCssDiagnostic> css_diagnostics_;
     float width_ = 320.0f;
