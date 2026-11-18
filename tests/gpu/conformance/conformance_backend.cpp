@@ -2,6 +2,7 @@
 
 #include "conformance_backend.hpp"
 #include "tessera/rendering/gpu/shader_ids.hpp"
+#include "tessera/rendering/gpu/vertex2d.hpp"
 #include "tessera/rendering/null/null_device.hpp"
 #if defined(TESSERA_TEST_HAS_VULKAN)
 #include "tessera/rendering/vulkan/batched2d_pipeline.hpp"
@@ -206,12 +207,17 @@ rhi::PipelineDesc pipeline_template(rhi::Backend backend) {
 #endif
     if (backend == rhi::Backend::Metal) {
         // Metal consumes MSL, so the same program is named by its manifest id rather than by
-        // SPIR-V words (ADR-049: one logical program, one stable shader_id).
+        // SPIR-V words (ADR-049: one logical program, one stable shader_id). The vertex layout is
+        // still required: the MSL declares `[[stage_in]]` attributes by location, and Metal
+        // rejects a pipeline whose descriptor omits an attribute the shader reads.
         rhi::PipelineDesc desc;
         desc.shader_id = rendering::gpu::kBatched2dShaderId;
+        desc.vertex_layout.stride = rendering::gpu::kVertex2DStride;
+        desc.vertex_layout.attributes = rendering::gpu::kVertex2DAttributes;
+        desc.vertex_layout.attribute_count = rendering::gpu::kVertex2DAttributeCount;
         desc.color_format = rhi::TextureFormat::R8G8B8A8Unorm;
         desc.blend = rhi::BlendMode::Alpha;
-        desc.push_constant_size = 112;
+        desc.push_constant_size = sizeof(rendering::gpu::Batched2DPushConstants);
         return desc;
     }
     static_cast<void>(backend);

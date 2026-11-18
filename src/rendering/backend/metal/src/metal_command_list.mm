@@ -453,10 +453,18 @@ void MetalCommandList::encode_signal_and_commit() {
 
 void MetalCommandList::submit() {
     encode_signal_and_commit();
-    if (completion_value_ != 0) {
-        // Synchronous submit is for offscreen, readback and goldens only; the frame path uses
-        // submit_async (docs/guides/writing-a-backend.md section 3).
-        [device_.event() waitUntilSignaledValue:completion_value_ timeoutMS:5000];
+    if (completion_value_ == 0) {
+        return;
+    }
+    // Synchronous submit is for offscreen, readback and goldens only; the frame path uses
+    // submit_async (docs/guides/writing-a-backend.md section 3).
+    if ([device_.event() waitUntilSignaledValue:completion_value_ timeoutMS:5000] == YES) {
+        // The event is signaled by the GPU, but the completed handler runs on a thread Metal
+        // chooses and may not have run yet. `is_complete()` reads the published value, so without
+        // this the list would report incomplete immediately after a successful synchronous submit.
+        // Publishing here is safe: the GPU has reached the value, which is exactly what the
+        // handler would publish.
+        device_.publish_completed(completion_value_);
     }
 }
 
