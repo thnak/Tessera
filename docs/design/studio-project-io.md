@@ -183,15 +183,18 @@ same project (asserted by `scripts/ci/preview_project_load.mjs`). The page side 
 | Replace | opening over unsaved edits asks first |
 | Save | explicit only (Ctrl/Cmd+S or the button); `queryPermission`/`requestPermission` first; before writing, each file's `lastModified` is compared with the value recorded at load. A changed file raises *Keep mine / Take disk / Cancel* and nothing is written until the person chooses |
 | Focus | when the tab regains focus the note says how many files changed on disk (no file watcher exists) |
+| New file / Rename / Delete | buttons under the load bar act on the selected row. A new path is confined and must be an accepted text type (`.tsx`, `.jsx`, `.css`, `.json`); a duplicate, a path under a file, or a folder's path is refused with a sentence. **Nothing touches the disk until Save**: a created file is written then, a renamed file is a create plus a delete, and a deleted file is removed from the folder by `deleteFiles` (confined, text kinds only, a missing file is fine). Deleting asks for confirmation at the click, and a file deleted in the page but changed on disk is a conflict like any other write. Rename does **not** rewrite imports in other files, and the note says so (the owner's decision, 2026-11-16) |
+| Reopen | the last opened folder's handle is kept in IndexedDB (`recent-folder.js`); the next visit offers *Reopen <name>*, whose click is the gesture the permission prompt needs. A folder that no longer exists is forgotten; storage that is unavailable means nothing is remembered and nothing breaks |
 | Download | a deterministic zip of the accepted text files with the editor's text; locked files were never read, so they are not in it and the note says so |
 
-**Verification.** `node scripts/ci/preview_project_load.mjs` (16 cases, no browser) and
+**Verification.** `node scripts/ci/preview_project_load.mjs` (18 cases, no browser) and
 `scripts/ci/preview_browser_project_io.mjs` (Chromium, run by hand from a directory whose `node_modules` has
 playwright: the zip route, Download round trip, the named refusals, and the folder route against a real
-origin-private-file-system handle including a conflict). The one thing neither can do is the OS folder picker,
+origin-private-file-system handle including a conflict, the file operations and the remembered folder). The one thing neither can do is the OS folder picker,
 which needs a user gesture and is checked by hand.
 
 ## 6. Still not implemented
 
-Adding, deleting and renaming files from the tree (rename does not rewrite imports, by the owner's decision),
-remembering the last folder handle in IndexedDB, and the picker's OS dialog under automation.
+Creating, renaming or deleting a **directory** as such (a directory appears with its first file and goes with
+its last in the page, and an emptied folder stays on disk), rewriting imports on rename, and the picker's OS
+dialog under automation. The probe's section 6 and 7 cover the file operations and the remembered folder.

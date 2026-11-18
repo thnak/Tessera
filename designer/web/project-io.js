@@ -300,6 +300,36 @@ export async function writeFiles(root, files) {
   return written;
 }
 
+/**
+ * Deletes the given files from the opened root; a file that is already gone is not an error.
+ *
+ * Confined and limited to accepted text kinds like `writeFiles`, so a delete cannot reach a locked file
+ * (C++, an image, `node_modules`) or leave the root.
+ *
+ * @param {string[]} paths
+ */
+export async function deleteFiles(root, paths) {
+  await ensureWritable(root);
+  for (const path of paths) {
+    const confined = confinePath(path);
+    if (!isTextKind(classifyPath(confined))) {
+      throw new ProjectIoError('not-accepted', `${JSON.stringify(path)} is not a file the studio deletes`);
+    }
+    const segments = confined.split('/');
+    let directory = root;
+    try {
+      for (const segment of segments.slice(0, -1)) {
+        directory = await directory.getDirectoryHandle(segment);
+      }
+      await directory.removeEntry(segments[segments.length - 1]);
+    } catch (error) {
+      if (error?.name !== 'NotFoundError') {
+        throw error;
+      }
+    }
+  }
+}
+
 /** Reads one accepted text file from the opened root, for "take the disk's version" in a conflict. */
 export async function readText(root, path) {
   const handle = await fileHandleAt(root, path, false);

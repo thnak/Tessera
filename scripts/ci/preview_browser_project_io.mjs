@@ -55,9 +55,17 @@ page.on('console', (message) => {
 page.on('pageerror', (error) => consoleErrors.push(`pageerror: ${String(error)}`));
 // Opening a project over unsaved edits asks first; the probe answers yes and records that it asked.
 let confirmations = 0;
+let promptAnswer = '';
+let confirmAnswer = true;
 page.on('dialog', (dialog) => {
   confirmations += 1;
-  void dialog.accept();
+  if (dialog.type() === 'prompt') {
+    void dialog.accept(promptAnswer);
+  } else if (confirmAnswer) {
+    void dialog.accept();
+  } else {
+    void dialog.dismiss();
+  }
 });
 await page.goto(base, { waitUntil: 'load' });
 
@@ -231,6 +239,74 @@ await page.waitForSelector('#project-conflict');
 await page.getByRole('button', { name: 'Keep mine' }).click();
 await page.waitForFunction(() => /saved/.test(document.getElementById('project-note')?.textContent ?? ''));
 check('Keep mine overwrites with the editor text', (await diskText('ui/Home.tsx')).includes('Mine again'));
+
+// --- 6. new file, rename, delete: all pending until Save, nothing written before ---------------------
+const onDisk = (path) =>
+  page.evaluate(async (target) => {
+    try {
+      let at = await (await navigator.storage.getDirectory()).getDirectoryHandle('proj');
+      const parts = target.split('/');
+      for (const part of parts.slice(0, -1)) at = await at.getDirectoryHandle(part);
+      await at.getFileHandle(parts.at(-1));
+      return true;
+    } catch {
+      return false;
+    }
+  }, path);
+const waitNote = (pattern) =>
+  page.waitForFunction((source) => new RegExp(source).test(document.getElementById('project-note')?.textContent ?? ''), pattern.source);
+
+promptAnswer = 'ui/Extra.tsx';
+await page.locator('#new-file').click();
+await page.waitForSelector('.tree-row[data-path="ui/Extra.tsx"]');
+check('New file appears in the tree, marked unsaved', (await page.locator('.tree-row[data-path="ui/Extra.tsx"] .tree-dirty').count()) === 1);
+check('a new file is not on disk before Save', !(await onDisk('ui/Extra.tsx')));
+
+promptAnswer = 'src/native.cpp';
+await page.locator('#new-file').click();
+await waitNote(/not a file the studio edits/);
+check('a file type the studio does not edit is refused', (await page.locator('.tree-row[data-path="src/native.cpp"]').count()) === 0);
+promptAnswer = '../escape.tsx';
+await page.locator('#new-file').click();
+await waitNote(/\.\./);
+check('a path that escapes the project is refused as a new file', (await page.locator('.tree-row[data-path="../escape.tsx"]').count()) === 0);
+promptAnswer = 'ui/Extra.tsx';
+await page.locator('#new-file').click();
+await waitNote(/already exists/);
+check('a duplicate path is refused', true);
+
+await page.locator('.tree-row[data-path="ui/Extra.tsx"]').click();
+promptAnswer = 'ui/Renamed.tsx';
+await page.locator('#rename-file').click();
+await page.waitForSelector('.tree-row[data-path="ui/Renamed.tsx"]');
+check('Rename moves the row and says imports are not rewritten', (await page.locator('.tree-row[data-path="ui/Extra.tsx"]').count()) === 0 && /not rewritten/.test(await note()), await note());
+
+// An existing file that is deleted stays on disk until Save, and asks first.
+await page.locator('.tree-row[data-path="styles/app.css"]').click();
+confirmAnswer = false;
+await page.locator('#delete-file').click();
+check('declining the delete confirmation keeps the file', (await page.locator('.tree-row[data-path="styles/app.css"]').count()) === 1);
+confirmAnswer = true;
+await page.locator('#delete-file').click();
+await page.waitForFunction(() => document.querySelector('.tree-row[data-path="styles/app.css"]') === null);
+check('Delete drops the row, but the folder keeps the file until Save', await onDisk('styles/app.css'));
+
+await page.locator('#save-project').click();
+await waitNote(/deleted 1 file/);
+check('Save creates the new file and deletes the removed one', (await onDisk('ui/Renamed.tsx')) && !(await onDisk('styles/app.css')) && !(await onDisk('ui/Extra.tsx')));
+check('nothing is left unsaved after Save', (await page.locator('.tree-dirty').count()) === 0);
+
+// --- 7. the last folder is remembered and offered back --------------------------------------------
+await page.reload({ waitUntil: 'load' });
+await page.waitForSelector('#reopen-folder');
+check('after a reload the last folder is offered', /proj/.test(await page.locator('#reopen-folder').textContent()));
+await page.evaluate(async () => {
+  const dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('proj');
+  window.showDirectoryPicker = async () => dir;
+});
+await page.locator('#reopen-folder').click();
+await page.waitForFunction(() => /Folder: proj/.test(document.getElementById('project-name')?.textContent ?? ''));
+check('Reopen loads the remembered folder without the picker', (await page.locator('.tree-row[data-path="ui/Renamed.tsx"]').count()) === 1);
 
 check(
   'No console errors',
