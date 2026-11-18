@@ -9,6 +9,7 @@
 #include "node_lowering_internal.hpp"
 
 #include <cstddef>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -133,6 +134,80 @@ Folded fold(NodeState& state, const jsx::Expr& expr) {
     }
 }
 
+bool has_conditional(const jsx::Expr& expr) {
+    if (expr.kind == jsx::ExprKind::Conditional) {
+        return true;
+    }
+    for (const jsx::ExprPtr& operand : expr.operands) {
+        if (operand && has_conditional(*operand)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// A copy of a pure `className` expression in which every `styles.<class>` read is the string
+// literal of its scoped name, so the ordinary expression lowering can handle a conditional around
+// them
+// (`on ? styles.on : ""`). Returns null with no diagnostic for a shape a class expression cannot
+// have (an arrow, an object, an element); the caller then reports the dynamic diagnostic. A bare
+// `styles` is reported here because it is the one read that has no string to substitute.
+jsx::ExprPtr substitute(NodeState& state, const jsx::Expr& expr) {
+    if (expr.kind == jsx::ExprKind::Identifier && find_binding(state, expr.text) != nullptr) {
+        fail_node(state, kDynamic,
+                  "`" + expr.text + "` cannot be used as a value; read one class: `" + expr.text +
+                      ".card`",
+                  expr.span, "write `styles.card` with the class name written out");
+        return nullptr;
+    }
+    auto out = std::make_unique<jsx::Expr>();
+    out->kind = expr.kind;
+    out->span = expr.span;
+    out->height = expr.height;
+    switch (expr.kind) {
+    case jsx::ExprKind::Member:
+        if (!expr.operands.empty() && expr.operands[0] &&
+            expr.operands[0]->kind == jsx::ExprKind::Identifier &&
+            find_binding(state, expr.operands[0]->text) != nullptr) {
+            const Folded read = fold(state, expr);
+            if (!read.folded) {
+                return nullptr; // fold() reported why
+            }
+            out->kind = jsx::ExprKind::String;
+            out->text = read.text;
+            out->height = 1;
+            return out;
+        }
+        break;
+    case jsx::ExprKind::Arrow:
+    case jsx::ExprKind::Object:
+    case jsx::ExprKind::Jsx:
+    case jsx::ExprKind::Return:
+        return nullptr;
+    default:
+        break;
+    }
+    if (!expr.type_args.empty()) {
+        return nullptr;
+    }
+    out->text = expr.text;
+    out->number = expr.number;
+    out->boolean = expr.boolean;
+    out->template_strings = expr.template_strings;
+    for (const jsx::ExprPtr& operand : expr.operands) {
+        if (!operand) {
+            out->operands.push_back(nullptr);
+            continue;
+        }
+        jsx::ExprPtr copy = substitute(state, *operand);
+        if (!copy) {
+            return nullptr;
+        }
+        out->operands.push_back(std::move(copy));
+    }
+    return out;
+}
+
 } // namespace
 
 CssModuleClass resolve_css_module_class(NodeState& state, const jsx::Expr& expr) {
@@ -141,15 +216,29 @@ CssModuleClass resolve_css_module_class(NodeState& state, const jsx::Expr& expr)
     }
     Folded folded = fold(state, expr);
     if (state.error) {
-        return CssModuleClass{CssModuleClass::Kind::Error, {}};
+        return CssModuleClass{CssModuleClass::Kind::Error, {}, nullptr};
     }
     if (folded.folded) {
-        return CssModuleClass{CssModuleClass::Kind::Resolved, std::move(folded.text)};
+        return CssModuleClass{CssModuleClass::Kind::Resolved, std::move(folded.text), nullptr};
+    }
+    // A conditional around constant reads is lowered as an ordinary expression: both branches are
+    // known classes, only the choice between them happens at run time.
+    if (has_conditional(expr)) {
+        if (jsx::ExprPtr rewritten = substitute(state, expr)) {
+            ir::ExprPtr lowered = lower_node_expression(state, *rewritten);
+            if (!lowered) {
+                return CssModuleClass{CssModuleClass::Kind::Error, {}, nullptr};
+            }
+            return CssModuleClass{CssModuleClass::Kind::Expression, {}, std::move(lowered)};
+        }
+        if (state.error) {
+            return CssModuleClass{CssModuleClass::Kind::Error, {}, nullptr};
+        }
     }
     fail_node(state, kDynamic,
               "a `className` that reads a CSS module must fold to one class string at compile time",
               expr.span, "write `styles.card` or a template of `styles.*` reads only");
-    return CssModuleClass{CssModuleClass::Kind::Error, {}};
+    return CssModuleClass{CssModuleClass::Kind::Error, {}, nullptr};
 }
 
 } // namespace tessera::compiler::lowering::internal

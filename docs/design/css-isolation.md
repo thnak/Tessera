@@ -145,7 +145,12 @@ inside it that a function form does not, and no author needs it.
 - A malformed `:global(`: **error**. A `:global()` that matches nothing is not linted; matching is
   dynamic.
 - `TESSERA_JSX_STYLES_DYNAMIC` for `styles[k]`, spread, or passing `styles` around — the same
-  reason `style` keys must be static.
+  reason `style` keys must be static. A conditional is allowed when every read in it is a
+  constant (`on ? styles.active : ""`): a class that follows state is common (a selected tab, an
+  error field), the IR already has the `conditional` expression, and both branches are known
+  classes, so substituting the scoped names and lowering the rest as an ordinary expression needs
+  no run-time name lookup. The first slice refused it; the gallery form's segmented control showed
+  that was too strict.
 - `TESSERA_CSS_MODULE_HASH_COLLISION` as above.
 
 ## Inspector and tools

@@ -165,10 +165,14 @@ struct ChildItem {
 // expression reads no CSS module at all, so the ordinary expression lowering handles it; `Resolved`
 // carries the folded class string; `Error` means a diagnostic was reported.
 struct CssModuleClass {
-    enum class Kind : std::uint8_t { NotApplicable, Resolved, Error };
+    // `Expression` is a `className` that depends on run-time state (a conditional) but whose every
+    // `styles.<class>` read is a compile-time constant: `expression` is its lowered IR, with each
+    // read already replaced by the scoped name.
+    enum class Kind : std::uint8_t { NotApplicable, Resolved, Expression, Error };
 
     Kind kind = Kind::NotApplicable;
     std::string text;
+    ir::ExprPtr expression;
 };
 [[nodiscard]] CssModuleClass resolve_css_module_class(NodeState& state, const jsx::Expr& expr);
 

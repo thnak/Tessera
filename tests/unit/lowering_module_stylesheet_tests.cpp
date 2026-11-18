@@ -291,6 +291,53 @@ void test_computed_module_class_is_dynamic() {
              "the code: " + first_message(result));
 }
 
+// Issue #463: a class that depends on state keeps both branches as scoped constants. The choice
+// between them is the ordinary conditional expression; only the names were resolved at compile
+// time.
+void test_conditional_class_keeps_both_branches_scoped() {
+    const auto fixture =
+        parse_file("ui/App.tsx",
+                   "import { useState } from \"tessera\";\n"
+                   "import styles from \"./Card.module.css\";\n"
+                   "function App() {\n"
+                   "  const [on, setOn] = useState<bool>(false);\n"
+                   "  return <View className={`${styles.card} ${on ? styles.active : \"\"}`} />;\n"
+                   "}\n");
+    const lowering::StylesheetFile sheet{"ui/Card.module.css", ".card {}\n.active {}\n"};
+    const auto result = lower_with(*fixture, std::span<const lowering::StylesheetFile>(&sheet, 1));
+    check(result.has_value(), "a conditional module class lowers: " + first_message(result));
+    if (!result.has_value()) {
+        return;
+    }
+    const ir::Component* app = find_component(*result, "App");
+    check(app != nullptr, "App is present");
+    if (app != nullptr) {
+        const std::string text = class_name_text(*app);
+        check(text.find("card_0b82a5") != std::string::npos, "the static part is scoped: " + text);
+        check(text.find("active_0b82a5") != std::string::npos, "the branch is scoped: " + text);
+        check(text.find("conditional") != std::string::npos,
+              "the choice stays an expression: " + text);
+        check(text.find("styles") == std::string::npos, "no read of `styles` survives: " + text);
+    }
+    check(result->warnings.empty(), "both classes count as used, so there is no warning");
+}
+
+// Issue #463: the conditional form still refuses a read that has no class to substitute.
+void test_conditional_with_bare_styles_is_dynamic() {
+    const auto fixture =
+        parse_file("ui/App.tsx", "import { useState } from \"tessera\";\n"
+                                 "import styles from \"./Card.module.css\";\n"
+                                 "function App() {\n"
+                                 "  const [on, setOn] = useState<bool>(false);\n"
+                                 "  return <View className={on ? styles : \"x\"} />;\n"
+                                 "}\n");
+    const lowering::StylesheetFile sheet{"ui/Card.module.css", ".card {}\n"};
+    const auto result = lower_with(*fixture, std::span<const lowering::StylesheetFile>(&sheet, 1));
+    check(!result.has_value(), "a bare `styles` in a branch is rejected");
+    check_eq(first_code(result), "TESSERA_JSX_STYLES_DYNAMIC",
+             "the code: " + first_message(result));
+}
+
 // Issue #463: this is the isolation proof. Two files declare `.title`; each component reads its
 // own module, and the two scoped names differ because the module paths differ.
 void test_two_modules_scope_the_same_class_differently() {
@@ -384,6 +431,8 @@ int main() {
     test_spread_of_styles_is_rejected();
     test_unknown_module_class_is_an_error();
     test_computed_module_class_is_dynamic();
+    test_conditional_class_keeps_both_branches_scoped();
+    test_conditional_with_bare_styles_is_dynamic();
     test_two_modules_scope_the_same_class_differently();
     test_two_bindings_in_one_file();
     test_unused_module_class_warns();

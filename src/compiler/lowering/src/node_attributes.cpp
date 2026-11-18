@@ -143,6 +143,10 @@ bool apply_expression_attribute(NodeState& state, const ElementInfo& element, st
             put_prop(node, "className", ir::make_literal(std::move(css.text)));
             return true;
         }
+        if (css.kind == CssModuleClass::Kind::Expression) {
+            put_prop(node, "className", std::move(css.expression));
+            return true;
+        }
         ir::ExprPtr lowered = lower_node_expression(state, value);
         if (!lowered) {
             return false;
