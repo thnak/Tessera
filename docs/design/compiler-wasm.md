@@ -379,6 +379,7 @@ The page ships the unsupported state as its *default* pane content and swaps in 
 device exists. Each way to get there — no `navigator.gpu`, no adapter, a rejecting `requestDevice()` —
 names its cause and points at the Scene tab, which needs no GPU; a module that fails to load, or one
 without the canvas exports, reports that too, and a blank canvas is never the outcome.
+The heading says which side failed (#375): `data-cause` is `browser` or `module` on `#unsupported`.
 `scene_frame_parity.py --mode canvas-report` checks the same contract without a browser: it loads
 `tessera_canvas.js` under Node (no `navigator.gpu`, like a browser without WebGPU) and requires a
 `hasDevice:false` report, not a crash.

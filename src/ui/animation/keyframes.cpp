@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "shadow_interpolation.hpp"
 #include "tessera/ui/animation/keyframes.hpp"
 #include "tessera/ui/style/color.hpp"
 
@@ -9,6 +10,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <map>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -71,7 +73,13 @@ std::string format_number(double value) {
     return result.empty() ? "0" : result;
 }
 
-std::string interpolate_value(std::string_view from, std::string_view to, double t) {
+std::string interpolate_value(std::string_view property, std::string_view from, std::string_view to,
+                              double t) {
+    if (property == "box-shadow") {
+        if (std::optional<std::string> shadow = interpolate_box_shadow(from, to, t)) {
+            return std::move(*shadow);
+        }
+    }
     const style::ColorParseResult from_color = style::parse_color(from);
     const style::ColorParseResult to_color = style::parse_color(to);
     if (from_color.ok && to_color.ok) {
@@ -143,7 +151,8 @@ std::vector<style::Declaration> sample_at(const style::KeyframeBlock& keyframes,
         style::Declaration sampled = *declaration;
         const auto found = to_values.find(property);
         if (found != to_values.end()) {
-            sampled.value = interpolate_value(declaration->value, found->second->value, t);
+            sampled.value =
+                interpolate_value(property, declaration->value, found->second->value, t);
         }
         result.push_back(std::move(sampled));
     }
