@@ -9,6 +9,7 @@
 #endif
 #if defined(TESSERA_TEST_HAS_METAL)
 #include "tessera/rendering/metal/metal_device.hpp"
+#include "tessera/rendering/metal/metal_shader_registry.hpp"
 #endif
 
 #include <exception>
