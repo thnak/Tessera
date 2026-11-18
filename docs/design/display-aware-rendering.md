@@ -401,8 +401,9 @@ The clip path needs no separate scaling: `push_clip` scales the paint-space clip
 scissor is derived from it (`ClipStateTable::push` -> `enclosing_scissor`), so the scissor fast path
 and the folded SDF uniform test the same target-space rectangle. `set_scissor` itself is a
 target-pixel seam: the frame scissor is the target extent and damage regions are already device
-pixels. Still missing, a later PR: the mip-chain downscale case below. The X11/Wayland
-`PixelGeometry` sources have landed (section 2). LCD compositing has landed (section 3.4.1 step 3).
+pixels. The mip-chain downscale case below has landed (#491; WebGPU is tracked in #510). The
+X11/Wayland `PixelGeometry` sources have landed (section 2). LCD compositing has landed (section
+3.4.1 step 3).
 
 S8 image filter (landed): RHI sampler state is fixed at texture creation, so the filter is part of
 `ImageTextureKey` and `Batched2DSink::draw_image` picks it per draw with the pure
@@ -424,7 +425,7 @@ supports_mipmaps()` is true, one level otherwise, so a magnified or near-1:1 dra
 roughly one third extra memory. A chain entry counts every level against the cache's byte limit. The
 sampler picks the level from the draw's derivatives, and a texture with one level never samples
 another. Vulkan builds the chain with a linear `vkCmdBlitImage` downsample; WebGPU reports no support
-(no blit; a render-pass chain is a later slice), so a downscaled image there still resolves `Linear`
+(no blit; a render-pass chain is #510), so a downscaled image there still resolves `Linear`
 at level 0. `tests/gpu/batched2d/texture_mips_gpu_tests.cpp` pins it on a real device: a 1px
 checkerboard at a 3x downscale aliases to pure black/white with one level and stays in a grey band
 with a chain. There is no golden for it; a golden would have to carry its own tolerance on lavapipe.
