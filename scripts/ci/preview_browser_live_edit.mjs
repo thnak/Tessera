@@ -141,9 +141,7 @@ const stateValue = async () => {
 /** Writes the whole editor buffer as one input event, the way a paste does. */
 const setSource = async (source) => {
   await page.evaluate((next) => {
-    const node = document.getElementById('source');
-    node.value = next;
-    node.dispatchEvent(new Event('input', { bubbles: true }));
+    window.__tesseraEditor.edit(next);
   }, source);
 };
 
@@ -151,9 +149,8 @@ const setSource = async (source) => {
 const typeText = async (characters) => {
   for (const character of characters) {
     await page.evaluate((one) => {
-      const node = document.getElementById('source');
-      node.value += one;
-      node.dispatchEvent(new Event('input', { bubbles: true }));
+      const editor = window.__tesseraEditor;
+      editor.edit(editor.text() + one);
     }, character);
     // Deliberately shorter than the debounce, so this really is a burst: if the page applied per
     // keystroke, each of these would land inside the previous one's window.

@@ -174,7 +174,7 @@ modules, roles, and status is [`docs/specs/dependencies.md`](docs/specs/dependen
 | Dawn | BSD-3-Clause | Google LLC |
 | Emscripten | MIT / UIUC | Emscripten contributors |
 | emdawnwebgpu (Emscripten port, `v20260423.175430`) | MIT / UIUC (JS bindings), BSD-3-Clause (Dawn headers) | Emscripten contributors; The Dawn & Tint Authors; linked into the Wasm WebGPU build only |
-| CodeMirror 6 | MIT | Marijn Haverbeke and contributors; bundled in the hosted studio page |
+| CodeMirror 6 (`@codemirror/*`), Lezer (`@lezer/*`), `crelt`, `style-mod`, `w3c-keyname` | MIT | Marijn Haverbeke and contributors; bundled in the hosted studio page |
 | fflate | MIT | Arjun Barrett; hosted studio zip import/export |
 | React, ReactDOM | MIT | Meta Platforms, Inc. and React contributors; bundled in the hosted studio page and the wiki client, never linked into an app binary or the Wasm engine ([ADR-054](decisions/ADR-054-studio-front-end-react-vite.md), [ADR-024](decisions/ADR-024-native-first-boundaries.md)) |
 | react-markdown, rehype-slug, remark-gfm | MIT | their respective authors; bundled in the wiki client (`tools/wiki`) |

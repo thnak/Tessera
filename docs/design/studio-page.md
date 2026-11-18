@@ -232,13 +232,28 @@ One tab per open file, a real `role="tablist"` with a roving tabindex and `Arrow
 content inside a `role="tab"` is a broken control).
 
 **The buffers are not React state.** `page-workspace.ts` keeps a `Map<path, text>` in a ref and writes the
-textarea's value from an effect when the active file changes; a keystroke goes to `writeBuffer`, which
+editor's document from an effect when the active file changes; a keystroke goes to `writeBuffer`, which
 compares against the project's copy and re-renders **only when the dirty state changes**. Putting the text
-in state would re-render the tree, the tabs, the preview column and the canvas host on every character. The
-textarea is deliberately the editor (a real code editor is a dependency, and #431 keeps the no-new-
-dependency rule): what the issue changes is that it is *per file* and that the active file's text is what
-the preview evaluates. A keystroke also calls the live-edit trigger (section 1), which is what makes the
-preview follow the text without a button.
+in state would re-render the tree, the tabs, the preview column and the canvas host on every character. A
+keystroke also calls the live-edit trigger (section 1), which is what makes the preview follow the text
+without a button.
+
+**The editor is CodeMirror 6 (issue #517).** It was a `<textarea>` while #431 kept the no-new-dependency
+rule; the owner then chose CodeMirror (2026-11-18), already listed in `docs/specs/dependencies.md`. Everything
+CodeMirror-specific is in `src/editor/`: `code-editor.ts` is a small handle (`open`, `text`, `reveal`,
+`setMarks`, `focus`) and `editor-theme.ts` maps token tags to CSS custom properties, so the palette is two
+blocks in `styles/code.css` (`--ed-*`, `--tok-*`, light and dark, every pair at least 4.5:1). Each open file
+keeps its own `EditorState`, so **undo survives a tab switch**; a page write (a sample, a restored draft) is
+told apart from the person's own history by comparing the stored document with the text the page hands
+over. The compiler's diagnostics are underlined at their span (a wavy line in the severity colour, the
+message as the tooltip) by `diagnostics-session.ts`, next to the unchanged list. Mod-S and Mod-Enter are the
+editor's keymap (save, apply now). Tab is *not* bound to indent, so the keyboard can leave the editor.
+
+Three consequences to remember. The editor mounts in an effect, so the server-rendered chrome carries
+`#editor-host` and the live surface carries `#source` (the old id, on the editable node). The probes read and
+type through the page's test seam `window.__tesseraEditor` (`text()`, `edit(text)`) because a CodeMirror
+surface has no `value`. And CodeMirror injects its own `<style>` rules at run time; if the page ever ships a
+strict style CSP, pass a nonce (`EditorView.cspNonce`) rather than loosening the policy.
 
 ### 3.3 What an edit compiles
 

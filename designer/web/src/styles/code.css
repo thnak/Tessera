@@ -95,21 +95,54 @@
   display: flex;
 }
 
-#source {
+/* The editor (issue #517) is CodeMirror 6, mounted in `#editor-host`. The host fills the track and the
+ * editor scrolls inside it, so a long file never grows the code column. The colours are properties, not
+ * literals: `src/editor/editor-theme.ts` reads `--ed-*` and `--tok-*`, so the light/dark pair below is the
+ * only place the palette lives. The pairs follow the studio design (keyword purple, string green, comment
+ * grey) and keep body text above 4.5:1 on the editor surface in both themes. */
+#editor-host {
   flex: 1 1 auto;
-  width: 100%;
   min-width: 0;
   min-height: 0;
-  resize: none;
-  padding: 12px 14px;
-  border: 0;
-  background: transparent;
-  color: var(--text);
-  font: 13px/1.6 var(--mono);
-  tab-size: 2;
+  display: flex;
+  flex-direction: column;
 }
 
-#source:focus { outline: 2px solid var(--accent); outline-offset: -2px; }
+#editor-host .cm-editor { flex: 1 1 auto; min-height: 0; }
+
+:root {
+  --ed-bg: #fbfbfd;
+  --ed-fg: #1c2230;
+  --ed-line: #eef0f6;
+  --ed-selection: #cfd8ff;
+  --tok-keyword: #7a3fc4;
+  --tok-string: #0f7a5c;
+  --tok-number: #a3480f;
+  --tok-comment: #6b7385;
+  --tok-tag: #1d4fb8;
+  --tok-attribute: #8a4b00;
+  --tok-type: #0b6e8a;
+  --tok-function: #2a5bd7;
+  --tok-punct: #4a5368;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ed-bg: #12161e;
+    --ed-fg: #dfe4ee;
+    --ed-line: #1a202b;
+    --ed-selection: #2d3a66;
+    --tok-keyword: #b794f6;
+    --tok-string: #5fd3a8;
+    --tok-number: #f0a66b;
+    --tok-comment: #8791a5;
+    --tok-tag: #7fa6ff;
+    --tok-attribute: #e3b66d;
+    --tok-type: #62d0e6;
+    --tok-function: #8fb0ff;
+    --tok-punct: #a5aec2;
+  }
+}
 
 /* --- the author stylesheet (issue #390) ---------------------------------------------------------
  *

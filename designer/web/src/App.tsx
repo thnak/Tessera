@@ -348,22 +348,12 @@ export function App() {
     [sessions],
   );
 
-  const onEditorKeyDown = useCallback(
-    (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
-        // Save is explicit (no autosave); the browser's own "save page" is not what Ctrl+S means here.
-        event.preventDefault();
-        projectIo.save();
-        return;
-      }
-      if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
-        event.preventDefault();
-        // "Apply now", not "run": `Ctrl+Enter` skips the debounce, it does not reset the app.
-        void live.current?.applyNow();
-      }
-    },
-    [projectIo.save],
-  );
+  // Save is explicit (no autosave); the editor's keymap already stopped the browser's own "save page".
+  const onEditorSave = useCallback(() => projectIo.save(), [projectIo.save]);
+  // "Apply now", not "run": Ctrl+Enter skips the debounce, it does not reset the app.
+  const onEditorApplyNow = useCallback(() => {
+    void live.current?.applyNow();
+  }, []);
 
   const onSelectView = useCallback((id: ViewDefinition["id"]) => {
     setView(id);
@@ -533,7 +523,8 @@ export function App() {
           onLoadSample={loadSampleForActiveView}
           restartDisabled={!state.runEnabled}
           applying={state.applying}
-          onKeyDown={onEditorKeyDown}
+          onSave={onEditorSave}
+          onApplyNow={onEditorApplyNow}
         />
 
         <PreviewColumn

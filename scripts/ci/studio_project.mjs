@@ -19,7 +19,7 @@ export async function selectFile(page, path) {
 /** Selects `path` in the project tree and replaces its text with `text`. */
 export async function editFile(page, path, text) {
   await selectFile(page, path);
-  await page.locator('#source').fill(text);
+  await page.evaluate((next) => window.__tesseraEditor.edit(next), text);
 }
 
 /** Replaces the entry source; the stylesheet import is prepended so the sheet still applies. */

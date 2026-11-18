@@ -158,10 +158,10 @@ await page.waitForTimeout(2000);
 
 // --- 2. edit, then Download keeps the edit and omits locked files -------------------------------------
 await page.locator('.tree-row[data-path="ui/Home.tsx"]').click();
+await page.waitForFunction(() => window.__tesseraEditor?.text().includes('Opened from a zip'));
 await page.evaluate(() => {
-  const node = document.getElementById('source');
-  node.value = node.value.replace('Opened from a zip', 'Edited in the studio');
-  node.dispatchEvent(new Event('input', { bubbles: true }));
+  const editor = window.__tesseraEditor;
+  editor.edit(editor.text().replace('Opened from a zip', 'Edited in the studio'));
 });
 check(
   'the edited file is marked dirty',
@@ -232,12 +232,13 @@ check('a folder opens and is named', true);
 check('Save is enabled for a folder project', !(await page.locator('#save-project').isDisabled()));
 
 await page.locator('.tree-row[data-path="ui/Home.tsx"]').click();
-const editHome = (from, to) =>
-  page.evaluate(([a, b]) => {
-    const node = document.getElementById('source');
-    node.value = node.value.replace(a, b);
-    node.dispatchEvent(new Event('input', { bubbles: true }));
+const editHome = async (from, to) => {
+  await page.waitForFunction((needle) => window.__tesseraEditor?.text().includes(needle), from);
+  await page.evaluate(([a, b]) => {
+    const editor = window.__tesseraEditor;
+    editor.edit(editor.text().replace(a, b));
   }, [from, to]);
+};
 await editHome('Opened from a zip', 'Saved to the folder');
 await page.locator('#source').press('Control+s');
 await page.waitForFunction(() => /saved/.test(document.getElementById('project-note')?.textContent ?? ''));
@@ -347,11 +348,11 @@ await page.evaluate(async () => {
 await page.locator('#reopen-folder').click();
 await page.waitForSelector('#project-draft');
 check('the unsaved edit is offered back after a reload', /1 file/.test((await page.locator('#project-draft').textContent()) ?? ''));
-check('the draft is not applied before the person chooses', !(await page.locator('#source').inputValue()).includes('Draft text'));
+check('the draft is not applied before the person chooses', !(await page.evaluate(() => window.__tesseraEditor.text())).includes('Draft text'));
 await page.locator('#restore-draft').click();
 await page.waitForFunction(() => /restored 1/.test(document.getElementById('project-note')?.textContent ?? ''));
 await page.locator('.tree-row[data-path="ui/Home.tsx"]').click();
-check('Restore brings the edit back, marked unsaved', (await page.locator('#source').inputValue()).includes('Draft text') && (await page.locator('.tree-row[data-path="ui/Home.tsx"] .tree-dirty').count()) === 1);
+check('Restore brings the edit back, marked unsaved', (await page.evaluate(() => window.__tesseraEditor.text())).includes('Draft text') && (await page.locator('.tree-row[data-path="ui/Home.tsx"] .tree-dirty').count()) === 1);
 
 // A file that changed on disk since the draft was kept is never overwritten by it.
 await page.waitForTimeout(2600);
