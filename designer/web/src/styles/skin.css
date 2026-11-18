@@ -1,0 +1,257 @@
+/* SPDX-License-Identifier: MIT
+ *
+ * The simulated device frame (issue #171's skins slice; `designer-studio-v1.md` sections 5.1 and
+ * 5.2).
+ *
+ * **Every colour here is a theme token.** The frame is tinted from the page's own `--bg`/`--text`/
+ * `--border` pair, which is the studio's rendering of the engine's `theme.applied`
+ * `{background, foreground, scheme}` record (window-chrome-v1.md section 3.3). That is what makes a
+ * theme switch retint the frame and the canvas in the same frame: one `prefers-color-scheme` change
+ * moves the tokens, the browser repaints the frame, and no engine frame is owed. A literal colour in
+ * this file would be the bug section 5.2 names, so there is none.
+ *
+ * **The geometry is the manifest's.** `regions/SkinFrame.tsx` writes the validated skin's numbers as
+ * `--skin-*` custom properties and this sheet only shapes them. Nothing here hard-codes a device's
+ * size, which is what keeps "the size in `viewport.set` is the size the preview renders at" true.
+ *
+ * The three modes of section 5.1 are three class names on `.skin-frame`:
+ *
+ *   mode-system  the title/menu strips are siblings ABOVE the screen, so the canvas is the client
+ *                area and the viewer reports zero insets.
+ *   mode-custom  no strips at all: the engine draws the framework title bar, and the skin adds only
+ *                the bezel.
+ *   mode-mobile  the bars are overlaid INSIDE the screen, over the canvas, and their heights are the
+ *                insets the engine pads by.
+ */
+
+.skin-frame {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: var(--skin-outer-width);
+  height: var(--skin-outer-height);
+  /* The frame's own paint: the bezel and the strips. `--pane-bg` is the studio's surface colour, so
+     the frame reads as a device sitting on the page rather than as a second window. */
+  background: var(--pane-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--skin-radius);
+  /* The frame is a picture of a device, not a scroll container: a skin larger than the pane is
+     scaled by the pane's own overflow, never by shrinking the canvas the engine painted. */
+  overflow: hidden;
+  flex: none;
+}
+
+/* Before the manifests load, and when every one of them was rejected: the bare canvas, exactly the
+   pre-#171 page. A picker that failed must not take the preview down with it. */
+.skin-frame.is-bare {
+  width: auto;
+  height: auto;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+/* --- the strips outside the client area (`system` mode) ----------------------------------------- */
+
+.skin-menu,
+.skin-title {
+  display: flex;
+  align-items: center;
+  flex: none;
+  padding: 0 10px;
+  background: var(--bg);
+  color: var(--text-dim);
+  font-size: 11px;
+  /* The strips are chrome, not content: a pointer over them must not reach the preview. */
+  pointer-events: none;
+}
+
+.skin-menu {
+  height: var(--skin-menu-height);
+  gap: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.skin-menu-mark {
+  width: 26px;
+  height: 6px;
+  border-radius: 3px;
+  background: currentColor;
+  opacity: 0.35;
+}
+
+.skin-title {
+  height: var(--skin-title-height);
+  gap: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.skin-title-dots {
+  display: flex;
+  gap: 5px;
+  flex: none;
+}
+
+.skin-title-dots span {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  opacity: 0.6;
+}
+
+.skin-title-label {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  opacity: 0.8;
+}
+
+/* --- the screen --------------------------------------------------------------------------------- */
+
+.skin-screen {
+  position: relative;
+  flex: none;
+  width: var(--skin-viewer-width);
+  height: var(--skin-viewer-height);
+  /* The bezel is the frame's own paint showing through around the screen. */
+  margin: var(--skin-bezel-top) var(--skin-bezel-right) var(--skin-bezel-bottom)
+    var(--skin-bezel-left);
+  background: var(--bg);
+  overflow: hidden;
+}
+
+/* The canvas stack fills the screen exactly: the session sizes the canvas' CSS box to the viewer
+   rectangle, so the frame and the engine agree by construction rather than by a second scale. */
+.skin-screen > .canvas-stack {
+  position: absolute;
+  inset: 0;
+}
+
+/* --- the overlaid bars (`mobile` mode) ---------------------------------------------------------- */
+
+.skin-status,
+.skin-navigation {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  /* Overlaid chrome: the preview's own pointer path keeps working underneath, exactly like the
+     picker's overlay. */
+  pointer-events: none;
+  color: var(--text);
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter: blur(2px);
+}
+
+.skin-status {
+  top: 0;
+  height: var(--skin-status-height);
+  justify-content: space-between;
+  padding: 0 12px;
+}
+
+.skin-navigation {
+  bottom: 0;
+  height: var(--skin-navigation-height);
+  justify-content: center;
+  padding: 0 12px;
+}
+
+/* The status bar's clock placeholder: a bar, not a time, because a simulated clock that showed a
+   real time would be a value the preview does not have. */
+.skin-status-time {
+  width: 34px;
+  height: 7px;
+  border-radius: 3px;
+  background: currentColor;
+  opacity: 0.55;
+}
+
+.skin-glyphs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  opacity: 0.75;
+}
+
+.skin-glyphs svg {
+  display: block;
+}
+
+.skin-gesture {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.skin-gesture-pill {
+  width: 108px;
+  height: 4px;
+  border-radius: 2px;
+  background: currentColor;
+  opacity: 0.6;
+}
+
+/* --- the cutout --------------------------------------------------------------------------------- */
+
+.skin-cutout {
+  position: absolute;
+  pointer-events: none;
+  /* A cutout is a hole in the display: it is painted in the frame's colour, not tinted, so the
+     canvas behind it is genuinely hidden rather than dimmed. */
+  background: var(--pane-bg);
+  border: 1px solid var(--border);
+}
+
+.skin-cutout.is-punch-hole {
+  border-radius: 50%;
+}
+
+/* A notch hangs from the edge it touches, so only its bottom corners are rounded. */
+.skin-cutout.is-notch {
+  border-top: 0;
+  border-radius: 0 0 10px 10px;
+}
+
+/* --- the bezel and the optional SVG art --------------------------------------------------------- */
+
+.skin-bezel {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: var(--skin-radius);
+  /* A hairline inside the frame's edge, so the device reads as a solid object rather than as a
+     rectangle of the page's own background. */
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+/* The SVG frame is a MASK, not an image: a mask is painted in `currentColor`, so the art follows a
+   theme switch. An `<img>` would keep whatever colour the file was saved with, which is the retint
+   bug section 5.2 names. */
+.skin-art {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-color: currentColor;
+  mask-size: 100% 100%;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  opacity: 0.55;
+}
+
+/* --- the picker's overlay, inside the screen ---------------------------------------------------- */
+
+/* The picker overlay is positioned over the canvas inside the screen, so its coordinates are the
+   canvas' own. It stays `pointer-events: none` (issue #171's picker slice): the overlay sits exactly
+   over the canvas, and accepting events would swallow every move and press. */
+.skin-screen .pick-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}

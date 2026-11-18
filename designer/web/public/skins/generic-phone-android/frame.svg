@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 412 915" role="presentation">
+  <!--
+    SPDX-License-Identifier: MIT
+
+    The generic phone's frame art (issue #171's skins slice). Original work, drawn for this
+    repository: no vendor device art is redistributed (designer-studio-v1.md section 5.2).
+
+    **No colour is declared anywhere in this file.** Every stroke is `currentColor`, which the page
+    sets from the theme, so a theme switch retints the frame and the canvas in the same frame. A
+    skin that hard-codes a colour is a bug (section 5.2), and an SVG with a literal `#1c1f24` in it
+    would be exactly that bug in a file the manifest validator cannot see.
+
+    The geometry matches `skin.json`: a 412x915 outer box, an 8 px side bezel, a 12 px top and
+    bottom bezel, a 28 px corner radius, and a 10 px punch-hole centred at (206, 14). The screen
+    rectangle is left unfilled so the canvas shows through it.
+  -->
+  <rect x="0.5" y="0.5" width="411" height="914" rx="28" ry="28"
+        fill="none" stroke="currentColor" stroke-width="1" opacity="0.55" />
+  <rect x="8" y="12" width="396" height="891" rx="20" ry="20"
+        fill="none" stroke="currentColor" stroke-width="1" opacity="0.35" />
+  <circle cx="206" cy="14" r="5" fill="none" stroke="currentColor" stroke-width="1" opacity="0.8" />
+</svg>

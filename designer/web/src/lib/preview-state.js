@@ -44,6 +44,27 @@ export const FOLD_POSTURE_LABELS = Object.freeze({
   tabletop: 'Tabletop (horizontal hinge)',
 });
 
+/**
+ * The bundled skins the toolbar offers (issue #171's skins slice, `designer-studio-v1.md` section
+ * 5.2). The ids are the directory names under `designer/web/public/skins/`; `''` is "no frame",
+ * which is the pre-#171 page and the default.
+ *
+ * The list is here rather than fetched because the toolbar must render before any manifest loads:
+ * a `<select>` whose options arrive asynchronously would show an empty control on first paint. The
+ * *validated* set is what the page offers (a rejected manifest is not offered), so this is the
+ * vocabulary and `views/skin-load.ts` is the authority.
+ */
+export const SKIN_IDS = Object.freeze([
+  '',
+  'generic-desktop-windows',
+  'generic-desktop-macos',
+  'generic-desktop-linux',
+  'generic-phone-android',
+  'generic-phone-ios',
+  'generic-tablet',
+  'generic-foldable',
+]);
+
 /** The state a page starts from; each field is also the decoder's fallback for a missing one. */
 export const DEFAULT_STATE = Object.freeze({
   source: '',
@@ -53,6 +74,7 @@ export const DEFAULT_STATE = Object.freeze({
   dpr: 1,
   theme: 'system',
   foldPosture: '',
+  skin: '',
 });
 
 /**
@@ -118,6 +140,9 @@ export function normalizeState(state = {}, options = {}) {
   if (!FOLD_POSTURES.includes(merged.foldPosture)) {
     throw new ShareError('invalid', `the fold posture must be one of ${FOLD_POSTURES.join(', ')}`);
   }
+  if (!SKIN_IDS.includes(merged.skin)) {
+    throw new ShareError('invalid', `the skin must be one of ${SKIN_IDS.join(', ')}`);
+  }
   return {
     source: merged.source,
     file: merged.file,
@@ -126,6 +151,7 @@ export function normalizeState(state = {}, options = {}) {
     dpr: merged.dpr,
     theme: merged.theme,
     foldPosture: merged.foldPosture,
+    skin: merged.skin,
   };
 }
 

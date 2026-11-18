@@ -21,6 +21,8 @@
 
 import { VIEWS, type ViewDefinition } from "../lib/views";
 import type { PaneRefs } from "../page-state";
+import { geometryModeOf } from "../views/skin-geometry";
+import type { Skin } from "../views/skins";
 import { CanvasPane } from "./CanvasPane";
 import { DiagnosticsPane, ScenePane } from "./ViewPanes";
 import { EnvironmentToolbar, type ControlValues } from "./StudioChrome";
@@ -123,6 +125,8 @@ export function PreviewColumn({
   components,
   component,
   onPickComponent,
+  skins,
+  skin,
 }: {
   view: ViewDefinition;
   onSelectView: (id: ViewDefinition["id"]) => void;
@@ -133,7 +137,17 @@ export function PreviewColumn({
   components: readonly string[];
   component: string;
   onPickComponent: (name: string) => void;
+  /** The validated bundled skins, for the picker's options (issue #171's skins slice). */
+  skins: readonly { id: string; name: string }[];
+  /** The selected skin, or `null` for no frame. */
+  skin: Skin | null;
 }) {
+  // The geometry mode of section 5.1 is a property of the pair (skin, project): a desktop skin is
+  // `system` or `custom` depending on `window.titleBar`, and a mobile skin is always `mobile`. The
+  // project's config is not read yet (the studio has no `tessera.json` editor), so the mode is
+  // `system` for a desktop skin - the config's own default - and the `custom` branch is exercised by
+  // `scripts/ci/preview_skins.mjs` until the config lands.
+  const mode = skin === null ? "system" : geometryModeOf(skin, "system");
   return (
     <section className="region region-preview" aria-labelledby="preview-heading">
       <div className="region-header">
@@ -143,7 +157,7 @@ export function PreviewColumn({
 
       {/* The environment the preview is laid out and painted in. It belongs to this column: two of the
           three panes read it as a layout input, and the third carries it into the share link. */}
-      <EnvironmentToolbar controls={controls} onChange={onControlChange} />
+      <EnvironmentToolbar controls={controls} onChange={onControlChange} skins={skins} />
 
       {components.length > 1 ? (
         <label className="component-picker">
@@ -199,6 +213,8 @@ export function PreviewColumn({
           statStateRef={refs.statState}
           pickOverlayRef={refs.pickOverlay}
           pickToggleRef={refs.pickToggle}
+          skin={skin}
+          mode={mode}
         />
       </div>
     </section>

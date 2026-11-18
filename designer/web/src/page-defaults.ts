@@ -37,4 +37,6 @@ export const INITIAL_ENVIRONMENT = Object.freeze({
   theme: "system",
   /** The simulated fold posture (issue #408): `""` is no fold, which is the desktop default. */
   foldPosture: "",
+  /** The simulated device skin (issue #171's skins slice): `""` is no frame, the pre-#171 page. */
+  skin: "",
 });

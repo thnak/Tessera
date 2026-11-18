@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <string>
@@ -63,6 +64,30 @@ ui::layout::LayoutInput build_layout_input(const ui::Node& node, ui::style::Scen
 
 } // namespace
 
+bool same_insets(const hal::WindowInsets& a, const hal::WindowInsets& b) noexcept {
+    return a.left == b.left && a.top == b.top && a.right == b.right && a.bottom == b.bottom;
+}
+
+bool same_cutouts(const hal::CutoutInfo& a, const hal::CutoutInfo& b) noexcept {
+    if (a.count != b.count || !same_insets(a.waterfall_insets, b.waterfall_insets)) {
+        return false;
+    }
+    for (std::size_t i = 0; i < hal::kMaxCutouts; ++i) {
+        const hal::WindowRect& ra = a.bounds[i];
+        const hal::WindowRect& rb = b.bounds[i];
+        if (ra.x != rb.x || ra.y != rb.y || ra.width != rb.width || ra.height != rb.height) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool SceneMetrics::operator==(const SceneMetrics& other) const noexcept {
+    return width == other.width && height == other.height && dpi_scale == other.dpi_scale &&
+           posture == other.posture && same_insets(insets, other.insets) &&
+           same_cutouts(cutouts, other.cutouts);
+}
+
 hal::WindowMetrics simulated_metrics(const SceneMetrics& metrics) noexcept {
     hal::WindowMetrics snapshot;
     const auto whole = [](float value) {
@@ -75,6 +100,12 @@ hal::WindowMetrics simulated_metrics(const SceneMetrics& metrics) noexcept {
     // so the hinge rectangle and the window rectangle can never disagree.
     snapshot.fold =
         hal::fold_info_for(metrics.posture, snapshot.logical_width, snapshot.logical_height);
+    // The skin's safe area, in the same two fields a device fills (issue #171). `resolve_safe_area`
+    // raises the `SafeArea` padding from `insets` and `cutout_insets` from `cutouts`, so a
+    // previewed phone pads its content exactly as the phone would - the skin changes the layout,
+    // not only the picture around it (`designer-studio-v1.md` section 5.1).
+    snapshot.insets = metrics.insets;
+    snapshot.cutouts = metrics.cutouts;
     return snapshot;
 }
 

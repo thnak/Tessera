@@ -13,6 +13,7 @@
 //   ssr-chrome   the components, rendered to markup (`preview_page_checks.mjs`, `preview_studio_smoke.mjs`)
 //   preferences  the toolbar, the fragment decode and the share link (`preview_studio_smoke.mjs`)
 //   gallery      the lazy manifest and the sample fetch (`preview_studio_smoke.mjs`)
+//   skins        the skin manifest's validator and its geometry (`preview_skins.mjs`, issue #171)
 //
 // `react`/`react-dom` stay external so the gate resolves them from `designer/web/node_modules` rather than
 // carrying a second copy. This ships nothing: `dist-ssr/` is git-ignored and is never assembled into the
@@ -34,6 +35,13 @@ export default defineConfig({
         "ssr-chrome": "src/ssr-chrome.tsx",
         preferences: "src/lib/preferences.ts",
         gallery: "src/lib/gallery.ts",
+        // The skin manifest's rules, so `scripts/ci/preview_skins.mjs` tests the validator the page
+        // ships rather than a copy of it. `skin-load.ts` is here too: the gate drives the real loader
+        // against a stub `fetch`, which is what proves a missing manifest is a rejection and not a
+        // crash.
+        skins: "src/views/skins.ts",
+        "skin-geometry": "src/views/skin-geometry.ts",
+        "skin-load": "src/views/skin-load.ts",
       },
       output: {
         format: "es",

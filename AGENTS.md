@@ -642,8 +642,26 @@ owner-planned item and is not part of this milestone.
       toggle in the Canvas pane. Evidence: `tools/codegen/scene_canvas_session.*`,
       `tools/codegen/canvas_report.*`, `tools/codegen/wasm_canvas_entry.cpp`,
       `designer/web/src/views/canvas-picker.ts`, ctest `scene_canvas_pick`,
-      `docs/design/canvas-input-session.md` §5.1. **Still open: the style inspector, `source.patch`
-      and skins** — the issue stays open for them.
+      `docs/design/canvas-input-session.md` §5.1.
+      **The skins slice landed** (2026-11-19): `designer-studio-v1.md` §5.2's manifest as data plus
+      static art — seven bundled skins under `designer/web/public/skins/` (generic desktop Windows 11 /
+      macOS / Linux, generic phone Android / iOS, generic tablet, generic foldable), all art original,
+      no vendor device art — validated by `designer/web/src/views/skins.ts` (a typed
+      `{ok:false, code:"TESSERA_STUDIO_SKIN"}` result, never a throw; a missing required field, an
+      inset larger than the screen, a negative size or a hard-coded colour rejects the skin and it is
+      not offered). The geometry contract of §5.1 is one derivation in
+      `designer/web/src/views/skin-geometry.ts` (`size - bezel` is the viewer size, and the insets are
+      the `safeAreas`), and the insets reach the **engine**, not only the picture: the new
+      `tessera_canvas_set_safe_area` export fills `WindowMetrics::insets`/`cutouts` through
+      `simulated_metrics()`, so `hal::resolve_safe_area()` pads a `SafeArea` by exactly what the
+      manifest declared (`tools/codegen/scene_layout.*`, `scene_session.*`, `scene_canvas_session.*`,
+      `wasm_canvas_safe_area.*`). Chrome is page-only HTML/CSS/SVG tinted from the theme tokens, and
+      the Theme select now writes `<html data-theme>`, so a theme switch retints the frame and the
+      canvas in one cascade (`designer/web/src/regions/SkinFrame.tsx`, `styles/skin.css`,
+      `page-skins.ts`). Evidence: `scripts/ci/preview_skins.mjs` (36 checks: manifests, rejections,
+      per-category viewer size, the three geometry modes, the retint rule), ctest
+      `scene_skin_geometry`, `docs/design/studio-page.md` §1.1. **Still open: the style inspector and
+      `source.patch`** — the issue stays open for them.
 - [ ] #395: P6b: promote the latency budgets from `warn` to `enforce` and count the scene and canvas
       modules in the download budget. Needs a measurement first; take it after #392.
 - [ ] #396: `tessera-mcp`: the eight unimplemented tools (designer D-S7) and the spec decisions #350

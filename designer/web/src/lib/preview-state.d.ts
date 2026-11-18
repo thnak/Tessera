@@ -28,6 +28,13 @@ export const FOLD_POSTURES: readonly string[];
 /** The toolbar labels for `FOLD_POSTURES`, keyed by the value `set_viewport` carries. */
 export const FOLD_POSTURE_LABELS: Readonly<Record<string, string>>;
 
+/**
+ * The bundled skins the toolbar offers (issue #171's skins slice): `""` (no frame) plus the
+ * directory names under `designer/web/public/skins/`. The validated set is what the page offers; this
+ * is the vocabulary, so the toolbar can render before any manifest loads.
+ */
+export const SKIN_IDS: readonly string[];
+
 /** The state a page starts from; each field is also the decoder's fallback for a missing one. */
 export const DEFAULT_STATE: Readonly<ShareState>;
 
@@ -55,6 +62,12 @@ export interface ShareState {
    * without it, so a share link has to carry it.
    */
   foldPosture: string;
+  /**
+   * The simulated device skin (issue #171's skins slice): a directory name under `skins/`, or `""`
+   * for no frame. Part of the shared state for the same reason the posture is: a preview of a phone
+   * is not the same preview without the phone's insets.
+   */
+  skin: string;
 }
 
 /** A refusal the page branches on by `code`, rather than by matching a message. */

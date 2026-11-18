@@ -62,6 +62,19 @@ import { createCanvasPicker, type CanvasPicker } from "./canvas-picker";
 
 export type { CanvasApplyReport, CanvasFrameReport, CanvasStateCell };
 
+/**
+ * The skin's safe area as the canvas module takes it (issue #171's skins slice): the insets a device
+ * would report as `WindowMetrics::insets` and its cutout rectangle, in viewer coordinates.
+ *
+ * `null` from the reader means "no skin", which is the pre-#171 page: the session then sends zeros,
+ * so a visitor who never picks a skin lays out exactly as before.
+ */
+export interface SkinSafeArea {
+  insets: { top: number; right: number; bottom: number; left: number };
+  /** The cutout rectangle, or `null` for none. */
+  cutout: { x: number; y: number; width: number; height: number } | null;
+}
+
 /** The module factory `tessera_canvas.js` exports. */
 type ModuleFactory = () => Promise<WasmModule & CanvasModule>;
 
@@ -79,6 +92,16 @@ export interface CanvasSessionOptions {
    * `tabletop`. It is a layout input, so a change draws again rather than waiting for a Run.
    */
   foldPosture: () => string;
+  /**
+   * The selected skin's safe area (issue #171's skins slice), or `null` for no skin.
+   *
+   * It is a reader rather than a value for the same reason `environment` is: the toolbar can move
+   * between two applies, and the session is created once. The insets are what the engine pads a
+   * `SafeArea` by, so a skin change is a layout pass (`tessera_canvas_set_safe_area`) and not only a
+   * repaint - `designer-studio-v1.md` section 5.1's "the skin must never change the engine's logical
+   * size behind its back".
+   */
+  safeArea: () => SkinSafeArea | null;
   /** The component the person picked in the preview's dropdown; `""` is the entry's first. */
   component: () => string;
   /** The entry's declared components and the one previewed, after every successful apply. */
@@ -149,6 +172,60 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
     lastDpr = sized.dpr;
     return sized;
   }
+
+  /**
+   * Hands the selected skin's safe area to the running session (issue #171's skins slice).
+   *
+   * **Why the engine has to hear about it.** `designer-studio-v1.md` section 5.1 says a skin's insets
+   * are "passed to the viewer as `safeAreas` in `viewport.set`, exactly as `WindowMetrics::insets`
+   * would arrive from the HAL", and that "the skin must never change the engine's logical size behind
+   * its back". A page-only overlay would draw a phone's status bar over a tree laid out as if the bar
+   * were not there - a skin that changes the picture without changing the layout. This call is what
+   * makes the `SafeArea` padding and every box follow the skin, through the same
+   * `hal::resolve_safe_area()` the native app runs.
+   *
+   * `changed` is the module's own answer to "did a layout pass run", so a skin that is already in
+   * force costs nothing and a skin change owes exactly one frame. A module built before this export
+   * simply has no `_tessera_canvas_set_safe_area`; the session then reports that the skin's insets
+   * were not applied rather than pretending they were, which is the honest degraded state.
+   */
+  function applySafeArea(): { ok: boolean; changed: boolean } {
+    if (gpu === null) {
+      return { ok: true, changed: false };
+    }
+    const area = options.safeArea();
+    const insets = area?.insets ?? { top: 0, right: 0, bottom: 0, left: 0 };
+    const cutout = area?.cutout ?? null;
+    if (typeof gpu.module._tessera_canvas_set_safe_area !== "function") {
+      if (area !== null) {
+        pane.setStatus("this build cannot apply a skin's insets", "warning");
+      }
+      return { ok: true, changed: false };
+    }
+    try {
+      const report = JSON.parse(
+        callExport(gpu.module, "_tessera_canvas_set_safe_area", [], [
+          insets.left,
+          insets.top,
+          insets.right,
+          insets.bottom,
+          cutout?.x ?? 0,
+          cutout?.y ?? 0,
+          cutout?.width ?? 0,
+          cutout?.height ?? 0,
+        ]),
+      ) as { changed?: boolean; error?: string };
+      if (report.error !== undefined && report.error !== "") {
+        // A refused safe area (a negative inset) is named, and the picture already there stays.
+        pane.setStatus("skin not applied: " + report.error, "warning");
+        return { ok: false, changed: false };
+      }
+      return { ok: true, changed: report.changed === true };
+    } catch (error) {
+      pane.showFailed(String(error));
+      return { ok: false, changed: false };
+    }
+  }
   // Draws the current source. Called from a `requestAnimationFrame` callback, never from the input handler,
   // so a fast typist cannot make the paint path reentrant and the canvas updates in step with the display.
   //
@@ -206,10 +283,21 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
     // the previous one (a reused apply reports it too).
     pane.renderState(applied.state ?? []);
     options.onComponents(applied.components ?? [], applied.component ?? "");
+    // The skin's safe area, applied AFTER the evaluation and BEFORE the frame (issue #171's skins
+    // slice). It is a layout pass of its own (`tessera_canvas_set_safe_area`), so the boxes the next
+    // `draw` paints already carry the skin's padding - no frame of stale insets. It runs on every
+    // apply rather than only on a skin change because a Run re-evaluates the tree at the session's
+    // current metrics, and a skin picked before the first Run must reach that first frame.
+    const safe = applySafeArea();
+    if (!safe.ok) {
+      options.onReady(true);
+      return;
+    }
     // No frame owed: the source is byte-identical to what is painted (a debounce that fired on an
-    // unchanged buffer, or a reuse after a DPR-resize that changed nothing). Drawing would repaint
-    // identical pixels, which is the idle rule this view exists to honour.
-    if (!applied.changed) {
+    // unchanged buffer, or a reuse after a DPR-resize that changed nothing) AND the skin moved
+    // nothing. Drawing would repaint identical pixels, which is the idle rule this view exists to
+    // honour. A skin change alone does owe a frame: it moved every box.
+    if (!applied.changed && !safe.changed) {
       options.onReady(true);
       return;
     }
@@ -558,6 +646,13 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
         }
       } catch (error) {
         pane.showFailed(String(error));
+        return;
+      }
+      // The skin is a layout input too (issue #171's skins slice), and it is applied in the same
+      // handler so a toolbar move that changes both the size and the skin costs one frame rather
+      // than two. The engine runs one layout pass per call, so the order is not observable: the
+      // frame below paints the boxes both calls left.
+      if (!applySafeArea().ok) {
         return;
       }
       // The viewport moved every box, so the outline is re-asked at the same point (issue #171).

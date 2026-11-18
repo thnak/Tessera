@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "name": "Generic tablet",
+  "category": "tablet",
+  "os": "android",
+  "size": { "width": 800, "height": 1280 },
+  "bezel": { "top": 16, "right": 16, "bottom": 16, "left": 16, "radius": 18 },
+  "chrome": { "statusBar": 24, "navigationBar": 24, "gestureBar": true },
+  "insets": { "top": 24, "right": 0, "bottom": 24, "left": 0 }
+}

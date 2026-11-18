@@ -94,6 +94,11 @@ public:
         // this posture; `set_posture()` re-lays it out in place for a later change, so a posture
         // switch costs no re-evaluation and keeps the state the session has accumulated.
         tessera::hal::FoldPosture posture = tessera::hal::FoldPosture::None;
+        // The simulated skin's safe area (issue #171's skins slice): the insets and cutout
+        // rectangles a device would report. Layout inputs like the size and the posture, so a skin
+        // change re-lays the tree out in place and keeps the state the session has accumulated.
+        tessera::hal::WindowInsets insets;
+        tessera::hal::CutoutInfo cutouts;
         // The media-independent sheet and the media context it is resolved against (issue #436).
         // A session that owns the prepared form can re-resolve `@media` IN PLACE when its viewport
         // changes (`set_viewport`), instead of being re-evaluated from source. Empty `prepared`
@@ -170,6 +175,14 @@ public:
     // One pass for both layout inputs, so a call that changes the size AND the posture costs one
     // layout pass, not two. The two setters above are the narrow spellings of this.
     bool relayout_at(float width, float height, float dpi_scale, tessera::hal::FoldPosture posture);
+
+    // The same pass with the skin's safe area (issue #171's skins slice): the size, the DPI scale,
+    // the posture, the insets and the cutout rectangles all move together, in ONE layout pass. A
+    // skin whose size matches the previous one but whose insets differ is still a different device,
+    // so the insets are part of the "did anything move?" test rather than a separate call.
+    bool relayout_at(float width, float height, float dpi_scale, tessera::hal::FoldPosture posture,
+                     const tessera::hal::WindowInsets& insets,
+                     const tessera::hal::CutoutInfo& cutouts);
 
     // How many times this session's cascade has been resolved: 1 at construction, +1 per re-resolve
     // (`set_viewport` crossing a breakpoint). The counter a test asserts on to tell "the cascade

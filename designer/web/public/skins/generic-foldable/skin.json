@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "name": "Generic foldable",
+  "category": "foldable",
+  "os": "android",
+  "size": { "width": 884, "height": 1104 },
+  "bezel": { "top": 14, "right": 14, "bottom": 14, "left": 14, "radius": 20 },
+  "chrome": { "statusBar": 24, "navigationBar": 24, "gestureBar": true },
+  "insets": { "top": 24, "right": 0, "bottom": 24, "left": 0 }
+}

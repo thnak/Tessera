@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "name": "Generic desktop window (Linux)",
+  "category": "desktop",
+  "os": "linux",
+  "size": { "width": 1280, "height": 800 },
+  "bezel": { "top": 0, "right": 0, "bottom": 0, "left": 0, "radius": 6 },
+  "chrome": { "titleBar": 30 },
+  "insets": { "top": 0, "right": 0, "bottom": 0, "left": 0 }
+}

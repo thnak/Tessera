@@ -145,6 +145,10 @@ const VIEW_IDS = {
   // working while the picker is armed; a rename here would leave the picker with nowhere to draw.
   "pick-toggle",
   "pick-overlay",
+  // The simulated device frame (issue #171's skins slice). It is page chrome around the canvas, so
+  // React renders it and its id is part of the contract; the bars and the cutout inside it are
+  // `aria-hidden` decoration with classes rather than ids, because nothing looks them up.
+  "skin-frame",
   ],
 };
 
