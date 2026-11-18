@@ -2264,6 +2264,15 @@ target_link_libraries(swapchain_tests PRIVATE tessera_rhi_null)
 
 add_test(NAME swapchain COMMAND swapchain_tests)
 
+# The shared retire rule (ADR-053 decision 2): backend-independent, so it runs on every platform
+# with a fake completion source and needs no GPU.
+add_executable(retire_queue_tests
+    retire_queue_tests.cpp)
+
+target_link_libraries(retire_queue_tests PRIVATE tessera_rhi_shared)
+
+add_test(NAME retire_queue COMMAND retire_queue_tests)
+
 add_executable(frame_wait_tests
     frame_wait_tests.cpp)
 
