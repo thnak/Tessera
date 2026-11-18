@@ -216,7 +216,6 @@ EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_pointer(const char* kind, float 
     return duplicate_out(cli::canvas_pointer_report_json(result));
 }
 
-
 // What is under one point, for the picker overlay (issue #171's picker slice). `x`/`y` are
 // **logical** viewport pixels, exactly like `tessera_canvas_pointer`'s, and the same CSS-to-logical
 // rule applies (see that export's comment: divide by the canvas' CSS-to-logical ratio, never by the
