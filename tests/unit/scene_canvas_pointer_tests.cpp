@@ -275,6 +275,13 @@ void test_keyboard_focus_and_activation() {
         expect(false, "the source has two buttons");
         return;
     }
+    // The ids are read now, while the pointers are alive: activating a control rebuilds the tree
+    // (issue #388's "focus survives a rebuild"), which frees every node these pointers name. An id
+    // is the stable handle across that rebuild - it is assigned in tree order, so the same
+    // structure gives the same id - and comparing against a re-read `left_button->automation_id()`
+    // after the rebuild would read freed memory.
+    const std::uint64_t left_id = left_button->automation_id();
+    const std::uint64_t right_id = right_button->automation_id();
     CanvasHarness canvas;
     if (!canvas.ready() || !canvas.draw(session)) {
         expect(false, "the harness paints the Run's frame");
@@ -287,7 +294,7 @@ void test_keyboard_focus_and_activation() {
 
     // Tab: first button, with the ring (keyboard modality), consumed, one frame owed.
     const cli::CanvasPointerResult first = session.key(Kind::KeyDown, key::kTab, 0, false);
-    expect(first.focused_id == left_button->automation_id(), "Tab focuses the first control");
+    expect(first.focused_id == left_id, "Tab focuses the first control");
     expect(first.focus_visible && first.focus_moved && first.handled,
            "the ring shows and Tab is consumed");
     expect(first.changed, "moving focus owes a frame");
@@ -296,7 +303,7 @@ void test_keyboard_focus_and_activation() {
     // Tab: second button. Tab again: the end of the order, focus is released and Tab is NOT
     // consumed.
     const cli::CanvasPointerResult second = session.key(Kind::KeyDown, key::kTab, 0, false);
-    expect(second.focused_id == right_button->automation_id(), "Tab moves to the second control");
+    expect(second.focused_id == right_id, "Tab moves to the second control");
     const cli::CanvasPointerResult leave = session.key(Kind::KeyDown, key::kTab, 0, false);
     expect(leave.left && !leave.handled && leave.focused_id == 0,
            "Tab at the end releases focus and lets the browser carry on");
@@ -305,8 +312,7 @@ void test_keyboard_focus_and_activation() {
 
     // Shift+Tab from nothing goes to the last control; again leaves at the first.
     const cli::CanvasPointerResult back = session.key(Kind::KeyDown, key::kTab, 1, false);
-    expect(back.focused_id == right_button->automation_id() ||
-               back.focused_id == left_button->automation_id(),
+    expect(back.focused_id == right_id || back.focused_id == left_id,
            "Shift+Tab focuses a control");
     (void)session.key(Kind::KeyDown, key::kTab, 1, false);
     const cli::CanvasPointerResult back_out = session.key(Kind::KeyDown, key::kTab, 1, false);
@@ -315,14 +321,12 @@ void test_keyboard_focus_and_activation() {
 
     // Enter activates the focused button (key-down, not on a repeat); Space on key-up.
     (void)session.key(Kind::KeyDown, key::kTab, 0, false);
-    expect(session.router()->focus_manager().focused() == left_button ||
-               session.router()->focus_manager().focused() != nullptr,
-           "a control is focused");
+    expect(session.router()->focus_manager().focused() != nullptr, "a control is focused");
     // Focus the first control deterministically by walking back from nothing.
     (void)session.blur();
     (void)session.key(Kind::KeyDown, key::kTab, 0, false);
     const ui::Node* focused = session.router()->focus_manager().focused();
-    expect(focused != nullptr && focused->automation_id() == left_button->automation_id(),
+    expect(focused != nullptr && focused->automation_id() == left_id,
            "the left button holds focus");
     const cli::CanvasPointerResult enter = session.key(Kind::KeyDown, key::kEnter, 0, false);
     expect(enter.ran.size() == 1 && enter.handled, "Enter runs the focused button's onClick");
@@ -330,7 +334,7 @@ void test_keyboard_focus_and_activation() {
     // The click rebuilt the tree; focus and its ring come through it, so Enter can be pressed
     // again.
     const cli::CanvasPointerResult kept = session.key(Kind::KeyUp, key::kEnter, 0, false);
-    expect(kept.focused_id == left_button->automation_id() && kept.focus_visible,
+    expect(kept.focused_id == left_id && kept.focus_visible,
            "focus and the ring survive the rebuild an activation causes");
     const cli::CanvasPointerResult repeat = session.key(Kind::KeyDown, key::kEnter, 0, true);
     expect(repeat.ran.empty(), "an auto-repeat of Enter does not click again");
