@@ -4,9 +4,9 @@
 // source for the module ABI, with the canvas session's own table in
 // `docs/design/canvas-input-session.md` section 5: `tessera_webgpu_set_device`,
 // `tessera_canvas_apply`, `tessera_canvas_pointer`, `tessera_canvas_pick`,
-// `tessera_canvas_set_fold`, `tessera_canvas_set_viewport`, `tessera_canvas_set_safe_area`,
-// `tessera_canvas_draw`, `tessera_canvas_reset`, `tessera_canvas_set_font` and
-// `tessera_canvas_font_status`, plus the four
+// `tessera_canvas_style`, `tessera_canvas_set_fold`, `tessera_canvas_set_viewport`,
+// `tessera_canvas_set_safe_area`, `tessera_canvas_draw`, `tessera_canvas_reset`,
+// `tessera_canvas_set_font` and `tessera_canvas_font_status`, plus the four
 // shared `tessera_project_*` exports (`wasm_project_exports.cpp`) that stage the project `apply`
 // evaluates. Read that before changing a signature; it also carries the "why Emscripten only"
 // rationale and the verified-status record.
@@ -43,7 +43,6 @@
 #include <string>
 #include <string_view>
 #include <vector>
-
 namespace {
 
 namespace cli = tessera::compiler::codegen::cli;
@@ -239,6 +238,38 @@ EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_pick(float x, float y) {
         result = g_session->pick(x, y);
     }
     return duplicate_out(cli::canvas_pick_report_json(result));
+}
+
+// The style inspector's query (issue #171, designer-protocol-v1 section 9.1): the computed style,
+// the matched rules with their provenance, and the box of the node with this automation id.
+//
+// **Why this is its own export and not part of `tessera_canvas_pick`.** A pick answers "what is
+// under this point"; the inspector answers "what styles this node", and the two are asked at
+// different moments: the picker runs on every pointer move and must stay cheap, while the inspector
+// runs once when a node is selected and may allocate. Keeping them apart is also what lets the
+// picker stay a two-string query.
+//
+// **It is a query.** Nothing is dispatched, no pseudo-class moves and no frame is owed: opening the
+// inspector on a node must not change the picture. The id is a decimal string because a 64-bit
+// `uiId` does not survive `JSON.parse` as a JS number, the same convention every other id in this
+// module follows.
+//
+// A missing node, an id of 0 and a session with no tree all answer
+// `{"styleVersion":1,"ok":false,"reason":"no_such_node"}` with no other field, so a page that asks
+// before the first Run costs no exception at the FFI boundary and shows no stale style.
+EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_style(const char* automation_id) {
+    cli::StyleInfoResult result;
+    if (g_session != nullptr && g_session->started()) {
+        // `strtoull` rather than `std::stoull`: the latter throws on a malformed id, and nothing
+        // may throw across the FFI boundary. A malformed id parses to 0, which is `no_such_node`.
+        const char* text = automation_id != nullptr ? automation_id : "";
+        char* end = nullptr;
+        const unsigned long long parsed = std::strtoull(text, &end, 10);
+        if (end != text && *end == '\0') {
+            result = g_session->inspect(static_cast<std::uint64_t>(parsed));
+        }
+    }
+    return duplicate_out(cli::canvas_style_report_json(result));
 }
 
 // Routes one keyboard event into the running session (issue #388, focus) and returns the same

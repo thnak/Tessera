@@ -3,6 +3,7 @@
 #include "canvas_report.hpp"
 #include "css_diagnostics_report.hpp"
 
+#include <array>
 #include <charconv>
 #include <string>
 #include <string_view>
@@ -255,6 +256,115 @@ std::string canvas_pick_report_json(const CanvasPickResult& result) {
     out += ",\"height\":";
     append_float(out, result.box.height);
     out += "}}\n";
+    return out;
+}
+
+std::string canvas_style_report_json(const StyleInfoResult& result) {
+    std::string out = "{\"styleVersion\":1";
+    if (!result.found) {
+        // The spec's whole answer for a missing node: `ok:false`, the reason, and nothing else
+        // (designer-protocol-v1 section 9.1). A page that read a stale `computed` off a failed
+        // answer would show the previous node's style under the new node's name.
+        append_bool(out, "ok", false);
+        append_text(out, "reason", "no_such_node");
+        out += "}\n";
+        return out;
+    }
+    append_bool(out, "ok", true);
+    // The id is a decimal string for the same reason every other id in this module is: a 64-bit
+    // `uiId` does not survive `JSON.parse` as a JS number.
+    append_text(out, "node", std::to_string(result.automation_id));
+    // `computed` is an object because the spec says "property name -> resolved value string"; the
+    // engine's map is already in property order, so the document is deterministic.
+    out += ",\"computed\":{";
+    for (std::size_t index = 0; index < result.computed.size(); ++index) {
+        if (index != 0) {
+            out.push_back(',');
+        }
+        out += quoted(result.computed[index].first);
+        out.push_back(':');
+        out += quoted(result.computed[index].second);
+    }
+    out += "}";
+    // `matched` is highest precedence first, which is the engine's own order: the page never sorts.
+    out += ",\"matched\":[";
+    for (std::size_t index = 0; index < result.matched.size(); ++index) {
+        if (index != 0) {
+            out.push_back(',');
+        }
+        const StyleMatchedRule& rule = result.matched[index];
+        out += "{\"origin\":";
+        out += quoted(rule.origin);
+        out += ",\"selector\":";
+        out += quoted(rule.selector);
+        out += ",\"specificity\":[";
+        out += std::to_string(rule.specificity[0]);
+        out.push_back(',');
+        out += std::to_string(rule.specificity[1]);
+        out.push_back(',');
+        out += std::to_string(rule.specificity[2]);
+        out += "],\"span\":{\"file\":";
+        out += quoted(rule.file);
+        append_number(out, "offset", rule.offset);
+        append_number(out, "length", rule.length);
+        out += "},\"declarations\":[";
+        for (std::size_t d = 0; d < rule.declarations.size(); ++d) {
+            if (d != 0) {
+                out.push_back(',');
+            }
+            const StyleDeclarationInfo& declaration = rule.declarations[d];
+            out += "{\"property\":";
+            out += quoted(declaration.property);
+            out += ",\"value\":";
+            out += quoted(declaration.value);
+            append_bool(out, "important", declaration.important);
+            append_bool(out, "overridden", declaration.overridden);
+            out.push_back('}');
+        }
+        out += "]}";
+    }
+    out += "]";
+    // The box is in logical viewport pixels, the space `tessera_canvas_pointer` takes its
+    // coordinates in, so the page scales it by the CSS-to-logical ratio it already applies to
+    // pointer input. The three edge sets are top, right, bottom, left.
+    out += ",\"box\":{\"x\":";
+    append_float(out, result.box.x);
+    out += ",\"y\":";
+    append_float(out, result.box.y);
+    out += ",\"width\":";
+    append_float(out, result.box.width);
+    out += ",\"height\":";
+    append_float(out, result.box.height);
+    const auto append_edges = [&out](const char* name, const std::array<float, 4>& values) {
+        out += ",\"";
+        out += name;
+        out += "\":[";
+        for (std::size_t index = 0; index < values.size(); ++index) {
+            if (index != 0) {
+                out.push_back(',');
+            }
+            append_float(out, values[index]);
+        }
+        out.push_back(']');
+    };
+    append_edges("margin", result.box.margin);
+    append_edges("border", result.box.border);
+    append_edges("padding", result.box.padding);
+    out += "}";
+    // Overrides are `style.override.set` (designer-protocol-v1 section 9.2), a later slice: the
+    // list is present and empty, so a page reads one shape whether or not the slice has landed.
+    out += ",\"overrides\":[";
+    for (std::size_t index = 0; index < result.overrides.size(); ++index) {
+        if (index != 0) {
+            out.push_back(',');
+        }
+        out += "{\"property\":";
+        out += quoted(result.overrides[index].property);
+        out += ",\"value\":";
+        out += quoted(result.overrides[index].value);
+        out.push_back('}');
+    }
+    out += "]}\n";
     return out;
 }
 

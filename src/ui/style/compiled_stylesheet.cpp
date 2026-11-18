@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "selector_text.hpp"
 #include "tessera/ui/style/compiled_stylesheet.hpp"
 
 #include <algorithm>
@@ -52,7 +53,14 @@ CompiledStyleSheet::CompiledStyleSheet(std::span<const StylesheetSource> sheets,
             if (source.prepared == nullptr || source.library != library) {
                 continue;
             }
+            // The rules this source contributes are the tail of `rules_`; stamping the path here is
+            // what lets `style.info` name the file a rule's offset is an offset into, without
+            // threading a path through `append_sheet`'s signature.
+            const std::size_t first = rules_.size();
             append_sheet(*source.prepared, source.origin, source.library);
+            for (std::size_t index = first; index < rules_.size(); ++index) {
+                rules_[index].source_path = source.path;
+            }
         }
     }
 }
@@ -103,8 +111,21 @@ void CompiledStyleSheet::resolve(const PreparedStyleSheet& prepared) {
             const std::size_t rule_index = rules_.size();
             const std::uint32_t layer =
                 item.layer == kUnlayeredLayer ? kUnlayeredLayer : assign_layer(item.layer);
-            rules_.push_back(CompiledRule{item.declarations, next_source_order_, layer,
-                                          item.containers, origin_});
+            // The authored selector text is carried when the sheet was prepared from source; a
+            // blob-loaded sheet has none, so it is printed back from the parsed list. Either way
+            // `style.info` names the rule a developer would recognise.
+            std::string selector = item.selector;
+            if (selector.empty()) {
+                selector = selector_list_text(item.selectors);
+            }
+            rules_.push_back(CompiledRule{.declarations = item.declarations,
+                                          .source_order = next_source_order_,
+                                          .layer = layer,
+                                          .containers = item.containers,
+                                          .origin = origin_,
+                                          .selector = std::move(selector),
+                                          .offset = item.offset,
+                                          .source_path = {}});
             has_container_queries_ = has_container_queries_ || !item.containers.empty();
             next_source_order_ += item.declarations.size();
             index_.add(item.selectors, rule_index);
@@ -184,8 +205,14 @@ void CompiledStyleSheet::append_sheet(const CompiledStyleSheet& sheet, bool libr
         } else if (library) {
             layer = library_base;
         }
-        rules_.push_back(CompiledRule{rule.declarations, order_base + rule.source_order, layer,
-                                      rule.containers, rule.origin});
+        rules_.push_back(CompiledRule{.declarations = rule.declarations,
+                                      .source_order = order_base + rule.source_order,
+                                      .layer = layer,
+                                      .containers = rule.containers,
+                                      .origin = rule.origin,
+                                      .selector = rule.selector,
+                                      .offset = rule.offset,
+                                      .source_path = rule.source_path});
     }
     for (const SelectorIndex::Entry& entry : sheet.index_.entries()) {
         if (entry.value < sheet.rules_.size()) {
@@ -205,8 +232,10 @@ void CompiledStyleSheet::append_sheet(const CompiledStyleSheet& sheet, bool libr
     next_source_order_ = order_base + sheet.next_source_order_;
 }
 
-void CompiledStyleSheet::add_to_cascade(const StyleNode& node, CascadeTable& cascade,
-                                        const ContainerSizeSource* containers) const {
+std::vector<CompiledStyleSheet::MatchedRule>
+CompiledStyleSheet::matched_rules(const StyleNode& node,
+                                  const ContainerSizeSource* containers) const {
+    std::vector<MatchedRule> matched;
     for (const SelectorMatch& match : index_.match(node)) {
         if (match.value >= rules_.size()) {
             continue;
@@ -224,9 +253,19 @@ void CompiledStyleSheet::add_to_cascade(const StyleNode& node, CascadeTable& cas
                 continue;
             }
         }
-        std::uint64_t source_order = rule.source_order;
-        cascade.add_declarations(rule.declarations, rule.origin, match.specificity, source_order,
-                                 rule.layer);
+        matched.push_back(MatchedRule{&rule, match.specificity});
+    }
+    return matched;
+}
+
+void CompiledStyleSheet::add_to_cascade(const StyleNode& node, CascadeTable& cascade,
+                                        const ContainerSizeSource* containers) const {
+    // One implementation of "which rules apply": the inspector reads the same list, so a rule it
+    // names is a rule the cascade used.
+    for (const MatchedRule& match : matched_rules(node, containers)) {
+        std::uint64_t source_order = match.rule->source_order;
+        cascade.add_declarations(match.rule->declarations, match.rule->origin, match.specificity,
+                                 source_order, match.rule->layer);
     }
 }
 

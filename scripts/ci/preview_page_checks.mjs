@@ -145,6 +145,12 @@ const VIEW_IDS = {
   // working while the picker is armed; a rename here would leave the picker with nowhere to draw.
   "pick-toggle",
   "pick-overlay",
+  // The style inspector (issue #171, designer-protocol-v1 section 9.1): the toggle that arms it, the
+  // panel it fills, and the body the rows go into. The panel is a page element beside the canvas, so
+  // a rename here would leave the inspector with nowhere to draw.
+  "inspect-toggle",
+  "inspect-panel",
+  "inspect-body",
   // The simulated device frame (issue #171's skins slice). It is page chrome around the canvas, so
   // React renders it and its id is part of the contract; the bars and the cutout inside it are
   // `aria-hidden` decoration with classes rather than ids, because nothing looks them up.

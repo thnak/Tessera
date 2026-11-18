@@ -388,6 +388,92 @@
   pointer-events: none;
 }
 
+/* The style inspector's panel (issue #171, designer-protocol-v1 section 9.1): a page element beside
+ * the canvas, not engine paint. It is a scrolling list because a node can match many rules, and it
+ * is `hidden` until a node is inspected - the inspector is a tool, not the preview. */
+.inspect-panel {
+  max-height: 320px;
+  overflow: auto;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.inspect-panel h3 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.inspect-heading {
+  margin-bottom: 6px;
+  color: var(--text);
+}
+
+.inspect-section {
+  margin: 8px 0 4px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 10px;
+}
+
+.inspect-row,
+.inspect-decl {
+  display: grid;
+  grid-template-columns: minmax(90px, max-content) 1fr;
+  gap: 8px;
+  padding: 1px 0;
+}
+
+.inspect-name {
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+
+.inspect-value {
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+/* One matched rule: its header (selector, origin, specificity, span) and its declarations. */
+.inspect-rule {
+  margin: 6px 0;
+  padding: 4px 6px;
+  border-left: 2px solid var(--border);
+}
+
+.inspect-rule[data-origin="inline"] { border-left-color: var(--accent); }
+.inspect-rule[data-origin="theme"] { border-left-color: var(--text-dim); }
+.inspect-rule[data-origin="ua"] { border-left-color: var(--border); }
+
+.inspect-rule-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+  margin-bottom: 2px;
+}
+
+.inspect-selector {
+  color: var(--text);
+  font-family: var(--mono);
+}
+
+.inspect-meta {
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+/* A declaration a higher-precedence rule beat. Struck through rather than dropped: the point of the
+ * panel is to answer "why is my rule not applying", and a rule that lost is the answer. */
+.inspect-decl.overridden .inspect-value {
+  text-decoration: line-through;
+  color: var(--text-dim);
+}
+
 /* The frame counters: name/value pairs, two columns so the labels line up without a table. */
 .frame-stats {
   display: grid;

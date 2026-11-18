@@ -60,6 +60,16 @@ export interface CanvasPaneElements {
   pickOverlay: HTMLElement | null;
   /** The picker's toggle in the pane header; null when the pane has no header. */
   pickToggle: HTMLButtonElement | null;
+  /**
+   * The style inspector's panel and its body (issue #171, designer-protocol-v1 section 9.1). The
+   * panel is a page element beside the canvas, hidden until a node is inspected; the body is what
+   * the inspector fills. Optional for the same reason `pickOverlay` is: a pane rendered without one
+   * is a valid pane, and the inspector then simply has nowhere to draw.
+   */
+  inspectPanel: HTMLElement | null;
+  inspectBody: HTMLElement | null;
+  /** The inspector's toggle in the pane header; null when the pane has no header. */
+  inspectToggle: HTMLButtonElement | null;
 }
 
 /**
@@ -110,6 +120,8 @@ export interface CanvasPane {
   renderState(cells: readonly CanvasStateCell[]): void;
   /** Hides the picker's outline (issue #171): the node it named may no longer be under the pointer. */
   hidePick(): void;
+  /** Hides the style inspector's panel (issue #171): the node it described may be gone. */
+  hideInspect(): void;
 }
 
 export function createCanvasPane(
@@ -160,6 +172,17 @@ export function createCanvasPane(
   function hidePick(): void {
     if (pane.pickOverlay !== null) {
       pane.pickOverlay.hidden = true;
+    }
+  }
+
+  /**
+   * Hides the style inspector's panel (issue #171). Called whenever the tree under it can change: a
+   * new frame, a viewport change, a restart. A panel left over a node that is no longer there names
+   * a node the developer is not looking at, which is worse than no panel.
+   */
+  function hideInspect(): void {
+    if (pane.inspectPanel !== null) {
+      pane.inspectPanel.hidden = true;
     }
   }
 
@@ -281,6 +304,7 @@ export function createCanvasPane(
     renderReport,
     renderState,
     hidePick,
+    hideInspect,
   };
 }
 
