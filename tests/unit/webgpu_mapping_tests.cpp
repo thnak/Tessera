@@ -239,6 +239,22 @@ void test_shader_registry() {
            "re-registering replaces");
 }
 
+// The mip downsample program is internal to the backend (not a registry id) but must stay a valid
+// two-stage module under the entry names the backend binds (issue #510).
+void test_mip_downsample_program() {
+    const wg::WgslProgram program = wg::mip_downsample_wgsl_program();
+    expect(!program.source.empty(), "mip downsample WGSL is embedded");
+    expect(program.source.find("fn vs_main") != std::string_view::npos &&
+               program.source.find("fn fs_main") != std::string_view::npos,
+           "mip downsample WGSL declares both entry points");
+    expect(program.vertex_entry == "vs_main" && program.fragment_entry == "fs_main",
+           "mip downsample entry names match the module");
+    expect(program.source.find("textureSample") != std::string_view::npos,
+           "mip downsample samples the level above");
+    expect(wg::builtin_shader_registry().find("mip_downsample") == nullptr,
+           "the downsample program is not exposed as a pipeline shader id");
+}
+
 void test_builtin_registry() {
     const wg::ShaderRegistry registry = wg::builtin_shader_registry();
     const wg::WgslProgram* program = registry.find(tessera::rendering::gpu::kBatched2dShaderId);
@@ -280,6 +296,7 @@ int main() {
     test_vertex_layout_validation();
     test_shader_registry();
     test_builtin_registry();
+    test_mip_downsample_program();
     test_builtin_wgsl();
     if (g_failures != 0) {
         std::cerr << "webgpu_mapping: " << g_failures << " failure(s)\n";

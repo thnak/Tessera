@@ -48,7 +48,8 @@ Optional capabilities are queried, not assumed:
   The fallback is grayscale coverage, so LCD text degrades to today's picture rather than changing it
 - texture mip chains (`TextureDesc::levels`, `Device::supports_texture_mipmaps()`,
   [`rhi.md`](rhi.md) section 5.2): Vulkan when the format can be blitted with linear filtering, the
-  null device always, WebGPU not yet. A downscaled image samples one level where it is absent
+  null device always, WebGPU through a render-pass downsample. A downscaled image samples one level
+  where the capability is absent
 - bindless/descriptor indexing, multi-draw, geometry shaders
 
 A missing optional capability uses the documented fallback or fails at creation.
