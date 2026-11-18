@@ -7,11 +7,14 @@ lifetime, presentation): [`docs/design/gpu/metal-backend.md`](../../../docs/desi
 
 ## Status
 
-**Tier 2 in-tree, in progress.** Implemented: the API-free half (descriptor mapping tables and the
-MSL shader table), and the device half for device, buffer, texture, render-target, command-list,
-pipeline and `CAMetalLayer` swapchain. Not yet validated on hardware: no Mac is available on the
-development lanes, so the Objective-C++ is syntax-checked against a stub header and the API-free
-half is unit-tested on Windows and Linux.
+**Tier 2 in-tree.** Implemented and **verified on real Apple hardware**: the device, buffers,
+textures, render targets, command list, pipelines from MSL, and the `CAMetalLayer` swapchain all
+build with AppleClang and pass the backend conformance suite on a `macos-latest` runner.
+
+What that does *not* mean: the conformance suite checks the RHI contract, not pixels. No frame has
+been presented to a window, and the design note's **verify** items (bounded
+`waitUntilSignaledValue:` on the OS floor, an errored command buffer running its completed handler,
+drawable/frame-slot deadlock) are still open. See "Known gaps".
 
 Nothing here is a V1 deliverable: macOS and iOS are post-V1
 ([AGENTS.md](../../../AGENTS.md#v1-platform-scope-and-ci-policy)), so this is a contract to build
@@ -86,10 +89,12 @@ everywhere else, rather than a silently wrong pixel format at run time.
 
 ## Known gaps
 
-- **Nothing has run on a Mac.** The Objective-C++ is syntax-checked against a stub header on the
-  Linux lane, which catches type and selector errors but proves nothing about linking or behaviour.
-  The design note's **verify** items (bounded `waitUntilSignaledValue:` on the OS floor, an errored
-  command buffer running its completed handler, drawable/frame-slot deadlock) are all still open.
+- **No frame has been presented to a window.** The conformance suite exercises the RHI contract on a
+  headless device; it does not open a window or check pixels. The swapchain path is compiled and
+  unit-reachable but has not run a real frame.
+- The design note's **verify** items are still open: the bounded `waitUntilSignaledValue:` floor on
+  macOS 13 / iOS 16, an errored command buffer reliably running its completed handler, and a frame
+  slot and drawable not deadlocking when their counts differ.
 - The MSL is compiled with `newLibraryWithSource:` at pipeline creation. That is once per pipeline,
   not per frame, and the source is a build-time artifact - but a precompiled metallib would remove
   the cost entirely and needs the Metal toolchain on the build host.
@@ -101,8 +106,11 @@ everywhere else, rather than a silently wrong pixel format at run time.
 - Mip-chain generation is not implemented: `supports_texture_mipmaps()` reports **false**, so a
   caller samples the single level, which is the documented correct fallback. Flip it to true in the
   same change that records the downsample passes.
-- The conformance suite selects Metal, but the entry skips on any lane without a Metal device, so
-  it has not yet produced a passing run (slice 4 needs a macOS lane with a GPU).
+- `metal_swapchain.mm` calls `present` on the drawable directly; the design note says present should
+  be encoded on the frame's command buffer via `presentDrawable:`. Likely needs rework once a real
+  frame runs.
+- GPU timestamps are not implemented, so `timestamp_capability()` reports the CPU fallback and the
+  conformance suite skips its timestamp round-trip check.
 
 ## Tests
 
