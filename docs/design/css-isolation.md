@@ -160,6 +160,15 @@ inspector and click-to-source show the authored `local` name with the file; the 
 the selector index sees. An author who is told `card_0b82a5` has to reverse a hash to find their
 own file, which is a worse experience than the collision it prevents.
 
+The lookup is `ir::find_authored_class` / `ir::authored_classes`
+(`src/compiler/ir/include/tessera/compiler/ir/authored_class.hpp`): given the IR's stylesheet
+references and a node's `className`, it returns each class as the authored name plus the declaring
+file, and keeps a global class as written. Scoped names are unique in a project (a hash collision is
+a compile error), so the answer is never ambiguous. No inspector, devtools tree or click-to-source
+exists in code yet ([`devtools-protocol-v1.md`](../specs/devtools-protocol-v1.md) section 5, and
+[`designer-studio-v1.md`](../specs/designer-studio-v1.md) puts the native inspector out of scope);
+the first one that does must show names through this lookup rather than print the hash.
+
 ## Out of scope
 
 Composition (`composes`), a CSS preprocessor, scoping of `style=` (inline is already local), and

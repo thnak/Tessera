@@ -3,6 +3,7 @@
 # Compiler IR (docs/specs/ir-v1.md). Plain data plus a JSON writer. It links nothing from the
 # project: codegen and tools consume the IR without seeing the parser.
 add_library(tessera_ir STATIC
+    src/authored_class.cpp
     src/ir.cpp
     src/ir_json.cpp
     src/ir_json_node.cpp

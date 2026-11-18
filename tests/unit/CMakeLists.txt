@@ -65,6 +65,13 @@ target_link_libraries(jsx_adversarial_tests PRIVATE tessera_jsx_frontend)
 
 add_test(NAME jsx_adversarial COMMAND jsx_adversarial_tests)
 
+add_executable(ir_authored_class_tests
+    ir_authored_class_tests.cpp)
+
+target_link_libraries(ir_authored_class_tests PRIVATE tessera_ir)
+
+add_test(NAME ir_authored_class COMMAND ir_authored_class_tests)
+
 add_executable(ir_json_value_tests
     ir_json_value_tests.cpp)
 
