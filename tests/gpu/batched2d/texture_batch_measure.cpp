@@ -220,7 +220,10 @@ Outcome measure_arm(rhi::Device& device, rhi::RenderTarget& target, rhi::Pipelin
                        &shaper, decoded, textures, bundle, array_pipeline);
 }
 
-// Reads the whole target back as RGBA8 bytes.
+// Reads the whole target back as RGBA8 bytes, and paints one frame into it, so the two paths can be
+// compared byte for byte. Both are only reachable from the Vulkan arm: a build without the backend
+// has no device to read back from, and an unused static helper is `-Werror=unused-function` on GCC.
+#if defined(TESSERA_TEST_HAS_VULKAN)
 std::vector<std::uint8_t> read_target(rhi::Device& device, rhi::RenderTarget& target) {
     const std::size_t bytes = static_cast<std::size_t>(kWidth) * kHeight * sizeof(std::uint32_t);
     auto readback = device.create_buffer({bytes, rhi::BufferUsage::Readback});
@@ -248,6 +251,7 @@ std::vector<std::uint8_t> paint_pixels(rhi::Device& device, rhi::RenderTarget& t
                       &shaper, decoded, textures, bundle, array_pipeline);
     return read_target(device, target);
 }
+#endif // TESSERA_TEST_HAS_VULKAN
 
 } // namespace
 
