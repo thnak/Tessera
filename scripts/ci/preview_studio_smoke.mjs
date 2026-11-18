@@ -131,7 +131,7 @@ const MARKUP = chrome.renderChrome();
 
 await test("the built chrome renders the page's four regions", async () => {
   assert.ok(MARKUP.length > 1000, "the chrome rendered something");
-  for (const id of ["page-hint", "controls", "source", "gallery", "link-note", "build-id"]) {
+  for (const id of ["page-hint", "controls", "editor-host", "gallery", "link-note", "build-id"]) {
     assert.ok(MARKUP.includes(`id="${id}"`), `the chrome carries #${id}`);
   }
   // Issue #431: the two-pane split became a three-column workspace -- the project tree, the tabbed code

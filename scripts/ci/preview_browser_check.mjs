@@ -448,7 +448,7 @@ async function main() {
         what: 'the ?view= scene tab to be selected',
       });
       const state = await cdp.evaluate(`(() => ({
-        source: document.getElementById('source').value,
+        source: window.__tesseraEditor.text(),
         viewport: document.querySelector('#controls select').value,
         dpr: document.querySelectorAll('#controls select')[1].value,
         theme: document.querySelectorAll('#controls select')[2].value,

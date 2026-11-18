@@ -113,12 +113,8 @@ const settle = (extra = 900) => page.waitForTimeout(extra);
 // the page's live-edit trigger listens on `input`, not on a key event, so this is the hot path.
 async function typeCharacter(character) {
   await page.evaluate((text) => {
-    const node = document.getElementById('source');
-    const start = node.selectionStart ?? node.value.length;
-    const end = node.selectionEnd ?? start;
-    node.value = node.value.slice(0, start) + text + node.value.slice(end);
-    node.selectionStart = node.selectionEnd = start + text.length;
-    node.dispatchEvent(new Event('input', { bubbles: true }));
+    const editor = window.__tesseraEditor;
+    editor.edit(editor.text() + text);
   }, character);
 }
 
@@ -128,14 +124,12 @@ async function typeCharacter(character) {
 async function editSource(from, to) {
   const changed = await page.evaluate(
     ([a, b]) => {
-      const node = document.getElementById('source');
-      if (!node.value.includes(a)) {
+      const editor = window.__tesseraEditor;
+      const text = editor.text();
+      if (!text.includes(a)) {
         return false;
       }
-      node.value = node.value.replace(a, b);
-      node.focus();
-      node.selectionStart = node.selectionEnd = node.value.length;
-      node.dispatchEvent(new Event('input', { bubbles: true }));
+      editor.edit(text.replace(a, b));
       return true;
     },
     [from, to],
@@ -203,13 +197,8 @@ check(
 // The editor shows the stylesheet after the edit above; the live edit is a source edit.
 await selectFile(page, ENTRY);
 await page.evaluate(() => {
-  const node = document.getElementById('source');
-  node.value = node.value
-    .replace('useState<int>(5)', 'useState<int>(0)')
-    .replace('Author CSS', 'Author CSS!');
-  node.focus();
-  node.selectionStart = node.selectionEnd = node.value.length;
-  node.dispatchEvent(new Event('input', { bubbles: true }));
+  const editor = window.__tesseraEditor;
+  editor.edit(editor.text().replace('useState<int>(5)', 'useState<int>(0)').replace('Author CSS', 'Author CSS!'));
 });
 await settle();
 

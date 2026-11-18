@@ -6,10 +6,10 @@
 
 namespace tessera::compiler::codegen::cli::detail {
 
-SourceFile::SourceFile(std::string file_path, std::string file_text)
+SourceFile::SourceFile(std::string file_path, std::string file_text, const jsx::Limits& limits)
     : path(std::move(file_path)),
       text(std::move(file_text)),
-      parsed(jsx::parse_module(text)),
+      parsed(jsx::parse_module(text, limits)),
       map(text),
       analyzed(parsed.root != nullptr ? rules::analyze_module(*parsed.root, map)
                                       : rules::AnalyzedModule{}) {}

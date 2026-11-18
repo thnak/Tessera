@@ -434,6 +434,26 @@ int main(int argc, char** argv) {
         }
     }
 
+    // `ui.limits.*` (project-config-v1.md, issue #405): the front end limits come from the config.
+    const fs::path limited = work / "limited";
+    fs::create_directories(limited);
+    write_file(limited / "App.tsx", "function App() { return <View />; }\n");
+    const auto run_limited = [&](const std::string& limits, const char* out) {
+        write_file(limited / "tessera.json",
+                   R"({"schemaVersion":1,"app":{"namespace":"lim"},"ui":{"limits":)" + limits +
+                       "}}");
+        return run_cli(cli,
+                       "--write --out " + quoted(work / out) + " --namespace demo " +
+                           quoted(limited / "App.tsx"),
+                       log_dir);
+    };
+    check(run_limited(R"({"maxFileBytes":4194304})", "lim-a") == 0, "a raised limit compiles");
+    check(run_limited(R"({"maxFileBytes":8})", "lim-b") != 0, "a lowered limit is enforced");
+    check(read_file(log_dir / "cli.log").find("TESSERA_JSX_LIMIT_FILE_SIZE") != std::string::npos,
+          "the lowered limit reports the file-size code");
+    check(run_limited(R"({"maxTokens":0})", "lim-c") == 1, "a zero limit is rejected");
+    check(run_limited(R"({"maxBytes":10})", "lim-d") == 1, "an unknown limit key is rejected");
+
     // Usage errors exit 2.
     check(run_cli(cli, "", log_dir) == 2, "no arguments exits 2");
     check(run_cli(cli, "--out " + quoted(work / "no-input-out"), log_dir) == 2,

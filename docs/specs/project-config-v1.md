@@ -79,6 +79,9 @@ paths are rejected.
 | `bindings.annotation` | string | no | `// Note: bind::` | Marker prefix for bindings (stable ids naming a required member of the developer class, [ADR-040](../../decisions/ADR-040-generated-base-and-developer-class.md)) |
 | `bindings.manifest` | string | no | `generated/bindings.json` | Must stay inside `codegen.outDir` |
 
+`tessera_codegen` reads the five `limits.*` keys; an unknown key, a non-integer or a value of 0 or less
+fails the run (exit 1), and `maxFileBytes` may exceed 1 MiB. In-memory paths keep the defaults.
+
 ## `packages`
 
 Bare specifiers resolved by the compiler ([`jsx-subset-v1.md`](jsx-subset-v1.md) section 4); empty

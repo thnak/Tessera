@@ -4,22 +4,22 @@
 // project file.
 //
 // **One buffer per tab.** The page holds the text (`page-workspace.ts`), this component renders the tab
-// strip and one `<textarea>`, and switching a tab swaps the textarea's content in an effect. A textarea
-// rather than a real editor is deliberate (a code editor needs a dependency, and #431 keeps the
-// no-new-dependency rule): what this issue changes is that the editor is *per file* and that the active
-// file's text is what Run compiles, not one shared scratch buffer.
+// strip and one CodeMirror 6 editor (`editor/code-editor.ts`, issue #517), and switching a tab opens that
+// file in the editor in an effect; the editor keeps each open file's own undo history. What the page
+// compiles is the active file's text, not one shared scratch buffer.
 //
 // **Two tab strips on the page, and neither is the page's navigation.** The editor's tabs are a real
 // `role="tablist"` over the open buffers; the preview switch is the other one, in the column it controls.
 // The page itself is not a tablist any more, which is the whole point of the issue: switching a preview
 // view must not change the workspace's shape.
 //
-// The textarea is uncontrolled on purpose. React would otherwise re-render the tree and the preview
-// column on every keystroke; instead the page writes the buffer on `input`, which marks the file dirty
-// once. That is the same rule the canvas follows (ADR-054 decision 3): React owns the chrome, and a
+// The editor is uncontrolled on purpose. React would otherwise re-render the tree and the preview
+// column on every keystroke; instead the page writes the buffer on each user edit, which marks the file
+// dirty once. That is the same rule the canvas follows (ADR-054 decision 3): React owns the chrome, and a
 // high-frequency write does not go through its render cycle.
 
 import { useEffect, useRef } from "react";
+import { createCodeEditor, type CodeEditor } from "../editor/code-editor";
 import type { ProjectFile } from "../lib/project";
 
 /** The id of the tab for `path` (`aria-controls`/`aria-labelledby` need one, and a path has slashes). */
@@ -159,24 +159,26 @@ export function CodeRegion({
   onLoadSample,
   restartDisabled,
   applying,
-  onKeyDown,
+  onSave,
+  onApplyNow,
 }: {
   open: readonly string[];
   files: readonly ProjectFile[];
   active: string;
   dirty: readonly string[];
-  /** The active file's text: what the textarea holds after a tab switch or a programmatic replace. */
+  /** The active file's text: what the editor shows after a tab switch or a programmatic replace. */
   text: string;
   /**
    * Bumped by the page whenever it wrote a buffer itself (a tab switch, a sample, a share link).
    *
-   * The textarea is uncontrolled, so typing does not come back through here: a keystroke is written to
+   * The editor is uncontrolled, so typing does not come back through here: a keystroke is written to
    * the page's buffer and never re-sent. Only a *page* write bumps this, which is what lets the effect
    * tell "the active file changed" from "the visitor typed", and it is why the editor costs one
    * re-render per file switch instead of one per key.
    */
   revision: number;
-  sourceRef: React.RefObject<HTMLTextAreaElement | null>;
+  /** Receives the editor once it is mounted; the sessions reveal spans and mark diagnostics through it. */
+  sourceRef: React.MutableRefObject<CodeEditor | null>;
   editorHintRef: React.RefObject<HTMLParagraphElement | null>;
   onSelectTab: (path: string) => void;
   onCloseTab: (path: string) => void;
@@ -187,20 +189,52 @@ export function CodeRegion({
   restartDisabled: boolean;
   /** A live edit is scheduled or running: the hint says so instead of pretending nothing is happening. */
   applying: boolean;
-  onKeyDown: (event: React.KeyboardEvent<HTMLTextAreaElement>) => void;
+  /** Mod-S in the editor: save to the opened folder (#391). */
+  onSave: () => void;
+  /** Mod-Enter in the editor: apply now, skipping the debounce. */
+  onApplyNow: () => void;
 }) {
-  // Writing the textarea from an effect (not a `value` prop) keeps it out of React's render cycle. The
-  // effect runs only on a page write: the active file, or a buffer the page replaced.
+  // The editor is created once, in an effect (it needs the DOM, and the Node render of the chrome has none).
+  // Its callbacks go through a ref so the page's handlers can change without recreating the editor.
+  const host = useRef<HTMLDivElement | null>(null);
+  const handlers = useRef({ onEdit, onSave, onApplyNow });
+  handlers.current = { onEdit, onSave, onApplyNow };
+  useEffect(() => {
+    const parent = host.current;
+    if (parent === null) {
+      return;
+    }
+    const editor = createCodeEditor(parent, {
+      onChange: (changed) => handlers.current.onEdit(changed),
+      onSave: () => handlers.current.onSave(),
+      onApplyNow: () => handlers.current.onApplyNow(),
+      label: "Source code",
+    });
+    sourceRef.current = editor;
+    // A seam for the Playwright probes (they cannot set a value on a CodeMirror surface): the text, and an
+    // edit that arrives exactly as typing does. Nothing on the page reads it.
+    (globalThis as { __tesseraEditor?: CodeEditor }).__tesseraEditor = editor;
+    return () => {
+      delete (globalThis as { __tesseraEditor?: CodeEditor }).__tesseraEditor;
+      sourceRef.current = null;
+      editor.destroy();
+    };
+  }, [sourceRef]);
+
+  // Opening a file from an effect keeps the text out of React's render cycle. It runs only on a page write:
+  // the active file, or a buffer the page replaced. (The editor reuses a file's own state, history included,
+  // when the text the page hands over is the text the editor already holds.)
   const applied = useRef<string>("");
   useEffect(() => {
-    const node = sourceRef.current;
+    const editor = sourceRef.current;
     const stamp = `${revision}:${active}`;
-    if (!node || applied.current === stamp) {
+    if (!editor || applied.current === stamp) {
       return;
     }
     applied.current = stamp;
-    node.value = text;
-    node.scrollTop = 0;
+    if (active !== "") {
+      editor.open(active, text);
+    }
   }, [revision, active, text, sourceRef]);
   const current = files.find((file) => file.path === active) ?? null;
 
@@ -243,20 +277,7 @@ export function CodeRegion({
         role="tabpanel"
         aria-labelledby={active ? tabIdOf(active) : undefined}
       >
-        <label htmlFor="source" className="visually-hidden">
-          TSX source
-        </label>
-        <textarea
-          id="source"
-          ref={sourceRef}
-          spellCheck={false}
-          autoCapitalize="off"
-          autoComplete="off"
-          autoCorrect="off"
-          wrap="off"
-          onKeyDown={onKeyDown}
-          onInput={(event) => onEdit(event.currentTarget.value)}
-        />
+        <div id="editor-host" ref={host} />
       </div>
 
       {/* The hint belongs to the page, not to a view: the editor is shared by the three preview panes,
