@@ -47,6 +47,7 @@ on:
       - 'scripts/ci/preview_share_roundtrip.mjs'
       - 'scripts/ci/preview_studio_smoke.mjs'
       - 'scripts/ci/preview_page_checks.mjs'
+      - 'scripts/ci/preview_project_load.mjs'
       - 'scripts/ci/gen_sample_manifest.py'
       - 'scripts/check_preview_budget.py'
       - 'scripts/preview_budget_measure.py'
@@ -68,6 +69,7 @@ on:
       - 'scripts/ci/preview_share_roundtrip.mjs'
       - 'scripts/ci/preview_studio_smoke.mjs'
       - 'scripts/ci/preview_page_checks.mjs'
+      - 'scripts/ci/preview_project_load.mjs'
       - 'scripts/ci/gen_sample_manifest.py'
       - 'scripts/check_preview_budget.py'
       - 'scripts/preview_budget_measure.py'
@@ -223,6 +225,12 @@ jobs:
       # opening the URL (or the developer-run `preview_browser_check.mjs`). The scripts say so themselves.
       - name: Share-link round trip (codec, no browser)
         run: node scripts/ci/preview_share_roundtrip.mjs
+
+      # The project load and save, against an in-memory folder handle: a folder and its zip are the same
+      # project, every limit refuses before a byte is read, a locked file is never read, and Save notices a
+      # file that changed on disk. The browser half is `preview_browser_project_io.mjs`, run by hand.
+      - name: Project load and save (limits, locked files, conflicts)
+        run: node scripts/ci/preview_project_load.mjs
 
       - name: Studio chrome smoke (rendered build, stub browser)
         run: node scripts/ci/preview_studio_smoke.mjs

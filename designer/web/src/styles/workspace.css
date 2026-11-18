@@ -183,3 +183,41 @@
 }
 
 .status-note code { font-family: var(--mono); }
+
+/* --- the project's load and save controls (left column, under the header) ---------------------- */
+
+.project-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.project-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.project-actions button { font-size: 12px; }
+
+.project-name,
+.project-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+
+.project-conflict {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.project-conflict p { margin: 0; overflow-wrap: anywhere; }

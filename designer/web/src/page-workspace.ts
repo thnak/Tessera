@@ -71,6 +71,8 @@ export interface Workspace {
   putFile: (file: ProjectFile) => void;
   /** Replaces the whole project (an opened folder or a dropped zip). */
   setProject: (files: ProjectFile[]) => void;
+  /** Records that `texts` were written to disk: they become the project's copy and stop being dirty. */
+  markSaved: (texts: ReadonlyMap<string, string>) => void;
 }
 
 /** The workspace's initial state: the seeded project, with its entry open and selected. */
@@ -216,6 +218,19 @@ export function useWorkspace(): Workspace {
     setState(initialWorkspace(files));
   }, []);
 
+  const markSaved = useCallback((texts: ReadonlyMap<string, string>) => {
+    for (const path of texts.keys()) {
+      buffers.current.delete(path);
+    }
+    setState((previous) => ({
+      ...previous,
+      files: previous.files.map((file) =>
+        texts.has(file.path) ? { ...file, text: texts.get(file.path) ?? file.text } : file,
+      ),
+      dirty: previous.dirty.filter((path) => !texts.has(path)),
+    }));
+  }, []);
+
   return {
     state,
     rows,
@@ -229,6 +244,7 @@ export function useWorkspace(): Workspace {
     addFile,
     putFile,
     setProject,
+    markSaved,
   };
 }
 

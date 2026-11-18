@@ -1,6 +1,7 @@
 # Studio project IO (issue #391): zip container and path confinement
 
-Status: landed as two framework-independent modules, waiting to be wired into the React shell (#422).
+Status: the two modules are wired into the React shell (section 5): Open folder, Open zip and drop, Save with a
+conflict check, Download project.
 Issue: [#391](https://github.com/thnak/Tessera/issues/391), studio slices D-S2 and D-S4.
 Spec: [`designer-studio-v1.md`](../specs/designer-studio-v1.md) section 7 (project load, edit and save)
 and section 10 (the path rule).
@@ -163,14 +164,34 @@ Both are Node, need no browser, and are the only verification this change has:
 Both suites read the module's own source for the last assertion, so "the React shell imports this
 unchanged" is checked rather than described.
 
-## 5. Not implemented, by decision
+## 5. The shell wiring (the rest of #391)
 
-The shell work is **deferred to #422**, which blocks #391: the file tree widget, the per-file editor
-binding, the debounced re-preview, the save/conflict UI, the drop handler, the multi-file resolution
-plumbing into the page (`tessera_project_json` and a `studio_project.cpp` driver were prototyped and
-reverted with the page work), the `PAGE_FILES` rows, and any budget re-record. None of it was landed:
-`git status` on that lane shows only the four files of this note's two modules and their two tests, and
-no page file is modified.
+`designer/web/project-io.js` is the third framework-independent module. It reduces a folder handle, a zip
+and a test's path list to the same *raw entries* (`path`, `size`, `lastModified`, a lazy `read`) and
+`buildProject` turns them into the project: every path through `confinePath`, every file through
+`classifyPath` (with the `assets` of `tessera.json` as context), every limit checked **from sizes alone before
+a byte is read**, and nothing read for a locked file. A folder and the zip of that folder are therefore the
+same project (asserted by `scripts/ci/preview_project_load.mjs`). The page side is `src/page-project-io.ts` and
+`src/regions/ProjectBar.tsx`.
 
-Browser verification: **not performed.** Opening a folder, dropping a zip on a page and starting a
-download all need a page, and the page is blocked on #422.
+| Piece | Behaviour |
+|---|---|
+| Open folder | `showDirectoryPicker({ mode: "readwrite" })`; a browser without it says so and points at the zip. The handle is used through its public methods only, so the Node gate drives it with a fake and the browser probe with an OPFS directory |
+| Open zip / drop | a file input and a drop on the workspace; a zip of a folder (one wrapper directory above `tessera.json`) loads with that directory as the root |
+| Opaque directories | `node_modules`, `.git`, `build`, `dist`, `out`, `.vite` are **not walked**: each is one locked row, so a hostile folder cannot flood the tree. This narrows the issue's "listed locked" to one row per directory |
+| Limits | 500 editable files, 1 MiB per file, 20 MiB total, 5000 tree entries, 64 MiB archive: refused with the sentence `limitMessage` gives, and a refused open leaves the previous project in place |
+| Replace | opening over unsaved edits asks first |
+| Save | explicit only (Ctrl/Cmd+S or the button); `queryPermission`/`requestPermission` first; before writing, each file's `lastModified` is compared with the value recorded at load. A changed file raises *Keep mine / Take disk / Cancel* and nothing is written until the person chooses |
+| Focus | when the tab regains focus the note says how many files changed on disk (no file watcher exists) |
+| Download | a deterministic zip of the accepted text files with the editor's text; locked files were never read, so they are not in it and the note says so |
+
+**Verification.** `node scripts/ci/preview_project_load.mjs` (16 cases, no browser) and
+`scripts/ci/preview_browser_project_io.mjs` (Chromium, run by hand from a directory whose `node_modules` has
+playwright: the zip route, Download round trip, the named refusals, and the folder route against a real
+origin-private-file-system handle including a conflict). The one thing neither can do is the OS folder picker,
+which needs a user gesture and is checked by hand.
+
+## 6. Still not implemented
+
+Adding, deleting and renaming files from the tree (rename does not rewrite imports, by the owner's decision),
+remembering the last folder handle in IndexedDB, and the picker's OS dialog under automation.

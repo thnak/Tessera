@@ -18,7 +18,7 @@
 // (`page-workspace.ts`) is the only thing that changes. That keeps the engine/React split of ADR-054
 // decision 3 intact -- the tree is not a document a Wasm module produced.
 
-import { useRef } from "react";
+import { useRef, type ReactNode } from "react";
 import type { TreeRow } from "../lib/project";
 
 /** The index of the selected row, or 0 when it is not among the visible rows. */
@@ -54,6 +54,7 @@ export function ProjectTree({
   dirty,
   onSelect,
   onToggleDir,
+  toolbar,
 }: {
   rows: TreeRow[];
   selected: string;
@@ -61,6 +62,8 @@ export function ProjectTree({
   dirty: readonly string[];
   onSelect: (row: TreeRow) => void;
   onToggleDir: (path: string) => void;
+  /** The load/save controls, drawn between the header and the tree. */
+  toolbar?: ReactNode;
 }) {
   const container = useRef<HTMLDivElement | null>(null);
 
@@ -146,6 +149,7 @@ export function ProjectTree({
           {rows.filter((row) => !row.dir).length} file(s)
         </span>
       </div>
+      {toolbar}
       <div
         className="tree"
         id="project-tree"
