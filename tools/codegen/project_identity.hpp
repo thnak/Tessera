@@ -3,6 +3,7 @@
 #pragma once
 
 #include "regenerate.hpp"
+#include "tessera/compiler/jsx/limits.hpp"
 
 #include <filesystem>
 #include <optional>
@@ -41,6 +42,8 @@ struct ProjectIdentity {
     // `assets.themePins`: theme id -> version pin, in document order (ADR-047 item 4). Checked
     // against the theme asset's `themeVersions` when the asset is embedded.
     std::vector<ThemePinSpec> theme_pins;
+    // `ui.limits.*`: the JSX front end limits, the compiled-in defaults unless the config sets one.
+    tessera::compiler::jsx::Limits limits;
 };
 
 // Appends one message; an error also makes the exit code 1 unless it was already larger. The

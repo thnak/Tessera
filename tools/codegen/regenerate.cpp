@@ -282,7 +282,8 @@ Outcome run_impl(const Options& options) {
             outcome.exit_code = 2;
             return outcome;
         }
-        sources.push_back(std::make_unique<SourceFile>(std::move(next.first), std::move(*text)));
+        sources.push_back(std::make_unique<SourceFile>(std::move(next.first), std::move(*text),
+                                                       identity->limits));
         // Import closure (issue #70): a run follows the imports of every file it loads, so a
         // package's sources do not have to be listed on the command line. A specifier that names no
         // file is left alone here - lowering reports it with the import diagnostics.

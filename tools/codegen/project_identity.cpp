@@ -10,6 +10,7 @@
 #include "tessera/ui/style/theme_asset.hpp"
 
 #include <algorithm>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <optional>
@@ -24,6 +25,50 @@ namespace {
 
 namespace fs = std::filesystem;
 namespace lowering = tessera::compiler::lowering;
+
+// Reads the optional `ui.limits` object: each key is an integer greater than 0 that replaces the
+// compiled-in default of the front end limit it names (jsx-subset-v1.md section 15). A wrong type,
+// zero, a negative value or an unknown key is an error rather than a silently ignored setting.
+bool read_limits(const tessera::harness::JsonValue& config, ProjectIdentity& identity,
+                 std::string& why) {
+    const tessera::harness::JsonValue* ui = config.find("ui");
+    const tessera::harness::JsonValue* limits = ui != nullptr ? ui->find("limits") : nullptr;
+    if (limits == nullptr || limits->is_null()) {
+        return true;
+    }
+    const tessera::harness::JsonValue::Object* entries = limits->as_object();
+    if (entries == nullptr) {
+        why = "`ui.limits` must be an object";
+        return false;
+    }
+    const struct {
+        std::string_view key;
+        std::size_t* target;
+    } known[] = {{"maxFileBytes", &identity.limits.max_file_bytes},
+                 {"maxTokens", &identity.limits.max_tokens},
+                 {"maxNestingDepth", &identity.limits.max_nesting_depth},
+                 {"maxDiagnostics", &identity.limits.max_diagnostics},
+                 {"maxComponents", &identity.limits.max_components}};
+    for (const auto& [key, value] : *entries) {
+        std::size_t* target = nullptr;
+        for (const auto& candidate : known) {
+            if (candidate.key == key) {
+                target = candidate.target;
+            }
+        }
+        if (target == nullptr) {
+            why = "`ui.limits." + std::string(key) + "` is not a front end limit";
+            return false;
+        }
+        const std::optional<std::int64_t> number = value.as_integer();
+        if (!number || *number <= 0) {
+            why = "`ui.limits." + std::string(key) + "` must be an integer greater than 0";
+            return false;
+        }
+        *target = static_cast<std::size_t>(*number);
+    }
+    return true;
+}
 
 // Reads the optional `packages` array: every entry is `{ "name": string, "root": string }` plus an
 // optional `"version"` (checked later by check_package_versions), with a unique name and a
@@ -233,6 +278,10 @@ std::optional<ProjectIdentity> resolve_identity(const Options& options, Outcome&
     std::string package_error;
     if (!read_packages(*parsed, identity, package_error)) {
         return fail(package_error);
+    }
+    std::string limits_error;
+    if (!read_limits(*parsed, identity, limits_error)) {
+        return fail(limits_error);
     }
     std::string theme_error;
     if (!read_theme(*parsed, identity, theme_error)) {
