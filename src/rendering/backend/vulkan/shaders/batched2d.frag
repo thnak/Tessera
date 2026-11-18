@@ -7,15 +7,27 @@ layout(location = 3) in vec2 v_half_size;
 layout(location = 4) in float v_radius;
 layout(location = 5) flat in float v_mode;
 layout(location = 6) in vec4 v_carve;
+layout(location = 7) flat in uint v_texture_index;
 
 // TESSERA_SHADER_PORTABLE selects the cross-compilation interface (ADR-049): the push-constant
 // block becomes a std140 uniform buffer at binding 0 and the combined image sampler splits into a
 // texture at binding 1 and a sampler at binding 2, the layout WebGPU, Metal and D3D12 use. The
 // Vulkan build never defines it, so its SPIR-V is unchanged.
+//
+// TESSERA_TEXTURE_ARRAY selects the descriptor-indexing variant (RHI 1.7, issue #480 part 2): the
+// single combined image sampler becomes an array of them, indexed by the per-vertex
+// `v_texture_index`. It is a separate compilation of this same source, so the two variants cannot
+// drift in their clip/SDF/shadow logic - only the sampling line differs. `nonuniformEXT` is
+// required because the index is per-vertex data, not a uniform.
 #ifdef TESSERA_SHADER_PORTABLE
 layout(set = 0, binding = 1) uniform texture2D u_texture;
 layout(set = 0, binding = 2) uniform sampler u_sampler;
 #define TESSERA_SAMPLE(uv) texture(sampler2D(u_texture, u_sampler), (uv))
+#elif defined(TESSERA_TEXTURE_ARRAY)
+// The index is per-vertex data, so the array access is non-uniform and needs the extension.
+#extension GL_EXT_nonuniform_qualifier : require
+layout(set = 0, binding = 0) uniform sampler2D u_textures[32];
+#define TESSERA_SAMPLE(uv) texture(u_textures[nonuniformEXT(v_texture_index)], (uv))
 #else
 layout(set = 0, binding = 0) uniform sampler2D u_texture;
 #define TESSERA_SAMPLE(uv) texture(u_texture, (uv))

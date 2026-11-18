@@ -22,7 +22,7 @@ enum class WgpuAddressMode { ClampToEdge, Repeat };
 // WebGPU has no "don't care" load op; see load_op().
 enum class WgpuLoadOp { Clear, Load };
 enum class WgpuStoreOp { Store, Discard };
-enum class WgpuVertexFormat { Float32, Float32x2, Float32x3, Float32x4, Unorm8x4 };
+enum class WgpuVertexFormat { Float32, Float32x2, Float32x3, Float32x4, Unorm8x4, Uint32 };
 enum class WgpuBlendFactor { One, SrcAlpha, OneMinusSrcAlpha };
 enum class WgpuBlendOp { Add };
 enum class WgpuPrimitiveTopology { TriangleList };

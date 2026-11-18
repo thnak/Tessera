@@ -518,6 +518,29 @@ and damaged paint falls from 37.6 ms to **3.3-7.2 ms** across runs. The full pai
 the smallest integer with headroom above 5: a platform difference in the culled set cannot fail the
 gate, while a trip back to the whole tree still does.
 
+**Texture arrays (issue #480 part 2, [`renderer.md`](renderer.md) "Texture arrays").** The batch key
+is `(scissor, texture)`, so a texture change ends the batch. The issue gated descriptor indexing on
+measuring that share first, and `texture_batch_measure` (`tests/gpu/batched2d/`, a manual tool, not a
+CTest) does it: a 24-row dashboard - image, caption, image, body line per row - painted through the
+production paint path, plus a same-geometry control arm where each image quad is a solid fill of the
+same rect, so the quad count, vertex count and paint traversal are identical and only the texture
+identity differs. Measured on the reference machine (RTX 4060, MSVC Release, steady-state second
+frame):
+
+| Arm | Draw calls | Vertices | Batch splits |
+|---|---|---|---|
+| interleaved, one set per texture | 144 | 6510 | 143 texture + 1 flush |
+| interleaved, texture array | 1 | 6510 | 1 flush |
+| control (images as fills) | 96 | 6222 | 95 texture + 1 flush |
+
+**143 of 144 draw calls were texture switches (99%)**, against the issue's 19-draw-call reference
+scene: that scene is the exception, not the rule, so part 2 was worth its complexity. The array path
+is byte-identical to the one-set path (0 differing bytes of 1 228 800), which is the whole contract -
+it changes how the same texels are addressed, never which ones. The command-recording time is
+unchanged within the run-to-run spread (0.7-1.2 ms for the whole frame on both paths): the win is
+draw calls and the per-draw descriptor bind, not CPU recording. `max_draw_calls` (64) in the committed
+budget still gates the reference scene, which does not interleave textures.
+
 **Trigger.** Revisit the V1 decision of no render thread and no worker recording when
 `paint_time_ms` exceeds about 4 ms or 30% of `frameBudgetMs` at 10k nodes. At 12 000 nodes the
 recorded paint is 75 ms in the #241 measurement (43-46 ms for a full paint on the same machine in the

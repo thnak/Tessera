@@ -36,6 +36,13 @@ public:
     [[nodiscard]] bool supports_dual_source_blend() const override {
         return dual_source_blend_;
     }
+    // RHI 1.7 (issue #480 part 2): the sampled-image array length one descriptor set can hold, or 0
+    // when this device cannot index descriptors. Probed and enabled in create_device() from
+    // VK_EXT_descriptor_indexing (runtimeDescriptorArray + the per-stage sampled-image indexing
+    // features), so a recovered device reports the new device's answer.
+    [[nodiscard]] std::uint32_t texture_array_capacity() const override {
+        return texture_array_capacity_;
+    }
     // The RHI timestamp probe: the selected queue family's timestampValidBits, that family's
     // graphics capability, and the device's timestampPeriod (docs/design/performance.md 6.1).
     [[nodiscard]] rhi::GpuTimestampCapability timestamp_capability() const override {
@@ -163,6 +170,15 @@ public:
     // pending). Textures use this so an image is never destroyed under an in-flight copy.
     void retire_after_uploads(std::function<void()> destroy);
 
+    // The array layout and its one set, for a command list's bind_texture_array (RHI 1.7, issue
+    // #480 part 2). Both are VK_NULL_HANDLE when the device has no texture array.
+    [[nodiscard]] VkDescriptorSetLayout texture_array_layout() const {
+        return texture_array_layout_;
+    }
+    [[nodiscard]] VkDescriptorSet texture_array_set() const {
+        return texture_array_set_;
+    }
+
 private:
     void require_ready(const char* what) const;
     void reap_command_resources();
@@ -172,10 +188,19 @@ private:
     void create_device();
     void create_allocator();
     void create_descriptor_layout();
+    // The array layout (RHI 1.7, issue #480 part 2): one COMBINED_IMAGE_SAMPLER binding holding
+    // kTextureArrayCapacity descriptors, created only when the device enabled descriptor indexing.
+    void create_texture_array_layout();
+    void destroy_texture_array();
     // Descriptor pools (issue #480): one pool holds kDescriptorSetsPerPool sets; when it is full
     // the device grows a list instead of failing, up to kMaxDescriptorPools.
     static constexpr std::uint32_t kDescriptorSetsPerPool = 1024;
     static constexpr std::size_t kMaxDescriptorPools = 64;
+    // The sampled-image array length the batched 2D shader declares (issue #480 part 2). The issue
+    // proposes min(device limit, 32); 32 is also what every Vulkan 1.2 implementation must support
+    // for a sampled-image array, so the shader's constant is portable and the device limit only
+    // decides whether the feature is enabled at all.
+    static constexpr std::uint32_t kTextureArrayCapacity = 32;
     VkDescriptorPool add_descriptor_pool();
     void destroy_descriptor_pools();
     void create_descriptor_pool() {
@@ -220,6 +245,14 @@ private:
     std::uint32_t queue_family_ = 0;
     VmaAllocator allocator_ = nullptr;
     VkDescriptorSetLayout descriptor_set_layout_ = VK_NULL_HANDLE;
+    // The array layout, created only when descriptor indexing is enabled (RHI 1.7, issue #480 part
+    // 2). VK_NULL_HANDLE means the one-set-per-texture path.
+    VkDescriptorSetLayout texture_array_layout_ = VK_NULL_HANDLE;
+    // The device's one array set, allocated once with the layout and updated by bind_texture_array.
+    // A frame records at most one array bind per batch, so one set is enough; the renderer re-binds
+    // it whenever the batch's texture set changes.
+    VkDescriptorSet texture_array_set_ = VK_NULL_HANDLE;
+    VkDescriptorPool texture_array_pool_ = VK_NULL_HANDLE;
     VkDescriptorPool descriptor_pool_ = VK_NULL_HANDLE; // the pool new sets are tried in first
     std::vector<VkDescriptorPool> descriptor_pools_;
     std::vector<CommandResources> free_commands_;
@@ -247,6 +280,9 @@ private:
     // dualSrcBlend, probed and enabled in create_device() only when the physical device reports it
     // (RHI 1.5, issue #471). Cleared with the rest of the device generation.
     bool dual_source_blend_ = false;
+    // RHI 1.7 (issue #480 part 2): the descriptor-array length this generation enabled, 0 when the
+    // device cannot index descriptors. Cleared with the rest of the device generation.
+    std::uint32_t texture_array_capacity_ = 0;
 
     void account(std::int64_t& counter, std::int64_t delta, std::uint32_t epoch) {
         if (epoch == epoch_) {

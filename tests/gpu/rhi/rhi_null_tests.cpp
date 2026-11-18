@@ -18,8 +18,8 @@ int main() {
     // presentation surface family a device is created for (issue #155); 1.5 added
     // `BlendMode::DualSource` and `Device::supports_dual_source_blend()` (issue #471). All are
     // additive compatible changes.
-    if (rhi::kRhiVersionMajor != 1 || rhi::kRhiVersionMinor != 6 ||
-        rhi::kRhiVersion != ((1u << 16) | 6u)) {
+    if (rhi::kRhiVersionMajor != 1 || rhi::kRhiVersionMinor != 7 ||
+        rhi::kRhiVersion != ((1u << 16) | 7u)) {
         std::cerr << "unexpected RHI version constants\n";
         return 1;
     }

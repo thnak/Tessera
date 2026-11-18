@@ -67,6 +67,7 @@ void Batched2DRenderer::begin_damaged(rhi::CommandList& commands, const rhi::Ren
         in_frame_ = false;
         draw_calls_ = 0;
         cull_stats_ = CullStats{};
+        split_stats_ = BatchSplitStats{};
         vertices_.cancel_frame();
         return;
     }
@@ -120,12 +121,14 @@ void Batched2DRenderer::begin_frame(rhi::CommandList& commands, const rhi::Rende
                                       static_cast<std::uint32_t>(bottom - top)};
     }
     cull_stats_ = CullStats{};
+    split_stats_ = BatchSplitStats{};
     clips_.reset();
     transform_ = rhi::Mat3::identity();
     transform_stack_.clear();
     content_scale_x_ = 1.0f;
     content_scale_y_ = 1.0f;
     batches_.clear();
+    frame_textures_.clear();
     current_texture_ = white_texture_;
     current_batch_ = Batch{scissor_, current_texture_, clips_.index(), 0, 0};
     draw_calls_ = 0;
@@ -168,7 +171,7 @@ void Batched2DRenderer::set_viewport(rhi::Extent2D extent) {
 
 void Batched2DRenderer::set_scissor(const rhi::Scissor& scissor) {
     if (!same_scissor(scissor_, scissor) || !same_scissor(current_batch_.scissor, scissor)) {
-        flush_batch();
+        flush_batch(BatchSplitReason::Scissor);
     }
     scissor_ = scissor;
     current_batch_.scissor = scissor_;
@@ -178,7 +181,7 @@ void Batched2DRenderer::push_scissor(const rhi::Scissor& scissor) {
     scissor_stack_.push_back(scissor_);
     const rhi::Scissor next = rhi::intersect(scissor_, scissor);
     if (!same_scissor(next, current_batch_.scissor)) {
-        flush_batch();
+        flush_batch(BatchSplitReason::Scissor);
     }
     scissor_ = next;
     current_batch_.scissor = scissor_;
@@ -190,7 +193,7 @@ void Batched2DRenderer::pop_scissor() {
         scissor_stack_.pop_back();
     }
     if (!same_scissor(next, current_batch_.scissor)) {
-        flush_batch();
+        flush_batch(BatchSplitReason::Scissor);
     }
     scissor_ = next;
     current_batch_.scissor = scissor_;
@@ -327,7 +330,7 @@ void Batched2DRenderer::flush() {
         return;
     }
 
-    flush_batch();
+    flush_batch(BatchSplitReason::Flush);
 
     // Append after whatever earlier flushes of this frame wrote: their draws are recorded but not
     // executed yet, so overwriting offset 0 would change what they draw.
@@ -342,7 +345,7 @@ void Batched2DRenderer::flush() {
             bind_batch_pipeline(batch, bound_pipeline);
             commands_->set_scissor(batch.scissor);
             update_push_constants(batch.clip_state);
-            commands_->bind_texture(0, *batch.texture);
+            bind_batch_textures(batch);
             commands_->draw(batch.vertex_count, base + batch.first_vertex);
             ++emitted_draws;
         }
@@ -359,7 +362,7 @@ void Batched2DRenderer::flush() {
                 if (!state_bound) {
                     bind_batch_pipeline(batch, bound_pipeline);
                     update_push_constants(batch.clip_state);
-                    commands_->bind_texture(0, *batch.texture);
+                    bind_batch_textures(batch);
                     state_bound = true;
                 }
                 commands_->set_scissor(clipped);
@@ -376,11 +379,12 @@ void Batched2DRenderer::flush() {
     current_batch_ = Batch{scissor_, current_texture_, clips_.index(), 0, 0};
 }
 
-void Batched2DRenderer::flush_batch() {
+void Batched2DRenderer::flush_batch(BatchSplitReason reason) {
     if (current_batch_.vertex_count == 0) {
         return;
     }
 
+    count_batch_split(reason);
     batches_.push_back(current_batch_);
     current_batch_.first_vertex = vertices_.staged_vertices();
     current_batch_.vertex_count = 0;
@@ -401,12 +405,7 @@ void Batched2DRenderer::emit_quad(const rhi::Rect& rect, const rhi::Rect& uv, rh
         return;
     }
     ++cull_stats_.quads_emitted;
-    if (texture != current_texture_ || quad_pipeline_ != current_batch_.pipeline) {
-        flush_batch();
-        current_texture_ = texture;
-        current_batch_.texture = texture;
-        current_batch_.pipeline = quad_pipeline_;
-    }
+    const std::uint32_t texture_index = begin_quad_batch(texture);
 
     const float x0 = rect.x;
     const float y0 = rect.y;
@@ -452,6 +451,7 @@ void Batched2DRenderer::emit_quad(const rhi::Rect& rect, const rhi::Rect& uv, rh
         vertex.carve_y = carve.y;
         vertex.carve_half_width = carve.half_width;
         vertex.carve_half_height = carve.half_height;
+        vertex.texture_index = texture_index;
         vertices_.push_vertex(vertex);
     }
 
@@ -464,7 +464,7 @@ void Batched2DRenderer::apply_clip_state(const ClipStateTable::Update& update) {
     if (state_changed || scissor_changed) {
         // Batching split rule: a draw batch covers one (texture, scissor, folded-clip-uniform)
         // tuple. Clip push/pop only costs a split when the folded uniform set or scissor changes.
-        flush_batch();
+        flush_batch(state_changed ? BatchSplitReason::Clip : BatchSplitReason::Scissor);
     }
     scissor_ = update.scissor;
     current_batch_.scissor = update.scissor;

@@ -6,6 +6,9 @@ add_library(tessera_gpu STATIC
     # its resolved image. Split out so the renderer core stays inside its size budget.
     batched2d_present.cpp
     batched2d_lcd.cpp
+    # The texture-array half (RHI 1.7, issue #480 part 2): the frame's slot list and the array bind.
+    # Split out so the renderer core stays inside its size budget.
+    batched2d_texture_array.cpp
     batched2d_cull.cpp
     batched2d_seam.cpp
     clip_state_table.cpp

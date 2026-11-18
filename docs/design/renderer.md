@@ -44,7 +44,7 @@ backend handles.
 
 ## Batched 2D renderer
 
-`gpu::Vertex2D` is 44 bytes:
+`gpu::Vertex2D` is 64 bytes:
 
 | Field | Format |
 |---|---|
@@ -55,6 +55,8 @@ backend handles.
 | half_size | `R32G32_SFLOAT` |
 | radius | `R32_SFLOAT` |
 | mode | `R32_SFLOAT` |
+| carve | `R32G32B32A32_SFLOAT` |
+| texture_index | `R32_UINT` |
 
 Modes: `0` solid, `1` SDF rounded rectangle, `2` textured quad.
 
@@ -70,8 +72,45 @@ Rules:
   1 px normally; `--golden` sets it to 0 for hard, pixel-stable edges.
 - **Textures:** one combined image sampler per texture; solid/SDF quads bind a 1x1 white texture.
   The B2 glyph atlas (text rendering, see [`text.md`](text.md)) is planned to reuse the same path.
+  On a device with descriptor indexing the frame's textures are one array instead, so a texture
+  change no longer ends the batch (see below).
 - **No `discard`:** transparent SDF fragments write alpha 0 and vanish through alpha blending.
   This avoids a dependency on `shaderDemoteToHelperInvocation`.
+
+### Texture arrays (RHI 1.7, issue #480 part 2)
+
+The batch key above makes a texture change end the batch, so images and glyph-atlas pages
+interleaved with text cost one draw call per switch. Measured on a 24-row dashboard (image,
+caption, image, body line per row) through the production paint path, **143 of 144 draw calls were
+texture switches** - the issue's 19-draw-call reference scene is the exception, not the rule.
+
+`Device::texture_array_capacity()` is the only authority on whether a device can avoid that. When it
+is non-zero (Vulkan with `runtimeDescriptorArray` and the sampled-image indexing features; 32 slots,
+the length every Vulkan 1.2 implementation must support), the renderer binds the frame's textures as
+one array and each vertex carries its slot:
+
+| Path | Draw calls, interleaved dashboard | Pixels |
+|---|---|---|
+| one set per texture | 144 | baseline |
+| texture array | 1 | byte-identical |
+
+The pixels are identical because the array only changes how the same texels are addressed, never
+which ones; `tests/gpu/batched2d/texture_array_gpu_tests.cpp` asserts both the draw-call collapse and
+the byte identity on a real device.
+
+Two details are load-bearing:
+
+- **The array is bound once per flush, not per batch.** A descriptor set is read when the GPU
+  executes the draw, not when it is recorded, so rewriting one set per batch makes every draw read
+  the last write. The first implementation did exactly that and the pixel comparison caught it.
+- **The frame's array is bounded by the device's capacity.** A frame that draws more distinct
+  textures than the array holds keeps the one-set path for the rest, which is the documented bounded
+  behavior: the array length is the device's, not the scene's.
+
+A device without the capability keeps the one-set path unchanged, and asking for the array pipeline
+or the array bind there is a named error rather than a silent fallback
+(`tests/gpu/batched2d/texture_array_fallback_tests.cpp`). WebGPU has no descriptor indexing, so its
+WGSL twin always reads the single bound texture and ignores the index.
 
 ## Vulkan backend
 
@@ -159,6 +198,7 @@ Reference: [`docs/images/batched2d.png`](../images/batched2d.png).
 - Yoga layout, FreeType/HarfBuzz shaping and the glyph atlas are implemented in B2.
 - No vector path rasterizer ([ADR-004](../../decisions/ADR-004-buy-vector-path-rasterization.md), buy vector-path rasterization).
 - No sRGB/color-management policy: not scheduled; no decision yet (see [ADR-001](../../decisions/ADR-001-vulkan-1-3-baseline.md)).
-- No bindless/descriptor indexing (Vulkan features letting shaders index many textures from one set); one descriptor set per texture.
+- No bindless/descriptor indexing on WebGPU (Vulkan has it since RHI 1.7, issue #480 part 2; see
+  "Texture arrays" above). WebGPU keeps one descriptor set per texture.
 - Goldens from lavapipe/software are wired (dashboard, overlay, text, shapes) plus a CPU solid-rect
   reference.

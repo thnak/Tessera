@@ -94,6 +94,20 @@ add_executable(cull_tests
 target_link_libraries(cull_tests PRIVATE tessera_gpu tessera_rhi_null tessera_damage)
 add_test(NAME cull COMMAND cull_tests)
 
+# Batch-split attribution (issue #480 part 2): why a frame's batches ended, so the texture share
+# descriptor indexing would remove is a measured number instead of a guess. Null backend.
+add_executable(batch_split_tests
+    batched2d/batch_split_tests.cpp)
+target_link_libraries(batch_split_tests PRIVATE tessera_gpu tessera_rhi_null)
+add_test(NAME batch_split COMMAND batch_split_tests)
+
+# Texture-array fallback (RHI 1.7, issue #480 part 2): a device without descriptor indexing reports
+# capacity 0, refuses the array pipeline and the array bind by name, and keeps the one-set path.
+add_executable(texture_array_fallback_tests
+    batched2d/texture_array_fallback_tests.cpp)
+target_link_libraries(texture_array_fallback_tests PRIVATE tessera_gpu tessera_rhi_null)
+add_test(NAME texture_array_fallback COMMAND texture_array_fallback_tests)
+
 set(TESSERA_FONT_FIXTURE
     "${CMAKE_CURRENT_SOURCE_DIR}/../fixtures/fonts/NotoSans-Regular.ttf")
 get_filename_component(TESSERA_FONT_FIXTURE "${TESSERA_FONT_FIXTURE}" REALPATH)
@@ -167,6 +181,25 @@ if (TARGET tessera_rhi_vulkan)
         tessera_gpu tessera_path tessera_rhi_null tessera_rhi_vulkan)
     target_compile_definitions(path_texture_measure PRIVATE
         TESSERA_SVG_FIXTURE_DIR="${PROJECT_SOURCE_DIR}/tests/fixtures/svg")
+endif()
+
+# Manual measurement tool (not a CTest): the number issue #480 part 2 is gated on. It paints an
+# interleaved image+text scene through the production paint path and reports the batch-split
+# attribution, so the texture share descriptor indexing would remove is measured instead of guessed.
+# The raster-image fixture is embedded, so the tool needs no runtime filesystem.
+include(${PROJECT_SOURCE_DIR}/cmake/TesseraAssets.cmake)
+add_executable(texture_batch_measure
+    batched2d/texture_batch_measure.cpp)
+tessera_embed_assets(texture_batch_measure
+    MANIFEST ${PROJECT_SOURCE_DIR}/tests/fixtures/assets/images.manifest
+    NAMESPACE tessera::test::texture_batch_measure::fixtures
+    STEM texture_batch_measure)
+target_link_libraries(texture_batch_measure PRIVATE
+    tessera_gpu tessera_paint tessera_text_render tessera_image tessera_asset_image
+    tessera_rhi_null)
+if (TARGET tessera_rhi_vulkan)
+    target_link_libraries(texture_batch_measure PRIVATE tessera_rhi_vulkan)
+    target_compile_definitions(texture_batch_measure PRIVATE TESSERA_TEST_HAS_VULKAN)
 endif()
 
 # Backend-selectable RHI conformance suite plus its deterministic summary (ADR-049, issue #161).
@@ -407,6 +440,17 @@ if (TARGET tessera_rhi_vulkan)
     target_link_libraries(lcd_text_gpu_tests PRIVATE tessera_gpu tessera_rhi_vulkan)
     add_test(NAME lcd_text_gpu COMMAND lcd_text_gpu_tests)
     set_tests_properties(lcd_text_gpu PROPERTIES
+        SKIP_REGULAR_EXPRESSION "skipped"
+        FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+
+    # Texture arrays via descriptor indexing (RHI 1.7, issue #480 part 2): an alternating-texture
+    # scene records one draw instead of one per switch, and its pixels are byte-identical to the
+    # one-set-per-texture path. Skips on a device without the capability.
+    add_executable(texture_array_gpu_tests
+        batched2d/texture_array_gpu_tests.cpp)
+    target_link_libraries(texture_array_gpu_tests PRIVATE tessera_gpu tessera_rhi_vulkan)
+    add_test(NAME texture_array_gpu COMMAND texture_array_gpu_tests)
+    set_tests_properties(texture_array_gpu PROPERTIES
         SKIP_REGULAR_EXPRESSION "skipped"
         FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
 

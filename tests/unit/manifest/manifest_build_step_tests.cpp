@@ -66,10 +66,14 @@ std::string_view vertex_format_name(tessera::rendering::rhi::VertexFormat format
     if (format == VertexFormat::Float4) {
         return "float4";
     }
+    if (format == VertexFormat::UInt) {
+        return "uint";
+    }
     return "ubyte4norm";
 }
 
-// The GLSL type a manifest format is declared as. A normalized byte color is a vec4 in GLSL.
+// The GLSL type a manifest format is declared as. A normalized byte color is a vec4 in GLSL, and
+// the texture-array index (RHI 1.7, issue #480 part 2) is a uint.
 std::string_view glsl_type_name(std::string_view format) {
     if (format == "float") {
         return "float";
@@ -79,6 +83,9 @@ std::string_view glsl_type_name(std::string_view format) {
     }
     if (format == "float3") {
         return "vec3";
+    }
+    if (format == "uint") {
+        return "uint";
     }
     return "vec4";
 }

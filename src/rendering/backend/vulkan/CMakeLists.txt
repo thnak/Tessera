@@ -52,6 +52,33 @@ tessera_add_spv_c(batched2d.frag TESSERA_BATCHED2D_FRAG_SPV)
 # it in every Vulkan build; no pipeline creates it yet (slice 3 wires it up), and the manifest entry
 # deliberately has no WebGPU source because WGSL has no output index.
 tessera_add_spv_c(batched2d_lcd.frag TESSERA_BATCHED2D_LCD_FRAG_SPV)
+
+# The LCD variant's vertex stage: the same source compiled with TESSERA_NO_TEXTURE_ARRAY, so it does
+# not write the texture-array index its fragment stage does not declare (RHI 1.7, issue #480 part 2).
+set(TESSERA_BATCHED2D_LCD_VERT_SPV
+    ${TESSERA_SHADER_GEN_DIR}/batched2d_lcd_vert_spv.h)
+add_custom_command(
+    OUTPUT ${TESSERA_BATCHED2D_LCD_VERT_SPV}
+    COMMAND tessera_shader_manifest_check ${TESSERA_SHADER_MANIFEST}
+    COMMAND ${TESSERA_GLSLC} -mfmt=c --target-env=vulkan1.3 -DTESSERA_NO_TEXTURE_ARRAY=1
+            ${TESSERA_SHADER_DIR}/batched2d.vert -o ${TESSERA_BATCHED2D_LCD_VERT_SPV}
+    DEPENDS ${TESSERA_SHADER_DIR}/batched2d.vert ${TESSERA_SHADER_MANIFEST}
+    COMMENT "validate shader manifest; glslc batched2d.vert (LCD variant) -> ${TESSERA_BATCHED2D_LCD_VERT_SPV}"
+    VERBATIM)
+
+# Descriptor-indexing variant of the batched2d fragment program (RHI 1.7, issue #480 part 2): the
+# same source compiled with TESSERA_TEXTURE_ARRAY, so its clip/SDF/shadow logic cannot drift from the
+# default variant - only the sampling line differs. The manifest check runs first, as for every rule.
+set(TESSERA_BATCHED2D_ARRAY_FRAG_SPV
+    ${TESSERA_SHADER_GEN_DIR}/batched2d_array_frag_spv.h)
+add_custom_command(
+    OUTPUT ${TESSERA_BATCHED2D_ARRAY_FRAG_SPV}
+    COMMAND tessera_shader_manifest_check ${TESSERA_SHADER_MANIFEST}
+    COMMAND ${TESSERA_GLSLC} -mfmt=c --target-env=vulkan1.3 -DTESSERA_TEXTURE_ARRAY=1
+            ${TESSERA_SHADER_DIR}/batched2d.frag -o ${TESSERA_BATCHED2D_ARRAY_FRAG_SPV}
+    DEPENDS ${TESSERA_SHADER_DIR}/batched2d.frag ${TESSERA_SHADER_MANIFEST}
+    COMMENT "validate shader manifest; glslc batched2d.frag (texture array) -> ${TESSERA_BATCHED2D_ARRAY_FRAG_SPV}"
+    VERBATIM)
 # Glass two-pass Gaussian (issue #244, docs/specs/glass-v1.md section 5): the fragment pass pairs
 # with fullscreen.vert (gl_VertexIndex triangle, no vertex buffer). Compiled here so glslc and the
 # manifest check validate it in every Vulkan build, and embedded by glass_blur_pipeline_desc() -
@@ -61,7 +88,9 @@ tessera_add_spv_c(glass_blur.frag TESSERA_GLASS_BLUR_FRAG_SPV)
 add_custom_target(tessera_vulkan_shaders DEPENDS ${TESSERA_VERT_SPV} ${TESSERA_FRAG_SPV})
 add_custom_target(tessera_batched2d_shaders
     DEPENDS ${TESSERA_BATCHED2D_VERT_SPV} ${TESSERA_BATCHED2D_FRAG_SPV}
-            ${TESSERA_BATCHED2D_LCD_FRAG_SPV} ${TESSERA_GLASS_BLUR_FRAG_SPV})
+            ${TESSERA_BATCHED2D_LCD_FRAG_SPV} ${TESSERA_BATCHED2D_LCD_VERT_SPV}
+            ${TESSERA_BATCHED2D_ARRAY_FRAG_SPV}
+            ${TESSERA_GLASS_BLUR_FRAG_SPV})
 
 add_library(tessera_vulkan STATIC
     src/offscreen_renderer.cpp
@@ -90,6 +119,7 @@ set(TESSERA_VULKAN_RHI_SOURCES
     src/vulkan_command_resources.cpp
     src/vulkan_upload.cpp
     src/vulkan_texture.cpp
+    src/vulkan_texture_array.cpp
     src/vulkan_mipmaps.cpp
     src/vulkan_pipeline.cpp
     src/vulkan_validation.cpp
@@ -99,6 +129,8 @@ set(TESSERA_VULKAN_RHI_SOURCES
     ${TESSERA_BATCHED2D_VERT_SPV}
     ${TESSERA_BATCHED2D_FRAG_SPV}
     ${TESSERA_BATCHED2D_LCD_FRAG_SPV}
+    ${TESSERA_BATCHED2D_LCD_VERT_SPV}
+    ${TESSERA_BATCHED2D_ARRAY_FRAG_SPV}
     ${TESSERA_VERT_SPV}
     ${TESSERA_GLASS_BLUR_FRAG_SPV}
     ${PROJECT_SOURCE_DIR}/third_party/volk/volk.c)
