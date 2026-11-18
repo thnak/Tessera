@@ -572,6 +572,11 @@ if (TARGET tessera_rhi_vulkan)
     target_link_libraries(vulkan_texture_churn_tests PRIVATE tessera_rhi_vulkan)
     add_test(NAME vulkan_texture_churn COMMAND vulkan_texture_churn_tests)
 
+    add_executable(vulkan_descriptor_pool_growth_tests
+        vulkan/vulkan_descriptor_pool_growth_tests.cpp)
+    target_link_libraries(vulkan_descriptor_pool_growth_tests PRIVATE tessera_rhi_vulkan)
+    add_test(NAME vulkan_descriptor_pool_growth COMMAND vulkan_descriptor_pool_growth_tests)
+
     add_executable(vulkan_device_selection_tests
         vulkan/vulkan_device_selection_tests.cpp)
     target_include_directories(vulkan_device_selection_tests PRIVATE

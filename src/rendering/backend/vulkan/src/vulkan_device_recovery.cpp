@@ -56,10 +56,7 @@ void VulkanDevice::destroy_device_objects() {
     timestamp_capability_ = rhi::GpuTimestampCapability{};
     // The feature belongs to the destroyed device generation; create_device() re-probes it.
     dual_source_blend_ = false;
-    if (descriptor_pool_ != VK_NULL_HANDLE && device_ != VK_NULL_HANDLE) {
-        vkDestroyDescriptorPool(device_, descriptor_pool_, nullptr);
-    }
-    descriptor_pool_ = VK_NULL_HANDLE;
+    destroy_descriptor_pools();
     if (descriptor_set_layout_ != VK_NULL_HANDLE && device_ != VK_NULL_HANDLE) {
         vkDestroyDescriptorSetLayout(device_, descriptor_set_layout_, nullptr);
     }
