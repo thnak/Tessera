@@ -23,6 +23,14 @@ if (TARGET tessera_rhi_vulkan)
     target_compile_definitions(tessera_gpu_conformance PUBLIC TESSERA_TEST_HAS_VULKAN)
 endif()
 
+# Metal (ADR-053). The device half only exists on an Apple build with TESSERA_BUILD_METAL=ON; the
+# entry below is registered regardless, so a lane without it reports a named skip rather than
+# silently passing.
+if (TARGET tessera_rhi_metal)
+    target_link_libraries(tessera_gpu_conformance PUBLIC tessera_rhi_metal)
+    target_compile_definitions(tessera_gpu_conformance PUBLIC TESSERA_TEST_HAS_METAL)
+endif()
+
 add_executable(gpu_conformance
     conformance_runner.cpp)
 target_link_libraries(gpu_conformance PRIVATE tessera_gpu_conformance)
@@ -46,6 +54,15 @@ add_test(NAME gpu_conformance_webgpu
     COMMAND gpu_conformance --backend webgpu
         --summary "${CMAKE_CURRENT_BINARY_DIR}/conformance_webgpu.json")
 set_tests_properties(gpu_conformance_webgpu PROPERTIES
+    SKIP_REGULAR_EXPRESSION "gpu_conformance: skipped")
+
+# Metal (ADR-053) is selectable on every lane; a build without the backend, or a host without a
+# Metal device, prints the skip line and exits 0. Tier 2 promotion needs this to pass on a macOS
+# lane, which is the evidence the tier table asks for.
+add_test(NAME gpu_conformance_metal
+    COMMAND gpu_conformance --backend metal
+        --summary "${CMAKE_CURRENT_BINARY_DIR}/conformance_metal.json")
+set_tests_properties(gpu_conformance_metal PROPERTIES
     SKIP_REGULAR_EXPRESSION "gpu_conformance: skipped")
 
 # Summary determinism and shape: two null runs must serialize byte-identically.

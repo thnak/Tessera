@@ -15,7 +15,7 @@
 
 namespace tessera::tests::gpu::conformance {
 
-enum class BackendChoice { Null, Vulkan, WebGpu, Unknown };
+enum class BackendChoice { Null, Vulkan, WebGpu, Metal, Unknown };
 
 [[nodiscard]] std::string_view backend_name(BackendChoice choice);
 [[nodiscard]] BackendChoice parse_backend(std::string_view name);
@@ -54,7 +54,8 @@ struct OpenedBackend {
 [[nodiscard]] OpenedBackend open_backend(BackendChoice choice);
 
 // A pipeline descriptor the selected backend can create. Vulkan consumes SPIR-V, so it reuses the
-// batched2d pipeline fixture; the null backend records the default descriptor.
+// batched2d pipeline fixture; Metal consumes MSL, so it names the same shader by id; the null
+// backend records the default descriptor.
 [[nodiscard]] rendering::rhi::PipelineDesc pipeline_template(rendering::rhi::Backend backend);
 
 } // namespace tessera::tests::gpu::conformance
