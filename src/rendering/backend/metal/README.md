@@ -109,7 +109,25 @@ everywhere else, rather than a silently wrong pixel format at run time.
 
 - `tests/unit/metal_mapping_tests.cpp` — every mapping, the pinned numeric values, the storage-mode
   policy and both blend states (which must match the Vulkan backend exactly). Runs on every host.
+- `tests/unit/metal_shader_registry_tests.cpp` — the MSL table, in both the populated and the empty
+  configuration. Runs on every host.
 - `tests/unit/retire_queue_tests.cpp` — the shared retire rule the backend uses, with a fake
   completion source.
-- Metal-only tests (a timeline test like `vulkan_timeline_frames`, a dropped-while-executing list, a
-  `nil`-drawable skip, a drawable resize) need a Mac and arrive with slices 2 and 3.
+- `gpu_conformance --backend metal` — the backend conformance suite (ADR-049). Registered on every
+  lane; it skips with a named reason where no Metal device exists, and a skip is not a pass.
+
+## CI
+
+The `metal` job in [`.github/workflows/macos.yml`](../../../../.github/workflows/macos.yml) is the
+only lane that compiles the Objective-C++ device half. It installs `shaderc` and `spirv-cross` from
+Homebrew (the MSL table needs them), configures with `TESSERA_BUILD_METAL=ON` and
+`TESSERA_SHADER_CROSS=ON`, builds, and runs the mapping, MSL-table and retire tests plus the Metal
+conformance entry.
+
+It is advisory (nightly and on demand), like the rest of that workflow, and it does not claim
+Tier 1: a hosted runner's GPU may not match hardware, so pixel goldens still come from lavapipe and
+Metal is checked against `tolerance.json` only (ADR-009, ADR-053 decision 3).
+
+The Windows and Linux lanes build the API-free half and unit-test it, and syntax-check the `.mm`
+files against a stub Metal header. That catches type and selector errors but proves nothing about
+linking or behaviour, so a green Windows/Linux run is not evidence that the backend works.
