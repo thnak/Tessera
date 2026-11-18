@@ -3,6 +3,7 @@
 #include "tessera/rendering/metal/metal_mapping.hpp"
 
 #include <stdexcept>
+#include <string>
 
 namespace tessera::rendering::metal {
 namespace {
