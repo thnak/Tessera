@@ -189,6 +189,13 @@ std::string canvas_pointer_report_json(const CanvasPointerResult& result) {
     append_text(out, "targetId", std::to_string(result.target_id));
     append_text(out, "hoveredId", std::to_string(result.hovered_id));
     append_text(out, "activeId", std::to_string(result.active_id));
+    // Keyboard focus (issue #388): who holds it, whether the ring shows, and what the page does
+    // with the key it just forwarded.
+    append_text(out, "focusedId", std::to_string(result.focused_id));
+    append_bool(out, "focusVisible", result.focus_visible);
+    append_bool(out, "focusMoved", result.focus_moved);
+    append_bool(out, "handled", result.handled);
+    append_bool(out, "left", result.left);
     // Handler ids the dispatch ran and could not run, so "the button did nothing" is attributable:
     // an empty `ran` with a non-empty `unrun` is a payload-taking handler this evaluator cannot
     // execute, not a hit-testing bug.

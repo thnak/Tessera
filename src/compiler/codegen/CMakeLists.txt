@@ -874,6 +874,11 @@ if (TESSERA_BUILD_TESTS)
             ${_tessera_preview_text_sources}
             ${_tessera_canvas_session_sources}
             ${_tessera_scene_preview_sources})
+        if (_canvas_test STREQUAL "scene_canvas_pointer")
+            # The key vocabulary the page sends (issue #388, focus) is pure over its arguments.
+            target_sources(${_canvas_test}_tests PRIVATE
+                ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_support.cpp)
+        endif ()
         target_include_directories(${_canvas_test}_tests
             PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
         target_link_libraries(${_canvas_test}_tests PRIVATE

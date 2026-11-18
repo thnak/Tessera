@@ -680,8 +680,12 @@ owner-planned item and is not part of this milestone.
       `Button:hover` matches. One frame per change and **zero for a static scene**, proven over the
       null RHI and mutation-checked (forcing `needs_frame()` true fails both suites). The coordinate
       rule is the CSS-to-logical ratio, **never DPR**. Page wiring is #422's shell, which has landed;
-      the browser/WebGPU half is still unverified. Evidence:
-      `tools/codegen/scene_canvas_session.*`, `docs/design/canvas-input-session.md`.
+      The page half landed in `designer/web/src/views/canvas-pointer.ts`, verified in a real browser
+      (WebGPU, swiftshader): hover, press, click and leave through the style engine, one frame per
+      change, none for a static scene. Keyboard focus landed with it (`canvas-keyboard.ts`,
+      `tessera_canvas_key`): Tab/Shift+Tab, Enter/Space, `:focus-visible`, no keyboard trap, focus
+      kept across the rebuild a click causes; resize and fold keep the app's state. Evidence: `tools/codegen/scene_canvas_session.*`,
+      `docs/design/canvas-input-session.md`, `scripts/ci/preview_browser_canvas_pointer.mjs`.
 - [ ] #389: conditional and repeated children in the scene preview (today a named
       `TESSERA_SCENE_UNSUPPORTED`).
 - [ ] #390: author stylesheet (second textarea), `style` and `className` in the preview; user CSS

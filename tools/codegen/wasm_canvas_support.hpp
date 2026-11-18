@@ -31,4 +31,14 @@ void clear_canvas(tessera::rendering::rhi::Device& device,
 // move the hover somewhere the user never pointed.
 [[nodiscard]] PreviewInput::Kind pointer_kind_from(std::string_view name, bool& known);
 
+// The page's keyboard vocabulary (issue #388, focus): `"down"` and `"up"` map to a key event, and
+// `known` is false for anything else (`"blur"` is handled by the caller, which has no key to map).
+[[nodiscard]] PreviewInput::Kind key_kind_from(std::string_view name, bool& known);
+
+// The engine's logical key code for a W3C `KeyboardEvent.key` value ("Tab", "Enter", " ",
+// "ArrowDown", "a"): the same names `key_is` in `event_payloads.hpp` compares against. A single
+// printable character maps to its upper-case ASCII code; an unknown name maps to 0, which the page
+// treats as "not a key this canvas takes".
+[[nodiscard]] std::uint32_t key_code_from_name(std::string_view name);
+
 } // namespace tessera::compiler::codegen::cli

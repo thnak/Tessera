@@ -56,6 +56,8 @@ std::string_view preview_stylesheet() noexcept {
            "border-radius: 6px; }\n"
            "Button:hover { background-color: #3d7def; }\n"
            "Button:active { background-color: #1f4fae; }\n"
+           "Button:focus-visible { background-color: #4a86ff; border-width: 2px; "
+           "border-color: #ffffff; }\n"
            "TextInput { width: 180px; height: 28px; background-color: #1b2740; }\n"
            "TextInput:hover { background-color: #24365a; }\n"
            "TextArea { width: 180px; height: 64px; background-color: #1b2740; }\n"

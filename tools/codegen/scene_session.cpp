@@ -4,6 +4,8 @@
 #include "scene_layout.hpp"
 #include "scene_session.hpp"
 #include "scene_stylesheet.hpp"
+#include "tessera/ui/scene/focus.hpp"
+#include "tessera/ui/style/pseudo_state.hpp"
 
 #include <algorithm>
 #include <cstdint>
@@ -65,6 +67,7 @@ ui::InputEvent to_input_event(const PreviewInput& input, double timestamp_s) {
     event.button = contact ? ui::PointerButton::Left : ui::PointerButton::None;
     event.is_primary = true;
     event.key = input.key;
+    event.repeat = input.repeat;
     event.modifiers = static_cast<ui::Modifier>(input.modifiers & 0x3FU);
     return event;
 }
@@ -114,6 +117,18 @@ PreviewSession::PreviewSession(const ir::IrModule& module, const ir::Component& 
 PreviewSession::~PreviewSession() = default;
 
 void PreviewSession::rebuild() {
+    // Keyboard focus survives a rebuild (issue #388): activating a button changes state, the tree
+    // is rebuilt, and a person who pressed Enter expects to be able to press it again. The focus
+    // manager holds a raw pointer into the old tree, so what is kept is the node's automation id --
+    // assigned in tree order, so the same structure gives the same id -- and whether the ring was
+    // showing.
+    std::uint64_t kept_focus = 0;
+    bool kept_ring = false;
+    if (const ui::Node* focused = router_.focus_manager().focused()) {
+        kept_focus = focused->automation_id();
+        kept_ring =
+            ui::style::has_state(focused->pseudo_state(), ui::style::PseudoState::FocusVisible);
+    }
     // The router holds raw capture/hover/active pointers into the tree about to be replaced and the
     // focus manager resolves ids under the old root, so both must drop that state before the old
     // tree dies (input_dispatch.hpp documents the same ordering for every caller).
@@ -136,6 +151,15 @@ void PreviewSession::rebuild() {
     const SceneLayoutResult laid_out =
         layout_scene(*root_, sheet_, engine, layout_metrics_, options_.measurer);
     metrics_ = laid_out.metrics;
+    if (kept_focus != 0) {
+        if (ui::Node* node = node_by_automation_id(kept_focus)) {
+            ui::FocusManager& focus = router_.focus_manager();
+            focus.set_root(*root_);
+            if (focus.request_focus(node) && kept_ring) {
+                focus.set_focus_visible(true);
+            }
+        }
+    }
 }
 
 bool PreviewSession::relayout() {
