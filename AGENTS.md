@@ -700,8 +700,8 @@ owner-planned item and is not part of this milestone.
       tree, edit, explicit save, multi-file preview. Waits on #390 and the ADR-054 conversion.
       Landed in #508 (open folder/zip, limits, Save with conflict check, Download), #511 (new file,
       rename, delete, Reopen last folder) and the entry-component dropdown; evidence
-      `scripts/ci/preview_project_load.mjs`, `scripts/ci/preview_browser_project_io.mjs`. Left: drafts in
-      browser storage, directory operations, and one manual OS-picker check in Chrome/Edge.
+      `scripts/ci/preview_project_load.mjs`, `scripts/ci/preview_browser_project_io.mjs`. Drafts in browser
+      storage landed after. Left: directory operations and one manual OS-picker check in Chrome/Edge.
 - [x] #431: studio: one three-column workspace (project tree, tabbed code, preview panes for
       scene/canvas/diagnostics) replacing the three top-level tabs (owner direction 2026-11-17).
       Builds on #391's IO layer (zip and path confinement landed in PR #425); keep `?view=` so

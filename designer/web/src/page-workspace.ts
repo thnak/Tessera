@@ -87,6 +87,8 @@ export interface Workspace {
   renameFile: (from: string, to: string) => string | null;
   /** Removes a file from the project; the copy on disk goes at the next Save. */
   deleteFile: (path: string) => void;
+  /** The project text of each file deleted since the last save, for a draft's "edited from" record. */
+  removedTexts: () => ReadonlyMap<string, string>;
 }
 
 /** The workspace's initial state: the seeded project, with its entry open and selected. */
@@ -117,6 +119,7 @@ export function useWorkspace(): Workspace {
   // The one mutable store: file path -> the text the editor currently holds. A ref, for the reason in
   // the header: a keystroke must not re-render the page.
   const buffers = useRef<Map<string, string>>(new Map());
+  const removedTexts = useRef<Map<string, string>>(new Map());
 
   const textOf = useCallback(
     (path: string): string => {
@@ -180,6 +183,7 @@ export function useWorkspace(): Workspace {
 
   const putFile = useCallback((file: ProjectFile) => {
     buffers.current.delete(file.path);
+    removedTexts.current.delete(file.path);
     setState((previous) => {
       const known = fileAt(previous.files, file.path) !== null;
       return {
@@ -233,12 +237,16 @@ export function useWorkspace(): Workspace {
 
   const setProject = useCallback((files: ProjectFile[]) => {
     buffers.current.clear();
+    removedTexts.current.clear();
     setState(initialWorkspace(files));
   }, []);
 
   const markSaved = useCallback((texts: ReadonlyMap<string, string>, deleted: readonly string[] = []) => {
     for (const path of texts.keys()) {
       buffers.current.delete(path);
+    }
+    for (const path of deleted) {
+      removedTexts.current.delete(path);
     }
     setState((previous) => ({
       ...previous,
@@ -306,6 +314,9 @@ export function useWorkspace(): Workspace {
       const open = previous.open.filter((candidate) => candidate !== path);
       const active = previous.active === path ? (open[open.length - 1] ?? "") : previous.active;
       const wasAdded = previous.added.includes(path);
+      if (!wasAdded && !removedTexts.current.has(path)) {
+        removedTexts.current.set(path, file.text);
+      }
       return {
         ...previous,
         files: previous.files.filter((candidate) => candidate.path !== path),
@@ -365,6 +376,7 @@ export function useWorkspace(): Workspace {
     createFile,
     renameFile,
     deleteFile,
+    removedTexts: () => removedTexts.current,
   };
 }
 
