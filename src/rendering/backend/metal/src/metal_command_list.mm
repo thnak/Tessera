@@ -88,7 +88,6 @@ private:
     MetalDevice& device_;
     id<MTLCommandBuffer> command_buffer_ = nil;
     id<MTLRenderCommandEncoder> encoder_ = nil;
-    const MetalRenderTarget* current_target_ = nullptr;
     const MetalPipeline* pipeline_ = nullptr;
     const MetalBuffer* vertex_buffer_ = nullptr;
     std::uint32_t pass_sample_count_ = 1;
@@ -178,7 +177,6 @@ void MetalCommandList::begin_render_pass(const rhi::RenderTarget& target,
     if (encoder_ == nil) {
         throw std::runtime_error("metal: renderCommandEncoderWithDescriptor failed");
     }
-    current_target_ = &concrete;
     pass_sample_count_ = target.sample_count();
     in_pass_ = true;
 
@@ -209,7 +207,6 @@ void MetalCommandList::end_render_pass() {
         throw std::logic_error("metal end_render_pass: no render pass is active");
     }
     end_encoder();
-    current_target_ = nullptr;
     in_pass_ = false;
 }
 

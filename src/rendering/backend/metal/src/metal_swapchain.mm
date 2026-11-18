@@ -62,8 +62,8 @@ private:
 
 class MetalSwapchain final : public rhi::Swapchain {
 public:
-    MetalSwapchain(MetalDevice& device, CAMetalLayer* layer, const rhi::SwapchainDesc& desc)
-        : device_(device), layer_(layer), desc_(desc), extent_(desc.extent) {}
+    MetalSwapchain(CAMetalLayer* layer, const rhi::SwapchainDesc& desc)
+        : layer_(layer), desc_(desc), extent_(desc.extent) {}
 
     [[nodiscard]] rhi::Extent2D extent() const override {
         return extent_;
@@ -91,7 +91,6 @@ public:
     [[nodiscard]] rhi::RenderTarget* image_target(std::uint32_t index) override;
 
 private:
-    MetalDevice& device_;
     CAMetalLayer* layer_;
     rhi::SwapchainDesc desc_;
     rhi::Extent2D extent_;
@@ -191,7 +190,7 @@ MetalDevice::create_swapchain(const rhi::SwapchainDesc& desc) {
     view.layer = layer;
     view.wantsLayer = YES;
 
-    auto swapchain = std::make_unique<MetalSwapchain>(*this, layer, desc);
+    auto swapchain = std::make_unique<MetalSwapchain>(layer, desc);
     return std::unique_ptr<rhi::Swapchain>(std::move(swapchain));
 }
 
