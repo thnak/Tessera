@@ -28,8 +28,12 @@ namespace tessera::rendering::rhi {
 // 1.6 (2026-11-18): additive `TextureDesc::levels` / `Texture::levels()` (a mip chain built from
 // the uploaded base level at creation) and the capability that gates it,
 // `Device::supports_texture_mipmaps(format)`; pure virtual so every backend answers (issue #491).
+// 1.7 (2026-11-18): additive `Backend::Metal`, the native macOS/iOS backend (ADR-053). No existing
+// enumerator changes value and no interface member changes, so a backend that does not implement
+// Metal is unaffected; the enumerator exists so a Metal device can report itself honestly instead
+// of borrowing another backend's name.
 inline constexpr std::uint32_t kRhiVersionMajor = 1;
-inline constexpr std::uint32_t kRhiVersionMinor = 6;
+inline constexpr std::uint32_t kRhiVersionMinor = 7;
 inline constexpr std::uint32_t kRhiVersion = (kRhiVersionMajor << 16) | kRhiVersionMinor;
 
 } // namespace tessera::rendering::rhi

@@ -35,8 +35,8 @@ RHI versioning and capabilities (ADR-049):
 
 - `include/tessera/rendering/rhi/version.hpp` defines the published RHI contract version as
   `kRhiVersionMajor`, `kRhiVersionMinor`, and `kRhiVersion = (major << 16) | minor`
-  (`1.0` / `0x00010000` for the first published version). The current contract is **1.6**
-  (`0x00010006`): 1.0 is the B1 surface; 1.1 adds `CommandList::copy_target_region` for the
+  (`1.0` / `0x00010000` for the first published version). The current contract is **1.7**
+  (`0x00010007`): 1.0 is the B1 surface; 1.1 adds `CommandList::copy_target_region` for the
   isolated-layer seam (issue #242, [`offscreen-layers.md`](offscreen-layers.md)); 1.2 adds the
   swapchain composite-alpha request and the resolved-mode query (glass-v1.md section 6, issue #243);
   1.3 adds the sampled view of an offscreen render target (`CommandList::bind_sampled_target` plus
@@ -45,7 +45,10 @@ RHI versioning and capabilities (ADR-049):
   (issue #155, Wayland window + `VK_KHR_wayland_surface`); 1.5 adds `BlendMode::DualSource` and the
   capability that gates it, `Device::supports_dual_source_blend()` (issue #471, section 4.1 below);
   1.6 adds `TextureDesc::levels`, `Texture::levels()` and the capability that gates it,
-  `Device::supports_texture_mipmaps(format)` (issue #491, section 5.2 below).
+  `Device::supports_texture_mipmaps(format)` (issue #491, section 5.2 below); 1.7 adds
+  `Backend::Metal`, the native macOS/iOS backend ([ADR-053](../../../decisions/ADR-053-native-metal-backend.md),
+  [`metal-backend.md`](metal-backend.md)). No enumerator changes value and no interface member
+  changes, so a backend that does not implement Metal is unaffected.
   All later versions are additive compatible changes.
 - `RhiCapabilities { Backend backend; std::uint32_t rhi_version; GpuTimestampCapability timestamps; }`
   is reported by `Device::capabilities()` (default: current backend, `kRhiVersion`,

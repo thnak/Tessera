@@ -221,6 +221,10 @@ endif()
 # gated inside (Emscripten or TESSERA_BUILD_WEBGPU).
 add_subdirectory(src/rendering/backend/webgpu)
 
+# Metal mapping tables are API-free and always built (their unit tests run on every host); the
+# Objective-C++ device half is gated inside (TESSERA_BUILD_METAL, Apple only). ADR-053.
+add_subdirectory(src/rendering/backend/metal)
+
 if (TESSERA_BUILD_VULKAN)
     add_subdirectory(src/rendering/backend/vulkan)
     if (TESSERA_BUILD_POC)
