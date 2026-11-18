@@ -17,8 +17,12 @@ alignas(4) const std::uint32_t kFragSpv[] =
 #include "batched2d_frag_spv.h"
     ;
 
-// The LCD variety reuses batched2d.vert: the vertex interface is identical, only the fragment
-// program and the blend state differ (issue #471 slice 1).
+// The LCD variety reuses batched2d.vert's interface but compiles it without the texture-array
+// output, because its fragment stage does not declare one (issue #471 slice 1, RHI 1.7).
+alignas(4) const std::uint32_t kLcdVertSpv[] =
+#include "batched2d_lcd_vert_spv.h"
+    ;
+
 alignas(4) const std::uint32_t kLcdFragSpv[] =
 #include "batched2d_lcd_frag_spv.h"
     ;
@@ -66,6 +70,8 @@ rhi::PipelineDesc batched2d_pipeline_desc(rhi::TextureFormat color_format,
 rhi::PipelineDesc batched2d_lcd_pipeline_desc(rhi::TextureFormat color_format,
                                               std::uint32_t sample_count) {
     rhi::PipelineDesc desc = batched2d_common_desc(color_format, sample_count);
+    desc.vertex_spirv = kLcdVertSpv;
+    desc.vertex_spirv_size = sizeof(kLcdVertSpv);
     desc.fragment_spirv = kLcdFragSpv;
     desc.fragment_spirv_size = sizeof(kLcdFragSpv);
     desc.blend = rhi::BlendMode::DualSource;

@@ -41,7 +41,13 @@ layout(location = 4) out float v_radius;
 layout(location = 5) flat out float v_mode;
 layout(location = 6) out vec4 v_carve;
 // Flat: every vertex of a quad carries the same index, so interpolation would only add noise.
+// The LCD variant (batched2d_lcd.frag) shares this stage but never samples an array, so it compiles
+// with TESSERA_NO_TEXTURE_ARRAY and the output is absent there: a vertex output the fragment stage
+// does not declare is legal, but the validation layer reports it and the LCD test treats that as a
+// failure.
+#ifndef TESSERA_NO_TEXTURE_ARRAY
 layout(location = 7) flat out uint v_texture_index;
+#endif
 
 void main() {
     vec2 ndc = vec2(in_position.x / pc.viewport.x * 2.0 - 1.0,
@@ -55,5 +61,7 @@ void main() {
     v_radius = in_radius;
     v_mode = in_mode;
     v_carve = in_carve;
+#ifndef TESSERA_NO_TEXTURE_ARRAY
     v_texture_index = in_texture_index;
+#endif
 }

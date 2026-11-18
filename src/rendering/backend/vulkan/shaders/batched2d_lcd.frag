@@ -27,10 +27,6 @@ layout(location = 3) in vec2 v_half_size;
 layout(location = 4) in float v_radius;
 layout(location = 5) flat in float v_mode;
 layout(location = 6) in vec4 v_carve;
-// Declared but unused: this variant shares batched2d.vert, which writes the texture-array index
-// (RHI 1.7, issue #480 part 2). An LCD glyph quad always draws from one atlas page, so it never
-// takes the array path; the declaration only keeps the interface matching its vertex stage.
-layout(location = 7) flat in uint v_texture_index;
 
 layout(set = 0, binding = 0) uniform sampler2D u_texture;
 

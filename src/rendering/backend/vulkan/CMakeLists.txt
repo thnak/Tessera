@@ -53,6 +53,19 @@ tessera_add_spv_c(batched2d.frag TESSERA_BATCHED2D_FRAG_SPV)
 # deliberately has no WebGPU source because WGSL has no output index.
 tessera_add_spv_c(batched2d_lcd.frag TESSERA_BATCHED2D_LCD_FRAG_SPV)
 
+# The LCD variant's vertex stage: the same source compiled with TESSERA_NO_TEXTURE_ARRAY, so it does
+# not write the texture-array index its fragment stage does not declare (RHI 1.7, issue #480 part 2).
+set(TESSERA_BATCHED2D_LCD_VERT_SPV
+    ${TESSERA_SHADER_GEN_DIR}/batched2d_lcd_vert_spv.h)
+add_custom_command(
+    OUTPUT ${TESSERA_BATCHED2D_LCD_VERT_SPV}
+    COMMAND tessera_shader_manifest_check ${TESSERA_SHADER_MANIFEST}
+    COMMAND ${TESSERA_GLSLC} -mfmt=c --target-env=vulkan1.3 -DTESSERA_NO_TEXTURE_ARRAY=1
+            ${TESSERA_SHADER_DIR}/batched2d.vert -o ${TESSERA_BATCHED2D_LCD_VERT_SPV}
+    DEPENDS ${TESSERA_SHADER_DIR}/batched2d.vert ${TESSERA_SHADER_MANIFEST}
+    COMMENT "validate shader manifest; glslc batched2d.vert (LCD variant) -> ${TESSERA_BATCHED2D_LCD_VERT_SPV}"
+    VERBATIM)
+
 # Descriptor-indexing variant of the batched2d fragment program (RHI 1.7, issue #480 part 2): the
 # same source compiled with TESSERA_TEXTURE_ARRAY, so its clip/SDF/shadow logic cannot drift from the
 # default variant - only the sampling line differs. The manifest check runs first, as for every rule.
@@ -75,7 +88,8 @@ tessera_add_spv_c(glass_blur.frag TESSERA_GLASS_BLUR_FRAG_SPV)
 add_custom_target(tessera_vulkan_shaders DEPENDS ${TESSERA_VERT_SPV} ${TESSERA_FRAG_SPV})
 add_custom_target(tessera_batched2d_shaders
     DEPENDS ${TESSERA_BATCHED2D_VERT_SPV} ${TESSERA_BATCHED2D_FRAG_SPV}
-            ${TESSERA_BATCHED2D_LCD_FRAG_SPV} ${TESSERA_BATCHED2D_ARRAY_FRAG_SPV}
+            ${TESSERA_BATCHED2D_LCD_FRAG_SPV} ${TESSERA_BATCHED2D_LCD_VERT_SPV}
+            ${TESSERA_BATCHED2D_ARRAY_FRAG_SPV}
             ${TESSERA_GLASS_BLUR_FRAG_SPV})
 
 add_library(tessera_vulkan STATIC
@@ -115,6 +129,7 @@ set(TESSERA_VULKAN_RHI_SOURCES
     ${TESSERA_BATCHED2D_VERT_SPV}
     ${TESSERA_BATCHED2D_FRAG_SPV}
     ${TESSERA_BATCHED2D_LCD_FRAG_SPV}
+    ${TESSERA_BATCHED2D_LCD_VERT_SPV}
     ${TESSERA_BATCHED2D_ARRAY_FRAG_SPV}
     ${TESSERA_VERT_SPV}
     ${TESSERA_GLASS_BLUR_FRAG_SPV}
