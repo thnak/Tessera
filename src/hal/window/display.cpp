@@ -76,6 +76,76 @@ PixelGeometry clear_type_geometry(bool font_smoothing, FontSmoothingOrientation 
     return PixelGeometry::Unknown;
 }
 
+PixelGeometry randr_subpixel_geometry(int subpixel_order) noexcept {
+    switch (subpixel_order) {
+    case 1:
+        return PixelGeometry::RgbHorizontal;
+    case 2:
+        return PixelGeometry::BgrHorizontal;
+    case 3:
+        return PixelGeometry::RgbVertical;
+    case 4:
+        return PixelGeometry::BgrVertical;
+    case 5:
+        return PixelGeometry::None;
+    default:
+        // 0 is RandR's own "unknown"; anything else is a value this build does not know.
+        return PixelGeometry::Unknown;
+    }
+}
+
+PixelGeometry wayland_subpixel_geometry(std::uint32_t subpixel) noexcept {
+    switch (subpixel) {
+    case 1:
+        return PixelGeometry::None;
+    case 2:
+        return PixelGeometry::RgbHorizontal;
+    case 3:
+        return PixelGeometry::BgrHorizontal;
+    case 4:
+        return PixelGeometry::RgbVertical;
+    case 5:
+        return PixelGeometry::BgrVertical;
+    default:
+        return PixelGeometry::Unknown;
+    }
+}
+
+PixelGeometry xft_rgba_geometry(std::string_view value) noexcept {
+    const auto is_blank = [](char c) { return c == ' ' || c == '\t' || c == '\n' || c == '\r'; };
+    while (!value.empty() && is_blank(value.front())) {
+        value.remove_prefix(1);
+    }
+    while (!value.empty() && is_blank(value.back())) {
+        value.remove_suffix(1);
+    }
+    char lower[8]{};
+    if (value.empty() || value.size() >= sizeof(lower)) {
+        return PixelGeometry::Unknown;
+    }
+    for (std::size_t i = 0; i < value.size(); ++i) {
+        const char c = value[i];
+        lower[i] = (c >= 'A' && c <= 'Z') ? static_cast<char>(c - 'A' + 'a') : c;
+    }
+    const std::string_view word(lower, value.size());
+    if (word == "rgb") {
+        return PixelGeometry::RgbHorizontal;
+    }
+    if (word == "bgr") {
+        return PixelGeometry::BgrHorizontal;
+    }
+    if (word == "vrgb") {
+        return PixelGeometry::RgbVertical;
+    }
+    if (word == "vbgr") {
+        return PixelGeometry::BgrVertical;
+    }
+    if (word == "none") {
+        return PixelGeometry::None;
+    }
+    return PixelGeometry::Unknown;
+}
+
 const DisplayInfo* find_display(std::span<const DisplayInfo> displays, DisplayId id) noexcept {
     if (id == kNoDisplayId) {
         return nullptr;

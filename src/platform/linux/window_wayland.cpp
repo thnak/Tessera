@@ -158,6 +158,9 @@ bool WaylandWindow::wait_once(double deadline) {
     if (const WaylandConfigureState* configure = shell_.consume_configure()) {
         apply_configure(*configure);
     }
+    if (shell_.consume_output_change()) {
+        enqueue(WindowEventType::DisplayChanged);
+    }
     return true;
 }
 
@@ -276,8 +279,9 @@ WindowMetrics WaylandWindow::metrics() const {
         metrics.focused = false;
         return metrics;
     }
-    // Wayland logical pixels at integer scale 1.0: no wl_output is bound, so no scale source exists
-    // and physical == logical. Documented limitation of this slice (integer scale is a follow-up).
+    // Wayland logical pixels at integer scale 1.0: no scale source is read from the wl_output yet,
+    // so physical == logical. Documented limitation of this slice (integer scale is a follow-up).
+    // The output is bound for its subpixel layout only (issue #504).
     metrics.logical_width = resolved_width();
     metrics.logical_height = resolved_height();
     metrics.physical_width = metrics.logical_width;
@@ -291,6 +295,7 @@ WindowMetrics WaylandWindow::metrics() const {
     metrics.backdrop_fallback = backdrop_.fallback;
     metrics.caption_region_count = caption_region_count_;
     metrics.caption_regions = caption_regions_;
+    metrics.pixel_geometry = shell_.pixel_geometry();
     // xdg-shell has no minimized state (a compositor unmaps or suspends instead), so `minimized`
     // stays false and a suspended toplevel is reported as occluded.
     return metrics;
@@ -365,6 +370,9 @@ std::size_t WaylandWindow::poll_events(std::span<WindowEvent> events) {
     // The dispatch loop invokes listeners; drain any configure sequence it published.
     if (const WaylandConfigureState* configure = shell_.consume_configure()) {
         apply_configure(*configure);
+    }
+    if (shell_.consume_output_change()) {
+        enqueue(WindowEventType::DisplayChanged);
     }
     // The appearance watcher reports its change on its own thread; this is where it becomes a
     // normalized window event, at the poll boundary, exactly like a Win32 settings broadcast and

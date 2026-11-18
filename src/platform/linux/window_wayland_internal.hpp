@@ -20,6 +20,8 @@
 
 #pragma once
 
+#include "window_wayland_output.hpp"
+
 #include <cstdint>
 
 struct wl_display;
@@ -88,6 +90,15 @@ public:
         return surface_;
     }
 
+    // The subpixel layout of the output the window is on (issue #504), and whether that answer
+    // changed since the last call (a late wl_output.geometry, a move to another output).
+    [[nodiscard]] PixelGeometry pixel_geometry() const noexcept {
+        return outputs_.pixel_geometry();
+    }
+    [[nodiscard]] bool consume_output_change() noexcept {
+        return outputs_.consume_change();
+    }
+
     // Destroys the role stack and the globals in the documented teardown order (toplevel,
     // xdg_surface, wl_surface, compositor, wm_base, registry). Safe to call twice and safe on a
     // partially created stack.
@@ -98,6 +109,7 @@ private:
 
     void on_global(wl_registry* registry, std::uint32_t name, const char* interface,
                    std::uint32_t version);
+    void on_global_remove(std::uint32_t name);
     void on_surface_configure(xdg_surface* surface, std::uint32_t serial);
     void on_toplevel_configure(std::int32_t width, std::int32_t height, const wl_array* states);
     void on_toplevel_close();
@@ -109,6 +121,7 @@ private:
     wl_surface* surface_ = nullptr;
     xdg_surface* xdg_surface_ = nullptr;
     xdg_toplevel* toplevel_ = nullptr;
+    WaylandOutputs outputs_;
     // The configure sequence being collected: xdg_toplevel.configure fills it, the following
     // xdg_surface.configure acks and publishes it into `state_`.
     WaylandConfigureState pending_;

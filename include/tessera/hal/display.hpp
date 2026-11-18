@@ -55,16 +55,17 @@ enum class ColorGamut : std::uint8_t { Unknown, Srgb, DisplayP3, Rec2020 };
 
 // The physical subpixel layout of the display, as the platform reports it
 // (docs/design/display-aware-rendering.md section 2). `Unknown` is the honest answer for a backend
-// with no query (every backend except Win32 today, and Win32 when the OS does not answer); a
-// consumer that needs a known stripe, such as LCD text, treats `Unknown` as grayscale-only. `None`
-// is "the platform states there is no stripe in use" - smoothing off or greyscale smoothing - and
-// the Horizontal and Vertical suffix is the stripe axis.
+// with no query (Win32 when the OS does not answer, and an X11/Wayland output that reports
+// nothing); a consumer that needs a known stripe, such as LCD text, treats `Unknown` as
+// grayscale-only. `None` is "the platform states there is no stripe in use" - smoothing off or
+// greyscale smoothing - and the Horizontal and Vertical suffix is the stripe axis.
 //
 // What a platform can actually answer differs from what this enum can express: Win32 has no
 // per-monitor stripe query at all. It exposes the user's ClearType configuration (see
 // `clear_type_geometry` below), which is one desktop-wide answer, so every display reports the same
-// value there rather than a fabricated per-panel one. The Vertical enumerators stay unreachable on
-// every desktop backend in V1: no OS reports a vertical stripe.
+// value there rather than a fabricated per-panel one. X11 and Wayland do report a per-output stripe
+// (RandR `subpixel_order`, `wl_output.subpixel`, mapped below), and the vertical values are
+// reachable from them; LCD text still treats a vertical stripe as grayscale in V1.
 enum class PixelGeometry : std::uint8_t {
     Unknown,
     None,
@@ -94,6 +95,31 @@ enum class FontSmoothingOrientation : std::uint8_t { Rgb, Bgr };
 [[nodiscard]] PixelGeometry clear_type_geometry(bool font_smoothing,
                                                 FontSmoothingOrientation orientation,
                                                 FontSmoothingType type) noexcept;
+
+// The `PixelGeometry` each Linux source implies. All three are pure so the mapping is tested
+// without a display server: the platform TU reads the raw value and hands it over. A value this
+// build does not understand (a newer protocol enumerator, a garbled resource) is `Unknown`, never
+// a guessed stripe.
+//
+// `randr_subpixel_geometry` takes `XRROutputInfo::subpixel_order` (the `SubPixel*` constants of
+// X11/extensions/render.h: Unknown 0, HorizontalRGB 1, HorizontalBGR 2, VerticalRGB 3,
+// VerticalBGR 4, None 5). `wayland_subpixel_geometry` takes `wl_output.subpixel` (unknown 0,
+// none 1, horizontal_rgb 2, horizontal_bgr 3, vertical_rgb 4, vertical_bgr 5). The integer
+// parameter keeps Xlib and wayland headers out of the HAL.
+[[nodiscard]] PixelGeometry randr_subpixel_geometry(int subpixel_order) noexcept;
+[[nodiscard]] PixelGeometry wayland_subpixel_geometry(std::uint32_t subpixel) noexcept;
+
+// The `Xft.rgba` X resource, the user's text-rendering preference: `none`, `rgb`, `bgr`, `vrgb`,
+// `vbgr` (case-insensitive, surrounding blanks ignored). An absent or unrecognised value, such as
+// the empty string, is `Unknown`, which is how the caller knows to fall back to the panel's answer.
+[[nodiscard]] PixelGeometry xft_rgba_geometry(std::string_view value) noexcept;
+
+// Which of two answers describes the display: the user's text-rendering preference when it is
+// known, else the panel's. `None` from the preference is known (the user turned subpixel off).
+[[nodiscard]] constexpr PixelGeometry resolve_pixel_geometry(PixelGeometry user_preference,
+                                                             PixelGeometry panel) noexcept {
+    return user_preference != PixelGeometry::Unknown ? user_preference : panel;
+}
 
 // True for a stripe LCD rendering can use (horizontal RGB or BGR).
 // Inline so the render-scale library can use it without linking a window backend.
@@ -142,8 +168,9 @@ struct DisplayInfo {
     ColorGamut gamut = ColorGamut::Unknown;
     // The display's subpixel layout (docs/design/display-aware-rendering.md section 2). Win32 fills
     // it from the user's ClearType configuration - the only source the OS has, and a desktop-wide
-    // one, so every listed display carries the same value; a backend with no source leaves
-    // `Unknown`.
+    // one, so every listed display carries the same value. X11 reports the output's RandR value
+    // unless `Xft.rgba` is set; Wayland reports `wl_output.subpixel`. A backend with no source
+    // leaves `Unknown`.
     PixelGeometry pixel_geometry = PixelGeometry::Unknown;
 };
 

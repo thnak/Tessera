@@ -31,32 +31,58 @@
 
 namespace tessera::hal::detail {
 
-int query_x11_xft_dpi(Display* display) noexcept {
+namespace {
+
+// Copies the string value of one X resource into `buffer`; false when the server publishes no
+// resource manager string or the resource is not set.
+bool read_xft_resource(Display* display, const char* name, const char* resource_class, char* buffer,
+                       std::size_t capacity) noexcept {
     if (display == nullptr) {
-        return kDefaultX11Dpi;
+        return false;
     }
     const char* resources = XResourceManagerString(display);
     if (resources == nullptr || resources[0] == '\0') {
-        return kDefaultX11Dpi;
+        return false;
     }
     XrmDatabase database = XrmGetStringDatabase(resources);
     if (database == nullptr) {
-        return kDefaultX11Dpi;
+        return false;
     }
-    int dpi = kDefaultX11Dpi;
     char* type = nullptr;
     XrmValue value{};
-    if (XrmGetResource(database, "Xft.dpi", "Xft.Dpi", &type, &value) != 0 &&
+    bool found = false;
+    if (XrmGetResource(database, name, resource_class, &type, &value) != 0 &&
         value.addr != nullptr) {
-        const char* text = static_cast<const char*>(value.addr);
-        char* end = nullptr;
-        const double parsed = std::strtod(text, &end);
-        if (end != text && std::isfinite(parsed) && parsed > 0.0) {
-            dpi = std::clamp(static_cast<int>(std::lround(parsed)), kMinX11Dpi, kMaxX11Dpi);
-        }
+        const std::size_t length = std::min<std::size_t>(value.size, capacity - 1);
+        std::memcpy(buffer, value.addr, length);
+        buffer[length] = '\0';
+        found = true;
     }
     XrmDestroyDatabase(database);
-    return dpi;
+    return found;
+}
+
+} // namespace
+
+int query_x11_xft_dpi(Display* display) noexcept {
+    char text[64]{};
+    if (!read_xft_resource(display, "Xft.dpi", "Xft.Dpi", text, sizeof(text))) {
+        return kDefaultX11Dpi;
+    }
+    char* end = nullptr;
+    const double parsed = std::strtod(text, &end);
+    if (end != text && std::isfinite(parsed) && parsed > 0.0) {
+        return std::clamp(static_cast<int>(std::lround(parsed)), kMinX11Dpi, kMaxX11Dpi);
+    }
+    return kDefaultX11Dpi;
+}
+
+PixelGeometry query_x11_xft_rgba(Display* display) noexcept {
+    char text[16]{};
+    if (!read_xft_resource(display, "Xft.rgba", "Xft.Rgba", text, sizeof(text))) {
+        return PixelGeometry::Unknown;
+    }
+    return xft_rgba_geometry(text);
 }
 
 float x11_dpi_scale(int dpi) noexcept {
@@ -143,6 +169,10 @@ void fill_x11_display_capabilities(Display* display, ::Window window, ::Window r
     metrics.assumed.orientation = true;
     metrics.work_area = resolve_work_area({}, metrics.logical_width, metrics.logical_height);
     metrics.assumed.work_area = true;
+    // The user's `Xft.rgba` is the one subpixel source that needs no RandR; the panel's value is
+    // folded in below when the extension answers.
+    const PixelGeometry xft_geometry = query_x11_xft_rgba(display);
+    metrics.pixel_geometry = xft_geometry;
 
     WindowRect work_area;
     if (query_x11_work_area(display, root, screen, work_area)) {
@@ -158,8 +188,10 @@ void fill_x11_display_capabilities(Display* display, ::Window window, ::Window r
 #if defined(TESSERA_X11_RANDR)
     DisplayId display_id = kNoDisplayId;
     double refresh_hz = kUnknownRefreshHz;
-    if (query_x11_active_display(display, window, root, display_id, refresh_hz)) {
+    PixelGeometry panel_geometry = PixelGeometry::Unknown;
+    if (query_x11_active_display(display, window, root, display_id, refresh_hz, &panel_geometry)) {
         metrics.display = display_id;
+        metrics.pixel_geometry = resolve_pixel_geometry(xft_geometry, panel_geometry);
         if (refresh_hz > 0.0) {
             metrics.refresh_hz = static_cast<float>(refresh_hz);
             metrics.assumed.refresh_hz = false;

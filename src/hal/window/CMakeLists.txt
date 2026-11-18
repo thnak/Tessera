@@ -192,6 +192,7 @@ elseif (TESSERA_X11_FOUND OR TESSERA_WAYLAND_FOUND)
             ${PROJECT_SOURCE_DIR}/src/platform/linux/window_wayland.cpp
             ${PROJECT_SOURCE_DIR}/src/platform/linux/window_wayland_dispatch.cpp
             ${PROJECT_SOURCE_DIR}/src/platform/linux/window_wayland_shell.cpp
+            ${PROJECT_SOURCE_DIR}/src/platform/linux/window_wayland_output.cpp
             ${TESSERA_XDG_SHELL_SOURCE})
         target_include_directories(tessera_hal_window PRIVATE
             ${TESSERA_WAYLAND_GENERATED_DIR}

@@ -43,6 +43,11 @@ inline constexpr int kMaxX11Dpi = 768;
 // minimal window manager). Clamped to the sane bounds above.
 [[nodiscard]] int query_x11_xft_dpi(Display* display) noexcept;
 
+// The desktop's `Xft.rgba` text-rendering preference as a `PixelGeometry`, `Unknown` when the
+// resource is absent or unrecognised (a bare Xvfb, a desktop that never set it). It is the user's
+// choice, so a known value wins over the panel's RandR answer (`resolve_pixel_geometry`).
+[[nodiscard]] PixelGeometry query_x11_xft_rgba(Display* display) noexcept;
+
 // dpi / 96, the device scale every logical/physical conversion uses.
 [[nodiscard]] float x11_dpi_scale(int dpi) noexcept;
 
@@ -63,9 +68,11 @@ inline constexpr int kMaxX11Dpi = 768;
 
 // The display the window's centre is on (else the primary output, else the first): its stable id
 // and the active CRTC's refresh. Returns false when RandR cannot describe it, leaving both outputs
-// at their "not known" values.
+// at their "not known" values. When `panel_geometry` is given it receives that output's RandR
+// subpixel order (`Unknown` when RandR does not say), the panel half of the subpixel answer.
 [[nodiscard]] bool query_x11_active_display(Display* display, ::Window window, ::Window root,
-                                            DisplayId& id, double& refresh_hz) noexcept;
+                                            DisplayId& id, double& refresh_hz,
+                                            PixelGeometry* panel_geometry = nullptr) noexcept;
 
 // The RandR monitor list: `query_x11_displays` with the extension guard resolved. Returns 0 without
 // libXrandr or on a server older than RandR 1.5.
