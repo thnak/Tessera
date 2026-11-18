@@ -7,8 +7,8 @@ throwing the tree away.
 
 This note records the engine half of the fix: one evaluation kept alive, pointer events routed into
 it, and a frame painted only when something changed. The page half (the browser's pointer listeners
-and its one-`requestAnimationFrame`-per-event scheduling) is **not** in this slice; see
-[§6](#6-the-page-half-is-deferred) for why and for the exact call shape it should use.
+and its one-`requestAnimationFrame`-per-event scheduling) was not part of this engine slice and
+landed later; [§6](#6-the-page-half-landed) records what it does and the call shape it uses.
 
 The related records are [`compiler-wasm.md`](compiler-wasm.md) section 8 (the canvas and its
 render-on-demand rule) and section 9 (the input session and the state-carry rule), and
@@ -133,13 +133,16 @@ observable: a resize inside one breakpoint moves the boxes and leaves the number
 [`responsive.md`](responsive.md) section 2.1; the labels of both fields (`changed`, `frames`,
 `cascade`) are what `scripts/ci/preview_browser_viewport.mjs` asserts in a real browser.
 
-## 6. The page half is deferred
+## 6. The page half (landed)
 
-ADR-054 moves the studio front end to React 19 + Vite (issue #422), and the owner's instruction is
-that #422 blocks #388's page work. So `designer/web/*.js` is deliberately **untouched** by this
-slice, and no `PAGE_FILES` entry or budget re-record was needed.
-
-A future React view needs no re-derivation. Its pointer handling is:
+The page half landed after the React conversion (#422) as `designer/web/src/views/canvas-pointer.ts`,
+attached by `canvas-session.ts`; `scripts/ci/preview_browser_canvas_pointer.mjs` is its browser acceptance
+(hover, press, click, leave, a drag-off, and the frame counter staying put for a static scene). Two details
+differ from the sketch below. The element's drawable box is inside its border, so the conversion uses
+`clientLeft/Top/Width/Height`, not the bounding rect. And a click whose handler ran **rebuilds the tree**,
+which resets the router, so the page sends one more `move` at the same position after such an `up`
+(`ran` non-empty): that is the requirement `scene_canvas_pointer_tests.cpp` writes down, and without it a
+button would lose its hover look after every click. The original sketch:
 
 ```js
 // width/height below are the values passed to tessera_canvas_apply for the running session.

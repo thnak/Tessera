@@ -337,6 +337,8 @@
   background: #0b1220;
   /* A preview is a picture of a UI, not a UI: not selectable, and no text caret on a click. */
   user-select: none;
+  /* Pointer events drive the engine's hover and press (#388); a touch on the canvas must not also scroll. */
+  touch-action: none;
 }
 
 /* The frame counters: name/value pairs, two columns so the labels line up without a table. */

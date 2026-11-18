@@ -55,6 +55,7 @@ import {
   type CanvasStateCell,
   type CanvasViewportReport,
 } from "./canvas-frame";
+import { attachCanvasPointer } from "./canvas-pointer";
 import { createCanvasPane, type CanvasPane, type CanvasPaneElements } from "./canvas-pane";
 
 export type { CanvasApplyReport, CanvasFrameReport, CanvasStateCell };
@@ -396,6 +397,18 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
     }
     requestFrame();
   }
+
+  // Pointer input (issue #388): hover, press and click on the canvas go to the engine, which owns what they
+  // mean; a reported change is one coalesced frame. Not while hidden or before a device exists.
+  attachCanvasPointer({
+    canvas,
+    viewport: () => requestedViewport(options.environment),
+    onChanged: requestFrame,
+    send: (kind, x, y, button) =>
+      gpu === null || !visible || typeof gpu.module._tessera_canvas_pointer !== "function"
+        ? null
+        : (JSON.parse(callExport(gpu.module, "_tessera_canvas_pointer", [kind], [x, y, button])) as { changed: boolean }),
+  });
 
   // A device-pixel-ratio change (a window dragged to another monitor, a browser zoom) changes the backing
   // store, which is a real reason to draw again. A resize alone does not: the CSS box follows the toolbar,
