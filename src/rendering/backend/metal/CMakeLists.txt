@@ -97,7 +97,10 @@ if (TESSERA_BUILD_METAL)
     # The device half. Objective-C++ (ARC) is confined to this directory: no `id<...>` or `NS*`
     # type may appear in a header outside it (docs/design/gpu/metal-backend.md section 4).
     add_library(tessera_rhi_metal STATIC
-        src/metal_device.mm)
+        src/metal_device.mm
+        src/metal_command_list.mm
+        src/metal_pipeline.mm
+        src/metal_swapchain.mm)
 
     target_include_directories(tessera_rhi_metal
         PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
@@ -105,8 +108,12 @@ if (TESSERA_BUILD_METAL)
     target_compile_features(tessera_rhi_metal PUBLIC cxx_std_23)
 
     # ARC for the Objective-C++ translation units only; the C++ headers stay plain C++.
-    set_source_files_properties(src/metal_device.mm PROPERTIES
-        COMPILE_OPTIONS "-fobjc-arc")
+    set_source_files_properties(
+        src/metal_device.mm
+        src/metal_command_list.mm
+        src/metal_pipeline.mm
+        src/metal_swapchain.mm
+        PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
     target_compile_options(tessera_rhi_metal PRIVATE "-fobjc-arc")
 
     # Metal, Foundation and QuartzCore (CAMetalLayer) are system frameworks: dynamic, as ADR-012

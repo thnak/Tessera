@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
 
-#include "tessera/rendering/metal/metal_shader_registry.hpp"
-
 #include "tessera/rendering/gpu/shader_ids.hpp"
+#include "tessera/rendering/metal/metal_shader_registry.hpp"
 
 #include <array>
 #include <cstddef>
@@ -44,10 +43,8 @@ struct Entry {
 // every program here. They are recorded per program anyway: a future shader with a different entry
 // name must not silently inherit this one.
 constexpr std::array<Entry, 2> kEntries{{
-    {gpu::kBatched2dShaderId,
-     MslProgram{kBatched2dVertMsl, kBatched2dFragMsl, "main0", "main0"}},
-    {gpu::kGlassBlurShaderId,
-     MslProgram{kGlassBlurVertMsl, kGlassBlurFragMsl, "main0", "main0"}},
+    {gpu::kBatched2dShaderId, MslProgram{kBatched2dVertMsl, kBatched2dFragMsl, "main0", "main0"}},
+    {gpu::kGlassBlurShaderId, MslProgram{kGlassBlurVertMsl, kGlassBlurFragMsl, "main0", "main0"}},
 }};
 
 #else

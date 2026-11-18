@@ -129,6 +129,27 @@ private:
     std::uint32_t levels_;
 };
 
+// The pipeline a command list binds. Created by metal_pipeline.mm; the command list reads the
+// Metal state object and the two recorded facts it needs.
+class MetalPipeline final : public rhi::Pipeline {
+public:
+    MetalPipeline(id<MTLRenderPipelineState> state, std::uint32_t sample_count,
+                  std::uint32_t push_constant_size);
+
+    [[nodiscard]] std::uint32_t sample_count() const override;
+    [[nodiscard]] id<MTLRenderPipelineState> state() const {
+        return state_;
+    }
+    [[nodiscard]] std::uint32_t push_constant_size() const {
+        return push_constant_size_;
+    }
+
+private:
+    id<MTLRenderPipelineState> state_;
+    std::uint32_t sample_count_;
+    std::uint32_t push_constant_size_;
+};
+
 class MetalRenderTarget final : public rhi::RenderTarget {
 public:
     MetalRenderTarget(id<MTLTexture> color, id<MTLTexture> resolve, rhi::Extent2D extent,

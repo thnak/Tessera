@@ -385,14 +385,13 @@ bool MetalDevice::supports_dual_source_blend() const {
 bool MetalDevice::supports_texture_mipmaps(rhi::TextureFormat format) const {
     // The chain is built with render passes into each level, so the format only has to be
     // renderable. Every RHI format is an 8-bit colour format, which is.
-    switch (format) {
-    case rhi::TextureFormat::R8G8B8A8Unorm:
-    case rhi::TextureFormat::R8Unorm:
-    case rhi::TextureFormat::B8G8R8A8Unorm:
-    case rhi::TextureFormat::R8G8B8A8Srgb:
-    case rhi::TextureFormat::B8G8R8A8Srgb:
-        return true;
-    }
+    //
+    // The capability is reported false until those downsample passes are actually recorded: the RHI
+    // contract makes this the only authority, and reporting true while `create_texture` builds no
+    // chain would hand a caller a texture whose upper levels are undefined. A caller that sees
+    // false samples the single level, which is correct (RHI 1.6, docs/design/gpu/rhi.md section
+    // 5.2). Flip this to true in the same change that records the chain.
+    (void)format;
     return false;
 }
 

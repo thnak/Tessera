@@ -7,10 +7,11 @@ lifetime, presentation): [`docs/design/gpu/metal-backend.md`](../../../docs/desi
 
 ## Status
 
-**Tier 2 in-tree, in progress.** The API-free half (descriptor mapping tables) is implemented and
-tested on every host. The device half is implemented for device, buffer, texture and render-target
-creation; command recording, pipelines and the `CAMetalLayer` swapchain are the remaining slices
-(ADR-053 slices 2 and 3).
+**Tier 2 in-tree, in progress.** Implemented: the API-free half (descriptor mapping tables and the
+MSL shader table), and the device half for device, buffer, texture, render-target, command-list,
+pipeline and `CAMetalLayer` swapchain. Not yet validated on hardware: no Mac is available on the
+development lanes, so the Objective-C++ is syntax-checked against a stub header and the API-free
+half is unit-tested on Windows and Linux.
 
 Nothing here is a V1 deliverable: macOS and iOS are post-V1
 ([AGENTS.md](../../../AGENTS.md#v1-platform-scope-and-ci-policy)), so this is a contract to build
@@ -30,12 +31,14 @@ Implements **RHI 1.7** (`rhi::kRhiVersion`), declared with a `static_assert` on
 
 ## Building
 
-The backend is off by default and in no preset. It needs an Apple platform and the Metal SDK:
+The backend is off by default and in no preset. It needs an Apple platform, the Metal SDK, and
+`TESSERA_SHADER_CROSS=ON` (the MSL shader table is built from the cross-compile path):
 
 ```bash
 cmake -S . -B build/metal \
   -DCMAKE_BUILD_TYPE=Release \
   -DTESSERA_BUILD_METAL=ON \
+  -DTESSERA_SHADER_CROSS=ON \
   -DTESSERA_BUILD_VULKAN=OFF \
   -DTESSERA_BUILD_POC=OFF
 cmake --build build/metal --parallel 4
@@ -43,6 +46,10 @@ cmake --build build/metal --parallel 4
 
 `TESSERA_BUILD_METAL=ON` on a non-Apple host is a configure error, not a silent skip: the device
 half is Objective-C++ against `<Metal/Metal.h>`.
+
+Without `TESSERA_SHADER_CROSS=ON` the MSL table is empty and `create_pipeline` fails with a clear
+error rather than drawing nothing. That is deliberate: a Metal build with no shaders is not a
+working build, and a silent empty pipeline would be much harder to diagnose.
 
 The mapping half (`tessera_metal_mapping`) builds on **every** host, so its unit test runs in the
 ordinary Windows and Linux ctest:
@@ -56,10 +63,16 @@ ctest --test-dir build/dev -R "metal_mapping|retire_queue" --output-on-failure
 | Path | What it is |
 |---|---|
 | `include/tessera/rendering/metal/metal_mapping.hpp` | RHI -> Metal descriptor mapping. API-free: no `<Metal/Metal.h>`, no Objective-C. |
+| `include/tessera/rendering/metal/metal_shader_registry.hpp` | The MSL shader table. API-free. |
 | `include/tessera/rendering/metal/metal_device.hpp` | The device factory. Plain C++: no `id<...>`, no `NS*`. |
 | `src/metal_mapping.cpp` | The mapping tables, built everywhere. |
+| `src/metal_shader_registry.cpp` | The MSL table, built everywhere. |
 | `src/metal_device.mm` | Device, buffer, texture, render target. Objective-C++ with ARC. |
+| `src/metal_command_list.mm` | Command recording: render/blit encoders, submission, completion. |
+| `src/metal_pipeline.mm` | Pipelines from MSL, blend state, vertex layout. |
+| `src/metal_swapchain.mm` | `CAMetalLayer`, acquire, present, resize. |
 | `src/metal_internal.hpp` | Private to `src/`: the one place Metal types are allowed in a header. |
+| `cmake/embed_msl.cmake` | Build-time MSL embedding (a configure-time read fails on a clean tree). |
 
 Objective-C objects are held with ARC inside `src/` and never appear in a header outside this
 directory (design note section 4).
@@ -73,15 +86,24 @@ everywhere else, rather than a silently wrong pixel format at run time.
 
 ## Known gaps
 
-- Command recording (`MTLCommandBuffer`, render/blit encoders), pipelines and the MSL shader path
-  (ADR-053 slice 2).
-- The `CAMetalLayer` swapchain, resize, present and DPI (slice 3).
+- **Nothing has run on a Mac.** The Objective-C++ is syntax-checked against a stub header on the
+  Linux lane, which catches type and selector errors but proves nothing about linking or behaviour.
+  The design note's **verify** items (bounded `waitUntilSignaledValue:` on the OS floor, an errored
+  command buffer running its completed handler, drawable/frame-slot deadlock) are all still open.
+- The MSL is compiled with `newLibraryWithSource:` at pipeline creation. That is once per pipeline,
+  not per frame, and the source is a build-time artifact - but a precompiled metallib would remove
+  the cost entirely and needs the Metal toolchain on the build host.
 - `supports_dual_source_blend()` reports **false** until the pipeline path proves the second
   fragment output per device. The documented fallback is grayscale coverage, so a caller is correct
   either way; reporting true without the proof would produce an undefined blend.
 - `recover()` is not implemented: a lost device reports `NotSupported` and the caller recreates it.
 - No `MTLHeap` and no untracked resources (ADR-053 decision 3).
+- Mip-chain generation is not implemented: `supports_texture_mipmaps()` reports **false**, so a
+  caller samples the single level, which is the documented correct fallback. Flip it to true in the
+  same change that records the downsample passes.
 - The conformance suite does not select Metal yet; it is gated on the macOS lane (slice 4).
+- `bind_sampled_target` validates but does not yet bind: Metal needs no layout transition, so the
+  bind is a no-op until the pipeline's argument table is wired.
 
 ## Tests
 
