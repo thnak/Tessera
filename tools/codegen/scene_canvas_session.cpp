@@ -6,8 +6,8 @@
 #include "tessera/ui/input.hpp"
 #include "tessera/ui/key_code.hpp"
 #include "tessera/ui/scene/focus.hpp"
-#include "tessera/ui/style/pseudo_state.hpp"
 #include "tessera/ui/style/prepared_stylesheet.hpp"
+#include "tessera/ui/style/pseudo_state.hpp"
 
 #include <array>
 #include <optional>
@@ -251,8 +251,8 @@ CanvasPointerResult CanvasSceneSession::key(PreviewInput::Kind kind, std::uint32
     ui::FocusManager& focus = router.focus_manager();
     const ui::Node* const before = focus.focused();
 
-    // Tab at the end of the order lets go instead of wrapping. The router wraps (a native window has
-    // nowhere else to go), but a canvas sits inside a page, and a wrap here is a keyboard trap.
+    // Tab at the end of the order lets go instead of wrapping. The router wraps (a native window
+    // has nowhere else to go), but a canvas sits inside a page, and a wrap here is a keyboard trap.
     const bool plain_tab = key == ui::key::kTab &&
                            (modifiers & (static_cast<std::uint32_t>(ui::Modifier::Control) |
                                          static_cast<std::uint32_t>(ui::Modifier::Alt) |
@@ -261,9 +261,9 @@ CanvasPointerResult CanvasSceneSession::key(PreviewInput::Kind kind, std::uint32
         const bool backward = (modifiers & static_cast<std::uint32_t>(ui::Modifier::Shift)) != 0U;
         std::vector<const ui::Node*> order;
         collect_focusable(session_->root(), order);
-        const bool at_end = order.empty() ||
-                            (before != nullptr &&
-                             (backward ? before == order.front() : before == order.back()));
+        const bool at_end =
+            order.empty() ||
+            (before != nullptr && (backward ? before == order.front() : before == order.back()));
         if (at_end) {
             if (kind == PreviewInput::Kind::KeyDown && before != nullptr) {
                 focus.clear_focus();

@@ -219,10 +219,10 @@ EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_pointer(const char* kind, float 
 // Routes one keyboard event into the running session (issue #388, focus) and returns the same
 // document `tessera_canvas_pointer` does, with the focus fields filled.
 //
-//   kind       "down" | "up"            a key event; "blur" drops focus (the element lost the keyboard)
-//   key        a W3C `KeyboardEvent.key` ("Tab", "Enter", " ", "ArrowDown", "a")
-//   modifiers  a `ui::Modifier` mask: Shift 1, Control 2, Alt 4, Meta 8 (the page's `shiftKey` etc.)
-//   repeat     non-zero for an auto-repeat of a held key
+//   kind       "down" | "up"            a key event; "blur" drops focus (the element lost the
+//   keyboard) key        a W3C `KeyboardEvent.key` ("Tab", "Enter", " ", "ArrowDown", "a")
+//   modifiers  a `ui::Modifier` mask: Shift 1, Control 2, Alt 4, Meta 8 (the page's `shiftKey`
+//   etc.) repeat     non-zero for an auto-repeat of a held key
 //
 // Tab and Shift+Tab move focus through the focusable controls in tree order and **release it at
 // either end** (`left: true`, `handled: false`) rather than wrapping, so the page leaves the key
@@ -247,8 +247,8 @@ EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_key(const char* kind, const char
     if (!known || code == 0) {
         return duplicate_out(cli::canvas_pointer_report_json(result));
     }
-    result = g_session->key(parsed, code, modifiers > 0 ? static_cast<std::uint32_t>(modifiers) : 0U,
-                            repeat != 0);
+    result = g_session->key(
+        parsed, code, modifiers > 0 ? static_cast<std::uint32_t>(modifiers) : 0U, repeat != 0);
     return duplicate_out(cli::canvas_pointer_report_json(result));
 }
 

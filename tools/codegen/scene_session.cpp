@@ -117,15 +117,17 @@ PreviewSession::PreviewSession(const ir::IrModule& module, const ir::Component& 
 PreviewSession::~PreviewSession() = default;
 
 void PreviewSession::rebuild() {
-    // Keyboard focus survives a rebuild (issue #388): activating a button changes state, the tree is
-    // rebuilt, and a person who pressed Enter expects to be able to press it again. The focus manager
-    // holds a raw pointer into the old tree, so what is kept is the node's automation id -- assigned in
-    // tree order, so the same structure gives the same id -- and whether the ring was showing.
+    // Keyboard focus survives a rebuild (issue #388): activating a button changes state, the tree
+    // is rebuilt, and a person who pressed Enter expects to be able to press it again. The focus
+    // manager holds a raw pointer into the old tree, so what is kept is the node's automation id --
+    // assigned in tree order, so the same structure gives the same id -- and whether the ring was
+    // showing.
     std::uint64_t kept_focus = 0;
     bool kept_ring = false;
     if (const ui::Node* focused = router_.focus_manager().focused()) {
         kept_focus = focused->automation_id();
-        kept_ring = ui::style::has_state(focused->pseudo_state(), ui::style::PseudoState::FocusVisible);
+        kept_ring =
+            ui::style::has_state(focused->pseudo_state(), ui::style::PseudoState::FocusVisible);
     }
     // The router holds raw capture/hover/active pointers into the tree about to be replaced and the
     // focus manager resolves ids under the old root, so both must drop that state before the old

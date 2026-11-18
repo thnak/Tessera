@@ -9,9 +9,8 @@
 // so they can be (and are) exercised by the host lanes, which cannot compile the entry point at
 // all.
 
-#include "wasm_canvas_support.hpp"
-
 #include "tessera/ui/key_code.hpp"
+#include "wasm_canvas_support.hpp"
 
 #include <cstdint>
 #include <memory>
@@ -79,13 +78,20 @@ std::uint32_t key_code_from_name(std::string_view name) {
         std::uint32_t code;
     };
     constexpr Named kNamed[] = {
-        {"Backspace", ui::key::kBackspace}, {"Tab", ui::key::kTab},
-        {"Enter", ui::key::kEnter},         {"Escape", ui::key::kEscape},
-        {" ", ui::key::kSpace},             {"Insert", ui::key::kInsert},
-        {"Delete", ui::key::kDelete},       {"Home", ui::key::kHome},
-        {"End", ui::key::kEnd},             {"PageUp", ui::key::kPageUp},
-        {"PageDown", ui::key::kPageDown},   {"ArrowLeft", ui::key::kArrowLeft},
-        {"ArrowUp", ui::key::kArrowUp},     {"ArrowRight", ui::key::kArrowRight},
+        {"Backspace", ui::key::kBackspace},
+        {"Tab", ui::key::kTab},
+        {"Enter", ui::key::kEnter},
+        {"Escape", ui::key::kEscape},
+        {" ", ui::key::kSpace},
+        {"Insert", ui::key::kInsert},
+        {"Delete", ui::key::kDelete},
+        {"Home", ui::key::kHome},
+        {"End", ui::key::kEnd},
+        {"PageUp", ui::key::kPageUp},
+        {"PageDown", ui::key::kPageDown},
+        {"ArrowLeft", ui::key::kArrowLeft},
+        {"ArrowUp", ui::key::kArrowUp},
+        {"ArrowRight", ui::key::kArrowRight},
         {"ArrowDown", ui::key::kArrowDown},
     };
     for (const Named& entry : kNamed) {

@@ -60,9 +60,9 @@ struct CanvasPointerResult {
 
     // Keyboard focus (issue #388), meaningful for `key()` and `blur()`; a pointer press also moves
     // focus, so `focused_id` is filled for every event.
-    std::uint64_t focused_id = 0;  // the focused node after the event, 0 when none
-    bool focus_visible = false;    // the ring is showing (keyboard modality)
-    bool focus_moved = false;      // this event changed which node holds focus
+    std::uint64_t focused_id = 0; // the focused node after the event, 0 when none
+    bool focus_visible = false;   // the ring is showing (keyboard modality)
+    bool focus_moved = false;     // this event changed which node holds focus
     // The key was consumed by the scene: the page prevents the browser's default (it moved focus,
     // activated a control, or reached a handler). A Tab at the end of the tab order is NOT handled:
     // the scene lets go and the browser moves on, so the keyboard never gets trapped in the canvas.
@@ -193,10 +193,11 @@ public:
     // Returns false when nothing moved (no pass ran) or there is no running evaluation.
     bool set_viewport(float width, float height, float dpi_scale);
 
-    // One keyboard event (issue #388, focus). `key` is a `ui::KeyCode`; `modifiers` a `ui::Modifier`
-    // mask. Tab and Shift+Tab move focus through the focusable controls in tree order and **release
-    // it at either end** instead of wrapping, so a page can let the browser carry on to the next
-    // element; Enter and Space activate the focused button (the router's click synthesis); the
+    // One keyboard event (issue #388, focus). `key` is a `ui::KeyCode`; `modifiers` a
+    // `ui::Modifier` mask. Tab and Shift+Tab move focus through the focusable controls in tree
+    // order and **release it at either end** instead of wrapping, so a page can let the browser
+    // carry on to the next element; Enter and Space activate the focused button (the router's click
+    // synthesis); the
     // `:focus-visible` ring shows after keyboard traversal.
     CanvasPointerResult key(PreviewInput::Kind kind, std::uint32_t key, std::uint32_t modifiers,
                             bool repeat);

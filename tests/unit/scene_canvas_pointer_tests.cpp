@@ -288,11 +288,13 @@ void test_keyboard_focus_and_activation() {
     // Tab: first button, with the ring (keyboard modality), consumed, one frame owed.
     const cli::CanvasPointerResult first = session.key(Kind::KeyDown, key::kTab, 0, false);
     expect(first.focused_id == left_button->automation_id(), "Tab focuses the first control");
-    expect(first.focus_visible && first.focus_moved && first.handled, "the ring shows and Tab is consumed");
+    expect(first.focus_visible && first.focus_moved && first.handled,
+           "the ring shows and Tab is consumed");
     expect(first.changed, "moving focus owes a frame");
     expect(canvas.draw(session), "the focus ring is painted");
 
-    // Tab: second button. Tab again: the end of the order, focus is released and Tab is NOT consumed.
+    // Tab: second button. Tab again: the end of the order, focus is released and Tab is NOT
+    // consumed.
     const cli::CanvasPointerResult second = session.key(Kind::KeyDown, key::kTab, 0, false);
     expect(second.focused_id == right_button->automation_id(), "Tab moves to the second control");
     const cli::CanvasPointerResult leave = session.key(Kind::KeyDown, key::kTab, 0, false);
@@ -303,7 +305,8 @@ void test_keyboard_focus_and_activation() {
 
     // Shift+Tab from nothing goes to the last control; again leaves at the first.
     const cli::CanvasPointerResult back = session.key(Kind::KeyDown, key::kTab, 1, false);
-    expect(back.focused_id == right_button->automation_id() || back.focused_id == left_button->automation_id(),
+    expect(back.focused_id == right_button->automation_id() ||
+               back.focused_id == left_button->automation_id(),
            "Shift+Tab focuses a control");
     (void)session.key(Kind::KeyDown, key::kTab, 1, false);
     const cli::CanvasPointerResult back_out = session.key(Kind::KeyDown, key::kTab, 1, false);
@@ -324,7 +327,8 @@ void test_keyboard_focus_and_activation() {
     const cli::CanvasPointerResult enter = session.key(Kind::KeyDown, key::kEnter, 0, false);
     expect(enter.ran.size() == 1 && enter.handled, "Enter runs the focused button's onClick");
     expect(counter_value(session) == 1, "Enter incremented the counter");
-    // The click rebuilt the tree; focus and its ring come through it, so Enter can be pressed again.
+    // The click rebuilt the tree; focus and its ring come through it, so Enter can be pressed
+    // again.
     const cli::CanvasPointerResult kept = session.key(Kind::KeyUp, key::kEnter, 0, false);
     expect(kept.focused_id == left_button->automation_id() && kept.focus_visible,
            "focus and the ring survive the rebuild an activation causes");
@@ -339,7 +343,8 @@ void test_keyboard_focus_and_activation() {
     // Blur drops focus and the ring; a second blur owes nothing.
     (void)canvas.draw(session);
     const cli::CanvasPointerResult dropped = session.blur();
-    expect(dropped.focus_moved && dropped.changed, "losing the keyboard drops focus and owes a frame");
+    expect(dropped.focus_moved && dropped.changed,
+           "losing the keyboard drops focus and owes a frame");
     (void)canvas.draw(session);
     const cli::CanvasPointerResult again = session.blur();
     expect(!again.focus_moved && !again.changed, "blur with nothing focused costs no frame");
@@ -370,7 +375,8 @@ void test_key_vocabulary() {
     expect(cli::key_code_from_name("Enter") == key::kEnter, "Enter");
     expect(cli::key_code_from_name(" ") == key::kSpace, "Space is the one-space string");
     expect(cli::key_code_from_name("ArrowDown") == key::kArrowDown, "ArrowDown");
-    expect(cli::key_code_from_name("a") == static_cast<std::uint32_t>('A'), "a letter maps to upper case");
+    expect(cli::key_code_from_name("a") == static_cast<std::uint32_t>('A'),
+           "a letter maps to upper case");
     expect(cli::key_code_from_name("F13") == 0, "an unknown name maps to 0");
     bool known = false;
     (void)cli::key_kind_from("down", known);
