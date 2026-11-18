@@ -98,6 +98,14 @@ private:
     // The push-constant block, uploaded as a uniform buffer at binding 0 (MSL has no push
     // constants; the portable shader branch reads a std140 uniform instead).
     std::vector<std::uint8_t> push_constants_;
+    // Texture binds recorded before an encoder existed. Metal can only set a texture on an
+    // encoder, and the RHI allows binding before begin_render_pass, so they are held here and
+    // applied when the encoder opens.
+    struct PendingTexture {
+        std::uint32_t slot = 0;
+        id<MTLTexture> texture = nil;
+    };
+    std::vector<PendingTexture> pending_textures_;
 };
 
 void MetalCommandList::require_pass(const char* what) const {
@@ -173,6 +181,27 @@ void MetalCommandList::begin_render_pass(const rhi::RenderTarget& target,
     current_target_ = &concrete;
     pass_sample_count_ = target.sample_count();
     in_pass_ = true;
+
+    // Re-apply the state the caller recorded before the encoder existed. The RHI allows
+    // bind_pipeline/bind_texture before begin_render_pass, and Metal can only record them on an
+    // encoder, so they are replayed here rather than dropped.
+    if (pipeline_ != nullptr) {
+        [encoder_ setRenderPipelineState:pipeline_->state()];
+    }
+    if (vertex_buffer_ != nullptr) {
+        [encoder_ setVertexBuffer:vertex_buffer_->handle() offset:0 atIndex:0];
+    }
+    for (const PendingTexture& pending : pending_textures_) {
+        [encoder_ setFragmentTexture:pending.texture atIndex:pending.slot];
+    }
+    if (!push_constants_.empty()) {
+        [encoder_ setVertexBytes:push_constants_.data()
+                          length:push_constants_.size()
+                         atIndex:0];
+        [encoder_ setFragmentBytes:push_constants_.data()
+                            length:push_constants_.size()
+                           atIndex:0];
+    }
 }
 
 void MetalCommandList::end_render_pass() {
@@ -203,12 +232,14 @@ void MetalCommandList::bind_vertex_buffer(const rhi::Buffer& buffer) {
 }
 
 void MetalCommandList::bind_texture(std::uint32_t slot, const rhi::Texture& texture) {
-    if (encoder_ == nil) {
-        // A texture bind outside a pass is legal (the usual order binds the pipeline first); it is
-        // recorded when the encoder opens.
-        return;
+    // A texture bind outside a pass is legal and common: the usual order is bind_pipeline ->
+    // bind_texture -> begin_render_pass. Metal can only record it on an encoder, so it is held
+    // here and applied when the encoder opens. Dropping it silently would draw with an unbound
+    // texture, which is a wrong picture rather than an error.
+    pending_textures_.push_back({slot, as_texture(texture).handle()});
+    if (encoder_ != nil) {
+        [encoder_ setFragmentTexture:pending_textures_.back().texture atIndex:slot];
     }
-    [encoder_ setFragmentTexture:as_texture(texture).handle() atIndex:slot];
 }
 
 void MetalCommandList::bind_sampled_target(std::uint32_t slot, const rhi::RenderTarget& target) {
@@ -217,9 +248,12 @@ void MetalCommandList::bind_sampled_target(std::uint32_t slot, const rhi::Render
         throw std::invalid_argument("metal bind_sampled_target: a swapchain image is not samplable");
     }
     // Metal has no image layouts, so binding a target as a texture needs no transition: the
-    // previous encoder already stored it. The bind is recorded on the next encoder.
-    (void)slot;
-    (void)target;
+    // previous encoder already stored it. The target's readable image (the resolve image for a 4x
+    // target) is what readback and sampling observe, so that is what gets bound.
+    pending_textures_.push_back({slot, as_target(target).readable()});
+    if (encoder_ != nil) {
+        [encoder_ setFragmentTexture:pending_textures_.back().texture atIndex:slot];
+    }
 }
 
 void MetalCommandList::set_viewport(const rhi::Viewport& viewport) {

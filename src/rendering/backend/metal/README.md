@@ -101,9 +101,8 @@ everywhere else, rather than a silently wrong pixel format at run time.
 - Mip-chain generation is not implemented: `supports_texture_mipmaps()` reports **false**, so a
   caller samples the single level, which is the documented correct fallback. Flip it to true in the
   same change that records the downsample passes.
-- The conformance suite does not select Metal yet; it is gated on the macOS lane (slice 4).
-- `bind_sampled_target` validates but does not yet bind: Metal needs no layout transition, so the
-  bind is a no-op until the pipeline's argument table is wired.
+- The conformance suite selects Metal, but the entry skips on any lane without a Metal device, so
+  it has not yet produced a passing run (slice 4 needs a macOS lane with a GPU).
 
 ## Tests
 
