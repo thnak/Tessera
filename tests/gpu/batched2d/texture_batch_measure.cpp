@@ -148,13 +148,19 @@ struct Outcome {
 };
 
 // One frame through the production paint path: paint_scene -> Batched2DSink -> Batched2DRenderer.
+// `array_pipeline` selects the descriptor-indexing path (RHI 1.7, issue #480 part 2); null is the
+// one-set-per-texture path.
 Outcome paint_frame(rhi::Device& device, rhi::RenderTarget& target, rhi::Pipeline& pipeline,
                     rhi::Texture& white, ui::Node& root, StubStyles& styles,
                     text::TextRenderer* text_renderer, text::TextShaper* shaper,
                     image::ImageDecodeCache& decoded, image::ImageTextureCache& textures,
-                    const ui::assets::AssetBundle& bundle) {
+                    const ui::assets::AssetBundle& bundle,
+                    rhi::Pipeline* array_pipeline = nullptr) {
     auto commands = device.create_command_list();
     gpu::Batched2DRenderer renderer(device, pipeline, white);
+    if (array_pipeline != nullptr) {
+        renderer.set_texture_array_pipeline(array_pipeline);
+    }
     ui::paint::Batched2DSink sink(renderer, text_renderer, shaper, {},
                                   ui::paint::ImagePaintConfig{&bundle, &decoded, &textures, 1.0f});
 
@@ -204,13 +210,43 @@ std::unique_ptr<Arm> make_arm(bool images_as_fills) {
 Outcome measure_arm(rhi::Device& device, rhi::RenderTarget& target, rhi::Pipeline& pipeline,
                     rhi::Texture& white, Arm& arm, text::GlyphRasterizer& rasterizer,
                     text::TextShaper& shaper, image::ImageDecodeCache& decoded,
-                    image::ImageTextureCache& textures, const ui::assets::AssetBundle& bundle) {
+                    image::ImageTextureCache& textures, const ui::assets::AssetBundle& bundle,
+                    rhi::Pipeline* array_pipeline = nullptr) {
     text::TextRenderer text_renderer(device, rasterizer, {512, 512, 4, 1});
     (void)paint_frame(device, target, pipeline, white, arm.root, arm.styles, &text_renderer,
-                      &shaper, decoded, textures, bundle);
+                      &shaper, decoded, textures, bundle, array_pipeline);
     textures.end_frame();
     return paint_frame(device, target, pipeline, white, arm.root, arm.styles, &text_renderer,
-                       &shaper, decoded, textures, bundle);
+                       &shaper, decoded, textures, bundle, array_pipeline);
+}
+
+// Reads the whole target back as RGBA8 bytes.
+std::vector<std::uint8_t> read_target(rhi::Device& device, rhi::RenderTarget& target) {
+    const std::size_t bytes = static_cast<std::size_t>(kWidth) * kHeight * sizeof(std::uint32_t);
+    auto readback = device.create_buffer({bytes, rhi::BufferUsage::Readback});
+    auto commands = device.create_command_list();
+    commands->copy_target_to_buffer(target, *readback);
+    commands->submit();
+    std::vector<std::uint8_t> pixels(bytes);
+    readback->read(pixels.data(), pixels.size());
+    return pixels;
+}
+
+// Paints one frame and returns the target's pixels, so the two paths can be compared byte for byte.
+std::vector<std::uint8_t> paint_pixels(rhi::Device& device, rhi::RenderTarget& target,
+                                       rhi::Pipeline& pipeline, rhi::Texture& white, Arm& arm,
+                                       text::GlyphRasterizer& rasterizer, text::TextShaper& shaper,
+                                       image::ImageDecodeCache& decoded,
+                                       image::ImageTextureCache& textures,
+                                       const ui::assets::AssetBundle& bundle,
+                                       rhi::Pipeline* array_pipeline) {
+    text::TextRenderer text_renderer(device, rasterizer, {512, 512, 4, 1});
+    (void)paint_frame(device, target, pipeline, white, arm.root, arm.styles, &text_renderer,
+                      &shaper, decoded, textures, bundle, array_pipeline);
+    textures.end_frame();
+    (void)paint_frame(device, target, pipeline, white, arm.root, arm.styles, &text_renderer,
+                      &shaper, decoded, textures, bundle, array_pipeline);
+    return read_target(device, target);
 }
 
 } // namespace
@@ -266,6 +302,42 @@ int main(int argc, char** argv) {
                                                  rasterizer, shaper, decoded, textures, bundle));
         report("vulkan/control", measure_arm(*device, *target, *pipeline, *white, *control,
                                              rasterizer, shaper, decoded, textures, bundle));
+
+        // The descriptor-indexing path (RHI 1.7, issue #480 part 2): the same scene, one draw per
+        // batch instead of one per texture switch. A device without the capability keeps the old
+        // path, which is the documented fallback.
+        const std::uint32_t capacity = device->texture_array_capacity();
+        std::cout << "vulkan: texture_array_capacity=" << capacity << "\n";
+        if (capacity > 0) {
+            auto array_pipeline = device->create_pipeline(
+                tessera::rendering::vulkan::batched2d_array_pipeline_desc());
+            report("vulkan/interleaved+array",
+                   measure_arm(*device, *target, *pipeline, *white, *interleaved, rasterizer,
+                               shaper, decoded, textures, bundle, array_pipeline.get()));
+            report("vulkan/control+array",
+                   measure_arm(*device, *target, *pipeline, *white, *control, rasterizer, shaper,
+                               decoded, textures, bundle, array_pipeline.get()));
+
+            // The array path must be pixel-identical to the one-set-per-texture path: it only
+            // changes how the same texels are addressed, never which ones.
+            const std::vector<std::uint8_t> plain_pixels =
+                paint_pixels(*device, *target, *pipeline, *white, *interleaved, rasterizer, shaper,
+                             decoded, textures, bundle, nullptr);
+            const std::vector<std::uint8_t> array_pixels =
+                paint_pixels(*device, *target, *pipeline, *white, *interleaved, rasterizer, shaper,
+                             decoded, textures, bundle, array_pipeline.get());
+            std::size_t differing = 0;
+            for (std::size_t index = 0; index < plain_pixels.size(); ++index) {
+                if (plain_pixels[index] != array_pixels[index]) {
+                    ++differing;
+                }
+            }
+            std::cout << "vulkan: pixel_identity differing_bytes=" << differing << " of "
+                      << plain_pixels.size() << " -> "
+                      << (differing == 0 ? "byte-identical" : "MISMATCH") << "\n";
+        } else {
+            std::cout << "vulkan/array: skipped (device reports no descriptor indexing)\n";
+        }
     } catch (const std::exception& error) {
         std::cout << "vulkan: skipped (" << error.what() << ")\n";
     }

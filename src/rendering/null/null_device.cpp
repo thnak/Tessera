@@ -301,6 +301,19 @@ void NullCommandList::bind_texture(std::uint32_t, const rhi::Texture&) {
     stats_.command_order.push_back(NullCommandKind::BindTexture);
 }
 
+void NullCommandList::bind_texture_array(std::uint32_t,
+                                         const std::vector<const rhi::Texture*>& textures) {
+    // The null backend samples nothing, so it records the request: one array bind, and the number
+    // of images it carried (RHI 1.7, issue #480 part 2). A structural test asserts the batching
+    // story from these counters without a GPU.
+    if (textures.empty()) {
+        return;
+    }
+    ++stats_.texture_array_binds;
+    stats_.texture_array_images += static_cast<std::uint32_t>(textures.size());
+    stats_.command_order.push_back(NullCommandKind::BindTextureArray);
+}
+
 void NullCommandList::bind_sampled_target(std::uint32_t slot, const rhi::RenderTarget& target) {
     // Validating-backend parity: the same misuse the Vulkan and WebGPU backends reject, so a
     // structural test on the null backend stays meaningful.

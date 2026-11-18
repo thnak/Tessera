@@ -45,6 +45,7 @@ enum class NullCommandKind {
     EndRenderPass,
     BindPipeline,
     BindTexture,
+    BindTextureArray,
     BindSampledTarget,
     Draw,
     CopyTargetRegion,
@@ -58,6 +59,9 @@ struct NullCommandStats {
     std::uint32_t pipeline_binds = 0;
     std::uint32_t vertex_buffer_binds = 0;
     std::uint32_t texture_binds = 0;
+    // bind_texture_array() calls recorded and the images they carried (RHI 1.7, issue #480 part 2).
+    std::uint32_t texture_array_binds = 0;
+    std::uint32_t texture_array_images = 0;
     // bind_sampled_target() calls recorded, with one entry each in sampled_targets.
     std::uint32_t sampled_target_binds = 0;
     std::uint32_t scissor_changes = 0;
@@ -105,6 +109,8 @@ public:
     void bind_pipeline(const rhi::Pipeline& pipeline) override;
     void bind_vertex_buffer(const rhi::Buffer& buffer) override;
     void bind_texture(std::uint32_t slot, const rhi::Texture& texture) override;
+    void bind_texture_array(std::uint32_t slot,
+                            const std::vector<const rhi::Texture*>& textures) override;
     void bind_sampled_target(std::uint32_t slot, const rhi::RenderTarget& target) override;
     void set_viewport(const rhi::Viewport& viewport) override;
     void set_scissor(const rhi::Scissor& scissor) override;

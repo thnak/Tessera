@@ -106,6 +106,8 @@ inline VkFormat to_vk_vertex_format(rhi::VertexFormat format) {
         return VK_FORMAT_R32G32B32A32_SFLOAT;
     case rhi::VertexFormat::UByte4Norm:
         return VK_FORMAT_R8G8B8A8_UNORM;
+    case rhi::VertexFormat::UInt:
+        return VK_FORMAT_R32_UINT;
     }
     return VK_FORMAT_UNDEFINED;
 }
@@ -261,6 +263,14 @@ public:
 
     [[nodiscard]] VkImage image() const {
         return image_;
+    }
+    // The sampled view and sampler of this texture, for a descriptor write (RHI 1.7, issue #480
+    // part 2: the texture-array set writes one descriptor per bound image).
+    [[nodiscard]] VkImageView view() const {
+        return view_;
+    }
+    [[nodiscard]] VkSampler sampler() const {
+        return sampler_;
     }
     [[nodiscard]] VkDescriptorSet descriptor_set() const {
         return descriptor_set_;
@@ -533,6 +543,8 @@ public:
     void bind_pipeline(const rhi::Pipeline& pipeline) override;
     void bind_vertex_buffer(const rhi::Buffer& buffer) override;
     void bind_texture(std::uint32_t slot, const rhi::Texture& texture) override;
+    void bind_texture_array(std::uint32_t slot,
+                            const std::vector<const rhi::Texture*>& textures) override;
     void bind_sampled_target(std::uint32_t slot, const rhi::RenderTarget& target) override;
     void set_viewport(const rhi::Viewport& viewport) override;
     void set_scissor(const rhi::Scissor& scissor) override;

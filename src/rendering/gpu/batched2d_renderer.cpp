@@ -128,6 +128,7 @@ void Batched2DRenderer::begin_frame(rhi::CommandList& commands, const rhi::Rende
     content_scale_x_ = 1.0f;
     content_scale_y_ = 1.0f;
     batches_.clear();
+    frame_textures_.clear();
     current_texture_ = white_texture_;
     current_batch_ = Batch{scissor_, current_texture_, clips_.index(), 0, 0};
     draw_calls_ = 0;
@@ -344,7 +345,7 @@ void Batched2DRenderer::flush() {
             bind_batch_pipeline(batch, bound_pipeline);
             commands_->set_scissor(batch.scissor);
             update_push_constants(batch.clip_state);
-            commands_->bind_texture(0, *batch.texture);
+            bind_batch_textures(batch);
             commands_->draw(batch.vertex_count, base + batch.first_vertex);
             ++emitted_draws;
         }
@@ -361,7 +362,7 @@ void Batched2DRenderer::flush() {
                 if (!state_bound) {
                     bind_batch_pipeline(batch, bound_pipeline);
                     update_push_constants(batch.clip_state);
-                    commands_->bind_texture(0, *batch.texture);
+                    bind_batch_textures(batch);
                     state_bound = true;
                 }
                 commands_->set_scissor(clipped);
@@ -376,6 +377,35 @@ void Batched2DRenderer::flush() {
     vertices_.clear();
     batches_.clear();
     current_batch_ = Batch{scissor_, current_texture_, clips_.index(), 0, 0};
+}
+
+// The frame's array slot for `texture`, adding it on first use (RHI 1.7, issue #480 part 2). False
+// when the frame already holds `texture_array_capacity()` textures: the caller then keeps the
+// one-set-per-texture path for this quad, which is the documented bounded behavior (the array
+// length is the device's, not the scene's).
+bool Batched2DRenderer::frame_texture_slot(rhi::Texture* texture, std::uint32_t& slot) {
+    const auto found = std::find(frame_textures_.begin(), frame_textures_.end(), texture);
+    if (found != frame_textures_.end()) {
+        slot = static_cast<std::uint32_t>(found - frame_textures_.begin());
+        return true;
+    }
+    if (frame_textures_.size() >= device_->texture_array_capacity()) {
+        return false;
+    }
+    slot = static_cast<std::uint32_t>(frame_textures_.size());
+    frame_textures_.push_back(texture);
+    return true;
+}
+
+// Binds the batch's sampled images: the frame's array on the descriptor-indexing path, one texture
+// on the one-set-per-texture path (RHI 1.7, issue #480 part 2).
+void Batched2DRenderer::bind_batch_textures(const Batch& batch) {
+    if (!batch.texture_array) {
+        commands_->bind_texture(0, *batch.texture);
+        return;
+    }
+    std::vector<const rhi::Texture*> textures(frame_textures_.begin(), frame_textures_.end());
+    commands_->bind_texture_array(0, textures);
 }
 
 void Batched2DRenderer::flush_batch(BatchSplitReason reason) {
@@ -421,14 +451,23 @@ void Batched2DRenderer::emit_quad(const rhi::Rect& rect, const rhi::Rect& uv, rh
         return;
     }
     ++cull_stats_.quads_emitted;
-    if (texture != current_texture_ || quad_pipeline_ != current_batch_.pipeline) {
-        // The reason is the texture when both changed, because that is the split descriptor
-        // indexing would remove; a pipeline change alone is structural (an LCD glyph quad).
-        flush_batch(texture != current_texture_ ? BatchSplitReason::Texture
-                                                : BatchSplitReason::Pipeline);
+    // The batch key is (texture, scissor, folded clip state). On the array path a texture change is
+    // not a split: the texture joins the frame's array and the vertex carries its slot, so
+    // interleaved images and glyph pages share one draw (RHI 1.7, issue #480 part 2). A pipeline
+    // change always splits, because it changes the bound pipeline and the descriptor layout.
+    std::uint32_t texture_index = 0;
+    if (quad_pipeline_ != current_batch_.pipeline) {
+        flush_batch(BatchSplitReason::Pipeline);
+        current_batch_.pipeline = quad_pipeline_;
+    }
+    if (array_pipeline_ != nullptr && frame_texture_slot(texture, texture_index)) {
+        current_batch_.texture_array = true;
+    } else if (texture != current_texture_) {
+        // The one-set-per-texture path, or a frame that outgrew the device's array.
+        flush_batch(BatchSplitReason::Texture);
         current_texture_ = texture;
         current_batch_.texture = texture;
-        current_batch_.pipeline = quad_pipeline_;
+        current_batch_.texture_array = false;
     }
 
     const float x0 = rect.x;
@@ -475,6 +514,7 @@ void Batched2DRenderer::emit_quad(const rhi::Rect& rect, const rhi::Rect& uv, rh
         vertex.carve_y = carve.y;
         vertex.carve_half_width = carve.half_width;
         vertex.carve_half_height = carve.half_height;
+        vertex.texture_index = texture_index;
         vertices_.push_vertex(vertex);
     }
 

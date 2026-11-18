@@ -28,8 +28,12 @@ namespace tessera::rendering::rhi {
 // 1.6 (2026-11-18): additive `TextureDesc::levels` / `Texture::levels()` (a mip chain built from
 // the uploaded base level at creation) and the capability that gates it,
 // `Device::supports_texture_mipmaps(format)`; pure virtual so every backend answers (issue #491).
+// 1.7 (2026-11-18): additive `CommandList::bind_texture_array` (one descriptor set holding an array
+// of sampled images a shader indexes per vertex) and the capability that gates it,
+// `Device::texture_array_capacity()`. The default is 0, which is the one-set-per-texture path every
+// existing caller keeps (issue #480 part 2).
 inline constexpr std::uint32_t kRhiVersionMajor = 1;
-inline constexpr std::uint32_t kRhiVersionMinor = 6;
+inline constexpr std::uint32_t kRhiVersionMinor = 7;
 inline constexpr std::uint32_t kRhiVersion = (kRhiVersionMajor << 16) | kRhiVersionMinor;
 
 } // namespace tessera::rendering::rhi

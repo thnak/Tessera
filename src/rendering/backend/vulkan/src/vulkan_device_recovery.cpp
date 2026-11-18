@@ -57,6 +57,8 @@ void VulkanDevice::destroy_device_objects() {
     // The feature belongs to the destroyed device generation; create_device() re-probes it.
     dual_source_blend_ = false;
     destroy_descriptor_pools();
+    // The array set and its layout belong to the generation too (RHI 1.7, issue #480 part 2).
+    destroy_texture_array();
     if (descriptor_set_layout_ != VK_NULL_HANDLE && device_ != VK_NULL_HANDLE) {
         vkDestroyDescriptorSetLayout(device_, descriptor_set_layout_, nullptr);
     }
@@ -140,6 +142,7 @@ std::expected<void, rhi::DeviceRecoveryError> VulkanDevice::recover() {
         create_device();
         create_allocator();
         create_descriptor_layout();
+        create_texture_array_layout();
         create_descriptor_pool();
     } catch (...) {
         destroy_device_objects();

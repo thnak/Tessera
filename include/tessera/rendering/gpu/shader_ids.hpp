@@ -20,5 +20,10 @@ inline constexpr std::string_view kGlassBlurShaderId = "glass_blur";
 // entry has no WebGPU source because WGSL has no fragment output index, so no backend resolves this
 // id against a WGSL program. The value is the manifest name, per docs/specs/shader-manifest-v1.md.
 inline constexpr std::string_view kBatched2dLcdShaderId = "batched2d_lcd";
+// Descriptor-indexing variant of the batched2d program (RHI 1.7, issue #480 part 2): the same
+// vertex interface and push-constant block, a fragment program that samples an array of combined
+// image samplers indexed by the per-vertex texture index. Vulkan-only by construction: WebGPU has
+// no descriptor indexing, so no backend resolves this id against a WGSL program.
+inline constexpr std::string_view kBatched2dArrayShaderId = "batched2d_array";
 
 } // namespace tessera::rendering::gpu

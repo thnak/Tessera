@@ -23,6 +23,12 @@ alignas(4) const std::uint32_t kLcdFragSpv[] =
 #include "batched2d_lcd_frag_spv.h"
     ;
 
+// The descriptor-indexing variety (RHI 1.7, issue #480 part 2): the same fragment source compiled
+// with TESSERA_TEXTURE_ARRAY, so its clip/SDF/shadow logic cannot drift from the default variant.
+alignas(4) const std::uint32_t kArrayFragSpv[] =
+#include "batched2d_array_frag_spv.h"
+    ;
+
 } // namespace
 
 namespace tessera::rendering::vulkan {
@@ -64,6 +70,17 @@ rhi::PipelineDesc batched2d_lcd_pipeline_desc(rhi::TextureFormat color_format,
     desc.fragment_spirv_size = sizeof(kLcdFragSpv);
     desc.blend = rhi::BlendMode::DualSource;
     desc.shader_id = gpu::kBatched2dLcdShaderId;
+    return desc;
+}
+
+rhi::PipelineDesc batched2d_array_pipeline_desc(rhi::TextureFormat color_format,
+                                                std::uint32_t sample_count) {
+    rhi::PipelineDesc desc = batched2d_common_desc(color_format, sample_count);
+    desc.fragment_spirv = kArrayFragSpv;
+    desc.fragment_spirv_size = sizeof(kArrayFragSpv);
+    desc.blend = rhi::BlendMode::Alpha;
+    desc.shader_id = gpu::kBatched2dArrayShaderId;
+    desc.texture_array = true;
     return desc;
 }
 
