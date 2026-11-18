@@ -28,9 +28,16 @@
 #include <csignal>
 #include <cstring>
 #include <ctime>
-#include <execinfo.h>
 #include <fcntl.h>
 #include <unistd.h>
+
+#if defined(__ANDROID__)
+// Bionic only has `backtrace` from API 33; the app targets API 24, so the unwinder that ships
+// with the NDK (`_Unwind_Backtrace`) walks the stack instead.
+#include <unwind.h>
+#else
+#include <execinfo.h>
+#endif
 
 // `sigaction` and `backtrace` come from libc/libgcc; no new dependency. `backtrace` is the glibc
 // unwinder and is documented as usable from a signal handler when the fault is not on the stack
@@ -167,10 +174,37 @@ void write_record(const char* path, const CaptureMoment& moment) noexcept {
     ::_exit(128 + SIGKILL);
 }
 
+#if defined(__ANDROID__)
+struct UnwindCursor {
+    void** pointers;
+    int depth;
+};
+
+_Unwind_Reason_Code collect_frame(_Unwind_Context* context, void* argument) {
+    auto* cursor = static_cast<UnwindCursor*>(argument);
+    if (cursor->depth >= static_cast<int>(kMaxBacktraceFrames)) {
+        return _URC_END_OF_STACK;
+    }
+    cursor->pointers[cursor->depth] = reinterpret_cast<void*>(_Unwind_GetIP(context));
+    ++cursor->depth;
+    return _URC_NO_REASON;
+}
+
+int walk_stack(void** pointers) noexcept {
+    UnwindCursor cursor{pointers, 0};
+    (void)_Unwind_Backtrace(&collect_frame, &cursor);
+    return cursor.depth;
+}
+#else
+int walk_stack(void** pointers) noexcept {
+    return ::backtrace(pointers, static_cast<int>(kMaxBacktraceFrames));
+}
+#endif
+
 void capture_frames() noexcept {
     g_frame_count = 0;
     void* pointers[kMaxBacktraceFrames] = {};
-    const int depth = ::backtrace(pointers, static_cast<int>(kMaxBacktraceFrames));
+    const int depth = walk_stack(pointers);
     for (int index = 0; index < depth; ++index) {
         g_frames[g_frame_count] = reinterpret_cast<std::uint64_t>(pointers[index]);
         ++g_frame_count;
@@ -251,7 +285,9 @@ CrashCaptureDetails install_crash_capture(const CrashCaptureConfig& config) {
     // SA_SIGINFO for `si_addr`, SA_ONSTACK to use the reserved stack, SA_RESETHAND so a fault
     // *inside* the handler re-raises with the default disposition instead of looping forever.
     action.sa_flags = SA_SIGINFO | SA_ONSTACK | SA_RESETHAND;
-    ::sigemptyset(&action.sa_mask);
+    // Unqualified on purpose: Apple's <signal.h> makes `sigemptyset` a function-like macro, and
+    // `::sigemptyset(...)` expands to `::(*(...) = 0, 0)`, which does not parse.
+    sigemptyset(&action.sa_mask);
     details.alt_stack_ready = alt_ok;
     for (const int signal_number : {SIGSEGV, SIGBUS, SIGFPE, SIGILL, SIGABRT}) {
         if (::sigaction(signal_number, &action, nullptr) == 0) {
