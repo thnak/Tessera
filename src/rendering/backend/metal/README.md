@@ -120,13 +120,37 @@ everywhere else, rather than a silently wrong pixel format at run time.
 The `metal` job in [`.github/workflows/macos.yml`](../../../../.github/workflows/macos.yml) is the
 only lane that compiles the Objective-C++ device half. It installs `shaderc` and `spirv-cross` from
 Homebrew (the MSL table needs them), configures with `TESSERA_BUILD_METAL=ON` and
-`TESSERA_SHADER_CROSS=ON`, builds, and runs the mapping, MSL-table and retire tests plus the Metal
-conformance entry.
+`TESSERA_SHADER_CROSS=ON`, then builds **only** the four targets it tests:
 
-It is advisory (nightly and on demand), like the rest of that workflow, and it does not claim
-Tier 1: a hosted runner's GPU may not match hardware, so pixel goldens still come from lavapipe and
-Metal is checked against `tolerance.json` only (ADR-009, ADR-053 decision 3).
+```bash
+gh workflow run macOS --ref <branch> -f metal_only=true
+```
+
+`metal_only=true` skips the workflow's full-tree `macos` job, which has nothing to do with Metal and
+costs minutes of macOS runner time. The job is **opt-in** (`workflow_dispatch` only) rather than
+nightly: this backend is post-V1 and advisory, so it must not spend macOS minutes on the nightly
+run. A nightly cadence is right once the backend has an owner and a passing conformance run
+(ADR-053 slice 4).
+
+It does not claim Tier 1: a hosted runner's GPU may not match hardware, so pixel goldens still come
+from lavapipe and Metal is checked against `tolerance.json` only (ADR-009, ADR-053 decision 3).
 
 The Windows and Linux lanes build the API-free half and unit-test it, and syntax-check the `.mm`
 files against a stub Metal header. That catches type and selector errors but proves nothing about
 linking or behaviour, so a green Windows/Linux run is not evidence that the backend works.
+
+### What the macOS lane actually catches
+
+It has already paid for itself. Four defects were invisible to the Windows and Linux lanes and were
+only found by compiling with AppleClang and libc++:
+
+1. `metal_mapping.cpp` used `std::string` without including `<string>` — MSVC and libstdc++ pull it
+   in transitively, libc++ does not.
+2. `-Wunused-parameter` on `supports_sample_count`'s format argument.
+3. `-Wunused-private-field` on `MetalSwapchain::device_`.
+4. `-Wunused-private-field` on `MetalCommandList::current_target_`.
+
+Two of those (`<string>`, and `conformance_backend.cpp` including only `metal_device.hpp` while
+calling `has_msl_shaders()`) are include-graph holes that no amount of stub checking would find,
+because the stub headers are self-contained. The unused-field and unused-parameter warnings are
+Clang-only diagnostics that MSVC does not report.

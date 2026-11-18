@@ -7,6 +7,14 @@ on:
   schedule:
     - cron: '0 3 * * *'
   workflow_dispatch:
+    inputs:
+      metal_only:
+        # A full dispatch runs every job, and the `macos` job is a whole-tree build that costs
+        # minutes we do not need when we are only iterating on Metal. Set this to run just the
+        # Metal job: `gh workflow run macOS --ref <branch> -f metal_only=true`.
+        description: 'Run only the Metal backend job (skip the full macOS build)'
+        type: boolean
+        default: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -14,6 +22,8 @@ concurrency:
 
 jobs:
   macos:
+    # Skipped by an opt-in Metal-only dispatch; always runs on the nightly schedule.
+    if: github.event_name == 'schedule' || inputs.metal_only != true
     runs-on: macos-latest
     timeout-minutes: 30
 
