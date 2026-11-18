@@ -231,17 +231,12 @@ await settle(900);
 const widthAfter = await page.evaluate(() => document.getElementById('canvas').width);
 check('the canvas resizes to the new device', widthAfter !== widthBefore, `${widthBefore} -> ${widthAfter}`);
 check('the app keeps its state across the resize (no re-evaluation)', (await stateText()) === counted, `${counted} -> ${await stateText()}`);
-const foldSelect = await page.evaluate(() => document.querySelector('select[name="foldPosture"]')?.id ?? '');
-if (foldSelect !== '') {
-  await page.selectOption(`#${foldSelect}`, 'book');
-  await settle(900);
-  check('the app keeps its state across a fold posture change', (await stateText()) === counted, `${counted} -> ${await stateText()}`);
-  await page.selectOption(`#${foldSelect}`, '');
-  await settle(600);
-  check('and across unfolding', (await stateText()) === counted, `${counted} -> ${await stateText()}`);
-} else {
-  check('the fold posture control exists', false, 'no select[name=foldPosture]');
-}
+await page.selectOption('#control-foldPosture', 'book');
+await settle(900);
+check('the app keeps its state across a fold posture change', (await stateText()) === counted, `${counted} -> ${await stateText()}`);
+await page.selectOption('#control-foldPosture', '');
+await settle(600);
+check('and across unfolding', (await stateText()) === counted, `${counted} -> ${await stateText()}`);
 
 check(
   'No console errors',
