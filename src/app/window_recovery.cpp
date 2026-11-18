@@ -115,6 +115,12 @@ bool WindowHost::Impl::create_presentation() {
         return false;
     }
     renderer_config.sample_count = presentation_sample_count_;
+    // LCD text needs a per-channel pipeline on a device that can blend that way. Whether it exists
+    // is an input of the policy (`Auto` resolves grayscale without it), and the policy applied to
+    // the text renderer below reads `aa_options`, so the two can never disagree.
+    lcd_pipeline =
+        detail::create_lcd_pipeline(*device, swapchain->format(), presentation_sample_count_);
+    aa_options.lcd_supported = lcd_pipeline != nullptr;
     detail::GlassPipelines glass = detail::create_glass_pipelines(*device, swapchain->format());
     if (glass.blur == nullptr || glass.composite == nullptr) {
         return false;
@@ -128,6 +134,7 @@ bool WindowHost::Impl::create_presentation() {
     renderer = std::make_unique<rendering::gpu::Batched2DRenderer>(
         *device, *pipeline, *white, renderer_config,
         rendering::gpu::GlassPipelines{glass_blur_pipeline.get(), glass_composite_pipeline.get()});
+    renderer->set_lcd_pipeline(lcd_pipeline.get());
     // The text stack owns the glyph atlas textures, so it is recreated with the device generation
     // instead of reusing an atlas whose images died with the old device.
     text = std::make_unique<detail::TextStack>(*device, options.font_path);
@@ -152,6 +159,7 @@ void WindowHost::Impl::release_presentation() {
     frame_time.reset(false);
     pipeline.reset();
     present_pipeline.reset();
+    lcd_pipeline.reset();
     presentation_sample_count_ = 1;
     glass_blur_pipeline.reset();
     glass_composite_pipeline.reset();

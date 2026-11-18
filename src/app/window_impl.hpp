@@ -289,6 +289,9 @@ struct WindowHost::Impl {
     // (S8). Null on the 1-sample path, which presents directly and records exactly the pre-S8
     // commands.
     std::unique_ptr<rhi::Pipeline> present_pipeline;
+    // Dual-source pipeline LCD glyph quads draw with (display-aware-rendering.md section 3.4.1).
+    // Null when the device cannot blend per channel; borrowed by the renderer like `pipeline`.
+    std::unique_ptr<rhi::Pipeline> lcd_pipeline;
     // The sample count the presentation stack was created with: 1 (default) or 4. Resolved once per
     // presentation generation from the AA policy and the device capability, because the pipeline,
     // the renderer config and the offscreen frame target must all agree. A metrics change

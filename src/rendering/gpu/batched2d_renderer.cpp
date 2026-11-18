@@ -336,8 +336,10 @@ void Batched2DRenderer::flush() {
     const std::uint32_t base = span.base_vertex;
 
     std::uint32_t emitted_draws = 0;
+    rhi::Pipeline* bound_pipeline = pipeline_;
     if (damage_regions_.empty()) {
         for (const Batch& batch : batches_) {
+            bind_batch_pipeline(batch, bound_pipeline);
             commands_->set_scissor(batch.scissor);
             update_push_constants(batch.clip_state);
             commands_->bind_texture(0, *batch.texture);
@@ -355,6 +357,7 @@ void Batched2DRenderer::flush() {
                     continue;
                 }
                 if (!state_bound) {
+                    bind_batch_pipeline(batch, bound_pipeline);
                     update_push_constants(batch.clip_state);
                     commands_->bind_texture(0, *batch.texture);
                     state_bound = true;
@@ -366,6 +369,7 @@ void Batched2DRenderer::flush() {
         }
     }
 
+    bind_batch_pipeline(Batch{}, bound_pipeline);
     draw_calls_ += emitted_draws;
     vertices_.clear();
     batches_.clear();
@@ -383,6 +387,7 @@ void Batched2DRenderer::flush_batch() {
     current_batch_.scissor = scissor_;
     current_batch_.texture = current_texture_;
     current_batch_.clip_state = clips_.index();
+    current_batch_.pipeline = nullptr;
 }
 
 void Batched2DRenderer::emit_quad(const rhi::Rect& rect, const rhi::Rect& uv, rhi::Color color,
@@ -396,10 +401,11 @@ void Batched2DRenderer::emit_quad(const rhi::Rect& rect, const rhi::Rect& uv, rh
         return;
     }
     ++cull_stats_.quads_emitted;
-    if (texture != current_texture_) {
+    if (texture != current_texture_ || quad_pipeline_ != current_batch_.pipeline) {
         flush_batch();
         current_texture_ = texture;
         current_batch_.texture = texture;
+        current_batch_.pipeline = quad_pipeline_;
     }
 
     const float x0 = rect.x;

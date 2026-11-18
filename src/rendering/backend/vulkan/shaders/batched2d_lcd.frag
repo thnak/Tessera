@@ -11,11 +11,11 @@
 // channel (docs/design/gpu/rhi.md section 4). Writing the second output without that blend state
 // would deposit raw coverage in the target instead.
 //
-// This variant is Vulkan-only and no frame path creates it yet: slice 2 supplies the RGB coverage
-// atlas (FT_RENDER_MODE_LCD, three coverage channels per texel), slice 3 the per-run eligibility
-// predicate and the renderer's pipeline axis. Until then `out_coverage` carries the scalar coverage
-// the grayscale path already computes, replicated across the channels, which is exactly the Alpha
-// result - that equality is what makes the entry reviewable before the atlas exists.
+// This variant is Vulkan-only. The window creates it when the device blends per channel, and the
+// renderer binds it for glyph quads of runs the paint pass marked eligible (display-aware-
+// rendering.md section 3.4.1). A glyph quad reads the atlas page's three subpixel coverages from
+// the texel's R, G and B (or, with v_radius 1, its alpha as one coverage); every other quad
+// replicates its scalar coverage across the channels, which is exactly the Alpha result.
 //
 // There is deliberately no TESSERA_SHADER_PORTABLE branch: WGSL has no output index, so the portable
 // interface cannot express this shader, and the manifest entry declares no WebGPU source.
@@ -140,6 +140,10 @@ void main() {
 
     vec4 color = v_color;
     const vec4 texel = texture(u_texture, v_uv);
+    // Per-channel coverage of an LCD glyph quad (mode 2); negative means "no per-channel source, use
+    // the scalar coverage". The atlas stores each pixel's three subpixel coverages in the texel's
+    // R, G and B (display-aware-rendering.md section 3.4.1), so a text quad reads them directly.
+    vec3 channel_coverage = vec3(-1.0);
 
     if (v_mode > 0.5 && v_mode < 1.5) {
         float d = sd_round_box(v_local, v_half_size, v_radius);
@@ -154,6 +158,13 @@ void main() {
         vec4 texel_color = texel;
         texel_color.a = min(texel_color.a * (1.0 + (v_mode - 2.0) * 4.0), 1.0);
         color *= texel_color;
+        // The same contrast boost the grayscale path applies to alpha, applied to each channel. A
+        // quad with v_radius 1 is a run (or glyph) that must not carry fringes: it reads the page's
+        // alpha - the strongest channel - as one coverage for all three, which is the Alpha result.
+        float boost = 1.0 + (v_mode - 2.0) * 4.0;
+        channel_coverage = v_radius > 0.5
+                               ? vec3(min(texel.a * boost, 1.0)) * v_color.a
+                               : min(texel.rgb * boost, vec3(1.0)) * v_color.a;
     } else if (v_mode > 1000.0) {
         // Box shadow: mode is 1024 + sigma and the quad is the box grown by 2 sigma. sigma 0 is the
         // hard-edged shadow (`box-shadow: 4px 4px 0`): the same shape with a coverage step, so the
@@ -200,11 +211,19 @@ void main() {
 
     color.a *= clip_alpha;
 
-    // Colour to output 0 and coverage to output 1. The coverage goes in all four channels because
-    // the dual-source blend reads src1 for the alpha attachment too (Vulkan SRC1_COLOR), and the
-    // colour's own alpha stays 1 so the destination alpha resolves to `coverage + dst * (1 -
-    // coverage)` - the same result Alpha blending produces today. Slice 2 replaces the replicated
-    // scalar with the atlas' per-channel luminance of the three subpixels.
-    out_color = vec4(color.rgb, 1.0);
-    out_coverage = vec4(color.a);
+    // Colour to output 0 and coverage to output 1 (the two sources of the dual-source blend).
+    // The colour's own alpha stays 1: the destination alpha resolves to `coverage + dst * (1 -
+    // coverage)` with the alpha channel's coverage being the strongest of the three, the same "how
+    // much ink" reduction the atlas stores in alpha. A quad with no per-channel source (anything
+    // that is not a glyph) replicates its scalar coverage, which is exactly the Alpha result.
+    // Output 0 is the ink as authored (v_color), not `color`: the text branch above multiplies
+    // `color` by the texel for the scalar path, and for an LCD page the texel's RGB is coverage,
+    // which output 1 already applies per channel.
+    out_color = vec4(v_color.rgb, 1.0);
+    if (channel_coverage.x >= 0.0) {
+        vec3 covered = channel_coverage * clip_alpha;
+        out_coverage = vec4(covered, max(covered.r, max(covered.g, covered.b)));
+    } else {
+        out_coverage = vec4(color.a);
+    }
 }

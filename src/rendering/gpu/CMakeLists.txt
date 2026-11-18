@@ -5,6 +5,7 @@ add_library(tessera_gpu STATIC
     # The 4x presentation seam (S8): a sampled-quad pass that presents a multisampled frame through
     # its resolved image. Split out so the renderer core stays inside its size budget.
     batched2d_present.cpp
+    batched2d_lcd.cpp
     batched2d_cull.cpp
     batched2d_seam.cpp
     clip_state_table.cpp

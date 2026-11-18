@@ -153,7 +153,7 @@ void Batched2DSink::draw_text(const TextDraw& run) {
     const float baseline = run.baseline.value_or(run.rect.y + shaped.ascent);
     // TextRenderer pushes textured quads through the same renderer: a texture change flushes the
     // current rect batch, and the active scissor/rounded-clip state applies to the glyphs.
-    text_renderer_->draw(*renderer_, shaped, run.rect.x, baseline, pixel_size, run.color);
+    text_renderer_->draw(*renderer_, shaped, run.rect.x, baseline, pixel_size, run.color, run.lcd);
 }
 
 void Batched2DSink::draw_vector(const VectorDraw& draw) {

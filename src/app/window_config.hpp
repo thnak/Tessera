@@ -72,6 +72,10 @@ struct WindowAaOptions {
     std::uint8_t msaa_samples = 1;
     // The power policy's cheaper preset (ADR-019): grayscale text and no MSAA.
     bool reduced_quality = false;
+    // The device can composite LCD text per channel (dual-source blending) and the LCD pipeline
+    // exists. False resolves `Auto` text to grayscale instead of paying for a three-channel atlas
+    // that no pipeline could composite.
+    bool lcd_supported = false;
 };
 
 // The display facts the policy reads, copied verbatim from the window's metrics.

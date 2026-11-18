@@ -129,6 +129,7 @@ struct PaintOp {
     std::uint32_t raster_height = 0;
     float scale = 0.0f;
     bool decode_original = false;
+    bool lcd = false; // DrawText
 };
 
 // The replayed value of one node: everything the node emitted before its children, plus the
@@ -191,6 +192,9 @@ struct PaintCacheSignature {
     // limits change the emitted sigma / half-resolution decision, so all three are part of the key
     // - exactly like reduce_effects, because they change the commands a record holds.
     bool high_contrast = false;
+    // PaintContext::lcd_text: a recorded text op carries `TextDraw::lcd`, which that permission
+    // decided, so a record made under the other value must not replay.
+    bool lcd_text = false;
     float glass_max_blur_radius = 0.0f;
     std::uint64_t glass_max_backdrop_area = 0;
 };

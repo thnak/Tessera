@@ -10,10 +10,11 @@ namespace tessera::ui::paint::detail {
 // selection and IME preedit decoration. Runs after the node's background/borders and inside its
 // active clip; `opacity` is the node's effective opacity (its own x every ancestor's), so a text
 // child fades with the group instead of only with its own value. The vector/image counterparts are
-// paint_vector_content/paint_image_content.
+// paint_vector_content/paint_image_content. `lcd` marks every emitted run `TextDraw::lcd` (see
+// lcd_text_sink.hpp for the eligibility rule the caller applies).
 void paint_text_lines(const Node& node, const style::ComputedStyle& style, const rhi::Rect& rect,
                       float opacity, PaintSink& sink, PaintStats& stats,
-                      const PaintContext& context);
+                      const PaintContext& context, bool lcd = false);
 
 // Paints a Text node that carries inline spans (issue #229): one paragraph measured with the
 // parent's style, whose painted runs are split at span boundaries and carry each span's resolved

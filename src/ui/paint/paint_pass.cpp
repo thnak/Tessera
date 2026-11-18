@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "lcd_text_sink.hpp"
 #include "paint_cache_internal.hpp"
 #include "paint_cull.hpp"
 #include "paint_frame.hpp"
@@ -380,9 +381,8 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
     }
 
     // Effective opacity: the ancestor product times this node's own `opacity` (both clamped 0..1).
-    // It multiplies every primitive this node emits and is exactly what its children inherit, so a
-    // group fades as a whole without an offscreen layer (paint-pass.md section 14.1). `opacity: 0`
-    // still walks the subtree: the scene and its hit testing are untouched, only the emits vanish.
+    // It multiplies every primitive this node emits and is what its children inherit, so a group
+    // fades as a whole without an offscreen layer (paint-pass.md 14.1); `opacity: 0` still walks.
     const float effective_opacity = scope.opacity * detail::opacity_value(style);
     child_scope.opacity = effective_opacity;
 
@@ -423,7 +423,10 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
     }
     // Content runs (one active payload per node): after the element's own background/borders and
     // inside its own overflow/scroll clip, before the children (paint order).
-    detail::paint_text_lines(node, style, rect, effective_opacity, *own, stats, context);
+    detail::paint_text_lines(node, style, rect, effective_opacity, *own, stats, context,
+                             detail::lcd_text_eligible(context, effective_opacity,
+                                                       painted_frame.active, interpolated,
+                                                       painted_world));
     detail::paint_vector_content(node, style, rect, effective_opacity, *own, stats);
     detail::paint_image_content(node, style, rect, effective_opacity, *own, stats);
 
@@ -485,6 +488,7 @@ PaintStats paint_scene(const Node& root, StyleProvider& styles, PaintSink& sink,
     pass.device_scale_bits = detail::float_bits(context.device_scale);
     pass.reduce_effects = context.reduce_effects;
     pass.high_contrast = context.high_contrast;
+    pass.lcd_text = context.lcd_text;
     pass.glass_max_blur_radius = context.glass.max_blur_radius;
     pass.glass_max_backdrop_area = context.glass.max_backdrop_area;
     pass.cull = context.cull.has_value() ? &*context.cull : nullptr;

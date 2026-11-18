@@ -4,6 +4,7 @@
 // selection and IME preedit decoration. Paint consumes byte offsets and resolves them through the
 // same line boxes the layout produced; it never shapes or lays out text itself.
 
+#include "lcd_text_sink.hpp"
 #include "paint_properties.hpp"
 #include "paint_text.hpp"
 #include "paint_text_runs.hpp"
@@ -278,7 +279,13 @@ void paint_text_decoration(const PaintData& data, const rhi::Rect& content,
 
 void paint_text_lines(const Node& node, const style::ComputedStyle& style, const rhi::Rect& rect,
                       float opacity, PaintSink& sink, PaintStats& stats,
-                      const PaintContext& context) {
+                      const PaintContext& context, bool lcd) {
+    if (lcd) {
+        // Tag every run this node emits once, instead of at each of the seven TextDraw sites.
+        LcdTextSink tagged(sink);
+        paint_text_lines(node, style, rect, opacity, tagged, stats, context, false);
+        return;
+    }
     const auto& data = node.paint_data();
     if (!data || data->kind != PaintKind::Text) {
         return;

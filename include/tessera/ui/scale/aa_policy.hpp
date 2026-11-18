@@ -17,8 +17,8 @@ namespace tessera::ui::scale {
 enum class TextAaSetting : std::uint8_t { Auto, Grayscale, Subpixel };
 
 // `Grayscale` is the only mode every run can use. `LcdWhenEligible` means the *window* permits LCD
-// text; each run still needs its own eligibility check (opaque, translate-only, nothing beneath),
-// which belongs to the text slice, not to this window-level value.
+// text; each run still needs its own eligibility check (translate-only, fully opaque, not animated;
+// `paint::detail::lcd_text_eligible`), which is not part of this window-level value.
 enum class TextAaMode : std::uint8_t { Grayscale, LcdWhenEligible };
 
 // `Font` is today's FreeType default (the font's own hints). `Light` is vertical-only autohint.
@@ -63,9 +63,11 @@ struct AaPolicy {
     friend bool operator==(const AaPolicy&, const AaPolicy&) = default;
 };
 
-// `Auto` does not yet choose LCD: shipping LCD text is an open owner decision (display-aware-
-// rendering.md section 8, item 1). Flipping this is the whole change once it is decided.
-inline constexpr bool kAutoAllowsLcd = false;
+// `Auto` chooses LCD when the facts allow it: the owner decided LCD ships in V1 (display-aware-
+// rendering.md section 8, item 1). A window whose device cannot composite it per channel passes
+// `Grayscale` instead (`WindowAaOptions::lcd_supported`), so `Auto` never promises what the device
+// cannot do.
+inline constexpr bool kAutoAllowsLcd = true;
 
 // Render scale from which glyph origins carry a quarter-pixel horizontal fraction.
 inline constexpr float kSubpixelPositionMinScale = 1.25f;

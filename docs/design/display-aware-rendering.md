@@ -1,7 +1,7 @@
 # Display-aware rendering (text and non-text anti-aliasing)
 
-Status: **S1-S6 and S8 landed, plus the T5 contrast LUT, the window integration in section 6, and
-the rasterizer and atlas half of S7 (T4); LCD text is not composited yet.** Landed: the `AaPolicy`
+Status: **S1-S8 landed, plus the T5 contrast LUT and the window integration in section 6; LCD text
+composites per channel on an eligible run (T4, section 3.4.1).** Landed: the `AaPolicy`
 resolver and `hal::PixelGeometry` (S1),
 screen-space SDF edges and anti-aliased rounded clips in `batched2d.frag`/`.wgsl` (S2, S4), border
 widths snapped to device pixels in the paint pass (S3), glyph hinting by scale, quarter-pixel glyph
@@ -15,11 +15,13 @@ the Windows backend fills `PixelGeometry` from the user's ClearType configuratio
 only subpixel source the OS has, and says honestly that it is desktop-wide rather than per-monitor;
 and `GlyphAaMode` gives the rasterizer and atlas an LCD mode (`FT_RENDER_MODE_LCD`, three coverage
 samples per pixel, the mode in the atlas identity, RGB upload, and a quad one third of the page
-extent, section 3.4.1). Not landed: **LCD compositing** - the per-run eligibility predicate, the
-renderer's pipeline axis and the paint-seam fact (section 3.4.1 step 3), so every run still
-composites through the grayscale pipeline; the mip-chain downscale case (needs `TextureDesc` mip
-levels and backend chain generation); and the X11/Wayland `PixelGeometry` sources (both still report
-`Unknown`). Extends
+extent, section 3.4.1). **LCD compositing** landed as step 3 of section 3.4.1: the per-node
+eligibility rule and the `TextDraw::lcd` mark at the paint seam, the renderer's pipeline axis
+(`Batched2DRenderer::set_lcd_pipeline`, `push_texture_lcd`), the per-channel `batched2d_lcd`
+fragment program, and the window's creation of that pipeline on a device with dual-source blending;
+`kAutoAllowsLcd` is true. Not landed: the mip-chain downscale case (needs `TextureDesc` mip levels
+and backend chain generation); and the X11/Wayland `PixelGeometry` sources (both still report
+`Unknown`, so those windows stay grayscale). Extends
 [`antialiasing.md`](antialiasing.md) and [`text.md`](text.md). Decisions D2/D6 in
 [`rendering-production-plan.md`](rendering-production-plan.md) stay in force unless a numbered
 decision in section 8 says otherwise.
@@ -109,10 +111,11 @@ counted against the existing bounded atlas budget; eviction rules unchanged.
 
 ### 3.4 LCD subpixel text (T4, optional)
 
-Landed in two slices (section 3.4.1): the rasterizer and atlas half, and the compositing half that
-is still to come. The Windows backend fills `PixelGeometry` (section 2), but the resolver keeps
-`Auto` on grayscale until compositing exists (`kAutoAllowsLcd == false`), so every window still
-resolves `Grayscale` and the eligibility rules below are the compositing slice's contract.
+Landed in three slices (section 3.4.1): the RHI primitive, the rasterizer and atlas half, and the
+compositing half. The Windows backend fills `PixelGeometry` (section 2) and `Auto` resolves to LCD
+(`kAutoAllowsLcd == true`) on an opaque landscape window with a known horizontal stripe, on a device
+that can blend per channel; every other window resolves `Grayscale`. The eligibility rules below are
+what the paint pass and the renderer implement.
 
 Modes: `grayscale` (the default) and `lcd` (3 coverage channels). LCD is chosen only when **all**
 hold: `PixelGeometry` is a known horizontal stripe, the window is opaque, the run has a
@@ -221,9 +224,11 @@ things are deliberately *not* in step 2, and the code says so where it matters:
 
 - **The eligibility predicate and the pipeline axis are step 3.** `LcdWhenEligible` is the
   window-level permission, so the atlas rasterizes LCD for the whole window; nothing yet decides
-  per run whether a run may *composite* LCD. Until step 3 an LCD atlas is drawn through the
-  grayscale pipeline, which is why the upload also stores the per-pixel maximum in alpha: the run
-  renders as grayscale rather than disappearing. That is a correctness fallback, not the feature.
+  per run whether a run may *composite* LCD. Until step 3 an LCD atlas was drawn through the
+  grayscale pipeline, which the upload's per-pixel maximum in alpha was meant to make safe; step 3
+  found that wrong for any run that is not white ink (that pipeline multiplies the ink by the
+  texel's RGB, and an LCD page keeps coverage there), so the fallback now goes through the LCD
+  pipeline too (step 3 below).
 - **FreeType's LCD renderer is available on the pinned build** (VER-2-13-3, built without
   `FT_CONFIG_OPTION_SUBPIXEL_RENDERING`): `FT_RENDER_MODE_LCD` produces `FT_PIXEL_MODE_LCD`, three
   interleaved coverage bytes per pixel, and the three channels genuinely differ across a stem
@@ -242,6 +247,48 @@ things are deliberately *not* in step 2, and the code says so where it matters:
 The golden corpus is unchanged: `GlyphAaMode::Grayscale` is the default of both the rasterizer
 parameter and the atlas config, `golden_aa_policy()` pins `TextAaMode::Grayscale`, and the grayscale
 upload path and page background are byte-identical to before.
+
+Step 3 landed as the compositing half of #471. The decisions that shaped it:
+
+- **Eligibility is a per-node fact applied once.** `PaintContext::lcd_text` is the window's
+  permission (the resolved policy is `LcdWhenEligible` and the LCD pipeline exists). The pass narrows
+  it per node with `detail::lcd_text_eligible`: effective opacity exactly 1, a translate-only painted
+  world matrix, no open transform frame, and no interpolation override. The text helpers build
+  `TextDraw`s at seven call sites, so the pass tags the sink it hands them (`LcdTextSink`) rather
+  than threading a flag through each; the mark is `TextDraw::lcd`.
+- **"Nothing translucent beneath" is the opaque target, not a per-run backdrop test.** Dual-source
+  blending is per-channel source-over, which is correct over any opaque pixel however it was
+  painted, so the rule that matters is that the target is opaque (the window's `transparent` fact,
+  already in the resolver) and that the run is not drawn into an offscreen layer with alpha. Glass
+  blurs into pooled offscreen targets and composites back before the node's own text, so text still
+  draws into the frame target.
+- **The cache signature carries the permission, nothing else.** Opacity, `painted_world`,
+  `frame_active` and `interpolated` were already in the signature, so a cached run cannot claim LCD
+  under a changed transform or fade; the window permission was the one missing input
+  (`PaintCacheSignature::lcd_text`), and `PaintOp::lcd` carries the mark through replay.
+- **The pipeline is a batch axis.** `Batch::pipeline` (null = the frame pipeline) joins texture,
+  scissor and folded clip state in the split rule; the replay binds a batch's pipeline when it
+  differs from the bound one and restores the frame pipeline afterwards. `push_texture_lcd` without
+  a pipeline is `push_texture`, so callers never branch on support.
+- **Per glyph, not per run, picks the mode.** Every glyph of an LCD atlas draws through the LCD
+  pipeline, because the page holds coverage in RGB and the ordinary pipeline multiplies the ink by
+  the texel's RGB (tinting the text, or blackening it for a glyph FreeType rendered grayscale into
+  an LCD page, whose RGB is zero). A glyph with three channels in an eligible run composites per
+  channel; every other one - an ineligible run, a grayscale-fallback glyph - reads the page's alpha
+  as one coverage (`v_radius` 1 on the quad, a slot a textured quad does not use). A colour glyph
+  has real RGBA and takes the ordinary pipeline. A run therefore never loses a glyph and never
+  mixes fringes into a glyph that has none.
+- **The shader reads the page's channels.** `batched2d_lcd.frag` writes the colour to output 0 and
+  `min(texel.rgb * boost, 1) * alpha * clip` to output 1, with the strongest channel in alpha (or
+  `min(texel.a * boost, 1)` for all three when the quad asks for one coverage); any
+  quad without a per-channel source replicates its scalar coverage, which is exactly Alpha.
+- **The window creates the pipeline only where it can work.** `create_lcd_pipeline` returns null
+  without `supports_dual_source_blend()`; `WindowAaOptions::lcd_supported` then pins `Grayscale`
+  text, so a device that cannot composite LCD never pays for a three-channel atlas. WebGPU (the
+  Wasm preview) has no dual-source blend and stays grayscale by construction.
+
+Goldens stay grayscale: `golden_aa_policy()` pins `TextAaMode::Grayscale`, the frame-capture and
+preview roots never set `lcd_text`, and no golden-pinned path creates the LCD pipeline.
 
 ### 3.5 Contrast and gamma (T5)
 
@@ -309,7 +356,7 @@ regardless of the switch and of the display.
 | S4 | rounded-clip coverage AA | clip corner has intermediate alpha; nothing written outside the clip |
 | S5 | text T1 + T2 (device raster size, hinting by scale) | metrics unchanged across scales; atlas key test |
 | S6 | text T3 (subpixel positioning) | golden mode unaffected; bounded atlas growth |
-| S7 | text T4 (LCD: RHI primitive, rasterizer + atlas mode landed; eligibility + pipeline later) + T5 (contrast LUT, adopted as a D2 amendment and landed) | LCD only on eligible runs; fallback test; contrast LUT table test |
+| S7 | text T4 (LCD: RHI primitive, rasterizer + atlas mode, eligibility + pipeline axis, all landed) + T5 (contrast LUT, adopted as a D2 amendment and landed) | LCD only on eligible runs; fallback test; contrast LUT table test |
 | S8 | image filter by scale, MSAA policy hook | filter selection table test |
 
 Window integration (landed): `AppWindow` resolves one `AaPolicy` from its `hal::WindowMetrics`
@@ -338,8 +385,7 @@ scissor is derived from it (`ClipStateTable::push` -> `enclosing_scissor`), so t
 and the folded SDF uniform test the same target-space rectangle. `set_scissor` itself is a
 target-pixel seam: the frame scissor is the target extent and damage regions are already device
 pixels. Still missing, all later PRs: X11/Wayland `PixelGeometry` sources (they report `Unknown`),
-LCD compositing (T4's eligibility predicate and pipeline axis, section 3.4.1 step 3 - the
-rasterizer and atlas half landed), and the mip-chain downscale case below.
+the mip-chain downscale case below. LCD compositing has landed (section 3.4.1 step 3).
 
 S8 image filter (landed): RHI sampler state is fixed at texture creation, so the filter is part of
 `ImageTextureKey` and `Batched2DSink::draw_image` picks it per draw with the pure
@@ -405,8 +451,8 @@ explicit tolerance, never by real-GPU goldens.
 
 ## 8. Decisions needed
 
-1. Ship LCD text in V1, or grayscale only with T1-T3? **Decided: LCD ships in V1 in a later PR.**
-   Until then `Auto` resolves to grayscale (`kAutoAllowsLcd == false`).
+1. Ship LCD text in V1, or grayscale only with T1-T3? **Decided: LCD ships in V1.**
+   `Auto` resolves to LCD where the facts and the device allow it (`kAutoAllowsLcd == true`).
 2. Adopt the text contrast LUT (T5), and does it count as a D2 amendment? **Resolved: adopted as a
    D2 amendment and implemented** (section 3.5; the amendment is recorded with D2 in
    [`rendering-production-plan.md`](rendering-production-plan.md)). Only the per-run text coverage

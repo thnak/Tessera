@@ -128,9 +128,10 @@ void TextRenderer::set_aa_policy(const scale::AaPolicy& policy) {
                          : policy.hinting == scale::TextHinting::None ? GlyphHinting::None
                                                                       : GlyphHinting::Font);
     // `LcdWhenEligible` is the window-level permission, not a per-run decision: the atlas is
-    // rasterized for LCD and slice 3's predicate picks the pipeline per run. Until that predicate
-    // exists the atlas is still correct, and the grayscale pipeline reads the per-pixel maximum the
-    // upload stores in alpha, so a run drawn from it is grayscale rather than missing.
+    // rasterized for LCD and the paint pass's predicate (`TextDraw::lcd`) picks the pipeline per
+    // run. An ineligible run draws from the same atlas through the LCD pipeline reading the
+    // per-pixel maximum the upload stores in alpha, because the ordinary pipeline would multiply
+    // the page's RGB coverage into the ink.
     impl_->apply_aa_mode(policy.text_mode == scale::TextAaMode::LcdWhenEligible
                              ? GlyphAaMode::Lcd
                              : GlyphAaMode::Grayscale);
@@ -151,7 +152,8 @@ bool TextRenderer::subpixel_position() const {
 }
 
 float TextRenderer::draw(rendering::gpu::Batched2DRenderer& renderer, const ShapedRun& run, float x,
-                         float baseline_y, std::uint16_t pixel_size, rendering::rhi::Color color) {
+                         float baseline_y, std::uint16_t pixel_size, rendering::rhi::Color color,
+                         bool lcd) {
     if (run.glyphs.empty() || pixel_size == 0) {
         return 0.0f;
     }
@@ -252,10 +254,19 @@ float TextRenderer::draw(rendering::gpu::Batched2DRenderer& renderer, const Shap
                 static_cast<float>(entry.width) / page_width,
                 static_cast<float>(entry.height) / page_height,
             };
-            renderer.push_texture(
-                {quad.left, quad.top, quad.width, quad.height}, *page_textures[entry.page].texture,
-                uv, entry.color ? rendering::rhi::Color{1.0f, 1.0f, 1.0f, color.a} : color,
-                entry.color ? 1.0f : boost);
+            const rendering::rhi::Rect rect{quad.left, quad.top, quad.width, quad.height};
+            rendering::rhi::Texture& page = *page_textures[entry.page].texture;
+            if (impl_->scale_atlas.aa_mode() == GlyphAaMode::Lcd && !entry.color) {
+                // An LCD page holds coverage in RGB, which the ordinary pipeline would multiply
+                // into the ink, so every glyph of the page takes the LCD pipeline. Only an eligible
+                // run's three-channel glyph composites per channel; the rest read alpha.
+                renderer.push_texture_lcd(rect, page, uv, color, boost, lcd && channels == 3);
+            } else {
+                renderer.push_texture(rect, page, uv,
+                                      entry.color ? rendering::rhi::Color{1.0f, 1.0f, 1.0f, color.a}
+                                                  : color,
+                                      entry.color ? 1.0f : boost);
+            }
         }
         pen_x += glyph.advance;
     }

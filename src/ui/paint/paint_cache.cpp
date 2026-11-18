@@ -45,7 +45,7 @@ bool same_signature(const PaintCacheSignature& lhs, const PaintCacheSignature& r
            lhs.metrics_source_id == rhs.metrics_source_id &&
            lhs.device_scale_bits == rhs.device_scale_bits &&
            lhs.reduce_effects == rhs.reduce_effects && lhs.high_contrast == rhs.high_contrast &&
-           lhs.glass_max_blur_radius == rhs.glass_max_blur_radius &&
+           lhs.lcd_text == rhs.lcd_text && lhs.glass_max_blur_radius == rhs.glass_max_blur_radius &&
            lhs.glass_max_backdrop_area == rhs.glass_max_backdrop_area;
 }
 
@@ -131,6 +131,7 @@ void replay_paint_ops(const std::vector<PaintOp>& ops, PaintSink& sink) {
             run.font_weight = op.font_weight;
             run.color = op.color;
             run.baseline = op.baseline;
+            run.lcd = op.lcd;
             sink.draw_text(run);
             break;
         }
@@ -275,6 +276,7 @@ void PaintCache::Recorder::draw_text(const TextDraw& run) {
     op.font_weight = run.font_weight;
     op.color = run.color;
     op.baseline = run.baseline;
+    op.lcd = run.lcd;
     record(std::move(op));
     target_.draw_text(run);
 }

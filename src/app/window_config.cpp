@@ -65,9 +65,10 @@ ui::scale::AaFacts window_aa_facts(const hal::WindowMetrics& metrics) noexcept {
 ui::scale::AaPolicy window_aa_policy(const hal::WindowMetrics& metrics,
                                      const WindowAaOptions& renderer) noexcept {
     ui::scale::AaConfig config;
-    // No `renderer.textAa` setting exists on the window surface yet, so `Auto` is the whole input;
-    // it resolves to grayscale until the owner decision (display-aware-rendering.md section 8).
-    config.text_aa = ui::scale::TextAaSetting::Auto;
+    // No `renderer.textAa` setting exists on the window surface yet, so `Auto` is the whole input
+    // (LCD when the facts allow it); a device that cannot composite LCD pins grayscale.
+    config.text_aa = renderer.lcd_supported ? ui::scale::TextAaSetting::Auto
+                                            : ui::scale::TextAaSetting::Grayscale;
     config.aa_enabled = renderer.aa_enabled;
     config.msaa_samples = renderer.msaa_samples;
     config.reduced_quality = renderer.reduced_quality;

@@ -205,6 +205,27 @@ public:
     void push_texture(const rhi::Rect& rect, rhi::Texture& texture, const rhi::Rect& uv,
                       rhi::Color color, float coverage_boost = 1.0f);
 
+    // --- LCD text (docs/design/display-aware-rendering.md section 3.4.1, step 3) ----------------
+    // Supplies the dual-source pipeline LCD glyph quads are drawn with. It must be created from
+    // `vulkan::batched2d_lcd_pipeline_desc` with the frame's format and sample count, and only on a
+    // device whose `supports_dual_source_blend()` is true. Null (the default) means "no LCD": every
+    // run composites through the grayscale pipeline. Set between frames, like the other policy.
+    void set_lcd_pipeline(rhi::Pipeline* pipeline);
+    [[nodiscard]] bool lcd_supported() const {
+        return lcd_pipeline_ != nullptr;
+    }
+    // A glyph quad over an LCD atlas page, drawn with the LCD pipeline. An LCD page keeps coverage
+    // in RGB (and the strongest channel in alpha), so the ordinary pipeline - which multiplies the
+    // ink by the texel's RGB - cannot draw it: every glyph of an LCD atlas goes through here.
+    // `per_channel` composites each channel with its own coverage (an eligible run); false reads
+    // the page's alpha as one coverage for all three, which is what a grayscale run, and a glyph
+    // FreeType could only render grayscale, need. The quad is its own batch identity: it never
+    // merges with a grayscale quad over the same texture. Without an LCD pipeline this is
+    // `push_texture`, correct only for a grayscale page; an LCD atlas exists only where the
+    // pipeline does.
+    void push_texture_lcd(const rhi::Rect& rect, rhi::Texture& texture, const rhi::Rect& uv,
+                          rhi::Color color, float coverage_boost = 1.0f, bool per_channel = true);
+
     // --- 4x presentation (docs/design/display-aware-rendering.md section 4, S8) ----------------
     // Draws `source`'s readable image into `destination` as one full-target textured quad with
     // `pipeline`. A 4x target is read through its resolved image (RHI 1.3), so this is the GPU-only
@@ -241,6 +262,8 @@ private:
         std::uint32_t clip_state = 0;
         std::uint32_t first_vertex = 0;
         std::uint32_t vertex_count = 0;
+        // Null draws with the frame pipeline; set only for LCD glyph quads.
+        rhi::Pipeline* pipeline = nullptr;
     };
 
     void begin_frame(rhi::CommandList& commands, const rhi::RenderTarget& target,
@@ -256,11 +279,17 @@ private:
     // True when the quad's device-space bounds cannot touch any pixel the frame will draw.
     [[nodiscard]] bool cull_quad(const rhi::Rect& rect);
     void update_push_constants(std::uint32_t state_index);
+    // Binds the batch's pipeline when it differs from the one bound (`bound` tracks it across a
+    // replay); flush() restores the frame pipeline at the end so later passes see it unchanged.
+    void bind_batch_pipeline(const Batch& batch, rhi::Pipeline*& bound);
     void apply_clip_state(const ClipStateTable::Update& update);
     static void resume_pass_callback(void* context);
 
     rhi::Device* device_ = nullptr;
     rhi::Pipeline* pipeline_ = nullptr;
+    rhi::Pipeline* lcd_pipeline_ = nullptr;
+    // Pipeline the next emit_quad() belongs to (null = frame pipeline); set around LCD quads only.
+    rhi::Pipeline* quad_pipeline_ = nullptr;
     rhi::Texture* white_texture_ = nullptr;
     rhi::CommandList* commands_ = nullptr;
 
