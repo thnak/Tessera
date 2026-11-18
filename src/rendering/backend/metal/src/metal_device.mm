@@ -363,14 +363,17 @@ void MetalDevice::wait_idle() {
     retire_.drain();
 }
 
-bool MetalDevice::supports_sample_count(rhi::TextureFormat format, std::uint32_t sample_count) const {
+bool MetalDevice::supports_sample_count(rhi::TextureFormat /*format*/,
+                                        std::uint32_t sample_count) const {
     if (!rhi::is_supported_sample_count(sample_count)) {
         return false;
     }
     if (sample_count == 1) {
         return true;
     }
-    // Metal reports 4x support per pixel format; ask the device rather than assuming.
+    // Metal reports sample-count support per device, not per pixel format: every RHI format is an
+    // 8-bit colour format, and `supportsTextureSampleCount:` is the device's answer for all of
+    // them. The parameter is unnamed because the body does not read it.
     return [device_ supportsTextureSampleCount:sample_count] == YES;
 }
 
