@@ -1,11 +1,12 @@
 /* SPDX-License-Identifier: MIT */
 
-/* The stylesheet of FormPage.tsx. The browser twin (tools/parity/form.html) loads this very file,
-   so a difference between the two renderings is a difference in how the engine and the browser
-   read the same rules, not a difference in the rules. Theme tokens only for colour; no font
+/* The stylesheet of FormPage.tsx, a CSS module (issue #463): `styles.page` is `page_<hash>`. The
+   browser twin (tools/parity/form.html) loads the scan's rewritten text of this very file, so a
+   difference between the two renderings is a difference in how the engine and the browser read the
+   same rules, not a difference in the rules. Theme tokens only for colour; no font
    weight, because the parity font is a single regular face. */
 
-.f-page {
+.page {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -18,7 +19,7 @@
   line-height: var(--line-height-body);
 }
 
-.f-card {
+.card {
   display: flex;
   flex-direction: column;
   width: 560px;
@@ -31,14 +32,14 @@
   box-shadow: 0px var(--shadow-floating-y) var(--shadow-floating-blur) var(--shadow-floating-color);
 }
 
-.f-head {
+.head {
   display: flex;
   flex-direction: row;
   align-items: center;
   margin-bottom: var(--space-6);
 }
 
-.f-logo {
+.logo {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -49,44 +50,44 @@
   margin-right: var(--space-3);
 }
 
-.f-logo-mark {
+.logoMark {
   color: var(--on-accent);
   font-size: 20px;
   line-height: 24px;
 }
 
-.f-head-text {
+.headText {
   display: flex;
   flex-direction: column;
   flex-grow: 1;
   flex-shrink: 1;
 }
 
-.f-title {
+.title {
   font-size: 20px;
   line-height: 26px;
 }
 
-.f-sub {
+.sub {
   font-size: var(--font-size-label);
   line-height: var(--line-height-label);
   color: var(--on-surface-muted);
 }
 
-.f-badge {
+.badge {
   padding: 2px 10px;
   margin-left: var(--space-3);
   border-radius: 999px;
   background-color: var(--success);
 }
 
-.f-badge-text {
+.badgeText {
   color: var(--on-success);
   font-size: var(--font-size-label);
   line-height: var(--line-height-label);
 }
 
-.f-grid {
+.grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   column-gap: var(--space-4);
@@ -94,24 +95,24 @@
   margin-bottom: var(--space-4);
 }
 
-.f-field {
+.field {
   display: flex;
   flex-direction: column;
   min-width: 0px;
 }
 
-.f-span {
+.span {
   grid-column: 1 / 3;
 }
 
-.f-label {
+.label {
   font-size: var(--font-size-label);
   line-height: var(--line-height-label);
   color: var(--on-surface-muted);
   margin-bottom: var(--space-1);
 }
 
-.f-input {
+.input {
   height: 36px;
   padding: 0px var(--space-3);
   border-width: var(--border-width);
@@ -124,31 +125,31 @@
   line-height: var(--line-height-body);
 }
 
-.f-input-error {
+.inputError {
   border-color: var(--danger);
 }
 
-.f-error {
+.error {
   margin-top: var(--space-1);
   font-size: var(--font-size-label);
   line-height: var(--line-height-label);
   color: var(--danger);
 }
 
-.f-help {
+.help {
   margin-top: 2px;
   font-size: var(--font-size-label);
   line-height: var(--line-height-label);
   color: var(--on-surface-muted);
 }
 
-.f-ellipsis {
+.ellipsis {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.f-select {
+.select {
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -162,11 +163,16 @@
   background-color: var(--surface-raised);
 }
 
-.f-select-caret {
+/* FormPage reads `styles.selectValue`; the select text takes everything from `.select`, so the
+   rule is empty. A CSS module needs the class declared, which the global sheet never did. */
+.selectValue {
+}
+
+.selectCaret {
   color: var(--on-surface-muted);
 }
 
-.f-segment {
+.segment {
   display: flex;
   flex-direction: row;
   padding: 3px;
@@ -175,7 +181,7 @@
   background-color: var(--surface-sunken);
 }
 
-.f-seg {
+.seg {
   display: flex;
   flex-grow: 1;
   align-items: center;
@@ -188,26 +194,26 @@
   transition: background-color 200ms ease;
 }
 
-.f-seg-on {
+.segOn {
   background-color: var(--surface);
   box-shadow: 0px 1px 3px var(--shadow-floating-color);
 }
 
-.f-seg-text {
+.segText {
   color: var(--on-surface-muted);
   transition: color 200ms ease;
 }
 
-.f-seg-text-on {
+.segTextOn {
   color: var(--on-surface);
 }
 
-.f-rows {
+.rows {
   display: flex;
   flex-direction: column;
 }
 
-.f-row {
+.row {
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -215,17 +221,17 @@
   padding: var(--space-2) 0px;
 }
 
-.f-row-text {
+.rowText {
   display: flex;
   flex-direction: column;
 }
 
-.f-row-title {
+.rowTitle {
   font-size: var(--font-size-body);
   line-height: var(--line-height-body);
 }
 
-.f-switch {
+.toggle {
   width: 40px;
   height: 24px;
   padding: 2px;
@@ -233,29 +239,29 @@
   background-color: var(--border-strong);
 }
 
-.f-switch-on {
+.toggleOn {
   background-color: var(--accent);
 }
 
-.f-knob {
+.knob {
   width: 20px;
   height: 20px;
   border-radius: 999px;
   background-color: var(--surface);
 }
 
-.f-knob-on {
+.knobOn {
   margin-left: 16px;
 }
 
-.f-check-row {
+.checkRow {
   display: flex;
   flex-direction: row;
   align-items: center;
   padding: var(--space-2) 0px;
 }
 
-.f-check {
+.check {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -268,29 +274,29 @@
   border-radius: 4px;
 }
 
-.f-check-on {
+.checkOn {
   background-color: var(--accent);
   border-color: var(--accent);
 }
 
-.f-check-mark {
+.checkMark {
   color: var(--on-accent);
   font-size: 12px;
   line-height: 14px;
 }
 
-.f-check-label {
+.checkLabel {
   font-size: var(--font-size-label);
   line-height: var(--line-height-label);
 }
 
-.f-rule {
+.rule {
   height: 1px;
   margin: var(--space-4) 0px;
   background-color: var(--border);
 }
 
-.f-foot {
+.foot {
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -298,10 +304,10 @@
 
 /* A library component instance is a host node around its root, so the child combinator names the
    host (`> *`), as `.g-row > *` does in gallery.css; `> .tbtn` would match nothing. */
-.f-foot > * {
+.foot > * {
   margin-left: var(--space-2);
 }
 
-.f-spacer {
+.spacer {
   flex-grow: 1;
 }

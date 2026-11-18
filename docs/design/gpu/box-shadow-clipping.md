@@ -68,7 +68,7 @@ the border box" more strongly than the GPU path, and the GPU path pins the corne
 | `shadow_clip_gpu` | real Vulkan/lavapipe readback through the renderer *and* the paint pass: transparent centres are page colour, the corner triangle keeps a light shadow, the shadow band still paints (skips without a device) |
 | `cpu_wide_golden` `shadows` | the committed CPU baseline `tests/golden/baseline/cpu_wide/shadows.png`: transparent square, transparent rounded, opaque card |
 | `batched2d_shadow_golden` | the lavapipe baseline `tests/golden/baseline/batched2d/shadow_clip.png` for `batched2d_poc --shadow-clip --width 320 --height 200` |
-| `gallery_golden_form_plan_mid` | the form's plan segment fades in from a transparent base again (`samples/gallery/form.css`) |
+| `gallery_golden_form_plan_mid` | the form's plan segment fades in from a transparent base again (`samples/gallery/form.module.css`) |
 
 Baselines are generated on the reference renderer only (ADR-009): the CPU ones from the CPU path,
 `shadow_clip.png` on a Linux lavapipe lane:

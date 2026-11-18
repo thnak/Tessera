@@ -688,9 +688,9 @@ owner-planned item and is not part of this milestone.
       replaces the built-in sheet, which stays only as the no-stylesheet fallback; tokens come
       from user code.
 - [ ] #461: paint: an outer `box-shadow` is painted inside a translucent box (CSS clips it to outside the
-      border box). Found by the Chrome parity form page; `form.css` keeps an opaque segment fill until
+      border box). Found by the Chrome parity form page; `form.module.css` keeps an opaque segment fill until
       it lands.
-- [ ] #462: animation: `box-shadow` does not transition (it snaps to the end value). `form.css` leaves
+- [ ] #462: animation: `box-shadow` does not transition (it snaps to the end value). `form.module.css` leaves
       the shadow out of the segment transition until it lands.
 - [ ] #463: style: CSS isolation for components (`*.module.css` scoped class names, `ready`); the
       decisions and the checked premises are in the issue.
