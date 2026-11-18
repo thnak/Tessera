@@ -22,7 +22,7 @@ namespace tessera::compiler::codegen::cli::detail {
 // Defined in `regenerate_source_file.cpp`: the constructor parses and analyses the text, so
 // inlining it here would put the front end in every translation unit that reads a file.
 struct SourceFile {
-    SourceFile(std::string file_path, std::string file_text);
+    SourceFile(std::string file_path, std::string file_text, const jsx::Limits& limits = {});
 
     SourceFile(const SourceFile&) = delete;
     SourceFile& operator=(const SourceFile&) = delete;
