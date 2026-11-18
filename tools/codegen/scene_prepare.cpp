@@ -9,6 +9,7 @@
 #include "tessera/ui/layout/layout_engine.hpp"
 #include "tessera/ui/style/prepared_stylesheet.hpp"
 
+#include <array>
 #include <memory>
 #include <optional>
 #include <string>
@@ -67,13 +68,26 @@ std::string_view preview_stylesheet() noexcept {
 PreparedScene prepare_scene(std::string_view text, const ScenePreviewOptions& options,
                             std::string_view component,
                             const std::shared_ptr<const text::TextMeasurer>& measurer) {
+    // One file is a project of one: the same core runs, so a single-file caller (the CLIs, the MCP
+    // tools, a test) cannot see a different pipeline from the studio's. The stylesheet is a project
+    // file like any other and applies only when the source imports it -- which is what a native
+    // build of the same file does.
+    const std::string file(options.file.empty() ? std::string_view("ui/Preview.tsx")
+                                                : options.file);
+    const std::array<ProjectFile, 1> sources{{{file, text}}};
+    const std::array<ProjectFile, 1> sheets{{{options.stylesheet_file, options.stylesheet}}};
+    const ProjectInput project{sources, sheets, file};
+    return prepare_scene(project, options, component, measurer);
+}
+
+PreparedScene prepare_scene(const ProjectInput& project, const ScenePreviewOptions& options,
+                            std::string_view component,
+                            const std::shared_ptr<const text::TextMeasurer>& measurer) {
     // Parse -> analyse -> lower -> identity -> pick component, through the ONE implementation of
     // that sequence (`scene_evaluate.cpp`). The snapshot, the interaction session and this stage
     // tree all reach the same function, so "the source does not parse" cannot mean three slightly
-    // different things -- and the author stylesheet's virtual file is resolved there, once (issue
-    // #390).
-    auto evaluated = evaluate_source(text, options.file, options.salt, component,
-                                     options.stylesheet, options.stylesheet_file);
+    // different things.
+    auto evaluated = evaluate_project(project, options.salt, component);
     if (!evaluated) {
         return failed(evaluated.error().detail.empty() ? "the source produced no component"
                                                        : evaluated.error().detail);
@@ -94,55 +108,20 @@ PreparedScene prepare_scene(std::string_view text, const ScenePreviewOptions& op
         return failed(built.error);
     }
 
-    // Decision 2 (issue #390): the author's sheet REPLACES the built-in one.
-    // `compile_preview_stylesheet()` is the single place that decides, so the snapshot, the native
-    // frame and the browser session cannot disagree about which sheet a source was laid out
-    // against. The diagnostics come from the same call, so a rule the sheet reports is a rule
-    // layout also saw.
+    // The author's sheets REPLACE the built-in one (issue #390, decision 2), and the sheets are the
+    // ones the program imports. `prepare_preview_sheets()` is the single place that decides, so the
+    // snapshot, the native frame and the browser session cannot disagree about which sheet a source
+    // was laid out against; the diagnostics come from the same call, so a rule a sheet reports is a
+    // rule layout also saw.
     //
     // The media context is the preview's simulated device (issue #436): the logical viewport this
     // document is laid out at and the DPI scale, so `@media (max-width: 600px)` and the viewport
-    // units answer for the rectangle the boxes are in - which is what makes a device preset
-    // trigger a breakpoint at all.
+    // units answer for the rectangle the boxes are in.
     const ui::style::MediaContext media =
         preview_media_context(options.width, options.height, options.dpi_scale);
-    // A `*.module.css` is compiled as its SCANNED rewrite (issue #463): the lowering above already
-    // put the scoped names on `className` (`card_0b82a5`), so the sheet has to define those
-    // selectors or the component paints unstyled. One text feeds the compile and the diagnostics,
-    // so a reported problem and the rule it describes are the same bytes; a scoped name only
-    // lengthens an identifier and never adds a newline, so a diagnostic's line is the author's
-    // line (a column is the author's column unless a rename earlier on that line lengthened it).
-    std::optional<css_module::ModuleScanError> scan_error;
-    const std::string stylesheet_text =
-        preview_stylesheet_text(options.stylesheet, options.stylesheet_file, scan_error);
-    if (scan_error) {
-        // Nothing from a sheet that cannot be scoped is compiled: painting its raw `.card` rules
-        // while the tree says `card_0b82a5` is exactly the silent-unstyled defect #463 closes. The
-        // sheet compiled here is an EMPTY one, not the built-in fallback - the author did write
-        // CSS, and #390 decision 2 replaces the built-in sheet with the author's rather than
-        // resurrecting it for a broken one.
-        scene.sheet =
-            resolve_preview_stylesheet(ui::style::prepare_stylesheet(std::string_view{}), media);
-    } else {
-        scene.sheet = compile_preview_stylesheet(stylesheet_text, media);
-    }
-    scene.css_diagnostics = author_stylesheet_diagnostics(stylesheet_text, options.stylesheet_file);
-    if (scan_error) {
-        // The scan's offset indexes the AUTHOR's text, which is the file the author is looking at.
-        const std::string_view file =
-            options.stylesheet_file.empty() ? kPreviewStylesheetFile : options.stylesheet_file;
-        const DiagnosticSpan span = css_span(file, options.stylesheet, scan_error->offset);
-        PreviewCssDiagnostic diagnostic;
-        diagnostic.code = scan_error->code;
-        diagnostic.message = scan_error->message;
-        diagnostic.file = std::string(file);
-        diagnostic.offset = span.offset;
-        diagnostic.line = span.line;
-        diagnostic.column = span.column;
-        // An error, not a warning: unlike an unknown property, this one costs the whole sheet.
-        diagnostic.warning = false;
-        scene.css_diagnostics.push_back(std::move(diagnostic));
-    }
+    PreviewSheets prepared = prepare_preview_sheets(evaluated->sheets);
+    scene.sheet = prepared.prepared.resolve(media);
+    scene.css_diagnostics = std::move(prepared.diagnostics);
     ui::layout::LayoutEngine engine(measurer);
     SceneMetrics metrics;
     metrics.width = options.width;

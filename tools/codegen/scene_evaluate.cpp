@@ -6,6 +6,7 @@
 #include "tessera/compiler/lowering/node_lowering.hpp"
 #include "tessera/compiler/rules/analyze.hpp"
 
+#include <array>
 #include <cstddef>
 #include <memory>
 #include <optional>
@@ -193,59 +194,15 @@ std::expected<EvaluatedScene, EvaluateError>
 evaluate_source(std::string_view text, std::string_view file, std::string_view salt,
                 std::string_view component, std::string_view stylesheet,
                 std::string_view stylesheet_file) {
-    // Parse, then analyse: the CLI stops at the first stage that fails, so the preview produces no
-    // tree for the same inputs it would refuse to compile.
-    const jsx::ModuleParseResult parsed = jsx::parse_module(text);
-    if (parsed.root == nullptr || parsed.has_errors()) {
-        return std::unexpected(
-            EvaluateError{EvaluateErrorCode::Parse, "the source does not parse"});
-    }
-    const jsx::SourceMap map(text);
-    const rules::AnalyzedModule analyzed = rules::analyze_module(*parsed.root, map);
-    if (analyzed.has_errors()) {
-        return std::unexpected(
-            EvaluateError{EvaluateErrorCode::Analyze, "the source does not analyse"});
-    }
-
+    // One file is a project of one: this is `evaluate_project()` over a single source, so the two
+    // entry points cannot disagree about what a program is. The stylesheet is a project file at
+    // `stylesheet_file` and applies only when the source imports it.
     const std::string path = normalize_path(file.empty() ? "ui/Preview.tsx" : file);
-    const lowering::ModuleSource source{path, parsed.root.get(), &analyzed, &map};
-    // The page's stylesheet textarea is a virtual project file (issue #390): one entry, always
-    // present, so `import "./Preview.css";` resolves to the author's own text rather than a missing
-    // path. Empty CSS is a valid file with no rules, not an error.
     const std::string css_path =
         normalize_path(stylesheet_file.empty() ? "ui/Preview.css" : stylesheet_file);
-    const lowering::StylesheetFile css{css_path, stylesheet};
-    auto lowered =
-        lowering::lower_project(std::span<const lowering::ModuleSource>(&source, 1),
-                                module_name_for(path), std::span<const lowering::PackageRoot>(),
-                                std::span<const lowering::StylesheetFile>(&css, 1));
-    if (!lowered) {
-        return std::unexpected(
-            EvaluateError{EvaluateErrorCode::Lower, "the source does not lower"});
-    }
-    EvaluatedScene evaluated;
-    evaluated.module.name = lowered->name;
-    evaluated.module.components = std::move(lowered->components);
-    evaluated.module.bindings = std::move(lowered->bindings);
-    evaluated.module.stylesheets = std::move(lowered->stylesheets);
-
-    // The page passes its salt (the project namespace it shows), so the ids in the document are the
-    // ones a native build of the same source would assign.
-    if (!salt.empty()) {
-        if (auto assigned = ids::assign_identity(evaluated.module, salt); !assigned) {
-            return std::unexpected(
-                EvaluateError{EvaluateErrorCode::Identity, assigned.error().message});
-        }
-    }
-
-    for (std::size_t index = 0; index < evaluated.module.components.size(); ++index) {
-        if (component.empty() || evaluated.module.components[index].name == component) {
-            evaluated.component = index;
-            return evaluated;
-        }
-    }
-    return std::unexpected(
-        EvaluateError{EvaluateErrorCode::NoComponent, "the source declares no such component"});
+    const std::array<ProjectFile, 1> sources{{{path, text}}};
+    const std::array<ProjectFile, 1> sheets{{{css_path, stylesheet}}};
+    return evaluate_project(ProjectInput{sources, sheets, path}, salt, component);
 }
 
 std::expected<EvaluatedScene, EvaluateError>

@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "scene_project.hpp"
 #include "tessera/compiler/ir/module.hpp"
 
 #include <cstddef>
@@ -22,29 +23,6 @@
 // Nothing here reads the filesystem, touches a clock or depends on the locale, so the same text
 // produces the same module natively and in Wasm.
 namespace tessera::compiler::codegen::cli {
-
-// One file of a project the page holds in memory: its canonical project-relative POSIX path and its
-// text. The views are borrowed for the duration of one call.
-struct ProjectFile {
-    std::string_view path;
-    std::string_view text;
-};
-
-// A whole project, as the studio holds it: every source file, every stylesheet, and the entry the
-// preview starts from (`app.entry` of tessera.json). Nothing here has a default: a project with no
-// entry has nothing to preview, and `evaluate_project()` says so rather than choosing a file.
-struct ProjectInput {
-    std::span<const ProjectFile> sources;
-    std::span<const ProjectFile> stylesheets;
-    std::string_view entry;
-};
-
-// A stylesheet the entry reaches, with the bytes it was given. `path` is canonical, so a diagnostic
-// names the file the author edits.
-struct SheetUse {
-    std::string path;
-    std::string text;
-};
 
 struct EvaluatedScene {
     // Owns every string the IR and therefore the scene borrows; keep it alive with the session.
@@ -107,10 +85,10 @@ evaluate_project(const ProjectInput& input, std::string_view salt, std::string_v
 // name is empty). `salt` is the project salt the ids are hashed with; an empty salt leaves identity
 // unassigned, so every `uiId` stays 0 — which is what an unsalted CLI run does.
 //
-// `stylesheet` is the author's CSS and `stylesheet_file` the virtual path it is filed under (issue
-// #390): a side-effect `import "./Preview.css";` resolves against it instead of reporting a missing
-// file, and a source that does not import it still lowers (the sheet is applied by the caller,
-// `scene_stylesheet.hpp`). Both default to empty, so every pre-#390 caller keeps its behaviour.
+// This is `evaluate_project()` over one source: `stylesheet` is a project file at `stylesheet_file`
+// (issue #390), so a side-effect `import "./Preview.css";` resolves against it, and it is part of
+// `EvaluatedScene::sheets` only when the source imports it. A source that does not import it
+// previews with no author CSS, exactly as a native build of the same file would.
 [[nodiscard]] std::expected<EvaluatedScene, EvaluateError>
 evaluate_source(std::string_view text, std::string_view file, std::string_view salt,
                 std::string_view component, std::string_view stylesheet = {},

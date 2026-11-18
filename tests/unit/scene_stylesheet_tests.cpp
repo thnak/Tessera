@@ -13,8 +13,9 @@
 //
 // The rest of the file is the behaviour the three owner decisions describe:
 //
-//   1. the author sheet enters through `ScenePreviewOptions::stylesheet` and applies whether or not
-//      the source imports `./Preview.css`;
+//   1. the author sheet enters through `ScenePreviewOptions::stylesheet` and applies when the source
+//      imports `./Preview.css` -- the sheets a program imports are the ones in force, as in a
+//      native build, so a source that never imports it previews with no author CSS;
 //   2. a non-empty author sheet REPLACES `preview_stylesheet()` (a `Button` with no size rule gets
 //   the
 //      engine's own default, not the built-in 120x32), and an empty one keeps the fallback;
@@ -46,7 +47,9 @@ using scene_stylesheet_test::failures;
 
 // A column with a button and a text leaf: the shapes the built-in sheet sizes, so "the built-in
 // look" and "the author's look" are distinguishable by the button's box alone.
-constexpr std::string_view kColumn = R"tsx(export function Column(): Node {
+constexpr std::string_view kColumn = R"tsx(import "./Preview.css";
+
+export function Column(): Node {
   return (
     <View>
       <Text>Preview</Text>
@@ -299,7 +302,9 @@ void test_root_tokens_and_var_resolve_from_author_css() {
 // -------------------------------------
 
 void test_class_and_inline_style_use_the_same_cascade() {
-    constexpr std::string_view kClassed = R"tsx(export function Classed(): Node {
+    constexpr std::string_view kClassed = R"tsx(import "./Preview.css";
+
+export function Classed(): Node {
   return (
     <View>
       <View className="surface">
@@ -327,7 +332,9 @@ void test_class_and_inline_style_use_the_same_cascade() {
 
     // An inline `style={{...}}` wins over the class rule, which is the Origin::Inline half of the
     // cascade and the same rule the native build applies.
-    constexpr std::string_view kInline = R"tsx(export function Inline(): Node {
+    constexpr std::string_view kInline = R"tsx(import "./Preview.css";
+
+export function Inline(): Node {
   return (
     <View>
       <View className="surface" style={{ backgroundColor: "rgb(4, 5, 6)" }}>

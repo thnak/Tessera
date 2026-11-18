@@ -4,6 +4,7 @@
 
 #include "scene_layout.hpp"
 #include "scene_preview.hpp"
+#include "scene_project.hpp"
 #include "scene_stylesheet.hpp"
 #include "tessera/compiler/ir/module.hpp"
 #include "tessera/hal/window.hpp"
@@ -77,6 +78,14 @@ struct PreparedScene {
 // without differ only in where the numbers come from.
 [[nodiscard]] PreparedScene
 prepare_scene(std::string_view text, const ScenePreviewOptions& options,
+              std::string_view component = {},
+              const std::shared_ptr<const text::TextMeasurer>& measurer = nullptr);
+
+// The same sequence for a whole project: the entry's component, the files it imports, and the
+// stylesheets those files import (`evaluate_project`). `options.file`, `options.stylesheet` and
+// `options.stylesheet_file` are not read here -- the project names its own files.
+[[nodiscard]] PreparedScene
+prepare_scene(const ProjectInput& project, const ScenePreviewOptions& options,
               std::string_view component = {},
               const std::shared_ptr<const text::TextMeasurer>& measurer = nullptr);
 

@@ -60,7 +60,9 @@ bool near(float a, float b) {
 // point into the tree being replaced), so a state-changing click cannot leave a hover behind. The
 // second button has no handler: pressing it focuses it and changes nothing, which is how this
 // fixture reaches "state 1, a hover and a focus at once" and can then resize.
-constexpr std::string_view kPage = R"(export function Page(): Node {
+constexpr std::string_view kPage = R"(import "./Preview.css";
+
+export function Page(): Node {
   const [count, setCount] = useState<int>(0);
   return (
     <View className="page">

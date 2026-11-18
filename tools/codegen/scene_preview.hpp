@@ -41,10 +41,11 @@ struct ScenePreviewOptions {
     // under it). Null or empty means "no author CSS", so every caller written before #390 keeps the
     // built-in sheet and the same bytes.
     //
-    // It is the page's second textarea, treated as the virtual file `stylesheet_file`. A source's
-    // `import "./Preview.css";` therefore resolves to this text rather than failing as a missing
-    // file, and a source that does not import it still previews with it applied: the author typed
-    // the stylesheet for the screen in front of them either way.
+    // It is one stylesheet of a one-file project, filed at `stylesheet_file`, and it applies when
+    // the source imports it (`import "./Preview.css";` from `ui/Preview.tsx`): the sheets a program
+    // imports are the ones in force, exactly as in a native build. A source that never imports it
+    // previews with no author CSS. A whole project goes through `prepare_scene(ProjectInput, ...)`,
+    // which does not read `file` or either stylesheet field.
     std::string_view stylesheet;
     std::string_view stylesheet_file = "ui/Preview.css";
 };

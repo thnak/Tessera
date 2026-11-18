@@ -52,9 +52,11 @@ export function Card(): Node {
 }
 )tsx";
 
-// A source with a plain class and no import: the sheet is the studio's alone, which is the case
-// #390 decision 1 covers (the author's CSS applies whether or not the source imports it).
-constexpr std::string_view kPlainClassSource = R"tsx(export function Column(): Node {
+// A source with a plain class and a side-effect import of the module sheet (no class map bound): the
+// sheet is scoped by its `.module.css` suffix, not by how it is imported.
+constexpr std::string_view kPlainClassSource = R"tsx(import "./Card.module.css";
+
+export function Column(): Node {
   return (
     <View>
       <View className="card">
