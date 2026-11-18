@@ -231,6 +231,7 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
         "The WebAssembly canvas module did not load, so this view cannot draw. The module is built " +
           "by CI and published with the page; a checkout that has not run the `wasm-webgpu` build " +
           `has no artifacts next to these files. Detail: ${String(error)}`,
+        "module",
       );
     }
   }
@@ -269,19 +270,23 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
         "_tessera_webgpu_set_device",
       ]);
     } catch (error) {
-      pane.showUnsupported(String(error));
+      pane.showUnsupported(String(error), "module");
       return false;
     }
 
     // A device already acquired is reused. A lost device is cleared in the handler below, which is the one
     // case that re-acquires.
     if (gpu === null) {
-      const acquired = await acquireDevice();      if (acquired.error !== undefined) {
-        pane.showUnsupported(acquired.error);
+      const acquired = await acquireDevice();
+      if (acquired.error !== undefined) {
+        // No navigator.gpu, adapter or device: the browser's side of the handover.
+        pane.showUnsupported(acquired.error, "browser");
         return false;
       }
-      const handover = handOverDevice(module, acquired.device, acquired.queue, canvas);      if (handover.error !== undefined) {
-        pane.showUnsupported(handover.error);
+      const handover = handOverDevice(module, acquired.device, acquired.queue, canvas);
+      if (handover.error !== undefined) {
+        // The browser gave a device; the module could not take it (or the canvas had no context).
+        pane.showUnsupported(handover.error, "module");
         return false;
       }
       gpu = { device: acquired.device, queue: acquired.queue, module, context: handover.context };

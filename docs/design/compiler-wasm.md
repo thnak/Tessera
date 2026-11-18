@@ -379,6 +379,19 @@ The page ships the unsupported state as its *default* pane content and swaps in 
 device exists. Each way to get there — no `navigator.gpu`, no adapter, a rejecting `requestDevice()` —
 names its cause and points at the Scene tab, which needs no GPU; a module that fails to load, or one
 without the canvas exports, reports that too, and a blank canvas is never the outcome.
+
+The pane distinguishes **who** failed (issue #375). A failure of the browser's side - no
+`navigator.gpu`, no adapter, a rejecting `requestDevice()`, a lost device - keeps the heading "This
+browser cannot show the canvas preview". A failure of the module's side - the module did not load,
+lacks the canvas exports or the port's handle table, rejected or could not wrap the device, or the page
+could not get a canvas context - shows "The preview module could not use this browser's WebGPU
+device", because no browser setting changes it and blaming the browser sends the reader to the wrong
+place. The state records the side as `data-cause="browser|module"` on `#unsupported`.
+
+`scripts/ci/preview_browser_check.mjs` (developer-run, no dependency) exercises the handover in a real
+Chrome: when the browser has an adapter, the Canvas view must draw (`drew N draw call(s)`, N > 0), so a
+regression to null handles fails it; without an adapter it prints a loud `SKIPPED` instead of passing.
+It is not a CI lane: adding a browser dependency there stays an owner decision (section 8.3).
 `scene_frame_parity.py --mode canvas-report` checks the same contract without a browser: it loads
 `tessera_canvas.js` under Node (no `navigator.gpu`, like a browser without WebGPU) and requires a
 `hasDevice:false` report, not a crash.

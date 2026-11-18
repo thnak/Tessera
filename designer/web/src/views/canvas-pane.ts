@@ -53,14 +53,28 @@ export interface CanvasPaneElements {
   statusFrame: HTMLElement | null;
 }
 
+/**
+ * Which side of the handover could not do its part (issue #375). The two read differently to a person:
+ * "this browser has no WebGPU" is something to fix in the browser, while "the module could not take the
+ * device the browser gave it" is a build or version problem that no browser setting changes. Saying the
+ * browser is at fault when the module is sends the reader to the wrong place.
+ */
+export type UnsupportedCause = "browser" | "module";
+
+const UNSUPPORTED_HEADINGS: Record<UnsupportedCause, string> = {
+  browser: "This browser cannot show the canvas preview",
+  module: "The preview module could not use this browser's WebGPU device",
+};
+
 export interface CanvasPane {
   elements: CanvasPaneElements;
   setStatus: StatusReporter;
   /**
    * Shows the named unsupported state. `reason` is a sentence from `canvas-device.ts` (or the view),
-   * never a bare code: the point of the state is that a designer learns something from it.
+   * never a bare code: the point of the state is that a designer learns something from it. `cause`
+   * picks the heading and is recorded on the element as `data-cause`, so a test can tell the two apart.
    */
-  showUnsupported(reason: string): void;
+  showUnsupported(reason: string, cause?: UnsupportedCause): void;
   showFailed(message: string): void;
   hideStates(): void;
   /**
@@ -93,7 +107,14 @@ export function createCanvasPane(
 ): CanvasPane {
   const pane = elements;
 
-  function showUnsupported(reason: string): void {
+  function showUnsupported(reason: string, cause: UnsupportedCause = "browser"): void {
+    // The heading is chrome React rendered once; it is found by its stable id so the element contract
+    // above does not grow a ref for one string.
+    const heading = pane.unsupported.querySelector<HTMLElement>("#unsupported-heading");
+    if (heading !== null) {
+      heading.textContent = UNSUPPORTED_HEADINGS[cause];
+    }
+    pane.unsupported.dataset.cause = cause;
     pane.unsupportedBody.textContent = reason;
     pane.unsupported.hidden = false;
     pane.frame.hidden = true;
@@ -144,7 +165,8 @@ export function createCanvasPane(
    */
   function renderReport(report: CanvasFrameReport): void {
     if (report.hasDevice !== true) {
-      showUnsupported(report.error || "The preview module got no WebGPU device.");
+      // The page already handed the module a device, so this is the module's answer, not the browser's.
+      showUnsupported(report.error || "The preview module got no WebGPU device.", "module");
       return;
     }
     hideStates();

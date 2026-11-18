@@ -30,6 +30,11 @@
 // The Canvas view's WebGPU frame is checked as a *state*, not as pixels: a headless GPU may or may not
 // be present, and both outcomes are correct as long as the pane says which one it is rather than
 // showing an empty canvas. The pixel comparison is P3's separate, owner-gated browser lane.
+//
+// Issue #375 adds the device handover: when the browser can give the page a WebGPU adapter, the Canvas
+// view must draw (draw calls > 0), because a module that received null handles shows the unsupported
+// state instead. Without an adapter the step prints SKIPPED rather than passing silently. The
+// unsupported state also records which side failed (`data-cause`), and the heading must agree.
 
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
@@ -561,7 +566,10 @@ async function main() {
         status: document.getElementById('canvas-status').textContent,
         unsupported: !document.getElementById('unsupported').hidden,
         reason: document.getElementById('unsupported-body').textContent,
+        heading: document.getElementById('unsupported-heading').textContent,
+        cause: document.getElementById('unsupported').dataset.cause || '',
         frame: !document.getElementById('canvas-frame').hidden,
+        draws: document.getElementById('stat-draws').textContent,
       }))()`);
       // Both outcomes are correct. What is NOT correct is a pane that reports neither.
       assert(
@@ -577,6 +585,69 @@ async function main() {
       } else {
         process.stdout.write(`     (canvas: ${state.status})\n`);
       }
+    });
+
+    // --- 7b. the device handover (issue #375) -------------------------------------------------
+    // Whether the page's device reaches the module is a browser fact: a JS object coerced to a null
+    // handle once left the canvas blank while every static check stayed green. This runs only where the
+    // browser can give the page a WebGPU adapter, because without one there is no device to hand over
+    // and the Canvas view correctly shows the browser-side unsupported state. When it cannot run it says
+    // so, loudly, instead of passing.
+    const adapter = await cdp.evaluate(`(async () => {
+      if (!navigator.gpu) return 'no navigator.gpu';
+      try { return (await navigator.gpu.requestAdapter()) ? 'adapter' : 'no adapter'; }
+      catch (error) { return 'requestAdapter failed: ' + error; }
+    })()`);
+    if (adapter !== 'adapter') {
+      process.stdout.write(
+        `     SKIPPED: the device handover was not exercised (${adapter}). Run this check in a ` +
+          'WebGPU-capable Chrome to cover it.\n',
+      );
+    } else {
+      await test('with a WebGPU adapter the module takes the device and draws (handover)', async () => {
+        const handover = await cdp.evaluate(`(() => ({
+          unsupported: !document.getElementById('unsupported').hidden,
+          cause: document.getElementById('unsupported').dataset.cause || '',
+          reason: document.getElementById('unsupported-body').textContent,
+          frame: !document.getElementById('canvas-frame').hidden,
+          status: document.getElementById('canvas-status').textContent,
+          draws: document.getElementById('stat-draws').textContent,
+        }))()`);
+        assert(
+          !handover.unsupported,
+          `the browser has an adapter, so the Canvas view must draw, but it shows the ` +
+            `${handover.cause || 'unknown'}-side unsupported state: ${handover.reason}`,
+        );
+        assert(handover.frame, `a frame is shown: ${JSON.stringify(handover)}`);
+        const drew = /drew (\d+) draw call/.exec(handover.status);
+        assert(
+          drew !== null && Number(drew[1]) > 0,
+          `the frame has draw calls (the module has a device): ${handover.status}`,
+        );
+      });
+    }
+
+    await test('the unsupported state names which side failed', async () => {
+      const state = await cdp.evaluate(`(() => ({
+        unsupported: !document.getElementById('unsupported').hidden,
+        heading: document.getElementById('unsupported-heading').textContent,
+        cause: document.getElementById('unsupported').dataset.cause || '',
+      }))()`);
+      if (!state.unsupported) {
+        process.stdout.write('     (canvas drew, so there is no unsupported state to read)\n');
+        return;
+      }
+      assert(
+        state.cause === 'browser' || state.cause === 'module',
+        `the unsupported state records its cause: ${JSON.stringify(state.cause)}`,
+      );
+      // The heading follows the cause, so a module-side failure never blames the browser.
+      assert(
+        state.cause === 'module'
+          ? !/This browser cannot/.test(state.heading)
+          : /This browser cannot/.test(state.heading),
+        `the heading matches the ${state.cause} cause: ${state.heading}`,
+      );
     });
 
     // --- 8. no request left the origin ------------------------------------------------------
