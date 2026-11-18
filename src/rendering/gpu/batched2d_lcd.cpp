@@ -4,7 +4,6 @@
 #include "tessera/rendering/gpu/vertex2d.hpp"
 
 #include <algorithm>
-#include <stdexcept>
 
 // The LCD text half of the batched renderer (display-aware-rendering.md section 3.4.1, step 3),
 // split out of batched2d_renderer.cpp so that file stays inside its size budget.
@@ -12,15 +11,6 @@ namespace tessera::rendering::gpu {
 
 void Batched2DRenderer::set_lcd_pipeline(rhi::Pipeline* pipeline) {
     lcd_pipeline_ = pipeline;
-}
-
-void Batched2DRenderer::set_texture_array_pipeline(rhi::Pipeline* pipeline) {
-    // A device without the capability cannot honour the request, and only a pipeline built for the
-    // array layout can bind one. Refuse instead of silently keeping the old path.
-    if (pipeline != nullptr && device_->texture_array_capacity() == 0) {
-        throw std::invalid_argument("set_texture_array_pipeline: this device has no texture array");
-    }
-    array_pipeline_ = pipeline;
 }
 
 void Batched2DRenderer::push_texture_lcd(const rhi::Rect& rect, rhi::Texture& texture,
