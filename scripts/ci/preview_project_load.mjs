@@ -15,6 +15,7 @@ import assert from 'node:assert/strict';
 import {
   ProjectIoError,
   buildProject,
+  deleteFiles,
   findConflicts,
   loadDirectory,
   loadZip,
@@ -92,6 +93,12 @@ class FakeDir {
       this.children.set(name, new FakeDir());
     }
     return this.children.get(name);
+  }
+  async removeEntry(name) {
+    if (!this.children.has(name)) {
+      throw Object.assign(new Error('missing'), { name: 'NotFoundError' });
+    }
+    this.children.delete(name);
   }
   async getFileHandle(name, { create } = {}) {
     if (!this.children.has(name)) {
@@ -285,6 +292,25 @@ await test('save then reload keeps every edit', async () => {
   await writeFiles(root, [{ path: 'styles/theme.css', text: 'View { color: blue; }' }]);
   const { entries } = await loadDirectory(root);
   assert.equal(entries.find((entry) => entry.path === 'styles/theme.css').text, 'View { color: blue; }');
+});
+
+await test('deleting removes only accepted files inside the root; a missing file is fine', async () => {
+  const root = folder(PROJECT);
+  await deleteFiles(root, ['styles/theme.css', 'ui/gone.tsx', 'nowhere/x.tsx']);
+  assert.equal(root.children.get('styles').children.has('theme.css'), false);
+  assert.equal(root.children.get('ui').children.has('App.tsx'), true);
+  await assert.rejects(deleteFiles(root, ['../x.tsx']), (error) => error instanceof PathError);
+  await assert.rejects(
+    deleteFiles(root, ['src/native.cpp']),
+    (error) => error instanceof ProjectIoError && error.code === 'not-accepted',
+  );
+});
+
+await test('a file deleted in the page but changed on disk is a conflict, not a silent delete', async () => {
+  const root = folder(PROJECT);
+  const { baseline } = await loadDirectory(root);
+  await writeFiles(root, [{ path: 'styles/theme.css', text: 'edited elsewhere' }]);
+  assert.deepEqual(await findConflicts(root, ['styles/theme.css'], baseline), ['styles/theme.css']);
 });
 
 process.stdout.write(

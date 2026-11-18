@@ -27,6 +27,17 @@ export function ProjectBar({ io, dirtyCount }: { io: ProjectIo; dirtyCount: numb
         >
           Open folder
         </button>
+        {io.recent !== "" && io.folderSupported && !(state.source === "folder" && state.name === io.recent) ? (
+          <button
+            type="button"
+            id="reopen-folder"
+            onClick={io.reopenRecent}
+            disabled={state.busy}
+            title="Reopen the folder you used last time; the browser asks for access again"
+          >
+            Reopen {io.recent}
+          </button>
+        ) : null}
         <button type="button" id="open-zip" onClick={() => zipInput.current?.click()} disabled={state.busy}>
           Open zip
         </button>
@@ -59,6 +70,17 @@ export function ProjectBar({ io, dirtyCount }: { io: ProjectIo; dirtyCount: numb
         </button>
         <button type="button" id="download-project" onClick={io.download} disabled={state.busy}>
           Download
+        </button>
+      </div>
+      <div className="project-actions" role="toolbar" aria-label="File operations">
+        <button type="button" id="new-file" onClick={io.newFile} disabled={state.busy}>
+          New file
+        </button>
+        <button type="button" id="rename-file" onClick={io.renameFile} disabled={state.busy}>
+          Rename
+        </button>
+        <button type="button" id="delete-file" onClick={io.deleteFile} disabled={state.busy}>
+          Delete
         </button>
       </div>
       {state.name !== "" ? (

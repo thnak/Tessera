@@ -479,7 +479,7 @@ export function App() {
           dirty={workspace.state.dirty}
           onSelect={workspace.selectRow}
           onToggleDir={workspace.toggleDir}
-          toolbar={<ProjectBar io={projectIo} dirtyCount={workspace.state.dirty.length} />}
+          toolbar={<ProjectBar io={projectIo} dirtyCount={new Set([...workspace.state.dirty, ...workspace.state.removed]).size} />}
         />
 
         <CodeRegion

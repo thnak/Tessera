@@ -18,6 +18,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import {
   SEED_ENTRY,
   fileAt,
+  projectFile,
   seedProject,
   treeRows,
   type ProjectFile,
@@ -37,8 +38,12 @@ export interface WorkspaceState {
   selected: string;
   /** The directories whose children are hidden. */
   collapsed: string[];
-  /** The files whose buffer differs from the project's copy. */
+  /** The files whose buffer differs from the project's copy, plus every file created since the last save. */
   dirty: string[];
+  /** Files created in the page that do not exist on disk yet. */
+  added: string[];
+  /** Files deleted in the page whose copy on disk is still there until Save. */
+  removed: string[];
 }
 
 export interface Workspace {
@@ -71,8 +76,17 @@ export interface Workspace {
   putFile: (file: ProjectFile) => void;
   /** Replaces the whole project (an opened folder or a dropped zip). */
   setProject: (files: ProjectFile[]) => void;
-  /** Records that `texts` were written to disk: they become the project's copy and stop being dirty. */
-  markSaved: (texts: ReadonlyMap<string, string>) => void;
+  /**
+   * Records that `texts` were written and `deleted` were removed on disk: the texts become the project's
+   * copy and stop being dirty, and the deletions stop being pending.
+   */
+  markSaved: (texts: ReadonlyMap<string, string>, deleted?: readonly string[]) => void;
+  /** Creates an empty file at `path`; returns why it was refused, or `null`. */
+  createFile: (path: string) => string | null;
+  /** Moves a file to `to` keeping its text; imports in other files are not rewritten. */
+  renameFile: (from: string, to: string) => string | null;
+  /** Removes a file from the project; the copy on disk goes at the next Save. */
+  deleteFile: (path: string) => void;
 }
 
 /** The workspace's initial state: the seeded project, with its entry open and selected. */
@@ -86,6 +100,8 @@ export function initialWorkspace(files: ProjectFile[] = seedProject()): Workspac
     selected: path,
     collapsed: [],
     dirty: [],
+    added: [],
+    removed: [],
   };
 }
 
@@ -175,6 +191,8 @@ export function useWorkspace(): Workspace {
         active: file.editable ? file.path : previous.active,
         selected: file.path,
         dirty: previous.dirty.filter((candidate) => candidate !== file.path),
+        added: previous.added.filter((candidate) => candidate !== file.path),
+        removed: previous.removed.filter((candidate) => candidate !== file.path),
       };
     });
   }, []);
@@ -199,7 +217,7 @@ export function useWorkspace(): Workspace {
       // The marker is *derived* from the buffer and the project's copy rather than toggled: typing
       // back to the original text clears it, and a second keystroke in an already-dirty file is one
       // state update that changes nothing, so React re-renders the page once per dirty transition.
-      const dirty = original !== null && original.text !== text;
+      const dirty = original !== null && (original.text !== text || previous.added.includes(path));
       const was = previous.dirty.includes(path);
       if (dirty === was) {
         return previous;
@@ -218,7 +236,7 @@ export function useWorkspace(): Workspace {
     setState(initialWorkspace(files));
   }, []);
 
-  const markSaved = useCallback((texts: ReadonlyMap<string, string>) => {
+  const markSaved = useCallback((texts: ReadonlyMap<string, string>, deleted: readonly string[] = []) => {
     for (const path of texts.keys()) {
       buffers.current.delete(path);
     }
@@ -228,8 +246,107 @@ export function useWorkspace(): Workspace {
         texts.has(file.path) ? { ...file, text: texts.get(file.path) ?? file.text } : file,
       ),
       dirty: previous.dirty.filter((path) => !texts.has(path)),
+      added: previous.added.filter((path) => !texts.has(path)),
+      removed: previous.removed.filter((path) => !deleted.includes(path)),
     }));
   }, []);
+
+  /** Why `path` cannot be a new file in `files`, or the file record; a path is checked, never trusted. */
+  const accept = (files: readonly ProjectFile[], path: string, text: string): ProjectFile | string => {
+    let file: ProjectFile;
+    try {
+      file = projectFile(path, text);
+    } catch (error) {
+      return error instanceof Error ? error.message : String(error);
+    }
+    if (!file.editable) {
+      return `${file.name} is not a file the studio edits (use .tsx, .jsx, .css or .json)`;
+    }
+    if (fileAt(files, file.path) !== null) {
+      return `${file.path} already exists`;
+    }
+    const prefix = `${file.path}/`;
+    if (files.some((other) => other.path.startsWith(prefix))) {
+      return `${file.path} is a folder in this project`;
+    }
+    if (files.some((other) => file.path.startsWith(`${other.path}/`))) {
+      return `${file.path} would sit inside a file`;
+    }
+    return file;
+  };
+
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
+  const createFile = useCallback((path: string): string | null => {
+    const file = accept(stateRef.current.files, path, "");
+    if (typeof file === "string") {
+      return file;
+    }
+    setState((previous) => ({
+      ...previous,
+      files: [...previous.files, file].sort(byPath),
+      open: [...previous.open, file.path],
+      active: file.path,
+      selected: file.path,
+      dirty: [...previous.dirty, file.path],
+      added: [...previous.added, file.path],
+      removed: previous.removed.filter((candidate) => candidate !== file.path),
+    }));
+    return null;
+  }, []);
+
+  const deleteFile = useCallback((path: string) => {
+    buffers.current.delete(path);
+    setState((previous) => {
+      const file = fileAt(previous.files, path);
+      if (file === null || !file.editable) {
+        return previous;
+      }
+      const open = previous.open.filter((candidate) => candidate !== path);
+      const active = previous.active === path ? (open[open.length - 1] ?? "") : previous.active;
+      const wasAdded = previous.added.includes(path);
+      return {
+        ...previous,
+        files: previous.files.filter((candidate) => candidate.path !== path),
+        open,
+        active,
+        selected: previous.selected === path ? active : previous.selected,
+        dirty: previous.dirty.filter((candidate) => candidate !== path),
+        added: previous.added.filter((candidate) => candidate !== path),
+        removed: wasAdded || previous.removed.includes(path) ? previous.removed : [...previous.removed, path],
+      };
+    });
+  }, []);
+
+  const renameFile = useCallback(
+    (from: string, to: string): string | null => {
+      const source = fileAt(stateRef.current.files, from);
+      if (source === null || !source.editable) {
+        return `${from} is not a file the studio edits`;
+      }
+      const text = buffers.current.get(from) ?? source.text;
+      const others = stateRef.current.files.filter((candidate) => candidate.path !== from);
+      const file = accept(others, to, text);
+      if (typeof file === "string") {
+        return file;
+      }
+      deleteFile(from);
+      buffers.current.set(file.path, text);
+      setState((previous) => ({
+        ...previous,
+        files: [...previous.files, { ...file, text }].sort(byPath),
+        open: [...previous.open, file.path],
+        active: file.path,
+        selected: file.path,
+        dirty: [...previous.dirty, file.path],
+        added: [...previous.added, file.path],
+        removed: previous.removed.filter((candidate) => candidate !== file.path),
+      }));
+      return null;
+    },
+    [deleteFile],
+  );
 
   return {
     state,
@@ -245,6 +362,9 @@ export function useWorkspace(): Workspace {
     putFile,
     setProject,
     markSaved,
+    createFile,
+    renameFile,
+    deleteFile,
   };
 }
 
