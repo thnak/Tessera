@@ -105,6 +105,9 @@ void test_vertex_formats() {
         {rhi::VertexFormat::Float3, wg::WgpuVertexFormat::Float32x3, 12},
         {rhi::VertexFormat::Float4, wg::WgpuVertexFormat::Float32x4, 16},
         {rhi::VertexFormat::UByte4Norm, wg::WgpuVertexFormat::Unorm8x4, 4},
+        // The per-vertex texture-array index (RHI 1.7, issue #480 part 2): WebGPU has no descriptor
+        // indexing, so the WGSL twin ignores it, but the attribute still maps.
+        {rhi::VertexFormat::UInt, wg::WgpuVertexFormat::Uint32, 4},
     };
     for (const auto& c : cases) {
         expect(wg::vertex_format(c.rhi_format) == c.wgpu_format, "vertex format mapping");
