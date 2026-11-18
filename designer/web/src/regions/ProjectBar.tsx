@@ -91,6 +91,22 @@ export function ProjectBar({ io, dirtyCount }: { io: ProjectIo; dirtyCount: numb
       <p className="project-note" id="project-note" role="status" aria-live="polite" hidden={state.note === ""}>
         {state.note}
       </p>
+      {state.draft !== null ? (
+        <div className="project-conflict" id="project-draft" role="alertdialog" aria-label="Unsaved draft">
+          <p>
+            Unsaved changes to {state.draft.files} file(s) from {new Date(state.draft.savedAt).toLocaleString()} were
+            kept in this browser.
+          </p>
+          <div className="project-actions">
+            <button type="button" id="restore-draft" onClick={io.restoreDraft}>
+              Restore draft
+            </button>
+            <button type="button" id="discard-draft" onClick={io.discardDraft}>
+              Discard
+            </button>
+          </div>
+        </div>
+      ) : null}
       {state.conflicts.length > 0 ? (
         <div className="project-conflict" id="project-conflict" role="alertdialog" aria-label="Changed on disk">
           <p>Changed on disk: {state.conflicts.join(", ")}</p>

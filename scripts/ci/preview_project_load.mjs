@@ -21,6 +21,7 @@ import {
   loadZip,
   writeFiles,
 } from '../../designer/web/project-io.js';
+import { applicableDraft, buildDraft, projectKey } from '../../designer/web/drafts.js';
 import { LIMITS, PathError } from '../../designer/web/project-paths.js';
 import { writeZip } from '../../designer/web/studio-zip.js';
 
@@ -311,6 +312,54 @@ await test('a file deleted in the page but changed on disk is a conflict, not a 
   const { baseline } = await loadDirectory(root);
   await writeFiles(root, [{ path: 'styles/theme.css', text: 'edited elsewhere' }]);
   assert.deepEqual(await findConflicts(root, ['styles/theme.css'], baseline), ['styles/theme.css']);
+});
+
+const FILES = [
+  { path: 'ui/App.tsx', text: 'one' },
+  { path: 'styles/a.css', text: 'two' },
+];
+
+await test('a draft records what each file was edited from, and nothing when nothing is unsaved', () => {
+  assert.equal(buildDraft(FILES, (path) => path, { dirty: [], added: [], removed: [] }), null);
+  const draft = buildDraft(FILES, (path) => `edited ${path}`, {
+    dirty: ['ui/App.tsx', 'ui/New.tsx'],
+    added: ['ui/New.tsx'],
+    removed: ['styles/a.css'],
+    removedBase: new Map([['styles/a.css', 'two']]),
+  });
+  assert.deepEqual(draft.edits, [
+    { path: 'ui/App.tsx', text: 'edited ui/App.tsx', base: 'one' },
+    { path: 'ui/New.tsx', text: 'edited ui/New.tsx', base: null },
+  ]);
+  assert.deepEqual(draft.removed, [{ path: 'styles/a.css', base: 'two' }]);
+  assert.equal(projectKey('folder', 'proj'), 'folder:proj');
+});
+
+await test('a draft is restored only onto the text it was edited from', () => {
+  const draft = buildDraft(FILES, () => 'mine', {
+    dirty: ['ui/App.tsx', 'ui/New.tsx'],
+    added: ['ui/New.tsx'],
+    removed: ['styles/a.css'],
+    removedBase: new Map([['styles/a.css', 'two']]),
+  });
+  const same = applicableDraft(draft, FILES);
+  assert.deepEqual([same.edits.map((e) => e.path), same.removed, same.skipped], [['ui/App.tsx', 'ui/New.tsx'], ['styles/a.css'], []]);
+  // The file changed on disk since: its draft entry is skipped, never applied over the newer text.
+  const moved = applicableDraft(draft, [
+    { path: 'ui/App.tsx', text: 'changed elsewhere' },
+    { path: 'styles/a.css', text: 'two' },
+  ]);
+  assert.deepEqual(moved.skipped, ['ui/App.tsx']);
+  // A created file whose path now exists is skipped too.
+  const taken = applicableDraft(draft, [...FILES, { path: 'ui/New.tsx', text: 'someone made it' }]);
+  assert.ok(taken.skipped.includes('ui/New.tsx'));
+});
+
+await test('an oversized draft is not kept', () => {
+  assert.equal(
+    buildDraft(FILES, () => 'x'.repeat(LIMITS.maxFileBytes + 1), { dirty: ['ui/App.tsx'], added: [], removed: [] }),
+    null,
+  );
 });
 
 process.stdout.write(

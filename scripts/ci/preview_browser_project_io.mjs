@@ -334,6 +334,41 @@ await page.locator('#reopen-folder').click();
 await page.waitForFunction(() => /Folder: proj/.test(document.getElementById('project-name')?.textContent ?? ''));
 check('Reopen loads the remembered folder without the picker', (await page.locator('.tree-row[data-path="ui/Renamed.tsx"]').count()) === 1);
 
+// --- 8. unsaved drafts survive a reload and are offered, never applied silently -----------------------
+await page.locator('.tree-row[data-path="ui/Home.tsx"]').click();
+await editHome('Mine again', 'Draft text');
+await page.waitForTimeout(2600);
+await page.reload({ waitUntil: 'load' });
+await page.waitForSelector('#reopen-folder');
+await page.evaluate(async () => {
+  const dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('proj');
+  window.showDirectoryPicker = async () => dir;
+});
+await page.locator('#reopen-folder').click();
+await page.waitForSelector('#project-draft');
+check('the unsaved edit is offered back after a reload', /1 file/.test((await page.locator('#project-draft').textContent()) ?? ''));
+check('the draft is not applied before the person chooses', !(await page.locator('#source').inputValue()).includes('Draft text'));
+await page.locator('#restore-draft').click();
+await page.waitForFunction(() => /restored 1/.test(document.getElementById('project-note')?.textContent ?? ''));
+await page.locator('.tree-row[data-path="ui/Home.tsx"]').click();
+check('Restore brings the edit back, marked unsaved', (await page.locator('#source').inputValue()).includes('Draft text') && (await page.locator('.tree-row[data-path="ui/Home.tsx"] .tree-dirty').count()) === 1);
+
+// A file that changed on disk since the draft was kept is never overwritten by it.
+await page.waitForTimeout(2600);
+await page.evaluate(async () => {
+  const dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('proj');
+  const handle = await (await dir.getDirectoryHandle('ui')).getFileHandle('Home.tsx');
+  const writable = await handle.createWritable();
+  await writable.write('// someone else rewrote it');
+  await writable.close();
+});
+await page.reload({ waitUntil: 'load' });
+await page.waitForSelector('#reopen-folder');
+await page.locator('#reopen-folder').click();
+await page.waitForFunction(() => /Folder: proj/.test(document.getElementById('project-name')?.textContent ?? ''));
+await page.waitForTimeout(800);
+check('a draft for a file that changed on disk is not offered', (await page.locator('#project-draft').count()) === 0);
+
 check(
   'No console errors',
   consoleErrors.filter((text) => !/Failed to load resource/.test(text)).length === 0,

@@ -24,6 +24,14 @@ import {
   readText,
   writeFiles,
 } from "../project-io.js";
+import {
+  applicableDraft,
+  buildDraft,
+  clearDraft,
+  loadDraft,
+  projectKey,
+  saveDraft,
+} from "../drafts.js";
 import { forgetFolder, recallFolder, rememberFolder } from "../recent-folder.js";
 import { PathError } from "../project-paths.js";
 import { writeZip, ZipError } from "../studio-zip.js";
@@ -41,6 +49,8 @@ export interface ProjectIoState {
   busy: boolean;
   /** The files whose copy on disk changed since load, while the person has not chosen yet. */
   conflicts: string[];
+  /** A stored draft of unsaved edits for this project, offered back; `null` when there is none. */
+  draft: { files: number; savedAt: number } | null;
 }
 
 interface DirectoryPickerWindow {
@@ -77,6 +87,9 @@ export interface ProjectIo {
   save: () => void;
   resolveConflicts: (choice: "keep-mine" | "take-disk" | "cancel") => void;
   download: () => void;
+  /** Applies the stored draft to the opened project (skipping files that changed since), or drops it. */
+  restoreDraft: () => void;
+  discardDraft: () => void;
   /** File operations on the tree; each says what it did (or why not) in the note. */
   newFile: () => void;
   renameFile: () => void;
@@ -90,6 +103,7 @@ export function useProjectIo(workspace: Workspace): ProjectIo {
     note: "",
     busy: false,
     conflicts: [],
+    draft: null,
   });
   const [epoch, setEpoch] = useState(0);
   const [recent, setRecent] = useState("");
@@ -125,6 +139,32 @@ export function useProjectIo(workspace: Workspace): ProjectIo {
     return globalThis.confirm?.("Opening another project discards the unsaved changes. Continue?") ?? true;
   }, []);
 
+  // A stored draft of unsaved edits for the project just opened. It is offered, never applied silently, and
+  // while an offer is open the periodic save leaves the stored draft alone so it cannot be overwritten by
+  // the first keystroke.
+  const pendingDraft = useRef<{ key: string; draft: ReturnType<typeof buildDraft> } | null>(null);
+  const draftStored = useRef(false);
+
+  const offerDraft = useCallback(
+    async (source: Source, name: string, files: readonly { path: string; text: string }[]) => {
+      const key = projectKey(source, name);
+      const draft = await loadDraft(key);
+      if (draft === null) {
+        return;
+      }
+      const usable = applicableDraft(draft, files);
+      const count = usable.edits.length + usable.removed.length;
+      if (count === 0) {
+        // Nothing in it fits the project as opened (every file changed since): it is stale, so it goes.
+        void clearDraft(key);
+        return;
+      }
+      pendingDraft.current = { key, draft };
+      setState((previous) => ({ ...previous, draft: { files: count, savedAt: draft.savedAt } }));
+    },
+    [],
+  );
+
   const adopt = useCallback(
     (
       source: Source,
@@ -141,8 +181,10 @@ export function useProjectIo(workspace: Workspace): ProjectIo {
         setRecent(handle.name);
         void rememberFolder(handle);
       }
-      setState({ source, name, note: "", busy: false, conflicts: [] });
+      setState({ source, name, note: "", busy: false, conflicts: [], draft: null });
       setEpoch((value) => value + 1);
+      pendingDraft.current = null;
+      void offerDraft(source, name, toProjectFiles(project.entries, project.context));
     },
     [],
   );
@@ -330,6 +372,97 @@ export function useProjectIo(workspace: Workspace): ProjectIo {
     [pending, say, state.conflicts, write],
   );
 
+  const restoreDraft = useCallback(() => {
+    const offer = pendingDraft.current;
+    const current = workspaceRef.current;
+    if (offer === null || offer.draft === null) {
+      return;
+    }
+    const usable = applicableDraft(offer.draft, current.state.files);
+    // A file the person has already started editing again is theirs: the draft does not overwrite it.
+    const typing = new Set(current.state.dirty);
+    let restored = 0;
+    for (const edit of usable.edits) {
+      if (typing.has(edit.path)) {
+        usable.skipped.push(edit.path);
+        continue;
+      }
+      if (edit.base === null) {
+        const refusal = current.createFile(edit.path);
+        if (refusal !== null) {
+          usable.skipped.push(edit.path);
+          continue;
+        }
+      }
+      current.writeBuffer(edit.path, edit.text);
+      restored += 1;
+    }
+    for (const path of usable.removed) {
+      current.deleteFile(path);
+      restored += 1;
+    }
+    pendingDraft.current = null;
+    setState((previous) => ({
+      ...previous,
+      draft: null,
+      note:
+        usable.skipped.length === 0
+          ? `restored ${restored} unsaved change(s)`
+          : `restored ${restored}; skipped ${usable.skipped.join(", ")} (changed since the draft)`,
+    }));
+    setEpoch((value) => value + 1);
+  }, []);
+
+  const discardDraft = useCallback(() => {
+    const offer = pendingDraft.current;
+    pendingDraft.current = null;
+    if (offer !== null) {
+      void clearDraft(offer.key);
+    }
+    setState((previous) => ({ ...previous, draft: null, note: "draft discarded" }));
+  }, []);
+
+  // The sample project can have a draft too: it is the project a first visit starts in.
+  useEffect(() => {
+    void offerDraft("sample", "", workspaceRef.current.state.files);
+  }, [offerDraft]);
+
+  // Unsaved edits are kept in this browser every couple of seconds while there are any, and when the tab
+  // is hidden, so a reload or a crash loses at most the last moments. Saving to disk clears the draft.
+  useEffect(() => {
+    const key = projectKey(state.source, state.name);
+    const flush = (): void => {
+      if (pendingDraft.current !== null) {
+        return;
+      }
+      const current = workspaceRef.current;
+      const draft = buildDraft(current.state.files, current.textOf, {
+        dirty: current.state.dirty,
+        added: current.state.added,
+        removed: current.state.removed,
+        removedBase: current.removedTexts(),
+      });
+      if (draft !== null) {
+        draftStored.current = true;
+        void saveDraft(key, draft);
+      } else if (draftStored.current) {
+        draftStored.current = false;
+        void clearDraft(key);
+      }
+    };
+    const timer = globalThis.setInterval(flush, 2000);
+    const onHide = (): void => {
+      if (document.hidden) {
+        flush();
+      }
+    };
+    document.addEventListener("visibilitychange", onHide);
+    return () => {
+      globalThis.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onHide);
+    };
+  }, [state.source, state.name]);
+
   const download = useCallback(() => {
     const current = workspaceRef.current;
     const encoder = new TextEncoder();
@@ -426,6 +559,8 @@ export function useProjectIo(workspace: Workspace): ProjectIo {
     save,
     resolveConflicts,
     download,
+    restoreDraft,
+    discardDraft,
     newFile,
     renameFile,
     deleteFile,
