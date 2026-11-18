@@ -59,10 +59,12 @@ import { STARTUP_SAMPLE } from "./page-defaults";
 import { createLiveEdit, type LiveEdit } from "./page-live";
 import { setStatusText, usePageState, usePaneRefs } from "./page-state";
 import { useSessions } from "./page-sessions";
+import { useProjectIo } from "./page-project-io";
 import { useWorkspace } from "./page-workspace";
 import { CodeRegion } from "./regions/CodeRegion";
 import { GalleryRegion } from "./regions/GalleryRegion";
 import { PreviewColumn } from "./regions/PreviewColumn";
+import { ProjectBar } from "./regions/ProjectBar";
 import { ProjectTree } from "./regions/ProjectTree";
 import { PageHeader, type ControlValues } from "./regions/StudioChrome";
 import { StatusLine } from "./regions/StatusLine";
@@ -74,6 +76,7 @@ export function App() {
   const [state, state_] = usePageState();
   const refs = usePaneRefs();
   const workspace = useWorkspace();
+  const projectIo = useProjectIo(workspace);
   // The view the sessions' readiness callbacks are talking about (they are not re-created per view).
   const viewRef = useRef(view);
   viewRef.current = view;
@@ -299,15 +302,32 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspace.state.files]);
 
+  // A load replaces the whole project, so the preview starts over from the new entry and the editor
+  // takes the new active file's text. Skipped at epoch 0, which is the seed, not a load.
+  useEffect(() => {
+    if (projectIo.epoch === 0) {
+      return;
+    }
+    setRevision((value) => value + 1);
+    restartActiveView();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectIo.epoch]);
+
   const onEditorKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+        // Save is explicit (no autosave); the browser's own "save page" is not what Ctrl+S means here.
+        event.preventDefault();
+        projectIo.save();
+        return;
+      }
       if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
         event.preventDefault();
         // "Apply now", not "run": `Ctrl+Enter` skips the debounce, it does not reset the app.
         void live.current?.applyNow();
       }
     },
-    [],
+    [projectIo.save],
   );
 
   const onSelectView = useCallback((id: ViewDefinition["id"]) => {
@@ -437,13 +457,29 @@ export function App() {
 
       {/* The workspace: always three columns. The one thing that changes inside it is the preview column's
           own view switch, which is why the page's shape does not depend on `?view=`. */}
-      <main className="workspace" id="workspace">
+      <main
+        className="workspace"
+        id="workspace"
+        onDragOver={(event) => {
+          if (event.dataTransfer.types.includes("Files")) {
+            event.preventDefault();
+          }
+        }}
+        onDrop={(event) => {
+          const dropped = event.dataTransfer.files[0];
+          if (dropped !== undefined && /\.zip$/i.test(dropped.name)) {
+            event.preventDefault();
+            projectIo.openZip(dropped);
+          }
+        }}
+      >
         <ProjectTree
           rows={workspace.rows}
           selected={workspace.state.selected}
           dirty={workspace.state.dirty}
           onSelect={workspace.selectRow}
           onToggleDir={workspace.toggleDir}
+          toolbar={<ProjectBar io={projectIo} dirtyCount={workspace.state.dirty.length} />}
         />
 
         <CodeRegion

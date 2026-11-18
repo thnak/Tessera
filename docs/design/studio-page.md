@@ -204,8 +204,8 @@ The rest of the page is TypeScript:
 ### 3.1 The project tree (left)
 
 The tree lists the files of the opened project. #431's deliverable is the **rendering and the selection**;
-the two real load paths (a folder through File System Access, a dropped zip) are #391's remaining half and
-are not claimed here. So the page boots with a **seeded in-memory project**
+the two real load paths (a folder through File System Access, a dropped zip) are wired in
+[`studio-project-io.md`](studio-project-io.md) section 5. The page still boots with a **seeded in-memory project**
 (`lib/project.ts`, `SEED`): `tessera.json` (`app.entry` names `ui/App.tsx`), `ui/App.tsx` (the entry, which
 imports `../styles/theme.css`) and `styles/theme.css`. There is no router yet: the scene builder does not
 render user component instances, so a second screen cannot be composed in until the engine can. The sample gallery still works and adds a sample as a project file at
@@ -538,8 +538,7 @@ records machine load as headroom. `measurement.calibration_reference_ms` gets th
 `encoder`: changing it rebases every latency pin at once, so it is a reviewed edit, never a side effect.
 Out of scope by #392, #422, #431, #390 and #444 and named here so a reader does not infer them: a router and
 user component instances (the scene builder does not render `<Home />`, so composing screens needs an engine
-slice), sharing a whole project (waits for cloud storage), the folder picker and the zip drop (**#391's remaining half**: the tree
-renders and selects, but nothing opens a real folder), a real code editor widget (the textarea is per file,
+slice), sharing a whole project (waits for cloud storage), adding, deleting and renaming files from the tree (the folder picker, the zip drop, Save and Download landed with #391), a real code editor widget (the textarea is per file,
 which is what #431 asks for), pointer input on the canvas (**#388's page half**: the engine dispatch and
 `tessera_canvas_pointer` exist, but the page does not yet wire pointer events to them, so an edit is the only
 way to change state in the browser), text drawing (#387, shipped), conditional children (#389), skins and the
