@@ -89,11 +89,13 @@ void VulkanDevice::destroy_texture_array() {
 void VulkanCommandList::bind_texture_array(std::uint32_t slot,
                                            const std::vector<const rhi::Texture*>& textures) {
     require_usable("bind_texture_array");
-    if (current_layout_ == VK_NULL_HANDLE) {
-        throw std::runtime_error("bind_texture_array: missing pipeline");
-    }
+    // An empty array is a no-op on every backend, so a caller that resolves no textures this batch
+    // does not have to special-case the call (RHI 1.7, issue #480 part 2).
     if (textures.empty()) {
         return;
+    }
+    if (current_layout_ == VK_NULL_HANDLE) {
+        throw std::runtime_error("bind_texture_array: missing pipeline");
     }
     const std::uint32_t capacity = owner_.texture_array_capacity();
     if (capacity == 0) {

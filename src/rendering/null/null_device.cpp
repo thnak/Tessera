@@ -303,15 +303,15 @@ void NullCommandList::bind_texture(std::uint32_t, const rhi::Texture&) {
 
 void NullCommandList::bind_texture_array(std::uint32_t,
                                          const std::vector<const rhi::Texture*>& textures) {
-    // The null backend samples nothing, so it records the request: one array bind, and the number
-    // of images it carried (RHI 1.7, issue #480 part 2). A structural test asserts the batching
-    // story from these counters without a GPU.
+    // An empty array is a no-op on every backend, so a caller that resolves no textures this batch
+    // does not have to special-case the call (RHI 1.7, issue #480 part 2).
     if (textures.empty()) {
         return;
     }
-    ++stats_.texture_array_binds;
-    stats_.texture_array_images += static_cast<std::uint32_t>(textures.size());
-    stats_.command_order.push_back(NullCommandKind::BindTextureArray);
+    // Validating-backend parity: the null device reports no texture array, so this is the same
+    // misuse the Vulkan backend rejects. A structural test on the null backend stays meaningful
+    // only if the fallback contract is enforced here too.
+    throw std::runtime_error("bind_texture_array: this device has no texture array");
 }
 
 void NullCommandList::bind_sampled_target(std::uint32_t slot, const rhi::RenderTarget& target) {

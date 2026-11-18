@@ -101,6 +101,13 @@ add_executable(batch_split_tests
 target_link_libraries(batch_split_tests PRIVATE tessera_gpu tessera_rhi_null)
 add_test(NAME batch_split COMMAND batch_split_tests)
 
+# Texture-array fallback (RHI 1.7, issue #480 part 2): a device without descriptor indexing reports
+# capacity 0, refuses the array pipeline and the array bind by name, and keeps the one-set path.
+add_executable(texture_array_fallback_tests
+    batched2d/texture_array_fallback_tests.cpp)
+target_link_libraries(texture_array_fallback_tests PRIVATE tessera_gpu tessera_rhi_null)
+add_test(NAME texture_array_fallback COMMAND texture_array_fallback_tests)
+
 set(TESSERA_FONT_FIXTURE
     "${CMAKE_CURRENT_SOURCE_DIR}/../fixtures/fonts/NotoSans-Regular.ttf")
 get_filename_component(TESSERA_FONT_FIXTURE "${TESSERA_FONT_FIXTURE}" REALPATH)
@@ -433,6 +440,17 @@ if (TARGET tessera_rhi_vulkan)
     target_link_libraries(lcd_text_gpu_tests PRIVATE tessera_gpu tessera_rhi_vulkan)
     add_test(NAME lcd_text_gpu COMMAND lcd_text_gpu_tests)
     set_tests_properties(lcd_text_gpu PROPERTIES
+        SKIP_REGULAR_EXPRESSION "skipped"
+        FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+
+    # Texture arrays via descriptor indexing (RHI 1.7, issue #480 part 2): an alternating-texture
+    # scene records one draw instead of one per switch, and its pixels are byte-identical to the
+    # one-set-per-texture path. Skips on a device without the capability.
+    add_executable(texture_array_gpu_tests
+        batched2d/texture_array_gpu_tests.cpp)
+    target_link_libraries(texture_array_gpu_tests PRIVATE tessera_gpu tessera_rhi_vulkan)
+    add_test(NAME texture_array_gpu COMMAND texture_array_gpu_tests)
+    set_tests_properties(texture_array_gpu PROPERTIES
         SKIP_REGULAR_EXPRESSION "skipped"
         FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
 

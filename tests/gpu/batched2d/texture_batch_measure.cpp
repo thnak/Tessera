@@ -262,7 +262,7 @@ int main(int argc, char** argv) {
                   << loaded.error().message << "\n";
         return 2;
     }
-    text::FontFace face = std::move(*loaded);
+    text::FontFace face = *loaded;
     text::GlyphRasterizer rasterizer(face);
     text::HarfBuzzShaper shaper(face);
 

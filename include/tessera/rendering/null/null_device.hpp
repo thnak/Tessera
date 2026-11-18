@@ -45,7 +45,6 @@ enum class NullCommandKind {
     EndRenderPass,
     BindPipeline,
     BindTexture,
-    BindTextureArray,
     BindSampledTarget,
     Draw,
     CopyTargetRegion,
@@ -59,9 +58,6 @@ struct NullCommandStats {
     std::uint32_t pipeline_binds = 0;
     std::uint32_t vertex_buffer_binds = 0;
     std::uint32_t texture_binds = 0;
-    // bind_texture_array() calls recorded and the images they carried (RHI 1.7, issue #480 part 2).
-    std::uint32_t texture_array_binds = 0;
-    std::uint32_t texture_array_images = 0;
     // bind_sampled_target() calls recorded, with one entry each in sampled_targets.
     std::uint32_t sampled_target_binds = 0;
     std::uint32_t scissor_changes = 0;
