@@ -183,6 +183,7 @@ consumers:
 | `batched2d` | vertex, fragment | `batched2d.vert`, `batched2d.frag` | `batched2d.wgsl` | `gpu::kBatched2dShaderId` | `vulkan::batched2d_pipeline_desc()`; `webgpu::builtin_shader_registry()` | `Batched2DRenderer` (`src/app/window_internal.hpp`) |
 | `glass_blur` | vertex, fragment | `fullscreen.vert`, `glass_blur.frag` | `glass_blur.wgsl` | `gpu::kGlassBlurShaderId` | `vulkan::glass_blur_pipeline_desc()` | `Batched2DRenderer::draw_backdrop` (glass, `docs/specs/glass-v1.md` section 5) |
 | `batched2d_lcd` | vertex, fragment | `batched2d.vert`, `batched2d_lcd.frag` | *(none: `element` with Vulkan sources only, section 3)* | `gpu::kBatched2dLcdShaderId` | `vulkan::batched2d_lcd_pipeline_desc()` (`BlendMode::DualSource`) | none yet: no frame path creates it (issue #471 slice 1, `docs/design/display-aware-rendering.md` section 3.4) |
+| `batched2d_array` | vertex, fragment | `batched2d.vert`, `batched2d.frag` (`-DTESSERA_TEXTURE_ARRAY=1`) | *(none: `element` with Vulkan sources only, section 3)* | `gpu::kBatched2dArrayShaderId` | `vulkan::batched2d_array_pipeline_desc()` (`PipelineDesc::texture_array`) | `Batched2DRenderer` when `Device::texture_array_capacity()` is non-zero (RHI 1.7, issue #480 part 2) |
 
 `fullscreen.vert` is a fullscreen triangle from `gl_VertexIndex` with no vertex buffer, so the
 manifest's `vertexLayout` is empty; it is a shared source for `glass_blur` only (the Vulkan
@@ -194,6 +195,14 @@ no WGSL source. WGSL has no fragment output index and WebGPU has no SRC1 blend f
 is Vulkan-only by construction (section 3's note on optional `sources.webgpu`, section 7's
 Vulkan-only element rule); it is compiled by `tessera_add_spv_c` so `glslc` and the manifest check
 validate it in every Vulkan build, and the cross lane (which names its two ids explicitly) ignores it.
+
+`batched2d_array` is the descriptor-indexing variant of `batched2d` (RHI 1.7, issue #480 part 2): the
+same vertex interface, push-constant block and source files, with `batched2d.frag` compiled a second
+time under `-DTESSERA_TEXTURE_ARRAY=1` so its clip/SDF/shadow logic cannot drift from the default
+variant - only the sampling line differs (an array of combined image samplers indexed by the
+per-vertex `texture_index`, with `GL_EXT_nonuniform_qualifier` because the index is not uniform).
+WebGPU has no descriptor indexing, so the entry is Vulkan-only for the same reason `batched2d_lcd` is,
+and its WGSL twin declares the `texture_index` attribute but ignores it.
 
 `glass_blur.wgsl` is authored and validated (`scripts/ci/validate_wgsl.py`, the `webgpu.yml` lane)
 but is **not yet registered** in `builtin_shader_registry()`: no WebGPU path draws glass, so adding
@@ -328,8 +337,8 @@ Rules:
 - `entry` keys must name declared stages; omitted stages default to `main`.
 - Source names are bare file names (no `/`, `\`, drive letter, or `..`); `sources.vulkan` is
   required. Golden paths are project-relative.
-- Vertex formats are `float`, `float2`, `float3`, `float4`, `ubyte4norm`; locations are `0..31`
-  and unique; semantics are unique.
+- Vertex formats are `float`, `float2`, `float3`, `float4`, `ubyte4norm`, `uint`; locations are
+  `0..31` and unique; semantics are unique.
 - Binding groups are `0..3`, bindings `0..255`; `(group, binding)` pairs are unique; types are
   `uniform_buffer`, `storage_buffer`, `sampler`, `sampled_texture`, `storage_texture`.
 - Push constants: `size` is a multiple of 4 and at most 128; field offsets are 4-byte aligned,
