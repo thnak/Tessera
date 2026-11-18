@@ -184,7 +184,7 @@ std::expected<DeepLink, NavigationError> parse_deep_link(std::string_view text,
     std::size_t start = 1;
     while (start <= parsed.path.size()) {
         const std::size_t end = parsed.path.find('/', start);
-        const std::string_view segment = parsed.path.substr(
+        const std::string_view segment = std::string_view{parsed.path}.substr(
             start, end == std::string_view::npos ? std::string_view::npos : end - start);
         if (!segment.empty()) {
             auto decoded = percent_decode(segment);
