@@ -117,12 +117,19 @@ export function PreviewColumn({
   controls,
   onControlChange,
   refs,
+  components,
+  component,
+  onPickComponent,
 }: {
   view: ViewDefinition;
   onSelectView: (id: ViewDefinition["id"]) => void;
   controls: ControlValues;
   onControlChange: (name: keyof ControlValues, value: string) => void;
   refs: PreviewRefs;
+  /** The entry's declared components (the compiler's list) and the one previewed. */
+  components: readonly string[];
+  component: string;
+  onPickComponent: (name: string) => void;
 }) {
   return (
     <section className="region region-preview" aria-labelledby="preview-heading">
@@ -134,6 +141,23 @@ export function PreviewColumn({
       {/* The environment the preview is laid out and painted in. It belongs to this column: two of the
           three panes read it as a layout input, and the third carries it into the share link. */}
       <EnvironmentToolbar controls={controls} onChange={onControlChange} />
+
+      {components.length > 1 ? (
+        <label className="component-picker">
+          Component
+          <select
+            id="component-select"
+            value={component}
+            onChange={(event) => onPickComponent(event.currentTarget.value)}
+          >
+            {components.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
 
       <div className="preview-well">
         <DiagnosticsPane

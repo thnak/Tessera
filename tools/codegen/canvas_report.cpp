@@ -232,7 +232,9 @@ std::string canvas_viewport_report_json(bool changed, float width, float height,
 
 std::string canvas_apply_report_json(bool changed, bool reused, const StateCarryReport& carry,
                                      const ui::StateSnapshot& state, std::uint32_t frames,
-                                     std::string_view error) {
+                                     std::string_view error,
+                                     const std::vector<std::string>& components,
+                                     std::string_view component) {
     std::string out = "{\"applyVersion\":1";
     append_bool(out, "changed", changed);
     append_bool(out, "reused", reused);
@@ -243,6 +245,15 @@ std::string canvas_apply_report_json(bool changed, bool reused, const StateCarry
     append_number(out, "added", carry.added);
     append_number(out, "frames", frames);
     append_state(out, state);
+    // The entry's declared components and the one previewed (#391): the page's dropdown.
+    out += ",\"components\":[";
+    bool first = true;
+    for (const std::string& name : components) {
+        append_string_element(out, first, name);
+        first = false;
+    }
+    out += "]";
+    append_text(out, "component", component);
     append_text(out, "error", error);
     out += "}\n";
     return out;
