@@ -1585,6 +1585,13 @@ target_link_libraries(paint_gradient_tests PRIVATE tessera_paint tessera_text)
 
 add_test(NAME paint_gradient COMMAND paint_gradient_tests)
 
+add_executable(background_image_tests
+    background_image_tests.cpp)
+
+target_link_libraries(background_image_tests PRIVATE tessera_paint tessera_text tessera_style)
+
+add_test(NAME background_image COMMAND background_image_tests)
+
 add_executable(text_edit_tests
     text_edit_tests.cpp)
 

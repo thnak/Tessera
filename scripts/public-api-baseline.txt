@@ -2411,6 +2411,12 @@ function include/tessera/ui/style/cursor_value.hpp tessera::ui::style::is_suppor
 function include/tessera/ui/style/cursor_value.hpp tessera::ui::style::parse_cursor_kind
 function include/tessera/ui/style/cursor_value.hpp tessera::ui::style::report_unsupported_cursor_value
 
+header include/tessera/ui/style/gradient.hpp
+struct include/tessera/ui/style/gradient.hpp tessera::ui::style::GradientStopValue
+struct include/tessera/ui/style/gradient.hpp tessera::ui::style::LinearGradientValue
+function include/tessera/ui/style/gradient.hpp tessera::ui::style::parse_linear_gradient
+constant include/tessera/ui/style/gradient.hpp tessera::ui::style::kMaxGradientStops
+
 header include/tessera/ui/style/grid_values.hpp
 struct include/tessera/ui/style/grid_values.hpp tessera::ui::style::GridLine
 struct include/tessera/ui/style/grid_values.hpp tessera::ui::style::GridTemplate

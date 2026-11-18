@@ -560,7 +560,7 @@ caret/selection use `bidi_offset_x` (`text.md`); RTL click-to-position is deferr
 
 ### 13. Linear gradients (task-76)
 
-`PaintData::gradient` (1-8 stops; offsets clamped/sorted, later duplicate wins; CSS angle 0=top,
+`PaintData::gradient`, or else the stylesheet's `background-image: linear-gradient()` (#457, grammar in `style/gradient.hpp`, corner directions use square-box angles) (1-8 stops; offsets clamped/sorted, later duplicate wins; CSS angle 0=top,
 90=right, 180=bottom) paints after `background-color`, before borders/content, inside border radius;
 opacity folds into stop alphas. Interpolation is encoded-space sRGB (V1); emission is 64 dominant-axis
 solid bands (exact on axes, banded otherwise; LUT/dithering follow-up), shared by CPU/GPU within

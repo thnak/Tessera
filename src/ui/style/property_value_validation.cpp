@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "tessera/ui/style/cursor_value.hpp"
+#include "tessera/ui/style/gradient.hpp"
 #include "tessera/ui/style/grid_values.hpp"
 #include "tessera/ui/style/property_value_validation.hpp"
 
@@ -139,6 +140,20 @@ bool validate_property_value(const Declaration& declaration, std::string_view pr
     // grammar lives in cursor_value.cpp, shared with `@supports` and the scene sync.
     if (property == "cursor") {
         report_unsupported_cursor_value(value, declaration.offset, out);
+        return true;
+    }
+    // The gradient grammar is the one in gradient.hpp. A value that is not a gradient keeps the
+    // declaration (the paint pass then draws no image) and says why, once. A `var()` reference is
+    // substituted after this check, so it is judged on the resolved text instead.
+    if (property == "background-image") {
+        const std::string_view text = trim(value);
+        if (text != "none" && text.find("var(") == std::string_view::npos &&
+            !parse_linear_gradient(text)) {
+            out.push_back(StyleDiagnostic{
+                StyleDiagnosticKind::UnsupportedValue, declaration.offset, std::string(property),
+                "only one linear-gradient() with 2 to 8 colour stops is supported; no image is "
+                "painted"});
+        }
         return true;
     }
     if (property == "box-shadow" && has_keyword(value, "inset")) {

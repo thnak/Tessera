@@ -4,6 +4,7 @@
 #include "paint_cache_internal.hpp"
 #include "paint_cull.hpp"
 #include "paint_frame.hpp"
+#include "paint_gradient.hpp"
 #include "paint_image.hpp"
 #include "paint_properties.hpp"
 #include "paint_shadow.hpp"
@@ -153,47 +154,12 @@ void paint_backdrop(const style::ComputedStyle& style, const rhi::Rect& rect, fl
     ++stats.backdrops;
 }
 
-// Linear-gradient background: emitted after the solid background and before borders/content, at
-// the node box clipped by the node's own border radius. Stops are clamped to [0,1] and stably
-// sorted; equal offsets keep input order (the later stop wins at the duplicate point). Node opacity
-// is folded into each stop's alpha here, so sinks never see the node opacity separately.
-void paint_linear_gradient(const Node& node, const style::ComputedStyle& style,
-                           const rhi::Rect& rect, float opacity, PaintSink& sink,
-                           PaintStats& stats) {
-    const auto& data = node.paint_data();
-    if (!data || !data->gradient || data->gradient->stop_count == 0 || opacity <= 0.0f) {
-        return;
-    }
-    LinearGradient gradient = *data->gradient;
-    if (gradient.stop_count > LinearGradient::kMaxStops) {
-        gradient.stop_count = LinearGradient::kMaxStops;
-    }
-    for (std::size_t index = 0; index < gradient.stop_count; ++index) {
-        gradient.stops[index].offset = std::clamp(gradient.stops[index].offset, 0.0f, 1.0f);
-    }
-    std::stable_sort(gradient.stops.begin(), gradient.stops.begin() + gradient.stop_count,
-                     [](const LinearGradientStop& lhs, const LinearGradientStop& rhs) {
-                         return lhs.offset < rhs.offset;
-                     });
-    for (std::size_t index = 0; index < gradient.stop_count; ++index) {
-        gradient.stops[index].color.a *= opacity;
-    }
-    GradientDraw draw;
-    draw.rect = rect;
-    draw.clip = detail::corner_clip(style, rect);
-    draw.angle_degrees = gradient.angle_degrees;
-    draw.stops = gradient.stops;
-    draw.stop_count = gradient.stop_count;
-    sink.fill_linear_gradient(draw);
-    ++stats.gradients;
-}
-
 // The node's own box visuals in paint order: background, gradient, border.
 void paint_box_and_border(const Node& node, const style::ComputedStyle& style,
                           const rhi::Rect& rect, float opacity, const rhi::Color& current,
                           float device_scale, PaintSink& sink, PaintStats& stats) {
     paint_background(style, rect, opacity, current, sink, stats);
-    paint_linear_gradient(node, style, rect, opacity, sink, stats);
+    detail::paint_linear_gradient(node, style, rect, opacity, sink, stats);
     if (const std::optional<RingBorder> ring =
             rounded_ring(style, rect, opacity, current, device_scale)) {
         sink.fill_rounded_ring(rect, ring->color, ring->radius, ring->width);

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "property_background.hpp"
 #include "tessera/ui/style/backdrop_filter.hpp"
 #include "tessera/ui/style/interaction_values.hpp"
 #include "tessera/ui/style/property_registry.hpp"
@@ -64,6 +65,7 @@ constexpr PropertyDef kProperties[] = {
     {"border-bottom-left-radius", "0", false},
     {"color", "black", true},
     {"background-color", "transparent", false},
+    {"background-image", "none", false},
     {"opacity", "1", false},
     {"font-family", "sans-serif", true},
     {"font-size", "16px", true},
@@ -192,13 +194,6 @@ StyleDiagnostic invalid_shorthand(const Declaration& declaration, std::string_vi
                            std::string(property), std::move(message)};
 }
 
-// True when `value` (already lowercased) is one keyword of the `window-backdrop` grammar
-// (glass-v1.md section 2). `auto` is a valid request even though it is never a resolved material.
-bool is_window_backdrop_value(std::string_view value) {
-    return value == "none" || value == "auto" || value == "mica" || value == "acrylic" ||
-           value == "blur";
-}
-
 // Recognised properties may carry value forms V1 does not implement; each is reported once per
 // declaration (stylesheet-v1 section 11: unsupported declarations are never silent). The
 // box-shadow, transform and scroll grammars live in property_value_validation.cpp; the
@@ -241,6 +236,8 @@ PropertyRegistry::PropertyRegistry() {
         ShorthandInfo{{"border-top-left-radius", "border-top-right-radius",
                        "border-bottom-right-radius", "border-bottom-left-radius"},
                       ShorthandKind::Box4};
+    shorthands_["background"] =
+        ShorthandInfo{{"background-color", "background-image"}, ShorthandKind::Pair};
     shorthands_["gap"] = ShorthandInfo{{"row-gap", "column-gap"}, ShorthandKind::Pair};
     shorthands_["overflow"] = ShorthandInfo{{"overflow-x", "overflow-y"}, ShorthandKind::Pair};
     shorthands_["place-items"] =
@@ -329,16 +326,16 @@ PropertyExpansionResult PropertyRegistry::expand(const Declaration& declaration)
     // computed value keeps its initial `none`) and reports it once, rather than letting an
     // unparseable string reach the window's startup request.
     if (property == "window-backdrop") {
-        std::string value(declaration.value);
-        std::transform(value.begin(), value.end(), value.begin(),
-                       [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-        const auto components = split_components(value);
+        const auto components = split_components(declaration.value);
         if (components.size() != 1 || !is_window_backdrop_value(components.front())) {
             result.diagnostics.push_back(
                 StyleDiagnostic{StyleDiagnosticKind::UnsupportedValue, declaration.offset, property,
                                 "window-backdrop takes one of none, auto, mica, acrylic or blur"});
             return result;
         }
+    }
+    if (property == "background") {
+        return expand_background_shorthand(declaration);
     }
     if (find(property) != nullptr) {
         Declaration normalized = make_declaration(declaration, property, declaration.value);
