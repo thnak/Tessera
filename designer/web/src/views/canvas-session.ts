@@ -76,6 +76,10 @@ export interface CanvasSessionOptions {
    * `tabletop`. It is a layout input, so a change draws again rather than waiting for a Run.
    */
   foldPosture: () => string;
+  /** The component the person picked in the preview's dropdown; `""` is the entry's first. */
+  component: () => string;
+  /** The entry's declared components and the one previewed, after every successful apply. */
+  onComponents: (names: string[], chosen: string) => void;
   /** Reports readiness to the page's shared Run button. */
   onReady: (ready: boolean) => void;
 }
@@ -143,7 +147,7 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
       // project: only the sheets the entry's import graph reaches apply.
       stageProject(gpu.module, target);
       applied = JSON.parse(
-        callExport(gpu.module, "_tessera_canvas_apply", ["", foldPosture], [
+        callExport(gpu.module, "_tessera_canvas_apply", [options.component(), foldPosture], [
           viewport.width,
           viewport.height,
           dpr,
@@ -157,6 +161,7 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
     // The apply failed: the module kept the running evaluation, so nothing is drawn and the last good
     // frame stays on the canvas. The reason goes to the pane's status line, never to a blank surface.
     if (applied.error !== "") {
+      options.onComponents(applied.components ?? [], applied.component ?? "");
       pane.setStatus("source not applied: " + applied.error, "warning");
       options.onReady(true);
       return;
@@ -165,6 +170,7 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
     // point of the edit, and it is the one fact a developer wants to see *while* the picture is still
     // the previous one (a reused apply reports it too).
     pane.renderState(applied.state ?? []);
+    options.onComponents(applied.components ?? [], applied.component ?? "");
     // No frame owed: the source is byte-identical to what is painted (a debounce that fired on an
     // unchanged buffer, or a reuse after a DPR-resize that changed nothing). Drawing would repaint
     // identical pixels, which is the idle rule this view exists to honour.

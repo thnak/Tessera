@@ -30,6 +30,9 @@ export interface SessionDeps {
   environmentOf: () => { width: number; height: number; dpr: number };
   /** The fold posture (issue #408); `""` is no fold. */
   foldPosture: () => string;
+  /** The component the preview dropdown picked (`""` = the entry's first), and where the canvas reports the list. */
+  component: () => string;
+  onComponents: (names: string[], chosen: string) => void;
   /**
    * The workspace's compile target plus the author stylesheet it is styled with, read at Run time.
    *
@@ -174,6 +177,8 @@ export function useSessions(deps: SessionDeps, settled: boolean): Sessions {
         setStatus: (text, kind) => setStatusText(status, text, kind ?? null),
         environment: () => latest.current.environmentOf(),
         foldPosture: () => latest.current.foldPosture(),
+        component: () => latest.current.component(),
+        onComponents: (names, chosen) => latest.current.onComponents(names, chosen),
         onReady: (ready) => {
           if (deps.isCurrent("canvas")) {
             deps.setters.setRunEnabled(ready);

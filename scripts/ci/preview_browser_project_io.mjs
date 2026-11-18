@@ -130,6 +130,32 @@ await page.waitForTimeout(2500);
 const status = ((await page.locator('#canvas-status').textContent()) ?? '').trim();
 check('the opened project previews (its entry, not a fallback)', /draw call/.test(status), status);
 
+// --- 1b. the entry's components come from the compiler, and picking one previews it ------------------
+const TWO = {
+  'tessera.json': '{"schemaVersion":1,"app":{"name":"two","entry":"ui/App.tsx","namespace":"two"}}',
+  'ui/App.tsx': `export function Home(): Node {
+  return (<View><Text>Home</Text></View>);
+}
+export function Settings(): Node {
+  return (<View><Text>One</Text><Text>Two</Text><Text>Three</Text></View>);
+}
+`,
+};
+await open(TWO);
+await page.waitForSelector('#component-select');
+await page.waitForTimeout(2500);
+const options = await page.locator('#component-select option').allTextContents();
+check('the dropdown lists the entry components in source order', options.join(',') === 'Home,Settings', options.join(','));
+check('the first component is previewed by default', (await page.locator('#component-select').inputValue()) === 'Home');
+const homeNodes = (await page.locator('#stat-nodes').textContent())?.trim();
+await page.locator('#component-select').selectOption('Settings');
+await page.waitForFunction((before) => document.getElementById('stat-nodes')?.textContent?.trim() !== before, homeNodes);
+check('picking a component previews it', (await page.locator('#stat-nodes').textContent())?.trim() !== homeNodes, `${homeNodes} -> ${(await page.locator('#stat-nodes').textContent())?.trim()}`);
+await open(PROJECT);
+await page.waitForFunction(() => document.getElementById('component-select') === null);
+check('a one-component project shows no dropdown', true);
+await page.waitForTimeout(2000);
+
 // --- 2. edit, then Download keeps the edit and omits locked files -------------------------------------
 await page.locator('.tree-row[data-path="ui/Home.tsx"]').click();
 await page.evaluate(() => {

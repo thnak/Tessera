@@ -314,6 +314,44 @@ export function Card(): Node {
                std::string(card->class_name()) + "')");
 }
 
+// Issue #391: the entry dropdown is fed by the compiler. The session reports the components the
+// ENTRY file declares (source order) and the one it previews; a name picks another; a source that
+// does not evaluate keeps the last good list.
+void test_entry_components_feed_the_dropdown() {
+    constexpr std::string_view two = R"(export function Home(): Node {
+  return (<View><Text>Home</Text></View>);
+}
+export function Settings(): Node {
+  return (<View><Text>Settings</Text></View>);
+}
+)";
+    cli::CanvasSceneSession session;
+    expect(session.entry_components().empty(), "a fresh session lists nothing");
+    expect(session.start(source_for(two, "ui/App.tsx")).empty(), "the two-component entry starts");
+    expect(session.entry_components() == std::vector<std::string>({"Home", "Settings"}),
+           "the entry's components are listed in source order");
+    expect(session.component_name() == "Home", "an empty name previews the first component");
+
+    cli::CanvasSessionSource pick = source_for(two, "ui/App.tsx");
+    pick.component = "Settings";
+    expect(session.start(pick).empty(), "naming a component starts it");
+    expect(session.component_name() == "Settings", "the named component is the one previewed");
+
+    cli::CanvasSessionSource unknown = source_for(two, "ui/App.tsx");
+    unknown.component = "Missing";
+    expect(!session.start(unknown).empty(), "an unknown component is an error, not a fallback");
+    expect(session.component_name() == "Settings", "a refused name keeps the running component");
+    expect(session.entry_components().size() == 2, "a refused apply keeps the last good list");
+
+    const std::string report = cli::canvas_apply_report_json(
+        session.needs_frame(), session.reused(), session.carry_report(), session.state(),
+        session.frames_painted(), "", session.entry_components(), session.component_name());
+    expect(report.find("\"components\":[\"Home\",\"Settings\"]") != std::string::npos,
+           "the apply report carries the list: " + report);
+    expect(report.find("\"component\":\"Settings\"") != std::string::npos,
+           "the apply report names the previewed component");
+}
+
 } // namespace
 
 int main() {
@@ -324,6 +362,7 @@ int main() {
     test_a_failed_edit_keeps_the_running_evaluation();
     test_pointer_report_json();
     test_module_sheet_is_scoped();
+    test_entry_components_feed_the_dropdown();
     if (failures() != 0) {
         std::cerr << "scene_canvas_session: " << failures() << " failure(s)\n";
         return 1;
