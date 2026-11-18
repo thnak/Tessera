@@ -110,7 +110,7 @@ property that is *documented* as applied and is not, which is what the cross-che
 | `background-color` | applied | `paint_pass.cpp` `paint_background`; `paint_pass` |
 | `color` | applied | `paint_pass.cpp` `current_color` (also the `currentColor` base); `paint_text` |
 | `opacity` | applied | `paint_pass.cpp` effective-opacity product; `paint_opacity` |
-| `box-shadow` | applied | `paint_pass.cpp` `paint_box_shadows` and `scene_style_sync.cpp` outsets; `paint_shadow` |
+| `box-shadow` | applied | `paint_pass.cpp` `paint_box_shadows` and `scene_style_sync.cpp` outsets; `paint_shadow`; transitions and keyframes interpolate the list (`shadow_interpolation.cpp`, #462) |
 | `z-index` | applied | `scene_style_sync.cpp` → `Node::set_z_index`, read by `for_each_by_z`; `z_order` |
 | `transform` | applied | `scene_style_sync.cpp` → `Node::set_transform`; `transform` |
 | `transform-origin` | applied | `scene_style_sync.cpp` resolves the matrix around the origin; `scene_style_sync` |

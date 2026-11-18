@@ -6,6 +6,7 @@ add_library(tessera_animation STATIC
     keyframes.cpp
     property_dirty.cpp
     runtime.cpp
+    shadow_interpolation.cpp
     spring.cpp
     spring_runtime.cpp
     style_overlay.cpp
