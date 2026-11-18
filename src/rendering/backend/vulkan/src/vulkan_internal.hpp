@@ -3,7 +3,9 @@
 #pragma once
 
 #include "tessera/rendering/rhi/device.hpp"
+#include "vulkan_texture_math.hpp"
 
+#include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -129,38 +131,6 @@ inline std::uint32_t checked_sample_count(std::uint32_t sample_count, const char
     return sample_count;
 }
 
-inline std::size_t bytes_per_pixel(rhi::TextureFormat format);
-
-// Estimated device bytes of a texture (extent x texel size x samples).
-inline std::int64_t texture_bytes(rhi::Extent2D extent, rhi::TextureFormat format,
-                                  std::uint32_t sample_count) {
-    return static_cast<std::int64_t>(extent.width) * extent.height *
-           static_cast<std::int64_t>(bytes_per_pixel(format)) * sample_count;
-}
-
-// A multisampled target owns the 1-sample resolve image as well as the multisample render image.
-inline std::int64_t render_target_bytes(rhi::Extent2D extent, rhi::TextureFormat format,
-                                        std::uint32_t sample_count) {
-    return texture_bytes(extent, format, 1) +
-           (sample_count > 1 ? texture_bytes(extent, format, sample_count) : 0);
-}
-
-inline std::size_t bytes_per_pixel(rhi::TextureFormat format) {
-    switch (format) {
-    case rhi::TextureFormat::R8G8B8A8Unorm:
-        return 4;
-    case rhi::TextureFormat::R8Unorm:
-        return 1;
-    case rhi::TextureFormat::B8G8R8A8Unorm:
-        return 4;
-    case rhi::TextureFormat::R8G8B8A8Srgb:
-        return 4;
-    case rhi::TextureFormat::B8G8R8A8Srgb:
-        return 4;
-    }
-    return 0;
-}
-
 inline VkFilter to_vk_filter(rhi::Filter filter) {
     return filter == rhi::Filter::Linear ? VK_FILTER_LINEAR : VK_FILTER_NEAREST;
 }
@@ -256,7 +226,8 @@ public:
     VulkanTexture(VkDevice device, VmaAllocator allocator, VkImage image, VkImageView view,
                   VkSampler sampler, VmaAllocation allocation, VkDescriptorPool descriptor_pool,
                   VkDescriptorSet descriptor_set, rhi::Extent2D extent, rhi::TextureFormat format,
-                  VulkanDevice* owner, std::uint32_t epoch, std::uint32_t sample_count = 1)
+                  VulkanDevice* owner, std::uint32_t epoch, std::uint32_t sample_count = 1,
+                  std::uint32_t levels = 1)
         : device_(device),
           allocator_(allocator),
           image_(image),
@@ -269,7 +240,8 @@ public:
           format_(format),
           owner_(owner),
           epoch_(epoch),
-          sample_count_(sample_count) {}
+          sample_count_(sample_count),
+          levels_(levels) {}
 
     ~VulkanTexture() override;
 
@@ -281,6 +253,9 @@ public:
     }
     [[nodiscard]] std::uint32_t sample_count() const override {
         return sample_count_;
+    }
+    [[nodiscard]] std::uint32_t levels() const override {
+        return levels_;
     }
     void write(const void* data, std::size_t size) override;
 
@@ -308,6 +283,7 @@ private:
     VulkanDevice* owner_ = nullptr;
     std::uint32_t epoch_ = 0;
     std::uint32_t sample_count_ = 1;
+    std::uint32_t levels_ = 1;
 };
 
 class VulkanPipeline final : public rhi::Pipeline {

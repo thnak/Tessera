@@ -54,6 +54,10 @@ public:
     [[nodiscard]] bool supports_dual_source_blend() const override {
         return false;
     }
+    [[nodiscard]] bool
+    supports_texture_mipmaps(tessera::rendering::rhi::TextureFormat) const override {
+        return false;
+    }
     std::unique_ptr<tessera::rendering::rhi::Buffer> create_buffer(const BufferDesc&) override {
         return nullptr;
     }

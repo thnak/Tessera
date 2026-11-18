@@ -101,6 +101,9 @@ public:
     }
 
     std::unique_ptr<rhi::Texture> create_texture(const rhi::TextureDesc& desc) override {
+        if (desc.levels != 1U) {
+            throw std::invalid_argument("create_texture: mip chains are not supported on WebGPU");
+        }
         return std::make_unique<WebGpuTexture>(context_, desc);
     }
 
@@ -138,6 +141,12 @@ public:
     // per-channel coverage of `BlendMode::DualSource` has no expression here. Reporting false is
     // what routes LCD text to grayscale coverage on this backend (issue #471).
     [[nodiscard]] bool supports_dual_source_blend() const override {
+        return false;
+    }
+
+    // WebGPU has no blit and no built-in chain generation; a render-pass chain is a later slice
+    // (issue #491), so a downscaled image samples its single level here.
+    [[nodiscard]] bool supports_texture_mipmaps(rhi::TextureFormat) const override {
         return false;
     }
 

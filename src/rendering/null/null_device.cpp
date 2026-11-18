@@ -73,6 +73,9 @@ public:
             throw std::invalid_argument(
                 "NullTexture: pixels cannot be uploaded to a multisampled texture");
         }
+        if (!rhi::valid_texture_levels(desc)) {
+            throw std::invalid_argument("NullTexture: invalid mip level count");
+        }
         const std::size_t bytes = bytes_per_pixel(desc.format);
         data_.assign(static_cast<std::size_t>(desc.extent.width) * desc.extent.height * bytes, 0);
         if (desc.pixels != nullptr && bytes != 0) {
@@ -97,7 +100,13 @@ public:
     [[nodiscard]] std::uint32_t sample_count() const override {
         return desc_.sample_count;
     }
+    [[nodiscard]] std::uint32_t levels() const override {
+        return desc_.levels;
+    }
     void write(const void* data, std::size_t size) override {
+        if (desc_.levels > 1) {
+            throw std::invalid_argument("NullTexture: mipmapped textures are immutable");
+        }
         if (desc_.sample_count > 1) {
             throw std::invalid_argument("NullTexture: multisampled textures cannot be uploaded");
         }
@@ -193,12 +202,20 @@ public:
     [[nodiscard]] bool supports_dual_source_blend() const override {
         return true;
     }
+    // The null device records a mipmapped texture's level count (`Texture::levels()`) so a test can
+    // assert what the caller asked for; there is no pixel chain to build.
+    [[nodiscard]] bool supports_texture_mipmaps(rhi::TextureFormat) const override {
+        return true;
+    }
 
     std::unique_ptr<rhi::Buffer> create_buffer(const rhi::BufferDesc& desc) override {
         return std::make_unique<NullBuffer>(desc.size);
     }
 
     std::unique_ptr<rhi::Texture> create_texture(const rhi::TextureDesc& desc) override {
+        if (!rhi::valid_texture_levels(desc)) {
+            throw std::invalid_argument("null create_texture: invalid mip level count");
+        }
         if (!rhi::is_supported_sample_count(desc.sample_count)) {
             throw std::invalid_argument("null create_texture: unsupported sample count");
         }

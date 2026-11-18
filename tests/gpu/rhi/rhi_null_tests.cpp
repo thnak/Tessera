@@ -2,6 +2,7 @@
 
 #include "tessera/rendering/null/null_device.hpp"
 
+#include <array>
 #include <cstdint>
 #include <cstring>
 #include <iostream>
@@ -17,8 +18,8 @@ int main() {
     // presentation surface family a device is created for (issue #155); 1.5 added
     // `BlendMode::DualSource` and `Device::supports_dual_source_blend()` (issue #471). All are
     // additive compatible changes.
-    if (rhi::kRhiVersionMajor != 1 || rhi::kRhiVersionMinor != 5 ||
-        rhi::kRhiVersion != ((1u << 16) | 5u)) {
+    if (rhi::kRhiVersionMajor != 1 || rhi::kRhiVersionMinor != 6 ||
+        rhi::kRhiVersion != ((1u << 16) | 6u)) {
         std::cerr << "unexpected RHI version constants\n";
         return 1;
     }
@@ -259,6 +260,57 @@ int main() {
     if (!rejected) {
         std::cerr << "begin_render_pass should reject a descriptor sample-count mismatch\n";
         return 21;
+    }
+
+    // RHI 1.6 mip levels (#491): the null device records the count and enforces the contract.
+    if (!device->supports_texture_mipmaps(rhi::TextureFormat::R8G8B8A8Unorm)) {
+        std::cerr << "the null device should report mip support\n";
+        return 22;
+    }
+    const std::array<std::uint8_t, 8 * 8 * 4> mip_pixels{};
+    rhi::TextureDesc mip_desc;
+    mip_desc.extent = {8, 8};
+    mip_desc.pixels = mip_pixels.data();
+    mip_desc.levels = rhi::full_mip_levels(mip_desc.extent);
+    auto mip_texture = device->create_texture(mip_desc);
+    if (mip_desc.levels != 4 || mip_texture->levels() != 4) {
+        std::cerr << "null backend did not record the requested mip level count\n";
+        return 23;
+    }
+    if (device->create_texture(rhi::TextureDesc{{8, 8}})->levels() != 1) {
+        std::cerr << "a default texture should have one level\n";
+        return 24;
+    }
+    const auto rejects = [&](const rhi::TextureDesc& bad) {
+        try {
+            (void)device->create_texture(bad);
+        } catch (const std::invalid_argument&) {
+            return true;
+        }
+        return false;
+    };
+    rhi::TextureDesc too_many = mip_desc;
+    too_many.levels = 5;
+    rhi::TextureDesc no_pixels = mip_desc;
+    no_pixels.pixels = nullptr;
+    rhi::TextureDesc multisampled = mip_desc;
+    multisampled.sample_count = 4;
+    rhi::TextureDesc zero_levels = mip_desc;
+    zero_levels.levels = 0;
+    if (!rejects(too_many) || !rejects(no_pixels) || !rejects(multisampled) ||
+        !rejects(zero_levels)) {
+        std::cerr << "malformed mip requests should be rejected\n";
+        return 25;
+    }
+    bool write_rejected = false;
+    try {
+        mip_texture->write(mip_pixels.data(), mip_pixels.size());
+    } catch (const std::invalid_argument&) {
+        write_rejected = true;
+    }
+    if (!write_rejected) {
+        std::cerr << "a mipmapped texture should be immutable\n";
+        return 26;
     }
 
     std::cout << "rhi_null: ok\n";

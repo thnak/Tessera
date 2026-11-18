@@ -321,6 +321,40 @@ bool damage_replay() {
 // fractional scale flips to linear when it lands on a fractional device origin, which is the common
 // case for non-multiple-of-four CSS geometry, or when an explicit raster extent disagrees with the
 // draw.
+// RHI 1.6 (#491): a draw that minifies the raster by 2x or more on either axis asks for the full
+// chain, and only when the device can build one.
+bool mip_level_selection_table() {
+    using tessera::ui::paint::image_levels_for_draw;
+
+    const rhi::Extent2D raster{128, 64};
+    const auto levels = [&](float width, float height, bool supported = true) {
+        return image_levels_for_draw(rhi::Rect{0.0f, 0.0f, width, height}, raster, supported);
+    };
+    bool ok = expect(levels(128.0f, 64.0f) == 1, "1:1 asks for a single level");
+    ok = expect(levels(256.0f, 128.0f) == 1, "magnification asks for a single level") && ok;
+    ok = expect(levels(100.0f, 50.0f) == 1, "a sub-2x downscale asks for a single level") && ok;
+    ok = expect(levels(64.0f, 64.0f) == rhi::full_mip_levels(raster),
+                "a 2x downscale on one axis asks for the full chain (128 -> 8 levels)") &&
+         ok;
+    ok = expect(levels(32.0f, 16.0f) == 8, "a 4x downscale asks for the full chain") && ok;
+    ok = expect(levels(32.0f, 16.0f, false) == 1,
+                "a device without mip support always gets a single level") &&
+         ok;
+    ok = expect(levels(0.0f, 16.0f) == 1 && levels(-8.0f, 16.0f) == 1,
+                "a degenerate rect asks for a single level") &&
+         ok;
+    ok = expect(image_levels_for_draw(rhi::Rect{0.0f, 0.0f, 32.0f, 32.0f}, rhi::Extent2D{0, 64},
+                                      true) == 1,
+                "a zero raster extent asks for a single level") &&
+         ok;
+    ok = expect(image_levels_for_draw(
+                    rhi::Rect{0.0f, 0.0f, std::numeric_limits<float>::infinity(), 16.0f}, raster,
+                    true) == 1,
+                "a non-finite rect asks for a single level") &&
+         ok;
+    return ok;
+}
+
 bool filter_selection_table() {
     using tessera::ui::paint::image_filter_for_draw;
 
@@ -433,6 +467,7 @@ int main() {
     ok = clipping_and_skips() && ok;
     ok = damage_replay() && ok;
     ok = filter_selection_table() && ok;
+    ok = mip_level_selection_table() && ok;
     ok = decode_target_follows_the_draw() && ok;
     if (!ok) {
         std::cerr << "paint_image: FAILED\n";

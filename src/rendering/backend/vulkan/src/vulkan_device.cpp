@@ -19,6 +19,22 @@ rhi::RhiCapabilities VulkanDevice::capabilities() const {
     return rhi::RhiCapabilities{rhi::Backend::Vulkan, rhi::kRhiVersion, timestamp_capability()};
 }
 
+bool VulkanDevice::supports_texture_mipmaps(rhi::TextureFormat format) const {
+    if (physical_device_ == VK_NULL_HANDLE) {
+        return false;
+    }
+    const VkFormat vk_format = to_vk_format(format);
+    if (vk_format == VK_FORMAT_UNDEFINED) {
+        return false;
+    }
+    VkFormatProperties properties{};
+    vkGetPhysicalDeviceFormatProperties(physical_device_, vk_format, &properties);
+    constexpr VkFormatFeatureFlags kNeeded = VK_FORMAT_FEATURE_BLIT_SRC_BIT |
+                                             VK_FORMAT_FEATURE_BLIT_DST_BIT |
+                                             VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
+    return (properties.optimalTilingFeatures & kNeeded) == kNeeded;
+}
+
 bool VulkanDevice::supports_sample_count(rhi::TextureFormat format,
                                          std::uint32_t sample_count) const {
     if (!rhi::is_supported_sample_count(sample_count)) {

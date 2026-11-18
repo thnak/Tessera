@@ -248,7 +248,36 @@ struct TextureDesc {
     // resources; the 2D pipeline samples 1-sample textures only and pixels cannot be uploaded for
     // sample_count > 1. Backends report support through Device::supports_sample_count.
     std::uint32_t sample_count = 1;
+    // Mip levels (RHI 1.6, issue #491): 1 (default) is a single level. A value above 1 asks the
+    // device to build the chain from the uploaded base level (`pixels`, required) with a box-style
+    // downsample, and the sampler then selects a level from the draw's minification. At most
+    // `full_mip_levels(extent)`, only for sample_count == 1, and only when
+    // `Device::supports_texture_mipmaps(format)` is true; otherwise `create_texture` throws. A
+    // mipmapped texture is immutable: `Texture::write` throws, because the chain would go stale.
+    std::uint32_t levels = 1;
 };
+
+// The length of a complete mip chain for a base extent: floor(log2(max(width, height))) + 1.
+// A zero extent has one level.
+[[nodiscard]] constexpr std::uint32_t full_mip_levels(Extent2D extent) noexcept {
+    std::uint32_t largest = extent.width > extent.height ? extent.width : extent.height;
+    std::uint32_t levels = 1;
+    while (largest > 1U) {
+        largest >>= 1U;
+        ++levels;
+    }
+    return levels;
+}
+
+// Whether a texture request's level count is well formed (RHI 1.6): in [1, full chain], and more
+// than one level only for a 1-sample texture that uploads its base level. Backends throw
+// std::invalid_argument when this is false, before they look at device support.
+[[nodiscard]] constexpr bool valid_texture_levels(const TextureDesc& desc) noexcept {
+    if (desc.levels < 1U || desc.levels > full_mip_levels(desc.extent)) {
+        return false;
+    }
+    return desc.levels == 1U || (desc.sample_count == 1U && desc.pixels != nullptr);
+}
 
 struct RenderTargetDesc {
     Extent2D extent;

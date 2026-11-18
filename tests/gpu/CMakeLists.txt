@@ -410,6 +410,17 @@ if (TARGET tessera_rhi_vulkan)
         SKIP_REGULAR_EXPRESSION "skipped"
         FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
 
+    # RHI 1.6 mip chain (#491) pixel test: a 1px checkerboard drawn at a 3x downscale aliases to pure
+    # black/white with one level and reads mid-grey with a full chain. Skips without a Vulkan
+    # device or a format that can be blitted.
+    add_executable(texture_mips_gpu_tests
+        batched2d/texture_mips_gpu_tests.cpp)
+    target_link_libraries(texture_mips_gpu_tests PRIVATE tessera_gpu tessera_rhi_vulkan)
+    add_test(NAME texture_mips_gpu COMMAND texture_mips_gpu_tests)
+    set_tests_properties(texture_mips_gpu PROPERTIES
+        SKIP_REGULAR_EXPRESSION "skipped"
+        FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+
     # RHI 1.3 sampled render target (#254) pixel test: draw a backdrop, break, copy it into a pooled
     # target, blur it horizontally into a second pooled target that samples the copy, then resume
     # and composite the blurred result. Expected pixels come from the CPU glass kernel.

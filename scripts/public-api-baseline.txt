@@ -1249,10 +1249,12 @@ enum include/tessera/rendering/rhi/types.hpp tessera::rendering::rhi::StoreOp
 enum include/tessera/rendering/rhi/types.hpp tessera::rendering::rhi::SurfacePlatform
 enum include/tessera/rendering/rhi/types.hpp tessera::rendering::rhi::TextureFormat
 enum include/tessera/rendering/rhi/types.hpp tessera::rendering::rhi::VertexFormat
+function include/tessera/rendering/rhi/types.hpp tessera::rendering::rhi::full_mip_levels
 function include/tessera/rendering/rhi/types.hpp tessera::rendering::rhi::intersect
 function include/tessera/rendering/rhi/types.hpp tessera::rendering::rhi::is_srgb
 function include/tessera/rendering/rhi/types.hpp tessera::rendering::rhi::is_supported_sample_count
 function include/tessera/rendering/rhi/types.hpp tessera::rendering::rhi::rgba8
+function include/tessera/rendering/rhi/types.hpp tessera::rendering::rhi::valid_texture_levels
 constant include/tessera/rendering/rhi/types.hpp tessera::rendering::rhi::kSampleCount1
 constant include/tessera/rendering/rhi/types.hpp tessera::rendering::rhi::kSampleCount4
 

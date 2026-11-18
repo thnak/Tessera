@@ -279,9 +279,17 @@ void Batched2DSink::draw_image(const ImageDraw& draw) {
     const rhi::Filter filter = image_filter_for_draw(
         device_rect, rhi::Extent2D{request->raster_width, request->raster_height}, device_rect.x,
         device_rect.y);
-    const rendering::image::ImageTextureKey texture_key{
-        (*decoded)->content_hash, request->raster_width, request->raster_height,
-        image_.texture_format, filter};
+    // Minification asks for a mip chain when the device can build one (RHI 1.6); the key carries
+    // the level count because the sampler's LOD range is fixed at creation, like the filter.
+    const std::uint32_t levels = image_levels_for_draw(
+        device_rect, rhi::Extent2D{request->raster_width, request->raster_height},
+        image_.textures->supports_mipmaps());
+    const rendering::image::ImageTextureKey texture_key{(*decoded)->content_hash,
+                                                        request->raster_width,
+                                                        request->raster_height,
+                                                        image_.texture_format,
+                                                        filter,
+                                                        levels};
     const auto texture = image_.textures->acquire(**decoded, texture_key);
     if (!texture.has_value()) {
         ++image_stats_.texture_failures;

@@ -67,7 +67,7 @@ void VulkanBuffer::read(void* data, std::size_t size, std::size_t offset) const 
 
 VulkanTexture::~VulkanTexture() {
     if (owner_ != nullptr) {
-        owner_->account_image(-texture_bytes(extent_, format_, sample_count_), epoch_);
+        owner_->account_image(-texture_bytes(extent_, format_, sample_count_, levels_), epoch_);
     }
     const bool destroy_handles = owner_ == nullptr || owner_->destroyable_epoch(epoch_);
     const auto destroy = [device = device_, allocator = allocator_, image = image_, view = view_,

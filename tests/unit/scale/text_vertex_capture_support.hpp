@@ -124,6 +124,9 @@ public:
     [[nodiscard]] bool supports_dual_source_blend() const override {
         return inner_->supports_dual_source_blend();
     }
+    [[nodiscard]] bool supports_texture_mipmaps(rhi::TextureFormat format) const override {
+        return inner_->supports_texture_mipmaps(format);
+    }
     std::unique_ptr<rhi::Buffer> create_buffer(const rhi::BufferDesc& desc) override {
         return inner_->create_buffer(desc);
     }

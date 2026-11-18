@@ -35,15 +35,17 @@ RHI versioning and capabilities (ADR-049):
 
 - `include/tessera/rendering/rhi/version.hpp` defines the published RHI contract version as
   `kRhiVersionMajor`, `kRhiVersionMinor`, and `kRhiVersion = (major << 16) | minor`
-  (`1.0` / `0x00010000` for the first published version). The current contract is **1.5**
-  (`0x00010005`): 1.0 is the B1 surface; 1.1 adds `CommandList::copy_target_region` for the
+  (`1.0` / `0x00010000` for the first published version). The current contract is **1.6**
+  (`0x00010006`): 1.0 is the B1 surface; 1.1 adds `CommandList::copy_target_region` for the
   isolated-layer seam (issue #242, [`offscreen-layers.md`](offscreen-layers.md)); 1.2 adds the
   swapchain composite-alpha request and the resolved-mode query (glass-v1.md section 6, issue #243);
   1.3 adds the sampled view of an offscreen render target (`CommandList::bind_sampled_target` plus
   the target's sampler state, issue #254, section 5.1 below); 1.4 adds
   `DeviceDesc::surface`/`SurfacePlatform`, the presentation surface family a device is created for
   (issue #155, Wayland window + `VK_KHR_wayland_surface`); 1.5 adds `BlendMode::DualSource` and the
-  capability that gates it, `Device::supports_dual_source_blend()` (issue #471, section 4.1 below).
+  capability that gates it, `Device::supports_dual_source_blend()` (issue #471, section 4.1 below);
+  1.6 adds `TextureDesc::levels`, `Texture::levels()` and the capability that gates it,
+  `Device::supports_texture_mipmaps(format)` (issue #491, section 5.2 below).
   All later versions are additive compatible changes.
 - `RhiCapabilities { Backend backend; std::uint32_t rhi_version; GpuTimestampCapability timestamps; }`
   is reported by `Device::capabilities()` (default: current backend, `kRhiVersion`,
@@ -237,6 +239,27 @@ image, carries `VK_IMAGE_USAGE_SAMPLED_BIT`) and transitions back to `TRANSFER_S
 every later copy, blit, pass or readback. WebGPU's target texture already carries `TEXTURE_BINDING`
 usage and the bind group pairs its view with the target's sampler; WebGPU tracks the transition.
 Null records the bind (`NullSampledTargetBind`) and the ordered command log.
+
+### 5.2 Texture mip chains (RHI 1.6)
+
+`TextureDesc::levels` (default 1) asks for a mip chain. The chain is **built by the device at
+creation from the uploaded base level** (`pixels` is required), so the texture is complete before
+its first draw; there is no separate generate command, which keeps the upload on the one submission
+the backends already make and leaves no window where a half-built chain can be sampled.
+
+- Limits: `1 <= levels <= full_mip_levels(extent)`, only for `sample_count == 1`. Anything else
+  throws `std::invalid_argument` (`valid_texture_levels`), on every backend.
+- `Device::supports_texture_mipmaps(format)` is the only authority and is pure virtual. Vulkan
+  reports it when the format allows blit source, blit destination and linear filtering with
+  optimal tiling (the chain is a `vkCmdBlitImage` linear downsample); the null device reports true
+  and records `Texture::levels()`; WebGPU reports false (no blit, and a render-pass chain is a later
+  slice). With false, `create_texture` with `levels > 1` throws and the caller uses one level.
+- Sampling: the sampler's LOD range is `[0, levels - 1]`, so a one-level texture never samples
+  elsewhere and a chain picks its level from the draw's minification (`texture()` derivatives).
+  `mipmapMode` is linear when the texture's filter is linear, nearest otherwise.
+- A mipmapped texture is **immutable**: `Texture::write` throws `std::invalid_argument`, because a
+  write to level 0 would leave the lower levels stale.
+- Memory accounting counts every level.
 
 ## 6. Lifetime and threading
 
