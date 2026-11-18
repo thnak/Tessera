@@ -142,6 +142,12 @@ public:
     // destructor.
     [[nodiscard]] VkDescriptorSet sampled_descriptor(const VulkanRenderTarget& target);
 
+    // One COMBINED_IMAGE_SAMPLER set from the device's pool list (issue #480). `pool` is the pool
+    // the set came from; free it with vkFreeDescriptorSets on that pool. Tries the current pool,
+    // then the others (freed sets return space), then grows the list. Throws a named error at
+    // kMaxDescriptorPools. Not thread safe, like the pool it replaces.
+    VkDescriptorSet allocate_descriptor_set(const char* what, VkDescriptorPool& pool);
+
     // Hands out recycled command resources (or creates new ones). release_command_resources takes
     // them back; `in_flight` resources are reused only once their fence has signaled.
     CommandResources acquire_command_resources();
@@ -166,7 +172,15 @@ private:
     void create_device();
     void create_allocator();
     void create_descriptor_layout();
-    void create_descriptor_pool();
+    // Descriptor pools (issue #480): one pool holds kDescriptorSetsPerPool sets; when it is full
+    // the device grows a list instead of failing, up to kMaxDescriptorPools.
+    static constexpr std::uint32_t kDescriptorSetsPerPool = 1024;
+    static constexpr std::size_t kMaxDescriptorPools = 64;
+    VkDescriptorPool add_descriptor_pool();
+    void destroy_descriptor_pools();
+    void create_descriptor_pool() {
+        add_descriptor_pool();
+    }
     void reap_uploads();
     void drain_uploads();
     void destroy_device_objects();
@@ -206,7 +220,8 @@ private:
     std::uint32_t queue_family_ = 0;
     VmaAllocator allocator_ = nullptr;
     VkDescriptorSetLayout descriptor_set_layout_ = VK_NULL_HANDLE;
-    VkDescriptorPool descriptor_pool_ = VK_NULL_HANDLE;
+    VkDescriptorPool descriptor_pool_ = VK_NULL_HANDLE; // the pool new sets are tried in first
+    std::vector<VkDescriptorPool> descriptor_pools_;
     std::vector<CommandResources> free_commands_;
     std::vector<CommandResources> inflight_commands_;
 #if defined(TESSERA_VULKAN_HAS_PRESENT_SURFACE)
