@@ -36,17 +36,17 @@
   },
   "entries": {
     "download_gzip_bytes": {
-      "budget": 2540810.0,
+      "budget": 2540912.0,
       "status": "enforce",
       "unit": "bytes",
       "measures": "gzip-9 bytes of the whole designer/web/ page directory plus tessera_diagnostics.js + tessera_diagnostics.wasm: the transfer a browser pays for the page and its module",
       "recorded": {
-        "assets/index-BHOE0uB4.js.gzip": 96951.0,
+        "assets/index-BAmb-Y8T.js.gzip": 97054.0,
         "assets/index-C2klgzmB.css.gzip": 3336.0,
         "canvas.html.gzip": 1101.0,
         "fonts/IBMPlexSans-Latin.ttf.gzip": 19432.0,
         "fonts/OFL.txt.gzip": 1946.0,
-        "index.html.gzip": 1213.0,
+        "index.html.gzip": 1212.0,
         "redirect.js.gzip": 2246.0,
         "samples.json.gzip": 178.0,
         "scene.html.gzip": 1208.0,
