@@ -4,7 +4,8 @@
 // source for the module ABI, with the canvas session's own table in
 // `docs/design/canvas-input-session.md` section 5: `tessera_webgpu_set_device`,
 // `tessera_canvas_apply`, `tessera_canvas_pointer`, `tessera_canvas_pick`,
-// `tessera_canvas_style`, `tessera_canvas_set_fold`, `tessera_canvas_set_viewport`,
+// `tessera_canvas_style`, `tessera_canvas_patch`, `tessera_canvas_set_fold`,
+// `tessera_canvas_set_viewport`,
 // `tessera_canvas_set_safe_area`, `tessera_canvas_draw`, `tessera_canvas_reset`,
 // `tessera_canvas_set_font` and `tessera_canvas_font_status`, plus the four
 // shared `tessera_project_*` exports (`wasm_project_exports.cpp`) that stage the project `apply`
@@ -80,6 +81,22 @@ std::string report_with_css(const cli::SceneFrameResult& result, rhi::Extent2D e
 std::unique_ptr<cli::CanvasSceneSession> g_session;
 
 } // namespace
+
+namespace tessera::compiler::codegen::cli {
+
+// The running session, for the query exports that live in `wasm_canvas_query.cpp` (issue #171's
+// `source.patch` slice split them out when this entry passed the source-size limit). The queries
+// read the session and answer a value; they never create, replace or reset it, so a pointer is
+// enough and the entry keeps sole ownership.
+CanvasSceneSession* canvas_query_session() {
+    return g_session.get();
+}
+
+char* canvas_duplicate_out(std::string_view text) {
+    return duplicate_out(text);
+}
+
+} // namespace tessera::compiler::codegen::cli
 
 extern "C" {
 
@@ -217,64 +234,8 @@ EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_pointer(const char* kind, float 
     return duplicate_out(cli::canvas_pointer_report_json(result));
 }
 
-// What is under one point, for the picker overlay (issue #171's picker slice). `x`/`y` are
-// **logical** viewport pixels, exactly like `tessera_canvas_pointer`'s, and the same CSS-to-logical
-// rule applies (see that export's comment: divide by the canvas' CSS-to-logical ratio, never by the
-// DPR).
-//
-// **Why this is its own export and not a pointer kind.** The picker must be able to ask "what is
-// here?" without changing anything: arming it and moving over a button must not set `:hover`, must
-// not run a handler and must not cost a frame. A `pointer()` kind would dispatch, and the page
-// would then have to undo the hover it never wanted. This reads the tree with the router's own hit
-// test (`Node::hit_test_deep`) and answers a value, so the node it names is the node a press at the
-// same point would reach - one hit test, not two that can disagree.
-//
-// It answers a well-formed report in every state: no session, no tree and a point outside every
-// node are all `found:false`, so a page that arms the picker before the first Run costs no
-// exception at the FFI boundary and shows no stale outline.
-EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_pick(float x, float y) {
-    cli::CanvasPickResult result;
-    if (g_session != nullptr && g_session->started()) {
-        result = g_session->pick(x, y);
-    }
-    return duplicate_out(cli::canvas_pick_report_json(result));
-}
-
-// The style inspector's query (issue #171, designer-protocol-v1 section 9.1): the computed style,
-// the matched rules with their provenance, and the box of the node with this automation id.
-//
-// **Why this is its own export and not part of `tessera_canvas_pick`.** A pick answers "what is
-// under this point"; the inspector answers "what styles this node", and the two are asked at
-// different moments: the picker runs on every pointer move and must stay cheap, while the inspector
-// runs once when a node is selected and may allocate. Keeping them apart is also what lets the
-// picker stay a two-string query.
-//
-// **It is a query.** Nothing is dispatched, no pseudo-class moves and no frame is owed: opening the
-// inspector on a node must not change the picture. The id is a decimal string because a 64-bit
-// `uiId` does not survive `JSON.parse` as a JS number, the same convention every other id in this
-// module follows.
-//
-// A missing node, an id of 0 and a session with no tree all answer
-// `{"styleVersion":1,"ok":false,"reason":"no_such_node"}` with no other field, so a page that asks
-// before the first Run costs no exception at the FFI boundary and shows no stale style.
-EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_style(const char* automation_id) {
-    cli::StyleInfoResult result;
-    if (g_session != nullptr && g_session->started()) {
-        // `strtoull` rather than `std::stoull`: the latter throws on a malformed id, and nothing
-        // may throw across the FFI boundary. A malformed id parses to 0, which is `no_such_node`.
-        const char* text = automation_id != nullptr ? automation_id : "";
-        char* end = nullptr;
-        const unsigned long long parsed = std::strtoull(text, &end, 10);
-        if (end != text && *end == '\0') {
-            result = g_session->inspect(static_cast<std::uint64_t>(parsed));
-        }
-    }
-    return duplicate_out(cli::canvas_style_report_json(result));
-}
-
 // Routes one keyboard event into the running session (issue #388, focus) and returns the same
 // document `tessera_canvas_pointer` does, with the focus fields filled.
-//
 //   kind       "down" | "up"            a key event; "blur" drops focus (the element lost the
 //   keyboard) key        a W3C `KeyboardEvent.key` ("Tab", "Enter", " ", "ArrowDown", "a")
 //   modifiers  a `ui::Modifier` mask: Shift 1, Control 2, Alt 4, Meta 8 (the page's `shiftKey`

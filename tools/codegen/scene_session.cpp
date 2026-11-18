@@ -140,6 +140,10 @@ void PreviewSession::rebuild() {
 
     const SceneBuildResult built = build_scene(component_, *root_, scope_);
     built_ = built.error.empty();
+    // The spans belong to the tree that was just built, so they are replaced with it - including
+    // with an empty list when the build failed, because a span for a node that is not on screen
+    // would let a commit edit a range nothing is showing.
+    node_sources_ = built.sources;
     if (!built_) {
         // A tree that cannot be built installs no handlers, so a page sees an empty snapshot and
         // reports the same unsupported construct the P2 preview reports.
@@ -377,31 +381,6 @@ PreviewClickResult PreviewSession::click(std::uint64_t automation_id) {
     result.ran = ran_;
     result.unrun = unrun_;
     return result;
-}
-
-ui::Node* PreviewSession::node_by_automation_id(std::uint64_t automation_id) {
-    if (automation_id == 0) {
-        return nullptr;
-    }
-    // Preorder search under the live tree, skipping hidden subtrees the way the harness's
-    // `find_visible` does: a hidden node is not clickable, so a script cannot reach one.
-    struct Walk {
-        static ui::Node* find(ui::Node& node, std::uint64_t id) {
-            if (!node.rendered()) {
-                return nullptr;
-            }
-            if (node.automation_id() == id) {
-                return &node;
-            }
-            for (const auto& child : node.children()) {
-                if (ui::Node* found = find(*child, id)) {
-                    return found;
-                }
-            }
-            return nullptr;
-        }
-    };
-    return Walk::find(*root_, automation_id);
 }
 
 ui::StateSnapshot PreviewSession::state() const {

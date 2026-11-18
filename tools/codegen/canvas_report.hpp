@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "scene_canvas_patch.hpp"
 #include "scene_canvas_session.hpp"
 #include "scene_frame.hpp"
 #include "scene_state.hpp"
@@ -184,5 +185,30 @@ canvas_report_json(const SceneFrameResult& result, std::uint32_t width, std::uin
                                                    std::uint32_t frames, std::string_view error,
                                                    const std::vector<std::string>& components = {},
                                                    std::string_view component = {});
+
+// What one style commit produced (issue #171, designer-protocol-v1 section 10.2), as one JSON
+// object on one line:
+//
+//   {"patchVersion":1,"ok":true,"patchId":"...","edits":[{"file":"ui/Card.tsx","offset":42,
+//    "length":24,"newText":"style={{ ... }}"}],"baseVersions":{"ui/Card.tsx":1}}
+//
+// or, when the commit cannot be turned into edits:
+//
+//   {"patchVersion":1,"ok":false,"reason":"not_token_bound"}
+//
+// **`ok:false` carries no `edits` and no `baseVersions`**, because the spec sends no `source.patch`
+// for a failed commit (section 10.2). A page that read an empty edit list off a failure would show
+// "0 edits" where the truth is "nothing was produced".
+//
+// `edits` is in the order the spec requires - sorted by file and descending offset - so a host
+// applies them in the order given and never shifts a later edit. `baseVersions` is an object rather
+// than an array because the spec calls it a map from file path to version, and the page compares it
+// with its own copies by key.
+//
+// **`patchId` is the viewer's own handle for the patch**, which the spec's `style.commit.result`
+// carries so the following `source.patch` can name it (section 10.2). It is derived from the node
+// and the destination, so two commits of the same node to the same destination in one session get
+// the same id and a host can tell a retry from a new commit.
+[[nodiscard]] std::string canvas_patch_report_json(const SourcePatchResult& result);
 
 } // namespace tessera::compiler::codegen::cli

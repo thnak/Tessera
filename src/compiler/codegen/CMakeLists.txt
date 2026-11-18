@@ -205,6 +205,7 @@ set(_tessera_scene_preview_sources
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_layout.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_state.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_session.cpp
+    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_session_lookup.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_interaction.cpp)
 
 # The persistent canvas session (#388): the tree a pointer event feeds and a frame paints. It is
@@ -214,9 +215,18 @@ set(_tessera_scene_preview_sources
 # `scene_canvas_inspect.cpp` is the style inspector's query (issue #171, designer-protocol-v1
 # section 9.1): it reads the cascade and the tree and returns a value, so it lives beside the
 # session that owns both rather than in the report serializer.
+#
+# The `scene_canvas_patch_*.cpp` units are `source.patch` (issue #171, section 10.2): the commit's
+# edit list. They are split by the language each destination parses - JSX for `inline`, CSS for
+# `class`, JSON for `token` - because the only thing they share is the edit list they produce.
 set(_tessera_canvas_session_sources
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_canvas_session.cpp
-    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_canvas_inspect.cpp)
+    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_canvas_inspect.cpp
+    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_canvas_patch.cpp
+    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_canvas_patch_query.cpp
+    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_canvas_patch_inline.cpp
+    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_canvas_patch_class.cpp
+    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_canvas_patch_token.cpp)
 
 # The preview's text stack (issue #387): the production FreeType/HarfBuzz/atlas path, loaded from font
 # BYTES the caller supplies (the page fetches them; the CLI reads the same shipped file).
@@ -422,6 +432,7 @@ else ()
     # page needs to run a frame. No NODERAWFS: nothing here reads a file (section 2.1).
     add_executable(tessera_canvas_wasm
         ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_entry.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_query.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_support.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_font.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/canvas_report.cpp
@@ -476,7 +487,9 @@ else ()
         # answered without dispatching, so arming the picker cannot move `:hover` or cost a frame.
         # `_tessera_canvas_style` is the style inspector's query (issue #171): the computed style,
         # the matched rules with their provenance, and the box of one node.
-        -sEXPORTED_FUNCTIONS=["_tessera_project_begin","_tessera_project_set_entry","_tessera_project_add_source","_tessera_project_add_stylesheet","_tessera_canvas_apply","_tessera_canvas_pointer","_tessera_canvas_pick","_tessera_canvas_style","_tessera_canvas_set_safe_area","_tessera_canvas_draw","_tessera_canvas_reset","_tessera_canvas_set_font","_tessera_canvas_font_status","_tessera_webgpu_set_device","_tessera_free","_malloc","_free"]
+        # `_tessera_canvas_patch` is the commit's query (issue #171): the `source.patch` edit list
+        # and base versions for one node and destination, produced without writing anything.
+        -sEXPORTED_FUNCTIONS=["_tessera_project_begin","_tessera_project_set_entry","_tessera_project_add_source","_tessera_project_add_stylesheet","_tessera_canvas_apply","_tessera_canvas_pointer","_tessera_canvas_pick","_tessera_canvas_style","_tessera_canvas_patch","_tessera_canvas_set_safe_area","_tessera_canvas_draw","_tessera_canvas_reset","_tessera_canvas_set_font","_tessera_canvas_font_status","_tessera_webgpu_set_device","_tessera_free","_malloc","_free"]
         # `WebGPU` is the emdawnwebgpu port's handle table: the page needs `WebGPU.importJsDevice` and
         # `importJsQueue` to turn a JS GPUDevice/GPUQueue into the integer handles the C ABI takes.
         # `HEAPU8` is the view the page writes font bytes through (issue #387): `_malloc` returns a
@@ -882,8 +895,12 @@ if (TESSERA_BUILD_TESTS)
     #                         changing the scene
     #   scene_canvas_style    the style inspector's query (issue #171): computed style, matched rules
     #                         with their provenance, and the box, for one node
+    #   scene_canvas_patch    the commit's edit list (issue #171): `source.patch` for one node and
+    #                         destination, with the base versions the host compares
+    #   scene_canvas_patch_session  the same through a real evaluation: the IR span round trip and
+    #                         the session's own `patch()`, which the fixture tests deliberately skip
     foreach (_canvas_test IN ITEMS scene_canvas_session scene_canvas_pointer scene_canvas_pick
-            scene_canvas_style)
+            scene_canvas_style scene_canvas_patch scene_canvas_patch_session)
         add_executable(${_canvas_test}_tests
             ${CMAKE_SOURCE_DIR}/tests/unit/${_canvas_test}_tests.cpp
             ${CMAKE_SOURCE_DIR}/tools/codegen/canvas_report.cpp

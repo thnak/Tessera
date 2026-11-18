@@ -422,4 +422,51 @@ std::string canvas_apply_report_json(bool changed, bool reused, const StateCarry
     return out;
 }
 
+std::string canvas_patch_report_json(const SourcePatchResult& result) {
+    std::string out = "{\"patchVersion\":1";
+    if (!result.ok) {
+        // The spec's whole answer for a commit that cannot be turned into edits: `ok:false` and the
+        // reason, with no `edits` and no `baseVersions` (designer-protocol-v1 section 10.2). A page
+        // that read an empty edit list off a failure would show "0 edits" where the truth is that
+        // nothing was produced and no `source.patch` is sent.
+        append_bool(out, "ok", false);
+        append_text(out, "reason", patch_error_name(result.reason));
+        append_text(out, "detail", result.detail);
+        out += "}\n";
+        return out;
+    }
+    append_bool(out, "ok", true);
+    append_text(out, "patchId", result.patch_id);
+    // The edits in the order the spec requires - sorted by file and descending offset - so a host
+    // applies them in the order given and never shifts a later edit.
+    out += ",\"edits\":[";
+    for (std::size_t index = 0; index < result.patch.edits.size(); ++index) {
+        if (index != 0) {
+            out.push_back(',');
+        }
+        const TextEdit& edit = result.patch.edits[index];
+        out += "{\"file\":";
+        out += quoted(edit.file);
+        append_number(out, "offset", edit.offset);
+        append_number(out, "length", edit.length);
+        out += ",\"newText\":";
+        out += quoted(edit.new_text);
+        out.push_back('}');
+    }
+    out += "]";
+    // `baseVersions` is an object because the spec calls it a map from file path to version, and
+    // the page compares it with its own copies by key.
+    out += ",\"baseVersions\":{";
+    for (std::size_t index = 0; index < result.patch.base_versions.size(); ++index) {
+        if (index != 0) {
+            out.push_back(',');
+        }
+        out += quoted(result.patch.base_versions[index].first);
+        out.push_back(':');
+        out += std::to_string(result.patch.base_versions[index].second);
+    }
+    out += "}}\n";
+    return out;
+}
+
 } // namespace tessera::compiler::codegen::cli

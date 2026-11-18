@@ -634,7 +634,7 @@ owner-planned item and is not part of this milestone.
       compiler-error overlay. Hot reload is **blocked, not deferred**: ADR-040 emits a
       header-only template, so there is nothing to swap; the seam that must exist first is
       written up in `docs/specs/devtools-protocol-v1.md` section 8.
-- [ ] #171: P7: studio slices (picker overlay, style inspector, `source.patch`, skins).
+- [x] #171: P7: studio slices (picker overlay, style inspector, `source.patch`, skins).
       **The picker overlay slice landed** (2026-11-18): `tessera_canvas_pick` answers what is under a
       point — the node's automation id, element kind and logical-pixel box — as a *query* that
       dispatches nothing and owes no frame, reusing `Node::hit_test_deep` rather than a second hit
@@ -676,8 +676,32 @@ owner-planned item and is not part of this milestone.
       inspects (capture-phase `stopPropagation`) so the engine's pointer path never sees it.
       Evidence: `tools/codegen/scene_canvas_inspect.*`, `tools/codegen/canvas_report.*`,
       `tools/codegen/wasm_canvas_entry.cpp`, `designer/web/src/views/canvas-inspector.ts`, ctest
-      `scene_canvas_style`, `docs/design/canvas-input-session.md` §5.2. **Still open: `source.patch`**
-      — the issue stays open for it.
+      `scene_canvas_style`, `docs/design/canvas-input-session.md` §5.2.
+      **The `source.patch` slice landed** (2026-11-19), completing the issue: `tessera_canvas_patch`
+      answers `source.patch` (`designer-protocol-v1.md` §10.2) for one node and destination — the
+      minimal `TextEdit` list plus the base versions — as a *query* that writes nothing, because
+      applying the edits and answering `source.patch.result` is the studio's project-IO path (§10.3)
+      and is **not** wired here. The engine gap it closed: the IR's element `SourceSpan` was dropped
+      by the build walk, so nothing could name the bytes a commit edits; it now travels in a
+      **side table** (`SceneBuildResult::SceneNodeSource`, owned by `PreviewSession`, replaced on
+      every rebuild) rather than as a `ui::Node` field, because `ui::Node` is a public header with an
+      enforced `kNodeSizeBudget` and a span is a design-time fact no frame reads. Ranges come from
+      the parsers, never from a text search: `inline` re-parses the component and uses
+      `JsxAttribute::span`, `class` uses `style::parse_stylesheet`'s `Rule::offset`/
+      `Declaration::offset`, `token` scans the theme asset's JSON for the string literal. `edits` is
+      sorted by file and descending offset and non-overlapping; the property asserted is that
+      applying in the given order equals splicing every range against the original offsets at once
+      (not "any order", which is false when replacement lengths differ). Every range is checked
+      against UTF-8 code point boundaries. The six spec reasons are exact, and no patch is produced
+      for any of them. Narrower than §10.1 and reported as such: the override layer
+      (`style.override.set`) is a later slice, so a commit today carries no declarations and answers
+      `no_overrides`, and the `token` binding test is against the node's inline `var(<token>)`.
+      **The override layer is tracked as #536** — it is the input a commit writes, so until it lands
+      the page shows the `no_overrides` reason rather than inventing a declaration. Evidence:
+      `tools/codegen/scene_canvas_patch*.{hpp,cpp}`, `tools/codegen/scene_build*.{hpp,cpp}`,
+      `tools/codegen/scene_session.*`, `tools/codegen/canvas_report.*`,
+      `tools/codegen/wasm_canvas_entry.cpp`, `designer/web/src/views/canvas-inspector.ts`, ctest
+      `scene_canvas_patch`, `docs/design/canvas-input-session.md` §5.3.
 - [ ] #395: P6b: promote the latency budgets from `warn` to `enforce` and count the scene and canvas
       modules in the download budget. Needs a measurement first; take it after #392.
 - [ ] #396: `tessera-mcp`: the eight unimplemented tools (designer D-S7) and the spec decisions #350
