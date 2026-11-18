@@ -424,21 +424,6 @@ void VulkanDevice::create_descriptor_layout() {
              "vkCreateDescriptorSetLayout");
 }
 
-void VulkanDevice::create_descriptor_pool() {
-    VkDescriptorPoolSize pool_size{};
-    pool_size.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    pool_size.descriptorCount = 1024;
-
-    VkDescriptorPoolCreateInfo pool_info{};
-    pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-    pool_info.maxSets = 1024;
-    pool_info.poolSizeCount = 1;
-    pool_info.pPoolSizes = &pool_size;
-    check_vk(vkCreateDescriptorPool(device_, &pool_info, nullptr, &descriptor_pool_),
-             "vkCreateDescriptorPool");
-}
-
 void VulkanDevice::destroy() {
     if (device_ != VK_NULL_HANDLE && status_ == rhi::DeviceStatus::Ready) {
         (void)vkDeviceWaitIdle(device_);

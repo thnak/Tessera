@@ -89,16 +89,10 @@ std::unique_ptr<rhi::Texture> VulkanDevice::create_texture(const rhi::TextureDes
     check_vk(vkCreateSampler(device_, &sampler_info, nullptr, &sampler), "vkCreateSampler");
     ScopeGuard sampler_guard([&] { vkDestroySampler(device_, sampler, nullptr); });
 
-    VkDescriptorSetAllocateInfo descriptor_allocate{};
-    descriptor_allocate.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    descriptor_allocate.descriptorPool = descriptor_pool_;
-    descriptor_allocate.descriptorSetCount = 1;
-    descriptor_allocate.pSetLayouts = &descriptor_set_layout_;
-    VkDescriptorSet descriptor_set = VK_NULL_HANDLE;
-    check_vk(vkAllocateDescriptorSets(device_, &descriptor_allocate, &descriptor_set),
-             "vkAllocateDescriptorSets");
+    VkDescriptorPool descriptor_pool = VK_NULL_HANDLE;
+    VkDescriptorSet descriptor_set = allocate_descriptor_set("create_texture", descriptor_pool);
     ScopeGuard set_guard(
-        [&] { vkFreeDescriptorSets(device_, descriptor_pool_, 1, &descriptor_set); });
+        [&] { vkFreeDescriptorSets(device_, descriptor_pool, 1, &descriptor_set); });
 
     VkDescriptorImageInfo image_descriptor{};
     image_descriptor.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -119,7 +113,7 @@ std::unique_ptr<rhi::Texture> VulkanDevice::create_texture(const rhi::TextureDes
     resource_created();
     account_image(texture_bytes(desc.extent, desc.format, sample_count, levels), epoch_);
     auto texture = std::make_unique<VulkanTexture>(
-        device_, allocator_, image, view, sampler, allocation, descriptor_pool_, descriptor_set,
+        device_, allocator_, image, view, sampler, allocation, descriptor_pool, descriptor_set,
         desc.extent, desc.format, this, epoch_, sample_count, levels);
     set_guard.dismiss();
     sampler_guard.dismiss();

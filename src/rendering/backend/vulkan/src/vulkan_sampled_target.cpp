@@ -66,16 +66,10 @@ VkDescriptorSet VulkanDevice::sampled_descriptor(const VulkanRenderTarget& targe
     check_vk(vkCreateSampler(device_, &sampler_info, nullptr, &sampler), "vkCreateSampler(target)");
     ScopeGuard sampler_guard([&] { vkDestroySampler(device_, sampler, nullptr); });
 
-    VkDescriptorSetAllocateInfo allocate{};
-    allocate.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    allocate.descriptorPool = descriptor_pool_;
-    allocate.descriptorSetCount = 1;
-    allocate.pSetLayouts = &descriptor_set_layout_;
-    VkDescriptorSet descriptor_set = VK_NULL_HANDLE;
-    check_vk(vkAllocateDescriptorSets(device_, &allocate, &descriptor_set),
-             "vkAllocateDescriptorSets(target)");
+    VkDescriptorPool descriptor_pool = VK_NULL_HANDLE;
+    VkDescriptorSet descriptor_set = allocate_descriptor_set("bind_sampled_target", descriptor_pool);
     ScopeGuard set_guard(
-        [&] { vkFreeDescriptorSets(device_, descriptor_pool_, 1, &descriptor_set); });
+        [&] { vkFreeDescriptorSets(device_, descriptor_pool, 1, &descriptor_set); });
 
     VkDescriptorImageInfo image{};
     image.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -92,7 +86,7 @@ VkDescriptorSet VulkanDevice::sampled_descriptor(const VulkanRenderTarget& targe
     vkUpdateDescriptorSets(device_, 1, &write, 0, nullptr);
 
     // The target owns the pair from here; its destructor frees them.
-    target.set_sampled_descriptor(sampler, descriptor_set, descriptor_pool_);
+    target.set_sampled_descriptor(sampler, descriptor_set, descriptor_pool);
     sampler_guard.dismiss();
     set_guard.dismiss();
     return descriptor_set;
