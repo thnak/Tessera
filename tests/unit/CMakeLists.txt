@@ -708,20 +708,22 @@ if (TESSERA_WAYLAND_FOUND)
         pkg_check_modules(TESSERA_WAYLAND_SERVER QUIET wayland-server)
     endif()
     if (TESSERA_WAYLAND_SERVER_FOUND)
-        add_executable(window_wayland_subpixel_tests
-            window_wayland_subpixel_tests.cpp)
+        # window_wayland_displays covers the monitor list from the same fake compositor (issue #506).
+        foreach (wl_test IN ITEMS window_wayland_subpixel window_wayland_displays)
+            add_executable(${wl_test}_tests ${wl_test}_tests.cpp)
 
-        target_include_directories(window_wayland_subpixel_tests PRIVATE
-            ${TESSERA_WAYLAND_SERVER_INCLUDE_DIRS})
-        target_link_directories(window_wayland_subpixel_tests PRIVATE
-            ${TESSERA_WAYLAND_SERVER_LIBRARY_DIRS})
-        target_link_libraries(window_wayland_subpixel_tests PRIVATE
-            tessera_hal_window
-            ${TESSERA_WAYLAND_SERVER_LIBRARIES})
+            target_include_directories(${wl_test}_tests PRIVATE
+                ${TESSERA_WAYLAND_SERVER_INCLUDE_DIRS})
+            target_link_directories(${wl_test}_tests PRIVATE
+                ${TESSERA_WAYLAND_SERVER_LIBRARY_DIRS})
+            target_link_libraries(${wl_test}_tests PRIVATE
+                tessera_hal_window
+                ${TESSERA_WAYLAND_SERVER_LIBRARIES})
 
-        add_test(NAME window_wayland_subpixel COMMAND window_wayland_subpixel_tests)
+            add_test(NAME ${wl_test} COMMAND ${wl_test}_tests)
+        endforeach()
     else()
-        message(STATUS "libwayland-server not found: window_wayland_subpixel test disabled")
+        message(STATUS "libwayland-server not found: Wayland fake-compositor tests disabled")
     endif()
     set_tests_properties(window_wayland PROPERTIES
         SKIP_REGULAR_EXPRESSION "skipped")

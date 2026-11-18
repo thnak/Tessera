@@ -79,7 +79,12 @@ back to the only output when there is exactly one, and is `Unknown` when several
 none has been entered. A move to another output, or a late `geometry` event, raises
 `DisplayChanged`. The vertical enumerators are therefore reachable on Linux; the resolver still
 treats them as grayscale in V1. A value the build does not understand is `Unknown`, never a guessed
-stripe. Wayland publishes no `displays()` list yet, so only `WindowMetrics` carries it there.
+stripe. The Wayland `displays()` list (issue #506) is built from the bound `wl_output`s: one entry
+per output that has reported its geometry, with the current mode (rotated by `transform`), the
+integer output scale (`bounds` is the mode divided by it), the refresh from the mode in millihertz,
+and the same per-output `pixel_geometry`. A `done`-terminated change to any of these, and an output
+appearing or going away, raises `DisplayChanged`. There is no primary output on Wayland, and
+fractional scale is not read.
 
 `AaPolicy` (plain data, resolved once per window and per fact change):
 `{ render_scale, text_mode, hinting, subpixel_position, edge_mode, clip_aa, msaa }`.
