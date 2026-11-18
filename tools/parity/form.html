@@ -4,7 +4,7 @@
   The browser twin of samples/gallery/FormPage.tsx. The structure is the same, element for element
   (View -> div, Text -> span, TextInput -> input, the library Button -> the div it renders), and the
   stylesheets are the very files the engine loads: packages/tessera-ui/button.css and
-  samples/gallery/form.css. scripts/ci/chrome_parity.mjs adds the theme tokens as :root variables
+  samples/gallery/form.module.css. scripts/ci/chrome_parity.mjs adds the theme tokens as :root variables
   from instrument.theme.json and the font; nothing else is styled here except the reset below.
 
   The reset is the engine's own box model written as CSS, because the engine does not apply the
@@ -30,77 +30,79 @@
   #root { width: 100%; height: 100%; }
 </style>
 <link rel="stylesheet" href="../../packages/tessera-ui/button.css">
-<link rel="stylesheet" href="../../samples/gallery/form.css">
+<!-- samples/gallery/form.module.css: scripts/ci/chrome_parity.mjs inlines its scoped text and
+     rewrites every class below to the scoped name the engine used (the gallery's
+     --emit-module-css writes both). The names here are the authored ones, as in FormPage.tsx. -->
 </head>
 <body>
 <div id="root">
-<div class="f-page">
-  <div class="f-card">
-    <div class="f-head">
-      <div class="f-logo"><span class="f-logo-mark">T</span></div>
-      <div class="f-head-text">
-        <span class="f-title">Create workspace</span>
-        <span class="f-sub">Invite your team and pick a plan. You can change this later.</span>
+<div class="page">
+  <div class="card">
+    <div class="head">
+      <div class="logo"><span class="logoMark">T</span></div>
+      <div class="headText">
+        <span class="title">Create workspace</span>
+        <span class="sub">Invite your team and pick a plan. You can change this later.</span>
       </div>
-      <div class="f-badge"><span class="f-badge-text">Pro trial</span></div>
+      <div class="badge"><span class="badgeText">Pro trial</span></div>
     </div>
 
-    <div class="f-grid">
-      <div class="f-field">
-        <span class="f-label">First name</span>
-        <input class="f-input" aria-label="First name" value="Ada">
+    <div class="grid">
+      <div class="field">
+        <span class="label">First name</span>
+        <input class="input" aria-label="First name" value="Ada">
       </div>
-      <div class="f-field">
-        <span class="f-label">Last name</span>
-        <input class="f-input" aria-label="Last name" value="Lovelace">
+      <div class="field">
+        <span class="label">Last name</span>
+        <input class="input" aria-label="Last name" value="Lovelace">
       </div>
-      <div class="f-field f-span">
-        <span class="f-label">Work email</span>
-        <input class="f-input f-input-error" aria-label="Work email" value="ada@analytical">
-        <span class="f-error">Enter a full address, for example ada@analytical.engine</span>
+      <div class="field span">
+        <span class="label">Work email</span>
+        <input class="input inputError" aria-label="Work email" value="ada@analytical">
+        <span class="error">Enter a full address, for example ada@analytical.engine</span>
       </div>
-      <div class="f-field f-span">
-        <span class="f-label">Region</span>
-        <div class="f-select">
-          <span class="f-select-value">Europe / Berlin (UTC+01:00)</span>
-          <span class="f-select-caret">v</span>
+      <div class="field span">
+        <span class="label">Region</span>
+        <div class="select">
+          <span class="selectValue">Europe / Berlin (UTC+01:00)</span>
+          <span class="selectCaret">v</span>
         </div>
-        <span class="f-help f-ellipsis">Data stays in this region. Backups are kept in the same country unless you opt in to a second site later.</span>
+        <span class="help ellipsis">Data stays in this region. Backups are kept in the same country unless you opt in to a second site later.</span>
       </div>
     </div>
 
-    <div class="f-segment">
-      <div class="f-seg f-seg-on"><span class="f-seg-text f-seg-text-on">Monthly</span></div>
-      <div class="f-seg"><span class="f-seg-text">Yearly</span></div>
-      <div class="f-seg"><span class="f-seg-text">Invoice</span></div>
+    <div class="segment">
+      <div class="seg segOn"><span class="segText segTextOn">Monthly</span></div>
+      <div class="seg"><span class="segText">Yearly</span></div>
+      <div class="seg"><span class="segText">Invoice</span></div>
     </div>
 
-    <div class="f-rows">
-      <div class="f-row">
-        <div class="f-row-text">
-          <span class="f-row-title">Weekly digest</span>
-          <span class="f-help">A summary every Monday morning.</span>
+    <div class="rows">
+      <div class="row">
+        <div class="rowText">
+          <span class="rowTitle">Weekly digest</span>
+          <span class="help">A summary every Monday morning.</span>
         </div>
-        <div class="f-switch f-switch-on"><div class="f-knob f-knob-on"></div></div>
+        <div class="toggle toggleOn"><div class="knob knobOn"></div></div>
       </div>
-      <div class="f-row">
-        <div class="f-row-text">
-          <span class="f-row-title">Two-step sign in</span>
-          <span class="f-help">Recommended for every admin.</span>
+      <div class="row">
+        <div class="rowText">
+          <span class="rowTitle">Two-step sign in</span>
+          <span class="help">Recommended for every admin.</span>
         </div>
-        <div class="f-switch"><div class="f-knob"></div></div>
+        <div class="toggle"><div class="knob"></div></div>
       </div>
-      <div class="f-check-row">
-        <div class="f-check f-check-on"><span class="f-check-mark">x</span></div>
-        <span class="f-check-label">I agree to the terms and the data processing addendum</span>
+      <div class="checkRow">
+        <div class="check checkOn"><span class="checkMark">x</span></div>
+        <span class="checkLabel">I agree to the terms and the data processing addendum</span>
       </div>
     </div>
 
-    <div class="f-rule"></div>
+    <div class="rule"></div>
 
-    <div class="f-foot">
+    <div class="foot">
       <div class="host"><div role="button" tabindex="0" aria-label="Delete draft" aria-disabled="true" class="tbtn tbtn-ghost tbtn-md tbtn-disabled"><span>Delete draft</span></div></div>
-      <div class="f-spacer"></div>
+      <div class="spacer"></div>
       <div class="host"><div role="button" tabindex="0" aria-label="Cancel" class="tbtn tbtn-secondary tbtn-md tbtn-idle"><span>Cancel</span></div></div>
       <div class="host"><div role="button" tabindex="0" aria-label="Create workspace" class="tbtn tbtn-primary tbtn-md tbtn-idle"><span>Create workspace</span></div></div>
     </div>
@@ -111,11 +113,12 @@
   /* The behaviour FormPage.tsx gives the plan control: the clicked segment becomes the selected one.
      It is the only script on the page, there so the parity tool can click and compare the
      transition the stylesheet declares. */
-  const segs = [...document.querySelectorAll('.f-seg')];
+  const cls = (name) => (window.__classMap && window.__classMap[name]) || name;
+  const segs = [...document.querySelectorAll('.' + cls('seg'))];
   segs.forEach((seg, i) => seg.addEventListener('click', () => {
     segs.forEach((other, j) => {
-      other.classList.toggle('f-seg-on', i === j);
-      other.querySelector('.f-seg-text').classList.toggle('f-seg-text-on', i === j);
+      other.classList.toggle(cls('segOn'), i === j);
+      other.querySelector('.' + cls('segText')).classList.toggle(cls('segTextOn'), i === j);
     });
   }));
 </script>

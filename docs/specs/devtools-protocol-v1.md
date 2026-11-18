@@ -60,6 +60,7 @@ file change -> hash -> incremental compile -> generated patch
 ## 5. Inspector overlay
 
 - Toggleable dev overlay; node hover/click selects tree/style/layout/semantics.
+- A node's classes are shown as authored: a CSS-module class (`card_0b82a5`) is listed by its authored name and declaring file through `ir::authored_classes`, never as the hash ([`css-isolation.md`](../design/css-isolation.md), issue #463).
 - Shows dirty domains/reasons, draw calls/batches, frame stages, memory/cache, recent events.
 - Click-to-source maps generated/scene nodes to TSX/C++ source spans via the generated manifests (automation manifest, [`automation-ids-v1.md`](automation-ids-v1.md) section 2, and the binding report, [ADR-040](../../decisions/ADR-040-generated-base-and-developer-class.md)).
 - Overlay never defeats dirty rendering (only its own region or explicit debug mode).

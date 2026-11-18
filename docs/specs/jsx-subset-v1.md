@@ -187,10 +187,12 @@ Rules:
     project-relative POSIX path ([`stylesheet-v1.md`](stylesheet-v1.md) section 3). The specifier
     must end in `.module.css`, and the path rules of every other import still apply (absolute, drive
     and UNC paths are errors). **`styles.<ident>` is its only allowed use**: a static member access
-    that lowers to the scoped class name. A `className` that reads a CSS module must fold to one
-    class string at compile time; anything else — a bare `styles`, a conditional, any expression
-    the compiler cannot evaluate — is `TESSERA_JSX_STYLES_DYNAMIC` (the same reason `style` keys
-    must be static, section 10.3). Two forms are refused earlier by the subset's own rules:
+    that lowers to the scoped class name. A `className` that reads a CSS module either folds to
+    one class string at compile time, or is a conditional (`c ? styles.a : styles.b`, also inside a
+    template) whose every `styles.<ident>` read is a constant: the reads become the scoped literals
+    and the choice stays the ordinary `conditional` expression (section 10.4). Anything else — a
+    bare `styles`, or any expression the compiler cannot evaluate — is
+    `TESSERA_JSX_STYLES_DYNAMIC` (the same reason `style` keys must be static, section 10.3). Two forms are refused earlier by the subset's own rules:
     `styles[k]` is `TESSERA_JSX_SUBSET_MEMBER` (indexing is never supported) and `{...styles}` is
     `TESSERA_JSX_SUBSET_SPREAD`, since a more fundamental error is the more useful one to report.
     A `styles.<ident>` with no matching class in the file is

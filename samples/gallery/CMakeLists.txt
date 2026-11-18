@@ -27,6 +27,7 @@ add_custom_command(
     COMMAND ${CMAKE_COMMAND} -E copy ${_gallery_safe_area} ${_gallery_gen}/src/SafeArea.tsx
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/SafeAreaPage.tsx ${_gallery_gen}/src/SafeAreaPage.tsx
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/FormPage.tsx ${_gallery_gen}/src/FormPage.tsx
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/form.module.css ${_gallery_gen}/src/form.module.css
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/DashPage.tsx ${_gallery_gen}/src/DashPage.tsx
     COMMAND $<TARGET_FILE:tessera_codegen_cli> --write --out ${_gallery_gen}
             --namespace gallery --salt gallery --root ${_gallery_gen}/src
@@ -36,10 +37,12 @@ add_custom_command(
     DEPENDS tessera_codegen_cli ${_gallery_button} ${_gallery_safe_area}
             ${CMAKE_CURRENT_SOURCE_DIR}/Gallery.tsx ${CMAKE_CURRENT_SOURCE_DIR}/SafeAreaPage.tsx
             ${CMAKE_CURRENT_SOURCE_DIR}/FormPage.tsx ${CMAKE_CURRENT_SOURCE_DIR}/DashPage.tsx
+            ${CMAKE_CURRENT_SOURCE_DIR}/form.module.css
     COMMENT "Generating the gallery page"
     VERBATIM)
 
-add_executable(gallery main.cpp golden.cpp golden.hpp ${_gallery_outputs})
+add_executable(gallery main.cpp golden.cpp golden.hpp form_module.cpp form_module.hpp
+               ${_gallery_outputs})
 target_include_directories(gallery PRIVATE ${_gallery_gen})
 target_link_libraries(gallery PRIVATE
     tessera_app_window
@@ -47,6 +50,7 @@ target_link_libraries(gallery PRIVATE
     tessera_text_edit
     tessera_animation
     tessera_style
+    tessera_css_module
     tessera_harness_capture
     tessera_stb)
 target_compile_definitions(gallery PRIVATE
@@ -54,7 +58,7 @@ target_compile_definitions(gallery PRIVATE
     TESSERA_GALLERY_SAFE_AREA_CSS="${PROJECT_SOURCE_DIR}/packages/tessera-ui/safe-area.css"
     TESSERA_GALLERY_BUTTON_CSS="${PROJECT_SOURCE_DIR}/packages/tessera-ui/button.css"
     TESSERA_GALLERY_CSS="${CMAKE_CURRENT_SOURCE_DIR}/gallery.css"
-    TESSERA_GALLERY_FORM_CSS="${CMAKE_CURRENT_SOURCE_DIR}/form.css"
+    TESSERA_GALLERY_FORM_CSS="${CMAKE_CURRENT_SOURCE_DIR}/form.module.css"
     TESSERA_GALLERY_DASH_CSS="${CMAKE_CURRENT_SOURCE_DIR}/dash.css"
     TESSERA_GALLERY_THEME="${PROJECT_SOURCE_DIR}/packages/tessera-ui/themes/instrument.theme.json")
 target_compile_features(gallery PRIVATE cxx_std_23)
@@ -80,7 +84,7 @@ if (TESSERA_BUILD_TESTS)
         "rtl|--rtl"
         # A transition caught part-way: the form, click on `Yearly`, 100 ms later. It pins the whole
         # path (click, style stage, first sample, ticks, the one AppHost paint), not just the maths.
-        "form_plan_mid|--page form --click f-seg:1 --advance-ms 100 --width 640 --height 720")
+        "form_plan_mid|--page form --click seg:1 --advance-ms 100 --width 640 --height 720")
     foreach (_theme light dark high_contrast)
         string(REPLACE "_" "-" _theme_id "${_theme}")
         foreach (_state none hover active focus)

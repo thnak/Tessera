@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: MIT */
 
 /* The stylesheet of DashPage.tsx; tools/parity/dash.html loads this very file. Theme tokens for
-   colour, one regular font face. Aimed at what form.css does not exercise: gradient, round
+   colour, one regular font face. Aimed at what form.module.css does not exercise: gradient, round
    avatars, clipped progress fills, per-side borders, an underline tab, wrapping, absolute
    position, transform, letter-spacing, text-transform, text-align and opacity. */
 

@@ -145,7 +145,12 @@ inside it that a function form does not, and no author needs it.
 - A malformed `:global(`: **error**. A `:global()` that matches nothing is not linted; matching is
   dynamic.
 - `TESSERA_JSX_STYLES_DYNAMIC` for `styles[k]`, spread, or passing `styles` around — the same
-  reason `style` keys must be static.
+  reason `style` keys must be static. A conditional is allowed when every read in it is a
+  constant (`on ? styles.active : ""`): a class that follows state is common (a selected tab, an
+  error field), the IR already has the `conditional` expression, and both branches are known
+  classes, so substituting the scoped names and lowering the rest as an ordinary expression needs
+  no run-time name lookup. The first slice refused it; the gallery form's segmented control showed
+  that was too strict.
 - `TESSERA_CSS_MODULE_HASH_COLLISION` as above.
 
 ## Inspector and tools
@@ -154,6 +159,25 @@ IR keeps both names per module class (`local`, `scoped`, `file`). The devtools t
 inspector and click-to-source show the authored `local` name with the file; the hash is only what
 the selector index sees. An author who is told `card_0b82a5` has to reverse a hash to find their
 own file, which is a worse experience than the collision it prevents.
+
+The lookup is `ir::find_authored_class` / `ir::authored_classes`
+(`src/compiler/ir/include/tessera/compiler/ir/authored_class.hpp`): given the IR's stylesheet
+references and a node's `className`, it returns each class as the authored name plus the declaring
+file, and keeps a global class as written. Scoped names are unique in a project (a hash collision is
+a compile error), so the answer is never ambiguous. No inspector, devtools tree or click-to-source
+exists in code yet ([`devtools-protocol-v1.md`](../specs/devtools-protocol-v1.md) section 5, and
+[`designer-studio-v1.md`](../specs/designer-studio-v1.md) puts the native inspector out of scope);
+the first one that does must show names through this lookup rather than print the hash.
+
+## Where the acceptance is tested
+
+- Two components with `.title` in their own sheets do not affect each other, and a global rule
+  still reaches what it did: `tests/unit/css_module_isolation_tests.cpp` on the engine's own
+  cascade, with an unscoped control that must collide (so the test fails without scoping), and
+  `scene_stylesheet_module_tests.cpp` on the preview path the Wasm studio runs.
+- An unknown `styles.x`, a dynamic read, a hash collision and an unused class:
+  `lowering_module_stylesheet_tests.cpp`.
+- Existing goldens unchanged for the form migrated to a module: `gallery_golden_*` on lavapipe.
 
 ## Out of scope
 

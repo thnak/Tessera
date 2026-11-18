@@ -65,6 +65,13 @@ target_link_libraries(jsx_adversarial_tests PRIVATE tessera_jsx_frontend)
 
 add_test(NAME jsx_adversarial COMMAND jsx_adversarial_tests)
 
+add_executable(ir_authored_class_tests
+    ir_authored_class_tests.cpp)
+
+target_link_libraries(ir_authored_class_tests PRIVATE tessera_ir)
+
+add_test(NAME ir_authored_class COMMAND ir_authored_class_tests)
+
 add_executable(ir_json_value_tests
     ir_json_value_tests.cpp)
 
@@ -2211,6 +2218,13 @@ add_subdirectory(scale)
 if (TESSERA_ICU_REDUCED_DATA)
     add_subdirectory(icu)
 endif()
+
+add_executable(css_module_isolation_tests
+    css_module_isolation_tests.cpp)
+
+target_link_libraries(css_module_isolation_tests PRIVATE tessera_css_module tessera_style)
+
+add_test(NAME css_module_isolation COMMAND css_module_isolation_tests)
 
 add_executable(container_query_tests
     container_query_tests.cpp)

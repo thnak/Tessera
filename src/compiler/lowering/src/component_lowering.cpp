@@ -163,6 +163,10 @@ bool apply_expression(NodeState& state, std::string_view name, const jsx::Expr& 
             node.props["className"] = ir::make_literal(std::move(css.text));
             return true;
         }
+        if (css.kind == CssModuleClass::Kind::Expression) {
+            node.props["className"] = std::move(css.expression);
+            return true;
+        }
     }
     // A component reference has no intrinsic schema: `onX` names are events by convention, and any
     // other attribute whose value names a declared handler (or is a payload-free inline arrow) is a

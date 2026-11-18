@@ -12,6 +12,12 @@ if (TESSERA_USE_COMPILER_CACHE AND NOT CMAKE_CXX_COMPILER_LAUNCHER)
         set(CMAKE_CXX_COMPILER_LAUNCHER
             "${TESSERA_COMPILER_CACHE}"
             CACHE STRING "C++ compiler launcher" FORCE)
+        if (NOT CMAKE_C_COMPILER_LAUNCHER)
+            # C sources (vendored Yoga and friends) are compiled too; cache them the same way.
+            set(CMAKE_C_COMPILER_LAUNCHER
+                "${TESSERA_COMPILER_CACHE}"
+                CACHE STRING "C compiler launcher" FORCE)
+        endif()
         message(STATUS "Tessera: using compiler cache: ${TESSERA_COMPILER_CACHE}")
     else()
         message(STATUS "Tessera: ccache/sccache not found; building without a compiler cache")

@@ -4,7 +4,7 @@
  *
  * **What this is.** `samples/gallery` (`--page form`) paints `FormPage.tsx` with the engine;
  * `tools/parity/form.html` is the same structure as HTML. Both read the same stylesheets
- * (`packages/tessera-ui/button.css`, `samples/gallery/form.css`), the same theme tokens
+ * (`packages/tessera-ui/button.css`, `samples/gallery/form.module.css`), the same theme tokens
  * (`instrument.theme.json`, injected here as `:root` variables) and the same font
  * (`tests/fixtures/fonts/NotoSans-Regular.ttf`). This script is the browser half: it writes
  * `chrome.png` and `chrome-boxes.json` (the border box of every classed element, in CSS pixels).
@@ -17,6 +17,12 @@
  * Usage (playwright is not a repository dependency):
  *   node scripts/ci/chrome_parity.mjs --out out/parity [--width 640] [--height 720] [--theme instrument-light]
  *                                     [--chrome <path to chrome>] [--dpr 1] [--repo <repository root>]
+ *                                     [--module-css <dir>]
+ *
+ * The form's stylesheet is a CSS module (issue #463): its class names are scoped at compile time.
+ * Run `gallery --emit-module-css <dir>` first; it writes `form.scoped.css` and `form.classes.json`
+ * with the scan's own output, and `--module-css` (default: `--out`) points here at them, so the
+ * browser twin uses exactly the names and rules the engine did.
  */
 
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
@@ -66,12 +72,42 @@ const tokenCss =
 await mkdir(out, { recursive: true });
 const browser = await chromium.launch(chromePath ? { executablePath: chromePath } : {});
 const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: dpr });
-await page.goto(pathToFileURL(join(root, `tools/parity/${pageName}.html`)).href);
+let classMap = {};
+let pageUrl = pathToFileURL(join(root, `tools/parity/${pageName}.html`)).href;
+if (pageName === 'form') {
+  // The twin is authored with the module's local class names; write a scoped copy beside the other
+  // outputs (links made absolute) and open that.
+  const moduleDir = resolve(argument('--module-css', out));
+  let scopedCss;
+  try {
+    scopedCss = await readFile(join(moduleDir, 'form.scoped.css'), 'utf8');
+    classMap = JSON.parse(await readFile(join(moduleDir, 'form.classes.json'), 'utf8'));
+  } catch {
+    console.error(`no form.scoped.css / form.classes.json in ${moduleDir}: run gallery --emit-module-css <dir> first`);
+    process.exit(2);
+  }
+  const repoUrl = pathToFileURL(root).href;
+  const scoped = (await readFile(join(root, 'tools/parity/form.html'), 'utf8'))
+    .replace(/href="\.\.\/\.\.\//g, `href="${repoUrl}/`)
+    .replace(/class="([^"]*)"/g, (_, names) =>
+      `class="${names.split(/\s+/).filter(Boolean).map((name) => classMap[name] ?? name).join(' ')}"`)
+    .replace('</head>', `<style>
+${scopedCss}
+</style>
+<script>window.__classMap = ${JSON.stringify(classMap)};</script>
+</head>`);
+  const scopedPath = join(out, 'form.scoped.html');
+  await writeFile(scopedPath, scoped);
+  pageUrl = pathToFileURL(scopedPath).href;
+}
+await page.goto(pageUrl);
 await page.addStyleTag({ content: tokenCss });
 await page.evaluate(() => document.fonts.ready);
 await page.waitForTimeout(150);
 if (clickSpec) {
-  const [cls, index = '0'] = clickSpec.split(':');
+  const [authored, index = '0'] = clickSpec.split(':');
+  // The click names an authored class; the page carries the scoped one when the page is a module.
+  const cls = classMap[authored] ?? authored;
   await page.locator(`.${cls}`).nth(Number(index)).click({ force: true });
   await page.evaluate(
     (ms) => {

@@ -10,6 +10,7 @@
 //   --rtl              `direction: rtl` on the window root (inherited)
 //   --state S          none (default), hover, active or focus: forces that pseudo-state on every
 //                      enabled Button, so a capture shows the state without a pointer
+//   --emit-module-css DIR  writes the form's scoped CSS + class map for the Chrome twin
 //   --click C[:N]      clicks the Nth (default 0) node carrying class C, as an accessibility
 //                      activation, before the capture (a page's own onClick runs)
 //   --advance-ms N     runs N more milliseconds after the click, so a transition it started is
@@ -30,6 +31,7 @@
 #include "FormPage.hpp"
 #include "Gallery.hpp"
 #include "SafeAreaPage.hpp"
+#include "form_module.hpp"
 #include "golden.hpp"
 #include "stb_image_write.h"
 #include "tessera/app/window.hpp"
@@ -72,6 +74,7 @@ struct Args {
     std::string density = "comfortable";
     std::string state = "none";
     std::string click;
+    std::string emit_module_css;
     int advance_ms = 0;
     int text_scale = 100;
     bool rtl = false;
@@ -101,6 +104,7 @@ struct Resources {
     style::PreparedStyleSheet safe_area_sheet;
     style::PreparedStyleSheet gallery_sheet;
     style::PreparedStyleSheet form_sheet;
+    gallery::FormModule form_module;
     style::PreparedStyleSheet dash_sheet;
     std::vector<std::uint8_t> theme_blob;
 };
@@ -125,7 +129,12 @@ std::optional<Resources> load_resources() {
     resources.library_sheet = style::prepare_stylesheet(*button_css);
     resources.safe_area_sheet = style::prepare_stylesheet(*safe_area_css);
     resources.gallery_sheet = style::prepare_stylesheet(*gallery_css);
-    resources.form_sheet = style::prepare_stylesheet(*form_css);
+    auto form_module = gallery::load_form_module(*form_css);
+    if (!form_module) {
+        return std::nullopt;
+    }
+    resources.form_module = *form_module; // the scan's scoped text, as FormPage's `styles.x`
+    resources.form_sheet = style::prepare_stylesheet(resources.form_module.css);
     resources.dash_sheet = style::prepare_stylesheet(*dash_css);
     resources.theme_blob = style::serialize_theme_asset(*theme);
     return resources;
@@ -136,7 +145,7 @@ style::CompiledStyleSheet make_sheet(const Resources& resources) {
         {"button.css", &resources.library_sheet, style::Origin::Author, true},
         {"safe-area.css", &resources.safe_area_sheet, style::Origin::Author, true},
         {"gallery.css", &resources.gallery_sheet, style::Origin::Author, false},
-        {"form.css", &resources.form_sheet, style::Origin::Author, false},
+        {"form.module.css", &resources.form_sheet, style::Origin::Author, false},
         {"dash.css", &resources.dash_sheet, style::Origin::Author, false},
     };
     return style::CompiledStyleSheet(sources);
@@ -327,7 +336,7 @@ int run_capture(const Args& args, const Resources& resources, Scene& scene) {
     const std::optional<tessera::app::CapturedFrame> frame =
         tessera::app::capture_frame(scene.root, make_sheet(resources), options, [&] {
             apply_state(scene.root, args.state);
-            apply_click(scene.root, args.click);
+            apply_click(scene.root, gallery::scope_click_spec(resources.form_module, args.click));
         });
     if (!frame) {
         std::cout << "gallery: skipped (Vulkan device unavailable)\n";
@@ -399,6 +408,8 @@ Args parse_args(int argc, char** argv) {
             args.density = argv[++index];
         } else if (arg == "--state" && has_value) {
             args.state = argv[++index];
+        } else if (arg == "--emit-module-css" && has_value) {
+            args.emit_module_css = argv[++index];
         } else if (arg == "--click" && has_value) {
             args.click = argv[++index];
         } else if (arg == "--advance-ms" && has_value) {
@@ -458,6 +469,9 @@ int main(int argc, char** argv) {
     const std::optional<Resources> resources = load_resources();
     if (!resources) {
         return 3;
+    }
+    if (!args.emit_module_css.empty()) {
+        return gallery::write_parity_twin(resources->form_module, args.emit_module_css) ? 0 : 3;
     }
     const std::string classes = root_classes(args);
     // `Node` keeps a view of its class name, so the text outlives the scene: `classes` is owned

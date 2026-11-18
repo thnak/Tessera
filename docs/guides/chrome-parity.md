@@ -10,10 +10,10 @@ same stylesheet, how far is what the engine paints from what a browser paints?
 | Engine | a gallery page painted by `gallery --page P --capture` (lavapipe, so the pixels are deterministic) | the gallery sample |
 | Chrome | `tools/parity/P.html`, the same structure as HTML | `scripts/ci/chrome_parity.mjs --page P` |
 
-Two pages: `form` (`FormPage.tsx`, `form.css`, light theme) and `dash` (`DashPage.tsx`, `dash.css`, run with
+Two pages: `form` (`FormPage.tsx`, `form.module.css`, light theme) and `dash` (`DashPage.tsx`, `dash.css`, run with
 `--theme instrument-dark` on both sides).
 
-Both read the same files: `packages/tessera-ui/button.css`, `samples/gallery/form.css`, the theme
+Both read the same files: `packages/tessera-ui/button.css`, `samples/gallery/form.module.css`, the theme
 tokens of `instrument.theme.json` (written into the page as `:root` variables) and the font
 `tests/fixtures/fonts/NotoSans-Regular.ttf`. A difference is therefore a difference in how the two
 renderers read the same rules, not a difference in the rules. `FormPage.tsx` is deliberately busy: a
@@ -27,6 +27,9 @@ footer of buttons in several variants and states.
 # engine (Linux with Mesa lavapipe; the capture is 640x720)
 VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json \
   build/dev/samples/gallery/gallery --page form --capture out/parity/engine.png --width 640 --height 720
+
+# the form's stylesheet is a CSS module (#463): write its scoped CSS and class map for the twin
+build/dev/samples/gallery/gallery --emit-module-css out/parity
 
 # Chrome (playwright is not a repository dependency: npm install playwright)
 node scripts/ci/chrome_parity.mjs --out out/parity [--chrome <path to chrome>]
@@ -47,13 +50,13 @@ square, `letter-spacing` with `text-transform`, right-aligned numbers, `opacity`
 
 The plan control of the form (`Monthly`, `Yearly`, `Invoice`) is interactive and declares a
 `background-color` and `color` transition (200 ms, ease). Both sides click the second segment and stop at
-the same instant: the engine with `--click f-seg:1 --advance-ms N` (a manual clock, so the instant is
-exact), Chrome with `--click f-seg:1 --advance-ms N` (it pauses every running transition and sets its
+the same instant: the engine with `--click seg:1 --advance-ms N` (a manual clock, so the instant is
+exact), Chrome with `--click seg:1 --advance-ms N` (it pauses every running transition and sets its
 `currentTime`). `tools/parity/form.html` carries the one script that mirrors `FormPage.tsx`'s `onClick`.
 
 ```bash
-build/dev/samples/gallery/gallery --page form --click f-seg:1 --advance-ms 100 --capture out/parity/engine.png
-node scripts/ci/chrome_parity.mjs --click f-seg:1 --advance-ms 100 --out out/parity
+build/dev/samples/gallery/gallery --page form --click seg:1 --advance-ms 100 --capture out/parity/engine.png
+node scripts/ci/chrome_parity.mjs --click seg:1 --advance-ms 100 --out out/parity
 ```
 
 ## 3. Reading the numbers
