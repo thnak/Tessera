@@ -84,8 +84,7 @@ public:
     Node& add_child(std::unique_ptr<Node> child);
     // Inserts an owned child at `index` (clamped to the current child count, so a value at or above
     // size() appends). The dirty marks are the same as add_child. Generated code uses this to put a
-    // conditional branch or a keyed-list item at its deterministic source position instead of
-    // rebuilding the trailing siblings.
+    // conditional branch or a keyed-list item at its source position without rebuilding siblings.
     Node& insert_child(std::size_t index, std::unique_ptr<Node> child);
     // Detaches and returns the owned child so callers can destroy or reattach a subtree. Returns
     // nullptr when `child` is not a direct child of this node.
@@ -141,6 +140,15 @@ public:
     [[nodiscard]] float glass_blur_sigma() const {
         return glass_blur_sigma_;
     }
+    // Layout's text-fit fact (issue #490): true when layout proved this node's text payload stays
+    // inside the content box paint uses. `apply_layout` rewrites it every pass, so it is false
+    // until one proved it; paint re-checks the payload before trusting it.
+    void set_text_fits_box(bool fits) {
+        set_flag(kTextFitsBox, fits);
+    }
+    [[nodiscard]] bool text_fits_box() const {
+        return flag(kTextFitsBox);
+    }
     void set_glass_subtree(bool has_glass);
     [[nodiscard]] bool glass_subtree() const {
         return flag(kGlassSubtree);
@@ -157,8 +165,7 @@ public:
     // conditional branch, a recycled virtual item), while this one is a stylesheet value that must
     // be able to flip back without resurrecting a node the program hid. V1 treats it like `display:
     // none` for painting, hit testing and the accessibility tree (the subtree is skipped, so a
-    // descendant cannot re-enable with `visibility: visible`), but the node keeps its layout box,
-    // which is the one part of the CSS behaviour that matters for a flex layout.
+    // descendant cannot re-enable with `visibility: visible`), but the node keeps its layout box.
     void set_style_hidden(bool hidden);
     [[nodiscard]] bool style_hidden() const {
         return flag(kStyleHidden);
@@ -193,8 +200,7 @@ public:
     // hit testing, input and the platform seam read it without parsing. The property is inherited,
     // so the computed value already carries the ancestor resolution: a `pointer` parent with an
     // explicit `auto` child yields `Auto` on the child. The setter is a no-op when the value is
-    // unchanged, so a steady scene stays clean; it marks no dirty domain (no pixels change) and the
-    // app reads the hovered node's value after input each frame.
+    // unchanged, so a steady scene stays clean; it marks no dirty domain (no pixels change).
     void set_cursor(style::CursorKind value);
     [[nodiscard]] style::CursorKind cursor() const {
         return cursor_;
@@ -249,7 +255,7 @@ public:
 
     // Scroll state (additive; docs/specs/scroll-and-gestures-v1.md section 1). The scrollport used
     // for clamping is the node's border box; `content_width/height` are supplied explicitly by
-    // layout or the caller. Children are positioned in content space, so painting, hit testing, and
+    // layout or the caller. Children are positioned in content space, so painting, hit testing and
     // world transforms all apply -scroll to them while this node's own bounds/transform stay
     // unchanged. Toggling a scrollable axis marks Paint|Render: the paint clip and hit-testing
     // clipping start or stop at this node even when the clamped offset stays the same.
@@ -278,10 +284,9 @@ public:
     // The clamp viewport is `bounds - insets`, hit testing clips the subtree to the inset box, and
     // the paint pass clips a scroll container to it when any inset is non-zero (otherwise it falls
     // back to the style-derived padding box). A caller that owns the computed style sets these to
-    // the painted border widths so clamping, painting, and hit testing agree on a bordered
-    // container. All zero by default (the border box), which keeps the previous behaviour
-    // byte-identical. Negative/non-finite values sanitize to 0; each axis pair is clamped to the
-    // box extent. A change marks Dirty::Paint | Dirty::Render and re-clamps the stored offset.
+    // the painted border widths so clamping, painting and hit testing agree on a bordered
+    // container. All zero by default (the border box). Negative/non-finite values sanitize to 0 and
+    // each axis pair is clamped to the box extent; a change marks Dirty::Paint | Dirty::Render.
     void set_scrollport_insets(float left, float top, float right, float bottom);
     [[nodiscard]] float scrollport_left() const {
         return scrollport_left_;
@@ -310,9 +315,8 @@ public:
     // Scroll runtime style inputs (stylesheet-v1 section 11). They are policy inputs for the
     // controller, not paint-visible on their own: setting one marks no dirty domain, because the
     // first move the policy causes (a chained wheel, a smooth-scroll tick) marks Paint|Render
-    // through set_scroll_offset. A style resolution pass fills them from computed style; layout is
-    // never involved (`scrollbar-gutter` is the one scroll style property that is layout input, and
-    // layout reads it from computed style directly).
+    // through set_scroll_offset. A style resolution pass fills them from computed style; layout
+    // never reads them (`scrollbar-gutter` is the one scroll style property that is layout input).
     void set_scroll_behavior(ScrollBehavior behavior);
     [[nodiscard]] ScrollBehavior scroll_behavior() const {
         return (scroll_bits_ & kScrollBehaviorSmoothBit) != 0 ? ScrollBehavior::Smooth
@@ -390,8 +394,7 @@ public:
     // storage is static). Values are truncated to the documented byte caps rather than stored in a
     // node-owned buffer; the Node itself never copies metadata. `id`/`className` are the selector
     // inputs: setting or clearing them marks Dirty::Style and is a no-op when unchanged.
-    // `automationId` is the compiler's stable numeric identity (slice 10 computes the final rule);
-    // 0 means "not set".
+    // `automationId` is the compiler's stable numeric identity; 0 means "not set".
     struct AriaAttribute {
         std::string_view name; // the full attribute name, for example `aria-label`
         std::string_view value;
@@ -421,8 +424,7 @@ public:
     // The `part` attribute (stylesheet-v1 section 6.3, ADR-047 item 3): whitespace-separated names
     // that expose this element to its component host, so the host's stylesheet can target it with
     // `::part(name)`. Static metadata of the component source, like `className`: setting or
-    // clearing it marks Dirty::Style and is a no-op when unchanged. Borrowed and bounded like every
-    // other element metadata string.
+    // clearing it marks Dirty::Style and is a no-op when unchanged.
     void set_part(std::string_view part);
     void clear_part();
     [[nodiscard]] std::string_view part() const {
@@ -430,8 +432,7 @@ public:
     }
     // The component a component instance host was built from, for example `Button`. Empty on every
     // other node. It types the host for selector matching, so the host side of `::part()` can name
-    // the component. Setting or clearing it changes matching for the whole subtree and marks
-    // Dirty::Style on it.
+    // the component. Setting or clearing it marks Dirty::Style on the subtree.
     void set_component_name(std::string_view component);
     void clear_component_name();
     [[nodiscard]] std::string_view component_name() const {
@@ -545,6 +546,7 @@ private:
         kScrollAnimationActive = 1u << 7,
         kPointerEvents = 1u << 8, // CSS `pointer-events: auto`
         kStyleHidden = 1u << 9,   // resolved `visibility: hidden|collapse`
+        kTextFitsBox = 1u << 10,  // layout's text-fit fact (issue #490)
     };
     [[nodiscard]] bool flag(Flag bit) const noexcept {
         return (flags_ & bit) != 0;
@@ -599,9 +601,9 @@ private:
     std::unique_ptr<AriaTable> aria_;
     std::unique_ptr<InlineStyleTable> inline_style_;
     std::unique_ptr<BindingTable> event_bindings_;
-    // Packed scroll bookkeeping: the two scrollable-axis flags and the three scroll runtime style
-    // enums share one byte so the smooth-scroll target (two floats) fits inside kNodeSizeBudget.
-    // Enum values are stored in declaration order; the masks are sized to the largest enumerator.
+    // Packed scroll bookkeeping: the scrollable-axis flags and the scroll runtime style enums share
+    // one byte so the smooth-scroll target (two floats) fits inside kNodeSizeBudget. Enum values
+    // are stored in declaration order; the masks are sized to the largest enumerator.
     static constexpr std::uint8_t kScrollableXBit = 1u << 0;
     static constexpr std::uint8_t kScrollableYBit = 1u << 1;
     static constexpr std::uint8_t kScrollBehaviorSmoothBit = 1u << 2;
@@ -630,8 +632,6 @@ private:
     style::PseudoState pseudo_state_ = style::PseudoState::None;
     UserSelect user_select_ = UserSelect::Auto; // resolved `user-select` value
     // Resolved `cursor` value (issue #191). The initial `auto` is the platform default arrow.
-    // `visibility` no longer lives here: it is one of the packed node flags (issue #285), so only
-    // the new cursor field is added by this landing.
     style::CursorKind cursor_ = style::CursorKind::Auto;
     Dirty dirty_ = Dirty::Clean;
     Dirty subtree_dirty_ = Dirty::Clean;

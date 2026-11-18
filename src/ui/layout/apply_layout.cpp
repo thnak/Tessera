@@ -9,10 +9,15 @@
 namespace tessera::ui::layout {
 namespace {
 
-std::size_t count_subtree(const Node& node) {
+// A subtree with no boxes this pass keeps its previous bounds, so it must not keep previous
+// text-fit facts either: paint would trust a measurement of a box the node no longer has. Clears
+// the hint on `node` and every descendant and returns the size of the subtree, which is the missing
+// count the caller reports.
+std::size_t clear_text_fit_subtree(Node& node) {
+    node.set_text_fits_box(false);
     std::size_t count = 1;
     for (const auto& child : node.children()) {
-        count += count_subtree(*child);
+        count += clear_text_fit_subtree(*child);
     }
     return count;
 }
@@ -21,7 +26,7 @@ void apply_node(Node& node, const std::map<std::uint64_t, const LayoutBox*>& box
                 float parent_y, LayoutApplyResult& result, std::set<std::uint64_t>& matched) {
     const auto found = boxes.find(node.id());
     if (found == boxes.end() || found->second == nullptr) {
-        result.missing += count_subtree(node);
+        result.missing += clear_text_fit_subtree(node);
         return;
     }
 
@@ -29,6 +34,9 @@ void apply_node(Node& node, const std::map<std::uint64_t, const LayoutBox*>& box
     matched.insert(node.id());
     node.set_bounds(rhi::Rect{box.bounds.x - parent_x, box.bounds.y - parent_y, box.bounds.width,
                               box.bounds.height});
+    // The text-fit fact is rewritten on every pass, `Unknown` included, so a node whose box no
+    // longer proves a fit stops being cullable in the same frame (issue #490).
+    node.set_text_fits_box(box.text_fit == TextFit::Fits);
     ++result.applied;
 
     for (const auto& child : node.children()) {

@@ -75,6 +75,8 @@ ui::layout::LayoutInput build_layout_input(const ui::Node& node, ui::paint::Styl
     const bool text_payload = paint && paint->kind == ui::PaintKind::Text;
     if (text_payload) {
         input.text = paint->text;
+        // Layout's text-fit fact must use paint's own wrap decision (issue #490).
+        input.text_wrap = paint->wrap == ui::PaintWrap::Wrap;
     }
     for (const auto& child : node.children()) {
         // Inline spans are runs of this text, not boxes (issue #229, elements-basic.md 2.1).

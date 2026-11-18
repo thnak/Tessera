@@ -42,7 +42,9 @@ using tessera::ui::Node;
 using tessera::ui::NodeId;
 using tessera::ui::PaintData;
 using tessera::ui::PaintKind;
+using tessera::ui::PaintSpan;
 using tessera::ui::PaintWrap;
+using tessera::ui::TextDecoration;
 using tessera::ui::paint::ClippedPaintSink;
 using tessera::ui::paint::paint_scene;
 using tessera::ui::paint::PaintContext;
@@ -350,7 +352,7 @@ bool test_text_that_leaves_its_box_is_never_culled() {
     // A wrapped text node whose box sits above the rect; its later lines reach into the rect. A
     // text payload can paint outside its own box (paint_text_lines advances the line origin past
     // the content box and does not clip), so a text node's own emission is never culled on the box
-    // test alone.
+    // test alone until layout proved the payload fits (issue #490, tested below).
     Node root(kRoot);
     root.set_bounds({0.0f, 0.0f, 400.0f, 400.0f});
     CountingStyles styles;
@@ -379,7 +381,7 @@ bool test_text_that_leaves_its_box_is_never_culled() {
     }
     return expect(inside > 0, "a wrapped line of the text node lands inside the rect") &&
            expect(lowest > -30.0f, "the text paints below its own box") &&
-           expect(stats.culled_nodes == 0, "a text node outside the rect is not culled");
+           expect(stats.culled_nodes == 0, "a text node with no fit fact is not culled");
 }
 
 bool test_transformed_node_is_never_culled() {

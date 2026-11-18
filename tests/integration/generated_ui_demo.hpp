@@ -258,6 +258,7 @@ struct Fixture {
         const auto& paint = node.paint_data();
         if (paint && paint->kind == tessera::ui::PaintKind::Text) {
             input.text = paint->text;
+            input.text_wrap = paint->wrap == tessera::ui::PaintWrap::Wrap;
         }
         for (const auto& child : node.children()) {
             input.children.push_back(build_layout_input(*child));

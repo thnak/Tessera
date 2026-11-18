@@ -2022,6 +2022,7 @@ struct include/tessera/ui/layout/layout_engine.hpp tessera::ui::layout::LayoutIn
 struct include/tessera/ui/layout/layout_engine.hpp tessera::ui::layout::LayoutInsets
 struct include/tessera/ui/layout/layout_engine.hpp tessera::ui::layout::LayoutResult
 struct include/tessera/ui/layout/layout_engine.hpp tessera::ui::layout::LayoutViewport
+enum include/tessera/ui/layout/layout_engine.hpp tessera::ui::layout::TextFit
 alias include/tessera/ui/layout/layout_engine.hpp tessera::ui::layout::rhi
 
 header include/tessera/ui/layout/layout_observer.hpp

@@ -116,6 +116,7 @@ static_assert(properties_are_sorted(), "kLayoutProperties must stay sorted for b
 constexpr std::uint8_t kNodeBegin = 0x4E;
 constexpr std::uint8_t kProperty = 0x50;
 constexpr std::uint8_t kText = 0x54;
+constexpr std::uint8_t kTextWrap = 0x57;
 constexpr std::uint8_t kNodeEnd = 0x45;
 
 class Hasher {
@@ -187,6 +188,12 @@ void hash_node(const LayoutInput& input, Hasher& hasher) noexcept {
     // has fixed dimensions. Including it can only cost a redundant reflow, never a wrong reuse.
     hasher.u8(kText);
     hasher.bytes(input.text);
+
+    // Paint's wrap opt-in changes no box, but it decides `LayoutBox::text_fit`, which is part of
+    // the result the scheduler reuses (issue #490). Folding it in means a wrap flip re-measures
+    // instead of reusing a stale fit fact.
+    hasher.u8(kTextWrap);
+    hasher.u8(input.text_wrap ? 1u : 0u);
 
     for (const LayoutInput& child : input.children) {
         hash_node(child, hasher);

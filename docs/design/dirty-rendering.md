@@ -398,10 +398,10 @@ full surface, and the on-demand POC uses a full redraw for every presented frame
 above is for preserved offscreen/CPU targets. The unsupported overlap/backdrop/shadow cases from
 §6.2 still force the full-redraw fallback rather than being asserted as partial.
 
-### 6.8 Paint-pass cull (implemented, issue #487)
+### 6.8 Paint-pass cull (implemented, issues #487 and #490)
 
 The damage clip (§6.4) only drops commands already produced; the pass still walked every node and
-resolved every style. `paint_frame(plan)` now hands `paint_scene` a world-space cull rect (the plan's
+resolved every style. `paint_frame(plan)` hands `paint_scene` a world-space cull rect (the plan's
 scissor box over the DPI scale), and `paint_node` tests a node's painted reach before its style - the
 border box grown by the synced shadow outsets, three glass sigmas (glass-v1 §7) and one pixel of AA
 slack, through the matrix it paints with. A miss skips the style read and the node's own emission. The
@@ -409,12 +409,14 @@ subtree goes too only when the pass actually clips it (`overflow` other than `vi
 container), since then the clip is inside the reach; a non-clipping parent keeps walking its children
 (they may overflow back in, and keep its effective opacity). Refused: a node in its own transform frame
 (children are relative to the skipped push) and a node whose text can leave its box (wrapped lines
-advance past the content box), which is only culled inside a clipped subtree.
+advance past the content box), which is only culled inside a clipped subtree - until #490, where
+`LayoutBox::text_fit` lets layout prove a plain payload fits (`performance.md` section 9.1).
 Invariants: paint never mutates the scene, so dirty flags, damage, animation and hit testing are
 untouched; a full redraw sets no rect; a dirty cached node is painted, not culled; no pixel inside the
-plan's regions changes (`paint_cull_tests.cpp`); and the reach uses what `sync_style` already stores for
-damage, so a paint without a prior sync paints more, never less. `cullDraws` (default on, also gating
-the renderer's quad cull) turns both stages off via `FramePipelineConfig::cull_paint`.
+plan's regions changes (`paint_cull_tests.cpp`, `layout_text_fit_tests.cpp`); and the reach uses what
+`sync_style` already stores for damage, so a paint without a prior sync paints more, never less.
+`cullDraws` (default on, also gating the renderer's quad cull) turns both stages off via
+`FramePipelineConfig::cull_paint`.
 
 ## 7. GPU resources and synchronization
 

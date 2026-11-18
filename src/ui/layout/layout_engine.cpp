@@ -14,6 +14,7 @@
 #include "tessera/ui/text/text_measure_cache.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
@@ -276,6 +277,86 @@ void emit_zero_boxes(const LayoutInput& input, float x, float y, LayoutResult& r
     }
 }
 
+// The padding paint subtracts from the border box to get its text content box. Paint reads the four
+// physical `padding-*` longhands with its own px-only parse (`paint::detail::length_value`): a bare
+// number or a `px` value, and 0 for an absent property, a percentage, an em/rem or a negative. The
+// text-fit fact is only sound if it uses exactly that box, so this mirrors the parse instead of
+// using Yoga's resolved padding (which also resolves percentages and may disagree with paint) or
+// `LayoutBox::content_insets` (which counts the border too).
+float paint_padding_px(const ComputedStyle& style, const char* property) {
+    const std::string* value = style.find(property);
+    if (value == nullptr) {
+        return 0.0f;
+    }
+    std::string token = trim(*value);
+    if (token.empty()) {
+        return 0.0f;
+    }
+    if (token.size() > 2 && token.compare(token.size() - 2, 2, "px") == 0) {
+        token = trim(std::string_view(token).substr(0, token.size() - 2));
+    } else if (std::isalpha(static_cast<unsigned char>(token.back())) != 0 || token.back() == '%') {
+        return 0.0f;
+    }
+    float number = 0.0f;
+    if (!parse_number(token, number) || number < 0.0f) {
+        return 0.0f;
+    }
+    return number;
+}
+
+// The text-fit fact (issue #490): does this node's text payload provably stay inside the content
+// box paint will use? Computed with the very inputs paint derives - the border box minus the
+// padding longhands, and paint's wrap decision (`PaintData::wrap` opted in AND the computed
+// `white-space` wraps) - and measured through the engine's own cache, so a `Fits` box lets the
+// paint-pass cull treat the node like any other bounded box. Only a node that paints text gets a
+// fact at all: everything else stays `Unknown`, which paint reads as "stay conservative".
+TextFit measure_text_fit(const LayoutInput& input, const rhi::Rect& bounds,
+                         text::TextMeasureCache& cache) {
+    if (input.text.empty() || is_keyword(input.style.find("display"), "none")) {
+        return TextFit::Unknown;
+    }
+    const text::TextStyle text_style = text::text_style_from(input.style);
+    const float content_width =
+        std::max(0.0f, bounds.width - paint_padding_px(input.style, "padding-left") -
+                           paint_padding_px(input.style, "padding-right"));
+    const float content_height =
+        std::max(0.0f, bounds.height - paint_padding_px(input.style, "padding-top") -
+                           paint_padding_px(input.style, "padding-bottom"));
+    // Paint returns before emitting anything when its content box is empty, so a degenerate box is
+    // bounded - but it is not a fact worth proving, and `Unknown` keeps the safest answer.
+    if (content_width <= 0.0f || content_height <= 0.0f) {
+        return TextFit::Unknown;
+    }
+
+    text::TextConstraints constraints;
+    constraints.max_width = content_width;
+    constraints.wrap = input.text_wrap && text::white_space_wraps(text_style.white_space);
+    const text::TextMetrics metrics = cache.measure(input.text, text_style, constraints);
+    if (metrics.width > content_width || metrics.height > content_height) {
+        return TextFit::Overflows;
+    }
+
+    // A `line-height` shorter than the font's own line box makes paint's half-leading place glyph
+    // ink above and below the line box it reports, so the measured height would understate what
+    // paint emits. `line-height: normal` (0 here) is the font's own box and keeps the ink inside
+    // it, and an explicit value at least one pixel taller is safe too: the wrap rounds the ascent
+    // and descent before deriving the baseline, which can move it by half a pixel either way, and
+    // the one pixel covers that. Anything tighter (or not provably looser) stays `Unknown`.
+    if (text_style.line_height > 0.0f) {
+        text::TextStyle natural = text_style;
+        natural.line_height = 0.0f;
+        const text::TextMetrics natural_metrics = cache.measure(input.text, natural, constraints);
+        const float natural_line =
+            natural_metrics.line_count > 0
+                ? natural_metrics.height / static_cast<float>(natural_metrics.line_count)
+                : 0.0f;
+        if (text_style.line_height < natural_line + 1.0f) {
+            return TextFit::Unknown;
+        }
+    }
+    return TextFit::Fits;
+}
+
 void collect_grid_items(YGNodeRef node, const LayoutInput& input, float x, float y,
                         const LayoutContext& context, LayoutResult& result) {
     const auto inset = [node](YGEdge edge) {
@@ -309,10 +390,11 @@ void collect_boxes(YGNodeRef node, const LayoutInput& input, float parent_x, flo
     const auto inset = [node](YGEdge edge) {
         return YGNodeLayoutGetPadding(node, edge) + YGNodeLayoutGetBorder(node, edge);
     };
-    result.boxes.push_back(LayoutBox{
+    LayoutBox box{
         input.id, rhi::Rect{x, y, YGNodeLayoutGetWidth(node), YGNodeLayoutGetHeight(node)},
-        LayoutInsets{inset(YGEdgeLeft), inset(YGEdgeTop), inset(YGEdgeRight),
-                     inset(YGEdgeBottom)}});
+        LayoutInsets{inset(YGEdgeLeft), inset(YGEdgeTop), inset(YGEdgeRight), inset(YGEdgeBottom)}};
+    box.text_fit = measure_text_fit(input, box.bounds, *context.cache);
+    result.boxes.push_back(box);
 
     if (is_grid_container(input.style)) {
         collect_grid_items(node, input, x, y, context, result);
