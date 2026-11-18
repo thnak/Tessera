@@ -67,6 +67,7 @@ void Batched2DRenderer::begin_damaged(rhi::CommandList& commands, const rhi::Ren
         in_frame_ = false;
         draw_calls_ = 0;
         cull_stats_ = CullStats{};
+        split_stats_ = BatchSplitStats{};
         vertices_.cancel_frame();
         return;
     }
@@ -120,6 +121,7 @@ void Batched2DRenderer::begin_frame(rhi::CommandList& commands, const rhi::Rende
                                       static_cast<std::uint32_t>(bottom - top)};
     }
     cull_stats_ = CullStats{};
+    split_stats_ = BatchSplitStats{};
     clips_.reset();
     transform_ = rhi::Mat3::identity();
     transform_stack_.clear();
@@ -168,7 +170,7 @@ void Batched2DRenderer::set_viewport(rhi::Extent2D extent) {
 
 void Batched2DRenderer::set_scissor(const rhi::Scissor& scissor) {
     if (!same_scissor(scissor_, scissor) || !same_scissor(current_batch_.scissor, scissor)) {
-        flush_batch();
+        flush_batch(BatchSplitReason::Scissor);
     }
     scissor_ = scissor;
     current_batch_.scissor = scissor_;
@@ -178,7 +180,7 @@ void Batched2DRenderer::push_scissor(const rhi::Scissor& scissor) {
     scissor_stack_.push_back(scissor_);
     const rhi::Scissor next = rhi::intersect(scissor_, scissor);
     if (!same_scissor(next, current_batch_.scissor)) {
-        flush_batch();
+        flush_batch(BatchSplitReason::Scissor);
     }
     scissor_ = next;
     current_batch_.scissor = scissor_;
@@ -190,7 +192,7 @@ void Batched2DRenderer::pop_scissor() {
         scissor_stack_.pop_back();
     }
     if (!same_scissor(next, current_batch_.scissor)) {
-        flush_batch();
+        flush_batch(BatchSplitReason::Scissor);
     }
     scissor_ = next;
     current_batch_.scissor = scissor_;
@@ -327,7 +329,7 @@ void Batched2DRenderer::flush() {
         return;
     }
 
-    flush_batch();
+    flush_batch(BatchSplitReason::Flush);
 
     // Append after whatever earlier flushes of this frame wrote: their draws are recorded but not
     // executed yet, so overwriting offset 0 would change what they draw.
@@ -376,9 +378,27 @@ void Batched2DRenderer::flush() {
     current_batch_ = Batch{scissor_, current_texture_, clips_.index(), 0, 0};
 }
 
-void Batched2DRenderer::flush_batch() {
+void Batched2DRenderer::flush_batch(BatchSplitReason reason) {
     if (current_batch_.vertex_count == 0) {
         return;
+    }
+
+    switch (reason) {
+    case BatchSplitReason::Texture:
+        ++split_stats_.texture;
+        break;
+    case BatchSplitReason::Pipeline:
+        ++split_stats_.pipeline;
+        break;
+    case BatchSplitReason::Scissor:
+        ++split_stats_.scissor;
+        break;
+    case BatchSplitReason::Clip:
+        ++split_stats_.clip;
+        break;
+    case BatchSplitReason::Flush:
+        ++split_stats_.flush;
+        break;
     }
 
     batches_.push_back(current_batch_);
@@ -402,7 +422,10 @@ void Batched2DRenderer::emit_quad(const rhi::Rect& rect, const rhi::Rect& uv, rh
     }
     ++cull_stats_.quads_emitted;
     if (texture != current_texture_ || quad_pipeline_ != current_batch_.pipeline) {
-        flush_batch();
+        // The reason is the texture when both changed, because that is the split descriptor
+        // indexing would remove; a pipeline change alone is structural (an LCD glyph quad).
+        flush_batch(texture != current_texture_ ? BatchSplitReason::Texture
+                                                : BatchSplitReason::Pipeline);
         current_texture_ = texture;
         current_batch_.texture = texture;
         current_batch_.pipeline = quad_pipeline_;
@@ -464,7 +487,7 @@ void Batched2DRenderer::apply_clip_state(const ClipStateTable::Update& update) {
     if (state_changed || scissor_changed) {
         // Batching split rule: a draw batch covers one (texture, scissor, folded-clip-uniform)
         // tuple. Clip push/pop only costs a split when the folded uniform set or scissor changes.
-        flush_batch();
+        flush_batch(state_changed ? BatchSplitReason::Clip : BatchSplitReason::Scissor);
     }
     scissor_ = update.scissor;
     current_batch_.scissor = update.scissor;

@@ -60,6 +60,38 @@ struct CullStats {
     std::uint32_t quads_culled_empty_scissor = 0; // dropped because the scissor has no area
 };
 
+// Why a batch ended. Every flush_batch() records its cause, so a frame's draw-call count is
+// attributable instead of one opaque number (issue #480 part 2 measures the texture share before
+// deciding whether descriptor indexing is worth its complexity).
+enum class BatchSplitReason : std::uint8_t {
+    // The next quad samples a different texture. This is the split descriptor indexing would
+    // remove.
+    Texture,
+    // The next quad draws with a different pipeline (an LCD glyph quad against the frame pipeline).
+    Pipeline,
+    // The scissor changed (set_scissor/push_scissor/pop_scissor, or a clip's enclosing scissor).
+    Scissor,
+    // The folded clip-uniform set changed, so the fragment shader's clip test would differ.
+    Clip,
+    // The caller asked for a flush (flush(), set_viewport(), break_pass()).
+    Flush,
+};
+
+// Batch splits of one frame, reset by every begin. `total()` is the number of batches the frame
+// recorded, so it equals the draw calls of a full redraw (a damaged frame replays a batch once per
+// intersecting region, which is a separate counter).
+struct BatchSplitStats {
+    std::uint32_t texture = 0;
+    std::uint32_t pipeline = 0;
+    std::uint32_t scissor = 0;
+    std::uint32_t clip = 0;
+    std::uint32_t flush = 0;
+
+    [[nodiscard]] std::uint32_t total() const noexcept {
+        return texture + pipeline + scissor + clip + flush;
+    }
+};
+
 // The carved-out box of a box shadow in local px: centre relative to the quad centre and half size.
 // All zero subtracts nothing (every primitive other than a shadow quad). Declared at namespace
 // scope, not inside the renderer, so a default argument may use it (a nested class's default member
@@ -254,6 +286,11 @@ public:
     [[nodiscard]] const CullStats& cull_stats() const {
         return cull_stats_;
     }
+    // Why the frame's batches ended (issue #480 part 2). `texture` is the share descriptor indexing
+    // would remove; the rest are structural.
+    [[nodiscard]] const BatchSplitStats& batch_split_stats() const {
+        return split_stats_;
+    }
 
 private:
     struct Batch {
@@ -273,7 +310,8 @@ private:
     // pass starts with no state, and a glass composite records its own pipeline/push constants in
     // the middle of one, so both resume_pass() and draw_backdrop() restore the frame state here.
     void bind_frame_state();
-    void flush_batch();
+    // `reason` says why the batch ended; it is counted in split_stats_ (issue #480 part 2).
+    void flush_batch(BatchSplitReason reason);
     void emit_quad(const rhi::Rect& rect, const rhi::Rect& uv, rhi::Color color, float radius,
                    float mode, rhi::Texture* texture, const ShadowCarveBox& carve = {});
     // True when the quad's device-space bounds cannot touch any pixel the frame will draw.
@@ -314,6 +352,7 @@ private:
     // outside every region, so the per-region replay in flush() would draw nothing for it.
     rhi::Scissor damage_bounds_;
     CullStats cull_stats_;
+    BatchSplitStats split_stats_;
 
     rhi::Mat3 transform_;
     std::vector<rhi::Mat3> transform_stack_;
