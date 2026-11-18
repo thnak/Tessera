@@ -2282,6 +2282,15 @@ target_link_libraries(metal_mapping_tests PRIVATE tessera_metal_mapping)
 
 add_test(NAME metal_mapping COMMAND metal_mapping_tests)
 
+# The MSL shader table (ADR-053 decision 2). API-free; the table is populated only when the build
+# embedded cross-compiled MSL, and both states are covered.
+add_executable(metal_shader_registry_tests
+    metal_shader_registry_tests.cpp)
+
+target_link_libraries(metal_shader_registry_tests PRIVATE tessera_metal_mapping)
+
+add_test(NAME metal_shader_registry COMMAND metal_shader_registry_tests)
+
 add_executable(frame_wait_tests
     frame_wait_tests.cpp)
 
