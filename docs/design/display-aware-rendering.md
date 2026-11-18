@@ -416,4 +416,5 @@ explicit tolerance, never by real-GPU goldens.
    ClearType setting, because no per-monitor query exists** (section 2). Both
    `DisplayInfo::pixel_geometry` and `WindowMetrics::pixel_geometry` are filled from it, and the
    desktop-wide limitation is documented rather than hidden behind a fabricated per-panel value.
-4. Clip AA (S4) in V1, or accept hard rounded clips until MSAA? (Recommendation: S4 in V1.)
+4. Clip AA (S4) in V1, or accept hard rounded clips until MSAA? **Decided: S4 ships in V1** (landed;
+   rounded clips take SDF coverage, no MSAA needed).
