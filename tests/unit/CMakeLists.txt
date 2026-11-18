@@ -1906,6 +1906,15 @@ target_link_libraries(paint_opacity_tests PRIVATE
 
 add_test(NAME paint_opacity COMMAND paint_opacity_tests)
 
+# Per-run LCD eligibility at the paint seam (#471): the window permission, the per-node narrowing
+# (opacity 1, translate-only) and the paint cache's record/replay of the mark.
+add_executable(paint_lcd_eligibility_tests
+    paint_lcd_eligibility_tests.cpp)
+
+target_link_libraries(paint_lcd_eligibility_tests PRIVATE tessera_paint)
+
+add_test(NAME paint_lcd_eligibility COMMAND paint_lcd_eligibility_tests)
+
 add_executable(z_order_tests
     z_order_tests.cpp)
 

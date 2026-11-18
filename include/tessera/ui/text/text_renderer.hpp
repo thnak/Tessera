@@ -53,10 +53,10 @@ public:
     // policy (font hints, whole-pixel glyph origins, grayscale coverage), so a renderer that never
     // calls this draws exactly as before.
     //
-    // `TextAaMode::LcdWhenEligible` selects LCD coverage for the whole atlas. The per-run
-    // eligibility predicate and the LCD pipeline are slice 3; until then an LCD atlas is drawn
-    // through the grayscale pipeline, which reads the per-pixel maximum the upload also stores in
-    // alpha, so the run still renders (as grayscale) instead of disappearing.
+    // `TextAaMode::LcdWhenEligible` selects LCD coverage for the whole atlas. Which runs composite
+    // it is decided per run (`draw`'s `lcd`). An LCD atlas needs the renderer's LCD pipeline for
+    // every glyph, because its pages hold coverage in RGB, which the ordinary pipeline would
+    // multiply into the ink; the window therefore asks for LCD only where that pipeline exists.
     void set_aa_policy(const scale::AaPolicy& policy);
     [[nodiscard]] GlyphHinting hinting() const;
     [[nodiscard]] GlyphAaMode aa_mode() const;
@@ -66,8 +66,16 @@ public:
     // `pixel_size` is the run's size in CSS pixels: the bitmap is rasterized at `round(pixel_size *
     // render_scale)` device pixels and the quad is placed back in CSS units, so a caller's
     // coordinates and the returned advance never depend on the display scale.
+    //
+    // `lcd` says the run passed the paint pass's eligibility rule (`TextDraw::lcd`). It takes
+    // effect only when the atlas rasterizes LCD coverage: each glyph with three coverage channels
+    // then composites per channel. Every other glyph of an LCD atlas (an ineligible run, a glyph
+    // FreeType rendered grayscale) draws through the same LCD pipeline reading alpha as one
+    // coverage, and a color glyph takes the ordinary pipeline. On a grayscale atlas the run draws
+    // exactly as before.
     float draw(rendering::gpu::Batched2DRenderer& renderer, const ShapedRun& run, float x,
-               float baseline_y, std::uint16_t pixel_size, rendering::rhi::Color color);
+               float baseline_y, std::uint16_t pixel_size, rendering::rhi::Color color,
+               bool lcd = false);
 
     // The atlas of the active render-scale step. Always valid: construction creates the floor
     // step's atlas.

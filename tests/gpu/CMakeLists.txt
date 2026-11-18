@@ -59,6 +59,12 @@ add_executable(renderer_seam_tests
 target_link_libraries(renderer_seam_tests PRIVATE tessera_gpu tessera_rhi_null)
 add_test(NAME renderer_seam COMMAND renderer_seam_tests)
 
+# The renderer's pipeline axis for LCD text (#471): batch identity, replay binds, restore.
+add_executable(lcd_pipeline_axis_tests
+    batched2d/lcd_pipeline_axis_tests.cpp)
+target_link_libraries(lcd_pipeline_axis_tests PRIVATE tessera_gpu tessera_rhi_null)
+add_test(NAME lcd_pipeline_axis COMMAND lcd_pipeline_axis_tests)
+
 # RHI 1.3 sampled render target (#254): the command order the glass composite records
 # (attachment -> copy -> sample -> composite), the sampler state that travels with a target and the
 # misuse every backend rejects. Null backend, deterministic, runs everywhere. The pixel proof is
@@ -392,6 +398,17 @@ if (TARGET tessera_rhi_vulkan)
     target_link_libraries(renderer_seam_gpu_tests PRIVATE tessera_gpu tessera_rhi_vulkan)
     add_test(NAME renderer_seam_gpu COMMAND renderer_seam_gpu_tests)
     set_tests_properties(renderer_seam_gpu PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+
+    # LCD text compositing (#471): a real readback proves the per-channel blend, the grayscale
+    # pipeline's alpha-only read, the no-pipeline fallback and the frame pipeline's restore. Skips
+    # on a device without dualSrcBlend.
+    add_executable(lcd_text_gpu_tests
+        batched2d/lcd_text_gpu_tests.cpp)
+    target_link_libraries(lcd_text_gpu_tests PRIVATE tessera_gpu tessera_rhi_vulkan)
+    add_test(NAME lcd_text_gpu COMMAND lcd_text_gpu_tests)
+    set_tests_properties(lcd_text_gpu PROPERTIES
+        SKIP_REGULAR_EXPRESSION "skipped"
+        FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
 
     # RHI 1.3 sampled render target (#254) pixel test: draw a backdrop, break, copy it into a pooled
     # target, blur it horizontally into a second pooled target that samples the copy, then resume

@@ -29,6 +29,10 @@ struct TextDraw {
     // Absolute baseline for a line box computed by the paint pass. nullopt keeps the single-line
     // behavior (the sink top-aligns the shaped run inside `rect` using its own ascent).
     std::optional<float> baseline;
+    // The run may composite per-channel LCD coverage (display-aware-rendering.md section 3.4). Set
+    // by the paint pass from the node-level eligibility rule; sinks without an LCD pipeline ignore
+    // it, and false (the default) is the grayscale composite every run used before.
+    bool lcd = false;
 };
 
 // Clip emitted by the paint pass for a parent with `overflow` clipping. `rect` is the parent's

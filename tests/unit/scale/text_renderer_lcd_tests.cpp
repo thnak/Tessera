@@ -54,7 +54,8 @@ bool expect(bool condition, const char* message) {
 }
 
 // The golden policy with the text mode forced, so the only difference between two runs is the AA
-// mode (the resolver keeps `Auto` on grayscale until slice 3 flips kAutoAllowsLcd).
+// mode (the resolver would pick LCD itself on a striped panel; forcing it keeps the test on one
+// axis).
 AaPolicy policy_with(TextAaMode mode) {
     AaFacts facts;
     AaPolicy policy = tessera::ui::scale::resolve_aa_policy(facts, AaConfig{});
@@ -222,6 +223,35 @@ int main(int argc, char** argv) {
                      back_entry->bearing_x == gray_copy.bearing_x &&
                      back_entry->bearing_y == gray_copy.bearing_y,
                  "grayscale: the rebuilt entry is the golden bitmap");
+
+    // (i) Pipeline choice (step 3). With an LCD pipeline on the renderer, every glyph of an LCD
+    // atlas draws through it - an eligible run per channel, an ineligible one reading alpha -
+    // because the ordinary pipeline would multiply the page's RGB coverage into the ink. A
+    // grayscale atlas never touches the LCD pipeline, whatever the run asks for.
+    auto lcd_pipeline = device.create_pipeline({});
+    renderer.set_lcd_pipeline(lcd_pipeline.get());
+    const auto pipeline_binds = [&](bool lcd) {
+        auto commands = device.create_command_list();
+        renderer.begin(*commands, *target, tessera::rendering::rhi::RenderTargetDesc{{128, 64}});
+        text.draw(renderer, run, kPen, kBaseline, kCssSize, rgba8(255, 255, 255), lcd);
+        renderer.end();
+        commands->submit();
+        const auto* recording =
+            dynamic_cast<tessera::testsupport::RecordingCommandList*>(commands.get());
+        const auto* null_stats = recording != nullptr ? recording->stats() : nullptr;
+        return null_stats != nullptr ? null_stats->pipeline_binds : 0u;
+    };
+    text.set_aa_policy(policy_with(TextAaMode::Grayscale));
+    text.begin_frame();
+    ok &= expect(pipeline_binds(true) == 1,
+                 "grayscale atlas: an LCD-marked run never binds the LCD pipeline");
+    text.set_aa_policy(policy_with(TextAaMode::LcdWhenEligible));
+    text.begin_frame();
+    ok &= expect(pipeline_binds(true) == 3, "LCD atlas, eligible run: frame, LCD, frame binds");
+    text.begin_frame();
+    ok &= expect(pipeline_binds(false) == 3,
+                 "LCD atlas, ineligible run: still the LCD pipeline (alpha as one coverage)");
+    renderer.set_lcd_pipeline(nullptr);
 
     // (h) The golden policy itself keeps the default: a renderer that applies it never selects LCD.
     text.set_aa_policy(tessera::ui::scale::golden_aa_policy());

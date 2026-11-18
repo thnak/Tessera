@@ -77,8 +77,8 @@ int main() {
     const AaPolicy tiny = window_aa_policy(metrics_at(0.5f), WindowAaOptions{});
     ok = expect(tiny.render_scale == 1.0f, "a scale below the ladder floor clamps to 1.0") && ok;
 
-    // The facts are copied verbatim, and the pixel geometry never changes text mode: Auto does not
-    // choose LCD until the owner decision (section 8 item 1, `kAutoAllowsLcd`).
+    // The facts are copied verbatim. LCD needs the device's per-channel pipeline on top of a known
+    // stripe, so the window passes `lcd_supported` and the pixel geometry alone is not enough.
     WindowMetrics facts_source;
     facts_source.dpi_scale = 1.5f;
     facts_source.pixel_geometry = PixelGeometry::BgrHorizontal;
@@ -90,9 +90,20 @@ int main() {
                    facts.transparent_window && facts.orientation == Orientation::Portrait,
                "the metrics map onto the resolver facts verbatim") &&
         ok;
-    const AaPolicy eligible_lcd = window_aa_policy(metrics_at(1.5f), WindowAaOptions{});
-    ok = expect(eligible_lcd.text_mode == TextAaMode::Grayscale,
-                "Auto resolves to grayscale until LCD is decided") &&
+    WindowMetrics striped = metrics_at(1.5f);
+    striped.pixel_geometry = PixelGeometry::RgbHorizontal;
+    const AaPolicy no_pipeline = window_aa_policy(striped, WindowAaOptions{});
+    ok = expect(no_pipeline.text_mode == TextAaMode::Grayscale,
+                "a device without the LCD pipeline resolves grayscale on a known stripe") &&
+         ok;
+    WindowAaOptions with_lcd;
+    with_lcd.lcd_supported = true;
+    const AaPolicy lcd = window_aa_policy(striped, with_lcd);
+    ok = expect(lcd.text_mode == TextAaMode::LcdWhenEligible,
+                "a known stripe plus the LCD pipeline resolves LCD") &&
+         ok;
+    ok = expect(window_aa_policy(metrics_at(1.5f), with_lcd).text_mode == TextAaMode::Grayscale,
+                "an unknown panel geometry stays grayscale even with the pipeline") &&
          ok;
 
     // The deliberate switch and the two overriding cases: all three pin the golden policy, even on

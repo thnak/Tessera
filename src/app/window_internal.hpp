@@ -141,6 +141,18 @@ create_pipeline(rhi::Device& device, rhi::TextureFormat format, std::uint32_t sa
     return device.create_pipeline(desc);
 }
 
+// The dual-source LCD text pipeline (display-aware-rendering.md section 3.4.1). Null when the
+// device cannot blend per channel or refuses the pipeline; the window then resolves grayscale text.
+inline std::unique_ptr<rhi::Pipeline>
+create_lcd_pipeline(rhi::Device& device, rhi::TextureFormat format, std::uint32_t sample_count) {
+    if (!device.supports_dual_source_blend()) {
+        return nullptr;
+    }
+    auto desc = tessera::rendering::vulkan::batched2d_lcd_pipeline_desc(format, sample_count);
+    desc.color_format = format;
+    return device.create_pipeline(desc);
+}
+
 // The single-sample pipeline that presents a 4x frame (S8, display-aware-rendering section 4): the
 // same batched2d shader and vertex layout, one sample, and no blending. No blending matters: the
 // present quad replaces the frame target with the resolved image's own encoded pixels, so the

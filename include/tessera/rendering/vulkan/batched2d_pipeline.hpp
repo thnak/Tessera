@@ -17,12 +17,10 @@ batched2d_pipeline_desc(rhi::TextureFormat color_format = rhi::TextureFormat::R8
 // block as `batched2d_pipeline_desc`, its fragment shader (`batched2d_lcd.frag`) writes per-channel
 // coverage to a second output, and `blend` is `BlendMode::DualSource` rather than Alpha.
 //
-// No frame path creates this pipeline: slice 2 supplies the RGB coverage atlas and slice 3 the
-// per-run eligibility predicate and the renderer's pipeline axis. The descriptor exists so the RHI
-// dual-source contract can be proven on a real device - `create_pipeline` rejects it on a device
-// without `dualSrcBlend`, so the caller must check `Device::supports_dual_source_blend()` first -
-// and so the shader interface stays compiled and reflection-checked instead of being dead source
-// (tests/gpu/rhi/dual_source_blend_tests.cpp).
+// The window creates this pipeline when the device supports dual-source blending, and hands it to
+// `Batched2DRenderer::set_lcd_pipeline`. `create_pipeline` rejects it on a device without
+// `dualSrcBlend`, so the caller must check `Device::supports_dual_source_blend()` first
+// (tests/gpu/rhi/dual_source_blend_tests.cpp proves the contract on a real device).
 [[nodiscard]] rhi::PipelineDesc
 batched2d_lcd_pipeline_desc(rhi::TextureFormat color_format = rhi::TextureFormat::R8G8B8A8Unorm,
                             std::uint32_t sample_count = 1);

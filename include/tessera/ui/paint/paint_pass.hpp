@@ -113,6 +113,11 @@ struct PaintContext {
     // fallback shows. `glass` carries the configured cost limits so the emitted sigma and the
     // half-resolution decision match the runtime config instead of a hard-coded default.
     bool high_contrast = false;
+    // Window-level permission for LCD text: the resolved policy is `LcdWhenEligible`, which already
+    // implies an opaque window and a known horizontal-stripe panel. The pass narrows it per node
+    // (opacity 1, translate-only, not animated) before a run is marked `TextDraw::lcd`. False is
+    // the golden and every pre-LCD behaviour.
+    bool lcd_text = false;
     rendering::gpu::GlassLimits glass{};
     // Optional paint-only visual override (fixed-step interpolation). Null paints the scene's
     // authoritative visual state. The view never mutates the scene.

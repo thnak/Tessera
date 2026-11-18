@@ -79,12 +79,23 @@ bool off_ladder_and_invalid_scales_resolve_safely() {
     return ok;
 }
 
-bool auto_text_stays_grayscale_until_lcd_is_decided() {
+bool auto_text_chooses_lcd_when_the_facts_allow_it() {
     AaConfig config;
     config.text_aa = TextAaSetting::Auto;
-    const AaPolicy policy =
-        tessera::ui::scale::resolve_aa_policy(facts_at(1.0f, PixelGeometry::RgbHorizontal), config);
-    return expect(policy.text_mode == TextAaMode::Grayscale, "auto does not choose LCD yet");
+    bool ok = expect(
+        tessera::ui::scale::resolve_aa_policy(facts_at(1.0f, PixelGeometry::RgbHorizontal), config)
+                .text_mode == TextAaMode::LcdWhenEligible,
+        "auto chooses LCD on a known horizontal stripe (LCD ships in V1)");
+    ok &=
+        expect(tessera::ui::scale::resolve_aa_policy(facts_at(1.0f, PixelGeometry::Unknown), config)
+                       .text_mode == TextAaMode::Grayscale,
+               "auto stays grayscale when the panel geometry is unknown");
+    config.reduced_quality = true;
+    ok &= expect(
+        tessera::ui::scale::resolve_aa_policy(facts_at(1.0f, PixelGeometry::RgbHorizontal), config)
+                .text_mode == TextAaMode::Grayscale,
+        "the power preset's reduced quality overrides auto");
+    return ok;
 }
 
 bool explicit_subpixel_needs_every_lcd_fact() {
@@ -204,7 +215,7 @@ int main() {
     bool ok = true;
     ok &= hinting_and_positioning_follow_scale();
     ok &= off_ladder_and_invalid_scales_resolve_safely();
-    ok &= auto_text_stays_grayscale_until_lcd_is_decided();
+    ok &= auto_text_chooses_lcd_when_the_facts_allow_it();
     ok &= explicit_subpixel_needs_every_lcd_fact();
     ok &= reduced_quality_and_aa_off_presets();
     ok &= golden_mode_ignores_every_input();

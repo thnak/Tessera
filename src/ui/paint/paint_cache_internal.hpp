@@ -32,6 +32,7 @@ struct PassState {
     std::uint32_t device_scale_bits = 0;
     bool reduce_effects = false;
     bool high_contrast = false;
+    bool lcd_text = false;
     float glass_max_blur_radius = 0.0f;
     std::uint64_t glass_max_backdrop_area = 0;
     // PaintContext::cull, world space; null paints everything (paint-pass culling, issue #487).
@@ -78,6 +79,7 @@ make_paint_cache_signature(const Node& node, const rhi::Mat3& painted_world,
     signature.device_scale_bits = pass.device_scale_bits;
     signature.reduce_effects = pass.reduce_effects;
     signature.high_contrast = pass.high_contrast;
+    signature.lcd_text = pass.lcd_text;
     signature.glass_max_blur_radius = pass.glass_max_blur_radius;
     signature.glass_max_backdrop_area = pass.glass_max_backdrop_area;
     return signature;

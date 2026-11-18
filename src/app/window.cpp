@@ -301,6 +301,8 @@ WindowHost::Impl::FrameResult WindowHost::Impl::render_and_present(bool full_rep
     context.glass.max_backdrop_area = options.runtime.glass_max_backdrop_area;
     context.text_metrics_source = text->paint_metrics.get();
     context.device_scale = device_scale;
+    context.lcd_text =
+        lcd_pipeline != nullptr && aa_policy.text_mode == ui::scale::TextAaMode::LcdWhenEligible;
     host->paint_scene(*sink, context);
     renderer->end();
     if (msaa) {
