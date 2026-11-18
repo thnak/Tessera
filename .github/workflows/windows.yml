@@ -47,6 +47,7 @@ jobs:
           cmake --preset ci
           -DTESSERA_BUILD_VULKAN=OFF
           -DTESSERA_BUILD_POC=OFF
+          -DTESSERA_ENABLE_THORVG=OFF
           -DTESSERA_PACKAGE_EXECUTABLES=static_runtime_probe
           -DTESSERA_WARNINGS_AS_ERRORS=ON
 
@@ -118,7 +119,9 @@ jobs:
       #   * batched2d_cpu_vector_golden needs TESSERA_ENABLE_THORVG=ON, which FetchContent-downloads
       #     and compiles ThorVG (37 sources) in a job whose 50-minute cap is already documented as
       #     tight (#258): a new network fetch and a build-cost increase, so an owner decision
-      #     rather than a silent change here. The Linux lane runs it.
+      #     rather than a silent change here. The Linux lane runs it. ThorVG is ON by default since
+      #     ADR-057, so this lane pins -DTESSERA_ENABLE_THORVG=OFF in its configure step; that pin
+      #     is what keeps this lane's budget and keeps the no-ThorVG configuration tested.
       #   * batched2d_cpu_golden / batched2d_cpu_text_golden need batched2d_poc, which this lane
       #     turns off and which links tessera_rhi_vulkan unconditionally. Linux runs both.
       - name: Release suites really ran (GPU-free goldens)

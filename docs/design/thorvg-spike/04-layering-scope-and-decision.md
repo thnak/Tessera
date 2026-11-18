@@ -41,3 +41,8 @@ unchanged, which is the point of it.
 
 The remaining decision for the Lead/owner is not Go/No-Go but **when** the option flips to ON by
 default; this spike keeps it OFF so the default build and its artifacts stay unchanged.
+
+**Answered 2026-11-18:** the option now defaults ON
+([ADR-057](../../../decisions/ADR-057-vector-paths-thorvg-default-and-exit.md)). The same ADR
+records the measured triggers under which ThorVG is replaced by an in-house rasterizer behind the
+unchanged `PathRasterizer` seam, and the incremental order that reduction follows.
