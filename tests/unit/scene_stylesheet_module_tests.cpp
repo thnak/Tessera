@@ -199,6 +199,44 @@ void test_the_lowered_class_and_the_compiled_selector_agree() {
            "the raw local name is not a selector in the compiled sheet");
 }
 
+// --- 2b. the isolation acceptance, on the preview path
+// The preview and the Wasm studio run this code. A module's `.title` styles the node that reads
+// `styles.title` and not a plain `className="title"` beside it; compiled unscoped, it would style
+// both.
+constexpr std::string_view kIsolationSource = R"tsx(import styles from "./Card.module.css";
+
+export function Card(): Node {
+  return (
+    <View>
+      <View className={styles.title}>Scoped</View>
+      <View className="title">Global</View>
+    </View>
+  );
+}
+)tsx";
+
+void test_a_module_class_does_not_reach_a_global_class_of_the_same_name() {
+    const std::string css = ".title { padding-top: 7px; }\n";
+    const cli::PreparedScene scene =
+        cli::prepare_scene(kIsolationSource, options_for(css, kModuleFile, "ui/Card.tsx"));
+    expect(scene.error.empty(), "the isolation source lays out: " + scene.error);
+    if (scene.root == nullptr || !scene.sheet.has_value()) {
+        return;
+    }
+    const ui::Node* scoped = find_class(*scene.root, "title_0b82a5");
+    const ui::Node* global = find_class(*scene.root, "title");
+    expect(scoped != nullptr && global != nullptr,
+           "the tree carries both the scoped and the plain class");
+    if (scoped == nullptr || global == nullptr) {
+        return;
+    }
+    expect(computed(scene, *scoped, "padding-top") == "7px",
+           "the module rule styles the node that reads styles.title");
+    expect(computed(scene, *global, "padding-top") != "7px",
+           "the module rule does not reach a plain `title` class, got `" +
+               computed(scene, *global, "padding-top") + "`");
+}
+
 // --- 3. a rejected module sheet reports, and paints nothing unscoped
 // -----------------------------------
 
@@ -252,6 +290,7 @@ void run_module_cases() {
     test_a_module_sheet_compiles_scoped_names();
     test_a_plain_sheet_is_compiled_as_written();
     test_the_lowered_class_and_the_compiled_selector_agree();
+    test_a_module_class_does_not_reach_a_global_class_of_the_same_name();
     test_a_rejected_module_sheet_reports_and_paints_nothing();
 }
 

@@ -1213,10 +1213,11 @@ bridges not yet installed in a host; and the first WebGPU slice (unbuilt on host
 **Farm order:** V1-M1, V1-M2 and V1-M3 are complete. V1-M2 closed with the ADR-040 one-path
 migration (#218 migrated every test family, sample and tool to the generated base; #219 deleted the
 legacy output, the merger and `EmitMode`), the documentation slice #211, and #158 (object-literal
-prop defaults and `useState` record initials, ADR-051); its remaining open items are #327's
-`emit_expr.cpp` / `emit_node.cpp` split, whose gate landed in #340, and #463 (CSS isolation), whose
-design decision, import form, scan library, lowering and codegen embed landed in #495 and #497 —
-what is left of #463 is the preview path and the `samples/gallery` worked example. **V1-M4 is the
+prop defaults and `useState` record initials, ADR-051); its only open item is #327's
+`emit_expr.cpp` / `emit_node.cpp` split, whose gate landed in #340. #463 (CSS isolation) landed
+across #495, #497 and #498 (decision, import form, scan, lowering, codegen embed, preview) and its
+closing landing (a conditional of constant `styles.x` reads, the gallery form as the worked example,
+the authored-class lookup and the isolation tests). **V1-M4 is the
 active milestone**: P1 (#165)
 landed the diagnostics page, the machine-readable diagnostics document
 (`docs/specs/compiler-diagnostics-v1.md`), and Pages is enabled, so the page is live at

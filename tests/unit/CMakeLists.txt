@@ -2219,6 +2219,13 @@ if (TESSERA_ICU_REDUCED_DATA)
     add_subdirectory(icu)
 endif()
 
+add_executable(css_module_isolation_tests
+    css_module_isolation_tests.cpp)
+
+target_link_libraries(css_module_isolation_tests PRIVATE tessera_css_module tessera_style)
+
+add_test(NAME css_module_isolation COMMAND css_module_isolation_tests)
+
 add_executable(container_query_tests
     container_query_tests.cpp)
 

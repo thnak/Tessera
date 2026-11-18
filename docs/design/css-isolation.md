@@ -169,6 +169,16 @@ exists in code yet ([`devtools-protocol-v1.md`](../specs/devtools-protocol-v1.md
 [`designer-studio-v1.md`](../specs/designer-studio-v1.md) puts the native inspector out of scope);
 the first one that does must show names through this lookup rather than print the hash.
 
+## Where the acceptance is tested
+
+- Two components with `.title` in their own sheets do not affect each other, and a global rule
+  still reaches what it did: `tests/unit/css_module_isolation_tests.cpp` on the engine's own
+  cascade, with an unscoped control that must collide (so the test fails without scoping), and
+  `scene_stylesheet_module_tests.cpp` on the preview path the Wasm studio runs.
+- An unknown `styles.x`, a dynamic read, a hash collision and an unused class:
+  `lowering_module_stylesheet_tests.cpp`.
+- Existing goldens unchanged for the form migrated to a module: `gallery_golden_*` on lavapipe.
+
 ## Out of scope
 
 Composition (`composes`), a CSS preprocessor, scoping of `style=` (inline is already local), and
