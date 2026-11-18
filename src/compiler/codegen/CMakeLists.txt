@@ -425,6 +425,10 @@ else ()
         # edit's `apply` export pushed it past the size limit. It is Emscripten-free and WebGPU-free
         # on purpose, so the parsing rules are type-checked on the host lanes too.
         ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_request.cpp
+        # The skin's safe area as the ABI receives it (issue #171's skins slice), split out for the
+        # same reason and on a real boundary: it is pure over its arguments, so the host lanes can
+        # test the refusal rules without linking the GPU text stack.
+        ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_safe_area.cpp
         # The project staging shared with the other two modules: `tessera_canvas_apply` evaluates the
         # project the page staged through these exports.
         ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_project_stage.cpp
@@ -465,7 +469,7 @@ else ()
         # of unchanged text costs no frame and a failed one keeps the last good picture.
         # `_tessera_canvas_pick` is the picker overlay's query (issue #171): what is under a point,
         # answered without dispatching, so arming the picker cannot move `:hover` or cost a frame.
-        -sEXPORTED_FUNCTIONS=["_tessera_project_begin","_tessera_project_set_entry","_tessera_project_add_source","_tessera_project_add_stylesheet","_tessera_canvas_apply","_tessera_canvas_pointer","_tessera_canvas_pick","_tessera_canvas_draw","_tessera_canvas_reset","_tessera_canvas_set_font","_tessera_canvas_font_status","_tessera_webgpu_set_device","_tessera_free","_malloc","_free"]
+        -sEXPORTED_FUNCTIONS=["_tessera_project_begin","_tessera_project_set_entry","_tessera_project_add_source","_tessera_project_add_stylesheet","_tessera_canvas_apply","_tessera_canvas_pointer","_tessera_canvas_pick","_tessera_canvas_set_safe_area","_tessera_canvas_draw","_tessera_canvas_reset","_tessera_canvas_set_font","_tessera_canvas_font_status","_tessera_webgpu_set_device","_tessera_free","_malloc","_free"]
         # `WebGPU` is the emdawnwebgpu port's handle table: the page needs `WebGPU.importJsDevice` and
         # `importJsQueue` to turn a JS GPUDevice/GPUQueue into the integer handles the C ABI takes.
         # `HEAPU8` is the view the page writes font bytes through (issue #387): `_malloc` returns a
@@ -933,6 +937,42 @@ if (TESSERA_BUILD_TESTS)
         tessera_scene
         tessera_style)
     add_test(NAME scene_viewport COMMAND scene_viewport_tests)
+
+    # The skin's safe area reaching the engine's layout (issue #171's skins slice,
+    # `designer-studio-v1.md` sections 5.1 and 5.2): non-zero insets pad a `SafeArea`'s content by
+    # exactly what the skin declared, zero insets leave the frame unchanged, a skin change is one
+    # layout pass with no stale padding, the cutout rectangle reaches the metrics, and the ABI
+    # refuses a negative inset with `TESSERA_STUDIO_SKIN`. Registered here rather than in
+    # tests/unit/CMakeLists.txt for the same reason `scene_fold` is: this lane does not edit the
+    # shared registry while other lanes work in it.
+    add_executable(scene_skin_geometry_tests
+        ${CMAKE_SOURCE_DIR}/tests/unit/scene_skin_geometry_tests.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/canvas_report.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/css_diagnostics_report.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/scene_frame.cpp
+        # The ABI argument parsing, which is where the refusal lives. It is Emscripten-free and
+        # WebGPU-free on purpose, so the rules are type-checked on the host lanes too.
+        ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_safe_area.cpp
+        ${_tessera_preview_text_sources}
+        ${_tessera_canvas_session_sources}
+        ${_tessera_scene_preview_sources})
+    target_include_directories(scene_skin_geometry_tests
+        PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
+    target_link_libraries(scene_skin_geometry_tests PRIVATE
+        tessera_automation_scene
+        tessera_css_module
+        tessera_gpu
+        tessera_hal_metrics
+        tessera_ir_eval
+        tessera_ir_ids
+        tessera_layout
+        tessera_lowering
+        tessera_paint
+        tessera_rhi
+        tessera_rhi_null
+        tessera_scene
+        tessera_style)
+    add_test(NAME scene_skin_geometry COMMAND scene_skin_geometry_tests)
 
     add_executable(codegen_layering_tests
         ${CMAKE_SOURCE_DIR}/tests/unit/codegen_layering_tests.cpp)

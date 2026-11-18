@@ -122,6 +122,14 @@ struct CanvasSessionSource {
     float height = 240.0f;
     float dpi_scale = 1.0f;
     tessera::hal::FoldPosture posture = tessera::hal::FoldPosture::None;
+    // The simulated skin's safe area (issue #171's skins slice): the insets a device would report
+    // as `WindowMetrics::insets` and the cutout rectangles it would report as
+    // `WindowMetrics::cutouts`. They are LAYOUT INPUTS like the size and the posture, not part of
+    // the source's identity, so a skin change re-lays the running tree out in place
+    // (`set_viewport`) and keeps hover, focus and the state cells. Zero/empty is the desktop answer
+    // and the pre-#171 behaviour.
+    tessera::hal::WindowInsets insets;
+    tessera::hal::CutoutInfo cutouts;
     // The face the layout measures text with, or null for the deterministic stub. The session does
     // **not** own it: the device-backed stack belongs to whoever painted the last frame (the Wasm
     // entry, or a test), so the session stores the measurer `start()` was given and reuses it when
@@ -235,6 +243,17 @@ public:
     // Returns false when nothing moved (no pass ran) or there is no running evaluation.
     bool set_viewport(float width, float height, float dpi_scale);
 
+    // The same call for a skin (issue #171's skins slice): the size, the DPI scale, the safe-area
+    // insets and the cutout rectangles all move together, in ONE layout pass. It is a separate
+    // spelling rather than more arguments on `set_viewport` because the two callers are different
+    // controls - the toolbar's size/DPR selects and the skin picker - and a skin change that kept
+    // the previous insets would pad the content for a device that is no longer on screen. The
+    // posture is unchanged by a skin change, so it is not an argument here.
+    //
+    // Returns false when nothing moved (no pass ran) or there is no running evaluation.
+    bool set_safe_area(const tessera::hal::WindowInsets& insets,
+                       const tessera::hal::CutoutInfo& cutouts);
+
     // One keyboard event (issue #388, focus). `key` is a `ui::KeyCode`; `modifiers` a
     // `ui::Modifier` mask. Tab and Shift+Tab move focus through the focusable controls in tree
     // order and **release it at either end** instead of wrapping, so a page can let the browser
@@ -327,6 +346,13 @@ private:
     [[nodiscard]] bool apply_layout_inputs(float width, float height, float dpi_scale,
                                            tessera::hal::FoldPosture posture);
 
+    // The same pass with the skin's safe area as well: every layout input a skin can move, in one
+    // call. `apply_layout_inputs` is the narrow spelling that keeps the current insets.
+    [[nodiscard]] bool apply_layout_inputs(float width, float height, float dpi_scale,
+                                           tessera::hal::FoldPosture posture,
+                                           const tessera::hal::WindowInsets& insets,
+                                           const tessera::hal::CutoutInfo& cutouts);
+
     // The lowered IR the scene borrows its strings from: declared before the session so it outlives
     // the tree, which is the ownership rule `PreparedScene` states.
     EvaluatedScene evaluated_;
@@ -348,6 +374,10 @@ private:
     // The simulated fold posture the running tree was laid out at, so `set_viewport()` can re-lay
     // it out without changing it (issue #436).
     tessera::hal::FoldPosture posture_ = tessera::hal::FoldPosture::None;
+    // The skin's safe area the running tree was laid out at (issue #171), so a size or posture
+    // change keeps it and a skin change replaces it. Zero/empty before the first `start()`.
+    tessera::hal::WindowInsets insets_;
+    tessera::hal::CutoutInfo cutouts_;
     // The simulated window of the live tree. `session_` owns the authoritative copy; this one is
     // readable before the first `start()` and after the session is gone, so `metrics()` has one
     // answer in every state.

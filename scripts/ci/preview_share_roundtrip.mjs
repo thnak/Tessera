@@ -92,6 +92,10 @@ const BASE_STATE = {
   // The simulated fold posture (issue #408). ` is the unfolded default; the codec must round-trip
   // both that and a named posture, so states() below covers one of each.
   foldPosture: '',
+  // The simulated device skin (issue #171's skins slice). `''` is no frame, the pre-#171 page; the
+  // matrix below covers that and every bundled skin, because a skin that the codec forgets would
+  // open a shared link on a different device than the one that was shared.
+  skin: '',
 };
 
 // One representative state per toolbar combination, so a new preset that forgets the codec fails here.
@@ -101,12 +105,17 @@ function states() {
     for (const dpr of state.DPRS) {
       for (const theme of state.THEMES) {
         // The unfolded posture is the common case and must stay one field in the matrix...
-        out.push({ ...BASE_STATE, width, height, dpr, theme, foldPosture: '' });
+        out.push({ ...BASE_STATE, width, height, dpr, theme, foldPosture: '', skin: '' });
         // ...and every posture the toolbar offers must survive the codec too (issue #408). The
         // posture is a named choice, not a boolean, so a new one that the codec forgets fails here
         // rather than in a shared link.
         for (const foldPosture of state.FOLD_POSTURES) {
-          out.push({ ...BASE_STATE, width, height, dpr, theme, foldPosture });
+          out.push({ ...BASE_STATE, width, height, dpr, theme, foldPosture, skin: '' });
+        }
+        // Every bundled skin likewise (issue #171's skins slice): the skin is a named choice, and a
+        // link that lost it would preview a different device's insets.
+        for (const skin of state.SKIN_IDS) {
+          out.push({ ...BASE_STATE, width, height, dpr, theme, foldPosture: '', skin });
         }
       }
     }
@@ -324,6 +333,9 @@ await test('a fragment produced by the pre-merge page decodes to the same state 
     // it is asserted here rather than by regenerating the fragment (which would only prove the codec
     // agrees with itself).
     foldPosture: '',
+    // It predates the skins slice (issue #171) too, so its absent skin key decodes to "no frame" -
+    // the pre-#171 page, which is exactly what the link was made on.
+    skin: '',
   };
   const decoded = await share.decodeShare('#p5=' + PRE_MERGE_FRAGMENT);
   assert.deepEqual(
@@ -332,6 +344,7 @@ await test('a fragment produced by the pre-merge page decodes to the same state 
     'a link made before the merge must restore the same state after it',
   );
   assert.equal(decoded.foldPosture, '', 'an older link must decode as an unfolded preview');
+  assert.equal(decoded.skin, '', 'an older link must decode as a preview with no skin');
 });
 
 process.stdout.write(`\n${passed} passed, ${failures} failed\n`);

@@ -104,6 +104,8 @@ PreviewSession::PreviewSession(const ir::IrModule& module, const ir::Component& 
     layout_metrics_.height = options_.height;
     layout_metrics_.dpi_scale = options_.dpi_scale;
     layout_metrics_.posture = options_.posture;
+    layout_metrics_.insets = options_.insets;
+    layout_metrics_.cutouts = options_.cutouts;
     if (options_.carried != nullptr) {
         const std::vector<std::string> only_this{component.component_id};
         carry_report_ = apply_state(
@@ -179,15 +181,23 @@ bool PreviewSession::relayout() {
 
 bool PreviewSession::set_posture(hal::FoldPosture posture) {
     return relayout_at(layout_metrics_.width, layout_metrics_.height, layout_metrics_.dpi_scale,
-                       posture);
+                       posture, layout_metrics_.insets, layout_metrics_.cutouts);
 }
 
 bool PreviewSession::set_viewport(float width, float height, float dpi_scale) {
-    return relayout_at(width, height, dpi_scale, layout_metrics_.posture);
+    return relayout_at(width, height, dpi_scale, layout_metrics_.posture, layout_metrics_.insets,
+                       layout_metrics_.cutouts);
 }
 
 bool PreviewSession::relayout_at(float width, float height, float dpi_scale,
                                  hal::FoldPosture posture) {
+    return relayout_at(width, height, dpi_scale, posture, layout_metrics_.insets,
+                       layout_metrics_.cutouts);
+}
+
+bool PreviewSession::relayout_at(float width, float height, float dpi_scale,
+                                 hal::FoldPosture posture, const hal::WindowInsets& insets,
+                                 const hal::CutoutInfo& cutouts) {
     if (!built_) {
         return false;
     }
@@ -196,8 +206,10 @@ bool PreviewSession::relayout_at(float width, float height, float dpi_scale,
     next.height = height;
     next.dpi_scale = dpi_scale > 0.0f ? dpi_scale : 1.0f;
     next.posture = posture;
+    next.insets = insets;
+    next.cutouts = cutouts;
     if (next == layout_metrics_) {
-        return false; // both layout inputs are already in force: no pass, and no frame owed
+        return false; // every layout input is already in force: no pass, and no frame owed
     }
 
     // The media context is the viewport, so the move can change what `@media` answers (issue #436).

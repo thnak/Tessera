@@ -62,7 +62,8 @@ std::string CanvasSceneSession::start(const ProjectInput& project,
     // re-evaluated the source and lost exactly that.
     if (session_ != nullptr && reused_ok(project, component, source.measurer)) {
         reused_ = true;
-        (void)apply_layout_inputs(source.width, source.height, dpi, source.posture);
+        (void)apply_layout_inputs(source.width, source.height, dpi, source.posture, source.insets,
+                                  source.cutouts);
         return {};
     }
 
@@ -131,6 +132,8 @@ std::string CanvasSceneSession::start(const ProjectInput& project,
     options.height = source.height;
     options.dpi_scale = dpi;
     options.posture = source.posture;
+    options.insets = source.insets;
+    options.cutouts = source.cutouts;
     options.carried = &carried;
     options.live_component_ids = &live_ids;
     options.measurer = source.measurer;
@@ -161,6 +164,8 @@ std::string CanvasSceneSession::start(const ProjectInput& project,
     height_ = source.height;
     dpi_scale_ = dpi;
     posture_ = source.posture;
+    insets_ = source.insets;
+    cutouts_ = source.cutouts;
     measurer_ = source.measurer;
     fresh_ = true;
     return error_;
@@ -181,33 +186,51 @@ bool CanvasSceneSession::reused_ok(
 }
 
 bool CanvasSceneSession::set_posture(hal::FoldPosture posture) {
-    return apply_layout_inputs(width_, height_, dpi_scale_, posture);
+    return apply_layout_inputs(width_, height_, dpi_scale_, posture, insets_, cutouts_);
 }
 
 bool CanvasSceneSession::set_viewport(float width, float height, float dpi_scale) {
-    return apply_layout_inputs(width, height, dpi_scale, posture_);
+    return apply_layout_inputs(width, height, dpi_scale, posture_, insets_, cutouts_);
+}
+
+bool CanvasSceneSession::set_safe_area(const hal::WindowInsets& insets,
+                                       const hal::CutoutInfo& cutouts) {
+    return apply_layout_inputs(width_, height_, dpi_scale_, posture_, insets, cutouts);
 }
 
 bool CanvasSceneSession::apply_layout_inputs(float width, float height, float dpi_scale,
                                              hal::FoldPosture posture) {
+    return apply_layout_inputs(width, height, dpi_scale, posture, insets_, cutouts_);
+}
+
+bool CanvasSceneSession::apply_layout_inputs(float width, float height, float dpi_scale,
+                                             hal::FoldPosture posture,
+                                             const hal::WindowInsets& insets,
+                                             const hal::CutoutInfo& cutouts) {
     if (!started()) {
         return false;
     }
     const float dpi = dpi_scale > 0.0f ? dpi_scale : 1.0f;
-    if (width == width_ && height == height_ && dpi == dpi_scale_ && posture == posture_) {
+    // Every layout input is compared, the skin's safe area included: a skin whose size happens to
+    // match the previous one but whose insets differ is still a different device, and skipping the
+    // pass would leave the content padded for the device that is no longer on screen.
+    if (width == width_ && height == height_ && dpi == dpi_scale_ && posture == posture_ &&
+        same_insets(insets, insets_) && same_cutouts(cutouts, cutouts_)) {
         return false;
     }
-    // One pass for both inputs, inside this call: the boxes (and, when the size crosses a
+    // One pass for every input, inside this call: the boxes (and, when the size crosses a
     // breakpoint, the cascade) are already the new ones when it returns, so the frame the page
     // draws next is the FIRST to show the new device - no frame of stale padding or stale
-    // breakpoint (issues #408 and #436).
-    if (!session_->relayout_at(width, height, dpi, posture)) {
+    // breakpoint (issues #408, #436 and #171).
+    if (!session_->relayout_at(width, height, dpi, posture, insets, cutouts)) {
         return false;
     }
     width_ = width;
     height_ = height;
     dpi_scale_ = dpi;
     posture_ = posture;
+    insets_ = insets;
+    cutouts_ = cutouts;
     metrics_ = session_->metrics();
     return true;
 }

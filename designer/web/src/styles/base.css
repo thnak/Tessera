@@ -64,6 +64,54 @@
   }
 }
 
+/* The toolbar's theme control, as an explicit override (issue #171's skins slice).
+ *
+ * Before this, `theme` was carried into the share link and nothing else: the page followed
+ * `prefers-color-scheme` and the select was a value with no effect. The skins slice needs the
+ * override to be real, because its acceptance is that "a theme switch retints the frame and the
+ * canvas in the same frame" - and a control that changes nothing cannot demonstrate that.
+ *
+ * `system` removes the attribute (the media query above is then the only source), so the default
+ * path is unchanged. The two blocks repeat the token values rather than sharing them through a
+ * custom-property indirection: a `var()` chain would make every token a second lookup on a page
+ * that repaints on a theme switch, and the duplication is four lines of literals in one file.
+ *
+ * The simulated device frame (`styles/skin.css`) paints from these same tokens and nothing else,
+ * which is what makes the retint one cascade rather than two code paths. */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f6f7f9;
+  --pane-bg: #ffffff;
+  --text: #1c1f24;
+  --text-dim: #5c636e;
+  --border: #dfe3e9;
+  --accent: #2563eb;
+  --accent-text: #ffffff;
+  --error: #b42318;
+  --error-bg: #fef3f2;
+  --warning: #8a6100;
+  --warning-bg: #fffaeb;
+  --ok: #067647;
+  --ok-bg: #ecfdf3;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #14161a;
+  --pane-bg: #1b1e24;
+  --text: #e8eaed;
+  --text-dim: #9aa2ad;
+  --border: #2c313a;
+  --accent: #6f9dff;
+  --accent-text: #0b1020;
+  --error: #ff8f84;
+  --error-bg: #2a1614;
+  --warning: #f0c169;
+  --warning-bg: #2a2213;
+  --ok: #6ee7a8;
+  --ok-bg: #11251b;
+}
+
 * { box-sizing: border-box; }
 
 html, body {

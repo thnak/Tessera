@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "name": "Generic phone (Android)",
+  "category": "mobile",
+  "os": "android",
+  "size": { "width": 412, "height": 915 },
+  "bezel": { "top": 12, "right": 8, "bottom": 12, "left": 8, "radius": 28 },
+  "cutout": { "type": "punch-hole", "x": 206, "y": 14, "radius": 5 },
+  "chrome": { "statusBar": 24, "navigationBar": 24, "gestureBar": true },
+  "insets": { "top": 24, "right": 0, "bottom": 24, "left": 0 },
+  "art": "frame.svg"
+}

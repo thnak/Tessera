@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "name": "Generic desktop window (macOS)",
+  "category": "desktop",
+  "os": "macos",
+  "size": { "width": 1440, "height": 900 },
+  "bezel": { "top": 0, "right": 0, "bottom": 0, "left": 0, "radius": 10 },
+  "chrome": { "menuBar": 24, "titleBar": 28 },
+  "insets": { "top": 0, "right": 0, "bottom": 0, "left": 0 }
+}

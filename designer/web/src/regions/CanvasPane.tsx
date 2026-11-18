@@ -20,6 +20,9 @@
 
 import type { RefObject } from "react";
 import type { ViewDefinition } from "../lib/views";
+import type { GeometryMode } from "../views/skin-geometry";
+import type { Skin } from "../views/skins";
+import { SkinFrame } from "./SkinFrame";
 
 export function CanvasPane({
   view,
@@ -41,6 +44,8 @@ export function CanvasPane({
   statStateRef,
   pickOverlayRef,
   pickToggleRef,
+  skin,
+  mode,
 }: {
   view: ViewDefinition;
   statusRef: RefObject<HTMLDivElement | null>;
@@ -63,6 +68,10 @@ export function CanvasPane({
   /** Issue #171: the picker's overlay (childless, `pointer-events: none`) and its toggle. */
   pickOverlayRef: RefObject<HTMLDivElement | null>;
   pickToggleRef: RefObject<HTMLButtonElement | null>;
+  /** Issue #171's skins slice: the selected skin, or `null` for no frame. */
+  skin: Skin | null;
+  /** The geometry mode of `designer-studio-v1.md` section 5.1. */
+  mode: GeometryMode;
 }) {
   return (
     <section
@@ -111,30 +120,36 @@ export function CanvasPane({
       {/* The engine's one surface. React renders this element once and never touches it again; the
           canvas session owns its backing store, its WebGPU context and its frames.
 
-          The picker's overlay is a sibling *inside* the same positioned box, so it can be laid over
-          the canvas without a second coordinate system. It is childless here: the session builds the
-          outline and the readout into it, the same way it owns the canvas. */}
+          Since issue #171's skins slice it sits inside the simulated device frame: the bezel, the
+          bars and the cutout are page chrome around and over it, and the canvas element itself is
+          unchanged - same type, same position in this tree, no `key` - so React reconciles it in
+          place and the session's device survives a skin change. The picker's overlay is a sibling
+          *inside* the same positioned box, so it can be laid over the canvas without a second
+          coordinate system. It is childless here: the session builds the outline and the readout
+          into it, the same way it owns the canvas. */}
       <div className="canvas-frame" id="canvas-frame" ref={frameRef} hidden>
-        <div className="canvas-stack">
-          <canvas
-            id="canvas"
-            ref={canvasRef}
-            width={320}
-            height={240}
-            // A focus stop (issue #388): Tab reaches the preview, and its own controls take focus inside it.
-            // `application` tells a screen reader to pass keys through rather than read the page.
-            tabIndex={0}
-            role="application"
-            aria-label="Preview of the evaluated scene (interactive)"
-          />
-          <div
-            className="pick-overlay"
-            id="pick-overlay"
-            ref={pickOverlayRef}
-            aria-hidden="true"
-            hidden
-          />
-        </div>
+        <SkinFrame skin={skin} mode={mode}>
+          <div className="canvas-stack">
+            <canvas
+              id="canvas"
+              ref={canvasRef}
+              width={320}
+              height={240}
+              // A focus stop (issue #388): Tab reaches the preview, and its own controls take focus inside it.
+              // `application` tells a screen reader to pass keys through rather than read the page.
+              tabIndex={0}
+              role="application"
+              aria-label="Preview of the evaluated scene (interactive)"
+            />
+            <div
+              className="pick-overlay"
+              id="pick-overlay"
+              ref={pickOverlayRef}
+              aria-hidden="true"
+              hidden
+            />
+          </div>
+        </SkinFrame>
       </div>
 
       <div className="unavailable" id="failed" ref={failedRef} hidden>

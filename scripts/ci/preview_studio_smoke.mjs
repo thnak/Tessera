@@ -152,11 +152,25 @@ await test("the built chrome renders the page's four regions", async () => {
 
 await test("the toolbar's selects carry the documented option sets", async () => {
   const selects = [...MARKUP.matchAll(/<select\b[^>]*id="(control-[^"]+)"[^>]*>([\s\S]*?)<\/select>/g)];
-  assert.equal(selects.length, 4, "viewport, DPR, theme, fold posture");
+  assert.equal(selects.length, 5, "skin, viewport, DPR, theme, fold posture");
   const values = selects.map(([, id, body]) => ({
     id,
     options: [...body.matchAll(/<option[^>]*value="([^"]*)"/g)].map((match) => match[1]),
   }));
+  // The skin picker (issue #171's skins slice). `""` is no frame, the pre-#171 page; the rest are the
+  // bundled skins section 5.2 names, in the spec's order. The options are the *validated* set, so a
+  // manifest that fails validation is not offered - which is why the list is asserted here rather
+  // than only in `preview_skins.mjs`.
+  assert.deepEqual(values.find((entry) => entry.id === "control-skin").options, [
+    "",
+    "generic-desktop-windows",
+    "generic-desktop-macos",
+    "generic-desktop-linux",
+    "generic-phone-android",
+    "generic-phone-ios",
+    "generic-tablet",
+    "generic-foldable",
+  ]);
   assert.deepEqual(
     values.find((entry) => entry.id === "control-viewport").options,
     ["320x240", "390x844", "768x1024", "1280x800"],
@@ -185,12 +199,18 @@ await test("the toolbar persists to localStorage, and the source never does", as
     dpr: "2",
     theme: "dark",
     foldPosture: "book",
+    skin: "generic-phone-android",
   });
   const stored = JSON.parse(storage.get(STORAGE_KEY));
   assert.equal(stored.viewport, "390x844", "the toolbar position is remembered");
   assert.equal(stored.dpr, "2");
   assert.equal(stored.theme, "dark");
   assert.equal(stored.foldPosture, "book", "the fold posture is remembered too");
+  assert.equal(
+    stored.skin,
+    "generic-phone-android",
+    "the skin is remembered too (issue #171's skins slice)",
+  );
   assert.equal(stored.source, undefined, "the source is never persisted by the chrome");
 });
 
@@ -241,6 +261,7 @@ await test("the share link round-trips through the address bar", async () => {
     dpr: "1",
     theme: "system",
     foldPosture: "tabletop",
+    skin: "generic-tablet",
   });
   const url = await preferences.shareToLocation(state);
   assert.match(url, /#p5=/, "a fragment link was produced");
@@ -254,6 +275,9 @@ await test("the share link round-trips through the address bar", async () => {
   // A preview of a foldable screen is not the same preview without its posture, so the link carries
   // it (issue #408) and this is where a page that forgot to pass it fails.
   assert.equal(back.foldPosture, "tabletop", "the fold posture round-trips through the link");
+  // The same for the skin (issue #171's skins slice): a link that lost it would open on a device
+  // whose insets are not the ones the sender saw.
+  assert.equal(back.skin, "generic-tablet", "the skin round-trips through the link");
 });
 
 await test("opening a share link restores its source, viewport and theme", async () => {

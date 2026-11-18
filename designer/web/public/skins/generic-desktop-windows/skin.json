@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "name": "Generic desktop window (Windows 11)",
+  "category": "desktop",
+  "os": "windows",
+  "size": { "width": 1280, "height": 800 },
+  "bezel": { "top": 0, "right": 0, "bottom": 0, "left": 0, "radius": 8 },
+  "chrome": { "titleBar": 32 },
+  "insets": { "top": 0, "right": 0, "bottom": 0, "left": 0 }
+}

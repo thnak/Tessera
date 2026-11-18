@@ -20,7 +20,7 @@
 // The decoded bytes are a UTF-8 JSON envelope. Keys are one character because the fragment is the
 // product here: every byte is a byte somebody pastes into a chat window or an issue.
 //
-//   {"v":1,"s":"<source>","w":320,"h":240,"d":1,"t":"system"[,"f":"ui/Counter.tsx"][,"p":"book"]}
+//   {"v":1,"s":"<source>","w":320,"h":240,"d":1,"t":"system"[,"f":"ui/Counter.tsx"][,"p":"book"][,"k":"generic-phone-android"]}
 //
 //   v  format version, must equal SHARE_FORMAT_VERSION (an unknown one is an error, never a guess)
 //   s  the source text, verbatim (the single source of truth; never a sample id and never a diff)
@@ -30,6 +30,8 @@
 //   f  source file name, optional; absent means DEFAULT_FILE (so the common case pays no bytes)
 //   p  simulated fold posture (issue #408): "flat" | "book" | "tabletop"; absent means no fold, so
 //      an unfolded preview pays no bytes and a pre-#408 link decodes to the same state it always did
+//   k  simulated skin (issue #171's skins slice): a directory name under `skins/`; absent means no
+//      frame, so a pre-#171 link decodes to the same state it always did
 //
 // ## The size cap, and what happens when a link exceeds it
 //
@@ -170,6 +172,11 @@ function envelopeOf(state) {
     // costs zero extra bytes. `f` keeps meaning the file name: renaming it would make every link in
     // the wild decode with the wrong field.
     ...(state.foldPosture ? { p: state.foldPosture } : {}),
+    // `k` is the simulated skin (issue #171's skins slice). Omitted for "no frame", which is the
+    // pre-#171 page, so an old link decodes to the same state it always did and a link made without
+    // a skin pays no bytes. `s` is the source and `p` the posture, so `k` is the next free letter
+    // that reads as "skin".
+    ...(state.skin ? { k: state.skin } : {}),
   };
 }
 
@@ -279,6 +286,8 @@ export async function decodeShare(text) {
     theme: envelope.t,
     // Absent means "no fold", which is what a pre-#408 link says and what the page's default is.
     foldPosture: envelope.p === undefined ? '' : envelope.p,
+    // Absent means "no frame", which is what a pre-#171 link says and what the page's default is.
+    skin: envelope.k === undefined ? '' : envelope.k,
   });
 }
 

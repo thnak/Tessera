@@ -68,6 +68,7 @@ import { ProjectBar } from "./regions/ProjectBar";
 import { ProjectTree } from "./regions/ProjectTree";
 import { PageHeader, type ControlValues } from "./regions/StudioChrome";
 import { StatusLine } from "./regions/StatusLine";
+import { useSkins, useThemeAttribute } from "./page-skins";
 
 export function App() {
   const [view, setView] = useState<ViewDefinition["id"]>(() =>
@@ -106,6 +107,18 @@ export function App() {
     () => state.controls.foldPosture ?? "",
     [state.controls],
   );
+
+  // ---- the simulated device skin (issue #171's skins slice) ---------------------------------------
+  //
+  // The bundled manifests are loaded once and validated; the toolbar's `skin` value selects one, and
+  // the selection's safe area is what the canvas session hands the engine. `useSkins` returns the
+  // validated set, so a manifest that failed is never offered (section 5.2) and a link naming one
+  // falls back to the bare canvas rather than to a frame nobody validated.
+  const skins = useSkins(state.controls.skin ?? "");
+  // The Theme control is real since this slice: it writes `<html data-theme>`, which is what retints
+  // the frame and the canvas in one cascade (section 5.2's retint rule).
+  useThemeAttribute(state.controls.theme);
+  const currentSafeArea = useCallback(() => skins.safeArea, [skins.safeArea]);
 
   // The entry's component the preview shows (issue #391). `""` is the entry's first; the canvas reports the
   // compiler's list after each apply, and the dropdown offers it. Read through a ref so picking one never
@@ -158,6 +171,7 @@ export function App() {
       environment,
       environmentOf,
       foldPosture: currentFoldPosture,
+      safeArea: currentSafeArea,
       component: currentComponent,
       onComponents,
       source: currentSource,
@@ -181,6 +195,7 @@ export function App() {
           dpr: 1,
           theme: "system",
           foldPosture: "",
+          skin: "",
         });
         if (loaded.source !== "" && refs.source.current !== null) {
           // A link's source replaces the entry file's text: a share link is one document, and the entry is
@@ -199,6 +214,7 @@ export function App() {
           dpr: String(loaded.dpr ?? 1),
           theme: String(loaded.theme ?? "system"),
           foldPosture: String(loaded.foldPosture ?? ""),
+          skin: String(loaded.skin ?? ""),
         });
       } catch (error) {
         // The seeded project is what the page shows when the link is broken (#431).
@@ -207,6 +223,7 @@ export function App() {
           dpr: "1",
           theme: "system",
           foldPosture: "",
+          skin: "",
         });
         state_.setLinkNote(linkProblemMessage(error));
       } finally {
@@ -536,6 +553,8 @@ export function App() {
           components={componentList.names}
           component={componentList.chosen}
           onPickComponent={onPickComponent}
+          skins={skins.skins}
+          skin={skins.selected}
         />
       </main>
 
