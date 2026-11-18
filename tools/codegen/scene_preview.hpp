@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "scene_project.hpp"
 #include "tessera/hal/fold_posture.hpp"
 
 #include <optional>
@@ -64,6 +65,12 @@ struct ScenePreviewOptions {
 // that compares two empty documents must therefore declare a minimum node count, as
 // scripts/ci/scene_snapshot_parity.py does.
 [[nodiscard]] std::string scene_preview_document(std::string_view text,
+                                                 const ScenePreviewOptions& options,
+                                                 std::string_view component = {});
+
+// The same document for a whole project: the entry's component, laid out with the stylesheets the
+// program imports. `options.file` and the stylesheet fields are not read.
+[[nodiscard]] std::string scene_preview_document(const ProjectInput& project,
                                                  const ScenePreviewOptions& options,
                                                  std::string_view component = {});
 

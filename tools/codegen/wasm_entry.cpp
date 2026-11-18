@@ -2,10 +2,12 @@
 
 // The browser entry point of the diagnostics module (issue #165, P1 of the design-time preview).
 //
-// Two exports, one convention:
-//   const char* tessera_diagnostics_json(const char* source, const char* file)
+// The module diagnoses a PROJECT: the page stages the project's files with the four shared
+// `tessera_project_*` exports (`wasm_project_exports.cpp`) and then calls
+//   const char* tessera_diagnostics_json()
 //       Runs the same stages and the same serializer as `tessera_codegen --diagnostics-json` over
-//       `source` as the single file `file`, and returns a NUL-terminated UTF-8 JSON document.
+//       the staged project -- the entry and every file it imports -- and returns a NUL-terminated
+//       UTF-8 JSON document. Each diagnostic names the file its span is measured in.
 //   void tessera_free(const char* text)
 //       Releases a document returned above. Call it (or `tessera_diagnostics_free`) after each Run.
 //
@@ -20,6 +22,7 @@
 // browser build, and why it stays on the Node-only parity tool instead.
 
 #include "diagnose.hpp"
+#include "wasm_project_stage.hpp"
 
 #include <cstdlib>
 #include <cstring>
@@ -50,12 +53,9 @@ char* duplicate_out(std::string text) {
 
 extern "C" {
 
-EMSCRIPTEN_KEEPALIVE const char* tessera_diagnostics_json(const char* source, const char* file) {
-    if (source == nullptr) {
-        return duplicate_out("{\"diagnostics\":[],\"diagnosticsVersion\":1,\"file\":\"\"}");
-    }
-    const char* name = file != nullptr ? file : "ui/Preview.tsx";
-    return duplicate_out(tessera::compiler::codegen::cli::diagnose_source(source, name));
+EMSCRIPTEN_KEEPALIVE const char* tessera_diagnostics_json() {
+    return duplicate_out(tessera::compiler::codegen::cli::diagnose_project(
+        tessera::compiler::codegen::cli::project_stage().input()));
 }
 
 // The matching release. Named tessera_free so a page reads "the module owns what it returns and I

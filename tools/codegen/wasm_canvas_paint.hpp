@@ -40,17 +40,9 @@ inline constexpr rendering::rhi::TextureFormat kCanvasFormat =
 // file): it needs no device creation and no backend header, so it is host-buildable and this
 // Emscripten-only unit is its caller. `wasm_canvas_paint.cpp` includes that header for it.
 
-// Evaluates the source and draws one frame into the canvas texture the page holds.
-//
-// This is the **stateless** path (`tessera_canvas_frame`): it re-evaluates on every call and
-// carries no state between calls. The live edit does not use it -- see `paint_session` below.
-SceneFrameResult paint_to_canvas(std::string_view source, const ScenePreviewOptions& options,
-                                 std::string_view component, rendering::rhi::Extent2D extent,
-                                 void* canvas_view, rendering::rhi::Device& device);
-
 // Paints the session's current tree into the canvas texture the page holds.
 //
-// Unlike `paint_to_canvas` this never re-evaluates: the tree is the one the pointer events have
+// This never re-evaluates: the tree is the one the pointer events have
 // been dispatched into, so its hover/active bits and its state are the ones the frame shows. A null
 // `canvas_view` draws into an offscreen target instead, which is how the Node probe reads the
 // counters with no surface.

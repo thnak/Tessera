@@ -121,7 +121,11 @@ set(_tessera_diagnostics_sources
     ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_entry.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/diagnose.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/diagnostics_json.cpp
-    ${CMAKE_SOURCE_DIR}/tools/codegen/diagnostic_record.cpp)
+    ${CMAKE_SOURCE_DIR}/tools/codegen/diagnostic_record.cpp
+    # The project staging every preview module shares (`wasm_project_stage.hpp`): the page hands the
+    # module its files one at a time through these four exports.
+    ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_project_stage.cpp
+    ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_project_exports.cpp)
 
 if (NOT EMSCRIPTEN)
     add_library(tessera_diagnostics_entry OBJECT ${_tessera_diagnostics_sources})
@@ -162,7 +166,7 @@ else ()
         -sEXPORT_NAME=createTesseraDiagnostics
         -sENVIRONMENT=web,node
         -sALLOW_MEMORY_GROWTH=1
-        -sEXPORTED_FUNCTIONS=["_tessera_diagnostics_json","_tessera_free","_malloc","_free"]
+        -sEXPORTED_FUNCTIONS=["_tessera_diagnostics_json","_tessera_project_begin","_tessera_project_set_entry","_tessera_project_add_source","_tessera_project_add_stylesheet","_tessera_free","_malloc","_free"]
         -sEXPORTED_RUNTIME_METHODS=["UTF8ToString","lengthBytesUTF8","stringToUTF8"])
 endif ()
 
@@ -238,7 +242,9 @@ if (NOT EMSCRIPTEN)
 
     add_library(tessera_scene_preview_entry OBJECT
         ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_scene_entry.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/css_diagnostics_report.cpp)
+        ${CMAKE_SOURCE_DIR}/tools/codegen/css_diagnostics_report.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_project_stage.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_project_exports.cpp)
     target_include_directories(tessera_scene_preview_entry
         PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
     target_link_libraries(tessera_scene_preview_entry PRIVATE tessera_scene_preview)
@@ -374,6 +380,8 @@ else ()
     add_executable(tessera_scene_preview_wasm
         ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_scene_entry.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/css_diagnostics_report.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_project_stage.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_project_exports.cpp
         ${_tessera_scene_preview_sources})
     target_include_directories(tessera_scene_preview_wasm
         PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
@@ -394,7 +402,7 @@ else ()
         -sEXPORT_NAME=createTesseraScenePreview
         -sENVIRONMENT=web,node
         -sALLOW_MEMORY_GROWTH=1
-        -sEXPORTED_FUNCTIONS=["_tessera_scene_json","_tessera_scene_json_sized","_tessera_scene_json_styled","_tessera_scene_json_styled_sized","_tessera_scene_json_folded","_tessera_scene_json_folded_styled","_tessera_input_json","_tessera_input_json_styled","_tessera_css_diagnostics_json","_tessera_free","_malloc","_free"]
+        -sEXPORTED_FUNCTIONS=["_tessera_scene_json","_tessera_input_json","_tessera_css_diagnostics_json","_tessera_project_begin","_tessera_project_set_entry","_tessera_project_add_source","_tessera_project_add_stylesheet","_tessera_free","_malloc","_free"]
         -sEXPORTED_RUNTIME_METHODS=["UTF8ToString","lengthBytesUTF8","stringToUTF8"])
 
     # The canvas module (issue #167, P3): the same prepared scene plus the GPU half, drawing through
@@ -417,6 +425,10 @@ else ()
         # edit's `apply` export pushed it past the size limit. It is Emscripten-free and WebGPU-free
         # on purpose, so the parsing rules are type-checked on the host lanes too.
         ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_request.cpp
+        # The project staging shared with the other two modules: `tessera_canvas_apply` evaluates the
+        # project the page staged through these exports.
+        ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_project_stage.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_project_exports.cpp
         # Painting a frame into the page's canvas texture, split from the entry for the same reason
         # and on a real boundary: these functions take the device and the tree they paint, so they
         # cannot reach the module's globals, and the entry no longer has to include the WebGPU
@@ -451,7 +463,7 @@ else ()
         # `_tessera_canvas_apply` is the live edit's export (issue #444): the same evaluation the
         # `run` export performs, answered with `changed` and the state-carry split so an auto-apply
         # of unchanged text costs no frame and a failed one keeps the last good picture.
-        -sEXPORTED_FUNCTIONS=["_tessera_canvas_frame","_tessera_canvas_run","_tessera_canvas_apply","_tessera_canvas_pointer","_tessera_canvas_draw","_tessera_canvas_reset","_tessera_canvas_set_font","_tessera_canvas_font_status","_tessera_webgpu_set_device","_tessera_free","_malloc","_free"]
+        -sEXPORTED_FUNCTIONS=["_tessera_project_begin","_tessera_project_set_entry","_tessera_project_add_source","_tessera_project_add_stylesheet","_tessera_canvas_apply","_tessera_canvas_pointer","_tessera_canvas_draw","_tessera_canvas_reset","_tessera_canvas_set_font","_tessera_canvas_font_status","_tessera_webgpu_set_device","_tessera_free","_malloc","_free"]
         # `WebGPU` is the emdawnwebgpu port's handle table: the page needs `WebGPU.importJsDevice` and
         # `importJsQueue` to turn a JS GPUDevice/GPUQueue into the integer handles the C ABI takes.
         # `HEAPU8` is the view the page writes font bytes through (issue #387): `_malloc` returns a

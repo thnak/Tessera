@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "scene_project.hpp"
 #include "scene_stylesheet.hpp"
 
 #include <string>
@@ -9,14 +10,15 @@
 
 // The author stylesheet's diagnostics as one JSON document (issue #390):
 //
-//   {"cssVersion":1,"styled":true,"truncated":false,"file":"ui/Preview.css",
+//   {"cssVersion":2,"styled":true,"truncated":false,
 //    "diagnostics":[{"code":"TESSERA_CSS_UNKNOWN_PROPERTY","severity":"warning",
-//                    "message":"unsupported property","file":"ui/Preview.css",
+//                    "message":"unsupported property","file":"styles/theme.css",
 //                    "line":3,"column":5,"offset":42},...]}
 //
-// `styled:false` means "no author CSS", so the page can say the built-in sheet is in force instead
-// of showing an empty list that looks like "the sheet is fine". Null or empty `stylesheet` always
-// answers `styled:false`, so a page built before this issue still gets a well-formed document.
+// The sheets are the ones the project's entry imports (`ProjectWalk`), so each diagnostic names the
+// file it is in and there is no single "the stylesheet" to name at the top. `styled:false` means
+// no imported sheet holds CSS, so the page can say the built-in sheet is in force instead of
+// showing an empty list that looks like "the sheet is fine".
 //
 // Bounded at `kMaxReportedCssDiagnostics` records with `truncated` set past it (see
 // `scene_stylesheet.hpp`): a stylesheet can have thousands of unknown properties and this document
@@ -65,7 +67,6 @@ namespace tessera::compiler::codegen::cli {
     return out;
 }
 
-[[nodiscard]] std::string css_diagnostics_json(std::string_view stylesheet,
-                                               std::string_view stylesheet_file);
+[[nodiscard]] std::string css_diagnostics_json(const ProjectInput& project);
 
 } // namespace tessera::compiler::codegen::cli

@@ -111,9 +111,9 @@ async function main() {
     return 2;
   }
   const source = readFileSync(options.sourcePath, "utf8");
-  // The file name is synthetic on purpose: the page compiles the textarea contents and labels them
-  // `ui/Preview.tsx`, so the measurement uses the same span file the page would report.
-  const file = "ui/Preview.tsx";
+  // The measurement is a project of one: the page stages its files and names the entry, and a one-file
+  // project is the smallest honest instance of that. The path is the entry the span file reports.
+  const file = "ui/App.tsx";
 
   // A bare relative path is not a valid ESM specifier on any platform and an absolute one is only a
   // valid specifier as a file URL on Windows, so normalize here and let the caller pass what a shell
@@ -129,26 +129,32 @@ async function main() {
   const module = await factory();
   const instantiateMs = performance.now() - instantiateStarted;
 
-  const compileOnce = () => {
-    const textLength = module.lengthBytesUTF8(source) + 1;
-    const textPtr = module._malloc(textLength);
-    module.stringToUTF8(source, textPtr, textLength);
-    const nameLength = module.lengthBytesUTF8(file) + 1;
-    const namePtr = module._malloc(nameLength);
-    module.stringToUTF8(file, namePtr, nameLength);
+  // Stages the project (a file and its entry) and asks for the diagnostics, which is exactly what the
+  // page does per edit, so the measured cost includes the staging the page pays.
+  const withString = (text, use) => {
+    const length = module.lengthBytesUTF8(text) + 1;
+    const ptr = module._malloc(length);
+    module.stringToUTF8(text, ptr, length);
     try {
-      const result = module._tessera_diagnostics_json(textPtr, namePtr);
-      if (!result) {
-        throw new Error("tessera_diagnostics_json returned null");
-      }
-      try {
-        return module.UTF8ToString(result);
-      } finally {
-        module._tessera_free(result);
-      }
+      return use(ptr);
     } finally {
-      module._free(textPtr);
-      module._free(namePtr);
+      module._free(ptr);
+    }
+  };
+  const compileOnce = () => {
+    module._tessera_project_begin();
+    withString(file, (filePtr) =>
+      withString(source, (textPtr) => module._tessera_project_add_source(filePtr, textPtr)),
+    );
+    withString(file, (filePtr) => module._tessera_project_set_entry(filePtr));
+    const result = module._tessera_diagnostics_json();
+    if (!result) {
+      throw new Error("tessera_diagnostics_json returned null");
+    }
+    try {
+      return module.UTF8ToString(result);
+    } finally {
+      module._tessera_free(result);
     }
   };
 

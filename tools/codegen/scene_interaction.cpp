@@ -219,6 +219,15 @@ InputRunResult run_input_script(const ProjectInput& project, const ScenePreviewO
 
 std::string scene_input_document(std::string_view text, const ScenePreviewOptions& options,
                                  std::string_view component, std::string_view script) {
+    const std::string file(options.file.empty() ? std::string_view("ui/Preview.tsx")
+                                                : options.file);
+    const std::array<ProjectFile, 1> sources{{{file, text}}};
+    const std::array<ProjectFile, 1> sheets{{{options.stylesheet_file, options.stylesheet}}};
+    return scene_input_document(ProjectInput{sources, sheets, file}, options, component, script);
+}
+
+std::string scene_input_document(const ProjectInput& project, const ScenePreviewOptions& options,
+                                 std::string_view component, std::string_view script) {
     std::vector<PreviewInputStep> steps;
     std::string error;
     if (!parse_input_script(script, steps, error)) {
@@ -230,7 +239,7 @@ std::string scene_input_document(std::string_view text, const ScenePreviewOption
         out += ",\"steps\":[]}\n";
         return out;
     }
-    const InputRunResult run = run_input_script(text, options, component, script);
+    const InputRunResult run = run_input_script(project, options, component, script);
     std::string out = "{\"inputVersion\":1";
     if (!run.built) {
         out += ",\"error\":";
