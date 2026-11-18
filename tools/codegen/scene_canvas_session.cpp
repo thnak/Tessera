@@ -3,6 +3,10 @@
 #include "diagnostic_record.hpp"
 #include "scene_canvas_session.hpp"
 #include "tessera/ui/dirty.hpp"
+#include "tessera/ui/input.hpp"
+#include "tessera/ui/key_code.hpp"
+#include "tessera/ui/scene/focus.hpp"
+#include "tessera/ui/style/pseudo_state.hpp"
 #include "tessera/ui/style/prepared_stylesheet.hpp"
 
 #include <array>
@@ -208,6 +212,102 @@ bool CanvasSceneSession::apply_layout_inputs(float width, float height, float dp
     return true;
 }
 
+namespace {
+
+// The focusable, visible nodes in tree order, which is the sequential tab order of a scene the
+// preview builds (it sets no positive `tabIndex`). Used only to know where the order ends.
+void collect_focusable(const ui::Node& node, std::vector<const ui::Node*>& out) {
+    if (!node.visible()) {
+        return;
+    }
+    if (node.focusable()) {
+        out.push_back(&node);
+    }
+    for (const auto& child : node.children()) {
+        collect_focusable(*child, out);
+    }
+}
+
+} // namespace
+
+void CanvasSceneSession::fill_focus(CanvasPointerResult& result) const {
+    if (const ui::Node* focused = session_->router().focus_manager().focused()) {
+        result.focused_id = focused->automation_id();
+        result.focus_visible =
+            ui::style::has_state(focused->pseudo_state(), ui::style::PseudoState::FocusVisible);
+    }
+}
+
+CanvasPointerResult CanvasSceneSession::key(PreviewInput::Kind kind, std::uint32_t key,
+                                            std::uint32_t modifiers, bool repeat) {
+    CanvasPointerResult result;
+    if (!started()) {
+        return result;
+    }
+    if (kind != PreviewInput::Kind::KeyDown && kind != PreviewInput::Kind::KeyUp) {
+        return result;
+    }
+    ui::InputRouter& router = session_->router();
+    ui::FocusManager& focus = router.focus_manager();
+    const ui::Node* const before = focus.focused();
+
+    // Tab at the end of the order lets go instead of wrapping. The router wraps (a native window has
+    // nowhere else to go), but a canvas sits inside a page, and a wrap here is a keyboard trap.
+    const bool plain_tab = key == ui::key::kTab &&
+                           (modifiers & (static_cast<std::uint32_t>(ui::Modifier::Control) |
+                                         static_cast<std::uint32_t>(ui::Modifier::Alt) |
+                                         static_cast<std::uint32_t>(ui::Modifier::Meta))) == 0U;
+    if (plain_tab) {
+        const bool backward = (modifiers & static_cast<std::uint32_t>(ui::Modifier::Shift)) != 0U;
+        std::vector<const ui::Node*> order;
+        collect_focusable(session_->root(), order);
+        const bool at_end = order.empty() ||
+                            (before != nullptr &&
+                             (backward ? before == order.front() : before == order.back()));
+        if (at_end) {
+            if (kind == PreviewInput::Kind::KeyDown && before != nullptr) {
+                focus.clear_focus();
+            }
+            result.left = true;
+            result.focus_moved = before != nullptr && kind == PreviewInput::Kind::KeyDown;
+            result.changed = needs_frame();
+            return result;
+        }
+    }
+
+    PreviewInput input;
+    input.kind = kind;
+    input.key = key;
+    input.modifiers = modifiers;
+    input.repeat = repeat;
+    result.dispatched = session_->dispatch(input);
+    result.ran = session_->last_ran();
+    result.unrun = session_->last_unrun();
+    fill_focus(result);
+    if (const ui::Node* hover = session_->router().hovered()) {
+        result.hovered_id = hover->automation_id();
+    }
+    result.focus_moved = focus.focused() != before;
+    // Consumed when the scene did something with it: it reached a focused node, or it moved focus.
+    // A key with no focus and no traversal falls through to the page untouched.
+    result.handled = result.dispatched || result.focus_moved;
+    result.changed = needs_frame();
+    return result;
+}
+
+CanvasPointerResult CanvasSceneSession::blur() {
+    CanvasPointerResult result;
+    if (!started()) {
+        return result;
+    }
+    ui::FocusManager& focus = session_->router().focus_manager();
+    const bool had_focus = focus.focused() != nullptr;
+    focus.clear_focus();
+    result.focus_moved = had_focus;
+    result.changed = needs_frame();
+    return result;
+}
+
 CanvasPointerResult CanvasSceneSession::pointer(PreviewInput::Kind kind, float x, float y,
                                                 std::uint32_t button) {
     CanvasPointerResult result;
@@ -238,6 +338,7 @@ CanvasPointerResult CanvasSceneSession::pointer(PreviewInput::Kind kind, float x
         result.active_id = active->automation_id();
     }
     result.target_id = result.dispatched ? result.hovered_id : 0;
+    fill_focus(result);
     // "A frame is owed" is the scene's own answer, never a guess: a dispatch that changed no
     // style/layout/paint domain costs no frame.
     result.changed = needs_frame();

@@ -91,7 +91,7 @@ async function canvasColour(label) {
     return { r: Math.round(r / n), g: Math.round(g / n), b: Math.round(b / n) };
   }, png.toString('base64'));
 }
-const hue = (c) => (c.r > c.g + 60 && c.r > c.b + 60 ? 'red' : c.g > c.r + 40 && c.g > c.b + 40 ? 'green' : c.b > c.r + 60 && c.b > c.g + 60 ? 'blue' : `other(${c.r},${c.g},${c.b})`);
+const hue = (c) => (c.r > c.g + 60 && c.r > c.b + 60 ? 'red' : c.g > c.r + 40 && c.g > c.b + 40 ? 'green' : c.b > c.r + 60 && c.b > c.g + 60 ? 'blue' : c.r > 150 && c.g > 120 && c.b < 90 ? 'yellow' : `other(${c.r},${c.g},${c.b})`);
 
 const SOURCE = `export function Screen(): Node {
   const [count, setCount] = useState<int>(0);
@@ -107,6 +107,7 @@ const CSS = `.page { display: flex; flex-direction: column; background-color: rg
 Button { width: 300px; height: 200px; background-color: rgb(20, 160, 60); }
 Button:hover { background-color: rgb(220, 30, 30); }
 Button:active { background-color: rgb(30, 30, 220); }
+Button:focus-visible { background-color: rgb(250, 200, 20); }
 `;
 
 await page.locator('#tab-canvas').click();
@@ -182,6 +183,65 @@ const afterHover = await frames();
 await page.mouse.move(onButton.x + 3, onButton.y + 3);
 await settle();
 check('a move inside the same element changes nothing, so it paints nothing', (await frames()) === afterHover, `${afterHover} -> ${await frames()}`);
+
+// --- keyboard focus (#388) ---------------------------------------------------------------------------
+// Move the mouse away so hover is not in play, then arrive at the canvas with the keyboard.
+await page.mouse.move(geometry.left - 40, geometry.top + 10);
+await settle();
+await page.locator('#tab-canvas').focus();
+for (let step = 0; step < 12; step += 1) {
+  if (await page.evaluate(() => document.activeElement?.id === 'canvas')) break;
+  await page.keyboard.press('Tab');
+}
+await settle();
+check('Tab reaches the canvas as a focus stop', await page.evaluate(() => document.activeElement?.id === 'canvas'));
+check('arriving by keyboard focuses the first control and shows its :focus-visible look (yellow)', hue(await canvasColour('focus')) === 'yellow', hue(await canvasColour('focus')));
+
+const before = await stateText();
+await page.keyboard.press('Enter');
+await settle();
+const afterEnter = await stateText();
+check('Enter activates the focused Button', Number(/count=(\d+)/.exec(afterEnter)?.[1]) === Number(/count=(\d+)/.exec(before)?.[1]) + 1, `${before} -> ${afterEnter}`);
+await page.keyboard.press(' ');
+await settle();
+const afterSpace = await stateText();
+check('Space activates it too', Number(/count=(\d+)/.exec(afterSpace)?.[1]) === Number(/count=(\d+)/.exec(afterEnter)?.[1]) + 1, `${afterEnter} -> ${afterSpace}`);
+check('the ring is still showing after activation', hue(await canvasColour('focus-after')) === 'yellow', hue(await canvasColour('focus-after')));
+
+// Tab at the end of the order lets go: the browser carries on, and the canvas stops looking focused.
+await page.keyboard.press('Tab');
+await settle();
+check('Tab at the end of the controls leaves the canvas (no keyboard trap)', await page.evaluate(() => document.activeElement?.id !== 'canvas'), await page.evaluate(() => document.activeElement?.id || document.activeElement?.tagName));
+check('and the ring is gone (green)', hue(await canvasColour('focus-left')) === 'green', hue(await canvasColour('focus-left')));
+await page.keyboard.press('Shift+Tab');
+await settle();
+check('Shift+Tab comes back to the canvas and focuses its control (yellow)', (await page.evaluate(() => document.activeElement?.id === 'canvas')) && hue(await canvasColour('focus-back')) === 'yellow', hue(await canvasColour('focus-back')));
+
+// A key with a modifier is not the scene's: Ctrl+Enter must not click.
+const beforeChord = await stateText();
+await page.keyboard.press('Control+Enter');
+await settle();
+check('a chord with Ctrl is left to the page (no click)', (await stateText()) === beforeChord, `${beforeChord} -> ${await stateText()}`);
+
+// --- resize and fold while the app keeps its state ---------------------------------------------------
+const counted = await stateText();
+const widthBefore = await page.evaluate(() => document.getElementById('canvas').width);
+await page.selectOption('#control-viewport', '768x1024');
+await settle(900);
+const widthAfter = await page.evaluate(() => document.getElementById('canvas').width);
+check('the canvas resizes to the new device', widthAfter !== widthBefore, `${widthBefore} -> ${widthAfter}`);
+check('the app keeps its state across the resize (no re-evaluation)', (await stateText()) === counted, `${counted} -> ${await stateText()}`);
+const foldSelect = await page.evaluate(() => document.querySelector('select[name="foldPosture"]')?.id ?? '');
+if (foldSelect !== '') {
+  await page.selectOption(`#${foldSelect}`, 'book');
+  await settle(900);
+  check('the app keeps its state across a fold posture change', (await stateText()) === counted, `${counted} -> ${await stateText()}`);
+  await page.selectOption(`#${foldSelect}`, '');
+  await settle(600);
+  check('and across unfolding', (await stateText()) === counted, `${counted} -> ${await stateText()}`);
+} else {
+  check('the fold posture control exists', false, 'no select[name=foldPosture]');
+}
 
 check(
   'No console errors',

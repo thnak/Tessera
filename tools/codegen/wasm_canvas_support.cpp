@@ -11,6 +11,9 @@
 
 #include "wasm_canvas_support.hpp"
 
+#include "tessera/ui/key_code.hpp"
+
+#include <cstdint>
 #include <memory>
 
 namespace tessera::compiler::codegen::cli {
@@ -56,6 +59,46 @@ PreviewInput::Kind pointer_kind_from(std::string_view name, bool& known) {
     }
     known = false;
     return PreviewInput::Kind::PointerMove;
+}
+
+PreviewInput::Kind key_kind_from(std::string_view name, bool& known) {
+    known = true;
+    if (name == "down") {
+        return PreviewInput::Kind::KeyDown;
+    }
+    if (name == "up") {
+        return PreviewInput::Kind::KeyUp;
+    }
+    known = false;
+    return PreviewInput::Kind::KeyDown;
+}
+
+std::uint32_t key_code_from_name(std::string_view name) {
+    struct Named {
+        std::string_view name;
+        std::uint32_t code;
+    };
+    constexpr Named kNamed[] = {
+        {"Backspace", ui::key::kBackspace}, {"Tab", ui::key::kTab},
+        {"Enter", ui::key::kEnter},         {"Escape", ui::key::kEscape},
+        {" ", ui::key::kSpace},             {"Insert", ui::key::kInsert},
+        {"Delete", ui::key::kDelete},       {"Home", ui::key::kHome},
+        {"End", ui::key::kEnd},             {"PageUp", ui::key::kPageUp},
+        {"PageDown", ui::key::kPageDown},   {"ArrowLeft", ui::key::kArrowLeft},
+        {"ArrowUp", ui::key::kArrowUp},     {"ArrowRight", ui::key::kArrowRight},
+        {"ArrowDown", ui::key::kArrowDown},
+    };
+    for (const Named& entry : kNamed) {
+        if (entry.name == name) {
+            return entry.code;
+        }
+    }
+    if (name.size() == 1) {
+        const char c = name[0];
+        return (c >= 'a' && c <= 'z') ? static_cast<std::uint32_t>(c - 'a' + 'A')
+                                      : static_cast<std::uint32_t>(static_cast<unsigned char>(c));
+    }
+    return 0;
 }
 
 } // namespace tessera::compiler::codegen::cli

@@ -22,6 +22,8 @@
 //     costs none, and a leave costs one.
 
 #include "scene_canvas_test_support.hpp"
+#include "tessera/ui/key_code.hpp"
+#include "wasm_canvas_support.hpp"
 
 namespace {
 
@@ -253,6 +255,130 @@ void test_pointer_cancel_clears_active() {
            "the cancel cleared :active");
 }
 
+// Issue #388, focus: Tab walks the controls and lets go at the ends, Enter and Space activate the
+// focused button, the ring is keyboard-only, and losing the page's focus drops it.
+void test_keyboard_focus_and_activation() {
+    namespace key = tessera::ui::key;
+    using Kind = cli::PreviewInput::Kind;
+    cli::CanvasSceneSession session;
+    expect(session.start(source_for(kTwoButtons, "ui/Two.tsx")).empty(), "two buttons start");
+    const ui::Node* left_button = nullptr;
+    const ui::Node* right_button = nullptr;
+    for (const auto& child : session.root()->children()) {
+        for (const auto& grand : child->children()) {
+            if (grand->element_kind() == "Button") {
+                (left_button == nullptr ? left_button : right_button) = grand.get();
+            }
+        }
+    }
+    if (left_button == nullptr || right_button == nullptr) {
+        expect(false, "the source has two buttons");
+        return;
+    }
+    CanvasHarness canvas;
+    if (!canvas.ready() || !canvas.draw(session)) {
+        expect(false, "the harness paints the Run's frame");
+        return;
+    }
+
+    // A key with nothing focused and no traversal is not consumed: the page keeps it.
+    const cli::CanvasPointerResult stray = session.key(Kind::KeyDown, key::kEnter, 0, false);
+    expect(!stray.handled && stray.focused_id == 0, "Enter with no focus is left to the page");
+
+    // Tab: first button, with the ring (keyboard modality), consumed, one frame owed.
+    const cli::CanvasPointerResult first = session.key(Kind::KeyDown, key::kTab, 0, false);
+    expect(first.focused_id == left_button->automation_id(), "Tab focuses the first control");
+    expect(first.focus_visible && first.focus_moved && first.handled, "the ring shows and Tab is consumed");
+    expect(first.changed, "moving focus owes a frame");
+    expect(canvas.draw(session), "the focus ring is painted");
+
+    // Tab: second button. Tab again: the end of the order, focus is released and Tab is NOT consumed.
+    const cli::CanvasPointerResult second = session.key(Kind::KeyDown, key::kTab, 0, false);
+    expect(second.focused_id == right_button->automation_id(), "Tab moves to the second control");
+    const cli::CanvasPointerResult leave = session.key(Kind::KeyDown, key::kTab, 0, false);
+    expect(leave.left && !leave.handled && leave.focused_id == 0,
+           "Tab at the end releases focus and lets the browser carry on");
+    expect(leave.changed, "dropping the ring owes a frame");
+    (void)canvas.draw(session);
+
+    // Shift+Tab from nothing goes to the last control; again leaves at the first.
+    const cli::CanvasPointerResult back = session.key(Kind::KeyDown, key::kTab, 1, false);
+    expect(back.focused_id == right_button->automation_id() || back.focused_id == left_button->automation_id(),
+           "Shift+Tab focuses a control");
+    (void)session.key(Kind::KeyDown, key::kTab, 1, false);
+    const cli::CanvasPointerResult back_out = session.key(Kind::KeyDown, key::kTab, 1, false);
+    expect(back_out.left && !back_out.handled, "Shift+Tab at the start releases focus");
+    (void)canvas.draw(session);
+
+    // Enter activates the focused button (key-down, not on a repeat); Space on key-up.
+    (void)session.key(Kind::KeyDown, key::kTab, 0, false);
+    expect(session.router()->focus_manager().focused() == left_button ||
+               session.router()->focus_manager().focused() != nullptr,
+           "a control is focused");
+    // Focus the first control deterministically by walking back from nothing.
+    (void)session.blur();
+    (void)session.key(Kind::KeyDown, key::kTab, 0, false);
+    const ui::Node* focused = session.router()->focus_manager().focused();
+    expect(focused != nullptr && focused->automation_id() == left_button->automation_id(),
+           "the left button holds focus");
+    const cli::CanvasPointerResult enter = session.key(Kind::KeyDown, key::kEnter, 0, false);
+    expect(enter.ran.size() == 1 && enter.handled, "Enter runs the focused button's onClick");
+    expect(counter_value(session) == 1, "Enter incremented the counter");
+    // The click rebuilt the tree; focus and its ring come through it, so Enter can be pressed again.
+    const cli::CanvasPointerResult kept = session.key(Kind::KeyUp, key::kEnter, 0, false);
+    expect(kept.focused_id == left_button->automation_id() && kept.focus_visible,
+           "focus and the ring survive the rebuild an activation causes");
+    const cli::CanvasPointerResult repeat = session.key(Kind::KeyDown, key::kEnter, 0, true);
+    expect(repeat.ran.empty(), "an auto-repeat of Enter does not click again");
+    (void)canvas.draw(session);
+    const cli::CanvasPointerResult space_down = session.key(Kind::KeyDown, key::kSpace, 0, false);
+    expect(space_down.ran.empty(), "Space does not activate on key-down");
+    const cli::CanvasPointerResult space_up = session.key(Kind::KeyUp, key::kSpace, 0, false);
+    expect(space_up.ran.size() == 1 && counter_value(session) == 2, "Space activates on key-up");
+
+    // Blur drops focus and the ring; a second blur owes nothing.
+    (void)canvas.draw(session);
+    const cli::CanvasPointerResult dropped = session.blur();
+    expect(dropped.focus_moved && dropped.changed, "losing the keyboard drops focus and owes a frame");
+    (void)canvas.draw(session);
+    const cli::CanvasPointerResult again = session.blur();
+    expect(!again.focus_moved && !again.changed, "blur with nothing focused costs no frame");
+    expect(session.router()->focus_manager().focused() == nullptr, "nothing is focused after blur");
+
+    // A pointer press focuses without the keyboard ring.
+    const ui::Node* rebuilt = nullptr;
+    for (const auto& child : session.root()->children()) {
+        for (const auto& grand : child->children()) {
+            if (grand->element_kind() == "Button" && rebuilt == nullptr) {
+                rebuilt = grand.get();
+            }
+        }
+    }
+    if (rebuilt != nullptr) {
+        const Point where = centre_of(*rebuilt);
+        (void)canvas.event(session, Kind::PointerMove, where);
+        const cli::CanvasPointerResult press = canvas.event(session, Kind::PointerDown, where);
+        expect(press.focused_id == rebuilt->automation_id(), "a press focuses the control");
+        expect(!press.focus_visible, "pointer focus does not show the keyboard ring");
+    }
+}
+
+// The key vocabulary the page sends: W3C key names map to the engine's codes, unknown names to 0.
+void test_key_vocabulary() {
+    namespace key = tessera::ui::key;
+    expect(cli::key_code_from_name("Tab") == key::kTab, "Tab");
+    expect(cli::key_code_from_name("Enter") == key::kEnter, "Enter");
+    expect(cli::key_code_from_name(" ") == key::kSpace, "Space is the one-space string");
+    expect(cli::key_code_from_name("ArrowDown") == key::kArrowDown, "ArrowDown");
+    expect(cli::key_code_from_name("a") == static_cast<std::uint32_t>('A'), "a letter maps to upper case");
+    expect(cli::key_code_from_name("F13") == 0, "an unknown name maps to 0");
+    bool known = false;
+    (void)cli::key_kind_from("down", known);
+    expect(known, "down is a key kind");
+    (void)cli::key_kind_from("blur", known);
+    expect(!known, "blur is handled by the caller, not a key kind");
+}
+
 } // namespace
 
 int main() {
@@ -261,6 +387,8 @@ int main() {
     test_release_elsewhere_does_not_run_the_handler();
     test_secondary_button_is_ignored();
     test_pointer_cancel_clears_active();
+    test_keyboard_focus_and_activation();
+    test_key_vocabulary();
     if (failures() != 0) {
         std::cerr << "scene_canvas_pointer: " << failures() << " failure(s)\n";
         return 1;

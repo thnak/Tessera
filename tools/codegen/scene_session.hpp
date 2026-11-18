@@ -60,6 +60,7 @@ struct PreviewInput {
     // the page passes its `shiftKey`-style booleans through one integer.
     std::uint32_t modifiers = 0;
     std::uint32_t key = 0; // a `ui::KeyCode`; 0 when not a key event
+    bool repeat = false;   // auto-repeat of a held key (Enter does not activate on a repeat)
     std::uint32_t pointer_id = 0;
 };
 
@@ -197,6 +198,11 @@ public:
         return *root_;
     }
     [[nodiscard]] const ui::InputRouter& router() const noexcept {
+        return router_;
+    }
+    // The mutable router, for the host operations that are not events: releasing focus when the
+    // page's element loses it, and leaving the tab order at its ends (issue #388, focus).
+    [[nodiscard]] ui::InputRouter& router() noexcept {
         return router_;
     }
     [[nodiscard]] ui::Node& root() noexcept {

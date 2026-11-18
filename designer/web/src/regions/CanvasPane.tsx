@@ -91,7 +91,17 @@ export function CanvasPane({
       {/* The engine's one surface. React renders this element once and never touches it again; the
           canvas session owns its backing store, its WebGPU context and its frames. */}
       <div className="canvas-frame" id="canvas-frame" ref={frameRef} hidden>
-        <canvas id="canvas" ref={canvasRef} width={320} height={240} aria-label="Preview of the evaluated scene" />
+        <canvas
+          id="canvas"
+          ref={canvasRef}
+          width={320}
+          height={240}
+          // A focus stop (issue #388): Tab reaches the preview, and its own controls take focus inside it.
+          // `application` tells a screen reader to pass keys through rather than read the page.
+          tabIndex={0}
+          role="application"
+          aria-label="Preview of the evaluated scene (interactive)"
+        />
       </div>
 
       <div className="unavailable" id="failed" ref={failedRef} hidden>
