@@ -6,8 +6,11 @@
 
 #include <cstddef>
 #include <expected>
+#include <span>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 // The front half of the in-memory preview, shared by every consumer that needs a lowered,
 // identified component from a source string: the P2 snapshot document (`scene_preview.cpp`), the P4
@@ -20,11 +23,39 @@
 // produces the same module natively and in Wasm.
 namespace tessera::compiler::codegen::cli {
 
+// One file of a project the page holds in memory: its canonical project-relative POSIX path and its
+// text. The views are borrowed for the duration of one call.
+struct ProjectFile {
+    std::string_view path;
+    std::string_view text;
+};
+
+// A whole project, as the studio holds it: every source file, every stylesheet, and the entry the
+// preview starts from (`app.entry` of tessera.json). Nothing here has a default: a project with no
+// entry has nothing to preview, and `evaluate_project()` says so rather than choosing a file.
+struct ProjectInput {
+    std::span<const ProjectFile> sources;
+    std::span<const ProjectFile> stylesheets;
+    std::string_view entry;
+};
+
+// A stylesheet the entry reaches, with the bytes it was given. `path` is canonical, so a diagnostic
+// names the file the author edits.
+struct SheetUse {
+    std::string path;
+    std::string text;
+};
+
 struct EvaluatedScene {
     // Owns every string the IR and therefore the scene borrows; keep it alive with the session.
     ir::IrModule module;
     // Index of the selected component in `module.components`.
     std::size_t component = 0;
+    // The stylesheets the program imports, in cascade order (the web's import-graph rule: a depth-
+    // first walk from the entry, each sheet at its first import). Empty for a program that imports
+    // no CSS, which is "no author CSS" and keeps the built-in sheet. A sheet that is present in the
+    // project but never imported is NOT here: the preview applies what a native build would.
+    std::vector<SheetUse> sheets;
 
     [[nodiscard]] const ir::Component& selected() const {
         return module.components[component];
@@ -40,12 +71,37 @@ enum class EvaluateErrorCode {
     Lower,
     Identity,
     NoComponent,
+    // The project names an entry that is not one of its files, or names none.
+    NoEntry,
+    // A source file the entry reaches does not parse, analyse or lower, or an import names no file.
+    // `EvaluateError::file` says which.
+    File,
 };
 
 struct EvaluateError {
     EvaluateErrorCode code = EvaluateErrorCode::Parse;
     std::string detail;
+    // The project file the failure is in, when it is in one; empty otherwise.
+    std::string file;
+
+    // A constructor rather than a third aggregate member: every pre-project caller names two
+    // fields, and a defaulted aggregate member would trip -Wmissing-field-initializers on GCC.
+    EvaluateError() = default;
+    EvaluateError(EvaluateErrorCode failure, std::string reason, std::string in_file = {})
+        : code(failure),
+          detail(std::move(reason)),
+          file(std::move(in_file)) {}
 };
+
+// Evaluates a whole project: parses the entry and every project file it reaches through relative
+// imports, lowers them together, and selects `component` from the ENTRY file (the entry's first
+// component when the name is empty). A file the entry never reaches is not parsed, so a half-typed
+// unrelated file cannot blank the preview and a component name it declares cannot collide.
+//
+// `salt` is as for `evaluate_source()`. `EvaluatedScene::sheets` is the imported CSS, in cascade
+// order, with the text taken from `input.stylesheets`.
+[[nodiscard]] std::expected<EvaluatedScene, EvaluateError>
+evaluate_project(const ProjectInput& input, std::string_view salt, std::string_view component);
 
 // Evaluates `text` as the single file `file` and selects `component` (the first component when the
 // name is empty). `salt` is the project salt the ids are hashed with; an empty salt leaves identity

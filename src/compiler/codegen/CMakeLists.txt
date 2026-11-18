@@ -784,6 +784,19 @@ if (TESSERA_BUILD_TESTS)
         tessera_style)
     add_test(NAME scene_stylesheet COMMAND scene_stylesheet_tests)
 
+    # A whole project through `evaluate_project` (the studio's project preview): the entry's component,
+    # only the files and stylesheets the entry reaches, import-graph sheet order, and an error that
+    # names a file instead of a default one.
+    add_executable(scene_project_tests
+        ${CMAKE_SOURCE_DIR}/tests/unit/scene_project_tests.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/scene_evaluate.cpp)
+    target_include_directories(scene_project_tests
+        PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
+    target_link_libraries(scene_project_tests PRIVATE
+        tessera_ir_ids
+        tessera_lowering)
+    add_test(NAME scene_project COMMAND scene_project_tests)
+
     # Conditional and repeated children in the preview (issue #389): a branch selected by the state the
     # session's scope holds, a re-evaluation after a click changes that state, one subtree per list
     # item, and the bounds that are reported rather than swallowed. Registered here rather than in
