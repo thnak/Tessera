@@ -123,7 +123,7 @@ even when it does not evaluate it.
   style table exists in the registry and the reverse. The registry is not rewritten to consume the
   schema in the first slice.
   The schema is a leaf library and may not link the UI module, so the table is a hand-maintained
-  mirror of the registry's longhands (119 rows: the physical table, the logical inline-axis
+  mirror of the registry's longhands (120 rows: the physical table, the logical inline-axis
   longhands and the animation/transition names). The cross-check is the `schema_style_registry`
   ctest in `src/ui/style/CMakeLists.txt`: it walks both directions, rejects a shorthand row, checks
   each kind against the grammar the registry enforces (`2px` for `length`, a bare number for

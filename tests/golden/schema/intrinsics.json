@@ -2552,6 +2552,11 @@
       "name": "background-color"
     },
     {
+      "kind": "keyword",
+      "name": "background-image",
+      "note": "none or one linear-gradient()"
+    },
+    {
       "kind": "number",
       "name": "opacity"
     },

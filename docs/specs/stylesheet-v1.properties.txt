@@ -92,6 +92,8 @@ shorthand inset positioning
 # and `window-backdrop` is the root-window material of glass-v1 section 6, so both are V1 names.
 longhand color paint
 longhand background-color paint
+longhand background-image paint
+shorthand background paint
 longhand opacity paint
 longhand box-shadow paint
 longhand backdrop-filter paint
