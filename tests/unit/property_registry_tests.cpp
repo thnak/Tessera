@@ -60,7 +60,7 @@ int main() {
         !expect(registry.find("unknown") == nullptr, "unknown property") ||
         !expect(registry.supported("--token"), "custom property supported") ||
         !expect(registry.supported("margin"), "shorthand supported") ||
-        !expect(!registry.supported("background"), "unsupported shorthand") ||
+        !expect(!registry.supported("list-style"), "unsupported shorthand") ||
         !expect(registry.longhands("margin") != nullptr &&
                     registry.longhands("margin")->size() == 4,
                 "margin longhands") ||
@@ -152,7 +152,7 @@ int main() {
         return 12;
     }
 
-    result = registry.expand(Declaration{"background", "red", false, 0});
+    result = registry.expand(Declaration{"list-style", "none", false, 0});
     if (!expect(result.declarations.empty(), "unsupported declarations") ||
         !expect(result.diagnostics.size() == 1, "unsupported diagnostic") ||
         !expect(result.diagnostics[0].kind == StyleDiagnosticKind::UnsupportedProperty,
@@ -197,7 +197,7 @@ int main() {
     }
 
     const PropertyExpansionResult many = registry.expand(
-        {Declaration{"padding", "1px", false, 0}, Declaration{"background", "red", false, 0}});
+        {Declaration{"padding", "1px", false, 0}, Declaration{"list-style", "none", false, 0}});
     if (!expect(many.declarations.size() == 4, "vector expansion declarations") ||
         !expect(many.diagnostics.size() == 1, "vector expansion diagnostics")) {
         return 16;

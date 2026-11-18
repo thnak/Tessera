@@ -100,6 +100,7 @@
   margin-bottom: var(--space-4);
   border-radius: 16px;
   background-color: #6a35e8;
+  background-image: linear-gradient(135deg, #3b2bd9 0%, #8b3dff 55%, #e0437f 100%);
   color: #ffffff;
   box-shadow: 0px 12px 28px rgba(60, 30, 200, 0.35);
 }

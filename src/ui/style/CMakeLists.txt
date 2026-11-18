@@ -12,6 +12,8 @@ add_library(tessera_style STATIC
     backdrop_filter.cpp
     cascade.cpp
     color.cpp
+    gradient.cpp
+    property_background.cpp
     color_names.cpp
     color_oklch.cpp
     component_parts.cpp
