@@ -10,6 +10,7 @@
 // The document shape is `docs/specs/compiler-diagnostics-v1.md`'s, produced by the same compiler the
 // native CLI runs -- so this file must not invent, sort or filter anything. It shows the document.
 
+import type { EditorSurface } from "../editor/code-editor";
 import { element } from "./dom";
 
 /** One diagnostic as the compiler reports it. */
@@ -81,8 +82,8 @@ function spotlight(text: string, span: Span): HTMLElement | null {
  * open it, rather than highlighting an offset in a document the diagnostic is not about.
  */
 export interface RevealableSource {
-  /** The textarea, which holds the text of the file the editor is showing. */
-  element: HTMLTextAreaElement;
+  /** The editor, which holds the text of the file it is showing. */
+  element: EditorSurface;
   /**
    * The project path the editor is showing. A run diagnoses a whole project, so each span is judged on its
    * own: it can be revealed only when its file is this one.
@@ -90,16 +91,9 @@ export interface RevealableSource {
   file: string;
 }
 
-/** Selects the span in the editor: there is no editor widget, so this is the whole "go to" affordance. */
-function reveal(element: HTMLTextAreaElement, span: Span): void {
-  element.focus();
-  const start = Math.min(span.offset ?? 0, element.value.length);
-  const length = Math.max(0, span.length ?? 0);
-  element.setSelectionRange(start, Math.min(start + length, element.value.length));
-  // Scroll the textarea so the caret is visible: a rough line-height estimate is enough and avoids
-  // measuring the DOM for a diagnostics list.
-  const lineHeight = parseFloat(getComputedStyle(element).lineHeight) || 20;
-  element.scrollTop = Math.max(0, ((span.line ?? 1) - 3) * lineHeight);
+/** Selects the span in the editor and scrolls it into view: the list's "go to" affordance. */
+function reveal(element: EditorSurface, span: Span): void {
+  element.reveal(span.offset ?? 0, span.length ?? 0);
 }
 
 function renderDiagnostic(
@@ -134,7 +128,7 @@ function renderDiagnostic(
       meta.append(jump);
       item.append(meta);
 
-      const context = spotlight(source.element.value, span);
+      const context = spotlight(source.element.text(), span);
       if (context) {
         item.append(context);
       }

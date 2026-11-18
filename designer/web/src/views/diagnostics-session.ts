@@ -18,6 +18,7 @@
 // writes the status text, and mirrors the count into the page's status line through a ref. That is the
 // ADR-054 decision 3 split: React draws the chrome, the engine draws the preview.
 
+import type { CodeEditor, EditorMark } from "../editor/code-editor";
 import { wasmModuleUrl } from "../lib/module-url";
 import type { StatusReporter, ProjectReader, ViewSession } from "../lib/views";
 import { callExport, requireExports, stageProject, type WasmModule } from "../lib/wasm-call";
@@ -33,7 +34,7 @@ export interface DiagnosticsElements {
   list: HTMLElement;
   emptyState: HTMLElement;
   /** The editor, for "show in source". The page decides whether it holds the compiled text. */
-  editor: HTMLTextAreaElement;
+  editor: CodeEditor;
   /** The status line's diagnostics cell (issue #431): the count, where it stays visible. */
   statusCount: HTMLElement | null;
 }
@@ -49,6 +50,38 @@ export interface DiagnosticsSession extends ViewSession {
  * childless and never conditionally. `source` is the page's `ProjectReader`, `setStatus` is the pane's own
  * status line, and `onReady` tells the page whether the shared Run button should be enabled.
  */
+/** The files the last diagnostics run underlined, so a file that became clean is cleared. */
+const markedFiles = new Set<string>();
+
+/** Underlines each diagnostic's span in its file's editor state (issue #517): the list stays, the span shows inline. */
+function markEditor(editor: CodeEditor, document_: DiagnosticsDocument): void {
+  const byFile = new Map<string, EditorMark[]>();
+  for (const diagnostic of document_.diagnostics ?? []) {
+    const span = diagnostic.span;
+    if (!span || !span.file || typeof span.offset !== "number" || span.offset < 0) {
+      continue;
+    }
+    const list = byFile.get(span.file) ?? [];
+    list.push({
+      offset: span.offset,
+      length: typeof span.length === "number" ? span.length : 0,
+      severity: diagnostic.severity === "warning" ? "warning" : "error",
+      message: diagnostic.message ?? "",
+    });
+    byFile.set(span.file, list);
+  }
+  for (const file of markedFiles) {
+    if (!byFile.has(file)) {
+      editor.setMarks(file, []);
+    }
+  }
+  markedFiles.clear();
+  for (const [file, marks] of byFile) {
+    editor.setMarks(file, marks);
+    markedFiles.add(file);
+  }
+}
+
 export function createDiagnosticsSession(options: {
   elements: DiagnosticsElements;
   source: ProjectReader;
@@ -112,12 +145,9 @@ export function createDiagnosticsSession(options: {
       // same C ABI shape, so the lifetime rule is written once instead of three times.
       stageProject(module, target);
       const json = callExport(module, "_tessera_diagnostics_json");
-      const counts = renderDiagnostics(
-        list,
-        emptyState,
-        JSON.parse(json) as DiagnosticsDocument,
-        { element: editor, file: target.active },
-      );
+      const document_ = JSON.parse(json) as DiagnosticsDocument;
+      const counts = renderDiagnostics(list, emptyState, document_, { element: editor, file: target.active });
+      markEditor(editor, document_);
       report(counts);
     } catch (error) {
       list.replaceChildren();

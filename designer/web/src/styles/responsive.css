@@ -98,7 +98,6 @@
    * 1280 wide, so the frame scrolls inside its own box rather than widening the page. */
   .canvas-frame { overflow: auto; }
 
-  #source { padding: 10px 12px; font-size: 12px; }
 
   /* The stylesheet editor on a phone (issue #390): the code column is a fixed 46vh, so the two editors
    * share it. The source keeps most of the height and the sheet gets a small, scrollable box of its own

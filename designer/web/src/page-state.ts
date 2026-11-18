@@ -13,6 +13,7 @@
 // stays the page's *chrome* state, which after issue #431 is the controls, the gallery, the share status
 // and the build id.
 
+import type { CodeEditor } from "./editor/code-editor";
 import { useRef, useState } from "react";
 import type { ControlValues } from "./regions/StudioChrome";
 import { INITIAL_ENVIRONMENT } from "./page-defaults";
@@ -35,7 +36,7 @@ export interface PaneRefs {  /**
    * part of this bundle: a diagnostics span reveals itself in the editor and the Scene session appends
    * the live viewport to the hint, so both are written from outside React's render cycle.
    */
-  source: React.RefObject<HTMLTextAreaElement | null>;
+  source: React.MutableRefObject<CodeEditor | null>;
   editorHint: React.RefObject<HTMLParagraphElement | null>;
   buildId: React.RefObject<HTMLSpanElement | null>;
   shareStatus: React.RefObject<HTMLSpanElement | null>;
@@ -83,7 +84,7 @@ export function usePaneRefs(): PaneRefs {
   return {
     // The editor React renders once as a childless textarea; no session writes its text (the page owns
     // the buffers), but a diagnostic's "show in source" and the Scene hint do reach it.
-    source: useRef<HTMLTextAreaElement>(null),
+    source: useRef<CodeEditor | null>(null),
     editorHint: useRef<HTMLParagraphElement>(null),
     buildId: useRef<HTMLSpanElement>(null),
     shareStatus: useRef<HTMLSpanElement>(null),

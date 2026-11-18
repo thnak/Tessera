@@ -65,7 +65,7 @@ const SHARED_IDS = [
   "gallery",
   "gallery-list",
   "link-note",
-  "source",
+  "editor-host",
   // The three-column workspace (issue #431). `workspace` is the grid, `project-tree` is its left column,
   // `editor-panel` is the middle column's tab panel, and the three `status-*` ids are the status line.
   "workspace",

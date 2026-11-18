@@ -159,7 +159,7 @@ async function open(width, height, path = '/index.html') {
 
   // The seeded entry file is open and selected: one tab, one selection, and the editor holds its text.
   const firstTab = await page.locator('[aria-label="Open files"] [role="tab"]').count();
-  const firstText = await page.locator('#source').inputValue();
+  const firstText = await page.evaluate(() => window.__tesseraEditor.text());
   check(
     'the entry file is open in a tab and its text is in the editor',
     firstTab === 1 && firstText.includes('Count: {count}'),
@@ -185,7 +185,7 @@ async function open(width, height, path = '/index.html') {
   await page.locator('[role="treeitem"][data-path="styles/theme.css"]').click();
   await page.waitForTimeout(200);
   const twoTabs = await page.locator('[aria-label="Open files"] [role="tab"]').count();
-  const cssText = await page.locator('#source').inputValue();
+  const cssText = await page.evaluate(() => window.__tesseraEditor.text());
   const compileTarget = await page.locator('#status-file').textContent();
   check(
     'selecting a stylesheet opens one more tab and keeps the entry the one tessera.json names',
@@ -194,7 +194,7 @@ async function open(width, height, path = '/index.html') {
   );
 
   // Typing marks the active file unsaved (the marker is in the tab strip and in the tree).
-  await page.locator('#source').fill('/* edited */\n');
+  await page.evaluate(() => window.__tesseraEditor.edit('/* edited */\n'));
   await page.waitForTimeout(200);
   const dirtyMarks = await page.locator('.editor-tab-dirty').count();
   const treeDirty = await page.locator('#project-tree [data-path="styles/theme.css"] .tree-dirty').count();
@@ -269,7 +269,7 @@ async function open(width, height, path = '/index.html') {
   await reopened.goto(shared, { waitUntil: 'load' });
   await reopened.waitForTimeout(1400);
   const hasFragment = shared.includes('#p5=');
-  const text = await reopened.locator('#source').inputValue();
+  const text = await reopened.evaluate(() => window.__tesseraEditor.text());
   check('#p5= share link restores the source', hasFragment && text.includes('Count: {count}'), shared.slice(-24));
   await reopenedContext.close();
 }
