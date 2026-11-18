@@ -183,8 +183,8 @@ The style inspector is the second slice of #171, and the read half of
 [`designer-protocol-v1.md`](../specs/designer-protocol-v1.md) section 9.1. With it armed, clicking a
 node in the canvas shows that node's **computed style**, the **rules that matched it** (highest
 precedence first, each with its origin, selector text, specificity, source span and declarations),
-and its **box**. `style.override.set` and `source.patch` are later slices; the answer's `overrides`
-list is present and empty until they land.
+and its **box**. `style.override.set` is a later slice; the answer's `overrides` list is present and
+empty until it lands. `source.patch` is section 5.3 below.
 
 **Why the engine answers it.** Every field is a fact only the cascade has. `computed` is the
 resolved style after inheritance and `var()`; `matched` is the selector index's own answer with the
@@ -231,6 +231,83 @@ to select a node. A visitor who never opens it keeps a fully interactive canvas.
 element rather than engine paint for the same two reasons the picker's overlay is: an engine-drawn
 panel would be part of the frame and would contaminate the pixels a golden compares, and ADR-054
 decision 3 says the engine draws the previewed app and nothing else.
+
+### 5.3 The commit's patch (issue #171)
+
+The third and last slice of #171 is `source.patch`, the write half of
+[`designer-protocol-v1.md`](../specs/designer-protocol-v1.md) section 10.2. Given a node and a
+destination, the viewer produces the **minimal list of `TextEdit`s** a host applies, plus the
+**base versions** the host compares. It writes nothing: applying the edits and answering
+`source.patch.result` is the studio's project-IO path (section 10.3), and this slice does not build
+it.
+
+**The engine gap this slice closed.** The IR records the `SourceSpan` of the JSX element each node
+came from (`ir::Node::source`), but the scene node did not keep it: `scene_build_walk.cpp` created
+the `ui::Node` and dropped the span, so nothing downstream could name the bytes a commit would edit.
+The span now travels in a **side table** rather than as a `ui::Node` field. `ui::Node` is a public
+header with an enforced `kNodeSizeBudget` and a `static_assert`, and a span is a design-time fact no
+frame reads; growing every node for it would be a memory-budget decision taken for a query. The table
+is `SceneBuildResult::SceneNodeSource { node_id, span }`, filled by the build walk (the last code
+that holds the `ir::Node`), owned by `PreviewSession` and replaced by every rebuild, so a span always
+describes the tree on screen. `CanvasSceneSession::node_span()` is the read.
+
+**Why the attribute range comes from the parser.** The IR keeps the element's span, not its
+attributes', so the `inline` destination re-parses the component's file and finds the element whose
+span starts where the node's does - the two offsets are the same number, because the lowering copies
+the AST span verbatim. `JsxAttribute::span` is then the exact byte range of the `style` attribute. A
+`find("style=")` over the text would match a string literal, a comment or a nested element, and the
+first time it did, a commit would rewrite the wrong bytes. The `class` destination uses
+`style::parse_stylesheet` for the same reason: `Rule::offset` and `Declaration::offset` are the
+parser's own measurements, so a rule the commit edits is a rule the cascade would have read.
+
+**The three destinations.**
+
+| destination | edit | when the target is absent |
+| --- | --- | --- |
+| `inline` | replaces the `style` attribute's bytes with the merged attribute text | inserts one (`length == 0`) at the end of the opening tag |
+| `class` | replaces the declarations the commit names, inserts the ones it adds | appends the whole rule to the file |
+| `token` | replaces the value of the existing token declaration in the active theme's object | rejects: the spec edits the *existing* declaration |
+
+`inline` keeps every declaration the attribute already had, byte for byte, and only replaces the
+properties the commit names: dropping or reformatting the others would silently rewrite a value
+nobody asked to change. `class` never creates a CSS file - the file must already be a project file,
+which is the spec's rule and also the only way the base version can exist. `token` edits the theme
+asset (`assets.theme`, `stylesheet-v1.md` section 9.1), which is JSON, not CSS: the value is located
+by scanning for the string literal of `"<token>"` inside the active theme's object, so key order,
+indentation and every other token survive untouched. A token the active theme does not define is a
+rejection, not an append.
+
+**The ordering rule, and what it actually guarantees.** `edits` is sorted by file and **descending**
+offset, and the ranges do not overlap. The property that buys is not "any application order gives the
+same text" - that is false whenever two replacements change the file's length, because applying
+ascending shifts the second edit. It is that **applying the list in the given order equals splicing
+every range against the original offsets at once**, which is what a host's applier must satisfy.
+`scene_canvas_patch_tests.cpp` asserts exactly that, against a simultaneous-splice reference, and
+asserts descending order and non-overlap directly.
+
+**UTF-8.** `offset` and `length` are byte offsets and must land on code point boundaries (section
+3.3), so every range is checked with `is_code_point_boundary()` before it becomes an edit; a range
+that would split a character is `component_invalid` rather than a corrupted file. A test with a
+two-byte `é` before the edit point asserts the range is still exact.
+
+**The failure vocabulary is the spec's, exactly**: `no_overrides`, `not_token_bound`,
+`no_such_node`, `no_such_class_file`, `component_invalid`, `stale_source`. No patch is produced for
+any of them, and the report carries no `edits` and no `baseVersions` - a page that read an empty edit
+list off a failure would show "0 edits" where the truth is that nothing was produced.
+
+**What is narrower than section 10.1, and why.** A commit writes *all of a node's overrides*
+together, and the override layer is `style.override.set` - a later slice. This slice therefore has no
+overrides to commit, so the page sends an empty declaration list and the engine answers
+`no_overrides`. The `token` destination's binding test is against the node's inline `style` value
+being `var(<token>)`, because that is the only override-shaped value that exists today. Both are
+narrower than the spec and both are reported rather than papered over: the engine does not invent an
+override layer to make a commit succeed.
+
+**The page half.** `designer/web/src/views/canvas-inspector.ts` gains a `commit` section: one button
+per destination, and the answer the last commit produced - the edit list with each file, byte range
+and replacement text, or the spec's reason. It says **"produced — not applied (no host)"**, because
+that is the truth: this page has no host, so nothing was written. A button that said "committed"
+would be claiming a write that never happened.
 
 ## 6. The page half (landed)
 The page half landed after the React conversion (#422) as `designer/web/src/views/canvas-pointer.ts`,

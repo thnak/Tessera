@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "scene_build.hpp"
 #include "scene_layout.hpp"
 #include "scene_state.hpp"
 #include "scene_stylesheet.hpp"
@@ -240,6 +241,24 @@ public:
         return unrun_;
     }
 
+    // The IR source span of every node in the live tree, keyed by scene node id (issue #171's
+    // `source.patch` slice). Filled by the build walk, which is the last code that holds the
+    // `ir::Node`; a rebuild replaces it, so a span always describes the tree on screen. Empty for a
+    // session that built no tree.
+    //
+    // **Why a side table and not a `ui::Node` field.** `ui::Node` is a public header with an
+    // enforced `kNodeSizeBudget` and a `static_assert`; a span is a design-time fact no frame
+    // reads, so growing every node for it would be a memory-budget decision taken for a query. The
+    // table is the session's, so it dies with the tree it describes.
+    [[nodiscard]] const std::vector<SceneBuildResult::SceneNodeSource>&
+    node_sources() const noexcept {
+        return node_sources_;
+    }
+
+    // The node with this automation id, or null. A read-only lookup for a caller that needs a fact
+    // about the node (its class name, for a `class` commit) without a mutable handle into the tree.
+    [[nodiscard]] const ui::Node* find_by_automation_id(std::uint64_t automation_id) const;
+
 private:
     // One installed scene binding: which IR handler a scene node's event must run. Kept in a
     // `unique_ptr` so the `void*` context handed to `Node::bind_event` keeps a stable address.
@@ -277,6 +296,9 @@ private:
     std::vector<std::unique_ptr<HandlerSlot>> slots_;
     std::vector<std::string> ran_;
     std::vector<std::string> unrun_;
+    // The IR spans of the live tree, keyed by scene node id (issue #171's `source.patch` slice).
+    // Replaced by every `rebuild()`, so it never describes a tree that is gone.
+    std::vector<SceneBuildResult::SceneNodeSource> node_sources_;
     double next_timestamp_s_ = 0.0;
     bool built_ = false;
     // Set by a handler that changed state during a dispatch; consumed by the rebuild after it.

@@ -4,6 +4,7 @@
 
 #include "tessera/compiler/eval/evaluator.hpp"
 #include "tessera/compiler/ir/module.hpp"
+#include "tessera/compiler/ir/source_span.hpp"
 #include "tessera/ui/scene/node.hpp"
 
 #include <cstddef>
@@ -46,6 +47,19 @@ struct SceneBuildResult {
         std::string handler; // the IR handler id: `handler::N` or `bind::name`
     };
     std::vector<SceneEventHandler> handlers;
+    // The IR source span of every built scene node, keyed by the scene node id the walk assigned
+    // (issue #171's `source.patch` slice). This is a SIDE TABLE rather than a `ui::Node` field on
+    // purpose: `ui::Node` is a public header with an enforced `kNodeSizeBudget` and a
+    // `static_assert`, and a span is a design-time fact that only the commit path reads. Growing
+    // the node would cost every screen memory for a value no frame touches.
+    //
+    // Recorded here because this walk is the last place that still holds the `ir::Node`; after it
+    // returns, the scene node is all that is left and it carries no span.
+    struct SceneNodeSource {
+        std::uint64_t node_id = 0;
+        ir::SourceSpan span;
+    };
+    std::vector<SceneNodeSource> sources;
 };
 
 // Builds the tree of `component` under `root`. `root` is the window content node: it is given the

@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "scene_canvas_patch.hpp"
 #include "scene_canvas_session.hpp"
 #include "tessera/hal/fold_posture.hpp"
 
@@ -56,5 +57,23 @@ struct CanvasViewportRequest {
 };
 
 [[nodiscard]] CanvasViewportRequest canvas_viewport_request(int width, int height, float dpi);
+
+// One `tessera_canvas_patch` request (issue #171, designer-protocol-v1 section 10.2): the commit's
+// node, destination and payload, parsed from the ABI's raw strings.
+//
+// **Why the parsing lives here and not in the export.** The declarations arrive as one
+// `property:value`-per-line string, and a line without a colon must be skipped rather than
+// committed as a property with an empty value - a rule that would otherwise be a few lines inside
+// an export that is already the longest in the entry. It is also the part a host lane can
+// type-check, which is the same reason every other ABI argument is parsed in this unit.
+//
+// An empty `destination` is `inline`, the spec's default destination. An unknown one is also
+// `inline` rather than an error: the destination only chooses which edit the builder produces, and
+// a page that sent a word this build does not know gets the inline patch it can still show, instead
+// of an FFI-boundary exception.
+[[nodiscard]] PatchRequest
+canvas_patch_request(std::string_view automation_id, std::string_view destination,
+                     std::string_view class_name, std::string_view file, std::string_view token,
+                     std::string_view token_value, std::string_view declarations);
 
 } // namespace tessera::compiler::codegen::cli

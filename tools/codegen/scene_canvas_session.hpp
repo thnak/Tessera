@@ -3,11 +3,14 @@
 #pragma once
 
 #include "scene_canvas_inspect.hpp"
+#include "scene_canvas_patch.hpp"
 #include "scene_evaluate.hpp"
 #include "scene_frame.hpp"
 #include "scene_prepare.hpp"
+#include "scene_project.hpp"
 #include "scene_session.hpp"
 #include "scene_stylesheet.hpp"
+#include "tessera/compiler/ir/source_span.hpp"
 #include "tessera/hal/window.hpp"
 #include "tessera/rendering/rhi/types.hpp"
 #include "tessera/ui/scene/dirty_pass.hpp"
@@ -353,6 +356,28 @@ public:
     // into the live tree, so they are only valid between a `start()` and the next one; a caller
     // that wants an id should read `CanvasPointerResult` instead.
     [[nodiscard]] const ui::InputRouter* router() const noexcept;
+
+    // The IR source span of the node with this automation id (issue #171's `source.patch` slice),
+    // or null when the id names no node or the node has no span. The span is the JSX element's, so
+    // a commit can locate the attribute it edits; it belongs to the running evaluation and is valid
+    // until the next `start()`.
+    [[nodiscard]] const ir::SourceSpan* node_span(std::uint64_t automation_id) const;
+
+    // The project the running evaluation was started from, by reference: the bytes a patch's
+    // offsets are measured in. Empty before a successful `start()`. It is the session's own copy,
+    // so it outlives every call and a patch built from it cannot outlive its text.
+    [[nodiscard]] const OwnedProject& project() const noexcept {
+        return project_;
+    }
+
+    // The patch for one style commit (issue #171, designer-protocol-v1 section 10.2): the minimal
+    // edit list and the base versions, or the spec's reason there is none.
+    //
+    // **It is a query.** Nothing is written, nothing is dispatched and no frame is owed: a commit
+    // produces a value the host applies, and the viewer keeps its overrides until
+    // `source.patch.result` arrives (section 10.3). A page that shows the edits has not changed the
+    // project, and this method is what makes that distinction structural rather than a promise.
+    [[nodiscard]] SourcePatchResult patch(const PatchRequest& request) const;
 
 private:
     // Fills `focused_id` / `focus_visible` from the router's focus manager.

@@ -5,7 +5,14 @@
 // **What it is.** With the inspector armed, clicking a node in the canvas shows that node's computed
 // style, the rules that matched it (highest precedence first, with the origin, the selector text,
 // the specificity and each declaration's `overridden` flag), and its box. It is the read half of
-// `style.info`; the write half (`style.override.set`, `source.patch`) is a later slice.
+// `style.info`.
+//
+// **The commit action is the write half's first step, and only the first step.** Pressing a
+// destination button asks the engine for the `source.patch` that commit would produce
+// (designer-protocol-v1 §10.2) and shows the resulting edits, or the spec's reason there are none.
+// It does **not** write the file: applying a patch is the host's job (§10.3), and this page has no
+// host. The panel says "produced — not applied" for exactly that reason; a button that claimed the
+// file was written would be lying about the developer's source.
 //
 // **Why the panel is a page element and not engine paint.** The engine draws the previewed app and
 // nothing else (ADR-054 decision 3). A panel drawn by the engine would be part of the frame, so it
@@ -69,6 +76,39 @@ export interface CanvasStyleReport {
   overrides?: { property: string; value: string }[];
 }
 
+/** One edit of a `source.patch`; the shape `canvas_patch_report_json()` writes. */
+export interface PatchEditReport {
+  file: string;
+  /** Byte offset into the file; on a UTF-8 code point boundary (designer-protocol-v1 §3.3). */
+  offset: number;
+  /** Bytes replaced; 0 inserts. */
+  length: number;
+  newText: string;
+}
+
+/**
+ * What one commit produced (designer-protocol-v1 §10.2).
+ *
+ * **`ok:false` carries no `edits` and no `baseVersions`**, because the spec sends no `source.patch`
+ * for a failed commit. The panel shows the `reason` and says nothing was produced.
+ */
+export interface CanvasPatchReport {
+  ok: boolean;
+  /** One of the spec's six reasons when `ok` is false. */
+  reason?: string;
+  /** A human-readable detail for the status line; never part of the protocol's `reason`. */
+  detail?: string;
+  /** The viewer's handle for this patch, which the host's `source.patch` names. */
+  patchId?: string;
+  /** Sorted by file and descending offset, so applying in order never shifts a later edit. */
+  edits?: PatchEditReport[];
+  /** Each affected file path to the version the viewer used. */
+  baseVersions?: Record<string, number>;
+}
+
+/** The three commit destinations (designer-protocol-v1 §10.1). */
+export type PatchDestination = "inline" | "class" | "token";
+
 /** The elements the inspector needs. */
 export interface CanvasInspectorElements {
   /** The panel: a page element beside the canvas, hidden until a node is inspected. */
@@ -103,6 +143,14 @@ export interface CanvasInspector {
   hide(): void;
   /** Re-asks for the last node, after a frame moved the boxes. */
   refresh(): void;
+  /**
+   * Asks for the patch a commit would produce, and shows the edits or the rejection reason.
+   *
+   * **It does not write anything.** The viewer produces a `source.patch`; applying it is the host's
+   * job (designer-protocol-v1 §10.3), and this page has no host. The panel therefore says "edits
+   * produced", never "file written" — claiming otherwise would be a lie about the developer's file.
+   */
+  commit(destination: PatchDestination): void;
 }
 
 /** The canvas' CSS-to-logical ratio, the same conversion the picker and the pointer use. */
@@ -201,16 +249,103 @@ function boxBlock(box: StyleBoxReport): HTMLElement {
   return block;
 }
 
+/**
+ * The commit section: one button per destination, and the answer the last commit produced.
+ *
+ * **Why the answer is shown as edits and not as "done".** The viewer produces a patch; the host
+ * applies it (designer-protocol-v1 §10.3). This page has no host, so the honest report is the edit
+ * list — file, byte range, replacement — plus a line saying it was produced and not applied. A
+ * button that said "committed" would be claiming a write that never happened.
+ */
+function commitBlock(
+  report: CanvasPatchReport | null,
+  onCommit: (destination: PatchDestination) => void,
+): HTMLElement {
+  const block = document.createElement("div");
+  block.className = "inspect-commit";
+  const title = document.createElement("div");
+  title.className = "inspect-section";
+  title.textContent = "commit";
+  block.appendChild(title);
+
+  const buttons = document.createElement("div");
+  buttons.className = "inspect-commit-actions";
+  const destinations: { id: PatchDestination; label: string }[] = [
+    { id: "inline", label: "inline" },
+    { id: "class", label: "class" },
+    { id: "token", label: "token" },
+  ];
+  for (const destination of destinations) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "inspect-commit-button";
+    button.dataset.destination = destination.id;
+    button.textContent = destination.label;
+    button.addEventListener("click", () => onCommit(destination.id));
+    buttons.appendChild(button);
+  }
+  block.appendChild(buttons);
+
+  if (report === null) {
+    return block;
+  }
+  const answer = document.createElement("div");
+  answer.className = "inspect-commit-answer";
+  if (!report.ok) {
+    // The spec's reason, verbatim, so a developer can look it up; the detail is the sentence that
+    // says which node or file it was about.
+    answer.dataset.ok = "false";
+    answer.textContent = `no patch: ${report.reason ?? "unknown"}${
+      report.detail !== undefined && report.detail !== "" ? ` — ${report.detail}` : ""
+    }`;
+    block.appendChild(answer);
+    return block;
+  }
+  answer.dataset.ok = "true";
+  const edits = report.edits ?? [];
+  const versions = report.baseVersions ?? {};
+  const files = Object.keys(versions);
+  const header = document.createElement("div");
+  header.className = "inspect-commit-summary";
+  // "produced", not "applied": the host is what writes, and this page is not the host.
+  header.textContent = `${edits.length} edit${edits.length === 1 ? "" : "s"} produced in ${
+    files.length
+  } file${files.length === 1 ? "" : "s"} — not applied (no host)`;
+  answer.appendChild(header);
+  for (const edit of edits) {
+    const row = document.createElement("div");
+    row.className = "inspect-edit";
+    row.dataset.file = edit.file;
+    const where = document.createElement("code");
+    where.className = "inspect-edit-range";
+    where.textContent = `${edit.file}:${edit.offset}+${edit.length}`;
+    const text = document.createElement("code");
+    text.className = "inspect-edit-text";
+    text.textContent = edit.newText;
+    row.replaceChildren(where, text);
+    answer.appendChild(row);
+  }
+  block.appendChild(answer);
+  return block;
+}
+
 export function createCanvasInspector(options: CanvasInspectorOptions): CanvasInspector {
   const { panel, body, toggle, canvas } = options.elements;
   const setStatus = options.setStatus;
   let isArmed = false;
   // The last node asked about, so a frame that moved the boxes can re-ask without a new click.
   let last: { clientX: number; clientY: number } | null = null;
+  // The node the panel is showing, so a commit names the same node the panel describes even after
+  // the pointer moved away. Zero means no node is selected.
+  let selected = 0;
+  // The last commit's answer, kept so a re-render (a frame moved the boxes) does not lose it.
+  let lastPatch: CanvasPatchReport | null = null;
 
   function hide(): void {
     panel.hidden = true;
     last = null;
+    selected = 0;
+    lastPatch = null;
   }
 
   function render(report: CanvasStyleReport): void {
@@ -225,6 +360,7 @@ export function createCanvasInspector(options: CanvasInspectorOptions): CanvasIn
     heading.className = "inspect-heading";
     heading.textContent = `node #${report.node ?? "0"}`;
     sections.push(heading);
+    selected = Number(report.node ?? "0");
 
     const computed = report.computed ?? {};
     const computedNames = Object.keys(computed).sort();
@@ -266,8 +402,54 @@ export function createCanvasInspector(options: CanvasInspectorOptions): CanvasIn
       sections.push(block);
     }
 
+    // The commit action is last: it is the write half, and a developer reads the style before
+    // deciding to commit it.
+    sections.push(commitBlock(lastPatch, commit));
+
     body.replaceChildren(...sections);
     panel.hidden = false;
+  }
+
+  function commit(destination: PatchDestination): void {
+    const module = options.module();
+    if (module === null || selected === 0) {
+      return;
+    }
+    // The declarations a commit writes are the node's overrides (designer-protocol-v1 §10.1). The
+    // override layer is `style.override.set`, a later slice, so this slice has none to commit and
+    // the engine answers `no_overrides`. The panel shows that reason rather than inventing a value:
+    // a commit that guessed a declaration would write something the developer never chose.
+    const declarations = "";
+    let report: CanvasPatchReport;
+    try {
+      report = JSON.parse(
+        callExport(
+          module,
+          "_tessera_canvas_patch",
+          [String(selected), destination, "", "", "", "", declarations],
+          [],
+        ),
+      ) as CanvasPatchReport;
+    } catch (error) {
+      setStatus("commit unavailable: " + String(error), "warning");
+      return;
+    }
+    lastPatch = report;
+    // Re-render the panel so the answer appears in place. The style report is unchanged, so it is
+    // re-asked rather than kept: the panel is a view of the running tree, and a stale copy would
+    // show a node that a rebuild may have replaced.
+    if (last !== null) {
+      ask(last.clientX, last.clientY);
+    }
+    if (report.ok) {
+      const count = (report.edits ?? []).length;
+      setStatus(
+        `commit produced ${count} edit${count === 1 ? "" : "s"} — not applied (no host)`,
+        "ok",
+      );
+    } else {
+      setStatus(`commit rejected: ${report.reason ?? "unknown"}`, "warning");
+    }
   }
 
   function ask(clientX: number, clientY: number): boolean {
@@ -349,5 +531,6 @@ export function createCanvasInspector(options: CanvasInspectorOptions): CanvasIn
     click,
     hide,
     refresh,
+    commit,
   };
 }
