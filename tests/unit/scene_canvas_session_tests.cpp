@@ -314,9 +314,9 @@ export function Card(): Node {
                std::string(card->class_name()) + "')");
 }
 
-// Issue #391: the entry dropdown is fed by the compiler. The session reports the components the ENTRY
-// file declares (source order) and the one it previews; a name picks another; a source that does not
-// evaluate keeps the last good list.
+// Issue #391: the entry dropdown is fed by the compiler. The session reports the components the
+// ENTRY file declares (source order) and the one it previews; a name picks another; a source that
+// does not evaluate keeps the last good list.
 void test_entry_components_feed_the_dropdown() {
     constexpr std::string_view two = R"(export function Home(): Node {
   return (<View><Text>Home</Text></View>);
