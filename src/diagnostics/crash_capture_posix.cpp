@@ -31,6 +31,11 @@
 #include <fcntl.h>
 #include <unistd.h>
 
+#if defined(__APPLE__)
+#include <mach-o/dyld.h>
+#include <mach-o/getsect.h>
+#endif
+
 #if defined(__ANDROID__)
 // Bionic only has `backtrace` from API 33; the app targets API 24, so the unwinder that ships
 // with the NDK (`_Unwind_Backtrace`) walks the stack instead.
@@ -70,6 +75,25 @@ char g_alt_stack[kAltStackBytes] = {};
 // Reads `/proc/self/maps` into a fixed buffer and hands each `start-end` range to the module table
 // with the last path component of its file name. Only called at install time: `read` is
 // AS-safe, but parsing 48 mappings on every crash would be wasted work.
+#if defined(__APPLE__)
+// Apple has no /proc; the loaded images come from dyld, each as its Mach-O header address and the
+// size of its __TEXT segment (the range a return address inside the image falls into).
+void capture_modules(CaptureModuleTable& modules) noexcept {
+    const std::uint32_t images = _dyld_image_count();
+    for (std::uint32_t image = 0; image < images; ++image) {
+        const char* name = _dyld_get_image_name(image);
+        const auto* header = reinterpret_cast<const mach_header_64*>(_dyld_get_image_header(image));
+        if (name == nullptr || header == nullptr) {
+            continue;
+        }
+        unsigned long text_size = 0;
+        if (getsegmentdata(header, "__TEXT", &text_size) == nullptr) {
+            continue;
+        }
+        modules.add(std::string_view(name), reinterpret_cast<std::uintptr_t>(header), text_size);
+    }
+}
+#else
 void capture_modules(CaptureModuleTable& modules) noexcept {
     const int fd = ::open("/proc/self/maps", O_RDONLY | O_CLOEXEC);
     if (fd < 0) {
@@ -144,6 +168,7 @@ void capture_modules(CaptureModuleTable& modules) noexcept {
         index = line_end + 1;
     }
 }
+#endif // __APPLE__
 
 void write_record(const char* path, const CaptureMoment& moment) noexcept {
     const std::size_t size =
