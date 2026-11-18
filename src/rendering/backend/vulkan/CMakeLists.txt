@@ -89,6 +89,7 @@ set(TESSERA_VULKAN_RHI_SOURCES
     src/vulkan_command_resources.cpp
     src/vulkan_upload.cpp
     src/vulkan_texture.cpp
+    src/vulkan_mipmaps.cpp
     src/vulkan_pipeline.cpp
     src/vulkan_validation.cpp
     src/vma_impl.cpp

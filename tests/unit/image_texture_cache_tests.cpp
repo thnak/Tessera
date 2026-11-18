@@ -111,6 +111,51 @@ bool filter_is_part_of_the_identity() {
     return ok;
 }
 
+// The mip level count is part of the identity too (RHI 1.6, #491): the sampler's LOD range is fixed
+// at creation. A chain entry counts every level against the byte limit, and a request the device
+// cannot honour is never silently downgraded by the cache.
+bool levels_are_part_of_the_identity() {
+    FakeDevice device;
+    image::ImageTextureCache cache(device);
+    const image::DecodedImage decoded = solid_image(4, 4, 10, 20, 30, 255);
+    image::ImageTextureKey flat_key{decoded.content_hash, 4, 4, rhi::TextureFormat::R8G8B8A8Unorm};
+    image::ImageTextureKey chain_key = flat_key;
+    chain_key.levels = 3; // 4x4 -> 2x2 -> 1x1
+
+    const auto flat = cache.acquire(decoded, flat_key);
+    const std::uint64_t flat_bytes = cache.byte_count();
+    const auto chain = cache.acquire(decoded, chain_key);
+    bool ok =
+        expect(flat.has_value() && chain.has_value(), "both level variants upload") &&
+        expect(cache.stats().uploads == 2 && cache.entry_count() == 2,
+               "the level count is part of the key: one entry per variant") &&
+        expect(flat.has_value() && as_fake(*flat) != nullptr && as_fake(*flat)->levels() == 1,
+               "the flat entry has one level") &&
+        expect(chain.has_value() && as_fake(*chain) != nullptr && as_fake(*chain)->levels() == 3,
+               "the chain entry is created with the requested level count") &&
+        expect(cache.byte_count() - flat_bytes == (16U + 4U + 1U) * 4U,
+               "a chain entry counts every level against the byte limit");
+
+    image::ImageTextureKey none = flat_key;
+    none.levels = 0;
+    image::ImageTextureKey too_many = flat_key;
+    too_many.levels = 4; // a 4x4 raster has three levels
+    const auto rejected_none = cache.acquire(decoded, none);
+    const auto rejected_many = cache.acquire(decoded, too_many);
+    ok = expect(!rejected_none.has_value() &&
+                    rejected_none.error() == image::ImageTextureError::invalid_request,
+                "zero levels is an invalid request") &&
+         expect(!rejected_many.has_value() &&
+                    rejected_many.error() == image::ImageTextureError::invalid_request,
+                "more levels than a full chain is an invalid request") &&
+         ok;
+
+    ok = expect(cache.supports_mipmaps(), "the cache reports the device's capability") && ok;
+    device.mipmaps_supported = false;
+    ok = expect(!cache.supports_mipmaps(), "and follows a device that cannot build a chain") && ok;
+    return ok;
+}
+
 bool resamples_to_requested_extent() {
     FakeDevice device;
     image::ImageTextureCache cache(device);
@@ -259,6 +304,7 @@ int main() {
     bool ok = true;
     ok = hit_and_upload_once() && ok;
     ok = filter_is_part_of_the_identity() && ok;
+    ok = levels_are_part_of_the_identity() && ok;
     ok = resamples_to_requested_extent() && ok;
     ok = eviction_and_entry_guard() && ok;
     ok = upload_failure_and_device_loss() && ok;

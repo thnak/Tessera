@@ -25,8 +25,11 @@ namespace tessera::rendering::rhi {
 // (1 - src1)`) and the capability that gates it, `Device::supports_dual_source_blend()`. The
 // capability is pure virtual because a backend that cannot answer it cannot honour the contract;
 // the fallback is grayscale coverage, so no frame changes (issue #471 slice 1).
+// 1.6 (2026-11-18): additive `TextureDesc::levels` / `Texture::levels()` (a mip chain built from
+// the uploaded base level at creation) and the capability that gates it,
+// `Device::supports_texture_mipmaps(format)`; pure virtual so every backend answers (issue #491).
 inline constexpr std::uint32_t kRhiVersionMajor = 1;
-inline constexpr std::uint32_t kRhiVersionMinor = 5;
+inline constexpr std::uint32_t kRhiVersionMinor = 6;
 inline constexpr std::uint32_t kRhiVersion = (kRhiVersionMajor << 16) | kRhiVersionMinor;
 
 } // namespace tessera::rendering::rhi

@@ -9,7 +9,7 @@ origins and text rasterized at `css_px * render_scale` (S5 T1/T2, S6), the MSAA 
 resolver (S8), the text contrast LUT adopted as a D2 amendment (T5, section 3.5), and the window
 integration: `AppWindow` resolves and applies the policy, sets `PaintContext::device_scale`, and
 pins the golden policy in golden mode (section 6). S8 also landed the image filter-by-scale rule
-(nearest at aligned 1:1, linear otherwise; the mip case is blocked on RHI mip support, section 6)
+(nearest at aligned 1:1, linear otherwise, plus a mip chain when downscaling, section 6)
 and consumes the resolver's MSAA decision in the window's presentation. S7 landed in two halves:
 the Windows backend fills `PixelGeometry` from the user's ClearType configuration (section 2), the
 only subpixel source the OS has, and says honestly that it is desktop-wide rather than per-monitor;
@@ -19,8 +19,8 @@ extent, section 3.4.1). **LCD compositing** landed as step 3 of section 3.4.1: t
 eligibility rule and the `TextDraw::lcd` mark at the paint seam, the renderer's pipeline axis
 (`Batched2DRenderer::set_lcd_pipeline`, `push_texture_lcd`), the per-channel `batched2d_lcd`
 fragment program, and the window's creation of that pipeline on a device with dual-source blending;
-`kAutoAllowsLcd` is true. Not landed: the mip-chain downscale case (needs `TextureDesc` mip levels
-and backend chain generation). The **X11/Wayland `PixelGeometry` sources** landed too (issue #504,
+`kAutoAllowsLcd` is true. The mip-chain downscale case landed too (issue #491, section 6; Vulkan
+and null, WebGPU samples one level). The **X11/Wayland `PixelGeometry` sources** landed too (issue #504,
 section 2). Extends
 [`antialiasing.md`](antialiasing.md) and [`text.md`](text.md). Decisions D2/D6 in
 [`rendering-production-plan.md`](rendering-production-plan.md) stay in force unless a numbered
@@ -339,7 +339,7 @@ The same facts apply to the rest of the renderer; each row is independent of tex
 | Hairlines / 1 CSS px borders | width follows scale, not snapped | snap to whole device px, minimum 1; reuse `pixel_snap` (`src/ui/layout/pixel_snap.cpp`) at paint time | S3 |
 | Rounded clip edge | hard pixel-center mask | coverage from the clip's SDF with the same `fwidth` width; clip stack multiplies coverage | S4 |
 | Axis-aligned quads, fractional edges | can alias | snap at paint (S3); only transformed quads stay soft | S3 |
-| Images / textured quads | nearest or linear by flag | filter by scale: nearest at aligned 1:1, linear otherwise, mips when downscaling; decode at display size x DPR (#14) | S8 (filter; mips blocked on the RHI) |
+| Images / textured quads | nearest or linear by flag | filter by scale: nearest at aligned 1:1, linear otherwise, mips when downscaling; decode at display size x DPR (#14) | S8 (filter; mips #491) |
 | Vector paths | no rasterizer yet | rasterize at device scale, cache per ladder step; strokes clamp to 1 device px minimum | with ThorVG (D1) |
 | Offscreen layers / glass | layer at 1x unless told | layer targets allocated at the window's render scale and keyed by it | with layers |
 | MSAA 4x | per-target opt-in | policy picks it only for non-SDF, non-text geometry and scale < 2.0; never default | S8 (rule and presentation hook) |
@@ -415,12 +415,19 @@ what covers fractional device origins, explicit raster extents and minification.
 variants of one image doubles its cache entries (the limits are per entry), which is the documented
 cost of a per-draw choice.
 
-**The design's third case, mips when downscaling, is blocked on the RHI, not on the policy.**
-`rhi::TextureDesc` has no mip-level count and no backend generates a chain, so a magnified texture
-has no lower level to sample; this slice deliberately does not fake it. A downscaled draw therefore
-resolves `Linear` at level 0, and the filter decision covers only the aligned-1:1 and scale cases
-until the RHI grows mip levels (then the key gains the level count and minification selects a
-level). No doc or test claims mip sampling works.
+**Mips when downscaling (landed, #491, RHI 1.6).** `TextureDesc::levels` asks the device to build a
+chain from the uploaded base level at creation ([`gpu/rhi.md`](gpu/rhi.md) section 5.2).
+`ImageTextureKey::levels` carries the count because the sampler's LOD range is fixed at creation,
+like the filter, and `ui::paint::image_levels_for_draw` decides it per draw: the raster's full chain
+when the draw minifies the raster by at least 2x on either axis and `ImageTextureCache::
+supports_mipmaps()` is true, one level otherwise, so a magnified or near-1:1 draw never pays the
+roughly one third extra memory. A chain entry counts every level against the cache's byte limit. The
+sampler picks the level from the draw's derivatives, and a texture with one level never samples
+another. Vulkan builds the chain with a linear `vkCmdBlitImage` downsample; WebGPU reports no support
+(no blit; a render-pass chain is a later slice), so a downscaled image there still resolves `Linear`
+at level 0. `tests/gpu/batched2d/texture_mips_gpu_tests.cpp` pins it on a real device: a 1px
+checkerboard at a 3x downscale aliases to pure black/white with one level and stays in a grey band
+with a chain. There is no golden for it; a golden would have to carry its own tolerance on lavapipe.
 
 S8 MSAA presentation hook (landed): the resolver's `msaa_samples` is consumed per presentation
 generation. `window_aa_policy` is resolved before the pipeline is created, and

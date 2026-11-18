@@ -28,6 +28,7 @@ struct ImageTextureKeyHash {
     mix(key.height);
     mix(static_cast<std::uint64_t>(key.format));
     mix(static_cast<std::uint64_t>(key.filter));
+    mix(key.levels);
     return static_cast<std::size_t>(hash);
 }
 
@@ -161,6 +162,10 @@ ImageTextureCache::ImageTextureCache(rhi::Device& device, ImageTextureCacheConfi
 
 ImageTextureCache::~ImageTextureCache() = default;
 
+bool ImageTextureCache::supports_mipmaps() const {
+    return impl_->device.supports_texture_mipmaps(impl_->config.format);
+}
+
 std::expected<CachedImageTexture, ImageTextureError>
 ImageTextureCache::acquire(const DecodedImage& image, const ImageTextureKey& key) {
     if (impl_->observe_device()) {
@@ -168,11 +173,19 @@ ImageTextureCache::acquire(const DecodedImage& image, const ImageTextureKey& key
     }
     if (key.width == 0U || key.height == 0U || key.content_hash == 0U || image.width == 0U ||
         image.height == 0U ||
-        image.rgba.size() != static_cast<std::size_t>(image.width) * image.height * 4U) {
+        image.rgba.size() != static_cast<std::size_t>(image.width) * image.height * 4U ||
+        key.levels == 0U ||
+        key.levels > rhi::full_mip_levels(rhi::Extent2D{key.width, key.height})) {
         return std::unexpected(ImageTextureError::invalid_request);
     }
     const std::uint64_t row_bytes = static_cast<std::uint64_t>(key.width) * kBytesPerPixel;
-    const std::uint64_t entry_bytes = row_bytes * key.height;
+    // The chain's lower levels add up to about a third of the base level; count them exactly so the
+    // byte limit holds for a mipmapped entry too.
+    std::uint64_t entry_bytes = 0;
+    for (std::uint32_t level = 0; level < key.levels; ++level) {
+        entry_bytes += static_cast<std::uint64_t>(std::max(1U, key.width >> level)) *
+                       std::max(1U, key.height >> level) * kBytesPerPixel;
+    }
     if (entry_bytes > impl_->config.max_bytes) {
         return std::unexpected(ImageTextureError::entry_too_large);
     }
@@ -194,6 +207,7 @@ ImageTextureCache::acquire(const DecodedImage& image, const ImageTextureKey& key
     // variant of the same image at a different filter is a separate entry.
     desc.filter = key.filter;
     desc.address = impl_->config.address;
+    desc.levels = key.levels;
 
     std::unique_ptr<rhi::Texture> texture;
     try {

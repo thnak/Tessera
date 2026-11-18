@@ -36,6 +36,10 @@ public:
     [[nodiscard]] virtual std::uint32_t sample_count() const {
         return 1;
     }
+    // Mip levels the texture was created with (RHI 1.6); 1 unless `TextureDesc::levels` asked more.
+    [[nodiscard]] virtual std::uint32_t levels() const {
+        return 1;
+    }
 
     // Uploads one tightly packed image (offset 0, extent.width * extent.height * bytes-per-pixel).
     // Dynamic atlas updates use this instead of recreating the GPU resource. Only valid for
@@ -290,6 +294,12 @@ public:
     // one alpha channel). Pure virtual on purpose: a backend that does not answer cannot honour the
     // contract, and the answer is a single recorded device fact, not a guess.
     [[nodiscard]] virtual bool supports_dual_source_blend() const = 0;
+
+    // True when `create_texture` can build a mip chain (`TextureDesc::levels > 1`) for `format`
+    // (RHI 1.6, issue #491). The only authority: Vulkan needs linear-filtered blit support for the
+    // format, WebGPU has no chain generation yet. When false, `create_texture` with levels > 1
+    // throws and the caller samples the single level. Pure virtual so every backend answers.
+    [[nodiscard]] virtual bool supports_texture_mipmaps(TextureFormat format) const = 0;
 
     // The device's GPU-timestamp probe (docs/design/performance.md section 6.1). This is the only
     // authority on whether a GPU frame-time sample exists; consumers must not infer it from the

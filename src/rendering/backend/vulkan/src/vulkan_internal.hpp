@@ -4,6 +4,7 @@
 
 #include "tessera/rendering/rhi/device.hpp"
 
+#include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -131,11 +132,17 @@ inline std::uint32_t checked_sample_count(std::uint32_t sample_count, const char
 
 inline std::size_t bytes_per_pixel(rhi::TextureFormat format);
 
-// Estimated device bytes of a texture (extent x texel size x samples).
+// Estimated device bytes of a texture (extent x texel size x samples), summed over `levels` mip
+// levels; each level halves both axes down to 1.
 inline std::int64_t texture_bytes(rhi::Extent2D extent, rhi::TextureFormat format,
-                                  std::uint32_t sample_count) {
-    return static_cast<std::int64_t>(extent.width) * extent.height *
-           static_cast<std::int64_t>(bytes_per_pixel(format)) * sample_count;
+                                  std::uint32_t sample_count, std::uint32_t levels = 1) {
+    std::int64_t texels = 0;
+    for (std::uint32_t level = 0; level < levels; ++level) {
+        const std::int64_t width = std::max<std::int64_t>(1, extent.width >> level);
+        const std::int64_t height = std::max<std::int64_t>(1, extent.height >> level);
+        texels += width * height;
+    }
+    return texels * static_cast<std::int64_t>(bytes_per_pixel(format)) * sample_count;
 }
 
 // A multisampled target owns the 1-sample resolve image as well as the multisample render image.
@@ -208,6 +215,14 @@ inline void record_image_transition(VkCommandBuffer command_buffer, VkImage imag
                          &barrier);
 }
 
+// Records the upload of a tightly packed base level and the downsample chain behind it (RHI 1.6,
+// vulkan_mipmaps.cpp): the whole image goes UNDEFINED -> TRANSFER_DST, level 0 is copied from
+// `staging`, each level is blitted (linear) from the one above, and every level ends in
+// SHADER_READ_ONLY_OPTIMAL.
+void record_texture_upload_with_mips(VkCommandBuffer command_buffer, VkImage image,
+                                     VkBuffer staging, rhi::Extent2D extent,
+                                     std::uint32_t row_length_texels, std::uint32_t levels);
+
 // The stage/access pair a barrier waits on to make a render target's readable image available in
 // its current layout. RHI 1.1 left every offscreen target in TRANSFER_SRC_OPTIMAL; RHI 1.3 adds
 // SHADER_READ_ONLY_OPTIMAL (`bind_sampled_target`), so a consumer can no longer assume one state
@@ -256,7 +271,8 @@ public:
     VulkanTexture(VkDevice device, VmaAllocator allocator, VkImage image, VkImageView view,
                   VkSampler sampler, VmaAllocation allocation, VkDescriptorPool descriptor_pool,
                   VkDescriptorSet descriptor_set, rhi::Extent2D extent, rhi::TextureFormat format,
-                  VulkanDevice* owner, std::uint32_t epoch, std::uint32_t sample_count = 1)
+                  VulkanDevice* owner, std::uint32_t epoch, std::uint32_t sample_count = 1,
+                  std::uint32_t levels = 1)
         : device_(device),
           allocator_(allocator),
           image_(image),
@@ -269,7 +285,8 @@ public:
           format_(format),
           owner_(owner),
           epoch_(epoch),
-          sample_count_(sample_count) {}
+          sample_count_(sample_count),
+          levels_(levels) {}
 
     ~VulkanTexture() override;
 
@@ -281,6 +298,9 @@ public:
     }
     [[nodiscard]] std::uint32_t sample_count() const override {
         return sample_count_;
+    }
+    [[nodiscard]] std::uint32_t levels() const override {
+        return levels_;
     }
     void write(const void* data, std::size_t size) override;
 
@@ -308,6 +328,7 @@ private:
     VulkanDevice* owner_ = nullptr;
     std::uint32_t epoch_ = 0;
     std::uint32_t sample_count_ = 1;
+    std::uint32_t levels_ = 1;
 };
 
 class VulkanPipeline final : public rhi::Pipeline {

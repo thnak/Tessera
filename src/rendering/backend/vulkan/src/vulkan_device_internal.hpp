@@ -27,6 +27,9 @@ public:
     [[nodiscard]] rhi::RhiCapabilities capabilities() const override;
     [[nodiscard]] bool supports_sample_count(rhi::TextureFormat format,
                                              std::uint32_t sample_count) const override;
+    // RHI 1.6: a mip chain is blitted with a linear filter, so the format must allow blit source,
+    // blit destination and linear filtering with optimal tiling.
+    [[nodiscard]] bool supports_texture_mipmaps(rhi::TextureFormat format) const override;
     // The dualSrcBlend feature the physical device reported and this generation enabled
     // (vulkan_instance.cpp create_device()). Re-probed on every device creation, so a recovered
     // device reports the new device's answer; false when the feature is unavailable.

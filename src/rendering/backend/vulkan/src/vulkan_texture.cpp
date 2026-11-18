@@ -19,6 +19,13 @@ std::unique_ptr<rhi::Texture> VulkanDevice::create_texture(const rhi::TextureDes
         throw std::runtime_error("create_texture: " + std::to_string(sample_count) +
                                  "x MSAA is not supported for this texture format");
     }
+    if (!rhi::valid_texture_levels(desc)) {
+        throw std::invalid_argument("create_texture: invalid mip level count");
+    }
+    if (desc.levels > 1 && !supports_texture_mipmaps(desc.format)) {
+        throw std::runtime_error("create_texture: mip chains are not supported for this format");
+    }
+    const std::uint32_t levels = desc.levels;
     const VkFormat format = to_vk_format(desc.format);
 
     VkImageCreateInfo image_info{};
@@ -26,7 +33,7 @@ std::unique_ptr<rhi::Texture> VulkanDevice::create_texture(const rhi::TextureDes
     image_info.imageType = VK_IMAGE_TYPE_2D;
     image_info.format = format;
     image_info.extent = {desc.extent.width, desc.extent.height, 1};
-    image_info.mipLevels = 1;
+    image_info.mipLevels = levels;
     image_info.arrayLayers = 1;
     image_info.samples = to_vk_sample_count(sample_count);
     image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
@@ -36,6 +43,10 @@ std::unique_ptr<rhi::Texture> VulkanDevice::create_texture(const rhi::TextureDes
         image_info.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
     } else {
         image_info.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+        if (levels > 1) {
+            // Each level of the chain is blitted from the one above it.
+            image_info.usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+        }
     }
     image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -56,7 +67,7 @@ std::unique_ptr<rhi::Texture> VulkanDevice::create_texture(const rhi::TextureDes
     view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
     view_info.format = format;
     view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    view_info.subresourceRange.levelCount = 1;
+    view_info.subresourceRange.levelCount = levels;
     view_info.subresourceRange.layerCount = 1;
     VkImageView view = VK_NULL_HANDLE;
     check_vk(vkCreateImageView(device_, &view_info, nullptr, &view), "vkCreateImageView");
@@ -66,11 +77,14 @@ std::unique_ptr<rhi::Texture> VulkanDevice::create_texture(const rhi::TextureDes
     sampler_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
     sampler_info.magFilter = to_vk_filter(desc.filter);
     sampler_info.minFilter = sampler_info.magFilter;
-    sampler_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+    // A single-level texture never samples another level; a chain picks a level from the draw's
+    // minification, blending neighbours only when the texture itself is filtered linearly.
+    sampler_info.mipmapMode = desc.filter == rhi::Filter::Linear ? VK_SAMPLER_MIPMAP_MODE_LINEAR
+                                                                 : VK_SAMPLER_MIPMAP_MODE_NEAREST;
     sampler_info.addressModeU = to_vk_address(desc.address);
     sampler_info.addressModeV = sampler_info.addressModeU;
     sampler_info.addressModeW = sampler_info.addressModeU;
-    sampler_info.maxLod = 0;
+    sampler_info.maxLod = static_cast<float>(levels - 1U);
     VkSampler sampler = VK_NULL_HANDLE;
     check_vk(vkCreateSampler(device_, &sampler_info, nullptr, &sampler), "vkCreateSampler");
     ScopeGuard sampler_guard([&] { vkDestroySampler(device_, sampler, nullptr); });
@@ -103,10 +117,10 @@ std::unique_ptr<rhi::Texture> VulkanDevice::create_texture(const rhi::TextureDes
     // From here the texture owns every handle: if the upload below throws, its destructor
     // releases them (deferred past any upload already queued), so the guards step aside.
     resource_created();
-    account_image(texture_bytes(desc.extent, desc.format, sample_count), epoch_);
+    account_image(texture_bytes(desc.extent, desc.format, sample_count, levels), epoch_);
     auto texture = std::make_unique<VulkanTexture>(
         device_, allocator_, image, view, sampler, allocation, descriptor_pool_, descriptor_set,
-        desc.extent, desc.format, this, epoch_, sample_count);
+        desc.extent, desc.format, this, epoch_, sample_count, levels);
     set_guard.dismiss();
     sampler_guard.dismiss();
     view_guard.dismiss();
@@ -125,6 +139,12 @@ std::unique_ptr<rhi::Texture> VulkanDevice::create_texture(const rhi::TextureDes
         // Queued without waiting; the device keeps the staging buffer until the copy finishes.
         submit_upload(
             [&](VkCommandBuffer command_buffer) {
+                if (levels > 1) {
+                    record_texture_upload_with_mips(
+                        command_buffer, image, staging_buffer->handle(), desc.extent,
+                        static_cast<std::uint32_t>(row_pitch / (bpp == 0 ? 1 : bpp)), levels);
+                    return;
+                }
                 record_image_transition(
                     command_buffer, image, VK_IMAGE_LAYOUT_UNDEFINED,
                     VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0, VK_ACCESS_TRANSFER_WRITE_BIT,
@@ -185,6 +205,9 @@ void VulkanDevice::upload_texture(VulkanTexture& texture, const void* data, std:
     }
     if (texture.sample_count() != 1) {
         throw std::invalid_argument("upload_texture: multisampled textures cannot be uploaded");
+    }
+    if (texture.levels() != 1) {
+        throw std::invalid_argument("upload_texture: mipmapped textures are immutable");
     }
     const rhi::Extent2D extent = texture.extent();
     const std::size_t expected =

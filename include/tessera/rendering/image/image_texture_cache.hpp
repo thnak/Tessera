@@ -29,6 +29,11 @@ struct ImageTextureKey {
     // is the choice for a draw that is not aligned 1:1 with the uploaded raster (S8). The cache
     // never overrides it: the key's filter is the texture's sampler state.
     rhi::Filter filter = rhi::Filter::Nearest;
+    // Mip levels of the uploaded texture (RHI 1.6, issue #491): 1 for a single level, more for a
+    // chain built from the raster at creation. It is part of the identity because the sampler's LOD
+    // range is fixed at creation, like the filter; a draw that minifies the raster asks for the
+    // full chain (`ui::paint::image_levels_for_draw`), every other draw for one level.
+    std::uint32_t levels = 1;
 
     [[nodiscard]] bool operator==(const ImageTextureKey&) const noexcept = default;
 };
@@ -89,6 +94,10 @@ public:
 
     [[nodiscard]] std::expected<CachedImageTexture, ImageTextureError>
     acquire(const DecodedImage& image, const ImageTextureKey& key);
+
+    // Whether the device can build a mip chain for the cache's texture format. A caller asks before
+    // it puts `levels > 1` in a key; a device that cannot is asked for a single level instead.
+    [[nodiscard]] bool supports_mipmaps() const;
 
     // Frame boundary: destroys textures that were evicted while their draws could still be pending.
     // Call after the frame's commands that used this cache's textures have been submitted and are

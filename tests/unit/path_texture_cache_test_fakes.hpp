@@ -87,7 +87,8 @@ public:
         : extent_(desc.extent),
           format_(desc.format),
           filter_(desc.filter),
-          address_(desc.address) {
+          address_(desc.address),
+          levels_(desc.levels) {
         ++live_count;
         const std::size_t bytes_per_pixel = desc.format == rhi::TextureFormat::R8Unorm ? 1U : 4U;
         bytes_.assign(static_cast<std::size_t>(extent_.width) * extent_.height * bytes_per_pixel,
@@ -122,6 +123,9 @@ public:
     [[nodiscard]] rhi::Filter filter() const {
         return filter_;
     }
+    [[nodiscard]] std::uint32_t levels() const override {
+        return levels_;
+    }
     [[nodiscard]] rhi::AddressMode address() const {
         return address_;
     }
@@ -140,6 +144,7 @@ private:
     rhi::TextureFormat format_;
     rhi::Filter filter_ = rhi::Filter::Nearest;
     rhi::AddressMode address_ = rhi::AddressMode::ClampToEdge;
+    std::uint32_t levels_ = 1;
     std::vector<std::uint8_t> bytes_;
 };
 
@@ -155,6 +160,10 @@ public:
     // is the honest answer for a fake that cannot create one.
     [[nodiscard]] bool supports_dual_source_blend() const override {
         return false;
+    }
+    // The image cache asks before it requests a chain; a test flips this to cover both answers.
+    [[nodiscard]] bool supports_texture_mipmaps(rhi::TextureFormat) const override {
+        return mipmaps_supported;
     }
 
     std::unique_ptr<rhi::Texture> create_texture(const rhi::TextureDesc& desc) override {
@@ -191,6 +200,7 @@ public:
         device_status = status;
     }
 
+    bool mipmaps_supported = true;
     std::uint32_t textures_created = 0;
     std::uint32_t fail_textures = 0;
     rhi::DeviceStatus device_status = rhi::DeviceStatus::Ready;
