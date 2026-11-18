@@ -660,8 +660,24 @@ owner-planned item and is not part of this milestone.
       canvas in one cascade (`designer/web/src/regions/SkinFrame.tsx`, `styles/skin.css`,
       `page-skins.ts`). Evidence: `scripts/ci/preview_skins.mjs` (36 checks: manifests, rejections,
       per-category viewer size, the three geometry modes, the retint rule), ctest
-      `scene_skin_geometry`, `docs/design/studio-page.md` §1.1. **Still open: the style inspector and
-      `source.patch`** — the issue stays open for them.
+      `scene_skin_geometry`, `docs/design/studio-page.md` §1.1.
+      **The style inspector slice landed** (2026-11-19): `tessera_canvas_style` answers
+      `style.info` (`designer-protocol-v1.md` §9.1) for one node — the computed style, the matched
+      rules highest-precedence-first with their origin, selector text, specificity and span, and the
+      box — as a *query* that dispatches nothing and owes no frame, like the picker. The provenance
+      it needs did not exist: `CompiledRule` now carries `selector`, `offset` and `source_path`,
+      threaded from `PreparedItem` at prepare time, and `CompiledStyleSheet::matched_rules()` is the
+      one list `add_to_cascade()` consumes, so a rule the inspector names is a rule the cascade used.
+      `overridden` is the cascade's own `cascades_over()` answer, never source order. The blob format
+      is **unchanged**: the two fields stay out of it, a blob-loaded rule prints its selector back
+      (`src/ui/style/selector_text.cpp`) and reports offset 0, and
+      `compiled-stylesheet-v1.md` §5.1 records why. The page draws the panel in a page element beside
+      the canvas, off by default and armed by an `Inspector` toggle, and it consumes the click it
+      inspects (capture-phase `stopPropagation`) so the engine's pointer path never sees it.
+      Evidence: `tools/codegen/scene_canvas_inspect.*`, `tools/codegen/canvas_report.*`,
+      `tools/codegen/wasm_canvas_entry.cpp`, `designer/web/src/views/canvas-inspector.ts`, ctest
+      `scene_canvas_style`, `docs/design/canvas-input-session.md` §5.2. **Still open: `source.patch`**
+      — the issue stays open for it.
 - [ ] #395: P6b: promote the latency budgets from `warn` to `enforce` and count the scene and canvas
       modules in the download budget. Needs a measurement first; take it after #392.
 - [ ] #396: `tessera-mcp`: the eight unimplemented tools (designer D-S7) and the spec decisions #350

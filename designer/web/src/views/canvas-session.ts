@@ -57,6 +57,7 @@ import {
 } from "./canvas-frame";
 import { attachCanvasKeyboard } from "./canvas-keyboard";
 import { attachCanvasPointer } from "./canvas-pointer";
+import { createCanvasInspector, type CanvasInspector } from "./canvas-inspector";
 import { createCanvasPane, type CanvasPane, type CanvasPaneElements } from "./canvas-pane";
 import { createCanvasPicker, type CanvasPicker } from "./canvas-picker";
 
@@ -118,6 +119,12 @@ export interface CanvasSession extends ViewSession {
    * while armed a pointer move over the canvas outlines the node under it and names it.
    */
   readonly picker: CanvasPicker;
+  /**
+   * The style inspector (issue #171, designer-protocol-v1 section 9.1). Off by default; the pane's
+   * toggle arms it, and while armed a click on the canvas shows that node's computed style, matched
+   * rules and box. It consumes the click it inspects, which is why it is not on by default.
+   */
+  readonly inspector: CanvasInspector;
 }
 
 export function createCanvasSession(options: CanvasSessionOptions): CanvasSession {
@@ -165,6 +172,35 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
   canvas.addEventListener("pointerleave", () => {
     picker.hide();
   });
+
+  // The style inspector (issue #171, designer-protocol-v1 section 9.1). It is armed by its own
+  // toggle and consumes the click it inspects, so a visitor who never opens it keeps a fully
+  // interactive canvas. The listener is registered in the capture phase and stops the event when the
+  // inspector took it: the engine's pointer path must not also see a press that was meant to select
+  // a node, or the click would both inspect and activate the control under it.
+  const inspector = createCanvasInspector({
+    elements: {
+      panel: options.elements.inspectPanel ?? document.createElement("div"),
+      body: options.elements.inspectBody ?? document.createElement("div"),
+      toggle: options.elements.inspectToggle,
+      canvas,
+    },
+    module: () => (gpu !== null ? gpu.module : null),
+    viewport: () => requestedViewport(options.environment),
+    setStatus: options.setStatus,
+  });
+  canvas.addEventListener(
+    "pointerdown",
+    (event) => {
+      if (inspector.click(event.clientX, event.clientY)) {
+        // The click was the inspector's: it must not reach the engine, or the control under the
+        // pointer would activate as well as being inspected.
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    },
+    { capture: true },
+  );
 
   // Sizes the backing store and remembers the dpr it used, so a resize can tell a real change from noise.
   function resize(): { dpr: number; width: number; height: number } {
@@ -330,6 +366,9 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
     // The frame moved the boxes the outline was drawn for, so the outline is re-asked rather than
     // left over a node that may have moved (issue #171). A pick is a query: this costs no frame.
     picker.refresh();
+    // The inspector's panel describes a node of the tree this frame just painted, so it is re-asked
+    // at the same point: a box that moved must not be shown at its old coordinates.
+    inspector.refresh();
     options.onReady(true);
   }
 
@@ -487,6 +526,8 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
       pane.renderState([]);
       // The outline named a node of the evaluation that was just released (issue #171).
       picker.hide();
+      // The inspector's panel described a node of the same evaluation.
+      inspector.hide();
     }
     requestFrame();
   }
@@ -573,6 +614,7 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
     id: "canvas",
     pane,
     picker,
+    inspector,
     /** First open of the view: decide the unsupported state and import the module (no device yet). */
     load: async () => {
       visible = true;
@@ -613,6 +655,8 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
       if (!shown) {
         // A hidden pane shows no outline: the picker's overlay belongs to the canvas it covers.
         picker.hide();
+        // The inspector's panel belongs to the same canvas.
+        inspector.hide();
       }
       if (shown && gpu !== null) {
         requestFrame();
@@ -657,6 +701,8 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
       }
       // The viewport moved every box, so the outline is re-asked at the same point (issue #171).
       picker.refresh();
+      // The inspector's panel is re-asked for the same reason: its box is in logical pixels.
+      inspector.refresh();
       requestFrame();
     },
     /** A gallery pick changes what would be drawn; redraw only if a device already exists. */

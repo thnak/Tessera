@@ -114,6 +114,10 @@ export type PreviewRefs = Pick<
   // Issue #171's picker: the overlay the outline is drawn into, and the toggle that arms it.
   | "pickOverlay"
   | "pickToggle"
+  // Issue #171's style inspector: the panel, the body it fills, and the toggle that arms it.
+  | "inspectPanel"
+  | "inspectBody"
+  | "inspectToggle"
 >;
 
 export function PreviewColumn({
@@ -213,6 +217,9 @@ export function PreviewColumn({
           statStateRef={refs.statState}
           pickOverlayRef={refs.pickOverlay}
           pickToggleRef={refs.pickToggle}
+          inspectPanelRef={refs.inspectPanel}
+          inspectBodyRef={refs.inspectBody}
+          inspectToggleRef={refs.inspectToggle}
           skin={skin}
           mode={mode}
         />

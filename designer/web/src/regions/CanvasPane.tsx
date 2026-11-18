@@ -44,6 +44,9 @@ export function CanvasPane({
   statStateRef,
   pickOverlayRef,
   pickToggleRef,
+  inspectPanelRef,
+  inspectBodyRef,
+  inspectToggleRef,
   skin,
   mode,
 }: {
@@ -68,6 +71,10 @@ export function CanvasPane({
   /** Issue #171: the picker's overlay (childless, `pointer-events: none`) and its toggle. */
   pickOverlayRef: RefObject<HTMLDivElement | null>;
   pickToggleRef: RefObject<HTMLButtonElement | null>;
+  /** Issue #171: the style inspector's panel, the body it fills, and its toggle. */
+  inspectPanelRef: RefObject<HTMLElement | null>;
+  inspectBodyRef: RefObject<HTMLDivElement | null>;
+  inspectToggleRef: RefObject<HTMLButtonElement | null>;
   /** Issue #171's skins slice: the selected skin, or `null` for no frame. */
   skin: Skin | null;
   /** The geometry mode of `designer-studio-v1.md` section 5.1. */
@@ -97,6 +104,19 @@ export function CanvasPane({
             ref={pickToggleRef}
           >
             Picker
+          </button>
+          {/* Issue #171's style inspector: off by default, because it consumes the click it
+              inspects. `aria-pressed` is the state a screen reader reads, and the session keeps it
+              in step with the panel it controls. */}
+          <button
+            id="inspect-toggle"
+            type="button"
+            aria-pressed="false"
+            aria-controls="inspect-panel"
+            title="Click a node to show its computed style, matched rules and box"
+            ref={inspectToggleRef}
+          >
+            Inspector
           </button>
         </div>
         <div className="status" id="canvas-status" role="status" aria-live="polite" ref={statusRef}>
@@ -156,6 +176,16 @@ export function CanvasPane({
         <h3>Preview failed</h3>
         <p id="failed-body" ref={failedBodyRef} />
       </div>
+
+      {/* Issue #171's style inspector. A page element beside the canvas, not engine paint: the
+          engine draws the previewed app and nothing else (ADR-054 decision 3), and a panel drawn by
+          the engine would be part of the frame and would contaminate the pixels a golden compares.
+          It is childless here: the inspector builds its rows into the body, the same way the picker
+          owns its overlay. Hidden until a node is inspected, and off by default. */}
+      <section className="inspect-panel" id="inspect-panel" ref={inspectPanelRef} hidden>
+        <h3>Style</h3>
+        <div className="inspect-body" id="inspect-body" ref={inspectBodyRef} />
+      </section>
 
       <dl className="frame-stats" id="frame-stats" ref={frameStatsRef} hidden>
         <dt>Frame</dt>

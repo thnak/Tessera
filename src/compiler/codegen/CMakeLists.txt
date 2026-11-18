@@ -210,8 +210,13 @@ set(_tessera_scene_preview_sources
 # The persistent canvas session (#388): the tree a pointer event feeds and a frame paints. It is
 # NOT in the list above because it links `scene_frame.cpp` (it paints) and the snapshot driver must
 # stay free of the GPU/paint stack - the same separation `tessera_scene_frame_entry` makes below.
+#
+# `scene_canvas_inspect.cpp` is the style inspector's query (issue #171, designer-protocol-v1
+# section 9.1): it reads the cascade and the tree and returns a value, so it lives beside the
+# session that owns both rather than in the report serializer.
 set(_tessera_canvas_session_sources
-    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_canvas_session.cpp)
+    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_canvas_session.cpp
+    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_canvas_inspect.cpp)
 
 # The preview's text stack (issue #387): the production FreeType/HarfBuzz/atlas path, loaded from font
 # BYTES the caller supplies (the page fetches them; the CLI reads the same shipped file).
@@ -469,7 +474,9 @@ else ()
         # of unchanged text costs no frame and a failed one keeps the last good picture.
         # `_tessera_canvas_pick` is the picker overlay's query (issue #171): what is under a point,
         # answered without dispatching, so arming the picker cannot move `:hover` or cost a frame.
-        -sEXPORTED_FUNCTIONS=["_tessera_project_begin","_tessera_project_set_entry","_tessera_project_add_source","_tessera_project_add_stylesheet","_tessera_canvas_apply","_tessera_canvas_pointer","_tessera_canvas_pick","_tessera_canvas_set_safe_area","_tessera_canvas_draw","_tessera_canvas_reset","_tessera_canvas_set_font","_tessera_canvas_font_status","_tessera_webgpu_set_device","_tessera_free","_malloc","_free"]
+        # `_tessera_canvas_style` is the style inspector's query (issue #171): the computed style,
+        # the matched rules with their provenance, and the box of one node.
+        -sEXPORTED_FUNCTIONS=["_tessera_project_begin","_tessera_project_set_entry","_tessera_project_add_source","_tessera_project_add_stylesheet","_tessera_canvas_apply","_tessera_canvas_pointer","_tessera_canvas_pick","_tessera_canvas_style","_tessera_canvas_set_safe_area","_tessera_canvas_draw","_tessera_canvas_reset","_tessera_canvas_set_font","_tessera_canvas_font_status","_tessera_webgpu_set_device","_tessera_free","_malloc","_free"]
         # `WebGPU` is the emdawnwebgpu port's handle table: the page needs `WebGPU.importJsDevice` and
         # `importJsQueue` to turn a JS GPUDevice/GPUQueue into the integer handles the C ABI takes.
         # `HEAPU8` is the view the page writes font bytes through (issue #387): `_malloc` returns a
@@ -873,7 +880,10 @@ if (TESSERA_BUILD_TESTS)
     #   scene_canvas_pointer  the pointer path into the style engine + click synthesis
     #   scene_canvas_pick     the picker overlay's query (issue #171): what is under a point, without
     #                         changing the scene
-    foreach (_canvas_test IN ITEMS scene_canvas_session scene_canvas_pointer scene_canvas_pick)
+    #   scene_canvas_style    the style inspector's query (issue #171): computed style, matched rules
+    #                         with their provenance, and the box, for one node
+    foreach (_canvas_test IN ITEMS scene_canvas_session scene_canvas_pointer scene_canvas_pick
+            scene_canvas_style)
         add_executable(${_canvas_test}_tests
             ${CMAKE_SOURCE_DIR}/tests/unit/${_canvas_test}_tests.cpp
             ${CMAKE_SOURCE_DIR}/tools/codegen/canvas_report.cpp

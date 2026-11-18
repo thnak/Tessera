@@ -76,6 +76,13 @@ export interface PaneRefs {  /**
   pickOverlay: React.RefObject<HTMLDivElement | null>;
   pickToggle: React.RefObject<HTMLButtonElement | null>;
   /**
+   * Issue #171's style inspector: the panel beside the canvas, the body the inspector fills, and the
+   * toggle that arms it. The panel is a page element, not engine paint, so it costs no frame.
+   */
+  inspectPanel: React.RefObject<HTMLElement | null>;
+  inspectBody: React.RefObject<HTMLDivElement | null>;
+  inspectToggle: React.RefObject<HTMLButtonElement | null>;
+  /**
    * The status line's mirror cells (issue #431). The status line spans the bottom of the workspace, so
    * the two facts it reports from the engine -- the diagnostics count and the last frame -- are written
    * by the session that owns them, into a second cell, rather than routed back through React state
@@ -126,6 +133,10 @@ export function usePaneRefs(): PaneRefs {
     // Issue #171's picker: the overlay over the canvas, and the header toggle that arms it.
     pickOverlay: useRef<HTMLDivElement>(null),
     pickToggle: useRef<HTMLButtonElement>(null),
+    // Issue #171's style inspector: the panel, the body it fills, and the toggle that arms it.
+    inspectPanel: useRef<HTMLElement>(null),
+    inspectBody: useRef<HTMLDivElement>(null),
+    inspectToggle: useRef<HTMLButtonElement>(null),
     statusDiagnostics: useRef<HTMLSpanElement>(null),
     statusFrame: useRef<HTMLSpanElement>(null),
   };

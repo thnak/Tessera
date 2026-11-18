@@ -89,6 +89,34 @@ canvas_report_json(const SceneFrameResult& result, std::uint32_t width, std::uin
 // the lifetime of the report the page reads it from.
 [[nodiscard]] std::string canvas_pick_report_json(const CanvasPickResult& result);
 
+// What the style inspector found for one node (issue #171, designer-protocol-v1 section 9.1), as
+// one JSON object on one line:
+//
+//   {"styleVersion":1,"ok":true,"node":"101",
+//    "computed":{"background-color":"#4a86ff","color":"#ffffff"},
+//    "matched":[{"origin":"author","selector":"Button","specificity":[0,0,1],
+//                "span":{"file":"ui/Preview.css","offset":120,"length":0},
+//                "declarations":[{"property":"background-color","value":"#4a86ff",
+//                                 "important":false,"overridden":false}]}],
+//    "box":{"x":12,"y":40,"width":120,"height":32,
+//           "margin":[0,0,0,0],"border":[0,0,0,0],"padding":[8,8,8,8]},
+//    "overrides":[]}
+//
+// A missing node is `{"styleVersion":1,"ok":false,"reason":"no_such_node"}` and **no other field**
+// (designer-protocol-v1 section 9.1): a page that read a stale `computed` off a failed answer would
+// show the previous node's style under the new node's name.
+//
+// `computed` is an object rather than an array because the spec says "property name -> resolved
+// value string"; a JSON object is the only shape that says that, and the page reads it as a map.
+// `matched` is highest precedence first, which is the engine's own order, not a sort the page
+// applies. `overridden` is the cascade's answer, so a page never has to compare specificities.
+//
+// `span` is the SourceSpan of the rule (designer-protocol-v1 section 3.1) with `length` 0: the
+// engine knows where a rule starts, not how long its selector is, and a zero-length span at the
+// rule's offset is what an editor needs to put a cursor there. `file` is empty for a rule resolved
+// from a blob, which has no source file to point into.
+[[nodiscard]] std::string canvas_style_report_json(const StyleInfoResult& result);
+
 // What one simulated fold-posture change did (issue #408), as one JSON object on one line:
 //
 //   {"foldVersion":1,"changed":true,"error":""}

@@ -115,6 +115,7 @@ this module is given.
 | `tessera_canvas_apply(component, fold, width, height, dpi)` | evaluate the staged project, keep it (carrying state across an edit); returns a report with `error` set when it produced no scene. An apply of the identical project reuses the evaluation instead of rebuilding it |
 | `tessera_canvas_pointer(kind, x, y, button)` | `kind` is `"move" \| "down" \| "up" \| "cancel"`; coordinates are logical pixels; returns `{"pointerVersion":1,"dispatched":…,"changed":…,"targetId":"…","hoveredId":"…","activeId":"…","ran":[…],"unrun":[…]}`, all ids as decimal **strings** |
 | `tessera_canvas_pick(x, y)` | what is under a point, for the picker overlay ([§5.1](#51-the-picker-query-issue-171)); coordinates are logical pixels; returns `{"pickVersion":1,"found":…,"automationId":"…","elementKind":"…","box":{"x":…,"y":…,"width":…,"height":…}}`. A query: it dispatches nothing and owes no frame |
+| `tessera_canvas_style(automationId)` | the style inspector's query ([§5.2](#52-the-style-inspector-query-issue-171)): the computed style, the matched rules with their provenance, and the box of one node. A query: it dispatches nothing and owes no frame |
 | `tessera_canvas_key(kind, key, modifiers, repeat)` | keyboard (issue #388): `kind` is `"down" \| "up" \| "blur"`; `key` is a W3C `KeyboardEvent.key`; `modifiers` a Shift 1 / Control 2 / Alt 4 / Meta 8 mask. Returns the pointer report plus `focusedId`, `focusVisible`, `focusMoved`, `handled` (the page calls `preventDefault`) and `left` (Tab walked off the end of the tab order: focus is released and the browser carries on, so the canvas is never a keyboard trap). Enter activates on key-down, Space on key-up; the `:focus-visible` ring shows only after keyboard traversal |
 | `tessera_canvas_draw(width, height, canvas_view)` | paint the session's current tree into the canvas view; never re-evaluates |
 | `tessera_canvas_set_fold(posture)` | re-lay the RUNNING tree out at a simulated fold posture (`flat`, `book`, `tabletop`), one pass, no re-evaluation (issue #408, [§6.1](../specs/designer-studio-v1.md)) |
@@ -176,8 +177,62 @@ every move and would contaminate the pixels a golden compares; and ADR-054 decis
 draws the previewed app and nothing else. The outline is re-asked after a frame, a viewport change or
 a restart, because the boxes it was drawn for may have moved.
 
-## 6. The page half (landed)
+### 5.2 The style inspector query (issue #171)
 
+The style inspector is the second slice of #171, and the read half of
+[`designer-protocol-v1.md`](../specs/designer-protocol-v1.md) section 9.1. With it armed, clicking a
+node in the canvas shows that node's **computed style**, the **rules that matched it** (highest
+precedence first, each with its origin, selector text, specificity, source span and declarations),
+and its **box**. `style.override.set` and `source.patch` are later slices; the answer's `overrides`
+list is present and empty until they land.
+
+**Why the engine answers it.** Every field is a fact only the cascade has. `computed` is the
+resolved style after inheritance and `var()`; `matched` is the selector index's own answer with the
+specificity it matched at; `overridden` is the cascade's own comparison. A page that recomputed any
+of it would be a second cascade, and the first time the two disagreed the inspector would describe a
+style the canvas is not painting. So `CanvasSceneSession::inspect()` resolves through
+`style::SceneStyleTree::compute()` - the call the paint pass makes - and
+`CompiledStyleSheet::matched_rules()` is the same list `add_to_cascade()` consumes, so a rule the
+inspector names is a rule the cascade used.
+
+**`overridden` is computed, not guessed.** A declaration is marked when a higher-precedence
+declaration won its property, decided by the cascade's own `cascades_over()` over the same
+`(origin, importance, layer, specificity, source_order)` keys the cascade used. Source order alone
+would be wrong the first time two rules of different specificity set one property.
+
+**The provenance the slice exists for.** `CompiledRule` carries `selector` (the authored text) and
+`offset` (the rule's byte offset in its sheet), threaded from `PreparedItem` at prepare time. Before
+this slice the cascade had the parsed `SelectorList` and the `CompiledRule` in hand and dropped both,
+so nothing could name the rule a developer would recognise. `CompiledRule::source_path` names the
+sheet the offset is an offset into, stamped by the ordered-combination constructor from the
+`StylesheetSource` each rule came from.
+
+**The blob does not carry them, and that is deliberate.** `docs/specs/compiled-stylesheet-v1.md`
+section 5 defines the versioned blob; adding the two fields would bump `format_version` and
+regenerate every committed blob golden for a field only a design-time query reads. A blob-loaded
+sheet therefore has no authored text and no source file, so the resolve step prints the selector back
+from the parsed list (`src/ui/style/selector_text.cpp`, not installed) and reports offset 0. The
+inspector's answer is the same either way for the selector, which is what a developer reads; the
+span is empty because a build artifact has no source file to point into. The decision is asserted in
+`tests/unit/stylesheet_blob_tests.cpp` (`provenance_survives_a_blob_as_text_only`).
+
+**A miss is a real answer.** `ok:false` with `reason:"no_such_node"` and **no other field**: a page
+that read a stale `computed` off a failed answer would show the previous node's style under the new
+node's name. An id of 0 is the engine's "no automation id", so it can never name a node.
+
+**The page half.** `designer/web/src/views/canvas-inspector.ts` owns the panel: a page element beside
+the canvas, `hidden` until a node is inspected, filled with the computed table, one block per matched
+rule (an overridden declaration is struck through rather than dropped - the point of the panel is to
+answer "why is my rule not applying") and the box. It is **off by default** and armed by the
+`Inspector` toggle in the Canvas pane's header (`aria-pressed` carries the state), because an armed
+inspector consumes the click it inspects: the listener is registered in the capture phase and stops
+the event when the inspector took it, so the engine's pointer path never sees a press that was meant
+to select a node. A visitor who never opens it keeps a fully interactive canvas. The panel is a page
+element rather than engine paint for the same two reasons the picker's overlay is: an engine-drawn
+panel would be part of the frame and would contaminate the pixels a golden compares, and ADR-054
+decision 3 says the engine draws the previewed app and nothing else.
+
+## 6. The page half (landed)
 The page half landed after the React conversion (#422) as `designer/web/src/views/canvas-pointer.ts`,
 attached by `canvas-session.ts`; `scripts/ci/preview_browser_canvas_pointer.mjs` is its browser acceptance
 (hover, press, click, leave, a drag-off, and the frame counter staying put for a static scene). Two details
@@ -258,20 +313,55 @@ conversion rather than observed. The engine half is proven on the null RHI; the 
 to build, typecheck and render its ids. A browser probe is the follow-up, and it needs the same
 Playwright-class dependency `compiler-wasm.md` section 8.3 records as missing.
 
+**The style inspector slice (issue #171, 2026-11-19).** Added `tessera_canvas_style` and its report,
+the `scene_canvas_style` ctest case, the provenance threading (`PreparedItem` -> `CompiledRule`), the
+selector printer, and the page's panel. Verified on this Windows host:
+
+* `cmake --build build\vs2026 --config Release --parallel 12 --target scene_canvas_style_tests`:
+  exit 0, `/WX` clean.
+* `scene_canvas_style: ok`. The case asserts the reported `background-color` against the value the
+  cascade resolves for the same node (not a constant), that `#target` (one id) is listed before
+  `.card` (one class) although the source order is the opposite, that `.card`'s `background-color` is
+  `overridden` while its `color` is not, that the box equals the node's own `world_bounds()` field by
+  field, and that a missing id and id 0 both answer `found:false` with no computed style and no box.
+* `scene_canvas_pick: ok`, `scene_canvas_pointer: ok`, `scene_canvas_session: ok`,
+  `compiled_stylesheet: ok`, `stylesheet_blob_tests` exit 0 - the provenance threading did not move
+  the cascade, and the new blob case asserts that a blob-loaded rule reconstructs the same selector
+  text and reports offset 0.
+* `cmake --build build/wasm-webgpu --target tessera_canvas_wasm`: exit 0, and the linked
+  `tessera_canvas.js` contains `Module["_tessera_canvas_style"]` in its export table. A *build* fact,
+  not a runtime one.
+* `npm run build --prefix designer/web` (typecheck + site + SSR chrome): exit 0.
+  `node scripts/ci/preview_page_checks.mjs`: all pass, including the canvas pane's 23 ids (the
+  inspector's toggle, panel and body are three of them).
+* `python -B scripts/check_preview_budget.py --check --size-only`: 0 errors. The breakdown was
+  re-recorded (`--size-only`, so no local timing reached a CI pin) and the 10 MB owner-decision
+  ceiling was restored by hand, as the file's note records.
+
+**Not verified: the panel in a browser.** The inspector's click path, its capture-phase
+`stopPropagation` and the panel's layout have not been exercised against a real WebGPU device or a
+real pointer, for the same reason the picker's overlay has not: the browser probe needs a
+Playwright-class dependency this lane does not have. The engine half is proven on the null RHI; the
+page half is proven to build, typecheck and render its ids.
+
 ## 8. Files
 
 | Path | Role |
 |---|---|
 | `tools/codegen/scene_canvas_session.{hpp,cpp}` | the persistent session: evaluation, pointer dispatch, frame accounting, and the picker's `pick()` query |
+| `tools/codegen/scene_canvas_inspect.{hpp,cpp}` | the style inspector's query: computed style, matched rules with their provenance, and the box, for one node |
 | `tools/codegen/scene_frame.{hpp,cpp}` | `scene_frame_paint_tree()` - paint a caller-owned tree; `scene_frame_paint()` is now its wrapper |
-| `tools/codegen/canvas_report.{hpp,cpp}` | `canvas_pointer_report_json()` and `canvas_pick_report_json()` beside the existing frame report (host-compilable) |
-| `tools/codegen/wasm_canvas_entry.cpp` | the C ABI: `tessera_canvas_apply/pointer/pick/draw/reset`, with the coordinate rule on the exports |
+| `tools/codegen/canvas_report.{hpp,cpp}` | `canvas_pointer_report_json()`, `canvas_pick_report_json()` and `canvas_style_report_json()` beside the existing frame report (host-compilable) |
+| `tools/codegen/wasm_canvas_entry.cpp` | the C ABI: `tessera_canvas_apply/pointer/pick/style/draw/reset`, with the coordinate rule on the exports |
 | `tools/codegen/scene_prepare.cpp` | `preview_stylesheet()` gains `Button:hover`, `Button:active`, `TextInput:hover`, `TextArea:hover` |
 | `tools/codegen/scene_session.{hpp,cpp}` | `last_ran()`/`last_unrun()`/`router()` accessors, so the session can report what a dispatch did |
 | `tests/unit/scene_canvas_session_tests.cpp` | lifecycle + the frame contract (a static scene draws zero) |
 | `tests/unit/scene_canvas_pointer_tests.cpp` | the pointer path into the style engine, click synthesis, ignored buttons, cancel |
 | `tests/unit/scene_canvas_pick_tests.cpp` | the picker query: the right node and box, a miss, and that a pick changes nothing |
+| `tests/unit/scene_canvas_style_tests.cpp` | the inspector query: the cascade's computed values, precedence order, `overridden`, the box, `no_such_node`, and the report document |
 | `tests/unit/scene_canvas_test_support.hpp` | the shared sources, tree helpers and the on-demand `CanvasHarness` |
+| `src/ui/style/selector_text.{hpp,cpp}` | the selector list printed back from its parsed form, for a sheet that arrived as a blob |
 | `designer/web/src/views/canvas-picker.ts` | the page's overlay: the outline, the readout, the toggle and the CSS-to-logical conversion |
-| `designer/web/src/regions/CanvasPane.tsx` | the overlay element (`pointer-events: none`) and the `Picker` toggle |
+| `designer/web/src/views/canvas-inspector.ts` | the page's inspector panel: the computed table, the matched rules, the box and the toggle |
+| `designer/web/src/regions/CanvasPane.tsx` | the overlay element (`pointer-events: none`), the inspector panel, and the two toggles |
 | `src/compiler/codegen/CMakeLists.txt` | the module-local build wiring (see the answer accompanying this landing) |

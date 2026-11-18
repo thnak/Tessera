@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "scene_canvas_inspect.hpp"
 #include "scene_evaluate.hpp"
 #include "scene_frame.hpp"
 #include "scene_prepare.hpp"
@@ -214,6 +215,26 @@ public:
     // Returns `found:false` for a point outside every node (and for a session with no tree), which
     // is the page's signal to hide the overlay rather than draw a stale outline.
     [[nodiscard]] CanvasPickResult pick(float x, float y);
+
+    // The style inspector's query (issue #171, designer-protocol-v1 section 9.1): the computed
+    // style, the matched rules with their provenance, and the box of the node with this automation
+    // id.
+    //
+    // **It is a query, like `pick()`.** Nothing is dispatched, no pseudo-class moves and no frame
+    // is owed: opening the inspector on a node must not change the picture. It is a user action
+    // rather than a frame path, so the bounded allocations it makes (the computed map, one entry
+    // per matched rule) are acceptable - the frame path's zero-allocation rule is about `paint()`,
+    // not about a click.
+    //
+    // **Why the engine answers it.** `computed` is the cascade after inheritance and `var()`,
+    // `matched` is the selector index's own answer with the specificity it matched at, and
+    // `overridden` is the cascade's own comparison. A page that recomputed any of it would be a
+    // second cascade, and the first time the two disagreed the inspector would describe a style the
+    // canvas is not painting.
+    //
+    // `automation_id` 0 and an id no node carries both answer `found:false`, which the report
+    // spells `no_such_node` (designer-protocol-v1 section 9.1).
+    [[nodiscard]] StyleInfoResult inspect(std::uint64_t automation_id);
 
     // Changes the simulated fold posture of the RUNNING evaluation (issue #408): the tree is
     // re-laid out in place, so `SafeArea` padding and every box follow the new hinge without the

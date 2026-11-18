@@ -222,6 +222,49 @@ void every_diagnostic_kind_round_trips() {
     }
 }
 
+// The provenance the designer's `style.info` reports (designer-protocol-v1 section 9.1) is NOT in
+// the blob, and this is the case that says so out loud (docs/specs/compiled-stylesheet-v1.md
+// section 5). A sheet prepared from source carries the authored selector text and the rule's byte
+// offset; the same sheet loaded from a blob carries the selector printed back from the parsed list
+// and offset 0, because a build artifact has no source file to point into. The two must agree on
+// the selector, which is what makes the inspector's answer the same either way.
+void provenance_survives_a_blob_as_text_only() {
+    constexpr std::string_view kCss =
+        ".card > .title:hover, #hero { color: red; margin: 1px 2px }\n";
+    const PreparedStyleSheet prepared = prepare_stylesheet(kCss);
+    const CompiledStyleSheet direct(prepared);
+    expect(direct.rules().size() == 1, "the reference sheet compiles to one rule");
+    if (direct.rules().empty()) {
+        return;
+    }
+    // Prepared from source: the authored text, and the rule's offset in the sheet.
+    expect(direct.rules().front().selector == ".card > .title:hover, #hero",
+           "a source-prepared rule carries the authored selector text, got `" +
+               direct.rules().front().selector + "`");
+    expect(direct.rules().front().offset == 0, "the reference rule starts at offset 0");
+
+    const std::vector<std::uint8_t> bytes = serialize_stylesheet(prepared);
+    const auto loaded = load_stylesheet_blob(bytes);
+    expect(loaded.has_value(), "the reference blob loads");
+    if (!loaded) {
+        return;
+    }
+    // The blob does not carry the text: the prepared item it loads has none.
+    expect(loaded->items.size() == 1 && loaded->items.front().selector.empty(),
+           "the blob does not carry the authored selector text");
+    expect(loaded->items.front().offset == 0, "the blob does not carry the rule's offset");
+    // Resolving it prints the selector back, so the inspector still names the rule.
+    const CompiledStyleSheet from_blob(*loaded);
+    expect(from_blob.rules().size() == 1, "the loaded sheet compiles to one rule");
+    if (from_blob.rules().empty()) {
+        return;
+    }
+    expect(from_blob.rules().front().selector == direct.rules().front().selector,
+           "the reconstructed selector equals the authored one, got `" +
+               from_blob.rules().front().selector + "`");
+    expect(from_blob.rules().front().offset == 0, "a blob-loaded rule reports offset 0");
+}
+
 } // namespace
 
 int main() {
@@ -232,5 +275,6 @@ int main() {
     header_errors_are_reported();
     every_diagnostic_kind_round_trips();
     malformed_input_never_crashes();
+    provenance_survives_a_blob_as_text_only();
     return g_ok ? 0 : 1;
 }

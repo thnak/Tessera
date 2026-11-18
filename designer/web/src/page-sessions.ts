@@ -184,6 +184,10 @@ export function useSessions(deps: SessionDeps, settled: boolean): Sessions {
           // Issue #171's picker: the overlay the outline is drawn into, and the header toggle.
           pickOverlay: pane.pickOverlay.current,
           pickToggle: pane.pickToggle.current,
+          // Issue #171's style inspector: the panel, the body it fills, and the header toggle.
+          inspectPanel: pane.inspectPanel.current,
+          inspectBody: pane.inspectBody.current,
+          inspectToggle: pane.inspectToggle.current,
           statusFrame: pane.statusFrame.current,
         },
         source: deps.source,

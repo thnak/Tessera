@@ -126,6 +126,30 @@ Shared structures:
   error for embedded blobs; blobs that arrive at run time (hot reload, designer) are rejected with
   the diagnostic instead.
 
+### 5.1 What the blob deliberately does not carry
+
+A prepared rule keeps two fields that are **not** serialized: the selector list as the author wrote
+it (`PreparedItem::selector`) and the rule's byte offset in its sheet (`PreparedItem::offset`). They
+exist for the designer's `style.info` ([`designer-protocol-v1.md`](designer-protocol-v1.md) section
+9.1), which names the rule a developer would recognise and points at it in their file.
+
+They stay out of the blob on purpose:
+
+- **The text is reconstructible.** The parsed `SelectorList` is the whole meaning of a selector, so
+  the resolve step prints it back (`src/ui/style/selector_text.cpp`, not installed) when a rule has
+  no authored text. A blob-loaded sheet therefore reports the same selector text a source-prepared
+  one does, which is the field a developer reads.
+- **The offset is meaningless in a build artifact.** A blob has no source file to point into, so a
+  rule resolved from one reports offset 0 and an empty `CompiledRule::source_path`. The inspector's
+  `span` is empty rather than wrong.
+- **A bump would cost every golden for no cascade change.** Adding the fields would change the byte
+  layout, so `format_version` would move to 2 and every committed blob golden would be regenerated -
+  for a field only a design-time query reads and only when the sheet came from source.
+
+The decision is asserted in `tests/unit/stylesheet_blob_tests.cpp`
+(`provenance_survives_a_blob_as_text_only`): a source-prepared rule carries the authored text and
+its offset, the blob carries neither, and the reconstructed selector equals the authored one.
+
 ## 6. Loader validation
 
 `load_stylesheet_blob` never reads outside the input and never throws. It checks: header length,
