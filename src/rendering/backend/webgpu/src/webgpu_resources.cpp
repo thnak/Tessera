@@ -12,13 +12,13 @@ namespace {
 
 WGPUTexture create_texture_2d(WebGpuContext& context, rhi::Extent2D extent,
                               rhi::TextureFormat format, std::uint32_t sample_count,
-                              std::uint32_t usage) {
+                              std::uint32_t usage, std::uint32_t levels = 1) {
     WGPUTextureDescriptor desc = WGPU_TEXTURE_DESCRIPTOR_INIT;
     desc.usage = usage;
     desc.dimension = WGPUTextureDimension_2D;
     desc.size = {extent.width, extent.height, 1};
     desc.format = to_wgpu(texture_format(format));
-    desc.mipLevelCount = 1;
+    desc.mipLevelCount = levels;
     desc.sampleCount = sample_count;
     WGPUTexture texture = wgpuDeviceCreateTexture(context.device, &desc);
     if (texture == nullptr) {
@@ -74,10 +74,19 @@ WebGpuTexture::WebGpuTexture(std::shared_ptr<WebGpuContext> context, const rhi::
     if (desc.sample_count > 1 && desc.pixels != nullptr) {
         throw std::invalid_argument("WebGpuTexture: pixels cannot be uploaded to a 4x texture");
     }
+    if (!rhi::valid_texture_levels(desc)) {
+        throw std::invalid_argument("WebGpuTexture: invalid mip level count");
+    }
     desc_.pixels = nullptr;
-    const std::uint32_t usage =
+    // A chain is rendered level by level, so every level is also a render attachment.
+    std::uint32_t usage =
         desc.sample_count > 1 ? texture_usage_bits::kRenderAttachment : sampled_texture_usage();
-    texture_ = create_texture_2d(*context_, desc.extent, desc.format, desc.sample_count, usage);
+    if (desc.levels > 1) {
+        usage |= texture_usage_bits::kRenderAttachment;
+    }
+    texture_ = create_texture_2d(*context_, desc.extent, desc.format, desc.sample_count, usage,
+                                 desc.levels);
+    // The default view spans every level, which is what the sampler selects from.
     view_ = wgpuTextureCreateView(texture_, nullptr);
 
     WGPUSamplerDescriptor sampler_desc = WGPU_SAMPLER_DESCRIPTOR_INIT;
@@ -86,6 +95,12 @@ WebGpuTexture::WebGpuTexture(std::shared_ptr<WebGpuContext> context, const rhi::
     sampler_desc.addressModeU = to_wgpu(address_mode(desc.address));
     sampler_desc.addressModeV = sampler_desc.addressModeU;
     sampler_desc.addressModeW = sampler_desc.addressModeU;
+    // A single-level texture never samples another level; a chain picks one from the draw's
+    // minification, blending neighbours only when the texture itself is filtered linearly.
+    sampler_desc.mipmapFilter = desc.filter == rhi::Filter::Linear ? WGPUMipmapFilterMode_Linear
+                                                                   : WGPUMipmapFilterMode_Nearest;
+    sampler_desc.lodMinClamp = 0.0f;
+    sampler_desc.lodMaxClamp = static_cast<float>(desc.levels - 1U);
     sampler_ = wgpuDeviceCreateSampler(context_->device, &sampler_desc);
 
     if (desc.pixels != nullptr) {
@@ -101,6 +116,9 @@ WebGpuTexture::WebGpuTexture(std::shared_ptr<WebGpuContext> context, const rhi::
         const WGPUExtent3D extent{desc.extent.width, desc.extent.height, 1};
         wgpuQueueWriteTexture(context_->queue, &dst, desc.pixels, row_pitch * desc.extent.height,
                               &layout, &extent);
+        if (desc.levels > 1) {
+            generate_mip_chain(*context_, texture_, desc.format, desc.levels);
+        }
     }
 }
 
@@ -118,6 +136,9 @@ WebGpuTexture::~WebGpuTexture() {
 }
 
 void WebGpuTexture::write(const void* data, std::size_t size) {
+    if (desc_.levels > 1) {
+        throw std::invalid_argument("WebGpuTexture: mipmapped textures are immutable");
+    }
     if (desc_.sample_count > 1) {
         throw std::logic_error("WebGpuTexture: cannot upload to a multisampled texture");
     }

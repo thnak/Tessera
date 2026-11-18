@@ -9,6 +9,10 @@ constexpr char kBatched2dWgsl[] =
 #include "batched2d_wgsl.inc"
     ;
 
+constexpr char kMipDownsampleWgsl[] =
+#include "mip_downsample_wgsl.inc"
+    ;
+
 } // namespace
 
 namespace tessera::rendering::webgpu {
@@ -42,6 +46,12 @@ const WgslProgram* ShaderRegistry::find(std::string_view shader_id) const {
 WgslProgram batched2d_wgsl_program() {
     WgslProgram program;
     program.source = kBatched2dWgsl;
+    return program;
+}
+
+WgslProgram mip_downsample_wgsl_program() {
+    WgslProgram program;
+    program.source = kMipDownsampleWgsl;
     return program;
 }
 

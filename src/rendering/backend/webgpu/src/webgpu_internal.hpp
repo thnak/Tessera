@@ -11,6 +11,7 @@
 #include "tessera/rendering/webgpu/webgpu_mapping.hpp"
 
 #include <memory>
+#include <vector>
 #include <webgpu/webgpu.h>
 
 namespace tessera::rendering::webgpu {
@@ -24,6 +25,14 @@ struct WebGpuContext {
     // Keyed by `PipelineDesc::shader_id`; starts with the built-in programs.
     ShaderRegistry shaders = builtin_shader_registry();
     bool lost = false;
+    // Mip chain generation (RHI 1.6, issue #510): one downsample pipeline per render-target
+    // format and the linear sampler every level is read with, created on first use.
+    struct MipPipeline {
+        WGPUTextureFormat format;
+        WGPURenderPipeline pipeline;
+    };
+    std::vector<MipPipeline> mip_pipelines;
+    WGPUSampler mip_sampler = nullptr;
 
     WebGpuContext() = default;
     WebGpuContext(const WebGpuContext&) = delete;
@@ -67,6 +76,11 @@ private:
     std::size_t size_ = 0;
 };
 
+// Builds levels 1..levels-1 of `texture` from level 0 with one render pass per level and submits
+// them. Level 0 must already be written. Throws std::runtime_error if the pipeline cannot be made.
+void generate_mip_chain(WebGpuContext& context, WGPUTexture texture, rhi::TextureFormat format,
+                        std::uint32_t levels);
+
 class WebGpuTexture final : public rhi::Texture {
 public:
     WebGpuTexture(std::shared_ptr<WebGpuContext> context, const rhi::TextureDesc& desc);
@@ -80,6 +94,9 @@ public:
     }
     [[nodiscard]] std::uint32_t sample_count() const override {
         return desc_.sample_count;
+    }
+    [[nodiscard]] std::uint32_t levels() const override {
+        return desc_.levels;
     }
     void write(const void* data, std::size_t size) override;
 

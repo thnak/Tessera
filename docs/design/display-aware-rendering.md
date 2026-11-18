@@ -19,8 +19,7 @@ extent, section 3.4.1). **LCD compositing** landed as step 3 of section 3.4.1: t
 eligibility rule and the `TextDraw::lcd` mark at the paint seam, the renderer's pipeline axis
 (`Batched2DRenderer::set_lcd_pipeline`, `push_texture_lcd`), the per-channel `batched2d_lcd`
 fragment program, and the window's creation of that pipeline on a device with dual-source blending;
-`kAutoAllowsLcd` is true. The mip-chain downscale case landed too (issue #491, section 6; Vulkan
-and null, WebGPU samples one level). The **X11/Wayland `PixelGeometry` sources** landed too (issue #504,
+`kAutoAllowsLcd` is true. The mip-chain downscale case landed too (issues #491 and #510, section 6). The **X11/Wayland `PixelGeometry` sources** landed too (issue #504,
 section 2). Extends
 [`antialiasing.md`](antialiasing.md) and [`text.md`](text.md). Decisions D2/D6 in
 [`rendering-production-plan.md`](rendering-production-plan.md) stay in force unless a numbered
@@ -401,7 +400,7 @@ The clip path needs no separate scaling: `push_clip` scales the paint-space clip
 scissor is derived from it (`ClipStateTable::push` -> `enclosing_scissor`), so the scissor fast path
 and the folded SDF uniform test the same target-space rectangle. `set_scissor` itself is a
 target-pixel seam: the frame scissor is the target extent and damage regions are already device
-pixels. The mip-chain downscale case below has landed (#491; WebGPU is tracked in #510). The
+pixels. The mip-chain downscale case below has landed (#491 on Vulkan and null, #510 on WebGPU). The
 X11/Wayland `PixelGeometry` sources have landed (section 2). LCD compositing has landed (section
 3.4.1 step 3).
 
@@ -424,9 +423,9 @@ when the draw minifies the raster by at least 2x on either axis and `ImageTextur
 supports_mipmaps()` is true, one level otherwise, so a magnified or near-1:1 draw never pays the
 roughly one third extra memory. A chain entry counts every level against the cache's byte limit. The
 sampler picks the level from the draw's derivatives, and a texture with one level never samples
-another. Vulkan builds the chain with a linear `vkCmdBlitImage` downsample; WebGPU reports no support
-(no blit; a render-pass chain is #510), so a downscaled image there still resolves `Linear`
-at level 0. `tests/gpu/batched2d/texture_mips_gpu_tests.cpp` pins it on a real device: a 1px
+another. Vulkan builds the chain with a linear `vkCmdBlitImage` downsample; WebGPU has no blit, so it
+draws each level from the one above with a linear sampler (`mip_downsample.wgsl`, #510), which
+averages in linear light on an sRGB format exactly as the blit does. `tests/gpu/batched2d/texture_mips_gpu_tests.cpp` pins it on a real device: a 1px
 checkerboard at a 3x downscale aliases to pure black/white with one level and stays in a grey band
 with a chain. There is no golden for it; a golden would have to carry its own tolerance on lavapipe.
 

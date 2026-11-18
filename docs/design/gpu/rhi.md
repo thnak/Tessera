@@ -252,8 +252,10 @@ the backends already make and leaves no window where a half-built chain can be s
 - `Device::supports_texture_mipmaps(format)` is the only authority and is pure virtual. Vulkan
   reports it when the format allows blit source, blit destination and linear filtering with
   optimal tiling (the chain is a `vkCmdBlitImage` linear downsample); the null device reports true
-  and records `Texture::levels()`; WebGPU reports false (no blit, and a render-pass chain is a later
-  slice). With false, `create_texture` with `levels > 1` throws and the caller uses one level.
+  and records `Texture::levels()`; WebGPU reports true for every format it maps and builds the chain
+  with one render pass per level (`shaders/mip_downsample.wgsl`, a fullscreen triangle sampling the
+  level above with a linear sampler; issue #510). With false, `create_texture` with `levels > 1`
+  throws and the caller uses one level.
 - Sampling: the sampler's LOD range is `[0, levels - 1]`, so a one-level texture never samples
   elsewhere and a chain picks its level from the draw's minification (`texture()` derivatives).
   `mipmapMode` is linear when the texture's filter is linear, nearest otherwise.

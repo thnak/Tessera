@@ -17,6 +17,8 @@ endfunction()
 tessera_embed_wgsl(batched2d.wgsl)
 # Glass two-pass Gaussian twin (issue #244); validated by naga and the Wasm lane.
 tessera_embed_wgsl(glass_blur.wgsl)
+# Mip chain downsample (RHI 1.6, issue #510); used internally by the texture, not a registry id.
+tessera_embed_wgsl(mip_downsample.wgsl)
 
 add_library(tessera_webgpu_mapping STATIC
     src/webgpu_mapping.cpp
@@ -34,6 +36,7 @@ if (EMSCRIPTEN OR TESSERA_BUILD_WEBGPU)
     add_library(tessera_webgpu STATIC
         src/webgpu_device.cpp
         src/webgpu_resources.cpp
+        src/webgpu_mipmaps.cpp
         src/webgpu_pipeline.cpp
         src/webgpu_canvas_target.cpp
         src/webgpu_command_list.cpp)

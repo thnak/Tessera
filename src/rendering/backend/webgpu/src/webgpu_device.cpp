@@ -13,6 +13,12 @@ namespace tessera::rendering::webgpu {
 static_assert(rhi::kRhiVersionMajor == 1, "WebGPU backend implements RHI 1.x");
 
 WebGpuContext::~WebGpuContext() {
+    for (const MipPipeline& cached : mip_pipelines) {
+        wgpuRenderPipelineRelease(cached.pipeline);
+    }
+    if (mip_sampler != nullptr) {
+        wgpuSamplerRelease(mip_sampler);
+    }
     if (queue != nullptr) {
         wgpuQueueRelease(queue);
     }
@@ -101,9 +107,6 @@ public:
     }
 
     std::unique_ptr<rhi::Texture> create_texture(const rhi::TextureDesc& desc) override {
-        if (desc.levels != 1U) {
-            throw std::invalid_argument("create_texture: mip chains are not supported on WebGPU");
-        }
         return std::make_unique<WebGpuTexture>(context_, desc);
     }
 
@@ -144,10 +147,10 @@ public:
         return false;
     }
 
-    // WebGPU has no blit and no built-in chain generation; a render-pass chain is a later slice
-    // (issue #491), so a downscaled image samples its single level here.
+    // The chain is a render-pass downsample (webgpu_mipmaps.cpp), so every format this backend
+    // maps is covered: all five are renderable and filterable in core WebGPU.
     [[nodiscard]] bool supports_texture_mipmaps(rhi::TextureFormat) const override {
-        return false;
+        return true;
     }
 
     [[nodiscard]] rhi::DeviceStatus status() const override {
