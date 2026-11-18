@@ -22,7 +22,9 @@
 
 #include "window_wayland_output.hpp"
 
+#include <cstddef>
 #include <cstdint>
+#include <span>
 
 struct wl_display;
 struct wl_registry;
@@ -97,6 +99,10 @@ public:
     }
     [[nodiscard]] bool consume_output_change() noexcept {
         return outputs_.consume_change();
+    }
+    // The monitor list from the bound wl_outputs (issue #506).
+    [[nodiscard]] std::size_t displays(std::span<DisplayInfo> out) const noexcept {
+        return outputs_.displays(out);
     }
 
     // Destroys the role stack and the globals in the documented teardown order (toplevel,

@@ -22,6 +22,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <span>
 
 struct wl_output;
 struct wl_registry;
@@ -49,8 +50,14 @@ public:
     // The subpixel layout of the output the window is on (see the file header).
     [[nodiscard]] PixelGeometry pixel_geometry() const noexcept;
 
-    // True once after the answer `pixel_geometry()` would give changed: a late `geometry` event, a
-    // move to another output, an output going away.
+    // The monitor list (issue #506): one entry per bound output that has reported its geometry,
+    // in registry order, at most `out.size()`. Returns the count written. `bounds` is in logical
+    // pixels (the mode divided by the integer output scale), `physical_*` is the current mode.
+    [[nodiscard]] std::size_t displays(std::span<DisplayInfo> out) const noexcept;
+
+    // True once after the answer `pixel_geometry()` or the monitor list would give changed: a late
+    // `geometry` event, a mode or scale change, a move to another output, an output coming or
+    // going.
     [[nodiscard]] bool consume_change() noexcept;
 
     void destroy() noexcept;
@@ -64,9 +71,38 @@ private:
         wl_output* output = nullptr;
         std::uint32_t name = 0;
         PixelGeometry geometry = PixelGeometry::Unknown;
+        std::uint32_t version = 0;
+        // True once the first `geometry` event arrived; an output that has said nothing is not
+        // listed.
+        bool ready = false;
+        // A property changed since the last `done`; `done` (version 2) publishes the batch.
+        bool pending = false;
+        std::int32_t x = 0;
+        std::int32_t y = 0;
+        std::uint32_t transform = 0;
+        std::int32_t mode_width = 0;
+        std::int32_t mode_height = 0;
+        std::int32_t refresh_mhz = 0;
+        std::int32_t scale = 1;
+        bool scale_seen = false;
+        std::array<char, kMaxDisplayNameBytes> label{};
     };
 
-    void on_geometry(wl_output* output, std::uint32_t subpixel);
+    struct GeometryEvent {
+        std::int32_t x;
+        std::int32_t y;
+        std::int32_t subpixel;
+        std::int32_t transform;
+        const char* make;
+        const char* model;
+    };
+
+    void on_geometry(wl_output* output, const GeometryEvent& event);
+    void on_mode(wl_output* output, std::uint32_t flags, std::int32_t width, std::int32_t height,
+                 std::int32_t refresh_mhz);
+    void on_scale(wl_output* output, std::int32_t factor);
+    void on_done(wl_output* output);
+    void settle(Slot& slot);
     void on_surface_enter(wl_output* output);
     void on_surface_leave(wl_output* output);
     [[nodiscard]] Slot* find(const wl_output* output) noexcept;

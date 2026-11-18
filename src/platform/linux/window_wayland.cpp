@@ -83,6 +83,9 @@ public:
     [[nodiscard]] WindowSystem window_system() const noexcept override {
         return WindowSystem::Wayland;
     }
+    std::size_t displays(std::span<DisplayInfo> out) const override {
+        return shell_.displays(out);
+    }
     // OS appearance preferences (issue #187): the freedesktop settings portal is session-wide, not
     // an X11 facility, so a Wayland session reads the same `org.freedesktop.appearance` keys
     // through the same watcher. The read is an atomic load of the watcher's published snapshot; a
