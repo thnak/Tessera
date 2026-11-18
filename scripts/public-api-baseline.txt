@@ -603,8 +603,12 @@ function include/tessera/hal/display.hpp tessera::hal::orientation_is_known
 function include/tessera/hal/display.hpp tessera::hal::orientation_name
 function include/tessera/hal/display.hpp tessera::hal::pixel_geometry_is_horizontal_stripe
 function include/tessera/hal/display.hpp tessera::hal::pixel_geometry_is_known_value
+function include/tessera/hal/display.hpp tessera::hal::randr_subpixel_geometry
 function include/tessera/hal/display.hpp tessera::hal::resolve_display_scale
+function include/tessera/hal/display.hpp tessera::hal::resolve_pixel_geometry
 function include/tessera/hal/display.hpp tessera::hal::resolve_work_area
+function include/tessera/hal/display.hpp tessera::hal::wayland_subpixel_geometry
+function include/tessera/hal/display.hpp tessera::hal::xft_rgba_geometry
 constant include/tessera/hal/display.hpp tessera::hal::kAssumedDisplayRefreshHz
 constant include/tessera/hal/display.hpp tessera::hal::kAssumedDisplayScale
 constant include/tessera/hal/display.hpp tessera::hal::kMaxDisplayNameBytes

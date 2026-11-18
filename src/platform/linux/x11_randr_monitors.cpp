@@ -110,6 +110,21 @@ RRCrtc monitor_crtc(Display* display, XRRScreenResources* resources,
     return crtc;
 }
 
+// The RandR `subpixel_order` of a monitor's first output. `Unknown` when the server does not say.
+PixelGeometry monitor_pixel_geometry(Display* display, XRRScreenResources* resources,
+                                     const XRRMonitorInfo& monitor) noexcept {
+    if (resources == nullptr || monitor.noutput <= 0 || monitor.outputs == nullptr) {
+        return PixelGeometry::Unknown;
+    }
+    XRROutputInfo* info = XRRGetOutputInfo(display, resources, monitor.outputs[0]);
+    if (info == nullptr) {
+        return PixelGeometry::Unknown;
+    }
+    const PixelGeometry geometry = randr_subpixel_geometry(static_cast<int>(info->subpixel_order));
+    XRRFreeOutputInfo(info);
+    return geometry;
+}
+
 double crtc_refresh_hz(Display* display, XRRScreenResources* resources, RRCrtc crtc) noexcept {
     if (resources == nullptr || crtc == None) {
         return kUnknownRefreshHz;
@@ -186,9 +201,12 @@ bool randr_query_available(Display* display, int* event_base_out) noexcept {
 }
 
 bool query_x11_active_display(Display* display, ::Window window, ::Window root, DisplayId& id,
-                              double& refresh_hz) noexcept {
+                              double& refresh_hz, PixelGeometry* panel_geometry) noexcept {
     id = kNoDisplayId;
     refresh_hz = kUnknownRefreshHz;
+    if (panel_geometry != nullptr) {
+        *panel_geometry = PixelGeometry::Unknown;
+    }
     if (display == nullptr || window == 0 || root == 0 || !randr_query_available(display)) {
         return false;
     }
@@ -206,6 +224,9 @@ bool query_x11_active_display(Display* display, ::Window window, ::Window root, 
             id = id_from_name(name);
         }
         refresh_hz = crtc_refresh_hz(display, resources, crtc);
+        if (panel_geometry != nullptr) {
+            *panel_geometry = monitor_pixel_geometry(display, resources, *chosen);
+        }
         found = id != kNoDisplayId || refresh_hz > 0.0;
     }
     if (monitors != nullptr) {
@@ -228,6 +249,7 @@ std::size_t query_x11_randr_displays(Display* display, ::Window root,
         return 0;
     }
     XRRScreenResources* resources = XRRGetScreenResourcesCurrent(display, root);
+    const PixelGeometry xft_geometry = query_x11_xft_rgba(display);
     std::size_t written = 0;
     for (int index = 0; index < count && written < out.size(); ++index) {
         const XRRMonitorInfo& monitor = monitors[index];
@@ -255,6 +277,10 @@ std::size_t query_x11_randr_displays(Display* display, ::Window root,
             info.refresh_hz = static_cast<float>(refresh_hz);
             info.refresh_hz_assumed = false;
         }
+        // The user's `Xft.rgba` describes how text is drawn on every output; the panel's own
+        // `subpixel_order` is the fallback when it is unset.
+        info.pixel_geometry = resolve_pixel_geometry(
+            xft_geometry, monitor_pixel_geometry(display, resources, monitor));
         ++written;
     }
     if (resources != nullptr) {

@@ -20,8 +20,8 @@ eligibility rule and the `TextDraw::lcd` mark at the paint seam, the renderer's 
 (`Batched2DRenderer::set_lcd_pipeline`, `push_texture_lcd`), the per-channel `batched2d_lcd`
 fragment program, and the window's creation of that pipeline on a device with dual-source blending;
 `kAutoAllowsLcd` is true. Not landed: the mip-chain downscale case (needs `TextureDesc` mip levels
-and backend chain generation); and the X11/Wayland `PixelGeometry` sources (both still report
-`Unknown`, so those windows stay grayscale). Extends
+and backend chain generation). The **X11/Wayland `PixelGeometry` sources** landed too (issue #504,
+section 2). Extends
 [`antialiasing.md`](antialiasing.md) and [`text.md`](text.md). Decisions D2/D6 in
 [`rendering-production-plan.md`](rendering-production-plan.md) stay in force unless a numbered
 decision in section 8 says otherwise.
@@ -66,8 +66,20 @@ use), and a failed or unrecognised read is `Unknown`. Every `DisplayInfo` theref
 value, and it is the value the OS will actually rasterize text with on any of the monitors. A
 mixed-panel desktop (an RGB laptop panel next to a BGR monitor) cannot be described by this API;
 reporting one desktop-wide answer is the honest option, and inventing a per-display one would be a
-fabrication. Vertical stripes are unreachable: ClearType only offers horizontal RGB/BGR. X11 and
-Wayland report `Unknown` in V1.
+fabrication. ClearType only offers horizontal RGB/BGR, so Win32 never reports a vertical stripe.
+
+X11 and Wayland do report a per-output stripe (issue #504), mapped by pure functions in
+`hal/display.hpp` so every value is unit tested without a display server: `randr_subpixel_geometry`
+for RandR `XRROutputInfo::subpixel_order`, `wayland_subpixel_geometry` for `wl_output.subpixel`, and
+`xft_rgba_geometry` for the `Xft.rgba` resource. On X11 the user's `Xft.rgba`, when set to a known
+value, wins over the panel (`resolve_pixel_geometry`), because it is what the user's toolkits
+rasterize text with; otherwise the window's RandR output decides, and every `DisplayInfo` carries
+its own output's value. On Wayland the window takes the output named by `wl_surface.enter`, falls
+back to the only output when there is exactly one, and is `Unknown` when several outputs exist and
+none has been entered. A move to another output, or a late `geometry` event, raises
+`DisplayChanged`. The vertical enumerators are therefore reachable on Linux; the resolver still
+treats them as grayscale in V1. A value the build does not understand is `Unknown`, never a guessed
+stripe. Wayland publishes no `displays()` list yet, so only `WindowMetrics` carries it there.
 
 `AaPolicy` (plain data, resolved once per window and per fact change):
 `{ render_scale, text_mode, hinting, subpixel_position, edge_mode, clip_aa, msaa }`.
@@ -384,8 +396,8 @@ The clip path needs no separate scaling: `push_clip` scales the paint-space clip
 scissor is derived from it (`ClipStateTable::push` -> `enclosing_scissor`), so the scissor fast path
 and the folded SDF uniform test the same target-space rectangle. `set_scissor` itself is a
 target-pixel seam: the frame scissor is the target extent and damage regions are already device
-pixels. Still missing, all later PRs: X11/Wayland `PixelGeometry` sources (they report `Unknown`),
-the mip-chain downscale case below. LCD compositing has landed (section 3.4.1 step 3).
+pixels. Still missing, a later PR: the mip-chain downscale case below. The X11/Wayland
+`PixelGeometry` sources have landed (section 2). LCD compositing has landed (section 3.4.1 step 3).
 
 S8 image filter (landed): RHI sampler state is fixed at texture creation, so the filter is part of
 `ImageTextureKey` and `Batched2DSink::draw_image` picks it per draw with the pure

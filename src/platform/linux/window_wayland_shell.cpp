@@ -30,10 +30,10 @@ struct WaylandShellCallbacks {
         static_cast<WaylandShell*>(data)->on_global(registry, name, interface, version);
     }
 
-    static void global_remove(void*, wl_registry*, std::uint32_t) {
-        // A global going away (a compositor stopping an output, a seat disappearing) does not
-        // invalidate the objects this backend already created: wl_compositor and xdg_wm_base are
-        // not removable globals. Nothing to do.
+    static void global_remove(void* data, wl_registry*, std::uint32_t name) {
+        // wl_compositor and xdg_wm_base are not removable globals, so only an output can go away
+        // (a monitor unplugged); its slot is dropped and the window's answer is re-derived.
+        static_cast<WaylandShell*>(data)->on_global_remove(name);
     }
 
     static void wm_base_ping(void*, xdg_wm_base* wm_base, std::uint32_t serial) {
@@ -104,6 +104,10 @@ void WaylandShell::on_global(wl_registry* registry, std::uint32_t name, const ch
     if (interface == nullptr) {
         return;
     }
+    if (std::string_view(interface) == wl_output_interface.name) {
+        outputs_.bind(registry, name, version);
+        return;
+    }
     if (std::string_view(interface) == wl_compositor_interface.name && compositor_ == nullptr) {
         // wl_compositor 4 adds damage_buffer, which this backend does not need; binding a version
         // the compositor supports is enough.
@@ -120,6 +124,10 @@ void WaylandShell::on_global(wl_registry* registry, std::uint32_t name, const ch
     }
 }
 
+void WaylandShell::on_global_remove(std::uint32_t name) {
+    outputs_.remove(name);
+}
+
 bool WaylandShell::create_roles(const char* title) {
     if (display_ == nullptr || !globals_ready() || surface_ != nullptr) {
         return false;
@@ -128,6 +136,7 @@ bool WaylandShell::create_roles(const char* title) {
     if (surface_ == nullptr) {
         return false;
     }
+    outputs_.watch_surface(surface_);
     xdg_surface_ = xdg_wm_base_get_xdg_surface(wm_base_, surface_);
     if (xdg_surface_ == nullptr) {
         return false;
@@ -236,6 +245,7 @@ void WaylandShell::destroy() noexcept {
         wl_surface_destroy(surface_);
         surface_ = nullptr;
     }
+    outputs_.destroy();
     if (compositor_ != nullptr) {
         wl_compositor_destroy(compositor_);
         compositor_ = nullptr;

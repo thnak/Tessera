@@ -573,6 +573,14 @@ target_link_libraries(os_event_tests PRIVATE tessera_hal_window)
 
 add_test(NAME os_event COMMAND os_event_tests)
 
+# The X11/Wayland subpixel sources -> PixelGeometry (issue #504). Pure CPU and display-free.
+add_executable(subpixel_geometry_tests
+    subpixel_geometry_tests.cpp)
+
+target_link_libraries(subpixel_geometry_tests PRIVATE tessera_hal_window)
+
+add_test(NAME subpixel_geometry COMMAND subpixel_geometry_tests)
+
 # The CSS cursor grammar and its diagnostics (issue #191, window-chrome-v1.md section 8.5). Pure CPU
 # and display-free: the real native cursor is covered by window_win32/window_x11 and the fake round
 # trip by window_cursor_fake.
@@ -645,6 +653,16 @@ if (TESSERA_X11_FOUND)
 
     add_test(NAME window_x11 COMMAND window_x11_tests)
 
+    # Xft.rgba -> pixel_geometry end to end (issue #504); skips without an X server.
+    add_executable(window_x11_subpixel_tests
+        window_x11_subpixel_tests.cpp)
+
+    target_link_libraries(window_x11_subpixel_tests PRIVATE
+        tessera_hal_window
+        X11::X11)
+
+    add_test(NAME window_x11_subpixel COMMAND window_x11_subpixel_tests)
+
     add_executable(window_x11_input_tests
         window_x11_input_tests.cpp)
 
@@ -681,6 +699,30 @@ if (TESSERA_WAYLAND_FOUND)
         tessera_hal_window)
 
     add_test(NAME window_wayland COMMAND window_wayland_tests)
+
+    # wl_output subpixel -> pixel_geometry against an in-process fake compositor (issue #504).
+    # Needs libwayland-server, which is a separate dev package from the client library; without it
+    # the test is not built and the mapper test still covers the enum.
+    find_package(PkgConfig QUIET)
+    if (PkgConfig_FOUND)
+        pkg_check_modules(TESSERA_WAYLAND_SERVER QUIET wayland-server)
+    endif()
+    if (TESSERA_WAYLAND_SERVER_FOUND)
+        add_executable(window_wayland_subpixel_tests
+            window_wayland_subpixel_tests.cpp)
+
+        target_include_directories(window_wayland_subpixel_tests PRIVATE
+            ${TESSERA_WAYLAND_SERVER_INCLUDE_DIRS})
+        target_link_directories(window_wayland_subpixel_tests PRIVATE
+            ${TESSERA_WAYLAND_SERVER_LIBRARY_DIRS})
+        target_link_libraries(window_wayland_subpixel_tests PRIVATE
+            tessera_hal_window
+            ${TESSERA_WAYLAND_SERVER_LIBRARIES})
+
+        add_test(NAME window_wayland_subpixel COMMAND window_wayland_subpixel_tests)
+    else()
+        message(STATUS "libwayland-server not found: window_wayland_subpixel test disabled")
+    endif()
     set_tests_properties(window_wayland PROPERTIES
         SKIP_REGULAR_EXPRESSION "skipped")
 endif()
