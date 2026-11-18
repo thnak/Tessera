@@ -65,7 +65,8 @@ void DiagnosticSink::report(std::string_view code, Severity severity, std::strin
                        "too many diagnostics; further diagnostics are not reported",
                        map_->resolve(span),
                        {},
-                       std::nullopt});
+                       std::nullopt,
+                       {}});
         return;
     }
     // Last line of defense for the bounded-report invariant: no call site can make the collected
@@ -80,7 +81,7 @@ void DiagnosticSink::report(std::string_view code, Severity severity, std::strin
         related->message = cut_utf8(related->message, kMaxDiagnosticTextBytes);
     }
     diagnostics_.push_back(Diagnostic{code, severity, std::move(message), map_->resolve(span),
-                                      std::move(suggestion), std::move(related)});
+                                      std::move(suggestion), std::move(related), {}});
 }
 
 void DiagnosticSink::error(std::string_view code, std::string message, Span span,

@@ -66,7 +66,8 @@ jsx::Diagnostic malformed(std::string message, const jsx::SourceMap& map, jsx::S
                            std::move(message),
                            map.resolve(span),
                            {},
-                           std::nullopt};
+                           std::nullopt,
+                           {}};
 }
 
 // The aliases that spell one component's props type, followed through the same import/alias chain

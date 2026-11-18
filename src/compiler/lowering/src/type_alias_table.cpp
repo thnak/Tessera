@@ -134,7 +134,7 @@ ProjectTypeNames build_type_names(std::span<const ProjectFileScope> files) {
         }
         out.error = jsx::Diagnostic{
             code, jsx::Severity::Error, std::move(message), files[index].source_map->resolve(span),
-            {},   std::nullopt};
+            {},   std::nullopt, std::string(files[index].file)};
     };
     // Local declarations first: a declaration shadows an imported name of the same spelling, and
     // the stable sort keeps that order.

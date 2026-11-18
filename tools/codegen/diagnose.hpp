@@ -3,6 +3,7 @@
 #pragma once
 
 #include "regenerate.hpp"
+#include "scene_project.hpp"
 
 #include <string>
 #include <string_view>
@@ -24,5 +25,12 @@ namespace tessera::compiler::codegen::cli {
 // Deterministic: the document is a pure function of `text` and `file`, with no clock, no locale, no
 // environment and no filesystem read.
 [[nodiscard]] std::string diagnose_source(std::string_view text, std::string_view file);
+
+// The same document for a whole project: the entry and every file it reaches through relative
+// imports (`ProjectWalk`, the walk the scene preview uses, so the two cannot disagree about which
+// files are compiled), lowered together with the stylesheets they import. The document's primary
+// file is the entry, and each diagnostic names the file its span is measured in. Like the CLI, it
+// stops at the first failing file and reports that file's first diagnostic.
+[[nodiscard]] std::string diagnose_project(const ProjectInput& project);
 
 } // namespace tessera::compiler::codegen::cli

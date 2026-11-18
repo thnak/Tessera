@@ -101,7 +101,7 @@ inline std::string first_code(const lowering::ExpressionLoweringResult& result) 
 
 inline jsx::Diagnostic first_diagnostic(const lowering::ExpressionLoweringResult& result) {
     if (result || result.error().empty()) {
-        return jsx::Diagnostic{"<none>", jsx::Severity::Error, {}, {}, {}, std::nullopt};
+        return jsx::Diagnostic{"<none>", jsx::Severity::Error, {}, {}, {}, std::nullopt, {}};
     }
     return result.error().front();
 }

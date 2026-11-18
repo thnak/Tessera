@@ -43,7 +43,8 @@ void fail_record(RecordLoweringState& state, std::string_view code, std::string 
                                   std::move(message),
                                   state.source_map.resolve(span),
                                   std::string(suggestion),
-                                  std::nullopt};
+                                  std::nullopt,
+                                  std::string(state.file)};
 }
 
 // The one field form this slice accepts, checked before lowering so the diagnostic names the member

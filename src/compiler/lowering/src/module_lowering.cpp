@@ -358,6 +358,9 @@ std::optional<LoweredModule> finish(ProjectState& state, std::string_view module
             if (!component) {
                 if (!state.error && !component.error().empty()) {
                     state.error = component.error().front();
+                    if (state.error->file.empty()) {
+                        state.error->file = std::string(source.file);
+                    }
                 }
                 return std::nullopt;
             }

@@ -42,6 +42,11 @@ struct Diagnostic {
     ResolvedSpan span;
     std::string suggestion;
     std::optional<RelatedSpan> related;
+    // The project file `span` is measured in, as `ModuleSource::file` spells it. Empty from the
+    // analyzer, which sees one file and does not know its project path; the lowering fills it for
+    // every error it returns, so a caller with several files can say which one to underline. A
+    // consumer with one file ignores it.
+    std::string file;
 };
 
 // "line:column: error[CODE]: message" plus optional help/note lines, for goldens and the CLI.

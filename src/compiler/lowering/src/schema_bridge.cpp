@@ -114,7 +114,8 @@ void fail_node(NodeState& state, std::string_view code, std::string_view message
                                   std::string(message),
                                   state.context.source_map.resolve(span),
                                   std::string(suggestion),
-                                  std::nullopt};
+                                  std::nullopt,
+                                  std::string(state.context.file)};
 }
 
 std::string next_node_id(NodeState& state) {

@@ -789,7 +789,10 @@ if (TESSERA_BUILD_TESTS)
     # names a file instead of a default one.
     add_executable(scene_project_tests
         ${CMAKE_SOURCE_DIR}/tests/unit/scene_project_tests.cpp
-        ${CMAKE_SOURCE_DIR}/tools/codegen/scene_evaluate.cpp)
+        ${CMAKE_SOURCE_DIR}/tools/codegen/scene_evaluate.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/diagnose.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/diagnostics_json.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/diagnostic_record.cpp)
     target_include_directories(scene_project_tests
         PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
     target_link_libraries(scene_project_tests PRIVATE

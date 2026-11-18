@@ -14,6 +14,7 @@
 //   * a project with no entry, or a bad entry, or a broken import says so and names the file --
 //     there is no default file to fall back to.
 
+#include "diagnose.hpp"
 #include "scene_evaluate.hpp"
 
 #include <array>
@@ -182,9 +183,65 @@ void test_a_windows_path_is_the_same_file() {
            "backslash paths normalize to the POSIX form every id is hashed from");
 }
 
+// ---- the diagnostics document of a project ---------------------------------------------------
+
+bool contains(const std::string& text, std::string_view needle) {
+    return text.find(needle) != std::string::npos;
+}
+
+void test_a_clean_project_has_no_diagnostics() {
+    const Project project;
+    const std::string document = cli::diagnose_project(project.input("ui/App.tsx"));
+    expect(contains(document, "\"diagnostics\": []"),
+           "a clean project reports nothing: " + document);
+    expect(contains(document, "ui/App.tsx"), "the entry is the document's primary file");
+}
+
+void test_a_parse_error_is_attributed_to_the_file_it_is_in() {
+    constexpr std::string_view kBrokenHome = "export function Home(): Node { return (";
+    const std::array<cli::ProjectFile, 2> sources{
+        {{"ui/App.tsx", kApp}, {"ui/Home.tsx", kBrokenHome}}};
+    const std::array<cli::ProjectFile, 2> sheets{
+        {{"styles/theme.css", kTheme}, {"ui/home.css", kHomeCss}}};
+    const std::string document =
+        cli::diagnose_project(cli::ProjectInput{sources, sheets, "ui/App.tsx"});
+    expect(contains(document, "\"file\": \"ui/Home.tsx\""),
+           "a syntax error in an imported file names that file, not the entry: " + document);
+}
+
+void test_a_lowering_error_is_attributed_to_the_file_it_is_in() {
+    // Parses and analyses, but `<Mystery />` names no component, so the lowering rejects it.
+    constexpr std::string_view kBadHome = R"tsx(export function Home(): Node {
+  return (<View><Mystery /></View>);
+}
+)tsx";
+    const std::array<cli::ProjectFile, 2> sources{
+        {{"ui/App.tsx", kApp}, {"ui/Home.tsx", kBadHome}}};
+    const std::array<cli::ProjectFile, 2> sheets{
+        {{"styles/theme.css", kTheme}, {"ui/home.css", kHomeCss}}};
+    const std::string document =
+        cli::diagnose_project(cli::ProjectInput{sources, sheets, "ui/App.tsx"});
+    expect(!contains(document, "\"diagnostics\": []"),
+           "the bad component is reported: " + document);
+    expect(contains(document, "\"file\": \"ui/Home.tsx\""),
+           "a lowering error is attributed to the imported file it is in: " + document);
+}
+
+void test_diagnosing_without_an_entry_says_so() {
+    const Project project;
+    expect(contains(cli::diagnose_project(project.input("")), "names no entry"),
+           "no entry is reported");
+    expect(contains(cli::diagnose_project(project.input("ui/Gone.tsx")), "ui/Gone.tsx"),
+           "an entry that is not a file is named");
+}
+
 } // namespace
 
 int main() {
+    test_a_clean_project_has_no_diagnostics();
+    test_a_parse_error_is_attributed_to_the_file_it_is_in();
+    test_a_lowering_error_is_attributed_to_the_file_it_is_in();
+    test_diagnosing_without_an_entry_says_so();
     test_the_entry_component_is_selected();
     test_an_unreached_file_is_not_compiled();
     test_sheets_are_the_imported_ones_in_import_order();
