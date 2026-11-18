@@ -69,15 +69,16 @@ struct CanvasPointerResult {
 // `set_viewport()` and `set_posture()` re-lay the running tree out in place instead, which is what
 // keeps hover, focus and the state cells across a device, orientation or posture change.
 struct CanvasSessionSource {
+    // The single-file form, for a caller that has one source and (optionally) one stylesheet: a
+    // project of one (`start(const CanvasSessionSource&)`). The stylesheet is a project file and
+    // applies only when the source imports it (issue #390's "replace, never mix" rule, with the
+    // sheets the program imports). A whole project goes through `start(project, source)`, which
+    // does not read these four fields.
     std::string_view text;
     std::string_view file;
-    std::string_view component;
-    // The author's stylesheet (issue #390), the page's second textarea. Empty means "no author
-    // CSS", which keeps the built-in `preview_stylesheet()` fallback; a non-empty sheet REPLACES it
-    // and never mixes with it (decision 2). It is part of the tuple `start()` compares, so a Run
-    // that changed only the CSS re-evaluates instead of reusing the previous sheet.
     std::string_view stylesheet;
     std::string_view stylesheet_file = "ui/Preview.css";
+    std::string_view component;
     // The project salt the ids are hashed with; it must be the one the snapshot view uses, or the
     // canvas and the diagnostics pane would name one node by two different numbers.
     std::string_view salt = "preview";
@@ -122,6 +123,10 @@ public:
     // a diagnostic, not the picture. A cold start (a `restart`) is `tessera_canvas_reset` followed
     // by a `start()` - a different operation, and the page's Run button is the only caller.
     std::string start(const CanvasSessionSource& source);
+    // The same apply for a whole project: the entry's component, the files it imports and the
+    // stylesheets those import. "Identical" then means every project file's path and bytes, the
+    // entry, the component and the measured face.
+    std::string start(const ProjectInput& project, const CanvasSessionSource& source);
 
     [[nodiscard]] bool started() const noexcept {
         return session_ != nullptr && session_->built();
@@ -235,8 +240,7 @@ public:
     [[nodiscard]] const ui::InputRouter* router() const noexcept;
 
 private:
-    [[nodiscard]] bool reused_ok(const std::string& text, const std::string& stylesheet,
-                                 const std::string& file, const std::string& component,
+    [[nodiscard]] bool reused_ok(const ProjectInput& project, const std::string& component,
                                  const std::shared_ptr<const text::TextMeasurer>& measurer) const;
 
     // One layout pass for both layout inputs (viewport and posture), inside the call. Shared by
@@ -254,9 +258,7 @@ private:
     ui::DirtyPass dirty_;
     // What the running evaluation was started from; a later `start()` with the same tuple reuses
     // it. Owned strings, because `CanvasSessionSource`'s views belong to the caller.
-    std::string text_;
-    std::string stylesheet_;
-    std::string file_;
+    OwnedProject project_;
     std::string component_;
     // The author sheet's diagnostics from the last `start()` (issue #390), with line and column.
     std::vector<PreviewCssDiagnostic> css_diagnostics_;

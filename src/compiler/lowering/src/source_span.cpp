@@ -32,7 +32,8 @@ void fail(LoweringState& state, std::string_view code, std::string message, jsx:
                                   std::move(message),
                                   state.context.source_map.resolve(span),
                                   std::move(suggestion),
-                                  std::nullopt};
+                                  std::nullopt,
+                                  std::string(state.context.file)};
 }
 
 } // namespace tessera::compiler::lowering::internal

@@ -19,7 +19,8 @@ void fail_hook(HookState& state, std::string_view code, std::string_view message
                                   std::string(message),
                                   state.context.source_map.resolve(span),
                                   std::string(suggestion),
-                                  std::nullopt};
+                                  std::nullopt,
+                                  std::string(state.context.file)};
 }
 
 std::string callee_name(const jsx::Expr& call) {

@@ -260,10 +260,9 @@ function renderCssProblems(
     return;
   }
   const details = describeCssDetails({
-    cssVersion: 1,
+    cssVersion: 2,
     styled: true,
     truncated,
-    file: problems[0].file,
     diagnostics: problems,
   });
   pane.failedBody.textContent = details + (truncated ? "\n(more problems than the report carries)" : "");
@@ -275,10 +274,9 @@ function renderCssProblems(
 /** `drew 4 draw call(s) · css 2 problem(s)` -- one sentence, the counters first. */
 function cssStatus(problems: CssDiagnostic[], unless: string): string {
   return unless + describeCss({
-    cssVersion: 1,
+    cssVersion: 2,
     styled: true,
     truncated: false,
-    file: problems[0].file,
     diagnostics: problems,
   });
 }

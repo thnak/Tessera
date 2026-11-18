@@ -23,6 +23,7 @@
 #include "diagnose.hpp"
 #include "diagnostic_record.hpp"
 #include "diagnostics_json.hpp"
+#include "project_walk.hpp"
 #include "tessera/compiler/ids/assign_identity.hpp"
 #include "tessera/compiler/ir/validate.hpp"
 #include "tessera/compiler/jsx/parser.hpp"
@@ -181,6 +182,86 @@ std::string diagnose_source(std::string_view text, std::string_view file) {
         records.push_back(to_record(*first));
     }
     return write_diagnostics_json(file, records);
+}
+
+std::string diagnose_project(const ProjectInput& project) {
+    const std::string entry = normalize_project_path(project.entry);
+    std::vector<DiagnosticRecord> records;
+    const auto fail_with = [&](std::string message) {
+        DiagnosticRecord record;
+        record.severity = "error";
+        record.message = std::move(message);
+        records.push_back(std::move(record));
+        return write_diagnostics_json(entry, records);
+    };
+
+    // There is no default entry: a project that names none, or names a file it does not hold, is
+    // reported as that, not previewed through some other file.
+    if (entry.empty()) {
+        return fail_with("the project names no entry file");
+    }
+    ProjectWalk walk(project);
+    if (!walk.has_entry()) {
+        return fail_with("the entry `" + entry + "` is not a file of the project");
+    }
+    if (!walk.run()) {
+        const WalkFailure& failure = *walk.failure();
+        const WalkUnit* unit = walk.failed_unit();
+        if (unit != nullptr && failure.kind == WalkFailure::Kind::Parse &&
+            !unit->parsed.diagnostics.empty()) {
+            records.push_back(to_record(unit->parsed.diagnostics.front(), failure.file));
+            return write_diagnostics_json(entry, records);
+        }
+        if (unit != nullptr && failure.kind == WalkFailure::Kind::Analyze &&
+            !unit->analyzed.diagnostics.empty()) {
+            records.push_back(to_record(unit->analyzed.diagnostics.front(), failure.file));
+            return write_diagnostics_json(entry, records);
+        }
+        return fail_with(failure.message);
+    }
+
+    std::vector<lowering::ModuleSource> sources;
+    sources.reserve(walk.units().size());
+    for (const std::unique_ptr<WalkUnit>& unit : walk.units()) {
+        sources.push_back(lowering::ModuleSource{unit->path, unit->parsed.root.get(),
+                                                 &unit->analyzed, unit->map.get()});
+    }
+    std::vector<lowering::StylesheetFile> sheets;
+    sheets.reserve(walk.sheets().size());
+    for (const SheetUse& sheet : walk.sheets()) {
+        sheets.push_back(lowering::StylesheetFile{sheet.path, sheet.text});
+    }
+    lowering::ModuleLoweringResult lowered =
+        lowering::lower_project(std::span<const lowering::ModuleSource>(sources),
+                                module_name_for(entry), std::span<const lowering::PackageRoot>(),
+                                std::span<const lowering::StylesheetFile>(sheets));
+    if (!lowered) {
+        const lowering::NodeLoweringErrors& errors = lowered.error();
+        if (errors.empty()) {
+            return fail_with("lowering failed");
+        }
+        // The lowering says which file its error is in; an error that carries none (a span the
+        // type pass could not place) is attributed to the entry, which is the file the page shows.
+        const std::string& file = errors.front().file.empty() ? entry : errors.front().file;
+        records.push_back(to_record(errors.front(), file));
+        return write_diagnostics_json(entry, records);
+    }
+
+    lowering::LoweredModule lowered_module = std::move(*lowered);
+    ir::IrModule module;
+    module.name = lowered_module.name;
+    module.components = std::move(lowered_module.components);
+    module.bindings = std::move(lowered_module.bindings);
+    module.stylesheets = std::move(lowered_module.stylesheets);
+
+    const std::vector<ir::IrDiagnostic> all = ir::validate(module);
+    const auto first = std::find_if(all.begin(), all.end(), [](const ir::IrDiagnostic& diagnostic) {
+        return !deferred_identity(diagnostic);
+    });
+    if (first != all.end()) {
+        records.push_back(to_record(*first));
+    }
+    return write_diagnostics_json(entry, records);
 }
 
 } // namespace tessera::compiler::codegen::cli

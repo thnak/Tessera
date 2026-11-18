@@ -238,16 +238,17 @@ jobs:
       - name: Sample manifest is generated and current
         run: python3 -B scripts/ci/gen_sample_manifest.py --check
 
-      # The viewport and DPR toggles reach the layout through a second export, so the module the page
-      # ships must actually export it. A missing `_tessera_scene_json_sized` would show up here as a
-      # page that quietly falls back to 320x240, which is exactly the kind of silent regression this
-      # step exists to prevent.
-      - name: Scene module exports the sized entry point
+      # The page stages its project (`tessera_project_*`) and then asks one scene export, whose viewport
+      # and DPR are real layout inputs. A module missing either would show up here instead of as a page
+      # that previews nothing or quietly falls back to 320x240.
+      - name: Scene module exports the project staging and the scene entry point
         run: |
           set -euo pipefail
           module=build/wasm-webgpu/src/compiler/codegen/tessera_scene_preview.js
-          grep -q '_tessera_scene_json_sized' "$module"
-          echo "the scene module exports tessera_scene_json_sized"
+          for name in _tessera_project_begin _tessera_project_add_source _tessera_project_add_stylesheet                       _tessera_project_set_entry _tessera_scene_json _tessera_input_json; do
+            grep -q "$name" "$module"
+          done
+          echo "the scene module exports the project staging and tessera_scene_json"
 
       # P3's module, checked for the one thing this lane can check without a GPU: the canvas module
       # loads under Node (which has no `navigator.gpu`, exactly like a browser without WebGPU) and

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "scene_preview.hpp"
+#include "scene_project.hpp"
 #include "scene_session.hpp"
 #include "scene_state.hpp"
 #include "tessera/ui/scene/state_snapshot.hpp"
@@ -59,6 +60,10 @@ inline constexpr std::size_t kMaxInputSteps = 64;
 [[nodiscard]] std::string scene_input_document(std::string_view text,
                                                const ScenePreviewOptions& options,
                                                std::string_view component, std::string_view script);
+// The same run over a whole project; `options.file` and the stylesheet fields are not read.
+[[nodiscard]] std::string scene_input_document(const ProjectInput& project,
+                                               const ScenePreviewOptions& options,
+                                               std::string_view component, std::string_view script);
 
 // The same run, exposed as values so a test can assert on cells without parsing JSON: the state
 // after each step, in step order (index 0 is the state before any step).
@@ -70,6 +75,10 @@ struct InputRunResult {
 };
 
 [[nodiscard]] InputRunResult run_input_script(std::string_view text,
+                                              const ScenePreviewOptions& options,
+                                              std::string_view component, std::string_view script);
+// The same run over a whole project; `options.file` and the stylesheet fields are not read.
+[[nodiscard]] InputRunResult run_input_script(const ProjectInput& project,
                                               const ScenePreviewOptions& options,
                                               std::string_view component, std::string_view script);
 

@@ -23,11 +23,11 @@
 
 import { parseViewport } from "../lib/preview-state.js";
 import { wasmModuleUrl } from "../lib/module-url";
-import type { SourceReader, StatusReporter, ViewSession } from "../lib/views";
-import { callExport, requireExports, type WasmModule } from "../lib/wasm-call";
+import type { ProjectReader, StatusReporter, ViewSession } from "../lib/views";
+import { callExport, requireExports, stageProject, type WasmModule } from "../lib/wasm-call";
 import { createInputPane } from "./scene-input";
 import { describeCss, cssProblem, readCssDiagnostics } from "./css-diagnostics";
-import { DEFAULT_VIEWPORT, chooseExport } from "./scene-export";
+import { DEFAULT_VIEWPORT } from "./scene-export";
 import { noSceneBox, renderNodes, unavailableBox, type SceneDocument } from "./scene-render";
 
 /** The module factory `tessera_scene_preview.js` exports. */
@@ -70,7 +70,7 @@ export interface SceneSessionOptions {
    * What Run compiles (issue #431): the workspace's compile target, not the textarea's current value.
    * A stylesheet tab being active does not make the stylesheet the source.
    */
-  source: SourceReader;
+  source: ProjectReader;
   /** The pane's own status line (the node list's). */
   setStatus: StatusReporter;
   /** The input pane's status line (the state cells'). */
@@ -128,11 +128,13 @@ export function createSceneSession(options: SceneSessionOptions): SceneSession {
   const input = createInputPane({
     elements: { script, cells, button: runInput },
     source: options.source,
-    request: async (name, args) => {
+    request: async (project, name, args) => {
       if (factory === null) {
         throw new Error("the WebAssembly module is not loaded");
       }
-      return callExport(await factory(), name, args);
+      const module = await factory();
+      stageProject(module, project);
+      return callExport(module, name, args);
     },
     setStatus: options.setInputStatus,
     setEnabled: (enabled) => {
@@ -152,31 +154,24 @@ export function createSceneSession(options: SceneSessionOptions): SceneSession {
       const module = await factory();
       const viewport = currentViewport();
       const dpr = currentDpr();
-      // The source and its stylesheet come from one reader (issue #431's `SourceReader`, extended by #390):
-      // the sheet is read when Run is pressed, exactly like the text it styles, so a session cannot lay the
-      // tree out against a sheet the author no longer has on screen.
+      // The project is read when Run is pressed and staged into the module; the export then evaluates the
+      // staged project from its entry, so the sheets it imports apply and nothing else does.
       const target = options.source();
-      const sheet = target.stylesheet;
-      const chosen = chooseExport(module, viewport, dpr, options.foldPosture(), sheet !== "");
-      // The argument order every export in this module shares: the pointers first (source, file,
-      // component, then the posture and/or stylesheet when the chosen shape takes one), then the
-      // numbers. `callExport` marshals the strings in order, so a string after a number would be
-      // handed a stale integer.
-      const strings = [target.text, target.file, ""];
-      if (chosen.postureFirst) {
-        strings.push(options.foldPosture());
-      }
-      if (chosen.styled) {
-        strings.push(sheet);
-      }
-      const json = callExport(module, chosen.name, strings, chosen.numbers);
+      stageProject(module, target);
+      const posture = options.foldPosture();
+      const json = callExport(
+        module,
+        "_tessera_scene_json",
+        ["", posture],
+        [viewport.width, viewport.height, dpr],
+      );
       emptyState.hidden = true;
       const document = JSON.parse(json) as SceneDocument;
       const count = renderNodes(nodes, document, (id) => input.append(id));
       // The stylesheet's own problems are reported beside the snapshot, not instead of it (issue
       // #390): the parser is tolerant, so a bad rule costs that rule and the tree still renders. When
       // the sheet is set but the artifact cannot apply it, say so rather than implying it was used.
-      const css = await readCssDiagnostics(module, sheet, target.stylesheetFile);
+      const css = await readCssDiagnostics(module);
       if (count === 0) {
         nodes.replaceChildren();
         nodes.append(noSceneBox(document.error));

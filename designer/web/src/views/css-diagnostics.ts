@@ -17,7 +17,6 @@
 // preview: the worst case is a sentence in the status line.
 
 import { callExport, type WasmModule } from "../lib/wasm-call";
-import { PREVIEW_STYLESHEET_FILE } from "../page-defaults";
 
 /** One problem, in the shape `tessera_css_diagnostics_json` writes. */
 export interface CssDiagnostic {
@@ -37,36 +36,30 @@ export interface CssDiagnosticsDocument {
   /** False when the module used the built-in fallback instead of the author's text. */
   styled: boolean;
   truncated: boolean;
-  file: string;
   diagnostics: CssDiagnostic[];
 }
 
 /** The empty answer, for a module built before this export existed. */
 const NONE: CssDiagnosticsDocument = Object.freeze({
-  cssVersion: 1,
+  cssVersion: 2,
   styled: false,
   truncated: false,
-  file: PREVIEW_STYLESHEET_FILE,
   diagnostics: [],
 });
 
 /**
- * Asks `module` what is wrong with `stylesheet`.
+ * Asks `module` what is wrong with the stylesheets of the project it was staged with.
  *
  * Returns the empty document -- never throws -- when the module has no such export, because a page
  * published against an older artifact must keep previewing: it simply cannot apply the sheet, and the
  * caller's status line is where that is said. A module that *has* the export and throws is a real
  * failure and propagates, so a bug does not masquerade as "no problems".
  */
-export async function readCssDiagnostics(
-  module: WasmModule,
-  stylesheet: string,
-  stylesheetFile: string = PREVIEW_STYLESHEET_FILE,
-): Promise<CssDiagnosticsDocument> {
+export async function readCssDiagnostics(module: WasmModule): Promise<CssDiagnosticsDocument> {
   if (typeof module._tessera_css_diagnostics_json !== "function") {
     return NONE;
   }
-  const json = callExport(module, "_tessera_css_diagnostics_json", [stylesheet, stylesheetFile]);
+  const json = callExport(module, "_tessera_css_diagnostics_json");
   const document = JSON.parse(json) as CssDiagnosticsDocument;
   // A malformed document is not worth failing a preview over; the caller's contract is "a list,
   // possibly empty", and `diagnostics` is what it iterates.

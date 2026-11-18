@@ -19,6 +19,7 @@
 // natively.
 
 #include "css_diagnostics_report.hpp"
+#include "project_walk.hpp"
 
 #include <string>
 #include <string_view>
@@ -26,21 +27,24 @@
 
 namespace tessera::compiler::codegen::cli {
 
-std::string css_diagnostics_json(std::string_view stylesheet, std::string_view stylesheet_file) {
-    const std::vector<PreviewCssDiagnostic> problems =
-        author_stylesheet_diagnostics(stylesheet, stylesheet_file, kMaxReportedCssDiagnostics);
-    const std::string_view named_file =
-        stylesheet_file.empty() ? kPreviewStylesheetFile : stylesheet_file;
+std::string css_diagnostics_json(const ProjectInput& project) {
+    // The sheets the entry reaches, even when the walk stopped partway on a broken file: the sheets
+    // collected before the stop are still the author's, and their problems are worth reporting.
+    ProjectWalk walk(project);
+    if (walk.has_entry()) {
+        (void)walk.run();
+    }
+    const PreviewSheets prepared =
+        prepare_preview_sheets(walk.sheets(), kMaxReportedCssDiagnostics);
+    const std::vector<PreviewCssDiagnostic>& problems = prepared.diagnostics;
 
-    std::string out = "{\"cssVersion\":1,\"styled\":";
-    out += has_author_stylesheet(stylesheet) ? "true" : "false";
+    std::string out = "{\"cssVersion\":2,\"styled\":";
+    out += prepared.prepared.author() ? "true" : "false";
     // `truncated` rather than a count: a page that got `kMaxReportedCssDiagnostics` records cannot
     // tell "exactly the cap" from "more than the cap", and the difference changes what it should
     // say.
     out += ",\"truncated\":";
     out += problems.size() == kMaxReportedCssDiagnostics ? "true" : "false";
-    out += ",\"file\":";
-    out += quoted(named_file);
     out += ",\"diagnostics\":[";
     for (std::size_t index = 0; index < problems.size(); ++index) {
         if (index != 0) {

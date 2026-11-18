@@ -202,7 +202,8 @@ void fail_type(NodeState& state, std::string_view code, std::string message, std
                                   std::move(message),
                                   map->resolve(span),
                                   std::string(suggestion),
-                                  std::nullopt};
+                                  std::nullopt,
+                                  std::string(file)};
 }
 
 enum class MembersKind : std::uint8_t { None, Found, Error };

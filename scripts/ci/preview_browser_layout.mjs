@@ -151,7 +151,7 @@ async function open(width, height, path = '/index.html') {
   const paths = rows.map((row) => row.path);
   check(
     'the tree lists the opened project, directories first',
-    ['ui', 'styles', 'tessera.json', 'styles/theme.css', 'ui/Home.tsx', 'ui/Preview.tsx'].every((path) =>
+    ['ui', 'styles', 'tessera.json', 'styles/theme.css', 'ui/App.tsx'].every((path) =>
       paths.includes(path),
     ),
     paths.join(' '),
@@ -178,8 +178,8 @@ async function open(width, height, path = '/index.html') {
     `${before} -> ${after}, focus ${focused}`,
   );
 
-  // A file click opens a tab and becomes what Run compiles. `theme.css` is a stylesheet: it opens, but
-  // the compile target must stay a source file. Clicking the *tab* a row opened is the same action, so
+  // A file click opens a tab. `theme.css` is a stylesheet: it opens, but the previewed entry is the
+  // one `tessera.json` names, whatever the editor shows. Clicking the *tab* a row opened is the same action, so
   // this also proves the two ways of selecting a file agree.
   const tabsBefore = await page.locator('[aria-label="Open files"] [role="tab"]').count();
   await page.locator('[role="treeitem"][data-path="styles/theme.css"]').click();
@@ -188,8 +188,8 @@ async function open(width, height, path = '/index.html') {
   const cssText = await page.locator('#source').inputValue();
   const compileTarget = await page.locator('#status-file').textContent();
   check(
-    'selecting a stylesheet opens one more tab and keeps the compile target a source file',
-    twoTabs === tabsBefore + 1 && cssText.includes('background') && compileTarget.trim() === 'ui/Preview.tsx',
+    'selecting a stylesheet opens one more tab and keeps the entry the one tessera.json names',
+    twoTabs === tabsBefore + 1 && cssText.includes('background') && compileTarget.trim() === 'ui/App.tsx',
     `${twoTabs} tab(s), target ${compileTarget.trim()}`,
   );
 

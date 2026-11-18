@@ -5,6 +5,7 @@
 #include "tessera/ui/dirty.hpp"
 #include "tessera/ui/style/prepared_stylesheet.hpp"
 
+#include <array>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -31,9 +32,16 @@ CanvasSceneSession::CanvasSceneSession()
 CanvasSceneSession::~CanvasSceneSession() = default;
 
 std::string CanvasSceneSession::start(const CanvasSessionSource& source) {
-    const std::string text(source.text);
-    const std::string stylesheet(source.stylesheet);
-    const std::string file = normalize_path(source.file.empty() ? "ui/Preview.tsx" : source.file);
+    // One file is a project of one: the same code runs, so a single-file caller cannot see a
+    // different session from the studio's.
+    const std::string file(source.file.empty() ? std::string_view("ui/Preview.tsx") : source.file);
+    const std::array<ProjectFile, 1> sources{{{file, source.text}}};
+    const std::array<ProjectFile, 1> sheets{{{source.stylesheet_file, source.stylesheet}}};
+    return start(ProjectInput{sources, sheets, file}, source);
+}
+
+std::string CanvasSceneSession::start(const ProjectInput& project,
+                                      const CanvasSessionSource& source) {
     const std::string component(source.component);
     const float dpi = source.dpi_scale > 0.0f ? source.dpi_scale : 1.0f;
 
@@ -48,7 +56,7 @@ std::string CanvasSceneSession::start(const CanvasSessionSource& source) {
     // evaluation - which is what keeps hover/focus/active and the state cells across a device or
     // orientation change. Before this, width/height were in `reused_ok`, so a toolbar change
     // re-evaluated the source and lost exactly that.
-    if (session_ != nullptr && reused_ok(text, stylesheet, file, component, source.measurer)) {
+    if (session_ != nullptr && reused_ok(project, component, source.measurer)) {
         reused_ = true;
         (void)apply_layout_inputs(source.width, source.height, dpi, source.posture);
         return {};
@@ -72,9 +80,7 @@ std::string CanvasSceneSession::start(const CanvasSessionSource& source) {
     // reported with the frame that paints them, which is #390's acceptance case. A CSS problem
     // typed while the TSX is mid-word is reported as soon as the source evaluates again, and a
     // developer never has to press Restart to find out.
-    const std::string_view stylesheet_file = source.stylesheet_file;
-    auto evaluated =
-        evaluate_source(text, file, source.salt, component, source.stylesheet, stylesheet_file);
+    auto evaluated = evaluate_project(project, source.salt, component);
     if (!evaluated) {
         error_ = evaluated.error().detail;
         if (error_.empty()) {
@@ -96,53 +102,16 @@ std::string CanvasSceneSession::start(const CanvasSessionSource& source) {
     error_.clear();
     reused_ = false;
     fresh_ = false;
-    // The sheet and its diagnostics, from the same text and in that order: the diagnostics describe
-    // the sheet the tree below is laid out with, so the pane can never report one sheet's problems
-    // beside another sheet's pixels.
-    //
-    // The sheet is PREPARED once and resolved against the viewport (issue #436), and the prepared
-    // form goes into the session so a later viewport change can re-resolve the same data instead of
-    // re-parsing CSS.
+    // The sheets the program imports and their diagnostics, from one preparation: the diagnostics
+    // describe the sheets the tree below is laid out with, so the pane can never report one sheet's
+    // problems beside another sheet's pixels. They are PREPARED once and resolved against the
+    // viewport (issue #436), and the prepared form goes into the session so a later viewport change
+    // can re-resolve the same data instead of re-parsing CSS.
     const ui::style::MediaContext media = preview_media_context(source.width, source.height, dpi);
-    // A `*.module.css` is scoped before it is compiled (issue #463), so the class names the tree
-    // carries match the rules. The same text feeds the diagnostics below, so the pane can never
-    // report one sheet's problems beside another sheet's pixels.
-    std::optional<css_module::ModuleScanError> scan_error;
-    const std::string stylesheet_text =
-        preview_stylesheet_text(source.stylesheet, stylesheet_file, scan_error);
-
-    // The prepared form goes into the session so a later viewport change can re-resolve the same
-    // data instead of re-parsing CSS (issue #436).
-    std::optional<ui::style::PreparedStyleSheet> prepared;
-    if (scan_error) {
-        // Nothing from a sheet that cannot be scoped is compiled: painting its raw `.card` rules
-        // while the tree says `card_0b82a5` is the silent-unstyled defect #463 closes. The sheet is
-        // an EMPTY one, not the built-in fallback - the author did write CSS, and #390 decision 2
-        // replaces the built-in sheet with the author's rather than resurrecting it for a broken
-        // one.
-        sheet_ =
-            resolve_preview_stylesheet(ui::style::prepare_stylesheet(std::string_view{}), media);
-    } else {
-        prepared = prepare_preview_stylesheet(stylesheet_text);
-        sheet_ = resolve_preview_stylesheet(*prepared, media);
-    }
-    css_diagnostics_ = author_stylesheet_diagnostics(stylesheet_text, stylesheet_file);
-    if (scan_error) {
-        // The scan's offset indexes the AUTHOR's text, which is the file the author is looking at.
-        const std::string_view sheet_file =
-            stylesheet_file.empty() ? kPreviewStylesheetFile : stylesheet_file;
-        const DiagnosticSpan span = css_span(sheet_file, source.stylesheet, scan_error->offset);
-        PreviewCssDiagnostic diagnostic;
-        diagnostic.code = scan_error->code;
-        diagnostic.message = scan_error->message;
-        diagnostic.file = std::string(sheet_file);
-        diagnostic.offset = span.offset;
-        diagnostic.line = span.line;
-        diagnostic.column = span.column;
-        // An error, not a warning: unlike an unknown property, this one costs the whole sheet.
-        diagnostic.warning = false;
-        css_diagnostics_.push_back(std::move(diagnostic));
-    }
+    PreviewSheets prepared_sheets = prepare_preview_sheets(evaluated->sheets);
+    sheet_ = prepared_sheets.prepared.resolve(media);
+    css_diagnostics_ = std::move(prepared_sheets.diagnostics);
+    std::optional<PreparedPreviewSheets> prepared(std::move(prepared_sheets.prepared));
     evaluated_ = std::move(*evaluated);
 
     // Every component id in the new evaluation, so a carried cell whose component disappeared is
@@ -172,9 +141,7 @@ std::string CanvasSceneSession::start(const CanvasSessionSource& source) {
     }
     carry_report_ = session_->carry_report();
     metrics_ = session_->metrics();
-    text_ = text;
-    stylesheet_ = stylesheet;
-    file_ = file;
+    project_ = OwnedProject::of(project);
     component_ = component;
     width_ = source.width;
     height_ = source.height;
@@ -186,8 +153,8 @@ std::string CanvasSceneSession::start(const CanvasSessionSource& source) {
 }
 
 bool CanvasSceneSession::reused_ok(
-    const std::string& text, const std::string& stylesheet, const std::string& file,
-    const std::string& component, const std::shared_ptr<const text::TextMeasurer>& measurer) const {
+    const ProjectInput& project, const std::string& component,
+    const std::shared_ptr<const text::TextMeasurer>& measurer) const {
     // The measurer is part of the identity: a Run that arrives with font bytes when the running
     // evaluation had none must re-evaluate, because every text box it laid out was sized by the
     // font-free stub.
@@ -195,7 +162,7 @@ bool CanvasSceneSession::reused_ok(
     // The viewport and the DPI scale are deliberately NOT here (issue #436): they are layout inputs
     // the running tree can be re-laid out for, not properties of the source. Keeping them in this
     // tuple is what made a device-preset change re-evaluate - and lose hover, focus and active.
-    return text == text_ && stylesheet == stylesheet_ && file == file_ && component == component_ &&
+    return project_.same_as(project) && component == component_ &&
            measurer.get() == measurer_.get();
 }
 

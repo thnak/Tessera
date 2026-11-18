@@ -37,6 +37,7 @@
 import { createServer } from 'node:http';
 import { readFile, mkdir } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
+import { editEntry, editSheet } from './studio_project.mjs';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -218,8 +219,8 @@ if (!(await page.locator('#unsupported').isHidden())) {
 
 // --- the fixture, at the desktop preset ---------------------------------------------------------
 await page.selectOption('#control-viewport', '1280x800');
-await page.fill('#source', SOURCE);
-await page.fill('#stylesheet', STYLESHEET);
+await editEntry(page, SOURCE);
+await editSheet(page, STYLESHEET);
 // One explicit cold start, and never again: every switch below is a toolbar change.
 await page.locator('#restart-app').click();
 await page.waitForTimeout(3000);

@@ -182,24 +182,24 @@ const write = (text) => {
   module.stringToUTF8(text, pointer, length);
   return pointer;
 };
-const sourcePtr = write(source);
-const filePtr = write(file);
-const componentPtr = write(component);
-const scriptPtr = write(script);
+// The module previews a staged project (`tessera_project_*`): the one case file is a project of one
+// whose entry is that file, as the page stages a single-file project.
+const withPointer = (text, use) => {
+  const pointer = write(text);
+  try { return use(pointer); } finally { module._free(pointer); }
+};
+module._tessera_project_begin();
+withPointer(file, (filePtr) => withPointer(source, (sourcePtr) =>
+  module._tessera_project_add_source(filePtr, sourcePtr)));
+withPointer(file, (filePtr) => module._tessera_project_set_entry(filePtr));
+const resultPtr = withPointer(component, (componentPtr) =>
+  withPointer(script, (scriptPtr) => module._tessera_input_json(componentPtr, scriptPtr)));
+if (!resultPtr) { throw new Error("tessera_input_json returned null"); }
 let out;
 try {
-  const resultPtr = module._tessera_input_json(sourcePtr, filePtr, componentPtr, scriptPtr);
-  if (!resultPtr) { throw new Error("tessera_input_json returned null"); }
-  try {
-    out = module.UTF8ToString(resultPtr);
-  } finally {
-    module._tessera_free(resultPtr);
-  }
+  out = module.UTF8ToString(resultPtr);
 } finally {
-  module._free(sourcePtr);
-  module._free(filePtr);
-  module._free(componentPtr);
-  module._free(scriptPtr);
+  module._tessera_free(resultPtr);
 }
 process.stdout.write(out);
 """

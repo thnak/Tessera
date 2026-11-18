@@ -45,16 +45,17 @@ import {
   shareToLocation,
   type ShareState,
 } from "./lib/preferences";
-import { ENTRY_FILE, projectFile, type ProjectFile } from "./lib/project";
+import { projectFile, type ProjectFile } from "./lib/project";
+import { entryOf, projectSnapshot } from "./lib/project-snapshot";
 import {
   DEFAULT_VIEW,
   resolveView,
   viewOf,
   writeViewToUrl,
-  type SourceSnapshot,
+  type ProjectSnapshot,
   type ViewDefinition,
 } from "./lib/views";
-import { PREVIEW_STYLESHEET_FILE, STARTUP_SAMPLE, STARTUP_STYLESHEET } from "./page-defaults";
+import { STARTUP_SAMPLE } from "./page-defaults";
 import { createLiveEdit, type LiveEdit } from "./page-live";
 import { setStatusText, usePageState, usePaneRefs } from "./page-state";
 import { useSessions } from "./page-sessions";
@@ -103,51 +104,26 @@ export function App() {
     [state.controls],
   );
 
-  // ---- what Run compiles (issue #431), and the stylesheet it sends beside it (issue #390) ----------
+  // ---- what Run previews: the whole project, read at Run time ---------------------------------------
   //
-  // The editor holds one project file at a time; Run compiles the workspace's *compile target* (the active
-  // source file, else the project entry). The sessions read this at Run time, through a ref, so a keystroke
-  // never re-creates a session and a stylesheet tab never becomes the compiled source.
-  //
-  // **The author stylesheet travels in the same snapshot.** Before #431 the sessions reached into two
-  // textareas (`#source` and `#stylesheet`); now they ask one reader, and Run's two inputs -- the file it
-  // compiles and the sheet it compiles it against -- are answered together, so a session cannot use one
-  // without the other. The sheet is the page's virtual file `ui/Preview.css` (`page-defaults.ts`), read from
-  // its own textarea at Run time: a stylesheet in React state would re-render the page on every keystroke,
-  // and the sessions deliberately live outside the render cycle (ADR-054 decision 3).
-  const target = workspace.target;
-  const targetRef = useRef<ProjectFile | null>(target);
-  targetRef.current = target;
-  const shownRef = useRef(workspace.state.active);
-  shownRef.current = workspace.state.active;
-  // The file the editor is showing, for the live edit's "did the keystroke land in a source file?" test.
+  // The sessions ask one reader and get the project's sources, its stylesheets and the entry
+  // `tessera.json` names; they stage all of it into the module. Which file the editor shows does not
+  // decide what is previewed, and there is no fallback entry: a project that names none previews nothing
+  // and the modules say why. The reader goes through refs so a keystroke never re-creates a session, and
+  // it is read when Run (or the live-edit debounce) fires, so the buffers are always the current ones.
+  const filesRef = useRef(workspace.state.files);
+  filesRef.current = workspace.state.files;
+  // The file the editor is showing, for the live edit's "did the keystroke land in a source file?" test
+  // and for a diagnostic's "show in source" affordance.
   const activeRef = useRef(workspace.state.active);
   activeRef.current = workspace.state.active;
   const textOfRef = useRef(workspace.textOf);
   textOfRef.current = workspace.textOf;
-  const stylesheetRef = refs.stylesheet;
-  const currentSource = useCallback((): SourceSnapshot => {
-    const stylesheet = stylesheetRef.current?.value ?? STARTUP_STYLESHEET;
-    const file = targetRef.current;
-    if (file === null) {
-      return {
-        text: "",
-        file: DEFAULT_FILE,
-        shown: false,
-        stylesheet,
-        stylesheetFile: PREVIEW_STYLESHEET_FILE,
-      };
-    }
-    // The project's text, not the textarea's: when the editor is showing another file, the buffer that
-    // belongs to `file` is the one the compiler must see.
-    return {
-      text: textOfRef.current(file.path),
-      file: file.path,
-      shown: shownRef.current === file.path,
-      stylesheet,
-      stylesheetFile: PREVIEW_STYLESHEET_FILE,
-    };
-  }, [stylesheetRef]);
+  const entryPath = workspace.entry.path;
+  const currentSource = useCallback(
+    (): ProjectSnapshot => projectSnapshot(filesRef.current, textOfRef.current, activeRef.current),
+    [],
+  );
 
   const isCurrent = useCallback((id: ViewDefinition["id"]): boolean => viewRef.current === id, []);
 
@@ -183,19 +159,15 @@ export function App() {
         if (loaded.source !== "" && refs.source.current !== null) {
           // A link's source replaces the entry file's text: a share link is one document, and the entry is
           // the file it compiles under.
-          const entry = workspace.state.files.find((file) => file.path === ENTRY_FILE) ?? null;
+          const named = entryOf(workspace.state.files, workspace.textOf).path;
+          const entry = workspace.state.files.find((file) => file.path === named) ?? null;
           if (entry !== null) {
             workspace.putFile({ ...entry, text: loaded.source });
             setRevision((value) => value + 1);
           }
         }
-        // A share link carries the source, never the stylesheet (#390 keeps the link envelope frozen at
-        // `v,s,w,h,d,t,f`), so the stylesheet starts from the page's own one-line sample on every load.
-        // The source itself is the workspace's now (#431): a link's text replaces the entry file's
-        // buffer above, so there is no `#source.value` to write here.
-        if (refs.stylesheet.current) {
-          refs.stylesheet.current.value = STARTUP_STYLESHEET;
-        }
+        // A share link carries one source document (the link envelope is frozen at `v,s,w,h,d,t,f`), so
+        // it replaces the entry's text above; sharing a whole project waits for cloud storage.
         state_.setControls({
           viewport: `${loaded.width || 320}x${loaded.height || 240}`,
           dpr: String(loaded.dpr ?? 1),
@@ -203,11 +175,7 @@ export function App() {
           foldPosture: String(loaded.foldPosture ?? ""),
         });
       } catch (error) {
-        // The seeded project is what the page shows when the link is broken (#431): the workspace's entry
-        // buffer is already the sample, so only the stylesheet's own starting text is written here.
-        if (refs.stylesheet.current) {
-          refs.stylesheet.current.value = STARTUP_STYLESHEET;
-        }
+        // The seeded project is what the page shows when the link is broken (#431).
         state_.setControls({
           viewport: "320x240",
           dpr: "1",
@@ -255,11 +223,11 @@ export function App() {
       // `theme.css` edits a non-source project file, so it restarts rather than live-applying. Only the
       // path is read, never the text.
       editedFile: () => activeRef.current,
-      // `targetRef` holds the compile target, which is the project record with its `kind` on it, so this
-      // needs no second lookup and no second copy of `project-paths.js`'s classification.
+      // A stylesheet is part of the previewed project, so an edit to one is a live apply like a source
+      // edit; the config (it names the entry) and the other kinds restart instead.
       kindOf: (path: string) => {
         const file = workspace.state.files.find((candidate) => candidate.path === path);
-        return file?.kind ?? "other";
+        return file?.kind === "stylesheet" ? "source" : (file?.kind ?? "other");
       },
       onStateChange: (next) => state_.setApplying(next.applying),
     });
@@ -320,11 +288,10 @@ export function App() {
   const loadSampleForActiveView = useCallback(() => {
     const session = sessions[viewRef.current];
     const sample = session?.sampleSource;
-    const entry = workspace.state.files.find((file) => file.path === ENTRY_FILE) ?? null;
+    const entry = workspace.state.files.find((file) => file.path === entryPath) ?? null;
     if (sample !== undefined && entry !== null) {
-      // The view's sample is written into the *entry* buffer, because that is the file Run compiles when
-      // the editor is showing a stylesheet. The page owns the buffers (#431); a session no longer reaches
-      // into the editor.
+      // The view's sample is written into the *entry* buffer, because the entry is what Run previews.
+      // The page owns the buffers (#431); a session no longer reaches into the editor.
       workspace.putFile({ ...entry, text: sample });
       setRevision((value) => value + 1);
     }
@@ -429,11 +396,10 @@ export function App() {
 
   const onShare = useCallback(async () => {
     state_.setShareStatus("encoding...");
-    const compileTarget = targetRef.current;
     const shareState: ShareState = shareStateOf(
-      compileTarget === null ? "" : textOfRef.current(compileTarget.path),
+      entryPath === null ? "" : textOfRef.current(entryPath),
       state.controls,
-      compileTarget === null ? DEFAULT_FILE : compileTarget.path,
+      entryPath === null ? DEFAULT_FILE : entryPath,
     );
     try {
       const url = await shareToLocation(shareState);
@@ -488,7 +454,6 @@ export function App() {
           text={activeText}
           revision={revision}
           sourceRef={refs.source}
-          stylesheetRef={refs.stylesheet}
           editorHintRef={refs.editorHint}
           onSelectTab={onSelectTab}
           onCloseTab={workspace.closeTab}
@@ -515,7 +480,7 @@ export function App() {
         buildIdRef={refs.buildId}
         diagnosticsRef={refs.statusDiagnostics}
         frameRef={refs.statusFrame}
-        file={target === null ? "" : target.path}
+        file={entryPath ?? ""}
       />
     </>
   );

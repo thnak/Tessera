@@ -94,10 +94,7 @@ PreviewSession::PreviewSession(const ir::IrModule& module, const ir::Component& 
       // A session given the media-independent form resolves it itself against the viewport it was
       // asked for (issue #436), so a caller cannot hand it a sheet compiled for a different
       // rectangle. A caller that passes a compiled sheet keeps it, which is every pre-#436 caller.
-      sheet_(options.prepared.has_value()
-                 ? ui::style::CompiledStyleSheet(*options.prepared, ui::style::Origin::Author, {},
-                                                 options.media)
-                 : sheet),
+      sheet_(options.prepared.has_value() ? options.prepared->resolve(options.media) : sheet),
       options_(std::move(options)),
       media_(options_.media) {
     layout_metrics_.width = options_.width;
@@ -192,7 +189,7 @@ bool PreviewSession::relayout_at(float width, float height, float dpi_scale,
 
     layout_metrics_ = next;
     if (restyle) {
-        sheet_ = resolve_preview_stylesheet(*options_.prepared, media);
+        sheet_ = options_.prepared->resolve(media);
     }
     media_ = media;
     if (!relayout()) {
@@ -201,7 +198,7 @@ bool PreviewSession::relayout_at(float width, float height, float dpi_scale,
         layout_metrics_ = previous;
         media_ = previous_media;
         if (restyle) {
-            sheet_ = resolve_preview_stylesheet(*options_.prepared, previous_media);
+            sheet_ = options_.prepared->resolve(previous_media);
         }
         return false;
     }

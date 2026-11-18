@@ -76,12 +76,6 @@ const SHARED_IDS = [
   "status-file",
   "status-diagnostics",
   "status-frame",
-  // The author stylesheet's editor (issue #390): the second textarea Run sends beside the source, and
-  // the page-owned `ui/Preview.css`. #431 moved it from the stand-alone editor pane into the code column
-  // (`regions/CodeRegion.tsx`, below `#source`), but the ids are the page's contract, so they did not
-  // change: a rename here is a preview that silently previews the built-in sheet.
-  "stylesheet",
-  "stylesheet-note",
 ];
 
 // The page shell's own ids: `App` and the four regions resolve these, and nothing else would catch one
@@ -108,9 +102,6 @@ const SHELL_IDS = [
   // so it is a shell id rather than any one view's. #431 lists it among the workspace ids above; it is
   // named here too because it is the shell's, not a pane's.
   "editor-hint",
-  // The author stylesheet's heading (issue #390). It labels the second textarea, which is a shell
-  // element: the sheet belongs to the page, not to a view, because all three views compile it.
-  "stylesheet-heading",
 ];
 
 // Each view session's own ids, kept separate so a failure names the view whose pane is wrong.

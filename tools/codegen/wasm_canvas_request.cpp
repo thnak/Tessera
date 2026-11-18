@@ -30,21 +30,14 @@ std::string posture_from(std::string_view text, hal::FoldPosture& out) {
     return {};
 }
 
-std::string canvas_session_source(std::string_view source, std::string_view file,
-                                  std::string_view component, std::string_view posture_text,
-                                  std::string_view stylesheet, float width, float height, float dpi,
-                                  CanvasSessionSource& out) {
+std::string canvas_session_source(std::string_view component, std::string_view posture_text,
+                                  float width, float height, float dpi, CanvasSessionSource& out) {
     hal::FoldPosture posture = hal::FoldPosture::None;
     const std::string posture_error = posture_from(posture_text, posture);
     if (!posture_error.empty()) {
         return posture_error;
     }
-    out.text = source;
-    out.file = file;
     out.component = component;
-    // The author stylesheet (issue #390). Null/empty is "no author CSS": the built-in fallback
-    // stays, which is what an older page and a cleared textarea both mean.
-    out.stylesheet = stylesheet;
     out.salt = kPreviewSalt;
     // A zero viewport is replaced by the module's long-standing 320x240 default rather than
     // refused: a page that has not laid the canvas out yet still gets a preview, and the counters

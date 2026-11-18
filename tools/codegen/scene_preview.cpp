@@ -23,10 +23,7 @@ std::string empty_document(std::uint64_t sequence) {
     return ui::automation::snapshot_to_json(snapshot);
 }
 
-} // namespace
-
-std::string scene_preview_document(std::string_view text, const ScenePreviewOptions& options,
-                                   std::string_view component) {
+std::string document_of(PreparedScene scene) {
     // The stage sequence lives in `scene_prepare.cpp` so this document and the P3 painter
     // (`scene_frame.cpp`) cannot disagree about what the preview built: one pipeline, three
     // consumers. A failed stage is an empty document here, not an error beside it.
@@ -34,7 +31,6 @@ std::string scene_preview_document(std::string_view text, const ScenePreviewOpti
     // It is also the stage order the P4 interaction session (`scene_session.cpp`) and the P5 sized
     // export reach: `prepare_scene()` runs the parse -> analyse -> lower -> identity -> evaluate ->
     // build -> style -> layout sequence, so a snapshot and a scripted click see one tree.
-    PreparedScene scene = prepare_scene(text, options, component);
     if (!scene.error.empty() || scene.root == nullptr) {
         return empty_document(0);
     }
@@ -49,6 +45,19 @@ std::string scene_preview_document(std::string_view text, const ScenePreviewOpti
         return empty_document(0);
     }
     return ui::automation::snapshot_to_json(*snapshot);
+}
+
+} // namespace
+
+std::string scene_preview_document(std::string_view text, const ScenePreviewOptions& options,
+                                   std::string_view component) {
+    // One file is a project of one (see `prepare_scene()`).
+    return document_of(prepare_scene(text, options, component));
+}
+
+std::string scene_preview_document(const ProjectInput& project, const ScenePreviewOptions& options,
+                                   std::string_view component) {
+    return document_of(prepare_scene(project, options, component));
 }
 
 } // namespace tessera::compiler::codegen::cli

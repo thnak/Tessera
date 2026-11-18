@@ -10,7 +10,8 @@ documents.
 The two sides are deliberately not two implementations:
 
   native  `tessera_scene_preview --scene-json OUT --file FILE --salt SALT FILE.tsx`
-  wasm    the exported `tessera_scene_json(source, file, component)` of
+  wasm    the exported `tessera_scene_json(component, fold, width, height, dpr)` over a staged
+          project of one file, from
           `tessera_scene_preview.js`, the exact module the preview page loads
 
 Both call the same in-memory driver (`tools/codegen/scene_preview.cpp`), which builds the scene from
@@ -60,8 +61,8 @@ SALT = "preview"
 # geometry, so a layout tweak that changes boxes on both sides does not fail it while a lost node does.
 # Each entry is `(name, project-relative file, source, minimum node count)` and, since issue #390,
 # optionally a fifth element: the author stylesheet. A case with one is driven through the STYLED
-# exports on both sides (`--stylesheet` natively, `_tessera_scene_json_styled` in Wasm), so the gate
-# compares the same author CSS through the same engine on two machines -- which is the acceptance the
+# project on both sides (`--stylesheet` natively; a staged `ui/Preview.css` in Wasm, applied because the
+# source imports it), so the gate compares the same author CSS through the same engine on two machines -- which is the acceptance the
 # issue asks for ("the parity corpus gains a styled case; native CLI and prepare_scene produce the same
 # scene JSON for it"). A case without one keeps the pre-#390 four-tuple and the unstyled exports, so
 # the existing bytes are pinned exactly as before.
@@ -320,7 +321,9 @@ export function Host(): Node {
     (
         "author-stylesheet",
         "ui/Themed.tsx",
-        """export function Themed(): Node {
+        """import "./Preview.css";
+
+export function Themed(): Node {
   return (
     <View className="page">
       <Text className="title">Themed</Text>
@@ -356,34 +359,34 @@ const stylesheet = process.argv[6] ?? '';
 const imported = await import(pathToFileURL(path).href);
 const factory = imported.default;
 const module = await factory();
-const textLength = module.lengthBytesUTF8(source) + 1;
-const textPtr = module._malloc(textLength);
-module.stringToUTF8(source, textPtr, textLength);
-const nameLength = module.lengthBytesUTF8(file) + 1;
-const namePtr = module._malloc(nameLength);
-module.stringToUTF8(file, namePtr, nameLength);
-const componentLength = module.lengthBytesUTF8(component) + 1;
-const componentPtr = module._malloc(componentLength);
-module.stringToUTF8(component, componentPtr, componentLength);
-const sheetLength = module.lengthBytesUTF8(stylesheet) + 1;
-const sheetPtr = module._malloc(sheetLength);
-module.stringToUTF8(stylesheet, sheetPtr, sheetLength);
+// The module previews a staged project (`tessera_project_*`): the one case file is a project of one
+// whose entry is that file, plus the author stylesheet as `ui/Preview.css` when the case carries one.
+// The stylesheet applies only because the case's source imports it, exactly as in a native build.
+const withString = (text, use) => {
+  const length = module.lengthBytesUTF8(text) + 1;
+  const ptr = module._malloc(length);
+  module.stringToUTF8(text, ptr, length);
+  try { return use(ptr); } finally { module._free(ptr); }
+};
+const stage = (call, first, second) =>
+  withString(first, (firstPtr) => second === undefined
+    ? call(firstPtr)
+    : withString(second, (secondPtr) => call(firstPtr, secondPtr)));
+module._tessera_project_begin();
+stage(module._tessera_project_add_source, file, source);
+if (stylesheet !== '') {
+  stage(module._tessera_project_add_stylesheet, 'ui/Preview.css', stylesheet);
+}
+stage(module._tessera_project_set_entry, file);
 let out;
+// Default viewport and DPR (a non-positive size falls back to 320x240 at 1) and no fold posture.
+const resultPtr = withString(component, (componentPtr) =>
+  module._tessera_scene_json(componentPtr, 0, 0, 0, 0));
+if (!resultPtr) { throw new Error("the scene export returned null"); }
 try {
-  const resultPtr = stylesheet === ''
-    ? module._tessera_scene_json(textPtr, namePtr, componentPtr)
-    : module._tessera_scene_json_styled(textPtr, namePtr, componentPtr, sheetPtr);
-  if (!resultPtr) { throw new Error("the scene export returned null"); }
-  try {
-    out = module.UTF8ToString(resultPtr);
-  } finally {
-    module._tessera_free(resultPtr);
-  }
+  out = module.UTF8ToString(resultPtr);
 } finally {
-  module._free(textPtr);
-  module._free(namePtr);
-  module._free(componentPtr);
-  module._free(sheetPtr);
+  module._tessera_free(resultPtr);
 }
 process.stdout.write(out);
 """

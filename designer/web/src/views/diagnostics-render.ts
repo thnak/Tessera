@@ -76,17 +76,17 @@ function spotlight(text: string, span: Span): HTMLElement | null {
 /**
  * The source an open file would reveal, or `null` when the editor is showing a different document.
  *
- * Since issue #431 the editor holds one project file at a time and Run compiles another (the project
- * entry, when the active tab is a stylesheet). "Show in source" can only mean "select this span in the
+ * The editor holds one project file at a time and a run diagnoses the whole project. "Show in source" can only mean "select this span in the
  * editor" when the editor is showing *this* text; otherwise the pane names the file and says where to
  * open it, rather than highlighting an offset in a document the diagnostic is not about.
  */
 export interface RevealableSource {
-  /** The textarea, which holds the text Run compiled. */
+  /** The textarea, which holds the text of the file the editor is showing. */
   element: HTMLTextAreaElement;
-  /** `false` when the editor is showing another project file. */
-  shown: boolean;
-  /** The canonical project path the diagnostics are about, for the sentence when it is not shown. */
+  /**
+   * The project path the editor is showing. A run diagnoses a whole project, so each span is judged on its
+   * own: it can be revealed only when its file is this one.
+   */
   file: string;
 }
 
@@ -123,7 +123,7 @@ function renderDiagnostic(
     const meta = element("div", "diagnostic-span");
     meta.append(element("span", null, `${span.file}:${span.line}:${span.column}`));
 
-    if (source && source.shown) {
+    if (source && span.file === source.file) {
       const jump = element("button", null, "Show in source");
       jump.type = "button";
       jump.addEventListener("click", () => {

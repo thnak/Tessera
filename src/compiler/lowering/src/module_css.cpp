@@ -82,7 +82,8 @@ jsx::Diagnostic make_diagnostic(const ModuleSource& source, jsx::Severity severi
                            source.source_map != nullptr ? source.source_map->resolve(span)
                                                         : jsx::ResolvedSpan{},
                            std::string(suggestion),
-                           std::nullopt};
+                           std::nullopt,
+                           std::string(source.file)};
 }
 
 const ScannedModule* StylesheetSet::find_module(std::string_view path) const {

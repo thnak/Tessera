@@ -4,6 +4,7 @@
 
 #include "scene_layout.hpp"
 #include "scene_state.hpp"
+#include "scene_stylesheet.hpp"
 #include "tessera/compiler/eval/evaluator.hpp"
 #include "tessera/compiler/ir/module.hpp"
 #include "tessera/hal/fold_posture.hpp"
@@ -97,7 +98,7 @@ public:
         // changes (`set_viewport`), instead of being re-evaluated from source. Empty `prepared`
         // keeps the caller's already-compiled `sheet` for the session's whole life, which is what
         // every caller before this issue passes.
-        std::optional<tessera::ui::style::PreparedStyleSheet> prepared;
+        std::optional<PreparedPreviewSheets> prepared;
         tessera::ui::style::MediaContext media;
         // State carried from the previous evaluation of an edited source. `live_component_ids` is
         // every component id the new evaluation has, so a cell whose component disappeared is

@@ -31,9 +31,20 @@ async function main() {
     return;
   }
   const module = await factory();
-  if (typeof module._tessera_canvas_frame !== "function") {
-    fail("the module does not export _tessera_canvas_frame");
+  if (typeof module._tessera_canvas_apply !== "function") {
+    fail("the module does not export _tessera_canvas_apply");
     return;
+  }
+  for (const name of [
+    "_tessera_project_begin",
+    "_tessera_project_set_entry",
+    "_tessera_project_add_source",
+    "_tessera_project_add_stylesheet",
+  ]) {
+    if (typeof module[name] !== "function") {
+      fail(`the module does not export ${name}`);
+      return;
+    }
   }
   if (typeof module._tessera_webgpu_set_device !== "function") {
     fail("the module does not export _tessera_webgpu_set_device");
@@ -50,49 +61,37 @@ async function main() {
   );
 }
 `;
-  const textLength = module.lengthBytesUTF8(source) + 1;
-  const textPtr = module._malloc(textLength);
   const file = "ui/Probe.tsx";
-  const fileLength = module.lengthBytesUTF8(file) + 1;
-  const filePtr = module._malloc(fileLength);
-  const componentPtr = module._malloc(1);
-  // Issue #390: the author stylesheet is a string argument beside the source, and null (or empty) means
-  // "no author CSS" -- which is what this probe passes, because it is here to test the no-device
-  // contract, not styling. A real page passes its second textarea; the module then applies it instead
-  // of the built-in fallback.
-  const stylesheetPtr = 0;
-  let json;
-  try {
-    module.stringToUTF8(source, textPtr, textLength);
-    module.stringToUTF8(file, filePtr, fileLength);
-    module.stringToUTF8("", componentPtr, 1);
-    // The last argument is the canvas view handle; 0 is "no canvas", and there is no device anyway.
-    const result = module._tessera_canvas_frame(
-      textPtr,
-      filePtr,
-      componentPtr,
-      0,
-      stylesheetPtr,
-      320,
-      240,
-      1.0,
-      0,
-    );
-    if (!result) {
-      fail("tessera_canvas_frame returned null instead of a report");
-      return;
-    }
+  const withString = (text, use) => {
+    const length = module.lengthBytesUTF8(text) + 1;
+    const ptr = module._malloc(length);
+    module.stringToUTF8(text, ptr, length);
     try {
-      json = module.UTF8ToString(result);
+      return use(ptr);
     } finally {
-      module._tessera_free(result);
+      module._free(ptr);
     }
-  } finally {
-    module._free(textPtr);
-    module._free(filePtr);
-    module._free(componentPtr);
+  };
+  // The page stages its project and then applies it; the probe does the same with a project of one.
+  module._tessera_project_begin();
+  withString(file, (filePtr) =>
+    withString(source, (textPtr) => module._tessera_project_add_source(filePtr, textPtr)),
+  );
+  withString(file, (filePtr) => module._tessera_project_set_entry(filePtr));
+  let json;
+  const result = withString("", (componentPtr) =>
+    // component, fold posture (null: unfolded), logical width and height, DPR.
+    module._tessera_canvas_apply(componentPtr, 0, 320, 240, 1.0),
+  );
+  if (!result) {
+    fail("tessera_canvas_apply returned null instead of a report");
+    return;
   }
-
+  try {
+    json = module.UTF8ToString(result);
+  } finally {
+    module._tessera_free(result);
+  }
   let report;
   try {
     report = JSON.parse(json);

@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "scene_project.hpp"
 #include "tessera/compiler/css_module/module_scan.hpp"
 #include "tessera/compiler/lowering/node_lowering.hpp"
 #include "tessera/ui/style/compiled_stylesheet.hpp"
@@ -9,6 +10,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -91,6 +93,50 @@ struct PreviewCssDiagnostic {
 [[nodiscard]] tessera::ui::style::PreparedStyleSheet
 prepare_preview_stylesheet(std::string_view stylesheet);
 
+// The program's stylesheets, prepared once and resolved per viewport: the preview's sheet when the
+// program imports several (a project), and the built-in sheet when it imports none.
+//
+// **One rule, stated once** (issue #390 decision 2, extended to a project): the author's sheets
+// REPLACE the built-in one as soon as any imported sheet holds CSS, and the built-in sheet is used
+// only when none does. The sheets are combined by `CompiledStyleSheet`'s ordered cascade, so they
+// keep one global source order and a stray `}` or an unterminated string in one file cannot swallow
+// the next -- which concatenating the texts would have allowed.
+struct PreviewSheets;
+
+class PreparedPreviewSheets {
+public:
+    PreparedPreviewSheets() = default;
+
+    // Resolves `@media` against `media`; nothing is tokenized or parsed again.
+    [[nodiscard]] tessera::ui::style::CompiledStyleSheet
+    resolve(const tessera::ui::style::MediaContext& media) const;
+    // True when moving between the two contexts can change what any sheet's `@media` answers.
+    [[nodiscard]] bool media_answer_can_change(const tessera::ui::style::MediaContext& from,
+                                               const tessera::ui::style::MediaContext& to) const;
+    // True when the author's sheets are in force rather than the built-in one.
+    [[nodiscard]] bool author() const noexcept {
+        return author_;
+    }
+
+private:
+    friend PreviewSheets prepare_preview_sheets(std::span<const SheetUse> uses, std::size_t limit);
+
+    std::vector<tessera::ui::style::PreparedStyleSheet> sheets_;
+    std::vector<std::string> paths_;
+    bool author_ = false;
+};
+
+// The prepared sheets and what is wrong with them, from one pass: a diagnostic describes a rule the
+// sheet resolved from this same preparation, so the pane cannot report one sheet's problems beside
+// another sheet's pixels. `diagnostics` is bounded by `limit` across all sheets, in sheet order.
+struct PreviewSheets {
+    PreparedPreviewSheets prepared;
+    std::vector<PreviewCssDiagnostic> diagnostics;
+};
+
+[[nodiscard]] PreviewSheets prepare_preview_sheets(std::span<const SheetUse> uses,
+                                                   std::size_t limit = kMaxReportedCssDiagnostics);
+
 // The compiled form of an already prepared sheet for one media context: `@media` is evaluated
 // against `media`, and nothing is tokenized or parsed again.
 [[nodiscard]] tessera::ui::style::CompiledStyleSheet
@@ -108,9 +154,9 @@ compile_preview_stylesheet(std::string_view stylesheet,
 // `*.module.css`; a module sheet is returned as its scanned rewrite, so the class names the lowered
 // tree carries on `className` are the selectors the compiled sheet defines.
 //
-// **The suffix decides, not the import graph.** A preview compiles the author's textarea even when
-// the source never imports it (#390 decision 1), so "nothing imported it" says nothing about
-// whether its class names are scoped. The codegen CLI scopes by the same suffix
+// **The suffix decides, not the form of the import.** A sheet imported for effect and one imported
+// for its class map are the same file, so how it was imported says nothing about whether its class
+// names are scoped. The codegen CLI scopes by the same suffix
 // (`regenerate_stylesheets.cpp`), which is what keeps the preview and a native build of the same
 // file identical. An empty `stylesheet_file` falls back to `kPreviewStylesheetFile`, a plain name,
 // so every caller written before #463 compiles exactly the bytes it did before.

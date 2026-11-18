@@ -73,10 +73,10 @@ source goes through it:
 The apply is not a restart. Each session's `apply()` re-evaluates carrying state by the engine's own rule
 (component id, cell id, IR type -- `scene_state.hpp`), and the Canvas session applies the source and then
 paints it as two module calls (`tessera_canvas_apply` then `tessera_canvas_draw`) rather than one stateless
-`tessera_canvas_frame`. That split is what makes the two hard requirements hold: an apply of text that did
+call. That split is what makes the two hard requirements hold: an apply of text that did
 not change reports `changed:false` and costs **no frame**, and an apply that does not compile leaves the
 running evaluation and its picture untouched -- the page shows the diagnostic and draws nothing, so the
-canvas cannot blank mid-keystroke. The old `tessera_canvas_frame` path was the blanking mechanism: it
+canvas cannot blank mid-keystroke. The old one-shot path (now removed) was the blanking mechanism: it
 re-evaluated per call and called `clear_canvas` on any failure.
 
 Two changes restart instead of applying, both because the state cannot survive them: a **structural change
@@ -163,7 +163,7 @@ cycle never runs while a GPU frame is being recorded. #431 moved the pane into a
 any of that: the three panes are `hidden`, never unmounted, so a view switch keeps the device and the Wasm
 instances alive.
 
-`lib/views.ts` states the contract (`ViewSession`, `SourceReader`) and the routing (`?view=`,
+`lib/views.ts` states the contract (`ViewSession`, `ProjectReader`) and the routing (`?view=`,
 `history.replaceState`).
 
 ### 2.2 What stayed pure
@@ -191,7 +191,7 @@ The rest of the page is TypeScript:
 | `lib/project.ts` | the seeded project, `ProjectFile`/`TreeRow`, `treeRows`, `compileTarget`; every path goes through `project-paths.js` |
 | `lib/preferences.ts` | the toolbar's persistence, the fragment decode, the share link (DOM-free) |
 | `lib/gallery.ts` | the sample manifest and the sample fetch (DOM-free) |
-| `lib/views.ts` | the `ViewSession`/`SourceReader` contract, the view table, `?view=` routing |
+| `lib/views.ts` | the `ViewSession`/`ProjectReader` contract, the view table, `?view=` routing |
 | `lib/wasm-call.ts` | the one C-ABI marshalling helper: allocate, call, `tessera_free`, free |
 | `lib/module-url.ts` | resolves a Wasm loader against the document's base, so a hashed asset dir cannot break it |
 | `views/dom.ts` | the textContent-only element builder the engine-facing renderers share |
@@ -206,8 +206,9 @@ The rest of the page is TypeScript:
 The tree lists the files of the opened project. #431's deliverable is the **rendering and the selection**;
 the two real load paths (a folder through File System Access, a dropped zip) are #391's remaining half and
 are not claimed here. So the page boots with a **seeded in-memory project**
-(`lib/project.ts`, `SEED`): `tessera.json`, `ui/Preview.tsx` (the entry, and the page's `DEFAULT_FILE`),
-`ui/Home.tsx` and `styles/theme.css`. The sample gallery still works and adds a sample as a project file at
+(`lib/project.ts`, `SEED`): `tessera.json` (`app.entry` names `ui/App.tsx`), `ui/App.tsx` (the entry, which
+imports `../styles/theme.css`) and `styles/theme.css`. There is no router yet: the scene builder does not
+render user component instances, so a second screen cannot be composed in until the engine can. The sample gallery still works and adds a sample as a project file at
 its own path, so the tree shows where it came from.
 
 **Every path the tree shows came from `project-paths.js`.** `projectFile()` calls `confinePath` on each
@@ -241,53 +242,41 @@ preview follow the text without a button.
 
 ### 3.3 What an edit compiles
 
-`compileTarget()` (in `lib/project.ts`) is the rule: **the active file when it is a source file, else the
-project entry**. Selecting `styles/theme.css` edits that sheet; it does not make the sheet the compiled
-source, because the preview's author stylesheet is the dedicated textarea below the editor (section 3.4),
-not a project file yet. The status line's *compile target* cell and the hint under the editor both name the
-file, so the choice is visible rather than surprising.
+The rule is **the whole project, from the entry `tessera.json` names** (`entryOf()` in
+`lib/project-snapshot.ts`). The active file does not decide what is previewed: selecting
+`styles/theme.css` edits that sheet, and the preview keeps running the entry. The status line's file cell
+names the entry, so the choice is visible rather than surprising.
 
-The sessions no longer read `#source.value`: the page hands each of them a `SourceReader` that returns
-`{ text, file, shown, stylesheet, stylesheetFile }` for the compile target, read at apply time through a
-ref. That keeps the Wasm sessions independent of React's render cycle and lets Diagnostics say, honestly,
-when the editor is showing a different file than the one a span belongs to (`shown: false` -- the row
-names the file instead of offering a jump it cannot make).
+The sessions no longer read `#source.value`: the page hands each of them a `ProjectReader` that returns
+`{ entry, sources, stylesheets, active }` -- the whole project and the entry `tessera.json` names
+(`lib/project-snapshot.ts`), read at apply time through a ref. Each session stages it into its module
+(`stageProject()` in `lib/wasm-call.ts`) and then calls the export. That keeps the Wasm sessions
+independent of React's render cycle, and lets Diagnostics judge each span on its own file against the file
+the editor shows (a span in another file names the file instead of offering a jump it cannot make). There
+is no fallback entry: a project whose `tessera.json` names none previews nothing and says why.
 
 ### 3.4 The author stylesheet (issue #390)
 
-The code column carries a **second textarea below the source**, `#stylesheet`, in the same
-`regions/CodeRegion.tsx` region and under its own heading (`#stylesheet-heading`) with a note
-(`#stylesheet-note`). It is the page's virtual file `ui/Preview.css` (`PREVIEW_STYLESHEET_FILE` in
-`page-defaults.ts`): a source's `import "./Preview.css";` resolves to this text, so the import is optional
-rather than required, and the sheet applies whether or not the author wrote it.
+There is no stylesheet box: a stylesheet is a project file (`styles/theme.css` in the seed), edited in a tab
+like any other, and it applies **only because the entry imports it** (`import "../styles/theme.css";`),
+exactly as a web import graph cascades. A sheet that is not imported does nothing, and the first imported
+sheet carrying any rule **replaces** the built-in preview sheet (owner decision 2); it is never layered under
+it. Only when no imported sheet has a rule does the built-in sheet stay in force, byte-for-byte, which keeps
+the bundled samples painting. A sheet with one *bad* rule still counts as the author's, so an invalid
+declaration cannot resurrect the built-in look while the page shows the error.
 
-**Why a textarea and not a tab.** The preview's stylesheet is not a project file -- the file tree, a real
-`styles/*.css` editor and multi-file imports are #391's remaining half -- so a `styles/theme.css` tab and this
-box would be two answers to one question. The sheet is a page-owned input the way the viewport and the DPR
-are: it belongs to all three preview views, it is read at apply time, and it starts from `STARTUP_STYLESHEET`,
-which is **one comment line** so `has_author_stylesheet()` treats it as "no author CSS" and the built-in
-sheet stays in force. A visitor who wants to write CSS has a line to replace rather than an empty box.
+**Where the sheets reach the sessions.** They travel in the `ProjectReader` snapshot with the sources
+(section 3.3), staged by `stageProject()`, so a session cannot lay the tree out against a sheet the author no
+longer has on screen. Scene calls `tessera_scene_json` and asks `tessera_css_diagnostics_json` for the parse
+problems (`cssVersion: 2`: each problem names its file). Canvas passes the same staged project to
+**`tessera_canvas_apply`**, the call that re-evaluates; `tessera_canvas_draw` takes no strings, because it
+only paints the tree the last apply left. Both reports carry the same `cssDiagnostics` array, so a bad rule
+costs that rule and never blanks the frame -- including on the live-edit path. Editing a stylesheet is a
+live apply, like a source edit; editing `tessera.json` (it names the entry) restarts.
 
-**The rule the engine implements (owner decision 2).** A sheet that is not empty and not
-whitespace/comment-only **replaces** the built-in preview sheet; it is never layered under it. Empty or
-comment-only falls back to the built-in sheet byte-for-byte, which is what keeps the bundled sample painting.
-A sheet with one *bad* rule still counts as the author's, so an invalid declaration cannot resurrect the
-built-in look while the page shows the error.
-
-**Where the sheet reaches the sessions.** It travels in the `SourceReader` snapshot, beside the text it
-styles (section 3.3), so a session cannot lay the tree out against a sheet the author no longer has on
-screen. Scene passes it to the `*_styled` export family (folded, sized and plain, chosen per shape) and asks
-`_tessera_css_diagnostics_json` for the parse problems. Canvas passes it to **`tessera_canvas_apply`** (and
-to `tessera_canvas_run`, a restart), which is the call that re-evaluates and therefore decides the sheet the
-tree is laid out with; `tessera_canvas_draw` takes no strings at all, because it only paints the tree the
-last apply left. Both of those reports carry the same `cssDiagnostics` array beside the counters, so a bad
-rule costs that rule and never blanks the frame: the pane shows the diagnostic while the canvas keeps
-painting -- including on the live-edit path, where the edit re-applies the sheet and the frame that follows
-keeps the author's look.
-
-**Not in the share link.** The `#p5=` envelope stays `v,s,w,h,d,t,f` (section 4), so a link reproduces the
-source and the environment but not the CSS; the textarea starts from its one-line sample on every load.
-Extending the envelope is a versioned-format decision, not a page change.
+**Not in the share link.** The `#p5=` envelope stays `v,s,w,h,d,t,f` (section 4): a link carries one source
+document, which replaces the entry's text. Sharing a whole project waits for cloud storage, so sharing is
+deliberately out of scope for the project preview.
 
 ## 4. Old URLs and the share-link migration
 
@@ -426,7 +415,7 @@ so the whole +4195 gzip is the workspace's own code (+13463 minified `src/` + `p
 - **+11082 minified** is the workspace itself: the project tree (+2362), the tabbed editor and its strip
   (+3156), the preview column and its view switch (+1763), the per-file buffer state (+2074), the project
   model (+1653), the session wiring (+2257, less App's own -1598), the status line's cells (+551), the
-  sessions' `sampleSource`/`SourceReader` signature changes either side and the small edits in
+  sessions' `sampleSource`/`ProjectReader` signature changes either side and the small edits in
   `page-state` (+67) and `canvas-pane` (+213), **less** the code the move retired -- the top-level tab strip
   (-813 in `StudioChrome`) and the stand-alone editor pane (-872 in `ViewPanes`).
 
@@ -547,9 +536,9 @@ breakdown from the same run. A **raise** is a reviewed edit of the pin in the di
 recorded in the budget file's `note` -- `--update` refuses any raise, because a re-pin on a loaded box
 records machine load as headroom. `measurement.calibration_reference_ms` gets the same treatment as
 `encoder`: changing it rebases every latency pin at once, so it is a reviewed edit, never a side effect.
-Out of scope by #392, #422, #431, #390 and #444 and named here so a reader does not infer them: a real
-`styles/*.css` editor and multi-file author stylesheets (**#391's remaining half**; #390 shipped exactly one
-textarea, filed as `ui/Preview.css`), the folder picker and the zip drop (**#391's remaining half**: the tree
+Out of scope by #392, #422, #431, #390 and #444 and named here so a reader does not infer them: a router and
+user component instances (the scene builder does not render `<Home />`, so composing screens needs an engine
+slice), sharing a whole project (waits for cloud storage), the folder picker and the zip drop (**#391's remaining half**: the tree
 renders and selects, but nothing opens a real folder), a real code editor widget (the textarea is per file,
 which is what #431 asks for), pointer input on the canvas (**#388's page half**: the engine dispatch and
 `tessera_canvas_pointer` exist, but the page does not yet wire pointer events to them, so an edit is the only
@@ -563,7 +552,7 @@ studio stays single-threaded (ADR-045 decision 5), and every page-to-engine call
 transferable buffers.
 
 #431 and #390 added **no engine feature to the page**: #431 moved the page's chrome into the layout the issue
-draws and made the editor per file; #390's page half is one textarea, its hint, one ref and the field each
-session's `SourceReader` snapshot carries. The Wasm builds stay three modules, the studio stays
+draws and made the editor per file; the project preview replaced #390's textarea with real project files
+that the entry imports, carried by each session's `ProjectReader` snapshot. The Wasm builds stay three modules, the studio stays
 single-threaded (ADR-045 decision 5), and every page-to-engine call stays a message with transferable
 buffers.

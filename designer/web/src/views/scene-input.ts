@@ -19,7 +19,7 @@
 //
 // or `{"error":"..."}` when the script or the source produced nothing to click.
 
-import type { SourceReader, StatusReporter } from "../lib/views";
+import type { ProjectReader, ProjectSnapshot, StatusReporter } from "../lib/views";
 import { element, unavailableBox } from "./dom";
 
 /** One state cell, as the document spells it. */
@@ -58,9 +58,10 @@ export interface InputPaneOptions {
    * What Run compiles (issue #431): the workspace's compile target. The click script is applied to the
    * same source the node list was built from, so the two cannot describe different documents.
    */
-  source: SourceReader;
+  source: ProjectReader;
   /** Asks the session for the module's document text, so the heap stays the session's. */
-  request: (name: string, args: string[]) => Promise<string>;
+  /** Stages `project` into the module, then calls `name(...args)`: the module reads the staged project. */
+  request: (project: ProjectSnapshot, name: string, args: string[]) => Promise<string>;
   setStatus: StatusReporter;
   /** Reports readiness to the page's shared inputs (the "Send clicks" button). */
   setEnabled: (enabled: boolean) => void;
@@ -152,12 +153,7 @@ export function createInputPane(options: InputPaneOptions): InputPane {
     setStatus("clicking", null);
     try {
       const target = options.source();
-      const json = await options.request("_tessera_input_json", [
-        target.text,
-        target.file,
-        "",
-        script.value,
-      ]);
+      const json = await options.request(target, "_tessera_input_json", ["", script.value]);
       const snapshot = JSON.parse(json) as InteractionDocument;
       if (snapshot.error) {
         // A malformed script, or a source that produced no scene: reported as such, never as a

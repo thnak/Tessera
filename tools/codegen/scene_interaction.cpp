@@ -6,6 +6,7 @@
 #include "tessera/compiler/eval/number_text.hpp"
 #include "tessera/ui/style/compiled_stylesheet.hpp"
 
+#include <array>
 #include <charconv>
 #include <cstddef>
 #include <cstdint>
@@ -162,6 +163,17 @@ std::string state_cells_json(const ui::StateSnapshot& state) {
 
 InputRunResult run_input_script(std::string_view text, const ScenePreviewOptions& options,
                                 std::string_view component, std::string_view script) {
+    // One file is a project of one (see `prepare_scene()`): the stylesheet is a project file and
+    // applies only when the source imports it.
+    const std::string file(options.file.empty() ? std::string_view("ui/Preview.tsx")
+                                                : options.file);
+    const std::array<ProjectFile, 1> sources{{{file, text}}};
+    const std::array<ProjectFile, 1> sheets{{{options.stylesheet_file, options.stylesheet}}};
+    return run_input_script(ProjectInput{sources, sheets, file}, options, component, script);
+}
+
+InputRunResult run_input_script(const ProjectInput& project, const ScenePreviewOptions& options,
+                                std::string_view component, std::string_view script) {
     InputRunResult result;
     std::vector<PreviewInputStep> steps;
     std::string error;
@@ -169,20 +181,21 @@ InputRunResult run_input_script(std::string_view text, const ScenePreviewOptions
         result.error = std::move(error);
         return result;
     }
-    auto evaluated = evaluate_source(text, options.file, options.salt, component,
-                                     options.stylesheet, options.stylesheet_file);
+    auto evaluated = evaluate_project(project, options.salt, component);
     if (!evaluated) {
         result.error = evaluated.error().detail;
         return result;
     }
 
-    // The same choice the snapshot and the canvas make (issue #390): the author's sheet when there
-    // is one, the built-in fallback otherwise. A scripted click must resolve style against the
-    // sheet the page shows, or the state cells it reports would come from a differently styled
-    // tree. The viewport is the media context too (issue #436), exactly as in `prepare_scene()`.
-    const ui::style::CompiledStyleSheet sheet = compile_preview_stylesheet(
-        options.stylesheet,
-        preview_media_context(options.width, options.height, options.dpi_scale));
+    // The same choice the snapshot and the canvas make (issue #390): the sheets the program imports
+    // when there are any, the built-in fallback otherwise. A scripted click must resolve style
+    // against the sheet the page shows, or the state cells it reports would come from a differently
+    // styled tree. The viewport is the media context too (issue #436), exactly as in
+    // `prepare_scene()`.
+    const ui::style::CompiledStyleSheet sheet =
+        prepare_preview_sheets(evaluated->sheets)
+            .prepared.resolve(
+                preview_media_context(options.width, options.height, options.dpi_scale));
     PreviewSession::Options session_options;
     session_options.width = options.width;
     session_options.height = options.height;
@@ -206,6 +219,15 @@ InputRunResult run_input_script(std::string_view text, const ScenePreviewOptions
 
 std::string scene_input_document(std::string_view text, const ScenePreviewOptions& options,
                                  std::string_view component, std::string_view script) {
+    const std::string file(options.file.empty() ? std::string_view("ui/Preview.tsx")
+                                                : options.file);
+    const std::array<ProjectFile, 1> sources{{{file, text}}};
+    const std::array<ProjectFile, 1> sheets{{{options.stylesheet_file, options.stylesheet}}};
+    return scene_input_document(ProjectInput{sources, sheets, file}, options, component, script);
+}
+
+std::string scene_input_document(const ProjectInput& project, const ScenePreviewOptions& options,
+                                 std::string_view component, std::string_view script) {
     std::vector<PreviewInputStep> steps;
     std::string error;
     if (!parse_input_script(script, steps, error)) {
@@ -217,7 +239,7 @@ std::string scene_input_document(std::string_view text, const ScenePreviewOption
         out += ",\"steps\":[]}\n";
         return out;
     }
-    const InputRunResult run = run_input_script(text, options, component, script);
+    const InputRunResult run = run_input_script(project, options, component, script);
     std::string out = "{\"inputVersion\":1";
     if (!run.built) {
         out += ",\"error\":";

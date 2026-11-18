@@ -9,8 +9,9 @@ sides over the same inputs and require byte-identical documents.
 The two sides are deliberately not two implementations:
 
   native  `tessera_codegen --diagnostics-json OUT FILE.tsx`
-  wasm    the exported `tessera_diagnostics_json(source, file)` of `tessera_diagnostics.js`,
-          the exact module the preview page loads
+  wasm    the exported `tessera_diagnostics_json()` of `tessera_diagnostics.js` over a project of
+          the one case file (staged with the `tessera_project_*` exports), the exact module the
+          preview page loads
 
 Both reach the same `write_diagnostics_json()`, so a difference means the *pipeline* diverged (a
 different stage stopping first, a different module name, a span computed differently) rather than the
@@ -99,30 +100,33 @@ CORPUS: Tuple[Tuple[str, str, str, int], ...] = (
 # request on argv, and prints the document. It is passed as an inline module string so the gate has no
 # extra file to keep in step with the ABI.
 NODE_DRIVER = r"""
+import { pathToFileURL } from 'node:url';
 const path = process.argv[2];
 const file = process.argv[3];
 const source = process.argv[4];
-const imported = await import(path);
+// `import()` needs a URL: on Windows a `C:\...` argument parses as a `c:` scheme.
+const imported = await import(pathToFileURL(path).href);
 const factory = imported.default;
 const module = await factory();
-const textLength = module.lengthBytesUTF8(source) + 1;
-const textPtr = module._malloc(textLength);
-module.stringToUTF8(source, textPtr, textLength);
-const nameLength = module.lengthBytesUTF8(file) + 1;
-const namePtr = module._malloc(nameLength);
-module.stringToUTF8(file, namePtr, nameLength);
+// The module diagnoses a staged project (`tessera_project_*`), so the one case file is a project of
+// one whose entry is that file: exactly what the page does for a single-file project.
+const withString = (text, use) => {
+  const length = module.lengthBytesUTF8(text) + 1;
+  const ptr = module._malloc(length);
+  module.stringToUTF8(text, ptr, length);
+  try { return use(ptr); } finally { module._free(ptr); }
+};
+module._tessera_project_begin();
+withString(file, (filePtr) => withString(source, (textPtr) =>
+  module._tessera_project_add_source(filePtr, textPtr)));
+withString(file, (filePtr) => module._tessera_project_set_entry(filePtr));
 let out;
+const resultPtr = module._tessera_diagnostics_json();
+if (!resultPtr) { throw new Error("tessera_diagnostics_json returned null"); }
 try {
-  const resultPtr = module._tessera_diagnostics_json(textPtr, namePtr);
-  if (!resultPtr) { throw new Error("tessera_diagnostics_json returned null"); }
-  try {
-    out = module.UTF8ToString(resultPtr);
-  } finally {
-    module._tessera_free(resultPtr);
-  }
+  out = module.UTF8ToString(resultPtr);
 } finally {
-  module._free(textPtr);
-  module._free(namePtr);
+  module._tessera_free(resultPtr);
 }
 process.stdout.write(out);
 """
@@ -162,7 +166,10 @@ def native_document(
     case_dir = work_root / "native" / name
     target = case_dir / file
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(source, encoding="utf-8")
+    # `newline=""` writes the bytes the corpus holds: text mode would turn each LF into CRLF on
+    # Windows and shift every byte offset the native side reports.
+    with open(target, "w", encoding="utf-8", newline="") as handle:
+        handle.write(source)
     document = case_dir / "diagnostics.json"
     result = run(
         [cli, "--diagnostics-json", str(document), file], case_dir

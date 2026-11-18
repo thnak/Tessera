@@ -72,6 +72,54 @@ export function callExport(
   }
 }
 
+/** What a module is staged with before it previews a project: see `ProjectSnapshot` in `views.ts`. */
+export interface StagedProject {
+  entry: string | null;
+  sources: readonly { path: string; text: string }[];
+  stylesheets: readonly { path: string; text: string }[];
+}
+
+function callVoid(module: WasmModule, name: string, strings: string[]): void {
+  const pointers: number[] = [];
+  try {
+    for (const text of strings) {
+      const length = module.lengthBytesUTF8(text) + 1;
+      const pointer = module._malloc(length);
+      module.stringToUTF8(text, pointer, length);
+      pointers.push(pointer);
+    }
+    const exported = module[name];
+    if (typeof exported !== "function") {
+      throw new Error(`the module does not export \`${name}\``);
+    }
+    (exported as (...args: number[]) => void)(...pointers);
+  } finally {
+    for (const pointer of pointers) {
+      module._free(pointer);
+    }
+  }
+}
+
+/**
+ * Stages `project` into `module`, replacing whatever it held (`tessera_project_*`).
+ *
+ * Every preview export reads the staged project, so a session stages right before it asks. The entry is
+ * set only when the project names one: a project without an entry is staged as it is, and the module
+ * reports that it names none (there is no fallback to another file).
+ */
+export function stageProject(module: WasmModule, project: StagedProject): void {
+  callVoid(module, "_tessera_project_begin", []);
+  for (const source of project.sources) {
+    callVoid(module, "_tessera_project_add_source", [source.path, source.text]);
+  }
+  for (const sheet of project.stylesheets) {
+    callVoid(module, "_tessera_project_add_stylesheet", [sheet.path, sheet.text]);
+  }
+  if (project.entry !== null) {
+    callVoid(module, "_tessera_project_set_entry", [project.entry]);
+  }
+}
+
 /**
  * The names a module must export for a view to be able to call it.
  *

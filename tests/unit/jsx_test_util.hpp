@@ -42,7 +42,7 @@ template<typename Result> std::string codes(const Result& result) {
 template<typename Result> tessera::compiler::jsx::Diagnostic first_diag(const Result& result) {
     if (result.diagnostics.empty()) {
         return tessera::compiler::jsx::Diagnostic{
-            "<none>", tessera::compiler::jsx::Severity::Error, {}, {}, {}, std::nullopt};
+            "<none>", tessera::compiler::jsx::Severity::Error, {}, {}, {}, std::nullopt, {}};
     }
     return result.diagnostics.front();
 }

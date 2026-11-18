@@ -196,4 +196,77 @@ preview_stylesheet_file(std::string_view stylesheet, std::string_view stylesheet
         stylesheet_file.empty() ? kPreviewStylesheetFile : stylesheet_file, stylesheet};
 }
 
+style::CompiledStyleSheet PreparedPreviewSheets::resolve(const style::MediaContext& media) const {
+    std::vector<style::StylesheetSource> sources;
+    sources.reserve(sheets_.size());
+    for (std::size_t index = 0; index < sheets_.size(); ++index) {
+        sources.push_back(
+            style::StylesheetSource{paths_[index], &sheets_[index], style::Origin::Author, false});
+    }
+    return style::CompiledStyleSheet(std::span<const style::StylesheetSource>(sources), {}, media);
+}
+
+bool PreparedPreviewSheets::media_answer_can_change(const style::MediaContext& from,
+                                                    const style::MediaContext& to) const {
+    for (const style::PreparedStyleSheet& sheet : sheets_) {
+        if (sheet.media_answer_can_change(from, to)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+PreviewSheets prepare_preview_sheets(std::span<const SheetUse> uses, std::size_t limit) {
+    PreviewSheets out;
+    bool any_author = false;
+    for (const SheetUse& use : uses) {
+        any_author = any_author || has_author_stylesheet(use.text);
+    }
+    if (!any_author) {
+        // No imported sheet holds CSS: the built-in sheet, and no diagnostics (a sheet the author
+        // never wrote has no problems).
+        out.prepared.sheets_.push_back(style::prepare_stylesheet(preview_stylesheet()));
+        out.prepared.paths_.emplace_back("builtin");
+        return out;
+    }
+    out.prepared.author_ = true;
+    for (const SheetUse& use : uses) {
+        if (!has_author_stylesheet(use.text)) {
+            continue;
+        }
+        std::optional<css_module::ModuleScanError> scan_error;
+        const std::string text = preview_stylesheet_text(use.text, use.path, scan_error);
+        if (scan_error) {
+            // Nothing from a sheet that cannot be scoped is compiled, and it is NOT replaced by the
+            // built-in sheet: the author wrote CSS, and an empty sheet in its place is what keeps
+            // the tree's scoped class names from meeting raw `.card` rules.
+            out.prepared.sheets_.push_back(style::prepare_stylesheet(std::string_view{}));
+            out.prepared.paths_.push_back(use.path);
+            if (out.diagnostics.size() < limit) {
+                const DiagnosticSpan span = css_span(use.path, use.text, scan_error->offset);
+                PreviewCssDiagnostic diagnostic;
+                diagnostic.code = scan_error->code;
+                diagnostic.message = scan_error->message;
+                diagnostic.file = use.path;
+                diagnostic.offset = span.offset;
+                diagnostic.line = span.line;
+                diagnostic.column = span.column;
+                diagnostic.warning = false;
+                out.diagnostics.push_back(std::move(diagnostic));
+            }
+            continue;
+        }
+        out.prepared.sheets_.push_back(style::prepare_stylesheet(text));
+        out.prepared.paths_.push_back(use.path);
+        if (out.diagnostics.size() < limit) {
+            std::vector<PreviewCssDiagnostic> found =
+                author_stylesheet_diagnostics(text, use.path, limit - out.diagnostics.size());
+            for (PreviewCssDiagnostic& diagnostic : found) {
+                out.diagnostics.push_back(std::move(diagnostic));
+            }
+        }
+    }
+    return out;
+}
+
 } // namespace tessera::compiler::codegen::cli
