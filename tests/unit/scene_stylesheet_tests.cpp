@@ -13,7 +13,8 @@
 //
 // The rest of the file is the behaviour the three owner decisions describe:
 //
-//   1. the author sheet enters through `ScenePreviewOptions::stylesheet` and applies when the source
+//   1. the author sheet enters through `ScenePreviewOptions::stylesheet` and applies when the
+//   source
 //      imports `./Preview.css` -- the sheets a program imports are the ones in force, as in a
 //      native build, so a source that never imports it previews with no author CSS;
 //   2. a non-empty author sheet REPLACES `preview_stylesheet()` (a `Button` with no size rule gets

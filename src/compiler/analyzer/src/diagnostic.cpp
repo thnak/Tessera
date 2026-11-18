@@ -80,8 +80,13 @@ void DiagnosticSink::report(std::string_view code, Severity severity, std::strin
     if (related && related->message.size() > kMaxDiagnosticTextBytes) {
         related->message = cut_utf8(related->message, kMaxDiagnosticTextBytes);
     }
-    diagnostics_.push_back(Diagnostic{code, severity, std::move(message), map_->resolve(span),
-                                      std::move(suggestion), std::move(related), {}});
+    diagnostics_.push_back(Diagnostic{code,
+                                      severity,
+                                      std::move(message),
+                                      map_->resolve(span),
+                                      std::move(suggestion),
+                                      std::move(related),
+                                      {}});
 }
 
 void DiagnosticSink::error(std::string_view code, std::string message, Span span,

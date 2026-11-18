@@ -52,8 +52,8 @@ export function Card(): Node {
 }
 )tsx";
 
-// A source with a plain class and a side-effect import of the module sheet (no class map bound): the
-// sheet is scoped by its `.module.css` suffix, not by how it is imported.
+// A source with a plain class and a side-effect import of the module sheet (no class map bound):
+// the sheet is scoped by its `.module.css` suffix, not by how it is imported.
 constexpr std::string_view kPlainClassSource = R"tsx(import "./Card.module.css";
 
 export function Column(): Node {
