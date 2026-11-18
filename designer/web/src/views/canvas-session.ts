@@ -55,6 +55,8 @@ import {
   type CanvasStateCell,
   type CanvasViewportReport,
 } from "./canvas-frame";
+import { attachCanvasKeyboard } from "./canvas-keyboard";
+import { attachCanvasPointer } from "./canvas-pointer";
 import { createCanvasPane, type CanvasPane, type CanvasPaneElements } from "./canvas-pane";
 import { createCanvasPicker, type CanvasPicker } from "./canvas-picker";
 
@@ -434,6 +436,32 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
     }
     requestFrame();
   }
+
+  // Pointer input (issue #388): hover, press and click on the canvas go to the engine, which owns what they
+  // mean; a reported change is one coalesced frame. Not while hidden or before a device exists.
+  attachCanvasPointer({
+    canvas,
+    viewport: () => requestedViewport(options.environment),
+    onChanged: requestFrame,
+    send: (kind, x, y, button) =>
+      gpu === null || !visible || typeof gpu.module._tessera_canvas_pointer !== "function"
+        ? null
+        : (JSON.parse(callExport(gpu.module, "_tessera_canvas_pointer", [kind], [x, y, button])) as { changed: boolean }),
+  });
+
+  // Keyboard input and focus (issue #388): the canvas is a focus stop, and the engine owns what a key means.
+  attachCanvasKeyboard({
+    canvas,
+    onChanged: requestFrame,
+    send: (kind, key, modifiers, repeat) =>
+      gpu === null || !visible || typeof gpu.module._tessera_canvas_key !== "function"
+        ? null
+        : (JSON.parse(callExport(gpu.module, "_tessera_canvas_key", [kind, key], [modifiers, repeat ? 1 : 0])) as {
+            changed: boolean;
+            handled?: boolean;
+            left?: boolean;
+          }),
+  });
 
   // A device-pixel-ratio change (a window dragged to another monitor, a browser zoom) changes the backing
   // store, which is a real reason to draw again. A resize alone does not: the CSS box follows the toolbar,

@@ -554,9 +554,7 @@ records machine load as headroom. `measurement.calibration_reference_ms` gets th
 Out of scope by #392, #422, #431, #390 and #444 and named here so a reader does not infer them: a router and
 user component instances (the scene builder does not render `<Home />`, so composing screens needs an engine
 slice), sharing a whole project (waits for cloud storage), adding, deleting and renaming files from the tree (the folder picker, the zip drop, Save and Download landed with #391), a real code editor widget (the textarea is per file,
-which is what #431 asks for), pointer input on the canvas (**#388's page half**: the engine dispatch and
-`tessera_canvas_pointer` exist, but the page does not yet wire pointer events to them, so an edit is the only
-way to change state in the browser), text drawing (#387, shipped), conditional children (#389), skins and the
+which is what #431 asks for), text drawing (#387, shipped), conditional children (#389), skins and the
 picker (#171). The theme toolbar toggle is still carried-but-not-applied
 ([`compiler-wasm.md`](compiler-wasm.md) section 10.2): `assets.theme` did not arrive with #390.
 

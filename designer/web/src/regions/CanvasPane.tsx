@@ -116,7 +116,17 @@ export function CanvasPane({
           outline and the readout into it, the same way it owns the canvas. */}
       <div className="canvas-frame" id="canvas-frame" ref={frameRef} hidden>
         <div className="canvas-stack">
-          <canvas id="canvas" ref={canvasRef} width={320} height={240} aria-label="Preview of the evaluated scene" />
+          <canvas
+            id="canvas"
+            ref={canvasRef}
+            width={320}
+            height={240}
+            // A focus stop (issue #388): Tab reaches the preview, and its own controls take focus inside it.
+            // `application` tells a screen reader to pass keys through rather than read the page.
+            tabIndex={0}
+            role="application"
+            aria-label="Preview of the evaluated scene (interactive)"
+          />
           <div
             className="pick-overlay"
             id="pick-overlay"

@@ -58,6 +58,17 @@ struct CanvasPointerResult {
     std::uint64_t active_id = 0;
     std::vector<std::string> ran;   // IR handler ids whose preview body executed
     std::vector<std::string> unrun; // handler ids the dispatch reached but could not run
+
+    // Keyboard focus (issue #388), meaningful for `key()` and `blur()`; a pointer press also moves
+    // focus, so `focused_id` is filled for every event.
+    std::uint64_t focused_id = 0; // the focused node after the event, 0 when none
+    bool focus_visible = false;   // the ring is showing (keyboard modality)
+    bool focus_moved = false;     // this event changed which node holds focus
+    // The key was consumed by the scene: the page prevents the browser's default (it moved focus,
+    // activated a control, or reached a handler). A Tab at the end of the tab order is NOT handled:
+    // the scene lets go and the browser moves on, so the keyboard never gets trapped in the canvas.
+    bool handled = false;
+    bool left = false; // Tab walked off the end of the tab order and focus was released
 };
 
 // What the picker found under one point (issue #171's picker slice): the node the pointer is over,
@@ -224,6 +235,19 @@ public:
     // Returns false when nothing moved (no pass ran) or there is no running evaluation.
     bool set_viewport(float width, float height, float dpi_scale);
 
+    // One keyboard event (issue #388, focus). `key` is a `ui::KeyCode`; `modifiers` a
+    // `ui::Modifier` mask. Tab and Shift+Tab move focus through the focusable controls in tree
+    // order and **release it at either end** instead of wrapping, so a page can let the browser
+    // carry on to the next element; Enter and Space activate the focused button (the router's click
+    // synthesis); the
+    // `:focus-visible` ring shows after keyboard traversal.
+    CanvasPointerResult key(PreviewInput::Kind kind, std::uint32_t key, std::uint32_t modifiers,
+                            bool repeat);
+
+    // The page's element lost the keyboard: drop focus (and the ring) so a canvas that is not
+    // focused does not look as if it were. A frame is owed only when something was focused.
+    CanvasPointerResult blur();
+
     // How many times the running evaluation's cascade has been resolved (issue #436): 1 at each
     // `start()`, +1 per `set_viewport` that crossed a breakpoint. The counter a test - and the
     // module's viewport report - use to tell "the cascade was rebuilt" from "the boxes moved".
@@ -291,6 +315,9 @@ public:
     [[nodiscard]] const ui::InputRouter* router() const noexcept;
 
 private:
+    // Fills `focused_id` / `focus_visible` from the router's focus manager.
+    void fill_focus(CanvasPointerResult& result) const;
+
     [[nodiscard]] bool reused_ok(const ProjectInput& project, const std::string& component,
                                  const std::shared_ptr<const text::TextMeasurer>& measurer) const;
 
