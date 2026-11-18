@@ -93,7 +93,12 @@ struct ChartPlot {
         return rect.y + (1.0f - static_cast<float>(std::clamp(t, 0.0, 1.0))) * rect.height;
     }
 
-    [[nodiscard]] bool operator==(const ChartPlot&) const = default;
+    // Spelled out because `rhi::Rect` has no `operator==`, so a defaulted one here is deleted (and
+    // clang rejects the declaration outright under -Werror).
+    [[nodiscard]] bool operator==(const ChartPlot& other) const noexcept {
+        return rect.x == other.rect.x && rect.y == other.rect.y && rect.width == other.rect.width &&
+               rect.height == other.rect.height && time == other.time && value == other.value;
+    }
 };
 
 // One series' retained segment boxes and the range that still needs rebuilding.

@@ -34,12 +34,19 @@
 
 namespace {
 
+// The helpers below serve the subprocess path only; a target without one compiles a stub `main`.
+#if defined(TESSERA_MCP_NO_SUBPROCESS)
+#define TESSERA_MCP_HELPER [[maybe_unused]]
+#else
+#define TESSERA_MCP_HELPER
+#endif
+
 namespace fs = std::filesystem;
 namespace harness = tessera::harness;
 
-int failures = 0;
+TESSERA_MCP_HELPER int failures = 0;
 
-bool expect(bool condition, std::string_view message) {
+TESSERA_MCP_HELPER bool expect(bool condition, std::string_view message) {
     if (!condition) {
         std::cerr << "mcp_process: " << message << "\n";
         ++failures;
@@ -47,21 +54,21 @@ bool expect(bool condition, std::string_view message) {
     return condition;
 }
 
-std::string read_file(const fs::path& path) {
+TESSERA_MCP_HELPER std::string read_file(const fs::path& path) {
     std::ifstream in(path, std::ios::binary);
     std::ostringstream text;
     text << in.rdbuf();
     return text.str();
 }
 
-void write_file(const fs::path& path, std::string_view text) {
+TESSERA_MCP_HELPER void write_file(const fs::path& path, std::string_view text) {
     std::ofstream out(path, std::ios::binary | std::ios::trunc);
     out << text;
 }
 
 // Quotes one argument for the shell the test runs under. The two hosts really do have two different
 // quoting rules, and this is the one place that knows it.
-std::string quoted(const fs::path& value) {
+TESSERA_MCP_HELPER std::string quoted(const fs::path& value) {
 #ifdef _WIN32
     return "\"" + value.string() + "\"";
 #else
@@ -78,7 +85,7 @@ std::string quoted(const fs::path& value) {
 #endif
 }
 
-std::vector<std::string> lines_of(std::string_view text) {
+TESSERA_MCP_HELPER std::vector<std::string> lines_of(std::string_view text) {
     std::vector<std::string> lines;
     std::size_t start = 0;
     while (start < text.size()) {
@@ -92,7 +99,7 @@ std::vector<std::string> lines_of(std::string_view text) {
     return lines;
 }
 
-std::string string_at(const harness::JsonValue& object, std::string_view key) {
+TESSERA_MCP_HELPER std::string string_at(const harness::JsonValue& object, std::string_view key) {
     const harness::JsonValue* value = object.find(key);
     if (value == nullptr || !value->is_string()) {
         return {};
