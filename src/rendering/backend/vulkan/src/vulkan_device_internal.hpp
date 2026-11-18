@@ -142,9 +142,9 @@ public:
     // destructor.
     [[nodiscard]] VkDescriptorSet sampled_descriptor(const VulkanRenderTarget& target);
 
-    // One COMBINED_IMAGE_SAMPLER set from the device's pool list (issue #480). `pool` is the pool the
-    // set came from; free it with vkFreeDescriptorSets on that pool. Tries the current pool, then
-    // the others (freed sets return space), then grows the list. Throws a named error at
+    // One COMBINED_IMAGE_SAMPLER set from the device's pool list (issue #480). `pool` is the pool
+    // the set came from; free it with vkFreeDescriptorSets on that pool. Tries the current pool,
+    // then the others (freed sets return space), then grows the list. Throws a named error at
     // kMaxDescriptorPools. Not thread safe, like the pool it replaces.
     VkDescriptorSet allocate_descriptor_set(const char* what, VkDescriptorPool& pool);
 
@@ -172,8 +172,8 @@ private:
     void create_device();
     void create_allocator();
     void create_descriptor_layout();
-    // Descriptor pools (issue #480): one pool holds kDescriptorSetsPerPool sets; when it is full the
-    // device grows a list instead of failing, up to kMaxDescriptorPools.
+    // Descriptor pools (issue #480): one pool holds kDescriptorSetsPerPool sets; when it is full
+    // the device grows a list instead of failing, up to kMaxDescriptorPools.
     static constexpr std::uint32_t kDescriptorSetsPerPool = 1024;
     static constexpr std::size_t kMaxDescriptorPools = 64;
     VkDescriptorPool add_descriptor_pool();
