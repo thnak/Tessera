@@ -13,6 +13,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { chromium } from 'playwright';
+import { editEntry, editSheet } from './studio_project.mjs';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -111,20 +112,13 @@ const SOURCE = `export function Screen(): Node {
 await page.locator('#tab-canvas').click();
 await page.waitForTimeout(600);
 
-// --- case 0: the page's OWN shipped default (a comment-only sample) keeps the built-in look -------
-// This is the case the bundled samples and the parity corpus depend on: the textarea ships one CSS
-// comment, which must count as "no author CSS" rather than as an author sheet that paints nothing.
-const shipped = await page.locator('#stylesheet').inputValue();
-check('the page ships a non-empty comment-only stylesheet', shipped.trim().length > 0, JSON.stringify(shipped.trim()));
-await page.fill('#source', SOURCE);
-await page.locator('#restart-app').click();
-await page.waitForTimeout(2500);
-const defaults = await canvasColour('shipped-default');
-check('the shipped comment-only sample still paints the built-in look', defaults.b > defaults.r + 8, describe(defaults));
+// --- case 0: the seeded project's sheet is imported by the entry, so it is real author CSS -----------
+// The studio seeds `styles/theme.css` with a rule and `ui/App.tsx` imports it; a sheet that is imported
+// and non-empty applies. (The built-in look is used only when no imported sheet carries any CSS: case 1.)
 
 // --- case 1: no author CSS -> the built-in fallback paints ----------------------------------------
-await page.fill('#source', SOURCE);
-await page.fill('#stylesheet', '');
+await editEntry(page, SOURCE);
+await editSheet(page, '');
 await page.locator('#restart-app').click();
 await page.waitForTimeout(2500);
 check('empty sheet: canvas draws', /draw call/.test((await status()) ?? ''), await status());
@@ -140,7 +134,7 @@ const RED_CSS = `.page { display: flex; flex-direction: column; background-color
 .title { color: rgb(255, 255, 255); height: 24px; font-size: 16px; }
 Button { width: 300px; height: 200px; background-color: rgb(240, 20, 20); }
 `;
-await page.fill('#stylesheet', RED_CSS);
+await editSheet(page, RED_CSS);
 await page.locator('#restart-app').click();
 await page.waitForTimeout(2500);
 check('author CSS: canvas draws', /draw call/.test((await status()) ?? ''), await status());
@@ -157,8 +151,8 @@ check(
 );
 
 // --- case 3: a :root token through var() changes the drawn colour ---------------------------------
-await page.fill(
-  '#stylesheet',
+await editSheet(
+  page,
   ':root { --brand: rgb(20, 200, 60); }\n' +
     '.page { display: flex; flex-direction: column; background-color: var(--brand); width: 320px; height: 240px; }\n' +
     '.title { height: 24px; color: rgb(0, 0, 0); }\n',
@@ -173,8 +167,8 @@ check(
 );
 
 // --- case 4: a bad rule is reported with line/column and does NOT blank the frame ------------------
-await page.fill(
-  '#stylesheet',
+await editSheet(
+  page,
   '.page { display: flex; flex-direction: column; background-color: rgb(210, 40, 40); '
     + 'width: 320px; height: 240px; }\n'
     + '.title { flx-grow: 1; height: 24px; }\n',
@@ -184,7 +178,7 @@ await page.waitForTimeout(2500);
 const failedBody = (await page.locator('#failed-body').textContent())?.trim() ?? '';
 check(
   'a bad rule is reported with file:line:column and the code',
-  /ui\/Preview\.css:2:\d+: TESSERA_CSS_UNKNOWN_PROPERTY/.test(failedBody),
+  /styles\/theme\.css:2:\d+: TESSERA_CSS_UNKNOWN_PROPERTY/.test(failedBody),
   failedBody.split('\n')[0] ?? failedBody,
 );
 const broken = await canvasColour('badrule');
@@ -195,7 +189,7 @@ check(
 );
 
 // --- case 5: emptying the sheet returns to the built-in look --------------------------------------
-await page.fill('#stylesheet', '');
+await editSheet(page, '');
 await page.locator('#restart-app').click();
 await page.waitForTimeout(2500);
 const restored = await canvasColour('restored');

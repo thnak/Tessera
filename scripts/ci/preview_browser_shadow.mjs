@@ -23,6 +23,7 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
+import { editEntry, editSheet } from './studio_project.mjs';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -154,8 +155,8 @@ await page.locator('#tab-canvas').click();
 await page.waitForTimeout(1200);
 
 // The author stylesheet goes first: the source's `onInput` is what triggers the debounced apply.
-await page.locator('#stylesheet').fill(CSS);
-await page.locator('#source').fill(SOURCE);
+await editSheet(page,CSS);
+await editEntry(page, SOURCE);
 await page.waitForFunction(
   () => /draw call/.test(document.querySelector('#canvas-status')?.textContent ?? ''),
   undefined,

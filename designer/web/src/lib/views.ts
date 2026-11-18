@@ -74,47 +74,27 @@ export interface ViewSession {
 }
 
 /**
- * What Run compiles, read at the moment Run is pressed (issue #431).
+ * What Run previews, read at the moment Run is pressed: the whole project and its entry.
  *
- * The page owns the file buffers, so a session is handed a reader rather than the editor element: Run
- * compiles the *project file* the workspace selects -- the active source tab, or the project entry when
- * a stylesheet or the config is active. Reading `textarea.value` would compile whatever happens to be
- * on screen, which after this issue is not the same question.
+ * The page owns the file buffers, so a session is handed a reader rather than the editor element. The
+ * snapshot is the *project*, not a single file: the engine walks from `entry` through the files it
+ * imports (stylesheets included), so which file the editor shows no longer decides what is previewed.
+ * There is no fallback entry: a project whose `tessera.json` names none has `entry === null`, the
+ * modules report that, and nothing is previewed.
  */
-export interface SourceSnapshot {
-  /** The text to compile. */
-  text: string;
-  /** The canonical project path it is compiled under: what `ModuleSource::file` and the uiIds use. */
-  file: string;
-  /**
-   * Whether the editor is currently showing this file.
-   *
-   * A diagnostic's "show in source" affordance reveals a span in the *editor*, so it can only work when
-   * the editor holds the text the diagnostic is about. When it does not, the pane says where the file is
-   * instead of selecting an offset in a different document.
-   */
-  shown: boolean;
-  /**
-   * The author stylesheet's text, compiled beside `text` (issue #390).
-   *
-   * It travels in the snapshot rather than in a second reader because the two are one question: the sheet
-   * is *how the compiled file looks*, so a session that asked for one without the other could lay the
-   * source out against a sheet the author did not write. `""` means "no author CSS" and keeps the built-in
-   * preview sheet, which is the fallback every sample and every pre-#390 artifact relies on.
-   */
-  stylesheet: string;
-  /**
-   * The virtual project file that sheet is filed under: `ui/Preview.css` by default.
-   *
-   * A source's `import "./Preview.css";` resolves to this text instead of a missing file, so the import is
-   * optional rather than required -- the sheet applies either way, because the author typed it for the
-   * screen in front of them.
-   */
-  stylesheetFile: string;
+export interface ProjectSnapshot {
+  /** The project path of the entry source (`tessera.json` `app.entry`), or `null` when it names none. */
+  entry: string | null;
+  /** Every source file, with the buffer text the editor holds. */
+  sources: { path: string; text: string }[];
+  /** Every stylesheet; only the ones the walk imports apply. */
+  stylesheets: { path: string; text: string }[];
+  /** The file the editor shows, so a diagnostic in another file does not select an offset here. */
+  active: string;
 }
 
-export interface SourceReader {
-  (): SourceSnapshot;
+export interface ProjectReader {
+  (): ProjectSnapshot;
 }
 
 /** One of the page's three views. */

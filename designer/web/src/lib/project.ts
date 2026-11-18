@@ -61,23 +61,26 @@ export interface TreeRow {
 }
 
 /**
- * The sample project the page boots with.
+ * The sample project the page boots with: a real project, not a single file.
  *
- * `ui/Preview.tsx` is the page's `DEFAULT_FILE` (`lib/preview-state.js`), so a share link that names no
- * file lands on the entry this tree shows, and a link written by the pre-#431 page keeps opening.
+ * `tessera.json` names the entry (`app.entry`), the entry imports the stylesheet it is styled with, and
+ * that import is the only way the sheet applies. There is no router yet: the scene builder does not render
+ * user component instances, so a second screen cannot be composed in until the engine can.
  */
 const SEED: readonly { path: string; text: string }[] = Object.freeze([
   {
     path: "tessera.json",
     text: `{
   "schemaVersion": 1,
-  "app": { "namespace": "studio_demo" }
+  "app": { "name": "studio-demo", "entry": "ui/App.tsx", "namespace": "studio_demo" }
 }
 `,
   },
   {
-    path: "ui/Preview.tsx",
-    text: `export function Counter(): Node {
+    path: "ui/App.tsx",
+    text: `import "../styles/theme.css";
+
+export function App(): Node {
   const [count, setCount] = useState<int>(0);
 
   return (
@@ -90,19 +93,8 @@ const SEED: readonly { path: string; text: string }[] = Object.freeze([
 `,
   },
   {
-    path: "ui/Home.tsx",
-    text: `export function Home(): Node {
-  return (
-    <View>
-      <Text>Home</Text>
-    </View>
-  );
-}
-`,
-  },
-  {
     path: "styles/theme.css",
-    text: `/* The project's author stylesheet. #390 compiles it; today the editor holds it only. */
+    text: `/* The project's author stylesheet: it applies because ui/App.tsx imports it. */
 View {
   background: #ffffff;
 }
@@ -110,8 +102,8 @@ View {
   },
 ]);
 
-/** The file the page opens first: the entry component of the seed project. */
-export const ENTRY_FILE = "ui/Preview.tsx";
+/** The file the page opens first: the entry of the seed project (it is what `tessera.json` names). */
+export const SEED_ENTRY = "ui/App.tsx";
 
 /**
  * Builds a project file from one path and its text.
@@ -228,27 +220,4 @@ export function treeRows(
 /** A file's project record by path, or `null` when the project does not have it. */
 export function fileAt(files: readonly ProjectFile[], path: string): ProjectFile | null {
   return files.find((file) => file.path === path) ?? null;
-}
-
-/**
- * The file Run compiles: `active` when it is a source file, else the entry.
- *
- * Selecting `theme.css` edits the sheet; it does not make the sheet the thing that compiles, because
- * author stylesheets are not in the preview yet (#390). Saying which file Run used, in the editor hint,
- * is what keeps that honest rather than surprising.
- */
-export function compileTarget(
-  files: readonly ProjectFile[],
-  active: string,
-  entry: string = ENTRY_FILE,
-): ProjectFile | null {
-  const current = fileAt(files, active);
-  if (current && current.kind === "source") {
-    return current;
-  }
-  const root = fileAt(files, entry);
-  if (root && root.kind === "source") {
-    return root;
-  }
-  return files.find((file) => file.kind === "source") ?? null;
 }

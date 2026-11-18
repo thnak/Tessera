@@ -16,14 +16,14 @@
 
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
-  ENTRY_FILE,
-  compileTarget,
+  SEED_ENTRY,
   fileAt,
   seedProject,
   treeRows,
   type ProjectFile,
   type TreeRow,
 } from "./lib/project";
+import { entryOf, type EntryResult } from "./lib/project-snapshot";
 
 /** The shape of the left column and the middle column, as React state. */
 export interface WorkspaceState {
@@ -47,8 +47,8 @@ export interface Workspace {
   rows: TreeRow[];
   /** The text of `path`: the edited buffer when there is one, else the project's copy. */
   textOf: (path: string) => string;
-  /** The file Run compiles (the active source file, else the project entry), or `null`. */
-  target: ProjectFile | null;
+  /** The entry the project names (`tessera.json` `app.entry`), or `null` plus why (no fallback). */
+  entry: EntryResult;
   /** Selects a row: a file also becomes active and gets a tab; a directory only becomes selected. */
   selectRow: (row: TreeRow) => void;
   /** Opens or closes a directory row's children (`ArrowRight`/`ArrowLeft` in the tree). */
@@ -75,7 +75,7 @@ export interface Workspace {
 
 /** The workspace's initial state: the seeded project, with its entry open and selected. */
 export function initialWorkspace(files: ProjectFile[] = seedProject()): WorkspaceState {
-  const entry = fileAt(files, ENTRY_FILE) ?? files.find((file) => file.kind === "source") ?? files[0];
+  const entry = fileAt(files, SEED_ENTRY) ?? files.find((file) => file.kind === "source") ?? files[0];
   const path = entry ? entry.path : "";
   return {
     files,
@@ -112,10 +112,7 @@ export function useWorkspace(): Workspace {
   );
 
   const rows = useMemo(() => treeRows(state.files, new Set(state.collapsed)), [state.files, state.collapsed]);
-  const target = useMemo(
-    () => compileTarget(state.files, state.active, ENTRY_FILE),
-    [state.files, state.active],
-  );
+  const entry = useMemo(() => entryOf(state.files, textOf), [state.files, state.dirty, textOf]);
 
   const selectRow = useCallback((row: TreeRow) => {
     setState((previous) => {
@@ -223,7 +220,7 @@ export function useWorkspace(): Workspace {
     state,
     rows,
     textOf,
-    target,
+    entry,
     selectRow,
     toggleDir,
     openFile,

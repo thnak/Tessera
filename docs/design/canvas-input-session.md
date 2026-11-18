@@ -1,6 +1,6 @@
 # The canvas input session (#388)
 
-The canvas module used to have one shape of call: `tessera_canvas_frame(source, …)` evaluated the
+The canvas module used to have one shape of call (the one-shot `tessera_canvas_frame`, since removed) that evaluated the
 source, laid it out, painted it and returned. That is a *renderer*, and it cannot answer "what happens
 when the pointer is over the button", because every call starts from an empty state and ends by
 throwing the tree away.
@@ -13,8 +13,9 @@ and its one-`requestAnimationFrame`-per-event scheduling) is **not** in this sli
 The related records are [`compiler-wasm.md`](compiler-wasm.md) section 8 (the canvas and its
 render-on-demand rule) and section 9 (the input session and the state-carry rule), and
 [`input.md`](input.md) section 7 (hover/active in the router). This note supersedes neither: §8's
-`tessera_canvas_frame` and §9's `tessera_input_json` remain the per-call shapes, and the session here
-is the one that keeps an evaluation alive between them.
+`tessera_input_json` is the per-call shape (§9), and the session here is the one that keeps an evaluation
+alive between calls. Every export reads the **staged project** (`tessera_project_*`, see
+[`compiler-wasm.md`](compiler-wasm.md) section 8.2), not a source argument.
 
 ## 1. Why a session, and what it owns
 
@@ -111,7 +112,7 @@ this module is given.
 
 | Export | Contract |
 |---|---|
-| `tessera_canvas_run(source, file, component, width, height, dpi)` | evaluate once, keep it; returns a frame report with `error` set when the source produced no scene. A Run of the identical source reuses the evaluation instead of rebuilding it |
+| `tessera_canvas_apply(component, fold, width, height, dpi)` | evaluate the staged project, keep it (carrying state across an edit); returns a report with `error` set when it produced no scene. An apply of the identical project reuses the evaluation instead of rebuilding it |
 | `tessera_canvas_pointer(kind, x, y, button)` | `kind` is `"move" \| "down" \| "up" \| "cancel"`; coordinates are logical pixels; returns `{"pointerVersion":1,"dispatched":…,"changed":…,"targetId":"…","hoveredId":"…","activeId":"…","ran":[…],"unrun":[…]}`, all ids as decimal **strings** |
 | `tessera_canvas_draw(width, height, canvas_view)` | paint the session's current tree into the canvas view; never re-evaluates |
 | `tessera_canvas_set_fold(posture)` | re-lay the RUNNING tree out at a simulated fold posture (`flat`, `book`, `tabletop`), one pass, no re-evaluation (issue #408, [§6.1](../specs/designer-studio-v1.md)) |
@@ -141,7 +142,7 @@ slice, and no `PAGE_FILES` entry or budget re-record was needed.
 A future React view needs no re-derivation. Its pointer handling is:
 
 ```js
-// width/height below are the values passed to tessera_canvas_run for the running session.
+// width/height below are the values passed to tessera_canvas_apply for the running session.
 function toLogical(event, canvas, logicalWidth) {
   const rect = canvas.getBoundingClientRect();
   return {
@@ -173,7 +174,7 @@ Verified on this Windows host (2026-11-16):
 * `ctest --preset vs2026-release --parallel 12`: exit 0, 0 failures. The two new cases are
   `scene_canvas_session` and `scene_canvas_pointer`; `scene_frame` and `scene_input` still pass.
 * `cmake --build build/wasm-webgpu --target tessera_canvas_wasm` (emsdk 7.0.0 from `C:\emsdk392`):
-  exit 0, and the linked `tessera_canvas.js` contains `_tessera_canvas_run`, `_tessera_canvas_pointer`,
+  exit 0, and the linked `tessera_canvas.js` contains `_tessera_canvas_apply`, `_tessera_canvas_pointer`,
   `_tessera_canvas_draw` and `_tessera_canvas_reset` in its export table. This is a *build* fact, not
   a runtime one.
 * `python -B scripts/check_source_size.py`: 0 errors. `python -B scripts/check_public_api.py --check`:
@@ -202,7 +203,7 @@ belongs to the #422 shell.
 | `tools/codegen/scene_canvas_session.{hpp,cpp}` | the persistent session: evaluation, pointer dispatch, frame accounting |
 | `tools/codegen/scene_frame.{hpp,cpp}` | `scene_frame_paint_tree()` - paint a caller-owned tree; `scene_frame_paint()` is now its wrapper |
 | `tools/codegen/canvas_report.{hpp,cpp}` | `canvas_pointer_report_json()` beside the existing frame report (host-compilable) |
-| `tools/codegen/wasm_canvas_entry.cpp` | the C ABI: `tessera_canvas_run/pointer/draw/reset`, with the coordinate rule on the export |
+| `tools/codegen/wasm_canvas_entry.cpp` | the C ABI: `tessera_canvas_apply/pointer/draw/reset`, with the coordinate rule on the export |
 | `tools/codegen/scene_prepare.cpp` | `preview_stylesheet()` gains `Button:hover`, `Button:active`, `TextInput:hover`, `TextArea:hover` |
 | `tools/codegen/scene_session.{hpp,cpp}` | `last_ran()`/`last_unrun()`/`router()` accessors, so the session can report what a dispatch did |
 | `tests/unit/scene_canvas_session_tests.cpp` | lifecycle + the frame contract (a static scene draws zero) |

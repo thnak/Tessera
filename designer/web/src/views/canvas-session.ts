@@ -43,8 +43,8 @@
 // synchronously, which is why no report it returns claims `pixelsAvailable`.
 
 import { wasmModuleUrl } from "../lib/module-url";
-import type { SourceReader, StatusReporter, ViewSession } from "../lib/views";
-import { callExport, requireExports, type WasmModule } from "../lib/wasm-call";
+import type { ProjectReader, StatusReporter, ViewSession } from "../lib/views";
+import { callExport, requireExports, stageProject, type WasmModule } from "../lib/wasm-call";
 import { acquireDevice, handOverDevice, type CanvasModule } from "./canvas-device";
 import { loadFontFor } from "./canvas-font";
 import {
@@ -65,10 +65,9 @@ type ModuleFactory = () => Promise<WasmModule & CanvasModule>;
 export interface CanvasSessionOptions {
   elements: CanvasPaneElements;
   /**
-   * What Run draws (issue #431): the workspace's compile target, not the textarea's value. A stylesheet
-   * tab being active does not make the stylesheet the source.
+   * What Run draws: the whole project and its entry, not the textarea's value.
    */
-  source: SourceReader;
+  source: ProjectReader;
   setStatus: StatusReporter;
   /** The toolbar's current `{width, height, dpr}`; a canvas run must not be stuck at 320x240. */
   environment: () => { width: number; height: number; dpr: number };
@@ -138,21 +137,17 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
     const target = source();
     let applied: CanvasApplyReport;
     try {
-      // The strings are the source the page owns; the numbers are the logical viewport and the DPR.
-      // `tessera_canvas_apply` takes the same arguments `tessera_canvas_run` does, plus no canvas
-      // handle: applying and painting are separate steps so a failed apply cannot clear the picture.
-      //
-      // `target.stylesheet` travels **here** (issue #390 on issue #444's export): the apply is the call
-      // that re-evaluates, so it is the call that decides which sheet the tree is laid out with. The
-      // draw below takes no strings, which is why the author's CSS must ride with the apply -- an edit
-      // that re-applied the source without the sheet would silently paint the built-in look.
+      // The project is staged first (the module evaluates what is staged, from its entry), then applied
+      // with the component, the fold posture and the logical viewport and DPR. Applying and painting are
+      // separate steps so a failed apply cannot clear the picture. The author's CSS rides with the staged
+      // project: only the sheets the entry's import graph reaches apply.
+      stageProject(gpu.module, target);
       applied = JSON.parse(
-        callExport(
-          gpu.module,
-          "_tessera_canvas_apply",
-          [target.text, target.file, "", foldPosture, target.stylesheet],
-          [viewport.width, viewport.height, dpr],
-        ),
+        callExport(gpu.module, "_tessera_canvas_apply", ["", foldPosture], [
+          viewport.width,
+          viewport.height,
+          dpr,
+        ]),
       ) as CanvasApplyReport;
     } catch (error) {
       pane.showFailed(String(error));
@@ -187,14 +182,9 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
         throw new Error("the module dropped its WebGPU handle table");
       }
       const viewPtr = handles.importJsTextureView(image);
-      // Pointers first, then the numbers: `callExport` marshals the strings and hands the export
-      // `(...pointers, ...numbers)`, which is the shape every export in this page uses. The stylesheet
-      // is drained BEFORE the frame because the frame re-evaluates and re-lays out, and its report is
-      // the answer to "what did that layout compute" (issue #390). `tessera_canvas_frame` takes the
-      // stylesheet beside the source; the module reports its problems in the same document.
-      // `_tessera_canvas_draw` takes **no strings**: the tree it paints is the one the apply above
-      // left in the module, which already carries the author's stylesheet. The stylesheet argument
-      // therefore travels on `_tessera_canvas_apply` (see the call above), not here.
+      // `_tessera_canvas_draw` takes no strings: the tree it paints is the one the apply above left in the
+      // module, which already carries the project's stylesheets. `callExport` hands the export
+      // `(...pointers, ...numbers)`.
       report = JSON.parse(
         callExport(gpu.module, "_tessera_canvas_draw", [], [
           viewport.width,

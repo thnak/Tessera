@@ -199,7 +199,7 @@ The scene → snapshot walk used to live inside `src/harness/engine_host_snapsho
 | Side | Artifact | Invocation |
 |---|---|---|
 | native | `tessera_scene_preview` | `--scene-json OUT --file FILE --salt SALT [--stylesheet CSS] FILE.tsx` |
-| Wasm | `tessera_scene_preview.js` | `tessera_scene_json[_styled](source, file, component[, css])` + `tessera_free` |
+| Wasm | `tessera_scene_preview.js` | `tessera_scene_json(component, fold, width, height, dpr)` over a staged project + `tessera_free` |
 
 Both are the same driver. The browser module follows P1's ABI convention exactly: **the module owns
 the buffer it returns and the caller hands it back through `tessera_free`** (not a static buffer,
@@ -286,25 +286,28 @@ The sheet now carries background colours and one `border-radius`, and the gate d
 draw-call count** per case. The clear colour is the app window background (`rgba8(11, 18, 32)`,
 `detail::frame_clear_color()`), not black, so a preview and the native window start from one pixel.
 
-**The author's stylesheet replaces it (issue #390, owner decision 2).** The page has a second textarea,
-filed as the virtual file `ui/Preview.css`, so a source's `import "./Preview.css";` is that textarea and a
-source without the import still previews with it. `ScenePreviewOptions::stylesheet` carries the text;
-`compile_preview_stylesheet()` (`tools/codegen/scene_stylesheet.cpp`) is the single place that decides
-which sheet a preview compiles: any rule at all means exactly the author's text — the built-in sheet is
-**not** compiled and never layers under it — while empty, whitespace-only or comment-only text keeps
-`preview_stylesheet()` as the fallback, so the bundled samples and the parity corpus keep today's bytes.
+**The project is staged, and only imported stylesheets apply (issues #390 and the project preview).** A
+module no longer takes one source and one sheet per call. The page stages a whole project with
+`tessera_project_begin`, `tessera_project_add_source(path, text)`, `tessera_project_add_stylesheet(path, text)`
+and `tessera_project_set_entry(path)` (`wasm_project_exports.cpp`, shared by all three modules), then calls
+an export that reads it: `tessera_diagnostics_json()`, `tessera_scene_json(component, fold, w, h, dpr)`,
+`tessera_input_json(component, script)`, `tessera_css_diagnostics_json()` and
+`tessera_canvas_apply(component, fold, w, h, dpi)`. The entry is the project's own (`tessera.json`
+`app.entry`); a project that names none is reported as such, with no fallback to another file.
+`evaluate_project()` walks from the entry through its relative imports (`project_walk.hpp`), so the
+stylesheets that apply are exactly the imported ones, in first-import order, exactly as a web import graph
+cascades. `prepare_preview_sheets()` (`scene_stylesheet.cpp`) decides the sheet: any rule in an imported
+sheet means the author's text and the built-in sheet is **not** compiled under it, while no imported sheet
+with a rule keeps `preview_stylesheet()` as the fallback, so the parity corpus keeps today's bytes. A
+diagnostic carries the file it is in (`jsx::Diagnostic::file`), so an error in `ui/Home.tsx` is not
+reported against the entry.
 
 A sheet with one bad rule is still the author's sheet, so an invalid declaration cannot resurrect the
-built-in blue `Button` while the page shows the error that explains it. `style`, `className` and `var()`
-take the ordinary cascade (`style::SceneStyleTree::compute()`), so an inline `style` wins over a class
-rule and a `:root` custom property resolves exactly as native resolves it; the preview invents no tokens.
-The exports that carry it — `tessera_canvas_frame`/`tessera_canvas_run`/`tessera_canvas_apply`,
-`tessera_scene_json_styled*`, `tessera_scene_json_folded_styled`, `tessera_input_json_styled`,
-`tessera_css_diagnostics_json` — take the text beside the source, and **null or empty means "no author
-CSS"**, which keeps the Node probe and every pre-#390 caller working. `tessera_canvas_draw` deliberately
-does **not** (see 8.3a): it paints the tree the last apply built, so the sheet belongs on the call that
-re-evaluates. The frame report gained an appended `cssDiagnostics` array and kept `canvasVersion: 1`,
-because no existing field changed.
+built-in blue `Button`. `style`, `className` and `var()` take the ordinary cascade
+(`style::SceneStyleTree::compute()`); the preview invents no tokens.
+`tessera_canvas_draw` takes no project (see 8.3a): it paints the tree the last apply built. The frame
+report carries an appended `cssDiagnostics` array; `tessera_css_diagnostics_json` is `cssVersion: 2`
+(every problem names its own file).
 
 **Diagnostics are reported, never fatal.** A CSS problem is a record with the spec's `TESSERA_CSS_*` code
 and a 1-based line/column into the CSS text (`author_stylesheet_diagnostics()`); the tolerant parser drops
@@ -348,12 +351,9 @@ The page owns the surface, the module owns the drawing:
    context once (`rgba8unorm`, opaque), then each frame passes a texture view as below.
 2. Each frame it imports `getCurrentTexture().createView()` with `importJsTextureView` and passes
    that handle to `tessera_canvas_draw`, which paints the running session into it and releases the view
-   when the target is destroyed; a null view draws offscreen, which the Node probe uses. (A one-shot
-   `tessera_canvas_frame` still exists for the parity probe; the page does not use it, because it
-   re-evaluates per call and so can neither carry state nor keep a picture across a failed edit.) Draw
-   takes **no strings**: the tree, and the sheet that tree was laid out with, are the ones the last
-   `run`/`apply` left in the module (#390's append-only ABI puts the sheet argument on those two), and
-   its report still carries `cssDiagnostics`.
+   when the target is destroyed; a null view draws offscreen, which the Node probe uses. Draw takes
+   **no strings**: the tree, and the sheets it was laid out with, are the ones the last `apply` left in
+   the module, and its report still carries `cssDiagnostics`. (`tessera_canvas_frame` and `tessera_canvas_run` are gone: one-shot calls cannot carry state.)
 
 Both target kinds derive from `WebGpuTargetViews`, and the command list casts to that. A cast to the
 concrete offscreen class made a canvas target read the wrong memory and begin a pass with no view.
@@ -506,7 +506,7 @@ V1 has **no** state snapshot or restore, and this slice does not add one.
 | Side | Artifact | Invocation |
 |---|---|---|
 | native | `tessera_scene_preview` | `--input-json OUT --script SCRIPT --file FILE --salt SALT FILE.tsx` |
-| Wasm | `tessera_scene_preview.js` | `tessera_input_json(source, file, component, script)` + `tessera_free` |
+| Wasm | `tessera_scene_preview.js` | `tessera_input_json(component, script)` over a staged project + `tessera_free` |
 
 The result document is `{"inputVersion":1,"initial":[...],"steps":[...]}`; each step carries `found`,
 `dispatched`, the `ran` and `unrun` handler ids, and the state cells after it. Cells are the existing
@@ -565,16 +565,15 @@ preloads a module. [`studio-page.md`](studio-page.md) section 2 is the normative
 
 ### 10.2 What the toggles actually do
 
-`viewport` and `dpr` are real layout inputs: `tessera_scene_json_sized` passes them to
+`viewport` and `dpr` are real layout inputs: `tessera_scene_json` passes them to
 `ScenePreviewOptions`, so the scene page re-lays-out at the chosen rectangle. Measured with the native
 CLI at 320×240 / 390×844 / 1280×800, the root node's bounds follow the request and the node count is
 unchanged — the difference between "the toggle is wired" and "the toggle re-renders the same picture".
 
 `theme` is carried in the link and persisted locally, but it is **not applied**: the null-RHI
 snapshot path has no theme asset, so a themed preview would be a claim the module cannot keep — a
-spec-level gap, recorded rather than papered over. The sized export itself is
-`tessera_scene_json_sized(...)` in `tools/codegen/wasm_scene_entry.cpp`; the P2 signature is untouched
-because the parity gate pins its defaults.
+spec-level gap, recorded rather than papered over. A non-positive size means the
+320×240 / DPR 1 default the parity gate pins (`tools/codegen/wasm_scene_entry.cpp`).
 
 ### 10.3 Verification and status
 

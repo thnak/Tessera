@@ -58,10 +58,8 @@ bool near(float a, float b) {
 // visible (the page is the viewport). **Two buttons, and the second one is why:** a click that
 // changes state REBUILDS the tree, and a rebuild resets the router (its hover/active/focus pointers
 // point into the tree being replaced), so a state-changing click cannot leave a hover behind. The
-// second button has no handler: pressing it focuses it and changes nothing, which is how this
-// fixture reaches "state 1, a hover and a focus at once" and can then resize.
+// second button has no handler: pressing it focuses it and changes nothing (state 1 plus a hover and focus).
 constexpr std::string_view kPage = R"(import "./Preview.css";
-
 export function Page(): Node {
   const [count, setCount] = useState<int>(0);
   return (

@@ -10,7 +10,7 @@
 // **What it compiles.** Before #431 this session read `#source.value`, which was the page's one textarea
 // and therefore always the right text. Now the editor shows one project file at a time and Run compiles
 // the *compile target* (`lib/project.ts`: the active source file, else the project entry), so the text
-// and the file name both come from the page's `SourceReader` -- and the file name is the canonical
+// and the file name both come from the page's `ProjectReader` -- and the file name is the canonical
 // project path, which is what every `uiId` and every span is derived from.
 //
 // **What React owns here.** The pane's header, status line, list element and empty state are React's
@@ -19,8 +19,8 @@
 // ADR-054 decision 3 split: React draws the chrome, the engine draws the preview.
 
 import { wasmModuleUrl } from "../lib/module-url";
-import type { StatusReporter, SourceReader, ViewSession } from "../lib/views";
-import { callExport, requireExports, type WasmModule } from "../lib/wasm-call";
+import type { StatusReporter, ProjectReader, ViewSession } from "../lib/views";
+import { callExport, requireExports, stageProject, type WasmModule } from "../lib/wasm-call";
 import { renderDiagnostics, type DiagnosticsDocument } from "./diagnostics-render";
 import { unavailableBox } from "./dom";
 
@@ -46,12 +46,12 @@ export interface DiagnosticsSession extends ViewSession {
  * Creates the diagnostics session.
  *
  * `elements` is read once: the nodes are stable for the page's lifetime because React renders them
- * childless and never conditionally. `source` is the page's `SourceReader`, `setStatus` is the pane's own
+ * childless and never conditionally. `source` is the page's `ProjectReader`, `setStatus` is the pane's own
  * status line, and `onReady` tells the page whether the shared Run button should be enabled.
  */
 export function createDiagnosticsSession(options: {
   elements: DiagnosticsElements;
-  source: SourceReader;
+  source: ProjectReader;
   setStatus: StatusReporter;
   onReady: (ready: boolean) => void;
 }): DiagnosticsSession {
@@ -110,12 +110,13 @@ export function createDiagnosticsSession(options: {
       const target = options.source();
       // The marshalling and the two release paths live in `lib/wasm-call.ts`: the three views share the
       // same C ABI shape, so the lifetime rule is written once instead of three times.
-      const json = callExport(module, "_tessera_diagnostics_json", [target.text, target.file]);
+      stageProject(module, target);
+      const json = callExport(module, "_tessera_diagnostics_json");
       const counts = renderDiagnostics(
         list,
         emptyState,
         JSON.parse(json) as DiagnosticsDocument,
-        { element: editor, shown: target.shown, file: target.file },
+        { element: editor, file: target.active },
       );
       report(counts);
     } catch (error) {
@@ -146,7 +147,7 @@ export function createDiagnosticsSession(options: {
       // Instantiate once up front so a broken module fails visibly at load, not on the first Run, and
       // so a module built without the exports this view calls fails with a readable message rather
       // than as "x is not a function" later.
-      requireExports(await factory(), ["_tessera_diagnostics_json"]);
+      requireExports(await factory(), ["_tessera_diagnostics_json", "_tessera_project_begin"]);
       setStatus("ready");
       options.onReady(true);
     } catch (error) {

@@ -23,6 +23,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { chromium } from 'playwright';
+import { ENTRY, editEntry, editSheet, selectFile } from './studio_project.mjs';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -166,8 +167,8 @@ await page.locator('#tab-canvas').click();
 await page.waitForTimeout(600);
 
 // --- 1. Apply author CSS through the cold start, and confirm it paints -------------------------------
-await page.fill('#source', SOURCE);
-await page.fill('#stylesheet', RED_CSS);
+await editEntry(page, SOURCE);
+await editSheet(page, RED_CSS);
 await page.locator('#restart-app').click();
 await settle(2500);
 check('author CSS applied: the canvas draws', /draw call/.test((await status()) ?? ''), await status());
@@ -199,6 +200,8 @@ check(
   beforeEditState,
 );
 
+// The editor shows the stylesheet after the edit above; the live edit is a source edit.
+await selectFile(page, ENTRY);
 await page.evaluate(() => {
   const node = document.getElementById('source');
   node.value = node.value
@@ -252,7 +255,8 @@ check(
 const GREEN_CSS = `.page { display: flex; flex-direction: column; background-color: rgb(20, 160, 60); width: 320px; height: 240px; }
 .title { color: rgb(0, 0, 0); height: 24px; }
 `;
-await page.fill('#stylesheet', GREEN_CSS);
+await editSheet(page, GREEN_CSS);
+await selectFile(page, ENTRY);
 // A real text edit inside the source, not an appended character: appending to the end of the module
 // leaves the closing brace after the new text and the source stops parsing, which is a different test.
 await editSource('Author CSS!!', 'Author CSS day');
