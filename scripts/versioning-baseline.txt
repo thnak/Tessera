@@ -11,8 +11,8 @@
 #   field    <surface>  <key>  <type>  <required>  <default>
 # A field that has no Required or Default column in its spec table records "-" in that column.
 version	ir	1
-version	rhi	1.6
-digest	rhi	f826e759df6575ba90e89ce1065991b84750e397656fd2367127fe9049a75880
+version	rhi	1.7
+digest	rhi	4a692f399332ad0c6b9978e4c21a6cb8c155d7ee33cedacb8fe13e3c2542149c
 version	tessera.json	1
 field	ir	ir-v1-expr::6. Binding#2::params	{ name, type }[]	-	-
 field	ir	ir-v1-expr::6. Binding#2::preview	{ actions, return }	-	-
