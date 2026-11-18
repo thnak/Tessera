@@ -345,6 +345,27 @@ CanvasPointerResult CanvasSceneSession::pointer(PreviewInput::Kind kind, float x
     return result;
 }
 
+CanvasPickResult CanvasSceneSession::pick(float x, float y) {
+    CanvasPickResult result;
+    if (!started()) {
+        return result;
+    }
+    // The router's own hit test, on the live tree: `Node::hit_test_deep` is the function
+    // `ui::InputRouter` calls to decide a pointer target, so the node reported here is exactly the
+    // node a press at the same point would reach. It is non-const because it walks mutable
+    // children, but it writes nothing - which is why `pick()` is a query even though it cannot be
+    // `const`.
+    ui::Node* hit = session_->root().hit_test_deep(x, y);
+    if (hit == nullptr) {
+        return result;
+    }
+    result.found = true;
+    result.automation_id = hit->automation_id();
+    result.element_kind = hit->element_kind();
+    result.box = hit->world_bounds();
+    return result;
+}
+
 bool CanvasSceneSession::needs_frame() const {
     if (!started()) {
         return false;

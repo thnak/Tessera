@@ -51,6 +51,15 @@ export interface CanvasPaneElements {
    * pane (the SSR chrome renders one, and the smoke test does not need the write).
    */
   statusFrame: HTMLElement | null;
+  /**
+   * The picker overlay (issue #171's picker slice): the element the outline and the readout are drawn
+   * into. It is positioned over the canvas and is `pointer-events: none`, so it never intercepts a
+   * move or a press. Optional for the same reason `statusFrame` is: a pane rendered without one is a
+   * valid pane, and the picker then simply has nowhere to draw.
+   */
+  pickOverlay: HTMLElement | null;
+  /** The picker's toggle in the pane header; null when the pane has no header. */
+  pickToggle: HTMLButtonElement | null;
 }
 
 /**
@@ -99,6 +108,8 @@ export interface CanvasPane {
    * nothing to report, and a row that said "none" would look like a failed carry.
    */
   renderState(cells: readonly CanvasStateCell[]): void;
+  /** Hides the picker's outline (issue #171): the node it named may no longer be under the pointer. */
+  hidePick(): void;
 }
 
 export function createCanvasPane(
@@ -139,6 +150,17 @@ export function createCanvasPane(
   function hideStates(): void {
     pane.unsupported.hidden = true;
     pane.failed.hidden = true;
+  }
+
+  /**
+   * Hides the picker's outline (issue #171). Called whenever the picture under it can move: a new
+   * frame, a viewport change, a restart. An outline left over a node that is no longer there is worse
+   * than no outline, because it names a node the developer is not looking at.
+   */
+  function hidePick(): void {
+    if (pane.pickOverlay !== null) {
+      pane.pickOverlay.hidden = true;
+    }
   }
 
   function setFontState(family: string | null, reason?: string): void {
@@ -258,6 +280,7 @@ export function createCanvasPane(
     setFontState,
     renderReport,
     renderState,
+    hidePick,
   };
 }
 

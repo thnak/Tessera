@@ -140,6 +140,11 @@ const VIEW_IDS = {
   // rename here would silently disarm the live edit's acceptance evidence.
   "state-row",
   "stat-state",
+  // The picker overlay (issue #171): the toggle that arms it and the layer the outline is drawn into.
+  // The overlay is `pointer-events: none` in CSS, which is what keeps the preview's own pointer path
+  // working while the picker is armed; a rename here would leave the picker with nowhere to draw.
+  "pick-toggle",
+  "pick-overlay",
   ],
 };
 

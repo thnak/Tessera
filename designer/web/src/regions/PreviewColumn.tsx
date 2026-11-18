@@ -109,6 +109,9 @@ export type PreviewRefs = Pick<
   // Issue #444: the state row, which the canvas pane fills with the running evaluation's cells.
   | "stateRow"
   | "statState"
+  // Issue #171's picker: the overlay the outline is drawn into, and the toggle that arms it.
+  | "pickOverlay"
+  | "pickToggle"
 >;
 
 export function PreviewColumn({
@@ -194,6 +197,8 @@ export function PreviewColumn({
           statFontRef={refs.statFont}
           stateRowRef={refs.stateRow}
           statStateRef={refs.statState}
+          pickOverlayRef={refs.pickOverlay}
+          pickToggleRef={refs.pickToggle}
         />
       </div>
     </section>

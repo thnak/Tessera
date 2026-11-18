@@ -114,6 +114,7 @@ this module is given.
 |---|---|
 | `tessera_canvas_apply(component, fold, width, height, dpi)` | evaluate the staged project, keep it (carrying state across an edit); returns a report with `error` set when it produced no scene. An apply of the identical project reuses the evaluation instead of rebuilding it |
 | `tessera_canvas_pointer(kind, x, y, button)` | `kind` is `"move" \| "down" \| "up" \| "cancel"`; coordinates are logical pixels; returns `{"pointerVersion":1,"dispatched":…,"changed":…,"targetId":"…","hoveredId":"…","activeId":"…","ran":[…],"unrun":[…]}`, all ids as decimal **strings** |
+| `tessera_canvas_pick(x, y)` | what is under a point, for the picker overlay ([§5.1](#51-the-picker-query-issue-171)); coordinates are logical pixels; returns `{"pickVersion":1,"found":…,"automationId":"…","elementKind":"…","box":{"x":…,"y":…,"width":…,"height":…}}`. A query: it dispatches nothing and owes no frame |
 | `tessera_canvas_key(kind, key, modifiers, repeat)` | keyboard (issue #388): `kind` is `"down" \| "up" \| "blur"`; `key` is a W3C `KeyboardEvent.key`; `modifiers` a Shift 1 / Control 2 / Alt 4 / Meta 8 mask. Returns the pointer report plus `focusedId`, `focusVisible`, `focusMoved`, `handled` (the page calls `preventDefault`) and `left` (Tab walked off the end of the tab order: focus is released and the browser carries on, so the canvas is never a keyboard trap). Enter activates on key-down, Space on key-up; the `:focus-visible` ring shows only after keyboard traversal |
 | `tessera_canvas_draw(width, height, canvas_view)` | paint the session's current tree into the canvas view; never re-evaluates |
 | `tessera_canvas_set_fold(posture)` | re-lay the RUNNING tree out at a simulated fold posture (`flat`, `book`, `tabletop`), one pass, no re-evaluation (issue #408, [§6.1](../specs/designer-studio-v1.md)) |
@@ -133,6 +134,47 @@ its report (and in the frame report's `cascade` field) is the count that makes t
 observable: a resize inside one breakpoint moves the boxes and leaves the number alone. The rule is
 [`responsive.md`](responsive.md) section 2.1; the labels of both fields (`changed`, `frames`,
 `cascade`) are what `scripts/ci/preview_browser_viewport.mjs` asserts in a real browser.
+
+### 5.1 The picker query (issue #171)
+
+The picker overlay is the first slice of #171: while it is armed, moving the pointer over the canvas
+outlines the node under it and shows that node's identity in a small readout. It needs one fact from
+the engine — *which node is at this point, and where is its box* — and it needs that fact **without
+changing the scene**.
+
+**Why a query and not a pointer kind.** `tessera_canvas_pointer` dispatches: it sets `:hover`, may run
+a handler, and answers `changed` so the page draws a frame. A picker must do none of that. Arming it
+and moving over a button has to leave the button at its resting colour, run nothing, and cost zero
+frames — otherwise the overlay would be an animation loop that repaints the canvas on every pointer
+move, which is exactly what §3 exists to prevent. So `tessera_canvas_pick` is a separate export that
+reads the tree and returns a value. `CanvasSceneSession::pick()` sets no pseudo-class, marks no dirty
+domain and allocates nothing beyond the two borrowed strings it copies out.
+
+**Why it is not a second hit test.** `CanvasSceneSession::pick()` calls `Node::hit_test_deep`, the
+function `ui::InputRouter` calls to decide a pointer target. So the node the overlay outlines is the
+node a press at the same point would reach, including `pointer-events: none`, scrollport clipping,
+z-order and `visibility: hidden`. A hand-written hit test would be a second copy of those rules, and
+the first time the two disagreed the overlay would outline one node while a click activated another.
+
+**The box is in logical pixels.** `box` is `Node::world_bounds()`, in the same space `pointer()` takes
+its coordinates in, so the page converts it with the CSS-to-logical ratio of §4 — the same factor it
+divides the pointer by, never the DPR. One conversion in each direction is what keeps the outline
+under the pointer that produced it.
+
+**A miss is a real answer.** `found:false` (with a zero box) means the point is over no node: outside
+the viewport, or over a gap the tree does not cover. The page hides the overlay rather than keeping
+the last outline, which would claim the pointer is still over the node it left. An unstarted session
+answers the same way, so a page that arms the picker before the first Run costs no exception at the
+FFI boundary.
+
+**The page half.** `designer/web/src/views/canvas-picker.ts` owns the overlay: a `div` positioned over
+the canvas, `pointer-events: none` so it never intercepts a move or a press, with an outline and a
+readout built into it. It is **off by default** and armed by the `Picker` toggle in the Canvas pane's
+header (`aria-pressed` carries the state). The overlay is a page element rather than engine paint for
+two reasons: an engine-drawn outline would be part of the frame, so it would have to be repainted on
+every move and would contaminate the pixels a golden compares; and ADR-054 decision 3 says the engine
+draws the previewed app and nothing else. The outline is re-asked after a frame, a viewport change or
+a restart, because the boxes it was drawn for may have moved.
 
 ## 6. The page half (landed)
 
@@ -194,23 +236,42 @@ Verified on this Windows host (2026-11-16):
   **14** assertions in `scene_canvas_session_tests.cpp` and **10** in
   `scene_canvas_pointer_tests.cpp`, so the zero-frame and one-frame assertions are not vacuous.
 
-**Browser verification: not performed, page blocked on #422.** Nothing in this slice has been run
-against a real WebGPU device: the module is built, not executed. The frame-count assertions are made
-on the null RHI backend, where a frame is a recorded command stream - which proves the *session's*
-decision to draw and the *paint* that follows it, but not that a browser presents it. That last step
-belongs to the #422 shell.
+**The picker slice (issue #171, 2026-11-18).** Added `tessera_canvas_pick` and its report, the
+`scene_canvas_pick` ctest case, and the page's overlay. Verified on this Windows host:
+
+* `cmake --build build\vs2026 --config Release --parallel 12 --target scene_canvas_pick_tests
+  scene_canvas_pointer_tests scene_canvas_session_tests`: exit 0, `/WX` clean.
+* The three executables pass: `scene_canvas_pick: ok`, `scene_canvas_pointer: ok`,
+  `scene_canvas_session: ok`. The new case asserts the picked node and its box against the tree's own
+  `automation_id()`/`world_bounds()`, a miss outside every node, and that ten picks over a button
+  leave `hovered()` null, the resting colour unchanged and the frame count at 1.
+* `cmake --build build/wasm-webgpu --target tessera_canvas_wasm`: exit 0, and the linked
+  `tessera_canvas.js` contains `_tessera_canvas_pick` in its export table. A *build* fact, not a
+  runtime one.
+* `npm run build --prefix designer/web` (typecheck + site + SSR chrome): exit 0.
+  `node scripts/ci/preview_page_checks.mjs`: all pass, including the canvas pane's 19 ids (the picker
+  toggle and overlay are two of them).
+
+**Not verified: the overlay in a browser.** Nothing here has been run against a real WebGPU device or
+a real pointer, so "the outline lands under the pointer" is reasoned from the shared CSS-to-logical
+conversion rather than observed. The engine half is proven on the null RHI; the page half is proven
+to build, typecheck and render its ids. A browser probe is the follow-up, and it needs the same
+Playwright-class dependency `compiler-wasm.md` section 8.3 records as missing.
 
 ## 8. Files
 
 | Path | Role |
 |---|---|
-| `tools/codegen/scene_canvas_session.{hpp,cpp}` | the persistent session: evaluation, pointer dispatch, frame accounting |
+| `tools/codegen/scene_canvas_session.{hpp,cpp}` | the persistent session: evaluation, pointer dispatch, frame accounting, and the picker's `pick()` query |
 | `tools/codegen/scene_frame.{hpp,cpp}` | `scene_frame_paint_tree()` - paint a caller-owned tree; `scene_frame_paint()` is now its wrapper |
-| `tools/codegen/canvas_report.{hpp,cpp}` | `canvas_pointer_report_json()` beside the existing frame report (host-compilable) |
-| `tools/codegen/wasm_canvas_entry.cpp` | the C ABI: `tessera_canvas_apply/pointer/draw/reset`, with the coordinate rule on the export |
+| `tools/codegen/canvas_report.{hpp,cpp}` | `canvas_pointer_report_json()` and `canvas_pick_report_json()` beside the existing frame report (host-compilable) |
+| `tools/codegen/wasm_canvas_entry.cpp` | the C ABI: `tessera_canvas_apply/pointer/pick/draw/reset`, with the coordinate rule on the exports |
 | `tools/codegen/scene_prepare.cpp` | `preview_stylesheet()` gains `Button:hover`, `Button:active`, `TextInput:hover`, `TextArea:hover` |
 | `tools/codegen/scene_session.{hpp,cpp}` | `last_ran()`/`last_unrun()`/`router()` accessors, so the session can report what a dispatch did |
 | `tests/unit/scene_canvas_session_tests.cpp` | lifecycle + the frame contract (a static scene draws zero) |
 | `tests/unit/scene_canvas_pointer_tests.cpp` | the pointer path into the style engine, click synthesis, ignored buttons, cancel |
+| `tests/unit/scene_canvas_pick_tests.cpp` | the picker query: the right node and box, a miss, and that a pick changes nothing |
 | `tests/unit/scene_canvas_test_support.hpp` | the shared sources, tree helpers and the on-demand `CanvasHarness` |
+| `designer/web/src/views/canvas-picker.ts` | the page's overlay: the outline, the readout, the toggle and the CSS-to-logical conversion |
+| `designer/web/src/regions/CanvasPane.tsx` | the overlay element (`pointer-events: none`) and the `Picker` toggle |
 | `src/compiler/codegen/CMakeLists.txt` | the module-local build wiring (see the answer accompanying this landing) |

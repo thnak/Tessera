@@ -148,7 +148,8 @@ export function useSessions(deps: SessionDeps, settled: boolean): Sessions {
       pane.statDpr.current &&
       pane.statFont.current &&
       pane.stateRow.current &&
-      pane.statState.current
+      pane.statState.current &&
+      pane.pickOverlay.current
     ) {
       const status = pane.canvasStatus.current;
       sessions.current.canvas = createCanvasSession({
@@ -171,6 +172,9 @@ export function useSessions(deps: SessionDeps, settled: boolean): Sessions {
           // The state row (#444): what the running evaluation's cells read after an apply.
           stateRow: pane.stateRow.current,
           statState: pane.statState.current,
+          // Issue #171's picker: the overlay the outline is drawn into, and the header toggle.
+          pickOverlay: pane.pickOverlay.current,
+          pickToggle: pane.pickToggle.current,
           statusFrame: pane.statusFrame.current,
         },
         source: deps.source,
