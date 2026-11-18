@@ -26,6 +26,7 @@
 
 #include "scene_prepare.hpp"
 #include "scene_stylesheet.hpp"
+#include "scene_stylesheet_test_support.hpp"
 #include "tessera/ui/style/scene_style.hpp"
 
 #include <iostream>
@@ -38,17 +39,10 @@ namespace cli = tessera::compiler::codegen::cli;
 namespace style = tessera::ui::style;
 namespace ui = tessera::ui;
 
-int& failures() {
-    static int count = 0;
-    return count;
-}
-
-void expect(bool condition, std::string_view message) {
-    if (!condition) {
-        std::cerr << "scene_stylesheet: " << message << "\n";
-        ++failures();
-    }
-}
+// The failure counter and `expect()` are shared with `scene_stylesheet_module_tests.cpp` (issue
+// #463), so both halves of the ctest case report one total.
+using scene_stylesheet_test::expect;
+using scene_stylesheet_test::failures;
 
 // A column with a button and a text leaf: the shapes the built-in sheet sizes, so "the built-in
 // look" and "the author's look" are distinguishable by the button's box alone.
@@ -439,6 +433,9 @@ int main() {
     test_css_diagnostics_carry_line_and_column();
     test_an_unterminated_string_is_an_error_not_a_blank_frame();
     test_no_author_css_has_no_diagnostics();
+    // The `*.module.css` half (issue #463) lives in its own TU and reports through the same
+    // counter.
+    scene_stylesheet_test::run_module_cases();
     if (failures() != 0) {
         std::cerr << "scene_stylesheet: " << failures() << " failure(s)\n";
         return 1;

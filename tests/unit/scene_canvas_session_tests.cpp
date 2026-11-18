@@ -27,6 +27,8 @@ namespace {
 
 using namespace canvas_test;
 
+namespace css = tessera::compiler::css_module;
+
 void test_start_and_first_frame() {
     cli::CanvasSceneSession session;
     expect(!session.started(), "a fresh session is not started");
@@ -250,6 +252,68 @@ void test_a_failed_edit_keeps_the_running_evaluation() {
            "nothing was dropped on a text-only edit");
 }
 
+// Issue #463: the canvas session compiles the SCOPED text of a `*.module.css`, so the class the
+// lowered tree carries is the class the sheet defines. Without that, the tree says `card_0b82a5`
+// and the sheet only defines `.card`: nothing matches and the component is silently unstyled.
+void test_module_sheet_is_scoped() {
+    constexpr std::string_view kModuleSource = R"(import styles from "./Card.module.css";
+export function Card(): Node {
+  return (
+    <View>
+      <View className={styles.card}><Text>Card</Text></View>
+    </View>
+  );
+}
+)";
+    constexpr std::string_view kModuleCss = ".card { padding-top: 11px; }\n";
+
+    // The helper first, in isolation: if this does not scope, the session cannot.
+    {
+        std::optional<css::ModuleScanError> scan_error;
+        const std::string text =
+            cli::preview_stylesheet_text(kModuleCss, "ui/Card.module.css", scan_error);
+        expect(!scan_error.has_value(), "the module sheet scans");
+        expect(text.find("card_0b82a5") != std::string::npos,
+               "the helper scopes the class, got `" + text + "`");
+    }
+
+    cli::CanvasSceneSession session;
+    cli::CanvasSessionSource source = source_for(kModuleSource, "ui/Card.tsx");
+    source.stylesheet = kModuleCss;
+    source.stylesheet_file = "ui/Card.module.css";
+    const std::string error = session.start(source);
+    expect(error.empty(), "a module sheet starts: " + error);
+    if (!error.empty() || session.root() == nullptr) {
+        return;
+    }
+    // The scoped name is the hash of the project-relative path, so it is a fixed value here.
+    const ui::Node* card = find_class(*session.root(), "card_0b82a5");
+    expect(card != nullptr, "the tree carries the scoped class `card_0b82a5`");
+    if (card == nullptr) {
+        return;
+    }
+    // The rule the sheet declares must reach the node: this is the assertion that fails when the
+    // raw text is compiled instead of the scoped text.
+    bool defines_scoped = false;
+    for (const ui::style::SelectorIndex::Entry& entry : session.sheet().index().entries()) {
+        for (const ui::style::CompoundSelector& compound : entry.selector.compounds) {
+            for (const std::string& declared : compound.classes) {
+                if (declared == "card_0b82a5") {
+                    defines_scoped = true;
+                }
+            }
+        }
+    }
+    expect(defines_scoped, "the session's compiled sheet defines `.card_0b82a5`");
+    ui::style::SceneStyleTree tree(*session.root());
+    const ui::style::ComputedStyle style = tree.compute(session.sheet(), *card);
+    const std::string* padding = style.find("padding-top");
+    expect(padding != nullptr && *padding == "11px",
+           "the scoped module rule styles the node, got '" +
+               (padding != nullptr ? *padding : std::string("<none>")) + "' (class '" +
+               std::string(card->class_name()) + "')");
+}
+
 } // namespace
 
 int main() {
@@ -259,6 +323,7 @@ int main() {
     test_bad_source_reports_a_reason();
     test_a_failed_edit_keeps_the_running_evaluation();
     test_pointer_report_json();
+    test_module_sheet_is_scoped();
     if (failures() != 0) {
         std::cerr << "scene_canvas_session: " << failures() << " failure(s)\n";
         return 1;

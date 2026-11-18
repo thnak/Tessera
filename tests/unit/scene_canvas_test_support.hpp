@@ -96,6 +96,20 @@ inline const ui::Node* find_kind(const ui::Node& node, std::string_view kind) {
     return nullptr;
 }
 
+// The node carrying `class_name`, anywhere in the tree. A CSS module's scoped class is what the
+// lowered tree carries, so a test that asserts on it must find the node by that name.
+inline const ui::Node* find_class(const ui::Node& node, std::string_view class_name) {
+    if (node.class_name() == class_name) {
+        return &node;
+    }
+    for (const auto& child : node.children()) {
+        if (const ui::Node* found = find_class(*child, class_name)) {
+            return found;
+        }
+    }
+    return nullptr;
+}
+
 inline std::vector<const ui::Node*> find_all(const ui::Node& node, std::string_view kind) {
     std::vector<const ui::Node*> found;
     if (node.element_kind() == kind) {
