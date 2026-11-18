@@ -1135,6 +1135,13 @@ target_link_libraries(animation_tests PRIVATE tessera_animation)
 
 add_test(NAME animation COMMAND animation_tests)
 
+add_executable(box_shadow_interpolation_tests
+    box_shadow_interpolation_tests.cpp)
+
+target_link_libraries(box_shadow_interpolation_tests PRIVATE tessera_animation)
+
+add_test(NAME box_shadow_interpolation COMMAND box_shadow_interpolation_tests)
+
 add_executable(animation_quality_pause_tests
     animation_quality_pause_tests.cpp)
 
@@ -1708,6 +1715,13 @@ add_executable(frame_pipeline_style_sync_tests
 target_link_libraries(frame_pipeline_style_sync_tests PRIVATE tessera_frame tessera_runtime)
 
 add_test(NAME frame_pipeline_style_sync COMMAND frame_pipeline_style_sync_tests)
+
+add_executable(frame_pipeline_shadow_damage_tests
+    frame_pipeline_shadow_damage_tests.cpp)
+
+target_link_libraries(frame_pipeline_shadow_damage_tests PRIVATE tessera_frame tessera_runtime)
+
+add_test(NAME frame_pipeline_shadow_damage COMMAND frame_pipeline_shadow_damage_tests)
 
 # Transition and animation declarations reach the frame pipeline (issue #271): a stylesheet
 # `transition: opacity 200ms linear` starts an AnimationId from `FramePipeline::sync_style` and the

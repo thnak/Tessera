@@ -228,6 +228,14 @@ samples the new entries at zero elapsed time and marks their targets paint-dirty
 paints the start value. Colour channels interpolate premultiplied (CSS Color 4), so fading in from
 `transparent` keeps the colour instead of passing through a darker one.
 
+**`box-shadow` transitions** (#462). A shadow list interpolates layer by layer (`animation/shadow_interpolation.cpp`):
+offset, blur and spread as lengths, colour premultiplied. A shorter list is padded with transparent
+zero shadows that take the `inset` flag of their partner, so `none` fades a shadow in or out. A pair
+whose `inset` flags differ, a `currentColor` layer or a value the parser does not read keeps the
+discrete switch at 50 %. The interpolated value goes through the same overlay as every other property,
+so the shadow's reach is re-synced each frame and damage covers the previous, wider reach
+(`frame_pipeline_shadow_damage`).
+
 **Cost.** The style stage is change-driven, so this walk never runs on a paint-only frame. It
 resolves one computed style per rendered node, which the stage already does twice (scene sync and
 interaction sync); the snapshots are the only retained memory, bounded by the transition-declaring
