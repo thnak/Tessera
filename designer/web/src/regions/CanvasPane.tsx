@@ -39,6 +39,8 @@ export function CanvasPane({
   statFontRef,
   stateRowRef,
   statStateRef,
+  pickOverlayRef,
+  pickToggleRef,
 }: {
   view: ViewDefinition;
   statusRef: RefObject<HTMLDivElement | null>;
@@ -58,6 +60,9 @@ export function CanvasPane({
   /** Issue #444: the state row's `<dt>` and `<dd>`, hidden until a cell exists. */
   stateRowRef: RefObject<HTMLElement | null>;
   statStateRef: RefObject<HTMLElement | null>;
+  /** Issue #171: the picker's overlay (childless, `pointer-events: none`) and its toggle. */
+  pickOverlayRef: RefObject<HTMLDivElement | null>;
+  pickToggleRef: RefObject<HTMLButtonElement | null>;
 }) {
   return (
     <section
@@ -70,6 +75,21 @@ export function CanvasPane({
     >
       <div className="pane-header">
         <h2>Canvas</h2>
+        {/* Issue #171's picker: off by default, because the overlay is a tool rather than the
+            preview. `aria-pressed` is the state a screen reader reads, and the session keeps it in
+            step with the overlay it controls. */}
+        <div className="pane-actions">
+          <button
+            id="pick-toggle"
+            type="button"
+            aria-pressed="false"
+            aria-controls="pick-overlay"
+            title="Outline the node under the pointer and name it"
+            ref={pickToggleRef}
+          >
+            Picker
+          </button>
+        </div>
         <div className="status" id="canvas-status" role="status" aria-live="polite" ref={statusRef}>
           not started
         </div>
@@ -89,9 +109,22 @@ export function CanvasPane({
       </div>
 
       {/* The engine's one surface. React renders this element once and never touches it again; the
-          canvas session owns its backing store, its WebGPU context and its frames. */}
+          canvas session owns its backing store, its WebGPU context and its frames.
+
+          The picker's overlay is a sibling *inside* the same positioned box, so it can be laid over
+          the canvas without a second coordinate system. It is childless here: the session builds the
+          outline and the readout into it, the same way it owns the canvas. */}
       <div className="canvas-frame" id="canvas-frame" ref={frameRef} hidden>
-        <canvas id="canvas" ref={canvasRef} width={320} height={240} aria-label="Preview of the evaluated scene" />
+        <div className="canvas-stack">
+          <canvas id="canvas" ref={canvasRef} width={320} height={240} aria-label="Preview of the evaluated scene" />
+          <div
+            className="pick-overlay"
+            id="pick-overlay"
+            ref={pickOverlayRef}
+            aria-hidden="true"
+            hidden
+          />
+        </div>
       </div>
 
       <div className="unavailable" id="failed" ref={failedRef} hidden>

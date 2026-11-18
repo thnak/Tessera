@@ -463,7 +463,9 @@ else ()
         # `_tessera_canvas_apply` is the live edit's export (issue #444): the same evaluation the
         # `run` export performs, answered with `changed` and the state-carry split so an auto-apply
         # of unchanged text costs no frame and a failed one keeps the last good picture.
-        -sEXPORTED_FUNCTIONS=["_tessera_project_begin","_tessera_project_set_entry","_tessera_project_add_source","_tessera_project_add_stylesheet","_tessera_canvas_apply","_tessera_canvas_pointer","_tessera_canvas_draw","_tessera_canvas_reset","_tessera_canvas_set_font","_tessera_canvas_font_status","_tessera_webgpu_set_device","_tessera_free","_malloc","_free"]
+        # `_tessera_canvas_pick` is the picker overlay's query (issue #171): what is under a point,
+        # answered without dispatching, so arming the picker cannot move `:hover` or cost a frame.
+        -sEXPORTED_FUNCTIONS=["_tessera_project_begin","_tessera_project_set_entry","_tessera_project_add_source","_tessera_project_add_stylesheet","_tessera_canvas_apply","_tessera_canvas_pointer","_tessera_canvas_pick","_tessera_canvas_draw","_tessera_canvas_reset","_tessera_canvas_set_font","_tessera_canvas_font_status","_tessera_webgpu_set_device","_tessera_free","_malloc","_free"]
         # `WebGPU` is the emdawnwebgpu port's handle table: the page needs `WebGPU.importJsDevice` and
         # `importJsQueue` to turn a JS GPUDevice/GPUQueue into the integer handles the C ABI takes.
         # `HEAPU8` is the view the page writes font bytes through (issue #387): `_malloc` returns a
@@ -865,7 +867,9 @@ if (TESSERA_BUILD_TESTS)
     # Two executables, split by responsibility (the sources share `scene_canvas_test_support.hpp`):
     #   scene_canvas_session  the session's lifecycle + the frame contract (a static scene draws zero)
     #   scene_canvas_pointer  the pointer path into the style engine + click synthesis
-    foreach (_canvas_test IN ITEMS scene_canvas_session scene_canvas_pointer)
+    #   scene_canvas_pick     the picker overlay's query (issue #171): what is under a point, without
+    #                         changing the scene
+    foreach (_canvas_test IN ITEMS scene_canvas_session scene_canvas_pointer scene_canvas_pick)
         add_executable(${_canvas_test}_tests
             ${CMAKE_SOURCE_DIR}/tests/unit/${_canvas_test}_tests.cpp
             ${CMAKE_SOURCE_DIR}/tools/codegen/canvas_report.cpp

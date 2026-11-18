@@ -8,6 +8,7 @@
 #include "scene_session.hpp"
 #include "scene_stylesheet.hpp"
 #include "tessera/hal/window.hpp"
+#include "tessera/rendering/rhi/types.hpp"
 #include "tessera/ui/scene/dirty_pass.hpp"
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/style/compiled_stylesheet.hpp"
@@ -57,6 +58,30 @@ struct CanvasPointerResult {
     std::uint64_t active_id = 0;
     std::vector<std::string> ran;   // IR handler ids whose preview body executed
     std::vector<std::string> unrun; // handler ids the dispatch reached but could not run
+};
+
+// What the picker found under one point (issue #171's picker slice): the node the pointer is over,
+// named and boxed, or nothing.
+//
+// **Why this is a query and not a pointer event.** The picker must not change the scene: arming it
+// and moving the pointer over a button must not set `:hover`, must not run a handler and must not
+// cost a frame. So `pick()` reads the tree with the same hit test the router uses and returns a
+// value; it dispatches nothing, marks nothing dirty and allocates nothing beyond the two borrowed
+// strings it copies out.
+//
+// **Why the box is in the report.** A page that only knew the id could highlight nothing: the
+// outline is drawn in the page's own coordinate space, so the engine has to say where the node is.
+// `box` is `Node::world_bounds()` - the node's box in **logical viewport pixels**, the same space
+// `pointer()` takes its coordinates in - so the page scales it by the CSS-to-logical ratio it
+// already applies to pointer input and nothing else.
+struct CanvasPickResult {
+    bool found = false; // a node is under the point
+    std::uint64_t automation_id = 0;
+    // The node's element kind (`Button`, `Text`, `View`, ...), borrowed from the IR the running
+    // evaluation owns, so it is valid only until the next `start()`. Empty when the node has none.
+    std::string_view element_kind;
+    // The node's box in logical viewport pixels. Zero when `found` is false.
+    rhi::Rect box;
 };
 
 // What a session is started from. `width`/`height` are the **logical** viewport the layout engine
@@ -153,6 +178,23 @@ public:
     // secondary press dispatched as a left press would run an `onClick` nobody asked for.
     CanvasPointerResult pointer(PreviewInput::Kind kind, float x, float y,
                                 std::uint32_t button = 0);
+
+    // What is under `(x, y)` in logical viewport pixels, for the picker overlay (issue #171).
+    //
+    // **It reuses the router's hit test rather than writing a second one.** `Node::hit_test_deep`
+    // is the function `ui::InputRouter` calls to decide a pointer target, so the node this reports
+    // is exactly the node a press at the same point would reach - including `pointer-events: none`,
+    // scrollport clipping, z-order and `visibility: hidden`. A second hit test would be a second
+    // set of those rules to keep in step, and the first time they disagreed the overlay would
+    // outline one node while a click activated another.
+    //
+    // **It is a query, not an event.** Nothing is dispatched, no pseudo-class moves, no dirty
+    // domain is set and no frame is owed: arming the picker and moving over the canvas must not
+    // change the picture. That is why this is not a `pointer()` kind.
+    //
+    // Returns `found:false` for a point outside every node (and for a session with no tree), which
+    // is the page's signal to hide the overlay rather than draw a stale outline.
+    [[nodiscard]] CanvasPickResult pick(float x, float y);
 
     // Changes the simulated fold posture of the RUNNING evaluation (issue #408): the tree is
     // re-laid out in place, so `SafeArea` padding and every box follow the new hinge without the

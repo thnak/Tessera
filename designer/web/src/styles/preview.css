@@ -339,6 +339,53 @@
   user-select: none;
 }
 
+/* The canvas and the picker's overlay share one positioned box (issue #171), so the outline is laid
+ * out in the canvas' own coordinate space rather than in the pane's. `inline-block` shrinks the stack
+ * to the canvas, which is what makes `left: 0` mean "the canvas' left edge". */
+.canvas-stack {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  line-height: 0;
+}
+
+/* The picker's overlay: an outline and a readout, drawn by the page over the engine's canvas.
+ *
+ * `pointer-events: none` is the load-bearing rule. The overlay covers the canvas exactly, so if it
+ * accepted pointer events it would swallow every move and press and the preview would stop
+ * responding the moment the picker was armed. Nothing in the overlay is interactive by design.
+ *
+ * It is `aria-hidden` in the markup: the outline is a visual aid, not content, and a screen reader
+ * reading "Button #101" out of a decorative layer would be noise. */
+.pick-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.pick-outline {
+  position: absolute;
+  border: 1px solid var(--accent);
+  /* A second, offset ring so the outline reads on both a light and a dark preview: one colour alone
+   * disappears against a background of the same hue. */
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.65);
+  border-radius: 2px;
+}
+
+.pick-readout {
+  position: absolute;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 18px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
 /* The frame counters: name/value pairs, two columns so the labels line up without a table. */
 .frame-stats {
   display: grid;

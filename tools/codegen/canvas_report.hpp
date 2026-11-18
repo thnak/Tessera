@@ -72,6 +72,23 @@ canvas_report_json(const SceneFrameResult& result, std::uint32_t width, std::uin
 // survive `JSON.parse` as a number.
 [[nodiscard]] std::string canvas_pointer_report_json(const CanvasPointerResult& result);
 
+// What the picker found under one point (issue #171's picker slice), as one JSON object on one
+// line:
+//
+//   {"pickVersion":1,"found":true,"automationId":"101","elementKind":"Button",
+//    "box":{"x":12,"y":40,"width":120,"height":32}}
+//
+// `found:false` is a real answer, not an error: the pointer is over no node (outside the viewport,
+// or over a gap the tree does not cover), and the page hides the overlay. The box is in **logical
+// viewport pixels** - the space `tessera_canvas_pointer` takes its coordinates in - so the page
+// scales it by the CSS-to-logical ratio it already applies to pointer input, never by the DPR.
+//
+// `elementKind` is the node's element kind (`Button`, `Text`, `View`, ...), which is what the
+// readout shows beside the id: an id alone does not tell a developer what they are looking at. It
+// is borrowed from the running evaluation, so it is valid until the next apply - which is exactly
+// the lifetime of the report the page reads it from.
+[[nodiscard]] std::string canvas_pick_report_json(const CanvasPickResult& result);
+
 // What one simulated fold-posture change did (issue #408), as one JSON object on one line:
 //
 //   {"foldVersion":1,"changed":true,"error":""}

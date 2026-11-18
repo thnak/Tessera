@@ -56,6 +56,7 @@ import {
   type CanvasViewportReport,
 } from "./canvas-frame";
 import { createCanvasPane, type CanvasPane, type CanvasPaneElements } from "./canvas-pane";
+import { createCanvasPicker, type CanvasPicker } from "./canvas-picker";
 
 export type { CanvasApplyReport, CanvasFrameReport, CanvasStateCell };
 
@@ -87,6 +88,11 @@ export interface CanvasSessionOptions {
 export interface CanvasSession extends ViewSession {
   readonly id: "canvas";
   readonly pane: CanvasPane;
+  /**
+   * The picker overlay (issue #171's picker slice). Off by default; the pane's toggle arms it, and
+   * while armed a pointer move over the canvas outlines the node under it and names it.
+   */
+  readonly picker: CanvasPicker;
 }
 
 export function createCanvasSession(options: CanvasSessionOptions): CanvasSession {
@@ -107,6 +113,33 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
   let lastDpr = 0;
   // Cleared while the view is hidden, so a hidden pane never draws.
   let visible = false;
+
+  // The picker overlay (issue #171). It asks the module a question and draws a `div`; it never
+  // dispatches, so arming it cannot move `:hover` or cost a frame. `module()` reads `gpu` lazily
+  // because the picker is created before the first apply has acquired a device.
+  const picker = createCanvasPicker({
+    elements: {
+      overlay: options.elements.pickOverlay ?? document.createElement("div"),
+      canvas,
+      toggle: options.elements.pickToggle,
+    },
+    module: () => (gpu !== null ? gpu.module : null),
+    // `requestedViewport` takes the reader, not a reading: the toolbar can move between two picks.
+    viewport: () => requestedViewport(options.environment),
+    setStatus: options.setStatus,
+  });
+
+  // A pointer move over the canvas is the picker's only input. It is registered once, on the canvas
+  // itself, and it does nothing while the picker is disarmed - so the preview's own pointer path
+  // (which is the engine's, not this page's) is unaffected either way.
+  canvas.addEventListener("pointermove", (event) => {
+    picker.move(event.clientX, event.clientY);
+  });
+  // The pointer leaving the canvas is the same fact as a move over no node: the outline goes away
+  // rather than staying over the last node the pointer touched.
+  canvas.addEventListener("pointerleave", () => {
+    picker.hide();
+  });
 
   // Sizes the backing store and remembers the dpr it used, so a resize can tell a real change from noise.
   function resize(): { dpr: number; width: number; height: number } {
@@ -204,6 +237,9 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
       return;
     }
     pane.renderReport(report);
+    // The frame moved the boxes the outline was drawn for, so the outline is re-asked rather than
+    // left over a node that may have moved (issue #171). A pick is a query: this costs no frame.
+    picker.refresh();
     options.onReady(true);
   }
 
@@ -359,6 +395,8 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
       // restart the count is whatever the initializer says, and showing the old value until the next
       // frame lands would be the one stale reading on the page.
       pane.renderState([]);
+      // The outline named a node of the evaluation that was just released (issue #171).
+      picker.hide();
     }
     requestFrame();
   }
@@ -418,6 +456,7 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
   return {
     id: "canvas",
     pane,
+    picker,
     /** First open of the view: decide the unsupported state and import the module (no device yet). */
     load: async () => {
       visible = true;
@@ -455,6 +494,10 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
     /** The pane became (in)visible: stop drawing while hidden, redraw once when shown again. */
     setVisible: (shown: boolean) => {
       visible = shown;
+      if (!shown) {
+        // A hidden pane shows no outline: the picker's overlay belongs to the canvas it covers.
+        picker.hide();
+      }
       if (shown && gpu !== null) {
         requestFrame();
       }
@@ -489,6 +532,8 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
         pane.showFailed(String(error));
         return;
       }
+      // The viewport moved every box, so the outline is re-asked at the same point (issue #171).
+      picker.refresh();
       requestFrame();
     },
     /** A gallery pick changes what would be drawn; redraw only if a device already exists. */

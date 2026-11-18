@@ -635,6 +635,15 @@ owner-planned item and is not part of this milestone.
       header-only template, so there is nothing to swap; the seam that must exist first is
       written up in `docs/specs/devtools-protocol-v1.md` section 8.
 - [ ] #171: P7: studio slices (picker overlay, style inspector, `source.patch`, skins).
+      **The picker overlay slice landed** (2026-11-18): `tessera_canvas_pick` answers what is under a
+      point — the node's automation id, element kind and logical-pixel box — as a *query* that
+      dispatches nothing and owes no frame, reusing `Node::hit_test_deep` rather than a second hit
+      test; the page draws the outline and readout in a `pointer-events: none` overlay armed by a
+      toggle in the Canvas pane. Evidence: `tools/codegen/scene_canvas_session.*`,
+      `tools/codegen/canvas_report.*`, `tools/codegen/wasm_canvas_entry.cpp`,
+      `designer/web/src/views/canvas-picker.ts`, ctest `scene_canvas_pick`,
+      `docs/design/canvas-input-session.md` §5.1. **Still open: the style inspector, `source.patch`
+      and skins** — the issue stays open for them.
 - [ ] #395: P6b: promote the latency budgets from `warn` to `enforce` and count the scene and canvas
       modules in the download budget. Needs a measurement first; take it after #392.
 - [ ] #396: `tessera-mcp`: the eight unimplemented tools (designer D-S7) and the spec decisions #350

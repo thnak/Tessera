@@ -3,8 +3,10 @@
 #include "canvas_report.hpp"
 #include "css_diagnostics_report.hpp"
 
+#include <charconv>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <variant>
 
 namespace tessera::compiler::codegen::cli {
@@ -52,6 +54,24 @@ void append_bool(std::string& out, std::string_view name, bool value) {
     out += name;
     out += "\":";
     out += value ? "true" : "false";
+}
+
+// One float as JSON, locale-independent. `std::to_chars` never consults the locale, so a box edge
+// prints `12.5` on a machine whose locale would spell it `12,5` - which `JSON.parse` would read as
+// two values and the page would render as a broken outline. The shortest round-trip form is also
+// what makes a whole-valued edge print `12` rather than `12.000000`.
+void append_float(std::string& out, float value) {
+    char buffer[40];
+    const std::to_chars_result result = std::to_chars(
+        buffer, buffer + sizeof buffer, static_cast<double>(value), std::chars_format::general);
+    if (result.ec != std::errc{}) {
+        // A non-finite edge cannot be serialized as JSON; `0` is the only value that keeps the
+        // document parseable, and a box with a non-finite edge is a layout bug the page will show
+        // as a zero-size outline rather than as a parse failure.
+        out.push_back('0');
+        return;
+    }
+    out.append(buffer, result.ptr);
 }
 
 // One state scalar as JSON. `u8string` is the JSON spelling this serializer already uses for string
@@ -202,6 +222,32 @@ std::string canvas_pointer_report_json(const CanvasPointerResult& result) {
     }
     out += "]}";
     out += "\n";
+    return out;
+}
+
+std::string canvas_pick_report_json(const CanvasPickResult& result) {
+    // Versioned like the other reports, so a page built against one module revision can tell an
+    // older artifact apart instead of reading a missing field as "nothing under the pointer".
+    std::string out = "{\"pickVersion\":1";
+    append_bool(out, "found", result.found);
+    // The id is a decimal string for the same reason every other id in this module is: a 64-bit
+    // `uiId` does not survive `JSON.parse` as a JS number.
+    append_text(out, "automationId", std::to_string(result.automation_id));
+    append_text(out, "elementKind", result.element_kind);
+    // The box is in logical viewport pixels, the space `tessera_canvas_pointer` takes its
+    // coordinates in, so the page scales it by the CSS-to-logical ratio it already applies to
+    // pointer input. A miss reports a zero box rather than omitting the fields, so a page can read
+    // them unconditionally.
+    out += ",\"box\":{";
+    out += "\"x\":";
+    append_float(out, result.box.x);
+    out += ",\"y\":";
+    append_float(out, result.box.y);
+    out += ",\"width\":";
+    append_float(out, result.box.width);
+    out += ",\"height\":";
+    append_float(out, result.box.height);
+    out += "}}\n";
     return out;
 }
 

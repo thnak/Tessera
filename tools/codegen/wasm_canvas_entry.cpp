@@ -3,10 +3,10 @@
 // Every export is specified in `docs/design/compiler-wasm.md` section 10, which is the normative
 // source for the module ABI, with the canvas session's own table in
 // `docs/design/canvas-input-session.md` section 5: `tessera_webgpu_set_device`,
-// `tessera_canvas_apply`, `tessera_canvas_pointer`, `tessera_canvas_set_fold`,
-// `tessera_canvas_set_viewport`, `tessera_canvas_draw`, `tessera_canvas_reset`,
-// `tessera_canvas_set_font` and `tessera_canvas_font_status`, plus the four shared
-// `tessera_project_*` exports (`wasm_project_exports.cpp`) that stage the project `apply`
+// `tessera_canvas_apply`, `tessera_canvas_pointer`, `tessera_canvas_pick`,
+// `tessera_canvas_set_fold`, `tessera_canvas_set_viewport`, `tessera_canvas_draw`,
+// `tessera_canvas_reset`, `tessera_canvas_set_font` and `tessera_canvas_font_status`, plus the four
+// shared `tessera_project_*` exports (`wasm_project_exports.cpp`) that stage the project `apply`
 // evaluates. Read that before changing a signature; it also carries the "why Emscripten only"
 // rationale and the verified-status record.
 //
@@ -214,6 +214,29 @@ EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_pointer(const char* kind, float 
     }
     result = g_session->pointer(parsed, x, y, button > 0 ? static_cast<std::uint32_t>(button) : 0U);
     return duplicate_out(cli::canvas_pointer_report_json(result));
+}
+
+// What is under one point, for the picker overlay (issue #171's picker slice). `x`/`y` are
+// **logical** viewport pixels, exactly like `tessera_canvas_pointer`'s, and the same CSS-to-logical
+// rule applies (see that export's comment: divide by the canvas' CSS-to-logical ratio, never by the
+// DPR).
+//
+// **Why this is its own export and not a pointer kind.** The picker must be able to ask "what is
+// here?" without changing anything: arming it and moving over a button must not set `:hover`, must
+// not run a handler and must not cost a frame. A `pointer()` kind would dispatch, and the page
+// would then have to undo the hover it never wanted. This reads the tree with the router's own hit
+// test (`Node::hit_test_deep`) and answers a value, so the node it names is the node a press at the
+// same point would reach - one hit test, not two that can disagree.
+//
+// It answers a well-formed report in every state: no session, no tree and a point outside every
+// node are all `found:false`, so a page that arms the picker before the first Run costs no
+// exception at the FFI boundary and shows no stale outline.
+EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_pick(float x, float y) {
+    cli::CanvasPickResult result;
+    if (g_session != nullptr && g_session->started()) {
+        result = g_session->pick(x, y);
+    }
+    return duplicate_out(cli::canvas_pick_report_json(result));
 }
 
 // Changes the simulated fold posture of the RUNNING session (issue #408) and re-lays the tree out
