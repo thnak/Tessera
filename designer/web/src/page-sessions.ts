@@ -65,8 +65,12 @@ export interface Sessions {
  *
  * `settled` gates creation on the fragment/storage decode: a `?view=scene#p5=<390x844>` link must lay the
  * scene out once, at 390x844, rather than first at the default rectangle and then again.
+ *
+ * `present` is the comma-joined list of view panels that are open in the dock (W5, #560). A panel that is
+ * closed has no nodes, so its session is disposed (Canvas releases its GPU device); opening it again renders
+ * new nodes and the effect below creates a new session against them. Open-but-hidden panels keep theirs.
  */
-export function useSessions(deps: SessionDeps, settled: boolean): Sessions {
+export function useSessions(deps: SessionDeps, settled: boolean, present: string): Sessions {
   const sessions = useRef<Partial<Record<ViewDefinition["id"], ViewSession>>>({});
   const started = useRef<Partial<Record<ViewDefinition["id"], boolean>>>({});
   // The toolbar readers, read through a ref (issue #436). The effect below runs once, but `deps`'s
@@ -79,6 +83,14 @@ export function useSessions(deps: SessionDeps, settled: boolean): Sessions {
 
   useEffect(() => {
     const pane = deps.refs;
+    const open = new Set(present.split(","));
+    for (const id of ["diagnostics", "scene", "canvas"] as const) {
+      if (!open.has(id) && sessions.current[id] !== undefined) {
+        sessions.current[id]?.dispose?.();
+        delete sessions.current[id];
+        started.current[id] = false;
+      }
+    }
     const source = pane.source.current;
     if (!settled || source === null) {
       return;
@@ -206,7 +218,7 @@ export function useSessions(deps: SessionDeps, settled: boolean): Sessions {
     }
     // One creation pass per settle: the deps are refs-and-callbacks, not values a render changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settled]);
+  }, [settled, present]);
 
   return { current: sessions.current, started };
 }

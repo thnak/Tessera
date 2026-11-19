@@ -188,6 +188,45 @@ host                                   viewer
 | `style.commit` | request | `node`, `destination`, destination fields (section 10) | Answered by `style.commit.result` and followed by a `source.patch` event |
 | `source.patch.result` | event | `patchId`, `status` (`"applied"` or `"rejected"`), optional `reason` | Host's answer to a `source.patch` (section 10.3) |
 | `edit.undo` / `edit.redo` | event | none | Undo or redo the last override operation (section 9.4) |
+| `platform.event` | request | `event` (a type of section 5.1), optional `args` (`{value}`), optional `timestampNs` | One normalized hardware button or environment event of a device profile; answered by `platform.event.result` (section 5.1) |
+
+### 5.1 `platform.event`
+
+Added by the device-profile work ([`studio-device-profiles-v1.md`](studio-device-profiles-v1.md) sections 4
+and 5, issue #446). The host sends **one normalized event**; the viewer feeds it to the same injector and
+dispatch path the native app uses ([`os-events-v1.md`](os-events-v1.md) sections 2.3 and 3) and answers with
+its effect. There is no preview-only handler: `scene_platform.cpp` is one implementation, run by the
+Wasm module's `tessera_canvas_platform_event` and by the native scripted run
+(`tessera_scene_preview --input-json`, steps `platform <type> [value] [@ns]`), and the input-parity gate
+compares the two documents byte for byte.
+
+Request: `event` is the wire name of the event, `args` is `{ "value": <string> }` for the events that take
+one, and `timestampNs` is the **simulated** clock in nanoseconds (never a wall clock). The viewer keeps a
+monotonic clock: a timestamp behind it is clamped, not refused, and an omitted one means "now".
+
+| `event` | `value` | Normalized as | Effect in the viewer |
+|---|---|---|---|
+| `back` | | `BackRequested` input | Overlay, then route, else **unhandled**: the app closes (`appClosed`) and its state is discarded. The preview evaluates one component with no overlay host or route stack, so it is always unhandled there |
+| `home` | | `WindowHidden`, `Suspend` | `state:"background"`; the state cells are saved (`savedState`); the tree and its state are kept |
+| `resume` | | `Resume`, `WindowShown` | Hot resume from `background`: `resumed`, state kept |
+| `recents` / `activate` | | `WindowDeactivated` / `WindowActivated` | `state:"inactive"` / back to `"running"` |
+| `power` | | `ScreenOff` while on, `ScreenOn` while off | `state:"screenOff"`, then `resumed` on wake |
+| `suspend`, `screenOff`, `screenOn` | | the event of that name | As the buttons above, without the pairing |
+| `volumeUp`, `volumeDown` | | `VolumeKey` input | Dispatched to the focused node; `handled` is whether a node received it. No default action |
+| `orientation` | `portrait` or `landscape` | `OrientationChanged` | The extent is swapped in place (`changed`, one layout pass, state kept) |
+| `fold` | `none`, `flat`, `book`, `tabletop` | `FoldChanged` | The posture is applied in place (`changed`) |
+| `theme`, `locale`, `textScale`, `ime`, `memoryPressure`, `batterySaver`, `thermal` | optional | the matching `OsEventType` | Delivered in order and recorded; `handled:false` because nothing in an evaluated preview tree reads them yet |
+| `processDeath` | | none (death delivers no event) | `state:"closed"`, `appClosed`; keeps the record the last `home` saved |
+| `relaunch` | | none | Only from `closed`. `relaunch:true`; the evaluation ends and the host's next apply is a cold start. `restore:true` carries the saved cells into it (death after `home`); after an unhandled `back` nothing is saved |
+
+Result: `ok` is false with an `error` of `TESSERA_PLATFORM_UNKNOWN_EVENT` (a name this build does not know),
+`TESSERA_PLATFORM_BAD_VALUE`, `TESSERA_PLATFORM_NOT_CLOSED` (a `relaunch` of a running app) or
+`TESSERA_PLATFORM_NO_SESSION` (before the first apply). Otherwise `handled`, `appClosed` and `resumed` are
+the effect, `state` is `running`, `inactive`, `background`, `screenOff` or `closed`, `dispatch` is `unhandled`
+for a `back` and `none` otherwise, and `sequence` counts every accepted event of the session. A `closed`
+app receives nothing but `relaunch`; a `back` or volume key with the screen off, or the app in the
+background, is not delivered (`handled:false`). A refused event never changes the state, and none of this
+ends the session ([section 12](#12-errors)).
 
 ## 6. Messages: viewer to host
 
@@ -206,6 +245,7 @@ host                                   viewer
 | `style.override.result` | response | `ok`, `diagnostics`, `overrides` (array of `{node, property, value}` after the operation) | Answer to an override request |
 | `style.commit.result` | response | `ok`, optional `reason`, optional `patchId` | Section 10 |
 | `source.patch` | event | `patchId`, `baseVersions` (object path → file version), `edits` (array of TextEdit) | Section 10.2 |
+| `platform.event.result` | response | `ok`, optional `error`, `handled`, `appClosed`, `resumed`, `state`, `dispatch`, `sequence`, `timestampNs`, `changed`, `savedState`, `relaunch`, `restore` | Answer to `platform.event` (section 5.1) |
 
 ## 7. Source synchronization
 
@@ -492,6 +532,10 @@ speaks `postMessage`, while the viewer still never reads project files
 - Picker modifiers: plain, `Alt`, repeated `Ctrl`/`Cmd` click up the ancestors.
 - Studio host: `postMessage` session from the page, `asset.update` with `url`, `theme.applied` after
   load and after a theme change, and a project imported from a zip.
+- `platform.event`: every type of section 5.1 delivered through the injector, the replies compared with the
+  native scripted run (input parity), an unknown type and a bad value refused with their codes, Back on a
+  one-route app closing it and `relaunch` starting cold, `home` then `resume` keeping state, and process
+  death after `home` relaunching with the saved cells.
 - `viewport.set` locale/direction/text scale: applied to text measurement and layout, omitted fields
   keep their previous value, and an invalid tag or a non-positive `textScale` is rejected with
   `TESSERA_DESIGNER_MALFORMED`.

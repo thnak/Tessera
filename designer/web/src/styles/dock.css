@@ -1,0 +1,67 @@
+/* SPDX-License-Identifier: MIT
+ *
+ * The bottom panels' bodies (issue #434; the panels are dock panels since W5 #560): Platform events, Mock
+ * console and Call trace. The strip and frame the old bottom dock drew are the dock library's now
+ * (`workbench.css`); what remains is the content each panel renders. Tokens come from `base.css`; nothing
+ * here is a new colour.
+ */
+
+.dock-body { display: flex; flex-direction: column; gap: 8px; padding: 10px 14px 12px; font-size: 12.5px; }
+.dock-body p { margin: 0; max-width: 90ch; }
+.dock-body code { font-family: var(--mono); font-size: 12px; }
+
+.dock-note { padding: 6px 10px; border-left: 3px solid var(--warning); background: var(--warning-bg); color: var(--text); }
+.dock-manifest, .dock-hint { color: var(--text-dim); }
+.dock-hint { font-size: 11.5px; }
+.dock-empty { color: var(--text-dim); }
+.dock-error { color: var(--error); }
+.dock-error:empty { display: none; }
+.dock-actions { display: flex; gap: 8px; }
+.dock-actions button, .mock-restart { padding: 3px 10px; font-size: 12px; }
+
+.mock-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.mock-row { padding: 6px 10px; border: 1px solid var(--border); border-radius: var(--radius); }
+.mock-row-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.mock-path { font-family: var(--mono); font-size: 12px; }
+.mock-iface { color: var(--text-dim); }
+.mock-reason { color: var(--text-dim); margin-top: 3px !important; }
+.mock-badge { padding: 0 7px; border-radius: 9px; border: 1px solid currentColor; font-size: 11px; }
+.mock-badge-bound { color: var(--ok); }
+.mock-badge-unbound { color: var(--warning); }
+.mock-badge-error { color: var(--error); }
+.mock-diagnostics { list-style: none; margin: 4px 0 0; padding: 0; font-family: var(--mono); font-size: 11.5px; }
+.mock-diagnostics li[data-severity="Error"] { color: var(--error); }
+.mock-diagnostics li[data-severity="Warn"] { color: var(--warning); }
+.mock-diagnostic-code { font-weight: 600; }
+
+.trace-split { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+.trace-split > .dock-empty { grid-column: 1 / -1; }
+.trace-table-wrap { overflow-x: auto; }
+.trace-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.trace-table th, .trace-table td { padding: 3px 10px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.trace-table th { color: var(--text-dim); font-weight: 600; }
+.trace-args { font-family: var(--mono); color: var(--text-dim); }
+.trace-selected { background: var(--bg); }
+.trace-pick { padding: 0 8px; border: 0; background: transparent; color: var(--accent); font-family: var(--mono); }
+.trace-state-default { color: var(--ok); }
+.trace-state-edited { color: var(--accent); }
+.trace-state-unmocked { color: var(--text-dim); }
+.trace-state-error { color: var(--error); }
+
+.trace-editor { display: flex; flex-direction: column; gap: 6px; }
+.trace-editor textarea {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+  font: 12px/1.5 var(--mono);
+  resize: vertical;
+}
+.trace-editor textarea[aria-invalid="true"] { border-color: var(--error); }
+.trace-editor-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+@media (max-width: 760px) {
+  .trace-split { grid-template-columns: minmax(0, 1fr); }
+}

@@ -20,7 +20,7 @@
 
 import { useEffect, useRef } from "react";
 import { createCodeEditor, type CodeEditor } from "../editor/code-editor";
-import type { ProjectFile } from "../lib/project";
+import { STALE_TEXT, type ProjectFile } from "../lib/project";
 
 /** The id of the tab for `path` (`aria-controls`/`aria-labelledby` need one, and a path has slashes). */
 export function tabIdOf(path: string): string {
@@ -38,10 +38,18 @@ function kindLetter(kind: string): string {
       return "json";
     case "theme":
       return "theme";
+    case "mock":
+      return "mock";
     default:
       return "file";
   }
 }
+
+const VIEW_NOTES: Record<string, string> = {
+  binary: "it is not UTF-8 text",
+  "too-large": "it is over the 1 MiB file limit",
+  unreadable: "the browser could not read it (it may have changed on disk)",
+};
 
 /** The open files as tabs, with the unsaved marker and a close button each. */
 function EditorTabs({
@@ -134,14 +142,10 @@ function EditorTabs({
 }
 
 /**
- * The code column: the tab strip, the editor, the actions above the text and the hint below it.
+ * The code column: the tab strip, the editor and the hint below it.
  *
- * The actions (**Restart app**, Load sample) are here rather than in the preview column because they act
- * on *this* text: the editor is what the developer is changing, and the preview column only displays the
- * result. Since issue #444 the edit itself needs no button -- it applies ~150 ms after the last keystroke
- * -- so the primary action is the *cold start*, and it is named for what it does rather than for what it
- * used to do. The `restart-app`/`load-sample` ids are the page's contract
- * (`scripts/ci/preview_page_checks.mjs`).
+ * Since issue #444 an edit needs no button -- it applies ~150 ms after the last keystroke -- and since issue #557
+ * the cold start is a command (`run.restart`, on the toolbar and in the Run menu), not a button here.
  */
 export function CodeRegion({
   open,
@@ -155,12 +159,10 @@ export function CodeRegion({
   onSelectTab,
   onCloseTab,
   onEdit,
-  onRestart,
-  onLoadSample,
-  restartDisabled,
   applying,
   onSave,
   onApplyNow,
+  stale = [],
 }: {
   open: readonly string[];
   files: readonly ProjectFile[];
@@ -183,16 +185,14 @@ export function CodeRegion({
   onSelectTab: (path: string) => void;
   onCloseTab: (path: string) => void;
   onEdit: (text: string) => void;
-  /** **Restart app**: the explicit cold start, state reset (issue #444). */
-  onRestart: () => void;
-  onLoadSample: () => void;
-  restartDisabled: boolean;
   /** A live edit is scheduled or running: the hint says so instead of pretending nothing is happening. */
   applying: boolean;
   /** Mod-S in the editor: save to the opened folder (#391). */
   onSave: () => void;
   /** Mod-Enter in the editor: apply now, skipping the debounce. */
   onApplyNow: () => void;
+  /** Generated files that may be out of date (advisory). */
+  stale?: readonly string[];
 }) {
   // The editor is created once, in an effect (it needs the DOM, and the Node render of the chrome has none).
   // Its callbacks go through a ref so the page's handlers can change without recreating the editor.
@@ -233,33 +233,15 @@ export function CodeRegion({
     }
     applied.current = stamp;
     if (active !== "") {
-      editor.open(active, text);
+      editor.open(active, text, files.find((file) => file.path === active)?.viewOnly === true);
     }
-  }, [revision, active, text, sourceRef]);
+  }, [revision, active, text, files, sourceRef]);
   const current = files.find((file) => file.path === active) ?? null;
 
   return (
     <section className="region region-code" aria-labelledby="editor-heading">
       <div className="region-header">
         <h2 id="editor-heading">Code</h2>
-        <div className="pane-actions">
-          {/* Issue #444: the edit applies itself, so this button is the cold start rather than a
-              trigger. It keeps a stable id (`restart-app`) instead of reusing `run`, because a page
-              check that clicked "Run" and got a restart is exactly the confusion the rename prevents. */}
-          <button
-            id="restart-app"
-            type="button"
-            className="primary"
-            onClick={onRestart}
-            disabled={restartDisabled}
-            title="Start the app over from a cold start: every state cell goes back to its initializer."
-          >
-            Restart app
-          </button>
-          <button id="load-sample" type="button" onClick={onLoadSample}>
-            Load sample
-          </button>
-        </div>
       </div>
 
       <EditorTabs
@@ -292,7 +274,22 @@ export function CodeRegion({
       <p className="hint" id="apply-status" role="status" aria-live="polite" hidden={!applying}>
         applying…
       </p>
-      {current ? (
+      {current !== null && stale.includes(current.path) ? (
+        <p className="hint stale-note" id="editor-stale" role="status">
+          {STALE_TEXT}
+        </p>
+      ) : null}
+      {current?.viewOnly ? (
+        <p className="hint view-only-note" id="editor-view-only" data-path={current.path}>
+          <span className="tree-lock">locked</span> <code>{current.path}</code> is read-only: the studio never edits,
+          saves or previews it.{" "}
+          {current.viewNote !== undefined
+            ? `Not shown: ${VIEW_NOTES[current.viewNote] ?? current.viewNote}.`
+            : current.viewText === undefined
+              ? "Reading..."
+              : ""}
+        </p>
+      ) : current ? (
         <p className="hint" id="editor-file" data-path={current.path}>
           Editing <code>{current.path}</code>
           {dirty.includes(current.path) ? " (unsaved changes)" : ""}

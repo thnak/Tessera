@@ -4,7 +4,9 @@
 
 #include "scene_override.hpp"
 #include "tessera/rendering/rhi/types.hpp"
+#include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/style/cascade.hpp"
+#include "tessera/ui/style/compiled_stylesheet.hpp"
 
 #include <array>
 #include <cstddef>
@@ -118,5 +120,18 @@ struct StyleInfoResult {
     StyleBoxInfo box;
     std::vector<StyleOverrideInfo> overrides;
 };
+
+// The node of `root`'s subtree carrying `automation_id`, or null. 0 is "no automation id" and so
+// never names a node. Depth-first in tree order, the order the inspector and the picker agree on.
+[[nodiscard]] const tessera::ui::Node* find_node_by_automation_id(const tessera::ui::Node& root,
+                                                                  std::uint64_t automation_id);
+
+// The style inspector's answer for one node of a laid-out tree (designer-protocol-v1 section 9.1):
+// computed style, matched rules and the layout box. It reads the tree and the sheet only, so it is
+// a query - and the one function behind both the studio's `style.info` and the MCP `query_style`.
+// `overrides` is the session's and is left empty here. `found:false` for an id no node carries.
+[[nodiscard]] StyleInfoResult style_info_for(const tessera::ui::Node& root,
+                                             const tessera::ui::style::CompiledStyleSheet& sheet,
+                                             std::uint64_t automation_id);
 
 } // namespace tessera::compiler::codegen::cli

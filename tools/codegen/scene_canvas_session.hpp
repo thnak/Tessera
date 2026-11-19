@@ -6,6 +6,7 @@
 #include "scene_canvas_patch.hpp"
 #include "scene_evaluate.hpp"
 #include "scene_frame.hpp"
+#include "scene_platform.hpp"
 #include "scene_prepare.hpp"
 #include "scene_project.hpp"
 #include "scene_session.hpp"
@@ -20,32 +21,24 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
 // The canvas module's persistent session (issue #388, P3c): one evaluation that pointer events feed
-// and that a frame paints, kept alive between events.
+// and that a frame paints, kept alive between events. It cannot be `prepare_scene()` per call: the
+// tree, its `ui::InputRouter` (hover/active/focus/capture) and its state scope must outlive one
+// pointer event and be visible to the next frame.
 //
-// **Why it cannot be `prepare_scene()` per call.** The scene view's `tessera_input_json` evaluates
-// from source on every call, applies a script and returns the state cells; the state it reached is
-// gone when the call returns, because it belonged to a tree that call owned. A canvas needs the
-// opposite: the tree, its `ui::InputRouter` (hover/active/focus/capture) and its state scope must
-// outlive one pointer event and be visible to the *next* frame. That is the whole of this file.
+// **The pointer path** is `PreviewSession::dispatch`, the production `ui::InputRouter`
+// (`src/ui/scene/input_dispatch.cpp`): hit testing, implicit capture, click synthesis and
+// capture/target/bubble propagation. The router sets `PseudoState::Hover`/`Active`, and
+// `style::SceneStyleTree` reads them as it computes, so `:hover`/`:active` match through the
+// ordinary cascade; nothing here parses a selector.
 //
-// **What the pointer path is.** An event goes through `PreviewSession::dispatch`, which is the
-// production `ui::InputRouter` (`src/ui/scene/input_dispatch.cpp`): hit testing, implicit pointer
-// capture, click synthesis on the nearest common ancestor, and capture/target/bubble propagation.
-// The router sets `PseudoState::Hover` on the hit node and `PseudoState::Active` on the press
-// target and its ancestors, and `style::SceneStyleTree` refreshes each node's selector view from
-// `Node::pseudo_state()` as it computes, so `:hover`/`:active` match through the ordinary cascade.
-// Nothing in this file parses a selector or matches a pseudo-class.
-//
-// **Why `changed` and not "always redraw".** The repository's idle rule is that a static UI
-// presents nothing (AGENTS.md; docs/design/dirty-rendering.md), and the canvas page honours it with
-// one on-demand frame per change. This session answers "is a frame owed" from the scene's own dirty
-// domains - the bits `Node::set_pseudo_state` and the post-dispatch rebuild already set - so an
-// event that changed nothing (a move that stays over the same node, a move outside the scene whose
-// hover was already cleared) requests no frame at all.
+// **`changed`, not "always redraw"**: a static UI presents nothing
+// (docs/design/dirty-rendering.md), so "is a frame owed" is read from the scene's own dirty
+// domains.
 namespace tessera::compiler::codegen::cli {
 
 // The text module this session's font parameter names lives one namespace up.
@@ -229,11 +222,9 @@ public:
     // per matched rule) are acceptable - the frame path's zero-allocation rule is about `paint()`,
     // not about a click.
     //
-    // **Why the engine answers it.** `computed` is the cascade after inheritance and `var()`,
-    // `matched` is the selector index's own answer with the specificity it matched at, and
-    // `overridden` is the cascade's own comparison. A page that recomputed any of it would be a
-    // second cascade, and the first time the two disagreed the inspector would describe a style the
-    // canvas is not painting.
+    // **Why the engine answers it.** `computed`, `matched` and `overridden` are the cascade's own
+    // answers; a page that recomputed them would be a second cascade that could disagree with the
+    // canvas.
     //
     // `automation_id` 0 and an id no node carries both answer `found:false`, which the report
     // spells `no_such_node` (designer-protocol-v1 section 9.1).
@@ -329,6 +320,15 @@ public:
     // The page's element lost the keyboard: drop focus (and the ring) so a canvas that is not
     // focused does not look as if it were. A frame is owed only when something was focused.
     CanvasPointerResult blur();
+
+    // `platform.event` (designer-protocol-v1 section 5.1, issue #446): one normalized hardware
+    // button or environment event, through `PlatformEventDriver` (`scene_platform.hpp`). A relaunch
+    // reply ends this evaluation so the page's next `start()` is a cold start, carrying the cells
+    // saved at the last Suspend when `restore` is set and nothing otherwise.
+    [[nodiscard]] PlatformReply platform_event(const PlatformEvent& event);
+    [[nodiscard]] AppLife app_life() const noexcept {
+        return platform_.life();
+    }
 
     // How many times the running evaluation's cascade has been resolved (issue #436): 1 at each
     // `start()`, +1 per `set_viewport` that crossed a breakpoint. The counter a test - and the
@@ -490,6 +490,9 @@ private:
     std::uint32_t frames_painted_ = 0;
     // What the last evaluating apply carried; unchanged by an apply that failed to evaluate.
     StateCarryReport carry_report_;
+    // The app's life state, and the cells a relaunch carries into the next evaluation.
+    PlatformEventDriver platform_;
+    std::optional<CarriedState> relaunch_carry_;
 };
 
 } // namespace tessera::compiler::codegen::cli

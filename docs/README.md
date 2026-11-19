@@ -154,12 +154,12 @@ This page is the map and reading order for the framework.
   browser designer: source sync, picker, style overrides, commit as text patches
 - [`specs/designer-studio-v1.md`](specs/designer-studio-v1.md) — hosted studio: GitHub Pages deploy,
   page-as-host, skins and simulated system chrome, project import/export, MCP stdio mode
-- [`specs/mcp-server-v1.md`](specs/mcp-server-v1.md) — `tessera-mcp` project folder, shared file policy,
-  error codes, tool schema and surface version
+- [`specs/mcp-server-v1.md`](specs/mcp-server-v1.md) — `tessera-mcp` project folder, shared file policy, error codes, tool schema and surface version
 - [`specs/studio-device-profiles-v1.md`](specs/studio-device-profiles-v1.md) — studio device profiles as data,
   simulated platform events and hardware buttons, restart on device change, live edit without Run
-- [`specs/studio-mock-services-v1.md`](specs/studio-mock-services-v1.md) — design-time mock services:
-  `*.mock.ts` project files, sandboxed studio worker, calls/responses and traces (ADR-055)
+- [`specs/studio-mock-services-v1.md`](specs/studio-mock-services-v1.md) — design-time mock services: `*.mock.ts` project files, sandboxed studio worker, calls/responses and traces (ADR-055)
+- [`specs/studio-workbench-v1.md`](specs/studio-workbench-v1.md) — studio workbench as data: command registry, menus, toolbar, slice plan (#516);
+  [`studio-workbench-layout-v1.md`](specs/studio-workbench-layout-v1.md): dock model, constraints, library evaluation and W0 results ([ADR-062](../decisions/ADR-062-studio-dock-library-flexlayout-react.md)); [`design/studio-workbench-core.md`](design/studio-workbench-core.md): the core as built (registry, keymap, menus, palette, notifications)
 - [`specs/compiler-diagnostics-v1.md`](specs/compiler-diagnostics-v1.md) — machine-readable compiler
   diagnostics document (`--diagnostics-json`), spans, determinism, native/Wasm parity
 - [`specs/jsx-subset-v1.md`](specs/jsx-subset-v1.md) — accepted JSX/TSX syntax: grammar, expressions,
@@ -276,10 +276,10 @@ This page is the map and reading order for the framework.
 - [`design/compiler-wasm.md`](design/compiler-wasm.md) — the compiler built to Wasm for the
   design-time preview (Emscripten target, `NODERAWFS`, the native-versus-Wasm IR parity gate)
 - [`design/studio-page.md`](design/studio-page.md) — the hosted studio `index.html` (#392, #422, #431):
-  React 19 + Vite chrome over **one three-column workspace** — a project tree, a tabbed code column and a
-  preview column whose own tablist switches scene/canvas/diagnostics — the React/engine boundary (React
-  never renders the canvas), the old-URL redirect keeping `#p5=` links working, the gates that moved with
-  the stack, and the three re-recorded P6 download budgets (#395 weighs all three Wasm modules).
+  React 19 + Vite chrome over the dock workspace, the React/engine boundary (React never renders the
+  canvas), the old-URL redirect keeping `#p5=` links working, the gates that moved with the stack, and
+  the three re-recorded P6 download budgets (#395 weighs all three Wasm modules).
+- [`design/studio-workbench-dock.md`](design/studio-workbench-dock.md) — the studio dock (W4/W5, #516): pure model, flexlayout adapter, persistent panel hosts
 - [`design/canvas-input-session.md`](design/canvas-input-session.md) — the persistent canvas session
   (#388): pointer events into one kept evaluation, `:hover`/`:active` through the stylesheet engine,
   one frame per change, and the CSS-to-logical coordinate rule (page wiring deferred to #422)

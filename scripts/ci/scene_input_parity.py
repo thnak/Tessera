@@ -160,7 +160,107 @@ CORPUS: Tuple[Tuple[str, str, str, str, int, int], ...] = (
         1,
         0,
     ),
+    # `platform` steps (issue #446): the same driver the canvas session runs, compared byte for byte.
+    (
+        "platform-back-closes",
+        "ui/Counter.tsx",
+        """export function Counter(): Node {
+  const [count, setCount] = useState<int>(0);
+  return (
+    <View>
+      <Text>Count: {count}</Text>
+      <Button automationId="101" onClick={() => setCount(count + 1)}>Add</Button>
+    </View>
+  );
+}
+""",
+        "click 101\nclick 101\nplatform back @1000000\nplatform volumeUp @2000000",
+        1,
+        1,
+    ),
+    # `platform` steps (issue #446): the same driver the canvas session runs, compared byte for byte.
+    (
+        "platform-home-resume",
+        "ui/Counter.tsx",
+        """export function Counter(): Node {
+  const [count, setCount] = useState<int>(0);
+  return (
+    <View>
+      <Text>Count: {count}</Text>
+      <Button automationId="101" onClick={() => setCount(count + 1)}>Add</Button>
+    </View>
+  );
+}
+""",
+        "click 101\nclick 101\nplatform home @1000000\nplatform back @2000000\nplatform resume @3000000",
+        1,
+        1,
+    ),
+    # `platform` steps (issue #446): the same driver the canvas session runs, compared byte for byte.
+    (
+        "platform-power-recents",
+        "ui/Counter.tsx",
+        """export function Counter(): Node {
+  const [count, setCount] = useState<int>(0);
+  return (
+    <View>
+      <Text>Count: {count}</Text>
+      <Button automationId="101" onClick={() => setCount(count + 1)}>Add</Button>
+    </View>
+  );
+}
+""",
+        "click 101\nplatform power\nplatform volumeUp\nplatform power\nplatform recents\nplatform activate",
+        1,
+        1,
+    ),
+    # `platform` steps (issue #446): the same driver the canvas session runs, compared byte for byte.
+    (
+        "platform-environment",
+        "ui/Counter.tsx",
+        """export function Counter(): Node {
+  const [count, setCount] = useState<int>(0);
+  return (
+    <View>
+      <Text>Count: {count}</Text>
+      <Button automationId="101" onClick={() => setCount(count + 1)}>Add</Button>
+    </View>
+  );
+}
+""",
+        "click 101\nplatform orientation portrait\nplatform fold book\nplatform fold none\nplatform theme dark\nplatform textScale 1.5\nplatform locale vi-VN\nplatform ime shown\nplatform memoryPressure\nplatform batterySaver on\nplatform thermal serious",
+        1,
+        1,
+    ),
+    # `platform` steps (issue #446): the same driver the canvas session runs, compared byte for byte.
+    (
+        "platform-process-death",
+        "ui/Counter.tsx",
+        """export function Counter(): Node {
+  const [count, setCount] = useState<int>(0);
+  return (
+    <View>
+      <Text>Count: {count}</Text>
+      <Button automationId="101" onClick={() => setCount(count + 1)}>Add</Button>
+    </View>
+  );
+}
+""",
+        "click 101\nplatform home\nplatform processDeath\nplatform home",
+        1,
+        1,
+    ),
 )
+
+# What each `platform` step must answer, in order: (handled, state). A byte comparison alone would pass
+# two identical `ok:false` replies, so a case also states what the events are supposed to do.
+PLATFORM_EXPECT: Dict[str, List[Tuple[bool, str]]] = {
+    "platform-back-closes": [(True, 'closed'), (False, 'closed')],
+    "platform-home-resume": [(True, 'background'), (False, 'background'), (True, 'running')],
+    "platform-power-recents": [(True, 'screenOff'), (False, 'screenOff'), (True, 'running'), (True, 'inactive'), (True, 'running')],
+    "platform-environment": [(True, 'running'), (True, 'running'), (True, 'running'), (False, 'running'), (False, 'running'), (False, 'running'), (False, 'running'), (False, 'running'), (False, 'running'), (False, 'running')],
+    "platform-process-death": [(True, 'background'), (True, 'closed'), (False, 'closed')],
+}
 
 # The Node driver for the Wasm side: the same shape as the P2 gate's, with the script as a fifth
 # argument. Inline so the gate has no extra file to keep in step with the ABI.
@@ -366,6 +466,33 @@ def anti_vacuous(document: Dict, label: str, minimum_cells: int, minimum_ran: in
     return failures
 
 
+def platform_failures(document: Dict, label: str, expected: List[Tuple[bool, str]]) -> List[str]:
+    """Every `platform` step must be accepted and have the effect the corpus states."""
+    failures: List[str] = []
+    replies = [
+        step.get("reply")
+        for step in document.get("steps", [])
+        if isinstance(step, dict) and step.get("kind") == "platform"
+    ]
+    if len(replies) != len(expected):
+        failures.append(
+            "CORPUS {:<22} {} platform step(s), expected {}".format(label, len(replies), len(expected))
+        )
+        return failures
+    for index, (reply, (handled, state)) in enumerate(zip(replies, expected)):
+        if not isinstance(reply, dict) or reply.get("ok") is not True:
+            failures.append(
+                "CORPUS {:<22} platform step {} was refused: {}".format(label, index, reply)
+            )
+        elif reply.get("handled") is not handled or reply.get("state") != state:
+            failures.append(
+                "CORPUS {:<22} platform step {}: handled={} state={}, expected handled={} state={}".format(
+                    label, index, reply.get("handled"), reply.get("state"), handled, state
+                )
+            )
+    return failures
+
+
 def parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--native", required=True, help="host-built tessera_scene_preview CLI")
@@ -432,6 +559,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 native_doc, "native/" + name, minimum_cells, minimum_ran
             )
             wasm_failures = anti_vacuous(wasm_doc, "wasm/" + name, minimum_cells, minimum_ran)
+            if name in PLATFORM_EXPECT:
+                native_failures += platform_failures(
+                    native_doc, "native/" + name, PLATFORM_EXPECT[name]
+                )
+                wasm_failures += platform_failures(wasm_doc, "wasm/" + name, PLATFORM_EXPECT[name])
             if native_failures or wasm_failures:
                 failures.extend(native_failures)
                 failures.extend(wasm_failures)

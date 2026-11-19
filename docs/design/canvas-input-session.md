@@ -120,6 +120,7 @@ this module is given.
 | `tessera_canvas_draw(width, height, canvas_view)` | paint the session's current tree into the canvas view; never re-evaluates |
 | `tessera_canvas_set_fold(posture)` | re-lay the RUNNING tree out at a simulated fold posture (`flat`, `book`, `tabletop`), one pass, no re-evaluation (issue #408, [§6.1](../specs/designer-studio-v1.md)) |
 | `tessera_canvas_set_viewport(width, height, dpi)` | re-lay the RUNNING tree out at a new logical viewport and DPR, one pass, no re-evaluation; returns `{"viewportVersion":1,"changed":…,"width":…,"height":…,"dpr":…,"cascadeGeneration":…,"error":""}` (issue #436) |
+| `tessera_canvas_platform_event(type, value, timestampNs)` | one normalized hardware button or environment event of a device profile (issue #446, [protocol §5.1](../specs/designer-protocol-v1.md#51-platformevent)); returns the reply document (`handled`, `appClosed`, `resumed`, `state`, `dispatch`, `sequence`, `timestampNs`, `changed`, ...). The event goes through `hal::SyntheticEventInjector` and `PlatformEventDriver` (`scene_platform.cpp`), the code the native scripted run executes. A `relaunch` reply ends the evaluation, so the page's next `tessera_canvas_apply` is the cold start. `timestampNs` is a double (a 64-bit integer crosses the ABI as a BigInt); negative means "now" |
 | `tessera_canvas_reset()` | release the session |
 
 `changed` is the page's whole decision: schedule one frame when true, none when false. An unknown

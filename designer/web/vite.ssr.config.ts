@@ -42,6 +42,18 @@ export default defineConfig({
         skins: "src/views/skins.ts",
         "skin-geometry": "src/views/skin-geometry.ts",
         "skin-load": "src/views/skin-load.ts",
+        // The device profile's rules and the platform-event vocabulary (issues #447 and #448), so
+        // `scripts/ci/preview_profiles.mjs` and `preview_platform_events.mjs` test what the page ships.
+        "device-profile": "src/lib/device-profile.ts",
+        "device-profile-load": "src/lib/device-profile-load.ts",
+        "platform-events": "src/lib/platform-events.ts",
+        "profiles-switch": "src/page-profiles.ts",
+        // The workbench layout model, operations, migration and persistence (issue #556), so
+        // `scripts/ci/workbench_layout.mjs` tests the code the page ships.
+        workbench: "src/workbench/layout.ts",
+        // The dock adapter's pure core (codec, gesture map, splitter arithmetic), so
+        // `scripts/ci/workbench_dock_core.mjs` tests what the page ships (issue #560).
+        "dock-core": "src/dock/core.ts",
       },
       output: {
         format: "es",

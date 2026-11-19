@@ -34,6 +34,11 @@ inline constexpr std::string_view kLatestProtocolVersion = "2025-06-18";
 inline constexpr std::string_view kSupportedProtocolVersions[] = {"2025-06-18", "2025-03-26",
                                                                   "2024-11-05"};
 
+// The version of the tool surface (docs/specs/mcp-server-v1.md section 3), reported by `initialize`
+// next to the negotiated protocol revision. It is bumped by a removal, a rename, a new required
+// parameter or a changed meaning of an existing field, never by an additive change.
+inline constexpr std::int64_t kToolSurfaceVersion = 1;
+
 [[nodiscard]] bool protocol_version_supported(std::string_view version) noexcept;
 
 // JSON-RPC 2.0 error codes, plus the two MCP-specific ones this server can produce. The numeric

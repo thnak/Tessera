@@ -32,6 +32,9 @@
 //      an unfolded preview pays no bytes and a pre-#408 link decodes to the same state it always did
 //   k  simulated skin (issue #171's skins slice): a directory name under `skins/`; absent means no
 //      frame, so a pre-#171 link decodes to the same state it always did
+//   n  device profile (issue #447): a bundled profile id or `custom`; absent means none, so a link made
+//      before profiles decodes to the same state it always did. `w`, `h` and `d` keep their meaning;
+//      the name only widens the sizes and DPRs they may hold (`PROFILE_GEOMETRY`)
 //
 // ## The size cap, and what happens when a link exceeds it
 //
@@ -177,6 +180,8 @@ function envelopeOf(state) {
     // a skin pays no bytes. `s` is the source and `p` the posture, so `k` is the next free letter
     // that reads as "skin".
     ...(state.skin ? { k: state.skin } : {}),
+    // `n` is the device profile (issue #447), omitted for none for the same reason `k` is.
+    ...(state.profile ? { n: state.profile } : {}),
   };
 }
 
@@ -288,6 +293,8 @@ export async function decodeShare(text) {
     foldPosture: envelope.p === undefined ? '' : envelope.p,
     // Absent means "no frame", which is what a pre-#171 link says and what the page's default is.
     skin: envelope.k === undefined ? '' : envelope.k,
+    // Absent means "no profile", which is what a pre-#447 link says and what the page's default is.
+    profile: envelope.n === undefined ? '' : envelope.n,
   });
 }
 

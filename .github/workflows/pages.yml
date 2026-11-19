@@ -48,8 +48,18 @@ on:
       - 'scripts/ci/preview_studio_smoke.mjs'
       - 'scripts/ci/preview_page_checks.mjs'
       - 'scripts/ci/preview_skins.mjs'
+      - 'scripts/ci/workbench_layout.mjs'
+      - 'scripts/ci/workbench_dock_core.mjs'
+      - 'tests/fixtures/studio-layout/**'
       - 'scripts/ci/preview_project_load.mjs'
+      - 'scripts/ci/preview_generated_staleness.mjs'
+      - 'scripts/ci/preview_recent_projects.mjs'
+      - 'scripts/ci/preview_project_package.mjs'
+      - 'scripts/ci/preview_mock_host.mjs'
+      - 'scripts/ci/preview_mock_sandbox.mjs'
+      - 'scripts/ci/mock_test_support.mjs'
       - 'scripts/ci/preview_theme_handover.mjs'
+      - 'scripts/ci/preview_workbench*.mjs'
       - 'scripts/ci/gen_sample_manifest.py'
       - 'scripts/check_preview_budget.py'
       - 'scripts/preview_budget_measure.py'
@@ -72,8 +82,18 @@ on:
       - 'scripts/ci/preview_studio_smoke.mjs'
       - 'scripts/ci/preview_page_checks.mjs'
       - 'scripts/ci/preview_skins.mjs'
+      - 'scripts/ci/workbench_layout.mjs'
+      - 'scripts/ci/workbench_dock_core.mjs'
+      - 'tests/fixtures/studio-layout/**'
       - 'scripts/ci/preview_project_load.mjs'
+      - 'scripts/ci/preview_generated_staleness.mjs'
+      - 'scripts/ci/preview_recent_projects.mjs'
+      - 'scripts/ci/preview_project_package.mjs'
+      - 'scripts/ci/preview_mock_host.mjs'
+      - 'scripts/ci/preview_mock_sandbox.mjs'
+      - 'scripts/ci/mock_test_support.mjs'
       - 'scripts/ci/preview_theme_handover.mjs'
+      - 'scripts/ci/preview_workbench*.mjs'
       - 'scripts/ci/gen_sample_manifest.py'
       - 'scripts/check_preview_budget.py'
       - 'scripts/preview_budget_measure.py'
@@ -236,8 +256,39 @@ jobs:
       - name: Project load and save (limits, locked files, conflicts)
         run: node scripts/ci/preview_project_load.mjs
 
+      # A generated header older than its source gets a "may be out of date" hint (heuristic, advisory).
+      - name: Generated-file staleness advice
+        run: node scripts/ci/preview_generated_staleness.mjs
+
+      # The recent-projects list policy (newest first, one per folder, at most ten, storage-less is empty).
+      - name: Recent projects list
+        run: node scripts/ci/preview_recent_projects.mjs
+
+      # The project package: zip + manifest with times, versioning, tamper refusal, plain zips still open.
+      - name: Project package format
+        run: node scripts/ci/preview_project_package.mjs
+
+      - name: Studio mock services (file kind, subset, table, trace, host)
+        run: node scripts/ci/preview_mock_host.mjs
+
+      - name: Studio mock sandbox (hostile fixtures, caps)
+        run: node scripts/ci/preview_mock_sandbox.mjs
+
       - name: Theme asset hand-over (token commits)
         run: node scripts/ci/preview_theme_handover.mjs
+
+      # The workbench core (commands, when-clauses, keymap, menus, palette): pure modules, no browser.
+      - name: Studio workbench core (registry, keymap, menus, palette)
+        run: node scripts/ci/preview_workbench.mjs
+
+      - name: Studio workbench menus (model, keyboard navigation)
+        run: node scripts/ci/preview_workbench_menus.mjs
+
+      - name: Studio command palette (fuzzy ranking, recent list, argument prompts)
+        run: node scripts/ci/preview_workbench_palette.mjs
+
+      - name: Studio notifications (queue, dedupe, history, do not disturb)
+        run: node scripts/ci/preview_workbench_notifications.mjs
 
       - name: Studio chrome smoke (rendered build, stub browser)
         run: node scripts/ci/preview_studio_smoke.mjs
@@ -260,6 +311,17 @@ jobs:
       # the page ships rather than a copy of them.
       - name: Skin manifests, geometry and retint (built validator, no browser)
         run: node scripts/ci/preview_skins.mjs
+
+      # The workbench layout model (issue #556, `studio-workbench-layout-v1.md` sections 1 to 3): the
+      # validator's every rule, the operations and canonical flattening, migration fixtures, reconcile,
+      # the phone projection and localStorage persistence, imported from `dist-ssr/workbench.js`.
+      - name: Workbench layout model (built, no browser)
+        run: node scripts/ci/workbench_layout.mjs
+
+      # The dock adapter's pure core (issue #560): the model <-> flexlayout-react round trip through the real
+      # library `Model`, the gesture map, and the splitter arithmetic and ARIA values.
+      - name: Workbench dock adapter core (built, no browser)
+        run: node scripts/ci/workbench_dock_core.mjs
 
       - name: Sample manifest is generated and current
         run: python3 -B scripts/ci/gen_sample_manifest.py --check

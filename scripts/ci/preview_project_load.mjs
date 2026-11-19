@@ -19,10 +19,11 @@ import {
   findConflicts,
   loadDirectory,
   loadZip,
+  readViewOnly,
   writeFiles,
 } from '../../designer/web/project-io.js';
 import { applicableDraft, buildDraft, projectKey } from '../../designer/web/drafts.js';
-import { LIMITS, PathError } from '../../designer/web/project-paths.js';
+import { LIMITS, PathError, isTextKind } from '../../designer/web/project-paths.js';
 import { writeZip } from '../../designer/web/studio-zip.js';
 
 let failures = 0;
@@ -148,12 +149,38 @@ await test('a folder loads: text files carry text, locked files are listed and n
   assert.equal(byPath['fonts/Inter.ttf'].kind, 'asset');
   assert.equal(byPath['fonts/Inter.ttf'].text, '');
   assert.equal(byPath['fonts/Inter.ttf'].size, 5);
-  assert.equal(byPath['src/native.cpp'].kind, 'other');
+  assert.equal(byPath['src/native.cpp'].kind, 'view-only');
   assert.equal(byPath['src/native.cpp'].text, '');
   const font = root.children.get('fonts').children.get('Inter.ttf').file;
   const cpp = root.children.get('src').children.get('native.cpp').file;
   assert.equal(font.reads, 0, 'a font is never read');
-  assert.equal(cpp.reads, 0, 'C++ is never read');
+  assert.equal(cpp.reads, 0, 'C++ is not read at load; only opening it reads it');
+});
+
+await test('a locked text file opens view-only on demand, and its bytes never travel', async () => {
+  const marker = 'LOCKED_MARKER_5f3a';
+  const root = folder({ ...PROJECT, 'gen/AppBase.hpp': `// ${marker}\nstruct AppBase {};`, 'src/blob.cpp': new Uint8Array([0x41, 0, 0x42]) });
+  const { entries } = await loadDirectory(root);
+  const header = entries.find((entry) => entry.path === 'gen/AppBase.hpp');
+  assert.equal(header.kind, 'view-only');
+  assert.equal(header.text, '', 'the project copy of a locked file stays empty');
+  const file = root.children.get('gen').children.get('AppBase.hpp').file;
+  assert.equal(file.reads, 0);
+  assert.deepEqual(await header.readView(), { text: `// ${marker}\nstruct AppBase {};` });
+  assert.equal(file.reads, 1, 'read once, when opened');
+  // A binary is a name and size only; an over-cap file is refused from its size without a read.
+  assert.deepEqual(await entries.find((entry) => entry.path === 'src/blob.cpp').readView(), { note: 'binary' });
+  assert.deepEqual(await readViewOnly(LIMITS.maxFileBytes + 1, async () => assert.fail('read')), { note: 'too-large' });
+  assert.deepEqual(await readViewOnly(3, async () => new Uint8Array([0xff, 0xfe, 0xfd])), { note: 'binary' });
+  // What a save writes and what the viewer is given are accepted text kinds only: a locked file is
+  // refused by the writer, and no text entry carries its bytes.
+  await assert.rejects(
+    writeFiles(root, [{ path: 'gen/AppBase.hpp', text: marker }]),
+    (error) => error instanceof ProjectIoError && error.code === 'not-accepted',
+  );
+  const sent = entries.filter((entry) => isTextKind(entry.kind)).map((entry) => entry.text).join('\n');
+  assert.ok(!sent.includes(marker), 'a locked file is not among the text the viewer is given');
+  assert.ok(!JSON.stringify(entries.map(({ readView, ...rest }) => rest)).includes(marker));
 });
 
 await test('a folder and the zip of that folder are the same project', async () => {

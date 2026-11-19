@@ -4,7 +4,7 @@ Status: proposed (Big Step D). Decision: [ADR-045](../../decisions/ADR-045-brows
 Design note: [designer.md](../design/designer.md) (architecture, hot reload, picker).
 Protocol: [designer-protocol-v1.md](designer-protocol-v1.md).
 Chrome preview: [window-chrome-v1.md](window-chrome-v1.md).
-Device profiles, platform events and live edit: [studio-device-profiles-v1.md](studio-device-profiles-v1.md).
+Device profiles, platform events and live edit: [studio-device-profiles-v1.md](studio-device-profiles-v1.md). Workbench (menus, commands, dock): [studio-workbench-v1.md](studio-workbench-v1.md), [layout](studio-workbench-layout-v1.md); built as [studio-workbench-core.md](../design/studio-workbench-core.md).
 
 The studio is the "open a URL and work" form of the designer: the real C++ engine compiled to Wasm
 runs in the page, the page hosts the project (folder, zip or sample) and the code editor, and the
@@ -194,8 +194,8 @@ The studio reuses the [designer protocol](designer-protocol-v1.md) instead of de
   because the protocol and the file versions are the same.
 
 The session starts with `hello` → `ready` → `project.load`, as specified; the studio adds one
-message, `platform.event` ([studio-device-profiles-v1.md](studio-device-profiles-v1.md)). `theme.applied` (protocol section 6) is what the page uses to tint the simulated
-system chrome from the engine's resolved record.
+message, `platform.event` ([protocol section 5.1](designer-protocol-v1.md#51-platformevent); device profiles in
+[studio-device-profiles-v1.md](studio-device-profiles-v1.md)). `theme.applied` (protocol section 6) is what the page uses to tint the simulated system chrome from the engine's resolved record.
 
 ## 5. Simulated system chrome and skins
 
@@ -473,8 +473,8 @@ there is no third protocol to keep in sync.
 | `apply_edits` | `source.patch` TextEdits | Apply edits in memory by default; `write: true` writes them to the project directory |
 | `set_viewport` | `viewport.set` | Device size, DPR, theme, locale, safe areas, fold |
 | `snapshot` | harness `snapshot` | Node tree, bounds, roles, text, focus |
-| `query_style` | `style.inspect` | Computed style, matched rules, layout box |
-| `pick` | `selection.set` by point | Node at a coordinate |
+| `query_style` | `style.inspect` | Computed style, matched rules, layout box ([mcp-server-v1.md](mcp-server-v1.md) section 5) |
+| `pick` | `selection.set` by point | Node at a coordinate, logical pixels ([mcp-server-v1.md](mcp-server-v1.md) section 5) |
 | `screenshot` | native headless renderer (Dawn/Vulkan, GPU) | PNG of the scene; best-effort visual, never a golden |
 | `run_script` | harness script (`launch`/`click`/`assert`/...) | End-to-end checks with a report |
 

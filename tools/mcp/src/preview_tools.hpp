@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "scene_preview.hpp"
 #include "tessera/hal/fold_posture.hpp"
 #include "tool_registry.hpp"
 
@@ -32,6 +33,13 @@ struct ViewportState {
     float dpr = 1.0f;
     tessera::hal::FoldPosture posture = tessera::hal::FoldPosture::None;
 };
+
+// The preview driver's options for the session's viewport: the one place the viewport, the posture
+// and the salt become `ScenePreviewOptions`, shared by `snapshot`, `query_style` and `pick` so the
+// three lay a source out identically. The salt matches what the studio passes, so `uiId`s are the
+// ones the native build of the same source assigns (docs/specs/automation-ids-v1.md section 2.1).
+[[nodiscard]] tessera::compiler::codegen::cli::ScenePreviewOptions
+scene_preview_options(const ViewportState& viewport, std::string_view file);
 
 // The result of `set_viewport`: the viewport the session now holds, echoed back so a client can
 // confirm what a later `snapshot` will render at without a second call.

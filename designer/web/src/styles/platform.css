@@ -1,0 +1,159 @@
+/* SPDX-License-Identifier: MIT
+ *
+ * The device profile's chrome (issues #447 and #448): the hardware strip under the
+ * device, the overlay shown while the app is not in the foreground, and the bottom dock with the platform
+ * events panel. It is one sheet because the three belong to one feature and share the same tokens; the
+ * layout of the workspace itself is `workspace.css`.
+ *
+ * Follows the studio plan's dock: tabs on top, a panel of mono event buttons, then the ordered log.
+ */
+
+/* --- the hardware strip (under the device) ------------------------------------------------------ */
+
+.hw-strip {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px 18px;
+  padding: 8px 12px 10px;
+  border-top: 1px solid var(--border);
+  background: var(--pane-bg);
+}
+
+.hw-group {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  max-width: 320px;
+}
+
+.hw-caption {
+  width: 100%;
+  text-align: center;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-dim);
+}
+
+.hw-button {
+  padding: 4px 9px;
+  font-size: 11.5px;
+}
+
+.hw-button:focus-visible,
+.evb button:focus-visible,
+.panel-host button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* --- the overlay while the app is not in the foreground ----------------------------------------- */
+
+.app-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  background: rgba(10, 12, 20, 0.78);
+  color: #fff;
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.app-overlay p { margin: 0; }
+
+.app-overlay button {
+  border: 0;
+  background: #3b5bdb;
+  color: #fff;
+  font-size: 12px;
+  padding: 5px 12px;
+}
+
+/* --- the bottom dock ---------------------------------------------------------------------------- */
+
+/* The dock frame, tab strip and panel live in dock.css; this is the Platform events panel body. */
+.platform-panel { padding: 10px 12px; font-size: 12.5px; }
+
+.dock-state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.dock-state-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+}
+
+.dock-state button { font-size: 12px; padding: 3px 10px; }
+
+#platform-state[data-state="closed"] { color: var(--error); }
+#platform-state[data-state="background"],
+#platform-state[data-state="screenOff"],
+#platform-state[data-state="inactive"] { color: var(--warning); }
+
+.evb {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.evb button {
+  padding: 3px 8px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+
+.dock-empty { margin: 6px 0; color: var(--text-dim); }
+
+.log-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+  color: var(--text-dim);
+}
+
+.log-actions { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+.log-actions button { padding: 2px 8px; font-size: 11.5px; }
+
+.log-notice { margin: 4px 0; color: var(--ok); }
+
+.log {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.log-row {
+  display: grid;
+  grid-template-columns: 5ch 10ch minmax(12ch, 30ch) 1fr;
+  gap: 8px;
+  padding: 2px 0;
+}
+
+.log-seq,
+.log-time { color: var(--text-dim); }
+.log-row.is-refused .log-effect { color: var(--error); }
+
+@media (max-width: 720px) {
+  .log-row { grid-template-columns: 5ch 1fr; }
+  .log-row .log-time { display: none; }
+  .log-row .log-effect { grid-column: 2; }
+}

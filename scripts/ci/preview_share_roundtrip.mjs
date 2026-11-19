@@ -96,6 +96,9 @@ const BASE_STATE = {
   // matrix below covers that and every bundled skin, because a skin that the codec forgets would
   // open a shared link on a different device than the one that was shared.
   skin: '',
+  // The device profile (issue #447): `''` is none, the pre-profile page. `n` in the envelope; the
+  // profile matrix itself is `preview_profiles.mjs`'s.
+  profile: '',
 };
 
 // One representative state per toolbar combination, so a new preset that forgets the codec fails here.
@@ -336,6 +339,8 @@ await test('a fragment produced by the pre-merge page decodes to the same state 
     // It predates the skins slice (issue #171) too, so its absent skin key decodes to "no frame" -
     // the pre-#171 page, which is exactly what the link was made on.
     skin: '',
+    // And before device profiles (issue #447): the absent `n` key decodes to "no profile".
+    profile: '',
   };
   const decoded = await share.decodeShare('#p5=' + PRE_MERGE_FRAGMENT);
   assert.deepEqual(
@@ -345,6 +350,7 @@ await test('a fragment produced by the pre-merge page decodes to the same state 
   );
   assert.equal(decoded.foldPosture, '', 'an older link must decode as an unfolded preview');
   assert.equal(decoded.skin, '', 'an older link must decode as a preview with no skin');
+  assert.equal(decoded.profile, '', 'an older link must decode as a preview with no device profile');
 });
 
 process.stdout.write(`\n${passed} passed, ${failures} failed\n`);

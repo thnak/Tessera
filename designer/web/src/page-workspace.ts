@@ -24,6 +24,7 @@ import {
   type ProjectFile,
   type TreeRow,
 } from "./lib/project";
+import { bootProject } from "./page-boot";
 import { entryOf, type EntryResult } from "./lib/project-snapshot";
 
 /** The shape of the left column and the middle column, as React state. */
@@ -74,6 +75,8 @@ export interface Workspace {
    * sample written into an already-open file would leave the old buffer in front of the new text.
    */
   putFile: (file: ProjectFile) => void;
+  /** Records what opening a view-only file read: its text, or why there is none to show. */
+  setViewRead: (path: string, read: { text: string } | { note: string }) => void;
   /** Replaces the whole project (an opened folder or a dropped zip). */
   setProject: (files: ProjectFile[]) => void;
   /**
@@ -115,7 +118,7 @@ export function initialWorkspace(files: ProjectFile[] = seedProject()): Workspac
  * paint, and the layout is reviewable without a load path.
  */
 export function useWorkspace(): Workspace {
-  const [state, setState] = useState<WorkspaceState>(() => initialWorkspace());
+  const [state, setState] = useState<WorkspaceState>(() => initialWorkspace(bootProject()));
   // The one mutable store: file path -> the text the editor currently holds. A ref, for the reason in
   // the header: a keystroke must not re-render the page.
   const buffers = useRef<Map<string, string>>(new Map());
@@ -127,7 +130,8 @@ export function useWorkspace(): Workspace {
       if (buffered !== undefined) {
         return buffered;
       }
-      return fileAt(state.files, path)?.text ?? "";
+      const file = fileAt(state.files, path);
+      return file === null ? "" : file.editable ? file.text : (file.viewText ?? "");
     },
     [state.files],
   );
@@ -142,9 +146,10 @@ export function useWorkspace(): Workspace {
         // Opening its children is `toggleDir`, which a click and ArrowRight/ArrowLeft both drive.
         return { ...previous, selected: row.path };
       }
-      if (!row.editable) {
-        // A locked file (a font, an image, C++) is selectable -- it is part of the project -- but it
-        // has no text to edit, so it does not become the editor's active file.
+      if (!row.editable && !row.viewOnly) {
+        // A locked binary (a font, an image) is selectable -- it is part of the project -- but it has no
+        // text to show, so it does not become the editor's active file. A locked *text* file (C++, a
+        // generated header) does: it opens read-only.
         return { ...previous, selected: row.path };
       }
       return {
@@ -173,13 +178,26 @@ export function useWorkspace(): Workspace {
         ...previous,
         files: known ? previous.files : [...previous.files, file].sort(byPath),
         open: previous.open.includes(file.path) ? previous.open : [...previous.open, file.path],
-        active: file.editable ? file.path : previous.active,
+        active: file.editable || file.viewOnly ? file.path : previous.active,
         selected: file.path,
       };
     });
   }, []);
 
   const addFile = openFile;
+
+  const setViewRead = useCallback((path: string, read: { text: string } | { note: string }) => {
+    setState((previous) => ({
+      ...previous,
+      files: previous.files.map((file) =>
+        file.path === path && file.viewOnly
+          ? "text" in read
+            ? { ...file, viewText: read.text, viewNote: undefined }
+            : { ...file, viewText: undefined, viewNote: read.note }
+          : file,
+      ),
+    }));
+  }, []);
 
   const putFile = useCallback((file: ProjectFile) => {
     buffers.current.delete(file.path);
@@ -371,6 +389,7 @@ export function useWorkspace(): Workspace {
     writeBuffer,
     addFile,
     putFile,
+    setViewRead,
     setProject,
     markSaved,
     createFile,

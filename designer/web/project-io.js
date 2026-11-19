@@ -16,12 +16,15 @@
 // fake and the page passes the real `FileSystemDirectoryHandle` unchanged.
 
 import {
+  FILE_KIND,
   LIMITS,
   classifyPath,
   confinePath,
   isTextKind,
+  isViewOnlyKind,
   limitMessage,
 } from './project-paths.js';
+import { applyManifest } from './project-package.js';
 import { readZip } from './studio-zip.js';
 
 /** A refusal the page branches on by `code`: `limit` | `duplicate` | `permission` | `not-accepted`. */
@@ -63,7 +66,48 @@ function contextOf(text) {
   }
 }
 
-/** @typedef {{path: string, kind: string, text: string, size: number, lastModified: number}} ProjectEntry */
+/**
+ * The result of opening a locked file view-only: its text, or why there is none to show.
+ * @typedef {{text: string} | {note: 'too-large' | 'binary' | 'unreadable'}} ViewRead
+ */
+
+/**
+ * Reads a locked file for display (owner decision 2026-11-17). Only called when the person opens it, so a
+ * folder full of C++ costs nothing at load. The per-file cap is checked from the size before a byte is
+ * read, and a file that is not UTF-8 text (a NUL byte, an invalid sequence) is a name and size only.
+ *
+ * @param {number} size
+ * @param {() => Promise<Uint8Array>} read
+ * @returns {Promise<ViewRead>}
+ */
+export async function readViewOnly(size, read) {
+  if (size > LIMITS.maxFileBytes) {
+    return { note: 'too-large' };
+  }
+  let bytes;
+  try {
+    bytes = await read();
+  } catch {
+    return { note: 'unreadable' };
+  }
+  if (bytes.length > LIMITS.maxFileBytes) {
+    return { note: 'too-large' };
+  }
+  if (bytes.subarray(0, 8192).includes(0)) {
+    return { note: 'binary' };
+  }
+  try {
+    return { text: new TextDecoder('utf-8', { fatal: true }).decode(bytes) };
+  } catch {
+    return { note: 'binary' };
+  }
+}
+
+/**
+ * @typedef {{path: string, kind: string, text: string, size: number, lastModified: number,
+ *   readView?: () => Promise<ViewRead>}} ProjectEntry `readView` exists only for a view-only kind; `text`
+ *   stays empty for every locked file, so nothing reads a locked file's bytes by accident.
+ */
 
 /**
  * Builds the project from raw entries: confine, classify, check the limits, then read the text files.
@@ -90,6 +134,8 @@ export async function buildProject(raw) {
   // Every limit is checked from sizes alone, so an over-limit project is refused before any read.
   let accepted = 0;
   let bytes = 0;
+  let mocks = 0;
+  let mockBytes = 0;
   const plan = [];
   for (const [path, entry] of confined) {
     const kind = classifyPath(path, context);
@@ -106,6 +152,16 @@ export async function buildProject(raw) {
       if (bytes > LIMITS.maxAcceptedBytes) {
         throw limitError('maxAcceptedBytes', bytes);
       }
+      if (kind === FILE_KIND.mock) {
+        mocks += 1;
+        mockBytes += entry.size;
+        if (mocks > LIMITS.maxMockFiles) {
+          throw limitError('maxMockFiles', mocks);
+        }
+        if (mockBytes > LIMITS.maxMockBytes) {
+          throw limitError('maxMockBytes', mockBytes);
+        }
+      }
     }
     plan.push({ path, kind, text, entry });
   }
@@ -115,10 +171,12 @@ export async function buildProject(raw) {
     entries.push({
       path,
       kind,
-      // A locked file is listed with its size and never read: the spec's own sentence.
+      // A locked file is listed with its size and not read at load; a view-only one can be read later,
+      // through `readView`, when it is opened. Its `text` stays empty: only `readView` returns bytes.
       text: text ? decoder.decode(await entry.read()) : '',
       size: entry.size,
       lastModified: entry.lastModified ?? 0,
+      ...(isViewOnlyKind(kind) ? { readView: () => readViewOnly(entry.size, entry.read) } : {}),
     });
   }
   return { entries, context };
@@ -196,12 +254,14 @@ export async function loadZip(bytes) {
   if (bytes.length > LIMITS.maxArchiveBytes) {
     throw limitError('maxArchiveBytes', bytes.length);
   }
-  const zipped = stripWrapper(await readZip(bytes));
+  // A project package carries a manifest with each file's time (project-package.js); a plain zip has none
+  // and every time stays 0, which is what keeps the stale-generated advice silent for it.
+  const { entries: zipped } = applyManifest(stripWrapper(await readZip(bytes)));
   return buildProject(
     zipped.map((entry) => ({
       path: entry.path,
       size: entry.bytes.length,
-      lastModified: 0,
+      lastModified: entry.modified,
       read: async () => entry.bytes,
     })),
   );

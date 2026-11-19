@@ -41,6 +41,20 @@ export interface AcquiredDevice {
 /** Either a device or a sentence naming what failed; exactly one is present. */
 export type DeviceResult = ({ device: GPUDevice; queue: GPUQueue; error?: undefined } | { device?: undefined; queue?: undefined; error: string });
 
+/**
+ * A read-only counter of the devices this page took, for the browser gates ("close Canvas and see no GPU
+ * device taken"): `acquired` is how many were requested, `live` how many have not been lost or destroyed.
+ */
+function trackDevice(device: GPUDevice): void {
+  const holder = globalThis as { __tesseraGpu?: { acquired: number; live: number } };
+  const stats = (holder.__tesseraGpu ??= { acquired: 0, live: 0 });
+  stats.acquired += 1;
+  stats.live += 1;
+  void device.lost.then(() => {
+    stats.live -= 1;
+  });
+}
+
 /** Acquires an adapter and device, or returns `{ error }` with a sentence naming what failed. */
 export async function acquireDevice(): Promise<DeviceResult> {
   if (!navigator.gpu) {
@@ -68,6 +82,7 @@ export async function acquireDevice(): Promise<DeviceResult> {
     if (!device) {
       return { error: "requestDevice() returned no device." };
     }
+    trackDevice(device);
     return { device, queue: device.queue };
   } catch (error) {
     return { error: `requestDevice() failed: ${String(error)}` };

@@ -46,8 +46,10 @@ Acronyms and project terms used below (RHI, SPIR-V, lavapipe, VRR, damage, golde
 | Dawn | V1 optional (native/headless) | BSD-3-Clause | `rendering/backend/webgpu` | Native WebGPU implementation; the Wasm viewer uses the browser WebGPU via Emscripten |
 | Emscripten (emsdk 7.0.0, `tools/emsdk-version.txt`) | V1 hard for design-time | MIT / UIUC | `designer/web`, `rendering/backend/webgpu`, `src/compiler/codegen` | C++ → WebAssembly toolchain; the `wasm-webgpu` preset and the WebGPU CI lane build `tessera_webgpu` with it, and the `wasm-compiler` build preset builds the codegen CLI for the native-versus-Wasm IR parity gate (issue #164); installed by emsdk outside the repository, not vendored |
 | Emscripten WebGPU bindings (`webgpu.h` / emdawnwebgpu, port `v20260423.175430` pinned with its SHA-512 by emsdk 7.0.0) | V1 hard for design-time | MIT / UIUC / BSD-3-Clause | `designer/web`, `rendering/backend/webgpu` | Browser WebGPU API behind `--use-port=emdawnwebgpu`; the JS bindings are MIT/UIUC, the Dawn-authored headers BSD-3-Clause; fetched by the emsdk port mechanism, not vendored |
+| esbuild-wasm | V1 design-time (studio) | MIT | `designer/web` | Lazy TypeScript transpiler for `*.mock.ts` ([ADR-055](../../decisions/ADR-055-studio-mock-services.md) decision 5): transpile-only, pinned to an exact version in `designer/web/package.json`, dynamically imported only when a project has a mock so the cold download is unchanged; runs its WebAssembly in its own worker, never on the UI thread |
 | CodeMirror 6 | V1 design-time (studio) | MIT | `designer/web` | Code editor in the hosted studio; bundled and version-pinned. Packages: `@codemirror/state`, `view`, `commands`, `language`, `search`, `lang-javascript`, `lang-css`, `lang-json` and `@lezer/highlight` (exact versions in `designer/web/package.json`); the page-JS cost (about +160 kB gzip) is recorded in `tests/golden/perf/preview_budget.json` |
 | fflate | V1 design-time (studio) | MIT | `designer/web` | Zip import/export for browsers without the File System Access API |
+| flexlayout-react 0.11.2 | V1 design-time (studio) | MIT | `designer/web` | Dock layout for the hosted studio; bundled and exact-pinned; kept behind the workbench layout adapter so the V1 Tessera-built studio does not depend on it; cost about +54 kB gzip recorded in `tests/golden/perf/preview_budget.json` ([ADR-062](../../decisions/ADR-062-studio-dock-library-flexlayout-react.md)) |
 | IBM Plex Sans Regular (Latin subset, `designer/web/public/fonts/IBMPlexSans-Latin.ttf`) | V1 design-time (studio) | OFL-1.1 | `designer/web` | The Canvas preview's one face (issue #387): the page fetches it from its own origin and hands the bytes to the preview module, so it is a **page asset**, not part of the Wasm module or any native binary. Shipped with its license (`fonts/OFL.txt`) as OFL-1.1 requires; one subset now, superseded by the bundled font pack in #280 |
 | Mesa lavapipe | V1 CI | MIT | tests / CI | Software Vulkan ICD (installable client driver, the plug-in the Vulkan loader uses to reach a GPU or software rasterizer) for deterministic goldens |
 | Vulkan ValidationLayers | V1 debug | Apache-2.0 | dev / CI | Validation |
@@ -586,8 +588,7 @@ LGPL:
   do not link it into the core. Keep accessibility optional and dynamically integrated.
 - **libdbus: AFL-2.1 or GPL-2.0+.** Avoid linking; use the D-Bus protocol/system service, or a
   permissively licensed client if one is selected (no decision yet).
-- **macOS Cocoa/AppKit and Windows Win32/UIA:** system frameworks/APIs; no redistribution
-  issue.
+- **macOS Cocoa/AppKit and Windows Win32/UIA:** system frameworks/APIs; no redistribution issue.
 
 ### Compliance actions
 

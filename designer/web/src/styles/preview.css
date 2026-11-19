@@ -13,7 +13,6 @@
  * switch rather than three competing primary actions.
  */
 
-.region-preview { grid-column: 3; }
 
 .preview-tabs {
   display: flex;

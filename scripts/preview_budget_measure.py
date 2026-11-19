@@ -123,6 +123,13 @@ MODULE_FILES = tuple(
 #
 # `scene.html`, `canvas.html`, `redirect.js` and `samples.json` are Vite's `public/` directory, copied
 # verbatim into `dist/`; they are measured because they ship.
+#
+# **The lazy mock transpiler is weighed on its own row** (issue #434, ADR-055 decision 5). The studio loads
+# the mock host and esbuild-wasm only when a project has a `*.mock.ts` file, and `designer/web/vite.config.ts`
+# puts all of it under `dist/assets/mock/`. That directory is left out of `download_gzip_bytes` -- a project
+# without mocks never fetches it, so the cold download must not move -- and is weighed by
+# `mock_transpiler_lazy_gzip_bytes` instead, so it is neither unweighed nor hiding in the cold number.
+PAGE_LAZY_MOCK_DIR = "assets/mock"
 PAGE_EXCLUDED_SUFFIXES = (".map",)
 PAGE_EXCLUDED_NAMES = (".gitkeep",)
 
@@ -151,7 +158,7 @@ CALIBRATION_ITERATIONS = 4000000
 CALIBRATION_CHECKSUM = 40185732
 
 # The two measured entries whose values the gate ratchets, in report order.
-SIZE_ENTRIES = ("download_gzip_bytes",)
+SIZE_ENTRIES = ("download_gzip_bytes", "mock_transpiler_lazy_gzip_bytes")
 LATENCY_ENTRIES = ("cold_engine_ready_ms", "edit_compile_ms")
 
 
@@ -237,8 +244,27 @@ def page_assets(page_dir: Optional[Path] = None) -> List[Path]:
         name = path.name
         if name.endswith(PAGE_EXCLUDED_SUFFIXES) or name in PAGE_EXCLUDED_NAMES:
             continue
+        if is_lazy_mock(path, root):
+            continue
         assets.append(path)
     return assets
+
+
+def is_lazy_mock(path: Path, root: Path) -> bool:
+    """`True` for a file of the lazy mock transpiler chunk (`dist/assets/mock/`)."""
+    return path.relative_to(root).as_posix().startswith(PAGE_LAZY_MOCK_DIR + "/")
+
+
+def lazy_mock_assets(page_dir: Optional[Path] = None) -> List[Path]:
+    """The files under `dist/assets/mock/`, sorted; empty when the build has no mock chunk."""
+    root = PAGE_DIST if page_dir is None else page_dir
+    return [
+        path
+        for path in sorted(root.rglob("*"))
+        if path.is_file()
+        and not path.name.endswith(PAGE_EXCLUDED_SUFFIXES)
+        and is_lazy_mock(path, root)
+    ]
 
 
 def module_assets(module_dir: Path) -> List[Path]:
@@ -258,6 +284,12 @@ def size_measurements(module_dir: Path) -> Dict[str, float]:
     sizes["download_gzip_bytes"] = sum(
         value for name, value in sizes.items() if name.endswith(".gzip")
     )
+    # Summed, not itemized: the per-file breakdown of `download_gzip_bytes` is the cold path's, and the
+    # lazy chunk is one build product (the host chunk and esbuild's WebAssembly) with one number.
+    lazy = {
+        path.relative_to(PAGE_DIST).as_posix(): gzip_size(path.read_bytes()) for path in lazy_mock_assets()
+    }
+    sizes["mock_transpiler_lazy_gzip_bytes"] = sum(lazy.values())
     return {name: float(value) for name, value in sizes.items()}
 
 

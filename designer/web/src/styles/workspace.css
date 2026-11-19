@@ -14,16 +14,6 @@
  * horizontal scroll the phone case must not have.
  */
 
-.workspace {
-  flex: 1 1 auto;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: var(--tree-width) minmax(0, 1.1fr) minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr);
-  gap: 1px;
-  background: var(--border);
-}
-
 /* Every column is the same frame: a header row, then whatever the region scrolls internally. */
 .region {
   display: flex;
@@ -52,14 +42,17 @@
   color: var(--text-dim);
 }
 
+.region-header > .status {
+  flex: none;
+  white-space: nowrap;
+}
+
 .pane-actions {
   display: flex;
   gap: 8px;
 }
 
 /* --- the project tree (left) ------------------------------------------------------------------ */
-
-.region-tree { grid-column: 1; }
 
 .tree {
   flex: 1 1 auto;
@@ -101,6 +94,10 @@
 }
 
 .tree-name {
+  /* The name gives way first (an ellipsis), so the lock / stale / dirty badges after it are never the
+   * part that is cut off in a narrow column. */
+  flex: 0 1 auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -114,11 +111,25 @@
 
 .tree-lock {
   flex: none;
+  white-space: nowrap;
   margin-left: auto;
   padding: 0 4px;
   border: 1px solid var(--border);
   border-radius: 3px;
   color: var(--text-dim);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.tree-stale {
+  flex: none;
+  white-space: nowrap;
+  margin-left: 4px;
+  padding: 0 4px;
+  border: 1px solid var(--warning);
+  border-radius: 3px;
+  color: var(--warning);
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -202,6 +213,12 @@
 
 .project-actions button { font-size: 12px; }
 
+.project-recent select {
+  flex: 1 1 8em;
+  min-width: 0;
+  font-size: 12px;
+}
+
 .project-name,
 .project-note {
   margin: 0;
@@ -222,11 +239,3 @@
 
 .project-conflict p { margin: 0; overflow-wrap: anywhere; }
 
-/* The entry's component dropdown (issue #391): shown only when the entry declares more than one. */
-.component-picker {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 12px;
-  font-size: 12px;
-}

@@ -42,11 +42,11 @@ The three preview views are **panes inside the right-hand column**, not three to
 | Scene | the scene snapshot plus the `<automationId>` click script and its state cells | `tessera_scene_preview` | when the Scene tab is first shown |
 | Canvas | the evaluated scene painted through WebGPU, with the frame counters and the running evaluation's state cells | `tessera_canvas` | when the Canvas tab is first shown (the device is acquired by the first *apply* there, which since #444 is the automatic one) |
 
-**No view switch changes the workspace's shape.** That is #431's acceptance sentence and the reason the
-switch left the header: the tablist moved into the column it controls (`regions/PreviewColumn.tsx`), and the
-header kept what is genuinely page chrome. The tree and the editor do not move, resize or re-render when the
-preview view changes; `scripts/ci/preview_browser_layout.mjs` measures their boxes before and after a switch
-over all three views and fails if they differ.
+**No view switch changes the workspace's shape.** That is #431's acceptance sentence. Since W5 (#560) the
+workspace is the dock workbench ([`studio-workbench-dock.md`](studio-workbench-dock.md)): the views are
+panels (`regions/PreviewPanels.tsx`) in the preview group's tab strip, and the tree and the editor do not
+move, resize or re-render when the active view changes; `scripts/ci/preview_browser_layout.mjs` still
+measures their boxes before and after a switch.
 
 The three Wasm builds are **not** merged, by any of the three issues. Keeping them separate is also what
 keeps the failure modes separate: a browser without WebGPU keeps Diagnostics and Scene and sees a named
@@ -67,7 +67,7 @@ source goes through it:
 
 - a keystroke schedules an apply 150 ms after the burst ends (`schedule`);
 - `Ctrl+Enter` cancels the timer and applies immediately (`applyNow`);
-- **Restart app** cold-starts every mounted pane (`restart`) -- the explicit state reset, and the only
+- **Restart app** (`run.restart`: toolbar, Run menu) cold-starts every mounted pane (`restart`) -- the explicit state reset, and the only
   thing on the page that discards state.
 
 The apply is not a restart. Each session's `apply()` re-evaluates carrying state by the engine's own rule
@@ -162,10 +162,10 @@ the preview canvas -- and the page remains its host.
 
 | Region (`designer-studio-v1.md` section 3) | Component |
 |---|---|
-| studio chrome (header, Samples, share) | `regions/StudioChrome.tsx` (`PageHeader`), `regions/GalleryRegion.tsx` |
+| studio chrome (title bar, menu bar, toolbar, device chip; issue #557) | `regions/WorkbenchChrome.tsx`, `regions/MenuBar.tsx`, driven by `page-workbench.ts` ([core](studio-workbench-core.md)); `regions/GalleryRegion.tsx` |
 | the project tree (left column) | `regions/ProjectTree.tsx`, over `lib/project.ts` |
-| the code column (middle: tabs, editor, Restart app) | `regions/CodeRegion.tsx` |
-| the preview column (right: the view switch, the environment toolbar, the three panes) | `regions/PreviewColumn.tsx`, `regions/ViewPanes.tsx`, `regions/CanvasPane.tsx` |
+| the code column (middle: tabs, editor) | `regions/CodeRegion.tsx` |
+| the preview column (right: the view switch, the three panes; the device picker is the Device menu) | `regions/PreviewColumn.tsx`, `regions/ViewPanes.tsx`, `regions/CanvasPane.tsx` |
 | status line | `regions/StatusLine.tsx` |
 
 Everything the engine produces -- a diagnostics list, a scene snapshot, a state-cell table, the canvas -- is
@@ -365,7 +365,7 @@ entry file's text (`workspace.putFile`) and the tree keeps showing the project i
 |---|---|
 | `>= 1200px` | three columns: a 232 px tree rail, the code column, the preview column; the status line spans the bottom |
 | `760-1199px` | two columns: the tree rail and the code column side by side, the preview spanning beneath them |
-| `< 760px` | one column in reading order: tree, code, preview, status; the page becomes the scroller |
+| `< 720px` | superseded by W5: one visible dock group with a tab switcher (`phoneLayout()`) |
 
 The phone rule is `display: block` rather than a shrinking grid, and the flexible tracks are
 `minmax(0, ...)`: a grid item's default `min-width: auto` lets a `wrap="off"` textarea or a 1280-px canvas
@@ -400,8 +400,8 @@ exists in the HTML" check no longer proves anything -- the shipped `index.html` 
 - `tests/golden/perf/preview_budget.json`: `download_gzip_bytes` re-recorded (section 6).
 - **Browser verification** is the acceptance bar for a layout change, and it is developer-run (no lane has a
   browser): `scripts/ci/preview_browser_verify.mjs` (the merged harness, 14 checks),
-  `scripts/ci/preview_browser_layout.mjs` (#431's layout measurements: three columns, the tree's keyboard,
-  tabs and the compile target, the switch moving nothing, `?view=`/`#p5=`, and the 390-px scroll width),
+  `scripts/ci/preview_browser_layout.mjs` (#431's layout measurements, minimally updated for the dock; W6
+  #563 rewrites it) and `scripts/ci/workbench_dock.mjs` (W5's drags, keyboard docking and persistence),
   `scripts/ci/preview_browser_live_edit.mjs` (#444's six acceptance clauses: an edit applies with no click,
   the count survives it, a syntax error keeps the frame, Restart app resets it, a static scene draws zero
   frames, and a burst is one frame), `scripts/ci/preview_browser_author_css.mjs` (#390's acceptance: the

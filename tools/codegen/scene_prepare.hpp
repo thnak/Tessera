@@ -44,6 +44,11 @@ struct PreparedScene {
     // The root `ui::Node` (id 1) whose child is the component's tree, styled and laid out with
     // absolute boxes written back by `apply_layout`.
     std::unique_ptr<tessera::ui::Node> root;
+    // The prepared sheets `sheet` was resolved from. They own the file names that `sheet`'s rules
+    // view (`CompiledRule::source_path` is a `string_view`), so they live as long as the scene: a
+    // consumer that names a rule's file (the style inspector, `query_style`) reads storage that is
+    // still there. Declared before `sheet` so it is built first.
+    PreparedPreviewSheets sheets;
     // The stylesheet the layout and the paint pass both used: the author's when the options carried
     // one, the built-in `preview_stylesheet()` fallback otherwise (issue #390, decision 2). Kept so
     // a painter resolves the same computed styles the layout did. Optional because

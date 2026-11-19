@@ -32,9 +32,11 @@ import {
   projectKey,
   saveDraft,
 } from "../drafts.js";
-import { forgetFolder, recallFolder, rememberFolder } from "../recent-folder.js";
+import { useRecentProjects, type RecentProject } from "./page-recent-projects";
+import { staleGenerated } from "../generated-staleness.js";
 import { PathError } from "../project-paths.js";
-import { writeZip, ZipError } from "../studio-zip.js";
+import { PackageError, writePackage } from "../project-package.js";
+import { ZipError } from "../studio-zip.js";
 import { projectFile, type ProjectFile } from "./lib/project";
 import type { Workspace } from "./page-workspace";
 
@@ -51,6 +53,11 @@ export interface ProjectIoState {
   conflicts: string[];
   /** A stored draft of unsaved edits for this project, offered back; `null` when there is none. */
   draft: { files: number; savedAt: number } | null;
+  /**
+   * Generated files whose source is newer than they are (advisory: "may be out of date", never a fact;
+   * `generated-staleness.js`). Empty when nothing is flagged.
+   */
+  stale: readonly string[];
 }
 
 interface DirectoryPickerWindow {
@@ -59,18 +66,25 @@ interface DirectoryPickerWindow {
 
 /** The sentence for a refusal. A `code` is branched on; the message is what a person reads. */
 function sentenceOf(error: unknown): string {
-  if (error instanceof ProjectIoError || error instanceof PathError || error instanceof ZipError) {
+  if (error instanceof ProjectIoError || error instanceof PathError || error instanceof ZipError || error instanceof PackageError) {
     return error.message;
   }
   return error instanceof Error ? error.message : String(error);
 }
 
-function toProjectFiles(
-  entries: readonly { path: string; text: string }[],
-  context: object,
-): ProjectFile[] {
+/** What opening a locked text file read; the shape `readViewOnly` in `project-io.js` returns. */
+export type ViewRead = { text: string } | { note: string };
+
+interface LoadedEntry {
+  path: string;
+  text: string;
+  lastModified?: number;
+  readView?: () => Promise<ViewRead>;
+}
+
+function toProjectFiles(entries: readonly LoadedEntry[], context: object): ProjectFile[] {
   return entries
-    .map((entry) => projectFile(entry.path, entry.text, context))
+    .map((entry) => ({ ...projectFile(entry.path, entry.text, context), modified: entry.lastModified ?? 0 }))
     .sort((left, right) => (left.path < right.path ? -1 : left.path > right.path ? 1 : 0));
 }
 
@@ -79,14 +93,23 @@ export interface ProjectIo {
   /** Counts completed loads; the page restarts the preview when it changes. */
   epoch: number;
   folderSupported: boolean;
-  /** The name of the last opened folder the browser still remembers, or `""`. */
-  recent: string;
+  /** The folders opened before that this browser still remembers, newest first (at most 10). */
+  recents: readonly RecentProject[];
+  /** `true` once the recent list was read. */
+  recentsLoaded: boolean;
+  /** Opens a gallery sample as an in-memory one-file project (no folder, nothing to save into). */
+  openSample: (name: string, files: readonly { path: string; text: string }[]) => void;
   openFolder: () => void;
-  reopenRecent: () => void;
+  /** Reopens `recents[index]`; the click that calls it is the gesture a permission prompt needs. */
+  reopenRecent: (index: number) => void;
+  /** Clears the list of recent projects (the files on disk are not touched). */
+  forgetRecents: () => void;
   openZip: (file: File) => void;
   save: () => void;
   resolveConflicts: (choice: "keep-mine" | "take-disk" | "cancel") => void;
-  download: () => void;
+  download: () => Promise<void>;
+  /** Reads a locked text file for the read-only editor; resolves to why there is no text when it has none. */
+  readView: (path: string) => Promise<ViewRead>;
   /** Applies the stored draft to the opened project (skipping files that changed since), or drops it. */
   restoreDraft: () => void;
   discardDraft: () => void;
@@ -104,27 +127,22 @@ export function useProjectIo(workspace: Workspace): ProjectIo {
     busy: false,
     conflicts: [],
     draft: null,
+    stale: [],
   });
   const [epoch, setEpoch] = useState(0);
-  const [recent, setRecent] = useState("");
-  const recentHandle = useRef<FileSystemDirectoryHandle | null>(null);
+  const recent = useRecentProjects();
+  const { recents } = recent;
   const root = useRef<FileSystemDirectoryHandle | null>(null);
   const baseline = useRef<Map<string, number>>(new Map());
+  // Lazy readers of the locked text files of the opened project, by confined path. A file is read only when
+  // it is opened; the reader holds the file handle's `File`, never a copy of its bytes.
+  const viewReaders = useRef<Map<string, () => Promise<ViewRead>>>(new Map());
   const workspaceRef = useRef(workspace);
   workspaceRef.current = workspace;
 
   const folderSupported =
     typeof globalThis !== "undefined" &&
     typeof (globalThis as DirectoryPickerWindow).showDirectoryPicker === "function";
-
-  useEffect(() => {
-    void recallFolder().then((handle) => {
-      if (handle !== null && typeof handle.name === "string") {
-        recentHandle.current = handle as FileSystemDirectoryHandle;
-        setRecent(handle.name);
-      }
-    });
-  }, []);
 
   const say = useCallback((patch: Partial<ProjectIoState>) => {
     setState((previous) => ({ ...previous, ...patch }));
@@ -169,19 +187,35 @@ export function useProjectIo(workspace: Workspace): ProjectIo {
     (
       source: Source,
       name: string,
-      project: { entries: { path: string; text: string }[]; context: object },
+      project: { entries: LoadedEntry[]; context: object },
       handle: FileSystemDirectoryHandle | null,
       times: Map<string, number>,
     ) => {
       workspaceRef.current.setProject(toProjectFiles(project.entries, project.context));
+      viewReaders.current = new Map(
+        project.entries.flatMap((entry) => (entry.readView ? [[entry.path, entry.readView] as const] : [])),
+      );
       root.current = handle;
       baseline.current = times;
       if (handle !== null) {
-        recentHandle.current = handle;
-        setRecent(handle.name);
-        void rememberFolder(handle);
+        recent.remember(handle);
       }
-      setState({ source, name, note: "", busy: false, conflicts: [], draft: null });
+      setState({
+        source,
+        name,
+        note: "",
+        busy: false,
+        conflicts: [],
+        draft: null,
+        stale: staleGenerated(
+          project.entries.map((entry) => ({
+            path: entry.path,
+            kind: entry.path.endsWith(".tsx") || entry.path.endsWith(".jsx") ? "source" : "other",
+            text: entry.text,
+            modified: entry.lastModified ?? 0,
+          })),
+        ),
+      });
       setEpoch((value) => value + 1);
       pendingDraft.current = null;
       void offerDraft(source, name, toProjectFiles(project.entries, project.context));
@@ -202,13 +236,12 @@ export function useProjectIo(workspace: Workspace): ProjectIo {
       } catch (error) {
         say({ busy: false, note: sentenceOf(error) });
         if (error instanceof DOMException && error.name === "NotFoundError") {
-          recentHandle.current = null;
-          setRecent("");
-          void forgetFolder();
+          say({ note: `${handle.name} no longer exists, so it was removed from the recent projects.` });
+          recent.forget(handle);
         }
       }
     },
-    [adopt, confirmReplace, say],
+    [adopt, confirmReplace, recent, say],
   );
 
   const openFolder = useCallback(() => {
@@ -231,9 +264,21 @@ export function useProjectIo(workspace: Workspace): ProjectIo {
     })();
   }, [loadFrom, say]);
 
-  const reopenRecent = useCallback(() => {
-    const handle = recentHandle.current;
-    if (handle === null) {
+  const openSample = useCallback(
+    (name: string, files: readonly { path: string; text: string }[]) => {
+      adopt("sample", name, { entries: [...files], context: {} }, null, new Map());
+    },
+    [adopt],
+  );
+
+  const forgetRecents = useCallback(() => {
+    recent.forgetAll();
+    say({ note: "Forgot the recent projects. The folders themselves were not touched." });
+  }, [recent, say]);
+
+  const reopenRecent = useCallback((index: number) => {
+    const handle = recent.handleAt(index);
+    if (handle === undefined) {
       return;
     }
     void (async () => {
@@ -290,11 +335,20 @@ export function useProjectIo(workspace: Workspace): ProjectIo {
         baseline.current.delete(path);
       }
       workspaceRef.current.markSaved(new Map(files.map((file) => [file.path, file.text])), deletes);
+      const current = workspaceRef.current;
+      const stale = staleGenerated(
+        current.state.files.map((file) => ({
+          path: file.path,
+          kind: file.kind,
+          text: current.textOf(file.path),
+          modified: baseline.current.get(file.path) ?? file.modified ?? 0,
+        })),
+      );
       const parts = [
         files.length === 1 ? `saved ${files[0].path}` : files.length > 1 ? `saved ${files.length} files` : "",
         deletes.length > 0 ? `deleted ${deletes.length} file(s) from the folder` : "",
       ].filter((part) => part !== "");
-      say({ busy: false, conflicts: [], note: parts.join("; ") });
+      say({ busy: false, conflicts: [], note: parts.join("; "), stale });
     },
     [say],
   );
@@ -463,22 +517,39 @@ export function useProjectIo(workspace: Workspace): ProjectIo {
     };
   }, [state.source, state.name]);
 
-  const download = useCallback(() => {
+  const readView = useCallback(async (path: string): Promise<ViewRead> => {
+    const reader = viewReaders.current.get(path);
+    return reader === undefined ? { note: "unreadable" } : reader();
+  }, []);
+
+  const download = useCallback(async () => {
     const current = workspaceRef.current;
     const encoder = new TextEncoder();
-    // Only accepted text files travel: a locked file was never read, so there are no bytes to export.
-    const entries = current.state.files
-      .filter((file) => file.editable)
-      .map((file) => ({ path: file.path, bytes: encoder.encode(current.textOf(file.path)) }));
-    const blob = new Blob([writeZip(entries) as BlobPart], { type: "application/zip" });
+    // The package keeps each file's time (an edited file is stamped now), so a reopened package can tell a
+    // stale generated header. The accepted text files travel with their edits; a locked *text* file is read
+    // the same way the view-only editor reads it, and a binary or over-cap one stays out.
+    const now = Date.now();
+    const entries: { path: string; bytes: Uint8Array; modified: number }[] = [];
+    for (const file of current.state.files) {
+      if (file.editable) {
+        const modified = current.state.dirty.includes(file.path) ? now : (baseline.current.get(file.path) ?? file.modified ?? 0);
+        entries.push({ path: file.path, bytes: encoder.encode(current.textOf(file.path)), modified });
+      } else if (file.viewOnly) {
+        const read = await readView(file.path);
+        if ("text" in read) {
+          entries.push({ path: file.path, bytes: encoder.encode(read.text), modified: file.modified ?? 0 });
+        }
+      }
+    }
+    const blob = new Blob([writePackage(entries) as BlobPart], { type: "application/zip" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
     link.download = `${state.name || "project"}.zip`;
     link.click();
     URL.revokeObjectURL(url);
-    say({ note: `downloaded ${entries.length} file(s); locked files are not included` });
-  }, [say, state.name]);
+    say({ note: `downloaded ${entries.length} file(s) as a project package (binary locked files are not included)` });
+  }, [readView, say, state.name]);
 
   const newFile = useCallback(() => {
     const current = workspaceRef.current;
@@ -552,9 +623,13 @@ export function useProjectIo(workspace: Workspace): ProjectIo {
     state,
     epoch,
     folderSupported,
-    recent,
+    recents,
+    recentsLoaded: recent.loaded,
+    openSample,
     openFolder,
     reopenRecent,
+    forgetRecents,
+    readView,
     openZip,
     save,
     resolveConflicts,

@@ -110,12 +110,14 @@ than the build compiles, so the cases are copied from the C++ function.
 `source` (`.tsx`/`.jsx`), `stylesheet` (`.css`), `config` (`tessera.json`), `theme` (`assets.theme`), and
 `asset` (a font or image the config names). Everything else — C++, generated output, `node_modules`,
 build output, a stray binary — is `other`, `isTextKind(kind)` is false, and that single decision produces
-the tree's lock badge *and* the "never sent to the viewer, never written" guarantee. **Superseded in part
-by the owner's decision of 2026-11-17** (`designer-studio-v1.md` section 7): a locked text file is
-**viewable**, read lazily when opened and under the per-file cap, so "never read into memory beyond its
-name and size" no longer holds for it; the classifier needs a view-only text kind beside `other`, and a
-binary stays name and size only. ADR-040's "the developer class is never edited" is therefore one branch, not a check
-the UI has to remember.
+the tree's lock badge *and* the "never sent to the viewer, never written" guarantee. **Locked does not mean
+hidden** (the owner's decision of 2026-11-17, `designer-studio-v1.md` section 7): a locked *text* file (C++, a
+generated header, a README; `FILE_KIND.viewOnly`, `isViewOnlyKind`) opens in the editor read-only, read lazily
+when opened and under the per-file cap. `isTextKind` stays false for it, so the viewer guarantee is still one
+branch: Save, Download and the viewer all filter on the text kinds, which is asserted by a marker that never
+appears in anything they take. A binary, an over-cap file and anything under an opaque directory (`node_modules`,
+`build`, ...) stays name and size only. ADR-040's "the developer class is never edited" is therefore one branch,
+not a check the UI has to remember.
 
 **The limits are the real ones**, not `ui.limits.*` (documented but unread, issue #405):
 `maxFileBytes` is the compiler's own `TESSERA_JSX_LIMIT_FILE_SIZE` (1 MiB), so a file this module
@@ -170,7 +172,7 @@ unchanged" is checked rather than described.
 and a test's path list to the same *raw entries* (`path`, `size`, `lastModified`, a lazy `read`) and
 `buildProject` turns them into the project: every path through `confinePath`, every file through
 `classifyPath` (with the `assets` of `tessera.json` as context), every limit checked **from sizes alone before
-a byte is read**, and nothing read for a locked file. A folder and the zip of that folder are therefore the
+a byte is read**, and nothing read at load for a locked file (a view-only one is read when opened). A folder and the zip of that folder are therefore the
 same project (asserted by `scripts/ci/preview_project_load.mjs`). The page side is `src/page-project-io.ts` and
 `src/regions/ProjectBar.tsx`.
 
@@ -184,10 +186,12 @@ same project (asserted by `scripts/ci/preview_project_load.mjs`). The page side 
 | Save | explicit only (Ctrl/Cmd+S or the button); `queryPermission`/`requestPermission` first; before writing, each file's `lastModified` is compared with the value recorded at load. A changed file raises *Keep mine / Take disk / Cancel* and nothing is written until the person chooses |
 | Focus | when the tab regains focus the note says how many files changed on disk (no file watcher exists) |
 | New file / Rename / Delete | buttons under the load bar act on the selected row. A new path is confined and must be an accepted text type (`.tsx`, `.jsx`, `.css`, `.json`); a duplicate, a path under a file, or a folder's path is refused with a sentence. **Nothing touches the disk until Save**: a created file is written then, a renamed file is a create plus a delete, and a deleted file is removed from the folder by `deleteFiles` (confined, text kinds only, a missing file is fine). Deleting asks for confirmation at the click, and a file deleted in the page but changed on disk is a conflict like any other write. Rename does **not** rewrite imports in other files, and the note says so (the owner's decision, 2026-11-16) |
-| Reopen | the last opened folder's handle is kept in IndexedDB (`recent-folder.js`); the next visit offers *Reopen <name>*, whose click is the gesture the permission prompt needs. A folder that no longer exists is forgotten; storage that is unavailable means nothing is remembered and nothing breaks |
+| Recent projects | the folders opened before are kept in IndexedDB (`recent-folder.js`): a bounded list (10) of name, last-opened time and the `FileSystemDirectoryHandle`, newest first, one entry per directory (`isSameEntry`). The project bar shows a *Recent projects* dropdown; picking one is the click that lets `ensureWritable` ask for access again (`queryPermission`, then `requestPermission`). A folder that no longer resolves is removed with a message, never a silent empty project. *Forget* clears the list and touches no file. A zip has no handle, so it is not listed (a loaded zip says it is a copy). The old single remembered folder is migrated as the first entry. Storage that is unavailable means nothing is remembered and nothing breaks (`scripts/ci/preview_recent_projects.mjs`) |
 | Entry component | the canvas apply report carries `components` (the components the **entry file** declares, in source order, from the compiler's own evaluation) and `component` (the one previewed). With more than one, a *Component* dropdown appears in the preview column; picking one passes its name to `tessera_canvas_apply`, an unknown name is an error and never a fallback, and a refused apply keeps the last good list. Opening another project resets the choice to the entry's first |
 | Drafts | unsaved edits are kept in this browser's IndexedDB (`drafts.js`) every two seconds while there are any, and when the tab is hidden, under a key of the project's source and name. Each entry records the text it was edited **from**; after a load the draft is *offered* (**Restore draft** / **Discard**), never applied silently, and an entry is restored only onto a file whose text is still exactly that base. A file that changed on disk since is skipped and named, a stale draft (nothing fits) is dropped, and a file the person has already started editing again is not overwritten. Saving clears the draft; storage that is unavailable means no draft and no error. Bounded like a project (500 files, 1 MiB each, 20 MiB total) |
-| Download | a deterministic zip of the accepted text files with the editor's text; locked files were never read, so they are not in it and the note says so |
+| View-only files | a locked text file is listed with a lock badge and, when selected, opens read-only in the editor (`page-view-only.ts`): `readViewOnly` in `project-io.js` reads it then, refuses an over-cap size before reading, and reports `binary` for a NUL byte or invalid UTF-8. The text is kept as `viewText`, a field no sender, saver or exporter reads; the editor shows a banner and cannot change it |
+| Stale generated files | a view-only `<Component>.g.hpp` / `.g.h` whose source is newer gets a `stale?` badge in the tree and a one-line "May be out of date" note above the editor (`generated-staleness.js`, owner decision 2026-11-17). The source is the `.tsx` named for the component, else the single file declaring it; no source, an ambiguous one or an unknown time (a zip carries none) shows nothing. It compares load-time `lastModified` values (a saved source uses its new time) and is advisory: it never blocks viewing, saving or the preview. It is not re-statted on focus, so a header regenerated while the tab is open is judged at the next open |
+| Download | a deterministic *project package* (section 7): the accepted text files with the editor's text, the locked text files that fit the cap, and a manifest with each file's time |
 
 **Verification.** `node scripts/ci/preview_project_load.mjs` (18 cases, no browser) and
 `scripts/ci/preview_browser_project_io.mjs` (Chromium, run by hand from a directory whose `node_modules` has
@@ -200,3 +204,47 @@ which needs a user gesture and is checked by hand.
 Creating, renaming or deleting a **directory** as such (a directory appears with its first file and goes with
 its last in the page, and an emptied folder stays on disk), rewriting imports on rename, and the picker's OS
 dialog under automation. The probe's section 6 and 7 cover the file operations and the remembered folder.
+
+## 7. The project package (version 1)
+
+A zip carries no modification times, so a project that travels as a plain zip cannot say whether a generated
+header is older than its source. **Download project** therefore writes a *project package*: an ordinary zip
+plus one manifest, `tessera-project.json`, at the archive root (`designer/web/project-package.js`, no new
+dependency; the CRC-32 is the one the zip container already computes).
+
+```json
+{ "format": "tessera-project", "version": 1,
+  "files": { "ui/Home.tsx": [1700000500, 25, "9a3c01ef"], "gen/Home.g.hpp": [1700000100, 28] } }
+```
+
+| Field | Meaning |
+|---|---|
+| `format` | the constant `"tessera-project"`; anything else is refused (`format`) |
+| `version` | an integer; this reader understands up to **1** |
+| `files` | project-relative POSIX path to `[seconds, size, crc32?]`: modification time in whole epoch seconds (compact, and enough for an older-than comparison), byte size, and an optional lower-case 8-digit hex CRC-32 |
+
+**Rules.**
+- **Forward compatible.** Unknown top-level keys, unknown row items after the third and an unlisted file are
+  ignored (an unlisted file just has an unknown time). A manifest of a **newer version is refused** with a
+  message naming both versions (`version`), because a reader cannot know what a newer writer meant; a version
+  that is not a positive integer is `malformed`. Changing a field's meaning needs a new version; adding an
+  optional field does not.
+- **Integrity.** A listed file whose size differs from the manifest is refused (`size`), and one whose
+  checksum differs is refused (`hash`): the package was changed after it was written, and a refusal names the
+  file. The manifest is a record of what was written, not a signature; it gives no protection against a
+  hostile author, only against accidents.
+- **Not a project file.** The manifest is removed before the project is built, so it never appears in the
+  tree, the limits or a save. It is found at the root, or one wrapper directory down together with
+  `tessera.json`.
+- **Plain zips still open.** No manifest means no times (`0`), so the stale advice is silent, exactly as
+  before. Every refusal is a `PackageError` with a `code`; the page shows its message.
+- **Deterministic.** Keys are sorted and the writer is handed each file's time, so the same project writes the
+  same bytes. An edited file is stamped with the time of the download, an untouched one keeps the time it had
+  on disk.
+- **What it holds.** The accepted text files with their edits, plus the locked *text* files that fit the file
+  cap (read the way the view-only editor reads them), so the generated headers travel and the stale advice
+  works after the package is reopened. A binary or over-cap locked file is not included.
+
+`node scripts/ci/preview_project_package.mjs` covers the round trip with times, byte determinism, a plain zip,
+a newer version, unknown keys, a changed size, a changed checksum, a malformed manifest and the stale advice
+end to end.

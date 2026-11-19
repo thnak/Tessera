@@ -267,7 +267,7 @@ void test_click_requires_a_real_target() {
     expect(!session.dispatch(off_tree), "a pointer press outside the viewport reaches no node");
     expect(int_cell(session.state(), "state::count") == "0", "that press changes no cell");
 
-    const cli::PreviewInputStep step{1, "click"};
+    const cli::PreviewInputStep step{1, "click", {}};
     expect(!step.kind.empty(), "the step record is usable");
 }
 

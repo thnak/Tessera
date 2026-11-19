@@ -58,10 +58,20 @@ const DIST_SSR = resolve(WEB, "dist-ssr");
 // list grew by the workspace's own ids (`workspace`, `project-tree`, the tab strip, the status line's
 // cells) and lost nothing: every id a pre-#431 link or gate depended on is still here.
 const SHARED_IDS = [
-  "controls",
+  // The workbench chrome (issue #557): the toolbar's Share and its polite status line, the device chip that
+  // replaced the preview toolbar's selects, and the menu bar (one button per top-level menu; `Go` is
+  // hidden until its first command is live).
   "share",
-  "share-status",
-  "toggle-gallery",
+  "notifications",
+  "notification-live",
+  "notifications-bell",
+  "device-chip",
+  "menubar-file",
+  "menubar-edit",
+  "menubar-view",
+  "menubar-run",
+  "menubar-device",
+  "menubar-help",
   "gallery",
   "gallery-list",
   "link-note",
@@ -82,9 +92,8 @@ const SHARED_IDS = [
 // being renamed out from under them. The three `tab-*`/`view-*` pairs are the preview switch, which #431
 // moved into the preview column but did not rename: `?view=` and every `#p5=` link still resolve them.
 const SHELL_IDS = [
-  "tab-diagnostics",
-  "tab-scene",
-  "tab-canvas",
+  // W5 (#560): the `tab-*` ids went with the preview switch; the dock's tab strips replace it. The
+  // `view-*` ids are the panes themselves and stay.
   "view-diagnostics",
   "view-scene",
   "view-canvas",
@@ -95,9 +104,7 @@ const SHELL_IDS = [
   // gets.
   "restart-app",
   "apply-status",
-  "load-sample",
   "build-id",
-  "page-hint",
   // The hint under the shared editor: the page owns it (the Scene session appends the live rectangle),
   // so it is a shell id rather than any one view's. #431 lists it among the workspace ids above; it is
   // named here too because it is the shell's, not a pane's.
@@ -387,6 +394,31 @@ if (!requireBuilt()) {
   const chrome = await import(pathToFileURL(resolve(DIST_SSR, "ssr-chrome.js")).href);
   const markup = chrome.renderChrome();
 
+  // The first view has no fixed sample project (#391, owner direction 2026-11-17): an empty tree that says
+  // how to open one, and no open file. The seeded `markup` above exists only so the layout can be asserted.
+  {
+    const boot = chrome.renderBootChrome();
+    const problems = [];
+    if (/role="treeitem"/.test(boot)) {
+      problems.push("a treeitem is rendered before any project is opened");
+    }
+    if (!/No project open/.test(boot)) {
+      problems.push("the empty tree does not say how to open a project");
+    }
+    if (/role="tab"[^>]*id="tab-(?:file|ui)/.test(boot) || /class="editor-tab/.test(boot)) {
+      problems.push("an editor tab is open before any project is");
+    }
+    // Open folder / Open zip are File menu commands since issue #557: the menu bar is how a visitor starts.
+    if (!/role="menubar"/.test(boot) || !/id="menubar-file"/.test(boot)) {
+      problems.push("the File menu (Open Folder / Open Zip) is missing from the first view");
+    }
+    if (problems.length > 0) {
+      fail(`the first view ${problems.join("; ")}`);
+    } else {
+      ok("the first view is an empty workspace with a File menu and no seeded project");
+    }
+  }
+
   {
     const missing = [...SHARED_IDS, ...SHELL_IDS].filter((id) => !markup.includes(`id="${id}"`));
     for (const id of missing) {
@@ -421,11 +453,14 @@ if (!requireBuilt()) {
       return { label, tabs };
     });
     const labels = strips.map((strip) => strip.label);
-    if (strips.length !== 2) {
-      problems.push(`${strips.length} tablist(s), expected 2 (the open files and the preview switch)`);
-    }
-    if (!labels.includes("Preview views")) {
-      problems.push("no `Preview views` tablist (the view switch left the page)");
+    // The bottom dock (issue #434) is its own region with its own strip, so it is counted apart: the
+    // page still has exactly two strips in the workspace, and the dock's is checked on its own below.
+    // W5 (#560): the preview switch and the bottom dock's strip are the dock library's tab strips now, which
+    // only exist in a browser (the Node render has no measured dock), so the static markup carries the
+    // editor's strip alone. The dock's own strips are asserted by `workbench_dock.mjs` in a real browser.
+    const workspaceStrips = strips;
+    if (workspaceStrips.length !== 1) {
+      problems.push(`${workspaceStrips.length} tablist(s), expected 1 (the open files)`);
     }
     if (!labels.includes("Open files")) {
       problems.push("no `Open files` tablist (the editor has no tabs)");
@@ -451,9 +486,6 @@ if (!requireBuilt()) {
       return strip.tabs.length;
     };
 
-    // The preview switch: still three tabs, one selection, one tab stop -- exactly the strip the
-    // pre-#431 page had at the top, now inside the column it controls.
-    checkStrip("Preview views", 3);
     // The editor: the seeded project opens its entry file, so there is at least one tab.
     const editorTabs = checkStrip("Open files", null);
     if (editorTabs < 1) {
@@ -464,7 +496,7 @@ if (!requireBuilt()) {
       fail(`the rendered tab strips ${problems.join("; ")}`);
     } else {
       ok(
-        `the preview switch is one tab stop with three tabs and one selection; the editor has ` +
+        `the editor's strip is one tab stop with one selection; the editor has ` +
           `${editorTabs} tab(s) with one selection`,
       );
     }

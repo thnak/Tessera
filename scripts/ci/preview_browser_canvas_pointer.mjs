@@ -226,15 +226,15 @@ check('a chord with Ctrl is left to the page (no click)', (await stateText()) ==
 // --- resize and fold while the app keeps its state ---------------------------------------------------
 const counted = await stateText();
 const widthBefore = await page.evaluate(() => document.getElementById('canvas').width);
-await page.selectOption('#control-viewport', '768x1024');
+await page.evaluate(() => window.__tesseraWorkbench.run('device.setViewport', { value: '768x1024' }));
 await settle(900);
 const widthAfter = await page.evaluate(() => document.getElementById('canvas').width);
 check('the canvas resizes to the new device', widthAfter !== widthBefore, `${widthBefore} -> ${widthAfter}`);
 check('the app keeps its state across the resize (no re-evaluation)', (await stateText()) === counted, `${counted} -> ${await stateText()}`);
-await page.selectOption('#control-foldPosture', 'book');
+await page.evaluate(() => window.__tesseraWorkbench.run('device.setFold', { value: 'book' }));
 await settle(900);
 check('the app keeps its state across a fold posture change', (await stateText()) === counted, `${counted} -> ${await stateText()}`);
-await page.selectOption('#control-foldPosture', '');
+await page.evaluate(() => window.__tesseraWorkbench.run('device.setFold', { value: 'none' }));
 await settle(600);
 check('and across unfolding', (await stateText()) === counted, `${counted} -> ${await stateText()}`);
 

@@ -1,0 +1,153 @@
+/* SPDX-License-Identifier: MIT
+ *
+ * The workbench dock (issue #516, W5 #560): the flexlayout-react theme, mapped onto the studio's tokens so a
+ * light/dark switch retints the dock in the same cascade as the rest of the page, and the panel hosts.
+ *
+ * The look follows VS Code: a flat tab strip on the editor-group background, the selected tab joined to the
+ * content with an accent line on top, a 4 px sash that lights up on hover and drag, translucent accent drop
+ * overlays, and a status-bar item (`.status-toggle`) for the collapsed panel area. Nothing here is a new
+ * colour: the library reads the `--flexlayout-*` variables and every one of them is a studio token or a mix
+ * of two.
+ */
+
+.workspace {
+  flex: 1 1 auto;
+  min-height: 0;
+  position: relative;
+  background: var(--border);
+}
+
+.dock-host {
+  position: absolute;
+  inset: 0;
+  /* The tab strip's own background: a step off the pane, like the plan mock's `panel2`. */
+  --dock-strip: color-mix(in srgb, var(--text) 5%, var(--pane-bg));
+  --flexlayout-color-text: var(--text);
+  --flexlayout-color-background: var(--pane-bg);
+  --flexlayout-color-base: var(--pane-bg);
+  --flexlayout-color-1: color-mix(in srgb, var(--text) 3%, var(--pane-bg));
+  --flexlayout-color-2: color-mix(in srgb, var(--text) 6%, var(--pane-bg));
+  --flexlayout-color-3: color-mix(in srgb, var(--text) 9%, var(--pane-bg));
+  --flexlayout-color-4: color-mix(in srgb, var(--text) 13%, var(--pane-bg));
+  --flexlayout-color-5: color-mix(in srgb, var(--text) 17%, var(--pane-bg));
+  --flexlayout-color-6: color-mix(in srgb, var(--text) 21%, var(--pane-bg));
+  --flexlayout-font-size: 12.5px;
+  --flexlayout-font-family: inherit;
+  --flexlayout-splitter-size: 4px;
+  --flexlayout-splitter-active-size: 4px;
+  --flexlayout-color-splitter: var(--border);
+  --flexlayout-color-splitter-hover: var(--accent);
+  --flexlayout-color-splitter-drag: var(--accent);
+  --flexlayout-color-focus: var(--accent);
+  --flexlayout-color-icon: var(--text-dim);
+  --flexlayout-color-tabset-background: var(--dock-strip);
+  --flexlayout-color-tabset-background-selected: var(--dock-strip);
+  --flexlayout-color-tabset-background-maximized: var(--dock-strip);
+  --flexlayout-color-tabset-divider-line: var(--border);
+  --flexlayout-color-tab-content: var(--pane-bg);
+  --flexlayout-color-tab-selected: var(--text);
+  --flexlayout-color-tab-selected-background: var(--pane-bg);
+  --flexlayout-color-tab-unselected: var(--text-dim);
+  --flexlayout-color-tab-unselected-background: transparent;
+  --flexlayout-color-drag1: var(--accent);
+  --flexlayout-color-drag2: var(--accent);
+  --flexlayout-color-drag1-background: color-mix(in srgb, var(--accent) 22%, transparent);
+  --flexlayout-color-drag2-background: color-mix(in srgb, var(--accent) 22%, transparent);
+  --flexlayout-color-edge-marker: color-mix(in srgb, var(--accent) 70%, transparent);
+  --flexlayout-color-drag-rect-border: var(--accent);
+  --flexlayout-color-drag-rect-background: var(--pane-bg);
+  --flexlayout-color-popup-border: var(--border);
+  --flexlayout-color-popup-selected-background: color-mix(in srgb, var(--accent) 18%, var(--pane-bg));
+}
+
+/* The sash: invisible until it is the thing you are about to move (VS Code's behaviour). */
+.dock-host .flexlayout__splitter {
+  background: transparent;
+  transition: background 0.1s 0.1s;
+}
+.dock-host .flexlayout__splitter:hover,
+.dock-host .flexlayout__splitter:focus-visible,
+.dock-host .flexlayout__splitter_drag {
+  background: var(--accent);
+}
+.dock-host .flexlayout__splitter:focus-visible { outline: none; }
+
+/* VS Code tabs: flat, with an accent line over the selected one and a subtle divider between tabs. */
+.dock-host .flexlayout__tab_button {
+  border-radius: 0;
+  border-right: 1px solid var(--border);
+  padding: 0 10px;
+}
+.dock-host .flexlayout__tab_button--selected {
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+.dock-host .tabstrip-panel .flexlayout__tab_button--selected {
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+.dock-host .flexlayout__tab_button:hover:not(.flexlayout__tab_button--selected) {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  color: var(--text);
+}
+.dock-host .flexlayout__tab_button:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: -1px;
+}
+.dock-host .flexlayout__tabset_tabbar_outer { border-bottom: 1px solid var(--border); }
+.dock-host .flexlayout__tab { overflow: hidden; }
+
+/* A panel's content: one host per panel, adopted by the slot the library lays out. */
+.panel-slot,
+.panel-host {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.panel-host {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--pane-bg);
+}
+
+.panel-host > * {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.panel-scroll {
+  overflow: auto;
+}
+
+.canvas-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.canvas-panel > .pane { flex: 1 1 auto; }
+
+.panel-failed {
+  padding: 16px;
+  color: var(--error);
+}
+
+.panel-failed button { margin-top: 8px; }
+
+/* The status line's Diagnostics cell is the toggle for the collapsed panel area. */
+.status-toggle {
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.status-toggle:hover { border-color: var(--border); background: color-mix(in srgb, var(--text) 6%, transparent); }
+.status-toggle[aria-pressed="true"] { border-color: var(--border); }
+.status-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.dock-ssr { display: flex; flex-direction: column; }

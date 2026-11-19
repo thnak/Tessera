@@ -51,7 +51,15 @@ export function StatusLine({
   diagnosticsRef,
   frameRef,
   file,
+  onToggleDiagnostics,
+  diagnosticsOpen,
+  hidden,
 }: {
+  /** `view.toggleStatusBar` and zen mode hide the line; its cells keep their refs, so sessions still write them. */
+  hidden?: boolean;
+  /** Makes the Diagnostics cell a button that toggles the panel area (`view.togglePanelArea`). */
+  onToggleDiagnostics?: () => void;
+  diagnosticsOpen?: boolean;
   buildId: string;
   buildIdTitle?: string;
   buildIdRef: RefObject<HTMLSpanElement | null>;
@@ -63,7 +71,7 @@ export function StatusLine({
   file: string;
 }) {
   return (
-    <footer className="page-footer" aria-label="Status">
+    <footer className="page-footer" aria-label="Status" hidden={hidden}>
       <dl className="status-line">
         <div className="status-cell">
           <dt>Build</dt>
@@ -76,9 +84,32 @@ export function StatusLine({
         <Cell label="Compile target" id="status-file">
           <code>{file === "" ? "none" : file}</code>
         </Cell>
-        <Cell label="Diagnostics" id="status-diagnostics" valueRef={diagnosticsRef}>
-          not run yet
-        </Cell>
+        {/* The panel area is collapsed by default, so this cell is also the toggle that opens it (W5, #560;
+            VS Code's Problems item): a collapsed dock never hides an error. */}
+        {onToggleDiagnostics === undefined ? (
+          <Cell label="Diagnostics" id="status-diagnostics" valueRef={diagnosticsRef}>
+            not run yet
+          </Cell>
+        ) : (
+          <div className="status-cell">
+            <dt>Diagnostics</dt>
+            <dd>
+              <button
+                type="button"
+                className="status-toggle"
+                id="status-diagnostics-toggle"
+                aria-pressed={diagnosticsOpen === true}
+                aria-label="Toggle the panel area (Diagnostics)"
+                title="Show or hide the panel area (Ctrl+J)"
+                onClick={onToggleDiagnostics}
+              >
+                <span id="status-diagnostics" ref={diagnosticsRef}>
+                  not run yet
+                </span>
+              </button>
+            </dd>
+          </div>
+        )}
         <Cell label="Frame" id="status-frame" valueRef={frameRef}>
           not drawn
         </Cell>

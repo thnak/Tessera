@@ -12,7 +12,6 @@
  * width, and the phone rule below keeps it that way.
  */
 
-.region-code { grid-column: 2; }
 
 .tabstrip {
   display: flex;

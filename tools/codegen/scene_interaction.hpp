@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "scene_platform.hpp"
 #include "scene_preview.hpp"
 #include "scene_project.hpp"
 #include "scene_session.hpp"
@@ -37,15 +38,22 @@ namespace tessera::compiler::codegen::cli {
 // One step of an input script. `click` names the automation id of a node; the session finds it and
 // performs the gesture. A step list is bounded by kMaxInputSteps so an untrusted page cannot make
 // the evaluator run an unbounded script.
+//
+// A `platform` step (issue #446) delivers one normalized hardware or environment event through
+// `PlatformEventDriver`, the code the canvas session's `platform.event` runs; its reply is read
+// from `InputRunResult::platforms` at the same index.
 struct PreviewInputStep {
     std::uint64_t automation_id = 0;
-    std::string_view kind = "click"; // reserved: later stages add key/type steps
+    std::string_view kind = "click"; // "click" or "platform"
+    PlatformEvent platform;
 };
 
 inline constexpr std::size_t kMaxInputSteps = 64;
 
 // A script in the page's own text form, one step per line:
 //   click 1234567890123456789
+//   platform <type> [value] [@<timestampNs>]   e.g. `platform back`, `platform orientation
+//   landscape`
 // Blank lines and lines starting with `#` are ignored, matching `parity::parse_script`'s shape so a
 // reviewer reads one script format in this repo, not two.
 [[nodiscard]] std::string_view input_script_format() noexcept;
@@ -71,7 +79,11 @@ struct InputRunResult {
     bool built = false;
     std::string error; // why the source produced no scene
     std::vector<ui::StateSnapshot> states;
+    // Parallel to the steps: `clicks[i]` is meaningful for a click step, `platforms[i]` for a
+    // platform step; the other one is default-constructed.
     std::vector<PreviewClickResult> clicks;
+    std::vector<PlatformReply> platforms;
+    std::vector<std::string_view> kinds;
 };
 
 [[nodiscard]] InputRunResult run_input_script(std::string_view text,
