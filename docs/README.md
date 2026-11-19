@@ -276,10 +276,10 @@ This page is the map and reading order for the framework.
 - [`design/compiler-wasm.md`](design/compiler-wasm.md) — the compiler built to Wasm for the
   design-time preview (Emscripten target, `NODERAWFS`, the native-versus-Wasm IR parity gate)
 - [`design/studio-page.md`](design/studio-page.md) — the hosted studio `index.html` (#392, #422, #431):
-  React 19 + Vite chrome over **one three-column workspace** — a project tree, a tabbed code column and a
-  preview column whose own tablist switches scene/canvas/diagnostics — the React/engine boundary (React
-  never renders the canvas), the old-URL redirect keeping `#p5=` links working, the gates that moved with
-  the stack, and the three re-recorded P6 download budgets (#395 weighs all three Wasm modules).
+  React 19 + Vite chrome over the dock workspace, the React/engine boundary (React never renders the
+  canvas), the old-URL redirect keeping `#p5=` links working, the gates that moved with the stack, and
+  the three re-recorded P6 download budgets (#395 weighs all three Wasm modules).
+- [`design/studio-workbench-dock.md`](design/studio-workbench-dock.md) — the studio dock (W4/W5, #516): pure model, flexlayout adapter, persistent panel hosts
 - [`design/canvas-input-session.md`](design/canvas-input-session.md) — the persistent canvas session
   (#388): pointer events into one kept evaluation, `:hover`/`:active` through the stylesheet engine,
   one frame per change, and the CSS-to-logical coordinate rule (page wiring deferred to #422)

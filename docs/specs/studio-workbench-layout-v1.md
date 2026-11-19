@@ -483,7 +483,9 @@ If flexlayout-react is adopted (W0 lands these with the dependency, per
 ### 5.6 W0 results (flexlayout-react 0.11.2, real Chromium, real WebGPU)
 
 Measured 2026-11-19 by `scripts/ci/workbench_dock_spike.mjs` against the throwaway page
-`designer/web/spike/` (deleted when W5 lands): headed Chromium, a real `GPUCanvasContext` that clears
+`designer/web/spike/` (both deleted when W5 landed, #560; the surviving checks are
+`scripts/ci/workbench_dock.mjs` and `scripts/ci/workbench_dock_core.mjs`, built in
+[`../design/studio-workbench-dock.md`](../design/studio-workbench-dock.md)): headed Chromium, a real `GPUCanvasContext` that clears
 every frame, **real pointer drags** (mouse down, 30 or so moves, mouse up; no synthetic `DragEvent`),
 and keyboard-only docking. The drag was **not blocked by an overlay**: flexlayout renders tab content in
 one flat layer and its own drag overlay, so the "always" overlay problem seen with dockview in section
