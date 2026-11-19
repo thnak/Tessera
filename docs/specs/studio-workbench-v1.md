@@ -1,6 +1,7 @@
 # Studio workbench v1: commands, menus, toolbar and slice plan
 
-Status: proposed. Nothing here is implemented; the studio today has loose buttons
+Status: library choice and decisions 1-10 and 13 Accepted by the owner 2026-11-19 (section 8);
+decisions 11-12 remain open. Slice W0 is in progress; W1 onward is not implemented; the studio today has loose buttons
 (`designer/web/src/regions/`) and a fixed three-column layout.
 Owner feedback 2026-11-19: (1) the page needs an IDE-style action bar with menus, (2) there is still
 no real dock ([#516](https://github.com/thnak/Tessera/issues/516)).
@@ -457,39 +458,54 @@ size"). Numbers are proposed issue titles; none is filed yet. "After" lists hard
 W1 and W4 are independent and can proceed in parallel. W2 delivers the owner's first complaint and
 does not need the dock; W5 delivers the second. Neither blocks the engine-side B2 work.
 
-## 8. Open owner decisions
+## 8. Owner decisions
+
+Owner review 2026-11-19: decisions 1-10 and 13 are **Accepted as recommended**; 11 and 12 stay open
+with the working reading noted. Accepted decisions are the contract for the slices; changing one
+needs a new owner decision, not a slice-level judgment.
 
 1. **Dock dependency** (layout spec section 5): adopt flexlayout-react or dockview, or hand-build?
    Recommendation: flexlayout-react behind our own layout model, hand-built adapter retained as the
    exit. Needs a yes/no before W5.
+    **Accepted**: flexlayout-react 0.11.2, exact-pinned, behind our layout JSON, operations and a thin adapter; dockview only if flexlayout fails a W0 check.
 2. **Canonical layout format** is ours, not the library's. This costs an adapter in each direction.
    Recommendation: yes, because the V1 rebuild with Tessera must not inherit a library's JSON.
+    **Accepted**: our JSON is the canonical layout format.
 3. **Default chords** in the section 3.2 tree: VS Code's defaults are used wherever the browser allows (owner direction
    2026-11-19); the fallbacks are `Ctrl+Alt+N` for New File and `Alt+W` for Close Editor. Confirm.
+    **Accepted**: VS Code default chords with the stated browser fallbacks `Ctrl+Alt+N` and `Alt+W`.
 4. **Command id and keybinding stability promise**: ids are append-only from the first release.
    Is the studio's public surface stable enough to promise that before V1?
+    **Accepted**: command ids are stable and append-only.
 5. **MCP projection** (section 2.4): should the registry own the schema for studio-backed MCP tools, or
    stay separate as in `tools/mcp/schema/tools.json` today?
+    **Accepted** (the registry owns the schema for studio-backed tools, as recommended; W9).
 6. **Mapping of "E2-E8"**: the IDE roadmap numbering is not in this repository (the E2-E4 labels in
    the repo belong to the device-profile series, #446-#448). Reserved commands here use names, not
    numbers; please confirm or supply the roadmap so the slice table can cite the right issues.
+    **Accepted** (reserved commands use names, not numbers, until the roadmap is supplied).
 7. **Per-viewer only vs shareable layouts**: layout stays per viewer in `localStorage` and never in a
    share link or project file ([#516](https://github.com/thnak/Tessera/issues/516)). Should a project
    be able to suggest a default layout (e.g. a `tessera.json` `studio.layout` hint)? Recommendation:
    no for V1.
+    **Accepted**: layout is per viewer only; no project layout hint in V1.
 8. **Floating windows and pop-outs**: out of scope for V1 (Chromium supports them; a pop-out would
    re-parent the canvas into another document, which violates the no-remount rule). Confirm.
+    **Accepted**: no floating windows or pop-outs in V1.
 9. **Default layout wording**: #516's text says "Scene/Diagnostics as tabs"; the owner's later answer
    and the mock put Diagnostics in the bottom dock with Platform events, Mock console and Call trace,
    and Scene as a tab beside Canvas. The layout spec follows the later answer
    ([layout spec](studio-workbench-layout-v1.md) section 3.1). Confirm.
+    **Accepted**: Diagnostics in the bottom dock, Scene beside Canvas.
 10. **Default dock state COLLAPSED** (owner direction 2026-11-19): the panel area (Diagnostics, Mock
     console, Call trace, Platform events) starts hidden, opened by `Ctrl+J`, a status-bar item or any
     diagnostic arriving. This differs from the earlier #516 answer (bottom dock open); the layout spec
     follows the newest direction ([layout spec](studio-workbench-layout-v1.md) section 3.1). Does
     "collapsed" also mean the Scene tab and side bar start hidden? Assumed: only the panel area.
-11. **Browser-reserved chords**: accept fallbacks, or require an installed-PWA window (where `Ctrl+N`,
+    **Accepted**: only the panel area is collapsed by default; the Diagnostics count sits in the status bar.
+11. **Browser-reserved chords** (OPEN; working reading: accept the fallbacks, no PWA requirement): accept fallbacks, or require an installed-PWA window (where `Ctrl+N`,
     `Ctrl+W`, `Ctrl+Tab` are capturable) for full VS Code parity?
-12. **Editor groups** (splits of the editor area, section 6): W5c is a larger slice than #516 asks for;
+12. **Editor groups** (OPEN; working reading: W5c is after V1, W0-W7 do not depend on it) (splits of the editor area, section 6): W5c is a larger slice than #516 asks for;
     V1 or later? Preview tabs and breadcrumbs depend on it.
 13. **Phone breakpoint**: 720 CSS px proposed; the existing layout check only pins 390 and 1440.
+    **Accepted**: 720 CSS px.

@@ -1,6 +1,7 @@
 # Studio workbench v1: dock and layout model, constraints, library choice
 
-Status: proposed. Companion of [studio-workbench-v1.md](studio-workbench-v1.md) (commands, menus,
+Status: library choice (flexlayout-react 0.11.2, section 5.4) Accepted by the owner 2026-11-19; the
+model and the rest are proposed until their slices land. Companion of [studio-workbench-v1.md](studio-workbench-v1.md) (commands, menus,
 toolbar, slice plan, open decisions). Implements the design that
 [#516](https://github.com/thnak/Tessera/issues/516) requires "before code", and supersedes the
 "three panes inside one right-hand column" rule of [../design/studio-page.md](../design/studio-page.md)
@@ -435,7 +436,10 @@ theme CSS would cut it, which was not measured. The hand-built estimate (not mea
 as such) is 8 to 15 kB gzip for splits, tab strips, drag and keyboard, at the price of ownership
 of drag-and-drop, hit-testing, touch and ARIA behavior.
 
-### 5.4 Recommendation
+### 5.4 Recommendation (Accepted 2026-11-19)
+
+The owner accepted this choice: flexlayout-react **0.11.2, exact-pinned**; dockview is the fallback only
+if flexlayout fails a W0 check. W0 results are recorded in section 5.6.
 
 **flexlayout-react, behind our own layout model, with the adapter kept thin enough to replace.**
 
