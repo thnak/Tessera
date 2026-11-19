@@ -67,6 +67,8 @@ struct AppHost::Impl {
     // The window minus the safe-area insets, and the root's text direction, for overlay placement.
     [[nodiscard]] rendering::rhi::Rect overlay_viewport() const;
     [[nodiscard]] bool root_is_rtl() const;
+    // Resolves one BackRequested (host_back.cpp); always consumes it.
+    bool handle_back_request();
     void register_embedded_stylesheets(std::span<const ui::style::EmbeddedStylesheet> sheets);
     void register_embedded_theme(std::span<const std::uint8_t> bytes);
 
@@ -84,6 +86,10 @@ struct AppHost::Impl {
     std::unique_ptr<ui::OverlayHost> overlay_host;
     // An Escape press the overlays consumed; its release is swallowed too.
     bool escape_swallowed = false;
+    BackHandler back_handler = nullptr;
+    void* back_handler_user = nullptr;
+    BackDispatch last_back = BackDispatch::None;
+    std::size_t unhandled_backs = 0;
     // The constructor sheet, kept so registration can rebuild the cascade; `sheet` is the active
     // one.
     // The constructor sheet, kept so registration can rebuild the cascade; `sheet` is the active

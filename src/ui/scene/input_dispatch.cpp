@@ -208,6 +208,21 @@ InputDispatchResult InputRouter::dispatch(Node& root, const InputEvent& input) {
         return result;
     }
 
+    if (input.type == InputEventType::VolumeKey) {
+        // A hardware key with no position: it goes to the focused node and nowhere else, so with
+        // no focus it is dropped (the app sees it only through a focused handler).
+        result.type = EventType::VolumeKey;
+        Node* target = focus_manager_.focused();
+        if (target == nullptr) {
+            return result;
+        }
+        Event event;
+        event.type = EventType::VolumeKey;
+        event.timestamp_s = input.timestamp_s;
+        event.volume_direction = input.volume_direction;
+        return dispatch_to_target(*target, event);
+    }
+
     if (input.type == InputEventType::Text) {
         result.type = EventType::Text;
         Node* target = focus_manager_.focused();

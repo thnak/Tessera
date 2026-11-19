@@ -121,6 +121,13 @@ enum class BackOutcome : std::uint8_t {
     return "empty";
 }
 
+// Whether `back()` consumed the request. A pop or a modal dismissal did; `AtRoot` and `Empty` did
+// not, so the system Back stays unhandled and the embedding host applies its exit policy
+// (studio-device-profiles-v1.md section 4, rule 1).
+[[nodiscard]] constexpr bool back_consumed(BackOutcome outcome) noexcept {
+    return outcome == BackOutcome::Popped || outcome == BackOutcome::DismissedModal;
+}
+
 // What `push`/`replace` did, which is more than the error code: section 2's duplicate policy turns
 // a push into either a no-op or a replace, and both are successes.
 enum class PushOutcome : std::uint8_t {
@@ -263,5 +270,10 @@ private:
     std::uint64_t last_entry_id_ = 0;
     bool dirty_ = false;
 };
+
+// An `app::BackHandler` for a window's controller (`AppHost::set_back_handler(&nav_back_handler,
+// &controller)`): runs `back()`, publishes the pop at once so the frame that follows sees it, and
+// returns `back_consumed`. `controller` must point at a live `NavController`.
+[[nodiscard]] bool nav_back_handler(void* controller);
 
 } // namespace tessera::appfw

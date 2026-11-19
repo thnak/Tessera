@@ -19,6 +19,7 @@
 #include "tessera/hal/event_reason.hpp"
 #include "tessera/hal/os_event.hpp"
 #include "tessera/hal/window.hpp"
+#include "tessera/ui/input.hpp"
 
 #include <array>
 #include <cstddef>
@@ -39,6 +40,26 @@ enum class InjectStatus : std::uint8_t {
     // The type is not a known `OsEventType`: an unknown event is ignored with a diagnostic, never a
     // crash (ADR-023 rule 5).
     UnknownType,
+};
+
+// Bounded capacity of the input ring that carries the system-button input events.
+inline constexpr std::size_t kMaxSyntheticInputEvents = 16;
+
+// The hardware or system buttons a device profile offers (studio-device-profiles-v1.md section 2),
+// and the normalized events each one becomes (section 4). The mapping is the injector's `press`;
+// there is no new `OsEventType` for any of them.
+enum class SystemButton : std::uint8_t {
+    // `InputEventType::BackRequested`.
+    Back,
+    // `WindowHidden` then `Suspend`: the app is backgrounded and keeps its state.
+    Home,
+    // `WindowDeactivated`: focus is lost, the app keeps running.
+    Recents,
+    // `InputEventType::VolumeKey` (`Up` / `Down`); no default action.
+    VolumeUp,
+    VolumeDown,
+    // `ScreenOff` while the screen is on, `ScreenOn` on the next press.
+    Power,
 };
 
 // One step of a display-capability script. A display script changes state and emits the event the
@@ -79,6 +100,30 @@ public:
     // the injector's metrics (the display capabilities the next event carries) and emits exactly
     // one event, so a script reads like a list of OS changes.
     InjectStatus apply(const DisplayChange& change);
+
+    // Records one system-button press as the normalized events it maps to (see `SystemButton`).
+    // Home and Power change the injector's own state (`screen_on`), and Home, which emits two
+    // events, is refused as a whole (`Full`) when both do not fit, never half-delivered. Timestamps
+    // come from the simulated clock, so a replay is byte-identical.
+    InjectStatus press(SystemButton button);
+
+    // Records one normalized input event in the input ring, stamped with the simulated clock. Input
+    // never coalesces here (Back and Volume are discrete), and a consumer delivers it after every
+    // OS event of the same tick, which is os-events-v1.md section 3's fixed order (lifecycle, then
+    // display, then fold, then input).
+    InjectStatus push_input(ui::InputEvent event);
+    // Removes and returns the oldest input event; false when the ring is empty.
+    [[nodiscard]] bool pop_input(ui::InputEvent& out) noexcept;
+    // Moves pending input events, oldest first, into `queue` (the pump's queue). Returns how many
+    // were pushed; an event the queue refuses stays pending.
+    std::size_t feed_input(ui::InputQueue& queue);
+    [[nodiscard]] std::size_t pending_input() const noexcept {
+        return input_count_;
+    }
+    // False between a Power press that turned the screen off and the one that turns it back on.
+    [[nodiscard]] bool screen_on() const noexcept {
+        return screen_on_;
+    }
 
     // Removes and returns the next queued event, or an empty optional when the script is done.
     [[nodiscard]] bool pop(OsEvent& out) noexcept;
@@ -129,6 +174,10 @@ private:
     InjectStatus record(OsEvent event);
 
     std::array<OsEvent, kMaxSyntheticEvents> events_{};
+    std::array<ui::InputEvent, kMaxSyntheticInputEvents> inputs_{};
+    std::size_t input_head_ = 0;
+    std::size_t input_count_ = 0;
+    bool screen_on_ = true;
     std::size_t head_ = 0;
     std::size_t count_ = 0;
     std::size_t overflows_ = 0;
@@ -157,5 +206,27 @@ private:
 
 // A refresh-rate change (a mode switch or a move to a 120 Hz monitor).
 [[nodiscard]] SyntheticEventInjector make_refresh_rate_change_script();
+
+// --- System-button scripts ---------------------------------------------------------------------
+//
+// The named fixtures of studio-device-profiles-v1.md section 4 (issue #445). Each returns a loaded
+// injector; the OS events are drained with `pop`/`drain` and the input events with `pop_input` or
+// `feed_input`, OS events first.
+
+// Back three times: the app state decides what each does (dismiss an overlay, pop a route, then
+// nothing left: unhandled). The events themselves are identical.
+[[nodiscard]] SyntheticEventInjector make_back_pop_back_exit_script();
+
+// Home, then a return to the app: `WindowHidden`, `Suspend`, then `Resume`, `WindowShown`. A hot
+// resume: the app keeps its state across it.
+[[nodiscard]] SyntheticEventInjector make_home_resume_script();
+
+// Power off and on: `ScreenOff`, then `ScreenOn` after a simulated second.
+[[nodiscard]] SyntheticEventInjector make_power_cycle_script();
+
+// Home with no return: `WindowHidden`, `Suspend`, and then the process dies. Death delivers no
+// event (spec section 4: a session restart with a saved-state record), so the script ends at the
+// `Suspend` that the saved-state capture keys on.
+[[nodiscard]] SyntheticEventInjector make_process_death_script();
 
 } // namespace tessera::hal

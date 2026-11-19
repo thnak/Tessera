@@ -115,6 +115,21 @@ struct HostFrame {
 // unless the frame is due (or `force`). The selector tree is rebuilt whenever style or layout work
 // is needed, because attaching a child changes the tree's shape (documented cost: one tree build
 // per style/layout frame; it is skipped on idle and paint-only frames).
+// What the host did with the last BackRequested input (docs/specs/studio-device-profiles-v1.md
+// section 4): the topmost dismissible overlay, else the app's back handler (a route pop), else
+// nothing took it. `Unhandled` is the result the embedding host acts on: a desktop host ignores
+// it, a mobile host closes the app.
+enum class BackDispatch : std::uint8_t {
+    None, // no BackRequested has reached the host yet
+    OverlayDismissed,
+    HandlerConsumed,
+    Unhandled,
+};
+
+// The app's route-level Back: returns true when it consumed the request (a route or modal was
+// popped). Plain function pointer plus context, so the input path allocates nothing.
+using BackHandler = bool (*)(void* user);
+
 class AppHost final {
 public:
     // `root` is borrowed and must outlive the host; it is the scene root (the window's content
@@ -171,6 +186,14 @@ public:
     // opted in and still reaches the scene, and window blur closes the transient ones. The window
     // installs it as the input pump's filter; headless drivers call it before dispatching.
     bool handle_overlay_input(const ui::InputEvent& event);
+
+    // Back dispatch order: topmost dismissible overlay, else this handler, else unhandled. A null
+    // handler means the app has no route stack, so Back is overlay-or-unhandled.
+    void set_back_handler(BackHandler handler, void* user = nullptr);
+    // The outcome of the most recent BackRequested, and how many reached `Unhandled` since the
+    // host was created. Both are plain counters: reading them never blocks or allocates.
+    [[nodiscard]] BackDispatch last_back_dispatch() const;
+    [[nodiscard]] std::size_t unhandled_back_count() const;
 
     // Step 8: clears every dirty domain on the scene after a painted frame. Safe to call after a
     // skipped frame too (nothing is dirty then).

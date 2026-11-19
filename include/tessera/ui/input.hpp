@@ -31,6 +31,18 @@ enum class InputEventType : std::uint8_t {
     // Multi-codepoint committed text (IME result string or platform text input). Carries the
     // bounded inline payload below; single-codepoint keyboard text stays `Text`.
     EditText,
+    // System buttons (docs/specs/studio-device-profiles-v1.md section 4, os-events-v1.md section 7):
+    // the platform's Back request (Android button or gesture, desktop Escape/browser back) and a
+    // hardware volume key. Discrete, never coalesced, and delivered in queue order with the rest of
+    // input (os-events-v1.md section 3). Back carries no payload; VolumeKey carries
+    // `volume_direction`.
+    BackRequested,
+    VolumeKey,
+};
+
+enum class VolumeDirection : std::uint8_t {
+    Up,
+    Down,
 };
 
 enum class PointerButton : std::uint8_t {
@@ -92,6 +104,8 @@ struct InputEvent {
     std::uint32_t text_codepoint = 0;
     bool repeat = false;
     bool is_primary = false;
+    // Meaningful for InputEventType::VolumeKey only.
+    VolumeDirection volume_direction = VolumeDirection::Up;
     // Bounded inline composition/edit payload: UTF-8 bytes. `text_size` counts valid bytes and
     // `text_truncated` is set when the platform string did not fit `kMaxEditTextBytes`. The
     // selection range is UTF-8 byte offsets into `text` (the HAL converts the platform's UTF-16
