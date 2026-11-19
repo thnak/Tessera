@@ -62,7 +62,9 @@ bool check_vertex_formats() {
            expect(vertex_format(rhi::VertexFormat::UByte4Norm) == VertexFormat::UChar4Normalized,
                   "UByte4Norm -> UChar4Normalized") &&
            expect(static_cast<std::uint32_t>(VertexFormat::UChar4Normalized) == 9,
-                  "UChar4Normalized is 9");
+                  "UChar4Normalized is 9") &&
+           expect(vertex_format(rhi::VertexFormat::UInt) == VertexFormat::UInt, "UInt -> UInt") &&
+           expect(static_cast<std::uint32_t>(VertexFormat::UInt) == 36, "UInt is 36");
 }
 
 bool check_bytes_per_pixel() {

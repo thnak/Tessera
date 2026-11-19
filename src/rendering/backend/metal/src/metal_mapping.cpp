@@ -55,6 +55,8 @@ VertexFormat vertex_format(rhi::VertexFormat format) {
         return VertexFormat::Float4;
     case rhi::VertexFormat::UByte4Norm:
         return VertexFormat::UChar4Normalized;
+    case rhi::VertexFormat::UInt:
+        return VertexFormat::UInt;
     }
     throw std::invalid_argument("metal: unsupported vertex format");
 }
