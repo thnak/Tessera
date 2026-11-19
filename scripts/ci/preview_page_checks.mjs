@@ -75,15 +75,15 @@ const SHARED_IDS = [
   "link-note",
   "editor-host",
   // The three-column workspace (issue #431). `workspace` is the grid, `project-tree` is its left column,
-  // `editor-panel` is the middle column's tab panel, and the three `status-*` ids are the status line.
+  // `editor-panel` is the middle column's tab panel, and the three `status-*` ids are the status bar (Problems, caret, language).
   "workspace",
   "project-tree",
   "project-status",
   "editor-panel",
   "editor-hint",
-  "status-file",
   "status-diagnostics",
-  "status-frame",
+  "status-caret",
+  "status-language",
 ];
 
 // The page shell's own ids: `App` and the four regions resolve these, and nothing else would catch one
@@ -102,7 +102,6 @@ const SHELL_IDS = [
   // gets.
   "restart-app",
   "apply-status",
-  "build-id",
   // The hint under the shared editor: the page owns it (the Scene session appends the live rectangle),
   // so it is a shell id rather than any one view's. #431 lists it among the workspace ids above; it is
   // named here too because it is the shell's, not a pane's.

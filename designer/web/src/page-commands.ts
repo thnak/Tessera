@@ -92,6 +92,8 @@ export interface Workbench {
   /** Every top-level menu, never collapsed for a phone: what Alt+letter and the palette read. */
   allMenus: MenuBarMenu[];
   toolbar: ToolbarEntry[];
+  /** The status bar's items from `menus.json` `statusBar`, in order (`regions/StatusLine.tsx` draws them). */
+  statusItems: ToolbarEntry[];
   phone: boolean;
   /** The notification service: toasts, history, do-not-disturb (issue #559). */
   notifications: Notifications;
@@ -431,6 +433,7 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
   const deps = { registry, providers };
   const allMenus = buildMenuBar(menusDocument as unknown as MenusDocument, deps);
   const toolbar = buildToolbar(menusDocument as unknown as MenusDocument, deps);
+  const statusItems = buildToolbar(menusDocument as unknown as MenusDocument, deps, "statusBar");
   const menus: MenuBarMenu[] = phone
     ? [
         {
@@ -462,6 +465,7 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
     menus,
     allMenus,
     toolbar,
+    statusItems,
     phone,
     notifications,
     notify: (input) => notifications.notify(input),

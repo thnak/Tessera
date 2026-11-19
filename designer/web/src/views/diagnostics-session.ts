@@ -114,7 +114,7 @@ export function createDiagnosticsSession(options: {
     // pane's own status is the sentence a reader of *this* pane wants.
     if (statusCount) {
       statusCount.textContent =
-        counts.total === 0 ? "0" : `${counts.errors} error(s), ${counts.warnings} warning(s)`;
+        `${counts.errors} ${counts.errors === 1 ? "error" : "errors"}, ${counts.warnings} ${counts.warnings === 1 ? "warning" : "warnings"}`;
     }
     if (counts.total === 0) {
       setStatus("no diagnostics", "ok");

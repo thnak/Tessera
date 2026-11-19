@@ -91,6 +91,8 @@ export interface CodeEditorOptions {
   onApplyNow: () => void;
   /** The accessible name of the editing surface. */
   label: string;
+  /** The caret moved, the selection changed or a file opened: 1-based line and column, and the selected characters. */
+  onCaret?: (caret: { line: number; column: number; selected: number }) => void;
 }
 
 const setMarksEffect = StateEffect.define<readonly EditorMark[]>();
@@ -190,10 +192,19 @@ export function createCodeEditor(parent: HTMLElement, options: CodeEditorOptions
       if (update.docChanged) {
         options.onChange(update.state.doc.toString());
       }
+      if (update.docChanged || update.selectionSet) {
+        reportCaret(update.state);
+      }
     }),
   ];
 
   const view = new EditorView({ state: EditorState.create({ doc: "" }), parent });
+
+  function reportCaret(state: EditorState): void {
+    const { head, from, to } = state.selection.main;
+    const line = state.doc.lineAt(head);
+    options.onCaret?.({ line: line.number, column: head - line.from + 1, selected: to - from });
+  }
 
   function stateFor(path: string, text: string, readOnly: boolean): EditorState {
     return EditorState.create({
@@ -219,6 +230,7 @@ export function createCodeEditor(parent: HTMLElement, options: CodeEditorOptions
       current = path;
       view.setState(next);
       applyMarks(path);
+      reportCaret(view.state);
     },
     setMarks(path, list) {
       marks.set(path, list);

@@ -164,6 +164,7 @@ export function CodeRegion({
   onApplyNow,
   stale = [],
   empty = null,
+  caretRef,
 }: {
   open: readonly string[];
   files: readonly ProjectFile[];
@@ -196,12 +197,16 @@ export function CodeRegion({
   stale?: readonly string[];
   /** Shown instead of the editor while no project is open (the welcome view); the editor stays mounted. */
   empty?: ReactNode;
+  /** The status bar's caret cell; the editor writes `Ln 3, Col 5 (12 selected)` into it without a render. */
+  caretRef?: React.RefObject<HTMLSpanElement | null>;
 }) {
   // The editor is created once, in an effect (it needs the DOM, and the Node render of the chrome has none).
   // Its callbacks go through a ref so the page's handlers can change without recreating the editor.
   const host = useRef<HTMLDivElement | null>(null);
   const handlers = useRef({ onEdit, onSave, onApplyNow });
   handlers.current = { onEdit, onSave, onApplyNow };
+  const caret = useRef(caretRef);
+  caret.current = caretRef;
   useEffect(() => {
     const parent = host.current;
     if (parent === null) {
@@ -212,6 +217,12 @@ export function CodeRegion({
       onSave: () => handlers.current.onSave(),
       onApplyNow: () => handlers.current.onApplyNow(),
       label: "Source code",
+      onCaret: ({ line, column, selected }) => {
+        const cell = caret.current?.current;
+        if (cell) {
+          cell.textContent = `Ln ${line}, Col ${column}` + (selected > 0 ? ` (${selected} selected)` : "");
+        }
+      },
     });
     sourceRef.current = editor;
     // A seam for the Playwright probes (they cannot set a value on a CodeMirror surface): the text, and an
@@ -243,14 +254,16 @@ export function CodeRegion({
 
   return (
     <section className="region region-code" aria-label="Code">
-      <EditorTabs
-        open={open}
-        files={files}
-        active={active}
-        dirty={dirty}
-        onSelect={onSelectTab}
-        onClose={onCloseTab}
-      />
+      {empty === null ? (
+        <EditorTabs
+          open={open}
+          files={files}
+          active={active}
+          dirty={dirty}
+          onSelect={onSelectTab}
+          onClose={onCloseTab}
+        />
+      ) : null}
 
       <div
         className="editor"

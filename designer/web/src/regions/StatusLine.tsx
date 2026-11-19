@@ -1,125 +1,121 @@
 // SPDX-License-Identifier: MIT
 
-// Region 5 of the studio workspace (issue #431): the **status line**, spanning the bottom of the
-// workspace.
+// The status bar, cut down to what a code editor's bar carries (owner feedback on #586; VS Code's is the
+// reference): Problems on the left, the caret and selection, the file's language and the notification bell on
+// the right. The build id, compile target, frame time and the "part of Tessera" paragraph are gone from it:
+// the build and the description are in Help > About, the frame time is in the Canvas panel's own stats, the
+// compile target is the Run menu's business and the tooltip of the language cell.
 //
-// The spec's status line is richer than this page's (`designer-studio-v1.md` section 3: engine id,
-// backend, simulation state, diagnostics count, frame time) because the simulation controls it describes
-// (#408, #171) are not part of the studio yet. What the issue's layout asks for is the line itself --
-// build id, diagnostics count, frame counters -- plus, now that the workspace has files, which file Run
-// compiles.
+// **Which items appear, and in what order, is data**: `menus.json` `statusBar` lists widgets (`problems`,
+// `caret`, `language`, `bell`), the registry-backed builder keeps only what is live, and this file only draws
+// each one. An item that runs something runs a command id (`view.togglePanelArea`, `view.gotoLine`).
 //
-// **Two of the cells are written by the sessions, not by React.** A compile and a GPU frame must not
-// re-render the page (ADR-054 decision 3), so the diagnostics count and the frame reading arrive through
-// refs the page passes down as `diagnosticsRef`/`frameRef`. The build id and the compile target are React
-// state and are rendered normally.
+// **Two cells are written without React.** A compile and a keystroke must not re-render the page
+// (ADR-054 decision 3), so the Problems count and the caret reach their `<span>`s through refs the
+// diagnostics session and the editor write; React renders the shell and the language.
 //
-// The line is a real region, not a paragraph under the panes: the grid keeps it at the bottom of the
-// viewport whatever a column does, and on a phone it is the last block of the single column.
+// The bar is the one emphasised band of the page (`--status-bg`, VS Code's coloured status bar); everything
+// in it stays text on that band, so contrast is the token pair `studio_accent_contrast.mjs` checks.
 
 import type { RefObject } from "react";
+import type { Workbench } from "../page-commands";
+import { NotificationBell } from "./Notifications";
 
-/** The line's cells: one `<dt>`/`<dd>` pair each, in reading order. */
-function Cell({
-  label,
-  id,
-  valueRef,
-  children,
-}: {
-  label: string;
-  id: string;
-  valueRef?: RefObject<HTMLSpanElement | null>;
-  children: React.ReactNode;
-}) {
-  const valueId = id;
-  return (
-    <div className="status-cell">
-      <dt>{label}</dt>
-      <dd>
-        <span id={valueId} ref={valueRef}>
-          {children}
-        </span>
-      </dd>
-    </div>
-  );
+/** The language the status bar shows for a project path (the editor's own language rule, by extension). */
+export function languageOf(path: string): string {
+  if (/\.tsx$/i.test(path)) return "TSX";
+  if (/\.(ts|mts)$/i.test(path)) return "TypeScript";
+  if (/\.(jsx|js|mjs)$/i.test(path)) return "JavaScript";
+  if (/\.css$/i.test(path)) return "CSS";
+  if (/\.json$/i.test(path)) return "JSON";
+  if (/\.(hpp|cpp|h|cc)$/i.test(path)) return "C++";
+  return "Plain Text";
 }
 
 export function StatusLine({
-  buildId,
-  buildIdTitle,
-  buildIdRef,
+  workbench,
   diagnosticsRef,
-  frameRef,
-  file,
-  onToggleDiagnostics,
+  caretRef,
+  activePath,
+  entryPath,
   diagnosticsOpen,
   hidden,
 }: {
-  /** `view.toggleStatusBar` and zen mode hide the line; its cells keep their refs, so sessions still write them. */
-  hidden?: boolean;
-  /** Makes the Diagnostics cell a button that toggles the panel area (`view.togglePanelArea`). */
-  onToggleDiagnostics?: () => void;
-  diagnosticsOpen?: boolean;
-  buildId: string;
-  buildIdTitle?: string;
-  buildIdRef: RefObject<HTMLSpanElement | null>;
-  /** The diagnostics count: written by the diagnostics session when it compiles. */
+  workbench: Workbench;
+  /** The Problems count: written by the diagnostics session when it compiles. */
   diagnosticsRef: RefObject<HTMLSpanElement | null>;
-  /** The last frame's reading: written by the canvas session when it draws. */
-  frameRef: RefObject<HTMLSpanElement | null>;
-  /** The canonical project path Run compiles (issue #431), or `""` before the project settles. */
-  file: string;
+  /** The caret cell: written by the editor. */
+  caretRef: RefObject<HTMLSpanElement | null>;
+  /** The file the editor shows, or `""` when nothing is open. */
+  activePath: string;
+  /** The canonical project path Run compiles, or `""`. */
+  entryPath: string;
+  diagnosticsOpen: boolean;
+  /** `view.toggleStatusBar` and zen mode hide the bar; its cells keep their refs, so sessions still write them. */
+  hidden?: boolean;
 }) {
+  const language = activePath === "" ? "" : languageOf(activePath);
   return (
     <footer className="page-footer" aria-label="Status" hidden={hidden}>
-      <dl className="status-line">
-        <div className="status-cell">
-          <dt>Build</dt>
-          <dd>
-            <span id="build-id" ref={buildIdRef} title={buildIdTitle}>
-              {buildId}
-            </span>
-          </dd>
-        </div>
-        <Cell label="Compile target" id="status-file">
-          <code>{file === "" ? "none" : file}</code>
-        </Cell>
-        {/* The panel area is collapsed by default, so this cell is also the toggle that opens it (W5, #560;
-            VS Code's Problems item): a collapsed dock never hides an error. */}
-        {onToggleDiagnostics === undefined ? (
-          <Cell label="Diagnostics" id="status-diagnostics" valueRef={diagnosticsRef}>
-            not run yet
-          </Cell>
-        ) : (
-          <div className="status-cell">
-            <dt>Diagnostics</dt>
-            <dd>
-              <button
-                type="button"
-                className="status-toggle"
-                id="status-diagnostics-toggle"
-                aria-pressed={diagnosticsOpen === true}
-                aria-label="Toggle the panel area (Diagnostics)"
-                title="Show or hide the panel area (Ctrl+J)"
-                onClick={onToggleDiagnostics}
-              >
-                <span id="status-diagnostics" ref={diagnosticsRef}>
-                  not run yet
+      <div className="status-line">
+        {workbench.statusItems.map((item) => {
+          switch (item.widget) {
+            case "problems":
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  className="status-item status-toggle"
+                  id="status-diagnostics-toggle"
+                  data-command="view.togglePanelArea"
+                  aria-pressed={diagnosticsOpen}
+                  aria-label="Problems: toggle the panel area"
+                  title="Problems. Show or hide the panel area (Ctrl+J)"
+                  onClick={() => void workbench.run("view.togglePanelArea")}
+                >
+                  <span aria-hidden="true">{"⊗"}</span>{" "}
+                  <span id="status-diagnostics" ref={diagnosticsRef}>
+                    not run yet
+                  </span>
+                </button>
+              );
+            case "caret":
+              return activePath === "" ? null : (
+                <button
+                  key={item.key}
+                  type="button"
+                  className="status-item status-end"
+                  data-command="view.gotoLine"
+                  title="Go to line (Ctrl+G)"
+                  onClick={() => void workbench.run("view.gotoLine")}
+                >
+                  <span id="status-caret" ref={caretRef}>
+                    Ln 1, Col 1
+                  </span>
+                </button>
+              );
+            case "language":
+              return activePath === "" ? null : (
+                <span
+                  key={item.key}
+                  className="status-item"
+                  id="status-language"
+                  title={`${activePath}${entryPath === "" ? "" : `. Run compiles ${entryPath}`}`}
+                >
+                  {language}
                 </span>
-              </button>
-            </dd>
-          </div>
-        )}
-        <Cell label="Frame" id="status-frame" valueRef={frameRef}>
-          not drawn
-        </Cell>
-      </dl>
-      <p className="status-note">
-        Part of <a href="https://github.com/thnak/Tessera">Tessera</a>. The preview panes are three Wasm
-        modules built from this repository: <code>tessera_diagnostics</code>,{" "}
-        <code>tessera_scene_preview</code> and <code>tessera_canvas</code>. Each is checked against its
-        native counterpart by a CI gate, byte for byte where the output is a document.
-      </p>
+              );
+            case "bell":
+              return (
+                <span key={item.key} className="status-item status-bell">
+                  <NotificationBell workbench={workbench} tabIndex={0} />
+                </span>
+              );
+            default:
+              return null;
+          }
+        })}
+      </div>
     </footer>
   );
 }

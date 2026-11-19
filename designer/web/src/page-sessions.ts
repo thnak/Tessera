@@ -200,7 +200,7 @@ export function useSessions(deps: SessionDeps, settled: boolean, present: string
           inspectPanel: pane.inspectPanel.current,
           inspectBody: pane.inspectBody.current,
           inspectToggle: pane.inspectToggle.current,
-          statusFrame: pane.statusFrame.current,
+          statusFrame: null,
         },
         source: deps.source,
         setStatus: (text, kind) => setStatusText(status, text, kind ?? null),

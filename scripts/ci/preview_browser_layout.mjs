@@ -197,7 +197,7 @@ async function open(width, height, path = '/index.html') {
     await page.waitForTimeout(200);
     const twoTabs = await page.locator('[aria-label="Open files"] [role="tab"]').count();
     const cssText = await page.evaluate(() => window.__tesseraEditor.text());
-    const compileTarget = await page.locator('#status-file').textContent();
+    const compileTarget = ((await page.locator('#status-language').getAttribute('title')) ?? '').split('Run compiles ')[1] ?? '';
     check(
       'selecting a stylesheet opens one more tab and keeps the entry the one tessera.json names',
       twoTabs === tabsBefore + 1 && cssText.includes('background') && compileTarget.trim() === 'ui/App.tsx',

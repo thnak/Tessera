@@ -81,8 +81,10 @@ await test('menus.json: every control of the spec mapping (section 4.1) has a ho
     assert.ok(homes.has(command), `${command} is in no menu`);
   }
   const toolbar = MENUS.toolbar.map((entry) => entry.command ?? entry.widget);
-  assert.deepEqual(toolbar, ['run.restart', 'file.save', 'file.share', 'deviceChip', 'view.cycleTheme', 'paletteButton', 'bell']);
+  assert.deepEqual(toolbar, ['run.restart', 'file.save', 'file.share', 'deviceChip', 'paletteButton']);
   assert.equal(MENUS.toolbar[0].emphasis, 'primary', 'Restart is the one primary action');
+  // The status bar is data too (owner feedback on #586): Problems, caret, language, bell, in this order.
+  assert.deepEqual(MENUS.statusBar.map((entry) => entry.widget), ['problems', 'caret', 'language', 'bell']);
 });
 
 await test('build: six live menus, Go is hidden until a go.* command is live', () => {
@@ -163,7 +165,7 @@ await test('build: group order is first appearance, items sort by order within a
 await test('toolbar: only live commands, emphasis and widgets carried through', () => {
   const { registry } = bootRegistry();
   const toolbar = buildToolbar(MENUS, { registry });
-  assert.deepEqual(toolbar.map((entry) => entry.command ?? entry.widget), ['run.restart', 'file.save', 'file.share', 'deviceChip', 'view.cycleTheme', 'paletteButton', 'bell']);
+  assert.deepEqual(toolbar.map((entry) => entry.command ?? entry.widget), ['run.restart', 'file.save', 'file.share', 'deviceChip', 'paletteButton']);
   assert.equal(toolbar[0].emphasis, 'primary');
   assert.equal(toolbar[0].chord, 'Ctrl+Shift+F5');
   assert.equal(toolbar[1].label, 'Save');

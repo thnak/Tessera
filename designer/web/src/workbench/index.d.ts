@@ -199,13 +199,15 @@ export interface MenusDocument {
   menus: { id: string; title: string; mnemonic: string; items: unknown[] }[];
   contexts: Record<string, unknown[]>;
   toolbar: unknown[];
+  /** The status bar's items, left to right: commands and page widgets (`problems`, `caret`, `language`, `bell`). */
+  statusBar?: unknown[];
 }
 export function validateMenus(doc: MenusDocument, records: readonly CommandRecord[]): string[];
 export function walkMenus(doc: MenusDocument, visit: (item: Record<string, unknown>, where: string) => void): void;
 export function buildMenuBar(doc: MenusDocument, deps: MenuDeps): MenuBarMenu[];
 export function buildItems(items: readonly unknown[], deps: MenuDeps & { keyPrefix: string }): MenuEntry[];
 export function buildContextMenu(doc: MenusDocument, name: string, deps: MenuDeps, target?: MenuTarget): MenuEntry[];
-export function buildToolbar(doc: MenusDocument, deps: MenuDeps): ToolbarEntry[];
+export function buildToolbar(doc: MenusDocument, deps: MenuDeps, section?: "toolbar" | "statusBar"): ToolbarEntry[];
 
 export interface MenuNav {
   bar: number;

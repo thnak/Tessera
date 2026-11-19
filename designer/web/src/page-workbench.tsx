@@ -92,6 +92,7 @@ export function WorkbenchSurface(props: WorkbenchSurfaceProps): ReactNode {
         onApplyNow={props.onApplyNow}
         stale={projectIo.state.stale}
         empty={props.welcome ?? null}
+        caretRef={refs.statusCaret}
       />
     ),
     canvas: (

@@ -126,7 +126,7 @@ export function useDiagnosticsAutoOpen(workbench: Workbench, countRef: { current
     if (cell === null) {
       return;
     }
-    const hasProblems = (): boolean => /^[1-9]\d* error\(s\)|^\d+ error\(s\), [1-9]/.test(cell.textContent ?? "");
+    const hasProblems = (): boolean => /^[1-9]\d* errors?|^\d+ errors?, [1-9]/.test(cell.textContent ?? "");
     let had = hasProblems();
     const observer = new MutationObserver(() => {
       const now = hasProblems();

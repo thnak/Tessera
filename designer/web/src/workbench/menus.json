@@ -174,8 +174,12 @@
     { "command": "file.save", "icon": "save", "title": "Save" },
     { "command": "file.share", "icon": "share", "title": "Share" },
     { "widget": "deviceChip" },
-    { "command": "view.cycleTheme", "icon": "theme", "title": "Theme" },
-    { "widget": "paletteButton" },
+    { "widget": "paletteButton" }
+  ],
+  "statusBar": [
+    { "widget": "problems" },
+    { "widget": "caret" },
+    { "widget": "language" },
     { "widget": "bell" }
   ]
 }

@@ -267,10 +267,7 @@ export function App() {
     void fetch("./build-id.txt")
       .then((response) => (response.ok ? response.text() : Promise.reject(new Error("absent"))))
       .then((text) => state_.setBuildId("build: " + (text.trim() || "unknown")))
-      .catch(() => {
-        state_.setBuildId("build: local (no build-id.txt)");
-        state_.setBuildIdTitle("The publish job writes build-id.txt; a local checkout has none.");
-      });
+      .catch(() => state_.setBuildId("build: local (no build-id.txt)"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -693,13 +690,11 @@ export function App() {
       </main>
 
       <StatusLine
-        buildId={state.buildId}
-        buildIdTitle={state.buildIdTitle}
-        buildIdRef={refs.buildId}
+        workbench={commandHost}
         diagnosticsRef={refs.statusDiagnostics}
-        frameRef={refs.statusFrame}
-        file={entryPath ?? ""}
-        onToggleDiagnostics={() => void commandHost.run("view.togglePanelArea")}
+        caretRef={refs.statusCaret}
+        activePath={workspace.state.active}
+        entryPath={entryPath ?? ""}
         diagnosticsOpen={workbench.visible.has("diagnostics")}
         hidden={!workbench.layout.shell.statusBar || workbench.layout.shell.zen}
       />

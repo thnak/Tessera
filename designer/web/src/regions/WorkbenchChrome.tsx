@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 
-// The studio's top chrome (issue #557): the title, the menu bar, the toolbar and the device chip. It
-// replaces the page header and the preview column's five `<select>`s; every control here is a projection of
+// The studio's top chrome (issue #557): the menu bar, the toolbar and the device chip on one row, with the
+// palette button at the right (the title and description are Help > About; the bell is in the status bar).
+// It replaces the page header and the preview column's five `<select>`s; every control here is a projection of
 // a command (`page-commands.ts` registers the handlers, `workbench/menus.json` says what appears).
 //
 // The ids the page's older code and the developer-run browser scripts look up are kept where a control has a
@@ -16,7 +17,7 @@ import { AboutDialog } from "./AboutDialog";
 import { CommandPalette } from "./CommandPalette";
 import { ContextMenuHost } from "./ContextMenuHost";
 import { MenuBar, MenuList, useMenuController } from "./MenuBar";
-import { NotificationBell, ToastStack } from "./Notifications";
+import { ToastStack } from "./Notifications";
 
 const TOOLBAR_IDS: Record<string, string> = {
   "run.restart": "restart-app",
@@ -149,11 +150,9 @@ function Toolbar({ workbench }: { workbench: Workbench }) {
   return (
     <div className="toolbar-row" role="toolbar" aria-label="Studio actions" aria-orientation="horizontal" ref={ref} onKeyDown={move}>
       {entries.map((entry, position) => (
-        <span className="tb-widget" key={entry.key} data-secondary={entry.command === "run.restart" || entry.widget === "bell" ? undefined : ""}>
+        <span className="tb-widget" key={entry.key} data-secondary={entry.command === "run.restart" ? undefined : ""}>
           {entry.widget === "deviceChip" ? (
             <DeviceChip workbench={workbench} entries={device?.items ?? []} tabIndex={position === active ? 0 : -1} />
-          ) : entry.widget === "bell" ? (
-            <NotificationBell workbench={workbench} tabIndex={position === active ? 0 : -1} />
           ) : (
             <ToolbarButton entry={entry} workbench={workbench} tabIndex={position === active ? 0 : -1} />
           )}
@@ -181,6 +180,7 @@ export function WorkbenchChrome({ workbench, zen = false }: { workbench: Workben
           onRun={(entry) => void workbench.activate(entry)}
           onOpenChange={(open) => workbench.setFocusOwner(open ? "menu" : null)}
         />
+        <Toolbar workbench={workbench} />
         <span className="titlebar-spacer" />
         {paletteVisible ? (
           <button type="button" id="palette-button" className="palette-button" onClick={() => void workbench.run("view.palette")} aria-keyshortcuts="Control+Shift+P">
@@ -188,7 +188,6 @@ export function WorkbenchChrome({ workbench, zen = false }: { workbench: Workben
           </button>
         ) : null}
       </div>
-      <Toolbar workbench={workbench} />
       <input
         ref={workbench.zipInputRef}
         type="file"

@@ -38,7 +38,8 @@ export interface PaneRefs {  /**
    */
   source: React.MutableRefObject<CodeEditor | null>;
   editorHint: React.RefObject<HTMLParagraphElement | null>;
-  buildId: React.RefObject<HTMLSpanElement | null>;
+  /** The status bar's caret cell: the editor writes `Ln, Col` and the selection size here (not through React). */
+  statusCaret: React.RefObject<HTMLSpanElement | null>;
   shareStatus: React.RefObject<HTMLSpanElement | null>;
   diagStatus: React.RefObject<HTMLDivElement | null>;
   diagList: React.RefObject<HTMLOListElement | null>;
@@ -89,7 +90,6 @@ export interface PaneRefs {  /**
    * (which would put a compile or a GPU frame inside a render cycle).
    */
   statusDiagnostics: React.RefObject<HTMLSpanElement | null>;
-  statusFrame: React.RefObject<HTMLSpanElement | null>;
 }
 
 /** Creates the ref bundle once. A factory, because every entry has to be a *stable* ref. */
@@ -99,7 +99,7 @@ export function usePaneRefs(): PaneRefs {
     // the buffers), but a diagnostic's "show in source" and the Scene hint do reach it.
     source: useRef<CodeEditor | null>(null),
     editorHint: useRef<HTMLParagraphElement>(null),
-    buildId: useRef<HTMLSpanElement>(null),
+    statusCaret: useRef<HTMLSpanElement>(null),
     shareStatus: useRef<HTMLSpanElement>(null),
     diagStatus: useRef<HTMLDivElement>(null),
     diagList: useRef<HTMLOListElement>(null),
@@ -138,7 +138,6 @@ export function usePaneRefs(): PaneRefs {
     inspectBody: useRef<HTMLDivElement>(null),
     inspectToggle: useRef<HTMLButtonElement>(null),
     statusDiagnostics: useRef<HTMLSpanElement>(null),
-    statusFrame: useRef<HTMLSpanElement>(null),
   };
 }
 
@@ -148,7 +147,6 @@ export interface PageState {
   shareStatus: string;
   linkNote: string | null;
   buildId: string;
-  buildIdTitle: string | undefined;
   /** Whether the active view's session can be restarted (its module is loaded). */
   runEnabled: boolean;
   /**
@@ -167,19 +165,15 @@ export function usePageState(): [PageState, PageStateSetters] {
   const [shareStatus, setShareStatus] = useState("");
   const [linkNote, setLinkNote] = useState<string | null>(null);
   const [buildId, setBuildId] = useState("build: loading");
-  const [buildIdTitle, setBuildIdTitle] = useState<string | undefined>(
-    "The build this page came from",
-  );
   const [runEnabled, setRunEnabled] = useState(false);
   const [applying, setApplying] = useState(false);
   return [
-    { controls, shareStatus, linkNote, buildId, buildIdTitle, runEnabled, applying },
+    { controls, shareStatus, linkNote, buildId, runEnabled, applying },
     {
       setControls,
       setShareStatus,
       setLinkNote,
       setBuildId,
-      setBuildIdTitle,
       setRunEnabled,
       setApplying,
     },
@@ -192,7 +186,6 @@ export interface PageStateSetters {
   setShareStatus: React.Dispatch<React.SetStateAction<string>>;
   setLinkNote: React.Dispatch<React.SetStateAction<string | null>>;
   setBuildId: React.Dispatch<React.SetStateAction<string>>;
-  setBuildIdTitle: React.Dispatch<React.SetStateAction<string | undefined>>;
   setRunEnabled: React.Dispatch<React.SetStateAction<boolean>>;
   setApplying: React.Dispatch<React.SetStateAction<boolean>>;
 }
