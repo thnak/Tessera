@@ -22,8 +22,8 @@ against.
 
 ## RHI version
 
-Implements **RHI 1.7** (`rhi::kRhiVersion`), declared with a `static_assert` on
-`rhi::kRhiVersionMajor` in `src/metal_device.mm`. RHI 1.7 added `Backend::Metal` itself.
+Implements **RHI 1.8** (`rhi::kRhiVersion`), declared with a `static_assert` on
+`rhi::kRhiVersionMajor` in `src/metal_device.mm`. RHI 1.8 added `Backend::Metal` itself.
 
 ## Platforms
 

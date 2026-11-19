@@ -45,5 +45,14 @@ export const VIEW_IDS = {
     // here too. It was missing from this list only, which is why the two could disagree without a
     // failure; the canvas session writes it unconditionally, so a rename must fail one of them.
     "stat-font",
+    // Issue #171's picker: the toggle that arms it and the overlay the outline is drawn into. The
+    // overlay is `pointer-events: none`, so it never intercepts the preview's own pointer input.
+    "pick-toggle",
+    "pick-overlay",
+    // Issue #171's skins slice: the simulated device frame around the canvas. It is page chrome, so
+    // React renders it and the ids are part of the contract `preview_page_checks.mjs` checks; the
+    // frame's own children (the bars, the cutout) are `aria-hidden` decoration and carry classes
+    // rather than ids, because nothing looks them up.
+    "skin-frame",
   ],
 } as const;

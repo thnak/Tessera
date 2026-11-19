@@ -3,7 +3,11 @@
 #include "diagnostic_record.hpp"
 #include "scene_canvas_session.hpp"
 #include "tessera/ui/dirty.hpp"
+#include "tessera/ui/input.hpp"
+#include "tessera/ui/key_code.hpp"
+#include "tessera/ui/scene/focus.hpp"
 #include "tessera/ui/style/prepared_stylesheet.hpp"
+#include "tessera/ui/style/pseudo_state.hpp"
 
 #include <array>
 #include <optional>
@@ -58,7 +62,8 @@ std::string CanvasSceneSession::start(const ProjectInput& project,
     // re-evaluated the source and lost exactly that.
     if (session_ != nullptr && reused_ok(project, component, source.measurer)) {
         reused_ = true;
-        (void)apply_layout_inputs(source.width, source.height, dpi, source.posture);
+        (void)apply_layout_inputs(source.width, source.height, dpi, source.posture, source.insets,
+                                  source.cutouts);
         return {};
     }
 
@@ -127,6 +132,8 @@ std::string CanvasSceneSession::start(const ProjectInput& project,
     options.height = source.height;
     options.dpi_scale = dpi;
     options.posture = source.posture;
+    options.insets = source.insets;
+    options.cutouts = source.cutouts;
     options.carried = &carried;
     options.live_component_ids = &live_ids;
     options.measurer = source.measurer;
@@ -157,6 +164,8 @@ std::string CanvasSceneSession::start(const ProjectInput& project,
     height_ = source.height;
     dpi_scale_ = dpi;
     posture_ = source.posture;
+    insets_ = source.insets;
+    cutouts_ = source.cutouts;
     measurer_ = source.measurer;
     fresh_ = true;
     return error_;
@@ -177,35 +186,149 @@ bool CanvasSceneSession::reused_ok(
 }
 
 bool CanvasSceneSession::set_posture(hal::FoldPosture posture) {
-    return apply_layout_inputs(width_, height_, dpi_scale_, posture);
+    return apply_layout_inputs(width_, height_, dpi_scale_, posture, insets_, cutouts_);
 }
 
 bool CanvasSceneSession::set_viewport(float width, float height, float dpi_scale) {
-    return apply_layout_inputs(width, height, dpi_scale, posture_);
+    return apply_layout_inputs(width, height, dpi_scale, posture_, insets_, cutouts_);
+}
+
+bool CanvasSceneSession::set_safe_area(const hal::WindowInsets& insets,
+                                       const hal::CutoutInfo& cutouts) {
+    return apply_layout_inputs(width_, height_, dpi_scale_, posture_, insets, cutouts);
 }
 
 bool CanvasSceneSession::apply_layout_inputs(float width, float height, float dpi_scale,
                                              hal::FoldPosture posture) {
+    return apply_layout_inputs(width, height, dpi_scale, posture, insets_, cutouts_);
+}
+
+bool CanvasSceneSession::apply_layout_inputs(float width, float height, float dpi_scale,
+                                             hal::FoldPosture posture,
+                                             const hal::WindowInsets& insets,
+                                             const hal::CutoutInfo& cutouts) {
     if (!started()) {
         return false;
     }
     const float dpi = dpi_scale > 0.0f ? dpi_scale : 1.0f;
-    if (width == width_ && height == height_ && dpi == dpi_scale_ && posture == posture_) {
+    // Every layout input is compared, the skin's safe area included: a skin whose size happens to
+    // match the previous one but whose insets differ is still a different device, and skipping the
+    // pass would leave the content padded for the device that is no longer on screen.
+    if (width == width_ && height == height_ && dpi == dpi_scale_ && posture == posture_ &&
+        same_insets(insets, insets_) && same_cutouts(cutouts, cutouts_)) {
         return false;
     }
-    // One pass for both inputs, inside this call: the boxes (and, when the size crosses a
+    // One pass for every input, inside this call: the boxes (and, when the size crosses a
     // breakpoint, the cascade) are already the new ones when it returns, so the frame the page
     // draws next is the FIRST to show the new device - no frame of stale padding or stale
-    // breakpoint (issues #408 and #436).
-    if (!session_->relayout_at(width, height, dpi, posture)) {
+    // breakpoint (issues #408, #436 and #171).
+    if (!session_->relayout_at(width, height, dpi, posture, insets, cutouts)) {
         return false;
     }
     width_ = width;
     height_ = height;
     dpi_scale_ = dpi;
     posture_ = posture;
+    insets_ = insets;
+    cutouts_ = cutouts;
     metrics_ = session_->metrics();
     return true;
+}
+
+namespace {
+
+// The focusable, visible nodes in tree order, which is the sequential tab order of a scene the
+// preview builds (it sets no positive `tabIndex`). Used only to know where the order ends.
+void collect_focusable(const ui::Node& node, std::vector<const ui::Node*>& out) {
+    if (!node.visible()) {
+        return;
+    }
+    if (node.focusable()) {
+        out.push_back(&node);
+    }
+    for (const auto& child : node.children()) {
+        collect_focusable(*child, out);
+    }
+}
+
+} // namespace
+
+void CanvasSceneSession::fill_focus(CanvasPointerResult& result) const {
+    if (const ui::Node* focused = session_->router().focus_manager().focused()) {
+        result.focused_id = focused->automation_id();
+        result.focus_visible =
+            ui::style::has_state(focused->pseudo_state(), ui::style::PseudoState::FocusVisible);
+    }
+}
+
+CanvasPointerResult CanvasSceneSession::key(PreviewInput::Kind kind, std::uint32_t key,
+                                            std::uint32_t modifiers, bool repeat) {
+    CanvasPointerResult result;
+    if (!started()) {
+        return result;
+    }
+    if (kind != PreviewInput::Kind::KeyDown && kind != PreviewInput::Kind::KeyUp) {
+        return result;
+    }
+    ui::InputRouter& router = session_->router();
+    ui::FocusManager& focus = router.focus_manager();
+    const ui::Node* const before = focus.focused();
+
+    // Tab at the end of the order lets go instead of wrapping. The router wraps (a native window
+    // has nowhere else to go), but a canvas sits inside a page, and a wrap here is a keyboard trap.
+    const bool plain_tab = key == ui::key::kTab &&
+                           (modifiers & (static_cast<std::uint32_t>(ui::Modifier::Control) |
+                                         static_cast<std::uint32_t>(ui::Modifier::Alt) |
+                                         static_cast<std::uint32_t>(ui::Modifier::Meta))) == 0U;
+    if (plain_tab) {
+        const bool backward = (modifiers & static_cast<std::uint32_t>(ui::Modifier::Shift)) != 0U;
+        std::vector<const ui::Node*> order;
+        collect_focusable(session_->root(), order);
+        const bool at_end =
+            order.empty() ||
+            (before != nullptr && (backward ? before == order.front() : before == order.back()));
+        if (at_end) {
+            if (kind == PreviewInput::Kind::KeyDown && before != nullptr) {
+                focus.clear_focus();
+            }
+            result.left = true;
+            result.focus_moved = before != nullptr && kind == PreviewInput::Kind::KeyDown;
+            result.changed = needs_frame();
+            return result;
+        }
+    }
+
+    PreviewInput input;
+    input.kind = kind;
+    input.key = key;
+    input.modifiers = modifiers;
+    input.repeat = repeat;
+    result.dispatched = session_->dispatch(input);
+    result.ran = session_->last_ran();
+    result.unrun = session_->last_unrun();
+    fill_focus(result);
+    if (const ui::Node* hover = session_->router().hovered()) {
+        result.hovered_id = hover->automation_id();
+    }
+    result.focus_moved = focus.focused() != before;
+    // Consumed when the scene did something with it: it reached a focused node, or it moved focus.
+    // A key with no focus and no traversal falls through to the page untouched.
+    result.handled = result.dispatched || result.focus_moved;
+    result.changed = needs_frame();
+    return result;
+}
+
+CanvasPointerResult CanvasSceneSession::blur() {
+    CanvasPointerResult result;
+    if (!started()) {
+        return result;
+    }
+    ui::FocusManager& focus = session_->router().focus_manager();
+    const bool had_focus = focus.focused() != nullptr;
+    focus.clear_focus();
+    result.focus_moved = had_focus;
+    result.changed = needs_frame();
+    return result;
 }
 
 CanvasPointerResult CanvasSceneSession::pointer(PreviewInput::Kind kind, float x, float y,
@@ -238,9 +361,31 @@ CanvasPointerResult CanvasSceneSession::pointer(PreviewInput::Kind kind, float x
         result.active_id = active->automation_id();
     }
     result.target_id = result.dispatched ? result.hovered_id : 0;
+    fill_focus(result);
     // "A frame is owed" is the scene's own answer, never a guess: a dispatch that changed no
     // style/layout/paint domain costs no frame.
     result.changed = needs_frame();
+    return result;
+}
+
+CanvasPickResult CanvasSceneSession::pick(float x, float y) {
+    CanvasPickResult result;
+    if (!started()) {
+        return result;
+    }
+    // The router's own hit test, on the live tree: `Node::hit_test_deep` is the function
+    // `ui::InputRouter` calls to decide a pointer target, so the node reported here is exactly the
+    // node a press at the same point would reach. It is non-const because it walks mutable
+    // children, but it writes nothing - which is why `pick()` is a query even though it cannot be
+    // `const`.
+    ui::Node* hit = session_->root().hit_test_deep(x, y);
+    if (hit == nullptr) {
+        return result;
+    }
+    result.found = true;
+    result.automation_id = hit->automation_id();
+    result.element_kind = hit->element_kind();
+    result.box = hit->world_bounds();
     return result;
 }
 

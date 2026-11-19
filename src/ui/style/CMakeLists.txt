@@ -46,6 +46,9 @@ add_library(tessera_style STATIC
     selector_index.cpp
     selector_match.cpp
     selector_parts.cpp
+    # The selector list printed back from its parsed form: the fallback for a sheet that arrived as
+    # a blob, whose authored text is not carried (docs/specs/compiled-stylesheet-v1.md section 5).
+    selector_text.cpp
     selector_support.cpp
     theme_asset.cpp
     theme_asset_blob.cpp

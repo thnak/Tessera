@@ -28,6 +28,10 @@ struct VertexInput {
     @location(5) radius: f32,
     @location(6) mode: f32,
     @location(7) carve: vec4<f32>,
+    // Index into the sampled-image array (RHI 1.7, issue #480 part 2). WebGPU has no descriptor
+    // indexing, so this twin always reads the single bound texture and ignores the index; the
+    // attribute stays in the layout so one Vertex2D serves both backends.
+    @location(8) texture_index: u32,
 };
 
 struct VertexOutput {
@@ -39,6 +43,7 @@ struct VertexOutput {
     @location(4) radius: f32,
     @location(5) @interpolate(flat) mode: f32,
     @location(6) carve: vec4<f32>,
+    @location(7) @interpolate(flat) texture_index: u32,
 };
 
 @vertex
@@ -55,6 +60,7 @@ fn vs_main(in: VertexInput) -> VertexOutput {
     out.radius = in.radius;
     out.mode = in.mode;
     out.carve = in.carve;
+    out.texture_index = in.texture_index;
     return out;
 }
 

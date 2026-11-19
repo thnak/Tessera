@@ -90,6 +90,7 @@ VulkanDevice::VulkanDevice(const rhi::DeviceDesc& desc)
         create_device();
         create_allocator();
         create_descriptor_layout();
+        create_texture_array_layout();
         create_descriptor_pool();
     } catch (...) {
         destroy();

@@ -205,13 +205,28 @@ set(_tessera_scene_preview_sources
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_layout.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_state.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_session.cpp
+    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_session_lookup.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_interaction.cpp)
 
 # The persistent canvas session (#388): the tree a pointer event feeds and a frame paints. It is
 # NOT in the list above because it links `scene_frame.cpp` (it paints) and the snapshot driver must
 # stay free of the GPU/paint stack - the same separation `tessera_scene_frame_entry` makes below.
+#
+# `scene_canvas_inspect.cpp` is the style inspector's query (issue #171, designer-protocol-v1
+# section 9.1): it reads the cascade and the tree and returns a value, so it lives beside the
+# session that owns both rather than in the report serializer.
+#
+# The `scene_canvas_patch_*.cpp` units are `source.patch` (issue #171, section 10.2): the commit's
+# edit list. They are split by the language each destination parses - JSX for `inline`, CSS for
+# `class`, JSON for `token` - because the only thing they share is the edit list they produce.
 set(_tessera_canvas_session_sources
-    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_canvas_session.cpp)
+    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_canvas_session.cpp
+    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_canvas_inspect.cpp
+    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_canvas_patch.cpp
+    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_canvas_patch_query.cpp
+    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_canvas_patch_inline.cpp
+    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_canvas_patch_class.cpp
+    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_canvas_patch_token.cpp)
 
 # The preview's text stack (issue #387): the production FreeType/HarfBuzz/atlas path, loaded from font
 # BYTES the caller supplies (the page fetches them; the CLI reads the same shipped file).
@@ -417,6 +432,7 @@ else ()
     # page needs to run a frame. No NODERAWFS: nothing here reads a file (section 2.1).
     add_executable(tessera_canvas_wasm
         ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_entry.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_query.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_support.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_font.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/canvas_report.cpp
@@ -425,6 +441,10 @@ else ()
         # edit's `apply` export pushed it past the size limit. It is Emscripten-free and WebGPU-free
         # on purpose, so the parsing rules are type-checked on the host lanes too.
         ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_request.cpp
+        # The skin's safe area as the ABI receives it (issue #171's skins slice), split out for the
+        # same reason and on a real boundary: it is pure over its arguments, so the host lanes can
+        # test the refusal rules without linking the GPU text stack.
+        ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_safe_area.cpp
         # The project staging shared with the other two modules: `tessera_canvas_apply` evaluates the
         # project the page staged through these exports.
         ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_project_stage.cpp
@@ -463,7 +483,13 @@ else ()
         # `_tessera_canvas_apply` is the live edit's export (issue #444): the same evaluation the
         # `run` export performs, answered with `changed` and the state-carry split so an auto-apply
         # of unchanged text costs no frame and a failed one keeps the last good picture.
-        -sEXPORTED_FUNCTIONS=["_tessera_project_begin","_tessera_project_set_entry","_tessera_project_add_source","_tessera_project_add_stylesheet","_tessera_canvas_apply","_tessera_canvas_pointer","_tessera_canvas_draw","_tessera_canvas_reset","_tessera_canvas_set_font","_tessera_canvas_font_status","_tessera_webgpu_set_device","_tessera_free","_malloc","_free"]
+        # `_tessera_canvas_pick` is the picker overlay's query (issue #171): what is under a point,
+        # answered without dispatching, so arming the picker cannot move `:hover` or cost a frame.
+        # `_tessera_canvas_style` is the style inspector's query (issue #171): the computed style,
+        # the matched rules with their provenance, and the box of one node.
+        # `_tessera_canvas_patch` is the commit's query (issue #171): the `source.patch` edit list
+        # and base versions for one node and destination, produced without writing anything.
+        -sEXPORTED_FUNCTIONS=["_tessera_project_begin","_tessera_project_set_entry","_tessera_project_add_source","_tessera_project_add_stylesheet","_tessera_canvas_apply","_tessera_canvas_pointer","_tessera_canvas_pick","_tessera_canvas_style","_tessera_canvas_patch","_tessera_canvas_set_safe_area","_tessera_canvas_draw","_tessera_canvas_reset","_tessera_canvas_set_font","_tessera_canvas_font_status","_tessera_webgpu_set_device","_tessera_free","_malloc","_free"]
         # `WebGPU` is the emdawnwebgpu port's handle table: the page needs `WebGPU.importJsDevice` and
         # `importJsQueue` to turn a JS GPUDevice/GPUQueue into the integer handles the C ABI takes.
         # `HEAPU8` is the view the page writes font bytes through (issue #387): `_malloc` returns a
@@ -865,7 +891,16 @@ if (TESSERA_BUILD_TESTS)
     # Two executables, split by responsibility (the sources share `scene_canvas_test_support.hpp`):
     #   scene_canvas_session  the session's lifecycle + the frame contract (a static scene draws zero)
     #   scene_canvas_pointer  the pointer path into the style engine + click synthesis
-    foreach (_canvas_test IN ITEMS scene_canvas_session scene_canvas_pointer)
+    #   scene_canvas_pick     the picker overlay's query (issue #171): what is under a point, without
+    #                         changing the scene
+    #   scene_canvas_style    the style inspector's query (issue #171): computed style, matched rules
+    #                         with their provenance, and the box, for one node
+    #   scene_canvas_patch    the commit's edit list (issue #171): `source.patch` for one node and
+    #                         destination, with the base versions the host compares
+    #   scene_canvas_patch_session  the same through a real evaluation: the IR span round trip and
+    #                         the session's own `patch()`, which the fixture tests deliberately skip
+    foreach (_canvas_test IN ITEMS scene_canvas_session scene_canvas_pointer scene_canvas_pick
+            scene_canvas_style scene_canvas_patch scene_canvas_patch_session)
         add_executable(${_canvas_test}_tests
             ${CMAKE_SOURCE_DIR}/tests/unit/${_canvas_test}_tests.cpp
             ${CMAKE_SOURCE_DIR}/tools/codegen/canvas_report.cpp
@@ -874,6 +909,11 @@ if (TESSERA_BUILD_TESTS)
             ${_tessera_preview_text_sources}
             ${_tessera_canvas_session_sources}
             ${_tessera_scene_preview_sources})
+        if (_canvas_test STREQUAL "scene_canvas_pointer")
+            # The key vocabulary the page sends (issue #388, focus) is pure over its arguments.
+            target_sources(${_canvas_test}_tests PRIVATE
+                ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_support.cpp)
+        endif ()
         target_include_directories(${_canvas_test}_tests
             PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
         target_link_libraries(${_canvas_test}_tests PRIVATE
@@ -924,6 +964,42 @@ if (TESSERA_BUILD_TESTS)
         tessera_scene
         tessera_style)
     add_test(NAME scene_viewport COMMAND scene_viewport_tests)
+
+    # The skin's safe area reaching the engine's layout (issue #171's skins slice,
+    # `designer-studio-v1.md` sections 5.1 and 5.2): non-zero insets pad a `SafeArea`'s content by
+    # exactly what the skin declared, zero insets leave the frame unchanged, a skin change is one
+    # layout pass with no stale padding, the cutout rectangle reaches the metrics, and the ABI
+    # refuses a negative inset with `TESSERA_STUDIO_SKIN`. Registered here rather than in
+    # tests/unit/CMakeLists.txt for the same reason `scene_fold` is: this lane does not edit the
+    # shared registry while other lanes work in it.
+    add_executable(scene_skin_geometry_tests
+        ${CMAKE_SOURCE_DIR}/tests/unit/scene_skin_geometry_tests.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/canvas_report.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/css_diagnostics_report.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/scene_frame.cpp
+        # The ABI argument parsing, which is where the refusal lives. It is Emscripten-free and
+        # WebGPU-free on purpose, so the rules are type-checked on the host lanes too.
+        ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_safe_area.cpp
+        ${_tessera_preview_text_sources}
+        ${_tessera_canvas_session_sources}
+        ${_tessera_scene_preview_sources})
+    target_include_directories(scene_skin_geometry_tests
+        PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
+    target_link_libraries(scene_skin_geometry_tests PRIVATE
+        tessera_automation_scene
+        tessera_css_module
+        tessera_gpu
+        tessera_hal_metrics
+        tessera_ir_eval
+        tessera_ir_ids
+        tessera_layout
+        tessera_lowering
+        tessera_paint
+        tessera_rhi
+        tessera_rhi_null
+        tessera_scene
+        tessera_style)
+    add_test(NAME scene_skin_geometry COMMAND scene_skin_geometry_tests)
 
     add_executable(codegen_layering_tests
         ${CMAKE_SOURCE_DIR}/tests/unit/codegen_layering_tests.cpp)

@@ -337,6 +337,141 @@
   background: #0b1220;
   /* A preview is a picture of a UI, not a UI: not selectable, and no text caret on a click. */
   user-select: none;
+  /* Pointer events drive the engine's hover and press (#388); a touch on the canvas must not also scroll. */
+  touch-action: none;
+}
+
+/* The canvas and the picker's overlay share one positioned box (issue #171), so the outline is laid
+ * out in the canvas' own coordinate space rather than in the pane's. `inline-block` shrinks the stack
+ * to the canvas, which is what makes `left: 0` mean "the canvas' left edge". */
+.canvas-stack {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  line-height: 0;
+}
+
+/* The picker's overlay: an outline and a readout, drawn by the page over the engine's canvas.
+ *
+ * `pointer-events: none` is the load-bearing rule. The overlay covers the canvas exactly, so if it
+ * accepted pointer events it would swallow every move and press and the preview would stop
+ * responding the moment the picker was armed. Nothing in the overlay is interactive by design.
+ *
+ * It is `aria-hidden` in the markup: the outline is a visual aid, not content, and a screen reader
+ * reading "Button #101" out of a decorative layer would be noise. */
+.pick-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.pick-outline {
+  position: absolute;
+  border: 1px solid var(--accent);
+  /* A second, offset ring so the outline reads on both a light and a dark preview: one colour alone
+   * disappears against a background of the same hue. */
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.65);
+  border-radius: 2px;
+}
+
+.pick-readout {
+  position: absolute;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 18px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* The style inspector's panel (issue #171, designer-protocol-v1 section 9.1): a page element beside
+ * the canvas, not engine paint. It is a scrolling list because a node can match many rules, and it
+ * is `hidden` until a node is inspected - the inspector is a tool, not the preview. */
+.inspect-panel {
+  max-height: 320px;
+  overflow: auto;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.inspect-panel h3 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.inspect-heading {
+  margin-bottom: 6px;
+  color: var(--text);
+}
+
+.inspect-section {
+  margin: 8px 0 4px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 10px;
+}
+
+.inspect-row,
+.inspect-decl {
+  display: grid;
+  grid-template-columns: minmax(90px, max-content) 1fr;
+  gap: 8px;
+  padding: 1px 0;
+}
+
+.inspect-name {
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+
+.inspect-value {
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+/* One matched rule: its header (selector, origin, specificity, span) and its declarations. */
+.inspect-rule {
+  margin: 6px 0;
+  padding: 4px 6px;
+  border-left: 2px solid var(--border);
+}
+
+.inspect-rule[data-origin="inline"] { border-left-color: var(--accent); }
+.inspect-rule[data-origin="theme"] { border-left-color: var(--text-dim); }
+.inspect-rule[data-origin="ua"] { border-left-color: var(--border); }
+
+.inspect-rule-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+  margin-bottom: 2px;
+}
+
+.inspect-selector {
+  color: var(--text);
+  font-family: var(--mono);
+}
+
+.inspect-meta {
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+/* A declaration a higher-precedence rule beat. Struck through rather than dropped: the point of the
+ * panel is to answer "why is my rule not applying", and a rule that lost is the answer. */
+.inspect-decl.overridden .inspect-value {
+  text-decoration: line-through;
+  color: var(--text-dim);
 }
 
 /* The frame counters: name/value pairs, two columns so the labels line up without a table. */
@@ -353,3 +488,7 @@
 
 .frame-stats dt { color: var(--text-dim); }
 .frame-stats dd { margin: 0; color: var(--text); }
+
+/* A focused preview shows the browser's own ring around the canvas; the controls inside draw theirs (the
+ * scene's `:focus-visible`, issue #388). */
+.canvas-frame canvas:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

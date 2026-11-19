@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "name": "Generic phone (iOS)",
+  "category": "mobile",
+  "os": "ios",
+  "size": { "width": 390, "height": 844 },
+  "bezel": { "top": 12, "right": 8, "bottom": 12, "left": 8, "radius": 32 },
+  "cutout": { "type": "notch", "x": 195, "y": 0, "radius": 16 },
+  "chrome": { "statusBar": 24, "navigationBar": 20, "gestureBar": true },
+  "insets": { "top": 24, "right": 0, "bottom": 20, "left": 0 }
+}

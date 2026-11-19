@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "scene_build.hpp"
 #include "scene_layout.hpp"
 #include "scene_state.hpp"
 #include "scene_stylesheet.hpp"
@@ -60,6 +61,7 @@ struct PreviewInput {
     // the page passes its `shiftKey`-style booleans through one integer.
     std::uint32_t modifiers = 0;
     std::uint32_t key = 0; // a `ui::KeyCode`; 0 when not a key event
+    bool repeat = false;   // auto-repeat of a held key (Enter does not activate on a repeat)
     std::uint32_t pointer_id = 0;
 };
 
@@ -93,6 +95,11 @@ public:
         // this posture; `set_posture()` re-lays it out in place for a later change, so a posture
         // switch costs no re-evaluation and keeps the state the session has accumulated.
         tessera::hal::FoldPosture posture = tessera::hal::FoldPosture::None;
+        // The simulated skin's safe area (issue #171's skins slice): the insets and cutout
+        // rectangles a device would report. Layout inputs like the size and the posture, so a skin
+        // change re-lays the tree out in place and keeps the state the session has accumulated.
+        tessera::hal::WindowInsets insets;
+        tessera::hal::CutoutInfo cutouts;
         // The media-independent sheet and the media context it is resolved against (issue #436).
         // A session that owns the prepared form can re-resolve `@media` IN PLACE when its viewport
         // changes (`set_viewport`), instead of being re-evaluated from source. Empty `prepared`
@@ -170,6 +177,14 @@ public:
     // layout pass, not two. The two setters above are the narrow spellings of this.
     bool relayout_at(float width, float height, float dpi_scale, tessera::hal::FoldPosture posture);
 
+    // The same pass with the skin's safe area (issue #171's skins slice): the size, the DPI scale,
+    // the posture, the insets and the cutout rectangles all move together, in ONE layout pass. A
+    // skin whose size matches the previous one but whose insets differ is still a different device,
+    // so the insets are part of the "did anything move?" test rather than a separate call.
+    bool relayout_at(float width, float height, float dpi_scale, tessera::hal::FoldPosture posture,
+                     const tessera::hal::WindowInsets& insets,
+                     const tessera::hal::CutoutInfo& cutouts);
+
     // How many times this session's cascade has been resolved: 1 at construction, +1 per re-resolve
     // (`set_viewport` crossing a breakpoint). The counter a test asserts on to tell "the cascade
     // was rebuilt" from "the boxes were laid out again" (issue #436).
@@ -199,6 +214,11 @@ public:
     [[nodiscard]] const ui::InputRouter& router() const noexcept {
         return router_;
     }
+    // The mutable router, for the host operations that are not events: releasing focus when the
+    // page's element loses it, and leaving the tab order at its ends (issue #388, focus).
+    [[nodiscard]] ui::InputRouter& router() noexcept {
+        return router_;
+    }
     [[nodiscard]] ui::Node& root() noexcept {
         return *root_;
     }
@@ -220,6 +240,24 @@ public:
     [[nodiscard]] const std::vector<std::string>& last_unrun() const noexcept {
         return unrun_;
     }
+
+    // The IR source span of every node in the live tree, keyed by scene node id (issue #171's
+    // `source.patch` slice). Filled by the build walk, which is the last code that holds the
+    // `ir::Node`; a rebuild replaces it, so a span always describes the tree on screen. Empty for a
+    // session that built no tree.
+    //
+    // **Why a side table and not a `ui::Node` field.** `ui::Node` is a public header with an
+    // enforced `kNodeSizeBudget` and a `static_assert`; a span is a design-time fact no frame
+    // reads, so growing every node for it would be a memory-budget decision taken for a query. The
+    // table is the session's, so it dies with the tree it describes.
+    [[nodiscard]] const std::vector<SceneBuildResult::SceneNodeSource>&
+    node_sources() const noexcept {
+        return node_sources_;
+    }
+
+    // The node with this automation id, or null. A read-only lookup for a caller that needs a fact
+    // about the node (its class name, for a `class` commit) without a mutable handle into the tree.
+    [[nodiscard]] const ui::Node* find_by_automation_id(std::uint64_t automation_id) const;
 
 private:
     // One installed scene binding: which IR handler a scene node's event must run. Kept in a
@@ -258,6 +296,9 @@ private:
     std::vector<std::unique_ptr<HandlerSlot>> slots_;
     std::vector<std::string> ran_;
     std::vector<std::string> unrun_;
+    // The IR spans of the live tree, keyed by scene node id (issue #171's `source.patch` slice).
+    // Replaced by every `rebuild()`, so it never describes a tree that is gone.
+    std::vector<SceneBuildResult::SceneNodeSource> node_sources_;
     double next_timestamp_s_ = 0.0;
     bool built_ = false;
     // Set by a handler that changed state during a dispatch; consumed by the rebuild after it.

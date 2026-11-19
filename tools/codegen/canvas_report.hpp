@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "scene_canvas_patch.hpp"
 #include "scene_canvas_session.hpp"
 #include "scene_frame.hpp"
 #include "scene_state.hpp"
@@ -72,6 +73,51 @@ canvas_report_json(const SceneFrameResult& result, std::uint32_t width, std::uin
 // survive `JSON.parse` as a number.
 [[nodiscard]] std::string canvas_pointer_report_json(const CanvasPointerResult& result);
 
+// What the picker found under one point (issue #171's picker slice), as one JSON object on one
+// line:
+//
+//   {"pickVersion":1,"found":true,"automationId":"101","elementKind":"Button",
+//    "box":{"x":12,"y":40,"width":120,"height":32}}
+//
+// `found:false` is a real answer, not an error: the pointer is over no node (outside the viewport,
+// or over a gap the tree does not cover), and the page hides the overlay. The box is in **logical
+// viewport pixels** - the space `tessera_canvas_pointer` takes its coordinates in - so the page
+// scales it by the CSS-to-logical ratio it already applies to pointer input, never by the DPR.
+//
+// `elementKind` is the node's element kind (`Button`, `Text`, `View`, ...), which is what the
+// readout shows beside the id: an id alone does not tell a developer what they are looking at. It
+// is borrowed from the running evaluation, so it is valid until the next apply - which is exactly
+// the lifetime of the report the page reads it from.
+[[nodiscard]] std::string canvas_pick_report_json(const CanvasPickResult& result);
+
+// What the style inspector found for one node (issue #171, designer-protocol-v1 section 9.1), as
+// one JSON object on one line:
+//
+//   {"styleVersion":1,"ok":true,"node":"101",
+//    "computed":{"background-color":"#4a86ff","color":"#ffffff"},
+//    "matched":[{"origin":"author","selector":"Button","specificity":[0,0,1],
+//                "span":{"file":"ui/Preview.css","offset":120,"length":0},
+//                "declarations":[{"property":"background-color","value":"#4a86ff",
+//                                 "important":false,"overridden":false}]}],
+//    "box":{"x":12,"y":40,"width":120,"height":32,
+//           "margin":[0,0,0,0],"border":[0,0,0,0],"padding":[8,8,8,8]},
+//    "overrides":[]}
+//
+// A missing node is `{"styleVersion":1,"ok":false,"reason":"no_such_node"}` and **no other field**
+// (designer-protocol-v1 section 9.1): a page that read a stale `computed` off a failed answer would
+// show the previous node's style under the new node's name.
+//
+// `computed` is an object rather than an array because the spec says "property name -> resolved
+// value string"; a JSON object is the only shape that says that, and the page reads it as a map.
+// `matched` is highest precedence first, which is the engine's own order, not a sort the page
+// applies. `overridden` is the cascade's answer, so a page never has to compare specificities.
+//
+// `span` is the SourceSpan of the rule (designer-protocol-v1 section 3.1) with `length` 0: the
+// engine knows where a rule starts, not how long its selector is, and a zero-length span at the
+// rule's offset is what an editor needs to put a cursor there. `file` is empty for a rule resolved
+// from a blob, which has no source file to point into.
+[[nodiscard]] std::string canvas_style_report_json(const StyleInfoResult& result);
+
 // What one simulated fold-posture change did (issue #408), as one JSON object on one line:
 //
 //   {"foldVersion":1,"changed":true,"error":""}
@@ -139,5 +185,30 @@ canvas_report_json(const SceneFrameResult& result, std::uint32_t width, std::uin
                                                    std::uint32_t frames, std::string_view error,
                                                    const std::vector<std::string>& components = {},
                                                    std::string_view component = {});
+
+// What one style commit produced (issue #171, designer-protocol-v1 section 10.2), as one JSON
+// object on one line:
+//
+//   {"patchVersion":1,"ok":true,"patchId":"...","edits":[{"file":"ui/Card.tsx","offset":42,
+//    "length":24,"newText":"style={{ ... }}"}],"baseVersions":{"ui/Card.tsx":1}}
+//
+// or, when the commit cannot be turned into edits:
+//
+//   {"patchVersion":1,"ok":false,"reason":"not_token_bound"}
+//
+// **`ok:false` carries no `edits` and no `baseVersions`**, because the spec sends no `source.patch`
+// for a failed commit (section 10.2). A page that read an empty edit list off a failure would show
+// "0 edits" where the truth is "nothing was produced".
+//
+// `edits` is in the order the spec requires - sorted by file and descending offset - so a host
+// applies them in the order given and never shifts a later edit. `baseVersions` is an object rather
+// than an array because the spec calls it a map from file path to version, and the page compares it
+// with its own copies by key.
+//
+// **`patchId` is the viewer's own handle for the patch**, which the spec's `style.commit.result`
+// carries so the following `source.patch` can name it (section 10.2). It is derived from the node
+// and the destination, so two commits of the same node to the same destination in one session get
+// the same id and a host can tell a retry from a new commit.
+[[nodiscard]] std::string canvas_patch_report_json(const SourcePatchResult& result);
 
 } // namespace tessera::compiler::codegen::cli

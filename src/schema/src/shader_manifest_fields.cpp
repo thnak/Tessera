@@ -16,7 +16,9 @@
 namespace tessera::schema::internal {
 namespace {
 
-constexpr std::string_view kVertexFormats[] = {"float", "float2", "float3", "float4", "ubyte4norm"};
+// `uint` is the per-vertex texture-array index (RHI 1.7, issue #480 part 2).
+constexpr std::string_view kVertexFormats[] = {"float",  "float2",     "float3",
+                                               "float4", "ubyte4norm", "uint"};
 
 bool is_vertex_format(std::string_view token) {
     return std::ranges::any_of(kVertexFormats,

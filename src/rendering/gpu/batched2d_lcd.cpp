@@ -29,7 +29,12 @@ void Batched2DRenderer::push_texture_lcd(const rhi::Rect& rect, rhi::Texture& te
 }
 
 void Batched2DRenderer::bind_batch_pipeline(const Batch& batch, rhi::Pipeline*& bound) {
-    rhi::Pipeline* wanted = batch.pipeline != nullptr ? batch.pipeline : pipeline_;
+    // An LCD batch keeps its own pipeline; a texture-array batch needs the descriptor-indexing
+    // pipeline, because its layout is the one that declares the sampled-image array (RHI 1.7, issue
+    // #480 part 2). Everything else draws with the frame pipeline.
+    rhi::Pipeline* wanted = batch.pipeline != nullptr ? batch.pipeline
+                            : batch.texture_array     ? array_pipeline_
+                                                      : pipeline_;
     if (wanted != bound) {
         commands_->bind_pipeline(*wanted);
         bound = wanted;

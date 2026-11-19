@@ -315,12 +315,32 @@ void VulkanDevice::create_device() {
     // only thing a caller may consult; enabling is not a guarantee to anyone else.
     const bool dual_source_blend = supported_2.features.dualSrcBlend == VK_TRUE;
 
+    // Descriptor indexing (RHI 1.7, issue #480 part 2): the batched 2D shader indexes a
+    // sampled-image array with a per-vertex value, which needs `runtimeDescriptorArray` plus the
+    // sampled-image indexing features of the fragment stage. Vulkan 1.2 makes the extension core,
+    // so a 1.3 device reports the features in VkPhysicalDeviceVulkan12Features; enable them only
+    // when all four are present, and record the answer as the array capacity (0 = the
+    // one-set-per-texture path).
+    const bool descriptor_indexing =
+        supported_12.runtimeDescriptorArray == VK_TRUE &&
+        supported_12.shaderSampledImageArrayNonUniformIndexing == VK_TRUE &&
+        supported_12.descriptorBindingSampledImageUpdateAfterBind == VK_TRUE &&
+        supported_12.descriptorBindingPartiallyBound == VK_TRUE;
+    const std::uint32_t texture_array_capacity = descriptor_indexing ? kTextureArrayCapacity : 0U;
+
     VkPhysicalDeviceVulkan13Features enabled_13{};
     enabled_13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
     enabled_13.dynamicRendering = VK_TRUE;
     VkPhysicalDeviceVulkan12Features enabled_12{};
     enabled_12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
     enabled_12.timelineSemaphore = VK_TRUE;
+    // Descriptor indexing (RHI 1.7, issue #480 part 2). Each flag is enabled only when the physical
+    // device reported it, so a driver never sees a feature it cannot honour.
+    enabled_12.runtimeDescriptorArray = descriptor_indexing ? VK_TRUE : VK_FALSE;
+    enabled_12.shaderSampledImageArrayNonUniformIndexing = descriptor_indexing ? VK_TRUE : VK_FALSE;
+    enabled_12.descriptorBindingSampledImageUpdateAfterBind =
+        descriptor_indexing ? VK_TRUE : VK_FALSE;
+    enabled_12.descriptorBindingPartiallyBound = descriptor_indexing ? VK_TRUE : VK_FALSE;
     enabled_13.pNext = &enabled_12;
 
     VkPhysicalDeviceFeatures2 enabled_2{};
@@ -360,6 +380,7 @@ void VulkanDevice::create_device() {
     // Recorded after creation so the answer describes the live device generation: a recover()
     // recreates the device and re-probes, and destroy_device_objects() clears it.
     dual_source_blend_ = dual_source_blend;
+    texture_array_capacity_ = texture_array_capacity;
 
     // GPU timestamp probe (docs/design/performance.md section 6.1): validity of timestamps on the
     // frame-submission queue family, that family's graphics capability, and a usable period. The

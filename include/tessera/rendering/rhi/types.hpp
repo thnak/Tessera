@@ -206,7 +206,9 @@ enum class LoadOp { Clear, Load, DontCare };
 
 enum class StoreOp { Store, DontCare };
 
-enum class VertexFormat { Float, Float2, Float3, Float4, UByte4Norm };
+// Vertex attribute formats. `UInt` is a single unsigned integer (RHI 1.7, issue #480 part 2): the
+// per-vertex texture-array index the batched 2D shader reads to pick its sampled image.
+enum class VertexFormat { Float, Float2, Float3, Float4, UByte4Norm, UInt };
 
 // The window-system family a presentation surface belongs to (RHI 1.4, issue #155). `Auto` lets the
 // backend resolve it at instance/device creation from the platform build and the process
@@ -329,6 +331,11 @@ struct PipelineDesc {
     // Empty means "use the SPIR-V words above"; Vulkan and null ignore it. The view must point at
     // storage that outlives pipeline creation (a string literal or a constant in practice).
     std::string_view shader_id;
+    // True when the shader indexes a sampled-image array bound by `CommandList::bind_texture_array`
+    // (RHI 1.7, issue #480 part 2), so the pipeline layout must declare that array. A backend
+    // without the capability (`Device::texture_array_capacity() == 0`) throws instead of building a
+    // pipeline whose descriptor set can never be bound. False keeps the one-set-per-texture layout.
+    bool texture_array = false;
 };
 
 // Supported MSAA sample counts for the 1-sample-first RHI. Values outside this set are rejected at

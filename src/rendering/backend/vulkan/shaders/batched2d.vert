@@ -8,6 +8,10 @@ layout(location = 4) in vec2 in_half_size;
 layout(location = 5) in float in_radius;
 layout(location = 6) in float in_mode;
 layout(location = 7) in vec4 in_carve;
+// Index into the sampled-image array (RHI 1.7, issue #480 part 2). Always present in the vertex
+// layout so one pipeline serves both paths: the one-set-per-texture path writes 0 and the shader
+// reads the single bound image, the array path writes the batch's slot.
+layout(location = 8) in uint in_texture_index;
 
 struct ClipUniform {
     vec4 rect;  // xy = origin, zw = size in target pixels
@@ -36,6 +40,14 @@ layout(location = 3) out vec2 v_half_size;
 layout(location = 4) out float v_radius;
 layout(location = 5) flat out float v_mode;
 layout(location = 6) out vec4 v_carve;
+// Flat: every vertex of a quad carries the same index, so interpolation would only add noise.
+// The LCD variant (batched2d_lcd.frag) shares this stage but never samples an array, so it compiles
+// with TESSERA_NO_TEXTURE_ARRAY and the output is absent there: a vertex output the fragment stage
+// does not declare is legal, but the validation layer reports it and the LCD test treats that as a
+// failure.
+#ifndef TESSERA_NO_TEXTURE_ARRAY
+layout(location = 7) flat out uint v_texture_index;
+#endif
 
 void main() {
     vec2 ndc = vec2(in_position.x / pc.viewport.x * 2.0 - 1.0,
@@ -49,4 +61,7 @@ void main() {
     v_radius = in_radius;
     v_mode = in_mode;
     v_carve = in_carve;
+#ifndef TESSERA_NO_TEXTURE_ARRAY
+    v_texture_index = in_texture_index;
+#endif
 }

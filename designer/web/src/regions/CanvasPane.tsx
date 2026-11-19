@@ -20,6 +20,9 @@
 
 import type { RefObject } from "react";
 import type { ViewDefinition } from "../lib/views";
+import type { GeometryMode } from "../views/skin-geometry";
+import type { Skin } from "../views/skins";
+import { SkinFrame } from "./SkinFrame";
 
 export function CanvasPane({
   view,
@@ -39,6 +42,13 @@ export function CanvasPane({
   statFontRef,
   stateRowRef,
   statStateRef,
+  pickOverlayRef,
+  pickToggleRef,
+  inspectPanelRef,
+  inspectBodyRef,
+  inspectToggleRef,
+  skin,
+  mode,
 }: {
   view: ViewDefinition;
   statusRef: RefObject<HTMLDivElement | null>;
@@ -58,6 +68,17 @@ export function CanvasPane({
   /** Issue #444: the state row's `<dt>` and `<dd>`, hidden until a cell exists. */
   stateRowRef: RefObject<HTMLElement | null>;
   statStateRef: RefObject<HTMLElement | null>;
+  /** Issue #171: the picker's overlay (childless, `pointer-events: none`) and its toggle. */
+  pickOverlayRef: RefObject<HTMLDivElement | null>;
+  pickToggleRef: RefObject<HTMLButtonElement | null>;
+  /** Issue #171: the style inspector's panel, the body it fills, and its toggle. */
+  inspectPanelRef: RefObject<HTMLElement | null>;
+  inspectBodyRef: RefObject<HTMLDivElement | null>;
+  inspectToggleRef: RefObject<HTMLButtonElement | null>;
+  /** Issue #171's skins slice: the selected skin, or `null` for no frame. */
+  skin: Skin | null;
+  /** The geometry mode of `designer-studio-v1.md` section 5.1. */
+  mode: GeometryMode;
 }) {
   return (
     <section
@@ -70,6 +91,34 @@ export function CanvasPane({
     >
       <div className="pane-header">
         <h2>Canvas</h2>
+        {/* Issue #171's picker: off by default, because the overlay is a tool rather than the
+            preview. `aria-pressed` is the state a screen reader reads, and the session keeps it in
+            step with the overlay it controls. */}
+        <div className="pane-actions">
+          <button
+            id="pick-toggle"
+            type="button"
+            aria-pressed="false"
+            aria-controls="pick-overlay"
+            title="Outline the node under the pointer and name it"
+            ref={pickToggleRef}
+          >
+            Picker
+          </button>
+          {/* Issue #171's style inspector: off by default, because it consumes the click it
+              inspects. `aria-pressed` is the state a screen reader reads, and the session keeps it
+              in step with the panel it controls. */}
+          <button
+            id="inspect-toggle"
+            type="button"
+            aria-pressed="false"
+            aria-controls="inspect-panel"
+            title="Click a node to show its computed style, matched rules and box"
+            ref={inspectToggleRef}
+          >
+            Inspector
+          </button>
+        </div>
         <div className="status" id="canvas-status" role="status" aria-live="polite" ref={statusRef}>
           not started
         </div>
@@ -89,15 +138,54 @@ export function CanvasPane({
       </div>
 
       {/* The engine's one surface. React renders this element once and never touches it again; the
-          canvas session owns its backing store, its WebGPU context and its frames. */}
+          canvas session owns its backing store, its WebGPU context and its frames.
+
+          Since issue #171's skins slice it sits inside the simulated device frame: the bezel, the
+          bars and the cutout are page chrome around and over it, and the canvas element itself is
+          unchanged - same type, same position in this tree, no `key` - so React reconciles it in
+          place and the session's device survives a skin change. The picker's overlay is a sibling
+          *inside* the same positioned box, so it can be laid over the canvas without a second
+          coordinate system. It is childless here: the session builds the outline and the readout
+          into it, the same way it owns the canvas. */}
       <div className="canvas-frame" id="canvas-frame" ref={frameRef} hidden>
-        <canvas id="canvas" ref={canvasRef} width={320} height={240} aria-label="Preview of the evaluated scene" />
+        <SkinFrame skin={skin} mode={mode}>
+          <div className="canvas-stack">
+            <canvas
+              id="canvas"
+              ref={canvasRef}
+              width={320}
+              height={240}
+              // A focus stop (issue #388): Tab reaches the preview, and its own controls take focus inside it.
+              // `application` tells a screen reader to pass keys through rather than read the page.
+              tabIndex={0}
+              role="application"
+              aria-label="Preview of the evaluated scene (interactive)"
+            />
+            <div
+              className="pick-overlay"
+              id="pick-overlay"
+              ref={pickOverlayRef}
+              aria-hidden="true"
+              hidden
+            />
+          </div>
+        </SkinFrame>
       </div>
 
       <div className="unavailable" id="failed" ref={failedRef} hidden>
         <h3>Preview failed</h3>
         <p id="failed-body" ref={failedBodyRef} />
       </div>
+
+      {/* Issue #171's style inspector. A page element beside the canvas, not engine paint: the
+          engine draws the previewed app and nothing else (ADR-054 decision 3), and a panel drawn by
+          the engine would be part of the frame and would contaminate the pixels a golden compares.
+          It is childless here: the inspector builds its rows into the body, the same way the picker
+          owns its overlay. Hidden until a node is inspected, and off by default. */}
+      <section className="inspect-panel" id="inspect-panel" ref={inspectPanelRef} hidden>
+        <h3>Style</h3>
+        <div className="inspect-body" id="inspect-body" ref={inspectBodyRef} />
+      </section>
 
       <dl className="frame-stats" id="frame-stats" ref={frameStatsRef} hidden>
         <dt>Frame</dt>

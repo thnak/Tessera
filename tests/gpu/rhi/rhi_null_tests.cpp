@@ -18,10 +18,11 @@ int main() {
     // presentation surface family a device is created for (issue #155); 1.5 added
     // `BlendMode::DualSource` and `Device::supports_dual_source_blend()` (issue #471); 1.6 added
     // `TextureDesc::levels` and `Device::supports_texture_mipmaps()` (issue #491); 1.7 added
-    // `Backend::Metal`, the native macOS/iOS backend (ADR-053). All are additive compatible
-    // changes.
-    if (rhi::kRhiVersionMajor != 1 || rhi::kRhiVersionMinor != 7 ||
-        rhi::kRhiVersion != ((1u << 16) | 7u)) {
+    // `CommandList::bind_texture_array` and `Device::texture_array_capacity()` (issue #480);
+    // 1.8 added `Backend::Metal`, the native macOS/iOS backend (ADR-053). All are additive
+    // compatible changes.
+    if (rhi::kRhiVersionMajor != 1 || rhi::kRhiVersionMinor != 8 ||
+        rhi::kRhiVersion != ((1u << 16) | 8u)) {
         std::cerr << "unexpected RHI version constants\n";
         return 1;
     }

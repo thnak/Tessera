@@ -150,6 +150,16 @@ bool Builder::build_node(const ir::Node& node, ui::Node& parent, std::size_t dep
     ui::Node& scene = parent.add_child(std::move(created));
     scene.set_element_kind(ir::node_kind_name(node.kind));
 
+    // The IR span of the JSX element this node came from (issue #171's `source.patch` slice). It is
+    // recorded here because this is the last point that holds the `ir::Node`: the scene node
+    // carries no span (a `ui::Node` field would break the node memory budget for a design-time-only
+    // fact), so the commit path reads it from the side table this fills. A node with no span (a
+    // synthesized node, or a source the front end could not locate) records nothing, and a commit
+    // for it answers `component_invalid` rather than editing a guessed range.
+    if (!node.source.file.empty() && node.source.length != 0) {
+        result_.sources.push_back({scene.id(), node.source});
+    }
+
     // Numeric identity: an explicit `automationId` replaces the computed `uiId` (section 2), and
     // the scene node's automation id is what the snapshot reports. Both are decimal strings.
     std::uint64_t id = 0;

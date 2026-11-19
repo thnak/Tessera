@@ -70,6 +70,19 @@ export interface PaneRefs {  /**
   /** Issue #444: the state row's `<dd>`, which the pane fills with one `name=value` per cell. */
   statState: React.RefObject<HTMLElement | null>;
   /**
+   * Issue #171's picker: the overlay the outline and the readout are drawn into, and the toggle that
+   * arms it. The overlay is `pointer-events: none` in CSS, so it never intercepts a move or a press.
+   */
+  pickOverlay: React.RefObject<HTMLDivElement | null>;
+  pickToggle: React.RefObject<HTMLButtonElement | null>;
+  /**
+   * Issue #171's style inspector: the panel beside the canvas, the body the inspector fills, and the
+   * toggle that arms it. The panel is a page element, not engine paint, so it costs no frame.
+   */
+  inspectPanel: React.RefObject<HTMLElement | null>;
+  inspectBody: React.RefObject<HTMLDivElement | null>;
+  inspectToggle: React.RefObject<HTMLButtonElement | null>;
+  /**
    * The status line's mirror cells (issue #431). The status line spans the bottom of the workspace, so
    * the two facts it reports from the engine -- the diagnostics count and the last frame -- are written
    * by the session that owns them, into a second cell, rather than routed back through React state
@@ -117,6 +130,13 @@ export function usePaneRefs(): PaneRefs {
     // Issue #444: the running evaluation's state cells, and the row that hides when there are none.
     stateRow: useRef<HTMLElement>(null),
     statState: useRef<HTMLElement>(null),
+    // Issue #171's picker: the overlay over the canvas, and the header toggle that arms it.
+    pickOverlay: useRef<HTMLDivElement>(null),
+    pickToggle: useRef<HTMLButtonElement>(null),
+    // Issue #171's style inspector: the panel, the body it fills, and the toggle that arms it.
+    inspectPanel: useRef<HTMLElement>(null),
+    inspectBody: useRef<HTMLDivElement>(null),
+    inspectToggle: useRef<HTMLButtonElement>(null),
     statusDiagnostics: useRef<HTMLSpanElement>(null),
     statusFrame: useRef<HTMLSpanElement>(null),
   };

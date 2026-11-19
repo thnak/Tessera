@@ -37,6 +37,17 @@ struct PreparedItem {
 
     // Rule
     SelectorList selectors;
+    // The selector list as the author wrote it, and the byte offset of the rule in its sheet. Both
+    // exist for the designer's `style.info` (designer-protocol-v1 section 9.1), which has to name
+    // the rule a developer would recognise and point at it in their file.
+    //
+    // **Why they are not in the blob** (docs/specs/compiled-stylesheet-v1.md section 5): the text
+    // is reconstructible from `selectors` and the offset is meaningless in a build artifact, which
+    // has no source file to point into. Carrying them would bump `format_version` and regenerate
+    // every committed blob golden for a field only a design-time query reads, so a blob-loaded
+    // sheet leaves `selector` empty and `offset` 0 and the resolve step prints the selector back.
+    std::string selector;
+    std::size_t offset = 0;
     std::vector<Declaration> declarations; // shorthands already expanded
     std::uint32_t layer = kUnlayeredLayer; // index into PreparedStyleSheet::layers
     std::vector<ContainerQuery> containers;

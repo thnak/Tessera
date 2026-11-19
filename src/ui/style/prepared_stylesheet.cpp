@@ -124,6 +124,11 @@ void Preparer::rule(const Rule& source, std::uint32_t layer) {
     }
     PreparedItem item = make_item(PreparedItemKind::Rule);
     item.selectors = std::move(parsed.list);
+    // The authored text and the rule's offset, kept for the designer's `style.info`
+    // (designer-protocol-v1 section 9.1). `source.selector` is already trimmed by the parser, so it
+    // is exactly what a developer sees before the `{`.
+    item.selector = source.selector;
+    item.offset = source.offset;
     item.declarations = std::move(expanded.declarations);
     item.layer = layer;
     item.containers = containers_;

@@ -3,10 +3,12 @@
 // Every export is specified in `docs/design/compiler-wasm.md` section 10, which is the normative
 // source for the module ABI, with the canvas session's own table in
 // `docs/design/canvas-input-session.md` section 5: `tessera_webgpu_set_device`,
-// `tessera_canvas_apply`, `tessera_canvas_pointer`, `tessera_canvas_set_fold`,
-// `tessera_canvas_set_viewport`, `tessera_canvas_draw`, `tessera_canvas_reset`,
-// `tessera_canvas_set_font` and `tessera_canvas_font_status`, plus the four shared
-// `tessera_project_*` exports (`wasm_project_exports.cpp`) that stage the project `apply`
+// `tessera_canvas_apply`, `tessera_canvas_pointer`, `tessera_canvas_pick`,
+// `tessera_canvas_style`, `tessera_canvas_patch`, `tessera_canvas_set_fold`,
+// `tessera_canvas_set_viewport`,
+// `tessera_canvas_set_safe_area`, `tessera_canvas_draw`, `tessera_canvas_reset`,
+// `tessera_canvas_set_font` and `tessera_canvas_font_status`, plus the four
+// shared `tessera_project_*` exports (`wasm_project_exports.cpp`) that stage the project `apply`
 // evaluates. Read that before changing a signature; it also carries the "why Emscripten only"
 // rationale and the verified-status record.
 //
@@ -29,6 +31,7 @@
 #include "wasm_canvas_font.hpp"
 #include "wasm_canvas_paint.hpp"
 #include "wasm_canvas_request.hpp"
+#include "wasm_canvas_safe_area.hpp"
 #include "wasm_canvas_support.hpp"
 #include "wasm_project_stage.hpp"
 
@@ -41,7 +44,6 @@
 #include <string>
 #include <string_view>
 #include <vector>
-
 namespace {
 
 namespace cli = tessera::compiler::codegen::cli;
@@ -79,6 +81,22 @@ std::string report_with_css(const cli::SceneFrameResult& result, rhi::Extent2D e
 std::unique_ptr<cli::CanvasSceneSession> g_session;
 
 } // namespace
+
+namespace tessera::compiler::codegen::cli {
+
+// The running session, for the query exports that live in `wasm_canvas_query.cpp` (issue #171's
+// `source.patch` slice split them out when this entry passed the source-size limit). The queries
+// read the session and answer a value; they never create, replace or reset it, so a pointer is
+// enough and the entry keeps sole ownership.
+CanvasSceneSession* canvas_query_session() {
+    return g_session.get();
+}
+
+char* canvas_duplicate_out(std::string_view text) {
+    return duplicate_out(text);
+}
+
+} // namespace tessera::compiler::codegen::cli
 
 extern "C" {
 
@@ -216,6 +234,41 @@ EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_pointer(const char* kind, float 
     return duplicate_out(cli::canvas_pointer_report_json(result));
 }
 
+// Routes one keyboard event into the running session (issue #388, focus) and returns the same
+// document `tessera_canvas_pointer` does, with the focus fields filled.
+//   kind       "down" | "up"            a key event; "blur" drops focus (the element lost the
+//   keyboard) key        a W3C `KeyboardEvent.key` ("Tab", "Enter", " ", "ArrowDown", "a")
+//   modifiers  a `ui::Modifier` mask: Shift 1, Control 2, Alt 4, Meta 8 (the page's `shiftKey`
+//   etc.) repeat     non-zero for an auto-repeat of a held key
+//
+// Tab and Shift+Tab move focus through the focusable controls in tree order and **release it at
+// either end** (`left: true`, `handled: false`) rather than wrapping, so the page leaves the key
+// alone and the browser moves on to the next element: a canvas must not be a keyboard trap. Enter
+// and Space activate the focused button through the router's click synthesis. `handled` tells the
+// page whether to call `preventDefault`. An unknown `kind` or `key` answers a well-formed report
+// with nothing done, like the pointer export.
+EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_key(const char* kind, const char* key,
+                                                    int modifiers, int repeat) {
+    cli::CanvasPointerResult result;
+    if (g_session == nullptr || !g_session->started()) {
+        return duplicate_out(cli::canvas_pointer_report_json(result));
+    }
+    const std::string_view name = kind != nullptr ? std::string_view(kind) : std::string_view();
+    if (name == "blur") {
+        return duplicate_out(cli::canvas_pointer_report_json(g_session->blur()));
+    }
+    bool known = false;
+    const cli::PreviewInput::Kind parsed = cli::key_kind_from(name, known);
+    const std::uint32_t code =
+        cli::key_code_from_name(key != nullptr ? std::string_view(key) : std::string_view());
+    if (!known || code == 0) {
+        return duplicate_out(cli::canvas_pointer_report_json(result));
+    }
+    result = g_session->key(
+        parsed, code, modifiers > 0 ? static_cast<std::uint32_t>(modifiers) : 0U, repeat != 0);
+    return duplicate_out(cli::canvas_pointer_report_json(result));
+}
+
 // Changes the simulated fold posture of the RUNNING session (issue #408) and re-lays the tree out
 // in place. Returns the same one-line report a Run returns, with `changed` set when a layout pass
 // ran: the page draws one frame when it is true, and nothing when the posture was already in force.
@@ -279,6 +332,49 @@ EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_set_viewport(int width, int heig
     const bool changed = g_session->set_viewport(request.width, request.height, request.dpi);
     return duplicate_out(cli::canvas_viewport_report_json(
         changed, request.width, request.height, request.dpi, g_session->cascade_generation(), {}));
+}
+
+// Changes the simulated skin's safe area of the RUNNING session (issue #171's skins slice) and
+// re-lays the tree out in place: `inset_*` are the logical-pixel insets a device would report as
+// `WindowMetrics::insets`, and `cutout_*` is the cutout rectangle (all zero for none).
+//
+// **Why this is its own export rather than more arguments on `tessera_canvas_set_viewport`.** The
+// two answer different controls - the toolbar's size/DPR pair and the skin picker - and a page
+// built against the previous module keeps calling the three-argument `set_viewport`, which is what
+// "keep the existing arguments working" means. The engine side is one layout pass either way
+// (`CanvasSceneSession::set_safe_area`), so the split costs nothing at runtime.
+//
+// **Why the engine has to hear about it at all.** `designer-studio-v1.md` section 5.1 says a skin's
+// insets are "passed to the viewer as `safeAreas` in `viewport.set`, exactly as
+// `WindowMetrics::insets` would arrive from the HAL", and that "the skin must never change the
+// engine's logical size behind its back". A page-only overlay would draw a phone's status bar over
+// a tree that was laid out as if the bar were not there - a skin that changes the picture without
+// changing the layout. This export is what makes the `SafeArea` padding and every box follow the
+// skin, through the same `hal::resolve_safe_area()` the native app runs.
+//
+// Returns the same one-line report a Run returns, with `changed` set when a layout pass ran: the
+// page draws one frame when it is true, and nothing when the safe area was already in force.
+EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_set_safe_area(float inset_left, float inset_top,
+                                                              float inset_right, float inset_bottom,
+                                                              float cutout_x, float cutout_y,
+                                                              float cutout_width,
+                                                              float cutout_height) {
+    const auto extent = rhi::Extent2D{};
+    const cli::CanvasSafeAreaRequest request =
+        cli::canvas_safe_area_request(inset_left, inset_top, inset_right, inset_bottom, cutout_x,
+                                      cutout_y, cutout_width, cutout_height);
+    if (g_session == nullptr || !g_session->started() || !request.error.empty()) {
+        cli::SceneFrameResult none;
+        none.error = request.error.empty()
+                         ? std::string("no canvas session: call tessera_canvas_apply first")
+                         : request.error;
+        return duplicate_out(cli::canvas_report_json(none, extent.width, extent.height, false));
+    }
+    // The layout pass completes INSIDE this call, so the page's next `tessera_canvas_draw` paints
+    // the new safe area on its first frame - no frame of stale padding.
+    const bool changed = g_session->set_safe_area(request.insets, request.cutouts);
+    cli::SceneFrameResult report;
+    return duplicate_out(cli::canvas_fold_report_json(report, changed));
 }
 
 // Draws the running session's current tree into the canvas texture view the page hands over, and

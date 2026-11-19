@@ -3,8 +3,11 @@
 #include "wasm_canvas_font.hpp"
 #include "wasm_canvas_request.hpp"
 
+#include <cstdint>
+#include <cstdlib>
 #include <optional>
 #include <string>
+#include <string_view>
 
 namespace tessera::compiler::codegen::cli {
 
@@ -61,6 +64,50 @@ CanvasViewportRequest canvas_viewport_request(int width, int height, float dpi) 
         // Refused, not defaulted: a toolbar that sent 0 would otherwise lay the tree out at the
         // module's 320x240 default while the page believed it had asked for something else.
         request.error = "the viewport must be positive in both dimensions";
+    }
+    return request;
+}
+
+PatchRequest canvas_patch_request(std::string_view automation_id, std::string_view destination,
+                                  std::string_view class_name, std::string_view file,
+                                  std::string_view token, std::string_view token_value,
+                                  std::string_view declarations) {
+    PatchRequest request;
+    // `strtoull` rather than `std::stoull`: the latter throws on a malformed id, and nothing may
+    // throw across the FFI boundary. A malformed id parses to 0, which is `no_such_node`.
+    const std::string id_text(automation_id);
+    char* end = nullptr;
+    const unsigned long long parsed = std::strtoull(id_text.c_str(), &end, 10);
+    if (end != id_text.c_str() && *end == '\0') {
+        request.automation_id = static_cast<std::uint64_t>(parsed);
+    }
+    if (destination == "class") {
+        request.destination = PatchDestination::Class;
+    } else if (destination == "token") {
+        request.destination = PatchDestination::Token;
+    } else {
+        request.destination = PatchDestination::Inline;
+    }
+    request.class_name = std::string(class_name);
+    request.file = std::string(file);
+    request.token = std::string(token);
+    request.token_value = std::string(token_value);
+    // The declarations arrive as `property:value` lines. A line without a colon is skipped rather
+    // than committed as a property with an empty value, which would write `color: ;` into a file.
+    std::size_t start = 0;
+    while (start <= declarations.size()) {
+        const std::size_t newline = declarations.find('\n', start);
+        const std::string_view line = declarations.substr(
+            start, newline == std::string_view::npos ? std::string_view::npos : newline - start);
+        const std::size_t colon = line.find(':');
+        if (colon != std::string_view::npos && colon != 0) {
+            request.declarations.emplace_back(std::string(line.substr(0, colon)),
+                                              std::string(line.substr(colon + 1)));
+        }
+        if (newline == std::string_view::npos) {
+            break;
+        }
+        start = newline + 1;
     }
     return request;
 }

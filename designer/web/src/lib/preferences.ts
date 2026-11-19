@@ -15,6 +15,7 @@ export {
   DEFAULT_FILE,
   FOLD_POSTURES,
   FOLD_POSTURE_LABELS,
+  SKIN_IDS,
   THEMES,
   VIEWPORTS,
   DPRS,
@@ -31,7 +32,7 @@ import { encodeShare, stateFromHash } from "./share";
 const STORAGE_KEY = "tessera.preview.p5";
 
 /** The fields a previous visit may restore. The source never is one of them. */
-const PREFERENCE_KEYS = ["viewport", "dpr", "theme", "file", "foldPosture"] as const;
+const PREFERENCE_KEYS = ["viewport", "dpr", "theme", "file", "foldPosture", "skin"] as const;
 
 /** The toolbar's values, as the strings a `<select>` holds. */
 export interface Controls {
@@ -44,6 +45,12 @@ export interface Controls {
    * for a Run.
    */
   foldPosture: string;
+  /**
+   * The simulated device skin (issue #171's skins slice): a directory name under `skins/`, or `""`
+   * for no frame. A layout input like the viewport: the skin's derived viewer size and its insets
+   * are what the engine lays out, so a change re-lays the preview out in one pass.
+   */
+  skin: string;
 }
 
 /** The stored preference fields: the toolbar's three plus the file name a link carried. */
@@ -64,6 +71,8 @@ export interface EnvironmentState {
   theme: string;
   /** The simulated fold posture; `""` is no fold (issue #408). */
   foldPosture: string;
+  /** The simulated device skin; `""` is no frame (issue #171's skins slice). */
+  skin: string;
   from?: "link" | "local" | "default";
 }
 
@@ -73,6 +82,7 @@ export const DEFAULT_CONTROLS: Controls = Object.freeze({
   dpr: "1",
   theme: "system",
   foldPosture: "",
+  skin: "",
 });
 
 function safeStorage(): Storage | null {
@@ -157,6 +167,7 @@ export async function initialState(
       theme: typeof stored.theme === "string" && stored.theme !== "" ? stored.theme : fallback.theme,
       foldPosture:
         typeof stored.foldPosture === "string" ? stored.foldPosture : fallback.foldPosture,
+      skin: typeof stored.skin === "string" ? stored.skin : fallback.skin,
       from: "local",
     };
   }
@@ -190,6 +201,7 @@ export function shareStateOf(
     dpr: Number(controls.dpr),
     theme: String(controls.theme),
     foldPosture: String(controls.foldPosture),
+    skin: String(controls.skin),
   };
 }
 

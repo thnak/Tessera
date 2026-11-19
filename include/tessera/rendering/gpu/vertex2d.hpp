@@ -32,14 +32,21 @@ struct Vertex2D {
     float carve_y = 0;
     float carve_half_width = 0;
     float carve_half_height = 0;
+    // Index into the batch's sampled-image array (RHI 1.7, issue #480 part 2). 0 on the
+    // one-set-per-texture path, where the shader reads the single bound image and ignores this; on
+    // the array path it is the batch's slot, so consecutive quads over different textures share one
+    // draw. It rides in the vertex stream for the same reason the carve box does: a per-draw value
+    // would split the batch it is meant to keep together.
+    std::uint32_t texture_index = 0;
 };
 
-// 44 bytes of long-standing layout plus the 16-byte carve box the soft-shadow fragment stage needs.
-// The carve is per primitive, so it rides in the vertex stream: putting it in the push-constant
-// block would make it per draw and split the batch around every shadow (the batch key is texture,
-// scissor and folded clip state), and the 112-byte block has no room left inside Vulkan's 128-byte
-// minimum. See docs/design/gpu/box-shadow-clipping.md.
-static_assert(sizeof(Vertex2D) == 60, "Vertex2D layout must stay stable");
+// 44 bytes of long-standing layout plus the 16-byte carve box the soft-shadow fragment stage needs,
+// plus the 4-byte texture-array index (RHI 1.7, issue #480 part 2). The carve is per primitive, so
+// it rides in the vertex stream: putting it in the push-constant block would make it per draw and
+// split the batch around every shadow (the batch key is texture, scissor and folded clip state),
+// and the 112-byte block has no room left inside Vulkan's 128-byte minimum. See
+// docs/design/gpu/box-shadow-clipping.md.
+static_assert(sizeof(Vertex2D) == 64, "Vertex2D layout must stay stable");
 
 // `Vertex2D::mode`: 0 solid, 1 rounded rect, 2 textured, and 3 + w for a rounded-rect outline of
 // stroke width w (the shaders read the width back as mode - 3).
@@ -66,9 +73,10 @@ inline constexpr rhi::VertexAttribute kVertex2DAttributes[] = {
     {5, static_cast<std::uint32_t>(offsetof(Vertex2D, radius)), rhi::VertexFormat::Float},
     {6, static_cast<std::uint32_t>(offsetof(Vertex2D, mode)), rhi::VertexFormat::Float},
     {7, static_cast<std::uint32_t>(offsetof(Vertex2D, carve_x)), rhi::VertexFormat::Float4},
+    {8, static_cast<std::uint32_t>(offsetof(Vertex2D, texture_index)), rhi::VertexFormat::UInt},
 };
 
-inline constexpr std::uint32_t kVertex2DAttributeCount = 8;
+inline constexpr std::uint32_t kVertex2DAttributeCount = 9;
 inline constexpr std::uint32_t kVertex2DStride = sizeof(Vertex2D);
 
 // Push-constant block shared by the batched2d vertex and fragment stages. `clips` carries the

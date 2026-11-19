@@ -1026,6 +1026,10 @@ function include/tessera/rendering/golden/perceptual.hpp tessera::rendering::gol
 function include/tessera/rendering/golden/perceptual.hpp tessera::rendering::golden::luma8
 function include/tessera/rendering/golden/perceptual.hpp tessera::rendering::golden::valid_rgba
 
+header include/tessera/rendering/gpu/batch_split.hpp
+struct include/tessera/rendering/gpu/batch_split.hpp tessera::rendering::gpu::BatchSplitStats
+enum include/tessera/rendering/gpu/batch_split.hpp tessera::rendering::gpu::BatchSplitReason
+
 header include/tessera/rendering/gpu/batched2d_renderer.hpp
 class include/tessera/rendering/gpu/batched2d_renderer.hpp tessera::rendering::gpu::Batched2DRenderer
 struct include/tessera/rendering/gpu/batched2d_renderer.hpp tessera::rendering::gpu::Batched2DConfig
@@ -1071,6 +1075,7 @@ class include/tessera/rendering/gpu/offscreen_target_pool.hpp tessera::rendering
 struct include/tessera/rendering/gpu/offscreen_target_pool.hpp tessera::rendering::gpu::OffscreenTargetPoolConfig
 
 header include/tessera/rendering/gpu/shader_ids.hpp
+constant include/tessera/rendering/gpu/shader_ids.hpp tessera::rendering::gpu::kBatched2dArrayShaderId
 constant include/tessera/rendering/gpu/shader_ids.hpp tessera::rendering::gpu::kBatched2dLcdShaderId
 constant include/tessera/rendering/gpu/shader_ids.hpp tessera::rendering::gpu::kBatched2dShaderId
 constant include/tessera/rendering/gpu/shader_ids.hpp tessera::rendering::gpu::kGlassBlurShaderId
@@ -1267,6 +1272,7 @@ header include/tessera/rendering/software/cpu_canvas.hpp
 class include/tessera/rendering/software/cpu_canvas.hpp tessera::rendering::software::CpuCanvas
 
 header include/tessera/rendering/vulkan/batched2d_pipeline.hpp
+function include/tessera/rendering/vulkan/batched2d_pipeline.hpp tessera::rendering::vulkan::batched2d_array_pipeline_desc
 function include/tessera/rendering/vulkan/batched2d_pipeline.hpp tessera::rendering::vulkan::batched2d_lcd_pipeline_desc
 function include/tessera/rendering/vulkan/batched2d_pipeline.hpp tessera::rendering::vulkan::batched2d_pipeline_desc
 

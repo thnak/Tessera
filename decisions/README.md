@@ -66,6 +66,7 @@ V1 is the first release. A feature is in V1 unless the ADR or spec that owns it 
 | [ADR-054](ADR-054-studio-front-end-react-vite.md) | Studio front end is a React 19 + Vite application over the static Wasm host page; chrome only, design-time mock services are host TypeScript modules (amends the page-stack wording of ADR-045, which is not superseded). Accepted (2026-11-16, owner) |
 | [ADR-055](ADR-055-studio-mock-services.md) | Design-time mock services are `*.mock.ts` project files compiled and run in a sandboxed studio worker; the engine never executes TypeScript; narrows ADR-045 decision 7 for mock files only. Accepted (2026-11-16, owner chose option B); implementation gated on the service seam |
 | [ADR-056](ADR-056-update-dependency-masks-and-scheduled-children.md) | Generated components re-evaluate only bindings whose compile-time dependency bits are dirty, and a parent schedules a child's ticket on a prop change instead of calling its `update()`; answers the #440 fan-out measurement. Accepted (2026-11-17); slices #441, #442, #443 |
+| [ADR-057](ADR-057-vector-paths-thorvg-default-and-exit.md) | `TESSERA_ENABLE_THORVG` defaults ON (the Linux lane already proves it; the Windows lane pins it OFF for its build budget), and ThorVG is replaced by an in-house rasterizer behind the unchanged `PathRasterizer` seam when a measured trigger fires. Amends ADR-004 decision 1. Accepted (2026-11-18, owner) |
 
 ## Dependency overview
 
@@ -111,6 +112,7 @@ ADR-053 native Metal backend (accepted) ── ADR-010 macOS deferred (supersede
 ADR-054 studio front end React 19 + Vite (accepted) ── ADR-045 browser-hosted studio (page stack amended), ADR-024 boundaries (unchanged), ADR-050 section 3.1 item 6 (preview fakes)
 ADR-055 studio mock services (accepted) ── ADR-054 studio stack, ADR-045 decision 7 (narrowed for mock files), ADR-050 preview fakes, services design (post-V1)
 ADR-056 update dependency masks (accepted) ── ADR-040 generated base, ADR-018 dirty rendering, observable design note
+ADR-057 vector paths: ThorVG default ON + measured exit (accepted) ── ADR-004 buy vector paths (decision 1 amended), ADR-012 static linking, ADR-009 goldens
 ```
 
 [ADR-035](ADR-035-view-transitions.md), [ADR-036](ADR-036-own-jsx-frontend-and-react-like-model.md), and [ADR-037](ADR-037-self-contained-wasm-designer.md) are listed in the table above but are not drawn in this diagram.

@@ -55,9 +55,26 @@ import {
   type CanvasStateCell,
   type CanvasViewportReport,
 } from "./canvas-frame";
+import { attachCanvasKeyboard } from "./canvas-keyboard";
+import { attachCanvasPointer } from "./canvas-pointer";
+import { createCanvasInspector, type CanvasInspector } from "./canvas-inspector";
 import { createCanvasPane, type CanvasPane, type CanvasPaneElements } from "./canvas-pane";
+import { createCanvasPicker, type CanvasPicker } from "./canvas-picker";
 
 export type { CanvasApplyReport, CanvasFrameReport, CanvasStateCell };
+
+/**
+ * The skin's safe area as the canvas module takes it (issue #171's skins slice): the insets a device
+ * would report as `WindowMetrics::insets` and its cutout rectangle, in viewer coordinates.
+ *
+ * `null` from the reader means "no skin", which is the pre-#171 page: the session then sends zeros,
+ * so a visitor who never picks a skin lays out exactly as before.
+ */
+export interface SkinSafeArea {
+  insets: { top: number; right: number; bottom: number; left: number };
+  /** The cutout rectangle, or `null` for none. */
+  cutout: { x: number; y: number; width: number; height: number } | null;
+}
 
 /** The module factory `tessera_canvas.js` exports. */
 type ModuleFactory = () => Promise<WasmModule & CanvasModule>;
@@ -76,6 +93,16 @@ export interface CanvasSessionOptions {
    * `tabletop`. It is a layout input, so a change draws again rather than waiting for a Run.
    */
   foldPosture: () => string;
+  /**
+   * The selected skin's safe area (issue #171's skins slice), or `null` for no skin.
+   *
+   * It is a reader rather than a value for the same reason `environment` is: the toolbar can move
+   * between two applies, and the session is created once. The insets are what the engine pads a
+   * `SafeArea` by, so a skin change is a layout pass (`tessera_canvas_set_safe_area`) and not only a
+   * repaint - `designer-studio-v1.md` section 5.1's "the skin must never change the engine's logical
+   * size behind its back".
+   */
+  safeArea: () => SkinSafeArea | null;
   /** The component the person picked in the preview's dropdown; `""` is the entry's first. */
   component: () => string;
   /** The entry's declared components and the one previewed, after every successful apply. */
@@ -87,6 +114,17 @@ export interface CanvasSessionOptions {
 export interface CanvasSession extends ViewSession {
   readonly id: "canvas";
   readonly pane: CanvasPane;
+  /**
+   * The picker overlay (issue #171's picker slice). Off by default; the pane's toggle arms it, and
+   * while armed a pointer move over the canvas outlines the node under it and names it.
+   */
+  readonly picker: CanvasPicker;
+  /**
+   * The style inspector (issue #171, designer-protocol-v1 section 9.1). Off by default; the pane's
+   * toggle arms it, and while armed a click on the canvas shows that node's computed style, matched
+   * rules and box. It consumes the click it inspects, which is why it is not on by default.
+   */
+  readonly inspector: CanvasInspector;
 }
 
 export function createCanvasSession(options: CanvasSessionOptions): CanvasSession {
@@ -108,11 +146,121 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
   // Cleared while the view is hidden, so a hidden pane never draws.
   let visible = false;
 
+  // The picker overlay (issue #171). It asks the module a question and draws a `div`; it never
+  // dispatches, so arming it cannot move `:hover` or cost a frame. `module()` reads `gpu` lazily
+  // because the picker is created before the first apply has acquired a device.
+  const picker = createCanvasPicker({
+    elements: {
+      overlay: options.elements.pickOverlay ?? document.createElement("div"),
+      canvas,
+      toggle: options.elements.pickToggle,
+    },
+    module: () => (gpu !== null ? gpu.module : null),
+    // `requestedViewport` takes the reader, not a reading: the toolbar can move between two picks.
+    viewport: () => requestedViewport(options.environment),
+    setStatus: options.setStatus,
+  });
+
+  // A pointer move over the canvas is the picker's only input. It is registered once, on the canvas
+  // itself, and it does nothing while the picker is disarmed - so the preview's own pointer path
+  // (which is the engine's, not this page's) is unaffected either way.
+  canvas.addEventListener("pointermove", (event) => {
+    picker.move(event.clientX, event.clientY);
+  });
+  // The pointer leaving the canvas is the same fact as a move over no node: the outline goes away
+  // rather than staying over the last node the pointer touched.
+  canvas.addEventListener("pointerleave", () => {
+    picker.hide();
+  });
+
+  // The style inspector (issue #171, designer-protocol-v1 section 9.1). It is armed by its own
+  // toggle and consumes the click it inspects, so a visitor who never opens it keeps a fully
+  // interactive canvas. The listener is registered in the capture phase and stops the event when the
+  // inspector took it: the engine's pointer path must not also see a press that was meant to select
+  // a node, or the click would both inspect and activate the control under it.
+  const inspector = createCanvasInspector({
+    elements: {
+      panel: options.elements.inspectPanel ?? document.createElement("div"),
+      body: options.elements.inspectBody ?? document.createElement("div"),
+      toggle: options.elements.inspectToggle,
+      canvas,
+    },
+    module: () => (gpu !== null ? gpu.module : null),
+    viewport: () => requestedViewport(options.environment),
+    setStatus: options.setStatus,
+  });
+  canvas.addEventListener(
+    "pointerdown",
+    (event) => {
+      if (inspector.click(event.clientX, event.clientY)) {
+        // The click was the inspector's: it must not reach the engine, or the control under the
+        // pointer would activate as well as being inspected.
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    },
+    { capture: true },
+  );
+
   // Sizes the backing store and remembers the dpr it used, so a resize can tell a real change from noise.
   function resize(): { dpr: number; width: number; height: number } {
     const sized = sizeToDevicePixels(canvas, requestedViewport(options.environment));
     lastDpr = sized.dpr;
     return sized;
+  }
+
+  /**
+   * Hands the selected skin's safe area to the running session (issue #171's skins slice).
+   *
+   * **Why the engine has to hear about it.** `designer-studio-v1.md` section 5.1 says a skin's insets
+   * are "passed to the viewer as `safeAreas` in `viewport.set`, exactly as `WindowMetrics::insets`
+   * would arrive from the HAL", and that "the skin must never change the engine's logical size behind
+   * its back". A page-only overlay would draw a phone's status bar over a tree laid out as if the bar
+   * were not there - a skin that changes the picture without changing the layout. This call is what
+   * makes the `SafeArea` padding and every box follow the skin, through the same
+   * `hal::resolve_safe_area()` the native app runs.
+   *
+   * `changed` is the module's own answer to "did a layout pass run", so a skin that is already in
+   * force costs nothing and a skin change owes exactly one frame. A module built before this export
+   * simply has no `_tessera_canvas_set_safe_area`; the session then reports that the skin's insets
+   * were not applied rather than pretending they were, which is the honest degraded state.
+   */
+  function applySafeArea(): { ok: boolean; changed: boolean } {
+    if (gpu === null) {
+      return { ok: true, changed: false };
+    }
+    const area = options.safeArea();
+    const insets = area?.insets ?? { top: 0, right: 0, bottom: 0, left: 0 };
+    const cutout = area?.cutout ?? null;
+    if (typeof gpu.module._tessera_canvas_set_safe_area !== "function") {
+      if (area !== null) {
+        pane.setStatus("this build cannot apply a skin's insets", "warning");
+      }
+      return { ok: true, changed: false };
+    }
+    try {
+      const report = JSON.parse(
+        callExport(gpu.module, "_tessera_canvas_set_safe_area", [], [
+          insets.left,
+          insets.top,
+          insets.right,
+          insets.bottom,
+          cutout?.x ?? 0,
+          cutout?.y ?? 0,
+          cutout?.width ?? 0,
+          cutout?.height ?? 0,
+        ]),
+      ) as { changed?: boolean; error?: string };
+      if (report.error !== undefined && report.error !== "") {
+        // A refused safe area (a negative inset) is named, and the picture already there stays.
+        pane.setStatus("skin not applied: " + report.error, "warning");
+        return { ok: false, changed: false };
+      }
+      return { ok: true, changed: report.changed === true };
+    } catch (error) {
+      pane.showFailed(String(error));
+      return { ok: false, changed: false };
+    }
   }
   // Draws the current source. Called from a `requestAnimationFrame` callback, never from the input handler,
   // so a fast typist cannot make the paint path reentrant and the canvas updates in step with the display.
@@ -171,10 +319,21 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
     // the previous one (a reused apply reports it too).
     pane.renderState(applied.state ?? []);
     options.onComponents(applied.components ?? [], applied.component ?? "");
+    // The skin's safe area, applied AFTER the evaluation and BEFORE the frame (issue #171's skins
+    // slice). It is a layout pass of its own (`tessera_canvas_set_safe_area`), so the boxes the next
+    // `draw` paints already carry the skin's padding - no frame of stale insets. It runs on every
+    // apply rather than only on a skin change because a Run re-evaluates the tree at the session's
+    // current metrics, and a skin picked before the first Run must reach that first frame.
+    const safe = applySafeArea();
+    if (!safe.ok) {
+      options.onReady(true);
+      return;
+    }
     // No frame owed: the source is byte-identical to what is painted (a debounce that fired on an
-    // unchanged buffer, or a reuse after a DPR-resize that changed nothing). Drawing would repaint
-    // identical pixels, which is the idle rule this view exists to honour.
-    if (!applied.changed) {
+    // unchanged buffer, or a reuse after a DPR-resize that changed nothing) AND the skin moved
+    // nothing. Drawing would repaint identical pixels, which is the idle rule this view exists to
+    // honour. A skin change alone does owe a frame: it moved every box.
+    if (!applied.changed && !safe.changed) {
       options.onReady(true);
       return;
     }
@@ -204,6 +363,12 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
       return;
     }
     pane.renderReport(report);
+    // The frame moved the boxes the outline was drawn for, so the outline is re-asked rather than
+    // left over a node that may have moved (issue #171). A pick is a query: this costs no frame.
+    picker.refresh();
+    // The inspector's panel describes a node of the tree this frame just painted, so it is re-asked
+    // at the same point: a box that moved must not be shown at its old coordinates.
+    inspector.refresh();
     options.onReady(true);
   }
 
@@ -359,6 +524,10 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
       // restart the count is whatever the initializer says, and showing the old value until the next
       // frame lands would be the one stale reading on the page.
       pane.renderState([]);
+      // The outline named a node of the evaluation that was just released (issue #171).
+      picker.hide();
+      // The inspector's panel described a node of the same evaluation.
+      inspector.hide();
     }
     requestFrame();
   }
@@ -397,6 +566,32 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
     requestFrame();
   }
 
+  // Pointer input (issue #388): hover, press and click on the canvas go to the engine, which owns what they
+  // mean; a reported change is one coalesced frame. Not while hidden or before a device exists.
+  attachCanvasPointer({
+    canvas,
+    viewport: () => requestedViewport(options.environment),
+    onChanged: requestFrame,
+    send: (kind, x, y, button) =>
+      gpu === null || !visible || typeof gpu.module._tessera_canvas_pointer !== "function"
+        ? null
+        : (JSON.parse(callExport(gpu.module, "_tessera_canvas_pointer", [kind], [x, y, button])) as { changed: boolean }),
+  });
+
+  // Keyboard input and focus (issue #388): the canvas is a focus stop, and the engine owns what a key means.
+  attachCanvasKeyboard({
+    canvas,
+    onChanged: requestFrame,
+    send: (kind, key, modifiers, repeat) =>
+      gpu === null || !visible || typeof gpu.module._tessera_canvas_key !== "function"
+        ? null
+        : (JSON.parse(callExport(gpu.module, "_tessera_canvas_key", [kind, key], [modifiers, repeat ? 1 : 0])) as {
+            changed: boolean;
+            handled?: boolean;
+            left?: boolean;
+          }),
+  });
+
   // A device-pixel-ratio change (a window dragged to another monitor, a browser zoom) changes the backing
   // store, which is a real reason to draw again. A resize alone does not: the CSS box follows the toolbar,
   // and the toolbar has its own change hook.
@@ -418,6 +613,8 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
   return {
     id: "canvas",
     pane,
+    picker,
+    inspector,
     /** First open of the view: decide the unsupported state and import the module (no device yet). */
     load: async () => {
       visible = true;
@@ -455,6 +652,12 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
     /** The pane became (in)visible: stop drawing while hidden, redraw once when shown again. */
     setVisible: (shown: boolean) => {
       visible = shown;
+      if (!shown) {
+        // A hidden pane shows no outline: the picker's overlay belongs to the canvas it covers.
+        picker.hide();
+        // The inspector's panel belongs to the same canvas.
+        inspector.hide();
+      }
       if (shown && gpu !== null) {
         requestFrame();
       }
@@ -489,6 +692,17 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
         pane.showFailed(String(error));
         return;
       }
+      // The skin is a layout input too (issue #171's skins slice), and it is applied in the same
+      // handler so a toolbar move that changes both the size and the skin costs one frame rather
+      // than two. The engine runs one layout pass per call, so the order is not observable: the
+      // frame below paints the boxes both calls left.
+      if (!applySafeArea().ok) {
+        return;
+      }
+      // The viewport moved every box, so the outline is re-asked at the same point (issue #171).
+      picker.refresh();
+      // The inspector's panel is re-asked for the same reason: its box is in logical pixels.
+      inspector.refresh();
       requestFrame();
     },
     /** A gallery pick changes what would be drawn; redraw only if a device already exists. */

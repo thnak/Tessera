@@ -106,6 +106,11 @@ WgpuVertexFormat vertex_format(rhi::VertexFormat format) {
         return WgpuVertexFormat::Float32x4;
     case rhi::VertexFormat::UByte4Norm:
         return WgpuVertexFormat::Unorm8x4;
+    case rhi::VertexFormat::UInt:
+        // The per-vertex texture-array index (RHI 1.7, issue #480 part 2). WebGPU has no descriptor
+        // indexing, so the WGSL twin ignores the value; the attribute still maps so one Vertex2D
+        // serves both backends.
+        return WgpuVertexFormat::Uint32;
     }
     return WgpuVertexFormat::Float32;
 }
@@ -121,6 +126,8 @@ std::uint32_t vertex_format_size(rhi::VertexFormat format) {
     case rhi::VertexFormat::Float4:
         return 16;
     case rhi::VertexFormat::UByte4Norm:
+        return 4;
+    case rhi::VertexFormat::UInt:
         return 4;
     }
     return 0;

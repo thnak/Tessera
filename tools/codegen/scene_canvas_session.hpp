@@ -2,12 +2,17 @@
 
 #pragma once
 
+#include "scene_canvas_inspect.hpp"
+#include "scene_canvas_patch.hpp"
 #include "scene_evaluate.hpp"
 #include "scene_frame.hpp"
 #include "scene_prepare.hpp"
+#include "scene_project.hpp"
 #include "scene_session.hpp"
 #include "scene_stylesheet.hpp"
+#include "tessera/compiler/ir/source_span.hpp"
 #include "tessera/hal/window.hpp"
+#include "tessera/rendering/rhi/types.hpp"
 #include "tessera/ui/scene/dirty_pass.hpp"
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/style/compiled_stylesheet.hpp"
@@ -57,6 +62,41 @@ struct CanvasPointerResult {
     std::uint64_t active_id = 0;
     std::vector<std::string> ran;   // IR handler ids whose preview body executed
     std::vector<std::string> unrun; // handler ids the dispatch reached but could not run
+
+    // Keyboard focus (issue #388), meaningful for `key()` and `blur()`; a pointer press also moves
+    // focus, so `focused_id` is filled for every event.
+    std::uint64_t focused_id = 0; // the focused node after the event, 0 when none
+    bool focus_visible = false;   // the ring is showing (keyboard modality)
+    bool focus_moved = false;     // this event changed which node holds focus
+    // The key was consumed by the scene: the page prevents the browser's default (it moved focus,
+    // activated a control, or reached a handler). A Tab at the end of the tab order is NOT handled:
+    // the scene lets go and the browser moves on, so the keyboard never gets trapped in the canvas.
+    bool handled = false;
+    bool left = false; // Tab walked off the end of the tab order and focus was released
+};
+
+// What the picker found under one point (issue #171's picker slice): the node the pointer is over,
+// named and boxed, or nothing.
+//
+// **Why this is a query and not a pointer event.** The picker must not change the scene: arming it
+// and moving the pointer over a button must not set `:hover`, must not run a handler and must not
+// cost a frame. So `pick()` reads the tree with the same hit test the router uses and returns a
+// value; it dispatches nothing, marks nothing dirty and allocates nothing beyond the two borrowed
+// strings it copies out.
+//
+// **Why the box is in the report.** A page that only knew the id could highlight nothing: the
+// outline is drawn in the page's own coordinate space, so the engine has to say where the node is.
+// `box` is `Node::world_bounds()` - the node's box in **logical viewport pixels**, the same space
+// `pointer()` takes its coordinates in - so the page scales it by the CSS-to-logical ratio it
+// already applies to pointer input and nothing else.
+struct CanvasPickResult {
+    bool found = false; // a node is under the point
+    std::uint64_t automation_id = 0;
+    // The node's element kind (`Button`, `Text`, `View`, ...), borrowed from the IR the running
+    // evaluation owns, so it is valid only until the next `start()`. Empty when the node has none.
+    std::string_view element_kind;
+    // The node's box in logical viewport pixels. Zero when `found` is false.
+    rhi::Rect box;
 };
 
 // What a session is started from. `width`/`height` are the **logical** viewport the layout engine
@@ -86,6 +126,14 @@ struct CanvasSessionSource {
     float height = 240.0f;
     float dpi_scale = 1.0f;
     tessera::hal::FoldPosture posture = tessera::hal::FoldPosture::None;
+    // The simulated skin's safe area (issue #171's skins slice): the insets a device would report
+    // as `WindowMetrics::insets` and the cutout rectangles it would report as
+    // `WindowMetrics::cutouts`. They are LAYOUT INPUTS like the size and the posture, not part of
+    // the source's identity, so a skin change re-lays the running tree out in place
+    // (`set_viewport`) and keeps hover, focus and the state cells. Zero/empty is the desktop answer
+    // and the pre-#171 behaviour.
+    tessera::hal::WindowInsets insets;
+    tessera::hal::CutoutInfo cutouts;
     // The face the layout measures text with, or null for the deterministic stub. The session does
     // **not** own it: the device-backed stack belongs to whoever painted the last frame (the Wasm
     // entry, or a test), so the session stores the measurer `start()` was given and reuses it when
@@ -154,6 +202,43 @@ public:
     CanvasPointerResult pointer(PreviewInput::Kind kind, float x, float y,
                                 std::uint32_t button = 0);
 
+    // What is under `(x, y)` in logical viewport pixels, for the picker overlay (issue #171).
+    //
+    // **It reuses the router's hit test rather than writing a second one.** `Node::hit_test_deep`
+    // is the function `ui::InputRouter` calls to decide a pointer target, so the node this reports
+    // is exactly the node a press at the same point would reach - including `pointer-events: none`,
+    // scrollport clipping, z-order and `visibility: hidden`. A second hit test would be a second
+    // set of those rules to keep in step, and the first time they disagreed the overlay would
+    // outline one node while a click activated another.
+    //
+    // **It is a query, not an event.** Nothing is dispatched, no pseudo-class moves, no dirty
+    // domain is set and no frame is owed: arming the picker and moving over the canvas must not
+    // change the picture. That is why this is not a `pointer()` kind.
+    //
+    // Returns `found:false` for a point outside every node (and for a session with no tree), which
+    // is the page's signal to hide the overlay rather than draw a stale outline.
+    [[nodiscard]] CanvasPickResult pick(float x, float y);
+
+    // The style inspector's query (issue #171, designer-protocol-v1 section 9.1): the computed
+    // style, the matched rules with their provenance, and the box of the node with this automation
+    // id.
+    //
+    // **It is a query, like `pick()`.** Nothing is dispatched, no pseudo-class moves and no frame
+    // is owed: opening the inspector on a node must not change the picture. It is a user action
+    // rather than a frame path, so the bounded allocations it makes (the computed map, one entry
+    // per matched rule) are acceptable - the frame path's zero-allocation rule is about `paint()`,
+    // not about a click.
+    //
+    // **Why the engine answers it.** `computed` is the cascade after inheritance and `var()`,
+    // `matched` is the selector index's own answer with the specificity it matched at, and
+    // `overridden` is the cascade's own comparison. A page that recomputed any of it would be a
+    // second cascade, and the first time the two disagreed the inspector would describe a style the
+    // canvas is not painting.
+    //
+    // `automation_id` 0 and an id no node carries both answer `found:false`, which the report
+    // spells `no_such_node` (designer-protocol-v1 section 9.1).
+    [[nodiscard]] StyleInfoResult inspect(std::uint64_t automation_id);
+
     // Changes the simulated fold posture of the RUNNING evaluation (issue #408): the tree is
     // re-laid out in place, so `SafeArea` padding and every box follow the new hinge without the
     // source being evaluated again and without hover, focus or the state cells being lost.
@@ -181,6 +266,30 @@ public:
     //
     // Returns false when nothing moved (no pass ran) or there is no running evaluation.
     bool set_viewport(float width, float height, float dpi_scale);
+
+    // The same call for a skin (issue #171's skins slice): the size, the DPI scale, the safe-area
+    // insets and the cutout rectangles all move together, in ONE layout pass. It is a separate
+    // spelling rather than more arguments on `set_viewport` because the two callers are different
+    // controls - the toolbar's size/DPR selects and the skin picker - and a skin change that kept
+    // the previous insets would pad the content for a device that is no longer on screen. The
+    // posture is unchanged by a skin change, so it is not an argument here.
+    //
+    // Returns false when nothing moved (no pass ran) or there is no running evaluation.
+    bool set_safe_area(const tessera::hal::WindowInsets& insets,
+                       const tessera::hal::CutoutInfo& cutouts);
+
+    // One keyboard event (issue #388, focus). `key` is a `ui::KeyCode`; `modifiers` a
+    // `ui::Modifier` mask. Tab and Shift+Tab move focus through the focusable controls in tree
+    // order and **release it at either end** instead of wrapping, so a page can let the browser
+    // carry on to the next element; Enter and Space activate the focused button (the router's click
+    // synthesis); the
+    // `:focus-visible` ring shows after keyboard traversal.
+    CanvasPointerResult key(PreviewInput::Kind kind, std::uint32_t key, std::uint32_t modifiers,
+                            bool repeat);
+
+    // The page's element lost the keyboard: drop focus (and the ring) so a canvas that is not
+    // focused does not look as if it were. A frame is owed only when something was focused.
+    CanvasPointerResult blur();
 
     // How many times the running evaluation's cascade has been resolved (issue #436): 1 at each
     // `start()`, +1 per `set_viewport` that crossed a breakpoint. The counter a test - and the
@@ -248,7 +357,32 @@ public:
     // that wants an id should read `CanvasPointerResult` instead.
     [[nodiscard]] const ui::InputRouter* router() const noexcept;
 
+    // The IR source span of the node with this automation id (issue #171's `source.patch` slice),
+    // or null when the id names no node or the node has no span. The span is the JSX element's, so
+    // a commit can locate the attribute it edits; it belongs to the running evaluation and is valid
+    // until the next `start()`.
+    [[nodiscard]] const ir::SourceSpan* node_span(std::uint64_t automation_id) const;
+
+    // The project the running evaluation was started from, by reference: the bytes a patch's
+    // offsets are measured in. Empty before a successful `start()`. It is the session's own copy,
+    // so it outlives every call and a patch built from it cannot outlive its text.
+    [[nodiscard]] const OwnedProject& project() const noexcept {
+        return project_;
+    }
+
+    // The patch for one style commit (issue #171, designer-protocol-v1 section 10.2): the minimal
+    // edit list and the base versions, or the spec's reason there is none.
+    //
+    // **It is a query.** Nothing is written, nothing is dispatched and no frame is owed: a commit
+    // produces a value the host applies, and the viewer keeps its overrides until
+    // `source.patch.result` arrives (section 10.3). A page that shows the edits has not changed the
+    // project, and this method is what makes that distinction structural rather than a promise.
+    [[nodiscard]] SourcePatchResult patch(const PatchRequest& request) const;
+
 private:
+    // Fills `focused_id` / `focus_visible` from the router's focus manager.
+    void fill_focus(CanvasPointerResult& result) const;
+
     [[nodiscard]] bool reused_ok(const ProjectInput& project, const std::string& component,
                                  const std::shared_ptr<const text::TextMeasurer>& measurer) const;
 
@@ -257,6 +391,13 @@ private:
     // both costs one pass, not two.
     [[nodiscard]] bool apply_layout_inputs(float width, float height, float dpi_scale,
                                            tessera::hal::FoldPosture posture);
+
+    // The same pass with the skin's safe area as well: every layout input a skin can move, in one
+    // call. `apply_layout_inputs` is the narrow spelling that keeps the current insets.
+    [[nodiscard]] bool apply_layout_inputs(float width, float height, float dpi_scale,
+                                           tessera::hal::FoldPosture posture,
+                                           const tessera::hal::WindowInsets& insets,
+                                           const tessera::hal::CutoutInfo& cutouts);
 
     // The lowered IR the scene borrows its strings from: declared before the session so it outlives
     // the tree, which is the ownership rule `PreparedScene` states.
@@ -279,6 +420,10 @@ private:
     // The simulated fold posture the running tree was laid out at, so `set_viewport()` can re-lay
     // it out without changing it (issue #436).
     tessera::hal::FoldPosture posture_ = tessera::hal::FoldPosture::None;
+    // The skin's safe area the running tree was laid out at (issue #171), so a size or posture
+    // change keeps it and a skin change replaces it. Zero/empty before the first `start()`.
+    tessera::hal::WindowInsets insets_;
+    tessera::hal::CutoutInfo cutouts_;
     // The simulated window of the live tree. `session_` owns the authoritative copy; this one is
     // readable before the first `start()` and after the session is gone, so `metrics()` has one
     // answer in every state.

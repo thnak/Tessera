@@ -16,6 +16,7 @@ import { useEffect, useRef } from "react";
 import type { ProjectReader, ViewDefinition, ViewSession } from "./lib/views";
 import type { PageRefs, PageStateSetters } from "./page-state";
 import { setStatusText } from "./page-state";
+import type { SkinSafeArea } from "./views/canvas-session";
 import { createCanvasSession } from "./views/canvas-session";
 import { createDiagnosticsSession } from "./views/diagnostics-session";
 import { createSceneSession } from "./views/scene-session";
@@ -30,6 +31,14 @@ export interface SessionDeps {
   environmentOf: () => { width: number; height: number; dpr: number };
   /** The fold posture (issue #408); `""` is no fold. */
   foldPosture: () => string;
+  /**
+   * The selected skin's safe area (issue #171's skins slice), or `null` for no skin.
+   *
+   * A reader, like the toolbar's other values: the session is created once and the picker can move
+   * between two applies. The page derives it from the validated manifest, so the insets the engine
+   * pads by are the ones the manifest declared and the frame draws.
+   */
+  safeArea: () => SkinSafeArea | null;
   /** The component the preview dropdown picked (`""` = the entry's first), and where the canvas reports the list. */
   component: () => string;
   onComponents: (names: string[], chosen: string) => void;
@@ -148,7 +157,8 @@ export function useSessions(deps: SessionDeps, settled: boolean): Sessions {
       pane.statDpr.current &&
       pane.statFont.current &&
       pane.stateRow.current &&
-      pane.statState.current
+      pane.statState.current &&
+      pane.pickOverlay.current
     ) {
       const status = pane.canvasStatus.current;
       sessions.current.canvas = createCanvasSession({
@@ -171,12 +181,20 @@ export function useSessions(deps: SessionDeps, settled: boolean): Sessions {
           // The state row (#444): what the running evaluation's cells read after an apply.
           stateRow: pane.stateRow.current,
           statState: pane.statState.current,
+          // Issue #171's picker: the overlay the outline is drawn into, and the header toggle.
+          pickOverlay: pane.pickOverlay.current,
+          pickToggle: pane.pickToggle.current,
+          // Issue #171's style inspector: the panel, the body it fills, and the header toggle.
+          inspectPanel: pane.inspectPanel.current,
+          inspectBody: pane.inspectBody.current,
+          inspectToggle: pane.inspectToggle.current,
           statusFrame: pane.statusFrame.current,
         },
         source: deps.source,
         setStatus: (text, kind) => setStatusText(status, text, kind ?? null),
         environment: () => latest.current.environmentOf(),
         foldPosture: () => latest.current.foldPosture(),
+        safeArea: () => latest.current.safeArea(),
         component: () => latest.current.component(),
         onComponents: (names, chosen) => latest.current.onComponents(names, chosen),
         onReady: (ready) => {

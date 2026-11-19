@@ -47,6 +47,7 @@ on:
       - 'scripts/ci/preview_share_roundtrip.mjs'
       - 'scripts/ci/preview_studio_smoke.mjs'
       - 'scripts/ci/preview_page_checks.mjs'
+      - 'scripts/ci/preview_skins.mjs'
       - 'scripts/ci/preview_project_load.mjs'
       - 'scripts/ci/gen_sample_manifest.py'
       - 'scripts/check_preview_budget.py'
@@ -69,6 +70,7 @@ on:
       - 'scripts/ci/preview_share_roundtrip.mjs'
       - 'scripts/ci/preview_studio_smoke.mjs'
       - 'scripts/ci/preview_page_checks.mjs'
+      - 'scripts/ci/preview_skins.mjs'
       - 'scripts/ci/preview_project_load.mjs'
       - 'scripts/ci/gen_sample_manifest.py'
       - 'scripts/check_preview_budget.py'
@@ -242,6 +244,17 @@ jobs:
       # refactor deleted. Several of the failures this checks for actually shipped into a draft of P5.
       - name: Page wiring checks (built output, ids, redirects, sample paths)
         run: node scripts/ci/preview_page_checks.mjs
+
+      # The skins slice's acceptance (issue #171, `designer-studio-v1.md` sections 5.1 and 5.2):
+      # "geometry and retint tests". Every bundled manifest parses and validates, a missing required
+      # field / an inset larger than the screen / a negative size is rejected with
+      # `TESSERA_STUDIO_SKIN`, the derived viewer size is `size` minus `bezel` for each category, the
+      # three geometry modes draw what section 5.1 says, and no manifest or SVG frame carries a
+      # colour - chrome colours come from the theme, so a theme switch retints the frame and the
+      # canvas in the same frame. The validator is imported from `dist-ssr/`, so this tests the rules
+      # the page ships rather than a copy of them.
+      - name: Skin manifests, geometry and retint (built validator, no browser)
+        run: node scripts/ci/preview_skins.mjs
 
       - name: Sample manifest is generated and current
         run: python3 -B scripts/ci/gen_sample_manifest.py --check

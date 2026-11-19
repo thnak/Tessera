@@ -11,6 +11,8 @@
 #include <cstdint>
 #include <expected>
 #include <memory>
+#include <stdexcept>
+#include <vector>
 
 namespace tessera::rendering::rhi {
 
@@ -95,6 +97,28 @@ public:
     virtual void bind_pipeline(const Pipeline& pipeline) = 0;
     virtual void bind_vertex_buffer(const Buffer& buffer) = 0;
     virtual void bind_texture(std::uint32_t slot, const Texture& texture) = 0;
+
+    // Binds `textures` as one array of sampled images at descriptor `slot`, so a shader can index
+    // them from a per-vertex value instead of one descriptor set per texture (RHI 1.7, issue #480
+    // part 2). This is the seam that lets the batched renderer keep one draw when consecutive quads
+    // sample different textures.
+    //
+    // Contract:
+    //  - `textures.size()` must be at most `Device::texture_array_capacity()`; a longer array
+    //  throws
+    //    std::invalid_argument. An empty array is a no-op.
+    //  - Every texture must be a 1-sample texture created by this device. The array is a snapshot:
+    //    the caller re-binds it when the set of textures changes, which the renderer does at a
+    //    batch boundary, never per quad.
+    //  - A pipeline must have been bound, and its layout must declare a sampled-image array at
+    //    `slot` with at least `textures.size()` descriptors.
+    //  - Backends without the capability (`Device::texture_array_capacity() == 0`) throw
+    //    std::runtime_error; callers ask the capability first, so this never reaches a frame.
+    virtual void bind_texture_array(std::uint32_t /*slot*/,
+                                    const std::vector<const Texture*>& /*textures*/) {
+        throw std::runtime_error("bind_texture_array: this backend has no texture array "
+                                 "(texture_array_capacity() is 0)");
+    }
 
     // Binds `target` as a texture at descriptor `slot`, so a shader can read pixels a render target
     // already holds. This is the RHI 1.3 sampled view of an offscreen target: the missing half of
@@ -300,6 +324,16 @@ public:
     // format, WebGPU has no chain generation yet. When false, `create_texture` with levels > 1
     // throws and the caller samples the single level. Pure virtual so every backend answers.
     [[nodiscard]] virtual bool supports_texture_mipmaps(TextureFormat format) const = 0;
+
+    // How many sampled images one `bind_texture_array` call can bind (RHI 1.7, issue #480 part 2).
+    // 0 means the backend has no texture array at all and callers keep the one-set-per-texture
+    // path; a positive value is the array length the shader's descriptor array was declared with,
+    // so it is also the largest index a shader may use. The only authority on the capability:
+    // consumers must not infer it from the backend name, because descriptor indexing is optional on
+    // Vulkan and absent on WebGPU. The default is 0, which is the documented fallback.
+    [[nodiscard]] virtual std::uint32_t texture_array_capacity() const {
+        return 0;
+    }
 
     // The device's GPU-timestamp probe (docs/design/performance.md section 6.1). This is the only
     // authority on whether a GPU frame-time sample exists; consumers must not infer it from the

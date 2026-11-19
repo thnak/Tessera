@@ -51,6 +51,25 @@ export interface CanvasPaneElements {
    * pane (the SSR chrome renders one, and the smoke test does not need the write).
    */
   statusFrame: HTMLElement | null;
+  /**
+   * The picker overlay (issue #171's picker slice): the element the outline and the readout are drawn
+   * into. It is positioned over the canvas and is `pointer-events: none`, so it never intercepts a
+   * move or a press. Optional for the same reason `statusFrame` is: a pane rendered without one is a
+   * valid pane, and the picker then simply has nowhere to draw.
+   */
+  pickOverlay: HTMLElement | null;
+  /** The picker's toggle in the pane header; null when the pane has no header. */
+  pickToggle: HTMLButtonElement | null;
+  /**
+   * The style inspector's panel and its body (issue #171, designer-protocol-v1 section 9.1). The
+   * panel is a page element beside the canvas, hidden until a node is inspected; the body is what
+   * the inspector fills. Optional for the same reason `pickOverlay` is: a pane rendered without one
+   * is a valid pane, and the inspector then simply has nowhere to draw.
+   */
+  inspectPanel: HTMLElement | null;
+  inspectBody: HTMLElement | null;
+  /** The inspector's toggle in the pane header; null when the pane has no header. */
+  inspectToggle: HTMLButtonElement | null;
 }
 
 /**
@@ -99,6 +118,10 @@ export interface CanvasPane {
    * nothing to report, and a row that said "none" would look like a failed carry.
    */
   renderState(cells: readonly CanvasStateCell[]): void;
+  /** Hides the picker's outline (issue #171): the node it named may no longer be under the pointer. */
+  hidePick(): void;
+  /** Hides the style inspector's panel (issue #171): the node it described may be gone. */
+  hideInspect(): void;
 }
 
 export function createCanvasPane(
@@ -139,6 +162,28 @@ export function createCanvasPane(
   function hideStates(): void {
     pane.unsupported.hidden = true;
     pane.failed.hidden = true;
+  }
+
+  /**
+   * Hides the picker's outline (issue #171). Called whenever the picture under it can move: a new
+   * frame, a viewport change, a restart. An outline left over a node that is no longer there is worse
+   * than no outline, because it names a node the developer is not looking at.
+   */
+  function hidePick(): void {
+    if (pane.pickOverlay !== null) {
+      pane.pickOverlay.hidden = true;
+    }
+  }
+
+  /**
+   * Hides the style inspector's panel (issue #171). Called whenever the tree under it can change: a
+   * new frame, a viewport change, a restart. A panel left over a node that is no longer there names
+   * a node the developer is not looking at, which is worse than no panel.
+   */
+  function hideInspect(): void {
+    if (pane.inspectPanel !== null) {
+      pane.inspectPanel.hidden = true;
+    }
   }
 
   function setFontState(family: string | null, reason?: string): void {
@@ -258,6 +303,8 @@ export function createCanvasPane(
     setFontState,
     renderReport,
     renderState,
+    hidePick,
+    hideInspect,
   };
 }
 

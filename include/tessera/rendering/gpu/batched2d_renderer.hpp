@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "tessera/rendering/gpu/batch_split.hpp"
 #include "tessera/rendering/gpu/clip.hpp"
 #include "tessera/rendering/gpu/clip_state_table.hpp"
 #include "tessera/rendering/gpu/glass_blur.hpp"
@@ -59,6 +60,8 @@ struct CullStats {
     std::uint32_t quads_culled = 0;               // outside the scissor or the damage regions
     std::uint32_t quads_culled_empty_scissor = 0; // dropped because the scissor has no area
 };
+
+// Why a batch ended, and the per-frame counts: see batch_split.hpp (issue #480 part 2).
 
 // The carved-out box of a box shadow in local px: centre relative to the quad centre and half size.
 // All zero subtracts nothing (every primitive other than a shadow quad). Declared at namespace
@@ -153,6 +156,22 @@ public:
 
     // Blur + composite draws recorded so far (diagnostics and the benchmark).
     [[nodiscard]] std::uint32_t glass_draws() const;
+
+    // --- Texture arrays (RHI 1.7, issue #480 part 2) -------------------------------------------
+    // Supplies the descriptor-indexing pipeline. It must be created from
+    // `vulkan::batched2d_array_pipeline_desc` with the frame's format and sample count, and only on
+    // a device whose `texture_array_capacity()` is non-zero. Null (the default) means "no array":
+    // every texture change ends the batch, which is the one-set-per-texture path. Set between
+    // frames, like the other policy.
+    //
+    // With a pipeline, a batch may hold quads over up to `texture_array_capacity()` textures: the
+    // renderer binds them as one array and each vertex carries its slot, so interleaved images and
+    // glyph pages share one draw instead of one per switch. The pixels are identical either way -
+    // the array path only changes how the same texels are addressed.
+    void set_texture_array_pipeline(rhi::Pipeline* pipeline);
+    [[nodiscard]] bool texture_array_supported() const {
+        return array_pipeline_ != nullptr;
+    }
 
     void set_viewport(rhi::Extent2D extent);
     // Scissors are in target pixels: `begin()` sets the frame scissor from the target extent and
@@ -254,6 +273,11 @@ public:
     [[nodiscard]] const CullStats& cull_stats() const {
         return cull_stats_;
     }
+    // Why the frame's batches ended (issue #480 part 2). `texture` is the share descriptor indexing
+    // would remove; the rest are structural.
+    [[nodiscard]] const BatchSplitStats& batch_split_stats() const {
+        return split_stats_;
+    }
 
 private:
     struct Batch {
@@ -264,6 +288,9 @@ private:
         std::uint32_t vertex_count = 0;
         // Null draws with the frame pipeline; set only for LCD glyph quads.
         rhi::Pipeline* pipeline = nullptr;
+        // True when this batch's vertices carry a frame-array index (RHI 1.7, issue #480 part 2),
+        // so the flush binds the frame's array instead of this batch's single texture.
+        bool texture_array = false;
     };
 
     void begin_frame(rhi::CommandList& commands, const rhi::RenderTarget& target,
@@ -273,7 +300,14 @@ private:
     // pass starts with no state, and a glass composite records its own pipeline/push constants in
     // the middle of one, so both resume_pass() and draw_backdrop() restore the frame state here.
     void bind_frame_state();
-    void flush_batch();
+    // `reason` says why the batch ended; it is counted in split_stats_ (issue #480 part 2).
+    void flush_batch(BatchSplitReason reason);
+    // Records one batch split in split_stats_ (issue #480 part 2).
+    void count_batch_split(BatchSplitReason reason);
+    // Applies the batch key for one quad's texture and returns the index its vertices carry: the
+    // frame-array slot on the descriptor-indexing path, 0 on the one-set-per-texture path. Ends the
+    // batch when the key changed (issue #480 part 2).
+    std::uint32_t begin_quad_batch(rhi::Texture* texture);
     void emit_quad(const rhi::Rect& rect, const rhi::Rect& uv, rhi::Color color, float radius,
                    float mode, rhi::Texture* texture, const ShadowCarveBox& carve = {});
     // True when the quad's device-space bounds cannot touch any pixel the frame will draw.
@@ -282,12 +316,20 @@ private:
     // Binds the batch's pipeline when it differs from the one bound (`bound` tracks it across a
     // replay); flush() restores the frame pipeline at the end so later passes see it unchanged.
     void bind_batch_pipeline(const Batch& batch, rhi::Pipeline*& bound);
+    // Binds the batch's sampled images: the frame's array on the descriptor-indexing path, one
+    // texture on the one-set-per-texture path (RHI 1.7, issue #480 part 2).
+    void bind_batch_textures(const Batch& batch);
+    // The frame's array slot for `texture`, adding it on first use. Returns false when the frame
+    // already holds `texture_array_capacity()` textures, so the caller keeps the one-set path.
+    bool frame_texture_slot(rhi::Texture* texture, std::uint32_t& slot);
     void apply_clip_state(const ClipStateTable::Update& update);
     static void resume_pass_callback(void* context);
 
     rhi::Device* device_ = nullptr;
     rhi::Pipeline* pipeline_ = nullptr;
     rhi::Pipeline* lcd_pipeline_ = nullptr;
+    // Descriptor-indexing pipeline (RHI 1.7, issue #480 part 2); null keeps one set per texture.
+    rhi::Pipeline* array_pipeline_ = nullptr;
     // Pipeline the next emit_quad() belongs to (null = frame pipeline); set around LCD quads only.
     rhi::Pipeline* quad_pipeline_ = nullptr;
     rhi::Texture* white_texture_ = nullptr;
@@ -314,6 +356,7 @@ private:
     // outside every region, so the per-region replay in flush() would draw nothing for it.
     rhi::Scissor damage_bounds_;
     CullStats cull_stats_;
+    BatchSplitStats split_stats_;
 
     rhi::Mat3 transform_;
     std::vector<rhi::Mat3> transform_stack_;
@@ -325,6 +368,13 @@ private:
     std::vector<Batch> batches_;
     Batch current_batch_;
     rhi::Texture* current_texture_ = nullptr;
+    // The frame's texture-array slots (RHI 1.7, issue #480 part 2): every distinct texture the
+    // frame draws, in first-use order, and the index each vertex carries. The array is bound ONCE
+    // per flush, because a descriptor set is read when the GPU executes the draw, not when it is
+    // recorded - rewriting one set per batch would make every draw read the last write. Empty on
+    // the one-set-per-texture path, and when the frame uses more textures than the device's array
+    // holds.
+    std::vector<rhi::Texture*> frame_textures_;
 
     std::uint32_t draw_calls_ = 0;
     bool in_frame_ = false;

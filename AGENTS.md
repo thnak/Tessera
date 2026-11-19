@@ -634,7 +634,74 @@ owner-planned item and is not part of this milestone.
       compiler-error overlay. Hot reload is **blocked, not deferred**: ADR-040 emits a
       header-only template, so there is nothing to swap; the seam that must exist first is
       written up in `docs/specs/devtools-protocol-v1.md` section 8.
-- [ ] #171: P7: studio slices (picker overlay, style inspector, `source.patch`, skins).
+- [x] #171: P7: studio slices (picker overlay, style inspector, `source.patch`, skins).
+      **The picker overlay slice landed** (2026-11-18): `tessera_canvas_pick` answers what is under a
+      point — the node's automation id, element kind and logical-pixel box — as a *query* that
+      dispatches nothing and owes no frame, reusing `Node::hit_test_deep` rather than a second hit
+      test; the page draws the outline and readout in a `pointer-events: none` overlay armed by a
+      toggle in the Canvas pane. Evidence: `tools/codegen/scene_canvas_session.*`,
+      `tools/codegen/canvas_report.*`, `tools/codegen/wasm_canvas_entry.cpp`,
+      `designer/web/src/views/canvas-picker.ts`, ctest `scene_canvas_pick`,
+      `docs/design/canvas-input-session.md` §5.1.
+      **The skins slice landed** (2026-11-19): `designer-studio-v1.md` §5.2's manifest as data plus
+      static art — seven bundled skins under `designer/web/public/skins/` (generic desktop Windows 11 /
+      macOS / Linux, generic phone Android / iOS, generic tablet, generic foldable), all art original,
+      no vendor device art — validated by `designer/web/src/views/skins.ts` (a typed
+      `{ok:false, code:"TESSERA_STUDIO_SKIN"}` result, never a throw; a missing required field, an
+      inset larger than the screen, a negative size or a hard-coded colour rejects the skin and it is
+      not offered). The geometry contract of §5.1 is one derivation in
+      `designer/web/src/views/skin-geometry.ts` (`size - bezel` is the viewer size, and the insets are
+      the `safeAreas`), and the insets reach the **engine**, not only the picture: the new
+      `tessera_canvas_set_safe_area` export fills `WindowMetrics::insets`/`cutouts` through
+      `simulated_metrics()`, so `hal::resolve_safe_area()` pads a `SafeArea` by exactly what the
+      manifest declared (`tools/codegen/scene_layout.*`, `scene_session.*`, `scene_canvas_session.*`,
+      `wasm_canvas_safe_area.*`). Chrome is page-only HTML/CSS/SVG tinted from the theme tokens, and
+      the Theme select now writes `<html data-theme>`, so a theme switch retints the frame and the
+      canvas in one cascade (`designer/web/src/regions/SkinFrame.tsx`, `styles/skin.css`,
+      `page-skins.ts`). Evidence: `scripts/ci/preview_skins.mjs` (36 checks: manifests, rejections,
+      per-category viewer size, the three geometry modes, the retint rule), ctest
+      `scene_skin_geometry`, `docs/design/studio-page.md` §1.1.
+      **The style inspector slice landed** (2026-11-19): `tessera_canvas_style` answers
+      `style.info` (`designer-protocol-v1.md` §9.1) for one node — the computed style, the matched
+      rules highest-precedence-first with their origin, selector text, specificity and span, and the
+      box — as a *query* that dispatches nothing and owes no frame, like the picker. The provenance
+      it needs did not exist: `CompiledRule` now carries `selector`, `offset` and `source_path`,
+      threaded from `PreparedItem` at prepare time, and `CompiledStyleSheet::matched_rules()` is the
+      one list `add_to_cascade()` consumes, so a rule the inspector names is a rule the cascade used.
+      `overridden` is the cascade's own `cascades_over()` answer, never source order. The blob format
+      is **unchanged**: the two fields stay out of it, a blob-loaded rule prints its selector back
+      (`src/ui/style/selector_text.cpp`) and reports offset 0, and
+      `compiled-stylesheet-v1.md` §5.1 records why. The page draws the panel in a page element beside
+      the canvas, off by default and armed by an `Inspector` toggle, and it consumes the click it
+      inspects (capture-phase `stopPropagation`) so the engine's pointer path never sees it.
+      Evidence: `tools/codegen/scene_canvas_inspect.*`, `tools/codegen/canvas_report.*`,
+      `tools/codegen/wasm_canvas_entry.cpp`, `designer/web/src/views/canvas-inspector.ts`, ctest
+      `scene_canvas_style`, `docs/design/canvas-input-session.md` §5.2.
+      **The `source.patch` slice landed** (2026-11-19), completing the issue: `tessera_canvas_patch`
+      answers `source.patch` (`designer-protocol-v1.md` §10.2) for one node and destination — the
+      minimal `TextEdit` list plus the base versions — as a *query* that writes nothing, because
+      applying the edits and answering `source.patch.result` is the studio's project-IO path (§10.3)
+      and is **not** wired here. The engine gap it closed: the IR's element `SourceSpan` was dropped
+      by the build walk, so nothing could name the bytes a commit edits; it now travels in a
+      **side table** (`SceneBuildResult::SceneNodeSource`, owned by `PreviewSession`, replaced on
+      every rebuild) rather than as a `ui::Node` field, because `ui::Node` is a public header with an
+      enforced `kNodeSizeBudget` and a span is a design-time fact no frame reads. Ranges come from
+      the parsers, never from a text search: `inline` re-parses the component and uses
+      `JsxAttribute::span`, `class` uses `style::parse_stylesheet`'s `Rule::offset`/
+      `Declaration::offset`, `token` scans the theme asset's JSON for the string literal. `edits` is
+      sorted by file and descending offset and non-overlapping; the property asserted is that
+      applying in the given order equals splicing every range against the original offsets at once
+      (not "any order", which is false when replacement lengths differ). Every range is checked
+      against UTF-8 code point boundaries. The six spec reasons are exact, and no patch is produced
+      for any of them. Narrower than §10.1 and reported as such: the override layer
+      (`style.override.set`) is a later slice, so a commit today carries no declarations and answers
+      `no_overrides`, and the `token` binding test is against the node's inline `var(<token>)`.
+      **The override layer is tracked as #536** — it is the input a commit writes, so until it lands
+      the page shows the `no_overrides` reason rather than inventing a declaration. Evidence:
+      `tools/codegen/scene_canvas_patch*.{hpp,cpp}`, `tools/codegen/scene_build*.{hpp,cpp}`,
+      `tools/codegen/scene_session.*`, `tools/codegen/canvas_report.*`,
+      `tools/codegen/wasm_canvas_entry.cpp`, `designer/web/src/views/canvas-inspector.ts`, ctest
+      `scene_canvas_patch`, `docs/design/canvas-input-session.md` §5.3.
 - [ ] #395: P6b: promote the latency budgets from `warn` to `enforce` and count the scene and canvas
       modules in the download budget. Needs a measurement first; take it after #392.
 - [ ] #396: `tessera-mcp`: the eight unimplemented tools (designer D-S7) and the spec decisions #350
@@ -680,8 +747,12 @@ owner-planned item and is not part of this milestone.
       `Button:hover` matches. One frame per change and **zero for a static scene**, proven over the
       null RHI and mutation-checked (forcing `needs_frame()` true fails both suites). The coordinate
       rule is the CSS-to-logical ratio, **never DPR**. Page wiring is #422's shell, which has landed;
-      the browser/WebGPU half is still unverified. Evidence:
-      `tools/codegen/scene_canvas_session.*`, `docs/design/canvas-input-session.md`.
+      The page half landed in `designer/web/src/views/canvas-pointer.ts`, verified in a real browser
+      (WebGPU, swiftshader): hover, press, click and leave through the style engine, one frame per
+      change, none for a static scene. Keyboard focus landed with it (`canvas-keyboard.ts`,
+      `tessera_canvas_key`): Tab/Shift+Tab, Enter/Space, `:focus-visible`, no keyboard trap, focus
+      kept across the rebuild a click causes; resize and fold keep the app's state. Evidence: `tools/codegen/scene_canvas_session.*`,
+      `docs/design/canvas-input-session.md`, `scripts/ci/preview_browser_canvas_pointer.mjs`.
 - [ ] #389: conditional and repeated children in the scene preview (today a named
       `TESSERA_SCENE_UNSUPPORTED`).
 - [ ] #390: author stylesheet (second textarea), `style` and `className` in the preview; user CSS

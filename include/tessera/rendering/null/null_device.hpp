@@ -105,6 +105,8 @@ public:
     void bind_pipeline(const rhi::Pipeline& pipeline) override;
     void bind_vertex_buffer(const rhi::Buffer& buffer) override;
     void bind_texture(std::uint32_t slot, const rhi::Texture& texture) override;
+    void bind_texture_array(std::uint32_t slot,
+                            const std::vector<const rhi::Texture*>& textures) override;
     void bind_sampled_target(std::uint32_t slot, const rhi::RenderTarget& target) override;
     void set_viewport(const rhi::Viewport& viewport) override;
     void set_scissor(const rhi::Scissor& scissor) override;

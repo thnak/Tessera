@@ -4,6 +4,8 @@
 #include "scene_layout.hpp"
 #include "scene_session.hpp"
 #include "scene_stylesheet.hpp"
+#include "tessera/ui/scene/focus.hpp"
+#include "tessera/ui/style/pseudo_state.hpp"
 
 #include <algorithm>
 #include <cstdint>
@@ -65,6 +67,7 @@ ui::InputEvent to_input_event(const PreviewInput& input, double timestamp_s) {
     event.button = contact ? ui::PointerButton::Left : ui::PointerButton::None;
     event.is_primary = true;
     event.key = input.key;
+    event.repeat = input.repeat;
     event.modifiers = static_cast<ui::Modifier>(input.modifiers & 0x3FU);
     return event;
 }
@@ -101,6 +104,8 @@ PreviewSession::PreviewSession(const ir::IrModule& module, const ir::Component& 
     layout_metrics_.height = options_.height;
     layout_metrics_.dpi_scale = options_.dpi_scale;
     layout_metrics_.posture = options_.posture;
+    layout_metrics_.insets = options_.insets;
+    layout_metrics_.cutouts = options_.cutouts;
     if (options_.carried != nullptr) {
         const std::vector<std::string> only_this{component.component_id};
         carry_report_ = apply_state(
@@ -114,6 +119,18 @@ PreviewSession::PreviewSession(const ir::IrModule& module, const ir::Component& 
 PreviewSession::~PreviewSession() = default;
 
 void PreviewSession::rebuild() {
+    // Keyboard focus survives a rebuild (issue #388): activating a button changes state, the tree
+    // is rebuilt, and a person who pressed Enter expects to be able to press it again. The focus
+    // manager holds a raw pointer into the old tree, so what is kept is the node's automation id --
+    // assigned in tree order, so the same structure gives the same id -- and whether the ring was
+    // showing.
+    std::uint64_t kept_focus = 0;
+    bool kept_ring = false;
+    if (const ui::Node* focused = router_.focus_manager().focused()) {
+        kept_focus = focused->automation_id();
+        kept_ring =
+            ui::style::has_state(focused->pseudo_state(), ui::style::PseudoState::FocusVisible);
+    }
     // The router holds raw capture/hover/active pointers into the tree about to be replaced and the
     // focus manager resolves ids under the old root, so both must drop that state before the old
     // tree dies (input_dispatch.hpp documents the same ordering for every caller).
@@ -123,6 +140,10 @@ void PreviewSession::rebuild() {
 
     const SceneBuildResult built = build_scene(component_, *root_, scope_);
     built_ = built.error.empty();
+    // The spans belong to the tree that was just built, so they are replaced with it - including
+    // with an empty list when the build failed, because a span for a node that is not on screen
+    // would let a commit edit a range nothing is showing.
+    node_sources_ = built.sources;
     if (!built_) {
         // A tree that cannot be built installs no handlers, so a page sees an empty snapshot and
         // reports the same unsupported construct the P2 preview reports.
@@ -136,6 +157,15 @@ void PreviewSession::rebuild() {
     const SceneLayoutResult laid_out =
         layout_scene(*root_, sheet_, engine, layout_metrics_, options_.measurer);
     metrics_ = laid_out.metrics;
+    if (kept_focus != 0) {
+        if (ui::Node* node = node_by_automation_id(kept_focus)) {
+            ui::FocusManager& focus = router_.focus_manager();
+            focus.set_root(*root_);
+            if (focus.request_focus(node) && kept_ring) {
+                focus.set_focus_visible(true);
+            }
+        }
+    }
 }
 
 bool PreviewSession::relayout() {
@@ -155,15 +185,23 @@ bool PreviewSession::relayout() {
 
 bool PreviewSession::set_posture(hal::FoldPosture posture) {
     return relayout_at(layout_metrics_.width, layout_metrics_.height, layout_metrics_.dpi_scale,
-                       posture);
+                       posture, layout_metrics_.insets, layout_metrics_.cutouts);
 }
 
 bool PreviewSession::set_viewport(float width, float height, float dpi_scale) {
-    return relayout_at(width, height, dpi_scale, layout_metrics_.posture);
+    return relayout_at(width, height, dpi_scale, layout_metrics_.posture, layout_metrics_.insets,
+                       layout_metrics_.cutouts);
 }
 
 bool PreviewSession::relayout_at(float width, float height, float dpi_scale,
                                  hal::FoldPosture posture) {
+    return relayout_at(width, height, dpi_scale, posture, layout_metrics_.insets,
+                       layout_metrics_.cutouts);
+}
+
+bool PreviewSession::relayout_at(float width, float height, float dpi_scale,
+                                 hal::FoldPosture posture, const hal::WindowInsets& insets,
+                                 const hal::CutoutInfo& cutouts) {
     if (!built_) {
         return false;
     }
@@ -172,8 +210,10 @@ bool PreviewSession::relayout_at(float width, float height, float dpi_scale,
     next.height = height;
     next.dpi_scale = dpi_scale > 0.0f ? dpi_scale : 1.0f;
     next.posture = posture;
+    next.insets = insets;
+    next.cutouts = cutouts;
     if (next == layout_metrics_) {
-        return false; // both layout inputs are already in force: no pass, and no frame owed
+        return false; // every layout input is already in force: no pass, and no frame owed
     }
 
     // The media context is the viewport, so the move can change what `@media` answers (issue #436).
@@ -341,31 +381,6 @@ PreviewClickResult PreviewSession::click(std::uint64_t automation_id) {
     result.ran = ran_;
     result.unrun = unrun_;
     return result;
-}
-
-ui::Node* PreviewSession::node_by_automation_id(std::uint64_t automation_id) {
-    if (automation_id == 0) {
-        return nullptr;
-    }
-    // Preorder search under the live tree, skipping hidden subtrees the way the harness's
-    // `find_visible` does: a hidden node is not clickable, so a script cannot reach one.
-    struct Walk {
-        static ui::Node* find(ui::Node& node, std::uint64_t id) {
-            if (!node.rendered()) {
-                return nullptr;
-            }
-            if (node.automation_id() == id) {
-                return &node;
-            }
-            for (const auto& child : node.children()) {
-                if (ui::Node* found = find(*child, id)) {
-                    return found;
-                }
-            }
-            return nullptr;
-        }
-    };
-    return Walk::find(*root_, automation_id);
 }
 
 ui::StateSnapshot PreviewSession::state() const {

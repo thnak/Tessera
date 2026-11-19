@@ -11,6 +11,7 @@
 #include "tessera/ui/style/property_registry.hpp"
 #include "tessera/ui/style/selector_match.hpp"
 
+#include <cstddef>
 #include <cstdint>
 #include <map>
 #include <span>
@@ -29,6 +30,17 @@ struct CompiledRule {
     // Cascade origin of this rule. A single-source sheet has one origin for all its rules; a
     // combination carries the origin of the sheet each rule came from.
     Origin origin = Origin::Author;
+    // The selector list as text, and the byte offset of the rule in its sheet: the provenance the
+    // designer's `style.info` reports (designer-protocol-v1 section 9.1). A rule resolved from a
+    // blob has no authored text, so `selector` is printed back from the parsed list and `offset` is
+    // 0 - a build artifact has no source file to point into
+    // (docs/specs/compiled-stylesheet-v1.md section 5).
+    std::string selector;
+    std::size_t offset = 0;
+    // The sheet `offset` is an offset into, borrowed from the `StylesheetSource` the rule came from
+    // (empty for a single-sheet compile, which names no path). It is a view, so the source's path
+    // must outlive this sheet - `AppHost` and the preview both keep their prepared sheets.
+    std::string_view source_path;
 };
 
 // One input of an ordered multi-sheet cascade (ADR-048 decisions 5-6;
@@ -80,6 +92,21 @@ public:
     // `containers` resolves `@container` rules; with null, rules inside `@container` never apply.
     void add_to_cascade(const StyleNode& node, CascadeTable& cascade,
                         const ContainerSizeSource* containers = nullptr) const;
+    // One rule that matched `node`, with the specificity it matched at. The provenance
+    // `add_to_cascade` uses and drops, exposed for the designer's `style.info`
+    // (designer-protocol-v1 section 9.1): which rules applied, in what order, at what weight.
+    //
+    // **Why this is a member and not a preview-side walk.** "Which rules apply to this node" is the
+    // container-query filter plus the selector index; a second copy of that filter in the preview
+    // would be a second definition of the cascade, and the first time the two disagreed the
+    // inspector would name a rule that did not style the node. `add_to_cascade` is written in terms
+    // of this, so there is one implementation.
+    struct MatchedRule {
+        const CompiledRule* rule = nullptr;
+        Specificity specificity;
+    };
+    [[nodiscard]] std::vector<MatchedRule>
+    matched_rules(const StyleNode& node, const ContainerSizeSource* containers = nullptr) const;
     [[nodiscard]] CascadeTable cascade(const StyleNode& node,
                                        const ContainerSizeSource* containers = nullptr) const;
     [[nodiscard]] ComputedStyle compute(const StyleNode& node, const ComputedStyle* parent,

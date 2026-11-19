@@ -66,8 +66,13 @@ option(TESSERA_BUILD_WEBGPU
 option(TESSERA_SHADER_CROSS
     "Cross-compile shaders to MSL/HLSL/WGSL at build time and validate them (ADR-049; needs tools)"
     OFF)
+# Vector paths are on by default (ADR-057): the Linux lane already builds and proves this
+# configuration, and the library's Icon and the chart track both need it. The Windows lane pins it
+# OFF explicitly because the FetchContent download plus 37 translation units do not fit its build
+# budget (#258), so the no-ThorVG configuration stays tested. A machine without network access can
+# still configure with -DTESSERA_ENABLE_THORVG=OFF.
 option(TESSERA_ENABLE_THORVG
-    "Build the ThorVG-backed vector path rasterizer (D1, ADR-004)" OFF)
+    "Build the ThorVG-backed vector path rasterizer (D1, ADR-004, ADR-057)" ON)
 # Span tracing is a development and automation feature, never a production one (ADR-022 decision
 # 11, docs/specs/diagnostics-config-v1.md section 5). OFF compiles no recorder at all: the
 # TraceRecorder in the header becomes an empty no-op and collect_trace() still answers with the

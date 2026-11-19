@@ -46,7 +46,10 @@ RHI versioning and capabilities (ADR-049):
   capability that gates it, `Device::supports_dual_source_blend()` (issue #471, section 4.1 below);
   1.6 adds `TextureDesc::levels`, `Texture::levels()` and the capability that gates it,
   `Device::supports_texture_mipmaps(format)` (issue #491, section 5.2 below); 1.7 adds
-  `Backend::Metal`, the native macOS/iOS backend ([ADR-053](../../../decisions/ADR-053-native-metal-backend.md),
+  `CommandList::bind_texture_array`, `PipelineDesc::texture_array`, `VertexFormat::UInt` and the
+  capability that gates them, `Device::texture_array_capacity()` (issue #480 part 2, section 5.3
+  below); 1.8 adds `Backend::Metal`, the native macOS/iOS backend
+  ([ADR-053](../../../decisions/ADR-053-native-metal-backend.md),
   [`metal-backend.md`](metal-backend.md)). No enumerator changes value and no interface member
   changes, so a backend that does not implement Metal is unaffected.
   All later versions are additive compatible changes.
@@ -265,6 +268,28 @@ the backends already make and leaves no window where a half-built chain can be s
 - A mipmapped texture is **immutable**: `Texture::write` throws `std::invalid_argument`, because a
   write to level 0 would leave the lower levels stale.
 - Memory accounting counts every level.
+
+### 5.3 Texture arrays (RHI 1.7)
+
+`CommandList::bind_texture_array(slot, textures)` binds an array of sampled images as one descriptor
+set, so a shader can index them from a per-vertex value instead of one set per texture. It is the
+seam that lets the batched 2D renderer keep one draw when consecutive quads sample different
+textures (issue #480 part 2; the measured win is in
+[`../renderer.md`](../renderer.md) "Texture arrays").
+
+- `Device::texture_array_capacity()` is the only authority: the array length the shader's descriptor
+  array was declared with, or 0 when the backend has no descriptor indexing. The default is 0, which
+  is the one-set-per-texture path every existing caller keeps; WebGPU always answers 0.
+- Vulkan enables it only when the physical device reports `runtimeDescriptorArray` plus the
+  sampled-image indexing features, and then reports 32 - the length every Vulkan 1.2 implementation
+  must support for a sampled-image array, so the shader's constant is portable.
+- `PipelineDesc::texture_array` asks for a pipeline layout that declares the array. A backend without
+  the capability throws rather than building a pipeline whose set can never be bound.
+- `VertexFormat::UInt` carries the per-vertex index. The array is a **snapshot**: the caller
+  re-binds it when the set of textures changes, at a batch boundary, never per quad. An empty array
+  is a no-op on every backend; a longer one than the capacity throws `std::invalid_argument`.
+- The set is read when the GPU executes the draw, not when it is recorded, so a caller must not
+  rewrite one set between draws that are still in flight.
 
 ## 6. Lifetime and threading
 

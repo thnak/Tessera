@@ -107,6 +107,33 @@ view is a document per call, so its own re-run already answered for the new rect
 do before #436 was resolve `@media` for it at all (the sheet kept `MediaContext`'s default 1280x720).
 `scripts/ci/preview_browser_viewport.mjs` is the developer-run probe for colour, state and frames.
 
+### 1.1 Skins and the simulated device frame (issue #171's skins slice)
+
+`designer-studio-v1.md` section 5.2 assigns the bundled skins to #171, and this slice lands them. A skin is
+**data plus static art, never code**: one directory under `designer/web/public/skins/` per skin, each
+holding a `skin.json` matching section 5.2's manifest and, optionally, an SVG frame. The seven bundled skins
+are the spec's set (generic desktop Windows 11 / macOS / Linux, generic phone Android / iOS, generic tablet,
+generic foldable), and **all art is original** -- the one SVG frame (`generic-phone-android/frame.svg`) was
+drawn for this repository; no vendor device art is redistributed.
+
+**The geometry contract (section 5.1) is one derivation, in one file.** `views/skin-geometry.ts` turns a
+validated manifest into the viewer size (`size` minus `bezel`), the `safeAreas` the engine pads by, the
+cutout rectangle and the bars a mode draws. Nothing else computes an inset, so "the size in `viewport.set`
+is the size the preview renders at" is checkable by reading one module.
+
+**The insets reach the engine, not only the picture.** `tessera_canvas_set_safe_area(insets, cutout)` is a
+new export beside `tessera_canvas_set_viewport` (the old three-argument form is untouched, so a page built
+against the previous module keeps working); it fills `WindowMetrics::insets` and `WindowMetrics::cutouts`
+through `simulated_metrics()`, so `hal::resolve_safe_area()` pads a `SafeArea` by exactly what the manifest
+declared. A page-only overlay would have drawn a phone's status bar over a tree laid out as if the bar were
+not there -- a skin that changes the picture without changing the layout, which section 5.1 forbids. The
+pass completes inside the call, so the next `tessera_canvas_draw` paints the new insets on its first frame.
+
+**Chrome colours are not part of the skin.** The frame paints from the page's own `--bg`/`--text`/`--border`
+tokens (`styles/skin.css`), and the SVG frame is a CSS **mask** rather than an `<img>`, so it is painted in
+`currentColor`. The Theme select now writes `<html data-theme>` (`page-skins.ts`), which is what makes the
+retint rule demonstrable: one cascade moves the frame and the canvas together. Before this slice the Theme
+control was carried into the share link and changed nothing on the page.
 ## 2. The stack, and the React/engine boundary
 
 `designer/web` is a **Vite + React 19 + TypeScript** project (ADR-054 decisions 1-4):
@@ -116,11 +143,12 @@ do before #436 was resolve `@media` for it at all (the sheet kept `MediaContext`
 - `npm run build` is `tsc --noEmit` + `vite build` (the site) + `vite build --config vite.ssr.config.ts`
   (the gate-only bundle). The typecheck is part of the build: a type error is a build failure, not a runtime
   surprise in a browser no CI lane can drive.
-- Styles are **six static stylesheets split by region** (`src/styles/base.css`, `chrome.css`, `workspace.css`,
-  `code.css`, `preview.css`, `responsive.css`), imported by `src/main.tsx` in cascade order. Vite emits
-  **one** content-hashed `assets/index-<hash>.css`, so the CSP ("no inline style, no remote style") and the
-  download budget still see one file. #431 split the sheet because the three-column layout pushed the single
-  `app.css` past the 500-line hard limit.
+- Styles are **seven static stylesheets split by region** (`src/styles/base.css`, `chrome.css`,
+  `workspace.css`, `code.css`, `preview.css`, `skin.css`, `responsive.css`), imported by `src/main.tsx` in
+  cascade order. Vite emits **one** content-hashed `assets/index-<hash>.css`, so the CSP ("no inline style,
+  no remote style") and the download budget still see one file. #431 split the sheet because the
+  three-column layout pushed the single `app.css` past the 500-line hard limit; #171's skins slice added
+  `skin.css` for the same reason.
 - The built `index.html` carries one `<script type="module" src="...">` and one `<link rel="stylesheet">`,
   both same-origin and content-hashed: **no inline script, no remote script** (ADR-045 decisions 1-3,
   ADR-054 decision 4).
@@ -551,22 +579,22 @@ breakdown from the same run. A **raise** is a reviewed edit of the pin in the di
 recorded in the budget file's `note` -- `--update` refuses any raise, because a re-pin on a loaded box
 records machine load as headroom. `measurement.calibration_reference_ms` gets the same treatment as
 `encoder`: changing it rebases every latency pin at once, so it is a reviewed edit, never a side effect.
-Out of scope by #392, #422, #431, #390 and #444 and named here so a reader does not infer them: a router and
-user component instances (the scene builder does not render `<Home />`, so composing screens needs an engine
-slice), sharing a whole project (waits for cloud storage), adding, deleting and renaming files from the tree (the folder picker, the zip drop, Save and Download landed with #391), a real code editor widget (the textarea is per file,
-which is what #431 asks for), pointer input on the canvas (**#388's page half**: the engine dispatch and
-`tessera_canvas_pointer` exist, but the page does not yet wire pointer events to them, so an edit is the only
-way to change state in the browser), text drawing (#387, shipped), conditional children (#389), skins and the
-picker (#171). The theme toolbar toggle is still carried-but-not-applied
-([`compiler-wasm.md`](compiler-wasm.md) section 10.2): `assets.theme` did not arrive with #390.
 
-#444 added **one engine export** (`tessera_canvas_apply`) and the state/`frames` fields of its report; it
-did not change the evaluation, the carry rule or the paint path. The Wasm builds stay three modules, the
-studio stays single-threaded (ADR-045 decision 5), and every page-to-engine call stays a message with
-transferable buffers.
+Out of scope by #392, #422, #431, #390, #444 and #171 and named here so a reader does not infer them: a
+router and user component instances (the scene builder does not render `<Home />`, so composing screens
+needs an engine slice), sharing a whole project (waits for cloud storage), adding, deleting and renaming
+files from the tree (the folder picker, the zip drop, Save and Download landed with #391), a real code
+editor widget (the textarea is per file, which is what #431 asks for), text drawing (#387, shipped),
+conditional children (#389), and #171's remaining style inspector and `source.patch` (the picker overlay
+and the skins shipped). The theme toolbar toggle is now applied (section 1.1); `assets.theme` still did not
+arrive with #390, so the *project's* theme asset is carried-but-not-applied
+([`compiler-wasm.md`](compiler-wasm.md) section 10.2).
 
-#431 and #390 added **no engine feature to the page**: #431 moved the page's chrome into the layout the issue
-draws and made the editor per file; the project preview replaced #390's textarea with real project files
-that the entry imports, carried by each session's `ProjectReader` snapshot. The Wasm builds stay three modules, the studio stays
-single-threaded (ADR-045 decision 5), and every page-to-engine call stays a message with transferable
-buffers.
+#444 added **one engine export** (`tessera_canvas_apply`) and the state/`frames` fields of its report; #171's
+skins slice added one more (`tessera_canvas_set_safe_area`) and the `insets`/`cutouts` fields of the
+simulated metrics. Neither changed the evaluation, the carry rule, the paint path or the layout engine, which
+already resolved a `SafeArea` from a `WindowMetrics`. #431 and #390 added **no engine feature to the page**:
+#431 moved the page's chrome into the layout the issue draws and made the editor per file; the project
+preview replaced #390's textarea with real project files that the entry imports, carried by each session's
+`ProjectReader` snapshot. The Wasm builds stay three modules, the studio stays single-threaded (ADR-045
+decision 5), and every page-to-engine call stays a message with transferable buffers.

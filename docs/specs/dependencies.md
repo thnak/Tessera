@@ -41,7 +41,7 @@ Acronyms and project terms used below (RHI, SPIR-V, lavapipe, VRR, damage, golde
 | SPIRV-Reflect | V1 optional | Apache-2.0 | `rendering/backend/vulkan` | Shader reflection for pipeline layouts |
 | stb_image_write | PoC (proof of concept)/demo only | Public domain / MIT | `tools/poc` | PNG output in the Phase 0 (proof-of-concept stage, executables under `tools/poc/`) and batched2d demos |
 | stb_image | V1 hard (vendored, `third_party/stb`) | Public domain / MIT | `rendering/image` | PNG/JPEG decode for embedded image assets (RGBA8, production-linked); `third_party/stb/stb_image.h` |
-| ThorVG | V1 hard (FetchContent v1.1.3, `TESSERA_ENABLE_THORVG` default OFF; spike Go) | MIT | `rendering/path` | Vector paths behind `rendering::PathRasterizer`: CPU raster into RGBA8, uploaded through the RHI; SVG assets later |
+| ThorVG | V1 hard (FetchContent v1.1.3, `TESSERA_ENABLE_THORVG` default ON since [ADR-057](../../decisions/ADR-057-vector-paths-thorvg-default-and-exit.md); spike Go) | MIT | `rendering/path` | Vector paths behind `rendering::PathRasterizer`: CPU raster into RGBA8, uploaded through the RHI; SVG assets later |
 | Skia Graphite | Fallback only ([ADR-004](../../decisions/ADR-004-buy-vector-path-rasterization.md); owner chose ThorVG first) | BSD-3-Clause | `rendering/backend` | Vector paths/text, Vulkan backend |
 | Dawn | V1 optional (native/headless) | BSD-3-Clause | `rendering/backend/webgpu` | Native WebGPU implementation; the Wasm viewer uses the browser WebGPU via Emscripten |
 | Emscripten (emsdk 7.0.0, `tools/emsdk-version.txt`) | V1 hard for design-time | MIT / UIUC | `designer/web`, `rendering/backend/webgpu`, `src/compiler/codegen` | C++ → WebAssembly toolchain; the `wasm-webgpu` preset and the WebGPU CI lane build `tessera_webgpu` with it, and the `wasm-compiler` build preset builds the codegen CLI for the native-versus-Wasm IR parity gate (issue #164); installed by emsdk outside the repository, not vendored |
@@ -84,11 +84,15 @@ ThorVG rasterizes vector paths behind `rendering::PathRasterizer` (owner decisio
 meson-only, so it is fetched at configure time from the pinned archive
 `https://github.com/thorvg/thorvg/archive/refs/tags/v1.1.3.tar.gz` (SHA-256
 `ba9957aeeadb4151d4486f11c638ae118c00210fa4906daa7b30143aa341e690`) and compiled by the local
-CMake wrapper `cmake/ThorVG.cmake`; it is not vendored. `TESSERA_ENABLE_THORVG` (default OFF)
-gates the dependency, and the default build is unchanged when it is OFF. ThorVG v1.1.3 has CPU,
+CMake wrapper `cmake/ThorVG.cmake`; it is not vendored. `TESSERA_ENABLE_THORVG` defaults **ON**
+since [ADR-057](../../decisions/ADR-057-vector-paths-thorvg-default-and-exit.md), so the default
+build compiles it; the Windows CI lane pins it OFF to keep that lane's build budget (#258), which
+also keeps the no-ThorVG configuration tested. A machine without network access configures with
+`-DTESSERA_ENABLE_THORVG=OFF`. ThorVG v1.1.3 has CPU,
 GL and WebGPU raster engines but no Vulkan engine, so V1 rasterizes on the CPU and uploads the
 buffer through the RHI. No ThorVG type appears in a public header. Measurements and the Go
-decision are in [`thorvg-spike/README.md`](../design/thorvg-spike/README.md).
+decision are in [`thorvg-spike/README.md`](../design/thorvg-spike/README.md); ADR-057 records the
+measured triggers under which ThorVG is replaced by an in-house rasterizer behind the same seam.
 
 Frame pacing, refresh-rate/VRR (variable refresh rate) queries, and damage (screen region to repaint) use system APIs (DXGI, Vulkan present modes,
 X11 RandR/Present, Wayland `wp_presentation`). They are system components, not linked

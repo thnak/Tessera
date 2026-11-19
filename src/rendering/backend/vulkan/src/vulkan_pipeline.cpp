@@ -61,8 +61,20 @@ std::unique_ptr<rhi::Pipeline> VulkanDevice::create_pipeline(const rhi::Pipeline
 
     VkPipelineLayoutCreateInfo layout_info{};
     layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    // A pipeline whose shader indexes a sampled-image array declares the array layout; every other
+    // pipeline keeps the one-combined-image-sampler layout (RHI 1.7, issue #480 part 2). The choice
+    // is the descriptor's, so a caller that wants the array path asks for it explicitly and a
+    // device without the capability refuses it instead of building a pipeline that cannot bind.
+    VkDescriptorSetLayout set_layout = descriptor_set_layout_;
+    if (desc.texture_array) {
+        if (texture_array_layout_ == VK_NULL_HANDLE) {
+            throw std::runtime_error(
+                "create_pipeline: texture arrays are not supported on this device");
+        }
+        set_layout = texture_array_layout_;
+    }
     layout_info.setLayoutCount = 1;
-    layout_info.pSetLayouts = &descriptor_set_layout_;
+    layout_info.pSetLayouts = &set_layout;
     layout_info.pushConstantRangeCount = desc.push_constant_size > 0 ? 1 : 0;
     layout_info.pPushConstantRanges = desc.push_constant_size > 0 ? &push_range : nullptr;
 
