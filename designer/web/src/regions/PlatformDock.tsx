@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-// The bottom dock's **Platform events** panel (issue #448; `studio-device-profiles-v1.md` section 4; the
+// The bottom dock's **Platform events** panel (the tab body; `Dock.tsx` owns the strip and the frame) (issue #448; `studio-device-profiles-v1.md` section 4; the
 // studio plan's dock). It offers the events the current profile lists, shows the app's state and the action
 // that leaves it, and keeps the ordered event log with export and replay.
 //
@@ -59,7 +59,7 @@ function LogRow({ entry, index }: { entry: LogEntry; index: number }) {
   );
 }
 
-export function PlatformDock({
+export function PlatformPanel({
   profile,
   platform,
   onRestart,
@@ -101,14 +101,7 @@ export function PlatformDock({
   }
 
   return (
-    <section className="dock" id="platform-dock" aria-label="Bottom dock">
-      <div className="dock-tabs" role="tablist" aria-label="Dock panels">
-        {/* One panel today. The Mock console and Call trace tabs of the plan arrive with ADR-055. */}
-        <button type="button" role="tab" id="dock-tab-platform" className="tab" aria-selected="true" aria-controls="dock-panel-platform">
-          Platform events
-        </button>
-      </div>
-      <div className="dock-panel" id="dock-panel-platform" role="tabpanel" aria-labelledby="dock-tab-platform">
+    <div className="platform-panel" id="platform-dock">
         <div className="dock-state">
           <span className="dock-state-label">App state</span>
           <strong id="platform-state" data-state={platform.state} role="status" aria-live="polite">
@@ -201,7 +194,6 @@ export function PlatformDock({
             ))}
           </ol>
         )}
-      </div>
-    </section>
+    </div>
   );
 }

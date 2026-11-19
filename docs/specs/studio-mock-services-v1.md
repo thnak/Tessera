@@ -1,6 +1,6 @@
 # Studio mock services v1
 
-Status: proposed (design-time, V1-M4/D). Decisions: [ADR-054](../../decisions/ADR-054-studio-front-end-react-vite.md)
+Status: proposed (design-time, V1-M4/D); the studio-side half is implemented (section 15), the engine-visible half is gated. Decisions: [ADR-054](../../decisions/ADR-054-studio-front-end-react-vite.md)
 (studio front end), [ADR-055](../../decisions/ADR-055-studio-mock-services.md) (mock model and the
 ADR-045 decision 7 exception). Related: [designer-studio-v1.md](designer-studio-v1.md) (project IO),
 [designer-protocol-v1.md](designer-protocol-v1.md) (host/viewer transport),
@@ -245,7 +245,8 @@ Stable codes, added to the `TESSERA_MOCK_` family in [error-model-v1.md](error-m
 | `TESSERA_MOCK_TIMEOUT` / `TESSERA_MOCK_CALL_LIMIT` / `TESSERA_MOCK_RESPONSE_TOO_LARGE` | Caps (section 4.5) |
 | `TESSERA_MOCK_LIMIT` | A protocol message over its limit (section 6.3) |
 | `TESSERA_MOCK_TRACE_LIMIT` / `TESSERA_MOCK_REPLAY_MISMATCH` | Trace limits and replay mismatch |
-| `TESSERA_MOCK_SANDBOX_VIOLATION` | A shadowed global or forbidden operation was reached |
+| `TESSERA_MOCK_SANDBOX_VIOLATION` | A shadowed global or forbidden operation was reached, or the static scan found a forbidden identifier |
+| `TESSERA_MOCK_HANDLER_ERROR` | A handler threw; the mock stays enabled and the call is recorded as an `error` response |
 
 Each is `Error` severity except binding status (`Warn`): the preview continues with the engine
 default. No mock error is `Fatal`.
@@ -304,3 +305,35 @@ default. No mock error is `Fatal`.
    stay session-only; v1 keeps them session-only and uses downloaded traces.
 5. **Headless execution.** Running the same mocks under `tessera-mcp` in Node, and whether the trace
    format is the shared artifact there.
+
+## 15. Implementation status (issue #434)
+
+The studio-side infrastructure ADR-055 decision 9 allows to be built in isolation exists. **No surface claims a
+mock changes a previewed frame**: the service seam (decision 9 (i) to (iii)) does not exist, so every console
+view says so.
+
+| Part | Where | Notes |
+|---|---|---|
+| File kind `mock`, limits 64 / 1 MiB / 8 MiB | `designer/web/project-paths.js`, `project-io.js` | Text and editable, never sent to the viewer (only `source` and `stylesheet` are) |
+| Subset scan with `line:column` | `designer/web/mock/subset.js` | A lexer, not a parser; runs before compile. Forbidden identifiers are `TESSERA_MOCK_SANDBOX_VIOLATION` statically too |
+| Transpiler (esbuild-wasm, pinned) | `designer/web/mock/transpile.js` | Lazy `import()`; output is an IIFE assigning `__mockModule` |
+| Sandbox worker source | `designer/web/mock/sandbox-source.js`, `worker-handle.js` | Prelude removes network, clock, DOM, dynamic-code and worker-plumbing globals before the mock runs; seeded `Math.random` |
+| Host: binding, caps, table, trace | `designer/web/mock/host.js`, `response.js`, `trace.js` | Worker factory, transpiler and timers are injected, so the Node gates run the same code |
+| Dock (Mock console, Call trace) | `designer/web/src/regions/MockDock.tsx` and panels, `src/lib/mock-console.ts` | Collapsed by default; the host starts only when the dock is open and the project has a mock |
+| Gates | `scripts/ci/preview_mock_host.mjs`, `preview_mock_sandbox.mjs` | `worker_threads` runs the exact worker text; the browser lane (#375) owns the browser run |
+
+Deviations and choices the spec left open:
+
+- Until `ui/services.json` has a spec, `readServiceManifest` returns `null` and every mock is `unbound` (section 5.1).
+  A development-only `window.__tesseraMock` (stripped from production builds) injects a manifest and calls for the
+  browser check.
+- The call table's response state uses `default` for a response the mock handler produced and `edited` after a
+  console edit, as section 8.2 lists; `error` covers an error response and a failed call.
+- A handler that throws is `TESSERA_MOCK_HANDLER_ERROR` (added to section 10): the mock stays enabled.
+- Compile is raced against a 2 s timer in the page (the per-project cap), not 200 ms per file: the first compile
+  includes fetching and instantiating esbuild's WebAssembly.
+- The lazy chunk is under `dist/assets/mock/` and weighed by `mock_transpiler_lazy_gzip_bytes`; esbuild's
+  WebAssembly is 14 MB raw and 3.75 MB gzip, which is the reason section 14 question 1 stays open.
+- The CSP in section 9.1 as written (`script-src 'self'`) does not allow instantiating WebAssembly in the page or
+  in esbuild's own worker; the page needs `'wasm-unsafe-eval'` (the engine modules already need it) and
+  `worker-src` for esbuild's blob worker. The security review must confirm both.

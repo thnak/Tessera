@@ -52,6 +52,9 @@ on:
       - 'scripts/ci/preview_generated_staleness.mjs'
       - 'scripts/ci/preview_recent_projects.mjs'
       - 'scripts/ci/preview_project_package.mjs'
+      - 'scripts/ci/preview_mock_host.mjs'
+      - 'scripts/ci/preview_mock_sandbox.mjs'
+      - 'scripts/ci/mock_test_support.mjs'
       - 'scripts/ci/preview_theme_handover.mjs'
       - 'scripts/ci/gen_sample_manifest.py'
       - 'scripts/check_preview_budget.py'
@@ -79,6 +82,9 @@ on:
       - 'scripts/ci/preview_generated_staleness.mjs'
       - 'scripts/ci/preview_recent_projects.mjs'
       - 'scripts/ci/preview_project_package.mjs'
+      - 'scripts/ci/preview_mock_host.mjs'
+      - 'scripts/ci/preview_mock_sandbox.mjs'
+      - 'scripts/ci/mock_test_support.mjs'
       - 'scripts/ci/preview_theme_handover.mjs'
       - 'scripts/ci/gen_sample_manifest.py'
       - 'scripts/check_preview_budget.py'
@@ -253,6 +259,11 @@ jobs:
       # The project package: zip + manifest with times, versioning, tamper refusal, plain zips still open.
       - name: Project package format
         run: node scripts/ci/preview_project_package.mjs
+      - name: Studio mock services (file kind, subset, table, trace, host)
+        run: node scripts/ci/preview_mock_host.mjs
+
+      - name: Studio mock sandbox (hostile fixtures, caps)
+        run: node scripts/ci/preview_mock_sandbox.mjs
 
       - name: Theme asset hand-over (token commits)
         run: node scripts/ci/preview_theme_handover.mjs

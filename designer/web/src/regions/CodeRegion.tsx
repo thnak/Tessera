@@ -38,6 +38,8 @@ function kindLetter(kind: string): string {
       return "json";
     case "theme":
       return "theme";
+    case "mock":
+      return "mock";
     default:
       return "file";
   }

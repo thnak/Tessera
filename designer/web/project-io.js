@@ -16,6 +16,7 @@
 // fake and the page passes the real `FileSystemDirectoryHandle` unchanged.
 
 import {
+  FILE_KIND,
   LIMITS,
   classifyPath,
   confinePath,
@@ -133,6 +134,8 @@ export async function buildProject(raw) {
   // Every limit is checked from sizes alone, so an over-limit project is refused before any read.
   let accepted = 0;
   let bytes = 0;
+  let mocks = 0;
+  let mockBytes = 0;
   const plan = [];
   for (const [path, entry] of confined) {
     const kind = classifyPath(path, context);
@@ -148,6 +151,16 @@ export async function buildProject(raw) {
       }
       if (bytes > LIMITS.maxAcceptedBytes) {
         throw limitError('maxAcceptedBytes', bytes);
+      }
+      if (kind === FILE_KIND.mock) {
+        mocks += 1;
+        mockBytes += entry.size;
+        if (mocks > LIMITS.maxMockFiles) {
+          throw limitError('maxMockFiles', mocks);
+        }
+        if (mockBytes > LIMITS.maxMockBytes) {
+          throw limitError('maxMockBytes', mockBytes);
+        }
       }
     }
     plan.push({ path, kind, text, entry });
