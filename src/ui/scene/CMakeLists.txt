@@ -22,6 +22,7 @@ add_library(tessera_scene STATIC
     scroll_animation.cpp
     text_input_dispatch.cpp
     update_scheduler.cpp
+    volume_dispatch.cpp
     wheel_dispatch.cpp)
 
 target_include_directories(tessera_scene PUBLIC

@@ -19,6 +19,7 @@
 
 #pragma once
 
+#include "tessera/hal/os_event.hpp"
 #include "tessera/hal/window.hpp"
 
 #include <cstdint>
@@ -264,6 +265,42 @@ struct WindowLifecycle {
         return true;
     case hal::WindowEventType::Close:
         out = LifecycleSignal::Close;
+        return true;
+    default:
+        return false;
+    }
+}
+
+// The same bridge from the normalized OS event, for the system-button mappings of
+// studio-device-profiles-v1.md section 4 (issue #445): Home is `WindowHidden` then `Suspend`, and
+// the way back is `Resume` then `WindowShown`; Recents is `WindowDeactivated`. `WindowHidden` is
+// the no-visible-window row of ADR-050 section 2 (`Occlude`: it derives `Hidden`, exactly as a
+// minimize does), and `WindowShown` is the `Restore` that clears it. Display, theme, power-source
+// and screen events carry no lifecycle transition here (`ScreenOff`/`ScreenOn` pause presenting
+// through the pacing path, not the app state), so `false` means "do not feed the state machine".
+[[nodiscard]] constexpr bool lifecycle_signal_for(hal::OsEventType type,
+                                                  LifecycleSignal& out) noexcept {
+    switch (type) {
+    case hal::OsEventType::WindowActivated:
+        out = LifecycleSignal::Focus;
+        return true;
+    case hal::OsEventType::WindowDeactivated:
+        out = LifecycleSignal::Blur;
+        return true;
+    case hal::OsEventType::WindowHidden:
+        out = LifecycleSignal::Occlude;
+        return true;
+    case hal::OsEventType::WindowShown:
+        out = LifecycleSignal::Restore;
+        return true;
+    case hal::OsEventType::Suspend:
+        out = LifecycleSignal::Suspend;
+        return true;
+    case hal::OsEventType::Resume:
+        out = LifecycleSignal::Resume;
+        return true;
+    case hal::OsEventType::ShutdownRequested:
+        out = LifecycleSignal::ShutdownRequest;
         return true;
     default:
         return false;

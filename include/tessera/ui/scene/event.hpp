@@ -54,7 +54,13 @@ enum class EventType {
     // advisory and cannot retroactively undo an applied scroll in V1 (pre-checking/clamping before
     // the move is a later slice). A handler that scrolls the same container again applies that move
     // and does not re-emit (bounded re-entrancy guard in scroll.cpp).
-    Scroll
+    Scroll,
+    // A hardware volume key (docs/specs/studio-device-profiles-v1.md section 4), delivered to the
+    // focused node in the normal capture -> target -> bubble order. The framework has no default
+    // action for it: `volume_direction` carries which key, and an unhandled event is simply
+    // dropped. BackRequested is not a scene event: the host resolves it against overlays and
+    // navigation before the scene sees input.
+    VolumeKey
 };
 
 enum class ClickSource : std::uint8_t { Pointer, Keyboard, Accessibility };
@@ -79,6 +85,8 @@ struct Event {
     Modifier modifiers = Modifier::None;
     std::uint32_t text_codepoint = 0;
     bool repeat = false;
+    // Meaningful for EventType::VolumeKey only.
+    VolumeDirection volume_direction = VolumeDirection::Up;
     PointerButton button = PointerButton::None;
     std::uint32_t pointer_id = 0;
     PointerKind pointer_kind = PointerKind::Mouse;

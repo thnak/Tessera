@@ -9,6 +9,7 @@ add_library(tessera_appfw_core STATIC
     application.cpp
     application_lifecycle_sink.cpp
     lifecycle_script.cpp
+    saved_state.cpp
     service_bridge.cpp
     service_context.cpp
     service_runner.cpp

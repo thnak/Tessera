@@ -80,6 +80,9 @@ void SyntheticEventInjector::advance_ms(std::int64_t delta) noexcept {
 void SyntheticEventInjector::clear() noexcept {
     head_ = 0;
     count_ = 0;
+    input_head_ = 0;
+    input_count_ = 0;
+    screen_on_ = true;
     overflows_ = 0;
     coalesced_ = 0;
 }

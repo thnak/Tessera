@@ -294,6 +294,9 @@ bool AppHost::Impl::root_is_rtl() const {
 
 bool AppHost::handle_overlay_input(const ui::InputEvent& event) {
     Impl& state = *impl_;
+    if (event.type == ui::InputEventType::BackRequested) {
+        return state.handle_back_request();
+    }
     if (!state.overlay_host) {
         return false;
     }
