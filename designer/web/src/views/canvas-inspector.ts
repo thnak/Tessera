@@ -266,8 +266,8 @@ export function createCanvasInspector(options: CanvasInspectorOptions): CanvasIn
   // The last node asked about, so a frame that moved the boxes can re-ask without a new click.
   let last: { clientX: number; clientY: number } | null = null;
   // The node the panel is showing, so a commit names the same node the panel describes even after
-  // the pointer moved away. Zero means no node is selected.
-  let selected = 0;
+  // the pointer moved away. An empty string means no node is selected (the id is a decimal string: a 64-bit id does not survive Number).
+  let selected = "";
   let selectedLabel = "node";
   // The last commit's answer and the last refused value, kept so a re-render (a frame moved the boxes) does
   // not lose them.
@@ -278,7 +278,7 @@ export function createCanvasInspector(options: CanvasInspectorOptions): CanvasIn
   function hide(): void {
     panel.hidden = true;
     last = null;
-    selected = 0;
+    selected = "";
     lastOutcome = null;
     refusal = null;
     lastReport = null;
@@ -310,7 +310,7 @@ export function createCanvasInspector(options: CanvasInspectorOptions): CanvasIn
     heading.className = "inspect-heading";
     heading.textContent = `${selectedLabel} #${report.node ?? "0"}`;
     sections.push(heading);
-    selected = Number(report.node ?? "0");
+    selected = report.node ?? "";
 
     const deps = {
       client,
@@ -360,11 +360,11 @@ export function createCanvasInspector(options: CanvasInspectorOptions): CanvasIn
   /** Re-asks `style.info` for the selected node (a query: no frame). */
   function refreshStyle(): void {
     const module = options.module();
-    if (module === null || selected === 0) {
+    if (module === null || selected === "") {
       return;
     }
     try {
-      render(JSON.parse(callExport(module, "_tessera_canvas_style", [String(selected)], [])) as CanvasStyleReport);
+      render(JSON.parse(callExport(module, "_tessera_canvas_style", [selected], [])) as CanvasStyleReport);
     } catch (error) {
       setStatus("inspector unavailable: " + String(error), "warning");
     }
@@ -382,14 +382,14 @@ export function createCanvasInspector(options: CanvasInspectorOptions): CanvasIn
     fields: { className?: string; file?: string; token?: string; tokenValue?: string } = {},
   ): Promise<CommitOutcome | null> {
     const host = options.commitHost();
-    if (host === null || selected === 0) {
+    if (host === null || selected === "") {
       return null;
     }
     // The declarations a commit writes are the node's overrides (designer-protocol-v1 §10.1), which the
     // module holds in its override layer: the page names the node and the destination, never the values.
     const outcome = await client.commit(
       {
-        node: String(selected),
+        node: selected,
         nodeLabel: selectedLabel,
         destination,
         className: fields.className,
@@ -426,7 +426,7 @@ export function createCanvasInspector(options: CanvasInspectorOptions): CanvasIn
       hide();
       return false;
     }
-    if (Number(picked.automationId) !== selected) {
+    if (picked.automationId !== selected) {
       // A different node: its refusal and last commit answer are not this node's.
       refusal = null;
       lastOutcome = null;
@@ -473,7 +473,7 @@ export function createCanvasInspector(options: CanvasInspectorOptions): CanvasIn
     }
     // The selected node survives a frame by id; the pointer position only matters for the first pick, and a
     // layout move would make a re-pick at the old point name a different node.
-    if (selected !== 0) {
+    if (selected !== "") {
       refreshStyle();
     } else if (last !== null) {
       ask(last.clientX, last.clientY);
@@ -486,7 +486,7 @@ export function createCanvasInspector(options: CanvasInspectorOptions): CanvasIn
 
   // The overrides changed outside the panel (Edit > Undo, a settle): the rows follow.
   client.subscribe(() => {
-    if (isArmed && selected !== 0 && lastReport !== null) {
+    if (isArmed && selected !== "" && lastReport !== null) {
       refreshStyle();
     }
   });
