@@ -22,7 +22,7 @@ import { PlatformPanel } from "./PlatformDock";
 type DockTab = "platform" | "console" | "trace";
 const TABS: readonly DockTab[] = ["platform", "console", "trace"];
 
-export function MockDock({
+export function Dock({
   files,
   textOf,
   revision,
