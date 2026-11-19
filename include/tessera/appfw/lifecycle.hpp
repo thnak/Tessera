@@ -272,12 +272,12 @@ struct WindowLifecycle {
 }
 
 // The same bridge from the normalized OS event, for the system-button mappings of
-// studio-device-profiles-v1.md section 4 (issue #445): Home is `WindowHidden` then `Suspend`, and the
-// way back is `Resume` then `WindowShown`; Recents is `WindowDeactivated`. `WindowHidden` is the
-// no-visible-window row of ADR-050 section 2 (`Occlude`: it derives `Hidden`, exactly as a minimize
-// does), and `WindowShown` is the `Restore` that clears it. Display, theme, power-source and screen
-// events carry no lifecycle transition here (`ScreenOff`/`ScreenOn` pause presenting through the
-// pacing path, not the app state), so `false` means "do not feed the state machine".
+// studio-device-profiles-v1.md section 4 (issue #445): Home is `WindowHidden` then `Suspend`, and
+// the way back is `Resume` then `WindowShown`; Recents is `WindowDeactivated`. `WindowHidden` is
+// the no-visible-window row of ADR-050 section 2 (`Occlude`: it derives `Hidden`, exactly as a
+// minimize does), and `WindowShown` is the `Restore` that clears it. Display, theme, power-source
+// and screen events carry no lifecycle transition here (`ScreenOff`/`ScreenOn` pause presenting
+// through the pacing path, not the app state), so `false` means "do not feed the state machine".
 [[nodiscard]] constexpr bool lifecycle_signal_for(hal::OsEventType type,
                                                   LifecycleSignal& out) noexcept {
     switch (type) {

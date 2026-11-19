@@ -219,6 +219,31 @@ window's event seam), and `appearance_portal`
 read under `XDG_CONFIG_HOME`). All are deterministic with no bus, socket, clock or desktop. **Not
 exercised:** a live portal on a real desktop.
 
+### 2.3 System buttons: Back, Volume, Home, Recents, Power (issue #445)
+
+Slice E1 of [studio-device-profiles-v1.md](studio-device-profiles-v1.md) (sections 1 and 4). No new
+`OsEventType`: Home is `WindowHidden` then `Suspend`, Recents is `WindowDeactivated`, Power is
+`ScreenOff` then `ScreenOn`; `SyntheticEventInjector::press(SystemButton)` produces them with the
+simulated clock. Back and Volume are two new **input** events, `InputEventType::BackRequested` and
+`VolumeKey` (`ui::VolumeDirection`), carried by the injector's input ring, delivered after every OS
+event of the tick (§3 order), never coalesced, and queued in order like any input. A volume key goes
+to the focused node as `EventType::VolumeKey` and is dropped without focus; Back is not a scene event.
+
+Back dispatch, in `AppHost::handle_overlay_input`: topmost dismissible overlay (`dismiss_on_back`),
+else the app's `BackHandler` (`appfw::nav_back_handler` runs `NavController::back()`, and a pop or a
+modal dismissal consumes it), else **unhandled**. `AppHost::last_back_dispatch()` and
+`unhandled_back_count()` report which, so a desktop host ignores `Unhandled` and a mobile host closes
+the app, discarding saved state. Repeated Back on an empty stack stays `Unhandled`.
+
+Saved state: `appfw::SavedStateRecorder` captures registered components' `ui::StateSnapshot` at
+`Suspend` into an `appfw::SavedStateRecord`; a relaunch after process death calls
+`SavedStateRecord::restore`, which applies the P4 rule (same component id, same cell name, same value
+kind) and leaves everything else at its initializer. A hot resume never reads the record.
+`appfw::lifecycle_signal_for(OsEventType, ...)` maps the events above onto the app state machine.
+Named fixtures: `make_back_pop_back_exit_script`, `make_home_resume_script`,
+`make_power_cycle_script`, `make_process_death_script`. Evidence: `tests/unit/system_buttons_tests.cpp`
+(ctest `system_buttons`).
+
 ## 3. Event ordering and delivery
 
 Per frame/tick:
@@ -369,7 +394,10 @@ Representative callbacks/APIs (not exhaustive):
 | Fold/hinge bounds | `FoldingFeature.getBounds`, `getOrientation`, `getOcclusionType`, `isSeparating` | `FoldInfo` | avoid hinge/occlusion |
 | App continuity | Activity stop/restart on fold/unfold; `onSaveInstanceState` | lifecycle + `FoldChanged` | restore state |
 | Focus/activation | `onWindowFocusChanged`, `onTopResumedActivityChanged` | `WindowFocused/Blurred` | input/pacing |
-| Keyboard/back | `KeyEvent`, `OnBackInvokedCallback` | input events | dispatch |
+| Keyboard/back | `KeyEvent`, `OnBackInvokedCallback` | `InputEventType::BackRequested` (back); `VolumeKey` (volume keys, `up`/`down`) | overlay, then route, else unhandled (§2.3) |
+| Home button | `Activity.onStop`, `onSaveInstanceState` | `WindowHidden` then `Suspend` | hide + pause; state kept (hot resume) |
+| Recents | `onWindowFocusChanged(false)` | `WindowDeactivated` | focus lost, still running |
+| Power button | `ACTION_SCREEN_OFF` / `ON` | `ScreenOff`, then `ScreenOn` | pause / resume presenting |
 | Touch/stylus/mouse | `MotionEvent` (`ACTION_*`, `TOOL_TYPE_*`, axes) | pointer/stylus events | dispatch |
 | IME/text | `InputConnection`, `EditorInfo`, `WindowInsets.Type.ime()` | `ImeChanged` + text | focus/text |
 | Power/thermal | `PowerManager` (`isPowerSaveMode`, `getCurrentThermalStatus`, `OnThermalStatusChangedListener`), battery broadcasts | `PowerSource/BatterySaver/ThermalState` | power policy |
@@ -480,6 +508,10 @@ condition is not specified here, and "yes"/"no" mean always/never.
 | `TextScale/Locale` | font/text | text reflow | glyph cache | no | text metrics |
 | `PowerSource/BatterySaver/Thermal` | no | no | quality | policy/adaptive | power/thermal |
 | `Suspend/Resume/ScreenOff/On` | no | no | pause/resume | yes | lifecycle |
+| `WindowHidden` then `Suspend` (Home) | no | no | pause | yes | lifecycle; the saved-state record is captured at `Suspend` (§2.3) |
+| `WindowDeactivated` (Recents) | no | no | no | focus only | lifecycle |
+| `BackRequested` (input) | no | no | overlay or route change | no | back dispatch result |
+| `VolumeKey` (input) | no | no | no | no | delivered to the focused node; no default action |
 | `SessionLocked/Unlocked` | no | no | pause/resume | yes | security |
 | `MemoryPressure` | no | no | evict caches | no | memory |
 | `ScreenCaptureChanged` | no | no | privacy/quality | no | security |

@@ -31,10 +31,10 @@ enum class InputEventType : std::uint8_t {
     // Multi-codepoint committed text (IME result string or platform text input). Carries the
     // bounded inline payload below; single-codepoint keyboard text stays `Text`.
     EditText,
-    // System buttons (docs/specs/studio-device-profiles-v1.md section 4, os-events-v1.md section 7):
-    // the platform's Back request (Android button or gesture, desktop Escape/browser back) and a
-    // hardware volume key. Discrete, never coalesced, and delivered in queue order with the rest of
-    // input (os-events-v1.md section 3). Back carries no payload; VolumeKey carries
+    // System buttons (docs/specs/studio-device-profiles-v1.md section 4, os-events-v1.md section
+    // 7): the platform's Back request (Android button or gesture, desktop Escape/browser back) and
+    // a hardware volume key. Discrete, never coalesced, and delivered in queue order with the rest
+    // of input (os-events-v1.md section 3). Back carries no payload; VolumeKey carries
     // `volume_direction`.
     BackRequested,
     VolumeKey,

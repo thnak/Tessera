@@ -4,6 +4,8 @@
 
 #include "tessera/ui/input.hpp"
 #include "tessera/ui/scene/event.hpp"
+#include "tessera/ui/scene/focus.hpp"
+#include "tessera/ui/scene/input_dispatch.hpp"
 
 namespace tessera::ui {
 
@@ -18,5 +20,9 @@ namespace tessera::ui {
 // Builds the scene event with the inline UTF-8 payload and the UTF-16 code-unit selection range
 // copied from the normalized event.
 [[nodiscard]] Event make_composition_event(EventType type, const InputEvent& input);
+
+// A typed character to the focused node, then the `typeahead` default action (issue #236) unless a
+// handler consumed it. With no focused node the character is dropped.
+InputDispatchResult dispatch_text(FocusManager& focus, Node& root, const InputEvent& input);
 
 } // namespace tessera::ui

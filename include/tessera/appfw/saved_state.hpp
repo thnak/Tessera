@@ -17,11 +17,11 @@
 // `int` is never poured into a `float` cell. Initializer expressions are not part of the key, as in
 // the P4 rule.
 //
-// When it is captured: at `Suspend`, the last event a process is guaranteed to see before the OS may
-// kill it (Android's `onSaveInstanceState` moment). `SavedStateRecorder::on_event` does that on the
-// normalized event, so the capture happens on the same path the app sees. A hot resume never reads
-// the record (startup-api-v1.md Hot Resume: no snapshot read), and an unhandled Back, which closes
-// the app, discards it (the spec's rule 1: the state is discarded).
+// When it is captured: at `Suspend`, the last event a process is guaranteed to see before the OS
+// may kill it (Android's `onSaveInstanceState` moment). `SavedStateRecorder::on_event` does that on
+// the normalized event, so the capture happens on the same path the app sees. A hot resume never
+// reads the record (startup-api-v1.md Hot Resume: no snapshot read), and an unhandled Back, which
+// closes the app, discards it (the spec's rule 1: the state is discarded).
 //
 // Capture copies the snapshots, so it belongs at checkpoints and never on the frame path.
 
@@ -91,7 +91,8 @@ class SavedStateRecorder {
 public:
     using SnapshotFn = ui::StateSnapshot (*)(void* user);
 
-    explicit SavedStateRecorder(SavedStateRecord& record) : record_(&record) {}
+    explicit SavedStateRecorder(SavedStateRecord& record)
+        : record_(&record) {}
 
     // Registers one component's snapshot source. The caller keeps `user` alive for the recorder's
     // life. Returns false for an empty id or a null function.

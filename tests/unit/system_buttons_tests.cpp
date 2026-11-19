@@ -5,14 +5,13 @@
 // result, and the saved-state record. Everything runs over `ManualClock` and the synthetic
 // injector: no wall clock, no OS, no window.
 
+#include "appfw_navigation_test_support.hpp"
 #include "overlay_test_fixture.hpp"
 #include "tessera/appfw/lifecycle.hpp"
 #include "tessera/appfw/navigation_stack.hpp"
 #include "tessera/appfw/saved_state.hpp"
 #include "tessera/hal/synthetic_events.hpp"
 #include "tessera/ui/input_pump.hpp"
-
-#include "appfw_navigation_test_support.hpp"
 
 #include <vector>
 
@@ -37,7 +36,8 @@ void check(bool condition, const char* message) {
 
 // The pump with the host's overlay input hook installed, as the window driver wires it.
 struct Driver {
-    explicit Driver(Fixture& fixture) : fixture(fixture) {
+    explicit Driver(Fixture& fixture)
+        : fixture(fixture) {
         pump.set_input_filter(
             [](void* user, Node&, const InputEvent& event) {
                 return static_cast<tessera::app::AppHost*>(user)->handle_overlay_input(event);
@@ -71,8 +71,8 @@ void back_pops_overlay_then_route_then_reports_unhandled() {
     f.frame();
     check(f.host->overlays().size() == 1, "the menu is open");
 
-    // The script is back-pop-back-exit: three identical Back events; the app state decides what each
-    // one does.
+    // The script is back-pop-back-exit: three identical Back events; the app state decides what
+    // each one does.
     SyntheticEventInjector script = tessera::hal::make_back_pop_back_exit_script();
     check(script.pending_input() == 3, "the script holds three Back presses");
     check(script.empty(), "and no OS event");
