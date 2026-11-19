@@ -4,8 +4,8 @@
 // One tab strip and one panel hold the three tabs: the Platform events panel (issue #448, device
 // profiles) and the two ADR-055 mock tabs (issue #434).
 //
-// **Open on Platform events by default.** The dock was always visible for the platform tab, so it stays
-// open. The mock host, the sandbox worker and the transpiler still start only when the dock is open *and*
+// **Collapsed by default (owner decision).** Only the tab strip shows; a tab or Show opens the panel on it.
+// The mock host, the sandbox worker and the transpiler still start only when the dock is open *and*
 // the project has a mock file (spec section 2.4), so a project without mocks pays nothing. The page lays
 // the dock out as a strip under the workspace rather than inside the grid, so it does not change the
 // three-column shape; its height is capped (`.dock`), and it can be hidden to give the canvas the room.
@@ -40,7 +40,7 @@ export function Dock({
   /** The **Restart app** action: a cold start, state reset. */
   onRestart: () => void;
 }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<DockTab>("platform");
   const ids = useId();
   const mocks = useMockConsole(open, files, textOf, revision);
