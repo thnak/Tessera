@@ -187,7 +187,11 @@ export function ProjectTree({
                   &bull;
                 </span>
               ) : null}
-              {!row.dir && !row.editable ? <span className="tree-lock">locked</span> : null}
+              {!row.dir && !row.editable ? (
+                <span className="tree-lock" title={row.viewOnly ? "Locked: opens read-only" : "Locked: not shown"}>
+                  locked
+                </span>
+              ) : null}
             </div>
           );
         })}

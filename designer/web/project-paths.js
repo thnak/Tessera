@@ -200,6 +200,9 @@ export const FILE_KIND = Object.freeze({
   config: 'config',
   theme: 'theme',
   asset: 'asset',
+  // A text file the studio does not accept (C++, a generated header, a README): listed with a lock, opened
+  // view-only on demand (owner decision 2026-11-17), and never sent to the viewer or written back.
+  viewOnly: 'view-only',
   other: 'other',
 });
 
@@ -211,6 +214,19 @@ const TEXT_KINDS = new Set([FILE_KIND.source, FILE_KIND.stylesheet, FILE_KIND.co
 /** `true` when a file of this kind is read as text, sent to the viewer and editable. */
 export function isTextKind(kind) {
   return TEXT_KINDS.has(kind);
+}
+
+// Extensions of text a developer may want to read next to the UI source. A match only makes a locked file
+// *openable*; it never makes it a text kind, so no byte of it reaches the viewer or a save.
+const VIEW_ONLY_EXTENSIONS = new Set([
+  '.h', '.hh', '.hpp', '.hxx', '.inl', '.ipp', '.c', '.cc', '.cpp', '.cxx', '.ixx',
+  '.ts', '.js', '.mjs', '.cjs', '.json', '.md', '.txt', '.yml', '.yaml', '.toml', '.cmake',
+  '.html', '.xml', '.glsl', '.vert', '.frag', '.sh', '.ps1', '.py', '.cs', '.rs', '.go',
+]);
+
+/** `true` when a file of this kind opens read-only as text (and is still never sent or written). */
+export function isViewOnlyKind(kind) {
+  return kind === FILE_KIND.viewOnly;
 }
 
 /**
@@ -254,6 +270,14 @@ export function classifyPath(path, context = {}) {
   }
   if (/\.(png|jpe?g|webp|gif|bmp|ico|ttf|otf|woff2?)$/i.test(path)) {
     return FILE_KIND.asset;
+  }
+  // Build output and dependency folders are listed as one locked row (project-io `OPAQUE_DIRS`); a zip can
+  // still carry files under them, and those stay name-and-size only rather than opening as text.
+  if (/(^|\/)(node_modules|\.git|build|dist|out|\.vite)\//.test(path)) {
+    return FILE_KIND.other;
+  }
+  if (VIEW_ONLY_EXTENSIONS.has(extension) || /(^|\/)(CMakeLists\.txt|Makefile|LICENSE)$/.test(path)) {
+    return FILE_KIND.viewOnly;
   }
   return FILE_KIND.other;
 }

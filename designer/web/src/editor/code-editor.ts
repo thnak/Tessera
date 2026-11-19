@@ -64,8 +64,11 @@ export interface EditorMark {
 }
 
 export interface CodeEditor extends EditorSurface {
-  /** Shows `path` with `text`; reuses the file's own state (history) when its document still equals `text`. */
-  open(path: string, text: string): void;
+  /**
+   * Shows `path` with `text`; reuses the file's own state (history) when its document still equals `text`.
+   * `readOnly` shows a locked file: the text can be selected and copied but not changed.
+   */
+  open(path: string, text: string, readOnly?: boolean): void;
   /** Replaces the underlines of `path`; shown immediately when it is the open file. */
   setMarks(path: string, marks: readonly EditorMark[]): void;
   focus(): void;
@@ -191,8 +194,11 @@ export function createCodeEditor(parent: HTMLElement, options: CodeEditorOptions
 
   const view = new EditorView({ state: EditorState.create({ doc: "" }), parent });
 
-  function stateFor(path: string, text: string): EditorState {
-    return EditorState.create({ doc: text, extensions: [shared, languageFor(path)] });
+  function stateFor(path: string, text: string, readOnly: boolean): EditorState {
+    return EditorState.create({
+      doc: text,
+      extensions: [shared, languageFor(path), readOnly ? EditorState.readOnly.of(true) : []],
+    });
   }
 
   function applyMarks(path: string): void {
@@ -203,12 +209,12 @@ export function createCodeEditor(parent: HTMLElement, options: CodeEditorOptions
     get path() {
       return current;
     },
-    open(path, text) {
+    open(path, text, readOnly = false) {
       if (current !== "" && current !== path) {
         states.set(current, view.state);
       }
       const kept = states.get(path);
-      const next = kept !== undefined && kept.doc.toString() === text ? kept : stateFor(path, text);
+      const next = kept !== undefined && kept.doc.toString() === text && kept.readOnly === readOnly ? kept : stateFor(path, text, readOnly);
       current = path;
       view.setState(next);
       applyMarks(path);

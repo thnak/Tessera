@@ -110,12 +110,14 @@ than the build compiles, so the cases are copied from the C++ function.
 `source` (`.tsx`/`.jsx`), `stylesheet` (`.css`), `config` (`tessera.json`), `theme` (`assets.theme`), and
 `asset` (a font or image the config names). Everything else — C++, generated output, `node_modules`,
 build output, a stray binary — is `other`, `isTextKind(kind)` is false, and that single decision produces
-the tree's lock badge *and* the "never sent to the viewer, never written" guarantee. **Superseded in part
-by the owner's decision of 2026-11-17** (`designer-studio-v1.md` section 7): a locked text file is
-**viewable**, read lazily when opened and under the per-file cap, so "never read into memory beyond its
-name and size" no longer holds for it; the classifier needs a view-only text kind beside `other`, and a
-binary stays name and size only. ADR-040's "the developer class is never edited" is therefore one branch, not a check
-the UI has to remember.
+the tree's lock badge *and* the "never sent to the viewer, never written" guarantee. **Locked does not mean
+hidden** (the owner's decision of 2026-11-17, `designer-studio-v1.md` section 7): a locked *text* file (C++, a
+generated header, a README; `FILE_KIND.viewOnly`, `isViewOnlyKind`) opens in the editor read-only, read lazily
+when opened and under the per-file cap. `isTextKind` stays false for it, so the viewer guarantee is still one
+branch: Save, Download and the viewer all filter on the text kinds, which is asserted by a marker that never
+appears in anything they take. A binary, an over-cap file and anything under an opaque directory (`node_modules`,
+`build`, ...) stays name and size only. ADR-040's "the developer class is never edited" is therefore one branch,
+not a check the UI has to remember.
 
 **The limits are the real ones**, not `ui.limits.*` (documented but unread, issue #405):
 `maxFileBytes` is the compiler's own `TESSERA_JSX_LIMIT_FILE_SIZE` (1 MiB), so a file this module
@@ -170,7 +172,7 @@ unchanged" is checked rather than described.
 and a test's path list to the same *raw entries* (`path`, `size`, `lastModified`, a lazy `read`) and
 `buildProject` turns them into the project: every path through `confinePath`, every file through
 `classifyPath` (with the `assets` of `tessera.json` as context), every limit checked **from sizes alone before
-a byte is read**, and nothing read for a locked file. A folder and the zip of that folder are therefore the
+a byte is read**, and nothing read at load for a locked file (a view-only one is read when opened). A folder and the zip of that folder are therefore the
 same project (asserted by `scripts/ci/preview_project_load.mjs`). The page side is `src/page-project-io.ts` and
 `src/regions/ProjectBar.tsx`.
 
@@ -187,6 +189,7 @@ same project (asserted by `scripts/ci/preview_project_load.mjs`). The page side 
 | Reopen | the last opened folder's handle is kept in IndexedDB (`recent-folder.js`); the next visit offers *Reopen <name>*, whose click is the gesture the permission prompt needs. A folder that no longer exists is forgotten; storage that is unavailable means nothing is remembered and nothing breaks |
 | Entry component | the canvas apply report carries `components` (the components the **entry file** declares, in source order, from the compiler's own evaluation) and `component` (the one previewed). With more than one, a *Component* dropdown appears in the preview column; picking one passes its name to `tessera_canvas_apply`, an unknown name is an error and never a fallback, and a refused apply keeps the last good list. Opening another project resets the choice to the entry's first |
 | Drafts | unsaved edits are kept in this browser's IndexedDB (`drafts.js`) every two seconds while there are any, and when the tab is hidden, under a key of the project's source and name. Each entry records the text it was edited **from**; after a load the draft is *offered* (**Restore draft** / **Discard**), never applied silently, and an entry is restored only onto a file whose text is still exactly that base. A file that changed on disk since is skipped and named, a stale draft (nothing fits) is dropped, and a file the person has already started editing again is not overwritten. Saving clears the draft; storage that is unavailable means no draft and no error. Bounded like a project (500 files, 1 MiB each, 20 MiB total) |
+| View-only files | a locked text file is listed with a lock badge and, when selected, opens read-only in the editor (`page-view-only.ts`): `readViewOnly` in `project-io.js` reads it then, refuses an over-cap size before reading, and reports `binary` for a NUL byte or invalid UTF-8. The text is kept as `viewText`, a field no sender, saver or exporter reads; the editor shows a banner and cannot change it |
 | Download | a deterministic zip of the accepted text files with the editor's text; locked files were never read, so they are not in it and the note says so |
 
 **Verification.** `node scripts/ci/preview_project_load.mjs` (18 cases, no browser) and

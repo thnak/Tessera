@@ -43,6 +43,12 @@ function kindLetter(kind: string): string {
   }
 }
 
+const VIEW_NOTES: Record<string, string> = {
+  binary: "it is not UTF-8 text",
+  "too-large": "it is over the 1 MiB file limit",
+  unreadable: "the browser could not read it (it may have changed on disk)",
+};
+
 /** The open files as tabs, with the unsaved marker and a close button each. */
 function EditorTabs({
   open,
@@ -233,9 +239,9 @@ export function CodeRegion({
     }
     applied.current = stamp;
     if (active !== "") {
-      editor.open(active, text);
+      editor.open(active, text, files.find((file) => file.path === active)?.viewOnly === true);
     }
-  }, [revision, active, text, sourceRef]);
+  }, [revision, active, text, files, sourceRef]);
   const current = files.find((file) => file.path === active) ?? null;
 
   return (
@@ -292,7 +298,17 @@ export function CodeRegion({
       <p className="hint" id="apply-status" role="status" aria-live="polite" hidden={!applying}>
         applying…
       </p>
-      {current ? (
+      {current?.viewOnly ? (
+        <p className="hint view-only-note" id="editor-view-only" data-path={current.path}>
+          <span className="tree-lock">locked</span> <code>{current.path}</code> is read-only: the studio never edits,
+          saves or previews it.{" "}
+          {current.viewNote !== undefined
+            ? `Not shown: ${VIEW_NOTES[current.viewNote] ?? current.viewNote}.`
+            : current.viewText === undefined
+              ? "Reading..."
+              : ""}
+        </p>
+      ) : current ? (
         <p className="hint" id="editor-file" data-path={current.path}>
           Editing <code>{current.path}</code>
           {dirty.includes(current.path) ? " (unsaved changes)" : ""}

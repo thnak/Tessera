@@ -234,14 +234,16 @@ test('classifyPath accepts the spec’s set and locks everything else', () => {
   assert.equal(classifyPath('assets/fonts/Inter.ttf', context), FILE_KIND.asset);
   assert.equal(classifyPath('assets/images/logo.png', context), FILE_KIND.asset);
   assert.equal(classifyPath('assets/images/nested/dot.webp', context), FILE_KIND.asset);
-  // Locked: what ADR-040 and the spec say must never be edited or sent to the viewer.
-  assert.equal(classifyPath('ui/App.g.hpp', context), FILE_KIND.other);
-  assert.equal(classifyPath('ui/App.cpp', context), FILE_KIND.other);
-  assert.equal(classifyPath('ui/App.hpp', context), FILE_KIND.other);
+  // Locked: what ADR-040 and the spec say must never be edited or sent to the viewer. A text file opens
+  // view-only (owner decision 2026-11-17); a binary or build output stays name-and-size only.
+  assert.equal(classifyPath('ui/App.g.hpp', context), FILE_KIND.viewOnly);
+  assert.equal(classifyPath('ui/App.cpp', context), FILE_KIND.viewOnly);
+  assert.equal(classifyPath('gen/AppBase.hpp', context), FILE_KIND.viewOnly);
+  assert.equal(classifyPath('package-lock.json', context), FILE_KIND.viewOnly);
+  assert.equal(classifyPath('CMakeLists.txt', context), FILE_KIND.viewOnly);
   assert.equal(classifyPath('node_modules/react/index.js', context), FILE_KIND.other);
   assert.equal(classifyPath('build/out.txt', context), FILE_KIND.other);
-  assert.equal(classifyPath('package-lock.json', context), FILE_KIND.other);
-  assert.equal(classifyPath('CMakeLists.txt', context), FILE_KIND.other);
+  assert.equal(classifyPath('app.exe', context), FILE_KIND.other);
 });
 
 test('only a text kind is read, edited and sent to the viewer', () => {
@@ -249,7 +251,7 @@ test('only a text kind is read, edited and sent to the viewer', () => {
     assert.equal(isTextKind(kind), true, `${kind} is text`);
   }
   // An asset and anything else are listed with a size and never opened.
-  for (const kind of [FILE_KIND.asset, FILE_KIND.other]) {
+  for (const kind of [FILE_KIND.asset, FILE_KIND.other, FILE_KIND.viewOnly]) {
     assert.equal(isTextKind(kind), false, `${kind} is locked`);
   }
 });

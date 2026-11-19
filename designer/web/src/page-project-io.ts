@@ -65,12 +65,19 @@ function sentenceOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function toProjectFiles(
-  entries: readonly { path: string; text: string }[],
-  context: object,
-): ProjectFile[] {
+/** What opening a locked text file read; the shape `readViewOnly` in `project-io.js` returns. */
+export type ViewRead = { text: string } | { note: string };
+
+interface LoadedEntry {
+  path: string;
+  text: string;
+  lastModified?: number;
+  readView?: () => Promise<ViewRead>;
+}
+
+function toProjectFiles(entries: readonly LoadedEntry[], context: object): ProjectFile[] {
   return entries
-    .map((entry) => projectFile(entry.path, entry.text, context))
+    .map((entry) => ({ ...projectFile(entry.path, entry.text, context), modified: entry.lastModified ?? 0 }))
     .sort((left, right) => (left.path < right.path ? -1 : left.path > right.path ? 1 : 0));
 }
 
@@ -87,6 +94,8 @@ export interface ProjectIo {
   save: () => void;
   resolveConflicts: (choice: "keep-mine" | "take-disk" | "cancel") => void;
   download: () => void;
+  /** Reads a locked text file for the read-only editor; resolves to why there is no text when it has none. */
+  readView: (path: string) => Promise<ViewRead>;
   /** Applies the stored draft to the opened project (skipping files that changed since), or drops it. */
   restoreDraft: () => void;
   discardDraft: () => void;
@@ -110,6 +119,9 @@ export function useProjectIo(workspace: Workspace): ProjectIo {
   const recentHandle = useRef<FileSystemDirectoryHandle | null>(null);
   const root = useRef<FileSystemDirectoryHandle | null>(null);
   const baseline = useRef<Map<string, number>>(new Map());
+  // Lazy readers of the locked text files of the opened project, by confined path. A file is read only when
+  // it is opened; the reader holds the file handle's `File`, never a copy of its bytes.
+  const viewReaders = useRef<Map<string, () => Promise<ViewRead>>>(new Map());
   const workspaceRef = useRef(workspace);
   workspaceRef.current = workspace;
 
@@ -169,11 +181,14 @@ export function useProjectIo(workspace: Workspace): ProjectIo {
     (
       source: Source,
       name: string,
-      project: { entries: { path: string; text: string }[]; context: object },
+      project: { entries: LoadedEntry[]; context: object },
       handle: FileSystemDirectoryHandle | null,
       times: Map<string, number>,
     ) => {
       workspaceRef.current.setProject(toProjectFiles(project.entries, project.context));
+      viewReaders.current = new Map(
+        project.entries.flatMap((entry) => (entry.readView ? [[entry.path, entry.readView] as const] : [])),
+      );
       root.current = handle;
       baseline.current = times;
       if (handle !== null) {
@@ -463,6 +478,11 @@ export function useProjectIo(workspace: Workspace): ProjectIo {
     };
   }, [state.source, state.name]);
 
+  const readView = useCallback(async (path: string): Promise<ViewRead> => {
+    const reader = viewReaders.current.get(path);
+    return reader === undefined ? { note: "unreadable" } : reader();
+  }, []);
+
   const download = useCallback(() => {
     const current = workspaceRef.current;
     const encoder = new TextEncoder();
@@ -555,6 +575,7 @@ export function useProjectIo(workspace: Workspace): ProjectIo {
     recent,
     openFolder,
     reopenRecent,
+    readView,
     openZip,
     save,
     resolveConflicts,
