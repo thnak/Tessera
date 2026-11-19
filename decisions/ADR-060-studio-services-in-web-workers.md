@@ -1,8 +1,8 @@
 # ADR-060: Studio services run as Wasm modules in Web Workers behind one UI-agnostic protocol
 
-- Status: Proposed (2026-11-19). The owner gave the direction on 2026-11-19: the services are
+- Status: Accepted (2026-11-19, owner). The owner gave the direction on 2026-11-19: the services are
   workers so the studio uses several threads; Chromium only for now; at V1 the studio is built with
-  Tessera itself. One reading is for the owner to confirm (Question 1).
+  Tessera itself. The three questions were answered the same day (see "Owner answers").
 - Date: 2026-11-19
 - Related: [ADR-045](ADR-045-browser-hosted-studio.md) (browser-hosted studio),
   [ADR-054](ADR-054-studio-front-end-react-vite.md) (React + Vite chrome, the stepping stone),
@@ -46,8 +46,11 @@ Constraints already recorded, not new:
 The page (and later the Tessera-built studio) is a client of these workers; it never calls a Wasm
 export directly. `analysis` and `format` may share one worker at first (one module, two entry
 points) and split when a measurement shows contention; the protocol does not change when they do.
-A pool of analysis workers for whole-project checks is allowed later (size
-`min(hardwareConcurrency - 2, 4)`), by measurement, not in advance.
+**The analysis service is a pool from the start** (owner answer to Question 2), sized
+`min(hardwareConcurrency - 2, 4)` and at least 1: a request for a file goes to the worker that holds
+that file's cache (affinity by file id), whole-project checks fan out one file per worker, and the
+page merges the answers by project version. The pool size is a setting the measurements may tune; a
+pool of one is the degenerate case and must work.
 
 ### 2. One UI-agnostic message protocol
 
@@ -86,8 +89,9 @@ replaced, and ADR-054's React chrome is explicitly a stepping stone.
 ## Consequences
 
 - Typing never waits for a parse: analysis runs off the main thread and a stale answer is dropped.
-- Parallelism is real but coarse: one worker per service, not per request, and no shared memory.
-  Whole-project work is as fast as one worker unless the pool of section 1 is added.
+- Parallelism is real but bounded: the analysis pool of section 1 parallelises whole-project work
+  across files, the other services are one worker each, and there is no shared memory, so every
+  worker holds its own copy of the files it analyses (memory grows with the pool size).
 - Each Wasm module is loaded separately and counts against the preview size budget
   (`scripts/check_preview_budget.py`); modules load lazily and an IDE feature costs download only
   when the studio opens a project.
@@ -105,23 +109,24 @@ replaced, and ADR-054's React chrome is explicitly a stepping stone.
 - **Wasm pthreads with `SharedArrayBuffer`.** Rejected for now: needs cross-origin isolation, which
   the static host cannot send; a service-worker shim has reload semantics. Revisit if the studio
   moves to a header-capable host.
+- **One analysis worker, pool by measurement.** The earlier proposal; the owner chose the pool from
+  the start (Question 2).
 - **One worker for everything.** Rejected: a slow whole-project check would delay the format or
   completion of the file being typed.
 
-## Open questions for the owner
+## Owner answers (2026-11-19)
 
-1. **Language service = the C++ front end in Wasm** (section 3). Confirm; "dogfooding at V1" points
-   to it, but the owner's words were about workers, not the analysis implementation.
-2. **Pool of analysis workers**: start with one, add by measurement (the proposal), or size the pool
-   from the start?
-3. **Fallback for non-Chromium browsers**: read-only viewer only (the proposal) or a zip
-   import/export path with the same services?
+1. **Language service = the C++ front end in Wasm** (section 3): accepted as proposed.
+2. **Pool of analysis workers: built from the start** (not the proposal, which was one worker and a
+   pool by measurement). Section 1 describes it; the cost is memory per worker and the affinity and
+   merge logic, which the first slice must include.
+3. **Non-Chromium browsers:** the static viewer and read-only samples only, as proposed (section 4).
 
 ## Follow-up
 
 - Write `studio-services-v1.md` (messages, versions, cancellation, capabilities) and link it from
   `designer-protocol-v1.md` section 2.1 and `designer-studio-v1.md`.
-- Issues: the analysis library and worker (first slice: project-wide diagnostics, then symbol index,
-  definition, references, hover, completions, rename), the worker split of the existing diagnostics
-  view, a Playwright and unit harness that drives a service through its protocol with no UI.
+- Issues (created 2026-11-19): #567 (spec and harness), #568 (analysis library, pool and worker),
+  #569 (diagnostics view behind the protocol), #570-#574 (index, definition, hover, completions,
+  rename), #575 (Problems), #580-#583. The first slice (#568) must include the pool of section 1.
 - Record Chromium-only in `designer-studio-v1.md` section 2.2.
