@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "name": "macOS desktop window",
+  "category": "desktop",
+  "os": "macos",
+  "size": {
+    "width": 1440,
+    "height": 900
+  },
+  "dpr": 2,
+  "navigation": "none",
+  "controls": [],
+  "events": [
+    "suspend",
+    "resume",
+    "theme",
+    "locale",
+    "textScale",
+    "memoryPressure",
+    "batterySaver"
+  ],
+  "skin": "generic-desktop-macos"
+}

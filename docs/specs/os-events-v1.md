@@ -521,7 +521,9 @@ condition is not specified here, and "yes"/"no" mean always/never.
 
 Testing:
 
-- Record/replay synthetic `OsEvent` scripts per platform.
+- Record/replay synthetic `OsEvent` scripts per platform. The studio's script is one step per line,
+  `platform <type> [value] [@<timestampNs>]` ([designer-protocol-v1.md](designer-protocol-v1.md) section 5.1): the event
+  log of the platform panel exports it, and `tessera_scene_preview --input-json --script` runs it natively.
 - Resize/DPI storms, multi-monitor moves, output hotplug, refresh/VRR changes.
 - Fold sequences: flat -> half-opened (tabletop/book) -> flat, including separating/full
   occlusion and app continuity.

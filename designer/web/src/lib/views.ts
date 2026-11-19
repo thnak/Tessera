@@ -15,6 +15,7 @@
 // This is the same split `designer-studio-v1.md` section 3.1 draws for the studio as a whole: the chrome
 // is HTML/CSS, the preview is the engine's.
 
+import type { PlatformEventRequest, PlatformReply } from "./platform-events";
 import type { ThemeHandover } from "./wasm-call";
 
 /** The pane's own status line, which React renders and a session updates. */
@@ -73,6 +74,11 @@ export interface ViewSession {
   onEnvironmentChange?(): void;
   /** A gallery pick landed in the shared editor. */
   onSample?(path: string): void;
+  /**
+   * Delivers one normalized platform event (issue #446, `designer-protocol-v1.md` section 5.1). Only the
+   * Canvas view has a running app to deliver it to; the others leave it undefined.
+   */
+  platformEvent?(request: PlatformEventRequest): PlatformReply;
 }
 
 /**

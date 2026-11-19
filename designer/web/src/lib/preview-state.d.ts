@@ -35,6 +35,18 @@ export const FOLD_POSTURE_LABELS: Readonly<Record<string, string>>;
  */
 export const SKIN_IDS: readonly string[];
 
+/**
+ * The bundled device profiles (issue #447): `""` (none), the directory names under
+ * `designer/web/public/profiles/`, and `custom`, the ad hoc profile a custom size makes.
+ */
+export const PROFILE_IDS: readonly string[];
+
+/** `id -> [width, height, dpr]` of each bundled profile; what a link naming it may carry. */
+export const PROFILE_GEOMETRY: Readonly<Record<string, readonly [number, number, number]>>;
+
+/** The bounds of a custom size, `[min, max]` in logical pixels. */
+export const CUSTOM_SIZE_RANGE: readonly [number, number];
+
 /** The state a page starts from; each field is also the decoder's fallback for a missing one. */
 export const DEFAULT_STATE: Readonly<ShareState>;
 
@@ -68,6 +80,11 @@ export interface ShareState {
    * is not the same preview without the phone's insets.
    */
   skin: string;
+  /**
+   * The device profile (issue #447): a bundled profile id, `custom`, or `""` for none. Optional in the
+   * envelope (`n`), so a link made before profiles decodes to the state it always did.
+   */
+  profile: string;
 }
 
 /** A refusal the page branches on by `code`, rather than by matching a message. */

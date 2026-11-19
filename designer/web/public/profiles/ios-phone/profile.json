@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "name": "Generic iPhone",
+  "category": "mobile",
+  "os": "ios",
+  "size": {
+    "width": 390,
+    "height": 844
+  },
+  "dpr": 3,
+  "navigation": "gesture",
+  "controls": [
+    "home",
+    "volumeUp",
+    "volumeDown",
+    "power"
+  ],
+  "events": [
+    "suspend",
+    "resume",
+    "screenOff",
+    "screenOn",
+    "theme",
+    "locale",
+    "textScale",
+    "orientation",
+    "ime",
+    "memoryPressure",
+    "thermal",
+    "processDeath"
+  ],
+  "skin": "generic-phone-ios"
+}

@@ -26,6 +26,8 @@ import type { Skin } from "../views/skins";
 import { CanvasPane } from "./CanvasPane";
 import { DiagnosticsPane, ScenePane } from "./ViewPanes";
 import { EnvironmentToolbar, type ControlValues } from "./StudioChrome";
+import type { DeviceProfile } from "../lib/device-profile";
+import type { ReactNode } from "react";
 
 /** The preview's own view switch: scene / canvas / diagnostics, inside the column they fill. */
 export function PreviewTabs({
@@ -131,6 +133,7 @@ export function PreviewColumn({
   onPickComponent,
   skins,
   skin,
+  device,
 }: {
   view: ViewDefinition;
   onSelectView: (id: ViewDefinition["id"]) => void;
@@ -145,6 +148,20 @@ export function PreviewColumn({
   skins: readonly { id: string; name: string }[];
   /** The selected skin, or `null` for no frame. */
   skin: Skin | null;
+  /**
+   * The device profile's slice of the column (issues #447 and #448): the profile picker's data, the keep-state
+   * setting, and the two nodes the platform panel supplies -- the overlay over the canvas and the hardware
+   * strip under it. Grouped so the column's own props stay about the preview.
+   */
+  device: {
+    profiles: readonly { id: string; name: string }[];
+    profile: DeviceProfile | null;
+    keepState: boolean;
+    onKeepState: (keep: boolean) => void;
+    onCustomSize: (width: number, height: number) => void;
+    overlay: ReactNode;
+    strip: ReactNode;
+  };
 }) {
   // The geometry mode of section 5.1 is a property of the pair (skin, project): a desktop skin is
   // `system` or `custom` depending on `window.titleBar`, and a mobile skin is always `mobile`. The
@@ -161,7 +178,16 @@ export function PreviewColumn({
 
       {/* The environment the preview is laid out and painted in. It belongs to this column: two of the
           three panes read it as a layout input, and the third carries it into the share link. */}
-      <EnvironmentToolbar controls={controls} onChange={onControlChange} skins={skins} />
+      <EnvironmentToolbar
+        controls={controls}
+        onChange={onControlChange}
+        skins={skins}
+        profiles={device.profiles}
+        profile={device.profile}
+        keepState={device.keepState}
+        onKeepState={device.onKeepState}
+        onCustomSize={device.onCustomSize}
+      />
 
       {components.length > 1 ? (
         <label className="component-picker">
@@ -222,8 +248,11 @@ export function PreviewColumn({
           inspectToggleRef={refs.inspectToggle}
           skin={skin}
           mode={mode}
+          appOverlay={device.overlay}
         />
       </div>
+      {/* Issue #448: the device's hardware strip, generated from the profile's `controls`. */}
+      {device.strip}
     </section>
   );
 }

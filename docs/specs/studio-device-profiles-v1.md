@@ -164,6 +164,29 @@ the camera; vendor device art; user-provided profiles; a second window or pictur
 [os-events-v1.md](os-events-v1.md) section 2.3, with the saved-state record following the working choice of
 section 9 item 1 (the P4 rule at `Suspend`).
 
+**E2 is implemented (issue #446):** `platform.event` is specified in
+[designer-protocol-v1.md](designer-protocol-v1.md) section 5.1 and runs through `tools/codegen/scene_platform.cpp`,
+the one code path of the Wasm export `tessera_canvas_platform_event` and the native scripted run. The page-side
+call is `designer/web/src/views/canvas-platform.ts`. The Wasm path answers Back as unhandled (the preview has no
+route stack or overlay host); process death restores the cells the last `home` saved by the P4 rule (section 9
+item 1).
+
+**E3 is implemented (issue #447):** the seven profiles are data in `designer/web/public/profiles/<id>/profile.json`,
+validated by `designer/web/src/lib/device-profile.ts` (`TESSERA_STUDIO_PROFILE` on a bad file; one bad profile is
+disabled, the rest still load). The Device select applies a profile's size, DPR, skin and fold and restarts the app
+(`page-profiles.ts`); "Keep state on device change" applies it in place only between profiles of the same `os`. A
+custom size is a width and a height within `CUSTOM_SIZE_RANGE`. The share link carries the profile under envelope
+key `n` (`""` or absent is the custom size); a named profile or `custom` widens the size and DPR the link may
+carry to what the profile allows (`PROFILE_GEOMETRY` in `preview-state.js`), and every other stray size is still
+refused. Evidence: `scripts/ci/preview_profiles.mjs` and the extended `preview_share_roundtrip.mjs`.
+
+**E4 is implemented (issue #448):** the hardware strip (`regions/DeviceControls.tsx`) shows only the controls the
+profile lists, the app-state overlay shows a closed or backgrounded app, and the dock's Platform events panel
+(`regions/PlatformDock.tsx`, `page-platform.ts`) offers the profile's events, an ordered log on a simulated clock,
+Export, Replay and Import and replay of the script format in [os-events-v1.md](os-events-v1.md). The browser
+acceptance (Back closes, Relaunch cold-starts, a log replays to the same state) needs the Wasm built from this
+branch and was not run in the local session.
+
 E5 does not depend on E1 to E4 and can land first. It has: its browser half is implemented (section 6).
 
 ## 9. Working choices (revisable)

@@ -56,6 +56,8 @@ import {
   type CanvasViewportReport,
 } from "./canvas-frame";
 import { attachCanvasKeyboard } from "./canvas-keyboard";
+import { sendPlatformEvent } from "./canvas-platform";
+import { unavailableReply } from "../lib/platform-events";
 import { attachCanvasPointer } from "./canvas-pointer";
 import { createCanvasInspector, type CanvasInspector } from "./canvas-inspector";
 import { createCanvasPane, type CanvasPane, type CanvasPaneElements } from "./canvas-pane";
@@ -705,6 +707,27 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
       // The inspector's panel is re-asked for the same reason: its box is in logical pixels.
       inspector.refresh();
       requestFrame();
+    },
+    /**
+     * One platform event (issue #446). The engine owns what it means; the page redraws when the reply says
+     * a layout input moved, and after a relaunch -- the engine ended the evaluation, so the next frame's
+     * apply is the cold start, carrying the saved cells only when the reply says `restore`.
+     */
+    platformEvent: (request) => {
+      if (gpu === null) {
+        return unavailableReply(request.type, "the canvas preview has not started");
+      }
+      const reply = sendPlatformEvent(gpu.module, request);
+      if (reply.ok && reply.relaunch) {
+        // The released evaluation's state row, outline and inspector panel go with it.
+        pane.renderState([]);
+        picker.hide();
+        inspector.hide();
+      }
+      if (reply.ok && (reply.relaunch || reply.changed) && visible) {
+        requestFrame();
+      }
+      return reply;
     },
     /** A gallery pick changes what would be drawn; redraw only if a device already exists. */
     onSample: () => {

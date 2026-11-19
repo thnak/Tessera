@@ -39,4 +39,6 @@ export const INITIAL_ENVIRONMENT = Object.freeze({
   foldPosture: "",
   /** The simulated device skin (issue #171's skins slice): `""` is no frame, the pre-#171 page. */
   skin: "",
+  /** The device profile (issue #447): `""` is none, the pre-profile page. */
+  profile: "",
 });

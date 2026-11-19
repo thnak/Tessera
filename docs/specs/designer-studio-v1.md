@@ -194,8 +194,8 @@ The studio reuses the [designer protocol](designer-protocol-v1.md) instead of de
   because the protocol and the file versions are the same.
 
 The session starts with `hello` → `ready` → `project.load`, as specified; the studio adds one
-message, `platform.event` ([studio-device-profiles-v1.md](studio-device-profiles-v1.md)). `theme.applied` (protocol section 6) is what the page uses to tint the simulated
-system chrome from the engine's resolved record.
+message, `platform.event` ([protocol section 5.1](designer-protocol-v1.md#51-platformevent); device profiles in
+[studio-device-profiles-v1.md](studio-device-profiles-v1.md)). `theme.applied` (protocol section 6) is what the page uses to tint the simulated system chrome from the engine's resolved record.
 
 ## 5. Simulated system chrome and skins
 

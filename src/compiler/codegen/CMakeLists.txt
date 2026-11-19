@@ -212,6 +212,9 @@ set(_tessera_scene_preview_sources
     # The designer's override layer (issue #536): its data and history, and how it reaches the tree.
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_override.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_session_override.cpp
+    # `platform.event` (issue #446): the injector-driven lifecycle and Back/Volume delivery, shared
+    # by the scripted run (`tessera_input_json`) and the canvas session.
+    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_platform.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_interaction.cpp)
 
 # The persistent canvas session (#388): the tree a pointer event feeds and a frame paints. It is
@@ -227,6 +230,7 @@ set(_tessera_scene_preview_sources
 # `class`, JSON for `token` - because the only thing they share is the edit list they produce.
 set(_tessera_canvas_session_sources
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_canvas_session.cpp
+    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_canvas_platform.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_canvas_inspect.cpp
     # The override operations the page calls (issue #536) and their reports.
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_canvas_override.cpp
@@ -445,6 +449,8 @@ else ()
         # The override layer's exports (issue #536): they change the running tree's style, so they
         # are not queries, but they never own the session either.
         ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_override.cpp
+        # `platform.event` (issue #446): the engine side of a device profile's buttons and events.
+        ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_platform.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_support.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_font.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/canvas_report.cpp
@@ -504,7 +510,7 @@ else ()
         # `_tessera_canvas_set_theme` hands the theme asset over for the `token` destination.
         # `_tessera_canvas_override` and `_tessera_canvas_settle` are the override layer (issue #536):
         # set/clear/revert/undo/redo on the running tree, and the commit's round-trip check.
-        -sEXPORTED_FUNCTIONS=["_tessera_project_begin","_tessera_project_set_entry","_tessera_project_add_source","_tessera_project_add_stylesheet","_tessera_canvas_apply","_tessera_canvas_pointer","_tessera_canvas_pick","_tessera_canvas_style","_tessera_canvas_patch","_tessera_canvas_override","_tessera_canvas_settle","_tessera_canvas_set_theme","_tessera_canvas_set_safe_area","_tessera_canvas_draw","_tessera_canvas_reset","_tessera_canvas_set_font","_tessera_canvas_font_status","_tessera_webgpu_set_device","_tessera_free","_malloc","_free"]
+        -sEXPORTED_FUNCTIONS=["_tessera_project_begin","_tessera_project_set_entry","_tessera_project_add_source","_tessera_project_add_stylesheet","_tessera_canvas_apply","_tessera_canvas_pointer","_tessera_canvas_pick","_tessera_canvas_style","_tessera_canvas_patch","_tessera_canvas_override","_tessera_canvas_settle","_tessera_canvas_platform_event","_tessera_canvas_set_theme","_tessera_canvas_set_safe_area","_tessera_canvas_draw","_tessera_canvas_reset","_tessera_canvas_set_font","_tessera_canvas_font_status","_tessera_webgpu_set_device","_tessera_free","_malloc","_free"]
         # `WebGPU` is the emdawnwebgpu port's handle table: the page needs `WebGPU.importJsDevice` and
         # `importJsQueue` to turn a JS GPUDevice/GPUQueue into the integer handles the C ABI takes.
         # `HEAPU8` is the view the page writes font bytes through (issue #387): `_malloc` returns a
@@ -928,9 +934,12 @@ if (TESSERA_BUILD_TESTS)
     #                         commit that makes `source.patch` reachable
     #   scene_canvas_override_commit  the commit half of the same layer: token patch, round trip,
     #                         mismatch, history rules and report JSON
+    #   scene_canvas_platform `platform.event` (issue #446): Back, Home, Power, relaunch and the
+    #                         environment events through the canvas session, and the same script
+    #                         through the scripted run
     foreach (_canvas_test IN ITEMS scene_canvas_session scene_canvas_pointer scene_canvas_pick
             scene_canvas_style scene_canvas_patch scene_canvas_patch_session scene_canvas_override
-            scene_canvas_override_commit)
+            scene_canvas_override_commit scene_canvas_platform)
         add_executable(${_canvas_test}_tests
             ${CMAKE_SOURCE_DIR}/tests/unit/${_canvas_test}_tests.cpp
             ${CMAKE_SOURCE_DIR}/tools/codegen/canvas_report.cpp
