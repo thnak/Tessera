@@ -5,6 +5,7 @@
 
 #include "tessera/ui/scene/component_lifecycle.hpp"
 #include "tessera/ui/scene/update_scheduler.hpp"
+#include "tessera/ui/scene/dirty_mask.hpp"
 #include "tessera/ui/scene/event_payloads.hpp"
 #include "tessera/ui/scene/state_snapshot.hpp"
 #include "tessera/ui/scene/node.hpp"
@@ -50,8 +51,21 @@ namespace forward {
       void apply_state();
       // Refresh the declared props of the component instances this component owns.
       void apply_props();
-      // Runs update_effects() then apply_state(); the scheduler calls it at its flush.
+      // A hand call: marks every cell dirty, then runs flush_update() (headless tests).
       void update();
+      // Runs update_effects() then apply_state() over the dirty cells; the scheduler calls it.
+      void flush_update();
+      // ADR-056 dirty mask: one bit per state cell, animated value and prop. A setter sets
+      // its cell's bit; apply_state() re-evaluates a binding only when a cell it reads is
+      // dirty. The bit constants are public so an owner can mark a child's prop.
+      static constexpr std::size_t kBit_state_count_ = 0;
+    private:
+      tessera::ui::DirtyMask<2> dirty_ = tessera::ui::DirtyMask<2>::all();
+    public:
+      // Marks one cell dirty without scheduling (the caller schedules).
+      void note_dirty(std::size_t bit);
+      // Marks every cell dirty: the next apply_state() re-evaluates every binding.
+      void mark_all_dirty();
     private:
       // Scheduled updates: a setter marks this component dirty and the host's
       // UpdateScheduler runs update() once at its next flush (UI thread only). The ticket
@@ -101,7 +115,9 @@ namespace forward {
     }
     template <class Self>
     inline void ForwardOuterBase<Self>::apply_state() {
+      const auto consumed_dirty = dirty_;
       apply_props();
+      dirty_.clear(consumed_dirty);
     }
     template <class Self>
     inline void ForwardOuterBase<Self>::mount() {
@@ -116,15 +132,28 @@ namespace forward {
     }
     template <class Self>
     inline void ForwardOuterBase<Self>::update() {
+      mark_all_dirty();
+      flush_update();
+    }
+    template <class Self>
+    inline void ForwardOuterBase<Self>::flush_update() {
       update_effects();
       apply_state();
       child_1_.update();
     }
     template <class Self>
+    inline void ForwardOuterBase<Self>::note_dirty(std::size_t bit) {
+      dirty_.set(bit);
+    }
+    template <class Self>
+    inline void ForwardOuterBase<Self>::mark_all_dirty() {
+      dirty_.set_all();
+    }
+    template <class Self>
     inline void ForwardOuterBase<Self>::attach_scheduler(tessera::ui::UpdateScheduler& scheduler) {
       update_ticket_.context = this;
       update_ticket_.update = [](void* context) {
-        static_cast<ForwardOuterBase<Self>*>(context)->update();
+        static_cast<ForwardOuterBase<Self>*>(context)->flush_update();
       };
       scheduler.attach(update_ticket_);
       child_1_.attach_scheduler(scheduler);
@@ -144,6 +173,7 @@ namespace forward {
         return;
       }
       state_count_ = std::move(value);
+      dirty_.set(kBit_state_count_);
       schedule_update();
     }
     template <class Self>
@@ -156,6 +186,7 @@ namespace forward {
     inline void ForwardOuterBase<Self>::handler_1(const tessera::ui::Event& event) {
       (void)event;
       state_count_ = (state_count_ + 1);
+      dirty_.set(kBit_state_count_);
       apply_state();
     }
   }

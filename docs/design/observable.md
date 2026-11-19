@@ -211,3 +211,14 @@ state" row uses the one static child as the stand-in.
 No fix is made or proposed here. Tracking which state each binding reads, or skipping a child whose
 props hash did not change, would remove the fan-out and the double run, but it changes the codegen
 contract and needs an owner decision (see #440).
+
+### Slice 2 (ADR-056, issue #442): the dirty mask
+
+Every generated component now carries a dirty mask: a setter sets its cell's bit, and `apply_state()`
+re-evaluates a binding only when a cell the binding reads is dirty (the hash gate stays as the second
+filter). The scheduler ticket runs `flush_update()`; a hand call of `update()` marks every cell dirty
+first. The numbers above are unchanged by this slice, on purpose: an owner still calls `update()` on
+its children, so the owner's fan-out is as measured. What changed is the cost *inside* each component
+(an owner change that feeds no binding re-evaluates none). `codegen_mask_runtime` asserts, per binding
+kind, exactly which bindings re-run for each single-cell change; see
+[compiler-node-state.md](compiler-node-state.md) section 9 for the emitted shape.

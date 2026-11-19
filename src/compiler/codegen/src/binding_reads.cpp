@@ -27,7 +27,11 @@ std::string paint_prop_name(const ir::Node& node) {
     if (node.kind != ir::NodeKind::TextInput && node.kind != ir::NodeKind::TextArea) {
         return {};
     }
-    return node.props.find("value") != node.props.end() ? "value" : "defaultValue";
+    if (node.props.find("value") != node.props.end()) {
+        return "value";
+    }
+    // A field with neither prop paints nothing (the interpolation collector agrees).
+    return node.props.find("defaultValue") != node.props.end() ? "defaultValue" : std::string();
 }
 
 bool is_metadata_prop(const std::string& name) {

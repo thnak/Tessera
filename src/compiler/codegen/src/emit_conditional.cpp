@@ -5,6 +5,7 @@
 // 11). Static children are attached by build() and only advance the position; a list template
 // advances it by its current item count.
 
+#include "emit_dirty.hpp"
 #include "emit_dynamic.hpp"
 #include "value_ops.hpp"
 
@@ -47,8 +48,8 @@ struct WalkTarget {
     bool item = false;
 };
 
-bool emit_walk(CppWriter& writer, const ir::Component& component, const DynamicGroup& group,
-               const WalkTarget& target, std::string& error) {
+bool emit_walk(CppWriter& writer, const ir::Component& component, const DynamicPlan& plan,
+               const DynamicGroup& group, const WalkTarget& target, std::string& error) {
     writer.open(target.head);
     writer.line(target.parent_check);
     if (!target.void_params.empty()) {
@@ -75,7 +76,12 @@ bool emit_walk(CppWriter& writer, const ir::Component& component, const DynamicG
                 return fail(error, "a nested list template inside a list template is deferred");
             }
             const std::string list_ordinal = std::to_string(child.ordinal);
+            // Items depend on the list cell as a whole plus whatever the template names (ADR-056
+            // decision 5); the position still advances by the live count when the list is skipped.
+            const bool gated = open_dirty_gate(writer, plan.dirty, BindingKind::ListItem,
+                                               child.ordinal, {}, "list:" + list_ordinal);
             writer.line("apply_list_" + list_ordinal + "(parent, position);");
+            close_dirty_gate(writer, gated);
             writer.line("position += list_" + list_ordinal + "_count_;");
             break;
         }
@@ -95,6 +101,10 @@ bool emit_walk(CppWriter& writer, const ir::Component& component, const DynamicG
             const std::string show = "branch_" + branch + "_show";
             writer.line("{");
             ++writer.indent;
+            // A per-item walk runs under its list's gate, so only the component-level walk gates.
+            const bool gated =
+                !target.item && open_dirty_gate(writer, plan.dirty, BindingKind::Condition,
+                                                child.ordinal, {}, "cond:" + branch);
             writer.line("std::uint64_t " + hash + " = tessera::ui::kEffectHashSeed;");
             if (!emit_value_ops(writer, *child.node->condition, component, target.locals, hash, "",
                                 error)) {
@@ -121,7 +131,9 @@ bool emit_walk(CppWriter& writer, const ir::Component& component, const DynamicG
             --writer.indent;
             writer.line("}");
             writer.close("");
-            writer.open("if (" + show + ")");
+            // A skipped branch keeps its recorded presence, which is what the position follows.
+            close_dirty_gate(writer, gated);
+            writer.open("if (" + (gated ? present_field : show) + ")");
             writer.line("++position;");
             writer.close("");
             --writer.indent;
@@ -139,7 +151,6 @@ bool emit_walk(CppWriter& writer, const ir::Component& component, const DynamicG
 
 bool emit_apply_children(CppWriter& writer, const ir::Component& component, const DynamicPlan& plan,
                          const DynamicGroup& group, std::string& error) {
-    (void)plan;
     const std::string ordinal = std::to_string(group.parent_ordinal);
     WalkTarget target;
     target.head = "void " + component.name + "::apply_children_" + ordinal + "()";
@@ -147,7 +158,7 @@ bool emit_apply_children(CppWriter& writer, const ir::Component& component, cons
     target.parent = "*children_parent_" + ordinal + "_";
     target.branch_prefix = "branch_";
     target.field_suffix = "_";
-    return emit_walk(writer, component, group, target, error);
+    return emit_walk(writer, component, plan, group, target, error);
 }
 
 bool emit_item_apply_children(CppWriter& writer, const ir::Component& component,
@@ -178,7 +189,7 @@ bool emit_item_apply_children(CppWriter& writer, const ir::Component& component,
         target.locals.push_back(
             LocalBinding{owner->index, "static_cast<int>(tessera_index)", "int"});
     }
-    return emit_walk(writer, component, group, target, error);
+    return emit_walk(writer, component, plan, group, target, error);
 }
 
 } // namespace tessera::compiler::codegen::internal

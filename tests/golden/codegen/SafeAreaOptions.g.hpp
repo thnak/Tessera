@@ -5,6 +5,7 @@
 
 #include "tessera/ui/scene/component_lifecycle.hpp"
 #include "tessera/ui/scene/update_scheduler.hpp"
+#include "tessera/ui/scene/dirty_mask.hpp"
 #include "tessera/ui/scene/event_payloads.hpp"
 #include "tessera/ui/scene/state_snapshot.hpp"
 #include "tessera/ui/scene/node.hpp"
@@ -50,8 +51,20 @@ namespace safe_area_demo {
       void apply_state();
       // Refresh the declared props of the component instances this component owns.
       void apply_props();
-      // Runs update_effects() then apply_state(); the scheduler calls it at its flush.
+      // A hand call: marks every cell dirty, then runs flush_update() (headless tests).
       void update();
+      // Runs update_effects() then apply_state() over the dirty cells; the scheduler calls it.
+      void flush_update();
+    private:
+      // ADR-056 dirty mask: one bit per state cell, animated value and prop. A setter sets
+      // its cell's bit; apply_state() re-evaluates a binding only when a cell it reads is
+      // dirty. The bit constants are public so an owner can mark a child's prop.
+      tessera::ui::DirtyMask<1> dirty_ = tessera::ui::DirtyMask<1>::all();
+    public:
+      // Marks one cell dirty without scheduling (the caller schedules).
+      void note_dirty(std::size_t bit);
+      // Marks every cell dirty: the next apply_state() re-evaluates every binding.
+      void mark_all_dirty();
     private:
       // Scheduled updates: a setter marks this component dirty and the host's
       // UpdateScheduler runs update() once at its next flush (UI thread only). The ticket
@@ -72,8 +85,23 @@ namespace safe_area_demo {
     };
     template <class Self>
     concept SafeAreaOptionsContract = true;
+    namespace SafeAreaOptions_detail {
+      // meta binding of node::1 `className` reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<1> kDirty_meta_1_className = tessera::ui::DirtyMask<1>::of({0});
+      // meta binding of node::3 `className` reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<1> kDirty_meta_3_className = tessera::ui::DirtyMask<1>::of({0});
+      // prop binding of node::2 `edges` reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<1> kDirty_prop_2_edges = tessera::ui::DirtyMask<1>::of({0});
+      // prop binding of node::2 `minimum` reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<1> kDirty_prop_2_minimum = tessera::ui::DirtyMask<1>::of({0});
+      // prop binding of node::2 `mode` reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<1> kDirty_prop_2_mode = tessera::ui::DirtyMask<1>::of({0});
+      // prop binding of node::2 `sources` reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<1> kDirty_prop_2_sources = tessera::ui::DirtyMask<1>::of({0});
+    }
     template <class Self>
     inline void SafeAreaOptionsBase<Self>::build(tessera::ui::Node& parent) {
+      using namespace SafeAreaOptions_detail;
       apply_props();
       // node::1
       auto node_1 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(2426463100051970288ull + node_id_base_));
@@ -100,73 +128,117 @@ namespace safe_area_demo {
     }
     template <class Self>
     inline void SafeAreaOptionsBase<Self>::apply_props() {
+      using namespace SafeAreaOptions_detail;
       // comp::SafeArea instance (pre-order index 2) props.
-      std::uint64_t prop_2_edges_hash = tessera::ui::kEffectHashSeed;
-      prop_2_edges_hash = tessera::ui::effect_hash(prop_2_edges_hash, std::string_view("top+bottom"));
-      if (prop_2_edges_hash != child_2_prop_edges_hash_) {
-        child_2_prop_edges_hash_ = prop_2_edges_hash;
-        this->child_2_.prop_edges_ = "top+bottom";
+      if (dirty_.intersects(kDirty_prop_2_edges)) {
+        TESSERA_BINDING_RAN(this, "prop:2:edges");
+        std::uint64_t prop_2_edges_hash = tessera::ui::kEffectHashSeed;
+        prop_2_edges_hash = tessera::ui::effect_hash(prop_2_edges_hash, std::string_view("top+bottom"));
+        if (prop_2_edges_hash != child_2_prop_edges_hash_) {
+          child_2_prop_edges_hash_ = prop_2_edges_hash;
+          this->child_2_.prop_edges_ = "top+bottom";
+          this->child_2_.note_dirty(SafeArea::kBit_prop_edges_);
+        }
       }
-      std::uint64_t prop_2_sources_hash = tessera::ui::kEffectHashSeed;
-      prop_2_sources_hash = tessera::ui::effect_hash(prop_2_sources_hash, std::string_view("system-bars+gestures"));
-      if (prop_2_sources_hash != child_2_prop_sources_hash_) {
-        child_2_prop_sources_hash_ = prop_2_sources_hash;
-        this->child_2_.prop_sources_ = "system-bars+gestures";
+      if (dirty_.intersects(kDirty_prop_2_sources)) {
+        TESSERA_BINDING_RAN(this, "prop:2:sources");
+        std::uint64_t prop_2_sources_hash = tessera::ui::kEffectHashSeed;
+        prop_2_sources_hash = tessera::ui::effect_hash(prop_2_sources_hash, std::string_view("system-bars+gestures"));
+        if (prop_2_sources_hash != child_2_prop_sources_hash_) {
+          child_2_prop_sources_hash_ = prop_2_sources_hash;
+          this->child_2_.prop_sources_ = "system-bars+gestures";
+          this->child_2_.note_dirty(SafeArea::kBit_prop_sources_);
+        }
       }
-      std::uint64_t prop_2_minimum_hash = tessera::ui::kEffectHashSeed;
-      prop_2_minimum_hash = tessera::ui::effect_hash(prop_2_minimum_hash, 8);
-      if (prop_2_minimum_hash != child_2_prop_minimum_hash_) {
-        child_2_prop_minimum_hash_ = prop_2_minimum_hash;
-        this->child_2_.prop_minimum_ = 8;
+      if (dirty_.intersects(kDirty_prop_2_minimum)) {
+        TESSERA_BINDING_RAN(this, "prop:2:minimum");
+        std::uint64_t prop_2_minimum_hash = tessera::ui::kEffectHashSeed;
+        prop_2_minimum_hash = tessera::ui::effect_hash(prop_2_minimum_hash, 8);
+        if (prop_2_minimum_hash != child_2_prop_minimum_hash_) {
+          child_2_prop_minimum_hash_ = prop_2_minimum_hash;
+          this->child_2_.prop_minimum_ = 8;
+          this->child_2_.note_dirty(SafeArea::kBit_prop_minimum_);
+        }
       }
-      std::uint64_t prop_2_mode_hash = tessera::ui::kEffectHashSeed;
-      prop_2_mode_hash = tessera::ui::effect_hash(prop_2_mode_hash, std::string_view("margin"));
-      if (prop_2_mode_hash != child_2_prop_mode_hash_) {
-        child_2_prop_mode_hash_ = prop_2_mode_hash;
-        this->child_2_.prop_mode_ = "margin";
+      if (dirty_.intersects(kDirty_prop_2_mode)) {
+        TESSERA_BINDING_RAN(this, "prop:2:mode");
+        std::uint64_t prop_2_mode_hash = tessera::ui::kEffectHashSeed;
+        prop_2_mode_hash = tessera::ui::effect_hash(prop_2_mode_hash, std::string_view("margin"));
+        if (prop_2_mode_hash != child_2_prop_mode_hash_) {
+          child_2_prop_mode_hash_ = prop_2_mode_hash;
+          this->child_2_.prop_mode_ = "margin";
+          this->child_2_.note_dirty(SafeArea::kBit_prop_mode_);
+        }
       }
     }
     template <class Self>
     inline void SafeAreaOptionsBase<Self>::apply_state() {
+      using namespace SafeAreaOptions_detail;
+      const auto consumed_dirty = dirty_;
       apply_props();
+      dirty_.clear(consumed_dirty);
     }
     template <class Self>
     inline void SafeAreaOptionsBase<Self>::mount() {
+      using namespace SafeAreaOptions_detail;
       child_2_.mount();
     }
     template <class Self>
     inline void SafeAreaOptionsBase<Self>::update_effects() {
+      using namespace SafeAreaOptions_detail;
     }
     template <class Self>
     inline void SafeAreaOptionsBase<Self>::unmount() {
+      using namespace SafeAreaOptions_detail;
       child_2_.unmount();
     }
     template <class Self>
     inline void SafeAreaOptionsBase<Self>::update() {
+      using namespace SafeAreaOptions_detail;
+      mark_all_dirty();
+      flush_update();
+    }
+    template <class Self>
+    inline void SafeAreaOptionsBase<Self>::flush_update() {
+      using namespace SafeAreaOptions_detail;
       update_effects();
       apply_state();
       child_2_.update();
     }
     template <class Self>
+    inline void SafeAreaOptionsBase<Self>::note_dirty(std::size_t bit) {
+      using namespace SafeAreaOptions_detail;
+      dirty_.set(bit);
+    }
+    template <class Self>
+    inline void SafeAreaOptionsBase<Self>::mark_all_dirty() {
+      using namespace SafeAreaOptions_detail;
+      dirty_.set_all();
+    }
+    template <class Self>
     inline void SafeAreaOptionsBase<Self>::attach_scheduler(tessera::ui::UpdateScheduler& scheduler) {
+      using namespace SafeAreaOptions_detail;
       update_ticket_.context = this;
       update_ticket_.update = [](void* context) {
-        static_cast<SafeAreaOptionsBase<Self>*>(context)->update();
+        static_cast<SafeAreaOptionsBase<Self>*>(context)->flush_update();
       };
       scheduler.attach(update_ticket_);
       child_2_.attach_scheduler(scheduler);
     }
     template <class Self>
     inline void SafeAreaOptionsBase<Self>::detach_scheduler(tessera::ui::UpdateScheduler& scheduler) {
+      using namespace SafeAreaOptions_detail;
       child_2_.detach_scheduler(scheduler);
       scheduler.detach(update_ticket_);
     }
     template <class Self>
     inline void SafeAreaOptionsBase<Self>::schedule_update() {
+      using namespace SafeAreaOptions_detail;
       update_ticket_.schedule();
     }
     template <class Self>
     inline tessera::ui::StateSnapshot SafeAreaOptionsBase<Self>::snapshot_state() const {
+      using namespace SafeAreaOptions_detail;
       tessera::ui::StateSnapshot snapshot;
       return snapshot;
     }

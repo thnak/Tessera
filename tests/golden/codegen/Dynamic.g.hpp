@@ -5,6 +5,7 @@
 
 #include "tessera/ui/scene/component_lifecycle.hpp"
 #include "tessera/ui/scene/update_scheduler.hpp"
+#include "tessera/ui/scene/dirty_mask.hpp"
 #include "tessera/ui/scene/event_payloads.hpp"
 #include "tessera/ui/scene/state_snapshot.hpp"
 #include "tessera/ui/scene/node.hpp"
@@ -97,8 +98,23 @@ namespace dynamic {
       void unmount();
       // Recompute interpolated values; marks Paint|Render only when a value changed.
       void apply_state();
-      // Runs update_effects() then apply_state(); the scheduler calls it at its flush.
+      // A hand call: marks every cell dirty, then runs flush_update() (headless tests).
       void update();
+      // Runs update_effects() then apply_state() over the dirty cells; the scheduler calls it.
+      void flush_update();
+      // ADR-056 dirty mask: one bit per state cell, animated value and prop. A setter sets
+      // its cell's bit; apply_state() re-evaluates a binding only when a cell it reads is
+      // dirty. The bit constants are public so an owner can mark a child's prop.
+      static constexpr std::size_t kBit_prop_seed_ = 0;
+      static constexpr std::size_t kBit_state_count_ = 1;
+      static constexpr std::size_t kBit_state_items_ = 2;
+    private:
+      tessera::ui::DirtyMask<4> dirty_ = tessera::ui::DirtyMask<4>::all();
+    public:
+      // Marks one cell dirty without scheduling (the caller schedules).
+      void note_dirty(std::size_t bit);
+      // Marks every cell dirty: the next apply_state() re-evaluates every binding.
+      void mark_all_dirty();
     private:
       // Scheduled updates: a setter marks this component dirty and the host's
       // UpdateScheduler runs update() once at its next flush (UI thread only). The ticket
@@ -187,6 +203,28 @@ namespace dynamic {
         slot = parent.remove_child(*live);
         live = nullptr;
       }
+      // text binding of node::2 reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<4> kDirty_text_2 = tessera::ui::DirtyMask<4>::of({3});
+      // text binding of node::3 reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<4> kDirty_text_3 = tessera::ui::DirtyMask<4>::of({3});
+      // text binding of node::4 reads: state::count.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<4> kDirty_text_4 = tessera::ui::DirtyMask<4>::of({1, 3});
+      // text binding of node::7 reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<4> kDirty_text_7 = tessera::ui::DirtyMask<4>::of({3});
+      // text binding of node::9 reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<4> kDirty_text_9 = tessera::ui::DirtyMask<4>::of({3});
+      // text binding of node::11 reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<4> kDirty_text_11 = tessera::ui::DirtyMask<4>::of({3});
+      // text binding of node::12 reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<4> kDirty_text_12 = tessera::ui::DirtyMask<4>::of({3});
+      // cond binding of node::3 reads: state::count.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<4> kDirty_cond_3 = tessera::ui::DirtyMask<4>::of({1, 3});
+      // cond binding of node::6 reads: state::count.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<4> kDirty_cond_6 = tessera::ui::DirtyMask<4>::of({1, 3});
+      // cond binding of node::8 reads: state::count.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<4> kDirty_cond_8 = tessera::ui::DirtyMask<4>::of({1, 3});
+      // list binding of node::5 reads: state::count state::items.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<4> kDirty_list_5 = tessera::ui::DirtyMask<4>::of({1, 2, 3});
       template <class Self>
       struct Thunks {
         static void event_adapter_10_onClick(void* context, const tessera::ui::Event& event) {
@@ -273,21 +311,26 @@ namespace dynamic {
     template <class Self>
     inline void DynamicBase<Self>::apply_state() {
       using namespace Dynamic_detail;
+      const auto consumed_dirty = dirty_;
       apply_children_1();
-      std::uint64_t hash_4 = tessera::ui::kEffectHashSeed;
-      hash_4 = tessera::ui::effect_hash(hash_4, std::string_view("Count: "));
-      hash_4 = tessera::ui::effect_hash(hash_4, state_count_);
-      if (!text_node_4_set_ || hash_4 != text_node_4_hash_) {
-          text_node_4_hash_ = hash_4;
-          text_node_4_set_ = true;
-          std::string next_4;
-          next_4 += "Count: ";
-          next_4 += format_value(state_count_);
-          text_node_4_value_ = std::move(next_4);
-          tessera::ui::PaintData paint_4;
-          paint_4.text = text_node_4_value_;
-          text_node_4_->set_paint_data(std::move(paint_4));
+      if (dirty_.intersects(kDirty_text_4)) {
+        TESSERA_BINDING_RAN(this, "text:4");
+        std::uint64_t hash_4 = tessera::ui::kEffectHashSeed;
+        hash_4 = tessera::ui::effect_hash(hash_4, std::string_view("Count: "));
+        hash_4 = tessera::ui::effect_hash(hash_4, state_count_);
+        if (!text_node_4_set_ || hash_4 != text_node_4_hash_) {
+            text_node_4_hash_ = hash_4;
+            text_node_4_set_ = true;
+            std::string next_4;
+            next_4 += "Count: ";
+            next_4 += format_value(state_count_);
+            text_node_4_value_ = std::move(next_4);
+            tessera::ui::PaintData paint_4;
+            paint_4.text = text_node_4_value_;
+            text_node_4_->set_paint_data(std::move(paint_4));
+        }
       }
+      dirty_.clear(consumed_dirty);
     }
     template <class Self>
     inline void DynamicBase<Self>::apply_children_1() {
@@ -297,62 +340,74 @@ namespace dynamic {
       std::size_t position = 0;
       ++position; // a static child is attached by build()
       {
-        std::uint64_t branch_3_hash = tessera::ui::kEffectHashSeed;
-        branch_3_hash = tessera::ui::effect_hash(branch_3_hash, (state_count_ > 0));
-        const bool branch_3_show = (state_count_ > 0);
-        if (!branch_3_set_ || branch_3_hash != branch_3_hash_ || branch_3_show != branch_3_present_) {
-          branch_3_hash_ = branch_3_hash;
-          branch_3_set_ = true;
-          branch_3_present_ = branch_3_show;
-          if (branch_3_show) {
-            attach_child_at(parent, position, branch_3_owned_, branch_3_node_);
-          }
-          else {
-            detach_child(parent, branch_3_owned_, branch_3_node_);
+        if (dirty_.intersects(kDirty_cond_3)) {
+          TESSERA_BINDING_RAN(this, "cond:3");
+          std::uint64_t branch_3_hash = tessera::ui::kEffectHashSeed;
+          branch_3_hash = tessera::ui::effect_hash(branch_3_hash, (state_count_ > 0));
+          const bool branch_3_show = (state_count_ > 0);
+          if (!branch_3_set_ || branch_3_hash != branch_3_hash_ || branch_3_show != branch_3_present_) {
+            branch_3_hash_ = branch_3_hash;
+            branch_3_set_ = true;
+            branch_3_present_ = branch_3_show;
+            if (branch_3_show) {
+              attach_child_at(parent, position, branch_3_owned_, branch_3_node_);
+            }
+            else {
+              detach_child(parent, branch_3_owned_, branch_3_node_);
+            }
           }
         }
-        if (branch_3_show) {
+        if (branch_3_present_) {
           ++position;
         }
       }
       ++position; // a static child is attached by build()
-      apply_list_5(parent, position);
+      if (dirty_.intersects(kDirty_list_5)) {
+        TESSERA_BINDING_RAN(this, "list:5");
+        apply_list_5(parent, position);
+      }
       position += list_5_count_;
       {
-        std::uint64_t branch_6_hash = tessera::ui::kEffectHashSeed;
-        branch_6_hash = tessera::ui::effect_hash(branch_6_hash, (state_count_ == 0));
-        const bool branch_6_show = (state_count_ == 0);
-        if (!branch_6_set_ || branch_6_hash != branch_6_hash_ || branch_6_show != branch_6_present_) {
-          branch_6_hash_ = branch_6_hash;
-          branch_6_set_ = true;
-          branch_6_present_ = branch_6_show;
-          if (branch_6_show) {
-            attach_child_at(parent, position, branch_6_owned_, branch_6_node_);
-          }
-          else {
-            detach_child(parent, branch_6_owned_, branch_6_node_);
+        if (dirty_.intersects(kDirty_cond_6)) {
+          TESSERA_BINDING_RAN(this, "cond:6");
+          std::uint64_t branch_6_hash = tessera::ui::kEffectHashSeed;
+          branch_6_hash = tessera::ui::effect_hash(branch_6_hash, (state_count_ == 0));
+          const bool branch_6_show = (state_count_ == 0);
+          if (!branch_6_set_ || branch_6_hash != branch_6_hash_ || branch_6_show != branch_6_present_) {
+            branch_6_hash_ = branch_6_hash;
+            branch_6_set_ = true;
+            branch_6_present_ = branch_6_show;
+            if (branch_6_show) {
+              attach_child_at(parent, position, branch_6_owned_, branch_6_node_);
+            }
+            else {
+              detach_child(parent, branch_6_owned_, branch_6_node_);
+            }
           }
         }
-        if (branch_6_show) {
+        if (branch_6_present_) {
           ++position;
         }
       }
       {
-        std::uint64_t branch_8_hash = tessera::ui::kEffectHashSeed;
-        branch_8_hash = tessera::ui::effect_hash(branch_8_hash, (!(state_count_ == 0)));
-        const bool branch_8_show = (!(state_count_ == 0));
-        if (!branch_8_set_ || branch_8_hash != branch_8_hash_ || branch_8_show != branch_8_present_) {
-          branch_8_hash_ = branch_8_hash;
-          branch_8_set_ = true;
-          branch_8_present_ = branch_8_show;
-          if (branch_8_show) {
-            attach_child_at(parent, position, branch_8_owned_, branch_8_node_);
-          }
-          else {
-            detach_child(parent, branch_8_owned_, branch_8_node_);
+        if (dirty_.intersects(kDirty_cond_8)) {
+          TESSERA_BINDING_RAN(this, "cond:8");
+          std::uint64_t branch_8_hash = tessera::ui::kEffectHashSeed;
+          branch_8_hash = tessera::ui::effect_hash(branch_8_hash, (!(state_count_ == 0)));
+          const bool branch_8_show = (!(state_count_ == 0));
+          if (!branch_8_set_ || branch_8_hash != branch_8_hash_ || branch_8_show != branch_8_present_) {
+            branch_8_hash_ = branch_8_hash;
+            branch_8_set_ = true;
+            branch_8_present_ = branch_8_show;
+            if (branch_8_show) {
+              attach_child_at(parent, position, branch_8_owned_, branch_8_node_);
+            }
+            else {
+              detach_child(parent, branch_8_owned_, branch_8_node_);
+            }
           }
         }
-        if (branch_8_show) {
+        if (branch_8_present_) {
           ++position;
         }
       }
@@ -489,15 +544,31 @@ namespace dynamic {
     template <class Self>
     inline void DynamicBase<Self>::update() {
       using namespace Dynamic_detail;
+      mark_all_dirty();
+      flush_update();
+    }
+    template <class Self>
+    inline void DynamicBase<Self>::flush_update() {
+      using namespace Dynamic_detail;
       update_effects();
       apply_state();
+    }
+    template <class Self>
+    inline void DynamicBase<Self>::note_dirty(std::size_t bit) {
+      using namespace Dynamic_detail;
+      dirty_.set(bit);
+    }
+    template <class Self>
+    inline void DynamicBase<Self>::mark_all_dirty() {
+      using namespace Dynamic_detail;
+      dirty_.set_all();
     }
     template <class Self>
     inline void DynamicBase<Self>::attach_scheduler(tessera::ui::UpdateScheduler& scheduler) {
       using namespace Dynamic_detail;
       update_ticket_.context = this;
       update_ticket_.update = [](void* context) {
-        static_cast<DynamicBase<Self>*>(context)->update();
+        static_cast<DynamicBase<Self>*>(context)->flush_update();
       };
       scheduler.attach(update_ticket_);
     }
@@ -518,6 +589,7 @@ namespace dynamic {
         return;
       }
       state_count_ = std::move(value);
+      dirty_.set(kBit_state_count_);
       schedule_update();
     }
     template <class Self>
@@ -527,6 +599,7 @@ namespace dynamic {
         return;
       }
       state_items_ = std::move(value);
+      dirty_.set(kBit_state_items_);
       schedule_update();
     }
     template <class Self>

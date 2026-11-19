@@ -13,6 +13,7 @@ add_library(tessera_codegen STATIC
     src/emit_composition.cpp
     src/emit_conditional.cpp
     src/emit_controlled.cpp
+    src/emit_dirty.cpp
     src/emit_dynamic_header.cpp
     src/emit_dynamic_plan.cpp
     src/emit_dynamic_plan_util.cpp
@@ -1196,6 +1197,28 @@ if (TESSERA_BUILD_TESTS)
         TESSERA_CODEGEN_INSTANCES_GOLDEN_DIR="${_tessera_codegen_instances_golden_dir}")
 
     add_test(NAME codegen_instances COMMAND codegen_instances_tests)
+
+    # ADR-056 slice 2: the emitted dirty mask. The generator shape and golden of the `Probe`
+    # fixture, then the per-binding behavior over the committed base.
+    set(_tessera_codegen_mask_golden_dir ${_tessera_codegen_golden_dir}/mask)
+    add_executable(codegen_mask_tests
+        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_mask_tests.cpp)
+    target_link_libraries(codegen_mask_tests PRIVATE tessera_codegen tessera_ir)
+    target_include_directories(codegen_mask_tests PRIVATE ${CMAKE_SOURCE_DIR}/tests/unit)
+    target_compile_definitions(codegen_mask_tests PRIVATE
+        TESSERA_CODEGEN_MASK_GOLDEN_DIR="${_tessera_codegen_mask_golden_dir}")
+    add_test(NAME codegen_mask COMMAND codegen_mask_tests)
+
+    if (EXISTS ${_tessera_codegen_mask_golden_dir}/Probe.g.hpp)
+        add_executable(codegen_mask_runtime_tests
+            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_mask_runtime_tests.cpp)
+        target_include_directories(codegen_mask_runtime_tests PRIVATE
+            ${_tessera_codegen_mask_golden_dir}
+            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures/mask)
+        target_link_libraries(codegen_mask_runtime_tests PRIVATE tessera_scene)
+        target_compile_features(codegen_mask_runtime_tests PRIVATE cxx_std_23)
+        add_test(NAME codegen_mask_runtime COMMAND codegen_mask_runtime_tests)
+    endif ()
 
     # ADR-040 (#218): the developer classes in tests/unit/codegen_base/fixtures/instances over the
     # committed bases, generated from the hand-built IR in codegen_instances_tests.

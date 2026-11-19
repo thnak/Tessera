@@ -6,6 +6,7 @@
 // the initial values when the item is built, and the hash-guarded refresh the per-item content pass
 // runs.
 
+#include "emit_dirty.hpp"
 #include "emit_events.hpp"
 #include "emit_props.hpp"
 #include "value_ops.hpp"
@@ -141,6 +142,9 @@ bool emit_item_instance_props(CppWriter& writer, const ir::Component& owner,
         }
         // Per-item refresh: an unchanged value copies and allocates nothing (the same FNV-1a
         // contract apply_state() uses). The guard lives in the item record, next to the instance.
+        // A written prop marks its bit on the child (ADR-056).
+        const std::string note = std::string(field) + "->note_dirty(" + instance.type_name +
+                                 "::" + dirty_bit_name("prop::" + binding.name) + ");";
         CppWriter guard;
         guard.indent = writer.indent;
         const std::string hash_var =
@@ -155,11 +159,13 @@ bool emit_item_instance_props(CppWriter& writer, const ir::Component& owner,
             ++writer.indent;
             writer.line(hash_member + " = " + hash_var + ";");
             writer.line(member + " = " + value.text + ";");
+            writer.line(note);
             --writer.indent;
             writer.line("}");
             continue;
         }
         writer.line(member + " = " + value.text + ";");
+        writer.line(note);
     }
     return true;
 }

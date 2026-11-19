@@ -143,6 +143,15 @@ bool emit_lifecycle(const ir::Component& component, const ir::IrModule& module,
             emit_item_instance_calls(writer, plan, method, {}, reverse);
         }
     };
+    // A hand call of update() evaluates every binding (ADR-056 decision 7); the scheduler runs
+    // flush_update(), which evaluates only the dirty ones.
+    const auto hand_update = [&]() {
+        writer.open("void " + component.name + "::update()");
+        writer.line("mark_all_dirty();");
+        writer.line("flush_update();");
+        writer.close("");
+        writer.line("");
+    };
     const auto mount_items = [&]() {
         if (!item_instances) {
             return;
@@ -166,7 +175,8 @@ bool emit_lifecycle(const ir::Component& component, const ir::IrModule& module,
             writer.line("");
             writer.line("void " + component.name + "::unmount() {}");
             writer.line("");
-            writer.open("void " + component.name + "::update()");
+            hand_update();
+            writer.open("void " + component.name + "::flush_update()");
             writer.line("update_effects();");
             writer.line("apply_state();");
             writer.close("");
@@ -186,7 +196,8 @@ bool emit_lifecycle(const ir::Component& component, const ir::IrModule& module,
         instance_calls("unmount", true);
         writer.close("");
         writer.line("");
-        writer.open("void " + component.name + "::update()");
+        hand_update();
+        writer.open("void " + component.name + "::flush_update()");
         writer.line("update_effects();");
         writer.line("apply_state();");
         instance_calls("update", false);
@@ -252,7 +263,8 @@ bool emit_lifecycle(const ir::Component& component, const ir::IrModule& module,
     writer.close("");
     writer.line("");
 
-    writer.open("void " + component.name + "::update()");
+    hand_update();
+    writer.open("void " + component.name + "::flush_update()");
     writer.line("update_effects();");
     writer.line("apply_state();");
     instance_calls("update", false);

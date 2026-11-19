@@ -150,6 +150,39 @@ declared cell, a missing operand, an effect dep that is not a declared cell. A m
 be a stale UI; an extra one is a re-run the hash gate already absorbs, so the failure direction is
 "re-run too much". A binding whose expression is a literal is present with an empty set.
 
+## 9. The dirty mask (ADR-056 slice 2)
+
+Slice 1's read sets become masks. Every component gets one bit per declared cell (state, animated value,
+prop; sorted by IR id, so a cell's bit is its index in `declared_cells`), one extra "everything" bit that every binding mask carries (so a first build or a hand `update()` reaches a binding that reads no cell), and one `DirtyMask<N>` member,
+`dirty_` (`include/tessera/ui/scene/dirty_mask.hpp`: one `uint64_t` word up to 64 bits, an array of
+words above, same generated shape). Emitted shape:
+
+- `static constexpr std::size_t kBit_<member>` per cell, public, so an owner can mark a child's prop.
+- `kDirty_<kind>_<ordinal>[_<name>]` per gated binding: `text`, `meta`, `style`, `cond`, `list`
+  (the whole per-item content of a list template, so it also covers the list source), `prop` (an
+  instance prop). Each is `DirtyMask<N>::of({bits...})` in the base's detail namespace.
+- A setter sets its bit and schedules; a handler's `set`/`anim.set` action sets the bit
+  unconditionally (a controlled input whose state is unchanged must still snap back); an animated
+  tick or the reduced-motion hook sets the bit of the value that moved.
+- `apply_state()` snapshots `dirty_`, evaluates each binding only when `dirty_.intersects(kDirty_...)`,
+  and at the end clears only the snapshot, so a setter fired during the pass survives for the next one.
+  The hash gate is unchanged and stays the second filter.
+- `update()` is the hand call: `mark_all_dirty(); flush_update();`. The scheduler ticket runs
+  `flush_update()` (effects, then `apply_state()` over the dirty cells). A fresh component starts with
+  every bit set, so `build()` evaluates everything.
+- `apply_props()` re-evaluates an instance prop only when a cell it reads is dirty, and a written prop
+  calls `child.note_dirty(Child::kBit_prop_<name>_)`. Per-item props do the same through the item
+  record.
+
+Not gated, on purpose: effects (`update_effects()` hashes their deps itself), the controlled-input
+editor sync, form field refresh (the form controller is not a cell; a changed field value marks the
+Field instance `mark_all_dirty()`), a binding the table does not record, and the virtual-collection
+item passes (scroll-driven, not state-driven).
+
+Test seam: with `TESSERA_BINDING_TRACE` defined before the generated header is included, each gated
+binding calls `TESSERA_BINDING_RAN(this, "text:2")` when it re-evaluates. `codegen_mask_runtime` uses it
+over the committed `mask/Probe.g.hpp` (fixture `tests/unit/codegen_mask_module.hpp`).
+
 ## 7. Tests
 
 - `codegen_instances_tests` (IR fixture in `tests/unit/codegen_instances_fixture.hpp`): emission of

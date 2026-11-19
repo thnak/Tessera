@@ -5,6 +5,7 @@
 // records, its callback prop is a record-typed prop bound through the node's events, and its
 // children ride the static `Children` slot. There is no Field-specific branch.
 
+#include "emit_dirty.hpp"
 #include "emit_events.hpp"
 #include "emit_props.hpp"
 #include "value_ops.hpp"
@@ -375,7 +376,7 @@ bool build_value_guard(CppWriter& out, const PropBinding& binding, const ir::Com
 
 } // namespace
 
-bool emit_apply_props(CppWriter& writer, const ir::Component& owner,
+bool emit_apply_props(CppWriter& writer, const ir::Component& owner, const DirtyPlan& dirty,
                       const std::vector<ComponentInstance>& instances, std::string& error) {
     bool any = false;
     for (const ComponentInstance& instance : instances) {
@@ -429,6 +430,13 @@ bool emit_apply_props(CppWriter& writer, const ir::Component& owner,
             if (!value.error.empty()) {
                 return fail(error, value.error);
             }
+            // The owner re-evaluates a prop only when a cell it reads is dirty, and a written prop
+            // marks its bit on the child (ADR-056).
+            const bool gated = open_dirty_gate(
+                writer, dirty, BindingKind::InstanceProp, instance.ordinal, binding.name,
+                "prop:" + std::to_string(instance.ordinal) + ":" + binding.name);
+            const std::string note = member_prefix + "note_dirty(" + instance.type_name +
+                                     "::" + dirty_bit_name("prop::" + binding.name) + ");";
             // Value props are hash-guarded: an unchanged value copies and allocates nothing, the
             // same deterministic FNV-1a contract as apply_state() (docs/design/compiler.md 11).
             CppWriter guard;
@@ -443,11 +451,15 @@ bool emit_apply_props(CppWriter& writer, const ir::Component& owner,
                 ++writer.indent;
                 writer.line(hash_member + " = " + hash_var + ";");
                 writer.line(member + " = " + value.text + ";");
+                writer.line(note);
                 --writer.indent;
                 writer.line("}");
+                close_dirty_gate(writer, gated);
                 continue;
             }
             writer.line(member + " = " + value.text + ";");
+            writer.line(note);
+            close_dirty_gate(writer, gated);
         }
     }
     writer.close("");
