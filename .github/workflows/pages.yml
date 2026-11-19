@@ -259,6 +259,7 @@ jobs:
       # The project package: zip + manifest with times, versioning, tamper refusal, plain zips still open.
       - name: Project package format
         run: node scripts/ci/preview_project_package.mjs
+
       - name: Studio mock services (file kind, subset, table, trace, host)
         run: node scripts/ci/preview_mock_host.mjs
 

@@ -35,7 +35,8 @@ import { COUNTER, MANIFEST, NAVIGATOR, assert, finish, makeHost, test } from './
 await test('a *.mock.ts file is the mock kind, text and editable; a plain .ts stays locked', () => {
   assert.equal(classifyPath('mocks/navigator.mock.ts'), FILE_KIND.mock);
   assert.equal(classifyPath('anywhere/deep/x.mock.ts'), FILE_KIND.mock);
-  assert.equal(classifyPath('mocks/util.ts'), FILE_KIND.other);
+  // A plain .ts is a text file the studio does not accept: locked, opened view-only (#391).
+  assert.equal(classifyPath('mocks/util.ts'), FILE_KIND.viewOnly);
   assert.equal(classifyPath('x.mock.tsx'), FILE_KIND.source);
   assert.ok(isTextKind(FILE_KIND.mock));
 });

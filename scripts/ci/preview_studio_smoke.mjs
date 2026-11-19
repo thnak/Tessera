@@ -142,17 +142,19 @@ await test("the built chrome renders the page's four regions", async () => {
   assert.match(MARKUP, /role="tablist"[^>]*aria-label="Open files"/, "the editor's tabs are rendered");
   assert.match(MARKUP, /role="tablist"[^>]*aria-label="Preview views"/, "the preview switch is rendered");
   assert.match(MARKUP, /class="page-footer"/, "the status line is rendered");
-  // The page itself is not a tablist any more: exactly the two strips above, and no third.
+  // The page itself is not a tablist any more: the two strips above and the bottom dock's (Platform
+  // events, Mock console, Call trace), and no page-level one.
+  assert.match(MARKUP, /role="tablist"[^>]*aria-label="Dock panels"/, "the bottom dock's tabs are rendered");
   assert.equal(
     (MARKUP.match(/role="tablist"/g) || []).length,
-    2,
-    "the page has two tab strips (files, preview) and no page-level one",
+    3,
+    "the page has three tab strips (files, preview, dock) and no page-level one",
   );
 });
 
 await test("the toolbar's selects carry the documented option sets", async () => {
   const selects = [...MARKUP.matchAll(/<select\b[^>]*id="(control-[^"]+)"[^>]*>([\s\S]*?)<\/select>/g)];
-  assert.equal(selects.length, 5, "skin, viewport, DPR, theme, fold posture");
+  assert.equal(selects.length, 6, "device profile, skin, viewport, DPR, theme, fold posture");
   const values = selects.map(([, id, body]) => ({
     id,
     options: [...body.matchAll(/<option[^>]*value="([^"]*)"/g)].map((match) => match[1]),
