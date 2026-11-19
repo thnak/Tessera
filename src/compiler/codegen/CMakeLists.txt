@@ -212,6 +212,9 @@ set(_tessera_scene_preview_sources
     # The designer's override layer (issue #536): its data and history, and how it reaches the tree.
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_override.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_session_override.cpp
+    # The style inspector's cascade query over a laid-out tree (issue #171): shared by the canvas
+    # session's `inspect()` and the MCP `query_style` tool, which has no session and no GPU.
+    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_style_info.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_interaction.cpp)
 
 # The persistent canvas session (#388): the tree a pointer event feeds and a frame paints. It is

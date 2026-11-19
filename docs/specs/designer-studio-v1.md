@@ -473,8 +473,8 @@ there is no third protocol to keep in sync.
 | `apply_edits` | `source.patch` TextEdits | Apply edits in memory by default; `write: true` writes them to the project directory |
 | `set_viewport` | `viewport.set` | Device size, DPR, theme, locale, safe areas, fold |
 | `snapshot` | harness `snapshot` | Node tree, bounds, roles, text, focus |
-| `query_style` | `style.inspect` | Computed style, matched rules, layout box |
-| `pick` | `selection.set` by point | Node at a coordinate |
+| `query_style` | `style.inspect` | Computed style, matched rules, layout box ([mcp-server-v1.md](mcp-server-v1.md) section 5) |
+| `pick` | `selection.set` by point | Node at a coordinate, logical pixels ([mcp-server-v1.md](mcp-server-v1.md) section 5) |
 | `screenshot` | native headless renderer (Dawn/Vulkan, GPU) | PNG of the scene; best-effort visual, never a golden |
 | `run_script` | harness script (`launch`/`click`/`assert`/...) | End-to-end checks with a report |
 

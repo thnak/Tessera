@@ -14,6 +14,8 @@ namespace {
 // client's own schema validation refusing the request without a server-side message.
 JsonValue schema(JsonValue::Object properties) {
     JsonValue schema_value = JsonValue::object();
+    // Every schema declares its dialect (mcp-server-v1.md section 3: JSON Schema 2020-12).
+    schema_value.set("$schema", JsonValue::string("https://json-schema.org/draft/2020-12/schema"));
     schema_value.set("type", JsonValue::string("object"));
     schema_value.set("properties", JsonValue::object(std::move(properties)));
     return schema_value;
@@ -131,14 +133,32 @@ std::vector<ToolDefinition> make_tools() {
             {"file", property("Project-relative name the ids are hashed under; defaults to "
                               "`ui/Preview.tsx`.")}})});
     list.push_back(ToolDefinition{
-        "query_style", "Return a node's computed style, matched rules and layout box.",
-        ToolStatus::Declared, ToolSource::DesignerProtocol,
-        schema(JsonValue::Object{{"uiId", property("The decimal UiId of the node to inspect.")}})});
-    list.push_back(
-        ToolDefinition{"pick", "Return the node at a point in the current preview.",
-                       ToolStatus::Declared, ToolSource::DesignerProtocol,
-                       schema(JsonValue::Object{{"x", property("Point x in device pixels.")},
-                                                {"y", property("Point y in device pixels.")}})});
+        "query_style",
+        "Return a node's computed style, matched rules (highest precedence first, with the "
+        "cascade's own `overridden`) and layout box, as the studio's style inspector does. The "
+        "source is laid out at the viewport `set_viewport` last set; a `uiId` no node carries "
+        "answers `ok:false, reason:no_such_node`. A query: nothing is dispatched or changed.",
+        ToolStatus::Implemented, ToolSource::DesignerProtocol,
+        schema(JsonValue::Object{
+            {"source", property("The .tsx text to evaluate (in memory; no file is read).")},
+            {"file", property("Project-relative name the ids are hashed under; defaults to "
+                              "`ui/Preview.tsx`.")},
+            {"uiId",
+             property("The decimal UiId of the node to inspect, as `snapshot` lists it.")}})});
+    list.push_back(ToolDefinition{
+        "pick",
+        "Return the node at a point in the preview: its automation id, element kind and box, found "
+        "with the input router's own hit test, so it is the node a press there would reach. `x` "
+        "and "
+        "`y` are logical viewport pixels, the space `snapshot`'s bounds are in. A point over no "
+        "node answers `found:false`. A query: nothing is dispatched or changed.",
+        ToolStatus::Implemented, ToolSource::DesignerProtocol,
+        schema(JsonValue::Object{
+            {"source", property("The .tsx text to evaluate (in memory; no file is read).")},
+            {"file", property("Project-relative name the ids are hashed under; defaults to "
+                              "`ui/Preview.tsx`.")},
+            {"x", property("Point x in logical viewport pixels.")},
+            {"y", property("Point y in logical viewport pixels.")}})});
     list.push_back(ToolDefinition{
         "screenshot",
         "Render the scene and return a PNG. Best-effort visual evidence, never a golden.",
@@ -220,9 +240,8 @@ ToolResult unimplemented_tool_result(const ToolDefinition& tool) {
     return ToolResult{true, "TESSERA_MCP_TOOL_UNIMPLEMENTED: `" + std::string(tool.name) +
                                 "` is declared but not implemented in this build (it maps to " +
                                 std::string(source_name(tool.source)) +
-                                "). The compile-only subset (open_project, list_files, "
-                                "diagnostics, get_ir, generate) ships "
-                                "first; see docs/specs/designer-studio-v1.md section 8."};
+                                "). `tools/list` marks each tool `implemented` or `declared`; see "
+                                "docs/specs/designer-studio-v1.md section 8."};
 }
 
 } // namespace tessera::mcp

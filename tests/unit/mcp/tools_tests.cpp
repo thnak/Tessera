@@ -9,8 +9,11 @@
 #include "mcp_protocol.hpp"
 #include "mcp_test_support.hpp"
 #include "session.hpp"
+#include "tessera/harness/json_write.hpp"
 #include "tool_registry.hpp"
 
+#include <fstream>
+#include <iterator>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -55,9 +58,11 @@ void test_surface_is_declared() {
     // The implemented subset, and nothing else claims to be. This is the assertion that keeps the
     // advertisement honest as later slices fill tools in: `open_project`, the three compile tools,
     // and since issue #408 the preview pair (`set_viewport` and `snapshot`), which share the scene
-    // driver the browser module and the native preview CLI call.
-    const std::string_view implemented[] = {"open_project", "list_files", "diagnostics", "get_ir",
-                                            "set_viewport", "snapshot",   "generate"};
+    // driver the browser module and the native preview CLI call, and since issue #396 the two
+    // read-only inspection queries (`query_style` and `pick`).
+    const std::string_view implemented[] = {"open_project", "list_files",   "diagnostics",
+                                            "get_ir",       "set_viewport", "snapshot",
+                                            "generate",     "query_style",  "pick"};
     for (const mcp::ToolDefinition& tool : tools) {
         bool should_be_implemented = false;
         for (const std::string_view name : implemented) {
@@ -132,9 +137,62 @@ void test_declared_tools_fail_cleanly() {
     }
 }
 
+// The checked-in `tools/mcp/schema/tools.json` is the normative copy of `tools/list`
+// (docs/specs/mcp-server-v1.md section 3): a change to any tool's name, description or schema has
+// to touch that file, so it is reviewed. `--write` regenerates it from the build.
+std::string tools_list_text() {
+    auto text = harness::to_json(mcp::tools_list_result());
+    expect(text.has_value(), "mcp_tools: the listing encodes");
+    return text ? *text : std::string();
+}
+
+void test_listing_equals_the_checked_in_schema() {
+    const std::string expected = tools_list_text();
+    std::ifstream in(TESSERA_MCP_TOOLS_JSON, std::ios::binary);
+    expect(in.good(), "mcp_tools: tools/mcp/schema/tools.json exists");
+    std::string actual((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    while (!actual.empty() && (actual.back() == '\n' || actual.back() == '\r')) {
+        actual.pop_back();
+    }
+    expect(actual == expected,
+           "mcp_tools: tools/list equals tools/mcp/schema/tools.json byte for byte (run "
+           "mcp_tools_tests --write to regenerate)");
+}
+
+void test_surface_version_is_reported() {
+    mcp::McpSession session;
+    auto reply = session.handle_line(
+        R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}})");
+    if (!expect(reply.has_value(), "mcp_tools: initialize answers")) {
+        return;
+    }
+    const harness::JsonValue response = mcp_test::decode(reply->reply, "mcp_tools");
+    const harness::JsonValue* result = response.find("result");
+    const harness::JsonValue* version =
+        result == nullptr ? nullptr : result->find("toolSurfaceVersion");
+    expect(version != nullptr && version->as_integer() == mcp::kToolSurfaceVersion &&
+               mcp::kToolSurfaceVersion == 1,
+           "mcp_tools: initialize reports toolSurfaceVersion 1");
+    // Every schema declares its dialect.
+    for (const mcp::ToolDefinition& tool : mcp::tools()) {
+        const harness::JsonValue* dialect = tool.input_schema.find("$schema");
+        expect(dialect != nullptr && dialect->is_string() &&
+                   *dialect->as_string() == "https://json-schema.org/draft/2020-12/schema",
+               std::string("mcp_tools: `") + std::string(tool.name) +
+                   "` declares JSON Schema 2020-12");
+    }
+}
+
 } // namespace
 
-int main() {
+int main(int argc, char** argv) {
+    if (argc > 1 && std::string_view(argv[1]) == "--write") {
+        std::ofstream out(TESSERA_MCP_TOOLS_JSON, std::ios::binary);
+        out << tools_list_text() << "\n";
+        return out.good() ? 0 : 1;
+    }
+    test_listing_equals_the_checked_in_schema();
+    test_surface_version_is_reported();
     test_surface_is_declared();
     test_tools_list();
     test_declared_tools_fail_cleanly();
