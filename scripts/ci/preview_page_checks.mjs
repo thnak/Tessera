@@ -421,8 +421,13 @@ if (!requireBuilt()) {
       return { label, tabs };
     });
     const labels = strips.map((strip) => strip.label);
-    if (strips.length !== 2) {
-      problems.push(`${strips.length} tablist(s), expected 2 (the open files and the preview switch)`);
+    // The bottom dock (issue #434) is its own region with its own strip, so it is counted apart: the
+    // page still has exactly two strips in the workspace, and the dock's is checked on its own below.
+    const workspaceStrips = strips.filter((strip) => strip.label !== "Dock panels");
+    if (workspaceStrips.length !== 2) {
+      problems.push(
+        `${workspaceStrips.length} tablist(s), expected 2 (the open files and the preview switch)`,
+      );
     }
     if (!labels.includes("Preview views")) {
       problems.push("no `Preview views` tablist (the view switch left the page)");
@@ -455,6 +460,8 @@ if (!requireBuilt()) {
     // pre-#431 page had at the top, now inside the column it controls.
     checkStrip("Preview views", 3);
     // The editor: the seeded project opens its entry file, so there is at least one tab.
+    // The dock: the two mock tabs, one selection, one tab stop; the panel itself is collapsed.
+    checkStrip("Dock panels", 2);
     const editorTabs = checkStrip("Open files", null);
     if (editorTabs < 1) {
       problems.push("no editor tabs (the workspace has no open file)");

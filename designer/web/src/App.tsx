@@ -63,6 +63,7 @@ import { useProjectIo } from "./page-project-io";
 import { useWorkspace } from "./page-workspace";
 import { CodeRegion } from "./regions/CodeRegion";
 import { GalleryRegion } from "./regions/GalleryRegion";
+import { MockDock } from "./regions/MockDock";
 import { PreviewColumn } from "./regions/PreviewColumn";
 import { ProjectBar } from "./regions/ProjectBar";
 import { ProjectTree } from "./regions/ProjectTree";
@@ -87,6 +88,8 @@ export function App() {
   // Bumped when the page itself replaces a buffer (a tab switch, a share link, a gallery pick), so the
   // editor's effect can tell a page write from a keystroke.
   const [revision, setRevision] = useState(0);
+  // Bumped when a `*.mock.ts` buffer is edited, so the mock sandbox worker is recreated (ADR-055).
+  const [mockRevision, setMockRevision] = useState(0);
 
   const currentView = viewOf(view);
   const activeText = workspace.textOf(workspace.state.active);
@@ -394,6 +397,9 @@ export function App() {
   const onEdit = useCallback(
     (text: string) => {
       workspace.writeBuffer(workspace.state.active, text);
+      if (/\.mock\.ts$/i.test(workspace.state.active)) {
+        setMockRevision((value) => value + 1);
+      }
       // The live edit (issue #444): the trigger owns the debounce, so this is one call per keystroke and
       // one apply per burst. It reads the file the workspace compiles through the refs above, so a
       // keystroke in a stylesheet tab applies nothing until the spec's restart case fires.
@@ -557,6 +563,8 @@ export function App() {
           skin={skins.selected}
         />
       </main>
+
+      <MockDock files={workspace.state.files} textOf={workspace.textOf} revision={mockRevision} />
 
       <StatusLine
         buildId={state.buildId}

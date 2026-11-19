@@ -32,6 +32,10 @@
     "edit_compile_ms": {
       "better": 50.0,
       "worse": 250.0
+    },
+    "mock_transpiler_lazy_gzip_bytes": {
+      "better": 5.0,
+      "worse": 5.0
     }
   },
   "entries": {
@@ -65,6 +69,12 @@
         "tessera_scene_preview.js.gzip": 3123.0,
         "tessera_scene_preview.wasm.gzip": 622473.0
       }
+    },
+    "mock_transpiler_lazy_gzip_bytes": {
+      "budget": 3750386.0,
+      "status": "enforce",
+      "unit": "bytes",
+      "measures": "gzip-9 bytes of designer/web/dist/assets/mock/: the lazy mock host chunk plus esbuild's WebAssembly (issue #434, ADR-055 decision 5). A project without a *.mock.ts file never fetches it, which is why it is left out of download_gzip_bytes and the cold download does not move. Measured 3.75 MB gzip, almost all esbuild.wasm: a smaller transpiler (spec studio-mock-services-v1.md open question 1) would lower it."
     },
     "cold_engine_ready_ms": {
       "budget": 16.443,
