@@ -32,7 +32,7 @@ below is testable headless. `workbench-core` may not import `react`, `react-dom`
 dock library; a lint-style check in the preview gates enforces that.
 
 Non-goals: a plugin or extension API; user-authored commands; a settings UI beyond keybindings and
-layout (settings slice, section 6); theming the workbench beyond the existing light/dark.
+layout (settings slice, section 7); theming the workbench beyond the existing light/dark.
 
 ## 2. Command registry
 
@@ -137,12 +137,20 @@ it changes who owns tool schemas (open decision 5).
 
 ### 2.5 Keyboard reality in a browser
 
+Owner direction 2026-11-19: **the reference is VS Code and Visual Studio; keep VS Code's default
+keybindings wherever a command exists.** The tree in 3.2 therefore uses VS Code chords, and the
+parity matrix (section 6) lists each. Where VS Code's chord is not capturable in a browser, the
+fallback is named explicitly and flagged.
+
 Chromium reserves some chords that `preventDefault` cannot capture. The registry rejects defaults on
 `Mod+N`, `Mod+T`, `Mod+W`, `Mod+Shift+N`, `Mod+Shift+T`, `Ctrl+Tab`, `Ctrl+PageUp/PageDown`, `Mod+1..9`
 and `Alt+Left/Right`. `Mod+S`, `Mod+O`, `Mod+P`, `Mod+F`, `F1`, `F2`, `F5`, `F6`, `F10`, `F12` and
 `Mod+Shift+P` are capturable but collide with browser defaults, so the studio captures them only
 while it owns focus and shows the chord in the menu so the owner can see what the page overrides. The
-palette key `Mod+Shift+P` and `F1` are both bound (VS Code parity).
+palette key `Mod+Shift+P` and `F1` are both bound (VS Code parity). VS Code's `Ctrl+N` (new file),
+`Ctrl+W` (close editor), `Ctrl+T`, `Ctrl+Shift+N` and `Ctrl+Tab` are **not capturable** in Chromium
+tabs; fallbacks are `Ctrl+Alt+N` (new file), `Alt+W` (close editor) and `Ctrl+PageDown/Up` is also
+reserved, so there is no default for editor-tab cycling in a browser tab (open decision 11).
 
 ## 3. Menu bar model
 
@@ -187,22 +195,22 @@ issues #446-#448). Chords are proposals (section 2.5 applies).
 
 ```text
 File
-  Open Folder...                *file.openFolder        Ctrl+K Ctrl+O
+  Open Folder...                *file.openFolder        Ctrl+K Ctrl+O (VS Code)
   Open Zip...                   *file.openZip           
   Open Recent >                 *file.recent            (one entry today: the last folder; list later)
   Open Sample >                 *file.samples           (replaces the Samples gallery toggle + Load sample)
   ------
-  New File                      *file.newFile           Ctrl+Alt+N
+  New File                      *file.newFile           Ctrl+Alt+N (VS Code Ctrl+N is reserved)
   Save                          *file.save              Ctrl+S
-  Download Project (.zip)       *file.download          Ctrl+Shift+S
+  Download Project (.zip)       *file.download          Ctrl+Shift+S (VS Code: Save As)
   ------
   Rename File...                *file.renameFile        F2 (tree focus)
   Delete File                   *file.deleteFile        Delete (tree focus)
   ------
-  Copy Share Link               *file.share             Ctrl+Alt+L
+  Copy Share Link               *file.share             (no VS Code analogue; unbound)
   Close Folder                  R:file.closeProject
 Edit
-  Undo / Redo                   *edit.undo/redo         Ctrl+Z / Ctrl+Shift+Z (editor focus)
+  Undo / Redo                   *edit.undo/redo         Ctrl+Z / Ctrl+Y (editor focus; Ctrl+Shift+Z also)
   ------
   Cut / Copy / Paste            *edit.cut/copy/paste    native, shown for discoverability
   Select All                    *edit.selectAll         Ctrl+A (editor focus)
@@ -213,8 +221,20 @@ Edit
   ------
   Format Document               R:edit.format           Shift+Alt+F      (ADR-061, format service)
   Rename Symbol...              R:edit.renameSymbol     F2 (editor focus) (analysis service)
+  Toggle Line Comment           *edit.toggleComment     Ctrl+/   (editor keymap)
 View
   Command Palette...            *view.palette           Ctrl+Shift+P, F1
+  Quick Open (go to file)...    *view.quickOpen         Ctrl+P
+  Go to Line...                 *view.gotoLine          Ctrl+G  (also ':' in quick open)
+  ------
+  Explorer / Search / Source Control   *view.explorer Ctrl+Shift+E, R:view.search Ctrl+Shift+F,
+                                R:view.sourceControl Ctrl+Shift+G   (activity bar views)
+  Problems                      R:view.problems         Ctrl+Shift+M
+  Toggle Side Bar               *view.toggleSideBar     Ctrl+B
+  Toggle Panel                  *view.togglePanelArea   Ctrl+J
+  Toggle Status Bar / Activity Bar  *view.toggleStatusBar / *view.toggleActivityBar
+  Zen Mode                      *view.zenMode           Ctrl+K Z   (Esc Esc exits)
+  Layout Preset >               *view.layoutPreset      Default, Editor Only, Preview Focus, Side by Side
   ------
   Appearance >                  Theme: System/Light/Dark  (*view.setTheme, radio)
   ------
@@ -224,15 +244,14 @@ View
                                   R:Problems, R:Source Control
   Focus Next / Previous Region  *view.focusNextRegion   F6 / Shift+F6
   Move Panel >                  *view.movePanel         Left, Right, Bottom, Into Group >  (palette-first)
-  Maximize Panel                *view.maximizePanel     Ctrl+K Z   (toggle)
+  Maximize / Restore Panel      *view.maximizePanel     (VS Code: no default; panel header button too)
   Reset Layout                  *view.resetLayout
 Go
-  Go to File...                 R:go.file               Ctrl+P
   Go to Definition              R:go.definition         F12
   Go to Symbol...               R:go.symbol             Ctrl+Shift+O
   Find All References           R:go.references         Shift+F12
 Run
-  Restart App                   *run.restart            Ctrl+Alt+R
+  Restart App                   *run.restart            Ctrl+Shift+F5 (VS Code: Restart; F5 is Run)
   Apply Now                     *run.applyNow           Ctrl+Enter (editor focus)
   Run Input Script              *run.inputScript        (Scene panel)
   ------
@@ -313,29 +332,39 @@ Device menu for a foldable skin).
 
 ## 5. Wireframe
 
-Desktop, default layout (1440x900). The menu bar, toolbar, dock and status line are four regions;
-the dock is described in [the layout spec](studio-workbench-layout-v1.md).
+Desktop, default state (1440x900), VS Code shaped: activity bar, side bar, editor area, preview
+group, status bar. The panel area starts **collapsed** (section 8, decision 10); the second drawing
+shows it opened with `Ctrl+J`. The dock is specified in [the layout spec](studio-workbench-layout-v1.md).
 
 ```text
 +----------------------------------------------------------------------------------------------+
-| T  File  Edit  View  Run  Device  Help                    [ search / run a command (Ctrl+P) ] |  menu bar (role=menubar)
+| T  File  Edit  View  Go  Run  Device  Help               [ search / run a command (Ctrl+P) ] |  menu bar (role=menubar)
 +----------------------------------------------------------------------------------------------+
-| [> Restart] [Save 2] [Share]  |  [Pixel 8 . 390x844 . 3x v]  [theme]            studio: ready |  toolbar (role=toolbar)
-+------------+-----------------------------------------+---------------------------------------+
-| PROJECT    | [App.tsx *][Home.tsx][theme.css]    [x] | [Canvas] [Scene]            [pick][insp]  |
-|  ui/       |-----------------------------------------|---------------------------------------|
-|   App.tsx  |  1  export function App() {             |        +---------------------+        |
-|   Home.tsx |  2    return <Column>...                |        |  device skin        |        |
-|  styles/   |                                         |        |  engine canvas      |        |
-|            |                                         |        +---------------------+        |
-|            |                                         |                                       |
-+------------+----+----------------------------------------------------------------------+---+
-| [Diagnostics 2] [Mock console] [Call trace] [Platform events]                   [_][^][x]  |  bottom dock (tab group)
-|  App.tsx:12:5  error TSR1042 ...                                                            |
+| [> Restart] [Save 2] [Share] | [Pixel 8 . 390x844 . 3x v] [theme]                            |  toolbar (optional, view.toggleToolbar)
++--+-------------+-----------------------------------------+------------------------------------+
+|[E]| EXPLORER    | App.tsx *  Home.tsx  theme.css   [x]    | Canvas | Scene              [pick]... |
+|[S]|  ui/        | ui > App.tsx > App                      |------------------------------------|
+|[G]|   App.tsx   |-----------------------------------------|     +--------------------+         |
+|   |   Home.tsx  |  1  export function App() {             |     |  device skin       |         |
+|   |  styles/    |  2    return <Column>...                |     |  engine canvas     |         |
+|   |             |                                         |     +--------------------+         |
++--+-------------+-----------------------------------------+------------------------------------+
+| WebGPU | main | diagnostics 2 (click opens the panel) | Ln 2, Col 5 | App.tsx | frame 2.1 ms     |  status bar (items run commands)
 +----------------------------------------------------------------------------------------------+
-| engine v0.x | WebGPU | compile target App.tsx | diagnostics 2 | frame 2.1 ms | saved         |  status line
-+----------------------------------------------------------------------------------------------+
+
+ Ctrl+J opens the panel area (bottom, over the editor and preview columns):
++--+-------------+-----------------------------------------+------------------------------------+
+|  | ...         |  editor                                  | preview                             |
+|  |             +=========================================+====================================+  <- sash (snaps)
+|  | PANEL: [Diagnostics 2] [Mock console] [Call trace] [Platform events]      [^ max][x]        |
+|  |  App.tsx:12:5  error TSR1042 ...                                                             |
++--+----------------------------------------------------------------------------------------------+
 ```
+
+Activity bar: Explorer (live), Search and Source Control (reserved placeholders, hidden until live).
+Breadcrumbs line (`ui > App.tsx > App`) is the path today and gains symbols with the analysis
+service. While dragging a panel, **drop-zone overlays** (centre = tab, four edges = split) show the
+target region before release.
 
 Phone width (390x844): the menu bar becomes one button; the dock shows exactly one group at a time
 with a panel switcher; the persisted layout is untouched ([layout spec](studio-workbench-layout-v1.md) section 3.4).
@@ -357,7 +386,53 @@ with a panel switcher; the persisted layout is untouched ([layout spec](studio-w
 Region order for focus (F6 cycles, see layout spec section 4.4): menu bar, toolbar, dock groups in
 reading order (left, centre, right, then bottom), status line.
 
-## 6. Slice plan
+## 6. Parity matrix vs VS Code / Visual Studio
+
+Owner direction 2026-11-19: be as close to VS Code and Visual Studio as possible; their conventions
+are the default reference. Status is **in the Studio today** (no workbench code has landed). Slice
+names are section 7 (W*) and the IDE slices (E2-E8, numbering unconfirmed, open decision 6).
+VS = Visual Studio. "Chord" = VS Code default unless noted.
+
+| Feature | VS Code / VS behavior | Studio today | Slice |
+|---|---|---|---|
+| Title/menu bar | File Edit View Go Run ... Help, Alt mnemonics | none; loose buttons | W2 |
+| Command palette | `Ctrl+Shift+P`, `F1`, `>` prefix | none | W3 |
+| Quick open | `Ctrl+P`, fuzzy file search, `:line`, `@symbol` | none | W3 (files), IDE (symbols) |
+| Go to line / symbol | `Ctrl+G`, `Ctrl+Shift+O` | CodeMirror has none bound | W3 / IDE |
+| Activity bar | icon column switching side bar views | none | W5b |
+| Side bar | Explorer, Search, Source Control, Run views | project tree only (fixed left column) | W5b |
+| Explorer | tree, new/rename/delete, context menu | tree + buttons (#439) | W2 (menu), W3 (context menu) |
+| Search (project-wide) | `Ctrl+Shift+F` | none | IDE (placeholder in W5b) |
+| Source control | `Ctrl+Shift+G`, badges | none | IDE (placeholder in W5b) |
+| Editor groups | splits, tabs, drag between groups | one editor, per-file tab strip (#431) | W5c (decision 12) |
+| Preview (italic) tabs | single click opens a replaceable preview tab, edit or double click pins | none: click opens a permanent tab | W5c |
+| Editor tab features | dirty dot, close, `Ctrl+W` | dirty dot, close | exists; chord W2 |
+| Breadcrumbs | path > symbol above editor | none | W5c (path), IDE (symbols) |
+| Panel area | bottom: Problems, Output, Terminal, Debug Console | none: Diagnostics is a tab in the preview column | W5 |
+| Studio panel analogues | Problems = Diagnostics; Output = Mock console; Terminal = (none, no terminal in a browser); Debug Console / Call Stack = Call trace, Platform events | Diagnostics exists; others are #448 and mock-services | W5, #448 |
+| Panel maximize/restore | header button, double-click tab strip | none | W5 |
+| Drag-and-drop docking | drop-zone overlays (centre, edges), live preview of the target region | none | W5 (library) |
+| Sash resize | drag, double-click resets, snap to default and to collapse | none (fixed CSS columns) | W5, W7 |
+| Status bar | left: branch, problems; right: language, position; clickable items | exists (`StatusLine.tsx`), not clickable, no commands | W2 (items run commands) |
+| Notifications / toasts | bell, toasts with actions, do-not-disturb | page `role="status"` lines scattered per region | W3b |
+| Context menus | right-click, `Shift+F10` | none | W3 |
+| Keybindings JSON | `keybindings.json`, conflict display, chords | hard-coded CodeMirror keymap | W8 |
+| Settings UI | `Ctrl+,` search + JSON | `localStorage` preferences, no UI | W8 |
+| Zen mode | `Ctrl+K Z`, hides chrome, `Esc Esc` | none | W7 |
+| Layout presets | VS: Window > Apply Window Layout, Save; VS Code: layout picker, customize layout | none; reset only | W7 |
+| Toggle side bar / panel | `Ctrl+B`, `Ctrl+J` | none | W5b |
+| Focus cycling | `F6`, `Ctrl+1..3` groups | tab order only | W7 (`Ctrl+1` not capturable, use `F6`) |
+| Panel keyboard move | VS Code: command "Move View/Panel To..." | none | W7 |
+| Floating / pop-out windows | VS and VS Code: Move into new window | none | out of scope (decision 8) |
+| Theme | color themes, light/dark/high contrast | light/dark/system | exists; picker W8 |
+| Format / rename / go to definition / references / Problems | `Shift+Alt+F`, `F2`, `F12`, `Shift+F12`, `Ctrl+Shift+M` | none | IDE slices (reserved ids) |
+| Terminal, debugger, extensions, remote | present | none; not applicable in a browser studio | not planned |
+
+Reading the matrix: W2 gives the menu bar, toolbar, status-bar commands; W3 gives palette, quick
+open, go to line, context menus, notifications; W5 the dock (panel area, maximize, drag-and-drop,
+sashes); W5b the activity bar and side bar shell; W5c editor groups, preview tabs and breadcrumbs.
+
+## 7. Slice plan
 
 Each slice is behavior plus tests plus docs and lands as one reviewed unit (AGENTS.md "Landing
 size"). Numbers are proposed issue titles; none is filed yet. "After" lists hard dependencies.
@@ -367,28 +442,30 @@ size"). Numbers are proposed issue titles; none is filed yet. "After" lists hard
 | W0 | Library spike + ADR | this spec | decision recorded (layout spec section 5), `dependencies.md` and `THIRD_PARTY_NOTICES.md` entries, a throwaway Playwright proof on the real canvas |
 | W1 | `workbench-core`: registry, when-clause evaluator, keybinding resolver, `commands.json` for today's actions, node tests | none | data model and tests with no UI change (existing buttons call `run(id)`) |
 | W2 | Menu bar and toolbar renderers | W1 | `menus.json`, accessible menubar (APG pattern), device chip, buttons mapped per section 4.1, `StudioChrome`/`ProjectBar` loose buttons deleted; Playwright menu keyboard test; `preview_page_checks.mjs` ids updated |
-| W3 | Command palette and context menus | W1, W2 | palette (quick-pick with args), `tree.item`/`editor`/`panel.tab` menus, `Mod+Shift+P`/`F1` |
+| W3 | Command palette, quick open, go to line, context menus | W1, W2 | palette (quick-pick with args), `Ctrl+P`, `Ctrl+G`, `tree.item`/`editor`/`panel.tab` menus, `Ctrl+Shift+P`/`F1` |
+| W3b | Notifications and toasts service | W1 | a `notify` command/service with actions and a bell history; replaces the per-region status lines |
 | W4 | Layout model, panel registry, persistence, migrations (pure, no library) | W1 | JSON schema, `layout.default.json`, validator, migration table, node tests; adapter interface |
-| W5 | Dock renderer (the library adapter) and panel host contract | W4, W0, the CodeMirror editor panel ([#517](https://github.com/thnak/Tessera/issues/517)) | #516 acceptance: drag/split/tab/resize, reload restores, canvas never remounts, hidden never draws, phone collapse |
+| W5 | Dock renderer (the library adapter), panel area (collapsed by default), maximize, drop-zone overlays, sash snapping, panel host contract | W4, W0, the CodeMirror editor panel ([#517](https://github.com/thnak/Tessera/issues/517)) | #516 acceptance: drag/split/tab/resize, reload restores, canvas never remounts, hidden never draws, phone collapse |
+| W5b | Activity bar and side bar shell (Explorer live; Search and Source Control reserved), `Ctrl+B`/`Ctrl+J` | W5 | VS Code region model; side bar is a dock region holding views |
+| W5c | Editor groups, preview tabs, breadcrumbs (path) | W5, editor panel | decision 12; may move after V1 |
 | W6 | Rewrite `scripts/ci/preview_browser_layout.mjs` for the dock | W5 | layout spec section 4.5 |
-| W7 | Keyboard model: F6 region cycle, move-panel commands, separator keyboard resize, a11y audit | W5, W3 | WAI-ARIA checks in the browser script |
-| W8 | Keybinding and layout settings | W3, W4 | `view.openKeybindings`, JSON import/export of overrides and layout, conflict display |
+| W7 | Keyboard model: F6 region cycle, move-panel commands, separator keyboard resize, zen mode, layout presets, a11y audit | W5, W3 | WAI-ARIA checks in the browser script |
+| W8 | Keybindings JSON and settings UI | W3, W4 | `view.openKeybindings`, `view.openSettings` (`Ctrl+,`), JSON import/export of overrides and layout, conflict display |
 | W9 | MCP projection | W1, ADR-060 services | `commands-tools.json` generator and equality test (open decision 5) |
 | IDE slices (E2-E8) | Format, go to definition, rename, Problems panel, Source Control panel | W1/W2 for menu items; W5 for panels | each one flips `reserved` commands and panels to `live`; the menu tree does not change |
 
 W1 and W4 are independent and can proceed in parallel. W2 delivers the owner's first complaint and
 does not need the dock; W5 delivers the second. Neither blocks the engine-side B2 work.
 
-## 7. Open owner decisions
+## 8. Open owner decisions
 
 1. **Dock dependency** (layout spec section 5): adopt flexlayout-react or dockview, or hand-build?
    Recommendation: flexlayout-react behind our own layout model, hand-built adapter retained as the
    exit. Needs a yes/no before W5.
 2. **Canonical layout format** is ours, not the library's. This costs an adapter in each direction.
    Recommendation: yes, because the V1 rebuild with Tessera must not inherit a library's JSON.
-3. **Default chords** in the section 3.2 tree: especially `F5` vs `Ctrl+Alt+R` for Restart, and whether
-   to bind VS Code's `Ctrl+K` chord family (conflicts with nothing in Chromium but surprises browser
-   users).
+3. **Default chords** in the section 3.2 tree: VS Code's defaults are used wherever the browser allows (owner direction
+   2026-11-19); the fallbacks are `Ctrl+Alt+N` for New File and `Alt+W` for Close Editor. Confirm.
 4. **Command id and keybinding stability promise**: ids are append-only from the first release.
    Is the studio's public surface stable enough to promise that before V1?
 5. **MCP projection** (section 2.4): should the registry own the schema for studio-backed MCP tools, or
@@ -406,4 +483,13 @@ does not need the dock; W5 delivers the second. Neither blocks the engine-side B
    and the mock put Diagnostics in the bottom dock with Platform events, Mock console and Call trace,
    and Scene as a tab beside Canvas. The layout spec follows the later answer
    ([layout spec](studio-workbench-layout-v1.md) section 3.1). Confirm.
-10. **Phone breakpoint**: 720 CSS px proposed; the existing layout check only pins 390 and 1440.
+10. **Default dock state COLLAPSED** (owner direction 2026-11-19): the panel area (Diagnostics, Mock
+    console, Call trace, Platform events) starts hidden, opened by `Ctrl+J`, a status-bar item or any
+    diagnostic arriving. This differs from the earlier #516 answer (bottom dock open); the layout spec
+    follows the newest direction ([layout spec](studio-workbench-layout-v1.md) section 3.1). Does
+    "collapsed" also mean the Scene tab and side bar start hidden? Assumed: only the panel area.
+11. **Browser-reserved chords**: accept fallbacks, or require an installed-PWA window (where `Ctrl+N`,
+    `Ctrl+W`, `Ctrl+Tab` are capturable) for full VS Code parity?
+12. **Editor groups** (splits of the editor area, section 6): W5c is a larger slice than #516 asks for;
+    V1 or later? Preview tabs and breadcrumbs depend on it.
+13. **Phone breakpoint**: 720 CSS px proposed; the existing layout check only pins 390 and 1440.

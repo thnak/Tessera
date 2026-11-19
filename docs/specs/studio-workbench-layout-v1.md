@@ -24,7 +24,11 @@ and reports user gestures back as operations. The library's own serialization is
 | Group | an ordered tab strip of panel instances, one active; the unit of "where a panel is" |
 | Split | a row or column of groups and nested splits with proportional sizes |
 | Root | exactly one split (or one group) |
-| Region | the four shell areas: menu bar, toolbar, dock, status line; only the dock is user-arrangeable |
+| Shell | the VS Code-shaped frame around the dock: title/menu bar, optional toolbar, **activity bar** (icon column choosing the side bar view), status bar. Visibility flags live in the layout document's `shell` block |
+| Side bar | a group-like container (left by default, right allowed) holding view panels (`project` now; `search`, `source-control` reserved); one view visible at a time, switched by the activity bar |
+| Editor area | the central splits holding the `editor` panel (and later editor groups, main spec section 6) |
+| Panel area | the bottom group of the default layout (Problems/Output analogues: Diagnostics, Mock console, Call trace, Platform events); it can be collapsed, maximized, or dragged elsewhere |
+| Region | the shell areas collectively: menu bar, toolbar, activity bar, dock, status bar; only the dock content is user-arrangeable |
 
 ### 1.2 Panel definitions (`panels.json`)
 
@@ -83,7 +87,9 @@ file tabs are not dock panels. Splitting the editor into two files side by side 
     ]
   },
   "maximized": null,
-  "closed": ["scene"]
+  "closed": [],
+  "shell": { "activityBar": true, "statusBar": true, "toolbar": true, "sideBar": "left", "zen": false },
+  "collapsed": ["g-bottom"]
 }
 ```
 
@@ -98,6 +104,11 @@ Rules (all enforced by `validateLayout`, a hand-written validator with no schema
   that group.
 - `closed` lists panels the viewer closed, so a *new* panel shipped in a later version can be told
   apart from one the viewer chose to close (migration, section 2.3).
+- `collapsed` lists group ids that are hidden but keep their size, panels and active tab (VS Code's
+  hidden panel area). Toggling (`Ctrl+J`, a status-bar item, a new diagnostic arriving when
+  `diagnostics.autoOpen` is on) removes the id; it does not move or remount panels. A group id in
+  `collapsed` must exist. **The default layout lists `g-bottom` here.**
+- `shell` holds the booleans of the shell (`zen` is transient: never written to storage).
 - `maximized` is `null` or a panel id (one group fills the dock; the others stay mounted).
 - Group ids are `g-<slug>` strings, unique, minted by the model (never by a library).
 - Size limit 64 KiB on read; deeper than 8 levels is invalid.
@@ -106,14 +117,15 @@ Rules (all enforced by `validateLayout`, a hand-written validator with no schema
 
 `openPanel(id, where?)`, `closePanel(id)`, `movePanel(id, target)`, `activatePanel(id)`,
 `splitGroup(groupId, dir, panelId)`, `resizeSplit(path, sizes)`, `maximize(id | null)`,
-`resetLayout()`. A move `target` is one of `{ group, index? }` (join as a tab), or
+`resetLayout()`, `collapseGroup(groupId, bool)`, `applyPreset(id)`. A move `target` is one of `{ group, index? }` (join as a tab), or
 `{ edge: "left"|"right"|"top"|"bottom", of: groupId | "root" }` (new split). Each returns a new
 layout plus a `change` describing which panel instances changed visibility; the renderer uses that
 to call the panel host contract (section 4.2). The operations are the **only** way the layout
 changes: drag-and-drop, menu items, palette commands and keyboard moves all end here, so they are
 testable without a browser and a Tessera-built UI gets them for free.
 
-Commands (registered in the workbench registry): `view.togglePanel {panelId}`,
+Commands (registered in the workbench registry): `view.togglePanel {panelId}`, `view.togglePanelArea`,
+`view.toggleSideBar`, `view.zenMode`, `view.layoutPreset {presetId}`,
 `view.movePanel {panelId, target}`, `view.maximizePanel`, `view.resetLayout`,
 `view.focusNextRegion`, `view.focusPanel {panelId}`.
 
@@ -169,22 +181,25 @@ ways, and a round-trip test (model to library to model equals the original) is a
 
 ### 3.1 Default layout
 
-The default is the mock's layout from the owner's answer on #516 (free docking, the mock as default):
+Owner direction 2026-11-19: VS Code and Visual Studio conventions, **default dock state collapsed**.
+The default layout is the mock's arrangement (owner answer on #516) with the panel area hidden on
+first load, like VS Code's first run:
 
 ```text
-+------------+----------------------------+----------------------------+
-| Project    | Editor                     | Canvas | Scene             |
-| (tree)     | (file tabs)                | (active: Canvas)           |
-+------------+----------------------------+----------------------------+
-| Diagnostics | Mock console | Call trace | Platform events            |
-+---------------------------------------------------------------------+
++--+----------+----------------------------+----------------------------+
+|A | Project  | Editor                     | Canvas | Scene             |
+|B | (tree)   | (file tabs)                | (active: Canvas)           |
++--+----------+----------------------------+----------------------------+
+|  Panel area (collapsed): Diagnostics | Mock console | Call trace | Platform events
++------------------------------------------------------------------------+
 ```
 
-Widths 18% / 41% / 41%, bottom dock 28% of height. `Diagnostics` is the bottom dock's active tab
-(it is the default view today and the first-paint module). The issue's text says "Scene/Diagnostics
-as tabs"; the owner's later answer places Diagnostics in the bottom dock with Platform events, Mock
-console and Call trace, and Scene beside Canvas; this spec follows the later answer and flags it
-(open decision 9 of the main spec).
+Widths 18% / 41% / 41%; the panel area, when opened, takes 28% of the height and shows
+`Diagnostics` first (the first-paint module). A collapsed panel area costs nothing: its panels are
+not visible, so their lazy modules are not imported until it first opens. The status bar shows the
+Diagnostics count as a clickable item (`view.togglePanelArea`), so a collapsed dock never hides an
+error. Two earlier statements are superseded and flagged (main spec decisions 9 and 10): #516's
+"Scene/Diagnostics as tabs" and the owner's answer that the bottom dock is open by default.
 
 ### 3.2 Reset
 
@@ -200,6 +215,17 @@ Close removes the panel instance from the layout (adds the id to `closed`) and *
 content** (Canvas releases its GPU device; section 4.2). Reopening re-creates it in its default
 location or last location. Hiding (a non-active tab) does not unmount. "Close" and "hide" are
 different states; the model has both.
+
+### 3.3a Layout presets and zen mode
+
+- A **preset** is a complete layout document in `layout.presets.json`: `default`, `editor-only`
+  (preview in a collapsed side group), `preview-focus` (Canvas maximized beside a narrow editor),
+  `side-by-side` (Editor | Canvas, panel area open). `view.layoutPreset` applies one through
+  `applyPreset`, which goes through reconcile like a stored layout; the previous layout is kept for one
+  undo step ("Undo layout change" in the notification). Saving user presets is deferred to W8.
+- **Zen mode** (`Ctrl+K Z`) sets `shell.zen`: it hides menu bar, toolbar, activity bar, side bar,
+  panel area and status bar without modifying `collapsed`; `Esc Esc` or the command exits. Zen is
+  transient, so a reload never starts in zen. Panels stay mounted.
 
 ### 3.4 Phone-width collapse
 
@@ -288,14 +314,24 @@ palette and the panel-tab context menu (`ContextMenu` or `Shift+F10`). Drag and 
 additional path, never the only one. Focus returns to the moved panel's tab after a move; an
 `aria-live="polite"` message states the result ("Canvas moved to the bottom").
 
+Sashes and drop zones (VS Code behavior, as model operations): a sash drag calls `resizeSplit`;
+it **snaps** to the default fraction and to the group's `minSize`, and dragging a group below
+`minSize` collapses it (`collapseGroup`); double-click resets the neighbors to the default
+fractions. During a panel drag the adapter shows **drop-zone overlays** (centre for tab join, four
+edges for a split, plus the side bar and panel-area regions) and highlights the target before
+release; if the chosen library cannot style overlays this way the adapter draws them. Panel
+maximize/restore (`view.maximizePanel`, panel header button, double-click on the tab strip) calls
+`maximize`.
+
 ### 4.5 Rewrite of `scripts/ci/preview_browser_layout.mjs`
 
 The script is rewritten, not deleted ([#516](https://github.com/thnak/Tessera/issues/516)). Today it
 asserts three side-by-side columns and that a preview view switch moves nothing else. The new
 assertions, at 1440x900 and 390x844:
 
-1. Default layout: Project, Editor and Canvas side by side in that order; Diagnostics in the bottom
-   dock spanning the width; the status line below. Boxes read from `data-panel` attributes (the old
+1. Default layout: Project, Editor and Canvas side by side in that order; the panel area collapsed (no
+   Diagnostics box until `Ctrl+J`, then a bottom group spanning the width); the status bar below,
+   with the Diagnostics count item. Boxes read from `data-panel` attributes (the old
    `.region-*` classes go away).
 2. Tab switch inside a group (Canvas to Scene and back) changes no other panel's box (the old
    "no view switch changes the workspace shape" rule, restated per group).
