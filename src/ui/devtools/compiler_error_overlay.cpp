@@ -185,8 +185,10 @@ OverlayHandle CompilerErrorOverlay::show(const DiagnosticDocument& document) {
         // One panel per overlay: replace the document it shows instead of stacking a second entry.
         Node* content = host_.content(handle_);
         if (content != nullptr) {
-            for (const auto& child : content->children()) {
-                static_cast<void>(content->remove_child(*child));
+            // remove_child erases from children(), so a range-for would iterate a mutating vector
+            // and dereference moved-from (null) entries.
+            while (!content->children().empty()) {
+                static_cast<void>(content->remove_child(*content->children().front()));
             }
             mount(*content);
             return handle_;
