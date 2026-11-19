@@ -95,4 +95,28 @@ EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_settle(const char* automation_id
     return canvas_duplicate_out(canvas_settle_report_json(result));
 }
 
+// Hands the project's theme asset to the session so the `token` commit destination has a file to
+// edit (issue #536; until it is called `tessera_canvas_patch` answers `not_token_bound`).
+//
+//   file      the theme asset's project path (`tessera.json` `assets.theme`)
+//   text      the asset's bytes as the editor holds them: a patch's offsets are measured in
+//             THESE bytes, so a stale buffer gets edits for a file that has moved
+//   theme_id  the theme whose token object a commit may write
+//
+// Call it after `tessera_canvas_apply`: the first apply creates the session and
+// `tessera_canvas_reset` drops it, and the handed-over asset lives and dies with it. Empty `text`
+// clears the hand-over (a project with no theme asset). It never creates a session and owes no
+// frame; it answers `{"ok":true}` when a session took it and `{"ok":false}` when none exists.
+EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_set_theme(const char* file, const char* text,
+                                                          const char* theme_id) {
+    using namespace tessera::compiler::codegen::cli;
+    CanvasSceneSession* session = canvas_query_session();
+    if (session == nullptr) {
+        return canvas_duplicate_out("{\"ok\":false}");
+    }
+    session->set_theme_asset(file != nullptr ? file : "", text != nullptr ? text : "",
+                             theme_id != nullptr ? theme_id : "");
+    return canvas_duplicate_out("{\"ok\":true}");
+}
+
 } // extern "C"

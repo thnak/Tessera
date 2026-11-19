@@ -29,7 +29,7 @@
 // CSS-to-logical ratio — never the device pixel ratio (docs/design/canvas-input-session.md §4).
 
 import type { StatusReporter } from "../lib/views";
-import { callExport, type WasmModule } from "../lib/wasm-call";
+import { callExport, handOverTheme, type ThemeHandover, type WasmModule } from "../lib/wasm-call";
 
 /** One declaration of one matched rule; the shape `canvas_style_report_json()` writes. */
 export interface StyleDeclarationReport {
@@ -125,6 +125,8 @@ export interface CanvasInspectorOptions {
   elements: CanvasInspectorElements;
   /** The instantiated module, or null before it loads. */
   module: () => WasmModule | null;
+  /** The project's theme asset for the `token` destination; `null` when it has none. */
+  theme?: () => ThemeHandover | null;
   /** The logical viewport the running session was laid out at. */
   viewport: () => { width: number; height: number };
   setStatus: StatusReporter;
@@ -421,6 +423,11 @@ export function createCanvasInspector(options: CanvasInspectorOptions): CanvasIn
     // shows that reason rather than inventing a value.
     let report: CanvasPatchReport;
     try {
+      // The `token` destination edits the theme asset, which the module only knows if the page hands it
+      // over. Doing it here, per commit, makes the text the editor's current buffer and not the Run's.
+      if (options.theme !== undefined) {
+        handOverTheme(module, options.theme());
+      }
       report = JSON.parse(
         callExport(
           module,

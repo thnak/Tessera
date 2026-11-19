@@ -357,7 +357,7 @@ The studio's Wasm canvas module implements sections 9.2-9.4 and the last step of
 - History is snapshots of the layer (bounded at 128), not inverse operations.
 - `style.commit`'s declarations come from the layer, never from the page: `tessera_canvas_patch` takes
   no declarations argument. The `token` destination needs the theme asset staged
-  (`CanvasSceneSession::set_theme_asset`); until the page stages it, `token` answers `not_token_bound`.
+  (`CanvasSceneSession::set_theme_asset`). The studio page hands it over with `tessera_canvas_set_theme(file, text, theme_id)` right before each commit (`assets.theme` path, the editor buffer, the asset's `start` theme); a project with no theme asset still answers `not_token_bound`.
 - `settle` compares the node's computed longhands with the overrides on against the new evaluation
   without them. Equal: the overrides leave the layer and the history. Different: they stay and the
   report carries a `TESSERA_DESIGNER_PATCH_MISMATCH` diagnostic for the page to forward.

@@ -72,6 +72,16 @@ export function callExport(
   }
 }
 
+/**
+ * The theme asset the `token` commit destination edits (issue #536): its project path, its text as the
+ * editor holds it, and the theme whose token object a commit may write.
+ */
+export interface ThemeHandover {
+  path: string;
+  text: string;
+  themeId: string;
+}
+
 /** What a module is staged with before it previews a project: see `ProjectSnapshot` in `views.ts`. */
 export interface StagedProject {
   entry: string | null;
@@ -118,6 +128,29 @@ export function stageProject(module: WasmModule, project: StagedProject): void {
   if (project.entry !== null) {
     callVoid(module, "_tessera_project_set_entry", [project.entry]);
   }
+}
+
+/**
+ * Hands the theme asset to the canvas module (`tessera_canvas_set_theme`), or clears the hand-over
+ * with `null`. Without it a `token` commit answers `not_token_bound`.
+ *
+ * Called right before a commit rather than once per Run: the module holds the text the offsets of a
+ * patch are measured in, so it must be the buffer the editor holds now, and a session reset drops the
+ * module's copy. A module built without the export (an older build) is left as it is and the commit
+ * keeps its `not_token_bound` answer, which is the honest one.
+ */
+export function handOverTheme(module: WasmModule, theme: ThemeHandover | null): boolean {
+  if (typeof module._tessera_canvas_set_theme !== "function") {
+    return false;
+  }
+  const report = JSON.parse(
+    callExport(
+      module,
+      "_tessera_canvas_set_theme",
+      theme === null ? ["", "", ""] : [theme.path, theme.text, theme.themeId],
+    ),
+  ) as { ok?: boolean };
+  return report.ok === true;
 }
 
 /**
