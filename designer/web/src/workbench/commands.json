@@ -1,0 +1,912 @@
+{
+  "version": 1,
+  "commands": [
+    {
+      "id": "file.openFolder",
+      "title": "Open Folder...",
+      "category": "File",
+      "description": "Open a project folder from this computer",
+      "keybinding": {
+        "default": "Mod+K Mod+O"
+      },
+      "enabled": "!project.busy && project.folderSupported",
+      "services": [
+        "project-io"
+      ],
+      "status": "live"
+    },
+    {
+      "id": "file.openZip",
+      "title": "Open Zip...",
+      "category": "File",
+      "description": "Open a project from a .zip file",
+      "enabled": "!project.busy",
+      "services": [
+        "project-io"
+      ],
+      "status": "live"
+    },
+    {
+      "id": "file.openRecent",
+      "title": "Open Recent",
+      "category": "File",
+      "description": "Reopen a project opened before; the browser asks for folder access again",
+      "enabled": "!project.busy && project.hasRecent && project.folderSupported",
+      "args": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "integer",
+            "minimum": 0,
+            "x-provider": "recent"
+          }
+        },
+        "required": [
+          "index"
+        ]
+      },
+      "services": [
+        "project-io"
+      ],
+      "surfaces": [
+        "palette"
+      ],
+      "status": "live"
+    },
+    {
+      "id": "file.samples",
+      "title": "Open Sample",
+      "category": "File",
+      "description": "Show the sample gallery; picking one opens it as the project",
+      "services": [
+        "project-io"
+      ],
+      "status": "live"
+    },
+    {
+      "id": "file.newFile",
+      "title": "New File",
+      "category": "File",
+      "description": "Add a file to the project",
+      "keybinding": {
+        "default": "Ctrl+Alt+N"
+      },
+      "enabled": "!project.busy",
+      "services": [
+        "project-io"
+      ],
+      "note": "VS Code's Ctrl+N is reserved by the browser",
+      "status": "live"
+    },
+    {
+      "id": "file.save",
+      "title": "Save",
+      "category": "File",
+      "titleShort": "Save",
+      "description": "Write the changed files back to the opened folder",
+      "keybinding": {
+        "default": "Mod+S",
+        "when": "!focus.palette"
+      },
+      "enabled": "project.source == 'folder' && !project.busy",
+      "services": [
+        "project-io"
+      ],
+      "status": "live"
+    },
+    {
+      "id": "file.download",
+      "title": "Download Project (.zip)",
+      "category": "File",
+      "description": "Download the project as a .zip",
+      "keybinding": {
+        "default": "Mod+Shift+S"
+      },
+      "enabled": "!project.busy",
+      "services": [
+        "project-io"
+      ],
+      "status": "live"
+    },
+    {
+      "id": "file.renameFile",
+      "title": "Rename File...",
+      "category": "File",
+      "description": "Rename the selected file",
+      "keybinding": {
+        "default": "F2",
+        "when": "tree.focus"
+      },
+      "enabled": "!project.busy",
+      "services": [
+        "project-io"
+      ],
+      "status": "live"
+    },
+    {
+      "id": "file.deleteFile",
+      "title": "Delete File",
+      "category": "File",
+      "description": "Delete the selected file",
+      "keybinding": {
+        "default": "Delete",
+        "when": "tree.focus"
+      },
+      "enabled": "!project.busy",
+      "services": [
+        "project-io"
+      ],
+      "status": "live"
+    },
+    {
+      "id": "file.share",
+      "title": "Copy Share Link",
+      "category": "File",
+      "description": "Copy a link that opens this source, viewport and theme",
+      "services": [
+        "share"
+      ],
+      "status": "live"
+    },
+    {
+      "id": "file.closeProject",
+      "title": "Close Folder",
+      "category": "File",
+      "note": "reserved: project close slice",
+      "status": "reserved"
+    },
+    {
+      "id": "edit.undo",
+      "title": "Undo",
+      "category": "Edit",
+      "keybinding": {
+        "default": "Mod+Z",
+        "when": "editor.focus"
+      },
+      "enabled": "project.open",
+      "status": "live"
+    },
+    {
+      "id": "edit.redo",
+      "title": "Redo",
+      "category": "Edit",
+      "keybinding": {
+        "default": "Mod+Y",
+        "also": [
+          "Mod+Shift+Z"
+        ],
+        "when": "editor.focus"
+      },
+      "enabled": "project.open",
+      "status": "live"
+    },
+    {
+      "id": "edit.cut",
+      "title": "Cut",
+      "category": "Edit",
+      "enabled": "project.open",
+      "surfaces": [
+        "menu",
+        "palette"
+      ],
+      "status": "live"
+    },
+    {
+      "id": "edit.copy",
+      "title": "Copy",
+      "category": "Edit",
+      "enabled": "project.open",
+      "surfaces": [
+        "menu",
+        "palette"
+      ],
+      "status": "live"
+    },
+    {
+      "id": "edit.paste",
+      "title": "Paste",
+      "category": "Edit",
+      "enabled": "project.open",
+      "surfaces": [
+        "menu",
+        "palette"
+      ],
+      "status": "live"
+    },
+    {
+      "id": "edit.selectAll",
+      "title": "Select All",
+      "category": "Edit",
+      "keybinding": {
+        "default": "Mod+A",
+        "when": "editor.focus"
+      },
+      "enabled": "project.open",
+      "status": "live"
+    },
+    {
+      "id": "edit.find",
+      "title": "Find...",
+      "category": "Edit",
+      "keybinding": {
+        "default": "Mod+F",
+        "when": "editor.focus"
+      },
+      "enabled": "project.open",
+      "status": "live"
+    },
+    {
+      "id": "edit.findNext",
+      "title": "Find Next",
+      "category": "Edit",
+      "keybinding": {
+        "default": "F3",
+        "when": "editor.focus"
+      },
+      "enabled": "project.open",
+      "status": "live"
+    },
+    {
+      "id": "edit.findPrevious",
+      "title": "Find Previous",
+      "category": "Edit",
+      "keybinding": {
+        "default": "Shift+F3",
+        "when": "editor.focus"
+      },
+      "enabled": "project.open",
+      "status": "live"
+    },
+    {
+      "id": "edit.replace",
+      "title": "Replace...",
+      "category": "Edit",
+      "keybinding": {
+        "default": "Mod+H",
+        "when": "editor.focus"
+      },
+      "enabled": "project.open",
+      "status": "live"
+    },
+    {
+      "id": "edit.format",
+      "title": "Format Document",
+      "category": "Edit",
+      "keybinding": {
+        "default": "Shift+Alt+F"
+      },
+      "services": [
+        "format"
+      ],
+      "note": "reserved: format service (ADR-061)",
+      "status": "reserved"
+    },
+    {
+      "id": "edit.renameSymbol",
+      "title": "Rename Symbol...",
+      "category": "Edit",
+      "keybinding": {
+        "default": "F2",
+        "when": "editor.focus"
+      },
+      "services": [
+        "analysis"
+      ],
+      "note": "reserved: analysis service",
+      "status": "reserved"
+    },
+    {
+      "id": "edit.toggleComment",
+      "title": "Toggle Line Comment",
+      "category": "Edit",
+      "keybinding": {
+        "default": "Mod+/",
+        "when": "editor.focus"
+      },
+      "enabled": "project.open",
+      "status": "live"
+    },
+    {
+      "id": "view.palette",
+      "title": "Command Palette...",
+      "category": "View",
+      "description": "Search and run any command",
+      "keybinding": {
+        "default": "Mod+Shift+P",
+        "also": [
+          "F1"
+        ]
+      },
+      "status": "live"
+    },
+    {
+      "id": "view.quickOpen",
+      "title": "Quick Open...",
+      "category": "View",
+      "description": "Go to a file by name; add :line to jump",
+      "keybinding": {
+        "default": "Mod+P"
+      },
+      "enabled": "project.open",
+      "status": "live"
+    },
+    {
+      "id": "view.gotoLine",
+      "title": "Go to Line...",
+      "category": "View",
+      "description": "Move the caret to a line",
+      "keybinding": {
+        "default": "Mod+G"
+      },
+      "enabled": "project.open",
+      "status": "live"
+    },
+    {
+      "id": "view.explorer",
+      "title": "Explorer",
+      "category": "View",
+      "description": "Focus the project tree",
+      "keybinding": {
+        "default": "Mod+Shift+E"
+      },
+      "status": "live"
+    },
+    {
+      "id": "view.search",
+      "title": "Search",
+      "category": "View",
+      "keybinding": {
+        "default": "Mod+Shift+F"
+      },
+      "note": "reserved: project search",
+      "status": "reserved"
+    },
+    {
+      "id": "view.sourceControl",
+      "title": "Source Control",
+      "category": "View",
+      "keybinding": {
+        "default": "Mod+Shift+G"
+      },
+      "note": "reserved: source control panel",
+      "status": "reserved"
+    },
+    {
+      "id": "view.problems",
+      "title": "Problems",
+      "category": "View",
+      "keybinding": {
+        "default": "Mod+Shift+M"
+      },
+      "note": "reserved: Problems panel",
+      "status": "reserved"
+    },
+    {
+      "id": "view.toggleSideBar",
+      "title": "Toggle Side Bar",
+      "category": "View",
+      "keybinding": {
+        "default": "Mod+B"
+      },
+      "note": "reserved: dock slices W4/W5",
+      "status": "reserved"
+    },
+    {
+      "id": "view.togglePanelArea",
+      "title": "Toggle Panel",
+      "category": "View",
+      "keybinding": {
+        "default": "Mod+J"
+      },
+      "note": "reserved: dock slices W4/W5",
+      "status": "reserved"
+    },
+    {
+      "id": "view.toggleStatusBar",
+      "title": "Toggle Status Bar",
+      "category": "View",
+      "note": "reserved: dock slices W4/W5",
+      "status": "reserved"
+    },
+    {
+      "id": "view.toggleActivityBar",
+      "title": "Toggle Activity Bar",
+      "category": "View",
+      "note": "reserved: dock slices W4/W5",
+      "status": "reserved"
+    },
+    {
+      "id": "view.zenMode",
+      "title": "Zen Mode",
+      "category": "View",
+      "keybinding": {
+        "default": "Mod+K Z"
+      },
+      "note": "reserved: dock slices W4/W5",
+      "status": "reserved"
+    },
+    {
+      "id": "view.focusNextRegion",
+      "title": "Focus Next Region",
+      "category": "View",
+      "keybinding": {
+        "default": "F6"
+      },
+      "note": "reserved: dock slices W4/W5",
+      "status": "reserved"
+    },
+    {
+      "id": "view.focusPreviousRegion",
+      "title": "Focus Previous Region",
+      "category": "View",
+      "keybinding": {
+        "default": "Shift+F6"
+      },
+      "note": "reserved: dock slices W4/W5",
+      "status": "reserved"
+    },
+    {
+      "id": "view.maximizePanel",
+      "title": "Maximize or Restore Panel",
+      "category": "View",
+      "note": "reserved: dock slices W4/W5",
+      "status": "reserved"
+    },
+    {
+      "id": "view.resetLayout",
+      "title": "Reset Layout",
+      "category": "View",
+      "note": "reserved: dock slices W4/W5",
+      "status": "reserved"
+    },
+    {
+      "id": "view.layoutPreset",
+      "title": "Layout Preset",
+      "category": "View",
+      "args": {
+        "type": "object",
+        "properties": {
+          "preset": {
+            "type": "string",
+            "enum": [
+              "default",
+              "editorOnly",
+              "previewFocus",
+              "sideBySide"
+            ]
+          }
+        },
+        "required": [
+          "preset"
+        ]
+      },
+      "note": "reserved: dock slices W4/W5",
+      "status": "reserved"
+    },
+    {
+      "id": "view.togglePanel",
+      "title": "Toggle Panel Visibility",
+      "category": "View",
+      "args": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
+      "note": "reserved: dock slices W4/W5",
+      "status": "reserved"
+    },
+    {
+      "id": "view.movePanel",
+      "title": "Move Panel",
+      "category": "View",
+      "args": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string",
+            "enum": [
+              "left",
+              "right",
+              "bottom"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "to"
+        ]
+      },
+      "note": "reserved: dock slices W4/W5",
+      "status": "reserved"
+    },
+    {
+      "id": "view.setTheme",
+      "title": "Color Theme",
+      "category": "View",
+      "description": "Set the studio and preview theme",
+      "checked": "ui.theme == arg.value",
+      "args": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string",
+            "enum": [
+              "system",
+              "light",
+              "dark"
+            ]
+          }
+        },
+        "required": [
+          "value"
+        ]
+      },
+      "services": [
+        "prefs"
+      ],
+      "status": "live"
+    },
+    {
+      "id": "view.cycleTheme",
+      "title": "Toggle Theme",
+      "category": "View",
+      "description": "Cycle System, Light, Dark",
+      "services": [
+        "prefs"
+      ],
+      "surfaces": [
+        "palette",
+        "toolbar"
+      ],
+      "status": "live"
+    },
+    {
+      "id": "go.definition",
+      "title": "Go to Definition",
+      "category": "Go",
+      "keybinding": {
+        "default": "F12"
+      },
+      "services": [
+        "analysis"
+      ],
+      "status": "reserved"
+    },
+    {
+      "id": "go.symbol",
+      "title": "Go to Symbol...",
+      "category": "Go",
+      "keybinding": {
+        "default": "Mod+Shift+O"
+      },
+      "services": [
+        "analysis"
+      ],
+      "status": "reserved"
+    },
+    {
+      "id": "go.references",
+      "title": "Find All References",
+      "category": "Go",
+      "keybinding": {
+        "default": "Shift+F12"
+      },
+      "services": [
+        "analysis"
+      ],
+      "status": "reserved"
+    },
+    {
+      "id": "run.restart",
+      "title": "Restart App",
+      "category": "Run",
+      "titleShort": "Restart",
+      "description": "Cold start: discard state and run from a launch",
+      "keybinding": {
+        "default": "Mod+Shift+F5"
+      },
+      "enabled": "run.enabled",
+      "services": [
+        "viewer"
+      ],
+      "status": "live"
+    },
+    {
+      "id": "run.applyNow",
+      "title": "Apply Now",
+      "category": "Run",
+      "description": "Apply the source now instead of waiting for the live-edit pause",
+      "keybinding": {
+        "default": "Mod+Enter",
+        "when": "editor.focus"
+      },
+      "enabled": "run.enabled",
+      "services": [
+        "viewer"
+      ],
+      "status": "live"
+    },
+    {
+      "id": "run.inputScript",
+      "title": "Run Input Script",
+      "category": "Run",
+      "description": "Replay the Scene panel's input script",
+      "enabled": "run.enabled",
+      "services": [
+        "viewer"
+      ],
+      "status": "live"
+    },
+    {
+      "id": "run.togglePicker",
+      "title": "Picker",
+      "category": "Run",
+      "description": "Pick an element on the canvas",
+      "enabled": "canvas.available",
+      "checked": "run.picker",
+      "services": [
+        "viewer"
+      ],
+      "status": "live"
+    },
+    {
+      "id": "run.toggleInspector",
+      "title": "Inspector",
+      "category": "Run",
+      "description": "Inspect the element under the pointer",
+      "enabled": "canvas.available",
+      "checked": "run.inspector",
+      "services": [
+        "viewer"
+      ],
+      "status": "live"
+    },
+    {
+      "id": "run.component",
+      "title": "Component",
+      "category": "Run",
+      "description": "Choose the component the preview shows",
+      "visible": "project.multiComponent",
+      "checked": "run.component == arg.name",
+      "args": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "x-provider": "components"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "services": [
+        "viewer"
+      ],
+      "status": "live"
+    },
+    {
+      "id": "run.replay",
+      "title": "Replay Recorded Session...",
+      "category": "Run",
+      "note": "reserved: device-profile series (#448)",
+      "status": "reserved"
+    },
+    {
+      "id": "device.profile",
+      "title": "Device Profile",
+      "category": "Device",
+      "description": "Apply a device profile: size, pixel ratio, skin and fold",
+      "checked": "device.profile == arg.id",
+      "args": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "x-provider": "profiles"
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
+      "services": [
+        "viewer"
+      ],
+      "status": "live"
+    },
+    {
+      "id": "device.setSkin",
+      "title": "Skin",
+      "category": "Device",
+      "description": "Choose the device frame",
+      "checked": "device.skin == arg.value",
+      "args": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string",
+            "x-provider": "skins"
+          }
+        },
+        "required": [
+          "value"
+        ]
+      },
+      "services": [
+        "viewer"
+      ],
+      "status": "live"
+    },
+    {
+      "id": "device.setViewport",
+      "title": "Viewport",
+      "category": "Device",
+      "description": "Resize the preview to a preset",
+      "checked": "device.viewport == arg.value",
+      "args": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string",
+            "pattern": "^[0-9]+x[0-9]+$",
+            "x-provider": "viewports"
+          }
+        },
+        "required": [
+          "value"
+        ]
+      },
+      "services": [
+        "viewer"
+      ],
+      "status": "live"
+    },
+    {
+      "id": "device.setCustomSize",
+      "title": "Custom Size...",
+      "category": "Device",
+      "description": "Resize the preview to a typed width and height",
+      "args": {
+        "type": "object",
+        "properties": {
+          "width": {
+            "type": "integer",
+            "minimum": 120,
+            "maximum": 4096
+          },
+          "height": {
+            "type": "integer",
+            "minimum": 120,
+            "maximum": 4096
+          }
+        },
+        "required": [
+          "width",
+          "height"
+        ]
+      },
+      "services": [
+        "viewer"
+      ],
+      "status": "live"
+    },
+    {
+      "id": "device.setDpr",
+      "title": "Pixel Ratio",
+      "category": "Device",
+      "description": "Set the device pixel ratio",
+      "checked": "device.dpr == arg.value",
+      "args": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string",
+            "x-provider": "dprs"
+          }
+        },
+        "required": [
+          "value"
+        ]
+      },
+      "services": [
+        "viewer"
+      ],
+      "status": "live"
+    },
+    {
+      "id": "device.setFold",
+      "title": "Fold Posture",
+      "category": "Device",
+      "description": "Simulate a fold posture",
+      "checked": "device.fold == arg.value",
+      "args": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string",
+            "enum": [
+              "none",
+              "flat",
+              "book",
+              "tabletop"
+            ]
+          }
+        },
+        "required": [
+          "value"
+        ]
+      },
+      "services": [
+        "viewer"
+      ],
+      "status": "live"
+    },
+    {
+      "id": "device.toggleKeepState",
+      "title": "Keep State on Device Change",
+      "category": "Device",
+      "description": "Apply a device change in place instead of restarting (same OS only)",
+      "checked": "device.keepState",
+      "services": [
+        "viewer"
+      ],
+      "status": "live"
+    },
+    {
+      "id": "device.platformEvent",
+      "title": "Platform Event",
+      "category": "Device",
+      "args": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "note": "reserved: device-profile series (#448)",
+      "status": "reserved"
+    },
+    {
+      "id": "help.shortcuts",
+      "title": "Keyboard Shortcuts",
+      "category": "Help",
+      "description": "List every command and its chord",
+      "status": "live"
+    },
+    {
+      "id": "help.docs",
+      "title": "Studio Documentation",
+      "category": "Help",
+      "description": "Open the studio documentation in a new tab",
+      "status": "live"
+    },
+    {
+      "id": "help.reportIssue",
+      "title": "Report an Issue",
+      "category": "Help",
+      "description": "Open a new GitHub issue in a new tab",
+      "status": "live"
+    },
+    {
+      "id": "help.about",
+      "title": "About Tessera Studio",
+      "category": "Help",
+      "description": "Show the build id",
+      "status": "live"
+    }
+  ]
+}
