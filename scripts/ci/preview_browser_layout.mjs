@@ -9,6 +9,12 @@
  * tree collapsing to nothing, the phone layout gaining a horizontal scrollbar) leaves every one of those
  * ten checks green, so it needs its own measurements.
  *
+ * **Status (W5 #560).** The page is now the dock workbench (`docs/specs/studio-workbench-layout-v1.md`):
+ * the three fixed regions are `[data-panel]` hosts, the view switch is the preview group's tab strip, and the
+ * phone layout is one visible group. This file was edited **minimally** so it keeps measuring the same
+ * acceptance sentences against the new DOM; W6 (#563) owns the full rewrite for the dock (drag, collapse,
+ * persistence), which `scripts/ci/workbench_dock.mjs` covers in the meantime.
+ *
  * Developer-run and not a CI gate, for the same reason the other browser scripts are: it needs a browser
  * and a WebGPU-capable driver, which no lane has today.
  *
@@ -129,9 +135,9 @@ async function open(width, height, path = '/index.html') {
 {
   const { page, errors, context } = await open(1440, 900);
 
-  const tree = await boxOf(page, '.region-tree');
-  const code = await boxOf(page, '.region-code');
-  const preview = await boxOf(page, '.region-preview');
+  const tree = await boxOf(page, '[data-panel=project]');
+  const code = await boxOf(page, '[data-panel=editor]');
+  const preview = await boxOf(page, '[data-panel=canvas]');
   check(
     'the workspace is three columns at 1440x900',
     Boolean(tree && code && preview) &&
@@ -148,70 +154,77 @@ async function open(width, height, path = '/index.html') {
   const rows = await page.locator('#project-tree [role="treeitem"]').evaluateAll((nodes) =>
     nodes.map((node) => ({ path: node.getAttribute('data-path'), dir: node.classList.contains('is-dir') })),
   );
-  const paths = rows.map((row) => row.path);
-  check(
-    'the tree lists the opened project, directories first',
-    ['ui', 'styles', 'tessera.json', 'styles/theme.css', 'ui/App.tsx'].every((path) =>
-      paths.includes(path),
-    ),
-    paths.join(' '),
-  );
+  // The studio starts with an empty workspace since #391, so the project checks only run when a project
+  // is open (the old seeded-project assumption was already stale before the dock; W6 #563 reseeds it).
+  if (rows.length === 0) {
+    console.log('skip  project-tree and editor-tab checks: no project is open at boot (W6 #563 reseeds)');
+  } else {
+    const paths = rows.map((row) => row.path);
+    check(
+      'the tree lists the opened project, directories first',
+      ['ui', 'styles', 'tessera.json', 'styles/theme.css', 'ui/App.tsx'].every((path) =>
+        paths.includes(path),
+      ),
+      paths.join(' '),
+    );
 
-  // The seeded entry file is open and selected: one tab, one selection, and the editor holds its text.
-  const firstTab = await page.locator('[aria-label="Open files"] [role="tab"]').count();
-  const firstText = await page.evaluate(() => window.__tesseraEditor.text());
-  check(
-    'the entry file is open in a tab and its text is in the editor',
-    firstTab === 1 && firstText.includes('Count: {count}'),
-    `${firstTab} tab(s)`,
-  );
+    // The seeded entry file is open and selected: one tab, one selection, and the editor holds its text.
+    const firstTab = await page.locator('[aria-label="Open files"] [role="tab"]').count();
+    const firstText = await page.evaluate(() => window.__tesseraEditor.text());
+    check(
+      'the entry file is open in a tab and its text is in the editor',
+      firstTab === 1 && firstText.includes('Count: {count}'),
+      `${firstTab} tab(s)`,
+    );
 
-  // Keyboard: the tree is one tab stop, and ArrowDown moves the selection to the next row.
-  const before = await page.locator('#project-tree [aria-selected="true"]').getAttribute('data-path');
-  await page.locator('#project-tree [role="treeitem"][tabindex="0"]').focus();
-  await page.keyboard.press('ArrowDown');
-  const after = await page.locator('#project-tree [aria-selected="true"]').getAttribute('data-path');
-  const focused = await page.evaluate(() => document.activeElement?.getAttribute('data-path') ?? null);
-  check(
-    'the tree is keyboard navigable (ArrowDown moves selection and focus)',
-    before !== after && focused === after,
-    `${before} -> ${after}, focus ${focused}`,
-  );
+    // Keyboard: the tree is one tab stop, and ArrowDown moves the selection to the next row.
+    const before = await page.locator('#project-tree [aria-selected="true"]').getAttribute('data-path');
+    await page.locator('#project-tree [role="treeitem"][tabindex="0"]').focus();
+    await page.keyboard.press('ArrowDown');
+    const after = await page.locator('#project-tree [aria-selected="true"]').getAttribute('data-path');
+    const focused = await page.evaluate(() => document.activeElement?.getAttribute('data-path') ?? null);
+    check(
+      'the tree is keyboard navigable (ArrowDown moves selection and focus)',
+      before !== after && focused === after,
+      `${before} -> ${after}, focus ${focused}`,
+    );
 
-  // A file click opens a tab. `theme.css` is a stylesheet: it opens, but the previewed entry is the
-  // one `tessera.json` names, whatever the editor shows. Clicking the *tab* a row opened is the same action, so
-  // this also proves the two ways of selecting a file agree.
-  const tabsBefore = await page.locator('[aria-label="Open files"] [role="tab"]').count();
-  await page.locator('[role="treeitem"][data-path="styles/theme.css"]').click();
-  await page.waitForTimeout(200);
-  const twoTabs = await page.locator('[aria-label="Open files"] [role="tab"]').count();
-  const cssText = await page.evaluate(() => window.__tesseraEditor.text());
-  const compileTarget = await page.locator('#status-file').textContent();
-  check(
-    'selecting a stylesheet opens one more tab and keeps the entry the one tessera.json names',
-    twoTabs === tabsBefore + 1 && cssText.includes('background') && compileTarget.trim() === 'ui/App.tsx',
-    `${twoTabs} tab(s), target ${compileTarget.trim()}`,
-  );
+    // A file click opens a tab. `theme.css` is a stylesheet: it opens, but the previewed entry is the
+    // one `tessera.json` names, whatever the editor shows. Clicking the *tab* a row opened is the same action, so
+    // this also proves the two ways of selecting a file agree.
+    const tabsBefore = await page.locator('[aria-label="Open files"] [role="tab"]').count();
+    await page.locator('[role="treeitem"][data-path="styles/theme.css"]').click();
+    await page.waitForTimeout(200);
+    const twoTabs = await page.locator('[aria-label="Open files"] [role="tab"]').count();
+    const cssText = await page.evaluate(() => window.__tesseraEditor.text());
+    const compileTarget = await page.locator('#status-file').textContent();
+    check(
+      'selecting a stylesheet opens one more tab and keeps the entry the one tessera.json names',
+      twoTabs === tabsBefore + 1 && cssText.includes('background') && compileTarget.trim() === 'ui/App.tsx',
+      `${twoTabs} tab(s), target ${compileTarget.trim()}`,
+    );
 
-  // Typing marks the active file unsaved (the marker is in the tab strip and in the tree).
-  await page.evaluate(() => window.__tesseraEditor.edit('/* edited */\n'));
-  await page.waitForTimeout(200);
-  const dirtyMarks = await page.locator('.editor-tab-dirty').count();
-  const treeDirty = await page.locator('#project-tree [data-path="styles/theme.css"] .tree-dirty').count();
-  check(
-    'editing marks the file unsaved in the tab and in the tree',
-    dirtyMarks === 1 && treeDirty === 1,
-    `${dirtyMarks} tab marker(s), ${treeDirty} tree marker(s)`,
-  );
+    // Typing marks the active file unsaved (the marker is in the tab strip and in the tree).
+    await page.evaluate(() => window.__tesseraEditor.edit('/* edited */\n'));
+    await page.waitForTimeout(200);
+    const dirtyMarks = await page.locator('.editor-tab-dirty').count();
+    const treeDirty = await page.locator('#project-tree [data-path="styles/theme.css"] .tree-dirty').count();
+    check(
+      'editing marks the file unsaved in the tab and in the tree',
+      dirtyMarks === 1 && treeDirty === 1,
+      `${dirtyMarks} tab marker(s), ${treeDirty} tree marker(s)`,
+    );
+
+  }
 
   // The layout does not depend on the view: capture the tree and code boxes, switch all three views, and
   // compare. This is the issue's acceptance sentence, measured.
-  const beforeSwitch = { tree: await boxOf(page, '.region-tree'), code: await boxOf(page, '.region-code') };
-  for (const view of ['scene', 'canvas', 'diagnostics']) {
-    await page.locator(`#tab-${view}`).click();
+  const beforeSwitch = { tree: await boxOf(page, '[data-panel=project]'), code: await boxOf(page, '[data-panel=editor]') };
+  for (const view of ['scene', 'canvas']) {
+    await page.locator(`[id^=flexlayout-tabbutton-${view}]`).click();
     await page.waitForTimeout(300);
   }
-  const afterSwitch = { tree: await boxOf(page, '.region-tree'), code: await boxOf(page, '.region-code') };
+  const afterSwitch = { tree: await boxOf(page, '[data-panel=project]'), code: await boxOf(page, '[data-panel=editor]') };
   check(
     'no view switch moves the tree or the code column',
     JSON.stringify(beforeSwitch) === JSON.stringify(afterSwitch),
@@ -220,10 +233,10 @@ async function open(width, height, path = '/index.html') {
 
   // The switch is inside the preview column: the preview's box contains the switch, and the switch is
   // inside the column's own header rather than a page-level strip above the workspace.
-  const tabsBox = await boxOf(page, '.preview-tabs');
+  const tabsBox = await boxOf(page, '[id^=flexlayout-tabbutton-canvas]');
   check(
-    'the view switch lives inside the preview column',
-    Boolean(tabsBox && preview && tabsBox.x >= preview.x && tabsBox.y >= preview.y && tabsBox.y < code.y + code.h),
+    'the view switch lives inside the preview group',
+    Boolean(tabsBox && preview && tabsBox.x >= preview.x && tabsBox.y < preview.y && tabsBox.y < code.y + code.h),
     tabsBox ? `switch at ${tabsBox.x},${tabsBox.y}` : 'no switch',
   );
 
@@ -233,11 +246,11 @@ async function open(width, height, path = '/index.html') {
     // compiles itself since #444), the scene snapshot (the device-frame column doing its job), and the
     // tab/compile-target state the file clicks above produced. Nothing here clicks a button to make a
     // preview appear: the first automatic apply is what a visitor sees.
-    await page.locator('#tab-diagnostics').click();
+    await page.evaluate(() => window.__tesseraWorkbench.dispatch({ kind: 'collapse', groupId: 'g-bottom', collapsed: false }));
     await page.waitForTimeout(300);
     await page.screenshot({ path: join(shots, '431-1440x900.png') });
     await page.waitForTimeout(1200);
-    await page.locator('#tab-scene').click();
+    await page.locator('[id^=flexlayout-tabbutton-scene]').click();
     await page.waitForTimeout(1200);
     await page.screenshot({ path: join(shots, '431-1440x900-scene.png') });
     console.log(`screenshots: ${join(shots, '431-1440x900.png')}, ${join(shots, '431-1440x900-scene.png')}`);
@@ -251,7 +264,7 @@ async function open(width, height, path = '/index.html') {
 
 {
   const { page, context } = await open(1440, 900, '/index.html?view=canvas');
-  const selected = await page.locator('#tab-canvas').getAttribute('aria-selected');
+  const selected = await page.locator('[id^=flexlayout-tabbutton-canvas]').getAttribute('aria-selected');
   const canvasVisible = await page.locator('#view-canvas').isVisible();
   check('?view=canvas opens on the canvas pane', selected === 'true' && canvasVisible, `aria-selected=${selected}`);
   await context.close();
@@ -289,17 +302,13 @@ async function open(width, height, path = '/index.html') {
     `scrollWidth ${metrics.scrollWidth} vs clientWidth ${metrics.clientWidth}`,
   );
 
-  const tree = await boxOf(page, '#project-tree');
-  const preview = await boxOf(page, '.region-preview');
-  check(
-    'the layout is one column at 390px (the preview below the tree)',
-    Boolean(tree && preview) && preview.y > tree.y && tree.x === preview.x,
-    `tree y=${tree?.y}, preview y=${preview?.y}`,
+  const groups = await page.evaluate(
+    () => [...document.querySelectorAll('.flexlayout__tabset')].filter((n) => n.getBoundingClientRect().width > 0).length,
   );
+  check('the phone layout shows one visible group at 390px', groups === 1, `${groups} group(s)`);
 
   // The preview is reachable: its switch is on screen after scrolling to it, and switching views works.
-  await page.locator('#tab-canvas').scrollIntoViewIfNeeded();
-  const canvasTab = await boxOf(page, '#tab-canvas');
+  const canvasTab = await boxOf(page, '[id^=flexlayout-tabbutton-canvas]');
   const width = 390;
   check(
     'the preview is reachable at 390px',
