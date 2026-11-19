@@ -160,11 +160,22 @@ await page.keyboard.press('Control+k');
 await page.keyboard.press('z');
 await page.waitForTimeout(300);
 check('zen mode (Ctrl+K Z) hides the toolbar and status line and maximizes the editor view', !(await page.locator('.toolbar-row').isVisible()) && !(await page.locator('.page-footer').isVisible()));
+const hint = page.locator('.toast-stack').getByText('Zen mode: press Esc twice or F1 and choose Exit Zen Mode to leave');
+check('entering zen raises the exit hint as a toast (the menu bar is hidden)', (await hint.count()) === 1);
+check('the hint offers an Exit Zen Mode action and a dismiss button', (await page.locator('.toast-stack').getByRole('button', { name: 'Exit Zen Mode' }).count()) === 1 && (await page.locator('.toast-stack').getByRole('button', { name: 'Dismiss notification' }).count()) >= 1);
 check('zen does not touch the model: maximized and collapsed unchanged', (await layout(page)).maximized === null);
 await page.keyboard.press('Escape');
 await page.keyboard.press('Escape');
 await page.waitForTimeout(300);
 check('Escape Escape leaves zen', await page.locator('.toolbar-row').isVisible());
+await page.keyboard.press('Control+k');
+await page.keyboard.press('z');
+await page.waitForTimeout(300);
+check('zen entered again: the hint is not raised twice in a session', (await hint.count()) <= 1 && (await page.evaluate(() => document.querySelectorAll('.toast').length)) <= 1);
+await page.getByRole('button', { name: 'Exit Zen Mode' }).first().click();
+await page.waitForTimeout(300);
+check('the hint action runs view.exitZenMode', await page.locator('.toolbar-row').isVisible());
+
 
 // Regions.
 await page.keyboard.press('F6');
@@ -204,6 +215,35 @@ await page.close();
   await p.waitForSelector('.flexlayout__layout');
   await p.waitForTimeout(800);
   check('a layout from a newer studio raises a notification', (await p.getByText(/newer studio/).count()) >= 1);
+  await context.close();
+}
+
+// Do not disturb: no toast, but the hint is in the history (the bell's unread state).
+{
+  const dnd = await open(1440, 900);
+  await dnd.page.evaluate(() => window.__tesseraWorkbench.run('notify.toggleDoNotDisturb'));
+  await dnd.page.evaluate(() => window.__tesseraWorkbench.run('view.zenMode'));
+  await dnd.page.waitForTimeout(400);
+  check('do not disturb: entering zen shows no toast', (await dnd.page.locator('.toast-stack .toast').count()) === 0);
+  const ctx = await dnd.page.evaluate(() => window.__tesseraWorkbench.context());
+  check('...but the hint is kept in the history (notify.any, unread)', ctx['notify.any'] === true && ctx['notify.unread'] > 0, JSON.stringify({ any: ctx['notify.any'], unread: ctx['notify.unread'] }));
+  await dnd.context.close();
+}
+
+// ?view=<panel> is deliberate: a reload reopens that panel even when the stored layout had it closed.
+{
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const p = await context.newPage();
+  await p.goto(base, { waitUntil: 'load' });
+  await p.waitForFunction(() => window.__tesseraWorkbench?.layout);
+  await p.evaluate(() => window.__tesseraWorkbench.run('view.togglePanel', { id: 'canvas', close: true }));
+  await p.waitForTimeout(700);
+  check('canvas closed and stored', (await layout(p)).closed.includes('canvas'));
+  await p.goto(`${base}?view=canvas`, { waitUntil: 'load' });
+  await p.waitForFunction(() => window.__tesseraWorkbench?.layout);
+  await p.waitForTimeout(500);
+  const reopened = await layout(p);
+  check('?view=canvas reopens the panel the stored layout had closed', !reopened.closed.includes('canvas') && groupOf(reopened, 'canvas') !== null);
   await context.close();
 }
 

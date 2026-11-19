@@ -43,7 +43,12 @@ export interface LayoutHost {
   dock: () => Dock;
   notify: (input: NotificationInput) => number | null;
   undo: { current: LayoutUndo | null };
+  /** Whether this session has shown the zen-mode exit hint (it is shown once, then lives in the bell history). */
+  zenHinted: { current: boolean };
 }
+
+/** What entering zen mode tells the person, because the menu bar that could say it is hidden in zen. */
+export const ZEN_HINT = "Zen mode: press Esc twice or F1 and choose Exit Zen Mode to leave";
 
 const titleOf = (id: string): string => PANELS.find((def) => def.id === id)?.title ?? id;
 const known = (id: string): boolean => PANELS.some((def) => def.id === id && def.reserved !== true);
@@ -125,7 +130,13 @@ export function layoutHandlers(host: LayoutHost): Record<string, (args: CommandA
     },
     "view.zenMode": () => {
       const d = dock();
-      return d.commands.setZen(!d.layout.shell.zen);
+      const entering = !d.layout.shell.zen;
+      const result = d.commands.setZen(entering);
+      if (entering && !host.zenHinted.current) {
+        host.zenHinted.current = true;
+        host.notify({ message: ZEN_HINT, key: "zen-hint", actions: [{ label: "Exit Zen Mode", command: "view.exitZenMode" }] });
+      }
+      return result;
     },
     "view.exitZenMode": () => dock().commands.setZen(false),
     "view.layoutPreset": (args) => {

@@ -201,6 +201,7 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
   const paletteRef = useRef<PaletteHost | null>(null);
   const providersRef = useRef<MenuProviders>({});
   const undoRef = useRef<LayoutUndo | null>(null);
+  const zenHintedRef = useRef(false);
 
   const hostRef = useRef<{ registry: Registry; notifications: Notifications } | null>(null);
   if (hostRef.current === null) {
@@ -270,7 +271,7 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
       },
       "notify.clearAll": () => notifications.clearHistory(),
       "notify.toggleDoNotDisturb": () => notifications.setDoNotDisturb(!notifications.snapshot().dnd),
-      ...layoutHandlers({ dock: () => apiRef.current.dock, notify: (input) => notifications.notify(input), undo: undoRef }),
+      ...layoutHandlers({ dock: () => apiRef.current.dock, notify: (input) => notifications.notify(input), undo: undoRef, zenHinted: zenHintedRef }),
       ...EDITOR_COMMANDS,
     };
     for (const [id, handler] of Object.entries(handlers)) {
