@@ -2,8 +2,8 @@
 
 - Status: Proposed (2026-11-19). Amends [ADR-039](ADR-039-lowercase-html-tags-accepted.md) decisions 3
   and 4 and two of its rejected alternatives ("Map every HTML tag", "Add UA default styles"). The
-  owner asked for this direction on 2026-11-19; four questions below need an answer before it is
-  Accepted. ADR-039 stays in force for everything it already maps.
+  owner asked for this direction on 2026-11-19 and answered three of the four questions (see "Owner
+  answers"); question 2 is open. ADR-039 stays in force for everything it already maps.
 - Date: 2026-11-19
 - Related: [ADR-039](ADR-039-lowercase-html-tags-accepted.md) (lowercase tags are aliases),
   [ADR-036](ADR-036-own-jsx-frontend-and-react-like-model.md) (own front end, React-like),
@@ -46,8 +46,8 @@ The tag table in `html-aliases.md` gains a status per tag. A tag is never silent
 | Status | Meaning | Diagnostic |
 |---|---|---|
 | **mapped** | Same meaning as in the browser for the attributes it accepts (today's rows) | none |
-| **approximated** | Accepted; one or more documented deviations from the browser, listed in the row | `TESSERA_JSX_HTML_APPROX` (warning by default, error when `ui.strict` is set) naming the deviation |
-| **planned** | Not yet implemented; the row names the issue and the capability it waits for | `TESSERA_JSX_SUBSET_HTML_TAG` with the issue number, as today |
+| **approximated** | Accepted; one or more documented deviations from the browser that cannot be closed (font metrics, browser-only behavior), listed in the row. **Never used for unfinished work** | `TESSERA_JSX_HTML_APPROX` (warning by default, error when `ui.strict` is set; question 2) naming the deviation |
+| **planned** | Not yet implemented; the row names the issue and the capability it waits for. A tag stays `planned` until it is implemented completely | `TESSERA_JSX_SUBSET_HTML_TAG` with the issue number, as today |
 | **rejected** | No meaningful behavior without a web engine or JS runtime, with the reason | `TESSERA_JSX_SUBSET_HTML_TAG` with the reason |
 
 `rejected` is limited to `iframe`, `embed`, `object`, `script`, `dangerouslySetInnerHTML` and
@@ -73,15 +73,17 @@ means beyond the carrier is carried by three existing mechanisms:
 If a tag cannot be carried this way without distorting a carrier (tables are the likely case), the
 ADR that adds it may add a node kind; the rule is only that it needs a decision, not a diagnostic.
 
-### 3. An opt-in browser default stylesheet (resolves Q12)
+### 3. A browser default stylesheet, on by default (resolves Q12)
 
-`tessera.json` gets `ui.htmlDefaults`: `"none"` (the default for native-style projects) or
-`"browser"`. With `"browser"` the compiler adds a bundled stylesheet at the lowest precedence, below
+`tessera.json` gets `ui.htmlDefaults`: `"browser"` or `"none"`. The owner chose `"browser"` as the
+default (2026-11-19): a new project, and every project made by a port command or a template, gets
+`"browser"`. A `tessera.json` that predates this key and omits it keeps `"none"`, so no existing
+project or golden changes until its author turns it on. With `"browser"` the compiler adds a bundled stylesheet at the lowest precedence, below
 every author rule and above the engine defaults, that gives the mapped tags the browser's
 user-agent look through the reserved classes of section 2: heading sizes and weights, paragraph and
 list margins and markers, `strong`/`em` weights, link color and underline, form control spacing.
-Author CSS and Tailwind-generated CSS always win. A ported project turns it on once; a project
-written for Tessera pays nothing. The stylesheet is data, versioned with the tag table, and has its
+Author CSS and Tailwind-generated CSS always win. A project written for Tessera that wants the
+bare engine look sets `"none"`. The stylesheet is data, versioned with the tag table, and has its
 own goldens. It does not claim pixel parity with any browser (ADR-036 item 2).
 
 ### 4. Capabilities the engine needs, by group
@@ -92,9 +94,9 @@ group lands; the table, the typings and the tests change together (ADR-039 conse
 | Group | Tags | Needs |
 |---|---|---|
 | **A. Text and breaks** | `br`, `hr`, `pre`, `blockquote`, `q`, `cite`, `u`, `s`, `small`, `mark`, `kbd`, `sub`, `sup`, `abbr` | `text-decoration`, `vertical-align`/baseline shift, `list-style`, `white-space: pre` (exists), line-break node in text runs |
-| **B. Links and labels** | `a href`, `label htmlFor` | `href` through the navigation service and deep links; external URLs through the shell service; label-to-control focus and activation |
+| **B. Links and labels** | `a href`, `label htmlFor` | `href` implemented in both forms in the first slice: an internal path resolves through the navigation service and its route table, an external URL opens through the shell service; label-to-control focus and activation |
 | **C. Browser look** | all mapped tags | the stylesheet of section 3 |
-| **D. Tables** | `table`, `thead`, `tbody`, `tfoot`, `tr`, `td`, `th`, `caption`, `colgroup`, `col` | a table layout mode (content-driven column sizing, spans) on the grid machinery, or a node kind (section 2); first slice may approximate auto layout |
+| **D. Tables** | `table`, `thead`, `tbody`, `tfoot`, `tr`, `td`, `th`, `caption`, `colgroup`, `col` | a complete table layout (content-driven column sizing, `colspan`/`rowspan`, captions, header and footer groups, `border-collapse`) built on the grid machinery, or a node kind (section 2). **No approximation first**: the tags stay `planned` until the whole layout is implemented, by the owner's rule against patches that stretch over time |
 | **E. Forms and controls** | `form`, `select`, `option`, `optgroup`, `datalist`, `input` `checkbox`/`radio`/`range`/`date`/`time`/`file`, `progress`, `meter`, `dialog`, `details`, `summary` | library `Checkbox`, `Radio`, `Slider`, `Select`, `Progress`, overlay-backed `dialog`, and a form controller behind `form`/`onSubmit` |
 | **F. Media and graphics** | `svg` family, `canvas`, `video`, `audio`, `picture`, `source`, `track` | `svg` onto `Path` and the vector layer (ADR-057); `canvas`, `video`, `audio` are separate engine work and stay `planned` until a media ADR exists |
 
@@ -133,16 +135,17 @@ port knows before it starts which pages are blocked and by what.
 - **Embed a web view for the hard tags.** Rejected: it breaks ADR-024 and the deterministic golden
   model.
 
-## Questions for the owner
+## Owner answers (2026-11-19)
 
-1. Is `ui.htmlDefaults` default `"none"` with `"browser"` as an opt-in right, or should ported
-   projects get `"browser"` by default (for example when created by a port command)?
-2. Should `approximated` be a warning by default, as proposed, or an error until the project sets a
-   flag to accept it?
-3. Tables: approximate on the grid machinery first (some auto-sizing deviations documented), or
-   hold the tag until a table layout mode exists?
-4. `a href`: do external URLs open through the OS shell, and internal paths go to navigation, as
-   proposed in group B, or only one of the two in the first slice?
+1. **Browser defaults:** `ui.htmlDefaults` defaults to `"browser"` (section 3). Reading to confirm: a
+   `tessera.json` without the key stays `"none"` so existing projects do not change.
+2. **Severity of `approximated`: open.** Proposed: a warning by default, an error under `ui.strict`.
+   The owner asked what it is and what it affects; the answer is in the conversation that produced
+   this revision and is summarized here: it decides whether a page that compiles with a documented
+   browser deviation fails the build. With the narrowed definition in section 1 (only deviations
+   that cannot be closed, never unfinished work) it fires rarely.
+3. **Tables: implement completely**, no approximate first slice (group D).
+4. **`a href`: both** internal navigation and external URLs in the first slice (group B).
 
 ## Follow-up
 
