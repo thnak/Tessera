@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// Type declarations for `preview-state.js`, the studio's environment vocabulary and its validation
-// (issue #169, P5).
+// Type declarations for `preview-state.js`, the studio's environment vocabulary (issue #169, P5).
 //
-// Like `share.js` beside it, this file stays `.js` on purpose: it is a pure ES module with no DOM and no
-// React, and `scripts/ci/preview_share_roundtrip.mjs` imports it directly under Node so the codec test keeps
-// testing the shipped source (ADR-054, Consequences). See `share.d.ts` for the longer note.
+// This file stays `.js` on purpose: it is a pure ES module with no DOM and no React, and the Node gates import
+// it directly so they test the shipped source (ADR-054, Consequences).
 
-/** The file name the studio compiles under; a share link omits it while it stays the default. */
+/** The file name the studio compiles under. */
 export const DEFAULT_FILE: string;
 
 /** The viewport presets the toolbar offers: `[width, height, label]` in logical pixels. */
@@ -41,68 +39,11 @@ export const SKIN_IDS: readonly string[];
  */
 export const PROFILE_IDS: readonly string[];
 
-/** `id -> [width, height, dpr]` of each bundled profile; what a link naming it may carry. */
+/** `id -> [width, height, dpr]` of each bundled profile; what choosing it applies. */
 export const PROFILE_GEOMETRY: Readonly<Record<string, readonly [number, number, number]>>;
 
 /** The bounds of a custom size, `[min, max]` in logical pixels. */
 export const CUSTOM_SIZE_RANGE: readonly [number, number];
-
-/** The state a page starts from; each field is also the decoder's fallback for a missing one. */
-export const DEFAULT_STATE: Readonly<ShareState>;
-
-/** The per-file source limit (`jsx-subset-v1.md` section 15) and the envelope cap derived from it. */
-export const MAX_SOURCE_BYTES: number;
-export const MAX_ENVELOPE_BYTES: number;
-
-/** The state a share link carries; the keys are the fragment's one-character envelope fields. */
-export interface ShareState {
-  /** The source text, verbatim: the single source of truth, never a sample id and never a diff. */
-  source: string;
-  /** The source path, which every `uiId` is derived from. */
-  file: string;
-  /** Viewport width in logical pixels. */
-  width: number;
-  /** Viewport height in logical pixels. */
-  height: number;
-  /** Device pixel ratio. */
-  dpr: number;
-  /** `system` | `light` | `dark`. */
-  theme: string;
-  /**
-   * The simulated fold posture (issue #408): `""` for no fold, else `flat` | `book` | `tabletop`.
-   * It is part of the shared state because a preview of a foldable screen is not the same preview
-   * without it, so a share link has to carry it.
-   */
-  foldPosture: string;
-  /**
-   * The simulated device skin (issue #171's skins slice): a directory name under `skins/`, or `""`
-   * for no frame. Part of the shared state for the same reason the posture is: a preview of a phone
-   * is not the same preview without the phone's insets.
-   */
-  skin: string;
-  /**
-   * The device profile (issue #447): a bundled profile id, `custom`, or `""` for none. Optional in the
-   * envelope (`n`), so a link made before profiles decodes to the state it always did.
-   */
-  profile: string;
-}
-
-/** A refusal the page branches on by `code`, rather than by matching a message. */
-export class ShareError extends Error {
-  readonly code: "too-large" | "malformed" | "version" | "invalid" | "unsupported";
-  constructor(code: string, message: string);
-}
-
-/**
- * Validates and normalizes a state object. Every field is optional and falls back to `DEFAULT_STATE`,
- * except that an explicitly *invalid* value is an error: a page that recorded 0 DPR or a 3000-pixel "phone"
- * has a bug, and silently substituting a default would hide it in the one place -- a shared link -- where
- * the mistake is hardest to trace back.
- */
-export function normalizeState(
-  state?: Partial<ShareState>,
-  options?: { viewportAllowed?: (width: number, height: number) => boolean },
-): ShareState;
 
 /** `"390x844"` -> `{ width: 390, height: 844 }`; throws on anything the toolbar could not produce. */
 export function parseViewport(text: string): { width: number; height: number };

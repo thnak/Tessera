@@ -47,12 +47,4 @@
     font-size: 12px;
     resize: none;
   }
-
-  .gallery, .link-note, .page-footer {
-    padding-left: 16px;
-    padding-right: 16px;
-  }
-
-  .status-line { gap: 2px 14px; }
-  .status-note { display: none; }
 }

@@ -10,7 +10,7 @@
 // (ADR-054 decision 3).
 //
 // The workspace's own state (the project, the tabs, the active file) is in `page-workspace.ts`; this file
-// stays the page's *chrome* state, which after issue #431 is the controls, the gallery, the share status
+// stays the page's *chrome* state, which after issue #431 is the controls
 // and the build id.
 
 import type { CodeEditor } from "./editor/code-editor";
@@ -37,9 +37,8 @@ export interface PaneRefs {  /**
    * the live viewport to the hint, so both are written from outside React's render cycle.
    */
   source: React.MutableRefObject<CodeEditor | null>;
-  editorHint: React.RefObject<HTMLParagraphElement | null>;
-  buildId: React.RefObject<HTMLSpanElement | null>;
-  shareStatus: React.RefObject<HTMLSpanElement | null>;
+  /** The status bar's caret cell: the editor writes `Ln, Col` and the selection size here (not through React). */
+  statusCaret: React.RefObject<HTMLSpanElement | null>;
   diagStatus: React.RefObject<HTMLDivElement | null>;
   diagList: React.RefObject<HTMLOListElement | null>;
   diagEmpty: React.RefObject<HTMLDivElement | null>;
@@ -88,8 +87,6 @@ export interface PaneRefs {  /**
    * by the session that owns them, into a second cell, rather than routed back through React state
    * (which would put a compile or a GPU frame inside a render cycle).
    */
-  statusDiagnostics: React.RefObject<HTMLSpanElement | null>;
-  statusFrame: React.RefObject<HTMLSpanElement | null>;
 }
 
 /** Creates the ref bundle once. A factory, because every entry has to be a *stable* ref. */
@@ -98,9 +95,7 @@ export function usePaneRefs(): PaneRefs {
     // The editor React renders once as a childless textarea; no session writes its text (the page owns
     // the buffers), but a diagnostic's "show in source" and the Scene hint do reach it.
     source: useRef<CodeEditor | null>(null),
-    editorHint: useRef<HTMLParagraphElement>(null),
-    buildId: useRef<HTMLSpanElement>(null),
-    shareStatus: useRef<HTMLSpanElement>(null),
+    statusCaret: useRef<HTMLSpanElement>(null),
     diagStatus: useRef<HTMLDivElement>(null),
     diagList: useRef<HTMLOListElement>(null),
     diagEmpty: useRef<HTMLDivElement>(null),
@@ -137,19 +132,13 @@ export function usePaneRefs(): PaneRefs {
     inspectPanel: useRef<HTMLElement>(null),
     inspectBody: useRef<HTMLDivElement>(null),
     inspectToggle: useRef<HTMLButtonElement>(null),
-    statusDiagnostics: useRef<HTMLSpanElement>(null),
-    statusFrame: useRef<HTMLSpanElement>(null),
   };
 }
 
 /** What the chrome needs from the page's own state, in one object. */
 export interface PageState {
   controls: ControlValues;
-  galleryOpen: boolean;
-  shareStatus: string;
-  linkNote: string | null;
   buildId: string;
-  buildIdTitle: string | undefined;
   /** Whether the active view's session can be restarted (its module is loaded). */
   runEnabled: boolean;
   /**
@@ -165,24 +154,14 @@ export interface PageState {
 /** The page's state and its one setter per field, created once. */
 export function usePageState(): [PageState, PageStateSetters] {
   const [controls, setControls] = useState<ControlValues>({ ...INITIAL_ENVIRONMENT });
-  const [galleryOpen, setGalleryOpen] = useState(false);
-  const [shareStatus, setShareStatus] = useState("");
-  const [linkNote, setLinkNote] = useState<string | null>(null);
   const [buildId, setBuildId] = useState("build: loading");
-  const [buildIdTitle, setBuildIdTitle] = useState<string | undefined>(
-    "The build this page came from",
-  );
   const [runEnabled, setRunEnabled] = useState(false);
   const [applying, setApplying] = useState(false);
   return [
-    { controls, galleryOpen, shareStatus, linkNote, buildId, buildIdTitle, runEnabled, applying },
+    { controls, buildId, runEnabled, applying },
     {
       setControls,
-      setGalleryOpen,
-      setShareStatus,
-      setLinkNote,
       setBuildId,
-      setBuildIdTitle,
       setRunEnabled,
       setApplying,
     },
@@ -192,11 +171,7 @@ export function usePageState(): [PageState, PageStateSetters] {
 /** The setters from `usePageState`, as one object so a callback can take the whole bundle. */
 export interface PageStateSetters {
   setControls: React.Dispatch<React.SetStateAction<ControlValues>>;
-  setGalleryOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  setShareStatus: React.Dispatch<React.SetStateAction<string>>;
-  setLinkNote: React.Dispatch<React.SetStateAction<string | null>>;
   setBuildId: React.Dispatch<React.SetStateAction<string>>;
-  setBuildIdTitle: React.Dispatch<React.SetStateAction<string | undefined>>;
   setRunEnabled: React.Dispatch<React.SetStateAction<boolean>>;
   setApplying: React.Dispatch<React.SetStateAction<boolean>>;
 }

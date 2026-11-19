@@ -1,33 +1,33 @@
 // SPDX-License-Identifier: MIT
 
-// The studio's top chrome (issue #557): the title, the menu bar, the toolbar and the device chip. It
-// replaces the page header and the preview column's five `<select>`s; every control here is a projection of
+// The studio's top chrome (issue #557): the menu bar, the toolbar and the device chip on one row, with the
+// palette button at the right (the title and description are Help > About; the bell is in the status bar).
+// It replaces the page header and the preview column's five `<select>`s; every control here is a projection of
 // a command (`page-commands.ts` registers the handlers, `workbench/menus.json` says what appears).
 //
 // The ids the page's older code and the developer-run browser scripts look up are kept where a control has a
-// direct successor: `restart-app` (Restart), `share` (Share), `save-project` (Save). What the old `share-status` line and the project note said is a
+// direct successor: `restart-app` (Restart), `save-project` (Save). What the old status line and the project note said is a
 // notification now (`regions/Notifications.tsx`). The Samples gallery, Open folder/zip, Download, the device `<select>`s and the
 // component picker are menu items now and have no element ids of their own.
 
 import { useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent } from "react";
 import type { MenuEntry, ToolbarEntry } from "../workbench/index.js";
 import type { Workbench } from "../page-commands";
+import { AboutDialog } from "./AboutDialog";
 import { CommandPalette } from "./CommandPalette";
 import { ContextMenuHost } from "./ContextMenuHost";
 import { MenuBar, MenuList, useMenuController } from "./MenuBar";
-import { NotificationBell, ToastStack } from "./Notifications";
+import { ToastStack } from "./Notifications";
 
 const TOOLBAR_IDS: Record<string, string> = {
   "run.restart": "restart-app",
   "file.save": "save-project",
-  "file.share": "share",
   "view.cycleTheme": "cycle-theme",
 };
 
 const ICONS: Record<string, string> = {
   "run.restart": "▶",
   "file.save": "💾︎",
-  "file.share": "↪",
   "view.cycleTheme": "◐",
 };
 
@@ -148,11 +148,9 @@ function Toolbar({ workbench }: { workbench: Workbench }) {
   return (
     <div className="toolbar-row" role="toolbar" aria-label="Studio actions" aria-orientation="horizontal" ref={ref} onKeyDown={move}>
       {entries.map((entry, position) => (
-        <span className="tb-widget" key={entry.key} data-secondary={entry.command === "run.restart" || entry.widget === "bell" ? undefined : ""}>
+        <span className="tb-widget" key={entry.key} data-secondary={entry.command === "run.restart" ? undefined : ""}>
           {entry.widget === "deviceChip" ? (
             <DeviceChip workbench={workbench} entries={device?.items ?? []} tabIndex={position === active ? 0 : -1} />
-          ) : entry.widget === "bell" ? (
-            <NotificationBell workbench={workbench} tabIndex={position === active ? 0 : -1} />
           ) : (
             <ToolbarButton entry={entry} workbench={workbench} tabIndex={position === active ? 0 : -1} />
           )}
@@ -171,12 +169,8 @@ export function WorkbenchChrome({ workbench, zen = false }: { workbench: Workben
   return (
     <header className={zen ? "workbench-chrome is-zen" : "workbench-chrome"} aria-label="Studio">
       <div className="titlebar">
-        <h1 className="title-mark">
-          <span aria-hidden="true" className="title-logo">
-            T
-          </span>
-          <span className="title-text">Tessera Studio</span>
-        </h1>
+        {/* The page's one h1 stays for assistive technology; the visible title and description are Help > About. */}
+        <h1 className="visually-hidden">Tessera Studio</h1>
         <MenuBar
           menus={workbench.menus}
           phone={workbench.phone}
@@ -184,6 +178,7 @@ export function WorkbenchChrome({ workbench, zen = false }: { workbench: Workben
           onRun={(entry) => void workbench.activate(entry)}
           onOpenChange={(open) => workbench.setFocusOwner(open ? "menu" : null)}
         />
+        <Toolbar workbench={workbench} />
         <span className="titlebar-spacer" />
         {paletteVisible ? (
           <button type="button" id="palette-button" className="palette-button" onClick={() => void workbench.run("view.palette")} aria-keyshortcuts="Control+Shift+P">
@@ -191,7 +186,6 @@ export function WorkbenchChrome({ workbench, zen = false }: { workbench: Workben
           </button>
         ) : null}
       </div>
-      <Toolbar workbench={workbench} />
       <input
         ref={workbench.zipInputRef}
         type="file"
@@ -206,6 +200,7 @@ export function WorkbenchChrome({ workbench, zen = false }: { workbench: Workben
           }
         }}
       />
+      {workbench.aboutOpen ? <AboutDialog buildId={workbench.buildId} onClose={() => workbench.setAboutOpen(false)} /> : null}
       {workbench.palette.request !== null ? <CommandPalette key={workbench.palette.request.nonce} workbench={workbench} request={workbench.palette.request} /> : null}
       <ContextMenuHost workbench={workbench} />
       <ToastStack workbench={workbench} />

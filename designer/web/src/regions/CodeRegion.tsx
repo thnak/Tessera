@@ -18,7 +18,7 @@
 // dirty once. That is the same rule the canvas follows (ADR-054 decision 3): React owns the chrome, and a
 // high-frequency write does not go through its render cycle.
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { createCodeEditor, type CodeEditor } from "../editor/code-editor";
 import { STALE_TEXT, type ProjectFile } from "../lib/project";
 
@@ -142,7 +142,7 @@ function EditorTabs({
 }
 
 /**
- * The code column: the tab strip, the editor and the hint below it.
+ * The code column: the tab strip, the editor and the notes below it.
  *
  * Since issue #444 an edit needs no button -- it applies ~150 ms after the last keystroke -- and since issue #557
  * the cold start is a command (`run.restart`, on the toolbar and in the Run menu), not a button here.
@@ -155,7 +155,6 @@ export function CodeRegion({
   text,
   revision,
   sourceRef,
-  editorHintRef,
   onSelectTab,
   onCloseTab,
   onEdit,
@@ -163,6 +162,8 @@ export function CodeRegion({
   onSave,
   onApplyNow,
   stale = [],
+  empty = null,
+  caretRef,
 }: {
   open: readonly string[];
   files: readonly ProjectFile[];
@@ -171,7 +172,7 @@ export function CodeRegion({
   /** The active file's text: what the editor shows after a tab switch or a programmatic replace. */
   text: string;
   /**
-   * Bumped by the page whenever it wrote a buffer itself (a tab switch, a sample, a share link).
+   * Bumped by the page whenever it wrote a buffer itself (a tab switch, a sample).
    *
    * The editor is uncontrolled, so typing does not come back through here: a keystroke is written to
    * the page's buffer and never re-sent. Only a *page* write bumps this, which is what lets the effect
@@ -181,7 +182,6 @@ export function CodeRegion({
   revision: number;
   /** Receives the editor once it is mounted; the sessions reveal spans and mark diagnostics through it. */
   sourceRef: React.MutableRefObject<CodeEditor | null>;
-  editorHintRef: React.RefObject<HTMLParagraphElement | null>;
   onSelectTab: (path: string) => void;
   onCloseTab: (path: string) => void;
   onEdit: (text: string) => void;
@@ -193,12 +193,18 @@ export function CodeRegion({
   onApplyNow: () => void;
   /** Generated files that may be out of date (advisory). */
   stale?: readonly string[];
+  /** Shown instead of the editor while no project is open (the welcome view); the editor stays mounted. */
+  empty?: ReactNode;
+  /** The status bar's caret cell; the editor writes `Ln 3, Col 5 (12 selected)` into it without a render. */
+  caretRef?: React.RefObject<HTMLSpanElement | null>;
 }) {
   // The editor is created once, in an effect (it needs the DOM, and the Node render of the chrome has none).
   // Its callbacks go through a ref so the page's handlers can change without recreating the editor.
   const host = useRef<HTMLDivElement | null>(null);
   const handlers = useRef({ onEdit, onSave, onApplyNow });
   handlers.current = { onEdit, onSave, onApplyNow };
+  const caret = useRef(caretRef);
+  caret.current = caretRef;
   useEffect(() => {
     const parent = host.current;
     if (parent === null) {
@@ -209,6 +215,12 @@ export function CodeRegion({
       onSave: () => handlers.current.onSave(),
       onApplyNow: () => handlers.current.onApplyNow(),
       label: "Source code",
+      onCaret: ({ line, column, selected }) => {
+        const cell = caret.current?.current;
+        if (cell) {
+          cell.textContent = `Ln ${line}, Col ${column}` + (selected > 0 ? ` (${selected} selected)` : "");
+        }
+      },
     });
     sourceRef.current = editor;
     // A seam for the Playwright probes (they cannot set a value on a CodeMirror surface): the text, and an
@@ -239,38 +251,29 @@ export function CodeRegion({
   const current = files.find((file) => file.path === active) ?? null;
 
   return (
-    <section className="region region-code" aria-labelledby="editor-heading">
-      <div className="region-header">
-        <h2 id="editor-heading">Code</h2>
-      </div>
-
-      <EditorTabs
-        open={open}
-        files={files}
-        active={active}
-        dirty={dirty}
-        onSelect={onSelectTab}
-        onClose={onCloseTab}
-      />
+    <section className="region region-code" aria-label="Code">
+      {empty === null ? (
+        <EditorTabs
+          open={open}
+          files={files}
+          active={active}
+          dirty={dirty}
+          onSelect={onSelectTab}
+          onClose={onCloseTab}
+        />
+      ) : null}
 
       <div
         className="editor"
         id="editor-panel"
+        hidden={empty !== null}
         role="tabpanel"
         aria-labelledby={active ? tabIdOf(active) : undefined}
       >
         <div id="editor-host" ref={host} />
       </div>
+      {empty}
 
-      {/* The hint belongs to the page, not to a view: the editor is shared by the three preview panes,
-          and a hint that said "a diagnostics run has no viewport" while the preview showed the canvas
-          would be wrong. The page swaps it per active preview view; the Scene session appends the live
-          rectangle to it. Since #444 it also carries the edit's own state: the page is applying the
-          change, or it has applied it, and saying which is what keeps the debounce from looking like a
-          preview that lags. */}
-      <p className="hint" id="editor-hint" ref={editorHintRef}>
-        Ctrl+Enter (or Cmd+Enter) applies now.
-      </p>
       <p className="hint" id="apply-status" role="status" aria-live="polite" hidden={!applying}>
         applying…
       </p>
@@ -288,11 +291,6 @@ export function CodeRegion({
             : current.viewText === undefined
               ? "Reading..."
               : ""}
-        </p>
-      ) : current ? (
-        <p className="hint" id="editor-file" data-path={current.path}>
-          Editing <code>{current.path}</code>
-          {dirty.includes(current.path) ? " (unsaved changes)" : ""}
         </p>
       ) : null}
     </section>

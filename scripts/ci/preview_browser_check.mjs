@@ -7,8 +7,7 @@
 //
 // **Why this exists, and why it is not in CI.** Issue #392's acceptance is a browser statement: the
 // deployed `index.html` shows diagnostics, the scene snapshot and the WebGPU canvas from one page and
-// one set of controls, and `scene.html`/`canvas.html` still resolve and forward to it with the query
-// and the `#p5=` fragment intact. The static checks in `preview_page_checks.mjs` prove the wiring is
+// one set of controls. (The old `scene.html`/`canvas.html` redirect stubs were removed.) The static checks in `preview_page_checks.mjs` prove the wiring is
 // *consistent*; only a browser proves it *runs*. No CI lane here has one (the Pages lane has no
 // browser, and the canvas pixel lane is an owner decision -- docs/design/compiler-wasm.md 8.3), so
 // this is a developer-run check, and its output is the evidence recorded for the slice.
@@ -18,14 +17,12 @@
 // adding a browser dependency is a spec/ADR decision (`docs/specs/dependencies.md`), and the merge must
 // not smuggle one in.
 //
-// **What it asserts.** Five groups, each a claim in the issue's acceptance:
+// **What it asserts.** Four groups, each a claim in the issue's acceptance:
 //
 //   1. the merged page loads and Diagnostics runs (the default view, first paint);
 //   2. the Scene view opens on its tab, fetches its module *then* (not before), and lists nodes;
 //   3. a `click 101` script produces state cells in the Scene view;
-//   4. `scene.html?...#p5=...` and `canvas.html?...#p5=...` forward to `index.html` with the query and
-//      the fragment intact and the right view selected -- the migration, end to end in a browser;
-//   5. the request log shows no scene or canvas module fetched before those views were opened.
+//   4. the request log shows no scene or canvas module fetched before those views were opened.
 //
 // The Canvas view's WebGPU frame is checked as a *state*, not as pixels: a headless GPU may or may not
 // be present, and both outcomes are correct as long as the pane says which one it is rather than
@@ -252,13 +249,6 @@ const SAMPLE_SOURCE = `export function Counter(): Node {
 }
 `;
 
-/** A payload made by the pre-merge codec (recorded in preview_share_roundtrip.mjs) for 390x844/dark. */
-const PRE_MERGE_FRAGMENT =
-  'zPY7NasMwEIRfZdiTTAVOmhxSRRa0uefS0kvcQ7BUalJWRV41AeN3L1aKb8PuNz8j_ZJZaxrIULj9xCT4zNxJ' +
-  'HxmHmFlCUpXBMfqAsWWgizwITt380xiCFOoDDfIQXuUswfYsTq2qfcuzIQXJiaFmDdj3PlzdXQP2LdzElQSDs' +
-  'WROti7HBXnJIpER-fDdd5dmVBUatxSrYsID1tXknr239Z3_99t66Zv3TC2TpiuZzdNK0xeZ3XaryZN51CRkyJ' +
-  '_ThaY_';
-
 async function main() {
   if (!existsSync(join(SITE, 'index.html'))) {
     process.stderr.write(
@@ -329,7 +319,7 @@ async function main() {
      * scripts run, and the merged page -- which reads its fragment once at load -- would keep the old
      * state while the address bar showed the new link. That is a real behaviour of the page (a fragment
      * typed into the bar of a loaded page does nothing until a reload), but it is not what these cases
-     * are testing, and the two share-link cases here differ from the preceding URL exactly that way. A
+     * are testing, and the fragment cases here differ from the preceding URL exactly that way. A
      * stop at `about:blank` guarantees a new document, so each case measures the arrival path a visitor
      * with a link actually takes.
      */
@@ -441,105 +431,7 @@ async function main() {
       );
     });
 
-    // --- 5. the share link restores state and the view ---------------------------------------
-    await test('a share link restores its source, environment and view', async () => {
-      await navigate(`${base}/index.html?view=scene#p5=${PRE_MERGE_FRAGMENT}`, {
-        ready: `document.getElementById('tab-scene') && document.getElementById('tab-scene').getAttribute('aria-selected') === 'true'`,
-        what: 'the ?view= scene tab to be selected',
-      });
-      const state = await cdp.evaluate(`(() => ({
-        source: window.__tesseraEditor.text(),
-        viewport: document.querySelector('#controls select').value,
-        dpr: document.querySelectorAll('#controls select')[1].value,
-        theme: document.querySelectorAll('#controls select')[2].value,
-        linkNote: document.getElementById('link-note').hidden,
-      }))()`);
-      assertEqual(state.viewport, '390x844', 'the fragment viewport reached the toolbar');
-      assertEqual(state.dpr, '2', 'the fragment DPR reached the toolbar');
-      assertEqual(state.theme, 'dark', 'the fragment theme reached the toolbar');
-      assert(state.linkNote === true, 'no "the link did not load" banner for a good link');
-      assert(/useState/.test(state.source), 'the fragment source is in the editor');
-    });
-
-    // --- 6. the old URLs: scene.html and canvas.html forward with the state ------------------
-    //
-    // The four URL shapes the issue names, each through a real browser navigation rather than the pure
-    // function in `preview_page_checks.mjs` -- that check proves the *string* is right, this one proves
-    // the browser accepts it and the merged page then restores the state. The shapes are the ones a
-    // real pre-merge link takes: both query and fragment (the ordinary share link), neither (a bare
-    // bookmark), a fragment only, and a query only.
-    //
-    // **The query is carried, never read.** `expectViewport` is 320x240 for the query-only case on
-    // purpose: the pre-merge pages never took environment from the query (only the `#p5=` fragment and
-    // localStorage did -- see `initialState` in `studio.js`, which is unchanged), so a query-only link
-    // always opened at the default rectangle. The merge must preserve that exactly: forwarding must not
-    // *start* reading the query, or an old link would restore a state it never had.
-    const redirectCases = [
-      {
-        why: 'a query and a #p5= fragment',
-        page: 'scene.html',
-        view: 'scene',
-        search: '?viewport=390x844&dpr=2&theme=dark',
-        hash: `#p5=${PRE_MERGE_FRAGMENT}`,
-        expectViewport: '390x844',
-      },
-      {
-        why: 'no query and no fragment',
-        page: 'canvas.html',
-        view: 'canvas',
-        search: '',
-        hash: '',
-        expectViewport: '320x240',
-      },
-      {
-        why: 'a #p5= fragment only',
-        page: 'scene.html',
-        view: 'scene',
-        search: '',
-        hash: `#p5=${PRE_MERGE_FRAGMENT}`,
-        expectViewport: '390x844',
-      },
-      {
-        why: 'a query only',
-        page: 'canvas.html',
-        view: 'canvas',
-        search: '?viewport=768x1024&dpr=3&theme=light',
-        hash: '',
-        expectViewport: '320x240',
-      },
-    ];
-
-    for (const testCase of redirectCases) {
-      const { page, view, search, hash, expectViewport } = testCase;
-      await test(`${page} offers ${testCase.why} and forwards to the ${view} view`, async () => {
-        // The stub appends `view=<id>` to the query it was given, so the expected final URL is the old
-        // query (or a bare `?`) plus that parameter, plus the old fragment verbatim.
-        const query = search ? `${search}&view=${view}` : `?view=${view}`;
-        await navigate(`${base}/${page}${search}${hash}`, {
-          expect: `${base}/index.html${query}${hash}`,
-          ready: `location.pathname.endsWith('/index.html') && document.getElementById('tab-${view}') &&` +
-            ` document.getElementById('tab-${view}').getAttribute('aria-selected') === 'true'`,
-          what: `the redirect from ${page} to land on the ${view} view`,
-        });
-        const state = await cdp.evaluate(`(() => ({
-          pathname: location.pathname,
-          search: location.search,
-          hash: location.hash,
-          selected: document.getElementById('tab-${view}').getAttribute('aria-selected'),
-          viewport: document.querySelector('#controls select').value,
-        }))()`);
-        assert(state.pathname.endsWith('/index.html'), `landed on ${state.pathname}`);
-        assert(
-          state.search.includes('view=' + view),
-          `the redirect added view=${view}: ${state.search}`,
-        );
-        assertEqual(state.hash, hash, 'the fragment survived the redirect byte for byte');
-        assertEqual(state.selected, 'true', `the ${view} tab is selected`);
-        assertEqual(state.viewport, expectViewport, 'the environment is the one the link carried');
-      });
-    }
-
-    // --- 7. the canvas view: a named state, never a blank canvas -----------------------------
+    // --- 5. the canvas view: a named state, never a blank canvas -----------------------------
     await test('the Canvas view opens and names its state (unsupported or a frame)', async () => {
       await cdp.evaluate(`document.getElementById('tab-canvas').click()`);
       await waitUntil(

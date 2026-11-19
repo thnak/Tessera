@@ -129,8 +129,13 @@ await test('integrity: live without handler, handler without record, reserved wi
   const registry = createRegistry(COMMANDS, { context: createContext() });
   assert.throws(() => registry.register('nope.missing', () => {}), /no command record/);
   assert.throws(() => registry.register('go.definition', () => {}), /reserved/);
-  registry.register('file.share', () => {});
-  assert.throws(() => registry.register('file.share', () => {}), /already/);
+  assert.throws(() => registry.register('file.share', () => {}), /removed/, 'a retired id cannot get a handler back');
+  registry.register('file.save', () => {});
+  assert.throws(() => registry.register('file.save', () => {}), /already/);
+  const retired = COMMANDS.find((record) => record.id === 'file.share');
+  assert.equal(retired.status, 'removed');
+  assert.equal(retired.replacedBy, null);
+  assert.ok(json('command-ids.json').includes('file.share'), 'a retired id stays in the append-only list');
 });
 
 await test('run: result codes, disabled with a reason, argument checks, throwing handlers isolated', async () => {

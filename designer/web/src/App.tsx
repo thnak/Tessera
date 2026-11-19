@@ -1,82 +1,57 @@
 // SPDX-License-Identifier: MIT
 
-// The studio: **one workspace, three columns** (issue #431), built on the shell #392 merged and #422
-// converted.
+// The studio page: the workbench chrome (menu bar, toolbar, palette, About), the dock of panels (project tree,
+// editor, Canvas, Scene, Diagnostics, bottom panels) and the status bar, wired to the page's state.
 //
-// Before #431 the page was three top-level tabs -- Diagnostics, Scene, Canvas -- which is a preview demo:
-// opening Canvas replaced the editor. The workspace is now the layout the issue asks for, always:
+// **What React renders, and what it does not.** React renders the chrome, the tree, the tabs and the status
+// items; the engine still draws exactly one thing, the preview canvas, and every subtree a Wasm module produces
+// is a childless leaf a *session* fills (`src/views/*-session.ts`, ADR-054 decision 3). A preview crash loses a
+// pane, not the editor.
 //
-//   +--------------+---------------------------+---------------------------+
-//   | project tree |  code (tabs per open file)|  preview                  |
-//   |              |                           |  [scene] [canvas] [diag]  |
-//   +--------------+---------------------------+---------------------------+
-//   | status line: build id, compile target, diagnostics count, frame      |
-//   +----------------------------------------------------------------------+
-//
-// **No view switch changes this shape.** The scene/canvas/diagnostics switch is a tablist *inside* the
-// preview column (`regions/PreviewColumn.tsx`); the editor's tabs are a tablist over the open buffers
-// (`regions/CodeRegion.tsx`); the page itself is not a tablist any more. `?view=` still resolves and is
-// still written on a switch, so a link made before this issue opens on the view it names, and a `#p5=`
-// fragment still decodes to the same state.
-//
-// **What React renders, and what it does not.** React renders the five regions, the tree, the tabs, the
-// status cells and every box and status line; the engine still draws exactly one thing, the preview canvas,
-// and every subtree a Wasm module produces is a childless leaf a *session* fills
-// (`src/views/*-session.ts`, ADR-054 decision 3). A preview crash loses a pane, not the editor.
-//
-// **Why the sessions live in a ref and not in state.** A session owns a Wasm module instance, a WebGPU
-// device and an animation-frame callback. None of that may be created by a render or destroyed by a
-// re-render, so each is created once against the committed DOM nodes and never re-created
-// (`page-sessions.ts`). The page's React state is exactly what a visitor changes by hand: the workspace
-// (`page-workspace.ts`), the toolbar, the gallery being open, the share status and the build id.
+// **Why the sessions live in a ref and not in state.** A session owns a Wasm module instance, a WebGPU device
+// and an animation-frame callback. None of that may be created by a render or destroyed by a re-render, so each
+// is created once against the committed DOM nodes (`page-sessions.ts`). The page's React state is exactly what a
+// visitor changes by hand: the workspace (`page-workspace.ts`), the toolbar and the build id.
+// Startup, the toolbar handlers and the sample action are hooks of their own (`page-startup.ts`,
+// `page-toolbar.ts`, `page-sample.ts`) to keep this file under the size limit.
 //
 // **Laziness** survives verbatim: the Diagnostics module is the only one on the first-paint path; Scene's is
 // imported the first time that pane is shown; Canvas' is imported on its first open and its WebGPU device is
 // acquired on the first Run there.
 
+
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { LoadedSample } from "./lib/gallery";
-import {
-  DEFAULT_FILE,
-  initialState,
-  linkProblemMessage,
-  rememberLocally,
-  shareStateOf,
-  shareToLocation,
-  type ShareState,
-} from "./lib/preferences";
-import { projectFile, type ProjectFile } from "./lib/project";
-import { entryOf, projectSnapshot } from "./lib/project-snapshot";
+import { projectSnapshot } from "./lib/project-snapshot";
 import {
   DEFAULT_VIEW,
   resolveView,
   type ProjectSnapshot,
   type ViewDefinition,
 } from "./lib/views";
-import { customProfile, mayKeepState } from "./lib/device-profile";
+import { customProfile } from "./lib/device-profile";
 import { unavailableReply, type PlatformEventRequest, type PlatformReply } from "./lib/platform-events";
-import { STARTUP_SAMPLE } from "./page-defaults";
 import { createLiveEdit, type LiveEdit } from "./page-live";
 import { usePageState, usePaneRefs } from "./page-state";
+import { useStartup } from "./page-startup";
+import { useToolbarControls } from "./page-toolbar";
+import { useSample } from "./page-sample";
 import { useSessions } from "./page-sessions";
 import { useProjectIo } from "./page-project-io";
-import { hasShareLink, sampleProjectFiles, useFirstView } from "./page-boot";
 import { useViewOnlyLoader } from "./page-view-only";
 import { useWorkspace } from "./page-workspace";
-import { GalleryRegion } from "./regions/GalleryRegion";
-import type { ControlValues } from "./regions/StudioChrome";
+import { WelcomeView } from "./regions/WelcomeView";
 import { useWorkbench } from "./dock/use-workbench";
 import { useMockConsole } from "./lib/mock-console";
-import { usePanelVisibility, useDiagnosticsAutoOpen, useViewFromUrl } from "./page-panels";
+import { usePanelVisibility, useViewFromUrl } from "./page-panels";
+import { useProblems, useProblemsStore } from "./page-problems";
 import { WorkbenchSurface } from "./page-workbench";
 import { WorkbenchChrome } from "./regions/WorkbenchChrome";
 import { useWorkbench as useCommands } from "./page-commands";
 import { StatusLine } from "./regions/StatusLine";
 import { useSkins, useThemeAttribute } from "./page-skins";
 import { usePlatform } from "./page-platform";
-import { deviceSwitch, useProfiles } from "./page-profiles";
+import { useProfiles } from "./page-profiles";
 import { AppStateOverlay, HardwareStrip } from "./regions/DeviceControls";
-import { VIEWPORTS, DPRS } from "./lib/preferences";
 
 export function App() {
   const [view, setView] = useState<ViewDefinition["id"]>(() =>
@@ -88,8 +63,8 @@ export function App() {
   const projectIo = useProjectIo(workspace);
   // The dock (W5, #560): the layout model, its persistence and which panels are open and visible.
   const workbench = useWorkbench();
+  const problemsStore = useProblemsStore();
   useViewFromUrl(workbench);
-  useDiagnosticsAutoOpen(workbench, refs.statusDiagnostics);
   // The view panels that are open, so a session exists exactly while its panel does; `reloadEpoch` is what
   // "Reload panel" bumps to bind a session to the re-rendered content.
   const [reloadEpoch, setReloadEpoch] = useState(0);
@@ -97,18 +72,15 @@ export function App() {
   // The view the sessions' readiness callbacks are talking about (they are not re-created per view).
   const viewRef = useRef(view);
   viewRef.current = view;
-  // The toolbar is settled once the fragment (or storage) has been decoded. The sessions wait for it, so a
-  // `?view=scene#p5=<390x844>` link lays the scene out once, at 390x844.
+  // The toolbar is settled once the stored toolbar has been read. The sessions wait for it, so a
+  // stored 390x844 lays the scene out once, at 390x844.
   const [toolbarSettled, setToolbarSettled] = useState(false);
-  // Bumped when the page itself replaces a buffer (a tab switch, a share link, a gallery pick), so the
+  // Bumped when the page itself replaces a buffer (a tab switch, a gallery pick), so the
   // editor's effect can tell a page write from a keystroke.
   const [revision, setRevision] = useState(0);
   // Bumped when a `*.mock.ts` buffer is edited, so the mock sandbox worker is recreated (ADR-055).
   const [mockRevision, setMockRevision] = useState(0);
 
-  useFirstView(projectIo.recentsLoaded, projectIo.recents.length, workspace.state.files.length, () =>
-    state_.setGalleryOpen(true),
-  );
   const onViewLoaded = useCallback(() => setRevision((value) => value + 1), []);
   useViewOnlyLoader(workspace, projectIo, onViewLoaded);
 
@@ -197,6 +169,9 @@ export function App() {
       safeArea: currentSafeArea,
       component: currentComponent,
       onComponents,
+      // With no project open the compiler's answer is "the project names no entry file": not a problem to list.
+      onDiagnostics: (diagnostics) =>
+        filesRef.current.length === 0 ? problemsStore.reset() : problemsStore.publish(diagnostics),
       source: currentSource,
       isCurrent,
     },
@@ -205,77 +180,8 @@ export function App() {
   );
   const sessions = sessionHandle.current;
 
-  // ---- the shared chrome mounts before the first view is shown (issue #392's ordering rule) ---------
-  //
-  // A broken link still gets a usable page: the seeded project is loaded and the banner says what was
-  // wrong with the link. The alternative -- an empty editor -- reads as a broken page.
-  useEffect(() => {
-    void (async () => {
-      try {
-        const loaded = await initialState({
-          source: STARTUP_SAMPLE,
-          file: DEFAULT_FILE,
-          width: 320,
-          height: 240,
-          dpr: 1,
-          theme: "system",
-          foldPosture: "",
-          skin: "",
-          profile: "",
-        });
-        if (loaded.source !== "" && refs.source.current !== null) {
-          // A link's source replaces the entry file's text: a share link is one document, and the entry is
-          // the file it compiles under.
-          const named = entryOf(workspace.state.files, workspace.textOf).path;
-          const entry = workspace.state.files.find((file) => file.path === named) ?? null;
-          if (entry !== null) {
-            workspace.putFile({ ...entry, text: loaded.source });
-            setRevision((value) => value + 1);
-          } else if (workspace.state.files.length === 0 && hasShareLink()) {
-            // Nothing is open: the link's one document becomes a one-file project.
-            projectIo.openSample("shared", sampleProjectFiles("ui/Shared.tsx", loaded.source, "Shared"));
-          }
-        }
-        // A share link carries one source document (the link envelope is frozen at `v,s,w,h,d,t,f`), so
-        // it replaces the entry's text above; sharing a whole project waits for cloud storage.
-        state_.setControls({
-          viewport: `${loaded.width || 320}x${loaded.height || 240}`,
-          dpr: String(loaded.dpr ?? 1),
-          theme: String(loaded.theme ?? "system"),
-          foldPosture: String(loaded.foldPosture ?? ""),
-          skin: String(loaded.skin ?? ""),
-          profile: String(loaded.profile ?? ""),
-        });
-      } catch (error) {
-        // The seeded project is what the page shows when the link is broken (#431).
-        state_.setControls({
-          viewport: "320x240",
-          dpr: "1",
-          theme: "system",
-          foldPosture: "",
-          skin: "",
-          profile: "",
-        });
-        state_.setLinkNote(linkProblemMessage(error));
-      } finally {
-        setToolbarSettled(true);
-      }
-    })();
-    // Runs once: this is the page's initial state, not a reaction to a render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  useStartup({ state_, setToolbarSettled });
 
-  // ---- the build id (D-S5: the deployed URL serves the current build) -------------------------------
-  useEffect(() => {
-    void fetch("./build-id.txt")
-      .then((response) => (response.ok ? response.text() : Promise.reject(new Error("absent"))))
-      .then((text) => state_.setBuildId("build: " + (text.trim() || "unknown")))
-      .catch(() => {
-        state_.setBuildId("build: local (no build-id.txt)");
-        state_.setBuildIdTitle("The publish job writes build-id.txt; a local checkout has none.");
-      });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // ---- the live edit (issue #444) -------------------------------------------------------------------
   //
@@ -322,9 +228,6 @@ export function App() {
   skinsRef.current = skins.skins;
   const keepStateRef = useRef(keepState);
   keepStateRef.current = keepState;
-  // Set by a device switch that must restart the app; consumed by the toolbar effect once every session has
-  // heard the new environment, which is section 3's order (`viewport.set`, then the restart).
-  const pendingRestart = useRef(false);
 
   const platform = usePlatform({
     deliver: (request: PlatformEventRequest): PlatformReply =>
@@ -426,6 +329,8 @@ export function App() {
     [workspace.state.files],
   );
 
+  const problems = useProblems({ store: problemsStore, workbench, workspace, refs, onSelectTab });
+
   const onEdit = useCallback(
     (text: string) => {
       // A locked file opens read-only, so this is not reached for one; the guard keeps it so.
@@ -445,138 +350,19 @@ export function App() {
     [workspace.state.active],
   );
 
-  // ---- the toolbar ---------------------------------------------------------------------------------
-  // Picking a device (issue #447, section 3): `viewport.set` (size, DPR, skin, fold), then a restart unless the
-  // person asked to keep state and the `os` is unchanged. The custom size is the pre-profile page.
-  const switchDevice = useCallback((id: string) => {
-    const current = controlsRef.current;
-    const previous = profilesRef.current.selected;
-    let result: { controls: ControlValues; restart: boolean };
-    if (id === "") {
-      const [width, height] = current.viewport.split("x").map(Number);
-      const ad = customProfile({ width, height }, Number(current.dpr), previous);
-      const plain =
-        VIEWPORTS.some(([w, h]) => w === width && h === height) && DPRS.includes(Number(current.dpr));
-      result = {
-        controls: { ...current, profile: plain ? "" : "custom", skin: "", foldPosture: "" },
-        restart: !(keepStateRef.current && mayKeepState(previous, ad)),
-      };
-    } else {
-      const next = profilesRef.current.profiles.find((candidate) => candidate.id === id);
-      if (next === undefined) {
-        return;
-      }
-      result = deviceSwitch(previous, next, current, skinsRef.current, keepStateRef.current);
-    }
-    pendingRestart.current = result.restart;
-    rememberLocally(result.controls);
-    state_.setControls(result.controls);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const { onCustomSize, onControlChange } = useToolbarControls({
+    state_,
+    controls: state.controls,
+    controlsRef,
+    profilesRef,
+    skinsRef,
+    keepStateRef,
+    sessions,
+    restart: restartActiveView,
+  });
 
-  // A size typed into the custom entry makes the ad hoc profile and resizes in place: no restart, the same
-  // as moving the preset list always did.
-  const onCustomSize = useCallback((width: number, height: number) => {
-    state_.setControls((previous) => {
-      const preset = VIEWPORTS.some(([w, h]) => w === width && h === height);
-      const next = {
-        ...previous,
-        viewport: `${width}x${height}`,
-        profile: preset && DPRS.includes(Number(previous.dpr)) ? "" : "custom",
-      };
-      rememberLocally(next);
-      return next;
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
-  const onControlChange = useCallback(
-    (name: keyof ControlValues, value: string) => {
-      if (name === "profile") {
-        switchDevice(value);
-        return;
-      }
-      state_.setControls((previous) => {
-        const next = { ...previous, [name]: value };
-        rememberLocally(next);
-        return next;
-      });
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [switchDevice],
-  );
-
-  // Every mounted view hears about a toolbar move, not only the visible one: a Scene pane that is hidden
-  // when the toolbar changes would otherwise show bounds from a viewport the toolbar no longer names the
-  // moment it is opened. The first run is skipped -- it is the fragment decode, not a visitor's change.
-  const firstControls = useRef(true);
-  useEffect(() => {
-    if (firstControls.current) {
-      firstControls.current = false;
-      return;
-    }
-    for (const session of Object.values(sessions)) {
-      session?.onEnvironmentChange?.();
-    }
-    // A device switch that must restart does so now that the new size is in force (section 3's order).
-    if (pendingRestart.current) {
-      pendingRestart.current = false;
-      restartActiveView();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.controls]);
-
-  const onSample = useCallback(
-    (sample: LoadedSample) => {
-      // A gallery sample becomes a project file at its own path, opened and selected: the tree shows where
-      // it came from, and Run compiles it under the name the sample was shared under.
-      let file: ProjectFile | null = null;
-      try {
-        file = projectFile(sample.path, sample.text);
-      } catch {
-        // A manifest path that is not a project path is refused by `project-paths.js`; the page keeps the
-        // seed project rather than inventing a path.
-        file = null;
-      }
-      if (file !== null && workspace.state.files.length === 0) {
-        // Nothing is open (the studio no longer boots on a demo project): the sample becomes a project.
-        projectIo.openSample(sample.component, sampleProjectFiles(file.path, sample.text, sample.component));
-      } else if (file !== null) {
-        workspace.putFile(file);
-        setRevision((value) => value + 1);
-      }
-      state_.setGalleryOpen(false);
-      for (const session of Object.values(sessions)) {
-        session?.onSample?.(sample.path);
-      }
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [workspace.state.files],
-  );
-
-  const onShare = useCallback(async () => {
-    state_.setShareStatus("encoding...");
-    const shareState: ShareState = shareStateOf(
-      entryPath === null ? "" : textOfRef.current(entryPath),
-      state.controls,
-      entryPath === null ? DEFAULT_FILE : entryPath,
-    );
-    try {
-      const url = await shareToLocation(shareState);
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(url);
-        state_.setShareStatus("link copied");
-      } else {
-        // No clipboard permission (or no secure context). The address bar already carries the link, and
-        // saying so is better than a button that silently does nothing.
-        state_.setShareStatus("link is in the address bar");
-      }
-    } catch (error) {
-      state_.setShareStatus("");
-      state_.setLinkNote(linkProblemMessage(error));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.controls]);
+  const { onSample } = useSample({ workspace, projectIo, setRevision, sessions });
 
   // The sandbox worker starts only while a panel that shows its output is visible *and* the project has a mock
   // file (spec section 2.4), so a project without mocks, or a collapsed panel area, pays nothing.
@@ -615,28 +401,21 @@ export function App() {
     profileId: state.controls.profile,
     components: componentList,
     runEnabled: state.runEnabled,
-    toggleGallery: () => state_.setGalleryOpen((open) => !open),
+    pickSample: onSample,
     restart: restartActiveView,
     applyNow: onEditorApplyNow,
-    share: onShare,
     setControl: onControlChange,
     setCustomSize: onCustomSize,
     pickComponent: onPickComponent,
     files: workspace.state.files,
     openFile: onSelectTab,
     buildId: state.buildId,
-    shareStatus: state.shareStatus,
     refs,
   });
 
   return (
     <>
       <WorkbenchChrome workbench={commandHost} zen={workbench.layout.shell.zen} />
-      <GalleryRegion open={state.galleryOpen} onPick={onSample} />
-
-      <p className="link-note" id="link-note" role="alert" hidden={state.linkNote === null}>
-        {state.linkNote}
-      </p>
 
       {/* The workspace is the dock (W5): panels the viewer arranges, not three fixed columns. */}
       <main
@@ -664,6 +443,7 @@ export function App() {
           revision={revision}
           runEnabled={state.runEnabled}
           applying={state.applying}
+          problems={problems}
           onSelectTab={onSelectTab}
           onEdit={onEdit}
           onRestart={restartActiveView}
@@ -689,18 +469,21 @@ export function App() {
           mocks={mocks}
           files={workspace.state.files}
           onReloadPanel={onReloadPanel}
+          welcome={
+            workspace.state.files.length === 0 ? (
+              <WelcomeView onPick={onSample} run={(id) => void commandHost.run(id)} />
+            ) : null
+          }
         />
       </main>
 
       <StatusLine
-        buildId={state.buildId}
-        buildIdTitle={state.buildIdTitle}
-        buildIdRef={refs.buildId}
-        diagnosticsRef={refs.statusDiagnostics}
-        frameRef={refs.statusFrame}
-        file={entryPath ?? ""}
-        onToggleDiagnostics={() => void commandHost.run("view.togglePanelArea")}
-        diagnosticsOpen={workbench.visible.has("diagnostics")}
+        workbench={commandHost}
+        problems={problems.store}
+        caretRef={refs.statusCaret}
+        activePath={workspace.state.active}
+        entryPath={entryPath ?? ""}
+        problemsOpen={workbench.visible.has("problems")}
         hidden={!workbench.layout.shell.statusBar || workbench.layout.shell.zen}
       />
     </>

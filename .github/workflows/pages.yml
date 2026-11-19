@@ -44,7 +44,7 @@ on:
       - 'src/compiler/**'
       - 'scripts/ci/wasm_diagnostics_parity.py'
       - 'scripts/ci/preview_budget_probe.mjs'
-      - 'scripts/ci/preview_share_roundtrip.mjs'
+      - 'scripts/ci/preview_problems.mjs'
       - 'scripts/ci/preview_studio_smoke.mjs'
       - 'scripts/ci/preview_page_checks.mjs'
       - 'scripts/ci/preview_skins.mjs'
@@ -78,7 +78,7 @@ on:
       - 'src/compiler/**'
       - 'scripts/ci/wasm_diagnostics_parity.py'
       - 'scripts/ci/preview_budget_probe.mjs'
-      - 'scripts/ci/preview_share_roundtrip.mjs'
+      - 'scripts/ci/preview_problems.mjs'
       - 'scripts/ci/preview_studio_smoke.mjs'
       - 'scripts/ci/preview_page_checks.mjs'
       - 'scripts/ci/preview_skins.mjs'
@@ -239,16 +239,16 @@ jobs:
           --wasm build/wasm-webgpu/src/compiler/codegen/tessera_scene_preview.js
           --node "$EMSDK_NODE"
 
-      # P5 (issue #169): the share-link round trip, the page chrome, and the page's built wiring. All
-      # three need Node but not Wasm: the codec is a pure ES module, and the chrome is rendered from the
-      # front end's `dist-ssr/` bundle (ADR-054 decision 6 -- React creates the DOM at runtime, so "every
-      # id exists" is asserted against `renderToStaticMarkup` rather than against a static file). They run
-      # BEFORE the site is assembled, so a broken link format cannot be published.
+      # P5 (issue #169): the Problems model, the page chrome, and the page's built wiring. All of them need
+      # Node but not Wasm: the model is a pure module of the front end's `dist-ssr/` bundle, and the chrome is
+      # rendered from the same bundle (ADR-054 decision 6 -- React creates the DOM at runtime, so "every id
+      # exists" is asserted against `renderToStaticMarkup` rather than against a static file). They run
+      # BEFORE the site is assembled.
       #
       # What they do NOT prove: that a browser paints the page. That is this lane's deploy and a human
       # opening the URL (or the developer-run `preview_browser_check.mjs`). The scripts say so themselves.
-      - name: Share-link round trip (codec, no browser)
-        run: node scripts/ci/preview_share_roundtrip.mjs
+      - name: Problems model (severity counts, filter, store, no browser)
+        run: node scripts/ci/preview_problems.mjs
 
       # The project load and save, against an in-memory folder handle: a folder and its zip are the same
       # project, every limit refuses before a byte is read, a locked file is never read, and Save notices a
@@ -286,6 +286,9 @@ jobs:
 
       - name: Studio command palette (fuzzy ranking, recent list, argument prompts)
         run: node scripts/ci/preview_workbench_palette.mjs
+
+      - name: Studio accent tokens (WCAG AA contrast, light/dark parity)
+        run: node scripts/ci/studio_accent_contrast.mjs
 
       - name: Studio notifications (queue, dedupe, history, do not disturb)
         run: node scripts/ci/preview_workbench_notifications.mjs
@@ -366,7 +369,7 @@ jobs:
       # Issue #422 converted the page to React 19 + Vite (ADR-054), so there is no longer a hand-written
       # page to copy: `designer/web/dist/` is what a browser downloads, and it carries content-hashed
       # asset names (`assets/index-<hash>.js`). `dist/` already includes the files Vite copies from
-      # `designer/web/public/` (the two redirect stubs, `redirect.js`, `samples.json`), which is why the
+      # `designer/web/public/` (`samples.json`), which is why the
       # copies below are only the Wasm modules, the samples and the build id.
       #
       # The old fixed `test -f` list cannot survive content hashes, so the integrity check is derived from
@@ -430,10 +433,9 @@ jobs:
           print(f"{len(local)} asset reference(s) from index.html all present")
           PY
 
-          # The public files and the stubs, which are not referenced by index.html and so are not covered
-          # by the scan above. `scene.html`/`canvas.html` are somebody's old share link
-          # (`docs/specs/designer-studio-v1.md` section 7.1); `redirect.js` is what forwards them.
-          for asset in scene.html canvas.html redirect.js samples.json; do
+          # The public files, which are not referenced by index.html and so are not covered by the scan
+          # above. (The pre-merge scene.html/canvas.html redirect stubs were removed; old links no longer resolve.)
+          for asset in samples.json; do
             test -f "$site/$asset" || { echo "missing from the site: $asset"; exit 1; }
           done
           # The manifest names repository paths; every one of them must exist in the artifact or the

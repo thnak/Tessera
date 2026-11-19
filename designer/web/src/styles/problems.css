@@ -1,0 +1,76 @@
+/* SPDX-License-Identifier: MIT
+ *
+ * The Problems panel (owner decision, studio focus pass) and the status bar's split counts. Colours are the
+ * existing tokens: `--error`, `--warning` and `--accent-fg` for the three severities on the pane, plain
+ * `--status-fg` for the status bar item, whose two counts are told apart by their icons.
+ */
+
+.problems {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--pane-bg);
+  font-size: 12.5px;
+}
+.problems[hidden] { display: none; }
+.problems:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+
+.problems-filters {
+  display: flex;
+  flex: none;
+  gap: 6px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.problems-chip {
+  padding: 1px 9px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 12px;
+}
+.problems-chip[aria-pressed="true"] { border-color: currentColor; color: var(--text); background: var(--bg); }
+.problems-chip.problems-error[aria-pressed="true"] .problems-count { color: var(--error); }
+.problems-chip.problems-warning[aria-pressed="true"] .problems-count { color: var(--warning); }
+.problems-chip.problems-info[aria-pressed="true"] .problems-count { color: var(--accent-fg); }
+.problems-chip:focus-visible,
+.problems-row:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.problems-count { font-weight: 600; }
+
+.problems-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.problems-row {
+  display: grid;
+  grid-template-columns: 18px minmax(70px, max-content) minmax(0, 1fr) max-content;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  padding: 3px 12px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+}
+.problems-row:hover { background: var(--bg); }
+.problems-row.problems-error .problems-icon { color: var(--error); }
+.problems-row.problems-warning .problems-icon { color: var(--warning); }
+.problems-row.problems-info .problems-icon { color: var(--accent-fg); }
+.problems-code { font-family: var(--mono); font-size: 12px; color: var(--text-dim); }
+.problems-message { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.problems-where { font-family: var(--mono); font-size: 12px; color: var(--text-dim); }
+.problems-empty { margin: 0; padding: 12px 14px; color: var(--text-dim); }
+
+.status-problem { display: inline-flex; align-items: center; gap: 3px; }

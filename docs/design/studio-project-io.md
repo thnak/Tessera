@@ -36,8 +36,8 @@ what lets the round-trip test compare bytes rather than "equivalent archives".
 
 **`readZip(bytes) -> Promise<[{ path, bytes }]>`.** STORE **and** DEFLATE. A zip a person actually has
 came from Finder, Explorer or `zip -r` and is deflated, so a STORE-only reader would refuse almost every
-real file. The inflater is the platform's `DecompressionStream('deflate-raw')` (the same primitive
-`share.js` uses for the share link), so there is still no dependency. Every entry's CRC-32 is verified.
+real file. The inflater is the platform's `DecompressionStream('deflate-raw')` (a platform
+primitive), so there is still no dependency. Every entry's CRC-32 is verified.
 
 **`crc32(bytes) -> number`** is exported because writing a zero there produces a file that opens in
 some readers and fails in others.

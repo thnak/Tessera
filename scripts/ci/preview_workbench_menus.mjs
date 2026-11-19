@@ -74,15 +74,17 @@ await test('menus.json: every control of the spec mapping (section 4.1) has a ho
   });
   for (const command of [
     'file.openFolder', 'file.openZip', 'file.openRecent', 'file.samples', 'file.newFile', 'file.renameFile', 'file.deleteFile',
-    'file.save', 'file.download', 'file.share', 'run.restart', 'run.togglePicker', 'run.toggleInspector', 'run.inputScript',
+    'file.save', 'file.download', 'run.restart', 'run.togglePicker', 'run.toggleInspector', 'run.inputScript',
     'run.component', 'device.profile', 'device.setSkin', 'device.setViewport', 'device.setCustomSize', 'device.setDpr',
     'device.setFold', 'device.toggleKeepState', 'view.setTheme', 'view.palette',
   ]) {
     assert.ok(homes.has(command), `${command} is in no menu`);
   }
   const toolbar = MENUS.toolbar.map((entry) => entry.command ?? entry.widget);
-  assert.deepEqual(toolbar, ['run.restart', 'file.save', 'file.share', 'deviceChip', 'view.cycleTheme', 'paletteButton', 'bell']);
+  assert.deepEqual(toolbar, ['run.restart', 'file.save', 'deviceChip', 'paletteButton']);
   assert.equal(MENUS.toolbar[0].emphasis, 'primary', 'Restart is the one primary action');
+  // The status bar is data too (owner feedback on #586): Problems, caret, language, bell, in this order.
+  assert.deepEqual(MENUS.statusBar.map((entry) => entry.widget), ['problems', 'caret', 'language', 'bell']);
 });
 
 await test('build: six live menus, Go is hidden until a go.* command is live', () => {
@@ -100,16 +102,17 @@ await test('build: reserved items are hidden; separators fall between groups onl
   const { registry } = bootRegistry();
   const bar = buildMenuBar(MENUS, { registry, providers });
   const file = bar.find((menu) => menu.id === 'file');
-  assert.deepEqual(labelsOf(file.items), ['Open Folder...', 'Open Zip...', 'Open Recent', 'Open Sample...', 'New File', 'Save', 'Download Project (.zip)', 'Rename File...', 'Delete File', 'Copy Share Link']);
+  assert.deepEqual(labelsOf(file.items), ['Open Folder...', 'Open Zip...', 'Open Recent', 'Open Sample...', 'New File', 'Save', 'Download Project (.zip)', 'Rename File...', 'Delete File']);
   for (const menu of bar) {
     const kinds = menu.items.map((item) => item.kind);
     assert.notEqual(kinds[0], 'separator', menu.id);
     assert.notEqual(kinds.at(-1), 'separator', menu.id);
     kinds.forEach((kind, index) => assert.ok(!(kind === 'separator' && kinds[index + 1] === 'separator'), `${menu.id} doubled separator`));
   }
-  assert.deepEqual(file.items.map((item) => item.kind), ['item', 'item', 'submenu', 'item', 'separator', 'item', 'item', 'item', 'separator', 'item', 'item', 'separator', 'item']);
+  assert.deepEqual(file.items.map((item) => item.kind), ['item', 'item', 'submenu', 'item', 'separator', 'item', 'item', 'item', 'separator', 'item', 'item']);
   const view = bar.find((menu) => menu.id === 'view');
-  assert.ok(!labelsOf(view.items).includes('Problems'));
+  assert.ok(labelsOf(view.items).includes('Problems'), 'Problems is live now (the panel exists)');
+  assert.ok(!labelsOf(view.items).includes('Source Control'), 'a reserved panel stays hidden');
   assert.ok(!labelsOf(bar.find((menu) => menu.id === 'edit').items).includes('Format Document'));
 });
 
@@ -163,7 +166,7 @@ await test('build: group order is first appearance, items sort by order within a
 await test('toolbar: only live commands, emphasis and widgets carried through', () => {
   const { registry } = bootRegistry();
   const toolbar = buildToolbar(MENUS, { registry });
-  assert.deepEqual(toolbar.map((entry) => entry.command ?? entry.widget), ['run.restart', 'file.save', 'file.share', 'deviceChip', 'view.cycleTheme', 'paletteButton', 'bell']);
+  assert.deepEqual(toolbar.map((entry) => entry.command ?? entry.widget), ['run.restart', 'file.save', 'deviceChip', 'paletteButton']);
   assert.equal(toolbar[0].emphasis, 'primary');
   assert.equal(toolbar[0].chord, 'Ctrl+Shift+F5');
   assert.equal(toolbar[1].label, 'Save');
@@ -193,7 +196,7 @@ await test('nav: Down/Enter/Space open the first item, Up the last; Esc closes t
   assert.equal(press(menus, CLOSED, 'Enter').nav.open, true);
   assert.equal(press(menus, CLOSED, ' ').nav.open, true);
   const up = press(menus, CLOSED, 'ArrowUp');
-  assert.equal(menus[0].items[up.nav.stack[0]].label, 'Copy Share Link');
+  assert.equal(menus[0].items[up.nav.stack[0]].label, 'Delete File');
   const closed = press(menus, down.nav, 'Escape');
   assert.equal(closed.nav.open, false);
   assert.equal(closed.effect.type, 'close-bar');
@@ -204,11 +207,11 @@ await test('nav: Up/Down skip separators and wrap; Home/End; type-ahead', () => 
   const menus = sampleMenus();
   let nav = press(menus, CLOSED, 'ArrowDown').nav;
   nav = press(menus, nav, 'End').nav;
-  assert.equal(focusedItem(menus, nav).label, 'Copy Share Link');
+  assert.equal(focusedItem(menus, nav).label, 'Delete File');
   nav = press(menus, nav, 'ArrowDown').nav;
   assert.equal(focusedItem(menus, nav).label, 'Open Folder...', 'wraps to the first');
   nav = press(menus, nav, 'ArrowUp').nav;
-  assert.equal(focusedItem(menus, nav).label, 'Copy Share Link');
+  assert.equal(focusedItem(menus, nav).label, 'Delete File');
   nav = press(menus, nav, 'n').nav;
   assert.equal(focusedItem(menus, nav).label, 'New File');
   nav = press(menus, nav, 'd').nav;
@@ -253,7 +256,7 @@ await test('nav: a disabled item is focusable and inert; Alt+letter opens by mne
   assert.equal(nav.open, true);
   assert.equal(nav.bar, 0);
   nav = press(menus, nav, 'End').nav;
-  for (let i = 0; i < 4; i += 1) {
+  for (let i = 0; i < 3; i += 1) {
     nav = press(menus, nav, 'ArrowUp').nav;
   }
   const focused = focusedItem(menus, nav);

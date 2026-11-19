@@ -121,8 +121,8 @@ MODULE_FILES = tuple(
 # `.github/workflows/pages.yml` and are measured from the module directory, all three of them since issue
 # #395 (see `MODULES`).
 #
-# `scene.html`, `canvas.html`, `redirect.js` and `samples.json` are Vite's `public/` directory, copied
-# verbatim into `dist/`; they are measured because they ship.
+# `samples.json` is Vite's `public/` directory, copied
+# verbatim into `dist/`; it is measured because it ships.
 #
 # **The lazy mock transpiler is weighed on its own row** (issue #434, ADR-055 decision 5). The studio loads
 # the mock host and esbuild-wasm only when a project has a `*.mock.ts` file, and `designer/web/vite.config.ts`

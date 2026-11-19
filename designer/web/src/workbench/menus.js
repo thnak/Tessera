@@ -37,6 +37,9 @@ export function walkMenus(doc, visit) {
   for (const item of doc.toolbar ?? []) {
     visit(item, "toolbar");
   }
+  for (const item of doc.statusBar ?? []) {
+    visit(item, "statusBar");
+  }
 }
 
 /**
@@ -174,13 +177,16 @@ export function buildContextMenu(doc, name, deps, target) {
   return buildItems(doc.contexts?.[name] ?? [], { ...deps, target, keymap: deps.keymap ?? deps.registry.keymap(), keyPrefix: `ctx.${name}` });
 }
 
-/** The toolbar's quick actions as built entries (only live commands; emphasis carried through). */
-export function buildToolbar(doc, deps) {
+/**
+ * The toolbar's quick actions as built entries (only live commands; emphasis carried through). `section` is
+ * `"statusBar"` for the status bar's items, which use the same shape: a command, or a widget the page draws.
+ */
+export function buildToolbar(doc, deps, section = "toolbar") {
   const keymap = deps.keymap ?? deps.registry.keymap();
   const out = [];
-  for (const entry of doc.toolbar ?? []) {
+  for (const entry of doc[section] ?? []) {
     if (entry.widget !== undefined) {
-      out.push({ key: `toolbar/${entry.widget}`, widget: entry.widget });
+      out.push({ key: `${section}/${entry.widget}`, widget: entry.widget });
       continue;
     }
     const state = deps.registry.describe(entry.command, entry.args);
@@ -188,7 +194,7 @@ export function buildToolbar(doc, deps) {
       continue;
     }
     out.push({
-      key: `toolbar/${entry.command}`,
+      key: `${section}/${entry.command}`,
       command: entry.command,
       args: entry.args,
       label: entry.title ?? state.record.titleShort ?? state.record.title,

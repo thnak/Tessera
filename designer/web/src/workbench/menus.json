@@ -14,8 +14,7 @@
         { "command": "file.download", "group": "save@3" },
         { "command": "file.renameFile", "group": "file@1" },
         { "command": "file.deleteFile", "group": "file@2" },
-        { "command": "file.share", "group": "share@1" },
-        { "command": "file.closeProject", "group": "share@2" }
+        { "command": "file.closeProject", "group": "close@1" }
       ]
     },
     {
@@ -172,10 +171,13 @@
   "toolbar": [
     { "command": "run.restart", "emphasis": "primary", "title": "Restart" },
     { "command": "file.save", "icon": "save", "title": "Save" },
-    { "command": "file.share", "icon": "share", "title": "Share" },
     { "widget": "deviceChip" },
-    { "command": "view.cycleTheme", "icon": "theme", "title": "Theme" },
-    { "widget": "paletteButton" },
+    { "widget": "paletteButton" }
+  ],
+  "statusBar": [
+    { "widget": "problems" },
+    { "widget": "caret" },
+    { "widget": "language" },
     { "widget": "bell" }
   ]
 }

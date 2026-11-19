@@ -149,23 +149,23 @@ const centre = (b) => ({ x: b.x + b.w / 2, y: b.y + b.h / 2 });
     Boolean(project && editor && canvas) && project.x < editor.x && editor.x < canvas.x && Math.abs(project.y - canvas.y) < 4,
     JSON.stringify({ project, editor, canvas }));
   check('default: Scene is a background tab (no box of its own)', (await box(page, '[data-panel=scene]'))?.w === 0 || (await box(page, '[data-panel=scene]')) === null);
-  check('default: the panel area is collapsed: no Diagnostics box exists', (await box(page, '[data-panel=diagnostics]')) === null);
-  check('default: the status bar shows the Diagnostics item as a toggle', (await page.locator('#status-diagnostics-toggle').count()) === 1 &&
+  check('default: the panel area is collapsed: no Problems or Diagnostics box exists', (await box(page, '[data-panel=problems]')) === null && (await box(page, '[data-panel=diagnostics]')) === null);
+  check('default: the status bar shows the Problems item with split counts', (await page.locator('#status-diagnostics-toggle').count()) === 1 &&
     (await page.locator('#status-diagnostics-toggle').getAttribute('aria-pressed')) === 'false');
   await snap(page, 'default-1440');
 
   await page.click('#status-diagnostics-toggle');
   await page.waitForTimeout(400);
-  const bottom = await box(page, '[data-panel=diagnostics]');
-  check('the toggle opens the panel area: Diagnostics spans the width under the editor and canvas',
+  const bottom = await box(page, '[data-panel=problems]');
+  check('the Problems item opens the panel area: Problems spans the width under the editor and canvas',
     Boolean(bottom) && bottom.y > editor.y + 100 && bottom.w > 800, JSON.stringify(bottom));
   check('opening the panel area did not touch the Canvas element', (await sameCanvas(page)) && (await removals(page)) === 0);
   await page.keyboard.press('Control+j');
   await page.waitForTimeout(300);
-  check('Ctrl+J collapses it again (no Diagnostics box)', (await box(page, '[data-panel=diagnostics]')) === null);
+  check('Ctrl+J collapses it again (no Problems box)', (await box(page, '[data-panel=problems]')) === null);
   await page.keyboard.press('Control+j');
   await page.waitForTimeout(300);
-  check('Ctrl+J opens it again', (await box(page, '[data-panel=diagnostics]')) !== null);
+  check('Ctrl+J opens it again', (await box(page, '[data-panel=problems]')) !== null);
   await page.keyboard.press('Control+j');
   await page.waitForTimeout(300);
 
@@ -296,7 +296,7 @@ const centre = (b) => ({ x: b.x + b.w / 2, y: b.y + b.h / 2 });
   const newer = JSON.stringify({ format: 'tessera.studio.layout', version: 99, root: { type: 'group', id: 'g-x', panels: ['editor'], active: 'editor' }, maximized: null, closed: [], shell: {}, collapsed: [] });
   const { page, errors, context } = await open(1440, 900, { storage: { 'tessera.studio.layout': newer } });
   const backup = await page.evaluate(() => localStorage.getItem('tessera.studio.layout.backup'));
-  check('a layout from a newer studio: default used, backup kept, no error', errors.length === 0 && backup === newer && (await model(page)).version === 1, errors.join(' | '));
+  check('a layout from a newer studio: default used, backup kept, no error', errors.length === 0 && backup === newer && (await model(page)).version === 2, errors.join(' | '));
   await context.close();
 }
 {

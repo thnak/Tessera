@@ -17,7 +17,7 @@
 // out of one hand-written module and into components plus DOM-free library modules:
 //
 //   1. **The library layer, imported from source.** `designer/web/src/lib/preferences.ts` (the toolbar's
-//      persistence, the fragment decode and the share link) and `designer/web/src/lib/gallery.ts` (the lazy
+//      persistence) and `designer/web/src/lib/gallery.ts` (the lazy
 //      manifest and the sample fetch) have no DOM beyond `localStorage`/`location`/`navigator`, both of which
 //      this file stubs. They are compiled to `dist-ssr/` by the same build that renders the chrome, so this
 //      runs the shipped code and not a copy.
@@ -29,9 +29,7 @@
 //   * the app mounts at all -- the build produced a `dist/` and a `dist-ssr/`, or this says so;
 //   * the toolbar's three selects carry the documented option sets, in the rendered markup;
 //   * the controls persist to `localStorage` under one key, and the source never does;
-//   * the initial state comes from a fragment first, then storage, then the page's default;
-//   * a share link's fragment is produced, put in the address bar, and decoded back to the same state;
-//   * a broken fragment shows the link banner with its code, instead of silently loading the default;
+//   * the initial state comes from storage, then the page's default (a leftover share fragment is ignored);
 //   * the gallery fetches nothing until it is opened, then the manifest once, then the chosen sample.
 
 import assert from "node:assert/strict";
@@ -118,12 +116,6 @@ function installBrowser({ hash = "", clipboard = true } = {}) {
 const chrome = await import(pathToFileURL(resolve(DIST_SSR, "ssr-chrome.js")).href);
 const preferences = await import(pathToFileURL(resolve(DIST_SSR, "preferences.js")).href);
 const gallery = await import(pathToFileURL(resolve(DIST_SSR, "gallery.js")).href);
-// The codec itself, imported from **source** rather than from the bundle -- the same files the page imports
-// and the share round-trip test checks (ADR-054's risk note). A smoke test that decoded through a bundled
-// copy would not be testing what ships.
-const codec = await import(
-  new URL("../../designer/web/src/lib/share.js", import.meta.url).href
-);
 
 const MARKUP = chrome.renderChrome();
 
@@ -131,7 +123,7 @@ const MARKUP = chrome.renderChrome();
 
 await test("the built chrome renders the page's four regions", async () => {
   assert.ok(MARKUP.length > 1000, "the chrome rendered something");
-  for (const id of ["menubar-file", "device-chip", "restart-app", "editor-host", "gallery", "link-note", "build-id"]) {
+  for (const id of ["menubar-file", "device-chip", "restart-app", "editor-host"]) {
     assert.ok(MARKUP.includes(`id="${id}"`), `the chrome carries #${id}`);
   }
   // Issue #431: the two-pane split became a three-column workspace -- the project tree, the tabbed code
@@ -242,46 +234,12 @@ await test("a stored toolbar position is restored without the source", async () 
   assert.equal(state.source, "S", "the source comes from the page, never from a previous session");
 });
 
-await test("the share link round-trips through the address bar", async () => {
-  const { historyCalls } = installBrowser();
-  const source = "export function Counter(): Node { return <View />; }\n";
-  const state = preferences.shareStateOf(source, {
-    viewport: "1280x800",
-    dpr: "1",
-    theme: "system",
-    foldPosture: "tabletop",
-    skin: "generic-tablet",
-  });
-  const url = await preferences.shareToLocation(state);
-  assert.match(url, /#p5=/, "a fragment link was produced");
-  assert.ok(historyCalls.includes(url), "the address bar was rewritten");
-  const back = await codec.decodeShare(url);
-  assert.equal(back.source, source, "the source round-trips");
-  assert.equal(back.width, 1280);
-  assert.equal(back.height, 800);
-  assert.equal(back.dpr, 1);
-  assert.equal(back.theme, "system");
-  // A preview of a foldable screen is not the same preview without its posture, so the link carries
-  // it (issue #408) and this is where a page that forgot to pass it fails.
-  assert.equal(back.foldPosture, "tabletop", "the fold posture round-trips through the link");
-  // The same for the skin (issue #171's skins slice): a link that lost it would open on a device
-  // whose insets are not the ones the sender saw.
-  assert.equal(back.skin, "generic-tablet", "the skin round-trips through the link");
-});
-
-await test("opening a share link restores its source, viewport and theme", async () => {
-  const shared = {
-    source: "export function X(): Node { return <Text>hi</Text>; }\n",
-    file: "ui/Preview.tsx",
-    width: 768,
-    height: 1024,
-    dpr: 3,
-    theme: "dark",
-  };
-  const payload = await codec.encodeShare(shared);
-  installBrowser({ hash: `#p5=${payload}` });
+await test("a share link in the address bar is ignored: the studio reads no URL state", async () => {
+  // The Share feature was removed (no cloud storage to share to): a leftover `#p5=` fragment is neither decoded
+  // nor reported, and `preferences` no longer exports anything that writes a link.
+  installBrowser({ hash: "#p5=uAAAA" });
   const state = await preferences.initialState({
-    source: "ignored",
+    source: "S",
     file: "ui/Preview.tsx",
     width: 320,
     height: 240,
@@ -289,33 +247,11 @@ await test("opening a share link restores its source, viewport and theme", async
     theme: "system",
     viewport: "320x240",
   });
-  assert.equal(state.from, "link");
-  assert.equal(state.source, shared.source);
-  assert.equal(state.width, 768);
-  assert.equal(state.height, 1024);
-  assert.equal(state.dpr, 3);
-  assert.equal(state.theme, "dark");
-});
-
-await test("a broken share link is reported with its code, and the default source survives", async () => {
-  installBrowser({ hash: "#p5=zAAAA" });
-  let message = null;
-  try {
-    await preferences.initialState({
-      source: "S",
-      file: "ui/Preview.tsx",
-      width: 320,
-      height: 240,
-      dpr: 1,
-      theme: "system",
-      viewport: "320x240",
-    });
-    assert.fail("a malformed link must throw so the page can show the banner");
-  } catch (error) {
-    message = preferences.linkProblemMessage(error);
+  assert.equal(state.from, "default");
+  assert.equal(state.source, "S");
+  for (const name of ["shareStateOf", "shareToLocation", "linkProblemMessage", "ShareError"]) {
+    assert.equal(preferences[name], undefined, `${name} is gone`);
   }
-  assert.match(message, /could not be opened/);
-  assert.match(message, /malformed/, "the ShareError code is shown");
 });
 
 await test("the gallery fetches nothing until it is asked to, then the manifest once", async () => {

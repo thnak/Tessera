@@ -5,24 +5,22 @@
 //   node scripts/ci/preview_profiles.mjs
 //
 // Like `preview_skins.mjs` this is a Node check, because the acceptance is about data and rules: a manifest
-// validates or it does not, a device switch restarts or it does not, and a link decodes to the state it
-// always did. The validator, the loader and the switch rule are imported from `dist-ssr/` (the code the page
-// ships); the share codec is a pure ES module and is imported from source, exactly as
-// `preview_share_roundtrip.mjs` does. `npm run build` is a prerequisite; a missing build is exit code 2.
+// validates or it does not, and a device switch restarts or it does not. The validator, the loader and the switch rule are imported from `dist-ssr/` (the code the page
+// ships); `preview-state.js` is a pure ES module and is imported from source. `npm run build` is a
+// prerequisite; a missing build is exit code 2.
 //
 // The checks:
 //
-//  1. Every bundled manifest validates, the set is the spec's seven, and the codec's `PROFILE_GEOMETRY`
-//     table agrees with each manifest (size and DPR) -- the table is a copy the codec needs, so a drift
-//     fails here rather than as a link that will not decode.
+//  1. Every bundled manifest validates, the set is the spec's seven, and `preview-state.js`'s
+//     `PROFILE_GEOMETRY` table agrees with each manifest (size and DPR) -- the table is a copy the toolbar
+//     needs, so a drift fails here rather than as a profile that applies the wrong size.
 //  2. Each profile's skin exists, and its size and `os` agree with the skin's.
 //  3. A manifest with a bad field is rejected with the named error `TESSERA_STUDIO_PROFILE` and a reason
 //     that names the field: one case per field.
 //  4. The loader turns a missing and a broken manifest into rejections and keeps the rest.
 //  5. Switching device (section 3): the default restarts; keep-state applies in place only inside one `os`;
 //     a change of `os` always restarts, whatever the setting says.
-//  6. The share link: a pre-existing `#p5=` fragment decodes unchanged (no `n`), a profile name round-trips
-//     and widens only the size and DPR it owns, and an unknown name or a stray size is still refused.
+//  6. The stored toolbar: a profile id survives `localStorage` and a stray value never widens the size.
 
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -72,7 +70,7 @@ const { parseProfile, customProfile, mayKeepState } = await load("device-profile
 const { loadBundledProfiles, BUNDLED_PROFILE_IDS } = await load("device-profile-load.js");
 const { deviceSwitch } = await load("profiles-switch.js");
 const state = await import(pathToFileURL(resolve(WEB, "src", "lib", "preview-state.js")).href);
-const share = await import(pathToFileURL(resolve(WEB, "src", "lib", "share.js")).href);
+const preferences = await load("preferences.js");
 
 const SPEC_SET = [
   "android-phone",
@@ -93,7 +91,7 @@ await check("the bundled set is the spec's seven, on disk and in the vocabulary"
   assert(BUNDLED_PROFILE_IDS.join(",") === SPEC_SET.join(","), `the loader offers ${BUNDLED_PROFILE_IDS.join(", ")}`);
 });
 
-await check("every bundled manifest validates and the codec's geometry table agrees with it", () => {
+await check("every bundled manifest validates and preview-state's geometry table agrees with it", () => {
   for (const id of SPEC_SET) {
     const result = parseProfile(id, manifest(id));
     assert(result.ok, `${id}: ${result.reason}`);
@@ -208,47 +206,51 @@ await check("keep-state applies in place only inside one os; a different os alwa
   assert(customProfile({ width: 500, height: 500 }, 1, android).controls.length === 0, "a custom size offers buttons");
 });
 
-const BASE = { source: "x", file: "ui/Preview.tsx", width: 320, height: 240, dpr: 1, theme: "system", foldPosture: "", skin: "" };
+const FALLBACK = { source: "", file: "ui/Preview.tsx", width: 320, height: 240, dpr: 1, theme: "system", foldPosture: "", skin: "", profile: "" };
 
-await check("a pre-existing link (no profile key) decodes unchanged", async () => {
-  // The envelope a pre-profile page wrote: v, s, w, h, d, t and nothing about a device.
-  const legacy = Buffer.from(JSON.stringify({ v: 1, s: "export const a = 1;", w: 390, h: 844, d: 2, t: "dark" })).toString("base64url");
-  const decoded = await share.decodeShare("u" + legacy);
-  assert(decoded.width === 390 && decoded.height === 844 && decoded.dpr === 2 && decoded.theme === "dark", "the legacy fields changed");
-  assert(decoded.profile === "" && decoded.skin === "" && decoded.foldPosture === "", "a legacy link grew a device");
-  const withSkin = Buffer.from(JSON.stringify({ v: 1, s: "x", w: 320, h: 240, d: 1, t: "system", k: "generic-tablet", p: "book" })).toString("base64url");
-  const skinned = await share.decodeShare("u" + withSkin);
-  assert(skinned.skin === "generic-tablet" && skinned.foldPosture === "book" && skinned.profile === "", "an old skin/fold link changed");
-  const raw = await share.encodeShare({ ...BASE, profile: "" }, { compress: false });
-  const json = JSON.parse(Buffer.from(raw.slice(1), "base64url").toString("utf8"));
-  assert(!("n" in json), "a link with no profile carries an `n` key");
-});
+function stubStorage(stored) {
+  const map = new Map(stored === null ? [] : [["tessera.preview.p5", JSON.stringify(stored)]]);
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: { getItem: (key) => map.get(key) ?? null, setItem: (key, value) => map.set(key, String(value)), removeItem: (key) => map.delete(key) },
+  });
+}
 
-await check("a profile name round-trips and widens only the size and DPR it owns", async () => {
+await check("a stored profile id is read back with the viewport and DPR it owns", async () => {
   for (const id of SPEC_SET) {
     const [width, height, dpr] = state.PROFILE_GEOMETRY[id];
-    const input = { ...BASE, width, height, dpr, profile: id };
-    const decoded = await share.decodeShare(await share.encodeShare(input));
-    assert(decoded.profile === id && decoded.width === width && decoded.height === height && decoded.dpr === dpr, `${id} did not round-trip`);
+    stubStorage({ viewport: `${width}x${height}`, dpr: String(dpr), profile: id });
+    const loaded = preferences.initialState(FALLBACK);
+    assert(loaded.profile === id && loaded.width === width && loaded.height === height && loaded.dpr === dpr, `${id} was not read back`);
   }
-  let refused = 0;
-  for (const bogus of [
-    { ...BASE, width: 333 },
-    { ...BASE, width: 412, height: 915, profile: "ios-phone" },
-    { ...BASE, profile: "pixel-9" },
-    { ...BASE, dpr: 2.625 },
-    { ...BASE, width: 99999, profile: "custom" },
-  ]) {
-    try {
-      state.normalizeState(bogus);
-    } catch (error) {
-      assert(error.code === "invalid", `a bogus state failed with ${error.code}`);
-      refused += 1;
-    }
+  stubStorage({ viewport: "500x777", dpr: "1", profile: "custom" });
+  const custom = preferences.initialState(FALLBACK);
+  assert(custom.profile === "custom" && custom.width === 500 && custom.height === 777, "a custom size was not read back");
+});
+
+await check("older stored toolbars (no profile key) and corrupt ones fall back to the default device", async () => {
+  stubStorage({ viewport: "390x844", dpr: "2", theme: "dark" });
+  const legacy = preferences.initialState(FALLBACK);
+  assert(legacy.width === 390 && legacy.height === 844 && legacy.dpr === 2 && legacy.theme === "dark", "the legacy fields changed");
+  assert(legacy.profile === "" && legacy.skin === "" && legacy.foldPosture === "", "a legacy toolbar grew a device");
+  stubStorage({ viewport: "banana", dpr: "-3", profile: 7 });
+  const broken = preferences.initialState(FALLBACK);
+  assert(broken.width === 320 && broken.dpr === 1 && broken.profile === "", "a corrupt toolbar was trusted");
+  stubStorage(null);
+  assert(preferences.initialState(FALLBACK).from === "default", "an empty store is the default");
+});
+
+await check("the share codec and its validator are gone", async () => {
+  for (const name of ["normalizeState", "ShareError", "DEFAULT_STATE", "MAX_ENVELOPE_BYTES"]) {
+    assert(state[name] === undefined, `preview-state.js still exports ${name}`);
   }
-  assert(refused === 5, `${refused} of 5 bogus states were refused`);
-  const custom = await share.decodeShare(await share.encodeShare({ ...BASE, width: 500, height: 777, profile: "custom" }));
-  assert(custom.profile === "custom" && custom.width === 500 && custom.height === 777, "a custom size did not round-trip");
+  let present = true;
+  try {
+    readFileSync(resolve(WEB, "src", "lib", "share.js"));
+  } catch {
+    present = false;
+  }
+  assert(!present, "src/lib/share.js is back");
 });
 
 process.stdout.write(failures === 0 ? "\nprofile checks: all passed\n" : `\nprofile checks: ${failures} failed\n`);

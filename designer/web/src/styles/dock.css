@@ -42,9 +42,9 @@
 .trace-table th { color: var(--text-dim); font-weight: 600; }
 .trace-args { font-family: var(--mono); color: var(--text-dim); }
 .trace-selected { background: var(--bg); }
-.trace-pick { padding: 0 8px; border: 0; background: transparent; color: var(--accent); font-family: var(--mono); }
+.trace-pick { padding: 0 8px; border: 0; background: transparent; color: var(--accent-fg); font-family: var(--mono); }
 .trace-state-default { color: var(--ok); }
-.trace-state-edited { color: var(--accent); }
+.trace-state-edited { color: var(--accent-fg); }
 .trace-state-unmocked { color: var(--text-dim); }
 .trace-state-error { color: var(--error); }
 

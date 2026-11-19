@@ -1,6 +1,6 @@
 {
   "format": "tessera.studio.layout",
-  "version": 1,
+  "version": 2,
   "root": {
     "type": "split", "dir": "row", "sizes": [0.18, 0.82],
     "children": [
@@ -11,7 +11,7 @@
           { "type": "group", "id": "g-preview", "panels": ["canvas", "scene"], "active": "canvas" }
         ] },
         { "type": "group", "id": "g-bottom",
-          "panels": ["diagnostics", "mock-console", "call-trace", "platform-events"], "active": "diagnostics" }
+          "panels": ["problems", "diagnostics", "mock-console", "call-trace", "platform-events"], "active": "problems" }
       ] }
     ]
   },

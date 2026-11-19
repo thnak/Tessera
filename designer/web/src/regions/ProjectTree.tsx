@@ -203,7 +203,7 @@ export function ProjectTree({
             </div>
           );
         })}
-        {rows.length === 0 ? <p className="tree-empty">No project open. Open a folder or a zip, or pick a sample from Samples.</p> : null}
+        {rows.length === 0 ? <p className="tree-empty">No project open. Open a folder or a zip, or use File, Open Sample.</p> : null}
       </div>
     </aside>
   );

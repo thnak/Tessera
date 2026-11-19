@@ -26,6 +26,7 @@ import "./styles/skin.css";
 import "./styles/platform.css";
 import "flexlayout-react/style/light.css";
 import "./styles/dock.css";
+import "./styles/problems.css";
 import "./styles/workbench.css";
 import "./styles/responsive.css";
 

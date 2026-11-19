@@ -37,6 +37,7 @@ import {
 import commandsDocument from "./workbench/commands.json";
 import menusDocument from "./workbench/menus.json";
 import { EDITOR_COMMANDS, editorFacts } from "./editor/editor-target";
+import type { LoadedSample } from "./lib/gallery";
 import { DPRS, THEMES, VIEWPORTS } from "./lib/preferences";
 import type { ControlValues } from "./regions/StudioChrome";
 import type { ProjectIo } from "./page-project-io";
@@ -67,10 +68,10 @@ export interface WorkbenchApi {
   profileId: string;
   components: { names: readonly string[]; chosen: string };
   runEnabled: boolean;
-  toggleGallery: () => void;
+  /** A sample chosen from the welcome view or the Open Sample quick pick becomes the open project. */
+  pickSample: (sample: LoadedSample) => void;
   restart: () => void;
   applyNow: () => void;
-  share: () => Promise<void>;
   setControl: (name: keyof ControlValues, value: string) => void;
   setCustomSize: (width: number, height: number) => void;
   pickComponent: (name: string) => void;
@@ -78,8 +79,6 @@ export interface WorkbenchApi {
   files: readonly { path: string }[];
   openFile: (path: string) => void;
   buildId: string;
-  /** The share flow's own progress text (`encoding...`, `link copied`), shown beside the toolbar. */
-  shareStatus: string;
   refs: Pick<PaneRefs, "pickToggle" | "inspectToggle" | "runInput">;
 }
 
@@ -90,6 +89,8 @@ export interface Workbench {
   /** Every top-level menu, never collapsed for a phone: what Alt+letter and the palette read. */
   allMenus: MenuBarMenu[];
   toolbar: ToolbarEntry[];
+  /** The status bar's items from `menus.json` `statusBar`, in order (`regions/StatusLine.tsx` draws them). */
+  statusItems: ToolbarEntry[];
   phone: boolean;
   /** The notification service: toasts, history, do-not-disturb (issue #559). */
   notifications: Notifications;
@@ -98,6 +99,10 @@ export interface Workbench {
   /** Whether the bell's history popover is open. */
   centerOpen: boolean;
   setCenterOpen: (open: boolean) => void;
+  /** Help > About (`help.about`): the dialog with the title, description, build and links. */
+  aboutOpen: boolean;
+  setAboutOpen: (open: boolean) => void;
+  buildId: string;
   /** Runs a menu or toolbar entry; an entry whose command needs arguments the entry lacks asks for them. */
   activate: (entry: { command?: string; args?: CommandArgs }) => Promise<void>;
   /** Runs a command id with arguments through the registry and reports a refusal in `status`. */
@@ -193,6 +198,9 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
   const [centerOpen, setCenterOpen] = useState(false);
   const centerRef = useRef(setCenterOpen);
   centerRef.current = setCenterOpen;
+  const [aboutOpen, setAboutOpen] = useState(false);
+  const setAboutRef = useRef(setAboutOpen);
+  setAboutRef.current = setAboutOpen;
   const picker = useButtonState(api.refs.pickToggle);
   const inspector = useButtonState(api.refs.inspectToggle);
   const phone = usePhone();
@@ -228,13 +236,12 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
       "file.openFolder": () => a().io.openFolder(),
       "file.openZip": () => zipInputRef.current?.click(),
       "file.openRecent": (args) => a().io.reopenRecent(Number(args.index)),
-      "file.samples": () => a().toggleGallery(),
+      "file.samples": () => paletteRef.current?.open("", "samples"),
       "file.newFile": () => a().io.newFile(),
       "file.renameFile": () => a().io.renameFile(),
       "file.deleteFile": () => a().io.deleteFile(),
       "file.save": () => a().io.save(),
       "file.download": () => a().io.download(),
-      "file.share": () => a().share(),
       "view.palette": () => paletteRef.current?.open(">"),
       "view.quickOpen": () => paletteRef.current?.open("", "files"),
       "view.gotoLine": () => paletteRef.current?.open(":", "line"),
@@ -260,7 +267,7 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
       "device.toggleKeepState": () => a().setKeepState(!a().keepState),
       "help.docs": () => void window.open(DOCS_URL, "_blank", "noopener"),
       "help.reportIssue": () => void window.open(ISSUE_URL, "_blank", "noopener"),
-      "help.about": () => void notifications.notify({ message: `Tessera Studio, ${a().buildId}`, key: "about" }),
+      "help.about": () => setAboutRef.current(true),
       "notify.show": (args) => {
         const actions = args.actionLabel && args.actionCommand ? [{ label: String(args.actionLabel), command: String(args.actionCommand) }] : [];
         return { id: notifications.notify({ message: String(args.message), severity: (args.severity as NotificationInput["severity"]) ?? "info", actions, key: args.key === undefined ? undefined : String(args.key) }) };
@@ -289,16 +296,20 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
   // of the same values wakes nobody (`context.set` compares).
   const mnemonicListeners = useRef(new Set<(letter: string) => boolean>());
   const focusOwner = useRef<ContextRecord>({});
+  // The context the page's state implies right now. `publish` writes it to the registry after every render;
+  // the menus below are built in the render itself, so they read it directly (`describe`'s third argument)
+  // rather than the registry's copy, which still holds the previous render's answer until the effect runs.
+  const currentContext = (): ContextRecord =>
+    computeContext(apiRef.current, {
+      "run.picker": picker.pressed,
+      "run.inspector": inspector.pressed,
+      "layout.phone": phone,
+      ...layoutContext(apiRef.current.dock, undoRef.current),
+      ...focusOwner.current,
+    });
   const publish = useCallback(() => {
-    registry.context.set(
-      computeContext(apiRef.current, {
-        "run.picker": picker.pressed,
-        "run.inspector": inspector.pressed,
-        "layout.phone": phone,
-        ...layoutContext(apiRef.current.dock, undoRef.current),
-        ...focusOwner.current,
-      }),
-    );
+    registry.context.set(currentContext());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [registry, picker.pressed, inspector.pressed, phone]);
   useEffect(publish);
 
@@ -387,7 +398,7 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
   // A stored layout set aside at boot ("Layout from a newer studio; using the default") is a notification.
   useLayoutNotices(api.dock.notice, notifications);
 
-  // The project's last action and the share flow say what they did through the notification service, so the
+  // The project's last action says what it did through the notification service, so the
   // person hears it once (a toast and the bell history) instead of from one live region per region.
   const projectNote = api.io.state.note;
   useEffect(() => {
@@ -395,12 +406,6 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
       notifications.notify({ message: projectNote, key: "project-note" });
     }
   }, [projectNote, notifications]);
-  const shareText = api.shareStatus;
-  useEffect(() => {
-    if (shareText !== "" && !shareText.endsWith("...")) {
-      notifications.notify({ message: `Share: ${shareText}`, key: "share" });
-    }
-  }, [shareText, notifications]);
 
   const providers: MenuProviders = {
     recent: () =>
@@ -419,9 +424,11 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
   providersRef.current = providers;
   const palette = usePaletteHost(apiRef, providersRef);
   paletteRef.current = palette;
-  const deps = { registry, providers };
+  const fresh = currentContext();
+  const deps = { registry: { ...registry, describe: (id: string, args?: CommandArgs) => registry.describe(id, args, fresh) }, providers };
   const allMenus = buildMenuBar(menusDocument as unknown as MenusDocument, deps);
   const toolbar = buildToolbar(menusDocument as unknown as MenusDocument, deps);
+  const statusItems = buildToolbar(menusDocument as unknown as MenusDocument, deps, "statusBar");
   const menus: MenuBarMenu[] = phone
     ? [
         {
@@ -453,11 +460,15 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
     menus,
     allMenus,
     toolbar,
+    statusItems,
     phone,
     notifications,
     notify: (input) => notifications.notify(input),
     centerOpen,
     setCenterOpen,
+    aboutOpen,
+    setAboutOpen,
+    buildId: api.buildId,
     activate,
     run,
     setFocusOwner,

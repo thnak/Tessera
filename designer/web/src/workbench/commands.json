@@ -54,7 +54,7 @@
       "id": "file.samples",
       "title": "Open Sample",
       "category": "File",
-      "description": "Show the sample gallery; picking one opens it as the project",
+      "description": "Pick a sample from a quick pick; it opens as the project (the welcome view lists them too)",
       "services": [
         "project-io"
       ],
@@ -139,11 +139,9 @@
       "id": "file.share",
       "title": "Copy Share Link",
       "category": "File",
-      "description": "Copy a link that opens this source, viewport and theme",
-      "services": [
-        "share"
-      ],
-      "status": "live"
+      "description": "Removed: the studio has no cloud storage to share to",
+      "status": "removed",
+      "replacedBy": null
     },
     {
       "id": "file.closeProject",
@@ -375,8 +373,8 @@
       "keybinding": {
         "default": "Mod+Shift+M"
       },
-      "note": "reserved: Problems panel",
-      "status": "reserved"
+      "description": "Show the Problems panel and focus it; again from inside it, hide it",
+      "status": "live"
     },
     {
       "id": "view.toggleSideBar",
@@ -971,7 +969,7 @@
       "id": "help.about",
       "title": "About Tessera Studio",
       "category": "Help",
-      "description": "Show the build id",
+      "description": "Show the About dialog: the studio title, description, build and links",
       "status": "live"
     },
     {

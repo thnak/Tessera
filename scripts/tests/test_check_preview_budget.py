@@ -63,9 +63,6 @@ PAGE_FIXTURE_FILES = (
     "assets/index-Ab1Cd2Ef.js",
     "assets/index-Ab1Cd2Ef.css",
     "assets/vendor-Qq9Qq9Qq.js",
-    "scene.html",
-    "canvas.html",
-    "redirect.js",
     "samples.json",
 )
 

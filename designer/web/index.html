@@ -13,16 +13,14 @@
   What the page is, in one paragraph, because it decides what may go in the bundle: one page with
   three views (Diagnostics compiles the source with `tessera_diagnostics`, Scene evaluates it with
   `tessera_scene_preview`, Canvas paints it through WebGPU with `tessera_canvas`), one shared editor,
-  one toolbar (viewport, DPR, theme), one sample gallery and one share link. React renders the studio
+  one toolbar (viewport, DPR, theme), and one sample gallery. React renders the studio
   chrome only; the engine still draws exactly one thing, the preview canvas, and React never renders
   the previewed app (ADR-054 decision 3). The three Wasm modules stay three and stay lazy, and
-  `share.js`/`preview-state.js` stay pure ES modules so the Node codec test imports the same source
-  the page does.
+  `preview-state.js` stays a pure ES module so the Node gates import the same source the page does.
 
   **Nothing leaves the browser.** No network call beyond this site's own static assets (the Vite
   bundle, the three Wasm modules, `samples.json`, a sample's TSX, `build-id.txt`), no CDN, no
-  telemetry. The share link is a URL fragment (format in docs/specs/designer-studio-v1.md section
-  7.1) and is decoded locally.
+  telemetry. There is no share link: the studio has no cloud storage to share to.
 
   Vite injects the hashed `<script type="module">` and `<link rel="stylesheet">` at build time; both
   are same-origin files with a `src`/`href`, so the strict CSP ("no inline script, no remote script")

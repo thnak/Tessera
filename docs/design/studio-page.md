@@ -9,7 +9,7 @@ Decision: [ADR-054](../../decisions/ADR-054-studio-front-end-react-vite.md) (the
 wording ADR-054 amends and whose decisions stand).
 Spec: [`designer-studio-v1.md`](../specs/designer-studio-v1.md) sections 2, 3, 7.1 and 10.
 Predecessors: [`compiler-wasm.md`](compiler-wasm.md) sections 5-10 (P1 diagnostics, P2/P3 scene and canvas,
-P4 input, P5 share links, P6 budgets), [`studio-project-io.md`](studio-project-io.md) (the zip container and
+P4 input, P5 environment toggles, P6 budgets), [`studio-project-io.md`](studio-project-io.md) (the zip container and
 the path-confinement rule, which #431 is the first slice to use in the browser) and
 [`reference-equantic-ui.md`](reference-equantic-ui.md) section 7.4.
 
@@ -30,7 +30,7 @@ The page is a single workspace and it always looks the same:
 |    App.tsx   |                           |                           |
 |  styles/     |  the editor               |  the device frame         |
 +--------------+---------------------------+---------------------------+
-| status line: build id, compile target, diagnostics count, frame       |
+| status bar: problems, line:col, language, bell                         |
 +-----------------------------------------------------------------------+
 ```
 
@@ -133,7 +133,7 @@ pass completes inside the call, so the next `tessera_canvas_draw` paints the new
 tokens (`styles/skin.css`), and the SVG frame is a CSS **mask** rather than an `<img>`, so it is painted in
 `currentColor`. The Theme select now writes `<html data-theme>` (`page-skins.ts`), which is what makes the
 retint rule demonstrable: one cascade moves the frame and the canvas together. Before this slice the Theme
-control was carried into the share link and changed nothing on the page.
+control was a stored value and changed nothing on the page.
 ## 2. The stack, and the React/engine boundary
 
 `designer/web` is a **Vite + React 19 + TypeScript** project (ADR-054 decisions 1-4):
@@ -180,8 +180,7 @@ a **childless leaf React renders once** and a *session* fills:
 The sessions are created once, in a ref, against the nodes React committed. They are never re-created by a
 re-render, because each of them owns a Wasm instance, a GPU device or an animation-frame callback -- none of
 which may be created by a render or destroyed by one. The React state is exactly what a visitor changes by
-hand: the workspace (`page-workspace.ts`), the toolbar, whether the gallery is open, the share status and the
-build id.
+hand: the workspace (`page-workspace.ts`), the toolbar and the build id.
 
 **The canvas is the load-bearing case.** `regions/CanvasPane.tsx` renders `<canvas>` as a childless leaf
 with a ref: no `key`, no children, no conditional mount, and no changing `width`/`height` props (the session
@@ -196,13 +195,12 @@ instances alive.
 
 ### 2.2 What stayed pure
 
-**`share.js` and `preview-state.js` are still plain ES modules**, in `src/lib/`, with no DOM and no React
-(ADR-054, Consequences). That is not a style choice: `scripts/ci/preview_share_roundtrip.mjs` imports them
-**directly from source**, so the 19 share-link checks keep testing the same bytes the page imports rather
-than a bundled copy. They carry `.d.ts` declarations (`share.d.ts`, `preview-state.d.ts`) so the React side
-is typed without rewriting the codec. `scripts/ci/preview_page_checks.mjs` asserts the property from the
-other side -- no DOM globals, no React import, relative specifiers only -- so an edit that broke it fails
-there too.
+**`preview-state.js` is still a plain ES module**, in `src/lib/`, with no DOM and no React (ADR-054,
+Consequences; the share codec that used to sit beside it was removed with the Share feature). That is not a
+style choice: the Node gates import it **directly from source**, so they keep testing the same bytes the page
+imports rather than a bundled copy. It carries a `.d.ts` declaration (`preview-state.d.ts`) so the React side
+is typed. `scripts/ci/preview_page_checks.mjs` asserts the property from the other side -- no DOM globals, no
+React import, relative specifiers only -- so an edit that broke it fails there too.
 
 `project-paths.js` and `studio-zip.js` keep the same rule for the same reason: no imports, no DOM, no
 `window` ([`studio-project-io.md`](studio-project-io.md)). #431 is the first slice that imports
@@ -217,15 +215,13 @@ The rest of the page is TypeScript:
 | `App.tsx` | the five regions, the shared state, the three sessions and their refs |
 | `page-workspace.ts` | the workspace's state: the project, the open tabs, the active file, the selection, the dirty set, and the per-file buffer map |
 | `lib/project.ts` | the seeded project, `ProjectFile`/`TreeRow`, `treeRows`, `compileTarget`; every path goes through `project-paths.js` |
-| `lib/preferences.ts` | the toolbar's persistence, the fragment decode, the share link (DOM-free) |
+| `lib/preferences.ts` | the toolbar's persistence (DOM-free) |
 | `lib/gallery.ts` | the sample manifest and the sample fetch (DOM-free) |
 | `lib/views.ts` | the `ViewSession`/`ProjectReader` contract, the view table, `?view=` routing |
 | `lib/wasm-call.ts` | the one C-ABI marshalling helper: allocate, call, `tessera_free`, free |
 | `lib/module-url.ts` | resolves a Wasm loader against the document's base, so a hashed asset dir cannot break it |
 | `views/dom.ts` | the textContent-only element builder the engine-facing renderers share |
 | `ssr-chrome.tsx` | the chrome rendered with `react-dom/server`, for the Node gates only |
-| `public/redirect.js` | the pre-merge URLs' forwarding (section 3) |
-| `public/{scene,canvas}.html` | the redirect stubs |
 
 ## 3. The workspace: tree, tabs, and what an edit compiles
 
@@ -287,8 +283,8 @@ strict style CSP, pass a nonce (`EditorView.cspNonce`) rather than loosening the
 
 The rule is **the whole project, from the entry `tessera.json` names** (`entryOf()` in
 `lib/project-snapshot.ts`). The active file does not decide what is previewed: selecting
-`styles/theme.css` edits that sheet, and the preview keeps running the entry. The status line's file cell
-names the entry, so the choice is visible rather than surprising.
+`styles/theme.css` edits that sheet, and the preview keeps running the entry. The status bar's language cell
+names the entry in its tooltip, so the choice is visible rather than surprising.
 
 The sessions no longer read `#source.value`: the page hands each of them a `ProjectReader` that returns
 `{ entry, sources, stylesheets, active }` -- the whole project and the entry `tessera.json` names
@@ -317,45 +313,17 @@ only paints the tree the last apply left. Both reports carry the same `cssDiagno
 costs that rule and never blanks the frame -- including on the live-edit path. Editing a stylesheet is a
 live apply, like a source edit; editing `tessera.json` (it names the entry) restarts.
 
-**Not in the share link.** The `#p5=` envelope stays `v,s,w,h,d,t,f` (section 4): a link carries one source
-document, which replaces the entry's text. Sharing a whole project waits for cloud storage, so sharing is
-deliberately out of scope for the project preview.
+**No share link.** A whole project, or even one document, cannot be shared: the studio has no cloud storage
+to share to, and the Share feature (button, `file.share`, the `#p5=` codec) was removed.
 
-## 4. Old URLs and the share-link migration
+## 4. Old URLs
 
-`scene.html` and `canvas.html` still resolve. Each is a **redirect stub** in `designer/web/public/` (so Vite
-copies it to the site root): a few dozen lines of HTML, the shared `redirect.js`, and no engine code and no
-module import. A stub that had to fetch a module before forwarding would be a stub that can fail to forward,
-and an old link is somebody's project state.
-
-`redirect.js` builds
-
-```text
-index.html?<old query>&view=<scene|canvas><old fragment>
-```
-
-and calls `location.replace`, so the stub does not become a history step the visitor can get stuck on. Two
-details are load-bearing:
-
-- **The hash is concatenated, never re-serialized.** A fragment is opaque: a `#p5=` payload is base64url and
-  may contain characters a `URL` round trip would re-encode. Assigning `url.hash` would risk loading
-  different source than the one that was shared, which is the one failure a share feature must not have.
-- **The query is carried, not read.** The old pages took viewport, DPR and theme from the fragment and from
-  `localStorage`, never from the query (`initialState` in `lib/preferences.ts`). Forwarding preserves that: a
-  query-only old link still opens at the default rectangle.
-
-The view is not a fragment field -- `designer-studio-v1.md` section 7.1 freezes the envelope to `v`, `s`,
-`w`, `h`, `d`, `t`, `f` -- which is exactly why the old *path* is translated into `?view=` at the stub
-rather than guessed at on the merged page. The page reads `?view=` once at load and writes it with
-`history.replaceState` on a switch (replace, not push: a view switch is not a navigation step). **#431 kept
-the parameter and every id it resolves** (`tab-scene`, `view-canvas`, ...), so a link made against the
-three-tab page opens on the same preview pane it names.
-
-**A `#p5=` link still restores the same state.** The codec is unchanged, so a pre-merge fragment decodes by
-construction; `scripts/ci/preview_share_roundtrip.mjs` pins a fragment recorded from the pre-merge codec as a
-fixture, and the browser layout check asserts that a link made by the current page reloads with its source in
-the editor. What #431 did change is *which file* a link opens: a link carries one document, so it replaces the
-entry file's text (`workspace.putFile`) and the tree keeps showing the project it was seeded with.
+The pre-merge `scene.html` and `canvas.html` redirect stubs (and `redirect.js`) were **removed** (owner decision,
+pre-alpha, no external users): old links to them no longer resolve. The page reads `?view=` once at load and
+writes it with `history.replaceState` on a switch (replace, not push: a view switch is not a navigation step).
+**#431 kept the parameter and every id it resolves** (`tab-scene`, `view-canvas`, ...). A leftover `#p5=`
+fragment is ignored: no decode, no banner, no error; `preview_studio_smoke.mjs` asserts that it leaves the
+startup state at the stored toolbar or the default.
 
 ## 5. Layout and gating
 

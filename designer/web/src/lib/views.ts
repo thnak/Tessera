@@ -28,7 +28,7 @@ export interface StatusReporter {
 export interface EnvironmentReader {
   /** The toolbar's current viewport and DPR, as layout inputs. */
   (): { viewport: string; dpr: string };
-  /** The source path the current sample is previewed under (the share link's file name). */
+  /** The source path the current sample is previewed under (its project path). */
   file(): string;
 }
 
@@ -118,8 +118,6 @@ export interface ViewDefinition {
   label: string;
   /** The page subtitle's sentence for this view. */
   hint: string;
-  /** The hint under the shared editor: what pressing Enter, or just typing, does on this view. */
-  editorHint: string;
 }
 
 /** The three views, in tab order. */
@@ -128,10 +126,6 @@ export const VIEWS: readonly ViewDefinition[] = Object.freeze([
     id: "diagnostics",
     label: "Diagnostics",
     hint: "Compiles your TSX with the same compiler the native build runs, in your browser.",
-    editorHint:
-      "Edits apply as you type; Ctrl+Enter (or Cmd+Enter) applies now, and Restart app starts over. " +
-      "A diagnostics run has no viewport: the toolbar is carried into the share link, not applied to " +
-      "the compiler.",
   },
   {
     id: "scene",
@@ -139,9 +133,6 @@ export const VIEWS: readonly ViewDefinition[] = Object.freeze([
     hint:
       "Evaluates your TSX with the same evaluator, style and layout engine, then lists the scene " +
       "snapshot and the state cells a click script produces.",
-    editorHint:
-      "Edits apply as you type; Ctrl+Enter (or Cmd+Enter) applies now, and Restart app resets the " +
-      "state. The viewport and DPR are layout inputs here: the toolbar re-lays out at the new size.",
   },
   {
     id: "canvas",
@@ -149,10 +140,6 @@ export const VIEWS: readonly ViewDefinition[] = Object.freeze([
     hint:
       "Paints the evaluated scene through WebGPU, on demand: the canvas redraws only when " +
       "something actually changed.",
-    editorHint:
-      "Edits apply as you type; Ctrl+Enter (or Cmd+Enter) applies now, and Restart app resets the " +
-      "state. The canvas is sized from the toolbar and the device pixel ratio, and redraws only when " +
-      "something changed.",
   },
 ]);
 
@@ -186,10 +173,7 @@ export function viewFromSearch(search: string | null | undefined): ViewDefinitio
 /**
  * The view the page should show: the URL's `?view=` when it names one, else `fallback`.
  *
- * The fragment carries no view field (`designer-studio-v1.md` section 7.1 is frozen: `v`, `s`, `w`,
- * `h`, `d`, `t`, `f`), so a pre-merge `scene.html#p5=...` link can only say "I was a scene link"
- * through the *path* it arrived on. The redirect stubs translate the old path into `?view=`, which is
- * why this function never has to guess.
+ * The URL names the view explicitly, so this function never has to guess.
  */
 export function resolveView(
   search: string | null | undefined,

@@ -247,6 +247,76 @@ await page.close();
   await context.close();
 }
 
+// Focus on code and preview (owner feedback on #586): no samples bar, About instead of a title, a lean status
+// bar, one accent. The first view is a welcome view; Open Sample is a quick pick; Help > About is a modal.
+{
+  const f = await open(1440, 900);
+  const p = f.page;
+  check('no sample gallery bar: the horizontal strip is gone', (await p.locator('#gallery, .gallery, .gallery-item').count()) === 0);
+  check('the welcome view lists Open Folder and the samples while no project is open', (await p.locator('#welcome').count()) === 1 && (await p.locator('#welcome', { hasText: 'Open Folder' }).count()) === 1 && (await p.locator('.welcome-sample').count()) > 0);
+  check('the visible title is gone from the chrome (it lives in About); one hidden h1 stays', (await p.locator('.title-text, .title-logo').count()) === 0 && (await p.locator('header h1.visually-hidden').count()) === 1);
+  check('the status bar has no build id, frame time or description paragraph', (await p.locator('#build-id, #status-frame, .status-note').count()) === 0 && !(await p.locator('footer.page-footer').innerText()).includes('Wasm'));
+  check('the status bar carries Problems and the bell (from menus.json statusBar), and the toolbar no longer has the bell', (await p.locator('footer.page-footer #status-diagnostics-toggle').count()) === 1 && (await p.locator('footer.page-footer #notifications-bell').count()) === 1 && (await p.locator('[role=toolbar] #notifications-bell').count()) === 0);
+
+  await openMenu(p, 'File');
+  await item(p, 'Open Sample').click();
+  await p.waitForSelector('#palette-input');
+  check('File > Open Sample opens a quick pick of the samples (not a bar)', (await p.getAttribute('#palette-input', 'aria-label')).toLowerCase().includes('sample') && (await p.locator('[role=option]').count()) > 0);
+  await p.keyboard.press('Escape');
+
+  await openMenu(p, 'Help');
+  await item(p, 'About Tessera Studio').click();
+  await p.waitForSelector('#about-dialog');
+  const about = await p.evaluate(() => {
+    const dialog = document.getElementById('about-dialog');
+    return { modal: dialog.getAttribute('aria-modal'), name: document.getElementById(dialog.getAttribute('aria-labelledby')).textContent, inside: dialog.contains(document.activeElement), links: dialog.querySelectorAll('a[href]').length, build: document.getElementById('about-build').textContent };
+  });
+  check('Help > About is an accessible modal: named, aria-modal, focus inside, version and links', about.modal === 'true' && about.name === 'Tessera Studio' && about.inside && about.links >= 3 && about.build.length > 0, JSON.stringify(about));
+  await snap(p, 'light-about');
+  await p.keyboard.press('Tab');
+  await p.keyboard.press('Tab');
+  await p.keyboard.press('Tab');
+  await p.keyboard.press('Tab');
+  await p.keyboard.press('Tab');
+  check('Tab stays inside the About dialog', await p.evaluate(() => document.getElementById('about-dialog').contains(document.activeElement)));
+  await p.keyboard.press('Escape');
+  await p.waitForTimeout(100);
+  check('Escape closes About and focus leaves the dialog', (await p.locator('#about-dialog').count()) === 0);
+  await p.evaluate(() => window.__tesseraWorkbench.run('help.about'));
+  await p.waitForSelector('#about-dialog');
+  check('the command id help.about opens the same dialog', (await p.locator('#about-dialog').count()) === 1);
+  await p.click('#about-dialog button');
+  check('the Close button closes it', (await p.locator('#about-dialog').count()) === 0);
+
+  const tokens = await p.evaluate(() => {
+    const root = getComputedStyle(document.documentElement);
+    const color = (selector, property) => getComputedStyle(document.querySelector(selector))[property];
+    return { accent: root.getPropertyValue('--accent').trim(), statusBg: root.getPropertyValue('--status-bg').trim(), restartBg: color('#restart-app', 'backgroundColor'), footerBg: color('footer.page-footer', 'backgroundColor') };
+  });
+  const rgb = (hex) => { const v = parseInt(hex.slice(1), 16); return `rgb(${v >> 16}, ${(v >> 8) & 255}, ${v & 255})`; };
+  check('the primary Restart action is filled with the accent and the status bar with --status-bg', tokens.restartBg === rgb(tokens.accent) && tokens.footerBg === rgb(tokens.statusBg), JSON.stringify(tokens));
+
+  await p.click('footer.page-footer #notifications-bell');
+  await p.waitForSelector('#notification-center');
+  const upward = await p.evaluate(() => document.getElementById('notification-center').getBoundingClientRect().bottom <= document.querySelector('footer.page-footer').getBoundingClientRect().top + 1);
+  check('the bell history opens upward from the status bar', upward);
+  await p.keyboard.press('Escape');
+
+  await p.locator('.welcome-sample').first().click();
+  const caretShown = await p.waitForSelector('#status-caret', { timeout: 4000 }).then(() => true, () => false);
+  if (caretShown) {
+    const before = await p.textContent('#status-caret');
+    await p.click('#source');
+    await p.keyboard.press('Control+a');
+    const after = await p.textContent('#status-caret');
+    check('the status bar shows line:col, and a selection size, and the file language', /^Ln \d+, Col \d+$/.test(before) && /\(\d+ selected\)$/.test(after) && (await p.textContent('#status-language')) === 'TSX', `${before} -> ${after}`);
+  } else {
+    console.log('skip  status caret/language: the sample TSX is not served by this site directory (no samples/ copied in)');
+  }
+  check('focus layout: no page errors', f.errors.length === 0, f.errors.join(' | '));
+  await f.context.close();
+}
+
 // Phone.
 {
   const ph = await open(390, 844);

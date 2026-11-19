@@ -728,8 +728,8 @@ owner-planned item and is not part of this milestone.
 - [x] #399: security: lowering was quadratic in source-line length (28 s for a legal 1 MiB line).
       Fixed: `SourceMap::locate` is logarithmic, so a 1 MiB line no longer freezes the viewer's thread.
 - [x] #392: studio: merge the index, scene and canvas pages into one `index.html` (modules stay
-      separate and lazy, `scene.html`/`canvas.html` become redirect stubs that keep `#p5=` links
-      working). Merged in PR #420; the stack conversion and the P6 budget re-record moved to ADR-054's
+      separate and lazy; the `scene.html`/`canvas.html` redirect stubs were later removed, so old
+      links no longer resolve). Merged in PR #420; the stack conversion and the P6 budget re-record moved to ADR-054's
       slice (#422), which the studio items below and #391 now wait on.
 - [x] #422: studio: convert the hosted page to React 19 + Vite (ADR-054). The four regions are
       components and the engine canvas is a childless ref'd leaf outside React's render cycle, so a

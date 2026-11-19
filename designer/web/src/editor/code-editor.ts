@@ -9,8 +9,7 @@
 // host element) does not reach them.
 //
 // **One document per open file, history kept.** Each open file keeps its own `EditorState`, so undo works
-// after a tab switch and the caret and scroll come back. A page write -- a sample, a restored draft, a
-// share link -- is detected by comparing the stored document with the text the page hands over: equal
+// after a tab switch and the caret and scroll come back. A page write -- a sample or a restored draft -- is detected by comparing the stored document with the text the page hands over: equal
 // means "the person's own edit history is still right" (reuse the state), different means "the page
 // replaced the file" (a fresh state, history cleared, which is what the textarea did).
 //
@@ -91,6 +90,8 @@ export interface CodeEditorOptions {
   onApplyNow: () => void;
   /** The accessible name of the editing surface. */
   label: string;
+  /** The caret moved, the selection changed or a file opened: 1-based line and column, and the selected characters. */
+  onCaret?: (caret: { line: number; column: number; selected: number }) => void;
 }
 
 const setMarksEffect = StateEffect.define<readonly EditorMark[]>();
@@ -190,10 +191,19 @@ export function createCodeEditor(parent: HTMLElement, options: CodeEditorOptions
       if (update.docChanged) {
         options.onChange(update.state.doc.toString());
       }
+      if (update.docChanged || update.selectionSet) {
+        reportCaret(update.state);
+      }
     }),
   ];
 
   const view = new EditorView({ state: EditorState.create({ doc: "" }), parent });
+
+  function reportCaret(state: EditorState): void {
+    const { head, from, to } = state.selection.main;
+    const line = state.doc.lineAt(head);
+    options.onCaret?.({ line: line.number, column: head - line.from + 1, selected: to - from });
+  }
 
   function stateFor(path: string, text: string, readOnly: boolean): EditorState {
     return EditorState.create({
@@ -219,6 +229,7 @@ export function createCodeEditor(parent: HTMLElement, options: CodeEditorOptions
       current = path;
       view.setState(next);
       applyMarks(path);
+      reportCaret(view.state);
     },
     setMarks(path, list) {
       marks.set(path, list);

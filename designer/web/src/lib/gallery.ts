@@ -111,3 +111,10 @@ export async function cachedManifest(
   }
   return cache.samples;
 }
+
+const pageCache: GalleryCache = { samples: null };
+
+/** The manifest for this page load, shared by the welcome view and the Open Sample quick pick. */
+export function pageManifest(): Promise<Sample[]> {
+  return cachedManifest(pageCache);
+}

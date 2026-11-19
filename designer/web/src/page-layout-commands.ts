@@ -90,6 +90,18 @@ function reveal(dock: Dock, panelId: string): void {
   dock.dispatch({ kind: "activate", panelId });
 }
 
+/** Moves keyboard focus into the Problems panel once it has rendered: its first row, else the panel itself. */
+function focusProblems(): void {
+  requestAnimationFrame(() => {
+    const panel = document.getElementById("problems-panel");
+    const first = panel?.querySelector<HTMLElement>("[data-problem]");
+    (first ?? panel)?.focus();
+  });
+}
+
+/** Whether keyboard focus is inside the Problems panel (the second press of its chord hides it). */
+const focusInProblems = (): boolean => document.getElementById("problems-panel")?.contains(document.activeElement) === true;
+
 /** The handlers for every dock-owned command id. */
 export function layoutHandlers(host: LayoutHost): Record<string, (args: CommandArgs) => unknown> {
   const dock = (): Dock => host.dock();
@@ -123,6 +135,16 @@ export function layoutHandlers(host: LayoutHost): Record<string, (args: CommandA
     "view.togglePanelArea": () => {
       const d = dock();
       return d.phone ? phoneToggle(d, "diagnostics") : d.commands.togglePanelArea();
+    },
+    // VS Code's Problems chord: show the panel and focus it; pressed again from inside it, hide it. A click on the
+    // status bar item has focus on the item, not in the panel, so it always shows and focuses.
+    "view.problems": () => {
+      const d = dock();
+      if (d.visible.has("problems") && focusInProblems()) {
+        return d.phone ? phoneToggle(d, "problems") : d.commands.togglePanel("problems");
+      }
+      reveal(d, "problems");
+      focusProblems();
     },
     "view.toggleStatusBar": () => {
       const d = dock();

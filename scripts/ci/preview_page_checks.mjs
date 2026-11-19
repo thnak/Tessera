@@ -25,19 +25,16 @@
 // 2. **Every element the shared chrome and the shell look up is rendered.** The ids `App` and the four
 //    regions resolve, against the SSR markup of the real components.
 // 3. **Every id a view session resolves is rendered**, per view, so a failure names the pane that is wrong.
-// 4. **The redirect stubs carry the query and the fragment.** This is the share-link migration: the old
-//    URLs must forward to `index.html` with `location.search` and `location.hash` intact and the view
-//    selected. The check drives the real `redirect.js` under Node against the six old-URL shapes a real
-//    link takes, and each stub's own HTML is checked for the call and for the absence of engine code.
+// 4. (The pre-merge redirect stubs and their check were removed; old scene.html/canvas.html links no longer resolve.)
 // 5. **Every `samples.json` path exists.** The Pages lane copies `samples/` into the site and the gallery
 //    fetches `./<path>`; a missing file is a button that cannot load. This passes locally (where `samples/`
 //    sits beside `designer/`) and fails only on the deployed site, which is the worst place to find it.
-// 6. **`share.js` and `preview-state.js` are still pure ES modules.** ADR-054's risk section: no DOM, no
-//    React, no bundler syntax, so the 19-codec-check gate and the page keep importing the same bytes.
+// 6. **`preview-state.js` is still a pure ES module.** ADR-054's risk section: no DOM, no React, no bundler
+//    syntax, so the Node gates and the page keep importing the same bytes.
 // 7. **The three Wasm modules stayed three and stayed lazy.** No module is imported at the top level of the
 //    built bundle, and each module's URL appears exactly once, inside a dynamic `import()`.
 // 8. **No page module calls a function it does not declare.** The audit that caught five shipped defects in
-//    P5, now run over the built bundle's sources and the redirect script.
+//    P5, now run over the built bundle's sources.
 //
 // This is NOT a rendering test. That the page *paints* is what the deploy and a human opening the URL
 // verify (`preview_browser_check.mjs` is the developer-run browser half); nothing here claims otherwise.
@@ -58,10 +55,9 @@ const DIST_SSR = resolve(WEB, "dist-ssr");
 // list grew by the workspace's own ids (`workspace`, `project-tree`, the tab strip, the status line's
 // cells) and lost nothing: every id a pre-#431 link or gate depended on is still here.
 const SHARED_IDS = [
-  // The workbench chrome (issue #557): the toolbar's Share and its polite status line, the device chip that
+  // The workbench chrome (issue #557): the notification bell and live region, the device chip that
   // replaced the preview toolbar's selects, and the menu bar (one button per top-level menu; `Go` is
   // hidden until its first command is live).
-  "share",
   "notifications",
   "notification-live",
   "notifications-bell",
@@ -72,20 +68,19 @@ const SHARED_IDS = [
   "menubar-run",
   "menubar-device",
   "menubar-help",
-  "gallery",
-  "gallery-list",
-  "link-note",
   "editor-host",
   // The three-column workspace (issue #431). `workspace` is the grid, `project-tree` is its left column,
-  // `editor-panel` is the middle column's tab panel, and the three `status-*` ids are the status line.
+  // `editor-panel` is the middle column's tab panel, and the `status-*` ids are the status bar (the Problems
+  // item with its split error and warning counts, the caret, the language).
   "workspace",
   "project-tree",
   "project-status",
   "editor-panel",
-  "editor-hint",
-  "status-file",
-  "status-diagnostics",
-  "status-frame",
+  "status-diagnostics-toggle",
+  "status-errors",
+  "status-warnings",
+  "status-caret",
+  "status-language",
 ];
 
 // The page shell's own ids: `App` and the four regions resolve these, and nothing else would catch one
@@ -104,12 +99,11 @@ const SHELL_IDS = [
   // gets.
   "restart-app",
   "apply-status",
-  "build-id",
-  // The hint under the shared editor: the page owns it (the Scene session appends the live rectangle),
-  // so it is a shell id rather than any one view's. #431 lists it among the workspace ids above; it is
-  // named here too because it is the shell's, not a pane's.
-  "editor-hint",
 ];
+
+// Ids that were removed on purpose (owner decisions, studio focus pass) and must not come back: the Share
+// button, the broken-link banner and the two visually hidden editor lines.
+const REMOVED_IDS = ["share", "link-note", "editor-hint", "editor-file", "share-status"];
 
 // Each view session's own ids, kept separate so a failure names the view whose pane is wrong.
 const VIEW_IDS = {
@@ -209,8 +203,7 @@ function walk(root, prefix = "") {
 /**
  * Strips comments, string literals and template literals from JavaScript, leaving the code.
  *
- * Both of the pure modules this script audits *document* the rule they keep -- `share.js`'s header says "no
- * DOM, no `window`, no `fetch`" -- so a scan of the raw text would fail a file for explaining itself. This
+ * The pure module this script audits *documents* the rule it keeps ("no DOM") -- so a scan of the raw text would fail a file for explaining itself. This
  * is a small lexer, not a parser: it tracks comments, the three quote styles and regex literals, which is
  * everything the audit needs and nothing it does not.
  */
@@ -402,6 +395,14 @@ if (!requireBuilt()) {
     if (/role="treeitem"/.test(boot)) {
       problems.push("a treeitem is rendered before any project is opened");
     }
+    // The samples bar is gone (owner feedback on #586): the welcome view is where a first-time visitor finds
+    // samples, next to Open Folder / Open Zip, and the chrome carries no horizontal gallery strip.
+    if (!/id="welcome"/.test(boot) || !/Open Folder/.test(boot)) {
+      problems.push("the welcome view (Open Folder / Open Zip / Samples) is missing from the first view");
+    }
+    if (/id="gallery/.test(boot) || /id="gallery/.test(markup)) {
+      problems.push("the sample gallery strip is back; samples live in the welcome view and Open Sample");
+    }
     if (!/No project open/.test(boot)) {
       problems.push("the empty tree does not say how to open a project");
     }
@@ -423,6 +424,13 @@ if (!requireBuilt()) {
     const missing = [...SHARED_IDS, ...SHELL_IDS].filter((id) => !markup.includes(`id="${id}"`));
     for (const id of missing) {
       fail(`the rendered chrome is missing id="${id}" that App/StudioChrome/ViewPanes resolve`);
+    }
+    const revived = REMOVED_IDS.filter((id) => markup.includes(`id="${id}"`));
+    for (const id of revived) {
+      fail(`the rendered chrome carries id="${id}", which was removed on purpose`);
+    }
+    if (revived.length === 0) {
+      ok(`the rendered chrome carries none of the removed ids (${REMOVED_IDS.join(", ")})`);
     }
     if (missing.length === 0) {
       ok(
@@ -550,104 +558,6 @@ if (!requireBuilt()) {
     }
   }
 
-  // --- 4. the redirect stubs preserve the query, the fragment and the view -------------------------
-
-  // The real module, loaded the way a browser loads it: a classic script that publishes
-  // `globalThis.tesseraRedirect`, so importing it under Node is the same code path with a fake global.
-  await import(pathToFileURL(resolve(DIST, "redirect.js")).href);
-
-  const redirect = globalThis.tesseraRedirect;
-  if (!redirect || typeof redirect.mergedUrl !== "function") {
-    fail("redirect.js does not publish tesseraRedirect.mergedUrl (the stubs would not forward)");
-  } else {
-    // The old-URL shapes a real link takes, including the ones with nothing in them. A share link's
-    // fragment is the whole project state, so it is compared byte for byte rather than "present".
-    const PAYLOAD = "zKLUv_QBFYgA"; // a real-looking deflate-raw payload, short enough to read
-    const cases = [
-      {
-        why: "a pre-merge share link with a query and a fragment",
-        view: "scene",
-        search: "?viewport=390x844&dpr=2&theme=dark",
-        hash: `#p5=${PAYLOAD}`,
-        want: `index.html?viewport=390x844&dpr=2&theme=dark&view=scene#p5=${PAYLOAD}`,
-      },
-      {
-        why: "a pre-merge link with no query and no fragment",
-        view: "canvas",
-        search: "",
-        hash: "",
-        want: "index.html?view=canvas",
-      },
-      {
-        why: "a pre-merge link with a fragment only",
-        view: "canvas",
-        search: "",
-        hash: `#p5=${PAYLOAD}`,
-        want: `index.html?view=canvas#p5=${PAYLOAD}`,
-      },
-      {
-        why: "a pre-merge link with a query only",
-        view: "scene",
-        search: "?theme=light",
-        hash: "",
-        want: "index.html?theme=light&view=scene",
-      },
-      {
-        why: "a stale ?view= in the old query is replaced, not duplicated",
-        view: "canvas",
-        search: "?view=scene&dpr=3",
-        hash: "#p5=abc",
-        want: "index.html?view=canvas&dpr=3#p5=abc",
-      },
-      {
-        why: "a fragment that is not a share payload is still carried verbatim",
-        view: "scene",
-        search: "",
-        hash: "#section-2",
-        want: "index.html?view=scene#section-2",
-      },
-    ];
-
-    let bad = 0;
-    for (const testCase of cases) {
-      const got = redirect.mergedUrl(testCase.view, testCase.search, testCase.hash);
-      if (got !== testCase.want) {
-        fail(
-          `redirect for ${testCase.why} produced ${JSON.stringify(got)}, ` +
-            `expected ${JSON.stringify(testCase.want)}`,
-        );
-        bad += 1;
-      }
-    }
-    if (bad === 0) {
-      ok(`the redirect preserves the query and the #p5= fragment for all ${cases.length} old-URL shapes`);
-    }
-
-    // The stubs themselves: each must load the redirect module and call it with its own view, and must
-    // not import engine code (a stub that had to fetch a module before forwarding could fail to forward).
-    for (const [page, view] of [
-      ["scene.html", "scene"],
-      ["canvas.html", "canvas"],
-    ]) {
-      const stub = readFileSync(resolve(DIST, page), "utf8");
-      const problems = [];
-      if (!stub.includes('src="redirect.js"')) {
-        problems.push("does not load redirect.js");
-      }
-      if (!stub.includes(`redirectTo('${view}')`)) {
-        problems.push(`does not forward to the ${view} view`);
-      }
-      if (/type="module"|tessera_(diagnostics|scene_preview|canvas)\.js/.test(stub)) {
-        problems.push("loads engine code (a stub must not depend on a module loading)");
-      }
-      if (problems.length > 0) {
-        fail(`${page} ${problems.join("; ")}`);
-      } else {
-        ok(`${page} is a redirect stub to the ${view} view with no engine code`);
-      }
-    }
-  }
-
   // --- 5. every manifest path exists, under the path the site uses --------------------------------
 
   const manifest = JSON.parse(readFileSync(resolve(DIST, "samples.json"), "utf8"));
@@ -667,9 +577,9 @@ if (!requireBuilt()) {
     ok(`samples.json names ${(manifest.samples || []).length} sample(s), all present`);
   }
 
-  // The manifest and the two stubs must be *in the built tree*: they are copied through `public/`, and a
+  // The manifest must be *in the built tree*: it is copied through `public/`, and a
   // Vite configuration that stops copying it would publish a site whose gallery 404s.
-  for (const name of ["samples.json", "scene.html", "canvas.html"]) {
+  for (const name of ["samples.json"]) {
     try {
       readFileSync(resolve(DIST, name));
     } catch {
@@ -679,29 +589,28 @@ if (!requireBuilt()) {
 
   // --- 6. the codec is still a pure ES module ----------------------------------------------------
 
-  // ADR-054's risk section names this: `share.js` and `preview-state.js` must have no DOM and no React, so
-  // `scripts/ci/preview_share_roundtrip.mjs` keeps testing the same bytes the page ships. The check is
-  // deliberately about *imports and globals*, not about style: a bundler-only specifier, a DOM call or a
-  // React import in either file would break that gate's meaning, and nothing else in the suite would see it.
-  for (const name of ["share.js", "preview-state.js"]) {
+  // ADR-054's risk section names this: `preview-state.js` must have no DOM and no React, so the Node gates keep
+  // testing the same bytes the page ships. The check is deliberately about *imports and globals*, not about
+  // style: a bundler-only specifier, a DOM call or a React import would break that, and nothing else in the
+  // suite would see it.
+  for (const name of ["preview-state.js"]) {
     const raw = readFileSync(resolve(WEB, "src", "lib", name), "utf8");
     // Comments and string literals are stripped first: both files *describe* what they must not do
-    // ("no DOM, no `window`, no `fetch`" in share.js's own header), and a scan that read the prose would
-    // fail the file for explaining the rule it keeps. What is left is code.
+    // (its own header says "no DOM"), and a scan that read the prose would fail the file for explaining the
+    // rule it keeps. What is left is code.
     const source = stripNonCode(raw);
     const problems = [];
     if (/\bimport\b[^;]*\breact\b/i.test(source)) {
       problems.push("imports React");
     }
     // Only relative specifiers: a bare or bundler-alias specifier would not resolve under plain Node, which
-    // is exactly how the round-trip test imports this file.
+    // is exactly how the gates import this file.
     for (const match of source.matchAll(/\bfrom\s+["']([^"']+)["']/g)) {
       if (!match[1].startsWith("./")) {
         problems.push(`imports a non-relative specifier ${match[1]}`);
       }
     }
-    // DOM entry points. `globalThis.CompressionStream` and friends are platform APIs the codec legitimately
-    // uses; `document`, `window`, `localStorage` and `navigator` are the ones that would make it untestable.
+    // DOM entry points: `document`, `window`, `localStorage` and `navigator` are the ones that would make it untestable.
     for (const global of ["document", "window", "localStorage", "navigator", "history", "location"]) {
       if (new RegExp(`(?<![.\\w$])${global}\\s*(?:\\.|\\[)`).test(source)) {
         problems.push(`uses the DOM global \`${global}\``);
@@ -821,14 +730,12 @@ if (!requireBuilt()) {
     return [...names].sort();
   }
 
-  // Every module the studio page ships as source: the React tree, the sessions, the pure library modules and
-  // the stub's redirect script. The list is explicit so a new module is added here in the same change as the
+  // Every module the studio page ships as source: the React tree, the sessions, the pure library modules.
+  // The list is explicit so a new module is added here in the same change as the
   // module itself. `tsconfig.json` is what catches the TypeScript half statically (`tsc --noEmit`, part of
   // `npm run build`); this scan covers the `.js` files the compiler never looks at.
   const PAGE_MODULES = [
-    ["src/lib/share.js", resolve(WEB, "src/lib/share.js")],
     ["src/lib/preview-state.js", resolve(WEB, "src/lib/preview-state.js")],
-    ["public/redirect.js", resolve(DIST, "redirect.js")],
   ];
 
   for (const [label, path] of PAGE_MODULES) {

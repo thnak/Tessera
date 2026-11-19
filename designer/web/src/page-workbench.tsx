@@ -3,7 +3,7 @@
 // The workbench surface of the page (issue #516, W5 #560): every region the studio had, as a dock panel.
 //
 // Before the dock, `App.tsx` rendered three fixed columns and a bottom strip. The same components now fill the
-// panels of one dock the viewer arranges (`dock/`): the project tree, the editor, Canvas, Scene, Diagnostics
+// panels of one dock the viewer arranges (`dock/`): the project tree, the editor, Canvas, Scene, Diagnostics, Problems
 // and the three bottom panels. This file only maps panel ids to the components and the props the page already
 // had for them; it owns no state, so nothing about *when* a panel's session starts or what a keystroke does
 // changed (`page-panels.ts` and `page-sessions.ts` carry that).
@@ -16,6 +16,7 @@ import type { DeviceProfile } from "./lib/device-profile";
 import type { ProjectFile } from "./lib/project";
 import type { ProjectIo } from "./page-project-io";
 import type { PlatformControls } from "./page-platform";
+import type { ProblemsHandle } from "./page-problems";
 import type { PageRefs } from "./page-state";
 import type { Workspace } from "./page-workspace";
 import type { Skin } from "./views/skins";
@@ -24,6 +25,7 @@ import { CodeRegion } from "./regions/CodeRegion";
 import { MockConsolePanel } from "./regions/MockConsolePanel";
 import { PlatformPanel } from "./regions/PlatformDock";
 import { CanvasPanel, DiagnosticsPanel, ScenePanel } from "./regions/PreviewPanels";
+import { ProblemsPanel } from "./regions/ProblemsPanel";
 import { ProjectBar } from "./regions/ProjectBar";
 import { ProjectTree } from "./regions/ProjectTree";
 
@@ -32,6 +34,8 @@ export interface WorkbenchSurfaceProps {
   workspace: Workspace;
   projectIo: ProjectIo;
   refs: PageRefs;
+  /** The Problems store and its click-to-jump. */
+  problems: ProblemsHandle;
   activeText: string;
   revision: number;
   runEnabled: boolean;
@@ -50,6 +54,8 @@ export interface WorkbenchSurfaceProps {
   mocks: MockConsole;
   files: readonly ProjectFile[];
   onReloadPanel: (panelId: string) => void;
+  /** The welcome view, passed while no project is open; the editor column shows it. */
+  welcome?: ReactNode;
 }
 
 /** A bottom panel's scroll frame (the old dock panel's `overflow`, now per panel). */
@@ -81,7 +87,6 @@ export function WorkbenchSurface(props: WorkbenchSurfaceProps): ReactNode {
         text={props.activeText}
         revision={props.revision}
         sourceRef={refs.source}
-        editorHintRef={refs.editorHint}
         onSelectTab={props.onSelectTab}
         onCloseTab={workspace.closeTab}
         onEdit={props.onEdit}
@@ -89,6 +94,8 @@ export function WorkbenchSurface(props: WorkbenchSurfaceProps): ReactNode {
         onSave={props.onSave}
         onApplyNow={props.onApplyNow}
         stale={projectIo.state.stale}
+        empty={props.welcome ?? null}
+        caretRef={refs.statusCaret}
       />
     ),
     canvas: (
@@ -101,6 +108,7 @@ export function WorkbenchSurface(props: WorkbenchSurfaceProps): ReactNode {
     ),
     scene: <ScenePanel refs={refs} />,
     diagnostics: <DiagnosticsPanel refs={refs} />,
+    problems: <ProblemsPanel store={props.problems.store} visible={props.workbench.visible.has("problems")} onJump={props.problems.jump} />,
     "platform-events": (
       <Scroll>
         <PlatformPanel profile={props.profile} platform={props.platform} onRestart={props.onRestart} />

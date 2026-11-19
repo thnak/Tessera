@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-// Type declarations for the workbench-core modules. The modules stay `.js` on purpose, like `share.js` and
+// Type declarations for the workbench-core modules. The modules stay `.js` on purpose, like
 // `preview-state.js`: they are pure ES modules that `scripts/ci/preview_workbench*.mjs` imports directly under
 // Node, so the gates test the shipped source with no build.
 
@@ -124,7 +124,7 @@ export interface Registry {
   handlerIds(): string[];
   register(id: string, handler: CommandHandler): () => void;
   integrity(): string[];
-  describe(id: string, args?: CommandArgs | null): CommandState | null;
+  describe(id: string, args?: CommandArgs | null, overrides?: ContextRecord): CommandState | null;
   forSurface(surface: string): CommandRecord[];
   run(id: string, args?: CommandArgs): Promise<RunResult>;
   keymap(): Keymap;
@@ -199,13 +199,15 @@ export interface MenusDocument {
   menus: { id: string; title: string; mnemonic: string; items: unknown[] }[];
   contexts: Record<string, unknown[]>;
   toolbar: unknown[];
+  /** The status bar's items, left to right: commands and page widgets (`problems`, `caret`, `language`, `bell`). */
+  statusBar?: unknown[];
 }
 export function validateMenus(doc: MenusDocument, records: readonly CommandRecord[]): string[];
 export function walkMenus(doc: MenusDocument, visit: (item: Record<string, unknown>, where: string) => void): void;
 export function buildMenuBar(doc: MenusDocument, deps: MenuDeps): MenuBarMenu[];
 export function buildItems(items: readonly unknown[], deps: MenuDeps & { keyPrefix: string }): MenuEntry[];
 export function buildContextMenu(doc: MenusDocument, name: string, deps: MenuDeps, target?: MenuTarget): MenuEntry[];
-export function buildToolbar(doc: MenusDocument, deps: MenuDeps): ToolbarEntry[];
+export function buildToolbar(doc: MenusDocument, deps: MenuDeps, section?: "toolbar" | "statusBar"): ToolbarEntry[];
 
 export interface MenuNav {
   bar: number;
