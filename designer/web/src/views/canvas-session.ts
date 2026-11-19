@@ -707,7 +707,6 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
       visible = false;
       picker.hide();
       inspector.hide();
-      overrides.dispose();
       if (gpu !== null) {
         try {
           gpu.device.destroy();
@@ -717,6 +716,8 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
       }
       gpu = null;
       factory = null;
+      // After the device is released, so a listener of the routing store can never keep it alive.
+      overrides.dispose();
     },
     /**
      * The toolbar moved: on this view the viewport, the DPR and the fold posture are what the canvas is
