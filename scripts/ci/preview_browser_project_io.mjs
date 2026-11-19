@@ -325,13 +325,13 @@ check('nothing is left unsaved after Save', (await page.locator('.tree-dirty').c
 
 // --- 7. the last folder is remembered and offered back --------------------------------------------
 await page.reload({ waitUntil: 'load' });
-await page.waitForSelector('#reopen-folder');
-check('after a reload the last folder is offered', /proj/.test(await page.locator('#reopen-folder').textContent()));
+await page.waitForSelector('#recent-projects');
+check('after a reload the last folder is listed under recent projects', /proj/.test((await page.locator('#recent-projects option').nth(1).textContent()) ?? ''));
 await page.evaluate(async () => {
   const dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('proj');
   window.showDirectoryPicker = async () => dir;
 });
-await page.locator('#reopen-folder').click();
+await page.selectOption('#recent-projects', '0');
 await page.waitForFunction(() => /Folder: proj/.test(document.getElementById('project-name')?.textContent ?? ''));
 check('Reopen loads the remembered folder without the picker', (await page.locator('.tree-row[data-path="ui/Renamed.tsx"]').count()) === 1);
 
@@ -340,12 +340,12 @@ await page.locator('.tree-row[data-path="ui/Home.tsx"]').click();
 await editHome('Mine again', 'Draft text');
 await page.waitForTimeout(2600);
 await page.reload({ waitUntil: 'load' });
-await page.waitForSelector('#reopen-folder');
+await page.waitForSelector('#recent-projects');
 await page.evaluate(async () => {
   const dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('proj');
   window.showDirectoryPicker = async () => dir;
 });
-await page.locator('#reopen-folder').click();
+await page.selectOption('#recent-projects', '0');
 await page.waitForSelector('#project-draft');
 check('the unsaved edit is offered back after a reload', /1 file/.test((await page.locator('#project-draft').textContent()) ?? ''));
 check('the draft is not applied before the person chooses', !(await page.evaluate(() => window.__tesseraEditor.text())).includes('Draft text'));
@@ -364,8 +364,8 @@ await page.evaluate(async () => {
   await writable.close();
 });
 await page.reload({ waitUntil: 'load' });
-await page.waitForSelector('#reopen-folder');
-await page.locator('#reopen-folder').click();
+await page.waitForSelector('#recent-projects');
+await page.selectOption('#recent-projects', '0');
 await page.waitForFunction(() => /Folder: proj/.test(document.getElementById('project-name')?.textContent ?? ''));
 await page.waitForTimeout(800);
 check('a draft for a file that changed on disk is not offered', (await page.locator('#project-draft').count()) === 0);

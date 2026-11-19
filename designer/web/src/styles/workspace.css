@@ -214,6 +214,12 @@
 
 .project-actions button { font-size: 12px; }
 
+.project-recent select {
+  flex: 1 1 8em;
+  min-width: 0;
+  font-size: 12px;
+}
+
 .project-name,
 .project-note {
   margin: 0;

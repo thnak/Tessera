@@ -32,7 +32,7 @@ import {
   projectKey,
   saveDraft,
 } from "../drafts.js";
-import { forgetFolder, recallFolder, rememberFolder } from "../recent-folder.js";
+import { forgetAllFolders, forgetFolder, recallFolders, rememberFolder } from "../recent-folder.js";
 import { staleGenerated } from "../generated-staleness.js";
 import { PathError } from "../project-paths.js";
 import { writeZip, ZipError } from "../studio-zip.js";
@@ -71,6 +71,13 @@ function sentenceOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/** One remembered folder, as the project control lists it. */
+export interface RecentProject {
+  name: string;
+  /** Epoch ms of the last open; 0 for a folder remembered before times were kept. */
+  openedAt: number;
+}
+
 /** What opening a locked text file read; the shape `readViewOnly` in `project-io.js` returns. */
 export type ViewRead = { text: string } | { note: string };
 
@@ -92,10 +99,13 @@ export interface ProjectIo {
   /** Counts completed loads; the page restarts the preview when it changes. */
   epoch: number;
   folderSupported: boolean;
-  /** The name of the last opened folder the browser still remembers, or `""`. */
-  recent: string;
+  /** The folders opened before that this browser still remembers, newest first (at most 10). */
+  recents: readonly RecentProject[];
   openFolder: () => void;
-  reopenRecent: () => void;
+  /** Reopens `recents[index]`; the click that calls it is the gesture a permission prompt needs. */
+  reopenRecent: (index: number) => void;
+  /** Clears the list of recent projects (the files on disk are not touched). */
+  forgetRecents: () => void;
   openZip: (file: File) => void;
   save: () => void;
   resolveConflicts: (choice: "keep-mine" | "take-disk" | "cancel") => void;
@@ -122,8 +132,14 @@ export function useProjectIo(workspace: Workspace): ProjectIo {
     stale: [],
   });
   const [epoch, setEpoch] = useState(0);
-  const [recent, setRecent] = useState("");
-  const recentHandle = useRef<FileSystemDirectoryHandle | null>(null);
+  const [recents, setRecents] = useState<readonly RecentProject[]>([]);
+  // The stored handles, in the same order as `recents` (a handle is a capability, never rendered).
+  const recentHandles = useRef<FileSystemDirectoryHandle[]>([]);
+  const refreshRecents = useCallback(async () => {
+    const list = await recallFolders();
+    recentHandles.current = list.map((entry: { handle: FileSystemDirectoryHandle }) => entry.handle);
+    setRecents(list.map((entry: { name: string; openedAt: number }) => ({ name: entry.name, openedAt: entry.openedAt })));
+  }, []);
   const root = useRef<FileSystemDirectoryHandle | null>(null);
   const baseline = useRef<Map<string, number>>(new Map());
   // Lazy readers of the locked text files of the opened project, by confined path. A file is read only when
@@ -137,13 +153,8 @@ export function useProjectIo(workspace: Workspace): ProjectIo {
     typeof (globalThis as DirectoryPickerWindow).showDirectoryPicker === "function";
 
   useEffect(() => {
-    void recallFolder().then((handle) => {
-      if (handle !== null && typeof handle.name === "string") {
-        recentHandle.current = handle as FileSystemDirectoryHandle;
-        setRecent(handle.name);
-      }
-    });
-  }, []);
+    void refreshRecents();
+  }, [refreshRecents]);
 
   const say = useCallback((patch: Partial<ProjectIoState>) => {
     setState((previous) => ({ ...previous, ...patch }));
@@ -199,9 +210,7 @@ export function useProjectIo(workspace: Workspace): ProjectIo {
       root.current = handle;
       baseline.current = times;
       if (handle !== null) {
-        recentHandle.current = handle;
-        setRecent(handle.name);
-        void rememberFolder(handle);
+        void rememberFolder(handle).then(refreshRecents);
       }
       setState({
         source,
@@ -239,13 +248,12 @@ export function useProjectIo(workspace: Workspace): ProjectIo {
       } catch (error) {
         say({ busy: false, note: sentenceOf(error) });
         if (error instanceof DOMException && error.name === "NotFoundError") {
-          recentHandle.current = null;
-          setRecent("");
-          void forgetFolder();
+          say({ note: `${handle.name} no longer exists, so it was removed from the recent projects.` });
+          void forgetFolder(handle).then(refreshRecents);
         }
       }
     },
-    [adopt, confirmReplace, say],
+    [adopt, confirmReplace, refreshRecents, say],
   );
 
   const openFolder = useCallback(() => {
@@ -268,9 +276,14 @@ export function useProjectIo(workspace: Workspace): ProjectIo {
     })();
   }, [loadFrom, say]);
 
-  const reopenRecent = useCallback(() => {
-    const handle = recentHandle.current;
-    if (handle === null) {
+  const forgetRecents = useCallback(() => {
+    void forgetAllFolders().then(refreshRecents);
+    say({ note: "Forgot the recent projects. The folders themselves were not touched." });
+  }, [refreshRecents, say]);
+
+  const reopenRecent = useCallback((index: number) => {
+    const handle = recentHandles.current[index];
+    if (handle === undefined) {
       return;
     }
     void (async () => {
@@ -603,9 +616,10 @@ export function useProjectIo(workspace: Workspace): ProjectIo {
     state,
     epoch,
     folderSupported,
-    recent,
+    recents,
     openFolder,
     reopenRecent,
+    forgetRecents,
     readView,
     openZip,
     save,

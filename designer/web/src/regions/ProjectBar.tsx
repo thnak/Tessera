@@ -27,17 +27,6 @@ export function ProjectBar({ io, dirtyCount }: { io: ProjectIo; dirtyCount: numb
         >
           Open folder
         </button>
-        {io.recent !== "" && io.folderSupported && !(state.source === "folder" && state.name === io.recent) ? (
-          <button
-            type="button"
-            id="reopen-folder"
-            onClick={io.reopenRecent}
-            disabled={state.busy}
-            title="Reopen the folder you used last time; the browser asks for access again"
-          >
-            Reopen {io.recent}
-          </button>
-        ) : null}
         <button type="button" id="open-zip" onClick={() => zipInput.current?.click()} disabled={state.busy}>
           Open zip
         </button>
@@ -72,6 +61,34 @@ export function ProjectBar({ io, dirtyCount }: { io: ProjectIo; dirtyCount: numb
           Download
         </button>
       </div>
+      {io.recents.length > 0 && io.folderSupported ? (
+        <div className="project-actions project-recent" role="group" aria-label="Recent projects">
+          <select
+            id="recent-projects"
+            aria-label="Recent projects"
+            value=""
+            disabled={state.busy}
+            title="Projects opened before; the browser asks for folder access again"
+            onChange={(event) => {
+              const index = Number(event.currentTarget.value);
+              if (Number.isInteger(index)) {
+                io.reopenRecent(index);
+              }
+            }}
+          >
+            <option value="">Recent projects ({io.recents.length})</option>
+            {io.recents.map((recent, index) => (
+              <option key={`${recent.name}:${index}`} value={String(index)}>
+                {recent.name}
+                {recent.openedAt > 0 ? ` - ${new Date(recent.openedAt).toLocaleDateString()}` : ""}
+              </option>
+            ))}
+          </select>
+          <button type="button" id="forget-recent" onClick={io.forgetRecents} disabled={state.busy}>
+            Forget
+          </button>
+        </div>
+      ) : null}
       <div className="project-actions" role="toolbar" aria-label="File operations">
         <button type="button" id="new-file" onClick={io.newFile} disabled={state.busy}>
           New file
@@ -86,6 +103,7 @@ export function ProjectBar({ io, dirtyCount }: { io: ProjectIo; dirtyCount: numb
       {state.name !== "" ? (
         <p className="project-name" id="project-name">
           {state.source === "folder" ? "Folder" : "Zip"}: {state.name}
+          {state.source === "zip" ? " (a copy: Save needs an opened folder, use Download)" : ""}
         </p>
       ) : null}
       <p className="project-note" id="project-note" role="status" aria-live="polite" hidden={state.note === ""}>
