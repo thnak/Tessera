@@ -69,6 +69,9 @@ function tabSetJson(group: GroupNode, layout: Layout, options: CodecOptions): IJ
     maximized: layout.maximized !== null && group.panels.includes(layout.maximized),
     minWidth,
     minHeight,
+    // The panel area's strip underlines its selected tab (VS Code's bottom panel); editor-like groups
+    // overline it. Styling only: the group id decides, nothing reads it back.
+    classNameTabStrip: group.id === "g-bottom" ? "tabstrip-panel" : undefined,
     enableMaximize: options.phone !== true,
     enableDrag: options.phone !== true,
     children: group.panels.map((id, index) => ({
