@@ -51,6 +51,9 @@ export default defineConfig({
         // The workbench layout model, operations, migration and persistence (issue #556), so
         // `scripts/ci/workbench_layout.mjs` tests the code the page ships.
         workbench: "src/workbench/index.ts",
+        // The dock adapter's pure core (codec, gesture map, splitter arithmetic), so
+        // `scripts/ci/workbench_dock_core.mjs` tests what the page ships (issue #560).
+        "dock-core": "src/dock/core.ts",
       },
       output: {
         format: "es",

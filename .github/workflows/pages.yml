@@ -49,6 +49,7 @@ on:
       - 'scripts/ci/preview_page_checks.mjs'
       - 'scripts/ci/preview_skins.mjs'
       - 'scripts/ci/workbench_layout.mjs'
+      - 'scripts/ci/workbench_dock_core.mjs'
       - 'tests/fixtures/studio-layout/**'
       - 'scripts/ci/preview_project_load.mjs'
       - 'scripts/ci/preview_generated_staleness.mjs'
@@ -81,6 +82,7 @@ on:
       - 'scripts/ci/preview_page_checks.mjs'
       - 'scripts/ci/preview_skins.mjs'
       - 'scripts/ci/workbench_layout.mjs'
+      - 'scripts/ci/workbench_dock_core.mjs'
       - 'tests/fixtures/studio-layout/**'
       - 'scripts/ci/preview_project_load.mjs'
       - 'scripts/ci/preview_generated_staleness.mjs'
@@ -300,6 +302,11 @@ jobs:
       # the phone projection and localStorage persistence, imported from `dist-ssr/workbench.js`.
       - name: Workbench layout model (built, no browser)
         run: node scripts/ci/workbench_layout.mjs
+
+      # The dock adapter's pure core (issue #560): the model <-> flexlayout-react round trip through the real
+      # library `Model`, the gesture map, and the splitter arithmetic and ARIA values.
+      - name: Workbench dock adapter core (built, no browser)
+        run: node scripts/ci/workbench_dock_core.mjs
 
       - name: Sample manifest is generated and current
         run: python3 -B scripts/ci/gen_sample_manifest.py --check

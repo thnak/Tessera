@@ -19,13 +19,11 @@
 // re-rendered the tree would put the canvas back into the render cycle it is deliberately outside of.
 
 import type { ReactNode, RefObject } from "react";
-import type { ViewDefinition } from "../lib/views";
 import type { GeometryMode } from "../views/skin-geometry";
 import type { Skin } from "../views/skins";
 import { SkinFrame } from "./SkinFrame";
 
 export function CanvasPane({
-  view,
   statusRef,
   unsupportedRef,
   unsupportedBodyRef,
@@ -51,7 +49,6 @@ export function CanvasPane({
   mode,
   appOverlay,
 }: {
-  view: ViewDefinition;
   statusRef: RefObject<HTMLDivElement | null>;
   unsupportedRef: RefObject<HTMLDivElement | null>;
   unsupportedBodyRef: RefObject<HTMLParagraphElement | null>;
@@ -87,10 +84,6 @@ export function CanvasPane({
     <section
       className="pane view"
       id="view-canvas"
-      role="tabpanel"
-      aria-labelledby="tab-canvas"
-      tabIndex={0}
-      hidden={view.id !== "canvas"}
     >
       <div className="pane-header">
         <h2>Canvas</h2>

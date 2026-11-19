@@ -1,71 +1,10 @@
 /* SPDX-License-Identifier: MIT
  *
- * The bottom dock (issue #434): a tab strip under the workspace, and a fixed-height panel when opened.
- * It is a flex child of `#root` between the workspace and the status line, so the three-column grid and
- * its responsive rules are untouched. Tokens come from `base.css`; nothing here is a new colour.
+ * The bottom panels' bodies (issue #434; the panels are dock panels since W5 #560): Platform events, Mock
+ * console and Call trace. The strip and frame the old bottom dock drew are the dock library's now
+ * (`workbench.css`); what remains is the content each panel renders. Tokens come from `base.css`; nothing
+ * here is a new colour.
  */
-
-.dock {
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  /* Capped so the dock plus the hardware strip never squeeze the canvas pane (checked at 950px). */
-  max-height: 28vh;
-  background: var(--pane-bg);
-  border-top: 1px solid var(--border);
-}
-
-.dock-tabs {
-  flex: none;
-  display: flex;
-  align-items: stretch;
-  gap: 0;
-  min-height: 34px;
-  background: var(--bg);
-}
-
-.dock-tabs [role="tab"] {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 14px;
-  border: 0;
-  border-right: 1px solid var(--border);
-  border-radius: 0;
-  background: transparent;
-  color: var(--text-dim);
-  font-size: 12.5px;
-}
-
-.dock-tabs [role="tab"][aria-selected="true"] {
-  background: var(--pane-bg);
-  color: var(--text);
-  box-shadow: inset 0 -2px 0 var(--accent);
-}
-
-.dock-tabs button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-
-.dock-toggle { margin-left: auto; border: 0 !important; border-radius: 0 !important; color: var(--text-dim); font-size: 12px; }
-
-.dock-count {
-  min-width: 18px;
-  padding: 0 5px;
-  border-radius: 9px;
-  background: var(--border);
-  color: var(--text);
-  font-size: 11px;
-  line-height: 18px;
-  text-align: center;
-}
-
-.dock-count-error { background: var(--error-bg); color: var(--error); }
-
-.dock-panel {
-  min-height: 0;
-  overflow: auto;
-  border-top: 1px solid var(--border);
-}
 
 .dock-body { display: flex; flex-direction: column; gap: 8px; padding: 10px 14px 12px; font-size: 12.5px; }
 .dock-body p { margin: 0; max-width: 90ch; }

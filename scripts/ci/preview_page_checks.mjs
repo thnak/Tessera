@@ -82,9 +82,8 @@ const SHARED_IDS = [
 // being renamed out from under them. The three `tab-*`/`view-*` pairs are the preview switch, which #431
 // moved into the preview column but did not rename: `?view=` and every `#p5=` link still resolve them.
 const SHELL_IDS = [
-  "tab-diagnostics",
-  "tab-scene",
-  "tab-canvas",
+  // W5 (#560): the `tab-*` ids went with the preview switch; the dock's tab strips replace it. The
+  // `view-*` ids are the panes themselves and stay.
   "view-diagnostics",
   "view-scene",
   "view-canvas",
@@ -447,14 +446,12 @@ if (!requireBuilt()) {
     const labels = strips.map((strip) => strip.label);
     // The bottom dock (issue #434) is its own region with its own strip, so it is counted apart: the
     // page still has exactly two strips in the workspace, and the dock's is checked on its own below.
-    const workspaceStrips = strips.filter((strip) => strip.label !== "Dock panels");
-    if (workspaceStrips.length !== 2) {
-      problems.push(
-        `${workspaceStrips.length} tablist(s), expected 2 (the open files and the preview switch)`,
-      );
-    }
-    if (!labels.includes("Preview views")) {
-      problems.push("no `Preview views` tablist (the view switch left the page)");
+    // W5 (#560): the preview switch and the bottom dock's strip are the dock library's tab strips now, which
+    // only exist in a browser (the Node render has no measured dock), so the static markup carries the
+    // editor's strip alone. The dock's own strips are asserted by `workbench_dock.mjs` in a real browser.
+    const workspaceStrips = strips;
+    if (workspaceStrips.length !== 1) {
+      problems.push(`${workspaceStrips.length} tablist(s), expected 1 (the open files)`);
     }
     if (!labels.includes("Open files")) {
       problems.push("no `Open files` tablist (the editor has no tabs)");
@@ -480,12 +477,7 @@ if (!requireBuilt()) {
       return strip.tabs.length;
     };
 
-    // The preview switch: still three tabs, one selection, one tab stop -- exactly the strip the
-    // pre-#431 page had at the top, now inside the column it controls.
-    checkStrip("Preview views", 3);
     // The editor: the seeded project opens its entry file, so there is at least one tab.
-    // The dock: Platform events, Mock console and Call trace; one selection, one tab stop.
-    checkStrip("Dock panels", 3);
     const editorTabs = checkStrip("Open files", null);
     if (editorTabs < 1) {
       problems.push("no editor tabs (the workspace has no open file)");
@@ -495,7 +487,7 @@ if (!requireBuilt()) {
       fail(`the rendered tab strips ${problems.join("; ")}`);
     } else {
       ok(
-        `the preview switch is one tab stop with three tabs and one selection; the editor has ` +
+        `the editor's strip is one tab stop with one selection; the editor has ` +
           `${editorTabs} tab(s) with one selection`,
       );
     }

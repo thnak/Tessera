@@ -140,15 +140,14 @@ await test("the built chrome renders the page's four regions", async () => {
   assert.match(MARKUP, /class="workspace"/, "the three-column workspace is rendered");
   assert.match(MARKUP, /role="tree"/, "the project tree is rendered");
   assert.match(MARKUP, /role="tablist"[^>]*aria-label="Open files"/, "the editor's tabs are rendered");
-  assert.match(MARKUP, /role="tablist"[^>]*aria-label="Preview views"/, "the preview switch is rendered");
+  assert.match(MARKUP, /data-panel="canvas"/, "the Canvas panel is rendered (W5: the dock replaced the preview switch)");
   assert.match(MARKUP, /class="page-footer"/, "the status line is rendered");
   // The page itself is not a tablist any more: the two strips above and the bottom dock's (Platform
   // events, Mock console, Call trace), and no page-level one.
-  assert.match(MARKUP, /role="tablist"[^>]*aria-label="Dock panels"/, "the bottom dock's tabs are rendered");
   assert.equal(
     (MARKUP.match(/role="tablist"/g) || []).length,
-    3,
-    "the page has three tab strips (files, preview, dock) and no page-level one",
+    1,
+    "the static page has the editor's tab strip and no page-level one (the dock's strips are browser-only)",
   );
 });
 

@@ -73,7 +73,7 @@
 
 .hw-button:focus-visible,
 .evb button:focus-visible,
-.dock button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.panel-host button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 /* --- the overlay while the app is not in the foreground ----------------------------------------- */
 

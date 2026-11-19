@@ -70,6 +70,11 @@ export interface ViewSession {
   loadSample?(): void;
   /** The pane became (in)visible: a hidden Canvas pane must not draw. */
   setVisible?(visible: boolean): void;
+  /**
+   * The pane was closed (W5): release what it holds. Canvas destroys its WebGPU device; a session is not
+   * reused, a later open creates a new one against the new elements.
+   */
+  dispose?(): void;
   /** The toolbar moved; on Scene and Canvas the toggles are real inputs. */
   onEnvironmentChange?(): void;
   /** A gallery pick landed in the shared editor. */

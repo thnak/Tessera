@@ -51,7 +51,6 @@ import {
   DEFAULT_VIEW,
   resolveView,
   viewOf,
-  writeViewToUrl,
   type ProjectSnapshot,
   type ViewDefinition,
 } from "./lib/views";
@@ -59,19 +58,18 @@ import { customProfile, mayKeepState } from "./lib/device-profile";
 import { unavailableReply, type PlatformEventRequest, type PlatformReply } from "./lib/platform-events";
 import { STARTUP_SAMPLE } from "./page-defaults";
 import { createLiveEdit, type LiveEdit } from "./page-live";
-import { setStatusText, usePageState, usePaneRefs } from "./page-state";
+import { usePageState, usePaneRefs } from "./page-state";
 import { useSessions } from "./page-sessions";
 import { useProjectIo } from "./page-project-io";
 import { hasShareLink, sampleProjectFiles, useFirstView } from "./page-boot";
 import { useViewOnlyLoader } from "./page-view-only";
 import { useWorkspace } from "./page-workspace";
-import { CodeRegion } from "./regions/CodeRegion";
 import { GalleryRegion } from "./regions/GalleryRegion";
-import { Dock } from "./regions/Dock";
-import { PreviewColumn } from "./regions/PreviewColumn";
-import { ProjectBar } from "./regions/ProjectBar";
-import { ProjectTree } from "./regions/ProjectTree";
-import { PageHeader, type ControlValues } from "./regions/StudioChrome";
+import { EnvironmentToolbar, PageHeader, type ControlValues } from "./regions/StudioChrome";
+import { useWorkbench } from "./dock/use-workbench";
+import { useMockConsole } from "./lib/mock-console";
+import { usePanelVisibility, useDiagnosticsAutoOpen, useViewFromUrl } from "./page-panels";
+import { WorkbenchSurface } from "./page-workbench";
 import { StatusLine } from "./regions/StatusLine";
 import { useSkins, useThemeAttribute } from "./page-skins";
 import { usePlatform } from "./page-platform";
@@ -87,6 +85,14 @@ export function App() {
   const refs = usePaneRefs();
   const workspace = useWorkspace();
   const projectIo = useProjectIo(workspace);
+  // The dock (W5, #560): the layout model, its persistence and which panels are open and visible.
+  const workbench = useWorkbench();
+  useViewFromUrl(workbench);
+  useDiagnosticsAutoOpen(workbench, refs.statusDiagnostics);
+  // The view panels that are open, so a session exists exactly while its panel does; `reloadEpoch` is what
+  // "Reload panel" bumps to bind a session to the re-rendered content.
+  const [reloadEpoch, setReloadEpoch] = useState(0);
+  const present = ["diagnostics", "scene", "canvas"].filter((id) => workbench.open.has(id)).join(",") + `#${reloadEpoch}`;
   // The view the sessions' readiness callbacks are talking about (they are not re-created per view).
   const viewRef = useRef(view);
   viewRef.current = view;
@@ -181,7 +187,7 @@ export function App() {
 
   const isCurrent = useCallback((id: ViewDefinition["id"]): boolean => viewRef.current === id, []);
 
-  const { current: sessions, started } = useSessions(
+  const sessionHandle = useSessions(
     {
       refs,
       setters: state_,
@@ -195,7 +201,9 @@ export function App() {
       isCurrent,
     },
     toolbarSettled,
+    present,
   );
+  const sessions = sessionHandle.current;
 
   // ---- the shared chrome mounts before the first view is shown (issue #392's ordering rule) ---------
   //
@@ -348,48 +356,20 @@ export function App() {
       null,
     );
 
-  // ---- show the view: mount its module on first open, and tell every session which one is visible ----
+  // ---- panel visibility: mount a module on first show, and tell every session whether it is visible ----
   //
-  // The view no longer decides the page's shape -- it selects which preview pane the right column shows --
-  // so this effect is unchanged from #422 on purpose: the switch moved, its behaviour did not.
-  useEffect(() => {
-    for (const [id, candidate] of Object.entries(sessions)) {
-      candidate?.setVisible?.(id === view);
-    }
-    const session = sessions[view];
-    // A view that is already mounted can be restarted; one whose module is still loading cannot, and its
-    // own `onReady` enables the button when it is.
-    state_.setRunEnabled(Boolean(session) && started.current[view] === true);
-    if (!session || started.current[view]) {
-      return;
-    }
-    started.current[view] = true;
-    void session
-      .load()
-      // **The first automatic apply (issue #444).** The page used to open on "not started; press Run",
-      // with an empty preview as its resting state; the spec says the first load starts the preview
-      // automatically once the module is ready. `applyNow()` is exactly the debounce's action with the
-      // wait removed, so the first paint is not a different code path from every later edit -- and it is
-      // what acquires the WebGPU device (lazily, here, never on page load). A source the compiler rejects
-      // leaves the panes' own named states alone, which is why this is not wrapped in a second handler.
-      .then(() => live.current?.applyNow())
-      .catch((error: unknown) => {
-        // A view module that fails to import is that view's problem: it is reported in that pane's own
-        // status line, and the other views keep working. The console carries the detail because a pane
-        // whose module never loaded may have no status node to write into.
-        setStatusText(
-          view === "diagnostics"
-            ? refs.diagStatus.current
-            : view === "scene"
-              ? refs.sceneStatus.current
-              : refs.canvasStatus.current,
-          "view unavailable",
-          "warning",
-        );
-        console.error(`the ${view} view failed to load:`, error);
-      });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, toolbarSettled]);
+  // The dock's visible set decides this now (several panels can be visible at once); see `page-panels.ts`.
+  usePanelVisibility({
+    visible: workbench.visible,
+    sessions: sessionHandle,
+    live,
+    refs,
+    toolbarSettled,
+    present,
+    viewRef,
+    setView,
+    setRunEnabled: state_.setRunEnabled,
+  });
 
   // ---- the shared buttons and the editor's keyboard shortcut ----------------------------------------
   //
@@ -445,12 +425,6 @@ export function App() {
   // "Apply now", not "run": Ctrl+Enter skips the debounce, it does not reset the app.
   const onEditorApplyNow = useCallback(() => {
     void live.current?.applyNow();
-  }, []);
-
-  const onSelectView = useCallback((id: ViewDefinition["id"]) => {
-    setView(id);
-    // `replace`, not `push`: a tab is not a navigation step a visitor wants to walk back through.
-    writeViewToUrl(id);
   }, []);
 
   // ---- the workspace's own actions -----------------------------------------------------------------
@@ -618,6 +592,30 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.controls]);
 
+  // The sandbox worker starts only while a panel that shows its output is visible *and* the project has a mock
+  // file (spec section 2.4), so a project without mocks, or a collapsed panel area, pays nothing.
+  const mocks = useMockConsole(
+    workbench.visible.has("mock-console") || workbench.visible.has("call-trace"),
+    workspace.state.files,
+    workspace.textOf,
+    mockRevision,
+  );
+
+  // "Reload panel" on a view panel: drop its session and bind a new one to the re-rendered nodes.
+  const onReloadPanel = useCallback(
+    (panelId: string) => {
+      const id = panelId as ViewDefinition["id"];
+      if (sessions[id] !== undefined) {
+        sessions[id]?.dispose?.();
+        delete sessions[id];
+        sessionHandle.started.current[id] = false;
+      }
+      setReloadEpoch((value) => value + 1);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
   return (
     <>
       <PageHeader
@@ -635,8 +633,19 @@ export function App() {
         {state.linkNote}
       </p>
 
-      {/* The workspace: always three columns. The one thing that changes inside it is the preview column's
-          own view switch, which is why the page's shape does not depend on `?view=`. */}
+      {/* The device toolbar stays above the dock until the toolbar slice (W2) moves it into the menu bar. */}
+      <EnvironmentToolbar
+        controls={state.controls}
+        onChange={onControlChange}
+        skins={skins.skins}
+        profiles={profiles.profiles.map((entry) => ({ id: entry.id, name: entry.name }))}
+        profile={profiles.selected}
+        keepState={keepState}
+        onKeepState={setKeepState}
+        onCustomSize={onCustomSize}
+      />
+
+      {/* The workspace is the dock (W5): panels the viewer arranges, not three fixed columns. */}
       <main
         className="workspace"
         id="workspace"
@@ -653,81 +662,46 @@ export function App() {
           }
         }}
       >
-        <ProjectTree
-          rows={workspace.rows}
-          selected={workspace.state.selected}
-          dirty={workspace.state.dirty}
-          stale={projectIo.state.stale}
-          onSelect={workspace.selectRow}
-          onToggleDir={workspace.toggleDir}
-          toolbar={<ProjectBar io={projectIo} dirtyCount={new Set([...workspace.state.dirty, ...workspace.state.removed]).size} />}
-        />
-
-        <CodeRegion
-          open={workspace.state.open}
-          files={workspace.state.files}
-          active={workspace.state.active}
-          dirty={workspace.state.dirty}
-          text={activeText}
+        <WorkbenchSurface
+          workbench={workbench}
+          workspace={workspace}
+          projectIo={projectIo}
+          refs={refs}
+          activeText={activeText}
           revision={revision}
-          sourceRef={refs.source}
-          editorHintRef={refs.editorHint}
+          runEnabled={state.runEnabled}
+          applying={state.applying}
           onSelectTab={onSelectTab}
-          onCloseTab={workspace.closeTab}
           onEdit={onEdit}
           onRestart={restartActiveView}
           onLoadSample={loadSampleForActiveView}
-          restartDisabled={!state.runEnabled}
-          applying={state.applying}
           onSave={onEditorSave}
           onApplyNow={onEditorApplyNow}
-          stale={projectIo.state.stale}
-        />
-
-        <PreviewColumn
-          view={currentView}
-          onSelectView={onSelectView}
-          controls={state.controls}
-          onControlChange={onControlChange}
-          refs={refs}
           components={componentList.names}
           component={componentList.chosen}
           onPickComponent={onPickComponent}
-          skins={skins.skins}
           skin={skins.selected}
-          device={{
-            profiles: profiles.profiles.map((entry) => ({ id: entry.id, name: entry.name })),
-            profile: profiles.selected,
-            keepState,
-            onKeepState: setKeepState,
-            onCustomSize,
-            overlay: (
-              <AppStateOverlay
-                state={platform.state}
-                disabled={platform.replaying}
-                onAction={(type) => void platform.send(type)}
-              />
-            ),
-            strip: (
-              <HardwareStrip
-                profile={profiles.selected}
-                disabled={platform.replaying}
-                onPress={(type) => void platform.send(type)}
-              />
-            ),
-          }}
+          overlay={
+            <AppStateOverlay
+              state={platform.state}
+              disabled={platform.replaying}
+              onAction={(type) => void platform.send(type)}
+            />
+          }
+          strip={
+            <HardwareStrip
+              profile={profiles.selected}
+              disabled={platform.replaying}
+              onPress={(type) => void platform.send(type)}
+            />
+          }
+          platform={platform}
+          profile={deviceProfile}
+          mocks={mocks}
+          files={workspace.state.files}
+          onReloadPanel={onReloadPanel}
         />
       </main>
-
-      {/* Issues #434 and #448: the bottom dock, under the three columns and above the status line. */}
-      <Dock
-        files={workspace.state.files}
-        textOf={workspace.textOf}
-        revision={mockRevision}
-        profile={deviceProfile}
-        platform={platform}
-        onRestart={restartActiveView}
-      />
 
       <StatusLine
         buildId={state.buildId}
@@ -736,6 +710,8 @@ export function App() {
         diagnosticsRef={refs.statusDiagnostics}
         frameRef={refs.statusFrame}
         file={entryPath ?? ""}
+        onToggleDiagnostics={workbench.commands.togglePanelArea}
+        diagnosticsOpen={workbench.visible.has("diagnostics")}
       />
     </>
   );

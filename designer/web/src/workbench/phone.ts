@@ -4,7 +4,7 @@
 // one panel at a time from a flat list. A pure function of the layout; the persisted desktop layout is never
 // modified, so a resize round trip rewrites nothing.
 
-import { openPanels } from "./tree";
+import { cloneLayout, openPanels } from "./tree";
 import type { Layout } from "./types";
 
 /** The viewport width under which the dock collapses to one visible group. */
@@ -28,4 +28,20 @@ export function collapse(layout: Layout, prefer?: string): PhoneView {
 
 export function isPhoneWidth(widthCssPx: number): boolean {
   return widthCssPx < PHONE_BREAKPOINT_PX;
+}
+
+/** The id of the one group the phone projection renders. */
+export const PHONE_GROUP = "g-phone";
+
+/**
+ * The layout the dock renders on a phone: one group holding every open panel in phone order. Derived, never
+ * stored; `closed` and `shell` carry over so close and the shell flags still mean what they mean.
+ */
+export function phoneLayout(layout: Layout, prefer?: string): Layout {
+  const view = collapse(layout, prefer);
+  const out = cloneLayout(layout);
+  out.root = { type: "group", id: PHONE_GROUP, panels: view.panels, active: view.active };
+  out.collapsed = [];
+  out.maximized = null;
+  return out;
 }

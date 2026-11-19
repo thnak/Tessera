@@ -23,7 +23,7 @@ export {
 } from "./ops";
 export { migrateLayout, migrations, type Migration } from "./migrate";
 export { reconcile } from "./reconcile";
-export { PHONE_BREAKPOINT_PX, collapse, isPhoneWidth, type PhoneView } from "./phone";
+export { PHONE_BREAKPOINT_PX, PHONE_GROUP, collapse, isPhoneWidth, phoneLayout, type PhoneView } from "./phone";
 export {
   LAYOUT_BACKUP_KEY,
   LAYOUT_STORAGE_KEY,
@@ -37,6 +37,7 @@ export {
   type StorageLike,
 } from "./persist";
 export {
+  canonicalSizes,
   cloneLayout,
   diff,
   findGroup,
@@ -44,7 +45,24 @@ export {
   groupsOf,
   normalize,
   openPanels,
+  visibleLayout,
   visiblePanels,
 } from "./tree";
 export { createPanelRuntime, type Disposable, type PanelHost, type PanelRuntime } from "./panel-host";
 export type { DockAdapterHandle, DockAdapterOptions, LayoutCodec } from "./adapter";
+export {
+  PANEL_AREA_GROUP,
+  directionTarget,
+  groupChoices,
+  moveMessage,
+  type Direction,
+  type GroupChoice,
+} from "./keyboard";
+export {
+  createCommands,
+  createLayoutStore,
+  panelAreaGroup,
+  panelAreaOpen,
+  type LayoutStore,
+  type WorkbenchCommands,
+} from "./store";

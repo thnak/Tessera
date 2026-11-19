@@ -13,16 +13,13 @@
 // `regions/PreviewColumn.tsx` is what switches between them.
 
 import type { RefObject } from "react";
-import type { ViewDefinition } from "../lib/views";
 
 /** View 1: the diagnostics list (P1, issue #165). The default pane and the first-paint one. */
 export function DiagnosticsPane({
-  view,
   statusRef,
   listRef,
   emptyRef,
 }: {
-  view: ViewDefinition;
   statusRef: RefObject<HTMLDivElement | null>;
   listRef: RefObject<HTMLOListElement | null>;
   emptyRef: RefObject<HTMLDivElement | null>;
@@ -31,10 +28,6 @@ export function DiagnosticsPane({
     <section
       className="pane view"
       id="view-diagnostics"
-      role="tabpanel"
-      aria-labelledby="tab-diagnostics"
-      tabIndex={0}
-      hidden={view.id !== "diagnostics"}
     >
       <div className="pane-header">
         <h2>Diagnostics</h2>
@@ -57,7 +50,6 @@ export function DiagnosticsPane({
  * childless leaves -- the scene session writes all of them.
  */
 export function ScenePane({
-  view,
   statusRef,
   nodesRef,
   emptyRef,
@@ -66,7 +58,6 @@ export function ScenePane({
   cellsRef,
   runInputRef,
 }: {
-  view: ViewDefinition;
   statusRef: RefObject<HTMLDivElement | null>;
   nodesRef: RefObject<HTMLOListElement | null>;
   emptyRef: RefObject<HTMLDivElement | null>;
@@ -79,10 +70,6 @@ export function ScenePane({
     <section
       className="pane view"
       id="view-scene"
-      role="tabpanel"
-      aria-labelledby="tab-scene"
-      tabIndex={0}
-      hidden={view.id !== "scene"}
     >
       <div className="pane-header">
         <h2>Scene snapshot</h2>

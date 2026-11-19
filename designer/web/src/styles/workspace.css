@@ -14,16 +14,6 @@
  * horizontal scroll the phone case must not have.
  */
 
-.workspace {
-  flex: 1 1 auto;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: var(--tree-width) minmax(0, 1.1fr) minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr);
-  gap: 1px;
-  background: var(--border);
-}
-
 /* Every column is the same frame: a header row, then whatever the region scrolls internally. */
 .region {
   display: flex;
@@ -63,8 +53,6 @@
 }
 
 /* --- the project tree (left) ------------------------------------------------------------------ */
-
-.region-tree { grid-column: 1; }
 
 .tree {
   flex: 1 1 auto;

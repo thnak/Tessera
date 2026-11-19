@@ -23,7 +23,9 @@ import "./styles/code.css";
 import "./styles/preview.css";
 import "./styles/skin.css";
 import "./styles/platform.css";
+import "flexlayout-react/style/light.css";
 import "./styles/dock.css";
+import "./styles/workbench.css";
 import "./styles/responsive.css";
 
 const container = document.getElementById("root");

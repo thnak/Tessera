@@ -10,6 +10,7 @@
 import { defaultContext } from "./context";
 import { defaultTarget, detachPanel, finish, insertPanel } from "./place";
 import { reconcile } from "./reconcile";
+import { resizeVisibleSplit } from "./resize";
 import {
   canonicalSizes,
   cloneLayout,
@@ -210,7 +211,7 @@ export function applyOperation(layout: Layout, op: Operation, ctx: Context = def
     case "split":
       return splitGroup(layout, op.groupId, op.dir, op.panelId);
     case "resize":
-      return resizeSplit(layout, op.path, op.sizes);
+      return op.visible === true ? resizeVisibleSplit(layout, op.path, op.sizes) : resizeSplit(layout, op.path, op.sizes);
     case "maximize":
       return maximize(layout, op.panelId);
     case "reset":

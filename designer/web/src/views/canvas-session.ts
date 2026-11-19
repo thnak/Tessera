@@ -666,6 +666,24 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
       }
     },
     /**
+     * The panel was closed: stop drawing and release the GPU device (studio-workbench-layout-v1.md
+     * section 3.3). The session is not reused; reopening the panel creates a new one.
+     */
+    dispose: () => {
+      visible = false;
+      picker.hide();
+      inspector.hide();
+      if (gpu !== null) {
+        try {
+          gpu.device.destroy();
+        } catch {
+          /* an already lost device: nothing left to release */
+        }
+      }
+      gpu = null;
+      factory = null;
+    },
+    /**
      * The toolbar moved: on this view the viewport, the DPR and the fold posture are what the canvas is
      * sized and laid out for, and the layout pass happens inside the engine call this makes (issues #408
      * and #436). **A viewport change is not a reason to re-evaluate.** `_tessera_canvas_set_viewport`

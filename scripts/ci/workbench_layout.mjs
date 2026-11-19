@@ -515,5 +515,80 @@ test("the share codec and the project package carry no layout", async () => {
   assert.equal(fragment.includes("studio"), false);
 });
 
+// ---- 9. keyboard moves, the store and the plain command functions ----------------------------------------------
+
+test("keyboard moves: Down joins the panel area (and opens it), Right and Left make a column at the edge", () => {
+  const layout = dflt();
+  assert.deepEqual(wb.directionTarget(layout, "canvas", "bottom"), { group: "g-bottom" });
+  assert.deepEqual(wb.directionTarget(layout, "diagnostics", "right"), { edge: "right", of: "root" });
+  assert.deepEqual(wb.directionTarget(layout, "scene", "left"), { edge: "left", of: "root" });
+  assert.equal(wb.directionTarget(layout, "diagnostics", "bottom"), null, "already in the panel area");
+  assert.equal(wb.directionTarget(layout, "project", "left"), null, "a lone panel already at that edge");
+  assert.equal(wb.directionTarget(layout, "ghost", "right"), null);
+  const down = wb.movePanel(layout, "canvas", wb.directionTarget(layout, "canvas", "bottom"));
+  assert.deepEqual(down.layout.collapsed, [], "moving into the collapsed panel area opens it");
+  assert.deepEqual(wb.findGroup(down.layout, "g-bottom").panels.slice(-1), ["canvas"]);
+  const right = wb.movePanel(wb.collapseGroup(layout, "g-bottom", false).layout, "diagnostics", { edge: "right", of: "root" });
+  assertValid(right.layout, "diagnostics moved right");
+  assert.equal(right.layout.root.children.at(-1).panels[0], "diagnostics");
+});
+
+test("keyboard moves: the group submenu names groups by their active panel; the live message", () => {
+  const choices = wb.groupChoices(dflt(), "canvas", wb.PANELS);
+  assert.deepEqual(choices.map((choice) => choice.label), ["Project", "Editor", "Diagnostics"]);
+  assert.equal(wb.moveMessage("Canvas", "bottom"), "Canvas moved to the bottom");
+});
+
+test("store and commands: toggles, reveal, preset, reset, maximize, change notifications", () => {
+  const store = wb.createLayoutStore(dflt());
+  const commands = wb.createCommands(store);
+  const seen = [];
+  store.subscribe((result) => seen.push(result.change));
+  assert.equal(wb.panelAreaOpen(store.get()), false, "the panel area starts collapsed");
+  commands.togglePanelArea();
+  assert.equal(wb.panelAreaOpen(store.get()), true);
+  assert.deepEqual(seen.at(-1).shown, ["diagnostics"]);
+  commands.togglePanelArea();
+  assert.equal(wb.panelAreaOpen(store.get()), false);
+  commands.revealPanelArea();
+  commands.revealPanelArea();
+  assert.equal(seen.length, 3, "revealing an open panel area changes nothing and notifies no one");
+  commands.togglePanel("scene");
+  assert.equal(wb.groupOfPanel(store.get(), "scene").active, "scene", "a hidden open panel is revealed, not closed");
+  commands.togglePanel("scene");
+  assert.deepEqual(store.get().closed, ["scene"], "a visible panel is closed");
+  commands.togglePanel("scene");
+  assert.deepEqual(store.get().closed, []);
+  assert.equal(commands.isDefault(), false);
+  commands.maximizePanel();
+  assert.ok(store.get().maximized !== null);
+  commands.maximizePanel();
+  assert.equal(store.get().maximized, null);
+  commands.layoutPreset("editor-only");
+  assert.deepEqual(store.get().closed, ["canvas", "scene"]);
+  commands.resetLayout();
+  assert.deepEqual(store.get(), dflt());
+  assert.equal(commands.isDefault(), true);
+  commands.movePanelDirection("canvas", "bottom");
+  assert.equal(wb.groupOfPanel(store.get(), "canvas").id, "g-bottom");
+});
+
+test("visible resize: a sash on the folded tree resizes the real tree and collapsed groups keep their share", () => {
+  const layout = dflt(); // g-bottom collapsed, so the screen shows row[project, editor, preview]
+  assert.equal(wb.visibleLayout(layout).root.children.length, 3);
+  const first = wb.applyOperation(layout, { kind: "resize", path: [], sizes: [0.2, 0.4, 0.4], visible: true }).layout;
+  assert.deepEqual(first.root.sizes, [0.2, 0.8], "the first sash moves the real root boundary");
+  assert.deepEqual(first.root.children[1].sizes, [0.72, 0.28], "the collapsed panel area keeps its share");
+  assert.deepEqual(first.root.children[1].children[0].sizes, [0.5, 0.5]);
+  const second = wb.applyOperation(layout, { kind: "resize", path: [], sizes: [0.18, 0.5, 0.32], visible: true }).layout;
+  assert.deepEqual(second.root.sizes, [0.18, 0.82]);
+  assert.deepEqual(second.root.children[1].children[0].sizes, [0.609756, 0.390244], "the second sash moves the inner row's boundary");
+  assertValid(second, "after a visible resize");
+  const bad = wb.applyOperation(layout, { kind: "resize", path: [], sizes: [0.5, 0.5], visible: true });
+  assert.equal(bad.layout, layout, "a wrong number of sizes is ignored");
+  const open = wb.collapseGroup(layout, "g-bottom", false).layout;
+  assert.deepEqual(wb.applyOperation(open, { kind: "resize", path: [1], sizes: [0.6, 0.4], visible: true }).layout.root.children[1].sizes, [0.6, 0.4], "nothing collapsed: visible and real paths agree");
+});
+
 process.stdout.write(`workbench_layout: ${passed} passed, ${failures} failed\n`);
 process.exit(failures === 0 ? 0 : 1);

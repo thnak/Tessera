@@ -98,7 +98,8 @@ export type Operation =
   | { kind: "move"; panelId: string; target: MoveTarget }
   | { kind: "activate"; panelId: string }
   | { kind: "split"; groupId: string; dir: Dir; panelId: string }
-  | { kind: "resize"; path: number[]; sizes: number[] }
+  /** `visible: true` means `path` is a path in the tree a viewer sees (collapsed groups removed): what a dock reports. */
+  | { kind: "resize"; path: number[]; sizes: number[]; visible?: boolean }
   | { kind: "maximize"; panelId: string | null }
   | { kind: "reset" }
   | { kind: "collapse"; groupId: string; collapsed: boolean }

@@ -137,3 +137,23 @@ export function mintGroupId(layout: Layout, base: string): string {
 export function sumsToOne(sizes: readonly number[]): boolean {
   return Math.abs(sizes.reduce((sum, value) => sum + value, 0) - 1) <= EPS;
 }
+
+/**
+ * The layout with collapsed groups removed: what a viewer sees and what a dock library is shown. Removing a
+ * group can merge splits (a column left with one child folds into its parent row), so a path in this tree is
+ * not a path in the real one; `resizeVisibleSplit` (`resize.ts`) maps a visible resize back.
+ */
+export function visibleLayout(layout: Layout): Layout {
+  const copy = cloneLayout(layout);
+  const drop = new Set(copy.collapsed);
+  const strip = (node: LayoutNode): LayoutNode => {
+    if (node.type === "group") {
+      return drop.has(node.id) ? { ...node, panels: [] } : node;
+    }
+    return { ...node, children: node.children.map(strip) };
+  };
+  const root = normalize(strip(copy.root));
+  copy.root = root ?? copy.root;
+  copy.collapsed = root === null ? copy.collapsed : [];
+  return copy;
+}

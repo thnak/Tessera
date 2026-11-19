@@ -1,61 +1,30 @@
 /* SPDX-License-Identifier: MIT
  *
- * The responsive rules (issue #431's acceptance, which is the reason this file is last in the cascade).
+ * The responsive rules (issue #431's acceptance, which is the reason this file is last in the cascade; the
+ * dock arrived with #560).
  *
- * Three states, and the numbers are the issue's:
+ * The workspace is a dock now (`styles/workbench.css`), so the old three-column grid and its two-column and
+ * one-column variants are gone. What remains is the page around the dock:
  *
- *   >= 1200px  three columns: tree, code, preview, with the status line spanning the bottom.
- *   760-1199   two columns: the tree rail and the code column side by side, the preview beneath them.
- *              The preview keeps its own view switch, so which view it shows still changes nothing above.
- *   < 760px    one column, in reading order: tree, code, preview, status. The page becomes the scroller;
- *              nothing is given a fixed viewport height, and no element is wider than the page, which is
+ *   >= 720px   the dock lays panels out itself, in the arrangement the viewer chose.
+ *   <  720px   the dock renders one panel at a time with a scrollable tab strip as the switcher
+ *              (`workbench/phone.ts`, layout spec section 3.4); the page keeps no horizontal scroll, which is
  *              what "no horizontal scroll at 390" measures.
  *
- * The wide layout is a fixed-height flex column whose regions scroll internally. A phone cannot do that --
- * a tree, an editor and a preview stacked need more than one screen -- so below 760 px the page itself
- * becomes the scroller and `.workspace` is allowed to grow past the viewport. That rule was in the pre-#431
- * sheet for the two-pane split and it is the same rule here: without it the flex column caps the workspace
- * at the viewport height and the third region is squeezed to nothing.
+ * Below 760 px the page header and toolbars wrap; the dock keeps a bounded height so the tab strip, the active
+ * panel and the status line all fit one screen.
  */
 
-/* --- two columns: the preview moves beneath the editor ----------------------------------------- */
-
-@media (max-width: 1199px) {
-  .workspace {
-    grid-template-columns: var(--tree-width) minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) minmax(240px, 0.9fr);
-  }
-
-  .region-tree { grid-column: 1; grid-row: 1; }
-  .region-code { grid-column: 2; grid-row: 1; }
-
-  /* The preview spans both columns: a canvas at half the page width is a letterbox, and Scene's node list
-   * needs the room more than the tree does. */
-  .region-preview { grid-column: 1 / -1; grid-row: 2; }
-
-  .preview-well { min-height: 0; }
-}
-
-/* --- one column: reading order, page-scrolled, nothing wider than the page ---------------------- */
-
 @media (max-width: 760px) {
-  /* The wide layout is a fixed-height flex column that never scrolls: the regions scroll inside it. A
-   * phone cannot do that -- three stacked regions need more than one screen -- so the page itself becomes
-   * the scroller and the workspace is allowed to grow past the viewport. */
-  html, body { height: auto; min-height: 100%; }
-  #root { height: auto; min-height: 100%; }
-
   .page-header { flex-direction: column; gap: 10px; padding: 12px 16px; }
   .page-meta { width: 100%; }
   .toolbar-actions { flex-wrap: wrap; }
 
-  /* The width cap, stated once: every block in the single column is at most the page, so nothing can
-   * produce a horizontal scrollbar. The regions' own contents (a long node path, a wide canvas) scroll
-   * inside themselves instead of widening the page. */
+  /* The width cap, stated once: every block is at most the page, so nothing can produce a horizontal
+   * scrollbar. A panel's own contents (a long node path, a wide canvas) scroll inside themselves. */
   .workspace,
   .region,
   .region-header,
-  .preview-well,
   .tabstrip,
   .toolbar,
   .page-footer {
@@ -63,34 +32,9 @@
     min-width: 0;
   }
 
-  .workspace {
-    display: block;
-    overflow: visible;
-  }
+  /* The dock needs a definite height to lay a panel out in; the page scrolls to it. */
+  .workspace { min-height: 70vh; }
 
-  .region {
-    display: flex;
-    border-bottom: 1px solid var(--border);
-  }
-
-  /* The tree keeps its own bounded height: a project with a hundred files must not push the editor off
-   * the first screen, and a tree that grew with its content would be one. */
-  .region-tree { height: 34vh; min-height: 180px; }
-  .tree { overflow: auto; }
-
-  /* The editor gets a bounded height for the same reason, and the code column's strip stays one row. */
-  .region-code { height: 46vh; min-height: 220px; }
-  .tabstrip { overflow-x: auto; }
-
-  /* The preview is the one region that is allowed to be tall: it is the thing a visitor came to look at,
-   * so it grows with its content and the page scrolls to it. No nested scroll area on the preview well --
-   * a scroll box inside a phone-height page is the thing visitors cannot reach. */
-  .region-preview {
-    height: auto;
-    min-height: 45vh;
-  }
-
-  .preview-well { min-height: 45vh; }
   .view { overflow: visible; }
   .nodes, .cells { overflow: visible; max-height: none; }
 
@@ -98,11 +42,9 @@
    * 1280 wide, so the frame scrolls inside its own box rather than widening the page. */
   .canvas-frame { overflow: auto; }
 
-
-  /* The stylesheet editor on a phone (issue #390): the code column is a fixed 46vh, so the two editors
-   * share it. The source keeps most of the height and the sheet gets a small, scrollable box of its own
-   * rather than `max-height: 30vh` (which is most of the column at this size). `resize: none` because a
-   * touch drag on the corner handle fights the page scroll. */
+  /* The stylesheet editor on a phone (issue #390): the editor panel is the whole screen, so the two editors
+   * share it. The source keeps most of the height and the sheet gets a small, scrollable box of its own.
+   * `resize: none` because a touch drag on the corner handle fights the page scroll. */
   #stylesheet {
     min-height: 64px;
     max-height: 20vh;

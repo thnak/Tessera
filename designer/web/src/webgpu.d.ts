@@ -46,6 +46,7 @@ declare global {
     readonly queue: GPUQueue;
     readonly lost: Promise<GPUDeviceLostInfo>;
     readonly label: string;
+    destroy(): void;
   }
 
   interface GPUAdapter {
