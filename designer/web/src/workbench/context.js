@@ -49,6 +49,12 @@ export const CONTEXT_KEYS = Object.freeze([
   "run.inspector",
   "run.enabled",
   "run.component",
+  // Undo/Redo routing (issue #585, rule D3): the history the focus targets and what it would undo.
+  "edit.target",
+  "edit.canUndo",
+  "edit.canRedo",
+  "edit.undoTitle",
+  "edit.redoTitle",
   "notify.dnd",
   "notify.unread",
   "notify.any",

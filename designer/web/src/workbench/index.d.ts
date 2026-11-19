@@ -43,6 +43,8 @@ export interface CommandRecord {
   id: string;
   title: string;
   titleShort?: string;
+  /** A string context key whose non-empty value is shown instead of `title` in menus (`edit.undoTitle`). */
+  titleKey?: string;
   category: string;
   description?: string;
   keybinding?: { default: string; also?: readonly string[]; when?: string };
@@ -63,6 +65,8 @@ export type CommandHandler = (args: CommandArgs, meta: { id: string }) => unknow
 
 export interface CommandState {
   record: CommandRecord;
+  /** The title a menu shows: `record.title`, or the `titleKey` context value when it holds text. */
+  title: string;
   runnable: boolean;
   enabled: boolean;
   reason: string;

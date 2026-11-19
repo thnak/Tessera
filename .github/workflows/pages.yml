@@ -59,6 +59,7 @@ on:
       - 'scripts/ci/preview_mock_sandbox.mjs'
       - 'scripts/ci/mock_test_support.mjs'
       - 'scripts/ci/preview_theme_handover.mjs'
+      - 'scripts/ci/preview_override_client.mjs'
       - 'scripts/ci/preview_workbench*.mjs'
       - 'scripts/ci/gen_sample_manifest.py'
       - 'scripts/check_preview_budget.py'
@@ -93,6 +94,7 @@ on:
       - 'scripts/ci/preview_mock_sandbox.mjs'
       - 'scripts/ci/mock_test_support.mjs'
       - 'scripts/ci/preview_theme_handover.mjs'
+      - 'scripts/ci/preview_override_client.mjs'
       - 'scripts/ci/preview_workbench*.mjs'
       - 'scripts/ci/gen_sample_manifest.py'
       - 'scripts/check_preview_budget.py'
@@ -276,6 +278,9 @@ jobs:
 
       - name: Theme asset hand-over (token commits)
         run: node scripts/ci/preview_theme_handover.mjs
+
+      - name: Style override client (set/clear/revert, commit round trip, Undo/Redo routing)
+        run: node scripts/ci/preview_override_client.mjs
 
       # The workbench core (commands, when-clauses, keymap, menus, palette): pure modules, no browser.
       - name: Studio workbench core (registry, keymap, menus, palette)

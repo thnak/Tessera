@@ -47,6 +47,8 @@ import { useProblems, useProblemsStore } from "./page-problems";
 import { WorkbenchSurface } from "./page-workbench";
 import { WorkbenchChrome } from "./regions/WorkbenchChrome";
 import { useWorkbench as useCommands } from "./page-commands";
+import { useEditRouting } from "./page-edit-routing";
+import { useCommitBridge } from "./page-override-commit";
 import { StatusLine } from "./regions/StatusLine";
 import { useSkins, useThemeAttribute } from "./page-skins";
 import { usePlatform } from "./page-platform";
@@ -72,11 +74,9 @@ export function App() {
   // The view the sessions' readiness callbacks are talking about (they are not re-created per view).
   const viewRef = useRef(view);
   viewRef.current = view;
-  // The toolbar is settled once the stored toolbar has been read. The sessions wait for it, so a
-  // stored 390x844 lays the scene out once, at 390x844.
+  // Settled once the stored toolbar was read; the sessions wait, so a stored 390x844 lays out once.
   const [toolbarSettled, setToolbarSettled] = useState(false);
-  // Bumped when the page itself replaces a buffer (a tab switch, a gallery pick), so the
-  // editor's effect can tell a page write from a keystroke.
+  // Bumped when the page replaces a buffer (a tab switch, a gallery pick): a page write, not a keystroke.
   const [revision, setRevision] = useState(0);
   // Bumped when a `*.mock.ts` buffer is edited, so the mock sandbox worker is recreated (ADR-055).
   const [mockRevision, setMockRevision] = useState(0);
@@ -95,9 +95,7 @@ export function App() {
     const [width, height] = state.controls.viewport.split("x").map(Number);
     return { width, height, dpr: Number(state.controls.dpr) };
   }, [state.controls]);
-  // The fold posture (issue #408) is a layout input like the viewport, so both sessions read it the
-  // same way they read the size and the DPR. A `""` value is "no fold", which is what every page
-  // shows until a visitor picks a posture.
+  // The fold posture (issue #408) is a layout input like the viewport; `""` is "no fold".
   const currentFoldPosture = useCallback(
     () => state.controls.foldPosture ?? "",
     [state.controls],
@@ -105,13 +103,10 @@ export function App() {
 
   // ---- the simulated device skin (issue #171's skins slice) ---------------------------------------
   //
-  // The bundled manifests are loaded once and validated; the toolbar's `skin` value selects one, and
-  // the selection's safe area is what the canvas session hands the engine. `useSkins` returns the
-  // validated set, so a manifest that failed is never offered (section 5.2) and a link naming one
-  // falls back to the bare canvas rather than to a frame nobody validated.
+  // The bundled manifests are loaded once and validated; the toolbar's `skin` selects one, and its safe area
+  // is what the canvas session hands the engine (a failed manifest is never offered, section 5.2).
   const skins = useSkins(state.controls.skin ?? "");
-  // The Theme control is real since this slice: it writes `<html data-theme>`, which is what retints
-  // the frame and the canvas in one cascade (section 5.2's retint rule).
+  // The Theme control writes `<html data-theme>`, which retints the frame and the canvas (section 5.2).
   useThemeAttribute(state.controls.theme);
   const currentSafeArea = useCallback(() => skins.safeArea, [skins.safeArea]);
 
@@ -145,8 +140,7 @@ export function App() {
   // it is read when Run (or the live-edit debounce) fires, so the buffers are always the current ones.
   const filesRef = useRef(workspace.state.files);
   filesRef.current = workspace.state.files;
-  // The file the editor is showing, for the live edit's "did the keystroke land in a source file?" test
-  // and for a diagnostic's "show in source" affordance.
+  // The file the editor shows: the live edit's "keystroke in a source file?" test, "show in source".
   const activeRef = useRef(workspace.state.active);
   activeRef.current = workspace.state.active;
   const textOfRef = useRef(workspace.textOf);
@@ -158,9 +152,14 @@ export function App() {
   );
 
   const isCurrent = useCallback((id: ViewDefinition["id"]): boolean => viewRef.current === id, []);
+  // Undo/Redo routing and the style commit's buffer host (issue #585); `live` is created below, read lazily.
+  const editing = useEditRouting();
+  const commit = useCommitBridge(workspace, () => live.current);
 
   const sessionHandle = useSessions(
     {
+      commit,
+      editing,
       refs,
       setters: state_,
       environment,
@@ -389,6 +388,7 @@ export function App() {
   );
 
   const commandHost = useCommands({
+    editing,
     dock: workbench,
     io: projectIo,
     dirtyCount: new Set([...workspace.state.dirty, ...workspace.state.removed]).size,

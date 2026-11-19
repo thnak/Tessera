@@ -57,6 +57,11 @@ export function validateRecords(records) {
     if (record.status === "removed" && record.replacedBy === undefined) {
       problems.push(`${id}: removed command needs replacedBy (an id, or null)`);
     }
+    // `titleKey` names a string context key whose non-empty value replaces the title in menus (the Edit
+    // menu's "Undo Set color on Button"); the palette and the table keep the plain title.
+    if (record.titleKey !== undefined && !isKnownContextKey(record.titleKey)) {
+      problems.push(`${id}: titleKey names unknown context key '${record.titleKey}'`);
+    }
     for (const field of CLAUSE_FIELDS) {
       const clause = record[field];
       if (clause === null || clause === undefined) {
@@ -217,8 +222,11 @@ export function createRegistry(records, options) {
         reason = "unavailable right now";
       }
     }
+    const dynamicTitle = record.titleKey === undefined ? "" : scope[record.titleKey];
     return {
       record,
+      // What a menu shows: the context-supplied title when the record has a `titleKey` and the key holds text.
+      title: typeof dynamicTitle === "string" && dynamicTitle !== "" ? dynamicTitle : record.title,
       runnable: reason === "",
       enabled: reason === "",
       reason,

@@ -45,6 +45,7 @@ import type { PaneRefs } from "./page-state";
 import { usePaletteHost, type PaletteHost } from "./page-palette";
 import type { CommandRecord, MenuTarget } from "./workbench/index.js";
 import type { Workbench as Dock } from "./dock/use-workbench";
+import type { EditRouting } from "./page-edit-routing";
 import { layoutContext, layoutHandlers, layoutProviders, useLayoutNotices, type LayoutUndo } from "./page-layout-commands";
 
 const DOCS_URL = "https://github.com/thnak/Tessera/blob/main/docs/README.md";
@@ -55,6 +56,8 @@ const PHONE_QUERY = "(max-width: 719.98px)";
 
 /** What the page hands the workbench: its own callbacks and the state the context keys read. */
 export interface WorkbenchApi {
+  /** Undo/Redo routing (issue #585): which history the focus targets, its facts, and the operation. */
+  editing: EditRouting;
   /** The dock's layout store and operations: the dock-owned commands (`page-layout-commands.ts`) call into it. */
   dock: Dock;
   io: ProjectIo;
@@ -153,6 +156,8 @@ function computeContext(api: WorkbenchApi, extra: ContextRecord): ContextRecord 
     "ui.theme": controls.theme,
     "run.enabled": api.runEnabled,
     "run.component": api.components.chosen,
+    // The history Undo/Redo target at the focus right now (issue #585, `lib/edit-routing.ts`).
+    ...api.editing.context(),
     ...extra,
   };
 }
@@ -280,6 +285,9 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
       "notify.toggleDoNotDisturb": () => notifications.setDoNotDisturb(!notifications.snapshot().dnd),
       ...layoutHandlers({ dock: () => apiRef.current.dock, notify: (input) => notifications.notify(input), undo: undoRef, zenHinted: zenHintedRef }),
       ...EDITOR_COMMANDS,
+      // Undo and Redo go to the history the focus targets (override stack or text history), not always the editor.
+      "edit.undo": () => void a().editing.run("undo"),
+      "edit.redo": () => void a().editing.run("redo"),
     };
     for (const [id, handler] of Object.entries(handlers)) {
       registry.register(id, handler);
@@ -324,7 +332,10 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
   const run = useCallback(
     async (id: string, args?: CommandArgs) => {
       const result = await registry.run(id, args);
-      if (!result.ok) {
+      // An Undo or Redo at an empty history is a no-op, not an error worth a toast (the menu item shows it
+      // disabled with the same reason).
+      const quiet = result.ok === false && result.code === "disabled" && (id === "edit.undo" || id === "edit.redo");
+      if (!result.ok && !quiet) {
         notifications.notify({ message: result.message, severity: result.code === "failed" ? "error" : "warning", key: `command:${id}:${result.code}` });
       }
     },
@@ -352,6 +363,7 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
         "editor.focus": facts.focus,
         "editor.hasSelection": facts.hasSelection,
         "tree.focus": active?.closest?.('[role="tree"]') != null,
+        ...apiRef.current.editing.context(),
       };
       const resolution = registry.keymap().resolve(event as unknown as KeyEventLike, pending, context);
       if (resolution.status === "match") {

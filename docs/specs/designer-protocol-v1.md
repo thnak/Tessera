@@ -365,6 +365,13 @@ The viewer keeps an undo stack of override operations (`set`, `clear`, `revert`)
 the host's files, and the host's own undo applies. After a commit the stack is cleared of the
 operations the commit consumed.
 
+"The operations the commit consumed" are exactly the committed node's: a settle removes that node's
+steps from the live layer, the undo stack and the redo stack, drops any step that became a no-op, and
+**keeps every other node's steps** (`OverrideLayer::consume`, asserted by
+`scene_canvas_override_commit_tests.cpp`). A settle therefore does NOT clear the history as a whole, and a
+page cannot derive whether Undo still has a step; the settle report carries `canUndo` and `canRedo` for
+that (section 9.5). A mismatch (overrides kept) leaves the history untouched.
+
 ### 9.5 Engine mapping (issue #536)
 
 The studio's Wasm canvas module implements sections 9.2-9.4 and the last step of 10.3 as exports
@@ -400,7 +407,46 @@ The studio's Wasm canvas module implements sections 9.2-9.4 and the last step of
   (`CanvasSceneSession::set_theme_asset`). The studio page hands it over with `tessera_canvas_set_theme(file, text, theme_id)` right before each commit (`assets.theme` path, the editor buffer, the asset's `start` theme); a project with no theme asset still answers `not_token_bound`.
 - `settle` compares the node's computed longhands with the overrides on against the new evaluation
   without them. Equal: the overrides leave the layer and the history. Different: they stay and the
-  report carries a `TESSERA_DESIGNER_PATCH_MISMATCH` diagnostic for the page to forward.
+  report carries a `TESSERA_DESIGNER_PATCH_MISMATCH` diagnostic for the page to forward. Every settle
+  report also carries `canUndo` and `canRedo`: whether the override history still has a step after the
+  node's own steps left it (an older module omits them and the page falls back to its own labels).
+
+### 9.6 Page behavior (issue #585)
+
+The studio page (`designer/web/src/lib/override-client.ts`, a plain TypeScript client with no DOM; the React
+inspector only renders it) is the host of sections 9 and 10:
+
+- **Set, clear, revert.** The inspector sets an override on the selected node (Enter or the Set button;
+  a colour swatch beside every colour computed value sets on the picker's `change`), clears one, and
+  reverts all. A refused value shows its `TESSERA_CSS_*` code inline next to the field and changes nothing.
+  It is not published to the Problems panel: that panel lists the compiler's diagnostics of project files
+  and is replaced by every diagnostics run, while a refused override has no file or span.
+  Overridden values are marked (`override` badge, `data-origin="override"`) and the section is headed
+  `uncommitted`.
+- **Commit round trip (10.3).** `style.commit` is `tessera_canvas_patch` (the page supplies the node,
+  the destination and, per destination, the class name and CSS file or the token and its value; the
+  declarations are the layer's). The module numbers every staged file version 1, so the page reads
+  `baseVersions` as "every named file's buffer still equals the text the last successful evaluation
+  staged"; if not, it answers `rejected` / `version_mismatch` and changes nothing. Edit offsets are UTF-8
+  bytes and are converted to the buffer's UTF-16 units; one that is not on a character boundary is
+  rejected (`edit_out_of_range`) before any buffer is touched. Otherwise the edits are applied per file
+  (the open file as one editor transaction), the page evaluates the buffers (the `source.update`) and only
+  then calls `tessera_canvas_settle(node)`. If the source does not compile, the commit stays open and
+  settles after the next successful evaluation. No second commit starts for a node while one is open.
+- **Token commits** hand the theme asset over (`tessera_canvas_set_theme`) with the buffer's text right
+  before the patch, and the patch edits the theme file.
+- **Undo and redo (rule D3).** One Undo only ever touches one history; there is no merged timeline.
+  `edit.undo` / `edit.redo` act on the override stack when the canvas or the inspector's controls have
+  focus, on the text history when the code editor has focus, and are left to the browser when a text field
+  has focus (a value is one override operation only after Enter or blur). Elsewhere (menu bar, palette)
+  they act on the domain acted on last. The Edit menu shows the target in its label (`Undo Set color on
+  Button`, `Undo typing`) and an empty history is `aria-disabled` but focusable. A commit writes one
+  text-history entry per edited file and settles its overrides, so Undo on the canvas afterwards reverts
+  nothing of that node; Undo in the editor reverts the commit in one step. A rejected patch writes
+  nothing to either history.
+- **Known deviation: a settle mismatch.** A `patch_mismatch` is only known after the edit was applied, so
+  by then the text-history entry exists (Undo in the editor reverts it in one step); the overrides and the
+  override history are kept untouched. A `version_mismatch` rejection applies nothing at all.
 
 ## 10. Commit
 

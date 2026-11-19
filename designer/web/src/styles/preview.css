@@ -473,6 +473,109 @@
   color: var(--text-dim);
 }
 
+/* The inspector's write half (issue #585). An override is NOT an authored value, so it is marked with text
+ * (the badge) and a left rule in the accent, never colour alone. Uses the page's tokens only, so light, dark
+ * and the accent contrast gate cover it. */
+.inspect-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 5px;
+  border: 1px solid var(--accent-fg);
+  border-radius: 8px;
+  color: var(--accent-fg);
+  font-size: 10px;
+  line-height: 14px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.inspect-row.is-overridden,
+.inspect-row.inspect-override {
+  border-left: 2px solid var(--accent);
+  padding-left: 6px;
+}
+
+.inspect-row {
+  align-items: center;
+  grid-template-columns: minmax(90px, max-content) 1fr auto auto;
+}
+
+.inspect-overrides,
+.inspect-commit {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.inspect-override-form,
+.inspect-commit-options,
+.inspect-commit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.inspect-field {
+  flex: 1 1 110px;
+  min-width: 0;
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--pane-bg);
+  color: var(--text);
+  font: inherit;
+}
+
+.inspect-field:focus-visible,
+.inspect-panel button:focus-visible,
+.inspect-swatch:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.inspect-panel button {
+  padding: 3px 10px;
+  font-size: 12px;
+}
+
+.inspect-panel button[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.inspect-swatch {
+  width: 28px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: none;
+  cursor: pointer;
+}
+
+.inspect-diagnostic {
+  padding: 4px 6px;
+  border-left: 2px solid var(--error);
+  background: var(--error-bg);
+  color: var(--error);
+  overflow-wrap: anywhere;
+}
+
+.inspect-commit-answer {
+  padding: 4px 6px;
+  border-left: 2px solid var(--warning);
+  background: var(--warning-bg);
+  color: var(--warning);
+  overflow-wrap: anywhere;
+}
+
+.inspect-commit-answer[data-status="committed"] {
+  border-left-color: var(--ok);
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+
 /* The frame counters: name/value pairs, two columns so the labels line up without a table. */
 .frame-stats {
   display: grid;

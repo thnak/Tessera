@@ -67,6 +67,7 @@ keybindings never carry behavior; they reference an id.
 | `title`, `category` | the label shown in the palette is `Category: Title`; menus show `title` only. `titleShort` is optional for the toolbar |
 | `keybinding.default` | `Mod+S`, `Mod+Shift+P`, chords as `Mod+K Mod+O`. `Mod` is Ctrl on Windows/Linux and Cmd on macOS; keys are `KeyboardEvent.key` names normalized to upper case. At most one default per command; extras are user overrides |
 | `keybinding.when` | a when-clause scoping the binding |
+| `titleKey` | optional: a string context key whose non-empty value replaces `title` in menus (`edit.undo` shows `Undo Set color on Button`); the palette and the table keep `title` |
 | `enabled`, `visible`, `checked` | when-clauses (section 2.2). `enabled` false greys the item; `visible` false removes it; `checked` makes it a toggle (`menuitemcheckbox`). Absent means true/false/not-a-toggle |
 | `args` | `null`, or a JSON Schema 2020-12 object. A palette invocation with required args opens a quick-pick/input per argument; a menu item supplies literal args in `menus.json` (section 3.1); MCP uses the schema as the tool `inputSchema` |
 | `services` | which [ADR-060](../../decisions/ADR-060-studio-services-in-web-workers.md) services the handler calls: `viewer`, `analysis`, `format`, `mock`, plus page-side `project-io`, `layout`, `prefs`. Used for readiness (a command whose service is not ready is disabled with a reason), for the failure-isolation rule and for the MCP rule below |
@@ -91,6 +92,9 @@ record of **context keys** the page publishes. Unknown keys evaluate to `false` 
 | `project.folderSupported` | bool | File System Access API is available |
 | `editor.focus` | bool | the code editor has focus |
 | `editor.hasSelection` | bool | selection non-empty |
+| `edit.target` | `'override' \| 'text' \| 'native'` | the history Undo/Redo act on at the focus right now: the canvas or inspector controls -> `override`, the code editor -> `text`, a text field -> `native` (the browser's; the chord is not bound), elsewhere the domain acted on last |
+| `edit.canUndo`, `edit.canRedo` | bool | the target's stack has a step (always true for `native`) |
+| `edit.undoTitle`, `edit.redoTitle` | string | `Undo Set color on Button`, `Undo typing`, or plain `Undo`; feed `titleKey` |
 | `canvas.available` | bool | WebGPU is available (false keeps Scene and Diagnostics alive, [#516](https://github.com/thnak/Tessera/issues/516)) |
 | `canvas.running` | bool | the app is evaluated and painting |
 | `panel.<id>.open` | bool | panel is in the layout (`panel.canvas.open`) |
@@ -113,14 +117,25 @@ by the page (React today) at boot. Rules:
   `Result` is `{ ok: true }` or `{ ok: false, code, message }`. A throwing handler becomes
   `{ ok: false }`, is logged to the diagnostics core, and never reaches another panel (failure
   isolation, layout spec section 4.3).
-- **Focus-routed editor commands.** `edit.undo`, `edit.redo`, `edit.find`, `edit.selectAll` route to the
+- **Undo and Redo route by focus (rule D3, [#585](https://github.com/thnak/Tessera/issues/585)).** One Undo
+  only ever touches one history and there is no merged timeline: `edit.undo` / `edit.redo` act on the
+  override stack of the canvas module when the canvas or the inspector's controls have focus, on the
+  CodeMirror history when the code editor has focus, and are not bound while a text field has focus (the
+  browser's own undo runs until blur; an override value is one operation after Enter or blur). From the menu
+  bar or the palette they act on the domain acted on last. The ids are unchanged; the clauses are
+  `keybinding.when: edit.target != 'native'`, `enabled: project.open && edit.canUndo` (resp. `canRedo`), and
+  `titleKey` supplies the target in the Edit menu label. An empty target stack disables the item
+  (`aria-disabled`, still focusable) and a chord on it does nothing, without a toast. The table is
+  `lib/edit-routing.ts` and is gated by `scripts/ci/preview_override_client.mjs`.
+- **Focus-routed editor commands.** `edit.find`, `edit.selectAll` route to the
   focused editor through an `EditorTarget` interface; CodeMirror implements it today. The registry
   generates the CodeMirror keymap for editor-scoped commands from the same records, so `Mod+S` and
   `Mod+Enter` are defined once, not in `editor/code-editor.ts` and again here.
 - **Keybinding resolution** is a pure function over (event, context): match chord state, then
   `when`, then most specific `when` wins, user override beats default. A reserved-key list
   (section 2.5) is enforced at registration.
-- **Undo of layout/commands is not in scope**; `edit.undo` is the editor's history only.
+- **Undo of layout/commands is not in scope**; `edit.undo` acts on the override stack or the editor's text
+  history (above), never on layout.
 
 ### 2.4 MCP
 
@@ -210,7 +225,7 @@ File
   ------
   Close Folder                  R:file.closeProject
 Edit
-  Undo / Redo                   *edit.undo/redo         Ctrl+Z / Ctrl+Y (editor focus; Ctrl+Shift+Z also)
+  Undo / Redo                   *edit.undo/redo         Ctrl+Z / Ctrl+Y (not in a text field; Ctrl+Shift+Z also); label names the target
   ------
   Cut / Copy / Paste            *edit.cut/copy/paste    native, shown for discoverability
   Select All                    *edit.selectAll         Ctrl+A (editor focus)
