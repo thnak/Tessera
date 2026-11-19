@@ -24,6 +24,7 @@ import {
   type ProjectFile,
   type TreeRow,
 } from "./lib/project";
+import { bootProject } from "./page-boot";
 import { entryOf, type EntryResult } from "./lib/project-snapshot";
 
 /** The shape of the left column and the middle column, as React state. */
@@ -117,7 +118,7 @@ export function initialWorkspace(files: ProjectFile[] = seedProject()): Workspac
  * paint, and the layout is reviewable without a load path.
  */
 export function useWorkspace(): Workspace {
-  const [state, setState] = useState<WorkspaceState>(() => initialWorkspace());
+  const [state, setState] = useState<WorkspaceState>(() => initialWorkspace(bootProject()));
   // The one mutable store: file path -> the text the editor currently holds. A ref, for the reason in
   // the header: a keystroke must not re-render the page.
   const buffers = useRef<Map<string, string>>(new Map());

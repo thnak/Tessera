@@ -60,6 +60,7 @@ import { createLiveEdit, type LiveEdit } from "./page-live";
 import { setStatusText, usePageState, usePaneRefs } from "./page-state";
 import { useSessions } from "./page-sessions";
 import { useProjectIo } from "./page-project-io";
+import { hasShareLink, sampleProjectFiles, useFirstView } from "./page-boot";
 import { useViewOnlyLoader } from "./page-view-only";
 import { useWorkspace } from "./page-workspace";
 import { CodeRegion } from "./regions/CodeRegion";
@@ -89,6 +90,9 @@ export function App() {
   // editor's effect can tell a page write from a keystroke.
   const [revision, setRevision] = useState(0);
 
+  useFirstView(projectIo.recentsLoaded, projectIo.recents.length, workspace.state.files.length, () =>
+    state_.setGalleryOpen(true),
+  );
   const onViewLoaded = useCallback(() => setRevision((value) => value + 1), []);
   useViewOnlyLoader(workspace, projectIo, onViewLoaded);
 
@@ -209,6 +213,9 @@ export function App() {
           if (entry !== null) {
             workspace.putFile({ ...entry, text: loaded.source });
             setRevision((value) => value + 1);
+          } else if (workspace.state.files.length === 0 && hasShareLink()) {
+            // Nothing is open: the link's one document becomes a one-file project.
+            projectIo.openSample("shared", sampleProjectFiles("ui/Shared.tsx", loaded.source, "Shared"));
           }
         }
         // A share link carries one source document (the link envelope is frozen at `v,s,w,h,d,t,f`), so
@@ -451,7 +458,10 @@ export function App() {
         // seed project rather than inventing a path.
         file = null;
       }
-      if (file !== null) {
+      if (file !== null && workspace.state.files.length === 0) {
+        // Nothing is open (the studio no longer boots on a demo project): the sample becomes a project.
+        projectIo.openSample(sample.component, sampleProjectFiles(file.path, sample.text, sample.component));
+      } else if (file !== null) {
         workspace.putFile(file);
         setRevision((value) => value + 1);
       }

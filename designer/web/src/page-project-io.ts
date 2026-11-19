@@ -94,6 +94,10 @@ export interface ProjectIo {
   folderSupported: boolean;
   /** The folders opened before that this browser still remembers, newest first (at most 10). */
   recents: readonly RecentProject[];
+  /** `true` once the recent list was read. */
+  recentsLoaded: boolean;
+  /** Opens a gallery sample as an in-memory one-file project (no folder, nothing to save into). */
+  openSample: (name: string, files: readonly { path: string; text: string }[]) => void;
   openFolder: () => void;
   /** Reopens `recents[index]`; the click that calls it is the gesture a permission prompt needs. */
   reopenRecent: (index: number) => void;
@@ -258,6 +262,13 @@ export function useProjectIo(workspace: Workspace): ProjectIo {
       await loadFrom(handle);
     })();
   }, [loadFrom, say]);
+
+  const openSample = useCallback(
+    (name: string, files: readonly { path: string; text: string }[]) => {
+      adopt("sample", name, { entries: [...files], context: {} }, null, new Map());
+    },
+    [adopt],
+  );
 
   const forgetRecents = useCallback(() => {
     recent.forgetAll();
@@ -600,6 +611,8 @@ export function useProjectIo(workspace: Workspace): ProjectIo {
     epoch,
     folderSupported,
     recents,
+    recentsLoaded: recent.loaded,
+    openSample,
     openFolder,
     reopenRecent,
     forgetRecents,

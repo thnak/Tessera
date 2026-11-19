@@ -102,7 +102,7 @@ export function ProjectBar({ io, dirtyCount }: { io: ProjectIo; dirtyCount: numb
       </div>
       {state.name !== "" ? (
         <p className="project-name" id="project-name">
-          {state.source === "folder" ? "Folder" : "Zip"}: {state.name}
+          {state.source === "folder" ? "Folder" : state.source === "sample" ? "Sample" : "Zip"}: {state.name}
           {state.source === "zip" ? " (a copy: Save needs an opened folder, use Download)" : ""}
         </p>
       ) : null}

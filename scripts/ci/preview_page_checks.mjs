@@ -387,6 +387,30 @@ if (!requireBuilt()) {
   const chrome = await import(pathToFileURL(resolve(DIST_SSR, "ssr-chrome.js")).href);
   const markup = chrome.renderChrome();
 
+  // The first view has no fixed sample project (#391, owner direction 2026-11-17): an empty tree that says
+  // how to open one, and no open file. The seeded `markup` above exists only so the layout can be asserted.
+  {
+    const boot = chrome.renderBootChrome();
+    const problems = [];
+    if (/role="treeitem"/.test(boot)) {
+      problems.push("a treeitem is rendered before any project is opened");
+    }
+    if (!/No project open/.test(boot)) {
+      problems.push("the empty tree does not say how to open a project");
+    }
+    if (/role="tab"[^>]*id="tab-(?:file|ui)/.test(boot) || /class="editor-tab/.test(boot)) {
+      problems.push("an editor tab is open before any project is");
+    }
+    if (!/id="open-folder"/.test(boot) || !/id="open-zip"/.test(boot)) {
+      problems.push("Open folder / Open zip are missing from the first view");
+    }
+    if (problems.length > 0) {
+      fail(`the first view ${problems.join("; ")}`);
+    } else {
+      ok("the first view is an empty workspace with Open folder, Open zip and no seeded project");
+    }
+  }
+
   {
     const missing = [...SHARED_IDS, ...SHELL_IDS].filter((id) => !markup.includes(`id="${id}"`));
     for (const id of missing) {

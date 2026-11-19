@@ -16,9 +16,17 @@
 
 import { renderToStaticMarkup } from "react-dom/server";
 import { App } from "./App";
+import { seedBootProjectForRender } from "./page-boot";
 
 /** The studio chrome as static HTML, with every id, role and class the page's code resolves. */
 export function renderChrome(): string {
+  seedBootProjectForRender();
+  return renderToStaticMarkup(<App />);
+}
+
+/** The chrome as a visitor first sees it: no project open, nothing seeded (the owner's 2026-11-17 direction). */
+export function renderBootChrome(): string {
+  seedBootProjectForRender(false);
   return renderToStaticMarkup(<App />);
 }
 

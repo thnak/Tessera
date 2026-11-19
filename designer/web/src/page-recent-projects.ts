@@ -17,6 +17,8 @@ export interface RecentProject {
 export interface RecentProjects {
   /** Newest first, at most ten. */
   recents: readonly RecentProject[];
+  /** `true` once the stored list was read (empty included), so "no history" is not mistaken for "not read yet". */
+  loaded: boolean;
   /** The stored handle of `recents[index]`, or `undefined`. */
   handleAt: (index: number) => FileSystemDirectoryHandle | undefined;
   /** Remembers `handle` as the most recently opened folder. */
@@ -29,11 +31,13 @@ export interface RecentProjects {
 
 export function useRecentProjects(): RecentProjects {
   const [recents, setRecents] = useState<readonly RecentProject[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const handles = useRef<FileSystemDirectoryHandle[]>([]);
   const refresh = useCallback(async () => {
     const list: { name: string; openedAt: number; handle: FileSystemDirectoryHandle }[] = await recallFolders();
     handles.current = list.map((entry) => entry.handle);
     setRecents(list.map((entry) => ({ name: entry.name, openedAt: entry.openedAt })));
+    setLoaded(true);
   }, []);
   useEffect(() => {
     void refresh();
@@ -42,5 +46,5 @@ export function useRecentProjects(): RecentProjects {
   const remember = useCallback((handle: FileSystemDirectoryHandle) => void rememberFolder(handle).then(refresh), [refresh]);
   const forget = useCallback((handle: FileSystemDirectoryHandle) => void forgetFolder(handle).then(refresh), [refresh]);
   const forgetAll = useCallback(() => void forgetAllFolders().then(refresh), [refresh]);
-  return { recents, handleAt, remember, forget, forgetAll };
+  return { recents, loaded, handleAt, remember, forget, forgetAll };
 }
