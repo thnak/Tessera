@@ -1,51 +1,9 @@
 /* SPDX-License-Identifier: MIT
  *
- * The studio chrome's sheet (issue #392, #422, and the header's demotion in #431): the page header, the
- * sample gallery, the broken-link banner and the environment toolbar.
- *
- * The view tabs are **not** here any more. They were the page's only navigation in #392/#422; #431 moved
- * the switch into the preview column it controls (`preview.css`), and the header kept what is genuinely
- * page chrome -- the title, the per-view subtitle, Samples and Copy share link.
+ * The studio chrome's sheet (issue #392, #422, #431): the share status, the sample gallery and the
+ * broken-link banner. The page header and the preview toolbar are the workbench chrome since issue #557
+ * (`workbench.css`); the view tabs live in the preview column (`preview.css`).
  */
-
-.page-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 14px 20px;
-  border-bottom: 1px solid var(--border);
-  background: var(--pane-bg);
-}
-
-.page-title { min-width: 0; }
-
-.page-title h1 {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
-
-.page-subtitle {
-  margin: 4px 0 0;
-  color: var(--text-dim);
-  font-size: 13px;
-  max-width: 60ch;
-}
-
-.page-meta {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  flex: none;
-}
-
-.toolbar-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
 
 .share-status {
   font-size: 12px;
@@ -92,47 +50,3 @@
   font-size: 12px;
 }
 
-/* The preview column's environment toolbar (moved here from the page's second row by #431): the
- * viewport, the DPR, the theme and the fold posture. It is *not* part of the engine canvas -- the
- * studio's chrome is HTML (ADR-045 decision 3) -- and it sits directly under the preview tabs because
- * it controls the preview. */
-.toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 8px 14px;
-  border-bottom: 1px solid var(--border);
-  background: var(--pane-bg);
-}
-
-.controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.control {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-}
-
-.control-label {
-  color: var(--text-dim);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  font-weight: 600;
-}
-
-.control select {
-  padding: 3px 6px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--pane-bg);
-  color: var(--text);
-  font: inherit;
-  font-size: 12px;
-}

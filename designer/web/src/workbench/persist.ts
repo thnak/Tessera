@@ -4,7 +4,7 @@
 // every access wrapped for the empty/throwing case as `lib/preferences.ts` does. A layout problem is never a
 // page error and never blocks boot: the default layout is the answer to every failure.
 
-import { defaultContext, freshDefault } from "./context";
+import { defaultContext, freshDefault } from "./layout-context";
 import { migrateLayout } from "./migrate";
 import { reconcile } from "./reconcile";
 import { cloneLayout } from "./tree";

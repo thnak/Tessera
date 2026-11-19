@@ -10,7 +10,7 @@
 
 import { createPortal } from "react-dom";
 import type { ReactNode } from "react";
-import { openPanels, PANELS, type PanelDef } from "../workbench";
+import { openPanels, PANELS, type PanelDef } from "../workbench/layout";
 import { FlexDock } from "./FlexDock";
 import { panelHost } from "./hosts";
 import { PanelBoundary } from "./PanelBoundary";

@@ -159,7 +159,7 @@ This page is the map and reading order for the framework.
   simulated platform events and hardware buttons, restart on device change, live edit without Run
 - [`specs/studio-mock-services-v1.md`](specs/studio-mock-services-v1.md) — design-time mock services: `*.mock.ts` project files, sandboxed studio worker, calls/responses and traces (ADR-055)
 - [`specs/studio-workbench-v1.md`](specs/studio-workbench-v1.md) — studio workbench as data: command registry, menus, toolbar, slice plan (#516);
-  [`studio-workbench-layout-v1.md`](specs/studio-workbench-layout-v1.md): dock model, constraints, library evaluation and W0 results ([ADR-062](../decisions/ADR-062-studio-dock-library-flexlayout-react.md))
+  [`studio-workbench-layout-v1.md`](specs/studio-workbench-layout-v1.md): dock model, constraints, library evaluation and W0 results ([ADR-062](../decisions/ADR-062-studio-dock-library-flexlayout-react.md)); [`design/studio-workbench-core.md`](design/studio-workbench-core.md): the core as built (registry, keymap, menus, palette, notifications)
 - [`specs/compiler-diagnostics-v1.md`](specs/compiler-diagnostics-v1.md) — machine-readable compiler
   diagnostics document (`--diagnostics-json`), spans, determinism, native/Wasm parity
 - [`specs/jsx-subset-v1.md`](specs/jsx-subset-v1.md) — accepted JSX/TSX syntax: grammar, expressions,

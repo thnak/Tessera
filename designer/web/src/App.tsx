@@ -50,7 +50,6 @@ import { entryOf, projectSnapshot } from "./lib/project-snapshot";
 import {
   DEFAULT_VIEW,
   resolveView,
-  viewOf,
   type ProjectSnapshot,
   type ViewDefinition,
 } from "./lib/views";
@@ -65,11 +64,13 @@ import { hasShareLink, sampleProjectFiles, useFirstView } from "./page-boot";
 import { useViewOnlyLoader } from "./page-view-only";
 import { useWorkspace } from "./page-workspace";
 import { GalleryRegion } from "./regions/GalleryRegion";
-import { EnvironmentToolbar, PageHeader, type ControlValues } from "./regions/StudioChrome";
+import type { ControlValues } from "./regions/StudioChrome";
 import { useWorkbench } from "./dock/use-workbench";
 import { useMockConsole } from "./lib/mock-console";
 import { usePanelVisibility, useDiagnosticsAutoOpen, useViewFromUrl } from "./page-panels";
 import { WorkbenchSurface } from "./page-workbench";
+import { WorkbenchChrome } from "./regions/WorkbenchChrome";
+import { useWorkbench as useCommands } from "./page-commands";
 import { StatusLine } from "./regions/StatusLine";
 import { useSkins, useThemeAttribute } from "./page-skins";
 import { usePlatform } from "./page-platform";
@@ -111,7 +112,6 @@ export function App() {
   const onViewLoaded = useCallback(() => setRevision((value) => value + 1), []);
   useViewOnlyLoader(workspace, projectIo, onViewLoaded);
 
-  const currentView = viewOf(view);
   const activeText = workspace.textOf(workspace.state.active);
 
   // ---- the toolbar, as the two layout-aware sessions read it --------------------------------------
@@ -383,20 +383,6 @@ export function App() {
     void live.current?.restart();
   }, [platformReset]);
 
-  const loadSampleForActiveView = useCallback(() => {
-    const session = sessions[viewRef.current];
-    const sample = session?.sampleSource;
-    const entry = workspace.state.files.find((file) => file.path === entryPath) ?? null;
-    if (sample !== undefined && entry !== null) {
-      // The view's sample is written into the *entry* buffer, because the entry is what Run previews.
-      // The page owns the buffers (#431); a session no longer reaches into the editor.
-      workspace.putFile({ ...entry, text: sample });
-      setRevision((value) => value + 1);
-    }
-    session?.loadSample?.();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspace.state.files]);
-
   // A load replaces the whole project, so the preview starts over from the new entry and the editor
   // takes the new active file's text. Skipped at epoch 0, which is the seed, not a load.
   useEffect(() => {
@@ -616,34 +602,42 @@ export function App() {
     [],
   );
 
+  // ---- the workbench: commands, menus, keyboard (issues #555 and #557) ---------------------------
+  const commandHost = useCommands({
+    io: projectIo,
+    dirtyCount: new Set([...workspace.state.dirty, ...workspace.state.removed]).size,
+    hasProject: workspace.state.files.length > 0,
+    controls: state.controls,
+    keepState,
+    setKeepState,
+    skins: skins.skins,
+    profiles: profiles.profiles,
+    profileId: state.controls.profile,
+    components: componentList,
+    runEnabled: state.runEnabled,
+    toggleGallery: () => state_.setGalleryOpen((open) => !open),
+    restart: restartActiveView,
+    applyNow: onEditorApplyNow,
+    share: onShare,
+    setControl: onControlChange,
+    setCustomSize: onCustomSize,
+    pickComponent: onPickComponent,
+    files: workspace.state.files,
+    openFile: onSelectTab,
+    buildId: state.buildId,
+    shareStatus: state.shareStatus,
+    refs,
+  });
+
   return (
     <>
-      <PageHeader
-        view={currentView}
-        onToggleGallery={() => state_.setGalleryOpen((open) => !open)}
-        galleryOpen={state.galleryOpen}
-        onShare={() => void onShare()}
-        shareStatus={state.shareStatus}
-        shareStatusRef={refs.shareStatus}
-      />
+      <WorkbenchChrome workbench={commandHost} />
 
       <GalleryRegion open={state.galleryOpen} onPick={onSample} />
 
       <p className="link-note" id="link-note" role="alert" hidden={state.linkNote === null}>
         {state.linkNote}
       </p>
-
-      {/* The device toolbar stays above the dock until the toolbar slice (W2) moves it into the menu bar. */}
-      <EnvironmentToolbar
-        controls={state.controls}
-        onChange={onControlChange}
-        skins={skins.skins}
-        profiles={profiles.profiles.map((entry) => ({ id: entry.id, name: entry.name }))}
-        profile={profiles.selected}
-        keepState={keepState}
-        onKeepState={setKeepState}
-        onCustomSize={onCustomSize}
-      />
 
       {/* The workspace is the dock (W5): panels the viewer arranges, not three fixed columns. */}
       <main
@@ -674,12 +668,8 @@ export function App() {
           onSelectTab={onSelectTab}
           onEdit={onEdit}
           onRestart={restartActiveView}
-          onLoadSample={loadSampleForActiveView}
           onSave={onEditorSave}
           onApplyNow={onEditorApplyNow}
-          components={componentList.names}
-          component={componentList.chosen}
-          onPickComponent={onPickComponent}
           skin={skins.selected}
           overlay={
             <AppStateOverlay

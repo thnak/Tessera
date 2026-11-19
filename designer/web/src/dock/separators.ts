@@ -5,7 +5,7 @@
 // functions over fractions; the DOM glue is `FlexDock.tsx`. The result of a key is an ordinary `resize`
 // operation, so a keyboard resize and a pointer drag end in the same place.
 
-import { canonicalSizes, type Layout, type LayoutNode, type PanelDef } from "../workbench";
+import { canonicalSizes, type Layout, type LayoutNode, type PanelDef } from "../workbench/layout";
 import { visibleLayout } from "./codec";
 
 export const ARROW_STEP_PX = 16;

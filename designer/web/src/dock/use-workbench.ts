@@ -23,7 +23,7 @@ import {
   type Operation,
   type PanelRuntime,
   type WorkbenchCommands,
-} from "../workbench";
+} from "../workbench/layout";
 
 export interface Workbench {
   /** The canonical (desktop) layout; the phone projection is derived from it. */

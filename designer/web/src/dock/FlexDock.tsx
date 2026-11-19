@@ -20,7 +20,7 @@ import {
   type Layout as LayoutModel,
   type Operation,
   type PanelDef,
-} from "../workbench";
+} from "../workbench/layout";
 import { gestureOf } from "./actions";
 import { toLibrary } from "./codec";
 import { PanelSlot } from "./PanelSlot";

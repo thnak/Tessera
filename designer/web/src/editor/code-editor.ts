@@ -181,7 +181,8 @@ export function createCodeEditor(parent: HTMLElement, options: CodeEditorOptions
           return true;
         },
       },
-      ...searchKeymap,
+      // `Mod-g`/`Shift-Mod-g` are find-next here; the workbench binds Ctrl+G to Go to Line (VS Code's chord).
+      ...searchKeymap.filter((binding) => binding.key !== "Mod-g" && binding.key !== "Shift-Mod-g"),
       ...historyKeymap,
       ...defaultKeymap,
     ]),

@@ -29,7 +29,7 @@ import {
   type LayoutNode,
   type PanelDef,
   type SplitNode,
-} from "../workbench";
+} from "../workbench/layout";
 
 export { visibleLayout };
 

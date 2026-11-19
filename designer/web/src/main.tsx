@@ -18,6 +18,7 @@ import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import "./styles/base.css";
 import "./styles/chrome.css";
+import "./styles/workbench-chrome.css";
 import "./styles/workspace.css";
 import "./styles/code.css";
 import "./styles/preview.css";

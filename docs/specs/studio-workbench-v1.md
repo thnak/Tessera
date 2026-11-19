@@ -1,7 +1,7 @@
 # Studio workbench v1: commands, menus, toolbar and slice plan
 
 Status: library choice and decisions 1-10 and 13 Accepted by the owner 2026-11-19 (section 8);
-decisions 11-12 remain open. Slice W0 is in progress; W1 onward is not implemented; the studio today has loose buttons
+decisions 11-12 remain open. Slice W0 is done; W1 (core), W2 (menus, toolbar) and W3 (palette, quick open, context menus) and W3b (notifications) are implemented, see [studio-workbench-core.md](../design/studio-workbench-core.md); the studio today has loose buttons
 (`designer/web/src/regions/`) and a fixed three-column layout.
 Owner feedback 2026-11-19: (1) the page needs an IDE-style action bar with menus, (2) there is still
 no real dock ([#516](https://github.com/thnak/Tessera/issues/516)).

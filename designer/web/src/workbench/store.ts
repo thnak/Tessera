@@ -3,7 +3,7 @@
 // The layout store and the plain command functions (`view.*`, `layout.reset`). The registry (W1) calls these
 // and nothing else; the dock adapter calls `dispatch`. No React: a React hook subscribes through `subscribe`.
 
-import { defaultContext } from "./context";
+import { defaultContext } from "./layout-context";
 import { PANEL_AREA_GROUP, directionTarget, type Direction } from "./keyboard";
 import { applyOperation, resetLayout } from "./ops";
 import { findGroup, groupOfPanel, visiblePanels } from "./tree";

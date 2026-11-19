@@ -39,12 +39,8 @@ export interface WorkbenchSurfaceProps {
   onSelectTab: (path: string) => void;
   onEdit: (text: string) => void;
   onRestart: () => void;
-  onLoadSample: () => void;
   onSave: () => void;
   onApplyNow: () => void;
-  components: readonly string[];
-  component: string;
-  onPickComponent: (name: string) => void;
   skin: Skin | null;
   /** The two nodes the platform panel supplies: the overlay over the canvas and the hardware strip under it. */
   overlay: ReactNode;
@@ -73,9 +69,7 @@ export function WorkbenchSurface(props: WorkbenchSurfaceProps): ReactNode {
         stale={projectIo.state.stale}
         onSelect={workspace.selectRow}
         onToggleDir={workspace.toggleDir}
-        toolbar={
-          <ProjectBar io={projectIo} dirtyCount={new Set([...workspace.state.dirty, ...workspace.state.removed]).size} />
-        }
+        toolbar={<ProjectBar io={projectIo} />}
       />
     ),
     editor: (
@@ -91,9 +85,6 @@ export function WorkbenchSurface(props: WorkbenchSurfaceProps): ReactNode {
         onSelectTab={props.onSelectTab}
         onCloseTab={workspace.closeTab}
         onEdit={props.onEdit}
-        onRestart={props.onRestart}
-        onLoadSample={props.onLoadSample}
-        restartDisabled={!props.runEnabled}
         applying={props.applying}
         onSave={props.onSave}
         onApplyNow={props.onApplyNow}
@@ -103,9 +94,6 @@ export function WorkbenchSurface(props: WorkbenchSurfaceProps): ReactNode {
     canvas: (
       <CanvasPanel
         refs={refs}
-        components={props.components}
-        component={props.component}
-        onPickComponent={props.onPickComponent}
         skin={props.skin}
         overlay={props.overlay}
         strip={props.strip}

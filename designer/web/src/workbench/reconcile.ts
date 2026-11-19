@@ -3,7 +3,7 @@
 // `reconcile` (studio-workbench-layout-v1.md section 2.3): makes a migrated, validated document match the
 // running build. It is not a migration: shipping a new panel does not bump the version.
 
-import { defaultContext } from "./context";
+import { defaultContext } from "./layout-context";
 import { defaultTarget, finish, insertPanel } from "./place";
 import { cloneLayout, groupsOf, normalize, openPanels } from "./tree";
 import type { Context, Layout } from "./types";

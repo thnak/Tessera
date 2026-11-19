@@ -142,14 +142,10 @@ function EditorTabs({
 }
 
 /**
- * The code column: the tab strip, the editor, the actions above the text and the hint below it.
+ * The code column: the tab strip, the editor and the hint below it.
  *
- * The actions (**Restart app**, Load sample) are here rather than in the preview column because they act
- * on *this* text: the editor is what the developer is changing, and the preview column only displays the
- * result. Since issue #444 the edit itself needs no button -- it applies ~150 ms after the last keystroke
- * -- so the primary action is the *cold start*, and it is named for what it does rather than for what it
- * used to do. The `restart-app`/`load-sample` ids are the page's contract
- * (`scripts/ci/preview_page_checks.mjs`).
+ * Since issue #444 an edit needs no button -- it applies ~150 ms after the last keystroke -- and since issue #557
+ * the cold start is a command (`run.restart`, on the toolbar and in the Run menu), not a button here.
  */
 export function CodeRegion({
   open,
@@ -163,9 +159,6 @@ export function CodeRegion({
   onSelectTab,
   onCloseTab,
   onEdit,
-  onRestart,
-  onLoadSample,
-  restartDisabled,
   applying,
   onSave,
   onApplyNow,
@@ -192,10 +185,6 @@ export function CodeRegion({
   onSelectTab: (path: string) => void;
   onCloseTab: (path: string) => void;
   onEdit: (text: string) => void;
-  /** **Restart app**: the explicit cold start, state reset (issue #444). */
-  onRestart: () => void;
-  onLoadSample: () => void;
-  restartDisabled: boolean;
   /** A live edit is scheduled or running: the hint says so instead of pretending nothing is happening. */
   applying: boolean;
   /** Mod-S in the editor: save to the opened folder (#391). */
@@ -253,24 +242,6 @@ export function CodeRegion({
     <section className="region region-code" aria-labelledby="editor-heading">
       <div className="region-header">
         <h2 id="editor-heading">Code</h2>
-        <div className="pane-actions">
-          {/* Issue #444: the edit applies itself, so this button is the cold start rather than a
-              trigger. It keeps a stable id (`restart-app`) instead of reusing `run`, because a page
-              check that clicked "Run" and got a restart is exactly the confusion the rename prevents. */}
-          <button
-            id="restart-app"
-            type="button"
-            className="primary"
-            onClick={onRestart}
-            disabled={restartDisabled}
-            title="Start the app over from a cold start: every state cell goes back to its initializer."
-          >
-            Restart app
-          </button>
-          <button id="load-sample" type="button" onClick={onLoadSample}>
-            Load sample
-          </button>
-        </div>
       </div>
 
       <EditorTabs

@@ -10,7 +10,7 @@
 // is not part of V1 and is refused.
 
 import { Actions, type Action } from "flexlayout-react";
-import { groupOfPanel, type Edge, type Layout, type MoveTarget, type Operation } from "../workbench";
+import { groupOfPanel, type Edge, type Layout, type MoveTarget, type Operation } from "../workbench/layout";
 import { pathOfRowId } from "./codec";
 
 export type Gesture =

@@ -76,18 +76,11 @@ export function ScenePanel({ refs }: { refs: PreviewRefs }) {
 
 export function CanvasPanel({
   refs,
-  components,
-  component,
-  onPickComponent,
   skin,
   overlay,
   strip,
 }: {
   refs: PreviewRefs;
-  /** The entry's declared components (the compiler's list) and the one previewed. */
-  components: readonly string[];
-  component: string;
-  onPickComponent: (name: string) => void;
   /** The selected skin, or `null` for no frame. */
   skin: Skin | null;
   /** Issue #448: the overlay over the canvas while the app is not in the foreground. */
@@ -100,18 +93,6 @@ export function CanvasPanel({
   const mode = skin === null ? "system" : geometryModeOf(skin, "system");
   return (
     <div className="canvas-panel">
-      {components.length > 1 ? (
-        <label className="component-picker">
-          Component
-          <select id="component-select" value={component} onChange={(event) => onPickComponent(event.currentTarget.value)}>
-            {components.map((name) => (
-              <option key={name} value={name}>
-                {name}
-              </option>
-            ))}
-          </select>
-        </label>
-      ) : null}
       <CanvasPane
         statusRef={refs.canvasStatus}
         unsupportedRef={refs.canvasUnsupported}

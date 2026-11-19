@@ -6,7 +6,7 @@
 
 export type * from "./types";
 export { LAYOUT_FORMAT, LAYOUT_VERSION } from "./types";
-export { PANELS, DEFAULT_LAYOUT, PRESETS, defaultContext, freshDefault, panelDef } from "./context";
+export { PANELS, DEFAULT_LAYOUT, PRESETS, defaultContext, freshDefault, panelDef } from "./layout-context";
 export { MAX_DEPTH, MAX_LAYOUT_BYTES, parseLayout, validateLayout } from "./validate";
 export {
   activatePanel,

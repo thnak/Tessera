@@ -48,6 +48,10 @@ const browser = await chromium.launch({
   args: ['--enable-unsafe-webgpu', '--enable-features=Vulkan', '--use-angle=swiftshader'],
 });
 const page = await (await browser.newContext({ acceptDownloads: true })).newPage();
+
+// Issue #557: the loose buttons are menu items now, so this script drives the same commands the menus run.
+const command = (id, args) => page.evaluate(([name, given]) => window.__tesseraWorkbench.run(name, given), [id, args]);
+const runnable = (id) => page.evaluate((name) => window.__tesseraWorkbench.describe(name)?.runnable === true, id);
 const consoleErrors = [];
 page.on('console', (message) => {
   if (message.type() === 'error') consoleErrors.push(message.text());
@@ -169,7 +173,7 @@ check(
 );
 const [download] = await Promise.all([
   page.waitForEvent('download'),
-  page.locator('#download-project').click(),
+  command('file.download'),
 ]);
 const exported = await readZip(new Uint8Array(await readFile(await download.path())));
 const byPath = Object.fromEntries(exported.map((entry) => [entry.path, new TextDecoder().decode(entry.bytes)]));
@@ -179,7 +183,7 @@ check('the download carries every accepted file', 'tessera.json' in byPath && 's
 check('the download is a project package: manifest present, binaries omitted', 'tessera-project.json' in byPath && !('fonts/Inter.ttf' in byPath));
 
 // --- 3. a zip project has no folder to save into -----------------------------------------------------
-check('Save is disabled for a zip project', await page.locator('#save-project').isDisabled());
+check('Save is disabled for a zip project', !(await runnable('file.save')));
 
 // --- 4. refusals are named ------------------------------------------------------------------------------
 const many = {};
@@ -226,10 +230,10 @@ const diskText = (path) =>
     return (await (await at.getFileHandle(parts.at(-1))).getFile()).text();
   }, path);
 
-await page.locator('#open-folder').click();
+await command('file.openFolder');
 await page.waitForFunction(() => /Folder: proj/.test(document.getElementById('project-name')?.textContent ?? ''));
 check('a folder opens and is named', true);
-check('Save is enabled for a folder project', !(await page.locator('#save-project').isDisabled()));
+check('Save is enabled for a folder project', !(!(await runnable('file.save'))));
 
 await page.locator('.tree-row[data-path="ui/Home.tsx"]').click();
 const editHome = async (from, to) => {
@@ -255,13 +259,13 @@ await page.evaluate(async () => {
   await writable.close();
 });
 await editHome('Saved to the folder', 'Mine again');
-await page.locator('#save-project').click();
+await command('file.save');
 await page.waitForSelector('#project-conflict');
 check('a file changed on disk raises the conflict choice', true);
 check('nothing was written before the choice', (await diskText('ui/Home.tsx')) === '// changed by another editor');
 await page.getByRole('button', { name: 'Cancel' }).click();
 check('Cancel leaves the disk alone', (await diskText('ui/Home.tsx')) === '// changed by another editor');
-await page.locator('#save-project').click();
+await command('file.save');
 await page.waitForSelector('#project-conflict');
 await page.getByRole('button', { name: 'Keep mine' }).click();
 await page.waitForFunction(() => /saved/.test(document.getElementById('project-note')?.textContent ?? ''));
@@ -284,54 +288,54 @@ const waitNote = (pattern) =>
   page.waitForFunction((source) => new RegExp(source).test(document.getElementById('project-note')?.textContent ?? ''), pattern.source);
 
 promptAnswer = 'ui/Extra.tsx';
-await page.locator('#new-file').click();
+await command('file.newFile');
 await page.waitForSelector('.tree-row[data-path="ui/Extra.tsx"]');
 check('New file appears in the tree, marked unsaved', (await page.locator('.tree-row[data-path="ui/Extra.tsx"] .tree-dirty').count()) === 1);
 check('a new file is not on disk before Save', !(await onDisk('ui/Extra.tsx')));
 
 promptAnswer = 'src/native.cpp';
-await page.locator('#new-file').click();
+await command('file.newFile');
 await waitNote(/not a file the studio edits/);
 check('a file type the studio does not edit is refused', (await page.locator('.tree-row[data-path="src/native.cpp"]').count()) === 0);
 promptAnswer = '../escape.tsx';
-await page.locator('#new-file').click();
+await command('file.newFile');
 await waitNote(/\.\./);
 check('a path that escapes the project is refused as a new file', (await page.locator('.tree-row[data-path="../escape.tsx"]').count()) === 0);
 promptAnswer = 'ui/Extra.tsx';
-await page.locator('#new-file').click();
+await command('file.newFile');
 await waitNote(/already exists/);
 check('a duplicate path is refused', true);
 
 await page.locator('.tree-row[data-path="ui/Extra.tsx"]').click();
 promptAnswer = 'ui/Renamed.tsx';
-await page.locator('#rename-file').click();
+await command('file.renameFile');
 await page.waitForSelector('.tree-row[data-path="ui/Renamed.tsx"]');
 check('Rename moves the row and says imports are not rewritten', (await page.locator('.tree-row[data-path="ui/Extra.tsx"]').count()) === 0 && /not rewritten/.test(await note()), await note());
 
 // An existing file that is deleted stays on disk until Save, and asks first.
 await page.locator('.tree-row[data-path="styles/app.css"]').click();
 confirmAnswer = false;
-await page.locator('#delete-file').click();
+await command('file.deleteFile');
 check('declining the delete confirmation keeps the file', (await page.locator('.tree-row[data-path="styles/app.css"]').count()) === 1);
 confirmAnswer = true;
-await page.locator('#delete-file').click();
+await command('file.deleteFile');
 await page.waitForFunction(() => document.querySelector('.tree-row[data-path="styles/app.css"]') === null);
 check('Delete drops the row, but the folder keeps the file until Save', await onDisk('styles/app.css'));
 
-await page.locator('#save-project').click();
+await command('file.save');
 await waitNote(/deleted 1 file/);
 check('Save creates the new file and deletes the removed one', (await onDisk('ui/Renamed.tsx')) && !(await onDisk('styles/app.css')) && !(await onDisk('ui/Extra.tsx')));
 check('nothing is left unsaved after Save', (await page.locator('.tree-dirty').count()) === 0);
 
 // --- 7. the last folder is remembered and offered back --------------------------------------------
 await page.reload({ waitUntil: 'load' });
-await page.waitForSelector('#recent-projects');
-check('after a reload the last folder is listed under recent projects', /proj/.test((await page.locator('#recent-projects option').nth(1).textContent()) ?? ''));
+await page.waitForFunction(() => window.__tesseraWorkbench?.context()['project.hasRecent'] === true);
+check('after a reload the last folder is listed under recent projects', (await page.evaluate(() => window.__tesseraWorkbench.context()['project.hasRecent'])) === true);
 await page.evaluate(async () => {
   const dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('proj');
   window.showDirectoryPicker = async () => dir;
 });
-await page.selectOption('#recent-projects', '0');
+await command('file.openRecent', { index: 0 });
 await page.waitForFunction(() => /Folder: proj/.test(document.getElementById('project-name')?.textContent ?? ''));
 check('Reopen loads the remembered folder without the picker', (await page.locator('.tree-row[data-path="ui/Renamed.tsx"]').count()) === 1);
 
@@ -340,12 +344,12 @@ await page.locator('.tree-row[data-path="ui/Home.tsx"]').click();
 await editHome('Mine again', 'Draft text');
 await page.waitForTimeout(2600);
 await page.reload({ waitUntil: 'load' });
-await page.waitForSelector('#recent-projects');
+await page.waitForFunction(() => window.__tesseraWorkbench?.context()['project.hasRecent'] === true);
 await page.evaluate(async () => {
   const dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('proj');
   window.showDirectoryPicker = async () => dir;
 });
-await page.selectOption('#recent-projects', '0');
+await command('file.openRecent', { index: 0 });
 await page.waitForSelector('#project-draft');
 check('the unsaved edit is offered back after a reload', /1 file/.test((await page.locator('#project-draft').textContent()) ?? ''));
 check('the draft is not applied before the person chooses', !(await page.evaluate(() => window.__tesseraEditor.text())).includes('Draft text'));
@@ -364,8 +368,8 @@ await page.evaluate(async () => {
   await writable.close();
 });
 await page.reload({ waitUntil: 'load' });
-await page.waitForSelector('#recent-projects');
-await page.selectOption('#recent-projects', '0');
+await page.waitForFunction(() => window.__tesseraWorkbench?.context()['project.hasRecent'] === true);
+await command('file.openRecent', { index: 0 });
 await page.waitForFunction(() => /Folder: proj/.test(document.getElementById('project-name')?.textContent ?? ''));
 await page.waitForTimeout(800);
 check('a draft for a file that changed on disk is not offered', (await page.locator('#project-draft').count()) === 0);

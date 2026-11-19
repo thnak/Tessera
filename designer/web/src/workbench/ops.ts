@@ -7,7 +7,7 @@
 // An operation that cannot apply (unknown panel, a non-closable panel, a target that is gone) returns the
 // layout unchanged with an empty change; it never throws.
 
-import { defaultContext } from "./context";
+import { defaultContext } from "./layout-context";
 import { defaultTarget, detachPanel, finish, insertPanel } from "./place";
 import { reconcile } from "./reconcile";
 import { resizeVisibleSplit } from "./resize";
