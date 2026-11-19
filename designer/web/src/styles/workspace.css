@@ -251,11 +251,3 @@
 
 .project-conflict p { margin: 0; overflow-wrap: anywhere; }
 
-/* The entry's component dropdown (issue #391): shown only when the entry declares more than one. */
-.component-picker {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 12px;
-  font-size: 12px;
-}

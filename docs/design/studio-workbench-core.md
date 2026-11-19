@@ -1,6 +1,6 @@
 # Studio workbench core: registry, keymap, menus, palette
 
-Status: W1 implemented (issue [#555](https://github.com/thnak/Tessera/issues/555)); W2 and W3 are added
+Status: W1 (issue [#555](https://github.com/thnak/Tessera/issues/555)) and W2 (#557) implemented; W3 is added
 below as they land. The normative rules (record fields, when-clause grammar, the menu tree, the slice plan)
 are in [studio-workbench-v1.md](../specs/studio-workbench-v1.md); this note records how the code in
 `designer/web/src/workbench/` realises them and where it deliberately differs.
@@ -61,3 +61,36 @@ Registration rejects the chords Chromium reserves (`Mod+N`, `Mod+T`, `Mod+W`, `M
 `Mod+Shift+T`, `Ctrl+Tab`, `Ctrl+PageUp/PageDown`, `Mod+1..9`, `Alt+Left/Right`) and names the fallback:
 `Ctrl+Alt+N` for New File and `Alt+W` for Close Editor. A user override on a reserved chord is dropped and
 listed in `keymap.rejected`.
+
+## 4. Menus and toolbar (W2, issue #557)
+
+`menus.json` is the menu tree of spec section 3.2 as data: items name a command and literal arguments, a
+`submenu` nests, a `dynamic` entry names a provider the page registers (`recent`, `components`, `profiles`,
+`skins`, `viewports`, `dprs`) and the command each entry runs. `menus.js` builds the visible tree from the
+registry: a reserved command hides its item (so `Go` is absent until its first command is live), separators
+fall between groups only, and an item with a `checked` clause is a `check` (no arguments) or a `radio` (with
+arguments). A disabled item keeps its reason for the tooltip. A submenu with no entries is hidden unless it
+sets `showEmpty` (Open Recent stays visible and disabled).
+
+`menu-nav.js` is the whole keyboard model as a pure reducer (WAI-ARIA menu bar): Left/Right across the bar,
+Down/Enter/Space open, Up/Down wrap and skip separators, Home/End, Right/Left into and out of submenus,
+type-ahead on the first letter, Escape one level at a time (the root level closes onto the bar button, the
+bar itself returns focus to where it was), Tab closes, and a disabled item is focusable but inert.
+`Alt+letter` opens a menu by its mnemonic when no command owns the chord.
+
+The React side is `regions/MenuBar.tsx` (`useMenuController` is shared by the bar, the device chip popover
+and, in W3, context menus), `regions/WorkbenchChrome.tsx` (title bar, toolbar, device chip) and
+`page-workbench.ts` (the one registry, the handlers, the context keys, chord routing). `App.tsx` has one mount
+point: `useWorkbench({...})` and `<WorkbenchChrome />`. A phone (below 720 CSS px) shows one menu button whose
+popup lists the menus as submenus, and the toolbar keeps Restart (and the palette button once W3 lands).
+
+Where the spec's mapping (section 4.1) lands today: Open folder, Open zip, Reopen (Open Recent), Samples and
+Load sample (one `file.samples`), New file, Rename, Delete, Download and Save moved out of `ProjectBar`;
+Restart app moved out of the code column; Copy share link and the five device selectors moved out of the
+header and the preview column. The Picker, Inspector and Run input buttons stay in the canvas and scene panes
+(they act on those panes) and the Run menu items click them. `ProjectBar` keeps the project name, the status
+note, the draft offer and the conflict choice. Developer-run browser scripts that selected the old controls
+(`#control-viewport`, `#control-foldPosture`) drive the same commands through `window.__tesseraWorkbench.run`.
+
+The gate for the model is `scripts/ci/preview_workbench_menus.mjs`; the browser check is
+`scripts/ci/preview_browser_workbench.mjs` (developer-run, Playwright).

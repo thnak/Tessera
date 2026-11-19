@@ -142,27 +142,22 @@ await page.locator('#tab-canvas').click();
 await page.waitForTimeout(2200);
 check('Canvas draws a frame on its first open', /draw call/.test((await status()) ?? ''), await status());
 
-const viewport = page.locator('#control-viewport');
-if (await viewport.count()) {
-  const values = await viewport.locator('option').evaluateAll((els) => els.map((e) => e.value));
-  await viewport.selectOption(values[1]);
-  await page.waitForTimeout(1600);
-  check('Canvas survives a viewport change', /draw call/.test((await status()) ?? ''), await status());
-}
+// The viewport presets are Device > Viewport menu items now (issue #557); drive the command they run.
+await page.evaluate(() => window.__tesseraWorkbench.run('device.setViewport', { value: '390x844' }));
+await page.waitForTimeout(1600);
+check('Canvas survives a viewport change', /draw call/.test((await status()) ?? ''), await status());
 
 await page.locator('#restart-app').click();
 await page.waitForTimeout(2200);
 check('Canvas survives a restart', /draw call/.test((await status()) ?? ''), await status());
 
 // 5. Every fold posture still draws (issue #408 feeds the fold through the app's safe-area path).
-const fold = page.locator('#control-foldPosture');
-// The posture control is unconditional page chrome (`StudioChrome` renders every control), so its
-// absence is a regression and not an unsupported environment. A `count()` guard here previously turned
-// a wrong id into three silently skipped checks while still reporting "all checks passed".
-check('the fold-posture control is present', (await fold.count()) === 1);
-if ((await fold.count()) === 1) {
+// The posture is the Device > Fold Posture menu now (issue #557): a command that must exist and be runnable.
+const foldCommand = await page.evaluate(() => window.__tesseraWorkbench.describe('device.setFold', { value: 'book' }));
+check('the fold-posture command is present', foldCommand !== null && foldCommand.runnable === true);
+if (foldCommand !== null) {
   for (const posture of ['book', 'tabletop', 'flat']) {
-    await fold.selectOption(posture);
+    await page.evaluate((value) => window.__tesseraWorkbench.run('device.setFold', { value }), posture);
     await page.waitForTimeout(1300);
     check(`Canvas draws in the ${posture} posture`, /draw call/.test((await status()) ?? ''),
       await status());

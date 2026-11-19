@@ -1,0 +1,131 @@
+{
+  "version": 1,
+  "menus": [
+    {
+      "id": "file", "title": "File", "mnemonic": "F",
+      "items": [
+        { "command": "file.openFolder", "group": "open@1" },
+        { "command": "file.openZip", "group": "open@2" },
+        { "submenu": "file.recent", "title": "Open Recent", "group": "open@3", "showEmpty": true,
+          "items": [ { "dynamic": "recent", "command": "file.openRecent" } ] },
+        { "command": "file.samples", "title": "Open Sample...", "group": "open@4" },
+        { "command": "file.newFile", "group": "save@1" },
+        { "command": "file.save", "group": "save@2" },
+        { "command": "file.download", "group": "save@3" },
+        { "command": "file.renameFile", "group": "file@1" },
+        { "command": "file.deleteFile", "group": "file@2" },
+        { "command": "file.share", "group": "share@1" },
+        { "command": "file.closeProject", "group": "share@2" }
+      ]
+    },
+    {
+      "id": "edit", "title": "Edit", "mnemonic": "E",
+      "items": [
+        { "command": "edit.undo", "group": "history@1" },
+        { "command": "edit.redo", "group": "history@2" },
+        { "command": "edit.cut", "group": "clipboard@1" },
+        { "command": "edit.copy", "group": "clipboard@2" },
+        { "command": "edit.paste", "group": "clipboard@3" },
+        { "command": "edit.selectAll", "group": "select@1" },
+        { "command": "edit.find", "group": "find@1" },
+        { "command": "edit.findNext", "group": "find@2" },
+        { "command": "edit.findPrevious", "group": "find@3" },
+        { "command": "edit.replace", "group": "find@4" },
+        { "command": "edit.format", "group": "code@1" },
+        { "command": "edit.renameSymbol", "group": "code@2" },
+        { "command": "edit.toggleComment", "group": "code@3" }
+      ]
+    },
+    {
+      "id": "view", "title": "View", "mnemonic": "V",
+      "items": [
+        { "command": "view.palette", "group": "go@1" },
+        { "command": "view.quickOpen", "group": "go@2" },
+        { "command": "view.gotoLine", "group": "go@3" },
+        { "command": "view.explorer", "group": "views@1" },
+        { "command": "view.search", "group": "views@2" },
+        { "command": "view.sourceControl", "group": "views@3" },
+        { "command": "view.problems", "group": "views@4" },
+        { "command": "view.toggleSideBar", "group": "layout@1" },
+        { "command": "view.togglePanelArea", "group": "layout@2" },
+        { "command": "view.toggleStatusBar", "group": "layout@3" },
+        { "command": "view.toggleActivityBar", "group": "layout@4" },
+        { "command": "view.zenMode", "group": "layout@5" },
+        { "command": "view.maximizePanel", "group": "layout@6" },
+        { "command": "view.resetLayout", "group": "layout@7" },
+        { "command": "view.focusNextRegion", "group": "focus@1" },
+        { "command": "view.focusPreviousRegion", "group": "focus@2" },
+        { "submenu": "view.appearance", "title": "Appearance", "group": "appearance@1",
+          "items": [
+            { "command": "view.setTheme", "args": { "value": "system" }, "title": "Theme: System" },
+            { "command": "view.setTheme", "args": { "value": "light" }, "title": "Theme: Light" },
+            { "command": "view.setTheme", "args": { "value": "dark" }, "title": "Theme: Dark" }
+          ] }
+      ]
+    },
+    {
+      "id": "go", "title": "Go", "mnemonic": "G",
+      "items": [
+        { "command": "go.definition", "group": "symbol@1" },
+        { "command": "go.symbol", "group": "symbol@2" },
+        { "command": "go.references", "group": "symbol@3" }
+      ]
+    },
+    {
+      "id": "run", "title": "Run", "mnemonic": "R",
+      "items": [
+        { "command": "run.restart", "group": "run@1" },
+        { "command": "run.applyNow", "group": "run@2" },
+        { "command": "run.inputScript", "group": "run@3" },
+        { "command": "run.replay", "group": "replay@1" },
+        { "command": "run.togglePicker", "group": "tools@1" },
+        { "command": "run.toggleInspector", "group": "tools@2" },
+        { "submenu": "run.component", "title": "Component", "group": "component@1",
+          "items": [ { "dynamic": "components", "command": "run.component" } ] }
+      ]
+    },
+    {
+      "id": "device", "title": "Device", "mnemonic": "D",
+      "items": [
+        { "submenu": "device.profile", "title": "Device Profile", "group": "device@1",
+          "items": [ { "dynamic": "profiles", "command": "device.profile" } ] },
+        { "submenu": "device.skin", "title": "Skin", "group": "device@2",
+          "items": [ { "dynamic": "skins", "command": "device.setSkin" } ] },
+        { "submenu": "device.viewport", "title": "Viewport", "group": "device@3",
+          "items": [
+            { "dynamic": "viewports", "command": "device.setViewport", "group": "preset@1" },
+            { "command": "device.setCustomSize", "group": "custom@1" }
+          ] },
+        { "submenu": "device.dpr", "title": "Pixel Ratio", "group": "device@4",
+          "items": [ { "dynamic": "dprs", "command": "device.setDpr" } ] },
+        { "submenu": "device.fold", "title": "Fold Posture", "group": "device@5",
+          "items": [
+            { "command": "device.setFold", "args": { "value": "none" }, "title": "None" },
+            { "command": "device.setFold", "args": { "value": "flat" }, "title": "Flat" },
+            { "command": "device.setFold", "args": { "value": "book" }, "title": "Book" },
+            { "command": "device.setFold", "args": { "value": "tabletop" }, "title": "Tabletop" }
+          ] },
+        { "command": "device.toggleKeepState", "group": "state@1" },
+        { "command": "device.platformEvent", "group": "events@1" }
+      ]
+    },
+    {
+      "id": "help", "title": "Help", "mnemonic": "H",
+      "items": [
+        { "command": "help.shortcuts", "group": "help@1" },
+        { "command": "help.docs", "group": "help@2" },
+        { "command": "help.reportIssue", "group": "help@3" },
+        { "command": "help.about", "group": "about@1" }
+      ]
+    }
+  ],
+  "contexts": {},
+  "toolbar": [
+    { "command": "run.restart", "emphasis": "primary", "title": "Restart" },
+    { "command": "file.save", "icon": "save", "title": "Save" },
+    { "command": "file.share", "icon": "share", "title": "Share" },
+    { "widget": "deviceChip" },
+    { "command": "view.cycleTheme", "icon": "theme", "title": "Theme" },
+    { "widget": "paletteButton" }
+  ]
+}

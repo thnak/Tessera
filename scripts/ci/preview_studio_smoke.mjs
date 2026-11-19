@@ -131,7 +131,7 @@ const MARKUP = chrome.renderChrome();
 
 await test("the built chrome renders the page's four regions", async () => {
   assert.ok(MARKUP.length > 1000, "the chrome rendered something");
-  for (const id of ["page-hint", "controls", "editor-host", "gallery", "link-note", "build-id"]) {
+  for (const id of ["menubar-file", "device-chip", "restart-app", "editor-host", "gallery", "link-note", "build-id"]) {
     assert.ok(MARKUP.includes(`id="${id}"`), `the chrome carries #${id}`);
   }
   // Issue #431: the two-pane split became a three-column workspace -- the project tree, the tabbed code
@@ -152,18 +152,17 @@ await test("the built chrome renders the page's four regions", async () => {
   );
 });
 
-await test("the toolbar's selects carry the documented option sets", async () => {
-  const selects = [...MARKUP.matchAll(/<select\b[^>]*id="(control-[^"]+)"[^>]*>([\s\S]*?)<\/select>/g)];
-  assert.equal(selects.length, 6, "device profile, skin, viewport, DPR, theme, fold posture");
-  const values = selects.map(([, id, body]) => ({
-    id,
-    options: [...body.matchAll(/<option[^>]*value="([^"]*)"/g)].map((match) => match[1]),
-  }));
-  // The skin picker (issue #171's skins slice). `""` is no frame, the pre-#171 page; the rest are the
-  // bundled skins section 5.2 names, in the spec's order. The options are the *validated* set, so a
-  // manifest that fails validation is not offered - which is why the list is asserted here rather
-  // than only in `preview_skins.mjs`.
-  assert.deepEqual(values.find((entry) => entry.id === "control-skin").options, [
+await test("the menu bar replaced the toolbar's selects and carries the documented option sets", async () => {
+  // Issue #557: the five `<select>`s are Device and View menu items now; the rendered chrome has none, and
+  // the menu bar, the toolbar and the device chip are in their place.
+  assert.equal((MARKUP.match(/<select\b/g) || []).length, 0, "no <select> is left in the chrome");
+  assert.match(MARKUP, /role="menubar"[^>]*aria-label="Application menu"/, "the menu bar is rendered");
+  assert.equal((MARKUP.match(/class="menubar-item/g) || []).length, 6, "File, Edit, View, Run, Device, Help");
+  assert.match(MARKUP, /role="toolbar"[^>]*aria-label="Studio actions"/, "the toolbar is rendered");
+  assert.match(MARKUP, /id="device-chip"[^>]*aria-haspopup="menu"/, "the device chip opens the Device menu");
+  // The option sets the menus draw from are the same vocabularies the selects used. The skin set is the
+  // bundled skins section 5.2 names, in the spec's order (the menu offers the *validated* set).
+  assert.deepEqual([...preferences.SKIN_IDS], [
     "",
     "generic-desktop-windows",
     "generic-desktop-macos",
@@ -174,24 +173,13 @@ await test("the toolbar's selects carry the documented option sets", async () =>
     "generic-foldable",
   ]);
   assert.deepEqual(
-    values.find((entry) => entry.id === "control-viewport").options,
+    preferences.VIEWPORTS.map(([width, height]) => `${width}x${height}`),
     ["320x240", "390x844", "768x1024", "1280x800"],
     "four viewports",
   );
-  assert.deepEqual(values.find((entry) => entry.id === "control-dpr").options, ["1", "2", "3"]);
-  assert.deepEqual(values.find((entry) => entry.id === "control-theme").options, [
-    "system",
-    "light",
-    "dark",
-  ]);
-  // The fold posture (issue #408). The option set is the HAL's, in its order: `""` is no fold, and
-  // the three named postures are the ones `set_viewport` and the share codec accept.
-  assert.deepEqual(values.find((entry) => entry.id === "control-foldPosture").options, [
-    "",
-    "flat",
-    "book",
-    "tabletop",
-  ]);
+  assert.deepEqual([...preferences.DPRS], [1, 2, 3]);
+  assert.deepEqual([...preferences.THEMES], ["system", "light", "dark"]);
+  assert.deepEqual([...preferences.FOLD_POSTURES], ["", "flat", "book", "tabletop"]);
 });
 
 await test("the toolbar persists to localStorage, and the source never does", async () => {

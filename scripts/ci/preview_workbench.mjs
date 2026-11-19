@@ -268,9 +268,9 @@ await test('keys: reserved and removed commands bind nothing, the registry wires
   registry.register('file.save', () => {});
   assert.equal(registry.keymap().resolve(ev('s', { ctrlKey: true }), [], {}).id, 'file.save');
   assert.equal(registry.keymap().chordFor('file.save'), 'Ctrl+S');
-  registry.register('view.palette', () => {});
-  assert.equal(registry.keymap().resolve(ev('F1'), [], {}).id, 'view.palette');
-  assert.equal(registry.keymap().chordFor('view.palette'), 'Ctrl+Shift+P');
+  registry.register('edit.redo', () => {});
+  assert.equal(registry.keymap().resolve(ev('z', { ctrlKey: true, shiftKey: true }), [], { 'editor.focus': true }).id, 'edit.redo', 'an also chord binds too');
+  assert.equal(registry.keymap().chordFor('edit.redo'), 'Ctrl+Y');
 });
 
 await test('workbench-core imports no react, codemirror, dock library or DOM global', () => {

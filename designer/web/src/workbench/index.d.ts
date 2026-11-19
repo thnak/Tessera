@@ -129,6 +129,8 @@ export interface Registry {
   run(id: string, args?: CommandArgs): Promise<RunResult>;
   keymap(): Keymap;
   setOverrides(overrides: readonly KeybindingOverride[]): void;
+  /** Changes whenever handlers, overrides or context change; a store snapshot for `useSyncExternalStore`. */
+  version(): number;
   subscribe(listener: () => void): () => void;
 }
 export function createRegistry(
@@ -137,3 +139,74 @@ export function createRegistry(
 ): Registry;
 export function validateRecords(records: readonly unknown[]): string[];
 export function checkIntegrity(records: readonly CommandRecord[], handlerIds: Iterable<string>): string[];
+
+export interface MenuEntry {
+  kind: "item" | "check" | "radio" | "submenu" | "separator";
+  key: string;
+  label: string;
+  detail?: string;
+  mnemonic?: string;
+  command?: string;
+  args?: CommandArgs;
+  chord: string;
+  enabled: boolean;
+  reason: string;
+  checked: boolean;
+  description: string;
+  items: MenuEntry[];
+}
+export interface MenuBarMenu {
+  id: string;
+  title: string;
+  mnemonic: string;
+  items: MenuEntry[];
+}
+export interface ProviderEntry {
+  label: string;
+  args?: CommandArgs;
+  detail?: string;
+}
+export type MenuProviders = Record<string, () => ProviderEntry[]>;
+export interface MenuDeps {
+  registry: Registry;
+  providers?: MenuProviders;
+  keymap?: Keymap;
+  keyPrefix?: string;
+}
+export interface ToolbarEntry {
+  key: string;
+  widget?: string;
+  command?: string;
+  args?: CommandArgs;
+  label?: string;
+  icon?: string;
+  emphasis?: "primary" | "normal";
+  enabled?: boolean;
+  reason?: string;
+  checked?: boolean | null;
+  chord?: string;
+  description?: string;
+}
+export interface MenusDocument {
+  version: number;
+  menus: { id: string; title: string; mnemonic: string; items: unknown[] }[];
+  contexts: Record<string, unknown[]>;
+  toolbar: unknown[];
+}
+export function validateMenus(doc: MenusDocument, records: readonly CommandRecord[]): string[];
+export function walkMenus(doc: MenusDocument, visit: (item: Record<string, unknown>, where: string) => void): void;
+export function buildMenuBar(doc: MenusDocument, deps: MenuDeps): MenuBarMenu[];
+export function buildItems(items: readonly unknown[], deps: MenuDeps & { keyPrefix: string }): MenuEntry[];
+export function buildContextMenu(doc: MenusDocument, name: string, deps: MenuDeps): MenuEntry[];
+export function buildToolbar(doc: MenusDocument, deps: MenuDeps): ToolbarEntry[];
+
+export interface MenuNav {
+  bar: number;
+  open: boolean;
+  stack: readonly number[];
+}
+export type MenuEffect = { type: "run"; item: MenuEntry } | { type: "exit" } | { type: "close-bar" } | { type: "close" } | null;
+export const CLOSED: MenuNav;
+export function navigate(menus: readonly { items: MenuEntry[]; mnemonic?: string }[], nav: MenuNav, key: string): { nav: MenuNav; handled: boolean; effect: MenuEffect };
+export function openByMnemonic(menus: readonly { items: MenuEntry[]; mnemonic?: string }[], letter: string): MenuNav | null;
+export function focusedItem(menus: readonly { items: MenuEntry[] }[], nav: MenuNav): MenuEntry | null;

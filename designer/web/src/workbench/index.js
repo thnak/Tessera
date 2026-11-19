@@ -6,3 +6,5 @@ export { evaluate, parseClause, clauseError, clauseKeys, specificityOf } from ".
 export { CONTEXT_KEYS, createContext, isKnownContextKey } from "./context.js";
 export { createKeymap, parseChord, formatChord, chordProblem, reservedProblem, stepOfEvent } from "./keys.js";
 export { createRegistry, validateRecords, checkIntegrity } from "./registry.js";
+export { validateMenus, walkMenus, buildMenuBar, buildItems, buildContextMenu, buildToolbar } from "./menus.js";
+export { CLOSED, navigate, openByMnemonic, focusedItem } from "./menu-nav.js";

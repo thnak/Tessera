@@ -67,7 +67,7 @@ source goes through it:
 
 - a keystroke schedules an apply 150 ms after the burst ends (`schedule`);
 - `Ctrl+Enter` cancels the timer and applies immediately (`applyNow`);
-- **Restart app** cold-starts every mounted pane (`restart`) -- the explicit state reset, and the only
+- **Restart app** (`run.restart`: toolbar, Run menu) cold-starts every mounted pane (`restart`) -- the explicit state reset, and the only
   thing on the page that discards state.
 
 The apply is not a restart. Each session's `apply()` re-evaluates carrying state by the engine's own rule
@@ -162,10 +162,10 @@ the preview canvas -- and the page remains its host.
 
 | Region (`designer-studio-v1.md` section 3) | Component |
 |---|---|
-| studio chrome (header, Samples, share) | `regions/StudioChrome.tsx` (`PageHeader`), `regions/GalleryRegion.tsx` |
+| studio chrome (title bar, menu bar, toolbar, device chip; issue #557) | `regions/WorkbenchChrome.tsx`, `regions/MenuBar.tsx`, driven by `page-workbench.ts` ([core](studio-workbench-core.md)); `regions/GalleryRegion.tsx` |
 | the project tree (left column) | `regions/ProjectTree.tsx`, over `lib/project.ts` |
-| the code column (middle: tabs, editor, Restart app) | `regions/CodeRegion.tsx` |
-| the preview column (right: the view switch, the environment toolbar, the three panes) | `regions/PreviewColumn.tsx`, `regions/ViewPanes.tsx`, `regions/CanvasPane.tsx` |
+| the code column (middle: tabs, editor) | `regions/CodeRegion.tsx` |
+| the preview column (right: the view switch, the three panes; the device picker is the Device menu) | `regions/PreviewColumn.tsx`, `regions/ViewPanes.tsx`, `regions/CanvasPane.tsx` |
 | status line | `regions/StatusLine.tsx` |
 
 Everything the engine produces -- a diagnostics list, a scene snapshot, a state-cell table, the canvas -- is

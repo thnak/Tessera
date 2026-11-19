@@ -1,0 +1,211 @@
+/* SPDX-License-Identifier: MIT
+ *
+ * The workbench chrome (issue #557): the title bar with the menu bar, the toolbar, the device chip and the
+ * menu popups. Colours come from the base tokens only, so light, dark and the explicit theme override retint
+ * it with everything else. The shape follows VS Code: a dense row of text menus, popups with a mark column, a
+ * label and a right-aligned chord, and a toolbar of quick actions under it.
+ */
+
+.workbench-chrome {
+  flex: none;
+  background: var(--pane-bg);
+  border-bottom: 1px solid var(--border);
+  position: relative;
+  z-index: 20;
+}
+
+.titlebar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  min-height: 34px;
+}
+
+.title-mark {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 8px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.title-logo {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.titlebar-spacer { flex: 1 1 auto; }
+
+/* --- the menu bar ------------------------------------------------------------------------------ */
+
+.menubar-wrap { position: relative; }
+
+.menubar { display: flex; align-items: center; }
+
+.menubar-slot { position: relative; }
+
+button.menubar-item {
+  padding: 4px 9px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  font-size: 13px;
+}
+
+button.menubar-item:hover:not(:disabled),
+button.menubar-item.is-open {
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+  border-color: transparent;
+}
+
+.menubar-item u { text-decoration: none; }
+.menubar-wrap:focus-within .menubar-item u { text-decoration: underline; }
+
+button:focus-visible,
+.menu-item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* --- popups ----------------------------------------------------------------------------------- */
+
+.menu-popup {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 40;
+  min-width: 240px;
+  max-width: min(420px, calc(100vw - 16px));
+  margin: 2px 0 0;
+  padding: 4px;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--pane-bg);
+  box-shadow: 0 8px 24px color-mix(in srgb, #000 28%, transparent);
+}
+
+.menu-popup .menu-popup {
+  top: -5px;
+  left: 100%;
+  margin: 0 0 0 2px;
+}
+
+.menu-row { position: relative; }
+
+button.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  text-align: left;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+button.menu-item:hover:not(:disabled),
+button.menu-item.is-focused {
+  background: var(--accent);
+  color: var(--accent-text);
+  border-color: transparent;
+}
+
+button.menu-item.is-disabled { opacity: 0.45; cursor: default; }
+button.menu-item.is-disabled:hover,
+button.menu-item.is-disabled.is-focused { background: color-mix(in srgb, var(--text) 8%, transparent); color: var(--text); }
+
+.mi-mark { flex: none; width: 14px; text-align: center; font-size: 11px; }
+.mi-label { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; }
+.mi-detail { color: inherit; opacity: 0.65; font-size: 12px; }
+.mi-chord { flex: none; margin-left: 24px; opacity: 0.7; font-size: 12px; }
+.mi-arrow { flex: none; margin-left: 16px; font-size: 11px; }
+
+.menu-separator {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--border);
+}
+
+/* --- the toolbar and the device chip ----------------------------------------------------------- */
+
+.toolbar-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 6px;
+  border-top: 1px solid var(--border);
+}
+
+.tb-widget { display: inline-flex; position: relative; }
+
+button.tb-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  font-size: 13px;
+}
+
+button.tb-button[aria-disabled="true"] { opacity: 0.5; cursor: default; }
+button.tb-button[aria-pressed="true"] { border-color: var(--accent); }
+
+.tb-icon { font-size: 12px; line-height: 1; }
+
+.tb-badge {
+  min-width: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--warning);
+  color: var(--pane-bg);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
+
+.device-chip { position: relative; }
+button.chip { max-width: 360px; }
+.chip-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.chip-caret { font-size: 10px; opacity: 0.7; }
+
+.device-chip .menu-popup { top: 100%; left: 0; }
+
+button.palette-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 260px;
+  padding: 3px 12px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.toolbar-row .share-status { margin-left: 8px; }
+
+/* --- phone: one menu button, Restart and the palette stay on the toolbar ---------------------- */
+
+@media (max-width: 719.98px) {
+  .title-text { display: none; }
+  .tb-widget[data-secondary] { display: none; }
+  button.palette-button { min-width: 0; }
+  .titlebar { padding-left: 12px; padding-right: 12px; }
+  .menu-popup { position: fixed; top: 44px; left: 8px; right: 8px; max-width: none; max-height: calc(100vh - 56px); overflow-y: auto; }
+  .menu-popup .menu-popup { position: static; margin: 0 0 0 12px; box-shadow: none; border: 0; padding: 0; }
+}

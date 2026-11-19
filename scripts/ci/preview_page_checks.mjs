@@ -58,10 +58,18 @@ const DIST_SSR = resolve(WEB, "dist-ssr");
 // list grew by the workspace's own ids (`workspace`, `project-tree`, the tab strip, the status line's
 // cells) and lost nothing: every id a pre-#431 link or gate depended on is still here.
 const SHARED_IDS = [
-  "controls",
+  // The workbench chrome (issue #557): the toolbar's Share and its polite status line, the device chip that
+  // replaced the preview toolbar's selects, and the menu bar (one button per top-level menu; `Go` is
+  // hidden until its first command is live).
   "share",
   "share-status",
-  "toggle-gallery",
+  "device-chip",
+  "menubar-file",
+  "menubar-edit",
+  "menubar-view",
+  "menubar-run",
+  "menubar-device",
+  "menubar-help",
   "gallery",
   "gallery-list",
   "link-note",
@@ -95,9 +103,7 @@ const SHELL_IDS = [
   // gets.
   "restart-app",
   "apply-status",
-  "load-sample",
   "build-id",
-  "page-hint",
   // The hint under the shared editor: the page owns it (the Scene session appends the live rectangle),
   // so it is a shell id rather than any one view's. #431 lists it among the workspace ids above; it is
   // named here too because it is the shell's, not a pane's.
@@ -401,13 +407,14 @@ if (!requireBuilt()) {
     if (/role="tab"[^>]*id="tab-(?:file|ui)/.test(boot) || /class="editor-tab/.test(boot)) {
       problems.push("an editor tab is open before any project is");
     }
-    if (!/id="open-folder"/.test(boot) || !/id="open-zip"/.test(boot)) {
-      problems.push("Open folder / Open zip are missing from the first view");
+    // Open folder / Open zip are File menu commands since issue #557: the menu bar is how a visitor starts.
+    if (!/role="menubar"/.test(boot) || !/id="menubar-file"/.test(boot)) {
+      problems.push("the File menu (Open Folder / Open Zip) is missing from the first view");
     }
     if (problems.length > 0) {
       fail(`the first view ${problems.join("; ")}`);
     } else {
-      ok("the first view is an empty workspace with Open folder, Open zip and no seeded project");
+      ok("the first view is an empty workspace with a File menu and no seeded project");
     }
   }
 

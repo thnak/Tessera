@@ -183,9 +183,11 @@ export function createRegistry(records, options) {
   const listeners = new Set();
   let overrides = options.overrides ?? [];
   let keymap = null;
+  let version = 0;
 
   const notify = () => {
     keymap = null;
+    version += 1;
     for (const listener of [...listeners]) {
       listener();
     }
@@ -310,9 +312,14 @@ export function createRegistry(records, options) {
       overrides = next;
       notify();
     },
+    /** A counter that changes whenever the handlers, overrides or context change (a store snapshot). */
+    version: () => version,
     subscribe(listener) {
       listeners.add(listener);
-      const stop = context.subscribe(listener);
+      const stop = context.subscribe(() => {
+        version += 1;
+        listener();
+      });
       return () => {
         listeners.delete(listener);
         stop();

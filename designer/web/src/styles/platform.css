@@ -1,40 +1,12 @@
 /* SPDX-License-Identifier: MIT
  *
- * The device profile's chrome (issues #447 and #448): the custom-size entry, the hardware strip under the
+ * The device profile's chrome (issues #447 and #448): the hardware strip under the
  * device, the overlay shown while the app is not in the foreground, and the bottom dock with the platform
  * events panel. It is one sheet because the three belong to one feature and share the same tokens; the
  * layout of the workspace itself is `workspace.css`.
  *
  * Follows the studio plan's dock: tabs on top, a panel of mono event buttons, then the ordered log.
  */
-
-/* --- the toolbar's device controls ------------------------------------------------------------- */
-
-.custom-size input[type="number"] {
-  width: 5.5ch;
-  padding: 3px 4px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--pane-bg);
-  color: var(--text);
-  font: inherit;
-  font-size: 12px;
-}
-
-.custom-size input[type="number"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-
-.profile-size-value {
-  font-family: var(--mono);
-  font-size: 12px;
-  color: var(--text-dim);
-}
-
-.keep-state {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
-}
 
 /* --- the hardware strip (under the device) ------------------------------------------------------ */
 

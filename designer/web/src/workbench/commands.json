@@ -48,9 +48,6 @@
       "services": [
         "project-io"
       ],
-      "surfaces": [
-        "palette"
-      ],
       "status": "live"
     },
     {
@@ -317,7 +314,8 @@
           "F1"
         ]
       },
-      "status": "live"
+      "note": "reserved: command palette slice W3",
+      "status": "reserved"
     },
     {
       "id": "view.quickOpen",
@@ -328,7 +326,8 @@
         "default": "Mod+P"
       },
       "enabled": "project.open",
-      "status": "live"
+      "note": "reserved: command palette slice W3",
+      "status": "reserved"
     },
     {
       "id": "view.gotoLine",
@@ -339,7 +338,8 @@
         "default": "Mod+G"
       },
       "enabled": "project.open",
-      "status": "live"
+      "note": "reserved: command palette slice W3",
+      "status": "reserved"
     },
     {
       "id": "view.explorer",
@@ -885,7 +885,8 @@
       "title": "Keyboard Shortcuts",
       "category": "Help",
       "description": "List every command and its chord",
-      "status": "live"
+      "note": "reserved: command palette slice W3",
+      "status": "reserved"
     },
     {
       "id": "help.docs",

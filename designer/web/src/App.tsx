@@ -70,8 +70,10 @@ import { GalleryRegion } from "./regions/GalleryRegion";
 import { Dock } from "./regions/Dock";
 import { PreviewColumn } from "./regions/PreviewColumn";
 import { ProjectBar } from "./regions/ProjectBar";
+import { WorkbenchChrome } from "./regions/WorkbenchChrome";
+import { useWorkbench } from "./page-workbench";
 import { ProjectTree } from "./regions/ProjectTree";
-import { PageHeader, type ControlValues } from "./regions/StudioChrome";
+import type { ControlValues } from "./regions/StudioChrome";
 import { StatusLine } from "./regions/StatusLine";
 import { useSkins, useThemeAttribute } from "./page-skins";
 import { usePlatform } from "./page-platform";
@@ -403,20 +405,6 @@ export function App() {
     void live.current?.restart();
   }, [platformReset]);
 
-  const loadSampleForActiveView = useCallback(() => {
-    const session = sessions[viewRef.current];
-    const sample = session?.sampleSource;
-    const entry = workspace.state.files.find((file) => file.path === entryPath) ?? null;
-    if (sample !== undefined && entry !== null) {
-      // The view's sample is written into the *entry* buffer, because the entry is what Run previews.
-      // The page owns the buffers (#431); a session no longer reaches into the editor.
-      workspace.putFile({ ...entry, text: sample });
-      setRevision((value) => value + 1);
-    }
-    session?.loadSample?.();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspace.state.files]);
-
   // A load replaces the whole project, so the preview starts over from the new entry and the editor
   // takes the new active file's text. Skipped at epoch 0, which is the seed, not a load.
   useEffect(() => {
@@ -618,16 +606,34 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.controls]);
 
+  // ---- the workbench: commands, menus, keyboard (issues #555 and #557) ---------------------------
+  const workbench = useWorkbench({
+    io: projectIo,
+    dirtyCount: new Set([...workspace.state.dirty, ...workspace.state.removed]).size,
+    hasProject: workspace.state.files.length > 0,
+    controls: state.controls,
+    keepState,
+    setKeepState,
+    skins: skins.skins,
+    profiles: profiles.profiles,
+    profileId: state.controls.profile,
+    components: componentList,
+    runEnabled: state.runEnabled,
+    toggleGallery: () => state_.setGalleryOpen((open) => !open),
+    restart: restartActiveView,
+    applyNow: onEditorApplyNow,
+    share: onShare,
+    setControl: onControlChange,
+    setCustomSize: onCustomSize,
+    pickComponent: onPickComponent,
+    buildId: state.buildId,
+    shareStatus: state.shareStatus,
+    refs,
+  });
+
   return (
     <>
-      <PageHeader
-        view={currentView}
-        onToggleGallery={() => state_.setGalleryOpen((open) => !open)}
-        galleryOpen={state.galleryOpen}
-        onShare={() => void onShare()}
-        shareStatus={state.shareStatus}
-        shareStatusRef={refs.shareStatus}
-      />
+      <WorkbenchChrome workbench={workbench} />
 
       <GalleryRegion open={state.galleryOpen} onPick={onSample} />
 
@@ -660,7 +666,7 @@ export function App() {
           stale={projectIo.state.stale}
           onSelect={workspace.selectRow}
           onToggleDir={workspace.toggleDir}
-          toolbar={<ProjectBar io={projectIo} dirtyCount={new Set([...workspace.state.dirty, ...workspace.state.removed]).size} />}
+          toolbar={<ProjectBar io={projectIo} />}
         />
 
         <CodeRegion
@@ -675,9 +681,6 @@ export function App() {
           onSelectTab={onSelectTab}
           onCloseTab={workspace.closeTab}
           onEdit={onEdit}
-          onRestart={restartActiveView}
-          onLoadSample={loadSampleForActiveView}
-          restartDisabled={!state.runEnabled}
           applying={state.applying}
           onSave={onEditorSave}
           onApplyNow={onEditorApplyNow}
@@ -687,20 +690,9 @@ export function App() {
         <PreviewColumn
           view={currentView}
           onSelectView={onSelectView}
-          controls={state.controls}
-          onControlChange={onControlChange}
           refs={refs}
-          components={componentList.names}
-          component={componentList.chosen}
-          onPickComponent={onPickComponent}
-          skins={skins.skins}
           skin={skins.selected}
           device={{
-            profiles: profiles.profiles.map((entry) => ({ id: entry.id, name: entry.name })),
-            profile: profiles.selected,
-            keepState,
-            onKeepState: setKeepState,
-            onCustomSize,
             overlay: (
               <AppStateOverlay
                 state={platform.state}

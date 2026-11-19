@@ -218,7 +218,7 @@ if (!(await page.locator('#unsupported').isHidden())) {
 }
 
 // --- the fixture, at the desktop preset ---------------------------------------------------------
-await page.selectOption('#control-viewport', '1280x800');
+await page.evaluate(() => window.__tesseraWorkbench.run('device.setViewport', { value: '1280x800' }));
 await editEntry(page, SOURCE);
 await editSheet(page, STYLESHEET);
 // One explicit cold start, and never again: every switch below is a toolbar change.
@@ -242,7 +242,7 @@ check('the fixture has a state cell to keep', (await stateValue()) === '7', `sta
 const baseline = wideCounters;
 
 // --- a same-side switch: no colour change, one frame, no cascade rebuild -------------------------
-await page.selectOption('#control-viewport', '768x1024');
+await page.evaluate(() => window.__tesseraWorkbench.run('device.setViewport', { value: '768x1024' }));
 const tabletCounters = await settle(baseline.frames);
 const tabletColour = await canvasColour('tablet-768x1024');
 console.log(`tablet 768x1024: ${describe(tabletColour)} ${tabletCounters.raw}`);
@@ -269,7 +269,7 @@ check(
 check('the state cell survives the same-side switch', (await stateValue()) === '7');
 
 // --- crossing the breakpoint: the colour must move ----------------------------------------------
-await page.selectOption('#control-viewport', '390x844');
+await page.evaluate(() => window.__tesseraWorkbench.run('device.setViewport', { value: '390x844' }));
 const phoneCounters = await settle(tabletCounters.frames);
 const phoneColour = await canvasColour('phone-390x844');
 console.log(`phone 390x844: ${describe(phoneColour)} ${phoneCounters.raw}`);
@@ -296,7 +296,7 @@ check(
 check('the state cell survives the breakpoint (in-place resize, no re-run)', (await stateValue()) === '7');
 
 // --- back to the desktop: one more crossing, one more frame, the base colour ---------------------
-await page.selectOption('#control-viewport', '1280x800');
+await page.evaluate(() => window.__tesseraWorkbench.run('device.setViewport', { value: '1280x800' }));
 const backCounters = await settle(phoneCounters.frames);
 const backColour = await canvasColour('desktop-again');
 console.log(`desktop again: ${describe(backColour)} ${backCounters.raw}`);

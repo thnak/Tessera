@@ -240,7 +240,7 @@ async function main() {
     // Scene: its tab, its own sample (the one with an automationId), and three clicks.
     await cdp.evaluate(`document.getElementById('tab-scene').click()`);
     await waitUntil(cdp, `document.querySelectorAll('#nodes .node').length > 0`, 'the scene nodes');
-    await cdp.evaluate(`document.getElementById('load-sample').click()`);
+    // 'Load sample' was folded into File > Open Sample (issue #557); the scene sample is already loaded.
     await waitUntil(cdp, `document.querySelectorAll('#nodes .node').length > 0`, 'the scene sample');
     await cdp.evaluate(`document.getElementById('run-input').click()`);
     await waitUntil(cdp, `document.querySelectorAll('#cells .cell').length >= 2`, 'the state cells');
