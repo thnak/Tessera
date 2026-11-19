@@ -40,14 +40,18 @@ returning an empty result that looks like success.
 | `apply_edits` | declared | `source.patch` |
 | `set_viewport` | implemented | `viewport.set` |
 | `snapshot` | implemented | harness `snapshot` |
-| `query_style` | declared | `style.inspect` |
-| `pick` | declared | `selection.set` |
+| `query_style` | implemented | `style.inspect`: computed style, matched rules and box of a `uiId`, over `source` at the `set_viewport` viewport (a query, nothing dispatched) |
+| `pick` | implemented | the node at a logical-pixel point, by the input router's own hit test (a query, not `selection.set`) |
 | `screenshot` | declared | the native headless renderer |
 | `run_script` | declared | the harness script runner |
 
 With a `source` argument, `diagnostics` and `get_ir` compile **in memory**: the client sends the TSX
 text, no file is read, and the spans are reported against the project-relative `file` the client names
 (default `buffer.tsx`). Without `source` they compile the project folder (next section).
+
+The checked-in [`schema/tools.json`](schema/tools.json) is the normative copy of the `tools/list`
+result (`mcp_tools_tests --write` regenerates it); `initialize` reports `toolSurfaceVersion`
+([`mcp-server-v1.md`](../../docs/specs/mcp-server-v1.md) section 3).
 
 ## The project folder
 
@@ -101,6 +105,7 @@ non-negotiable 12).
 | `src/tool_registry.hpp/.cpp` | the single declaration of the tool surface |
 | `src/tool_session.hpp/.cpp` | per-session state (the open project) and path normalization |
 | `src/compile_tools.hpp/.cpp` | the `diagnostics` and `get_ir` tool bodies |
+| `src/query_tools.hpp/.cpp` | the `query_style` and `pick` tool bodies |
 | `src/in_memory_ir.hpp/.cpp` | the in-memory lowering that `get_ir` needs |
 | `src/serve_stdio.hpp/.cpp` | the bounded read → dispatch → write loop |
 | `src/main.cpp` | the executable, its two non-serving modes and its exit codes |
@@ -110,7 +115,8 @@ non-negotiable 12).
 | ctest name | What it proves |
 |---|---|
 | `mcp_jsonrpc` | every envelope rule, including the id echo and the canonical bytes |
-| `mcp_tools` | the surface is exactly section 8's, and the published statuses are honest |
+| `mcp_tools` | the surface is exactly section 8's, the published statuses are honest, `tools/list` equals `schema/tools.json` byte for byte, and `initialize` reports `toolSurfaceVersion` |
+| `mcp_query_tools` | `query_style` and `pick`: the cascade facts, `no_such_node`, argument refusal, the viewport, determinism |
 | `mcp_compile_tools` | the implemented tools, and which channel each failure uses |
 | `mcp_diagnostics_parity` | the issue's acceptance: MCP diagnostics equal the CLI's, byte for byte |
 | `mcp_stdio` | the lifecycle over a scripted stream: handshake, notification, unknown method, malformed line, CRLF, EOF tail |

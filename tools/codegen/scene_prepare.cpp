@@ -124,6 +124,8 @@ PreparedScene prepare_scene(const ProjectInput& project, const ScenePreviewOptio
     PreviewSheets prepared = prepare_preview_sheets(evaluated->sheets);
     scene.sheet = prepared.prepared.resolve(media);
     scene.css_diagnostics = std::move(prepared.diagnostics);
+    // Keep the sheets: the resolved sheet's rules view their file names (see `PreparedScene`).
+    scene.sheets = std::move(prepared.prepared);
     ui::layout::LayoutEngine engine(measurer);
     SceneMetrics metrics;
     metrics.width = options.width;

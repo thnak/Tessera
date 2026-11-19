@@ -2,7 +2,8 @@
 
 Status: sections 1 and 2 are implemented by `tools/mcp` (issue #406); section 3 records owner
 decisions of 2026-11-17 for the tool surface of #396, of which the error-code row is in
-[error-model-v1.md](error-model-v1.md) and the schema and version rules are implemented with #396.
+[error-model-v1.md](error-model-v1.md); the schema and version rules and section 5 (`query_style`,
+`pick`) are implemented by #396.
 
 `tessera-mcp` ([designer-studio-v1.md](designer-studio-v1.md) section 8) is the agent-facing twin of the
 studio: it reads a project folder, compiles it, and previews it. This document holds the rules that
@@ -71,6 +72,13 @@ resolved against the root (`Options::base_dir`); its document is byte-identical 
   rename, a new required parameter or a changed meaning of a field does, and the old form stays for
   one release with a deprecation note in the result. A declared tool keeps answering
   `TESSERA_MCP_TOOL_UNIMPLEMENTED`, never an empty result.
+- **As implemented.** Every `inputSchema` declares `$schema` 2020-12; `tools/mcp/schema/tools.json` is
+  the exact `tools/list` result (compact canonical JSON, one trailing newline) and `mcp_tools` fails
+  until it is regenerated with `mcp_tools_tests --write`. `outputSchema` is not published yet: the
+  decision allows it only for an implemented tool, and none has one so far.
+- **`open_project` and files.** `open_project` validates and records a path and reads no file; the
+  tools that read the folder are `list_files`, `generate` and `diagnostics` / `get_ir` without `source`
+  (sections 1, 2 and 4).
 
 ## 4. `generate` (issue #407, ADR-040)
 
@@ -99,6 +107,29 @@ the same inputs as the folder compile (section 2). Owner decisions of 2026-11-16
 - **Wording.** The studio spec's "never edits C++" now reads "never edits developer C++".
 
 Out of scope: building or running the generated C++, and editing developer classes.
+
+## 5. `query_style` and `pick` (issue #396)
+
+Both are **queries over the source the client sends**, like `snapshot`: the text is evaluated in
+memory at the viewport `set_viewport` last set, no file is read, and nothing is dispatched, so asking
+cannot change the picture. They share `snapshot`'s layout (one `prepare_scene()`), so a `uiId` or a box
+means the same in all three.
+
+- **`query_style`** `{source, file?, uiId}`: the style inspector's answer for one node, from the same
+  function as the studio's `style.info` (`style_info_for`): `{styleVersion, ok, node, computed,
+  matched, box}` with `computed` limited to properties with a non-initial value, `matched` highest
+  precedence first with the cascade's own `overridden`, and `box` in logical pixels with `margin`,
+  `border` and `padding` as top/right/bottom/left. `uiId` is a decimal string (or an integer that fits
+  a JSON number). A `uiId` no node carries answers `{styleVersion, ok:false, reason:"no_such_node"}`
+  and nothing else, as `isError: false`: the question was well formed. The designer's override layer
+  is session state of the studio and is not part of this stateless tool.
+- **`pick`** `{source, file?, x, y}`: `{pickVersion, found, automationId, elementKind, box}` for the
+  node under the point, by `Node::hit_test_deep`, the input router's own hit test (so
+  `pointer-events`, scroll clipping and z-order apply). `x` and `y` are **logical viewport pixels**,
+  the space the snapshot's bounds are in, not device pixels. A point over no node is `found:false`.
+- **Errors.** A missing or malformed argument (`source`, `uiId`, a non-finite `x`/`y`) is an
+  `InvalidParams` protocol error; a source that does not evaluate is an `isError` result that points
+  at `diagnostics`.
 
 Related: [designer-studio-v1.md](designer-studio-v1.md) sections 7, 8 and 10,
 [compiler-diagnostics-v1.md](compiler-diagnostics-v1.md), [project-config-v1.md](project-config-v1.md).

@@ -27,6 +27,8 @@ add_library(tessera_mcp_core STATIC
     # read it (`list_files`, folder-wide `diagnostics` and `get_ir`).
     src/project_files.cpp
     src/project_tools.cpp
+    # `query_style` and `pick`: read-only queries over the laid-out preview tree.
+    src/query_tools.cpp
     src/serve_stdio.cpp
     src/session.cpp
     src/tool_registry.cpp
@@ -113,6 +115,10 @@ if (TESSERA_BUILD_TESTS)
 
     target_link_libraries(mcp_tools_tests PRIVATE tessera_mcp_core)
 
+    # The normative copy of `tools/list` (docs/specs/mcp-server-v1.md section 3).
+    target_compile_definitions(mcp_tools_tests PRIVATE
+        TESSERA_MCP_TOOLS_JSON="${CMAKE_CURRENT_SOURCE_DIR}/schema/tools.json")
+
     add_test(NAME mcp_tools COMMAND mcp_tools_tests)
 
     # `set_viewport` and `snapshot` (issue #408): the sticky viewport, the refusal of a bad posture,
@@ -132,6 +138,23 @@ if (TESSERA_BUILD_TESTS)
         tessera_scene_preview)
 
     add_test(NAME mcp_preview_tools COMMAND mcp_preview_tools_tests)
+
+    # `query_style` and `pick` (issue #396): the read-only inspection queries over the laid-out
+    # preview tree, through the same cascade query and hit test the studio uses.
+    add_executable(mcp_query_tools_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/mcp/query_tools_tests.cpp)
+
+    target_include_directories(mcp_query_tools_tests
+        PRIVATE
+            ${PROJECT_SOURCE_DIR}/tools/codegen
+            ${PROJECT_SOURCE_DIR}/tools/mcp/src)
+
+    target_link_libraries(mcp_query_tools_tests PRIVATE
+        tessera_hal_metrics
+        tessera_mcp_core
+        tessera_scene_preview)
+
+    add_test(NAME mcp_query_tools COMMAND mcp_query_tools_tests)
 
     # The implemented compile tools and the dispatch contract around them: which channel a failure
     # uses (protocol error for bad arguments, tool error for a call that ran and failed), and what

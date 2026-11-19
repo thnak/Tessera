@@ -101,21 +101,25 @@ ToolResult run_set_viewport_tool(ViewportState& viewport, std::string_view width
     return ToolResult{false, viewport_json(viewport)};
 }
 
-ToolResult run_snapshot_tool(const ViewportState& viewport, std::string_view source,
-                             std::string_view file) {
-    // The SAME driver the browser module and the native preview CLI call, with the viewport the
-    // session holds. This is what makes "the same posture set through MCP gives the same scene
-    // snapshot" a property of the code rather than a coincidence: there is one layout path.
+tessera::compiler::codegen::cli::ScenePreviewOptions
+scene_preview_options(const ViewportState& viewport, std::string_view file) {
     cli::ScenePreviewOptions options;
     options.file = file.empty() ? std::string_view("ui/Preview.tsx") : file;
     options.width = viewport.width;
     options.height = viewport.height;
     options.dpi_scale = viewport.dpr;
     options.posture = viewport.posture;
-    // A salted run, matching what the studio passes, so a `snapshot`'s `uiId`s are the ones the
-    // native build of the same source assigns (docs/specs/automation-ids-v1.md section 2.1).
     options.salt = "preview";
-    return ToolResult{false, cli::scene_preview_document(source, options, {})};
+    return options;
+}
+
+ToolResult run_snapshot_tool(const ViewportState& viewport, std::string_view source,
+                             std::string_view file) {
+    // The SAME driver the browser module and the native preview CLI call, with the viewport the
+    // session holds. This is what makes "the same posture set through MCP gives the same scene
+    // snapshot" a property of the code rather than a coincidence: there is one layout path.
+    return ToolResult{
+        false, cli::scene_preview_document(source, scene_preview_options(viewport, file), {})};
 }
 
 } // namespace tessera::mcp

@@ -3,12 +3,18 @@
 #include "compile_tools.hpp"
 #include "mcp_protocol.hpp"
 #include "project_tools.hpp"
+#include "query_tools.hpp"
 #include "session.hpp"
 #include "tessera/harness/json_write.hpp"
 #include "tool_registry.hpp"
 
+#include <charconv>
+#include <cmath>
+#include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <utility>
 
 namespace tessera::mcp {
@@ -26,6 +32,54 @@ std::string_view string_member(const JsonValue& object, std::string_view key) {
         return {};
     }
     return *value->as_string();
+}
+
+// A finite number argument, given as a JSON number or as numeric text (the viewport tool's
+// arguments are text, so a client that quotes its numbers works for every tool). Refused rather
+// than coerced: a typo must not become 0,0.
+std::optional<float> number_value(const JsonValue* value) {
+    if (value == nullptr) {
+        return std::nullopt;
+    }
+    double parsed = 0.0;
+    if (const std::optional<double> number = value->as_number(); number.has_value()) {
+        parsed = *number;
+    } else if (value->is_string() && !value->as_string()->empty() &&
+               value->as_string()->size() <= 32) {
+        const std::string_view text = *value->as_string();
+        const auto [end, error] = std::from_chars(text.data(), text.data() + text.size(), parsed);
+        if (error != std::errc{} || end != text.data() + text.size()) {
+            return std::nullopt;
+        }
+    } else {
+        return std::nullopt;
+    }
+    if (!std::isfinite(parsed)) {
+        return std::nullopt;
+    }
+    return static_cast<float>(parsed);
+}
+
+// A `uiId`: a decimal string (ids above 2^53 do not survive a JSON number, automation-ids-v1
+// section 1) or a non-negative integer that does.
+std::optional<std::uint64_t> ui_id_value(const JsonValue* value) {
+    if (value == nullptr) {
+        return std::nullopt;
+    }
+    if (const std::optional<std::int64_t> integer = value->as_integer();
+        integer.has_value() && *integer >= 0) {
+        return static_cast<std::uint64_t>(*integer);
+    }
+    if (!value->is_string() || value->as_string()->empty() || value->as_string()->size() > 20) {
+        return std::nullopt;
+    }
+    const std::string_view text = *value->as_string();
+    std::uint64_t parsed = 0;
+    const auto [end, error] = std::from_chars(text.data(), text.data() + text.size(), parsed);
+    if (error != std::errc{} || end != text.data() + text.size()) {
+        return std::nullopt;
+    }
+    return parsed;
 }
 
 // The `arguments` object of a `tools/call`. A tool with no arguments may omit it, and the schema
@@ -76,6 +130,10 @@ JsonValue initialize_result(std::string_view requested_version) {
     JsonValue result = JsonValue::object();
     result.set("protocolVersion", JsonValue::string(std::string(version)));
     result.set("capabilities", std::move(capabilities));
+    // An extension member, ignored by a client that does not know it: the tool surface has its own
+    // version, because the protocol revision says nothing about which tools exist or how their
+    // arguments are read (docs/specs/mcp-server-v1.md section 3).
+    result.set("toolSurfaceVersion", JsonValue::integer(kToolSurfaceVersion));
     result.set("serverInfo", std::move(info));
     // The section 8 adapter is a tool surface only: no prompts, no resources, no sampling.
     result.set(
@@ -162,6 +220,39 @@ std::expected<JsonValue, RpcError> McpSession::call_tool(const JsonValue& params
         }
         return tool_result_json(
             run_snapshot_tool(state_.viewport(), *source, string_member(**arguments, "file")));
+    }
+
+    if (name == "query_style" || name == "pick") {
+        auto source = string_argument(**arguments, "source", "`source` must be a non-empty string");
+        if (!source) {
+            return std::unexpected(source.error());
+        }
+        if (source->size() > kMaxSourceBytes) {
+            return std::unexpected(
+                RpcError{RpcErrorCode::InvalidParams,
+                         "`source` exceeds the 1 MiB per-file limit of docs/specs/jsx-subset-v1.md "
+                         "section 15",
+                         kInputTooLargeCode});
+        }
+        const std::string_view file = string_member(**arguments, "file");
+        if (name == "query_style") {
+            const std::optional<std::uint64_t> ui_id = ui_id_value((*arguments)->find("uiId"));
+            if (!ui_id) {
+                return std::unexpected(
+                    RpcError{RpcErrorCode::InvalidParams,
+                             "`uiId` must be a decimal string or a non-negative integer",
+                             kInvalidParamsCode});
+            }
+            return tool_result_json(run_query_style_tool(state_.viewport(), *source, file, *ui_id));
+        }
+        const std::optional<float> x = number_value((*arguments)->find("x"));
+        const std::optional<float> y = number_value((*arguments)->find("y"));
+        if (!x || !y) {
+            return std::unexpected(RpcError{RpcErrorCode::InvalidParams,
+                                            "`x` and `y` must be finite numbers",
+                                            kInvalidParamsCode});
+        }
+        return tool_result_json(run_pick_tool(state_.viewport(), *source, file, *x, *y));
     }
 
     if (name == "list_files") {

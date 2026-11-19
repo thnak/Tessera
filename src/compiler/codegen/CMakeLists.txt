@@ -215,6 +215,9 @@ set(_tessera_scene_preview_sources
     # `platform.event` (issue #446): the injector-driven lifecycle and Back/Volume delivery, shared
     # by the scripted run (`tessera_input_json`) and the canvas session.
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_platform.cpp
+    # The style inspector's cascade query over a laid-out tree (issue #171): shared by the canvas
+    # session's `inspect()` and the MCP `query_style` tool, which has no session and no GPU.
+    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_style_info.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_interaction.cpp)
 
 # The persistent canvas session (#388): the tree a pointer event feeds and a frame paints. It is
