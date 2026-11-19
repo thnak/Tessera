@@ -62,7 +62,9 @@ const SHARED_IDS = [
   // replaced the preview toolbar's selects, and the menu bar (one button per top-level menu; `Go` is
   // hidden until its first command is live).
   "share",
-  "share-status",
+  "notifications",
+  "notification-live",
+  "notifications-bell",
   "device-chip",
   "menubar-file",
   "menubar-edit",

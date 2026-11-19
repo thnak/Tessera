@@ -77,6 +77,10 @@ export function usePaletteHost(
       files.touch(path);
       // The tab switch is a state change; the editor shows the file one render later, so the caret moves then.
       window.setTimeout(() => {
+        // Someone who already reopened the palette (or went elsewhere) must not have focus pulled away.
+        if (document.getElementById("palette-input") !== null) {
+          return;
+        }
         if (line !== undefined) {
           editorGotoLine(line);
         } else {

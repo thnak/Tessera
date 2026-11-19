@@ -65,5 +65,9 @@
   "help.shortcuts",
   "help.docs",
   "help.reportIssue",
-  "help.about"
+  "help.about",
+  "notify.show",
+  "notify.toggleCenter",
+  "notify.clearAll",
+  "notify.toggleDoNotDisturb"
 ]

@@ -5,8 +5,8 @@
 // a command (`page-workbench.ts` registers the handlers, `workbench/menus.json` says what appears).
 //
 // The ids the page's older code and the developer-run browser scripts look up are kept where a control has a
-// direct successor: `restart-app` (Restart), `share` (Share), `save-project` (Save), `share-status` (the
-// polite status line). The Samples gallery, Open folder/zip, Download, the device `<select>`s and the
+// direct successor: `restart-app` (Restart), `share` (Share), `save-project` (Save). What the old `share-status` line and the project note said is a
+// notification now (`regions/Notifications.tsx`). The Samples gallery, Open folder/zip, Download, the device `<select>`s and the
 // component picker are menu items now and have no element ids of their own.
 
 import { useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent } from "react";
@@ -15,6 +15,7 @@ import type { Workbench } from "../page-workbench";
 import { CommandPalette } from "./CommandPalette";
 import { ContextMenuHost } from "./ContextMenuHost";
 import { MenuBar, MenuList, useMenuController } from "./MenuBar";
+import { NotificationBell, ToastStack } from "./Notifications";
 
 const TOOLBAR_IDS: Record<string, string> = {
   "run.restart": "restart-app",
@@ -147,17 +148,16 @@ function Toolbar({ workbench }: { workbench: Workbench }) {
   return (
     <div className="toolbar-row" role="toolbar" aria-label="Studio actions" aria-orientation="horizontal" ref={ref} onKeyDown={move}>
       {entries.map((entry, position) => (
-        <span className="tb-widget" key={entry.key} data-secondary={entry.command === "run.restart" ? undefined : ""}>
+        <span className="tb-widget" key={entry.key} data-secondary={entry.command === "run.restart" || entry.widget === "bell" ? undefined : ""}>
           {entry.widget === "deviceChip" ? (
             <DeviceChip workbench={workbench} entries={device?.items ?? []} tabIndex={position === active ? 0 : -1} />
+          ) : entry.widget === "bell" ? (
+            <NotificationBell workbench={workbench} tabIndex={position === active ? 0 : -1} />
           ) : (
             <ToolbarButton entry={entry} workbench={workbench} tabIndex={position === active ? 0 : -1} />
           )}
         </span>
       ))}
-      <span className="share-status" id="share-status" role="status" aria-live="polite">
-        {workbench.status}
-      </span>
     </div>
   );
 }
@@ -208,6 +208,7 @@ export function WorkbenchChrome({ workbench }: { workbench: Workbench }) {
       />
       {workbench.palette.request !== null ? <CommandPalette key={workbench.palette.request.nonce} workbench={workbench} request={workbench.palette.request} /> : null}
       <ContextMenuHost workbench={workbench} />
+      <ToastStack workbench={workbench} />
     </header>
   );
 }

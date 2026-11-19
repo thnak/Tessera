@@ -350,6 +350,70 @@ try {
     await context.close();
   }
 
+  // --- notifications (issue #559) ---------------------------------------------------------------------------
+  {
+    const { page, context, problems } = await open();
+    const live = await page.evaluate(() => {
+      const region = document.getElementById('notification-live');
+      return { live: region?.getAttribute('aria-live'), inDocument: region !== null, role: document.getElementById('notifications')?.getAttribute('role') };
+    });
+    check('the toast region is in the document before any toast, aria-live polite', live.inDocument && live.live === 'polite' && live.role === 'region', JSON.stringify(live));
+    const bellAria = await page.evaluate(() => {
+      const bell = document.getElementById('notifications-bell');
+      return { label: bell.getAttribute('aria-label'), popup: bell.getAttribute('aria-haspopup'), expanded: bell.getAttribute('aria-expanded') };
+    });
+    check('the bell is a labelled button with a popup', bellAria.label === 'Notifications' && bellAria.popup === 'dialog' && bellAria.expanded === 'false', JSON.stringify(bellAria));
+
+    await page.evaluate(() => window.__tesseraWorkbench.run('notify.show', { message: 'Layout reset', actionLabel: 'Toggle theme', actionCommand: 'view.cycleTheme' }));
+    await page.waitForSelector('#notification-live .toast');
+    const toast = await page.evaluate(() => {
+      const node = document.querySelector('#notification-live .toast');
+      return { text: node.querySelector('.toast-message').textContent, actions: [...node.querySelectorAll('.toast-action')].map((button) => button.textContent), inLive: document.getElementById('notification-live').contains(node) };
+    });
+    check('a toast with an action appears inside the polite live region', toast.text === 'Layout reset' && toast.actions.join() === 'Toggle theme' && toast.inLive, JSON.stringify(toast));
+    check('the bell counts it as unread', (await page.getAttribute('#notifications-bell', 'aria-label')) === 'Notifications, 1 unread');
+    await page.click('#notification-live .toast-action');
+    check('the action runs its command (the theme cycles) and the toast goes away', (await page.evaluate(() => document.documentElement.dataset.theme)) === 'light' && (await page.locator('#notification-live .toast').count()) === 0);
+    await page.evaluate(() => window.__tesseraWorkbench.run('view.setTheme', { value: 'system' }));
+
+    await page.focus('#notifications-bell');
+    await page.keyboard.press('Enter');
+    await page.waitForSelector('#notification-center');
+    const history = await page.$$eval('#notification-center .nc-message', (nodes) => nodes.map((node) => node.textContent));
+    check('the bell history lists it, and opening marks it read', history.includes('Layout reset') && (await page.getAttribute('#notifications-bell', 'aria-label')) === 'Notifications');
+    await page.keyboard.press('Escape');
+    check('Escape closes the history and returns focus to the bell', (await page.locator('#notification-center').count()) === 0 && (await focusedId(page)) === 'notifications-bell');
+
+    await page.evaluate(() => window.__tesseraWorkbench.run('notify.show', { message: 'Same thing', key: 'dup' }));
+    await page.evaluate(() => window.__tesseraWorkbench.run('notify.show', { message: 'Same thing', key: 'dup' }));
+    check('the same key twice is one toast with a counter', (await page.locator('#notification-live .toast').count()) === 1 && (await page.textContent('#notification-live .toast-count')) === '2');
+    await page.click('#notification-live .toast-dismiss');
+
+    await page.evaluate(() => window.__tesseraWorkbench.run('notify.toggleDoNotDisturb'));
+    await page.evaluate(() => window.__tesseraWorkbench.run('notify.show', { message: 'Quiet one', severity: 'warning' }));
+    await page.waitForTimeout(150);
+    check('do not disturb: no toast, but the bell counts it', (await page.locator('#notification-live .toast').count()) === 0 && (await page.getAttribute('#notifications-bell', 'aria-label')).includes('2 unread'));
+    await page.click('#notifications-bell');
+    await page.waitForSelector('#notification-center');
+    const quiet = await page.$$eval('#notification-center .nc-message', (nodes) => nodes.map((node) => node.textContent));
+    check('do not disturb keeps the history', quiet.includes('Quiet one') && (await page.getAttribute('#notifications-dnd', 'aria-pressed')) === 'true', quiet.join(' | '));
+    await page.click('#notifications-dnd');
+    await page.click('#notifications-clear');
+    check('Clear all empties the history', (await page.locator('#notification-center .nc-item').count()) === 0);
+    await page.keyboard.press('Escape');
+
+    // The project note is a notification now: opening a zip says so through the service.
+    const encoder = new TextEncoder();
+    const buffer = Buffer.from(writeZip(Object.entries({ 'tessera.json': '{"schemaVersion":1,"app":{"name":"zip-demo","entry":"ui/Home.tsx","namespace":"zip_demo"}}', 'ui/Home.tsx': 'export function Home(): Node {\n  return <View />;\n}\n' }).map(([path, text]) => ({ path, bytes: encoder.encode(text) }))));
+    await page.locator('input[type=file]').setInputFiles({ name: 'notes.zip', mimeType: 'application/zip', buffer });
+    await page.waitForSelector('#project-name');
+    await page.waitForSelector('#notification-live .toast');
+    const toasted = await page.$$eval('#notification-live .toast-message', (nodes) => nodes.map((node) => node.textContent));
+    check('what the project says is announced as a toast, and #project-note no longer has its own live region', toasted.some((text) => /archive|zip|opened|loaded/i.test(text)) && (await page.getAttribute('#project-note', 'role')) === null, toasted.join(' | '));
+    check('no uncaught page error (notifications)', problems.length === 0, problems.join(' | '));
+    await context.close();
+  }
+
   // --- screenshots (light, dark, 390) -----------------------------------------------------------------------
   if (shots !== null) {
     await mkdir(shots, { recursive: true });
@@ -364,6 +428,13 @@ try {
       await page.waitForSelector('#palette-input');
       await page.keyboard.type('device');
       await page.screenshot({ path: join(shots, `workbench-${name}-palette.png`) });
+      await page.keyboard.press('Escape');
+      await page.evaluate(() => window.__tesseraWorkbench.run('notify.show', { message: 'Layout reset', actionLabel: 'Undo', actionCommand: 'view.cycleTheme' }));
+      await page.evaluate(() => window.__tesseraWorkbench.run('notify.show', { message: 'Saved 2 files', severity: 'info' }));
+      await page.waitForSelector('#notification-live .toast');
+      await page.click('#notifications-bell');
+      await page.waitForSelector('#notification-center');
+      await page.screenshot({ path: join(shots, `workbench-${name}-notifications.png`) });
       await page.keyboard.press('Escape');
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
       check(`${name}: no horizontal scroll`, !overflow);

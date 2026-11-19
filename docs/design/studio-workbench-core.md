@@ -1,6 +1,6 @@
-# Studio workbench core: registry, keymap, menus, palette
+# Studio workbench core: registry, keymap, menus, palette, notifications
 
-Status: W1 (issue [#555](https://github.com/thnak/Tessera/issues/555)), W2 (#557) and W3 (#558) implemented.
+Status: W1 (issue [#555](https://github.com/thnak/Tessera/issues/555)), W2 (#557), W3 (#558) and W3b (#559) implemented.
 The normative rules (record fields, when-clause grammar, the menu tree, the slice plan)
 are in [studio-workbench-v1.md](../specs/studio-workbench-v1.md); this note records how the code in
 `designer/web/src/workbench/` realises them and where it deliberately differs.
@@ -44,7 +44,7 @@ exists, in the same order, with new ids appended there in the same change.
   `arg.<name>`, so `device.setViewport` is `device.viewport == arg.value` and one command renders a whole
   radio group.
 - Added context keys: `tree.focus`, `project.multiComponent`, `device.profile|skin|viewport|dpr|fold|keepState`,
-  `ui.theme`, `run.picker|inspector|enabled|component`. They exist so toggles and radios read page state.
+  `ui.theme`, `run.picker|inspector|enabled|component`, `notify.dnd|unread|any`. They exist so toggles and radios read page state.
 - `args` properties may carry `x-provider`, naming a page-registered choice provider (`recent`, `skins`,
   `profiles`, `viewports`, `dprs`, `components`) so the palette can offer choices for an argument.
 - Worker-service readiness disables a command only when the page publishes `service.<name>.ready` as
@@ -148,3 +148,35 @@ reserved commands (`go.*`, `edit.format`, `edit.renameSymbol`, `view.problems`, 
 `Ctrl+Z`, `Ctrl+F`, `Ctrl+S` and the rest first and the workbench skips a key the editor already consumed; the
 two CodeMirror search bindings that collided with VS Code (`Ctrl+G` and `Shift+Ctrl+G`) are removed so Go to Line
 works with the editor focused.
+
+## 6. Notifications (W3b, issue #559)
+
+One service replaces the `role="status"` line each region used to carry. `workbench/notifications.js` is pure
+state with an injected clock (gate: `scripts/ci/preview_workbench_notifications.mjs`); `regions/Notifications.tsx`
+draws the toast stack and the bell.
+
+- **Queue.** At most three toasts show; the rest wait and appear as room is made. `info` expires after 5 s and
+  `warning` after 8 s (at least 10 s when the toast has an action); an `error` stays until dismissed.
+- **Dedupe.** The same `key` (default: severity plus message) inside 10 s bumps a counter on the existing entry
+  and brings its toast back instead of adding a second entry.
+- **History.** Every notification is kept, newest first, capped at 50, with an unread flag; the bell shows the
+  unread count and opening the history marks it read. `Clear all` empties it.
+- **Do not disturb** suppresses toasts (shown and queued) but not the history or the unread count.
+- **Actions.** A notification carries up to three `{ label, command, args }`; a button runs the command through
+  the registry (so a menu, a chord and a toast cannot drift) and dismisses the toast.
+- **Announcing.** The toast stack is one `aria-live="polite"` region that is in the document before any toast
+  exists (`#notification-live`), so a message is announced once, politely, from whichever region produced it.
+  The bell is a `button` with `aria-haspopup="dialog"` and an `aria-label` carrying the unread count; its
+  history is a `dialog`, closed by Escape with focus back on the bell.
+
+Commands (ids are append-only like the others): `notify.show` (arguments `message`, `severity`, `actionLabel`,
+`actionCommand`, `key`; on no menu or palette, for other commands and services to call), `notify.toggleCenter`,
+`notify.clearAll`, `notify.toggleDoNotDisturb`. Page code and the dock use `workbench.notify({ message,
+severity, actions, key })` or `notify.show` through the registry. Context keys: `notify.dnd`, `notify.unread`,
+`notify.any`.
+
+What now goes through it: the share flow's progress text (`Share: link copied`), the project's note (the line
+under the file tree keeps its text, but is no longer its own live region, so it is announced once, as a toast),
+a command that failed or was refused (`severity` `error` or `warning`), and `Help > About`. The layout-undo
+notice and the "layout from a newer studio" notice of the dock slices are not on this branch; they are meant to
+call `workbench.notify` with an action naming `view.resetLayout` or the undo command.

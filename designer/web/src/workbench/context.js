@@ -41,6 +41,9 @@ export const CONTEXT_KEYS = Object.freeze([
   "run.inspector",
   "run.enabled",
   "run.component",
+  "notify.dnd",
+  "notify.unread",
+  "notify.any",
 ]);
 
 const PATTERNS = [/^panel\.[A-Za-z0-9_-]+\.(open|visible)$/, /^service\.[A-Za-z0-9_-]+\.ready$/, /^arg\.[A-Za-z0-9_]+$/];

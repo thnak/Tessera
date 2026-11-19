@@ -904,6 +904,68 @@
       "category": "Help",
       "description": "Show the build id",
       "status": "live"
+    },
+    {
+      "id": "notify.show",
+      "title": "Show Notification",
+      "category": "Notifications",
+      "description": "Show a notification (message, severity and one optional action) in the toast stack and the history",
+      "args": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "info",
+              "warning",
+              "error"
+            ]
+          },
+          "actionLabel": {
+            "type": "string"
+          },
+          "actionCommand": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ]
+      },
+      "status": "live"
+    },
+    {
+      "id": "notify.toggleCenter",
+      "title": "Toggle Notifications",
+      "category": "Notifications",
+      "description": "Show or hide the notification history",
+      "surfaces": [
+        "palette",
+        "toolbar"
+      ],
+      "status": "live"
+    },
+    {
+      "id": "notify.clearAll",
+      "title": "Clear All Notifications",
+      "category": "Notifications",
+      "description": "Dismiss every toast and empty the history",
+      "enabled": "notify.unread != 0 || notify.any",
+      "status": "live"
+    },
+    {
+      "id": "notify.toggleDoNotDisturb",
+      "title": "Do Not Disturb",
+      "category": "Notifications",
+      "description": "Keep notifications in the history without showing toasts",
+      "checked": "notify.dnd",
+      "status": "live"
     }
   ]
 }

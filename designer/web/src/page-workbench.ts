@@ -30,6 +30,9 @@ import {
   type ChordStep,
   type ToolbarEntry,
   buildContextMenu,
+  createNotifications,
+  type NotificationInput,
+  type Notifications,
 } from "./workbench/index.js";
 import commandsDocument from "./workbench/commands.json";
 import menusDocument from "./workbench/menus.json";
@@ -84,8 +87,13 @@ export interface Workbench {
   allMenus: MenuBarMenu[];
   toolbar: ToolbarEntry[];
   phone: boolean;
-  /** The last thing a command said (a result message or a note), for the polite live region. */
-  status: string;
+  /** The notification service: toasts, history, do-not-disturb (issue #559). */
+  notifications: Notifications;
+  /** Adds a notification; actions run through the registry. Returns its id (or `null` for a malformed call). */
+  notify: (input: NotificationInput) => number | null;
+  /** Whether the bell's history popover is open. */
+  centerOpen: boolean;
+  setCenterOpen: (open: boolean) => void;
   /** Runs a menu or toolbar entry; an entry whose command needs arguments the entry lacks asks for them. */
   activate: (entry: { command?: string; args?: CommandArgs }) => Promise<void>;
   /** Runs a command id with arguments through the registry and reports a refusal in `status`. */
@@ -178,17 +186,9 @@ function focusTree(): void {
 export function useWorkbench(api: WorkbenchApi): Workbench {
   const apiRef = useRef(api);
   apiRef.current = api;
-  const [status, setStatus] = useState("");
-  const statusRef = useRef(setStatus);
-  statusRef.current = setStatus;
-  // A command's message is a transient note, not a permanent line.
-  useEffect(() => {
-    if (status === "") {
-      return;
-    }
-    const timer = window.setTimeout(() => setStatus(""), 8000);
-    return () => window.clearTimeout(timer);
-  }, [status]);
+  const [centerOpen, setCenterOpen] = useState(false);
+  const centerRef = useRef(setCenterOpen);
+  centerRef.current = setCenterOpen;
   const picker = useButtonState(api.refs.pickToggle);
   const inspector = useButtonState(api.refs.inspectToggle);
   const phone = usePhone();
@@ -197,7 +197,7 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
   const paletteRef = useRef<PaletteHost | null>(null);
   const providersRef = useRef<MenuProviders>({});
 
-  const hostRef = useRef<{ registry: Registry; extra: ContextRecord } | null>(null);
+  const hostRef = useRef<{ registry: Registry; notifications: Notifications } | null>(null);
   if (hostRef.current === null) {
     const platform = platformOf();
     const context = createContext(computeContext(api, {}));
@@ -210,6 +210,13 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
         }
       },
     });
+    const notifications = createNotifications();
+    const publishNotify = () => {
+      const view = notifications.snapshot();
+      context.set({ "notify.dnd": view.dnd, "notify.unread": view.unread, "notify.any": view.history.length > 0 });
+    };
+    publishNotify();
+    notifications.subscribe(publishNotify);
     const a = () => apiRef.current;
     const handlers: Record<string, (args: CommandArgs) => unknown> = {
       "file.openFolder": () => a().io.openFolder(),
@@ -247,7 +254,17 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
       "device.toggleKeepState": () => a().setKeepState(!a().keepState),
       "help.docs": () => void window.open(DOCS_URL, "_blank", "noopener"),
       "help.reportIssue": () => void window.open(ISSUE_URL, "_blank", "noopener"),
-      "help.about": () => statusRef.current(`Tessera Studio, ${a().buildId}`),
+      "help.about": () => void notifications.notify({ message: `Tessera Studio, ${a().buildId}`, key: "about" }),
+      "notify.show": (args) => {
+        const actions = args.actionLabel && args.actionCommand ? [{ label: String(args.actionLabel), command: String(args.actionCommand) }] : [];
+        return { id: notifications.notify({ message: String(args.message), severity: (args.severity as NotificationInput["severity"]) ?? "info", actions, key: args.key === undefined ? undefined : String(args.key) }) };
+      },
+      "notify.toggleCenter": () => {
+        notifications.markRead();
+        centerRef.current((open) => !open);
+      },
+      "notify.clearAll": () => notifications.clearHistory(),
+      "notify.toggleDoNotDisturb": () => notifications.setDoNotDisturb(!notifications.snapshot().dnd),
       ...EDITOR_COMMANDS,
     };
     for (const [id, handler] of Object.entries(handlers)) {
@@ -257,9 +274,9 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
     if (problems.length > 0) {
       console.error("workbench: command table and handlers disagree", problems);
     }
-    hostRef.current = { registry, extra: {} };
+    hostRef.current = { registry, notifications };
   }
-  const { registry } = hostRef.current;
+  const { registry, notifications } = hostRef.current;
 
   // Context keys: the page's state, plus the sessions' own toggles. Published after every render; a re-publish
   // of the same values wakes nobody (`context.set` compares).
@@ -289,10 +306,10 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
     async (id: string, args?: CommandArgs) => {
       const result = await registry.run(id, args);
       if (!result.ok) {
-        setStatus(result.message);
+        notifications.notify({ message: result.message, severity: result.code === "failed" ? "error" : "warning", key: `command:${id}:${result.code}` });
       }
     },
-    [registry],
+    [registry, notifications],
   );
 
   // The keyboard: chords resolve against the keymap and the context at the instant of the key. The editor
@@ -357,6 +374,21 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
     };
   }, [registry]);
 
+  // The project's last action and the share flow say what they did through the notification service, so the
+  // person hears it once (a toast and the bell history) instead of from one live region per region.
+  const projectNote = api.io.state.note;
+  useEffect(() => {
+    if (projectNote !== "") {
+      notifications.notify({ message: projectNote, key: "project-note" });
+    }
+  }, [projectNote, notifications]);
+  const shareText = api.shareStatus;
+  useEffect(() => {
+    if (shareText !== "" && !shareText.endsWith("...")) {
+      notifications.notify({ message: `Share: ${shareText}`, key: "share" });
+    }
+  }, [shareText, notifications]);
+
   const providers: MenuProviders = {
     recent: () =>
       api.io.recents.map((recent, index) => ({
@@ -408,7 +440,10 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
     allMenus,
     toolbar,
     phone,
-    status: status !== "" ? status : api.shareStatus,
+    notifications,
+    notify: (input) => notifications.notify(input),
+    centerOpen,
+    setCenterOpen,
     activate,
     run,
     setFocusOwner,

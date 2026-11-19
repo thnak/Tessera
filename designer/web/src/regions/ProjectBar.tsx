@@ -17,7 +17,7 @@ export function ProjectBar({ io }: { io: ProjectIo }) {
           {state.source === "zip" ? " (a copy: Save needs an opened folder, use Download)" : ""}
         </p>
       ) : null}
-      <p className="project-note" id="project-note" role="status" aria-live="polite" hidden={state.note === ""}>
+      <p className="project-note" id="project-note" hidden={state.note === ""}>
         {state.note}
       </p>
       {state.draft !== null ? (

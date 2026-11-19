@@ -263,3 +263,55 @@ export interface ArgFlow {
 }
 export function createArgFlow(record: CommandRecord, given?: CommandArgs, providers?: MenuProviders): ArgFlow;
 export function needsPrompt(record: CommandRecord, given?: CommandArgs): boolean;
+
+export interface NotificationAction {
+  label: string;
+  command: string;
+  args?: CommandArgs;
+}
+export interface NotificationInput {
+  message: string;
+  severity?: "info" | "warning" | "error";
+  actions?: NotificationAction[];
+  /** Same key inside the dedupe window bumps a counter instead of adding an entry. */
+  key?: string;
+}
+export interface NotificationEntry {
+  id: number;
+  key: string;
+  message: string;
+  severity: "info" | "warning" | "error";
+  actions: NotificationAction[];
+  count: number;
+  at: number;
+  read: boolean;
+  active?: boolean;
+  expiresAt?: number | null;
+}
+export interface NotificationsSnapshot {
+  version: number;
+  dnd: boolean;
+  unread: number;
+  queued: number;
+  toasts: NotificationEntry[];
+  history: NotificationEntry[];
+}
+export interface Notifications {
+  notify(input: NotificationInput): number | null;
+  dismiss(id: number): void;
+  dismissAll(): void;
+  tick(): boolean;
+  markRead(): void;
+  clearHistory(): void;
+  setDoNotDisturb(on: boolean): void;
+  snapshot(): NotificationsSnapshot;
+  version(): number;
+  subscribe(listener: () => void): () => void;
+}
+export function createNotifications(options?: {
+  now?: () => number;
+  maxVisible?: number;
+  historyLimit?: number;
+  dedupeMs?: number;
+  timeouts?: { info?: number; warning?: number; actionMinimum?: number };
+}): Notifications;
