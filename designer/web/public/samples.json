@@ -1,11 +1,11 @@
 {
-  "schema": 1,
+  "schema": 2,
   "samples": [
-    {"component": "Demo", "path": "samples/compiler-demo/Demo.tsx"},
-    {"component": "DashPage", "path": "samples/gallery/DashPage.tsx"},
-    {"component": "FormPage", "path": "samples/gallery/FormPage.tsx"},
-    {"component": "Gallery", "path": "samples/gallery/Gallery.tsx"},
-    {"component": "SafeAreaPage", "path": "samples/gallery/SafeAreaPage.tsx"},
-    {"component": "Counter", "path": "samples/parity-demo/Counter.tsx"}
+    {"component": "Demo", "files": [], "path": "samples/compiler-demo/Demo.tsx"},
+    {"component": "DashPage", "files": [], "path": "samples/gallery/DashPage.tsx"},
+    {"component": "FormPage", "files": [{"as": "samples/gallery/Button.tsx", "from": "packages/tessera-ui/Button.tsx"}, {"as": "samples/gallery/form.module.css", "from": "samples/gallery/form.module.css"}], "path": "samples/gallery/FormPage.tsx"},
+    {"component": "Gallery", "files": [{"as": "samples/gallery/Button.tsx", "from": "packages/tessera-ui/Button.tsx"}], "path": "samples/gallery/Gallery.tsx"},
+    {"component": "SafeAreaPage", "files": [{"as": "samples/gallery/SafeArea.tsx", "from": "packages/tessera-ui/SafeArea.tsx"}], "path": "samples/gallery/SafeAreaPage.tsx"},
+    {"component": "Counter", "files": [], "path": "samples/parity-demo/Counter.tsx"}
   ]
 }

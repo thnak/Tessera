@@ -232,8 +232,16 @@ the two real load paths (a folder through File System Access, a dropped zip) are
 [`studio-project-io.md`](studio-project-io.md) section 5. The page still boots with a **seeded in-memory project**
 (`lib/project.ts`, `SEED`): `tessera.json` (`app.entry` names `ui/App.tsx`), `ui/App.tsx` (the entry, which
 imports `../styles/theme.css`) and `styles/theme.css`. There is no router yet: the scene builder does not
-render user component instances, so a second screen cannot be composed in until the engine can. The sample gallery still works and adds a sample as a project file at
-its own path, so the tree shows where it came from.
+render user component instances, so a second screen cannot be composed in until the engine can. The sample gallery still works: a sample opens as a small project (the entry at its own path plus
+the companion files its imports need, manifest schema 2, see [designer-studio-v1.md](../specs/designer-studio-v1.md)),
+so the tree shows where it came from and the compiler resolves `./Button`.
+
+**A source that does not apply is said in the pane.** The canvas deliberately keeps the last good frame when an
+apply fails (a blank canvas mid-word is the failure #444 prevents), which used to leave only an amber line in the
+status strip: a first apply that failed gave a blank surface, and every Device or viewport change re-ran the
+same failing apply, so the frame never changed. The pane now shows a "Source not applied" box with the
+reason, and an applied source that paints nothing shows "Nothing to draw"
+(`scripts/ci/preview_canvas_pane_states.mjs`).
 
 **Every path the tree shows came from `project-paths.js`.** `projectFile()` calls `confinePath` on each
 path, then `classifyPath` to decide the kind, and `isTextKind` to decide whether the editor may open it --

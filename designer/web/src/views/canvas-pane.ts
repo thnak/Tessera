@@ -95,6 +95,15 @@ export interface CanvasPane {
    */
   showUnsupported(reason: string, cause?: UnsupportedCause): void;
   showFailed(message: string): void;
+  /**
+   * Says, in the pane itself, that the source did not apply (a project that does not resolve, a tree the
+   * engine cannot preview). The last good frame is deliberately left alone (issue #444: a blank canvas
+   * mid-word is the failure that slice exists to prevent), so without this message a picture that never
+   * changes - or no picture at all - reads as a broken canvas, not as a source that is not running.
+   */
+  showNotApplied(error: string): void;
+  /** Clears the not-applied message once a source applies; leaves every other state (CSS problems) alone. */
+  clearNotApplied(): void;
   hideStates(): void;
   /**
    * Shows which face the frame is painted with (issue #387), or that text is not painted at all.
@@ -150,7 +159,38 @@ export function createCanvasPane(
     }
   }
 
+  // The failed box's heading is chrome React rendered once, found by its stable id like the unsupported one.
+  let notApplied = false;
+
+  function setFailedHeading(text: string): void {
+    const heading = pane.failed.querySelector<HTMLElement>("#failed-heading");
+    if (heading !== null) {
+      heading.textContent = text;
+    }
+  }
+
+  function showNotApplied(error: string): void {
+    notApplied = true;
+    setFailedHeading("Source not applied");
+    pane.failedBody.textContent =
+      `${error}\nThe canvas shows the last frame that did apply, if there is one; fix the source and it updates.`;
+    pane.failed.hidden = false;
+    setStatus("source not applied: " + error, "warning");
+  }
+
+  function clearNotApplied(): void {
+    if (!notApplied) {
+      return;
+    }
+    notApplied = false;
+    setFailedHeading("Preview failed");
+    pane.failedBody.textContent = "";
+    pane.failed.hidden = true;
+  }
+
   function showFailed(message: string): void {
+    notApplied = false;
+    setFailedHeading("Preview failed");
     pane.failedBody.textContent = message;
     pane.failed.hidden = false;
     setStatus("failed", "warning");
@@ -160,6 +200,8 @@ export function createCanvasPane(
   }
 
   function hideStates(): void {
+    notApplied = false;
+    setFailedHeading("Preview failed");
     pane.unsupported.hidden = true;
     pane.failed.hidden = true;
   }
@@ -241,6 +283,13 @@ export function createCanvasPane(
       return;
     }
     if (report.drawCalls === 0) {
+      // An applied source that paints nothing is a real answer, and a black rectangle with a counter is
+      // not a way to give it: say so where the eye is, with the likely causes.
+      setFailedHeading("Nothing to draw");
+      pane.failedBody.textContent =
+        "The source applied but painted no boxes, so the canvas shows only the clear colour. " +
+        "Check that the entry component returns a visible element (a View with a size, a Text with content).";
+      pane.failed.hidden = false;
       setStatus(
         problems.length === 0
           ? "no draw calls (the source produced no painted boxes)"
@@ -299,6 +348,8 @@ export function createCanvasPane(
     setStatus,
     showUnsupported,
     showFailed,
+    showNotApplied,
+    clearNotApplied,
     hideStates,
     setFontState,
     renderReport,

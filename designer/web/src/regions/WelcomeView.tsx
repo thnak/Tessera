@@ -8,7 +8,7 @@
 // the titles are `lib/gallery.ts`; a failure is shown here, never thrown.
 
 import { useEffect, useState } from "react";
-import { loadSampleSource, pageManifest, titleOf, type LoadedSample, type Sample } from "../lib/gallery";
+import { loadSampleProject, pageManifest, titleOf, type LoadedSample, type Sample } from "../lib/gallery";
 
 export function WelcomeView({
   onPick,
@@ -36,7 +36,7 @@ export function WelcomeView({
   async function pick(sample: Sample): Promise<void> {
     setBusy(sample.path);
     try {
-      onPick({ ...sample, text: await loadSampleSource(sample.path) });
+      onPick(await loadSampleProject(sample));
     } catch (error) {
       setNote(String(error instanceof Error ? error.message : error));
     } finally {

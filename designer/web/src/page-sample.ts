@@ -26,8 +26,12 @@ export function useSample({
       // A gallery sample becomes a project file at its own path, opened and selected: the tree shows where
       // it came from, and Run compiles it under the sample's own name.
       let file: ProjectFile | null = null;
+      let companions: ProjectFile[] = [];
       try {
         file = projectFile(sample.path, sample.text);
+        // The companions (the library Button, a CSS module) are what its imports resolve to; without them
+        // lowering says "import does not name a file of this project".
+        companions = sample.companions.map((companion) => projectFile(companion.path, companion.text));
       } catch {
         // A manifest path that is not a project path is refused by `project-paths.js`; the page keeps the
         // seed project rather than inventing a path.
@@ -35,8 +39,17 @@ export function useSample({
       }
       if (file !== null && workspace.state.files.length === 0) {
         // Nothing is open (the studio no longer boots on a demo project): the sample becomes a project.
-        projectIo.openSample(sample.component, sampleProjectFiles(file.path, sample.text, sample.component));
+        projectIo.openSample(sample.component, [
+          ...sampleProjectFiles(file.path, sample.text, sample.component),
+          ...companions.map((companion) => ({ path: companion.path, text: companion.text })),
+        ]);
+        // The project opens on its first source file, which sorts a companion (Button.tsx) before the
+        // entry; the sample's own file is the one the person picked, so it is the one shown.
+        workspace.openFile(file);
       } else if (file !== null) {
+        for (const companion of companions) {
+          workspace.putFile(companion);
+        }
         workspace.putFile(file);
         setRevision((value) => value + 1);
       }

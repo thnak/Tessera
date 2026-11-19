@@ -257,10 +257,14 @@ await test("a share link in the address bar is ignored: the studio reads no URL 
 await test("the gallery fetches nothing until it is asked to, then the manifest once", async () => {
   const fetched = [];
   const MANIFEST = {
-    schema: 1,
+    schema: 2,
     samples: [
-      { path: "samples/parity-demo/Counter.tsx", component: "Counter" },
-      { path: "samples/gallery/Gallery.tsx", component: "Gallery" },
+      { path: "samples/parity-demo/Counter.tsx", component: "Counter", files: [] },
+      {
+        path: "samples/gallery/Gallery.tsx",
+        component: "Gallery",
+        files: [{ as: "samples/gallery/Button.tsx", from: "packages/tessera-ui/Button.tsx" }],
+      },
     ],
   };
   const fetchImpl = async (url) => {
@@ -289,6 +293,30 @@ await test("the gallery fetches nothing until it is asked to, then the manifest 
   assert.equal(gallery.titleOf("samples/parity-demo/Counter.tsx"), "Counter (parity-demo)");
 });
 
+await test("a sample loads as a project: the entry plus its companions at their project paths", async () => {
+  const served = [];
+  const fetchImpl = async (url) => {
+    served.push(url);
+    return { ok: true, status: 200, text: async () => `TEXT(${url})` };
+  };
+  const [, withButton] = [
+    { path: "samples/parity-demo/Counter.tsx", component: "Counter", files: [] },
+    {
+      path: "samples/gallery/Gallery.tsx",
+      component: "Gallery",
+      files: [{ as: "samples/gallery/Button.tsx", from: "packages/tessera-ui/Button.tsx" }],
+    },
+  ];
+  const loaded = await gallery.loadSampleProject(withButton, fetchImpl);
+  assert.equal(loaded.text, "TEXT(./samples/gallery/Gallery.tsx)");
+  assert.deepEqual(loaded.companions, [
+    { path: "samples/gallery/Button.tsx", text: "TEXT(./packages/tessera-ui/Button.tsx)" },
+  ]);
+  assert.equal(served.length, 2, "one fetch per file");
+  const missing = async (url) => ({ ok: !url.includes("Button"), status: 404, text: async () => "" });
+  await assert.rejects(() => gallery.loadSampleProject(withButton, missing), /Button.tsx.*404/);
+});
+
 await test("a failed sample fetch is an error the gallery can show, not a thrown page", async () => {
   const fetchImpl = async () => ({ ok: false, status: 404, text: async () => "" });
   await assert.rejects(
@@ -301,15 +329,36 @@ await test("the manifest is validated, not trusted", async () => {
   const unsafe = async () => ({
     ok: true,
     status: 200,
-    json: async () => ({ schema: 1, samples: [{ path: "../escape.tsx", component: "X" }] }),
+    json: async () => ({ schema: 2, samples: [{ path: "../escape.tsx", component: "X", files: [] }] }),
   });
   await assert.rejects(() => gallery.loadSampleManifest(unsafe), /unsafe path/);
+  const unsafeCompanion = async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      schema: 2,
+      samples: [{ path: "samples/a/A.tsx", component: "A", files: [{ from: "/etc/passwd", as: "samples/a/B.tsx" }] }],
+    }),
+  });
+  await assert.rejects(() => gallery.loadSampleManifest(unsafeCompanion), /unsafe path/);
+  const noFiles = async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({ schema: 2, samples: [{ path: "samples/a/A.tsx", component: "A" }] }),
+  });
+  await assert.rejects(() => gallery.loadSampleManifest(noFiles), /path, component and files/);
+  const oldSchema = async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({ schema: 1, samples: [{ path: "samples/a/A.tsx", component: "A" }] }),
+  });
+  await assert.rejects(() => gallery.loadSampleManifest(oldSchema), /schema 1, expected 2/);
   const wrongSchema = async () => ({
     ok: true,
     status: 200,
-    json: async () => ({ schema: 2, samples: [] }),
+    json: async () => ({ schema: 3, samples: [] }),
   });
-  await assert.rejects(() => gallery.loadSampleManifest(wrongSchema), /schema 2/);
+  await assert.rejects(() => gallery.loadSampleManifest(wrongSchema), /schema 3/);
 });
 
 process.stdout.write(`\n${failures === 0 ? "studio smoke: all cases passed" : `${failures} failed`}\n`);

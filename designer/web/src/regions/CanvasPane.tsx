@@ -170,7 +170,7 @@ export function CanvasPane({
       </div>
 
       <div className="unavailable" id="failed" ref={failedRef} hidden>
-        <h3>Preview failed</h3>
+        <h3 id="failed-heading">Preview failed</h3>
         <p id="failed-body" ref={failedBodyRef} />
       </div>
 
