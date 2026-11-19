@@ -266,6 +266,7 @@ namespace demo {
           child_5_prop_label_hash_ = prop_5_label_hash;
           this->child_5_.prop_label_ = "cond";
           this->child_5_.note_dirty(Row::kBit_prop_label_);
+          this->child_5_.schedule_update();
         }
       }
       if (dirty_.intersects(kDirty_prop_5_notes)) {
@@ -276,6 +277,7 @@ namespace demo {
           child_5_prop_notes_hash_ = prop_5_notes_hash;
           this->child_5_.prop_notes_ = {};
           this->child_5_.note_dirty(Row::kBit_prop_notes_);
+          this->child_5_.schedule_update();
         }
       }
     }
@@ -515,9 +517,17 @@ namespace demo {
         list_4_items_[tessera_slot].child_4_prop_label_hash_ = item_prop_4_label_hash;
         list_4_items_[tessera_slot].child_4->prop_label_ = entry;
         list_4_items_[tessera_slot].child_4->note_dirty(Row::kBit_prop_label_);
+        list_4_items_[tessera_slot].child_4->schedule_update();
       }
-      list_4_items_[tessera_slot].child_4->prop_notes_ = {entry};
-      list_4_items_[tessera_slot].child_4->note_dirty(Row::kBit_prop_notes_);
+      std::uint64_t item_prop_4_notes_hash = tessera::ui::kEffectHashSeed;
+      item_prop_4_notes_hash = tessera::ui::effect_hash(item_prop_4_notes_hash, static_cast<std::int64_t>(1));
+      item_prop_4_notes_hash = tessera::ui::effect_hash(item_prop_4_notes_hash, std::string_view(entry));
+      if (item_prop_4_notes_hash != list_4_items_[tessera_slot].child_4_prop_notes_hash_) {
+        list_4_items_[tessera_slot].child_4_prop_notes_hash_ = item_prop_4_notes_hash;
+        list_4_items_[tessera_slot].child_4->prop_notes_ = {entry};
+        list_4_items_[tessera_slot].child_4->note_dirty(Row::kBit_prop_notes_);
+        list_4_items_[tessera_slot].child_4->schedule_update();
+      }
       std::uint64_t tessera_hash = tessera::ui::kEffectHashSeed;
       if (!list_4_set_[tessera_slot] || tessera_hash != list_4_hashes_[tessera_slot]) {
         list_4_set_[tessera_slot] = true;
@@ -661,14 +671,6 @@ namespace demo {
       using namespace Page_detail;
       update_effects();
       apply_state();
-      child_5_.update();
-      for (std::size_t tessera_item = 0; tessera_item < list_4_items_.size(); ++tessera_item) {
-        auto& tessera_slot = list_4_items_[tessera_item];
-        if (tessera_slot.child_4 == nullptr) {
-          continue;
-        }
-        tessera_slot.child_4->update();
-      }
     }
     template <class Self>
     inline void PageBase<Self>::note_dirty(std::size_t bit) {

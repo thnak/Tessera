@@ -111,6 +111,31 @@ bool parent_before_child() {
                   "flush follows attach order, not scheduling order");
 }
 
+// ADR-056 decision 4: a parent that schedules its child (attached later) from its own update does
+// not cost a second pass, because the child is still ahead in the pass that is running.
+bool scheduling_a_later_ticket_costs_no_extra_pass() {
+    std::vector<std::string> log;
+    UpdateScheduler scheduler;
+    Probe parent(log, "parent");
+    Probe child(log, "child");
+    Probe grandchild(log, "grandchild");
+    scheduler.attach(parent.ticket);
+    scheduler.attach(child.ticket);
+    scheduler.attach(grandchild.ticket);
+    parent.also = &child.ticket;
+    child.also = &grandchild.ticket;
+    parent.ticket.schedule();
+    const auto stats = scheduler.flush();
+    bool ok =
+        expect(log.size() == 3 && log[0] == "parent" && log[1] == "child" && log[2] == "grandchild",
+               "a scheduled child runs after its parent, in the same flush");
+    ok = expect(stats.passes == 1 && stats.updated == 3,
+                "scheduling later tickets from an update runs one pass") &&
+         ok;
+    ok = expect(!scheduler.pending(), "nothing is left pending") && ok;
+    return ok;
+}
+
 bool reentrant_dirty_within_budget() {
     std::vector<std::string> log;
     UpdateScheduler scheduler(4);
@@ -264,6 +289,9 @@ int main() {
     }
     if (!parent_before_child()) {
         return 3;
+    }
+    if (!scheduling_a_later_ticket_costs_no_extra_pass()) {
+        return 9;
     }
     if (!reentrant_dirty_within_budget()) {
         return 4;

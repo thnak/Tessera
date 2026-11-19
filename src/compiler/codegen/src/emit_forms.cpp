@@ -97,6 +97,7 @@ void emit_field_refresh(CppWriter& writer, const FormBinding& form, const FormFi
     ++writer.indent;
     writer.line(instance + "prop_value_ = state->value.text;");
     writer.line(instance + "mark_all_dirty();");
+    writer.line(instance + "schedule_update();");
     --writer.indent;
     writer.line("}");
     writer.line("// Surface issues only after interaction or an explicit validate/submit.");
@@ -121,6 +122,7 @@ void emit_field_refresh(CppWriter& writer, const FormBinding& form, const FormFi
     ++writer.indent;
     writer.line(instance + "prop_error_ = std::move(first_error);");
     writer.line(instance + "mark_all_dirty();");
+    writer.line(instance + "schedule_update();");
     --writer.indent;
     writer.line("}");
     writer.line("std::vector<std::string> errors;");
@@ -138,6 +140,7 @@ void emit_field_refresh(CppWriter& writer, const FormBinding& form, const FormFi
     ++writer.indent;
     writer.line(instance + "prop_errors_ = std::move(errors);");
     writer.line(instance + "mark_all_dirty();");
+    writer.line(instance + "schedule_update();");
     --writer.indent;
     writer.line("}");
     --writer.indent;

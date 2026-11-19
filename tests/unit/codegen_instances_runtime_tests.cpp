@@ -19,6 +19,7 @@
 #include "Page.hpp"
 #include "Row.hpp"
 #include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/scene/update_scheduler.hpp"
 
 #include <cstdint>
 #include <iostream>
@@ -227,16 +228,20 @@ void test_state_survives_reorder() {
 // the host's address while attached and requiring the same address back after a full toggle.
 void test_conditional_instance_keeps_state() {
     demo::Page page;
+    ui::UpdateScheduler scheduler;
     ui::Node root(1000);
     page.build(root);
+    page.attach_scheduler(scheduler);
     ui::Node& view = root_view(root);
     check(view.children().size() == kChildCount, "the conditional instance starts detached");
     if (view.children().size() != kChildCount) {
+        page.detach_scheduler(scheduler);
         return;
     }
 
     page.set_show(true);
     page.update();
+    scheduler.flush(); // the conditional instance runs from its own ticket (ADR-056)
     check(view.children().size() == kChildCount + 1, "showing the condition attaches the instance");
     ui::Node* const host = &*view.children().back();
     check(host->element_kind() == "Component", "the branch attaches a Component host");
@@ -244,14 +249,17 @@ void test_conditional_instance_keeps_state() {
 
     page.child_5().set_count(5);
     page.update();
+    scheduler.flush(); // the conditional instance runs from its own ticket (ADR-056)
     check(row_text(*host) == "cond:5", "the conditional instance has its own state");
 
     page.set_show(false);
     page.update();
+    scheduler.flush(); // the conditional instance runs from its own ticket (ADR-056)
     check(view.children().size() == kChildCount, "hiding the condition detaches the host");
 
     page.set_show(true);
     page.update();
+    scheduler.flush(); // the conditional instance runs from its own ticket (ADR-056)
     check(view.children().size() == kChildCount + 1, "re-showing reattaches the host");
     check(&*view.children().back() == host,
           "re-showing reattaches the same host node (keep-alive, not rebuild)");
@@ -267,6 +275,7 @@ void test_conditional_instance_keeps_state() {
         check_eq(painted_text(*callee->children()[0]), "cond:5",
                  "the conditional instance paints its label and state");
     }
+    page.detach_scheduler(scheduler);
 }
 
 // Per-item presence: changing the list re-runs each item's own condition walk.

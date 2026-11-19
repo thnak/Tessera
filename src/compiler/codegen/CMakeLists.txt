@@ -1220,6 +1220,18 @@ if (TESSERA_BUILD_TESTS)
         add_test(NAME codegen_mask_runtime COMMAND codegen_mask_runtime_tests)
     endif ()
 
+    # ADR-056 slice 3: a parent schedules a child on a prop change instead of calling update().
+    if (EXISTS ${_tessera_codegen_mask_golden_dir}/Top.g.hpp)
+        add_executable(codegen_chain_runtime_tests
+            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_chain_runtime_tests.cpp)
+        target_include_directories(codegen_chain_runtime_tests PRIVATE
+            ${_tessera_codegen_mask_golden_dir}
+            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures/chain)
+        target_link_libraries(codegen_chain_runtime_tests PRIVATE tessera_scene)
+        target_compile_features(codegen_chain_runtime_tests PRIVATE cxx_std_23)
+        add_test(NAME codegen_chain_runtime COMMAND codegen_chain_runtime_tests)
+    endif ()
+
     # ADR-040 (#218): the developer classes in tests/unit/codegen_base/fixtures/instances over the
     # committed bases, generated from the hand-built IR in codegen_instances_tests.
     if (EXISTS ${_tessera_codegen_instances_golden_dir}/Page.g.hpp AND EXISTS

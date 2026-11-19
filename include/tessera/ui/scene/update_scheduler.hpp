@@ -44,6 +44,9 @@ private:
     friend class UpdateScheduler;
     UpdateScheduler* scheduler_ = nullptr;
     bool queued_ = false;
+    // Attach sequence number: attach order is flush order, so a mark made during a flush knows
+    // whether the ticket is still ahead of the running one in the same pass (ADR-056 decision 4).
+    std::uint64_t order_ = 0;
 };
 
 // Counters of one `flush()`; `UpdateScheduler::total()` accumulates them.
@@ -125,6 +128,8 @@ private:
     std::uint32_t max_passes_ = kDefaultMaxPasses;
     bool pending_ = false;
     bool flushing_ = false;
+    std::uint64_t next_order_ = 1;
+    std::uint64_t running_order_ = 0; // the ticket whose update() is running; 0 outside a flush
     bool reduced_motion_ = false;
     WakeFn wake_ = nullptr;
     void* wake_context_ = nullptr;

@@ -179,6 +179,13 @@ editor sync, form field refresh (the form controller is not a cell; a changed fi
 Field instance `mark_all_dirty()`), a binding the table does not record, and the virtual-collection
 item passes (scroll-driven, not state-driven).
 
+**Children are scheduled, not called (slice 3).** `flush_update()` no longer calls `update()` on static
+or per-item instances. A written instance prop emits `child.note_dirty(Child::kBit_prop_x_);
+child.schedule_update();` (per item: through the item record), a field refresh of a form marks the
+Field `mark_all_dirty()` and schedules it, and `UpdateScheduler` runs a ticket marked from a running
+update in the same pass when it is later in attach order. A list-literal prop (`notes={[entry]}`) is
+hash-guarded per item so an unchanged item schedules nothing. `mount()`/`unmount()` still cascade.
+
 Test seam: with `TESSERA_BINDING_TRACE` defined before the generated header is included, each gated
 binding calls `TESSERA_BINDING_RAN(this, "text:2")` when it re-evaluates. `codegen_mask_runtime` uses it
 over the committed `mask/Probe.g.hpp` (fixture `tests/unit/codegen_mask_module.hpp`).

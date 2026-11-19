@@ -139,7 +139,6 @@ namespace safe_area_demo {
       using namespace SafeAreaDemo_detail;
       update_effects();
       apply_state();
-      child_2_.update();
     }
     template <class Self>
     inline void SafeAreaDemoBase<Self>::note_dirty(std::size_t bit) {

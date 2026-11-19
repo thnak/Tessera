@@ -15,6 +15,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 namespace tessera::compiler::codegen::internal {
 namespace {
@@ -71,7 +72,7 @@ bool emit_value_text(std::string_view field, const PropBinding& binding, const i
 // a printable scalar, or a list read from a local reference. Returns false when the value cannot be
 // hashed this way; the caller then assigns it unguarded.
 bool emit_item_value_hash(CppWriter& writer, const PropBinding& binding, const std::string& value,
-                          const std::string& hash_var) {
+                          const std::string& hash_var, const std::vector<std::string>& elements) {
     const std::string_view element = list_element(binding.type);
     if (element.empty()) {
         if (is_string_type(binding.type)) {
@@ -79,6 +80,22 @@ bool emit_item_value_hash(CppWriter& writer, const PropBinding& binding, const s
                         ", std::string_view(" + value + "));");
         } else {
             writer.line(hash_var + " = tessera::ui::effect_hash(" + hash_var + ", " + value + ");");
+        }
+        return true;
+    }
+    if (binding.value->kind == ir::ExprKind::Array) {
+        // A list literal of per-item values (`[entry]`): hash the length and each element, so an
+        // unchanged item neither copies the list nor schedules its child (ADR-056 decision 3).
+        writer.line(hash_var + " = tessera::ui::effect_hash(" + hash_var +
+                    ", static_cast<std::int64_t>(" + std::to_string(elements.size()) + "));");
+        for (const std::string& text : elements) {
+            if (is_string_type(element)) {
+                writer.line(hash_var + " = tessera::ui::effect_hash(" + hash_var +
+                            ", std::string_view(" + text + "));");
+            } else {
+                writer.line(hash_var + " = tessera::ui::effect_hash(" + hash_var + ", " + text +
+                            ");");
+            }
         }
         return true;
     }
@@ -145,13 +162,20 @@ bool emit_item_instance_props(CppWriter& writer, const ir::Component& owner,
         // A written prop marks its bit on the child (ADR-056).
         const std::string note = std::string(field) + "->note_dirty(" + instance.type_name +
                                  "::" + dirty_bit_name("prop::" + binding.name) + ");";
+        const std::string schedule = std::string(field) + "->schedule_update();";
         CppWriter guard;
         guard.indent = writer.indent;
         const std::string hash_var =
             "item_prop_" + std::to_string(instance.ordinal) + "_" + binding.name + "_hash";
         guard.line("std::uint64_t " + hash_var + " = tessera::ui::kEffectHashSeed;");
+        std::vector<std::string> elements;
+        if (binding.value->kind == ir::ExprKind::Array) {
+            for (const ir::ExprPtr& element : binding.value->operands) {
+                elements.push_back(emit_expr(*element, owner, locals).text);
+            }
+        }
         if (prop_guard(binding.type) == PropGuard::Value &&
-            emit_item_value_hash(guard, binding, value.text, hash_var)) {
+            emit_item_value_hash(guard, binding, value.text, hash_var, elements)) {
             const std::string hash_member =
                 std::string(record) + "." + prop_guard_member(instance.ordinal, binding.name);
             writer.text += guard.text;
@@ -160,12 +184,14 @@ bool emit_item_instance_props(CppWriter& writer, const ir::Component& owner,
             writer.line(hash_member + " = " + hash_var + ";");
             writer.line(member + " = " + value.text + ";");
             writer.line(note);
+            writer.line(schedule);
             --writer.indent;
             writer.line("}");
             continue;
         }
         writer.line(member + " = " + value.text + ";");
         writer.line(note);
+        writer.line(schedule);
     }
     return true;
 }

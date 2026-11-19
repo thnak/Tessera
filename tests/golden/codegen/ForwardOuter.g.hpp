@@ -139,7 +139,6 @@ namespace forward {
     inline void ForwardOuterBase<Self>::flush_update() {
       update_effects();
       apply_state();
-      child_1_.update();
     }
     template <class Self>
     inline void ForwardOuterBase<Self>::note_dirty(std::size_t bit) {

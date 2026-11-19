@@ -203,6 +203,7 @@ namespace button_demo {
           child_2_prop_label_hash_ = prop_2_label_hash;
           this->child_2_.prop_label_ = "Save";
           this->child_2_.note_dirty(Button::kBit_prop_label_);
+          this->child_2_.schedule_update();
         }
       }
       if (!child_2_prop_onPress_bound_) {
@@ -220,6 +221,7 @@ namespace button_demo {
           child_4_prop_label_hash_ = prop_4_label_hash;
           this->child_4_.prop_label_ = "Off";
           this->child_4_.note_dirty(Button::kBit_prop_label_);
+          this->child_4_.schedule_update();
         }
       }
       if (dirty_.intersects(kDirty_prop_4_disabled)) {
@@ -230,6 +232,7 @@ namespace button_demo {
           child_4_prop_disabled_hash_ = prop_4_disabled_hash;
           this->child_4_.prop_disabled_ = true;
           this->child_4_.note_dirty(Button::kBit_prop_disabled_);
+          this->child_4_.schedule_update();
         }
       }
       if (!child_4_prop_onPress_bound_) {
@@ -247,6 +250,7 @@ namespace button_demo {
           child_6_prop_label_hash_ = prop_6_label_hash;
           this->child_6_.prop_label_ = "Delete";
           this->child_6_.note_dirty(Button::kBit_prop_label_);
+          this->child_6_.schedule_update();
         }
       }
       if (dirty_.intersects(kDirty_prop_6_variant)) {
@@ -257,6 +261,7 @@ namespace button_demo {
           child_6_prop_variant_hash_ = prop_6_variant_hash;
           this->child_6_.prop_variant_ = "danger";
           this->child_6_.note_dirty(Button::kBit_prop_variant_);
+          this->child_6_.schedule_update();
         }
       }
       if (dirty_.intersects(kDirty_prop_6_size)) {
@@ -267,6 +272,7 @@ namespace button_demo {
           child_6_prop_size_hash_ = prop_6_size_hash;
           this->child_6_.prop_size_ = "sm";
           this->child_6_.note_dirty(Button::kBit_prop_size_);
+          this->child_6_.schedule_update();
         }
       }
       if (!child_6_prop_onPress_bound_) {
@@ -312,9 +318,6 @@ namespace button_demo {
       using namespace ButtonDemo_detail;
       update_effects();
       apply_state();
-      child_2_.update();
-      child_4_.update();
-      child_6_.update();
     }
     template <class Self>
     inline void ButtonDemoBase<Self>::note_dirty(std::size_t bit) {

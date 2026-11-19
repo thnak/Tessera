@@ -222,3 +222,26 @@ its children, so the owner's fan-out is as measured. What changed is the cost *i
 (an owner change that feeds no binding re-evaluates none). `codegen_mask_runtime` asserts, per binding
 kind, exactly which bindings re-run for each single-cell change; see
 [compiler-node-state.md](compiler-node-state.md) section 9 for the emitted shape.
+
+### Slice 3 (ADR-056, issue #443): children are scheduled, never called
+
+A generated `update()` no longer calls `update()` on any child. The owner's `apply_props()` writes a
+child's prop when its hash changed and then sets that prop's bit on the child and calls the child's
+`schedule_update()`; the scheduler runs the child's ticket later in the **same pass** (tickets run in
+attach order, and `UpdateScheduler::mark` does not request another pass for a ticket that is still ahead
+of the running one). A per-item instance is scheduled like any child, and once when it is created. The
+same test, rewritten to these numbers, is the regression gate (`direct` is the owner's direct
+`Row::update()` calls, now always 0):
+
+| Scenario | ticket before | ticket after | `Row` runs before | `Row` runs after |
+|---|---|---|---|---|
+| The static `Row`'s own state changes | 1 | 1 | 1 | 1 |
+| The page's state changes (it feeds no `Row`) | 1 | 1 | n + 1 | 0 |
+| The page and the static `Row` are both dirty | 2 | 2 | n + 2 | 1 |
+| One entry is appended to the page's list | n/a | 2 | n/a | 1 (the new item) |
+| The list is reordered by key | n/a | 1 | n/a | 0 |
+
+All rows hold at n = 10, 100 and 1000, in one pass. `codegen_chain_runtime` adds the deep case: a
+label change on `Top` reaches `Mid` and `Leaf` in one flush and one pass (3 tickets), and a `Top`
+change that feeds no child runs 1 ticket. A hand call of `update()` is the headless entry point and no
+longer cascades to children; schedule them (or call their `update()` by hand).

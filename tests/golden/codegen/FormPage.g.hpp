@@ -259,6 +259,7 @@ namespace demo {
           child_2_prop_initial_hash_ = prop_2_initial_hash;
           this->child_2_.prop_initial_ = {"email=", "age=0"};
           this->child_2_.note_dirty(Form::kBit_prop_initial_);
+          this->child_2_.schedule_update();
         }
       }
       if (!child_2_prop_onSubmit_bound_) {
@@ -282,6 +283,7 @@ namespace demo {
           child_3_prop_name_hash_ = prop_3_name_hash;
           this->child_3_.prop_name_ = "email";
           this->child_3_.note_dirty(Field::kBit_prop_name_);
+          this->child_3_.schedule_update();
         }
       }
       if (dirty_.intersects(kDirty_prop_3_label)) {
@@ -292,6 +294,7 @@ namespace demo {
           child_3_prop_label_hash_ = prop_3_label_hash;
           this->child_3_.prop_label_ = "Email";
           this->child_3_.note_dirty(Field::kBit_prop_label_);
+          this->child_3_.schedule_update();
         }
       }
       if (dirty_.intersects(kDirty_prop_3_required)) {
@@ -302,6 +305,7 @@ namespace demo {
           child_3_prop_required_hash_ = prop_3_required_hash;
           this->child_3_.prop_required_ = true;
           this->child_3_.note_dirty(Field::kBit_prop_required_);
+          this->child_3_.schedule_update();
         }
       }
       if (dirty_.intersects(kDirty_prop_3_validators)) {
@@ -314,6 +318,7 @@ namespace demo {
           child_3_prop_validators_hash_ = prop_3_validators_hash;
           this->child_3_.prop_validators_ = {"required", "minLength:3"};
           this->child_3_.note_dirty(Field::kBit_prop_validators_);
+          this->child_3_.schedule_update();
         }
       }
       // comp::Field instance (pre-order index 5) props.
@@ -325,6 +330,7 @@ namespace demo {
           child_5_prop_name_hash_ = prop_5_name_hash;
           this->child_5_.prop_name_ = "age";
           this->child_5_.note_dirty(Field::kBit_prop_name_);
+          this->child_5_.schedule_update();
         }
       }
       if (dirty_.intersects(kDirty_prop_5_label)) {
@@ -335,6 +341,7 @@ namespace demo {
           child_5_prop_label_hash_ = prop_5_label_hash;
           this->child_5_.prop_label_ = "Age";
           this->child_5_.note_dirty(Field::kBit_prop_label_);
+          this->child_5_.schedule_update();
         }
       }
     }
@@ -405,6 +412,7 @@ namespace demo {
         if (this->child_3_.prop_value_ != state->value.text) {
           this->child_3_.prop_value_ = state->value.text;
           this->child_3_.mark_all_dirty();
+          this->child_3_.schedule_update();
         }
         // Surface issues only after interaction or an explicit validate/submit.
         const bool show_errors = state->touched || state->dirty ||
@@ -421,6 +429,7 @@ namespace demo {
         if (this->child_3_.prop_error_ != first_error) {
           this->child_3_.prop_error_ = std::move(first_error);
           this->child_3_.mark_all_dirty();
+          this->child_3_.schedule_update();
         }
         std::vector<std::string> errors;
         if (show_errors) {
@@ -432,6 +441,7 @@ namespace demo {
         if (this->child_3_.prop_errors_ != errors) {
           this->child_3_.prop_errors_ = std::move(errors);
           this->child_3_.mark_all_dirty();
+          this->child_3_.schedule_update();
         }
       }
       // Field `age` resolves value/error/errors from the controller.
@@ -440,6 +450,7 @@ namespace demo {
         if (this->child_5_.prop_value_ != state->value.text) {
           this->child_5_.prop_value_ = state->value.text;
           this->child_5_.mark_all_dirty();
+          this->child_5_.schedule_update();
         }
         // Surface issues only after interaction or an explicit validate/submit.
         const bool show_errors = state->touched || state->dirty ||
@@ -456,6 +467,7 @@ namespace demo {
         if (this->child_5_.prop_error_ != first_error) {
           this->child_5_.prop_error_ = std::move(first_error);
           this->child_5_.mark_all_dirty();
+          this->child_5_.schedule_update();
         }
         std::vector<std::string> errors;
         if (show_errors) {
@@ -467,6 +479,7 @@ namespace demo {
         if (this->child_5_.prop_errors_ != errors) {
           this->child_5_.prop_errors_ = std::move(errors);
           this->child_5_.mark_all_dirty();
+          this->child_5_.schedule_update();
         }
       }
     }
@@ -585,9 +598,6 @@ namespace demo {
       using namespace FormPage_detail;
       update_effects();
       apply_state();
-      child_2_.update();
-      child_3_.update();
-      child_5_.update();
     }
     template <class Self>
     inline void FormPageBase<Self>::note_dirty(std::size_t bit) {

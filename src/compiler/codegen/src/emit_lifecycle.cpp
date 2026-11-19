@@ -200,10 +200,6 @@ bool emit_lifecycle(const ir::Component& component, const ir::IrModule& module,
         writer.open("void " + component.name + "::flush_update()");
         writer.line("update_effects();");
         writer.line("apply_state();");
-        instance_calls("update", false);
-        if (item_instances) {
-            emit_item_instance_calls(writer, plan, "update");
-        }
         writer.close("");
         writer.line("");
         return true;
@@ -267,10 +263,6 @@ bool emit_lifecycle(const ir::Component& component, const ir::IrModule& module,
     writer.open("void " + component.name + "::flush_update()");
     writer.line("update_effects();");
     writer.line("apply_state();");
-    instance_calls("update", false);
-    if (item_instances) {
-        emit_item_instance_calls(writer, plan, "update");
-    }
     writer.close("");
     writer.line("");
 

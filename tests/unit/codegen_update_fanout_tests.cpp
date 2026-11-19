@@ -12,6 +12,10 @@
 // A Row therefore runs `direct + (ticket - page tickets)` times in one flush. Deterministic: no
 // clock, no executor, no GPU. The asserted numbers are the *measured* behavior, written down so a
 // later change to the fan-out shows up as a failing, reviewable diff and not as a silent cost.
+//
+// ADR-056 (issues #442, #443) rewrote the expected numbers: an owner never calls a child's
+// `update()` (`direct` is 0 in every scenario) and schedules a child only when it wrote one of the
+// child's props, so an owner change that feeds no child runs one ticket whatever `n` is.
 
 #include "Page.hpp"
 #include "Row.hpp"
@@ -23,6 +27,7 @@
 #include <iostream>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -100,22 +105,20 @@ void child_state_only(std::size_t n) {
     check(m.passes == 1, tag("child-state-only", n) + "one pass");
 }
 
-// The owner's own state changes (`nums` feeds no Row at all). The page's single ticket runs and its
-// generated `update()` calls `update()` on the static Row and on every per-item Row: O(n).
-void parent_state_fans_out(std::size_t n) {
+// The owner's own state changes (`nums` feeds no Row at all). Only the page's ticket runs: it wrote
+// no child prop, so it scheduled no child and called no child's `update()` (was n + 1 calls).
+void parent_state_feeds_no_child(std::size_t n) {
     Fixture f(n);
     f.page.set_nums(std::vector<int>{1, 2, 3});
     const Measure m = f.flush();
     report("parent-state", n, m);
     check(m.ticket == 1, tag("parent-state", n) + "one ticket ran (the page)");
-    check(m.direct == static_cast<int>(n) + 1,
-          tag("parent-state", n) + "the page updated the static Row and every item Row");
+    check(m.direct == 0, tag("parent-state", n) + "the page called no child update()");
     check(m.passes == 1, tag("parent-state", n) + "one pass");
 }
 
-// The owner and its static child are both dirty in one flush. The page runs first and calls the
-// child's `update()` directly; the child's own ticket is still queued, so it runs again. The static
-// Row therefore runs twice, once more than the n + 1 distinct Rows.
+// The owner and its static child are both dirty in one flush: each runs exactly once, in one pass
+// (was n + 2 Row runs: the page's direct call plus the child's own ticket).
 void parent_and_child_dirty(std::size_t n) {
     Fixture f(n);
     f.page.set_nums(std::vector<int>{1, 2, 3});
@@ -123,11 +126,45 @@ void parent_and_child_dirty(std::size_t n) {
     const Measure m = f.flush();
     report("parent+child", n, m);
     check(m.ticket == 2, tag("parent+child", n) + "two tickets ran (page and the static Row)");
-    const int row_runs = m.direct + static_cast<int>(m.ticket) - 1; // minus the page ticket
-    check(row_runs == static_cast<int>(n) + 2,
-          tag("parent+child", n) +
-              "Row runs: n + 1 distinct Rows plus the static Row's second run");
+    check(m.direct == 0, tag("parent+child", n) + "the page called no child update()");
     check(m.passes == 1, tag("parent+child", n) + "still one pass");
+}
+
+std::vector<std::string> entry_names(std::size_t n) {
+    std::vector<std::string> entries;
+    entries.reserve(n);
+    for (std::size_t i = 0; i < n; ++i) {
+        entries.push_back("e" + std::to_string(i));
+    }
+    return entries;
+}
+
+// A parent change that does feed children: one entry appended. Only the page and the new item Row
+// run (a created instance is scheduled once); the n existing Rows' prop hashes are unchanged, so
+// none of them is scheduled. Still one pass: the new Row is later in the same pass.
+void parent_appends_one_entry(std::size_t n) {
+    Fixture f(n);
+    std::vector<std::string> entries = entry_names(n);
+    entries.push_back("new");
+    f.page.set_entries(std::move(entries));
+    const Measure m = f.flush();
+    report("append", n, m);
+    check(m.ticket == 2, tag("append", n) + "the page and the one new Row ran");
+    check(m.direct == 0, tag("append", n) + "no direct child update()");
+    check(m.passes == 1, tag("append", n) + "the new Row ran in the same pass");
+}
+
+// A keyed reorder moves the item nodes with their instances: no key is new and no prop hash
+// changed, so no Row is scheduled and the instance state follows the key.
+void parent_reorders_entries(std::size_t n) {
+    Fixture f(n);
+    std::vector<std::string> entries = entry_names(n);
+    std::swap(entries.front(), entries.back());
+    f.page.set_entries(std::move(entries));
+    const Measure m = f.flush();
+    report("reorder", n, m);
+    check(m.ticket == 1, tag("reorder", n) + "only the page ran; no Row was scheduled");
+    check(m.passes == 1, tag("reorder", n) + "one pass");
 }
 
 } // namespace
@@ -135,8 +172,10 @@ void parent_and_child_dirty(std::size_t n) {
 int main() {
     for (const std::size_t n : {std::size_t{10}, std::size_t{100}, std::size_t{1000}}) {
         child_state_only(n);
-        parent_state_fans_out(n);
+        parent_state_feeds_no_child(n);
         parent_and_child_dirty(n);
+        parent_appends_one_entry(n);
+        parent_reorders_entries(n);
     }
     if (failures == 0) {
         std::cout << "codegen_update_fanout: ok\n";

@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
-// ADR-056 slice 2: the emitted dirty mask. Shape and golden of the `Probe` component
-// (codegen_mask_module.hpp); the behavior (which binding re-runs for which cell) is driven in
-// codegen_mask_runtime_tests.cpp over the committed golden. `codegen_mask_tests --write` rewrites
-// tests/golden/codegen/mask/Probe.g.hpp.
+// ADR-056 slices 2 and 3: the emitted dirty mask and the scheduled children. Shape and goldens of
+// the `Probe` fixture (one component, one binding of each kind) and of the `Top` -> `Mid` -> `Leaf`
+// chain (codegen_mask_module.hpp); the behavior is driven in codegen_mask_runtime_tests.cpp and
+// codegen_chain_runtime_tests.cpp over the committed goldens. `codegen_mask_tests --write` rewrites
+// tests/golden/codegen/mask/*.g.hpp.
 
 #include "codegen_mask_module.hpp"
 #include "tessera/compiler/codegen/codegen.hpp"
@@ -12,6 +13,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <map>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -45,15 +47,18 @@ std::string read_file(const std::filesystem::path& path) {
     return out.str();
 }
 
-std::string generate_probe() {
-    const auto result =
-        codegen::generate(tessera::test::codegen_mask::make_mask_module(), {}, std::nullopt);
-    if (!result || result->size() != 1) {
-        std::cerr << "  generate failed: " << (result ? "bad file count" : result.error().front())
-                  << "\n";
-        return {};
+// Every generated file of a module by path; empty on failure.
+std::map<std::string, std::string> generate_files(const ir::IrModule& module) {
+    std::map<std::string, std::string> files;
+    const auto result = codegen::generate(module, {}, std::nullopt);
+    if (!result) {
+        std::cerr << "  generate failed: " << result.error().front() << "\n";
+        return files;
     }
-    return result->front().text;
+    for (const codegen::GeneratedFile& file : *result) {
+        files[file.path] = file.text;
+    }
+    return files;
 }
 
 void test_shape(const std::string& text) {
@@ -68,7 +73,7 @@ void test_shape(const std::string& text) {
               contains(text, "static constexpr std::size_t kBit_state_tone_ = 5;"),
           "the cell bits are public constants in sorted order");
     check(contains(text, "kDirty_text_2 = tessera::ui::DirtyMask<7>::of({1, 6});"),
-          "a text binding reading one cell has a one-bit mask");
+          "a text binding reading one cell has a one-cell mask");
     check(contains(text, "kDirty_list_7 = tessera::ui::DirtyMask<7>::of({1, 4, 6});"),
           "the list item binding reads the list cell and the state its template names");
     check(contains(text, "kDirty_meta_5_className = tessera::ui::DirtyMask<7>::of({2, 6});"),
@@ -88,32 +93,50 @@ void test_shape(const std::string& text) {
     check(contains(text, "->flush_update();"), "the scheduler ticket runs the dirty-only path");
 }
 
-void test_golden(bool update, const std::string& text) {
+// ADR-056 decision 3: a written child prop marks its bit on the child and schedules the child's own
+// ticket; the owner never calls the child's update().
+void test_chain_shape(const std::string& top, const std::string& mid) {
+    check(contains(top, "child_3_.note_dirty(Mid::kBit_prop_label_);") &&
+              contains(top, "this->child_3_.schedule_update();"),
+          "a written child prop marks its bit on the child and schedules the child's ticket");
+    check(!contains(top, "child_3_.update();") && !contains(mid, "child_3_.update();"),
+          "a parent never calls a child's update()");
+}
+
+void test_golden(bool update, const std::string& name, const std::string& text) {
     const std::filesystem::path path =
-        std::filesystem::path(TESSERA_CODEGEN_MASK_GOLDEN_DIR) / "Probe.g.hpp";
+        std::filesystem::path(TESSERA_CODEGEN_MASK_GOLDEN_DIR) / name;
     if (update) {
         std::filesystem::create_directories(path.parent_path());
         std::ofstream(path, std::ios::binary | std::ios::trunc) << text;
         return;
     }
-    check(read_file(path) == text,
-          "Probe.g.hpp matches its golden; run `codegen_mask_tests --write`");
+    check(read_file(path) == text, name + " matches its golden; run `codegen_mask_tests --write`");
 }
 
 } // namespace
 
 int main(int argc, char** argv) {
     const bool update = argc > 1 && std::string_view(argv[1]) == "--write";
-    check(ir::validate(tessera::test::codegen_mask::make_mask_module()).empty(),
-          "the mask fixture is a valid IR module");
-    const std::string text = generate_probe();
-    check(!text.empty(), "the mask fixture generates");
-    check(text == generate_probe(), "two runs are byte-identical");
-    if (!text.empty()) {
+    const ir::IrModule probe_module = tessera::test::codegen_mask::make_mask_module();
+    const ir::IrModule chain_module = tessera::test::codegen_mask::make_chain_module();
+    check(ir::validate(probe_module).empty(), "the mask fixture is a valid IR module");
+    check(ir::validate(chain_module).empty(), "the chain fixture is a valid IR module");
+    const auto probe = generate_files(probe_module);
+    const auto chain = generate_files(chain_module);
+    check(probe.size() == 1 && chain.size() == 3, "the fixtures generate one base per component");
+    check(probe == generate_files(probe_module) && chain == generate_files(chain_module),
+          "two runs are byte-identical");
+    if (probe.size() == 1 && chain.size() == 3) {
         if (!update) {
-            test_shape(text);
+            test_shape(probe.at("Probe.g.hpp"));
+            test_chain_shape(chain.at("Top.g.hpp"), chain.at("Mid.g.hpp"));
         }
-        test_golden(update, text);
+        for (const auto* files : {&probe, &chain}) {
+            for (const auto& [name, text] : *files) {
+                test_golden(update, name, text);
+            }
+        }
     }
     if (failures != 0) {
         std::cerr << failures << " check(s) failed\n";

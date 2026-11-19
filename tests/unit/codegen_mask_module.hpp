@@ -100,4 +100,88 @@ inline ir::IrModule make_mask_module() {
     return module;
 }
 
+inline ir::SourceSpan chain_span(std::uint32_t offset) {
+    return ir::SourceSpan{"ui/Chain.tsx", offset, 8, 1, offset + 1, 1, offset + 9};
+}
+
+inline ir::Node chain_node(ir::NodeKind kind, std::string id, std::string ui_id,
+                           std::uint32_t offset) {
+    ir::Node node;
+    node.kind = kind;
+    node.id = std::move(id);
+    node.ui_id = std::move(ui_id);
+    node.source = chain_span(offset);
+    return node;
+}
+
+// ADR-056 slice 3: a three-level owner chain, `Top` -> `Mid` -> `Leaf`, each passing the label down
+// as a prop. Components are ordered by source file then name (ir-v1 section 2).
+//
+//   Leaf  prop label            `L:{label}`
+//   Mid   prop label, state n   `M:{label}:{n}` and <Leaf label={label} />
+//   Top   state label, other    `T:{other}`     and <Mid label={label} />
+inline ir::IrModule make_chain_module() {
+    ir::IrModule module;
+    module.name = "demo";
+
+    ir::Component leaf_component;
+    leaf_component.id = "comp::Leaf";
+    leaf_component.component_id = "9101";
+    leaf_component.name = "Leaf";
+    leaf_component.source = chain_span(0);
+    leaf_component.props.push_back({"label", "string", nullptr, false});
+    leaf_component.root = chain_node(ir::NodeKind::View, "node::1", "1101", 10);
+    {
+        ir::Node text = chain_node(ir::NodeKind::Text, "node::2", "1102", 20);
+        text.text = label("L:", "prop::label");
+        leaf_component.root.children.push_back(std::move(text));
+    }
+
+    ir::Component mid;
+    mid.id = "comp::Mid";
+    mid.component_id = "9102";
+    mid.name = "Mid";
+    mid.source = chain_span(100);
+    mid.props.push_back({"label", "string", nullptr, false});
+    mid.state.push_back({"state::n", "n", "int", ir::make_literal(std::int64_t{0})});
+    mid.root = chain_node(ir::NodeKind::View, "node::1", "2101", 110);
+    {
+        ir::Node text = chain_node(ir::NodeKind::Text, "node::2", "2102", 120);
+        std::vector<ir::TemplatePart> parts;
+        parts.push_back(ir::text_part("M:"));
+        parts.push_back(ir::expr_part(ir::make_ref("prop::label")));
+        parts.push_back(ir::text_part(":"));
+        parts.push_back(ir::expr_part(ir::make_ref("state::n")));
+        text.text = ir::make_template(std::move(parts));
+        mid.root.children.push_back(std::move(text));
+        ir::Node child = chain_node(ir::NodeKind::Component, "node::3", "2103", 130);
+        child.component = "comp::Leaf";
+        child.props.emplace("label", ir::make_ref("prop::label"));
+        mid.root.children.push_back(std::move(child));
+    }
+
+    ir::Component top;
+    top.id = "comp::Top";
+    top.component_id = "9103";
+    top.name = "Top";
+    top.source = chain_span(200);
+    top.state.push_back({"state::label", "label", "string", ir::make_literal(std::string("a"))});
+    top.state.push_back({"state::other", "other", "int", ir::make_literal(std::int64_t{0})});
+    top.root = chain_node(ir::NodeKind::View, "node::1", "3101", 210);
+    {
+        ir::Node text = chain_node(ir::NodeKind::Text, "node::2", "3102", 220);
+        text.text = label("T:", "state::other");
+        top.root.children.push_back(std::move(text));
+        ir::Node child = chain_node(ir::NodeKind::Component, "node::3", "3103", 230);
+        child.component = "comp::Mid";
+        child.props.emplace("label", ir::make_ref("state::label"));
+        top.root.children.push_back(std::move(child));
+    }
+
+    module.components.push_back(std::move(leaf_component));
+    module.components.push_back(std::move(mid));
+    module.components.push_back(std::move(top));
+    return module;
+}
+
 } // namespace tessera::test::codegen_mask

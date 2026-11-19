@@ -178,6 +178,7 @@ namespace demo {
           child_3_prop_name_hash_ = prop_3_name_hash;
           this->child_3_.prop_name_ = "email";
           this->child_3_.note_dirty(Field::kBit_prop_name_);
+          this->child_3_.schedule_update();
         }
       }
       if (dirty_.intersects(kDirty_prop_3_label)) {
@@ -188,6 +189,7 @@ namespace demo {
           child_3_prop_label_hash_ = prop_3_label_hash;
           this->child_3_.prop_label_ = "Email";
           this->child_3_.note_dirty(Field::kBit_prop_label_);
+          this->child_3_.schedule_update();
         }
       }
       if (dirty_.intersects(kDirty_prop_3_value)) {
@@ -198,6 +200,7 @@ namespace demo {
           child_3_prop_value_hash_ = prop_3_value_hash;
           this->child_3_.prop_value_ = state_email_;
           this->child_3_.note_dirty(Field::kBit_prop_value_);
+          this->child_3_.schedule_update();
         }
       }
       if (dirty_.intersects(kDirty_prop_3_required)) {
@@ -208,6 +211,7 @@ namespace demo {
           child_3_prop_required_hash_ = prop_3_required_hash;
           this->child_3_.prop_required_ = true;
           this->child_3_.note_dirty(Field::kBit_prop_required_);
+          this->child_3_.schedule_update();
         }
       }
       if (dirty_.intersects(kDirty_prop_3_validators)) {
@@ -221,6 +225,7 @@ namespace demo {
           child_3_prop_validators_hash_ = prop_3_validators_hash;
           this->child_3_.prop_validators_ = state_rules_;
           this->child_3_.note_dirty(Field::kBit_prop_validators_);
+          this->child_3_.schedule_update();
         }
       }
       if (dirty_.intersects(kDirty_prop_3_error)) {
@@ -231,6 +236,7 @@ namespace demo {
           child_3_prop_error_hash_ = prop_3_error_hash;
           this->child_3_.prop_error_ = "";
           this->child_3_.note_dirty(Field::kBit_prop_error_);
+          this->child_3_.schedule_update();
         }
       }
       if (!child_3_prop_onValidate_bound_) {
@@ -272,7 +278,6 @@ namespace demo {
       using namespace FieldPage_detail;
       update_effects();
       apply_state();
-      child_3_.update();
     }
     template <class Self>
     inline void FieldPageBase<Self>::note_dirty(std::size_t bit) {

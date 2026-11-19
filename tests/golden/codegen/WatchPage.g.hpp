@@ -169,7 +169,6 @@ namespace watch {
       using namespace WatchPage_detail;
       update_effects();
       apply_state();
-      child_2_.update();
     }
     template <class Self>
     inline void WatchPageBase<Self>::note_dirty(std::size_t bit) {

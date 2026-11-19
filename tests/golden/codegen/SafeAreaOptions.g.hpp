@@ -138,6 +138,7 @@ namespace safe_area_demo {
           child_2_prop_edges_hash_ = prop_2_edges_hash;
           this->child_2_.prop_edges_ = "top+bottom";
           this->child_2_.note_dirty(SafeArea::kBit_prop_edges_);
+          this->child_2_.schedule_update();
         }
       }
       if (dirty_.intersects(kDirty_prop_2_sources)) {
@@ -148,6 +149,7 @@ namespace safe_area_demo {
           child_2_prop_sources_hash_ = prop_2_sources_hash;
           this->child_2_.prop_sources_ = "system-bars+gestures";
           this->child_2_.note_dirty(SafeArea::kBit_prop_sources_);
+          this->child_2_.schedule_update();
         }
       }
       if (dirty_.intersects(kDirty_prop_2_minimum)) {
@@ -158,6 +160,7 @@ namespace safe_area_demo {
           child_2_prop_minimum_hash_ = prop_2_minimum_hash;
           this->child_2_.prop_minimum_ = 8;
           this->child_2_.note_dirty(SafeArea::kBit_prop_minimum_);
+          this->child_2_.schedule_update();
         }
       }
       if (dirty_.intersects(kDirty_prop_2_mode)) {
@@ -168,6 +171,7 @@ namespace safe_area_demo {
           child_2_prop_mode_hash_ = prop_2_mode_hash;
           this->child_2_.prop_mode_ = "margin";
           this->child_2_.note_dirty(SafeArea::kBit_prop_mode_);
+          this->child_2_.schedule_update();
         }
       }
     }
@@ -203,7 +207,6 @@ namespace safe_area_demo {
       using namespace SafeAreaOptions_detail;
       update_effects();
       apply_state();
-      child_2_.update();
     }
     template <class Self>
     inline void SafeAreaOptionsBase<Self>::note_dirty(std::size_t bit) {

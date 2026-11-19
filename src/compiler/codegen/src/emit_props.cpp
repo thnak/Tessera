@@ -437,6 +437,8 @@ bool emit_apply_props(CppWriter& writer, const ir::Component& owner, const Dirty
                 "prop:" + std::to_string(instance.ordinal) + ":" + binding.name);
             const std::string note = member_prefix + "note_dirty(" + instance.type_name +
                                      "::" + dirty_bit_name("prop::" + binding.name) + ");";
+            // The child runs from its own ticket, in this same flush pass (ADR-056 decision 3).
+            const std::string schedule = member_prefix + "schedule_update();";
             // Value props are hash-guarded: an unchanged value copies and allocates nothing, the
             // same deterministic FNV-1a contract as apply_state() (docs/design/compiler.md 11).
             CppWriter guard;
@@ -452,6 +454,7 @@ bool emit_apply_props(CppWriter& writer, const ir::Component& owner, const Dirty
                 writer.line(hash_member + " = " + hash_var + ";");
                 writer.line(member + " = " + value.text + ";");
                 writer.line(note);
+                writer.line(schedule);
                 --writer.indent;
                 writer.line("}");
                 close_dirty_gate(writer, gated);
@@ -459,6 +462,7 @@ bool emit_apply_props(CppWriter& writer, const ir::Component& owner, const Dirty
             }
             writer.line(member + " = " + value.text + ";");
             writer.line(note);
+            writer.line(schedule);
             close_dirty_gate(writer, gated);
         }
     }
