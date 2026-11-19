@@ -89,7 +89,10 @@ function assemble(loaded) {
 }
 
 const manifest = await gallery.loadSampleManifest(fetchImpl);
-const codegen = argument("--codegen") ?? process.env.TESSERA_CODEGEN;
+// Absolute, because the compiler runs with `cwd` set to the assembled project: a repository-relative
+// `--codegen build/...` (what the Pages lane passes) would not resolve from there.
+const codegenArgument = argument("--codegen") ?? process.env.TESSERA_CODEGEN;
+const codegen = codegenArgument ? resolve(REPO_ROOT, codegenArgument) : undefined;
 
 await test("the manifest lists samples and the strict reader accepts it", async () => {
   assert.ok(manifest.length > 0, "the manifest lists no samples");
@@ -133,7 +136,10 @@ for (const sample of manifest) {
           encoding: "utf8",
           cwd: dir,
         });
-        assert.ok(run.status === 0 || run.status === 1, `the compiler failed to run: ${run.stderr}`);
+        assert.ok(
+          run.status === 0 || run.status === 1,
+          `the compiler failed to run (${codegen}): ${run.error ? run.error.message : run.stderr}`,
+        );
         const document = JSON.parse(readFileSync(join(dir, "diagnostics.json"), "utf8"));
         const messages = (document.diagnostics || []).map((entry) => `${entry.code}: ${entry.message}`);
         assert.deepEqual(
