@@ -74,7 +74,7 @@ button.menubar-item.is-open {
 
 button:focus-visible,
 .menu-item:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus-ring);
   outline-offset: -2px;
 }
 
@@ -120,8 +120,8 @@ button.menu-item {
 
 button.menu-item:hover:not(:disabled),
 button.menu-item.is-focused {
-  background: var(--accent);
-  color: var(--accent-text);
+  background: var(--selection-bg);
+  color: var(--selection-fg);
   border-color: transparent;
 }
 
@@ -253,7 +253,7 @@ input.palette-input {
   font-size: 14px;
 }
 
-input.palette-input:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
+input.palette-input:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -1px; }
 input.palette-input[aria-invalid="true"] { border-color: var(--error); }
 
 .palette-list {
@@ -274,7 +274,7 @@ input.palette-input[aria-invalid="true"] { border-color: var(--error); }
   cursor: pointer;
 }
 
-.palette-option.is-active { background: var(--accent); color: var(--accent-text); }
+.palette-option.is-active { background: var(--selection-bg); color: var(--selection-fg); }
 .po-label { flex: 0 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .po-label b { font-weight: 700; text-decoration: underline; }
 .po-detail { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: 0.65; font-size: 12px; }

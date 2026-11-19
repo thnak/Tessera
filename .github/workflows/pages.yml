@@ -287,6 +287,9 @@ jobs:
       - name: Studio command palette (fuzzy ranking, recent list, argument prompts)
         run: node scripts/ci/preview_workbench_palette.mjs
 
+      - name: Studio accent tokens (WCAG AA contrast, light/dark parity)
+        run: node scripts/ci/studio_accent_contrast.mjs
+
       - name: Studio notifications (queue, dedupe, history, do not disturb)
         run: node scripts/ci/preview_workbench_notifications.mjs
 

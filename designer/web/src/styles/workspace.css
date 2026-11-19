@@ -62,7 +62,7 @@
   font-size: 13px;
 }
 
-.tree:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.tree:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
 
 .tree-row {
   display: flex;
@@ -81,7 +81,7 @@
   border-left-color: var(--accent);
 }
 
-.tree-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.tree-row:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
 
 .tree-row.is-dir { color: var(--text); font-weight: 500; }
 .tree-row.is-locked .tree-name { color: var(--text-dim); }

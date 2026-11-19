@@ -23,6 +23,17 @@
  * loses to it on order, so without this rule a "hidden" preview pane would still take its cell. */
 [hidden] { display: none !important; }
 
+/* The studio's one deliberate accent (owner feedback on #586): everything else is neutral, and the accent
+ * marks where to look. Semantic tokens, never the raw hue, so a surface says what it is:
+ *   --accent / --accent-text   a filled primary control (Restart) and its label
+ *   --accent-fg                the accent as text or an icon on a pane surface (links, picked rows)
+ *   --focus-ring               the keyboard focus outline everywhere
+ *   --tab-indicator            the line over the active editor and dock tab
+ *   --selection-bg / -fg       the highlighted menu item and palette option
+ *   --status-bg / --status-fg  the status bar (VS Code's coloured bar), its one band of emphasis
+ * Light and dark are listed three times below (OS preference, and the explicit overrides), and
+ * `scripts/ci/studio_accent_contrast.mjs` fails on a drift between them or a pair under WCAG AA. */
+
 :root {
   color-scheme: light dark;
 
@@ -33,6 +44,13 @@
   --border: #dfe3e9;
   --accent: #2563eb;
   --accent-text: #ffffff;
+  --accent-fg: #1d4ed8;
+  --focus-ring: #1d4ed8;
+  --tab-indicator: #2563eb;
+  --selection-bg: #2563eb;
+  --selection-fg: #ffffff;
+  --status-bg: #1d4ed8;
+  --status-fg: #ffffff;
   --error: #b42318;
   --error-bg: #fef3f2;
   --warning: #8a6100;
@@ -55,6 +73,13 @@
     --border: #2c313a;
     --accent: #6f9dff;
     --accent-text: #0b1020;
+    --accent-fg: #8db2ff;
+    --focus-ring: #8db2ff;
+    --tab-indicator: #6f9dff;
+    --selection-bg: #6f9dff;
+    --selection-fg: #0b1020;
+    --status-bg: #1e40af;
+    --status-fg: #ffffff;
     --error: #ff8f84;
     --error-bg: #2a1614;
     --warning: #f0c169;
@@ -87,6 +112,13 @@
   --border: #dfe3e9;
   --accent: #2563eb;
   --accent-text: #ffffff;
+  --accent-fg: #1d4ed8;
+  --focus-ring: #1d4ed8;
+  --tab-indicator: #2563eb;
+  --selection-bg: #2563eb;
+  --selection-fg: #ffffff;
+  --status-bg: #1d4ed8;
+  --status-fg: #ffffff;
   --error: #b42318;
   --error-bg: #fef3f2;
   --warning: #8a6100;
@@ -104,6 +136,13 @@
   --border: #2c313a;
   --accent: #6f9dff;
   --accent-text: #0b1020;
+  --accent-fg: #8db2ff;
+  --focus-ring: #8db2ff;
+  --tab-indicator: #6f9dff;
+  --selection-bg: #6f9dff;
+  --selection-fg: #0b1020;
+  --status-bg: #1e40af;
+  --status-fg: #ffffff;
   --error: #ff8f84;
   --error-bg: #2a1614;
   --warning: #f0c169;

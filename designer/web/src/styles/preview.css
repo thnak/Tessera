@@ -42,7 +42,7 @@
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
 }
 
-.tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.tab:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
 
 /* The well is the panes' shared frame: one visible pane at a time, each scrolling its own content. */
 .preview-well {
@@ -232,7 +232,7 @@
   padding: 0 6px;
   font: inherit;
   font-size: 11px;
-  color: var(--accent);
+  color: var(--accent-fg);
   background: transparent;
   border: 1px solid var(--border);
   border-radius: 3px;
@@ -255,7 +255,7 @@
   tab-size: 2;
 }
 
-#script:focus { outline: 2px solid var(--accent); outline-offset: -2px; }
+#script:focus { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
 
 /* State cells (P4): one row for the initial state and one per scripted step, so a reader sees the
  * sequence and not only the final value. */
@@ -490,4 +490,4 @@
 
 /* A focused preview shows the browser's own ring around the canvas; the controls inside draw theirs (the
  * scene's `:focus-visible`, issue #388). */
-.canvas-frame canvas:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.canvas-frame canvas:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
