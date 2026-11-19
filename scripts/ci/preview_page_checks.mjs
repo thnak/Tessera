@@ -72,8 +72,6 @@ const SHARED_IDS = [
   "menubar-run",
   "menubar-device",
   "menubar-help",
-  "gallery",
-  "gallery-list",
   "link-note",
   "editor-host",
   // The three-column workspace (issue #431). `workspace` is the grid, `project-tree` is its left column,
@@ -401,6 +399,14 @@ if (!requireBuilt()) {
     const problems = [];
     if (/role="treeitem"/.test(boot)) {
       problems.push("a treeitem is rendered before any project is opened");
+    }
+    // The samples bar is gone (owner feedback on #586): the welcome view is where a first-time visitor finds
+    // samples, next to Open Folder / Open Zip, and the chrome carries no horizontal gallery strip.
+    if (!/id="welcome"/.test(boot) || !/Open Folder/.test(boot)) {
+      problems.push("the welcome view (Open Folder / Open Zip / Samples) is missing from the first view");
+    }
+    if (/id="gallery/.test(boot) || /id="gallery/.test(markup)) {
+      problems.push("the sample gallery strip is back; samples live in the welcome view and Open Sample");
     }
     if (!/No project open/.test(boot)) {
       problems.push("the empty tree does not say how to open a project");

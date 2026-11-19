@@ -37,6 +37,7 @@ import {
 import commandsDocument from "./workbench/commands.json";
 import menusDocument from "./workbench/menus.json";
 import { EDITOR_COMMANDS, editorFacts } from "./editor/editor-target";
+import type { LoadedSample } from "./lib/gallery";
 import { DPRS, THEMES, VIEWPORTS } from "./lib/preferences";
 import type { ControlValues } from "./regions/StudioChrome";
 import type { ProjectIo } from "./page-project-io";
@@ -67,7 +68,8 @@ export interface WorkbenchApi {
   profileId: string;
   components: { names: readonly string[]; chosen: string };
   runEnabled: boolean;
-  toggleGallery: () => void;
+  /** A sample chosen from the welcome view or the Open Sample quick pick becomes the open project. */
+  pickSample: (sample: LoadedSample) => void;
   restart: () => void;
   applyNow: () => void;
   share: () => Promise<void>;
@@ -98,6 +100,10 @@ export interface Workbench {
   /** Whether the bell's history popover is open. */
   centerOpen: boolean;
   setCenterOpen: (open: boolean) => void;
+  /** Help > About (`help.about`): the dialog with the title, description, build and links. */
+  aboutOpen: boolean;
+  setAboutOpen: (open: boolean) => void;
+  buildId: string;
   /** Runs a menu or toolbar entry; an entry whose command needs arguments the entry lacks asks for them. */
   activate: (entry: { command?: string; args?: CommandArgs }) => Promise<void>;
   /** Runs a command id with arguments through the registry and reports a refusal in `status`. */
@@ -193,6 +199,9 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
   const [centerOpen, setCenterOpen] = useState(false);
   const centerRef = useRef(setCenterOpen);
   centerRef.current = setCenterOpen;
+  const [aboutOpen, setAboutOpen] = useState(false);
+  const setAboutRef = useRef(setAboutOpen);
+  setAboutRef.current = setAboutOpen;
   const picker = useButtonState(api.refs.pickToggle);
   const inspector = useButtonState(api.refs.inspectToggle);
   const phone = usePhone();
@@ -228,7 +237,7 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
       "file.openFolder": () => a().io.openFolder(),
       "file.openZip": () => zipInputRef.current?.click(),
       "file.openRecent": (args) => a().io.reopenRecent(Number(args.index)),
-      "file.samples": () => a().toggleGallery(),
+      "file.samples": () => paletteRef.current?.open("", "samples"),
       "file.newFile": () => a().io.newFile(),
       "file.renameFile": () => a().io.renameFile(),
       "file.deleteFile": () => a().io.deleteFile(),
@@ -260,7 +269,7 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
       "device.toggleKeepState": () => a().setKeepState(!a().keepState),
       "help.docs": () => void window.open(DOCS_URL, "_blank", "noopener"),
       "help.reportIssue": () => void window.open(ISSUE_URL, "_blank", "noopener"),
-      "help.about": () => void notifications.notify({ message: `Tessera Studio, ${a().buildId}`, key: "about" }),
+      "help.about": () => setAboutRef.current(true),
       "notify.show": (args) => {
         const actions = args.actionLabel && args.actionCommand ? [{ label: String(args.actionLabel), command: String(args.actionCommand) }] : [];
         return { id: notifications.notify({ message: String(args.message), severity: (args.severity as NotificationInput["severity"]) ?? "info", actions, key: args.key === undefined ? undefined : String(args.key) }) };
@@ -458,6 +467,9 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
     notify: (input) => notifications.notify(input),
     centerOpen,
     setCenterOpen,
+    aboutOpen,
+    setAboutOpen,
+    buildId: api.buildId,
     activate,
     run,
     setFocusOwner,

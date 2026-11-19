@@ -18,7 +18,7 @@
 // dirty once. That is the same rule the canvas follows (ADR-054 decision 3): React owns the chrome, and a
 // high-frequency write does not go through its render cycle.
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { createCodeEditor, type CodeEditor } from "../editor/code-editor";
 import { STALE_TEXT, type ProjectFile } from "../lib/project";
 
@@ -163,6 +163,7 @@ export function CodeRegion({
   onSave,
   onApplyNow,
   stale = [],
+  empty = null,
 }: {
   open: readonly string[];
   files: readonly ProjectFile[];
@@ -193,6 +194,8 @@ export function CodeRegion({
   onApplyNow: () => void;
   /** Generated files that may be out of date (advisory). */
   stale?: readonly string[];
+  /** Shown instead of the editor while no project is open (the welcome view); the editor stays mounted. */
+  empty?: ReactNode;
 }) {
   // The editor is created once, in an effect (it needs the DOM, and the Node render of the chrome has none).
   // Its callbacks go through a ref so the page's handlers can change without recreating the editor.
@@ -239,11 +242,7 @@ export function CodeRegion({
   const current = files.find((file) => file.path === active) ?? null;
 
   return (
-    <section className="region region-code" aria-labelledby="editor-heading">
-      <div className="region-header">
-        <h2 id="editor-heading">Code</h2>
-      </div>
-
+    <section className="region region-code" aria-label="Code">
       <EditorTabs
         open={open}
         files={files}
@@ -256,11 +255,13 @@ export function CodeRegion({
       <div
         className="editor"
         id="editor-panel"
+        hidden={empty !== null}
         role="tabpanel"
         aria-labelledby={active ? tabIdOf(active) : undefined}
       >
         <div id="editor-host" ref={host} />
       </div>
+      {empty}
 
       {/* The hint belongs to the page, not to a view: the editor is shared by the three preview panes,
           and a hint that said "a diagnostics run has no viewport" while the preview showed the canvas
@@ -268,7 +269,7 @@ export function CodeRegion({
           rectangle to it. Since #444 it also carries the edit's own state: the page is applying the
           change, or it has applied it, and saying which is what keeps the debounce from looking like a
           preview that lags. */}
-      <p className="hint" id="editor-hint" ref={editorHintRef}>
+      <p className="hint visually-hidden" id="editor-hint" ref={editorHintRef}>
         Ctrl+Enter (or Cmd+Enter) applies now.
       </p>
       <p className="hint" id="apply-status" role="status" aria-live="polite" hidden={!applying}>
@@ -290,7 +291,7 @@ export function CodeRegion({
               : ""}
         </p>
       ) : current ? (
-        <p className="hint" id="editor-file" data-path={current.path}>
+        <p className="hint visually-hidden" id="editor-file" data-path={current.path}>
           Editing <code>{current.path}</code>
           {dirty.includes(current.path) ? " (unsaved changes)" : ""}
         </p>

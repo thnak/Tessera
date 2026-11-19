@@ -10,7 +10,7 @@
 // (ADR-054 decision 3).
 //
 // The workspace's own state (the project, the tabs, the active file) is in `page-workspace.ts`; this file
-// stays the page's *chrome* state, which after issue #431 is the controls, the gallery, the share status
+// stays the page's *chrome* state, which after issue #431 is the controls, the share status
 // and the build id.
 
 import type { CodeEditor } from "./editor/code-editor";
@@ -145,7 +145,6 @@ export function usePaneRefs(): PaneRefs {
 /** What the chrome needs from the page's own state, in one object. */
 export interface PageState {
   controls: ControlValues;
-  galleryOpen: boolean;
   shareStatus: string;
   linkNote: string | null;
   buildId: string;
@@ -165,7 +164,6 @@ export interface PageState {
 /** The page's state and its one setter per field, created once. */
 export function usePageState(): [PageState, PageStateSetters] {
   const [controls, setControls] = useState<ControlValues>({ ...INITIAL_ENVIRONMENT });
-  const [galleryOpen, setGalleryOpen] = useState(false);
   const [shareStatus, setShareStatus] = useState("");
   const [linkNote, setLinkNote] = useState<string | null>(null);
   const [buildId, setBuildId] = useState("build: loading");
@@ -175,10 +173,9 @@ export function usePageState(): [PageState, PageStateSetters] {
   const [runEnabled, setRunEnabled] = useState(false);
   const [applying, setApplying] = useState(false);
   return [
-    { controls, galleryOpen, shareStatus, linkNote, buildId, buildIdTitle, runEnabled, applying },
+    { controls, shareStatus, linkNote, buildId, buildIdTitle, runEnabled, applying },
     {
       setControls,
-      setGalleryOpen,
       setShareStatus,
       setLinkNote,
       setBuildId,
@@ -192,7 +189,6 @@ export function usePageState(): [PageState, PageStateSetters] {
 /** The setters from `usePageState`, as one object so a callback can take the whole bundle. */
 export interface PageStateSetters {
   setControls: React.Dispatch<React.SetStateAction<ControlValues>>;
-  setGalleryOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setShareStatus: React.Dispatch<React.SetStateAction<string>>;
   setLinkNote: React.Dispatch<React.SetStateAction<string | null>>;
   setBuildId: React.Dispatch<React.SetStateAction<string>>;

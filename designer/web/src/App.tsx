@@ -60,10 +60,10 @@ import { createLiveEdit, type LiveEdit } from "./page-live";
 import { usePageState, usePaneRefs } from "./page-state";
 import { useSessions } from "./page-sessions";
 import { useProjectIo } from "./page-project-io";
-import { hasShareLink, sampleProjectFiles, useFirstView } from "./page-boot";
+import { hasShareLink, sampleProjectFiles } from "./page-boot";
 import { useViewOnlyLoader } from "./page-view-only";
 import { useWorkspace } from "./page-workspace";
-import { GalleryRegion } from "./regions/GalleryRegion";
+import { WelcomeView } from "./regions/WelcomeView";
 import type { ControlValues } from "./regions/StudioChrome";
 import { useWorkbench } from "./dock/use-workbench";
 import { useMockConsole } from "./lib/mock-console";
@@ -106,9 +106,6 @@ export function App() {
   // Bumped when a `*.mock.ts` buffer is edited, so the mock sandbox worker is recreated (ADR-055).
   const [mockRevision, setMockRevision] = useState(0);
 
-  useFirstView(projectIo.recentsLoaded, projectIo.recents.length, workspace.state.files.length, () =>
-    state_.setGalleryOpen(true),
-  );
   const onViewLoaded = useCallback(() => setRevision((value) => value + 1), []);
   useViewOnlyLoader(workspace, projectIo, onViewLoaded);
 
@@ -545,7 +542,6 @@ export function App() {
         workspace.putFile(file);
         setRevision((value) => value + 1);
       }
-      state_.setGalleryOpen(false);
       for (const session of Object.values(sessions)) {
         session?.onSample?.(sample.path);
       }
@@ -615,7 +611,7 @@ export function App() {
     profileId: state.controls.profile,
     components: componentList,
     runEnabled: state.runEnabled,
-    toggleGallery: () => state_.setGalleryOpen((open) => !open),
+    pickSample: onSample,
     restart: restartActiveView,
     applyNow: onEditorApplyNow,
     share: onShare,
@@ -632,7 +628,6 @@ export function App() {
   return (
     <>
       <WorkbenchChrome workbench={commandHost} zen={workbench.layout.shell.zen} />
-      <GalleryRegion open={state.galleryOpen} onPick={onSample} />
 
       <p className="link-note" id="link-note" role="alert" hidden={state.linkNote === null}>
         {state.linkNote}
@@ -689,6 +684,11 @@ export function App() {
           mocks={mocks}
           files={workspace.state.files}
           onReloadPanel={onReloadPanel}
+          welcome={
+            workspace.state.files.length === 0 ? (
+              <WelcomeView onPick={onSample} run={(id) => void commandHost.run(id)} />
+            ) : null
+          }
         />
       </main>
 

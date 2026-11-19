@@ -22,29 +22,6 @@
   min-height: 34px;
 }
 
-.title-mark {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 8px 0 0;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  white-space: nowrap;
-}
-
-.title-logo {
-  display: inline-grid;
-  place-items: center;
-  width: 20px;
-  height: 20px;
-  border-radius: 5px;
-  background: var(--accent);
-  color: var(--accent-text);
-  font-size: 12px;
-  font-weight: 700;
-}
-
 .titlebar-spacer { flex: 1 1 auto; }
 
 /* --- the menu bar ------------------------------------------------------------------------------ */
@@ -373,3 +350,36 @@ button.toast-dismiss { padding: 0 6px; border: 0; background: transparent; font-
   .toast-stack { right: 8px; bottom: 8px; }
   .notification-center { position: fixed; top: 44px; right: 8px; left: 8px; width: auto; }
 }
+
+/* --- Help > About ------------------------------------------------------------------------------ */
+
+.about-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, #000 40%, transparent);
+}
+
+.about {
+  width: min(480px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  padding: 20px 24px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--pane-bg);
+  box-shadow: 0 12px 32px color-mix(in srgb, #000 35%, transparent);
+  font-size: 13px;
+}
+
+.about-title { margin: 0 0 8px; font-size: 18px; font-weight: 600; }
+.about p { margin: 0 0 12px; color: var(--text-dim); }
+.about code { font-family: var(--mono); font-size: 12px; }
+.about a { color: var(--accent-fg); }
+.about-facts { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 0 0 12px; }
+.about-facts dt { color: var(--text-dim); }
+.about-facts dd { margin: 0; overflow-wrap: anywhere; }
+.about-links { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.about-actions { display: flex; justify-content: flex-end; }

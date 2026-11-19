@@ -2,13 +2,12 @@
 
 // How the studio starts (issue #391, owner direction 2026-11-17): it does **not** open on a fixed sample
 // project. The workspace starts empty, the project bar lists the projects opened before, and with no
-// history the first view is the sample gallery next to Open folder / Open zip.
+// history the first view is the welcome view: Open folder / Open zip and the samples.
 //
 // The Node gates render the chrome with `renderToStaticMarkup` and still need a tree to assert the layout
 // (ADR-054 decision 6), so `ssr-chrome.tsx` asks for the seed explicitly through `seedBootProjectForRender`;
 // a browser never calls it.
 
-import { useEffect, useRef } from "react";
 import { seedProject, type ProjectFile } from "./lib/project";
 
 let seedForRender = false;
@@ -29,7 +28,7 @@ export function hasShareLink(): boolean {
 }
 
 /**
- * A gallery sample as a one-file project: the sample plus the `tessera.json` that names it as the entry, so
+ * A sample as a one-file project: the sample plus the `tessera.json` that names it as the entry, so
  * the preview has something to run. It lives in memory only (a sample is never written anywhere).
  */
 export function sampleProjectFiles(
@@ -43,28 +42,4 @@ export function sampleProjectFiles(
     { path: "tessera.json", text: `${JSON.stringify(config, null, 2)}\n` },
     { path, text },
   ];
-}
-
-/**
- * Opens the gallery once, on the first view, when there is nothing to resume: no recent project, no project
- * open. A visitor who already opened something (or toggled the gallery) is never overridden.
- */
-export function useFirstView(
-  recentsLoaded: boolean,
-  recentCount: number,
-  fileCount: number,
-  openGallery: () => void,
-): void {
-  const done = useRef(false);
-  useEffect(() => {
-    if (done.current || !recentsLoaded) {
-      return;
-    }
-    done.current = true;
-    // A share link carries its own document, so the gallery stays out of its way.
-    if (recentCount === 0 && fileCount === 0 && !hasShareLink()) {
-      openGallery();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recentsLoaded]);
 }

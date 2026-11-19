@@ -12,6 +12,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent } from "react";
 import type { MenuEntry, ToolbarEntry } from "../workbench/index.js";
 import type { Workbench } from "../page-commands";
+import { AboutDialog } from "./AboutDialog";
 import { CommandPalette } from "./CommandPalette";
 import { ContextMenuHost } from "./ContextMenuHost";
 import { MenuBar, MenuList, useMenuController } from "./MenuBar";
@@ -171,12 +172,8 @@ export function WorkbenchChrome({ workbench, zen = false }: { workbench: Workben
   return (
     <header className={zen ? "workbench-chrome is-zen" : "workbench-chrome"} aria-label="Studio">
       <div className="titlebar">
-        <h1 className="title-mark">
-          <span aria-hidden="true" className="title-logo">
-            T
-          </span>
-          <span className="title-text">Tessera Studio</span>
-        </h1>
+        {/* The page's one h1 stays for assistive technology; the visible title and description are Help > About. */}
+        <h1 className="visually-hidden">Tessera Studio</h1>
         <MenuBar
           menus={workbench.menus}
           phone={workbench.phone}
@@ -206,6 +203,7 @@ export function WorkbenchChrome({ workbench, zen = false }: { workbench: Workben
           }
         }}
       />
+      {workbench.aboutOpen ? <AboutDialog buildId={workbench.buildId} onClose={() => workbench.setAboutOpen(false)} /> : null}
       {workbench.palette.request !== null ? <CommandPalette key={workbench.palette.request.nonce} workbench={workbench} request={workbench.palette.request} /> : null}
       <ContextMenuHost workbench={workbench} />
       <ToastStack workbench={workbench} />

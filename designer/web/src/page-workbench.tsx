@@ -50,6 +50,8 @@ export interface WorkbenchSurfaceProps {
   mocks: MockConsole;
   files: readonly ProjectFile[];
   onReloadPanel: (panelId: string) => void;
+  /** The welcome view, passed while no project is open; the editor column shows it. */
+  welcome?: ReactNode;
 }
 
 /** A bottom panel's scroll frame (the old dock panel's `overflow`, now per panel). */
@@ -89,6 +91,7 @@ export function WorkbenchSurface(props: WorkbenchSurfaceProps): ReactNode {
         onSave={props.onSave}
         onApplyNow={props.onApplyNow}
         stale={projectIo.state.stale}
+        empty={props.welcome ?? null}
       />
     ),
     canvas: (

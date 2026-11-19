@@ -9,6 +9,7 @@
 // closes and returns focus to where it was; blur closes too, like VS Code's quick input.
 
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { loadSampleSource, pageManifest, titleOf, type Sample } from "../lib/gallery";
 import {
   commandItems,
   createArgFlow,
@@ -62,6 +63,7 @@ const PLACEHOLDERS: Record<PaletteRequest["intent"], string> = {
   files: "Search files by name (add :line to jump, > for commands)",
   line: "Type a line number",
   shortcuts: "Keyboard shortcuts: type to filter every command and its chord",
+  samples: "Open a sample project (type to filter, > for commands)",
 };
 
 export function CommandPalette({ workbench, request }: { workbench: Workbench; request: PaletteRequest }) {
@@ -70,6 +72,7 @@ export function CommandPalette({ workbench, request }: { workbench: Workbench; r
   const [active, setActive] = useState(0);
   const [flow, setFlow] = useState<ArgFlow | null>(null);
   const [message, setMessage] = useState("");
+  const [samples, setSamples] = useState<Sample[]>([]);
   const input = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const returnTo = useRef<Element | null>(null);
@@ -84,6 +87,21 @@ export function CommandPalette({ workbench, request }: { workbench: Workbench; r
     // Once per mount: the key (nonce) remounts for a new request.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // The Open Sample quick pick fetches the manifest when it opens (lazy, once per page load).
+  useEffect(() => {
+    if (request.intent !== "samples") {
+      return;
+    }
+    let live = true;
+    pageManifest().then(
+      (loaded) => live && setSamples(loaded),
+      (error: unknown) => live && setMessage(String(error instanceof Error ? error.message : error)),
+    );
+    return () => {
+      live = false;
+    };
+  }, [request.intent]);
 
   function close(restore = true) {
     if (closed.current) {
@@ -158,6 +176,22 @@ export function CommandPalette({ workbench, request }: { workbench: Workbench; r
         commit: () => chooseCommand(item.id),
       }));
     }
+    if (parsed.mode === "files" && request.intent === "samples") {
+      const items = samples.map((sample) => ({ id: sample.path, label: titleOf(sample.path), detail: sample.component }));
+      return rankItems(parsed.text, items).map(({ item, positions }: Ranked<RankItem>): Row => ({
+        id: `sample-${item.id}`,
+        label: item.label,
+        detail: item.detail,
+        positions,
+        commit: () => {
+          close(false);
+          loadSampleSource(item.id).then(
+            (text) => palette.pickSample({ path: item.id, component: item.detail ?? "", text }),
+            (error: unknown) => void workbench.notify({ message: String(error instanceof Error ? error.message : error), severity: "error" }),
+          );
+        },
+      }));
+    }
     if (parsed.mode === "files") {
       const items = palette.files().map((file) => ({ id: file.path, label: file.path, basename: file.path.split("/").at(-1) }));
       return rankItems(parsed.text, items, { recent: palette.recentFiles }).map(({ item, positions }: Ranked<RankItem>): Row => ({
@@ -186,7 +220,7 @@ export function CommandPalette({ workbench, request }: { workbench: Workbench; r
       : [];
     // `answer`, `chooseCommand` and `close` read the latest state through the closure of this render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value, flow, registry, workbench.version()]);
+  }, [value, flow, registry, workbench.version(), samples]);
 
   const step = flow?.step ?? null;
   const textStep = step !== null && step.kind !== "choice";

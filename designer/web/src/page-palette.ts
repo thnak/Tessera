@@ -8,6 +8,7 @@
 import { useCallback, useRef, useState, type MutableRefObject } from "react";
 import { createRecentList, type MenuProviders, type RecentList } from "./workbench/index.js";
 import { editorCaret, editorGotoLine, editorLineCount } from "./editor/editor-target";
+import type { LoadedSample } from "./lib/gallery";
 import type { WorkbenchApi } from "./page-commands";
 
 const RECENT_COMMANDS_KEY = "tessera.studio.recentCommands";
@@ -16,7 +17,7 @@ const RECENT_FILES_KEY = "tessera.studio.recentFiles";
 /** One request to show the overlay; `nonce` remounts it so a second request starts from a clean input. */
 export interface PaletteRequest {
   initial: string;
-  intent: "commands" | "files" | "line" | "shortcuts";
+  intent: "commands" | "files" | "line" | "shortcuts" | "samples";
   nonce: number;
 }
 
@@ -25,6 +26,8 @@ export interface PaletteHost {
   open: (initial: string, intent?: PaletteRequest["intent"]) => void;
   close: () => void;
   files: () => readonly { path: string }[];
+  /** A chosen sample (its source already fetched) becomes the open project; the Open Sample quick pick calls it. */
+  pickSample: (sample: LoadedSample) => void;
   openFile: (path: string, line?: number) => void;
   providers: () => MenuProviders;
   recentCommands: RecentList;
@@ -72,6 +75,7 @@ export function usePaletteHost(
     open,
     close,
     files: () => apiRef.current.files,
+    pickSample: (sample) => apiRef.current.pickSample(sample),
     openFile: (path, line) => {
       apiRef.current.openFile(path);
       files.touch(path);
