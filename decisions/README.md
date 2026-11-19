@@ -71,6 +71,7 @@ V1 is the first release. A feature is in V1 unless the ADR or spec that owns it 
 | [ADR-059](ADR-059-html-tags-supported-not-rejected.md) | HTML tags get one of four statuses (mapped, approximated with a warning, planned with an issue, rejected only where a web engine or JS runtime is needed) instead of being rejected; carriers stay `View`/`Text` with meaning in role, a reserved class and props; an opt-in `ui.htmlDefaults: "browser"` user-agent stylesheet resolves Q12; capability groups A-F are the roadmap. Amends ADR-039 decisions 3 and 4. Accepted (2026-11-19, owner): browser defaults on by default, full table layout, both link forms, `approximated` is a warning (error under `ui.strict`) |
 | [ADR-060](ADR-060-studio-services-in-web-workers.md) | Studio services (viewer, analysis/language, format, mock) are Wasm modules in Web Workers behind one UI-agnostic, versioned, cancellable message protocol, so the V1 Tessera-built studio reuses them; parallelism is several workers, not pthreads (no SharedArrayBuffer on the static host); one C++ analysis library for the worker, CLI and MCP; Chromium only for now. Proposed (2026-11-19); three questions for the owner |
 | [ADR-061](ADR-061-compiler-owned-formatter.md) | The compiler owns formatting: one canonical printer (`tessera fmt`) for `.tsx`, `.css` and `tessera.json`, idempotent, meaning-preserving, never drops a comment, returns a minimal edit list; not Prettier. Proposed (2026-11-19); four questions for the owner |
+| [ADR-062](ADR-062-studio-dock-library-flexlayout-react.md) | The studio dock is flexlayout-react 0.11.2 (exact-pinned) behind our own canonical layout JSON, operations and a thin adapter; no floating windows in V1; proven in a real browser with a real WebGPU canvas. Accepted (2026-11-19) |
 
 ## Dependency overview
 
@@ -121,6 +122,7 @@ ADR-058 React + Vite port compatibility classes (proposed) ── ADR-036 own fr
 ADR-059 HTML tags supported not rejected (accepted) ── ADR-039 lowercase tags (amended), ADR-058 port classes, ADR-036 closed IR kinds, ADR-024 no JS runtime
 ADR-060 studio services in web workers (proposed) ── ADR-045 browser-hosted studio, ADR-054 React chrome (stepping stone), ADR-055 mock worker, ADR-024 no JS runtime, ADR-061 formatter service
 ADR-061 compiler-owned formatter (proposed) ── ADR-036 own front end, ADR-060 format worker, ADR-058 ports, ADR-024 no JS runtime
+ADR-062 studio dock library (accepted) ── ADR-054 React renders the canvas once, ADR-060 V1 rebuilt with Tessera, workbench layout spec
 ```
 
 [ADR-035](ADR-035-view-transitions.md), [ADR-036](ADR-036-own-jsx-frontend-and-react-like-model.md), and [ADR-037](ADR-037-self-contained-wasm-designer.md) are listed in the table above but are not drawn in this diagram.

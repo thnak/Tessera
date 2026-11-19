@@ -478,6 +478,40 @@ If flexlayout-react is adopted (W0 lands these with the dependency, per
    packages and three notice entries.
 6. `workbench-core` has no dependency entries; it is first-party.
 
+### 5.6 W0 results (flexlayout-react 0.11.2, real Chromium, real WebGPU)
+
+Measured 2026-11-19 by `scripts/ci/workbench_dock_spike.mjs` against the throwaway page
+`designer/web/spike/` (deleted when W5 lands): headed Chromium, a real `GPUCanvasContext` that clears
+every frame, **real pointer drags** (mouse down, 30 or so moves, mouse up; no synthetic `DragEvent`),
+and keyboard-only docking. The drag was **not blocked by an overlay**: flexlayout renders tab content in
+one flat layer and its own drag overlay, so the "always" overlay problem seen with dockview in section
+5.2 does not occur. Result: 37 pass, 3 gaps, 0 failures. dockview is therefore **not** needed.
+
+| Check | Result |
+|---|---|
+| Real pointer drag, tab joins another group | pass; model parent changes, same `HTMLCanvasElement`, 0 removals, 1 mount, 1 GPU context |
+| Real pointer drag onto an edge (new split) | pass; same checks |
+| Editor `<textarea>` node and typed text across moves | pass (DOM node and value survive) |
+| Hidden Canvas draws nothing | pass; 0 frames over 1 s while Scene is the active tab, drawing resumes on show |
+| Lazy module | pass; a Canvas restored hidden neither imports nor fetches its module until first visible (`visibility` node event) |
+| Keyboard-only docking | pass through an adapter command (`Alt+Shift+Arrow`), focus returns to the moved tab, `aria-live` states the result; flexlayout has no keyboard move, as section 5.1 said |
+| Failure isolation | pass; an error boundary per panel shows "This panel failed" and leaves Canvas and siblings untouched |
+| Collapsed bottom group | usable as a flexlayout **border** (strip visible, content hidden, opens without touching Canvas). It keeps a visible strip, which differs from VS Code's fully hidden panel area; W5 either keeps the border or drops the group from the library model while collapsed (panels there have never been visible, so no mount is lost). Open W5 design point |
+| JSON round trip, 390 px no horizontal scroll | pass (the phone collapse stays ours, section 3.4) |
+| ARIA | tablist with `aria-orientation`, tab `aria-selected`/`aria-controls`, tabpanel `aria-labelledby`, one tab stop per strip, separators with `aria-orientation`, `aria-valuenow`, `tabindex=0`: all pass |
+
+Gaps the adapter closes (all small, none blocks adoption): separators report constant
+`aria-valuemin=0` and `aria-valuemax=100` instead of per-splitter limits; splitter arrow keys resize
+by 10 px with no Shift step and no Home/End (section 4.4 wants 16/64 px and Home/End, implemented as a
+capture-phase key handler calling `Actions.adjustWeights`); tab Left/Right and `Alt+W` close work as
+shipped. Visual styling (VS Code colors, sizes, icons) is a W5 theme over the library CSS and is not
+part of W0.
+
+Not run: the engine's own Wasm canvas (no built modules in this lane; the stand-in is the same
+`getContext("webgpu")` surface) and the Linux box (thnak-remote was unreachable). The enforced
+`download_gzip_bytes` is **not** re-recorded in W0 because nothing from the library ships in the
+studio build yet; the adopting slice (W5) re-records it with `scripts/check_preview_budget.py --update`.
+
 ## 6. What this does not do
 
 - It does not implement anything; W0 to W9 in [studio-workbench-v1.md](studio-workbench-v1.md) do.
