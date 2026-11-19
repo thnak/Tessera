@@ -145,6 +145,11 @@ port knows before it starts which pages are blocked and by what.
    be closed, never unfinished work) it fires rarely, and CI can opt into the error.
 3. **Tables: implement completely**, no approximate first slice (group D).
 4. **`a href`: both** internal navigation and external URLs in the first slice (group B).
+5. **What is planned and what is never done** (owner, 2026-11-19): `table`, `select` and `form` (with
+   `option`, `optgroup`, `datalist`) and `video` (with `audio`, `source`, `track`, `picture`) **will be
+   built later** and stay `planned` (groups D, E, F: #543, #544, #545). `iframe`, `embed`, `object`,
+   `script` and `dangerouslySetInnerHTML` are the **will-not-do list**: status `rejected`, permanent,
+   not a backlog item; their diagnostic keeps naming the reason.
 
 ## Follow-up
 
