@@ -52,6 +52,11 @@
   color: var(--text-dim);
 }
 
+.region-header > .status {
+  flex: none;
+  white-space: nowrap;
+}
+
 .pane-actions {
   display: flex;
   gap: 8px;
@@ -101,6 +106,10 @@
 }
 
 .tree-name {
+  /* The name gives way first (an ellipsis), so the lock / stale / dirty badges after it are never the
+   * part that is cut off in a narrow column. */
+  flex: 0 1 auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -114,6 +123,7 @@
 
 .tree-lock {
   flex: none;
+  white-space: nowrap;
   margin-left: auto;
   padding: 0 4px;
   border: 1px solid var(--border);
@@ -126,6 +136,7 @@
 
 .tree-stale {
   flex: none;
+  white-space: nowrap;
   margin-left: 4px;
   padding: 0 4px;
   border: 1px solid var(--warning);
