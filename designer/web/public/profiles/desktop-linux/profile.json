@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "name": "Linux desktop window",
+  "category": "desktop",
+  "os": "linux",
+  "size": {
+    "width": 1280,
+    "height": 800
+  },
+  "dpr": 1,
+  "navigation": "none",
+  "controls": [],
+  "events": [
+    "suspend",
+    "resume",
+    "theme",
+    "locale",
+    "textScale",
+    "memoryPressure"
+  ],
+  "skin": "generic-desktop-linux"
+}

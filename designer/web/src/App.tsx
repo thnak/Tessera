@@ -55,6 +55,8 @@ import {
   type ProjectSnapshot,
   type ViewDefinition,
 } from "./lib/views";
+import { customProfile, mayKeepState } from "./lib/device-profile";
+import { unavailableReply, type PlatformEventRequest, type PlatformReply } from "./lib/platform-events";
 import { STARTUP_SAMPLE } from "./page-defaults";
 import { createLiveEdit, type LiveEdit } from "./page-live";
 import { setStatusText, usePageState, usePaneRefs } from "./page-state";
@@ -69,6 +71,11 @@ import { ProjectTree } from "./regions/ProjectTree";
 import { PageHeader, type ControlValues } from "./regions/StudioChrome";
 import { StatusLine } from "./regions/StatusLine";
 import { useSkins, useThemeAttribute } from "./page-skins";
+import { usePlatform } from "./page-platform";
+import { deviceSwitch, useProfiles } from "./page-profiles";
+import { AppStateOverlay, HardwareStrip } from "./regions/DeviceControls";
+import { PlatformDock } from "./regions/PlatformDock";
+import { VIEWPORTS, DPRS } from "./lib/preferences";
 
 export function App() {
   const [view, setView] = useState<ViewDefinition["id"]>(() =>
@@ -196,6 +203,7 @@ export function App() {
           theme: "system",
           foldPosture: "",
           skin: "",
+          profile: "",
         });
         if (loaded.source !== "" && refs.source.current !== null) {
           // A link's source replaces the entry file's text: a share link is one document, and the entry is
@@ -215,6 +223,7 @@ export function App() {
           theme: String(loaded.theme ?? "system"),
           foldPosture: String(loaded.foldPosture ?? ""),
           skin: String(loaded.skin ?? ""),
+          profile: String(loaded.profile ?? ""),
         });
       } catch (error) {
         // The seeded project is what the page shows when the link is broken (#431).
@@ -224,6 +233,7 @@ export function App() {
           theme: "system",
           foldPosture: "",
           skin: "",
+          profile: "",
         });
         state_.setLinkNote(linkProblemMessage(error));
       } finally {
@@ -276,6 +286,55 @@ export function App() {
     });
   }
 
+  // ---- the device profile and the platform panel (issues #447 and #448) ----------------------------
+  //
+  // The profile decides the toolbar's size, DPR, skin and fold and whether the app restarts; the platform
+  // hook sends normalized events through the canvas session and keeps the log. Both read the page through
+  // refs where a callback outlives a render, for the reason the sessions do.
+  const profiles = useProfiles(state.controls);
+  const [keepState, setKeepState] = useState(false);
+  const controlsRef = useRef(state.controls);
+  controlsRef.current = state.controls;
+  const profilesRef = useRef(profiles);
+  profilesRef.current = profiles;
+  const skinsRef = useRef(skins.skins);
+  skinsRef.current = skins.skins;
+  const keepStateRef = useRef(keepState);
+  keepStateRef.current = keepState;
+  // Set by a device switch that must restart the app; consumed by the toolbar effect once every session has
+  // heard the new environment, which is section 3's order (`viewport.set`, then the restart).
+  const pendingRestart = useRef(false);
+
+  const platform = usePlatform({
+    deliver: (request: PlatformEventRequest): PlatformReply =>
+      sessions.canvas?.platformEvent?.(request) ??
+      unavailableReply(request.type, "the canvas preview is not available"),
+    coldStart: () => live.current?.restart(),
+    // An orientation or fold event moved a layout input the engine already applied in place; the toolbar
+    // holds the same facts, so it follows rather than undoing the engine on its next environment change.
+    onLayout: (request) => {
+      if (request.type === "orientation") {
+        state_.setControls((previous) => {
+          const [width, height] = previous.viewport.split("x");
+          return { ...previous, viewport: `${height}x${width}` };
+        });
+      } else if (request.type === "fold") {
+        state_.setControls((previous) => ({
+          ...previous,
+          foldPosture: request.value === "none" ? "" : request.value,
+        }));
+      }
+    },
+  });
+  const platformReset = platform.reset;
+  const deviceProfile =
+    profiles.selected ??
+    customProfile(
+      { width: environmentOf().width, height: environmentOf().height },
+      environmentOf().dpr,
+      null,
+    );
+
   // ---- show the view: mount its module on first open, and tell every session which one is visible ----
   //
   // The view no longer decides the page's shape -- it selects which preview pane the right column shows --
@@ -325,8 +384,11 @@ export function App() {
   // is deliberately *not* what an edit does -- `apply` is -- so a developer who wants the counter back
   // at 0 has one button for it, and the button is named for what it does.
   const restartActiveView = useCallback(() => {
+    // A cold start ends the platform log: it is "what happened since the app launched", the only span a
+    // replay can reproduce from a launch (`page-platform.ts`).
+    platformReset();
     void live.current?.restart();
-  }, []);
+  }, [platformReset]);
 
   const loadSampleForActiveView = useCallback(() => {
     const session = sessions[viewRef.current];
@@ -404,8 +466,56 @@ export function App() {
   );
 
   // ---- the toolbar ---------------------------------------------------------------------------------
+  // Picking a device (issue #447, section 3): `viewport.set` (size, DPR, skin, fold), then a restart unless the
+  // person asked to keep state and the `os` is unchanged. The custom size is the pre-profile page.
+  const switchDevice = useCallback((id: string) => {
+    const current = controlsRef.current;
+    const previous = profilesRef.current.selected;
+    let result: { controls: ControlValues; restart: boolean };
+    if (id === "") {
+      const [width, height] = current.viewport.split("x").map(Number);
+      const ad = customProfile({ width, height }, Number(current.dpr), previous);
+      const plain =
+        VIEWPORTS.some(([w, h]) => w === width && h === height) && DPRS.includes(Number(current.dpr));
+      result = {
+        controls: { ...current, profile: plain ? "" : "custom", skin: "", foldPosture: "" },
+        restart: !(keepStateRef.current && mayKeepState(previous, ad)),
+      };
+    } else {
+      const next = profilesRef.current.profiles.find((candidate) => candidate.id === id);
+      if (next === undefined) {
+        return;
+      }
+      result = deviceSwitch(previous, next, current, skinsRef.current, keepStateRef.current);
+    }
+    pendingRestart.current = result.restart;
+    rememberLocally(result.controls);
+    state_.setControls(result.controls);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // A size typed into the custom entry makes the ad hoc profile and resizes in place: no restart, the same
+  // as moving the preset list always did.
+  const onCustomSize = useCallback((width: number, height: number) => {
+    state_.setControls((previous) => {
+      const preset = VIEWPORTS.some(([w, h]) => w === width && h === height);
+      const next = {
+        ...previous,
+        viewport: `${width}x${height}`,
+        profile: preset && DPRS.includes(Number(previous.dpr)) ? "" : "custom",
+      };
+      rememberLocally(next);
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const onControlChange = useCallback(
     (name: keyof ControlValues, value: string) => {
+      if (name === "profile") {
+        switchDevice(value);
+        return;
+      }
       state_.setControls((previous) => {
         const next = { ...previous, [name]: value };
         rememberLocally(next);
@@ -413,7 +523,7 @@ export function App() {
       });
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
+    [switchDevice],
   );
 
   // Every mounted view hears about a toolbar move, not only the visible one: a Scene pane that is hidden
@@ -427,6 +537,11 @@ export function App() {
     }
     for (const session of Object.values(sessions)) {
       session?.onEnvironmentChange?.();
+    }
+    // A device switch that must restart does so now that the new size is in force (section 3's order).
+    if (pendingRestart.current) {
+      pendingRestart.current = false;
+      restartActiveView();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.controls]);
@@ -555,8 +670,32 @@ export function App() {
           onPickComponent={onPickComponent}
           skins={skins.skins}
           skin={skins.selected}
+          device={{
+            profiles: profiles.profiles.map((entry) => ({ id: entry.id, name: entry.name })),
+            profile: profiles.selected,
+            keepState,
+            onKeepState: setKeepState,
+            onCustomSize,
+            overlay: (
+              <AppStateOverlay
+                state={platform.state}
+                disabled={platform.replaying}
+                onAction={(type) => void platform.send(type)}
+              />
+            ),
+            strip: (
+              <HardwareStrip
+                profile={profiles.selected}
+                disabled={platform.replaying}
+                onPress={(type) => void platform.send(type)}
+              />
+            ),
+          }}
         />
       </main>
+
+      {/* Issue #448: the bottom dock, under the three columns and above the status line. */}
+      <PlatformDock profile={deviceProfile} platform={platform} onRestart={restartActiveView} />
 
       <StatusLine
         buildId={state.buildId}

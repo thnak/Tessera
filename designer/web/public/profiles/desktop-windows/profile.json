@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "name": "Windows desktop window",
+  "category": "desktop",
+  "os": "windows",
+  "size": {
+    "width": 1280,
+    "height": 800
+  },
+  "dpr": 1,
+  "navigation": "none",
+  "controls": [],
+  "events": [
+    "suspend",
+    "resume",
+    "theme",
+    "locale",
+    "textScale",
+    "memoryPressure",
+    "batterySaver"
+  ],
+  "skin": "generic-desktop-windows"
+}

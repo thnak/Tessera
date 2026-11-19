@@ -12,9 +12,11 @@
 // page errors -- preferences are an optimization, not state.
 
 export {
+  CUSTOM_SIZE_RANGE,
   DEFAULT_FILE,
   FOLD_POSTURES,
   FOLD_POSTURE_LABELS,
+  PROFILE_IDS,
   SKIN_IDS,
   THEMES,
   VIEWPORTS,
@@ -32,7 +34,15 @@ import { encodeShare, stateFromHash } from "./share";
 const STORAGE_KEY = "tessera.preview.p5";
 
 /** The fields a previous visit may restore. The source never is one of them. */
-const PREFERENCE_KEYS = ["viewport", "dpr", "theme", "file", "foldPosture", "skin"] as const;
+const PREFERENCE_KEYS = [
+  "viewport",
+  "dpr",
+  "theme",
+  "file",
+  "foldPosture",
+  "skin",
+  "profile",
+] as const;
 
 /** The toolbar's values, as the strings a `<select>` holds. */
 export interface Controls {
@@ -51,6 +61,8 @@ export interface Controls {
    * are what the engine lays out, so a change re-lays the preview out in one pass.
    */
   skin: string;
+  /** The device profile (issue #447): a bundled id, `custom`, or `""` for none. */
+  profile: string;
 }
 
 /** The stored preference fields: the toolbar's three plus the file name a link carried. */
@@ -73,6 +85,8 @@ export interface EnvironmentState {
   foldPosture: string;
   /** The simulated device skin; `""` is no frame (issue #171's skins slice). */
   skin: string;
+  /** The device profile; `""` is none (issue #447). */
+  profile: string;
   from?: "link" | "local" | "default";
 }
 
@@ -83,6 +97,7 @@ export const DEFAULT_CONTROLS: Controls = Object.freeze({
   theme: "system",
   foldPosture: "",
   skin: "",
+  profile: "",
 });
 
 function safeStorage(): Storage | null {
@@ -168,6 +183,7 @@ export async function initialState(
       foldPosture:
         typeof stored.foldPosture === "string" ? stored.foldPosture : fallback.foldPosture,
       skin: typeof stored.skin === "string" ? stored.skin : fallback.skin,
+      profile: typeof stored.profile === "string" ? stored.profile : fallback.profile,
       from: "local",
     };
   }
@@ -202,6 +218,7 @@ export function shareStateOf(
     theme: String(controls.theme),
     foldPosture: String(controls.foldPosture),
     skin: String(controls.skin),
+    profile: String(controls.profile ?? ""),
   };
 }
 

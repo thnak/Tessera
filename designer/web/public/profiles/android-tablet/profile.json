@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "name": "Generic Android tablet",
+  "category": "tablet",
+  "os": "android",
+  "size": {
+    "width": 800,
+    "height": 1280
+  },
+  "dpr": 2,
+  "navigation": "three-button",
+  "controls": [
+    "back",
+    "home",
+    "recents",
+    "volumeUp",
+    "volumeDown",
+    "power"
+  ],
+  "events": [
+    "suspend",
+    "resume",
+    "screenOff",
+    "screenOn",
+    "theme",
+    "locale",
+    "textScale",
+    "orientation",
+    "ime",
+    "memoryPressure",
+    "batterySaver",
+    "thermal",
+    "processDeath"
+  ],
+  "skin": "generic-tablet"
+}

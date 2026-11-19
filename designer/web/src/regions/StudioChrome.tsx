@@ -14,7 +14,8 @@
 // without renaming its ref somewhere is a check failure rather than a runtime null (ADR-054 decision 6).
 
 import type { RefObject } from "react";
-import { DPRS, FOLD_POSTURES, FOLD_POSTURE_LABELS, SKIN_IDS, THEMES, VIEWPORTS } from "../lib/preferences";
+import { CUSTOM_SIZE_RANGE, DPRS, FOLD_POSTURES, FOLD_POSTURE_LABELS, PROFILE_IDS, SKIN_IDS, THEMES, VIEWPORTS } from "../lib/preferences";
+import type { DeviceProfile } from "../lib/device-profile";
 import type { ViewDefinition } from "../lib/views";
 
 /** The toolbar's toggles, as the strings a `<select>` holds. */
@@ -33,6 +34,11 @@ export interface ControlValues {
    * are what the engine lays out, so changing it re-lays the preview out in one pass.
    */
   skin: string;
+  /**
+   * The device profile (issue #447): a bundled profile id, `custom` (a size typed into the custom entry), or
+   * `""` for the custom size the page always started with. `""` and `custom` are one option in the picker.
+   */
+  profile: string;
 }
 
 /**
@@ -153,12 +159,44 @@ export function EnvironmentToolbar({
   controls,
   onChange,
   skins,
+  profiles,
+  profile,
+  keepState,
+  onKeepState,
+  onCustomSize,
 }: {
   controls: ControlValues;
   onChange: (name: keyof ControlValues, value: string) => void;
   skins: readonly { id: string; name: string }[];
+  /** The validated bundled device profiles (issue #447); the picker offers these and the custom size. */
+  profiles: readonly { id: string; name: string }[];
+  /** The profile in force, or `null` for the custom size the page started with. */
+  profile: DeviceProfile | null;
+  /** The "keep state on device change" setting (section 3); off by default, so a switch restarts. */
+  keepState: boolean;
+  onKeepState: (keep: boolean) => void;
+  /** A size typed into the custom entry: it makes the ad hoc profile and resizes in place. */
+  onCustomSize: (width: number, height: number) => void;
 }) {
-  const viewportValues = VIEWPORTS.map(([width, height]) => `${width}x${height}`);
+  // The preset list plus the size now in force, so a typed or profile-applied size is a visible option and
+  // the `<select>` never shows a blank for a value it does not list.
+  const presetValues = VIEWPORTS.map(([width, height]) => `${width}x${height}`);
+  const viewportValues = presetValues.includes(controls.viewport) ? presetValues : [...presetValues, controls.viewport];
+  const dprValues = DPRS.map((value) => String(value));
+  if (!dprValues.includes(controls.dpr)) {
+    dprValues.push(controls.dpr);
+  }
+  const customSize = controls.profile === "" || controls.profile === "custom";
+  function commitCustomSize(width: string, height: string): void {
+    const w = Math.round(Number(width));
+    const h = Math.round(Number(height));
+    const [low, high] = CUSTOM_SIZE_RANGE;
+    if (Number.isFinite(w) && Number.isFinite(h) && w >= low && w <= high && h >= low && h <= high) {
+      onCustomSize(w, h);
+    }
+  }
+  const [currentWidth, currentHeight] = controls.viewport.split("x");
+  const loadedProfiles = new Set(profiles.map((entry) => entry.id));
   const loaded = new Set(skins.map((skin) => skin.id));
   return (
     <div className="toolbar" role="group" aria-label="Preview environment">
@@ -171,6 +209,27 @@ export function EnvironmentToolbar({
           `""` is "no frame", which is the pre-#171 page: a visitor who ignores the control sees
           exactly what they saw before, and a page whose manifests all failed to load still previews.
         */}
+        {/*
+          The device (issue #447, `studio-device-profiles-v1.md` section 2): a bundled profile, or the
+          custom size. `""` is the custom size, which is the pre-profile page, so a visitor who ignores the
+          control sees what they saw before. Picking a profile applies its size, DPR, skin and fold and
+          restarts the app (section 3); the setting below keeps state when the `os` does not change.
+        */}
+        <Control
+          label="Device"
+          name="profile"
+          value={customSize ? "" : controls.profile}
+          values={PROFILE_IDS.filter((id) => id !== "custom")}
+          format={(value) => {
+            if (value === "") {
+              return "Custom size";
+            }
+            const match = profiles.find((entry) => entry.id === value);
+            return match ? match.name : value;
+          }}
+          disabled={(value) => value !== "" && !loadedProfiles.has(value)}
+          onChange={onChange}
+        />
         <Control
           label="Skin"
           name="skin"
@@ -186,22 +245,68 @@ export function EnvironmentToolbar({
           disabled={(value) => value !== "" && !loaded.has(value)}
           onChange={onChange}
         />
-        <Control
-          label="Viewport"
-          name="viewport"
-          value={controls.viewport}
-          values={viewportValues}
-          format={(value) => {
-            const match = VIEWPORTS.find(([width, height]) => `${width}x${height}` === value);
-            return match ? match[2] : value;
-          }}
-          onChange={onChange}
-        />
+        {customSize ? (
+          <>
+            <Control
+              label="Viewport"
+              name="viewport"
+              value={controls.viewport}
+              values={viewportValues}
+              format={(value) => {
+                const match = VIEWPORTS.find(([width, height]) => `${width}x${height}` === value);
+                return match ? match[2] : value;
+              }}
+              onChange={onChange}
+            />
+            <div className="control custom-size">
+              <span className="control-label">Size</span>
+              <input
+                id="control-width"
+                type="number"
+                aria-label="Custom width"
+                min={CUSTOM_SIZE_RANGE[0]}
+                max={CUSTOM_SIZE_RANGE[1]}
+                defaultValue={currentWidth}
+                key={`w${currentWidth}`}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.currentTarget.blur();
+                  }
+                }}
+                onBlur={(event) => commitCustomSize(event.currentTarget.value, currentHeight)}
+              />
+              <span aria-hidden="true">{"\u00d7"}</span>
+              <input
+                id="control-height"
+                type="number"
+                aria-label="Custom height"
+                min={CUSTOM_SIZE_RANGE[0]}
+                max={CUSTOM_SIZE_RANGE[1]}
+                defaultValue={currentHeight}
+                key={`h${currentHeight}`}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.currentTarget.blur();
+                  }
+                }}
+                onBlur={(event) => commitCustomSize(currentWidth, event.currentTarget.value)}
+              />
+            </div>
+          </>
+        ) : profile !== null ? (
+          <div className="control profile-size" id="profile-size">
+            <span className="control-label">Size</span>
+            <span className="profile-size-value">
+              {controls.viewport.replace("x", "\u00d7")} @ {controls.dpr}
+              {"\u00d7"}
+            </span>
+          </div>
+        ) : null}
         <Control
           label="DPR"
           name="dpr"
           value={controls.dpr}
-          values={DPRS.map((value) => String(value))}
+          values={dprValues}
           format={(value) => value + "\u00d7"}
           onChange={onChange}
         />
@@ -233,6 +338,17 @@ export function EnvironmentToolbar({
           format={(value) => FOLD_POSTURE_LABELS[value] ?? value}
           onChange={onChange}
         />
+        {/* Section 3's setting: a device change applies size, DPR, insets and fold to the running app in
+            place. It is honoured only between profiles of the same `os`; a change of `os` always restarts. */}
+        <label className="control keep-state" title="Apply a device change in place instead of restarting. Only between profiles of the same OS; a different OS always restarts.">
+          <input
+            id="control-keep-state"
+            type="checkbox"
+            checked={keepState}
+            onChange={(event) => onKeepState(event.currentTarget.checked)}
+          />
+          <span className="control-label">Keep state on device change</span>
+        </label>
       </div>
     </div>
   );

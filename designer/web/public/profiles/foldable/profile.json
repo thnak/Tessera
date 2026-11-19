@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "name": "Generic foldable",
+  "category": "foldable",
+  "os": "android",
+  "size": {
+    "width": 884,
+    "height": 1104
+  },
+  "dpr": 2.625,
+  "navigation": "three-button",
+  "controls": [
+    "back",
+    "home",
+    "recents",
+    "volumeUp",
+    "volumeDown",
+    "power"
+  ],
+  "events": [
+    "suspend",
+    "resume",
+    "screenOff",
+    "screenOn",
+    "theme",
+    "locale",
+    "textScale",
+    "orientation",
+    "fold",
+    "ime",
+    "memoryPressure",
+    "batterySaver",
+    "thermal",
+    "processDeath"
+  ],
+  "skin": "generic-foldable"
+}
