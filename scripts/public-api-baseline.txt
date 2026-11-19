@@ -2236,6 +2236,12 @@ function include/tessera/ui/scene/component_lifecycle.hpp tessera::ui::effect_ne
 constant include/tessera/ui/scene/component_lifecycle.hpp tessera::ui::kEffectHashPrime
 constant include/tessera/ui/scene/component_lifecycle.hpp tessera::ui::kEffectHashSeed
 
+header include/tessera/ui/scene/dirty_mask.hpp
+class include/tessera/ui/scene/dirty_mask.hpp tessera::ui::DirtyMask
+alias include/tessera/ui/scene/dirty_mask.hpp tessera::ui::BindingTraceHook
+function include/tessera/ui/scene/dirty_mask.hpp tessera::ui::binding_ran
+variable include/tessera/ui/scene/dirty_mask.hpp tessera::ui::g_binding_trace_hook
+
 header include/tessera/ui/scene/dirty_pass.hpp
 class include/tessera/ui/scene/dirty_pass.hpp tessera::ui::DirtyPass
 struct include/tessera/ui/scene/dirty_pass.hpp tessera::ui::DirtyNode
@@ -2571,6 +2577,20 @@ struct include/tessera/ui/style/supports.hpp tessera::ui::style::SupportsParseRe
 enum include/tessera/ui/style/supports.hpp tessera::ui::style::SupportsKind
 function include/tessera/ui/style/supports.hpp tessera::ui::style::evaluate_supports
 function include/tessera/ui/style/supports.hpp tessera::ui::style::parse_supports_condition
+
+header include/tessera/ui/style/text_decoration.hpp
+function include/tessera/ui/style/text_decoration.hpp tessera::ui::style::is_supported_text_decoration_style
+function include/tessera/ui/style/text_decoration.hpp tessera::ui::style::is_supported_text_decoration_thickness
+function include/tessera/ui/style/text_decoration.hpp tessera::ui::style::is_supported_vertical_align
+function include/tessera/ui/style/text_decoration.hpp tessera::ui::style::parse_decoration_length
+function include/tessera/ui/style/text_decoration.hpp tessera::ui::style::parse_text_decoration_line
+function include/tessera/ui/style/text_decoration.hpp tessera::ui::style::text_decoration_thickness
+function include/tessera/ui/style/text_decoration.hpp tessera::ui::style::vertical_align_shift
+constant include/tessera/ui/style/text_decoration.hpp tessera::ui::style::kDecorationLineThrough
+constant include/tessera/ui/style/text_decoration.hpp tessera::ui::style::kDecorationOverline
+constant include/tessera/ui/style/text_decoration.hpp tessera::ui::style::kDecorationUnderline
+constant include/tessera/ui/style/text_decoration.hpp tessera::ui::style::kSubShiftEm
+constant include/tessera/ui/style/text_decoration.hpp tessera::ui::style::kSuperShiftEm
 
 header include/tessera/ui/style/theme_asset.hpp
 struct include/tessera/ui/style/theme_asset.hpp tessera::ui::style::EmbeddedTheme
