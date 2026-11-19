@@ -2,7 +2,7 @@
 // inline handler. The developer's C++ in samples/parity-demo/Counter.cpp does the same as the
 // preview body, and the parity test checks that they agree step by step.
 
-export function Counter(): Node {
+export function Counter() {
   const [count, setCount] = useState<int>(0);
   const [label, setLabel] = useState<string>("idle");
 

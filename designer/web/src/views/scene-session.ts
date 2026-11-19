@@ -38,7 +38,7 @@ type ModuleFactory = () => Promise<WasmModule>;
  * document instead of an unsupported-construct error. The button carries an explicit `automationId` so
  * the input script below names a node that exists without the reader having to look up a hash.
  */
-export const SAMPLE = `export function Counter(): Node {
+export const SAMPLE = `export function Counter() {
   const [count, setCount] = useState<int>(0);
 
   return (

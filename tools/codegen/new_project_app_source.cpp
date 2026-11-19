@@ -220,7 +220,7 @@ std::string blank_tsx() {
 // The app UI. `tessera_codegen` turns this file into App.g.hpp (ADR-040); the developer half is
 // src/App.hpp. Change the tree here, then rebuild.
 
-export function App(): Node {
+export function App() {
   return (
     <View className="app">
       <Text className="app-title">Hello, Tessera</Text>
@@ -238,7 +238,7 @@ std::string counter_tsx() {
 // App.g.hpp (ADR-040); the developer half is src/App.hpp. The inline setters need no `bind::`
 // marker, so the developer class stays empty until you add C++ behavior of your own.
 
-export function App(): Node {
+export function App() {
   const [count, setCount] = useState<int>(0);
 
   return (

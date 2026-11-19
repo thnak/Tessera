@@ -345,7 +345,11 @@ if (NOT EMSCRIPTEN)
     # same document the module returns, so scripts/ci/scene_snapshot_parity.py can compare two
     # artifacts instead of two implementations.
     add_executable(tessera_scene_preview_cli
-        ${CMAKE_SOURCE_DIR}/tools/codegen/scene_preview_main.cpp)
+        ${CMAKE_SOURCE_DIR}/tools/codegen/scene_preview_main.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/scene_failure.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/diagnose.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/diagnostics_json.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/diagnostic_record.cpp)
     target_include_directories(tessera_scene_preview_cli
         PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
     target_link_libraries(tessera_scene_preview_cli PRIVATE tessera_scene_preview)
@@ -361,6 +365,10 @@ if (NOT EMSCRIPTEN)
     #                               The image the browser canvas is compared against comes from here.
     add_executable(tessera_scene_frame_cli
         ${CMAKE_SOURCE_DIR}/tools/codegen/scene_frame_main.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/scene_failure.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/diagnose.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/diagnostics_json.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/diagnostic_record.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/scene_frame.cpp
         ${_tessera_preview_text_sources}
         ${_tessera_scene_preview_sources})
@@ -871,6 +879,28 @@ if (TESSERA_BUILD_TESTS)
         tessera_ir_ids
         tessera_lowering)
     add_test(NAME scene_project COMMAND scene_project_tests)
+
+    # A rejected source is loud (owner decision on bare `number`): the preview CLIs print each
+    # compiler diagnostic as `file:line:col: error CODE: message (hint: ...)` on stderr while the
+    # document and the exit code stay as they were. In-process cases plus one run of the real CLI.
+    add_executable(scene_failure_tests
+        ${CMAKE_SOURCE_DIR}/tests/unit/scene_failure_tests.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/scene_failure.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/diagnose.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/diagnostics_json.cpp
+        ${CMAKE_SOURCE_DIR}/tools/codegen/diagnostic_record.cpp)
+    target_include_directories(scene_failure_tests
+        PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
+    target_link_libraries(scene_failure_tests PRIVATE
+        tessera_ir_ids
+        tessera_lowering)
+    if (CMAKE_SYSTEM_NAME MATCHES "^(iOS|tvOS|watchOS)$")
+        target_compile_definitions(scene_failure_tests PRIVATE TESSERA_CLI_TESTS_NO_SUBPROCESS=1)
+    endif ()
+    add_dependencies(scene_failure_tests tessera_scene_preview_cli)
+    add_test(NAME scene_failure
+        COMMAND scene_failure_tests $<TARGET_FILE:tessera_scene_preview_cli>
+                ${CMAKE_CURRENT_BINARY_DIR}/scene_failure_tests-work)
 
     # Conditional and repeated children in the preview (issue #389): a branch selected by the state the
     # session's scope holds, a re-evaluation after a click changes that state, one subtree per list

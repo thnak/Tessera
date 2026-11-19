@@ -116,7 +116,8 @@ bool deferred_identity(const ir::IrDiagnostic& diagnostic) {
 
 } // namespace
 
-std::string diagnose_source(std::string_view text, std::string_view file) {
+std::vector<DiagnosticRecord> collect_source_diagnostics(std::string_view text,
+                                                         std::string_view file) {
     std::vector<DiagnosticRecord> records;
     const auto report = [&records](const jsx::Diagnostic& diagnostic, std::string_view path) {
         records.push_back(to_record(diagnostic, path));
@@ -131,11 +132,11 @@ std::string diagnose_source(std::string_view text, std::string_view file) {
         record.severity = "error";
         record.message = source.file + ": the file cannot be parsed";
         records.push_back(std::move(record));
-        return write_diagnostics_json(file, records);
+        return records;
     }
     if (!source.parsed.diagnostics.empty() && !source.parsed.ok()) {
         report(source.parsed.diagnostics.front(), source.file);
-        return write_diagnostics_json(file, records);
+        return records;
     }
     if (source.analyzed.has_errors()) {
         if (!source.analyzed.diagnostics.empty()) {
@@ -146,7 +147,7 @@ std::string diagnose_source(std::string_view text, std::string_view file) {
             record.message = source.file + ": analysis failed";
             records.push_back(std::move(record));
         }
-        return write_diagnostics_json(file, records);
+        return records;
     }
 
     const lowering::ModuleSource module_source = source.module_source();
@@ -163,7 +164,7 @@ std::string diagnose_source(std::string_view text, std::string_view file) {
         } else {
             report(errors.front(), source.file);
         }
-        return write_diagnostics_json(file, records);
+        return records;
     }
 
     lowering::LoweredModule lowered_module = std::move(*lowered);
@@ -181,7 +182,11 @@ std::string diagnose_source(std::string_view text, std::string_view file) {
     if (first != all.end()) {
         records.push_back(to_record(*first));
     }
-    return write_diagnostics_json(file, records);
+    return records;
+}
+
+std::string diagnose_source(std::string_view text, std::string_view file) {
+    return write_diagnostics_json(file, collect_source_diagnostics(text, file));
 }
 
 std::string diagnose_project(const ProjectInput& project) {

@@ -101,7 +101,7 @@ const SEED: readonly { path: string; text: string }[] = Object.freeze([
     path: "ui/App.tsx",
     text: `import "../styles/theme.css";
 
-export function App(): Node {
+export function App() {
   const [count, setCount] = useState<int>(0);
 
   return (

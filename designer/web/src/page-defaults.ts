@@ -18,7 +18,7 @@ export const DEFAULT_FILE = "ui/Preview.tsx";
  * visitor typed anything. The Scene view's own sample (which needs a clickable id) is in
  * `views/scene-session.ts`, and "Load sample" there loads it plus its three-click script.
  */
-export const STARTUP_SAMPLE = `export function Counter(): Node {
+export const STARTUP_SAMPLE = `export function Counter() {
   const [count, setCount] = useState<int>(0);
 
   return (

@@ -96,10 +96,13 @@ should land; each is additive to the IR (`irVersion` stays 1, `ir-v1.md` section
    string `enum` and `as const` objects as string-literal unions; `Partial`/`Pick`/`Omit`/`Required`
    and intersections of records with disjoint members are expanded at compile time; `?.` and `??` lower
    to null-checked conditionals on `T | null`; `import type` and type-only exports are free.
-2. **Inferred where unambiguous.** `number` is accepted where the initializer and every use decide
-   `int` versus `float` (an integer literal with only integer operations is `int`, otherwise `float`);
-   when they conflict the diagnostic gives the one-token fix. This is the edit React ports hit most
-   (`react-compat.md` already calls `useState<int>` unavoidable).
+2. **Two ways to type a number, no third.** Owner decision: `number` is NOT accepted, not even where
+   inference could decide. State is typed by inference (`useState(0)`, an integer literal with only
+   integer operations is `int`, otherwise `float`) or by an explicit Tessera type hint
+   (`useState<int>(0)`); `useState<number>(0)` is `TESSERA_JSX_TYPE_NUMBER` with the hint "write `int`
+   or `float`". The rejection is loud on every surface (compiler CLI, scene preview CLIs on stderr,
+   Studio diagnostics). **For port authors:** translate each `number` to `int` or `float`, or drop the
+   hint and let the initializer decide. `react-compat.md` already calls `useState<int>` unavoidable.
 3. **Declared by the author (the small edit).** `any`/`unknown` become a concrete type or a record;
    an untyped `useState([])` gets `useState<Item[]>([])`; object-shaped props get a named `type`;
    `Record<string, T>`/`Map` are not accepted until a map type exists (deferred).
@@ -157,7 +160,7 @@ Each step is its own issue family under milestone V1-M5; none is started by this
 ## Questions for the owner
 
 1. Are the four classes the right cut, in particular class B (shim packages with a coverage table)?
-2. Typing rule 2: accept `number` and infer `int`/`float`, or keep `int`/`float` mandatory?
+2. Typing rule 2: DECIDED by the owner: bare `number` stays rejected; types are inferred or Tessera hints.
 3. Typing rule 4: accept custom hooks by compile-time inlining, and `useContext` as `Environment`?
 4. Should `tessera port-check` be built first, before any language change?
 5. Tailwind/Sass: is "run by the project's own build, `.css` accepted" the policy, or should Tessera

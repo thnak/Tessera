@@ -116,6 +116,23 @@ await test("store: a hidden panel's cost is one assignment, with nobody subscrib
   assert.equal(store.get().problems.length, 5);
 });
 
+await test("bare `number`: the compiler's TESSERA_JSX_TYPE_NUMBER entry becomes an error row with its span", () => {
+  // The entry is the one `diagnose_source` emits for `useState<number>(0)` (scene_failure_tests.cpp pins the
+  // native side byte for byte); the Studio's Problems panel and status bar must show it as a normal error.
+  const entry = {
+    severity: "error",
+    code: "TESSERA_JSX_TYPE_NUMBER",
+    message: "bare `number` is not a Tessera type",
+    span: span("ui/Counter.tsx", 2, 38, 65, 6),
+    suggestion: "write `int` or `float`",
+  };
+  const snapshot = problems.snapshotOf([entry]);
+  assert.deepEqual([snapshot.errors, snapshot.warnings], [1, 0]);
+  const [row] = snapshot.problems;
+  assert.equal(row.code, "TESSERA_JSX_TYPE_NUMBER");
+  assert.deepEqual([row.file, row.line, row.column, row.offset, row.length], ["ui/Counter.tsx", 2, 38, 65, 6]);
+});
+
 process.stdout.write(failures === 0 ? "\nproblems model: all passed\n" : `\nproblems model: ${failures} failed\n`);
 if (failures > 0) {
   process.exitCode = 1;
