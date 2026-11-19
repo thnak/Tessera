@@ -197,6 +197,8 @@ const centre = (b) => ({ x: b.x + b.w / 2, y: b.y + b.h / 2 });
   await via(page, "wb.dispatch({kind:'close', panelId:'canvas'})");
   await page.waitForTimeout(300);
   check('closing Canvas removes the element and its pane', (await page.locator('#canvas').count()) === 0 && (await page.locator('[data-panel=canvas] *').count()) === 0);
+  // `device.destroy()` resolves `device.lost` asynchronously; with a real device that takes longer than a tick.
+  await page.waitForFunction(() => !window.__tesseraGpu || window.__tesseraGpu.live === 0, null, { timeout: 8000 }).catch(() => {});
   check('closing Canvas leaves no GPU device taken', (await live()) === 0, `live=${await live()}`);
   check('Scene and Diagnostics are unaffected by closing Canvas', (await page.locator('#scene-status').count()) === 1 && (await page.locator('#diag-status').count()) === 1);
   await via(page, "wb.dispatch({kind:'open', panelId:'canvas'})");
