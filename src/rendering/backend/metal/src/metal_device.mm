@@ -41,6 +41,7 @@ static_assert(static_cast<std::uint32_t>(VertexFormat::Float) == MTLVertexFormat
 static_assert(static_cast<std::uint32_t>(VertexFormat::Float2) == MTLVertexFormatFloat2);
 static_assert(static_cast<std::uint32_t>(VertexFormat::Float3) == MTLVertexFormatFloat3);
 static_assert(static_cast<std::uint32_t>(VertexFormat::Float4) == MTLVertexFormatFloat4);
+static_assert(static_cast<std::uint32_t>(VertexFormat::UInt) == MTLVertexFormatUInt);
 
 static_assert(static_cast<std::uint32_t>(StorageMode::Shared) == MTLResourceStorageModeShared);
 static_assert(static_cast<std::uint32_t>(StorageMode::Managed) == MTLResourceStorageModeManaged);

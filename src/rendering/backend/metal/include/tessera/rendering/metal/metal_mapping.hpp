@@ -40,6 +40,7 @@ enum class VertexFormat : std::uint32_t {
     Float2 = 29,
     Float3 = 30,
     Float4 = 31,
+    UInt = 36,
 };
 
 // MTLResourceOptions storage modes (Apple: MTLResourceOptions.h). `Shared` is 0, so a
