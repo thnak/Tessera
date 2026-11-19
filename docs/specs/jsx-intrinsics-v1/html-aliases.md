@@ -159,14 +159,15 @@ All of these are `TESSERA_JSX_SUBSET_HTML_TAG`; the suggestion is the Alternativ
 | `br` | End the `Text` and start a new one in a column `View`, or put `\n` in a string expression (line breaking follows `white-space`) |
 | `hr` | A `View` with a border style |
 | `pre`, `blockquote`, `q`, `cite` | `Text` with `className` (`white-space: pre` for `pre`) |
-| `form` | No `form` in V1. `TextInput` `onSubmit` plus `Button` `onClick`; the library `Form` and `Field` after V1 |
-| `select`, `option`, `optgroup`, `datalist` | Library `Select` (after V1) |
-| `table`, `thead`, `tbody`, `tfoot`, `tr`, `td`, `th`, `caption`, `colgroup`, `col` | `View` with flex or grid style; `VirtualGrid` or library `DataGrid` for large data |
+| `form` | **Planned** (#544). Until then `TextInput` `onSubmit` plus `Button` `onClick`; the library `Form` and `Field` |
+| `select`, `option`, `optgroup`, `datalist` | **Planned** (#544). Until then library `Select` |
+| `table`, `thead`, `tbody`, `tfoot`, `tr`, `td`, `th`, `caption`, `colgroup`, `col` | **Planned**, implemented completely (#543, ADR-059 owner answer 3). Until then `View` with flex or grid style; `VirtualGrid` or library `DataGrid` for large data |
 | `svg`, `g`, `circle`, `rect`, `line`, `polyline`, `polygon`, `ellipse`, `text`, `defs`, `use`, `path` | `Path` with `d` and `viewBox` ([Q17] for an automatic single-path rewrite) |
-| `canvas`, `video`, `audio`, `iframe`, `embed`, `object`, `picture`, `source`, `track` | `CustomElement` ([`custom-elements-v1.md`](../custom-elements-v1.md)) |
+| `video`, `audio`, `picture`, `source`, `track`, `canvas` | **Planned** (#545). Until then `CustomElement` ([`custom-elements-v1.md`](../custom-elements-v1.md)) |
 | `dialog`, `details`, `summary`, `menu`, `popover` | Overlay service and library components ([`overlays-and-layers-v1.md`](../overlays-and-layers-v1.md)) |
 | `progress`, `meter` | Library `Progress` (after V1) |
-| `html`, `head`, `body`, `title`, `meta`, `link`, `script`, `style`, `base`, `noscript`, `template`, `slot` | None: the app shell, `tessera.json` and `import "./file.css"` replace them |
+| `html`, `head`, `body`, `title`, `meta`, `link`, `style`, `base`, `noscript`, `template`, `slot` | None: the app shell, `tessera.json` and `import "./file.css"` replace them |
+| `iframe`, `embed`, `object`, `script` | **Will not be done** (ADR-059 owner answer 5): they need a web engine or a JS runtime (ADR-024, ADR-036 item 6). Permanent `TESSERA_JSX_SUBSET_HTML_TAG` with the reason; the `dangerouslySetInnerHTML` prop is on the same list and keeps its own `TESSERA_JSX_SUBSET_DOM` |
 
 ## 6. Diagnostics
 
