@@ -7,7 +7,6 @@
 #include <memory>
 #include <string>
 #include <vector>
-
 namespace {
 
 using tessera::ui::Dirty;
@@ -69,6 +68,7 @@ const char* type_name(EventType type) {
     case EventType::Click:
         return "click";
     case EventType::Scroll:
+    case EventType::VolumeKey: // never produced by this suite; shares the label
         return "scroll";
     }
     return "unknown";

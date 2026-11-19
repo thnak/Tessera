@@ -73,6 +73,8 @@ const char* type_name(EventType type) {
         return "click";
     case EventType::Scroll:
         return "scroll";
+    case EventType::VolumeKey:
+        return "volume";
     }
     return "unknown";
 }
