@@ -177,6 +177,7 @@ modules, roles, and status is [`docs/specs/dependencies.md`](docs/specs/dependen
 | esbuild-wasm | MIT | Evan Wallace and contributors; lazily loaded in the hosted studio page only for projects with `*.mock.ts` files |
 | CodeMirror 6 (`@codemirror/*`), Lezer (`@lezer/*`), `crelt`, `style-mod`, `w3c-keyname` | MIT | Marijn Haverbeke and contributors; bundled in the hosted studio page |
 | fflate | MIT | Arjun Barrett; hosted studio zip import/export |
+| flexlayout-react | MIT | Copyright (c) 2017 Caplin Systems Ltd; bundled in the hosted studio page (dock layout) |
 | React, ReactDOM | MIT | Meta Platforms, Inc. and React contributors; bundled in the hosted studio page and the wiki client, never linked into an app binary or the Wasm engine ([ADR-054](decisions/ADR-054-studio-front-end-react-vite.md), [ADR-024](decisions/ADR-024-native-first-boundaries.md)) |
 | react-markdown, rehype-slug, remark-gfm | MIT | their respective authors; bundled in the wiki client (`tools/wiki`) |
 | Catch2 | Boost Software License 1.0 | Catch2 contributors |
