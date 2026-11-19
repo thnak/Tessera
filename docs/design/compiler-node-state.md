@@ -119,6 +119,37 @@ item template, a size-observing (`onSizeChange`) or form-bound (`Form`/`Field`) 
 template, a conditional or list node as *direct* slot content of a `Component`, a conditional list
 node directly in a `Component`'s tree position, and record element types.
 
+## 8. Binding read sets (ADR-056 slice 1)
+
+[ADR-056](../../decisions/ADR-056-update-dependency-masks-and-scheduled-children.md) gives every
+binding a compile-time dependency set. `analyze_binding_reads` (`src/compiler/codegen/src/binding_reads.*`)
+computes it: one entry per dynamic binding of a component, `(kind, pre-order ordinal, name)` mapped to
+the sorted cell ids (`state::`, `prop::`, `anim::`, `env::`) it reads. It is a pure IR analysis and
+changes no emitted code; slice 2 turns each entry into a mask bit.
+
+| Kind | Binding | Name |
+|---|---|---|
+| `Text` | a node's paint text, including a controlled input's `value`/`defaultValue` | none |
+| `Metadata` | `id`, `className`, `role`, `aria-*` | the prop |
+| `Style` | one inline style entry | the property |
+| `Condition` | a conditional child's `condition` | none |
+| `ListSource` | the list a loop or virtual collection repeats over | none |
+| `ListItem` | everything the per-item content reads: the list cell plus every other cell the template names | none |
+| `InstanceProp` | a prop passed to a component instance (this is also the form state: `Form`/`Field` are instances) | the prop |
+| `Attribute` | any other prop of a node | the prop |
+| `Effect` | an effect's deps (ordinal is its index in `effects`) | the effect id |
+
+**Rules.** A reference to a loop item or index (or a field of one) reads nothing, because the list
+template's own binding carries the list cell. A dotted field of a cell reads its base cell. A `ref::`
+node ref is assigned once at mount and is not a reactive input. A call to one of the pure functions the
+expression emitter knows reads what its arguments read.
+
+**Conservative default.** Anything the analysis cannot see through reads *every* declared cell, and
+the entry says so (`all`): an unknown call target, a reference that is neither a loop local nor a
+declared cell, a missing operand, an effect dep that is not a declared cell. A missed dependency would
+be a stale UI; an extra one is a re-run the hash gate already absorbs, so the failure direction is
+"re-run too much". A binding whose expression is a literal is present with an empty set.
+
 ## 7. Tests
 
 - `codegen_instances_tests` (IR fixture in `tests/unit/codegen_instances_fixture.hpp`): emission of
@@ -131,3 +162,7 @@ node directly in a `Component`'s tree position, and record element types.
   key), a list-typed prop mapped inside the callee, and the owner lifecycle.
 - `codegen_composition_tests` keeps the fixed-child composition goldens and now accepts a conditional
   instance instead of rejecting it.
+- `codegen_binding_reads_tests` (hand-built IR): per binding kind the read set is exactly the named
+  cells, a literal reads nothing, an unrecognized expression reads all; plus a coverage check that every
+  text, metadata, conditional, list and effect binding the collectors produce for the committed fixtures
+  has an entry.

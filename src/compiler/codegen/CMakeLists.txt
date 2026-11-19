@@ -3,6 +3,8 @@
 # First C++ codegen slice (docs/design/codegen.md): IR -> native C++ source text. Codegen reads the
 # IR only (AGENTS.md non-negotiable 4), so it links tessera_ir and nothing else from the project.
 add_library(tessera_codegen STATIC
+    src/binding_reads.cpp
+    src/binding_reads_expr.cpp
     src/codegen.cpp
     src/emit_base.cpp
     src/emit_base_accessors.cpp
@@ -591,6 +593,16 @@ if (TESSERA_BUILD_TESTS)
     target_compile_definitions(codegen_services_tests PRIVATE
         TESSERA_CODEGEN_GOLDEN_DIR="${_tessera_codegen_golden_dir}")
     add_test(NAME codegen_services_generate COMMAND codegen_services_tests)
+
+    # ADR-056 slice 1 (issue #441): which cells each dynamic binding reads. The analysis lives in
+    # src/ and is internal to the library, so this test adds the private source directory.
+    add_executable(codegen_binding_reads_tests
+        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_binding_reads_tests.cpp)
+    target_link_libraries(codegen_binding_reads_tests PRIVATE tessera_codegen)
+    target_include_directories(codegen_binding_reads_tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/tests/unit)
+    add_test(NAME codegen_binding_reads COMMAND codegen_binding_reads_tests)
 
 
     # The developer class derives from the generated base and the generated thunks reach it.
