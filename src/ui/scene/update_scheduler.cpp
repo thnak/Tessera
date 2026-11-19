@@ -39,6 +39,7 @@ void UpdateScheduler::attach(UpdateTicket& ticket) {
     }
     ticket.scheduler_ = this;
     ticket.queued_ = false;
+    ticket.order_ = next_order_++;
     tickets_.push_back(&ticket);
     if (reduced_motion_ && ticket.motion != nullptr) {
         ticket.motion(ticket.context, true);
@@ -74,7 +75,13 @@ void UpdateScheduler::mark(UpdateTicket& ticket) {
     }
     ticket.queued_ = true;
     const bool edge = !pending_ && !flushing_;
-    pending_ = true;
+    // A ticket still ahead of the running one is visited later in this very pass, so marking it
+    // costs no extra pass (a parent scheduling its child). Anything at or behind the running ticket
+    // needs another pass.
+    const bool runs_this_pass = flushing_ && ticket.order_ > running_order_;
+    if (!runs_this_pass) {
+        pending_ = true;
+    }
     if (edge && wake_ != nullptr) {
         wake_(wake_context_);
     }
@@ -131,10 +138,12 @@ UpdateFlushStats UpdateScheduler::flush() {
             }
             ticket->queued_ = false;
             if (ticket->update != nullptr) {
+                running_order_ = ticket->order_;
                 ticket->update(ticket->context);
                 ++stats.updated;
             }
         }
+        running_order_ = 0;
     }
     std::erase(tickets_, nullptr);
     flushing_ = false;

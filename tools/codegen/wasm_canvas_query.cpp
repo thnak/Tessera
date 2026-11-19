@@ -99,9 +99,10 @@ EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_style(const char* automation_id)
 //   file           the `class` destination's CSS file path; empty otherwise
 //   token          the `token` destination's custom property, WITH its `--` prefix; empty otherwise
 //   token_value    the value the token declaration takes; empty otherwise
-//   declarations   the overrides to commit, as `property:value` pairs separated by `\n`, in the
-//                  order the override layer holds them. A commit writes all of a node's overrides
-//                  together (section 10.1), so this is the whole list.
+//
+// There is no declarations argument: a commit writes ALL of the node's overrides from the session's
+// override layer (section 10.1, issue #536), so the list is never the page's to supply. A node with
+// no overrides answers `no_overrides`.
 //
 // **It is a query, and that is the point.** Nothing is written, no file is touched and no frame is
 // owed: the viewer produces a value the host applies and answers with `source.patch.result`
@@ -114,8 +115,7 @@ EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_style(const char* automation_id)
 EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_patch(const char* automation_id,
                                                       const char* destination,
                                                       const char* class_name, const char* file,
-                                                      const char* token, const char* token_value,
-                                                      const char* declarations) {
+                                                      const char* token, const char* token_value) {
     using namespace tessera::compiler::codegen::cli;
     // The argument parsing is `canvas_patch_request()` (`wasm_canvas_request.cpp`), the same split
     // every other export makes: the rules a page can get wrong live in a unit a host lane can
@@ -123,8 +123,7 @@ EMSCRIPTEN_KEEPALIVE const char* tessera_canvas_patch(const char* automation_id,
     const PatchRequest request = canvas_patch_request(
         automation_id != nullptr ? automation_id : "", destination != nullptr ? destination : "",
         class_name != nullptr ? class_name : "", file != nullptr ? file : "",
-        token != nullptr ? token : "", token_value != nullptr ? token_value : "",
-        declarations != nullptr ? declarations : "");
+        token != nullptr ? token : "", token_value != nullptr ? token_value : "");
     SourcePatchResult result;
     CanvasSceneSession* session = canvas_query_session();
     if (session != nullptr && session->started()) {

@@ -23,6 +23,8 @@ class include/tessera/app/host.hpp tessera::ui::text::TextMeasurer
 struct include/tessera/app/host.hpp tessera::app::AdaptiveQualityPolicy
 struct include/tessera/app/host.hpp tessera::app::HostConfig
 struct include/tessera/app/host.hpp tessera::app::HostFrame
+enum include/tessera/app/host.hpp tessera::app::BackDispatch
+alias include/tessera/app/host.hpp tessera::app::BackHandler
 
 header include/tessera/app/idle_policy.hpp
 function include/tessera/app/idle_policy.hpp tessera::app::idle_wait_seconds
@@ -188,7 +190,9 @@ struct include/tessera/appfw/navigation_stack.hpp tessera::appfw::NavEntry
 struct include/tessera/appfw/navigation_stack.hpp tessera::appfw::RouteSnapshot
 enum include/tessera/appfw/navigation_stack.hpp tessera::appfw::BackOutcome
 enum include/tessera/appfw/navigation_stack.hpp tessera::appfw::PushOutcome
+function include/tessera/appfw/navigation_stack.hpp tessera::appfw::back_consumed
 function include/tessera/appfw/navigation_stack.hpp tessera::appfw::back_outcome_name
+function include/tessera/appfw/navigation_stack.hpp tessera::appfw::nav_back_handler
 
 header include/tessera/appfw/net_client.hpp
 class include/tessera/appfw/net_client.hpp tessera::appfw::NetClient
@@ -257,6 +261,12 @@ constant include/tessera/appfw/net_url.hpp tessera::appfw::kMaxUrlLength
 
 header include/tessera/appfw/observable.hpp
 class include/tessera/appfw/observable.hpp tessera::appfw::Observable
+
+header include/tessera/appfw/saved_state.hpp
+class include/tessera/appfw/saved_state.hpp tessera::appfw::SavedStateRecord
+class include/tessera/appfw/saved_state.hpp tessera::appfw::SavedStateRecorder
+struct include/tessera/appfw/saved_state.hpp tessera::appfw::SavedComponent
+struct include/tessera/appfw/saved_state.hpp tessera::appfw::SavedStateReport
 
 header include/tessera/appfw/service.hpp
 class include/tessera/appfw/service.hpp tessera::appfw::Service
@@ -722,11 +732,17 @@ header include/tessera/hal/synthetic_events.hpp
 class include/tessera/hal/synthetic_events.hpp tessera::hal::SyntheticEventInjector
 struct include/tessera/hal/synthetic_events.hpp tessera::hal::DisplayChange
 enum include/tessera/hal/synthetic_events.hpp tessera::hal::InjectStatus
+enum include/tessera/hal/synthetic_events.hpp tessera::hal::SystemButton
+function include/tessera/hal/synthetic_events.hpp tessera::hal::make_back_pop_back_exit_script
 function include/tessera/hal/synthetic_events.hpp tessera::hal::make_display_hotplug_script
+function include/tessera/hal/synthetic_events.hpp tessera::hal::make_home_resume_script
+function include/tessera/hal/synthetic_events.hpp tessera::hal::make_power_cycle_script
+function include/tessera/hal/synthetic_events.hpp tessera::hal::make_process_death_script
 function include/tessera/hal/synthetic_events.hpp tessera::hal::make_refresh_rate_change_script
 function include/tessera/hal/synthetic_events.hpp tessera::hal::make_resize_dpi_storm_script
 function include/tessera/hal/synthetic_events.hpp tessera::hal::make_scale_change_script
 constant include/tessera/hal/synthetic_events.hpp tessera::hal::kMaxSyntheticEvents
+constant include/tessera/hal/synthetic_events.hpp tessera::hal::kMaxSyntheticInputEvents
 
 header include/tessera/hal/timer/steady_time.hpp
 function include/tessera/hal/timer/steady_time.hpp tessera::hal::seconds_until
@@ -1967,6 +1983,7 @@ enum include/tessera/ui/input.hpp tessera::ui::InputEventType
 enum include/tessera/ui/input.hpp tessera::ui::Modifier
 enum include/tessera/ui/input.hpp tessera::ui::PointerButton
 enum include/tessera/ui/input.hpp tessera::ui::PointerKind
+enum include/tessera/ui/input.hpp tessera::ui::VolumeDirection
 alias include/tessera/ui/input.hpp tessera::ui::KeyCode
 function include/tessera/ui/input.hpp tessera::ui::has_modifier
 function include/tessera/ui/input.hpp tessera::ui::operator_amp
@@ -2218,6 +2235,12 @@ function include/tessera/ui/scene/component_lifecycle.hpp tessera::ui::effect_ma
 function include/tessera/ui/scene/component_lifecycle.hpp tessera::ui::effect_needs_run
 constant include/tessera/ui/scene/component_lifecycle.hpp tessera::ui::kEffectHashPrime
 constant include/tessera/ui/scene/component_lifecycle.hpp tessera::ui::kEffectHashSeed
+
+header include/tessera/ui/scene/dirty_mask.hpp
+class include/tessera/ui/scene/dirty_mask.hpp tessera::ui::DirtyMask
+alias include/tessera/ui/scene/dirty_mask.hpp tessera::ui::BindingTraceHook
+function include/tessera/ui/scene/dirty_mask.hpp tessera::ui::binding_ran
+variable include/tessera/ui/scene/dirty_mask.hpp tessera::ui::g_binding_trace_hook
 
 header include/tessera/ui/scene/dirty_pass.hpp
 class include/tessera/ui/scene/dirty_pass.hpp tessera::ui::DirtyPass
@@ -2554,6 +2577,20 @@ struct include/tessera/ui/style/supports.hpp tessera::ui::style::SupportsParseRe
 enum include/tessera/ui/style/supports.hpp tessera::ui::style::SupportsKind
 function include/tessera/ui/style/supports.hpp tessera::ui::style::evaluate_supports
 function include/tessera/ui/style/supports.hpp tessera::ui::style::parse_supports_condition
+
+header include/tessera/ui/style/text_decoration.hpp
+function include/tessera/ui/style/text_decoration.hpp tessera::ui::style::is_supported_text_decoration_style
+function include/tessera/ui/style/text_decoration.hpp tessera::ui::style::is_supported_text_decoration_thickness
+function include/tessera/ui/style/text_decoration.hpp tessera::ui::style::is_supported_vertical_align
+function include/tessera/ui/style/text_decoration.hpp tessera::ui::style::parse_decoration_length
+function include/tessera/ui/style/text_decoration.hpp tessera::ui::style::parse_text_decoration_line
+function include/tessera/ui/style/text_decoration.hpp tessera::ui::style::text_decoration_thickness
+function include/tessera/ui/style/text_decoration.hpp tessera::ui::style::vertical_align_shift
+constant include/tessera/ui/style/text_decoration.hpp tessera::ui::style::kDecorationLineThrough
+constant include/tessera/ui/style/text_decoration.hpp tessera::ui::style::kDecorationOverline
+constant include/tessera/ui/style/text_decoration.hpp tessera::ui::style::kDecorationUnderline
+constant include/tessera/ui/style/text_decoration.hpp tessera::ui::style::kSubShiftEm
+constant include/tessera/ui/style/text_decoration.hpp tessera::ui::style::kSuperShiftEm
 
 header include/tessera/ui/style/theme_asset.hpp
 struct include/tessera/ui/style/theme_asset.hpp tessera::ui::style::EmbeddedTheme

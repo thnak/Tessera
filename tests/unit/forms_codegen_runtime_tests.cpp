@@ -18,6 +18,7 @@
 #include "tessera/ui/forms/form_model.hpp"
 #include "tessera/ui/scene/focus.hpp"
 #include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/scene/update_scheduler.hpp"
 
 #include <cstdint>
 #include <iostream>
@@ -264,8 +265,10 @@ void test_async_validation_stays_on_the_completion_queue() {
 void test_the_standalone_field_still_uses_explicit_props() {
     demo::FieldPage page;
     ui::Node root(5000);
+    ui::UpdateScheduler scheduler;
     page.build(root);
     page.mount();
+    page.attach_scheduler(scheduler);
     if (root.children().empty() || root.children()[0]->children().size() < 2) {
         check(false, "the standalone Field page built");
         return;
@@ -280,8 +283,10 @@ void test_the_standalone_field_still_uses_explicit_props() {
     click.type = ui::EventType::Click;
     check(ui::dispatch_event_to(*form.children()[0], click), "the Button binding dispatched");
     page.update();
+    scheduler.flush(); // the Field runs from its own ticket, scheduled by the page (ADR-056)
     check_eq(paint_text(*value), "ada@example.com",
              "the state change reached the Field through apply_props()/apply_state()");
+    page.detach_scheduler(scheduler);
     page.unmount();
 }
 

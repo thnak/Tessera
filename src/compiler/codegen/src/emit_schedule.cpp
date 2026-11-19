@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "emit_dirty.hpp"
 #include "emit_dynamic.hpp"
 #include "emit_events.hpp"
 #include "emit_schedule.hpp"
@@ -113,7 +114,7 @@ bool emit_schedule_definitions(CppWriter& writer, const ir::IrModule& module,
     writer.line("update_ticket_.context = this;");
     writer.line("update_ticket_.update = [](void* context) {");
     ++writer.indent;
-    writer.line("static_cast<" + component.name + "*>(context)->update();");
+    writer.line("static_cast<" + component.name + "*>(context)->flush_update();");
     --writer.indent;
     writer.line("};");
     if (!component.animated_values.empty()) {
@@ -175,6 +176,7 @@ bool emit_schedule_definitions(CppWriter& writer, const ir::IrModule& module,
             writer.line("moving = " + controller + ".tick(dt) || moving;");
             writer.open("if (" + member_name(value.id) + " != " + controller + ".value())");
             writer.line(member_name(value.id) + " = " + controller + ".value();");
+            writer.line("dirty_.set(" + dirty_bit_name(value.id) + ");");
             writer.line("changed = true;");
             writer.close("");
             emit_completion_dispatch(writer, component, value);
@@ -195,6 +197,7 @@ bool emit_schedule_definitions(CppWriter& writer, const ir::IrModule& module,
             writer.open("if (" + member_name(value.id) + " != " + controller + ".value() || " +
                         controller + ".completion_pending())");
             writer.line(member_name(value.id) + " = " + controller + ".value();");
+            writer.line("dirty_.set(" + dirty_bit_name(value.id) + ");");
             writer.line("changed = true;");
             writer.close("");
         }
@@ -228,6 +231,7 @@ bool emit_schedule_definitions(CppWriter& writer, const ir::IrModule& module,
             writer.close("");
         }
         writer.line(member_name(state.id) + " = std::move(value);");
+        writer.line("dirty_.set(" + dirty_bit_name(state.id) + ");");
         writer.line("schedule_update();");
         writer.close("");
         writer.line("");

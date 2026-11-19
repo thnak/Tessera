@@ -5,6 +5,7 @@
 
 #include "tessera/ui/scene/component_lifecycle.hpp"
 #include "tessera/ui/scene/update_scheduler.hpp"
+#include "tessera/ui/scene/dirty_mask.hpp"
 #include "tessera/ui/scene/event_payloads.hpp"
 #include "tessera/ui/scene/state_snapshot.hpp"
 #include "tessera/ui/scene/node.hpp"
@@ -78,8 +79,30 @@ namespace demo {
       void unmount();
       // Recompute interpolated values; marks Paint|Render only when a value changed.
       void apply_state();
-      // Runs update_effects() then apply_state(); the scheduler calls it at its flush.
+      // A hand call: marks every cell dirty, then runs flush_update() (headless tests).
       void update();
+      // Runs update_effects() then apply_state() over the dirty cells; the scheduler calls it.
+      void flush_update();
+      // ADR-056 dirty mask: one bit per state cell, animated value and prop. A setter sets
+      // its cell's bit; apply_state() re-evaluates a binding only when a cell it reads is
+      // dirty. The bit constants are public so an owner can mark a child's prop.
+      static constexpr std::size_t kBit_prop_children_ = 0;
+      static constexpr std::size_t kBit_prop_defaultValue_ = 1;
+      static constexpr std::size_t kBit_prop_error_ = 2;
+      static constexpr std::size_t kBit_prop_errors_ = 3;
+      static constexpr std::size_t kBit_prop_label_ = 4;
+      static constexpr std::size_t kBit_prop_name_ = 5;
+      static constexpr std::size_t kBit_prop_onValidate_ = 6;
+      static constexpr std::size_t kBit_prop_required_ = 7;
+      static constexpr std::size_t kBit_prop_validators_ = 8;
+      static constexpr std::size_t kBit_prop_value_ = 9;
+    private:
+      tessera::ui::DirtyMask<11> dirty_ = tessera::ui::DirtyMask<11>::all();
+    public:
+      // Marks one cell dirty without scheduling (the caller schedules).
+      void note_dirty(std::size_t bit);
+      // Marks every cell dirty: the next apply_state() re-evaluates every binding.
+      void mark_all_dirty();
     private:
       // Scheduled updates: a setter marks this component dirty and the host's
       // UpdateScheduler runs update() once at its next flush (UI thread only). The ticket
@@ -129,6 +152,14 @@ namespace demo {
       [[maybe_unused]] inline std::string format_value(const char* value) {
         return std::string(value);
       }
+      // text binding of node::2 reads: prop::label.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<11> kDirty_text_2 = tessera::ui::DirtyMask<11>::of({4, 10});
+      // text binding of node::3 reads: prop::value.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<11> kDirty_text_3 = tessera::ui::DirtyMask<11>::of({9, 10});
+      // text binding of node::4 reads: prop::error.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<11> kDirty_text_4 = tessera::ui::DirtyMask<11>::of({2, 10});
+      // meta binding of node::1 `className` reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<11> kDirty_meta_1_className = tessera::ui::DirtyMask<11>::of({10});
     }
     template <class Self>
     inline void FieldBase<Self>::build(tessera::ui::Node& parent) {
@@ -167,42 +198,53 @@ namespace demo {
     template <class Self>
     inline void FieldBase<Self>::apply_state() {
       using namespace Field_detail;
-      std::uint64_t hash_2 = tessera::ui::kEffectHashSeed;
-      hash_2 = tessera::ui::effect_hash(hash_2, std::string_view(prop_label_));
-      if (!text_node_2_set_ || hash_2 != text_node_2_hash_) {
-          text_node_2_hash_ = hash_2;
-          text_node_2_set_ = true;
-          std::string next_2;
-          next_2 += format_value(prop_label_);
-          text_node_2_value_ = std::move(next_2);
-          tessera::ui::PaintData paint_2;
-          paint_2.text = text_node_2_value_;
-          text_node_2_->set_paint_data(std::move(paint_2));
+      const auto consumed_dirty = dirty_;
+      if (dirty_.intersects(kDirty_text_2)) {
+        TESSERA_BINDING_RAN(this, "text:2");
+        std::uint64_t hash_2 = tessera::ui::kEffectHashSeed;
+        hash_2 = tessera::ui::effect_hash(hash_2, std::string_view(prop_label_));
+        if (!text_node_2_set_ || hash_2 != text_node_2_hash_) {
+            text_node_2_hash_ = hash_2;
+            text_node_2_set_ = true;
+            std::string next_2;
+            next_2 += format_value(prop_label_);
+            text_node_2_value_ = std::move(next_2);
+            tessera::ui::PaintData paint_2;
+            paint_2.text = text_node_2_value_;
+            text_node_2_->set_paint_data(std::move(paint_2));
+        }
       }
-      std::uint64_t hash_3 = tessera::ui::kEffectHashSeed;
-      hash_3 = tessera::ui::effect_hash(hash_3, std::string_view(prop_value_));
-      if (!text_node_3_set_ || hash_3 != text_node_3_hash_) {
-          text_node_3_hash_ = hash_3;
-          text_node_3_set_ = true;
-          std::string next_3;
-          next_3 += format_value(prop_value_);
-          text_node_3_value_ = std::move(next_3);
-          tessera::ui::PaintData paint_3;
-          paint_3.text = text_node_3_value_;
-          text_node_3_->set_paint_data(std::move(paint_3));
+      if (dirty_.intersects(kDirty_text_3)) {
+        TESSERA_BINDING_RAN(this, "text:3");
+        std::uint64_t hash_3 = tessera::ui::kEffectHashSeed;
+        hash_3 = tessera::ui::effect_hash(hash_3, std::string_view(prop_value_));
+        if (!text_node_3_set_ || hash_3 != text_node_3_hash_) {
+            text_node_3_hash_ = hash_3;
+            text_node_3_set_ = true;
+            std::string next_3;
+            next_3 += format_value(prop_value_);
+            text_node_3_value_ = std::move(next_3);
+            tessera::ui::PaintData paint_3;
+            paint_3.text = text_node_3_value_;
+            text_node_3_->set_paint_data(std::move(paint_3));
+        }
       }
-      std::uint64_t hash_4 = tessera::ui::kEffectHashSeed;
-      hash_4 = tessera::ui::effect_hash(hash_4, std::string_view(prop_error_));
-      if (!text_node_4_set_ || hash_4 != text_node_4_hash_) {
-          text_node_4_hash_ = hash_4;
-          text_node_4_set_ = true;
-          std::string next_4;
-          next_4 += format_value(prop_error_);
-          text_node_4_value_ = std::move(next_4);
-          tessera::ui::PaintData paint_4;
-          paint_4.text = text_node_4_value_;
-          text_node_4_->set_paint_data(std::move(paint_4));
+      if (dirty_.intersects(kDirty_text_4)) {
+        TESSERA_BINDING_RAN(this, "text:4");
+        std::uint64_t hash_4 = tessera::ui::kEffectHashSeed;
+        hash_4 = tessera::ui::effect_hash(hash_4, std::string_view(prop_error_));
+        if (!text_node_4_set_ || hash_4 != text_node_4_hash_) {
+            text_node_4_hash_ = hash_4;
+            text_node_4_set_ = true;
+            std::string next_4;
+            next_4 += format_value(prop_error_);
+            text_node_4_value_ = std::move(next_4);
+            tessera::ui::PaintData paint_4;
+            paint_4.text = text_node_4_value_;
+            text_node_4_->set_paint_data(std::move(paint_4));
+        }
       }
+      dirty_.clear(consumed_dirty);
     }
     template <class Self>
     inline void FieldBase<Self>::mount() {}
@@ -213,15 +255,31 @@ namespace demo {
     template <class Self>
     inline void FieldBase<Self>::update() {
       using namespace Field_detail;
+      mark_all_dirty();
+      flush_update();
+    }
+    template <class Self>
+    inline void FieldBase<Self>::flush_update() {
+      using namespace Field_detail;
       update_effects();
       apply_state();
+    }
+    template <class Self>
+    inline void FieldBase<Self>::note_dirty(std::size_t bit) {
+      using namespace Field_detail;
+      dirty_.set(bit);
+    }
+    template <class Self>
+    inline void FieldBase<Self>::mark_all_dirty() {
+      using namespace Field_detail;
+      dirty_.set_all();
     }
     template <class Self>
     inline void FieldBase<Self>::attach_scheduler(tessera::ui::UpdateScheduler& scheduler) {
       using namespace Field_detail;
       update_ticket_.context = this;
       update_ticket_.update = [](void* context) {
-        static_cast<FieldBase<Self>*>(context)->update();
+        static_cast<FieldBase<Self>*>(context)->flush_update();
       };
       scheduler.attach(update_ticket_);
     }

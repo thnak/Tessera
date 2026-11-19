@@ -5,6 +5,8 @@
 # device; window runners and headless tests drive it.
 add_library(tessera_app STATIC
     host.cpp
+    # BackRequested dispatch (issue #445): overlay, then route handler, then unhandled.
+    host_back.cpp
     host_impl.hpp
     # The adaptive-quality ladder of AppHost::Impl (god-type audit slice 10): the controller, its
     # diagnostics recording, and the two application rules a decision implies.

@@ -141,8 +141,8 @@ void test_generated_shape() {
     check(contains(page_source, "tessera_slot.child_4->mount();") ||
               contains(page_source, "tessera_slot.child_4->mount();"),
           "mount() mounts live item instances");
-    check(contains(page_source, "tessera_slot.child_4->update();"),
-          "update() updates live item instances");
+    check(!contains(page_source, "tessera_slot.child_4->update();"),
+          "update() never calls a live item instance (ADR-056: a prop write schedules it)");
     check(contains(page_source, "tessera_slot.child_4->detach_scheduler(scheduler);"),
           "detach_scheduler() leaves the live item instances");
 

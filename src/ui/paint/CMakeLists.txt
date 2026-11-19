@@ -9,6 +9,7 @@ add_library(tessera_paint STATIC
     paint_sinks.cpp
     paint_text.cpp
     paint_text_metrics.cpp
+    paint_text_rules.cpp
     paint_text_runs.cpp
     paint_text_spans.cpp
     scene_style_sync.cpp

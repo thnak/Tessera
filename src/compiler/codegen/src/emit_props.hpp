@@ -3,6 +3,7 @@
 #pragma once
 
 #include "codegen_internal.hpp"
+#include "emit_dirty.hpp"
 
 #include <span>
 #include <string>
@@ -56,6 +57,7 @@ enum class PropGuard { None, Value, Callback };
 // every component instance the component owns, in instance order. Returns false with `error` when a
 // prop value has no C++ form. Nothing is emitted when no instance has prop bindings.
 [[nodiscard]] bool emit_apply_props(CppWriter& writer, const ir::Component& owner,
+                                    const DirtyPlan& dirty,
                                     const std::vector<ComponentInstance>& instances,
                                     std::string& error);
 

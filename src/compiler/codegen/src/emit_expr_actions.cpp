@@ -86,6 +86,9 @@ bool emit_one_action(const ir::Action& action, const ir::Component& component,
     const std::string_view target = action.target;
     if (action.kind == ir::ActionKind::Set && target.rfind(kStatePrefix, 0) == 0) {
         body += member_name(target) + " = " + value.text + ";\n";
+        // ADR-056: a handler's write marks the cell dirty even when the value is unchanged, so the
+        // apply_state() it ends with re-evaluates (a controlled input snaps back this way).
+        body += "dirty_.set(kBit_" + member_name(target) + ");\n";
         return true;
     }
     if (action.kind == ir::ActionKind::AnimSet && target.rfind(kAnimPrefix, 0) == 0) {
@@ -139,8 +142,8 @@ bool emit_one_action(const ir::Action& action, const ir::Component& component,
             body += "const tessera::ui::animation::ScalarOptions options;\n";
         }
         body += controller + ".set(static_cast<double>(" + value.text + "), options);\n" +
-                member_name(target) + " = " + controller + ".value();\n" + "if (" + controller +
-                ".active() || " + controller +
+                member_name(target) + " = " + controller + ".value();\n" + "dirty_.set(kBit_" +
+                member_name(target) + ");\n" + "if (" + controller + ".active() || " + controller +
                 ".completion_pending()) {\nschedule_update();\n}\n}\n";
         return true;
     }

@@ -260,8 +260,8 @@ StyleInfoResult style_info_for(const ui::Node& root, const style::CompiledStyleS
                          border_side(computed, "border-bottom-width", "border-bottom-style"),
                          border_side(computed, "border-left-width", "border-left-style")};
 
-    // Overrides are `style.override.set` (designer-protocol-v1 section 9.2), a later slice. An
-    // empty list is the correct answer for a node that has none, which is every node today.
+    // The `overrides` list is the session's (`CanvasSceneSession::inspect` fills it); this function
+    // reads the tree and the sheet only, so an empty list is what it answers.
     return result;
 }
 
@@ -269,7 +269,13 @@ StyleInfoResult CanvasSceneSession::inspect(std::uint64_t automation_id) {
     if (!started()) {
         return StyleInfoResult{};
     }
-    return style_info_for(session_->root(), sheet(), automation_id);
+    StyleInfoResult result = style_info_for(session_->root(), sheet(), automation_id);
+    if (result.found) {
+        // The override layer is the session's, not the cascade's: `computed` above already
+        // reflects it (an override is applied to the node), and this lists what was set.
+        result.overrides = overrides_of(automation_id);
+    }
+    return result;
 }
 
 const ir::SourceSpan* CanvasSceneSession::node_span(std::uint64_t automation_id) const {

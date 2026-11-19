@@ -74,6 +74,8 @@ target_sources(tessera_hal_window PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/window_events.cpp
     # The deterministic synthetic event injector and the display-capability scripts (ADR-023 rule 8).
     ${CMAKE_CURRENT_SOURCE_DIR}/synthetic_events.cpp
+    # System-button presses (Back, Home, Recents, Volume, Power) and their named scripts (#445).
+    ${CMAKE_CURRENT_SOURCE_DIR}/synthetic_system_buttons.cpp
     # The OS appearance preferences (issue #187): the portal value/message decode and the GTK
     # settings-file fallback. Both pure, so the Linux feature's decisions are testable on a box with
     # no session bus. The normalized snapshot itself is `constexpr` in

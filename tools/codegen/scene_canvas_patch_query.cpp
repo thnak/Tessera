@@ -44,6 +44,12 @@ std::string patch_id_for(const PatchRequest& request) {
 
 } // namespace
 
+void CanvasSceneSession::set_theme_asset(std::string file, std::string text, std::string theme_id) {
+    theme_file_ = std::move(file);
+    theme_text_ = std::move(text);
+    theme_id_ = std::move(theme_id);
+}
+
 SourcePatchResult CanvasSceneSession::patch(const PatchRequest& request) const {
     SourcePatchResult result;
     if (!started()) {
@@ -63,6 +69,10 @@ SourcePatchResult CanvasSceneSession::patch(const PatchRequest& request) const {
         context.stylesheets.push_back(ProjectFile{path, text});
     }
     context.entry = project_.entry;
+    context.theme_file = theme_file_;
+    context.theme_text = theme_text_;
+    context.theme_id = theme_id_;
+    context.theme_version = 1;
     // Every staged file is at the version the viewer holds. The page's `source.update` is what
     // moves a version, and this slice does not receive one, so the viewer's own count is the base.
     for (const auto& [path, text] : project_.sources) {
@@ -72,6 +82,10 @@ SourcePatchResult CanvasSceneSession::patch(const PatchRequest& request) const {
     for (const auto& [path, text] : project_.stylesheets) {
         (void)text;
         context.versions.emplace_back(path, 1);
+    }
+
+    if (!theme_file_.empty()) {
+        context.versions.emplace_back(theme_file_, context.theme_version);
     }
 
     // The node: its span from the side table, and its class name from the live tree. A node the
@@ -87,7 +101,18 @@ SourcePatchResult CanvasSceneSession::patch(const PatchRequest& request) const {
         context.class_name = node->class_name();
     }
 
-    const std::expected<SourcePatch, PatchError> built = build_source_patch(request, context);
+    // **The declarations are the node's overrides, from the layer** (designer-protocol-v1 section
+    // 10.1: a commit writes ALL of a node's overrides, and `style.commit` takes the list from
+    // `style.override.set`). Whatever list the request carries is replaced: a page that supplied
+    // its own would be committing something the viewer never showed, and a node with no overrides
+    // is `no_overrides`, not a patch of a guess.
+    PatchRequest effective = request;
+    effective.declarations.clear();
+    for (const StyleOverride& entry : overrides_.of(request.automation_id)) {
+        effective.declarations.emplace_back(entry.property, entry.value);
+    }
+
+    const std::expected<SourcePatch, PatchError> built = build_source_patch(effective, context);
     if (!built) {
         result.reason = built.error().code;
         result.detail = built.error().detail;

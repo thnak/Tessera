@@ -2549,6 +2549,21 @@ target_link_libraries(overlay_dismiss_tests PRIVATE tessera_app tessera_runtime 
 
 add_test(NAME overlay_dismiss COMMAND overlay_dismiss_tests)
 
+# System buttons as normalized events (issue #445, docs/specs/studio-device-profiles-v1.md section 4):
+# Back dispatch (overlay, route, unhandled), the Home/Recents/Power mappings, Volume delivery, the
+# section 3 ordering, and the saved-state record. Deterministic: the synthetic injector and
+# `ManualClock` only.
+add_executable(system_buttons_tests
+    system_buttons_tests.cpp)
+
+target_include_directories(system_buttons_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/tests/unit)
+
+target_link_libraries(system_buttons_tests PRIVATE tessera_app tessera_runtime tessera_accessibility
+    tessera_input_pump tessera_appfw_navigation tessera_hal_window)
+
+add_test(NAME system_buttons COMMAND system_buttons_tests)
+
 # Issue #223: the library SafeArea lowers, validates under a salt and generates C++.
 add_executable(library_safe_area_lowering_tests
     library_safe_area_lowering_tests.cpp)
@@ -2566,3 +2581,10 @@ add_executable(paint_border_snap_tests
 target_link_libraries(paint_border_snap_tests PRIVATE tessera_paint)
 
 add_test(NAME paint_border_snap COMMAND paint_border_snap_tests)
+
+# CSS `text-decoration` and `vertical-align` (docs/design/text-decoration.md): value grammar,
+# registry/shorthand/@supports, the computed-value mapping, and the painted rules and baseline shift.
+add_executable(text_decoration_tests
+    text_decoration_tests.cpp)
+target_link_libraries(text_decoration_tests PRIVATE tessera_paint tessera_text tessera_style)
+add_test(NAME text_decoration COMMAND text_decoration_tests)

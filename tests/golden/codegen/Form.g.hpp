@@ -5,6 +5,7 @@
 
 #include "tessera/ui/scene/component_lifecycle.hpp"
 #include "tessera/ui/scene/update_scheduler.hpp"
+#include "tessera/ui/scene/dirty_mask.hpp"
 #include "tessera/ui/scene/event_payloads.hpp"
 #include "tessera/ui/scene/state_snapshot.hpp"
 #include "tessera/ui/scene/node.hpp"
@@ -48,8 +49,24 @@ namespace demo {
       void unmount();
       // Recompute interpolated values; marks Paint|Render only when a value changed.
       void apply_state();
-      // Runs update_effects() then apply_state(); the scheduler calls it at its flush.
+      // A hand call: marks every cell dirty, then runs flush_update() (headless tests).
       void update();
+      // Runs update_effects() then apply_state() over the dirty cells; the scheduler calls it.
+      void flush_update();
+      // ADR-056 dirty mask: one bit per state cell, animated value and prop. A setter sets
+      // its cell's bit; apply_state() re-evaluates a binding only when a cell it reads is
+      // dirty. The bit constants are public so an owner can mark a child's prop.
+      static constexpr std::size_t kBit_prop_children_ = 0;
+      static constexpr std::size_t kBit_prop_initial_ = 1;
+      static constexpr std::size_t kBit_prop_onSubmit_ = 2;
+      static constexpr std::size_t kBit_prop_validate_ = 3;
+    private:
+      tessera::ui::DirtyMask<5> dirty_ = tessera::ui::DirtyMask<5>::all();
+    public:
+      // Marks one cell dirty without scheduling (the caller schedules).
+      void note_dirty(std::size_t bit);
+      // Marks every cell dirty: the next apply_state() re-evaluates every binding.
+      void mark_all_dirty();
     private:
       // Scheduled updates: a setter marks this component dirty and the host's
       // UpdateScheduler runs update() once at its next flush (UI thread only). The ticket
@@ -68,12 +85,18 @@ namespace demo {
     };
     template <class Self>
     concept FormContract = true;
+    namespace Form_detail {
+      // meta binding of node::1 `className` reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<5> kDirty_meta_1_className = tessera::ui::DirtyMask<5>::of({4});
+    }
     template <class Self>
     inline void FormBase<Self>::build(tessera::ui::Node& parent) {
+      using namespace Form_detail;
       build(parent, {});
     }
     template <class Self>
     inline void FormBase<Self>::build(tessera::ui::Node& parent, std::vector<std::unique_ptr<tessera::ui::Node>> slot) {
+      using namespace Form_detail;
       // node::1
       auto node_1 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(14678135247258877049ull + node_id_base_));
       node_1->set_element_kind("View");
@@ -86,6 +109,7 @@ namespace demo {
     }
     template <class Self>
     inline void FormBase<Self>::apply_state() {
+      using namespace Form_detail;
     }
     template <class Self>
     inline void FormBase<Self>::mount() {}
@@ -95,27 +119,48 @@ namespace demo {
     inline void FormBase<Self>::unmount() {}
     template <class Self>
     inline void FormBase<Self>::update() {
+      using namespace Form_detail;
+      mark_all_dirty();
+      flush_update();
+    }
+    template <class Self>
+    inline void FormBase<Self>::flush_update() {
+      using namespace Form_detail;
       update_effects();
       apply_state();
     }
     template <class Self>
+    inline void FormBase<Self>::note_dirty(std::size_t bit) {
+      using namespace Form_detail;
+      dirty_.set(bit);
+    }
+    template <class Self>
+    inline void FormBase<Self>::mark_all_dirty() {
+      using namespace Form_detail;
+      dirty_.set_all();
+    }
+    template <class Self>
     inline void FormBase<Self>::attach_scheduler(tessera::ui::UpdateScheduler& scheduler) {
+      using namespace Form_detail;
       update_ticket_.context = this;
       update_ticket_.update = [](void* context) {
-        static_cast<FormBase<Self>*>(context)->update();
+        static_cast<FormBase<Self>*>(context)->flush_update();
       };
       scheduler.attach(update_ticket_);
     }
     template <class Self>
     inline void FormBase<Self>::detach_scheduler(tessera::ui::UpdateScheduler& scheduler) {
+      using namespace Form_detail;
       scheduler.detach(update_ticket_);
     }
     template <class Self>
     inline void FormBase<Self>::schedule_update() {
+      using namespace Form_detail;
       update_ticket_.schedule();
     }
     template <class Self>
     inline tessera::ui::StateSnapshot FormBase<Self>::snapshot_state() const {
+      using namespace Form_detail;
       tessera::ui::StateSnapshot snapshot;
       return snapshot;
     }

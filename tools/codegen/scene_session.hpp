@@ -4,6 +4,7 @@
 
 #include "scene_build.hpp"
 #include "scene_layout.hpp"
+#include "scene_override.hpp"
 #include "scene_state.hpp"
 #include "scene_stylesheet.hpp"
 #include "tessera/compiler/eval/evaluator.hpp"
@@ -17,6 +18,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <deque>
 #include <memory>
 #include <optional>
 #include <string>
@@ -117,6 +119,10 @@ public:
         // has always used; a real face measures the boxes its glyphs will actually fill (issue
         // #387).
         std::shared_ptr<const text::TextMeasurer> measurer;
+        // The designer's override layer (designer-protocol-v1 section 9.2), or null for none. NOT
+        // owned: the canvas session owns the layer and it outlives every tree, so each rebuild
+        // re-applies the same entries to the tree it just built.
+        const OverrideLayer* overrides = nullptr;
     };
 
     PreviewSession(const ir::IrModule& module, const ir::Component& component,
@@ -184,6 +190,13 @@ public:
     bool relayout_at(float width, float height, float dpi_scale, tessera::hal::FoldPosture posture,
                      const tessera::hal::WindowInsets& insets,
                      const tessera::hal::CutoutInfo& cutouts);
+
+    // Brings the live tree in line with the override layer after the layer changed (designer-
+    // protocol-v1 sections 9.2-9.4): every override the tree carries is taken off, the layer's
+    // current entries are put on, and the tree is laid out again, in ONE call - a restyle, never a
+    // re-evaluation, so the state cells, hover and focus survive. A frame is owed afterwards.
+    // False when the session built no tree.
+    bool resync_overrides();
 
     // How many times this session's cascade has been resolved: 1 at construction, +1 per re-resolve
     // (`set_viewport` crossing a breakpoint). The counter a test asserts on to tell "the cascade
@@ -265,6 +278,10 @@ private:
     struct HandlerSlot;
 
     void rebuild();
+    // The override layer's entries put onto the tree `rebuild()` just built; takes nothing off.
+    void apply_overrides();
+    // Takes every applied override off the live tree, restoring the inline value it replaced.
+    void restore_overrides();
     // Lays `root_` out against `layout_metrics_` and the current `sheet_`. One pass, no
     // re-evaluation: everything a size or posture change needs, and nothing else.
     [[nodiscard]] bool relayout();
@@ -299,6 +316,18 @@ private:
     // The IR spans of the live tree, keyed by scene node id (issue #171's `source.patch` slice).
     // Replaced by every `rebuild()`, so it never describes a tree that is gone.
     std::vector<SceneBuildResult::SceneNodeSource> node_sources_;
+    // What `apply_overrides()` put on the live tree, so `restore_overrides()` can take it off. An
+    // override is an inline declaration, which `Node` keeps as a borrowed `string_view`: the names
+    // and values live in `override_text_` (a deque, so growing it never moves a string a node
+    // points at), and `original` borrows the IR's own text for the value the override replaced.
+    struct AppliedOverride {
+        std::uint64_t automation_id = 0;
+        std::string_view property;
+        bool had_original = false;
+        std::string_view original;
+    };
+    std::vector<AppliedOverride> applied_overrides_;
+    std::deque<std::string> override_text_;
     double next_timestamp_s_ = 0.0;
     bool built_ = false;
     // Set by a handler that changed state during a dispatch; consumed by the rebuild after it.

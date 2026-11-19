@@ -5,6 +5,7 @@
 
 #include "tessera/ui/scene/component_lifecycle.hpp"
 #include "tessera/ui/scene/update_scheduler.hpp"
+#include "tessera/ui/scene/dirty_mask.hpp"
 #include "tessera/ui/scene/event_payloads.hpp"
 #include "tessera/ui/scene/state_snapshot.hpp"
 #include "tessera/ui/scene/node.hpp"
@@ -77,8 +78,27 @@ namespace button_demo {
       void unmount();
       // Recompute interpolated values; marks Paint|Render only when a value changed.
       void apply_state();
-      // Runs update_effects() then apply_state(); the scheduler calls it at its flush.
+      // A hand call: marks every cell dirty, then runs flush_update() (headless tests).
       void update();
+      // Runs update_effects() then apply_state() over the dirty cells; the scheduler calls it.
+      void flush_update();
+      // ADR-056 dirty mask: one bit per state cell, animated value and prop. A setter sets
+      // its cell's bit; apply_state() re-evaluates a binding only when a cell it reads is
+      // dirty. The bit constants are public so an owner can mark a child's prop.
+      static constexpr std::size_t kBit_prop_children_ = 0;
+      static constexpr std::size_t kBit_prop_disabled_ = 1;
+      static constexpr std::size_t kBit_prop_label_ = 2;
+      static constexpr std::size_t kBit_prop_onPress_ = 3;
+      static constexpr std::size_t kBit_prop_size_ = 4;
+      static constexpr std::size_t kBit_prop_variant_ = 5;
+      static constexpr std::size_t kBit_state_pressed_ = 6;
+    private:
+      tessera::ui::DirtyMask<8> dirty_ = tessera::ui::DirtyMask<8>::all();
+    public:
+      // Marks one cell dirty without scheduling (the caller schedules).
+      void note_dirty(std::size_t bit);
+      // Marks every cell dirty: the next apply_state() re-evaluates every binding.
+      void mark_all_dirty();
     private:
       // Scheduled updates: a setter marks this component dirty and the host's
       // UpdateScheduler runs update() once at its next flush (UI thread only). The ticket
@@ -132,6 +152,14 @@ namespace button_demo {
       [[maybe_unused]] inline std::string format_value(const char* value) {
         return std::string(value);
       }
+      // meta binding of node::1 `aria-disabled` reads: prop::disabled.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<8> kDirty_meta_1_aria_disabled = tessera::ui::DirtyMask<8>::of({1, 7});
+      // meta binding of node::1 `aria-label` reads: prop::label.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<8> kDirty_meta_1_aria_label = tessera::ui::DirtyMask<8>::of({2, 7});
+      // meta binding of node::1 `className` reads: prop::disabled prop::size prop::variant state::pressed.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<8> kDirty_meta_1_className = tessera::ui::DirtyMask<8>::of({1, 4, 5, 6, 7});
+      // meta binding of node::1 `role` reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<8> kDirty_meta_1_role = tessera::ui::DirtyMask<8>::of({7});
       template <class Self>
       struct Thunks {
         static void event_adapter_1_onClick(void* context, const tessera::ui::Event& event) {
@@ -194,74 +222,85 @@ namespace button_demo {
     template <class Self>
     inline void ButtonBase<Self>::apply_state() {
       using namespace Button_detail;
-      std::uint64_t meta_1_class_hash = tessera::ui::kEffectHashSeed;
-      meta_1_class_hash = tessera::ui::effect_hash(meta_1_class_hash, std::string_view("tbtn tbtn-"));
-      meta_1_class_hash = tessera::ui::effect_hash(meta_1_class_hash, std::string_view(prop_variant_));
-      meta_1_class_hash = tessera::ui::effect_hash(meta_1_class_hash, std::string_view(" tbtn-"));
-      meta_1_class_hash = tessera::ui::effect_hash(meta_1_class_hash, std::string_view(prop_size_));
-      meta_1_class_hash = tessera::ui::effect_hash(meta_1_class_hash, std::string_view(" "));
-      if (prop_disabled_) {
-        meta_1_class_hash = tessera::ui::effect_hash(meta_1_class_hash, std::string_view("tbtn-disabled"));
-      } else {
-        if (state_pressed_) {
-          meta_1_class_hash = tessera::ui::effect_hash(meta_1_class_hash, std::string_view("tbtn-pressed"));
+      const auto consumed_dirty = dirty_;
+      if (dirty_.intersects(kDirty_meta_1_className)) {
+        TESSERA_BINDING_RAN(this, "meta:1:className");
+        std::uint64_t meta_1_class_hash = tessera::ui::kEffectHashSeed;
+        meta_1_class_hash = tessera::ui::effect_hash(meta_1_class_hash, std::string_view("tbtn tbtn-"));
+        meta_1_class_hash = tessera::ui::effect_hash(meta_1_class_hash, std::string_view(prop_variant_));
+        meta_1_class_hash = tessera::ui::effect_hash(meta_1_class_hash, std::string_view(" tbtn-"));
+        meta_1_class_hash = tessera::ui::effect_hash(meta_1_class_hash, std::string_view(prop_size_));
+        meta_1_class_hash = tessera::ui::effect_hash(meta_1_class_hash, std::string_view(" "));
+        if (prop_disabled_) {
+          meta_1_class_hash = tessera::ui::effect_hash(meta_1_class_hash, std::string_view("tbtn-disabled"));
         } else {
-          meta_1_class_hash = tessera::ui::effect_hash(meta_1_class_hash, std::string_view("tbtn-idle"));
-        }
-      }
-      meta_1_class_hash = tessera::ui::effect_hash(meta_1_class_hash, std::string_view(""));
-      if (!meta_1_class_set_ || meta_1_class_hash != meta_1_class_hash_) {
-          meta_1_class_hash_ = meta_1_class_hash;
-          meta_1_class_set_ = true;
-          std::string next_meta_1_class;
-          next_meta_1_class += "tbtn tbtn-";
-          next_meta_1_class += format_value(prop_variant_);
-          next_meta_1_class += " tbtn-";
-          next_meta_1_class += format_value(prop_size_);
-          next_meta_1_class += " ";
-          if (prop_disabled_) {
-            next_meta_1_class += format_value("tbtn-disabled");
+          if (state_pressed_) {
+            meta_1_class_hash = tessera::ui::effect_hash(meta_1_class_hash, std::string_view("tbtn-pressed"));
           } else {
-            if (state_pressed_) {
-              next_meta_1_class += format_value("tbtn-pressed");
-            } else {
-              next_meta_1_class += format_value("tbtn-idle");
-            }
+            meta_1_class_hash = tessera::ui::effect_hash(meta_1_class_hash, std::string_view("tbtn-idle"));
           }
-          next_meta_1_class += "";
-          if (meta_1_class_value_ != next_meta_1_class) {
-            std::string previous_meta_1_class = std::move(meta_1_class_value_);
-            meta_1_class_value_ = std::move(next_meta_1_class);
-            meta_1_class_node_->set_class_name(meta_1_class_value_);
-            meta_1_class_node_->mark_dirty(tessera::ui::Dirty::Style);
+        }
+        meta_1_class_hash = tessera::ui::effect_hash(meta_1_class_hash, std::string_view(""));
+        if (!meta_1_class_set_ || meta_1_class_hash != meta_1_class_hash_) {
+            meta_1_class_hash_ = meta_1_class_hash;
+            meta_1_class_set_ = true;
+            std::string next_meta_1_class;
+            next_meta_1_class += "tbtn tbtn-";
+            next_meta_1_class += format_value(prop_variant_);
+            next_meta_1_class += " tbtn-";
+            next_meta_1_class += format_value(prop_size_);
+            next_meta_1_class += " ";
+            if (prop_disabled_) {
+              next_meta_1_class += format_value("tbtn-disabled");
+            } else {
+              if (state_pressed_) {
+                next_meta_1_class += format_value("tbtn-pressed");
+              } else {
+                next_meta_1_class += format_value("tbtn-idle");
+              }
+            }
+            next_meta_1_class += "";
+            if (meta_1_class_value_ != next_meta_1_class) {
+              std::string previous_meta_1_class = std::move(meta_1_class_value_);
+              meta_1_class_value_ = std::move(next_meta_1_class);
+              meta_1_class_node_->set_class_name(meta_1_class_value_);
+              meta_1_class_node_->mark_dirty(tessera::ui::Dirty::Style);
+          }
         }
       }
-      std::uint64_t meta_1_aria_aria_disabled_hash = tessera::ui::kEffectHashSeed;
-      meta_1_aria_aria_disabled_hash = tessera::ui::effect_hash(meta_1_aria_aria_disabled_hash, prop_disabled_);
-      if (!meta_1_aria_aria_disabled_set_ || meta_1_aria_aria_disabled_hash != meta_1_aria_aria_disabled_hash_) {
-          meta_1_aria_aria_disabled_hash_ = meta_1_aria_aria_disabled_hash;
-          meta_1_aria_aria_disabled_set_ = true;
-          std::string next_meta_1_aria_aria_disabled;
-          next_meta_1_aria_aria_disabled += format_value(prop_disabled_);
-          if (meta_1_aria_aria_disabled_value_ != next_meta_1_aria_aria_disabled) {
-            std::string previous_meta_1_aria_aria_disabled = std::move(meta_1_aria_aria_disabled_value_);
-            meta_1_aria_aria_disabled_value_ = std::move(next_meta_1_aria_aria_disabled);
-            meta_1_aria_aria_disabled_node_->set_aria("aria-disabled", meta_1_aria_aria_disabled_value_);
+      if (dirty_.intersects(kDirty_meta_1_aria_disabled)) {
+        TESSERA_BINDING_RAN(this, "meta:1:aria-disabled");
+        std::uint64_t meta_1_aria_aria_disabled_hash = tessera::ui::kEffectHashSeed;
+        meta_1_aria_aria_disabled_hash = tessera::ui::effect_hash(meta_1_aria_aria_disabled_hash, prop_disabled_);
+        if (!meta_1_aria_aria_disabled_set_ || meta_1_aria_aria_disabled_hash != meta_1_aria_aria_disabled_hash_) {
+            meta_1_aria_aria_disabled_hash_ = meta_1_aria_aria_disabled_hash;
+            meta_1_aria_aria_disabled_set_ = true;
+            std::string next_meta_1_aria_aria_disabled;
+            next_meta_1_aria_aria_disabled += format_value(prop_disabled_);
+            if (meta_1_aria_aria_disabled_value_ != next_meta_1_aria_aria_disabled) {
+              std::string previous_meta_1_aria_aria_disabled = std::move(meta_1_aria_aria_disabled_value_);
+              meta_1_aria_aria_disabled_value_ = std::move(next_meta_1_aria_aria_disabled);
+              meta_1_aria_aria_disabled_node_->set_aria("aria-disabled", meta_1_aria_aria_disabled_value_);
+          }
         }
       }
-      std::uint64_t meta_1_aria_aria_label_hash = tessera::ui::kEffectHashSeed;
-      meta_1_aria_aria_label_hash = tessera::ui::effect_hash(meta_1_aria_aria_label_hash, std::string_view(prop_label_));
-      if (!meta_1_aria_aria_label_set_ || meta_1_aria_aria_label_hash != meta_1_aria_aria_label_hash_) {
-          meta_1_aria_aria_label_hash_ = meta_1_aria_aria_label_hash;
-          meta_1_aria_aria_label_set_ = true;
-          std::string next_meta_1_aria_aria_label;
-          next_meta_1_aria_aria_label += format_value(prop_label_);
-          if (meta_1_aria_aria_label_value_ != next_meta_1_aria_aria_label) {
-            std::string previous_meta_1_aria_aria_label = std::move(meta_1_aria_aria_label_value_);
-            meta_1_aria_aria_label_value_ = std::move(next_meta_1_aria_aria_label);
-            meta_1_aria_aria_label_node_->set_aria("aria-label", meta_1_aria_aria_label_value_);
+      if (dirty_.intersects(kDirty_meta_1_aria_label)) {
+        TESSERA_BINDING_RAN(this, "meta:1:aria-label");
+        std::uint64_t meta_1_aria_aria_label_hash = tessera::ui::kEffectHashSeed;
+        meta_1_aria_aria_label_hash = tessera::ui::effect_hash(meta_1_aria_aria_label_hash, std::string_view(prop_label_));
+        if (!meta_1_aria_aria_label_set_ || meta_1_aria_aria_label_hash != meta_1_aria_aria_label_hash_) {
+            meta_1_aria_aria_label_hash_ = meta_1_aria_aria_label_hash;
+            meta_1_aria_aria_label_set_ = true;
+            std::string next_meta_1_aria_aria_label;
+            next_meta_1_aria_aria_label += format_value(prop_label_);
+            if (meta_1_aria_aria_label_value_ != next_meta_1_aria_aria_label) {
+              std::string previous_meta_1_aria_aria_label = std::move(meta_1_aria_aria_label_value_);
+              meta_1_aria_aria_label_value_ = std::move(next_meta_1_aria_aria_label);
+              meta_1_aria_aria_label_node_->set_aria("aria-label", meta_1_aria_aria_label_value_);
+          }
         }
       }
+      dirty_.clear(consumed_dirty);
     }
     template <class Self>
     inline void ButtonBase<Self>::mount() {}
@@ -272,15 +311,31 @@ namespace button_demo {
     template <class Self>
     inline void ButtonBase<Self>::update() {
       using namespace Button_detail;
+      mark_all_dirty();
+      flush_update();
+    }
+    template <class Self>
+    inline void ButtonBase<Self>::flush_update() {
+      using namespace Button_detail;
       update_effects();
       apply_state();
+    }
+    template <class Self>
+    inline void ButtonBase<Self>::note_dirty(std::size_t bit) {
+      using namespace Button_detail;
+      dirty_.set(bit);
+    }
+    template <class Self>
+    inline void ButtonBase<Self>::mark_all_dirty() {
+      using namespace Button_detail;
+      dirty_.set_all();
     }
     template <class Self>
     inline void ButtonBase<Self>::attach_scheduler(tessera::ui::UpdateScheduler& scheduler) {
       using namespace Button_detail;
       update_ticket_.context = this;
       update_ticket_.update = [](void* context) {
-        static_cast<ButtonBase<Self>*>(context)->update();
+        static_cast<ButtonBase<Self>*>(context)->flush_update();
       };
       scheduler.attach(update_ticket_);
     }
@@ -301,6 +356,7 @@ namespace button_demo {
         return;
       }
       state_pressed_ = std::move(value);
+      dirty_.set(kBit_state_pressed_);
       schedule_update();
     }
     template <class Self>
@@ -316,6 +372,7 @@ namespace button_demo {
       (void)event;
       if ((!prop_disabled_)) {
       state_pressed_ = true;
+      dirty_.set(kBit_state_pressed_);
       }
       apply_state();
     }
@@ -324,6 +381,7 @@ namespace button_demo {
       using namespace Button_detail;
       (void)event;
       state_pressed_ = false;
+      dirty_.set(kBit_state_pressed_);
       apply_state();
     }
     template <class Self>
@@ -331,6 +389,7 @@ namespace button_demo {
       using namespace Button_detail;
       (void)event;
       state_pressed_ = false;
+      dirty_.set(kBit_state_pressed_);
       apply_state();
     }
     template <class Self>
@@ -339,6 +398,7 @@ namespace button_demo {
       (void)e;
       if ((((tessera::ui::key_is(e, "Enter")) || (tessera::ui::key_is(e, " "))) && (!prop_disabled_))) {
       state_pressed_ = true;
+      dirty_.set(kBit_state_pressed_);
       }
       apply_state();
     }
@@ -347,6 +407,7 @@ namespace button_demo {
       using namespace Button_detail;
       (void)event;
       state_pressed_ = false;
+      dirty_.set(kBit_state_pressed_);
       apply_state();
     }
     template <class Self>

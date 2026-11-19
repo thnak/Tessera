@@ -134,6 +134,11 @@ property that is *documented* as applied and is not, which is what the cross-che
 | `text-transform` | applied | `text_measure.cpp` `parse_text_transform`; `text_transform` |
 | `white-space` | applied | `text_measure.cpp` `parse_white_space`; `text_measure` |
 | `text-overflow` | applied | `text_measure.cpp` `parse_text_overflow` → `paint_text_runs.cpp` emits the fitted prefix plus `…`; `property_effects` |
+| `text-decoration-line` | applied | `text_measure.cpp` `text_style_from` -> `paint_text_rules.cpp` draws underline/overline/line-through rects after the glyph runs; `text_decoration` |
+| `text-decoration-style` | applied | Only `solid` is accepted (other values are rejected with a diagnostic, never approximated); the rules are solid rects; `text_decoration` |
+| `text-decoration-color` | applied | `paint_text_rules.cpp` `resolve_text_rules` (`currentColor` follows the text colour); `text_decoration` |
+| `text-decoration-thickness` | applied | `text_measure.cpp` -> `paint_text_rules.cpp` (`auto`/`from-font` derive 1/16 em, min 1 px); `text_decoration` |
+| `vertical-align` | applied | `text_measure.cpp` `baseline_shift` (`baseline`, `sub`, `super`, length) -> paint-time baseline shift of the run and its rules in `paint_text.cpp` / `paint_text_spans.cpp`; `text_decoration` |
 | `font-family` | parsed only | The measure seam takes a `text::TextStyle`, which has no family field: V1 ships one deterministic stub/FreeType face, so a family list has nothing to select. `layout_signature.cpp` classifies it paint-only for the same reason. Becomes **applied** when the text seam grows a family field and a font stack. |
 
 ## 5. Interaction and visibility

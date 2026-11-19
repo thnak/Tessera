@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 
+#include "tessera/ui/style/color.hpp"
 #include "tessera/ui/style/cursor_value.hpp"
 #include "tessera/ui/style/gradient.hpp"
 #include "tessera/ui/style/grid_values.hpp"
 #include "tessera/ui/style/property_value_validation.hpp"
+#include "tessera/ui/style/text_decoration.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -129,11 +131,57 @@ const char* grid_style_message(std::string_view property) {
            "flex-end, auto or legacy";
 }
 
+// The text-decoration longhands and `vertical-align` (docs/design/text-decoration.md): empty when
+// `value` is drawable, otherwise the message naming the accepted grammar.
+const char* text_decoration_value_error(std::string_view property, std::string_view value) {
+    if (property == "text-decoration-line") {
+        return parse_text_decoration_line(value)
+                   ? nullptr
+                   : "text-decoration-line takes none or a set of underline, overline and "
+                     "line-through without repeats; blink and the error lines are not supported";
+    }
+    if (property == "text-decoration-style") {
+        return is_supported_text_decoration_style(value)
+                   ? nullptr
+                   : "only solid text-decoration-style is supported";
+    }
+    if (property == "text-decoration-color") {
+        const std::string text = lower(trim(value));
+        return text == "currentcolor" || parse_color(text).ok
+                   ? nullptr
+                   : "text-decoration-color takes currentColor or a colour";
+    }
+    if (property == "text-decoration-thickness") {
+        return is_supported_text_decoration_thickness(value)
+                   ? nullptr
+                   : "text-decoration-thickness takes auto, from-font or a px/em/rem length";
+    }
+    if (property == "vertical-align") {
+        return is_supported_vertical_align(value)
+                   ? nullptr
+                   : "vertical-align takes baseline, sub, super or a px/em/rem length; top, "
+                     "middle, bottom, text-top, text-bottom and percentages are not supported";
+    }
+    return nullptr;
+}
+
 } // namespace
 
 bool validate_property_value(const Declaration& declaration, std::string_view property,
                              std::vector<StyleDiagnostic>& out) {
     const std::string value = lower(declaration.value);
+    if (property.starts_with("text-decoration-") || property == "vertical-align") {
+        // A `var()` reference is substituted after this check; judge the resolved text then.
+        if (trim(value).find("var(") != std::string_view::npos) {
+            return true;
+        }
+        if (const char* message = text_decoration_value_error(property, value)) {
+            out.push_back(StyleDiagnostic{StyleDiagnosticKind::UnsupportedValue, declaration.offset,
+                                          std::string(property), message});
+            return false;
+        }
+        return true;
+    }
     // `cursor` (issue #191) is a closed keyword set plus the `url()` list V1 does not implement.
     // The declaration is kept on an unsupported form: the computed value falls back to the initial
     // `auto`, so the scene still has a cursor to read while the diagnostic names the form. Its

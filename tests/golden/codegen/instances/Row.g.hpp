@@ -5,6 +5,7 @@
 
 #include "tessera/ui/scene/component_lifecycle.hpp"
 #include "tessera/ui/scene/update_scheduler.hpp"
+#include "tessera/ui/scene/dirty_mask.hpp"
 #include "tessera/ui/scene/event_payloads.hpp"
 #include "tessera/ui/scene/state_snapshot.hpp"
 #include "tessera/ui/scene/node.hpp"
@@ -74,8 +75,23 @@ namespace demo {
       void unmount();
       // Recompute interpolated values; marks Paint|Render only when a value changed.
       void apply_state();
-      // Runs update_effects() then apply_state(); the scheduler calls it at its flush.
+      // A hand call: marks every cell dirty, then runs flush_update() (headless tests).
       void update();
+      // Runs update_effects() then apply_state() over the dirty cells; the scheduler calls it.
+      void flush_update();
+      // ADR-056 dirty mask: one bit per state cell, animated value and prop. A setter sets
+      // its cell's bit; apply_state() re-evaluates a binding only when a cell it reads is
+      // dirty. The bit constants are public so an owner can mark a child's prop.
+      static constexpr std::size_t kBit_prop_label_ = 0;
+      static constexpr std::size_t kBit_prop_notes_ = 1;
+      static constexpr std::size_t kBit_state_count_ = 2;
+    private:
+      tessera::ui::DirtyMask<4> dirty_ = tessera::ui::DirtyMask<4>::all();
+    public:
+      // Marks one cell dirty without scheduling (the caller schedules).
+      void note_dirty(std::size_t bit);
+      // Marks every cell dirty: the next apply_state() re-evaluates every binding.
+      void mark_all_dirty();
     private:
       // Scheduled updates: a setter marks this component dirty and the host's
       // UpdateScheduler runs update() once at its next flush (UI thread only). The ticket
@@ -128,6 +144,12 @@ namespace demo {
       }
       // Item nodes of a list template use `template id + item index * kItemIdStride`.
       constexpr std::uint64_t kItemIdStride = 5ull;
+      // text binding of node::2 reads: prop::label state::count.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<4> kDirty_text_2 = tessera::ui::DirtyMask<4>::of({0, 2, 3});
+      // meta binding of node::1 `className` reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<4> kDirty_meta_1_className = tessera::ui::DirtyMask<4>::of({3});
+      // list binding of node::3 reads: prop::notes.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<4> kDirty_list_3 = tessera::ui::DirtyMask<4>::of({1, 3});
     }
     template <class Self>
     inline void RowBase<Self>::build(tessera::ui::Node& parent) {
@@ -149,23 +171,28 @@ namespace demo {
     template <class Self>
     inline void RowBase<Self>::apply_state() {
       using namespace Row_detail;
+      const auto consumed_dirty = dirty_;
       apply_children_1();
-      std::uint64_t hash_2 = tessera::ui::kEffectHashSeed;
-      hash_2 = tessera::ui::effect_hash(hash_2, std::string_view(prop_label_));
-      hash_2 = tessera::ui::effect_hash(hash_2, std::string_view(":"));
-      hash_2 = tessera::ui::effect_hash(hash_2, state_count_);
-      if (!text_node_2_set_ || hash_2 != text_node_2_hash_) {
-          text_node_2_hash_ = hash_2;
-          text_node_2_set_ = true;
-          std::string next_2;
-          next_2 += format_value(prop_label_);
-          next_2 += ":";
-          next_2 += format_value(state_count_);
-          text_node_2_value_ = std::move(next_2);
-          tessera::ui::PaintData paint_2;
-          paint_2.text = text_node_2_value_;
-          text_node_2_->set_paint_data(std::move(paint_2));
+      if (dirty_.intersects(kDirty_text_2)) {
+        TESSERA_BINDING_RAN(this, "text:2");
+        std::uint64_t hash_2 = tessera::ui::kEffectHashSeed;
+        hash_2 = tessera::ui::effect_hash(hash_2, std::string_view(prop_label_));
+        hash_2 = tessera::ui::effect_hash(hash_2, std::string_view(":"));
+        hash_2 = tessera::ui::effect_hash(hash_2, state_count_);
+        if (!text_node_2_set_ || hash_2 != text_node_2_hash_) {
+            text_node_2_hash_ = hash_2;
+            text_node_2_set_ = true;
+            std::string next_2;
+            next_2 += format_value(prop_label_);
+            next_2 += ":";
+            next_2 += format_value(state_count_);
+            text_node_2_value_ = std::move(next_2);
+            tessera::ui::PaintData paint_2;
+            paint_2.text = text_node_2_value_;
+            text_node_2_->set_paint_data(std::move(paint_2));
+        }
       }
+      dirty_.clear(consumed_dirty);
     }
     template <class Self>
     inline void RowBase<Self>::apply_children_1() {
@@ -174,7 +201,10 @@ namespace demo {
       tessera::ui::Node& parent = *children_parent_1_;
       std::size_t position = 0;
       ++position; // a static child is attached by build()
-      apply_list_3(parent, position);
+      if (dirty_.intersects(kDirty_list_3)) {
+        TESSERA_BINDING_RAN(this, "list:3");
+        apply_list_3(parent, position);
+      }
       position += list_3_count_;
     }
     template <class Self>
@@ -307,15 +337,31 @@ namespace demo {
     template <class Self>
     inline void RowBase<Self>::update() {
       using namespace Row_detail;
+      mark_all_dirty();
+      flush_update();
+    }
+    template <class Self>
+    inline void RowBase<Self>::flush_update() {
+      using namespace Row_detail;
       update_effects();
       apply_state();
+    }
+    template <class Self>
+    inline void RowBase<Self>::note_dirty(std::size_t bit) {
+      using namespace Row_detail;
+      dirty_.set(bit);
+    }
+    template <class Self>
+    inline void RowBase<Self>::mark_all_dirty() {
+      using namespace Row_detail;
+      dirty_.set_all();
     }
     template <class Self>
     inline void RowBase<Self>::attach_scheduler(tessera::ui::UpdateScheduler& scheduler) {
       using namespace Row_detail;
       update_ticket_.context = this;
       update_ticket_.update = [](void* context) {
-        static_cast<RowBase<Self>*>(context)->update();
+        static_cast<RowBase<Self>*>(context)->flush_update();
       };
       scheduler.attach(update_ticket_);
     }
@@ -336,6 +382,7 @@ namespace demo {
         return;
       }
       state_count_ = std::move(value);
+      dirty_.set(kBit_state_count_);
       schedule_update();
     }
     template <class Self>

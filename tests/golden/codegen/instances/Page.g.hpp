@@ -5,6 +5,7 @@
 
 #include "tessera/ui/scene/component_lifecycle.hpp"
 #include "tessera/ui/scene/update_scheduler.hpp"
+#include "tessera/ui/scene/dirty_mask.hpp"
 #include "tessera/ui/scene/event_payloads.hpp"
 #include "tessera/ui/scene/state_snapshot.hpp"
 #include "tessera/ui/scene/node.hpp"
@@ -113,8 +114,23 @@ namespace demo {
       void apply_state();
       // Refresh the declared props of the component instances this component owns.
       void apply_props();
-      // Runs update_effects() then apply_state(); the scheduler calls it at its flush.
+      // A hand call: marks every cell dirty, then runs flush_update() (headless tests).
       void update();
+      // Runs update_effects() then apply_state() over the dirty cells; the scheduler calls it.
+      void flush_update();
+      // ADR-056 dirty mask: one bit per state cell, animated value and prop. A setter sets
+      // its cell's bit; apply_state() re-evaluates a binding only when a cell it reads is
+      // dirty. The bit constants are public so an owner can mark a child's prop.
+      static constexpr std::size_t kBit_state_entries_ = 0;
+      static constexpr std::size_t kBit_state_nums_ = 1;
+      static constexpr std::size_t kBit_state_show_ = 2;
+    private:
+      tessera::ui::DirtyMask<4> dirty_ = tessera::ui::DirtyMask<4>::all();
+    public:
+      // Marks one cell dirty without scheduling (the caller schedules).
+      void note_dirty(std::size_t bit);
+      // Marks every cell dirty: the next apply_state() re-evaluates every binding.
+      void mark_all_dirty();
     private:
       // Scheduled updates: a setter marks this component dirty and the host's
       // UpdateScheduler runs update() once at its next flush (UI thread only). The ticket
@@ -206,6 +222,16 @@ namespace demo {
         slot = parent.remove_child(*live);
         live = nullptr;
       }
+      // cond binding of node::5 reads: state::show.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<4> kDirty_cond_5 = tessera::ui::DirtyMask<4>::of({2, 3});
+      // list binding of node::2 reads: state::nums.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<4> kDirty_list_2 = tessera::ui::DirtyMask<4>::of({1, 3});
+      // list binding of node::4 reads: state::entries.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<4> kDirty_list_4 = tessera::ui::DirtyMask<4>::of({0, 3});
+      // prop binding of node::5 `label` reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<4> kDirty_prop_5_label = tessera::ui::DirtyMask<4>::of({3});
+      // prop binding of node::5 `notes` reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<4> kDirty_prop_5_notes = tessera::ui::DirtyMask<4>::of({3});
     }
     template <class Self>
     inline void PageBase<Self>::build(tessera::ui::Node& parent) {
@@ -232,24 +258,36 @@ namespace demo {
     inline void PageBase<Self>::apply_props() {
       using namespace Page_detail;
       // comp::Row instance (pre-order index 5) props.
-      std::uint64_t prop_5_label_hash = tessera::ui::kEffectHashSeed;
-      prop_5_label_hash = tessera::ui::effect_hash(prop_5_label_hash, std::string_view("cond"));
-      if (prop_5_label_hash != child_5_prop_label_hash_) {
-        child_5_prop_label_hash_ = prop_5_label_hash;
-        this->child_5_.prop_label_ = "cond";
+      if (dirty_.intersects(kDirty_prop_5_label)) {
+        TESSERA_BINDING_RAN(this, "prop:5:label");
+        std::uint64_t prop_5_label_hash = tessera::ui::kEffectHashSeed;
+        prop_5_label_hash = tessera::ui::effect_hash(prop_5_label_hash, std::string_view("cond"));
+        if (prop_5_label_hash != child_5_prop_label_hash_) {
+          child_5_prop_label_hash_ = prop_5_label_hash;
+          this->child_5_.prop_label_ = "cond";
+          this->child_5_.note_dirty(Row::kBit_prop_label_);
+          this->child_5_.schedule_update();
+        }
       }
-      std::uint64_t prop_5_notes_hash = tessera::ui::kEffectHashSeed;
-      prop_5_notes_hash = tessera::ui::effect_hash(prop_5_notes_hash, static_cast<std::int64_t>(0));
-      if (prop_5_notes_hash != child_5_prop_notes_hash_) {
-        child_5_prop_notes_hash_ = prop_5_notes_hash;
-        this->child_5_.prop_notes_ = {};
+      if (dirty_.intersects(kDirty_prop_5_notes)) {
+        TESSERA_BINDING_RAN(this, "prop:5:notes");
+        std::uint64_t prop_5_notes_hash = tessera::ui::kEffectHashSeed;
+        prop_5_notes_hash = tessera::ui::effect_hash(prop_5_notes_hash, static_cast<std::int64_t>(0));
+        if (prop_5_notes_hash != child_5_prop_notes_hash_) {
+          child_5_prop_notes_hash_ = prop_5_notes_hash;
+          this->child_5_.prop_notes_ = {};
+          this->child_5_.note_dirty(Row::kBit_prop_notes_);
+          this->child_5_.schedule_update();
+        }
       }
     }
     template <class Self>
     inline void PageBase<Self>::apply_state() {
       using namespace Page_detail;
+      const auto consumed_dirty = dirty_;
       apply_props();
       apply_children_1();
+      dirty_.clear(consumed_dirty);
     }
     template <class Self>
     inline void PageBase<Self>::apply_children_1() {
@@ -257,26 +295,35 @@ namespace demo {
       if (children_parent_1_ == nullptr) { return; }
       tessera::ui::Node& parent = *children_parent_1_;
       std::size_t position = 0;
-      apply_list_2(parent, position);
+      if (dirty_.intersects(kDirty_list_2)) {
+        TESSERA_BINDING_RAN(this, "list:2");
+        apply_list_2(parent, position);
+      }
       position += list_2_count_;
-      apply_list_4(parent, position);
+      if (dirty_.intersects(kDirty_list_4)) {
+        TESSERA_BINDING_RAN(this, "list:4");
+        apply_list_4(parent, position);
+      }
       position += list_4_count_;
       {
-        std::uint64_t branch_5_hash = tessera::ui::kEffectHashSeed;
-        branch_5_hash = tessera::ui::effect_hash(branch_5_hash, state_show_);
-        const bool branch_5_show = (state_show_);
-        if (!branch_5_set_ || branch_5_hash != branch_5_hash_ || branch_5_show != branch_5_present_) {
-          branch_5_hash_ = branch_5_hash;
-          branch_5_set_ = true;
-          branch_5_present_ = branch_5_show;
-          if (branch_5_show) {
-            attach_child_at(parent, position, branch_5_owned_, branch_5_node_);
-          }
-          else {
-            detach_child(parent, branch_5_owned_, branch_5_node_);
+        if (dirty_.intersects(kDirty_cond_5)) {
+          TESSERA_BINDING_RAN(this, "cond:5");
+          std::uint64_t branch_5_hash = tessera::ui::kEffectHashSeed;
+          branch_5_hash = tessera::ui::effect_hash(branch_5_hash, state_show_);
+          const bool branch_5_show = (state_show_);
+          if (!branch_5_set_ || branch_5_hash != branch_5_hash_ || branch_5_show != branch_5_present_) {
+            branch_5_hash_ = branch_5_hash;
+            branch_5_set_ = true;
+            branch_5_present_ = branch_5_show;
+            if (branch_5_show) {
+              attach_child_at(parent, position, branch_5_owned_, branch_5_node_);
+            }
+            else {
+              detach_child(parent, branch_5_owned_, branch_5_node_);
+            }
           }
         }
-        if (branch_5_show) {
+        if (branch_5_present_) {
           ++position;
         }
       }
@@ -469,8 +516,18 @@ namespace demo {
       if (item_prop_4_label_hash != list_4_items_[tessera_slot].child_4_prop_label_hash_) {
         list_4_items_[tessera_slot].child_4_prop_label_hash_ = item_prop_4_label_hash;
         list_4_items_[tessera_slot].child_4->prop_label_ = entry;
+        list_4_items_[tessera_slot].child_4->note_dirty(Row::kBit_prop_label_);
+        list_4_items_[tessera_slot].child_4->schedule_update();
       }
-      list_4_items_[tessera_slot].child_4->prop_notes_ = {entry};
+      std::uint64_t item_prop_4_notes_hash = tessera::ui::kEffectHashSeed;
+      item_prop_4_notes_hash = tessera::ui::effect_hash(item_prop_4_notes_hash, static_cast<std::int64_t>(1));
+      item_prop_4_notes_hash = tessera::ui::effect_hash(item_prop_4_notes_hash, std::string_view(entry));
+      if (item_prop_4_notes_hash != list_4_items_[tessera_slot].child_4_prop_notes_hash_) {
+        list_4_items_[tessera_slot].child_4_prop_notes_hash_ = item_prop_4_notes_hash;
+        list_4_items_[tessera_slot].child_4->prop_notes_ = {entry};
+        list_4_items_[tessera_slot].child_4->note_dirty(Row::kBit_prop_notes_);
+        list_4_items_[tessera_slot].child_4->schedule_update();
+      }
       std::uint64_t tessera_hash = tessera::ui::kEffectHashSeed;
       if (!list_4_set_[tessera_slot] || tessera_hash != list_4_hashes_[tessera_slot]) {
         list_4_set_[tessera_slot] = true;
@@ -606,23 +663,31 @@ namespace demo {
     template <class Self>
     inline void PageBase<Self>::update() {
       using namespace Page_detail;
+      mark_all_dirty();
+      flush_update();
+    }
+    template <class Self>
+    inline void PageBase<Self>::flush_update() {
+      using namespace Page_detail;
       update_effects();
       apply_state();
-      child_5_.update();
-      for (std::size_t tessera_item = 0; tessera_item < list_4_items_.size(); ++tessera_item) {
-        auto& tessera_slot = list_4_items_[tessera_item];
-        if (tessera_slot.child_4 == nullptr) {
-          continue;
-        }
-        tessera_slot.child_4->update();
-      }
+    }
+    template <class Self>
+    inline void PageBase<Self>::note_dirty(std::size_t bit) {
+      using namespace Page_detail;
+      dirty_.set(bit);
+    }
+    template <class Self>
+    inline void PageBase<Self>::mark_all_dirty() {
+      using namespace Page_detail;
+      dirty_.set_all();
     }
     template <class Self>
     inline void PageBase<Self>::attach_scheduler(tessera::ui::UpdateScheduler& scheduler) {
       using namespace Page_detail;
       update_ticket_.context = this;
       update_ticket_.update = [](void* context) {
-        static_cast<PageBase<Self>*>(context)->update();
+        static_cast<PageBase<Self>*>(context)->flush_update();
       };
       scheduler.attach(update_ticket_);
       child_5_.attach_scheduler(scheduler);
@@ -661,6 +726,7 @@ namespace demo {
         return;
       }
       state_show_ = std::move(value);
+      dirty_.set(kBit_state_show_);
       schedule_update();
     }
     template <class Self>
@@ -670,6 +736,7 @@ namespace demo {
         return;
       }
       state_entries_ = std::move(value);
+      dirty_.set(kBit_state_entries_);
       schedule_update();
     }
     template <class Self>
@@ -679,6 +746,7 @@ namespace demo {
         return;
       }
       state_nums_ = std::move(value);
+      dirty_.set(kBit_state_nums_);
       schedule_update();
     }
     template <class Self>

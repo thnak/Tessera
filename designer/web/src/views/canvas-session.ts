@@ -186,6 +186,7 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
       canvas,
     },
     module: () => (gpu !== null ? gpu.module : null),
+    theme: () => options.source().theme ?? null,
     viewport: () => requestedViewport(options.environment),
     setStatus: options.setStatus,
   });

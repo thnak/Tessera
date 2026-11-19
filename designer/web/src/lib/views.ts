@@ -15,6 +15,8 @@
 // This is the same split `designer-studio-v1.md` section 3.1 draws for the studio as a whole: the chrome
 // is HTML/CSS, the preview is the engine's.
 
+import type { ThemeHandover } from "./wasm-call";
+
 /** The pane's own status line, which React renders and a session updates. */
 export interface StatusReporter {
   /** `text` is a sentence; `kind` selects the colour (see `.status.ok/.error/.warning`). */
@@ -89,6 +91,8 @@ export interface ProjectSnapshot {
   sources: { path: string; text: string }[];
   /** Every stylesheet; only the ones the walk imports apply. */
   stylesheets: { path: string; text: string }[];
+  /** The theme asset (`tessera.json` `assets.theme`) for `token` commits; absent when the project has none. */
+  theme?: ThemeHandover;
   /** The file the editor shows, so a diagnostic in another file does not select an offset here. */
   active: string;
 }

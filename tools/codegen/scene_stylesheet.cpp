@@ -31,31 +31,6 @@ namespace style = tessera::ui::style;
 // the same set of files.
 constexpr std::string_view kModuleSuffix = ".module.css";
 
-// The spec's code for a diagnostic kind (docs/specs/stylesheet-v1.md section 15). `StyleDiagnostic`
-// carries the kind, never the spelling, so this is the one conversion -- the same shape
-// `blob_error_name()` takes in src/app/host.cpp.
-const char* css_code(style::StyleDiagnosticKind kind) {
-    switch (kind) {
-    case style::StyleDiagnosticKind::UnsupportedProperty:
-        // "parsed, no semantic effect": the declaration is kept but nothing consumes it. The issue
-        // requires exactly this shape -- reported, not fatal -- so an author who types `flx-grow`
-        // sees the typo and still sees their frame.
-        return "TESSERA_CSS_UNKNOWN_PROPERTY";
-    case style::StyleDiagnosticKind::UnsupportedValue:
-    case style::StyleDiagnosticKind::InvalidShorthand:
-        return "TESSERA_CSS_INVALID_VALUE";
-    case style::StyleDiagnosticKind::InvalidAtRule:
-        return "TESSERA_CSS_UNSUPPORTED_AT_RULE";
-    case style::StyleDiagnosticKind::VarCycle:
-        return "TESSERA_CSS_VAR_CYCLE";
-    case style::StyleDiagnosticKind::UnresolvedVar:
-        return "TESSERA_CSS_UNRESOLVED_VAR";
-    case style::StyleDiagnosticKind::UndeclaredPart:
-        return "TESSERA_CSS_UNDECLARED_PART";
-    }
-    return "TESSERA_CSS_PARSE_ERROR";
-}
-
 void append(std::vector<PreviewCssDiagnostic>& out, std::string_view file, std::string_view text,
             std::string_view code, std::string message, std::size_t offset, bool warning) {
     const DiagnosticSpan span = css_span(file, text, offset);
@@ -92,6 +67,31 @@ bool has_no_css(std::string_view text) {
 }
 
 } // namespace
+
+// The spec's code for a diagnostic kind (docs/specs/stylesheet-v1.md section 15). `StyleDiagnostic`
+// carries the kind, never the spelling, so this is the one conversion -- the same shape
+// `blob_error_name()` takes in src/app/host.cpp.
+const char* css_diagnostic_code(style::StyleDiagnosticKind kind) noexcept {
+    switch (kind) {
+    case style::StyleDiagnosticKind::UnsupportedProperty:
+        // "parsed, no semantic effect": the declaration is kept but nothing consumes it. The issue
+        // requires exactly this shape -- reported, not fatal -- so an author who types `flx-grow`
+        // sees the typo and still sees their frame.
+        return "TESSERA_CSS_UNKNOWN_PROPERTY";
+    case style::StyleDiagnosticKind::UnsupportedValue:
+    case style::StyleDiagnosticKind::InvalidShorthand:
+        return "TESSERA_CSS_INVALID_VALUE";
+    case style::StyleDiagnosticKind::InvalidAtRule:
+        return "TESSERA_CSS_UNSUPPORTED_AT_RULE";
+    case style::StyleDiagnosticKind::VarCycle:
+        return "TESSERA_CSS_VAR_CYCLE";
+    case style::StyleDiagnosticKind::UnresolvedVar:
+        return "TESSERA_CSS_UNRESOLVED_VAR";
+    case style::StyleDiagnosticKind::UndeclaredPart:
+        return "TESSERA_CSS_UNDECLARED_PART";
+    }
+    return "TESSERA_CSS_PARSE_ERROR";
+}
 
 bool has_author_stylesheet(std::string_view stylesheet) {
     return !stylesheet.empty() && !has_no_css(stylesheet);
@@ -180,7 +180,7 @@ std::vector<PreviewCssDiagnostic> author_stylesheet_diagnostics(std::string_view
         if (out.size() >= limit) {
             break;
         }
-        append(out, file, stylesheet, css_code(diagnostic.kind), diagnostic.message,
+        append(out, file, stylesheet, css_diagnostic_code(diagnostic.kind), diagnostic.message,
                diagnostic.offset, true);
     }
     return out;

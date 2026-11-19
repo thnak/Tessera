@@ -5,6 +5,7 @@
 // emission live in value_ops.cpp and are shared with the keyed-list item content pass.
 
 #include "emit_controlled.hpp"
+#include "emit_dirty.hpp"
 #include "emit_dynamic.hpp"
 #include "emit_forms.hpp"
 #include "interpolation.hpp"
@@ -243,6 +244,9 @@ bool emit_apply_state(CppWriter& writer, const ir::Component& component,
                       const DynamicPlan& plan, const FormPlan& forms, bool has_props,
                       std::string& error) {
     writer.open("void " + component.name + "::apply_state()");
+    // The bits this pass consumes. A setter that fires during the pass raises a bit that is not in
+    // the snapshot, so it survives for the next pass (ADR-056 decision 2).
+    writer.line("const auto consumed_dirty = dirty_;");
     // Props flow caller -> callee before anything the callee renders is refreshed: the host calls
     // this component's update(), which runs apply_state() and then the child updates.
     if (has_props) {
@@ -262,6 +266,8 @@ bool emit_apply_state(CppWriter& writer, const ir::Component& component,
     for (const DynamicText& entry : text_entries) {
         const std::string suffix = std::to_string(entry.ordinal);
         const std::string hash = "hash_" + suffix;
+        const bool gated = open_dirty_gate(writer, plan.dirty, BindingKind::Text, entry.ordinal, {},
+                                           "text:" + suffix);
         writer.line("std::uint64_t " + hash + " = tessera::ui::kEffectHashSeed;");
         if (!emit_value_ops(writer, *entry.text, component, {}, hash, "", error)) {
             return false;
@@ -281,10 +287,16 @@ bool emit_apply_state(CppWriter& writer, const ir::Component& component,
         writer.line("text_node_" + suffix + "_->set_paint_data(std::move(paint_" + suffix + "));");
         --writer.indent;
         writer.close("");
+        close_dirty_gate(writer, gated);
     }
     for (const DynamicMetadata& entry : metadata_entries) {
         const std::string base = metadata_member(entry);
         const std::string hash = base + "_hash";
+        const bool is_style = entry.field == MetadataField::Style;
+        const bool gated = open_dirty_gate(
+            writer, plan.dirty, is_style ? BindingKind::Style : BindingKind::Metadata,
+            entry.ordinal, entry.name,
+            (is_style ? "style:" : "meta:") + std::to_string(entry.ordinal) + ":" + entry.name);
         writer.line("std::uint64_t " + hash + " = tessera::ui::kEffectHashSeed;");
         if (!emit_value_ops(writer, *entry.value, component, {}, hash, "", error)) {
             return false;
@@ -334,8 +346,12 @@ bool emit_apply_state(CppWriter& writer, const ir::Component& component,
         writer.close("");
         --writer.indent;
         writer.line("}");
+        close_dirty_gate(writer, gated);
     }
+    // The editor sync stays ungated: a controlled field whose handler left the state unchanged
+    // must still snap back to it.
     emit_controlled_apply(writer, controlled_inputs);
+    writer.line("dirty_.clear(consumed_dirty);");
     writer.close("");
     writer.line("");
     return true;

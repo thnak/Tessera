@@ -160,6 +160,10 @@ the camera; vendor device art; user-provided profiles; a second window or pictur
 | E4 (#448) | Platform panel: control strip, event buttons, ordered log, export and replay | a recorded session replays to the same final state |
 | E5 (#444) | Live edit: debounce, Restart replaces Run, last good frame on error | an edit re-renders with state kept and no Run; a syntax error keeps the frame |
 
+**E1 is implemented (issue #445):** the engine half of sections 1 and 4 is described in
+[os-events-v1.md](os-events-v1.md) section 2.3, with the saved-state record following the working choice of
+section 9 item 1 (the P4 rule at `Suspend`).
+
 E5 does not depend on E1 to E4 and can land first. It has: its browser half is implemented (section 6).
 
 ## 9. Working choices (revisable)

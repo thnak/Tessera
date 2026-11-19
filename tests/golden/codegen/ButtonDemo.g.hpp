@@ -5,6 +5,7 @@
 
 #include "tessera/ui/scene/component_lifecycle.hpp"
 #include "tessera/ui/scene/update_scheduler.hpp"
+#include "tessera/ui/scene/dirty_mask.hpp"
 #include "tessera/ui/scene/event_payloads.hpp"
 #include "tessera/ui/scene/state_snapshot.hpp"
 #include "tessera/ui/scene/node.hpp"
@@ -62,8 +63,21 @@ namespace button_demo {
       void apply_state();
       // Refresh the declared props of the component instances this component owns.
       void apply_props();
-      // Runs update_effects() then apply_state(); the scheduler calls it at its flush.
+      // A hand call: marks every cell dirty, then runs flush_update() (headless tests).
       void update();
+      // Runs update_effects() then apply_state() over the dirty cells; the scheduler calls it.
+      void flush_update();
+      // ADR-056 dirty mask: one bit per state cell, animated value and prop. A setter sets
+      // its cell's bit; apply_state() re-evaluates a binding only when a cell it reads is
+      // dirty. The bit constants are public so an owner can mark a child's prop.
+      static constexpr std::size_t kBit_state_count_ = 0;
+    private:
+      tessera::ui::DirtyMask<2> dirty_ = tessera::ui::DirtyMask<2>::all();
+    public:
+      // Marks one cell dirty without scheduling (the caller schedules).
+      void note_dirty(std::size_t bit);
+      // Marks every cell dirty: the next apply_state() re-evaluates every binding.
+      void mark_all_dirty();
     private:
       // Scheduled updates: a setter marks this component dirty and the host's
       // UpdateScheduler runs update() once at its next flush (UI thread only). The ticket
@@ -95,8 +109,29 @@ namespace button_demo {
     };
     template <class Self>
     concept ButtonDemoContract = true;
+    namespace ButtonDemo_detail {
+      // text binding of node::3 reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<2> kDirty_text_3 = tessera::ui::DirtyMask<2>::of({1});
+      // text binding of node::5 reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<2> kDirty_text_5 = tessera::ui::DirtyMask<2>::of({1});
+      // text binding of node::7 reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<2> kDirty_text_7 = tessera::ui::DirtyMask<2>::of({1});
+      // prop binding of node::2 `label` reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<2> kDirty_prop_2_label = tessera::ui::DirtyMask<2>::of({1});
+      // prop binding of node::4 `disabled` reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<2> kDirty_prop_4_disabled = tessera::ui::DirtyMask<2>::of({1});
+      // prop binding of node::4 `label` reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<2> kDirty_prop_4_label = tessera::ui::DirtyMask<2>::of({1});
+      // prop binding of node::6 `label` reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<2> kDirty_prop_6_label = tessera::ui::DirtyMask<2>::of({1});
+      // prop binding of node::6 `size` reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<2> kDirty_prop_6_size = tessera::ui::DirtyMask<2>::of({1});
+      // prop binding of node::6 `variant` reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<2> kDirty_prop_6_variant = tessera::ui::DirtyMask<2>::of({1});
+    }
     template <class Self>
     inline void ButtonDemoBase<Self>::build(tessera::ui::Node& parent) {
+      using namespace ButtonDemo_detail;
       apply_props();
       // node::1
       auto node_1 = std::make_unique<tessera::ui::Node>(static_cast<tessera::ui::NodeId>(17104933563789827965ull + node_id_base_));
@@ -158,12 +193,18 @@ namespace button_demo {
     }
     template <class Self>
     inline void ButtonDemoBase<Self>::apply_props() {
+      using namespace ButtonDemo_detail;
       // comp::Button instance (pre-order index 2) props.
-      std::uint64_t prop_2_label_hash = tessera::ui::kEffectHashSeed;
-      prop_2_label_hash = tessera::ui::effect_hash(prop_2_label_hash, std::string_view("Save"));
-      if (prop_2_label_hash != child_2_prop_label_hash_) {
-        child_2_prop_label_hash_ = prop_2_label_hash;
-        this->child_2_.prop_label_ = "Save";
+      if (dirty_.intersects(kDirty_prop_2_label)) {
+        TESSERA_BINDING_RAN(this, "prop:2:label");
+        std::uint64_t prop_2_label_hash = tessera::ui::kEffectHashSeed;
+        prop_2_label_hash = tessera::ui::effect_hash(prop_2_label_hash, std::string_view("Save"));
+        if (prop_2_label_hash != child_2_prop_label_hash_) {
+          child_2_prop_label_hash_ = prop_2_label_hash;
+          this->child_2_.prop_label_ = "Save";
+          this->child_2_.note_dirty(Button::kBit_prop_label_);
+          this->child_2_.schedule_update();
+        }
       }
       if (!child_2_prop_onPress_bound_) {
         child_2_prop_onPress_bound_ = true;
@@ -172,17 +213,27 @@ namespace button_demo {
         };
       }
       // comp::Button instance (pre-order index 4) props.
-      std::uint64_t prop_4_label_hash = tessera::ui::kEffectHashSeed;
-      prop_4_label_hash = tessera::ui::effect_hash(prop_4_label_hash, std::string_view("Off"));
-      if (prop_4_label_hash != child_4_prop_label_hash_) {
-        child_4_prop_label_hash_ = prop_4_label_hash;
-        this->child_4_.prop_label_ = "Off";
+      if (dirty_.intersects(kDirty_prop_4_label)) {
+        TESSERA_BINDING_RAN(this, "prop:4:label");
+        std::uint64_t prop_4_label_hash = tessera::ui::kEffectHashSeed;
+        prop_4_label_hash = tessera::ui::effect_hash(prop_4_label_hash, std::string_view("Off"));
+        if (prop_4_label_hash != child_4_prop_label_hash_) {
+          child_4_prop_label_hash_ = prop_4_label_hash;
+          this->child_4_.prop_label_ = "Off";
+          this->child_4_.note_dirty(Button::kBit_prop_label_);
+          this->child_4_.schedule_update();
+        }
       }
-      std::uint64_t prop_4_disabled_hash = tessera::ui::kEffectHashSeed;
-      prop_4_disabled_hash = tessera::ui::effect_hash(prop_4_disabled_hash, true);
-      if (prop_4_disabled_hash != child_4_prop_disabled_hash_) {
-        child_4_prop_disabled_hash_ = prop_4_disabled_hash;
-        this->child_4_.prop_disabled_ = true;
+      if (dirty_.intersects(kDirty_prop_4_disabled)) {
+        TESSERA_BINDING_RAN(this, "prop:4:disabled");
+        std::uint64_t prop_4_disabled_hash = tessera::ui::kEffectHashSeed;
+        prop_4_disabled_hash = tessera::ui::effect_hash(prop_4_disabled_hash, true);
+        if (prop_4_disabled_hash != child_4_prop_disabled_hash_) {
+          child_4_prop_disabled_hash_ = prop_4_disabled_hash;
+          this->child_4_.prop_disabled_ = true;
+          this->child_4_.note_dirty(Button::kBit_prop_disabled_);
+          this->child_4_.schedule_update();
+        }
       }
       if (!child_4_prop_onPress_bound_) {
         child_4_prop_onPress_bound_ = true;
@@ -191,23 +242,38 @@ namespace button_demo {
         };
       }
       // comp::Button instance (pre-order index 6) props.
-      std::uint64_t prop_6_label_hash = tessera::ui::kEffectHashSeed;
-      prop_6_label_hash = tessera::ui::effect_hash(prop_6_label_hash, std::string_view("Delete"));
-      if (prop_6_label_hash != child_6_prop_label_hash_) {
-        child_6_prop_label_hash_ = prop_6_label_hash;
-        this->child_6_.prop_label_ = "Delete";
+      if (dirty_.intersects(kDirty_prop_6_label)) {
+        TESSERA_BINDING_RAN(this, "prop:6:label");
+        std::uint64_t prop_6_label_hash = tessera::ui::kEffectHashSeed;
+        prop_6_label_hash = tessera::ui::effect_hash(prop_6_label_hash, std::string_view("Delete"));
+        if (prop_6_label_hash != child_6_prop_label_hash_) {
+          child_6_prop_label_hash_ = prop_6_label_hash;
+          this->child_6_.prop_label_ = "Delete";
+          this->child_6_.note_dirty(Button::kBit_prop_label_);
+          this->child_6_.schedule_update();
+        }
       }
-      std::uint64_t prop_6_variant_hash = tessera::ui::kEffectHashSeed;
-      prop_6_variant_hash = tessera::ui::effect_hash(prop_6_variant_hash, std::string_view("danger"));
-      if (prop_6_variant_hash != child_6_prop_variant_hash_) {
-        child_6_prop_variant_hash_ = prop_6_variant_hash;
-        this->child_6_.prop_variant_ = "danger";
+      if (dirty_.intersects(kDirty_prop_6_variant)) {
+        TESSERA_BINDING_RAN(this, "prop:6:variant");
+        std::uint64_t prop_6_variant_hash = tessera::ui::kEffectHashSeed;
+        prop_6_variant_hash = tessera::ui::effect_hash(prop_6_variant_hash, std::string_view("danger"));
+        if (prop_6_variant_hash != child_6_prop_variant_hash_) {
+          child_6_prop_variant_hash_ = prop_6_variant_hash;
+          this->child_6_.prop_variant_ = "danger";
+          this->child_6_.note_dirty(Button::kBit_prop_variant_);
+          this->child_6_.schedule_update();
+        }
       }
-      std::uint64_t prop_6_size_hash = tessera::ui::kEffectHashSeed;
-      prop_6_size_hash = tessera::ui::effect_hash(prop_6_size_hash, std::string_view("sm"));
-      if (prop_6_size_hash != child_6_prop_size_hash_) {
-        child_6_prop_size_hash_ = prop_6_size_hash;
-        this->child_6_.prop_size_ = "sm";
+      if (dirty_.intersects(kDirty_prop_6_size)) {
+        TESSERA_BINDING_RAN(this, "prop:6:size");
+        std::uint64_t prop_6_size_hash = tessera::ui::kEffectHashSeed;
+        prop_6_size_hash = tessera::ui::effect_hash(prop_6_size_hash, std::string_view("sm"));
+        if (prop_6_size_hash != child_6_prop_size_hash_) {
+          child_6_prop_size_hash_ = prop_6_size_hash;
+          this->child_6_.prop_size_ = "sm";
+          this->child_6_.note_dirty(Button::kBit_prop_size_);
+          this->child_6_.schedule_update();
+        }
       }
       if (!child_6_prop_onPress_bound_) {
         child_6_prop_onPress_bound_ = true;
@@ -218,36 +284,57 @@ namespace button_demo {
     }
     template <class Self>
     inline void ButtonDemoBase<Self>::apply_state() {
+      using namespace ButtonDemo_detail;
+      const auto consumed_dirty = dirty_;
       apply_props();
+      dirty_.clear(consumed_dirty);
     }
     template <class Self>
     inline void ButtonDemoBase<Self>::mount() {
+      using namespace ButtonDemo_detail;
       child_2_.mount();
       child_4_.mount();
       child_6_.mount();
     }
     template <class Self>
     inline void ButtonDemoBase<Self>::update_effects() {
+      using namespace ButtonDemo_detail;
     }
     template <class Self>
     inline void ButtonDemoBase<Self>::unmount() {
+      using namespace ButtonDemo_detail;
       child_6_.unmount();
       child_4_.unmount();
       child_2_.unmount();
     }
     template <class Self>
     inline void ButtonDemoBase<Self>::update() {
+      using namespace ButtonDemo_detail;
+      mark_all_dirty();
+      flush_update();
+    }
+    template <class Self>
+    inline void ButtonDemoBase<Self>::flush_update() {
+      using namespace ButtonDemo_detail;
       update_effects();
       apply_state();
-      child_2_.update();
-      child_4_.update();
-      child_6_.update();
+    }
+    template <class Self>
+    inline void ButtonDemoBase<Self>::note_dirty(std::size_t bit) {
+      using namespace ButtonDemo_detail;
+      dirty_.set(bit);
+    }
+    template <class Self>
+    inline void ButtonDemoBase<Self>::mark_all_dirty() {
+      using namespace ButtonDemo_detail;
+      dirty_.set_all();
     }
     template <class Self>
     inline void ButtonDemoBase<Self>::attach_scheduler(tessera::ui::UpdateScheduler& scheduler) {
+      using namespace ButtonDemo_detail;
       update_ticket_.context = this;
       update_ticket_.update = [](void* context) {
-        static_cast<ButtonDemoBase<Self>*>(context)->update();
+        static_cast<ButtonDemoBase<Self>*>(context)->flush_update();
       };
       scheduler.attach(update_ticket_);
       child_2_.attach_scheduler(scheduler);
@@ -256,6 +343,7 @@ namespace button_demo {
     }
     template <class Self>
     inline void ButtonDemoBase<Self>::detach_scheduler(tessera::ui::UpdateScheduler& scheduler) {
+      using namespace ButtonDemo_detail;
       child_6_.detach_scheduler(scheduler);
       child_4_.detach_scheduler(scheduler);
       child_2_.detach_scheduler(scheduler);
@@ -263,38 +351,48 @@ namespace button_demo {
     }
     template <class Self>
     inline void ButtonDemoBase<Self>::schedule_update() {
+      using namespace ButtonDemo_detail;
       update_ticket_.schedule();
     }
     template <class Self>
     inline void ButtonDemoBase<Self>::set_count(int value) {
+      using namespace ButtonDemo_detail;
       if (state_count_ == value) {
         return;
       }
       state_count_ = std::move(value);
+      dirty_.set(kBit_state_count_);
       schedule_update();
     }
     template <class Self>
     inline tessera::ui::StateSnapshot ButtonDemoBase<Self>::snapshot_state() const {
+      using namespace ButtonDemo_detail;
       tessera::ui::StateSnapshot snapshot;
       snapshot.push_back(tessera::ui::state_cell("state::count", state_count_));
       return snapshot;
     }
     template <class Self>
     inline void ButtonDemoBase<Self>::handler_1(const tessera::ui::Event& event) {
+      using namespace ButtonDemo_detail;
       (void)event;
       state_count_ = (state_count_ + 1);
+      dirty_.set(kBit_state_count_);
       apply_state();
     }
     template <class Self>
     inline void ButtonDemoBase<Self>::handler_2(const tessera::ui::Event& event) {
+      using namespace ButtonDemo_detail;
       (void)event;
       state_count_ = (state_count_ + 100);
+      dirty_.set(kBit_state_count_);
       apply_state();
     }
     template <class Self>
     inline void ButtonDemoBase<Self>::handler_3(const tessera::ui::Event& event) {
+      using namespace ButtonDemo_detail;
       (void)event;
       state_count_ = (state_count_ + 10);
+      dirty_.set(kBit_state_count_);
       apply_state();
     }
   }

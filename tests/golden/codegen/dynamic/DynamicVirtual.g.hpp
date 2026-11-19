@@ -5,6 +5,7 @@
 
 #include "tessera/ui/scene/component_lifecycle.hpp"
 #include "tessera/ui/scene/update_scheduler.hpp"
+#include "tessera/ui/scene/dirty_mask.hpp"
 #include "tessera/ui/scene/event_payloads.hpp"
 #include "tessera/ui/scene/state_snapshot.hpp"
 #include "tessera/ui/scene/node.hpp"
@@ -138,8 +139,25 @@ namespace dvirt {
       void unmount();
       // Recompute interpolated values; marks Paint|Render only when a value changed.
       void apply_state();
-      // Runs update_effects() then apply_state(); the scheduler calls it at its flush.
+      // A hand call: marks every cell dirty, then runs flush_update() (headless tests).
       void update();
+      // Runs update_effects() then apply_state() over the dirty cells; the scheduler calls it.
+      void flush_update();
+      // ADR-056 dirty mask: one bit per state cell, animated value and prop. A setter sets
+      // its cell's bit; apply_state() re-evaluates a binding only when a cell it reads is
+      // dirty. The bit constants are public so an owner can mark a child's prop.
+      static constexpr std::size_t kBit_prop_columnWidth_ = 0;
+      static constexpr std::size_t kBit_prop_columns_ = 1;
+      static constexpr std::size_t kBit_prop_orientation_ = 2;
+      static constexpr std::size_t kBit_prop_overscan_ = 3;
+      static constexpr std::size_t kBit_state_items_ = 4;
+    private:
+      tessera::ui::DirtyMask<6> dirty_ = tessera::ui::DirtyMask<6>::all();
+    public:
+      // Marks one cell dirty without scheduling (the caller schedules).
+      void note_dirty(std::size_t bit);
+      // Marks every cell dirty: the next apply_state() re-evaluates every binding.
+      void mark_all_dirty();
     private:
       // Scheduled updates: a setter marks this component dirty and the host's
       // UpdateScheduler runs update() once at its next flush (UI thread only). The ticket
@@ -218,6 +236,14 @@ namespace dvirt {
       }
       // Item nodes of a list template use `template id + item index * kItemIdStride`.
       constexpr std::uint64_t kItemIdStride = 10ull;
+      // text binding of node::2 reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<6> kDirty_text_2 = tessera::ui::DirtyMask<6>::of({5});
+      // text binding of node::9 reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<6> kDirty_text_9 = tessera::ui::DirtyMask<6>::of({5});
+      // list binding of node::4 reads: state::items.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<6> kDirty_list_4 = tessera::ui::DirtyMask<6>::of({4, 5});
+      // list binding of node::7 reads: state::items.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<6> kDirty_list_7 = tessera::ui::DirtyMask<6>::of({4, 5});
     }
     template <class Self>
     inline void DynamicVirtualBase<Self>::build(tessera::ui::Node& parent) {
@@ -818,15 +844,31 @@ namespace dvirt {
     template <class Self>
     inline void DynamicVirtualBase<Self>::update() {
       using namespace DynamicVirtual_detail;
+      mark_all_dirty();
+      flush_update();
+    }
+    template <class Self>
+    inline void DynamicVirtualBase<Self>::flush_update() {
+      using namespace DynamicVirtual_detail;
       update_effects();
       apply_state();
+    }
+    template <class Self>
+    inline void DynamicVirtualBase<Self>::note_dirty(std::size_t bit) {
+      using namespace DynamicVirtual_detail;
+      dirty_.set(bit);
+    }
+    template <class Self>
+    inline void DynamicVirtualBase<Self>::mark_all_dirty() {
+      using namespace DynamicVirtual_detail;
+      dirty_.set_all();
     }
     template <class Self>
     inline void DynamicVirtualBase<Self>::attach_scheduler(tessera::ui::UpdateScheduler& scheduler) {
       using namespace DynamicVirtual_detail;
       update_ticket_.context = this;
       update_ticket_.update = [](void* context) {
-        static_cast<DynamicVirtualBase<Self>*>(context)->update();
+        static_cast<DynamicVirtualBase<Self>*>(context)->flush_update();
       };
       scheduler.attach(update_ticket_);
     }
@@ -847,6 +889,7 @@ namespace dvirt {
         return;
       }
       state_items_ = std::move(value);
+      dirty_.set(kBit_state_items_);
       schedule_update();
     }
     template <class Self>

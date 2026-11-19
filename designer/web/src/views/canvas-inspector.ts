@@ -29,7 +29,7 @@
 // CSS-to-logical ratio — never the device pixel ratio (docs/design/canvas-input-session.md §4).
 
 import type { StatusReporter } from "../lib/views";
-import { callExport, type WasmModule } from "../lib/wasm-call";
+import { callExport, handOverTheme, type ThemeHandover, type WasmModule } from "../lib/wasm-call";
 
 /** One declaration of one matched rule; the shape `canvas_style_report_json()` writes. */
 export interface StyleDeclarationReport {
@@ -125,6 +125,8 @@ export interface CanvasInspectorOptions {
   elements: CanvasInspectorElements;
   /** The instantiated module, or null before it loads. */
   module: () => WasmModule | null;
+  /** The project's theme asset for the `token` destination; `null` when it has none. */
+  theme?: () => ThemeHandover | null;
   /** The logical viewport the running session was laid out at. */
   viewport: () => { width: number; height: number };
   setStatus: StatusReporter;
@@ -415,18 +417,22 @@ export function createCanvasInspector(options: CanvasInspectorOptions): CanvasIn
     if (module === null || selected === 0) {
       return;
     }
-    // The declarations a commit writes are the node's overrides (designer-protocol-v1 §10.1). The
-    // override layer is `style.override.set`, a later slice, so this slice has none to commit and
-    // the engine answers `no_overrides`. The panel shows that reason rather than inventing a value:
-    // a commit that guessed a declaration would write something the developer never chose.
-    const declarations = "";
+    // The declarations a commit writes are the node's overrides (designer-protocol-v1 §10.1), which
+    // the engine holds in its override layer (issue #536): the page names the node and the
+    // destination, never the values. A node with no overrides answers `no_overrides`, and the panel
+    // shows that reason rather than inventing a value.
     let report: CanvasPatchReport;
     try {
+      // The `token` destination edits the theme asset, which the module only knows if the page hands it
+      // over. Doing it here, per commit, makes the text the editor's current buffer and not the Run's.
+      if (options.theme !== undefined) {
+        handOverTheme(module, options.theme());
+      }
       report = JSON.parse(
         callExport(
           module,
           "_tessera_canvas_patch",
-          [String(selected), destination, "", "", "", "", declarations],
+          [String(selected), destination, "", "", "", ""],
           [],
         ),
       ) as CanvasPatchReport;

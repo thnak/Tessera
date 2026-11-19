@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "property_background.hpp"
+#include "property_text_decoration.hpp"
 #include "tessera/ui/style/backdrop_filter.hpp"
 #include "tessera/ui/style/interaction_values.hpp"
 #include "tessera/ui/style/property_registry.hpp"
@@ -334,8 +335,9 @@ PropertyExpansionResult PropertyRegistry::expand(const Declaration& declaration)
             return result;
         }
     }
-    if (property == "background") {
-        return expand_background_shorthand(declaration);
+    if (property == "background" || property == "text-decoration") {
+        return property == "background" ? expand_background_shorthand(declaration)
+                                        : expand_text_decoration_shorthand(declaration);
     }
     if (find(property) != nullptr) {
         Declaration normalized = make_declaration(declaration, property, declaration.value);

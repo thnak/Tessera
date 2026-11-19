@@ -283,4 +283,13 @@ bool NavController::commit() {
     return route_.set(snapshot_of(entries_, epoch_));
 }
 
+bool nav_back_handler(void* controller) {
+    auto& nav = *static_cast<NavController*>(controller);
+    const bool consumed = back_consumed(nav.back().outcome);
+    if (consumed) {
+        nav.commit();
+    }
+    return consumed;
+}
+
 } // namespace tessera::appfw

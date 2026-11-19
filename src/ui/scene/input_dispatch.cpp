@@ -5,6 +5,7 @@
 #include "tessera/ui/scene/input_dispatch.hpp"
 #include "tessera/ui/style/pseudo_state.hpp"
 #include "text_input_dispatch.hpp"
+#include "volume_dispatch.hpp"
 #include "wheel_dispatch.hpp"
 
 namespace tessera::ui {
@@ -79,14 +80,6 @@ Event make_key_event(EventType type, const InputEvent& input) {
     event.key = input.key;
     event.text_codepoint = input.text_codepoint;
     event.repeat = input.repeat;
-    return event;
-}
-
-Event make_text_event(const InputEvent& input) {
-    Event event;
-    event.type = EventType::Text;
-    fill_pointer_fields(event, input);
-    event.text_codepoint = input.text_codepoint;
     return event;
 }
 
@@ -208,22 +201,12 @@ InputDispatchResult InputRouter::dispatch(Node& root, const InputEvent& input) {
         return result;
     }
 
+    if (input.type == InputEventType::VolumeKey) {
+        return dispatch_volume_key(focus_manager_.focused(), input);
+    }
+
     if (input.type == InputEventType::Text) {
-        result.type = EventType::Text;
-        Node* target = focus_manager_.focused();
-        if (target == nullptr) {
-            return result;
-        }
-        Event event = make_text_event(input);
-        result = dispatch_to_target(*target, event);
-        // Default action: a character typed in a `typeahead` group jumps to the matching item
-        // unless a handler consumed it (issue #236).
-        if (!event.handled && !event.prevent_default &&
-            focus_manager_.typeahead(root, input.text_codepoint, input.timestamp_s)) {
-            result.focus_moved = true;
-            focus_manager_.set_focus_visible(true);
-        }
-        return result;
+        return dispatch_text(focus_manager_, root, input);
     }
 
     if (input.type == InputEventType::CompositionStart ||

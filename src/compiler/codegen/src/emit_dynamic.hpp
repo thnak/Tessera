@@ -3,6 +3,7 @@
 #pragma once
 
 #include "codegen_internal.hpp"
+#include "emit_dirty.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -137,6 +138,8 @@ struct DynamicPlan {
     bool has_conditionals = false;
     bool has_lists = false;
     bool has_virtual = false; // at least one VirtualList/VirtualGrid item template
+    // The dirty mask layout and the binding dependency masks (ADR-056); filled by emit_component.
+    DirtyPlan dirty;
 
     [[nodiscard]] const DynamicGroup* group(unsigned parent_ordinal) const;
     [[nodiscard]] const ListTemplate* list(unsigned ordinal) const;

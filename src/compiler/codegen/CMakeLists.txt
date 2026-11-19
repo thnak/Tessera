@@ -3,6 +3,8 @@
 # First C++ codegen slice (docs/design/codegen.md): IR -> native C++ source text. Codegen reads the
 # IR only (AGENTS.md non-negotiable 4), so it links tessera_ir and nothing else from the project.
 add_library(tessera_codegen STATIC
+    src/binding_reads.cpp
+    src/binding_reads_expr.cpp
     src/codegen.cpp
     src/emit_base.cpp
     src/emit_base_accessors.cpp
@@ -11,6 +13,7 @@ add_library(tessera_codegen STATIC
     src/emit_composition.cpp
     src/emit_conditional.cpp
     src/emit_controlled.cpp
+    src/emit_dirty.cpp
     src/emit_dynamic_header.cpp
     src/emit_dynamic_plan.cpp
     src/emit_dynamic_plan_util.cpp
@@ -206,6 +209,9 @@ set(_tessera_scene_preview_sources
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_state.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_session.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_session_lookup.cpp
+    # The designer's override layer (issue #536): its data and history, and how it reaches the tree.
+    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_override.cpp
+    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_session_override.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_interaction.cpp)
 
 # The persistent canvas session (#388): the tree a pointer event feeds and a frame paints. It is
@@ -222,6 +228,9 @@ set(_tessera_scene_preview_sources
 set(_tessera_canvas_session_sources
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_canvas_session.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_canvas_inspect.cpp
+    # The override operations the page calls (issue #536) and their reports.
+    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_canvas_override.cpp
+    ${CMAKE_SOURCE_DIR}/tools/codegen/canvas_override_report.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_canvas_patch.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_canvas_patch_query.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_canvas_patch_inline.cpp
@@ -433,6 +442,9 @@ else ()
     add_executable(tessera_canvas_wasm
         ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_entry.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_query.cpp
+        # The override layer's exports (issue #536): they change the running tree's style, so they
+        # are not queries, but they never own the session either.
+        ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_override.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_support.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/wasm_canvas_font.cpp
         ${CMAKE_SOURCE_DIR}/tools/codegen/canvas_report.cpp
@@ -489,7 +501,10 @@ else ()
         # the matched rules with their provenance, and the box of one node.
         # `_tessera_canvas_patch` is the commit's query (issue #171): the `source.patch` edit list
         # and base versions for one node and destination, produced without writing anything.
-        -sEXPORTED_FUNCTIONS=["_tessera_project_begin","_tessera_project_set_entry","_tessera_project_add_source","_tessera_project_add_stylesheet","_tessera_canvas_apply","_tessera_canvas_pointer","_tessera_canvas_pick","_tessera_canvas_style","_tessera_canvas_patch","_tessera_canvas_set_safe_area","_tessera_canvas_draw","_tessera_canvas_reset","_tessera_canvas_set_font","_tessera_canvas_font_status","_tessera_webgpu_set_device","_tessera_free","_malloc","_free"]
+        # `_tessera_canvas_set_theme` hands the theme asset over for the `token` destination.
+        # `_tessera_canvas_override` and `_tessera_canvas_settle` are the override layer (issue #536):
+        # set/clear/revert/undo/redo on the running tree, and the commit's round-trip check.
+        -sEXPORTED_FUNCTIONS=["_tessera_project_begin","_tessera_project_set_entry","_tessera_project_add_source","_tessera_project_add_stylesheet","_tessera_canvas_apply","_tessera_canvas_pointer","_tessera_canvas_pick","_tessera_canvas_style","_tessera_canvas_patch","_tessera_canvas_override","_tessera_canvas_settle","_tessera_canvas_set_theme","_tessera_canvas_set_safe_area","_tessera_canvas_draw","_tessera_canvas_reset","_tessera_canvas_set_font","_tessera_canvas_font_status","_tessera_webgpu_set_device","_tessera_free","_malloc","_free"]
         # `WebGPU` is the emdawnwebgpu port's handle table: the page needs `WebGPU.importJsDevice` and
         # `importJsQueue` to turn a JS GPUDevice/GPUQueue into the integer handles the C ABI takes.
         # `HEAPU8` is the view the page writes font bytes through (issue #387): `_malloc` returns a
@@ -591,6 +606,16 @@ if (TESSERA_BUILD_TESTS)
     target_compile_definitions(codegen_services_tests PRIVATE
         TESSERA_CODEGEN_GOLDEN_DIR="${_tessera_codegen_golden_dir}")
     add_test(NAME codegen_services_generate COMMAND codegen_services_tests)
+
+    # ADR-056 slice 1 (issue #441): which cells each dynamic binding reads. The analysis lives in
+    # src/ and is internal to the library, so this test adds the private source directory.
+    add_executable(codegen_binding_reads_tests
+        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_binding_reads_tests.cpp)
+    target_link_libraries(codegen_binding_reads_tests PRIVATE tessera_codegen)
+    target_include_directories(codegen_binding_reads_tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/tests/unit)
+    add_test(NAME codegen_binding_reads COMMAND codegen_binding_reads_tests)
 
 
     # The developer class derives from the generated base and the generated thunks reach it.
@@ -899,8 +924,13 @@ if (TESSERA_BUILD_TESTS)
     #                         destination, with the base versions the host compares
     #   scene_canvas_patch_session  the same through a real evaluation: the IR span round trip and
     #                         the session's own `patch()`, which the fixture tests deliberately skip
+    #   scene_canvas_override the override layer (issue #536): validate, restyle, undo/redo, and the
+    #                         commit that makes `source.patch` reachable
+    #   scene_canvas_override_commit  the commit half of the same layer: token patch, round trip,
+    #                         mismatch, history rules and report JSON
     foreach (_canvas_test IN ITEMS scene_canvas_session scene_canvas_pointer scene_canvas_pick
-            scene_canvas_style scene_canvas_patch scene_canvas_patch_session)
+            scene_canvas_style scene_canvas_patch scene_canvas_patch_session scene_canvas_override
+            scene_canvas_override_commit)
         add_executable(${_canvas_test}_tests
             ${CMAKE_SOURCE_DIR}/tests/unit/${_canvas_test}_tests.cpp
             ${CMAKE_SOURCE_DIR}/tools/codegen/canvas_report.cpp
@@ -1184,6 +1214,40 @@ if (TESSERA_BUILD_TESTS)
         TESSERA_CODEGEN_INSTANCES_GOLDEN_DIR="${_tessera_codegen_instances_golden_dir}")
 
     add_test(NAME codegen_instances COMMAND codegen_instances_tests)
+
+    # ADR-056 slice 2: the emitted dirty mask. The generator shape and golden of the `Probe`
+    # fixture, then the per-binding behavior over the committed base.
+    set(_tessera_codegen_mask_golden_dir ${_tessera_codegen_golden_dir}/mask)
+    add_executable(codegen_mask_tests
+        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_mask_tests.cpp)
+    target_link_libraries(codegen_mask_tests PRIVATE tessera_codegen tessera_ir)
+    target_include_directories(codegen_mask_tests PRIVATE ${CMAKE_SOURCE_DIR}/tests/unit)
+    target_compile_definitions(codegen_mask_tests PRIVATE
+        TESSERA_CODEGEN_MASK_GOLDEN_DIR="${_tessera_codegen_mask_golden_dir}")
+    add_test(NAME codegen_mask COMMAND codegen_mask_tests)
+
+    if (EXISTS ${_tessera_codegen_mask_golden_dir}/Probe.g.hpp)
+        add_executable(codegen_mask_runtime_tests
+            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_mask_runtime_tests.cpp)
+        target_include_directories(codegen_mask_runtime_tests PRIVATE
+            ${_tessera_codegen_mask_golden_dir}
+            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures/mask)
+        target_link_libraries(codegen_mask_runtime_tests PRIVATE tessera_scene)
+        target_compile_features(codegen_mask_runtime_tests PRIVATE cxx_std_23)
+        add_test(NAME codegen_mask_runtime COMMAND codegen_mask_runtime_tests)
+    endif ()
+
+    # ADR-056 slice 3: a parent schedules a child on a prop change instead of calling update().
+    if (EXISTS ${_tessera_codegen_mask_golden_dir}/Top.g.hpp)
+        add_executable(codegen_chain_runtime_tests
+            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_chain_runtime_tests.cpp)
+        target_include_directories(codegen_chain_runtime_tests PRIVATE
+            ${_tessera_codegen_mask_golden_dir}
+            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures/chain)
+        target_link_libraries(codegen_chain_runtime_tests PRIVATE tessera_scene)
+        target_compile_features(codegen_chain_runtime_tests PRIVATE cxx_std_23)
+        add_test(NAME codegen_chain_runtime COMMAND codegen_chain_runtime_tests)
+    endif ()
 
     # ADR-040 (#218): the developer classes in tests/unit/codegen_base/fixtures/instances over the
     # committed bases, generated from the hand-built IR in codegen_instances_tests.
