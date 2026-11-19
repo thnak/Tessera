@@ -23,8 +23,15 @@ import {
   classifyPath,
   confinePath,
   isTextKind,
+  isViewOnlyKind,
   parentOf,
 } from "../../project-paths.js";
+
+/**
+ * The advice shown for a generated file whose source is newer. Worded as a "may be": a generated header has no
+ * source digest and a checkout resets modification times, so the heuristic can be wrong both ways.
+ */
+export const STALE_TEXT = "May be out of date: its source is newer. Regenerate with the native CLI.";
 
 /** One file of the opened project, as the editor and the tree see it. */
 export interface ProjectFile {
@@ -38,6 +45,18 @@ export interface ProjectFile {
   text: string;
   /** `true` when the editor may show this file and Run may compile it. */
   editable: boolean;
+  /**
+   * `true` for a locked text file (C++, a generated header) that opens read-only when selected (owner
+   * decision 2026-11-17). Its `text` stays empty: the lazily read copy is `viewText`, which no sender,
+   * saver or exporter looks at.
+   */
+  viewOnly: boolean;
+  /** The text of a view-only file once it was opened; `undefined` until then. */
+  viewText?: string;
+  /** Why a view-only file shows no text (`binary`, `too-large`, `unreadable`); `undefined` otherwise. */
+  viewNote?: string;
+  /** The file's `lastModified` at load (0 when unknown, a zip), for the "may be out of date" advice. */
+  modified?: number;
 }
 
 /** One row of the tree: a directory the tree derives, or a file. */
@@ -56,6 +75,8 @@ export interface TreeRow {
   expanded: boolean;
   /** Files only: whether the editor may open it. */
   editable: boolean;
+  /** Files only: a locked text file that opens read-only. */
+  viewOnly: boolean;
   /** Files only: the `FILE_KIND`, for the locked badge and the tab's icon letter. */
   kind: string;
 }
@@ -123,6 +144,7 @@ export function projectFile(path: string, text: string, context = {}): ProjectFi
     // A locked kind (a font, an image, C++) is listed but never read: the spec's own sentence.
     text: editable ? text : "",
     editable,
+    viewOnly: isViewOnlyKind(kind),
   };
 }
 
@@ -164,6 +186,7 @@ function childrenOf(
       dir: true,
       expanded: !collapsed.has(candidate),
       editable: false,
+      viewOnly: false,
       kind: "dir",
     });
   }
@@ -178,6 +201,7 @@ function childrenOf(
       dir: false,
       expanded: false,
       editable: file.editable,
+      viewOnly: file.viewOnly,
       kind: file.kind,
     });
   }

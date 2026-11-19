@@ -62,6 +62,8 @@ import { createLiveEdit, type LiveEdit } from "./page-live";
 import { setStatusText, usePageState, usePaneRefs } from "./page-state";
 import { useSessions } from "./page-sessions";
 import { useProjectIo } from "./page-project-io";
+import { hasShareLink, sampleProjectFiles, useFirstView } from "./page-boot";
+import { useViewOnlyLoader } from "./page-view-only";
 import { useWorkspace } from "./page-workspace";
 import { CodeRegion } from "./regions/CodeRegion";
 import { GalleryRegion } from "./regions/GalleryRegion";
@@ -94,6 +96,12 @@ export function App() {
   // Bumped when the page itself replaces a buffer (a tab switch, a share link, a gallery pick), so the
   // editor's effect can tell a page write from a keystroke.
   const [revision, setRevision] = useState(0);
+
+  useFirstView(projectIo.recentsLoaded, projectIo.recents.length, workspace.state.files.length, () =>
+    state_.setGalleryOpen(true),
+  );
+  const onViewLoaded = useCallback(() => setRevision((value) => value + 1), []);
+  useViewOnlyLoader(workspace, projectIo, onViewLoaded);
 
   const currentView = viewOf(view);
   const activeText = workspace.textOf(workspace.state.active);
@@ -213,6 +221,9 @@ export function App() {
           if (entry !== null) {
             workspace.putFile({ ...entry, text: loaded.source });
             setRevision((value) => value + 1);
+          } else if (workspace.state.files.length === 0 && hasShareLink()) {
+            // Nothing is open: the link's one document becomes a one-file project.
+            projectIo.openSample("shared", sampleProjectFiles("ui/Shared.tsx", loaded.source, "Shared"));
           }
         }
         // A share link carries one source document (the link envelope is frozen at `v,s,w,h,d,t,f`), so
@@ -455,6 +466,10 @@ export function App() {
 
   const onEdit = useCallback(
     (text: string) => {
+      // A locked file opens read-only, so this is not reached for one; the guard keeps it so.
+      if (workspace.state.files.find((file) => file.path === workspace.state.active)?.editable !== true) {
+        return;
+      }
       workspace.writeBuffer(workspace.state.active, text);
       // The live edit (issue #444): the trigger owns the debounce, so this is one call per keystroke and
       // one apply per burst. It reads the file the workspace compiles through the refs above, so a
@@ -558,7 +573,10 @@ export function App() {
         // seed project rather than inventing a path.
         file = null;
       }
-      if (file !== null) {
+      if (file !== null && workspace.state.files.length === 0) {
+        // Nothing is open (the studio no longer boots on a demo project): the sample becomes a project.
+        projectIo.openSample(sample.component, sampleProjectFiles(file.path, sample.text, sample.component));
+      } else if (file !== null) {
         workspace.putFile(file);
         setRevision((value) => value + 1);
       }
@@ -634,6 +652,7 @@ export function App() {
           rows={workspace.rows}
           selected={workspace.state.selected}
           dirty={workspace.state.dirty}
+          stale={projectIo.state.stale}
           onSelect={workspace.selectRow}
           onToggleDir={workspace.toggleDir}
           toolbar={<ProjectBar io={projectIo} dirtyCount={new Set([...workspace.state.dirty, ...workspace.state.removed]).size} />}
@@ -657,6 +676,7 @@ export function App() {
           applying={state.applying}
           onSave={onEditorSave}
           onApplyNow={onEditorApplyNow}
+          stale={projectIo.state.stale}
         />
 
         <PreviewColumn

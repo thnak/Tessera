@@ -20,7 +20,7 @@
 
 import { useEffect, useRef } from "react";
 import { createCodeEditor, type CodeEditor } from "../editor/code-editor";
-import type { ProjectFile } from "../lib/project";
+import { STALE_TEXT, type ProjectFile } from "../lib/project";
 
 /** The id of the tab for `path` (`aria-controls`/`aria-labelledby` need one, and a path has slashes). */
 export function tabIdOf(path: string): string {
@@ -42,6 +42,12 @@ function kindLetter(kind: string): string {
       return "file";
   }
 }
+
+const VIEW_NOTES: Record<string, string> = {
+  binary: "it is not UTF-8 text",
+  "too-large": "it is over the 1 MiB file limit",
+  unreadable: "the browser could not read it (it may have changed on disk)",
+};
 
 /** The open files as tabs, with the unsaved marker and a close button each. */
 function EditorTabs({
@@ -161,6 +167,7 @@ export function CodeRegion({
   applying,
   onSave,
   onApplyNow,
+  stale = [],
 }: {
   open: readonly string[];
   files: readonly ProjectFile[];
@@ -193,6 +200,8 @@ export function CodeRegion({
   onSave: () => void;
   /** Mod-Enter in the editor: apply now, skipping the debounce. */
   onApplyNow: () => void;
+  /** Generated files that may be out of date (advisory). */
+  stale?: readonly string[];
 }) {
   // The editor is created once, in an effect (it needs the DOM, and the Node render of the chrome has none).
   // Its callbacks go through a ref so the page's handlers can change without recreating the editor.
@@ -233,9 +242,9 @@ export function CodeRegion({
     }
     applied.current = stamp;
     if (active !== "") {
-      editor.open(active, text);
+      editor.open(active, text, files.find((file) => file.path === active)?.viewOnly === true);
     }
-  }, [revision, active, text, sourceRef]);
+  }, [revision, active, text, files, sourceRef]);
   const current = files.find((file) => file.path === active) ?? null;
 
   return (
@@ -292,7 +301,22 @@ export function CodeRegion({
       <p className="hint" id="apply-status" role="status" aria-live="polite" hidden={!applying}>
         applying…
       </p>
-      {current ? (
+      {current !== null && stale.includes(current.path) ? (
+        <p className="hint stale-note" id="editor-stale" role="status">
+          {STALE_TEXT}
+        </p>
+      ) : null}
+      {current?.viewOnly ? (
+        <p className="hint view-only-note" id="editor-view-only" data-path={current.path}>
+          <span className="tree-lock">locked</span> <code>{current.path}</code> is read-only: the studio never edits,
+          saves or previews it.{" "}
+          {current.viewNote !== undefined
+            ? `Not shown: ${VIEW_NOTES[current.viewNote] ?? current.viewNote}.`
+            : current.viewText === undefined
+              ? "Reading..."
+              : ""}
+        </p>
+      ) : current ? (
         <p className="hint" id="editor-file" data-path={current.path}>
           Editing <code>{current.path}</code>
           {dirty.includes(current.path) ? " (unsaved changes)" : ""}

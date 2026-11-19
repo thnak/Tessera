@@ -156,7 +156,7 @@ await page.waitForFunction(() => document.getElementById('component-select') ===
 check('a one-component project shows no dropdown', true);
 await page.waitForTimeout(2000);
 
-// --- 2. edit, then Download keeps the edit and omits locked files -------------------------------------
+// --- 2. edit, then Download keeps the edit and writes a package manifest -------------------------------------
 await page.locator('.tree-row[data-path="ui/Home.tsx"]').click();
 await page.waitForFunction(() => window.__tesseraEditor?.text().includes('Opened from a zip'));
 await page.evaluate(() => {
@@ -176,7 +176,7 @@ const byPath = Object.fromEntries(exported.map((entry) => [entry.path, new TextD
 check('the download is named for the project', download.suggestedFilename() === 'my-app.zip', download.suggestedFilename());
 check('the download carries the edit', (byPath['ui/Home.tsx'] ?? '').includes('Edited in the studio'));
 check('the download carries every accepted file', 'tessera.json' in byPath && 'styles/app.css' in byPath);
-check('the download omits locked files', !('fonts/Inter.ttf' in byPath) && !('src/native.cpp' in byPath));
+check('the download is a project package: manifest present, binaries omitted', 'tessera-project.json' in byPath && !('fonts/Inter.ttf' in byPath));
 
 // --- 3. a zip project has no folder to save into -----------------------------------------------------
 check('Save is disabled for a zip project', await page.locator('#save-project').isDisabled());
@@ -325,13 +325,13 @@ check('nothing is left unsaved after Save', (await page.locator('.tree-dirty').c
 
 // --- 7. the last folder is remembered and offered back --------------------------------------------
 await page.reload({ waitUntil: 'load' });
-await page.waitForSelector('#reopen-folder');
-check('after a reload the last folder is offered', /proj/.test(await page.locator('#reopen-folder').textContent()));
+await page.waitForSelector('#recent-projects');
+check('after a reload the last folder is listed under recent projects', /proj/.test((await page.locator('#recent-projects option').nth(1).textContent()) ?? ''));
 await page.evaluate(async () => {
   const dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('proj');
   window.showDirectoryPicker = async () => dir;
 });
-await page.locator('#reopen-folder').click();
+await page.selectOption('#recent-projects', '0');
 await page.waitForFunction(() => /Folder: proj/.test(document.getElementById('project-name')?.textContent ?? ''));
 check('Reopen loads the remembered folder without the picker', (await page.locator('.tree-row[data-path="ui/Renamed.tsx"]').count()) === 1);
 
@@ -340,12 +340,12 @@ await page.locator('.tree-row[data-path="ui/Home.tsx"]').click();
 await editHome('Mine again', 'Draft text');
 await page.waitForTimeout(2600);
 await page.reload({ waitUntil: 'load' });
-await page.waitForSelector('#reopen-folder');
+await page.waitForSelector('#recent-projects');
 await page.evaluate(async () => {
   const dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('proj');
   window.showDirectoryPicker = async () => dir;
 });
-await page.locator('#reopen-folder').click();
+await page.selectOption('#recent-projects', '0');
 await page.waitForSelector('#project-draft');
 check('the unsaved edit is offered back after a reload', /1 file/.test((await page.locator('#project-draft').textContent()) ?? ''));
 check('the draft is not applied before the person chooses', !(await page.evaluate(() => window.__tesseraEditor.text())).includes('Draft text'));
@@ -364,8 +364,8 @@ await page.evaluate(async () => {
   await writable.close();
 });
 await page.reload({ waitUntil: 'load' });
-await page.waitForSelector('#reopen-folder');
-await page.locator('#reopen-folder').click();
+await page.waitForSelector('#recent-projects');
+await page.selectOption('#recent-projects', '0');
 await page.waitForFunction(() => /Folder: proj/.test(document.getElementById('project-name')?.textContent ?? ''));
 await page.waitForTimeout(800);
 check('a draft for a file that changed on disk is not offered', (await page.locator('#project-draft').count()) === 0);
