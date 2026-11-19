@@ -23,6 +23,7 @@ import {
   isViewOnlyKind,
   limitMessage,
 } from './project-paths.js';
+import { applyManifest } from './project-package.js';
 import { readZip } from './studio-zip.js';
 
 /** A refusal the page branches on by `code`: `limit` | `duplicate` | `permission` | `not-accepted`. */
@@ -240,12 +241,14 @@ export async function loadZip(bytes) {
   if (bytes.length > LIMITS.maxArchiveBytes) {
     throw limitError('maxArchiveBytes', bytes.length);
   }
-  const zipped = stripWrapper(await readZip(bytes));
+  // A project package carries a manifest with each file's time (project-package.js); a plain zip has none
+  // and every time stays 0, which is what keeps the stale-generated advice silent for it.
+  const { entries: zipped } = applyManifest(stripWrapper(await readZip(bytes)));
   return buildProject(
     zipped.map((entry) => ({
       path: entry.path,
       size: entry.bytes.length,
-      lastModified: 0,
+      lastModified: entry.modified,
       read: async () => entry.bytes,
     })),
   );

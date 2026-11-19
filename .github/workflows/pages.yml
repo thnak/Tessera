@@ -51,6 +51,7 @@ on:
       - 'scripts/ci/preview_project_load.mjs'
       - 'scripts/ci/preview_generated_staleness.mjs'
       - 'scripts/ci/preview_recent_projects.mjs'
+      - 'scripts/ci/preview_project_package.mjs'
       - 'scripts/ci/preview_theme_handover.mjs'
       - 'scripts/ci/gen_sample_manifest.py'
       - 'scripts/check_preview_budget.py'
@@ -77,6 +78,7 @@ on:
       - 'scripts/ci/preview_project_load.mjs'
       - 'scripts/ci/preview_generated_staleness.mjs'
       - 'scripts/ci/preview_recent_projects.mjs'
+      - 'scripts/ci/preview_project_package.mjs'
       - 'scripts/ci/preview_theme_handover.mjs'
       - 'scripts/ci/gen_sample_manifest.py'
       - 'scripts/check_preview_budget.py'
@@ -247,6 +249,10 @@ jobs:
       # The recent-projects list policy (newest first, one per folder, at most ten, storage-less is empty).
       - name: Recent projects list
         run: node scripts/ci/preview_recent_projects.mjs
+
+      # The project package: zip + manifest with times, versioning, tamper refusal, plain zips still open.
+      - name: Project package format
+        run: node scripts/ci/preview_project_package.mjs
 
       - name: Theme asset hand-over (token commits)
         run: node scripts/ci/preview_theme_handover.mjs

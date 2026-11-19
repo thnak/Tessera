@@ -35,7 +35,8 @@ import {
 import { useRecentProjects, type RecentProject } from "./page-recent-projects";
 import { staleGenerated } from "../generated-staleness.js";
 import { PathError } from "../project-paths.js";
-import { writeZip, ZipError } from "../studio-zip.js";
+import { PackageError, writePackage } from "../project-package.js";
+import { ZipError } from "../studio-zip.js";
 import { projectFile, type ProjectFile } from "./lib/project";
 import type { Workspace } from "./page-workspace";
 
@@ -65,7 +66,7 @@ interface DirectoryPickerWindow {
 
 /** The sentence for a refusal. A `code` is branched on; the message is what a person reads. */
 function sentenceOf(error: unknown): string {
-  if (error instanceof ProjectIoError || error instanceof PathError || error instanceof ZipError) {
+  if (error instanceof ProjectIoError || error instanceof PathError || error instanceof ZipError || error instanceof PackageError) {
     return error.message;
   }
   return error instanceof Error ? error.message : String(error);
@@ -106,7 +107,7 @@ export interface ProjectIo {
   openZip: (file: File) => void;
   save: () => void;
   resolveConflicts: (choice: "keep-mine" | "take-disk" | "cancel") => void;
-  download: () => void;
+  download: () => Promise<void>;
   /** Reads a locked text file for the read-only editor; resolves to why there is no text when it has none. */
   readView: (path: string) => Promise<ViewRead>;
   /** Applies the stored draft to the opened project (skipping files that changed since), or drops it. */
@@ -521,22 +522,34 @@ export function useProjectIo(workspace: Workspace): ProjectIo {
     return reader === undefined ? { note: "unreadable" } : reader();
   }, []);
 
-  const download = useCallback(() => {
+  const download = useCallback(async () => {
     const current = workspaceRef.current;
     const encoder = new TextEncoder();
-    // Only accepted text files travel: a locked file was never read, so there are no bytes to export.
-    const entries = current.state.files
-      .filter((file) => file.editable)
-      .map((file) => ({ path: file.path, bytes: encoder.encode(current.textOf(file.path)) }));
-    const blob = new Blob([writeZip(entries) as BlobPart], { type: "application/zip" });
+    // The package keeps each file's time (an edited file is stamped now), so a reopened package can tell a
+    // stale generated header. The accepted text files travel with their edits; a locked *text* file is read
+    // the same way the view-only editor reads it, and a binary or over-cap one stays out.
+    const now = Date.now();
+    const entries: { path: string; bytes: Uint8Array; modified: number }[] = [];
+    for (const file of current.state.files) {
+      if (file.editable) {
+        const modified = current.state.dirty.includes(file.path) ? now : (baseline.current.get(file.path) ?? file.modified ?? 0);
+        entries.push({ path: file.path, bytes: encoder.encode(current.textOf(file.path)), modified });
+      } else if (file.viewOnly) {
+        const read = await readView(file.path);
+        if ("text" in read) {
+          entries.push({ path: file.path, bytes: encoder.encode(read.text), modified: file.modified ?? 0 });
+        }
+      }
+    }
+    const blob = new Blob([writePackage(entries) as BlobPart], { type: "application/zip" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
     link.download = `${state.name || "project"}.zip`;
     link.click();
     URL.revokeObjectURL(url);
-    say({ note: `downloaded ${entries.length} file(s); locked files are not included` });
-  }, [say, state.name]);
+    say({ note: `downloaded ${entries.length} file(s) as a project package (binary locked files are not included)` });
+  }, [readView, say, state.name]);
 
   const newFile = useCallback(() => {
     const current = workspaceRef.current;

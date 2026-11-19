@@ -156,7 +156,7 @@ await page.waitForFunction(() => document.getElementById('component-select') ===
 check('a one-component project shows no dropdown', true);
 await page.waitForTimeout(2000);
 
-// --- 2. edit, then Download keeps the edit and omits locked files -------------------------------------
+// --- 2. edit, then Download keeps the edit and writes a package manifest -------------------------------------
 await page.locator('.tree-row[data-path="ui/Home.tsx"]').click();
 await page.waitForFunction(() => window.__tesseraEditor?.text().includes('Opened from a zip'));
 await page.evaluate(() => {
@@ -176,7 +176,7 @@ const byPath = Object.fromEntries(exported.map((entry) => [entry.path, new TextD
 check('the download is named for the project', download.suggestedFilename() === 'my-app.zip', download.suggestedFilename());
 check('the download carries the edit', (byPath['ui/Home.tsx'] ?? '').includes('Edited in the studio'));
 check('the download carries every accepted file', 'tessera.json' in byPath && 'styles/app.css' in byPath);
-check('the download omits locked files', !('fonts/Inter.ttf' in byPath) && !('src/native.cpp' in byPath));
+check('the download is a project package: manifest present, binaries omitted', 'tessera-project.json' in byPath && !('fonts/Inter.ttf' in byPath));
 
 // --- 3. a zip project has no folder to save into -----------------------------------------------------
 check('Save is disabled for a zip project', await page.locator('#save-project').isDisabled());
