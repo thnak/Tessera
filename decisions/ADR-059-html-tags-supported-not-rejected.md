@@ -1,9 +1,9 @@
 # ADR-059: HTML tags are supported or approximated, not rejected
 
-- Status: Proposed (2026-11-19). Amends [ADR-039](ADR-039-lowercase-html-tags-accepted.md) decisions 3
-  and 4 and two of its rejected alternatives ("Map every HTML tag", "Add UA default styles"). The
-  owner asked for this direction on 2026-11-19 and answered three of the four questions (see "Owner
-  answers"); question 2 is open. ADR-039 stays in force for everything it already maps.
+- Status: Accepted (2026-11-19, owner). Amends [ADR-039](ADR-039-lowercase-html-tags-accepted.md)
+  decisions 3 and 4 and two of its rejected alternatives ("Map every HTML tag", "Add UA default
+  styles"). The owner asked for this direction and answered the four questions on 2026-11-19 (see
+  "Owner answers"). ADR-039 stays in force for everything it already maps.
 - Date: 2026-11-19
 - Related: [ADR-039](ADR-039-lowercase-html-tags-accepted.md) (lowercase tags are aliases),
   [ADR-036](ADR-036-own-jsx-frontend-and-react-like-model.md) (own front end, React-like),
@@ -46,7 +46,7 @@ The tag table in `html-aliases.md` gains a status per tag. A tag is never silent
 | Status | Meaning | Diagnostic |
 |---|---|---|
 | **mapped** | Same meaning as in the browser for the attributes it accepts (today's rows) | none |
-| **approximated** | Accepted; one or more documented deviations from the browser that cannot be closed (font metrics, browser-only behavior), listed in the row. **Never used for unfinished work** | `TESSERA_JSX_HTML_APPROX` (warning by default, error when `ui.strict` is set; question 2) naming the deviation |
+| **approximated** | Accepted; one or more documented deviations from the browser that cannot be closed (font metrics, browser-only behavior), listed in the row. **Never used for unfinished work** | `TESSERA_JSX_HTML_APPROX` (warning by default, error when `ui.strict` is set) naming the deviation |
 | **planned** | Not yet implemented; the row names the issue and the capability it waits for. A tag stays `planned` until it is implemented completely | `TESSERA_JSX_SUBSET_HTML_TAG` with the issue number, as today |
 | **rejected** | No meaningful behavior without a web engine or JS runtime, with the reason | `TESSERA_JSX_SUBSET_HTML_TAG` with the reason |
 
@@ -139,11 +139,10 @@ port knows before it starts which pages are blocked and by what.
 
 1. **Browser defaults:** `ui.htmlDefaults` defaults to `"browser"` (section 3). Reading to confirm: a
    `tessera.json` without the key stays `"none"` so existing projects do not change.
-2. **Severity of `approximated`: open.** Proposed: a warning by default, an error under `ui.strict`.
-   The owner asked what it is and what it affects; the answer is in the conversation that produced
-   this revision and is summarized here: it decides whether a page that compiles with a documented
-   browser deviation fails the build. With the narrowed definition in section 1 (only deviations
-   that cannot be closed, never unfinished work) it fires rarely.
+2. **Severity of `approximated`:** a warning by default and an error when `ui.strict` is set (the
+   proposal, accepted as written). It decides whether a page that compiles with a documented browser
+   deviation fails the build. With the narrowed definition in section 1 (only deviations that cannot
+   be closed, never unfinished work) it fires rarely, and CI can opt into the error.
 3. **Tables: implement completely**, no approximate first slice (group D).
 4. **`a href`: both** internal navigation and external URLs in the first slice (group B).
 
@@ -152,4 +151,7 @@ port knows before it starts which pages are blocked and by what.
 - Add the status column and the four statuses to `html-aliases.md`; generate the typings from it.
 - Open one issue per group A-F under milestone V1-M5; group C and the missing properties of
   group A are the first, since the other groups build on them.
-- When accepted, mark ADR-039 as amended by this ADR and update its decisions 3 and 4.
+- ADR-039 is marked amended by this ADR (its status line links here); its decisions 3 and 4 are
+  read through section 1 above.
+- Document `ui.htmlDefaults` and `ui.strict` in `project-config-v1.md` with the first slice that
+  implements them.

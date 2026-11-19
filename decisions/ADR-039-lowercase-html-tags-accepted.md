@@ -1,6 +1,7 @@
 # ADR-039: Lowercase HTML tags are accepted as aliases of the intrinsic elements
 
-- Status: Accepted
+- Status: Accepted. Decisions 3 and 4 and two rejected alternatives are amended by
+  [ADR-059](ADR-059-html-tags-supported-not-rejected.md) (2026-11-19); the rest is unchanged
 - Date: 2026-11-09
 - Reverses: the rule "no lowercase HTML tag aliases" recorded in
   [`jsx-subset-v1.md`](../docs/specs/jsx-subset-v1.md) sections 10.1, 12 and 18 (a project-owner

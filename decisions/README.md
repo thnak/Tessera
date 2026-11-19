@@ -48,7 +48,7 @@ V1 is the first release. A feature is in V1 unless the ADR or spec that owns it 
 | [ADR-036](ADR-036-own-jsx-frontend-and-react-like-model.md) | Own JSX/TSX front end; React-like (not React-identical) model; built-in hooks; live view | Accepted |
 | [ADR-037](ADR-037-self-contained-wasm-designer.md) | Self-contained Wasm designer engine (front end + evaluator), picker, style editing | Accepted |
 | [ADR-038](ADR-038-cpp23-baseline.md) | C++23 language baseline (supersedes item 1 of ADR-015) | Accepted |
-| [ADR-039](ADR-039-lowercase-html-tags-accepted.md) | Lowercase HTML tags accepted as aliases of intrinsics (reverses a subset-spec rule) | Accepted |
+| [ADR-039](ADR-039-lowercase-html-tags-accepted.md) | Lowercase HTML tags accepted as aliases of intrinsics (reverses a subset-spec rule). Decisions 3 and 4 amended by ADR-059 | Accepted (amended by [ADR-059](ADR-059-html-tags-supported-not-rejected.md)) |
 | [ADR-040](ADR-040-generated-base-and-developer-class.md) | Generated base class plus developer-owned class instead of protected regions (supersedes ADR-008); the only codegen path since #219 | Accepted (migration complete 2026-11-15) |
 | [ADR-041](ADR-041-layout-observation.md) | Layout observation (`onSizeChange`), a layout read model, and container queries second | Accepted |
 | [ADR-042](ADR-042-jsx-startup-surface.md) | Declarative JSX startup surface: `App` root, built-in `Startup.*`/`Resources.*` member tags, framework loading screen | Proposed |
@@ -68,7 +68,7 @@ V1 is the first release. A feature is in V1 unless the ADR or spec that owns it 
 | [ADR-056](ADR-056-update-dependency-masks-and-scheduled-children.md) | Generated components re-evaluate only bindings whose compile-time dependency bits are dirty, and a parent schedules a child's ticket on a prop change instead of calling its `update()`; answers the #440 fan-out measurement. Accepted (2026-11-17); slices #441, #442, #443 |
 | [ADR-057](ADR-057-vector-paths-thorvg-default-and-exit.md) | `TESSERA_ENABLE_THORVG` defaults ON (the Linux lane already proves it; the Windows lane pins it OFF for its build budget), and ThorVG is replaced by an in-house rasterizer behind the unchanged `PathRasterizer` seam when a measured trigger fires. Amends ADR-004 decision 1. Accepted (2026-11-18, owner) |
 | [ADR-058](ADR-058-react-vite-port-compatibility-tiers.md) | Porting a React + Vite project: every dependency and construct falls in one of four classes (source-compatible, same-API native shim package, build-time translation, not ported with a named replacement); a `port-check` tool reports the class; a typing budget says what a port edits (declarations) and what the compiler absorbs (`interface`, `enum`, `?.`, `??`, `number` inference); no npm source is ever compiled. Proposed (2026-11-19); five questions for the owner |
-| [ADR-059](ADR-059-html-tags-supported-not-rejected.md) | HTML tags get one of four statuses (mapped, approximated with a warning, planned with an issue, rejected only where a web engine or JS runtime is needed) instead of being rejected; carriers stay `View`/`Text` with meaning in role, a reserved class and props; an opt-in `ui.htmlDefaults: "browser"` user-agent stylesheet resolves Q12; capability groups A-F are the roadmap. Amends ADR-039 decisions 3 and 4. Proposed (2026-11-19); owner answered 3 of 4 questions (browser defaults on by default, full table layout, both link forms), severity of approximations open |
+| [ADR-059](ADR-059-html-tags-supported-not-rejected.md) | HTML tags get one of four statuses (mapped, approximated with a warning, planned with an issue, rejected only where a web engine or JS runtime is needed) instead of being rejected; carriers stay `View`/`Text` with meaning in role, a reserved class and props; an opt-in `ui.htmlDefaults: "browser"` user-agent stylesheet resolves Q12; capability groups A-F are the roadmap. Amends ADR-039 decisions 3 and 4. Accepted (2026-11-19, owner): browser defaults on by default, full table layout, both link forms, `approximated` is a warning (error under `ui.strict`) |
 
 ## Dependency overview
 
@@ -116,7 +116,7 @@ ADR-055 studio mock services (accepted) ── ADR-054 studio stack, ADR-045 dec
 ADR-056 update dependency masks (accepted) ── ADR-040 generated base, ADR-018 dirty rendering, observable design note
 ADR-057 vector paths: ThorVG default ON + measured exit (accepted) ── ADR-004 buy vector paths (decision 1 amended), ADR-012 static linking, ADR-009 goldens
 ADR-058 React + Vite port compatibility classes (proposed) ── ADR-036 own front end, ADR-039 lowercase tags, ADR-024 no JS runtime, ADR-051 record types, ADR-050 app framework
-ADR-059 HTML tags supported not rejected (proposed) ── ADR-039 lowercase tags (amended), ADR-058 port classes, ADR-036 closed IR kinds, ADR-024 no JS runtime
+ADR-059 HTML tags supported not rejected (accepted) ── ADR-039 lowercase tags (amended), ADR-058 port classes, ADR-036 closed IR kinds, ADR-024 no JS runtime
 ```
 
 [ADR-035](ADR-035-view-transitions.md), [ADR-036](ADR-036-own-jsx-frontend-and-react-like-model.md), and [ADR-037](ADR-037-self-contained-wasm-designer.md) are listed in the table above but are not drawn in this diagram.
