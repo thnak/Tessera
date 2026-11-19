@@ -154,12 +154,12 @@ This page is the map and reading order for the framework.
   browser designer: source sync, picker, style overrides, commit as text patches
 - [`specs/designer-studio-v1.md`](specs/designer-studio-v1.md) — hosted studio: GitHub Pages deploy,
   page-as-host, skins and simulated system chrome, project import/export, MCP stdio mode
-- [`specs/mcp-server-v1.md`](specs/mcp-server-v1.md) — `tessera-mcp` project folder, shared file policy,
-  error codes, tool schema and surface version
+- [`specs/mcp-server-v1.md`](specs/mcp-server-v1.md) — `tessera-mcp` project folder, shared file policy, error codes, tool schema and surface version
 - [`specs/studio-device-profiles-v1.md`](specs/studio-device-profiles-v1.md) — studio device profiles as data,
   simulated platform events and hardware buttons, restart on device change, live edit without Run
-- [`specs/studio-mock-services-v1.md`](specs/studio-mock-services-v1.md) — design-time mock services:
-  `*.mock.ts` project files, sandboxed studio worker, calls/responses and traces (ADR-055)
+- [`specs/studio-mock-services-v1.md`](specs/studio-mock-services-v1.md) — design-time mock services: `*.mock.ts` project files, sandboxed studio worker, calls/responses and traces (ADR-055)
+- [`specs/studio-workbench-v1.md`](specs/studio-workbench-v1.md) — studio workbench as data: command registry, menus, toolbar, slice plan (#516);
+  [`studio-workbench-layout-v1.md`](specs/studio-workbench-layout-v1.md): dock model, constraints, library evaluation
 - [`specs/compiler-diagnostics-v1.md`](specs/compiler-diagnostics-v1.md) — machine-readable compiler
   diagnostics document (`--diagnostics-json`), spans, determinism, native/Wasm parity
 - [`specs/jsx-subset-v1.md`](specs/jsx-subset-v1.md) — accepted JSX/TSX syntax: grammar, expressions,
