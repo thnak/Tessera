@@ -573,6 +573,31 @@ test("store and commands: toggles, reveal, preset, reset, maximize, change notif
   assert.equal(wb.groupOfPanel(store.get(), "canvas").id, "g-bottom");
 });
 
+test("shell operation: flags flip, a no-op returns the same layout, zen is never written, restore notifies once", () => {
+  const layout = dflt();
+  const zen = wb.applyOperation(layout, { kind: "shell", patch: { zen: true } });
+  assert.equal(zen.layout.shell.zen, true);
+  assert.deepEqual(zen.change, { opened: [], closed: [], shown: [], hidden: [] }, "no panel changes state");
+  assert.equal(wb.applyOperation(zen.layout, { kind: "shell", patch: { zen: true } }).layout, zen.layout, "same value is a no-op");
+  assert.equal(JSON.parse(wb.serializeLayout(zen.layout)).shell.zen, false, "zen is not stored");
+  const hidden = wb.applyOperation(layout, { kind: "shell", patch: { statusBar: false } }).layout;
+  assertValid(hidden, "statusBar off");
+  assert.equal(JSON.parse(wb.serializeLayout(hidden)).shell.statusBar, false, "the status bar flag is stored");
+  const store = wb.createLayoutStore(layout);
+  let calls = 0;
+  store.subscribe(() => (calls += 1));
+  store.restore(zen.layout);
+  assert.equal(calls, 1);
+  assert.equal(store.get(), zen.layout);
+  const commands = wb.createCommands(store);
+  const before = store.get();
+  commands.toggleSideBar();
+  assert.ok(store.get().collapsed.includes("g-project"), "toggleSideBar collapses the Project group");
+  commands.toggleSideBar();
+  assert.deepEqual(store.get().collapsed, before.collapsed, "and shows it again");
+  assert.equal(wb.sideBarOpen(store.get()), true);
+});
+
 test("visible resize: a sash on the folded tree resizes the real tree and collapsed groups keep their share", () => {
   const layout = dflt(); // g-bottom collapsed, so the screen shows row[project, editor, preview]
   assert.equal(wb.visibleLayout(layout).root.children.length, 3);

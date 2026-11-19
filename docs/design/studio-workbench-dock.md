@@ -74,8 +74,8 @@ At 720 px the adapter shows `phoneLayout()`: one group, `g-phone`, in the order 
 diagnostics, rest. The library's own tab strip is the switcher; drag and maximize are disabled. The
 stored layout is not touched, so crossing the breakpoint back restores the desktop arrangement.
 Crossing it, or collapsing a group that holds the canvas, detaches hosts; that re-parents the canvas
-element (the spec allows it for an explicit breakpoint change, but it is the one place the
-no-reparent rule is relaxed, and it is not browser-tested with a real GPU yet).
+element. The owner accepted this (2026-11-19): the spec allows it for an explicit breakpoint change, it
+is the one place the no-reparent rule is relaxed, and it is recorded here.
 
 ## 5. Panel runtime
 
@@ -87,11 +87,30 @@ session's, driven by `onVisibility`.
 ## 6. Known gaps (decisions for the owner)
 
 - Sash snap to the default fraction, double-click reset and collapse-below-`minSize` (spec 4.4) are not
-  implemented; the library offers no hook and the adapter does not draw sashes itself.
-- Tab context menus (Shift+F10) and tab count badges were lost with the old tab strip.
+  implemented, by owner decision (2026-11-19): a follow-up, not part of the command wiring. The library
+  offers no hook and the adapter does not draw sashes itself.
+- Tab count badges were lost with the old tab strip. The tab context menu (`panel.tab`, Shift+F10) is back:
+  Maximize or Restore, Move Panel (Left, Right, Top, Bottom, Into Group), Close Panel
+  (`page-layout-commands.ts`, section 7).
 - Not run: the real-WebGPU checks (a hidden Canvas draws zero frames, the frames keep painting after a
   move), because no Wasm build exists on the development machine. The no-WebGPU check (Scene and
   Diagnostics keep working with `navigator.gpu` absent) is in `workbench_dock.mjs`.
 - `scripts/ci/preview_browser_layout.mjs` was edited minimally for the dock DOM; its
   project-dependent checks were already stale after #391 (the workspace starts empty). W6 owns the
   rewrite.
+
+## 7. The commands over the dock
+
+The dock-owned command ids are live and each handler is one call into the layout store
+(`page-layout-commands.ts`, `workbench/store.ts`), so a menu item, a chord, a palette entry and a tab
+context menu run the same code: `view.toggleSideBar` (the Project group), `view.togglePanelArea`,
+`view.togglePanel`, `view.movePanel`, `view.movePanelToGroup`, `view.maximizePanel`, `view.layoutPreset`,
+`view.resetLayout`, `view.zenMode` and `view.exitZenMode`, `view.toggleStatusBar`,
+`view.focusNextRegion` and `view.focusPreviousRegion`, `view.undoLayoutChange`. The menu check marks read
+the layout through context keys (`layout.sideBar`, `layout.panelArea`, `layout.statusBar`, `layout.zen`,
+`layout.preset`, `panel.<id>.visible`). Presets and reset keep one undo step, offered as an "Undo layout
+change" notification action; it is valid exactly while the layout is still the object the preset produced.
+Zen mode is `shell.zen`: the dock shows the editor alone as a view of the layout (`maximized` and
+`collapsed` untouched), the toolbar and status line are not drawn, and panels stay mounted but report
+hidden. `view.toggleActivityBar` stays reserved (there is no activity bar). On a phone, toggles reveal or
+leave a panel instead of collapsing a group.

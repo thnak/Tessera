@@ -46,6 +46,13 @@ recorded page total, layout spec 5.3).
   is bounded by decision 2.
 - The enforced preview budget is re-recorded by the slice that ships the library in the studio build (W5).
 
+- The adapter depends on one library behavior: `Model.fromJson(json, previous)` hands the previous model's
+  tab nodes to the new one, so each tab keeps its content element and a move, a tab switch or a reset does
+  not re-create or re-parent a panel's DOM (the canvas above all). A library upgrade must keep that behavior;
+  `scripts/ci/workbench_dock_core.mjs` guards it (it rebuilds a model from the previous one and asserts the
+  tab nodes are reused), and `workbench_dock.mjs` proves it in a real browser (same `HTMLCanvasElement`, no
+  removals across moves).
+
 ## Alternatives
 
 - **dockview** 8.9.1: also keeps panels alive (`renderer: 'always'`) but costs +110,694 B gzip and its

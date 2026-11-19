@@ -244,7 +244,8 @@ View
                                   Platform events*, Mock console*, Call trace*,
                                   R:Problems, R:Source Control
   Focus Next / Previous Region  *view.focusNextRegion   F6 / Shift+F6
-  Move Panel >                  *view.movePanel         Left, Right, Bottom, Into Group >  (palette-first)
+  Move Panel >                  *view.movePanel         Left, Right, Top, Bottom, Into Group > (view.movePanelToGroup)
+  Exit Zen / Undo Layout Change *view.exitZenMode (Esc Esc, only in zen), *view.undoLayoutChange (after a preset or reset)
   Maximize / Restore Panel      *view.maximizePanel     (VS Code: no default; panel header button too)
   Reset Layout                  *view.resetLayout
 Go

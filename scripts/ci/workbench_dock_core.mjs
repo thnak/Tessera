@@ -178,6 +178,17 @@ test("a gesture's operation, applied to the model, equals the library applying t
   }
 });
 
+// ADR-062: the adapter's no-remount guarantee rests on `Model.fromJson(json, previous)` adopting the previous
+// model's per-tab view state. A library upgrade that drops it would remount (re-parent) the Canvas on every move.
+test("flexlayout: Model.fromJson(json, previous) adopts the previous model's tab view state (ADR-062)", () => {
+  const first = fl.Model.fromJson(dock.toLibrary(dflt(), { defs }));
+  const moved = wb.applyOperation(dflt(), { kind: "move", panelId: "canvas", target: { edge: "bottom", of: "g-editor" } }).layout;
+  const second = fl.Model.fromJson(dock.toLibrary(moved, { defs }), first);
+  assert.equal(typeof second.getAdoptedFromModel, "function", "the library exposes the adoption hook");
+  assert.equal(second.getAdoptedFromModel(), first, "the new model records the model it adopted from");
+  assert.equal(fl.Model.fromJson(dock.toLibrary(moved, { defs })).getAdoptedFromModel(), undefined, "without a previous model nothing is adopted");
+});
+
 test("splitter: aria values come from the model, not 0..100", () => {
   assert.deepEqual(dock.separatorValues([0.18, 0.82], 0, [0.1, 0.1]), { now: 18, min: 10, max: 90 });
   assert.deepEqual(dock.separatorValues([0.25, 0.5, 0.25], 1, [0.1, 0.1, 0.1]), { now: 75, min: 35, max: 90 });
