@@ -60,6 +60,18 @@ void PropertyRegistry::register_extension_properties() {
         properties_[name] = PropertyInfo{std::string(), false};
     }
 
+    // Decorations propagate to descendants in CSS; the engine models that as inheritance
+    // (docs/design/text-decoration.md section 3). `vertical-align` is not inherited.
+    properties_["text-decoration-line"] = PropertyInfo{"none", true};
+    properties_["text-decoration-style"] = PropertyInfo{"solid", true};
+    properties_["text-decoration-color"] = PropertyInfo{"currentColor", true};
+    properties_["text-decoration-thickness"] = PropertyInfo{"auto", true};
+    properties_["vertical-align"] = PropertyInfo{"baseline", false};
+    shorthands_["text-decoration"] =
+        ShorthandInfo{{"text-decoration-line", "text-decoration-style", "text-decoration-color",
+                       "text-decoration-thickness"},
+                      ShorthandKind::Pair};
+
     std::vector<std::string> border_longhands;
     border_longhands.reserve(std::size(kBorderLonghands));
     for (const char* name : kBorderLonghands) {

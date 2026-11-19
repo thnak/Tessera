@@ -926,8 +926,11 @@ if (TESSERA_BUILD_TESTS)
     #                         the session's own `patch()`, which the fixture tests deliberately skip
     #   scene_canvas_override the override layer (issue #536): validate, restyle, undo/redo, and the
     #                         commit that makes `source.patch` reachable
+    #   scene_canvas_override_commit  the commit half of the same layer: token patch, round trip,
+    #                         mismatch, history rules and report JSON
     foreach (_canvas_test IN ITEMS scene_canvas_session scene_canvas_pointer scene_canvas_pick
-            scene_canvas_style scene_canvas_patch scene_canvas_patch_session scene_canvas_override)
+            scene_canvas_style scene_canvas_patch scene_canvas_patch_session scene_canvas_override
+            scene_canvas_override_commit)
         add_executable(${_canvas_test}_tests
             ${CMAKE_SOURCE_DIR}/tests/unit/${_canvas_test}_tests.cpp
             ${CMAKE_SOURCE_DIR}/tools/codegen/canvas_report.cpp
