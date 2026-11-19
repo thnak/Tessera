@@ -245,7 +245,8 @@ Stable codes, added to the `TESSERA_MOCK_` family in [error-model-v1.md](error-m
 | `TESSERA_MOCK_TIMEOUT` / `TESSERA_MOCK_CALL_LIMIT` / `TESSERA_MOCK_RESPONSE_TOO_LARGE` | Caps (section 4.5) |
 | `TESSERA_MOCK_LIMIT` | A protocol message over its limit (section 6.3) |
 | `TESSERA_MOCK_TRACE_LIMIT` / `TESSERA_MOCK_REPLAY_MISMATCH` | Trace limits and replay mismatch |
-| `TESSERA_MOCK_SANDBOX_VIOLATION` | A shadowed global or forbidden operation was reached |
+| `TESSERA_MOCK_SANDBOX_VIOLATION` | A shadowed global or forbidden operation was reached, or the static scan found a forbidden identifier |
+| `TESSERA_MOCK_HANDLER_ERROR` | A handler threw; the mock stays enabled and the call is recorded as an `error` response |
 
 Each is `Error` severity except binding status (`Warn`): the preview continues with the engine
 default. No mock error is `Fatal`.

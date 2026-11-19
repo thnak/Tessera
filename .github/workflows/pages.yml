@@ -49,6 +49,9 @@ on:
       - 'scripts/ci/preview_page_checks.mjs'
       - 'scripts/ci/preview_skins.mjs'
       - 'scripts/ci/preview_project_load.mjs'
+      - 'scripts/ci/preview_mock_host.mjs'
+      - 'scripts/ci/preview_mock_sandbox.mjs'
+      - 'scripts/ci/mock_test_support.mjs'
       - 'scripts/ci/preview_theme_handover.mjs'
       - 'scripts/ci/gen_sample_manifest.py'
       - 'scripts/check_preview_budget.py'
@@ -73,6 +76,9 @@ on:
       - 'scripts/ci/preview_page_checks.mjs'
       - 'scripts/ci/preview_skins.mjs'
       - 'scripts/ci/preview_project_load.mjs'
+      - 'scripts/ci/preview_mock_host.mjs'
+      - 'scripts/ci/preview_mock_sandbox.mjs'
+      - 'scripts/ci/mock_test_support.mjs'
       - 'scripts/ci/preview_theme_handover.mjs'
       - 'scripts/ci/gen_sample_manifest.py'
       - 'scripts/check_preview_budget.py'
@@ -235,6 +241,12 @@ jobs:
       # file that changed on disk. The browser half is `preview_browser_project_io.mjs`, run by hand.
       - name: Project load and save (limits, locked files, conflicts)
         run: node scripts/ci/preview_project_load.mjs
+
+      - name: Studio mock services (file kind, subset, table, trace, host)
+        run: node scripts/ci/preview_mock_host.mjs
+
+      - name: Studio mock sandbox (hostile fixtures, caps)
+        run: node scripts/ci/preview_mock_sandbox.mjs
 
       - name: Theme asset hand-over (token commits)
         run: node scripts/ci/preview_theme_handover.mjs
