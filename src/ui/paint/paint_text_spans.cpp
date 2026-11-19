@@ -9,8 +9,10 @@
 
 #include "paint_properties.hpp"
 #include "paint_text.hpp"
+#include "paint_text_rules.hpp"
 #include "tessera/ui/paint/paint_text_metrics.hpp"
 #include "tessera/ui/scene/event.hpp"
+#include "tessera/ui/style/text_decoration.hpp"
 #include "tessera/ui/text/font_metrics.hpp"
 #include "tessera/ui/text/text_layout.hpp"
 #include "tessera/ui/text/text_measure.hpp"
@@ -32,6 +34,10 @@ struct SpanRunStyle {
     int font_weight = 0;
     bool italic = false;
     rhi::Color color{0.0f, 0.0f, 0.0f, 1.0f};
+    // The span's own `text-decoration` (inherited from the parent through the cascade) and its
+    // `vertical-align` baseline shift in px, positive raising the run (not inherited).
+    TextRuleStyle rules;
+    float shift = 0.0f;
     // Union of the painted rectangles of this span, in absolute paint coordinates; `painted` is
     // false until the first slice is emitted.
     rhi::Rect rect;
@@ -83,9 +89,10 @@ void union_rect(SpanRunStyle& style, const rhi::Rect& rect) {
 } // namespace
 
 void paint_spanned_text(const Node& node, const text::TextStyle& base_style,
-                        const rhi::Rect& content, const rhi::Color& parent_color, float opacity,
-                        bool wrap, PaintTextAlign align, std::uint32_t max_lines,
-                        const PaintContext& context, PaintSink& sink, PaintStats& stats) {
+                        const rhi::Rect& content, const rhi::Color& parent_color,
+                        const TextRuleStyle& parent_rules, float opacity, bool wrap,
+                        PaintTextAlign align, std::uint32_t max_lines, const PaintContext& context,
+                        PaintSink& sink, PaintStats& stats) {
     const auto& data = node.paint_data();
     if (!data || data->kind != PaintKind::Text || data->spans.empty()) {
         return;
@@ -104,6 +111,7 @@ void paint_spanned_text(const Node& node, const text::TextStyle& base_style,
         run.font_weight = base_style.font_weight;
         run.italic = base_style.italic;
         run.color = parent_color;
+        run.rules = parent_rules;
         if (context.styles == nullptr) {
             continue;
         }
@@ -117,6 +125,12 @@ void paint_spanned_text(const Node& node, const text::TextStyle& base_style,
         run.italic = run_text.italic;
         run.color = detail::current_color(span_style);
         run.color.a *= opacity;
+        run.rules = resolve_text_rules(span_style, run_text, run.color, opacity);
+        // Spans paint at the parent's size (their metric fields are ignored), so the em-relative
+        // shifts are taken against that size, not the span's own `font-size`.
+        if (const std::string* shift_value = span_style.find("vertical-align")) {
+            run.shift = style::vertical_align_shift(*shift_value, base_style.font_size);
+        }
     }
 
     StubPaintTextMetrics stub_source;
@@ -153,20 +167,25 @@ void paint_spanned_text(const Node& node, const text::TextStyle& base_style,
                 const SpanRunStyle& span_style =
                     index < span_count ? styles[index] : SpanRunStyle{};
                 TextDraw draw;
-                draw.rect = {std::round(x), std::round(line_top), width, line.height};
+                const float shift = index < span_count ? span_style.shift : 0.0f;
+                const TextRuleStyle& rules = index < span_count ? span_style.rules : parent_rules;
+                draw.rect = {std::round(x), std::round(line_top - shift), width, line.height};
                 draw.text = painted;
                 draw.font_size = base_style.font_size;
                 draw.font_weight =
                     index < span_count ? span_style.font_weight : base_style.font_weight;
                 draw.italic = index < span_count ? span_style.italic : base_style.italic;
                 draw.color = index < span_count ? span_style.color : parent_color;
-                draw.baseline = std::round(line_top + line.baseline);
+                draw.baseline = std::round(line_top + line.baseline - shift);
                 if (index < span_count) {
                     union_rect(styles[index], draw.rect);
                 }
                 if (!painted.empty() && draw.color.a > 0.0f) {
                     sink.draw_text(draw);
                     ++stats.texts;
+                    emit_text_rules(rules, metrics_source->metrics(base_style),
+                                    base_style.font_size, x, x + width,
+                                    line_top + line.baseline - shift, sink);
                 }
                 x += width;
             };

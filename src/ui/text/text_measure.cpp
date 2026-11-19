@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "tessera/ui/style/text_decoration.hpp"
 #include "tessera/ui/text/font_metrics.hpp"
 #include "tessera/ui/text/text_layout.hpp"
 #include "tessera/ui/text/text_measure.hpp"
@@ -194,6 +195,16 @@ TextStyle text_style_from(const style::ComputedStyle& computed) {
     }
     if (const std::string* overflow = computed.find("text-overflow")) {
         result.text_overflow = parse_text_overflow(*overflow);
+    }
+    if (const std::string* line = computed.find("text-decoration-line")) {
+        result.decoration_lines = style::parse_text_decoration_line(*line).value_or(0);
+    }
+    if (const std::string* thickness = computed.find("text-decoration-thickness")) {
+        result.decoration_thickness =
+            style::text_decoration_thickness(*thickness, result.font_size);
+    }
+    if (const std::string* align = computed.find("vertical-align")) {
+        result.baseline_shift = style::vertical_align_shift(*align, result.font_size);
     }
     return result;
 }

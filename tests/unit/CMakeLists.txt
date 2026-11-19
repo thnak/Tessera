@@ -2581,3 +2581,10 @@ add_executable(paint_border_snap_tests
 target_link_libraries(paint_border_snap_tests PRIVATE tessera_paint)
 
 add_test(NAME paint_border_snap COMMAND paint_border_snap_tests)
+
+# CSS `text-decoration` and `vertical-align` (docs/design/text-decoration.md): value grammar,
+# registry/shorthand/@supports, the computed-value mapping, and the painted rules and baseline shift.
+add_executable(text_decoration_tests
+    text_decoration_tests.cpp)
+target_link_libraries(text_decoration_tests PRIVATE tessera_paint tessera_text tessera_style)
+add_test(NAME text_decoration COMMAND text_decoration_tests)
