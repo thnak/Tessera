@@ -227,7 +227,7 @@ export function createDiagnosticsSession(options: {
  * A small sample that is valid, so the first Run shows the empty-diagnostics path. The gallery's
  * samples are read from `samples/`; this stays as the zero-network default.
  */
-export const SAMPLE = `export function Counter(): Node {
+export const SAMPLE = `export function Counter() {
   const [count, setCount] = useState<int>(0);
 
   return (

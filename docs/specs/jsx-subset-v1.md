@@ -234,6 +234,11 @@ ParamType  = IDENT ":" TypeExpr ;
   types `int` and `float` ([`ir-v1.md`](ir-v1.md) section 2). A bare `number` in a state type, prop
   type, handler parameter, return type or record member is rejected with
   `TESSERA_JSX_TYPE_NUMBER` and the suggestion to write `int` or `float`. The project owner decided this.
+  **Type-hint rules:** state is typed by inference (`useState(0)`) or by a Tessera type hint
+  (`useState<int>(0)`), and there is no third spelling. `useState<number>(0)` is an explicit error, not
+  a fallback, so a port cannot silently pick the wrong numeric type; the fix is `int`, `float`, or no
+  hint. The error is reported on every surface (the preview CLIs print it to stderr as
+  `file:line:col: error TESSERA_JSX_TYPE_NUMBER: ... (hint: ...)`).
 - **Literal types.** A number literal without a fraction or exponent (`0`, `42`) is `int`, unless the
   expected type at that position is `float`, in which case it is `float`. A literal with a fraction or
   exponent (`0.5`, `1e3`) is `float`; it is an error where `int` is expected

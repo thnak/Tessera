@@ -23,6 +23,7 @@
 // 2 usage/setup, including a backend this build does not have.
 
 #include "preview_text.hpp"
+#include "scene_failure.hpp"
 #include "scene_frame.hpp"
 #include "scene_prepare.hpp"
 #include "tessera/harness/image_compare.hpp"
@@ -270,6 +271,10 @@ int main(int argc, char** argv) {
         source, options, *device, extent, component, pipeline, text.get());
     if (!result.error.empty()) {
         std::cerr << "tessera_scene_frame: " << result.error << "\n";
+        // The line above names a stage; the compiler's own diagnostics (code, span, hint) say why.
+        if (result.nodes == 0) {
+            std::cerr << tessera::compiler::codegen::cli::scene_failure_text(source, input, {});
+        }
         // A scene that could not be built is exit 1 (the same distinction the P2 CLI makes between
         // "the source produced no scene" and "the setup is wrong").
         return result.nodes == 0 ? 1 : 2;

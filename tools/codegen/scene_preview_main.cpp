@@ -20,14 +20,17 @@
 // same `preview` the module uses, for the same reason (the salt feeds every `uiId`).
 //
 // Exit codes: 0 document written; 1 the source produced no scene (the document is still written, so
-// a caller can see what it got); 2 usage/setup.
+// a caller can see what it got, and every diagnostic is printed to stderr as
+// `file:line:col: error CODE: message (hint: ...)`); 2 usage/setup.
 //
 // It is a separate executable rather than a verb on `tessera_codegen` on purpose: that CLI is the
 // target the Wasm-compiler lane builds (docs/design/compiler-wasm.md section 2), and linking the
 // engine (Yoga, the text stack, the stylesheet engine) into it would drag the whole UI into the P0
 // Wasm artifact. The driver is shared instead of the binary.
 
+#include "scene_failure.hpp"
 #include "scene_interaction.hpp"
+#include "scene_prepare.hpp"
 #include "scene_preview.hpp"
 #include "tessera/hal/fold_posture.hpp"
 
@@ -238,6 +241,13 @@ int main(int argc, char** argv) {
     if (!write_document(output, document)) {
         std::cerr << "tessera_scene_preview: cannot write `" << output << "`\n";
         return 2;
+    }
+    if (!produced_scene) {
+        // The document stays the machine contract (stdout/file, exit 1); this is the person's: each
+        // diagnostic on stderr, so a rejected source (`useState<number>(0)`) is never silent.
+        const std::string reason =
+            tessera::compiler::codegen::cli::prepare_scene(source, options, component).error;
+        std::cerr << tessera::compiler::codegen::cli::scene_failure_text(source, input, reason);
     }
     return produced_scene ? 0 : 1;
 }

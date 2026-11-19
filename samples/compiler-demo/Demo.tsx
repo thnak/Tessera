@@ -3,7 +3,7 @@
 // a protected region, inline setter handlers, and a conditional child (the keyed-list demo needs a
 // list-typed state cell, which the front end cannot author yet).
 
-export function Demo(): Node {
+export function Demo() {
   const [count, setCount] = useState<int>(0);
   const [name, setName] = useState<string>("");
   const box = useRef<View>(null);
