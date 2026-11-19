@@ -5,6 +5,7 @@
 
 #include "tessera/ui/scene/component_lifecycle.hpp"
 #include "tessera/ui/scene/update_scheduler.hpp"
+#include "tessera/ui/scene/dirty_mask.hpp"
 #include "tessera/ui/scene/event_payloads.hpp"
 #include "tessera/ui/scene/state_snapshot.hpp"
 #include "tessera/ui/text/text_input_runtime.hpp"
@@ -61,8 +62,22 @@ namespace forward {
       void unmount();
       // Recompute interpolated values; marks Paint|Render only when a value changed.
       void apply_state();
-      // Runs update_effects() then apply_state(); the scheduler calls it at its flush.
+      // A hand call: marks every cell dirty, then runs flush_update() (headless tests).
       void update();
+      // Runs update_effects() then apply_state() over the dirty cells; the scheduler calls it.
+      void flush_update();
+      // ADR-056 dirty mask: one bit per state cell, animated value and prop. A setter sets
+      // its cell's bit; apply_state() re-evaluates a binding only when a cell it reads is
+      // dirty. The bit constants are public so an owner can mark a child's prop.
+      static constexpr std::size_t kBit_prop_onPress_ = 0;
+      static constexpr std::size_t kBit_prop_onText_ = 1;
+    private:
+      tessera::ui::DirtyMask<3> dirty_ = tessera::ui::DirtyMask<3>::all();
+    public:
+      // Marks one cell dirty without scheduling (the caller schedules).
+      void note_dirty(std::size_t bit);
+      // Marks every cell dirty: the next apply_state() re-evaluates every binding.
+      void mark_all_dirty();
     private:
       // Scheduled updates: a setter marks this component dirty and the host's
       // UpdateScheduler runs update() once at its next flush (UI thread only). The ticket
@@ -80,6 +95,8 @@ namespace forward {
     template <class Self>
     concept ForwardWrapContract = true;
     namespace ForwardWrap_detail {
+      // text binding of node::3 reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<3> kDirty_text_3 = tessera::ui::DirtyMask<3>::of({2});
       template <class Self>
       struct Thunks {
         static void event_adapter_2_onClick(void* context, const tessera::ui::Event& event) {
@@ -136,15 +153,31 @@ namespace forward {
     template <class Self>
     inline void ForwardWrapBase<Self>::update() {
       using namespace ForwardWrap_detail;
+      mark_all_dirty();
+      flush_update();
+    }
+    template <class Self>
+    inline void ForwardWrapBase<Self>::flush_update() {
+      using namespace ForwardWrap_detail;
       update_effects();
       apply_state();
+    }
+    template <class Self>
+    inline void ForwardWrapBase<Self>::note_dirty(std::size_t bit) {
+      using namespace ForwardWrap_detail;
+      dirty_.set(bit);
+    }
+    template <class Self>
+    inline void ForwardWrapBase<Self>::mark_all_dirty() {
+      using namespace ForwardWrap_detail;
+      dirty_.set_all();
     }
     template <class Self>
     inline void ForwardWrapBase<Self>::attach_scheduler(tessera::ui::UpdateScheduler& scheduler) {
       using namespace ForwardWrap_detail;
       update_ticket_.context = this;
       update_ticket_.update = [](void* context) {
-        static_cast<ForwardWrapBase<Self>*>(context)->update();
+        static_cast<ForwardWrapBase<Self>*>(context)->flush_update();
       };
       scheduler.attach(update_ticket_);
     }

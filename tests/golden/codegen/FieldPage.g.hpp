@@ -5,6 +5,7 @@
 
 #include "tessera/ui/scene/component_lifecycle.hpp"
 #include "tessera/ui/scene/update_scheduler.hpp"
+#include "tessera/ui/scene/dirty_mask.hpp"
 #include "tessera/ui/scene/event_payloads.hpp"
 #include "tessera/ui/scene/state_snapshot.hpp"
 #include "tessera/ui/scene/node.hpp"
@@ -63,8 +64,22 @@ namespace demo {
       void apply_state();
       // Refresh the declared props of the component instances this component owns.
       void apply_props();
-      // Runs update_effects() then apply_state(); the scheduler calls it at its flush.
+      // A hand call: marks every cell dirty, then runs flush_update() (headless tests).
       void update();
+      // Runs update_effects() then apply_state() over the dirty cells; the scheduler calls it.
+      void flush_update();
+      // ADR-056 dirty mask: one bit per state cell, animated value and prop. A setter sets
+      // its cell's bit; apply_state() re-evaluates a binding only when a cell it reads is
+      // dirty. The bit constants are public so an owner can mark a child's prop.
+      static constexpr std::size_t kBit_state_email_ = 0;
+      static constexpr std::size_t kBit_state_rules_ = 1;
+    private:
+      tessera::ui::DirtyMask<3> dirty_ = tessera::ui::DirtyMask<3>::all();
+    public:
+      // Marks one cell dirty without scheduling (the caller schedules).
+      void note_dirty(std::size_t bit);
+      // Marks every cell dirty: the next apply_state() re-evaluates every binding.
+      void mark_all_dirty();
     private:
       // Scheduled updates: a setter marks this component dirty and the host's
       // UpdateScheduler runs update() once at its next flush (UI thread only). The ticket
@@ -96,6 +111,20 @@ namespace demo {
       requires std::is_convertible_v<decltype(&Self::on_validate), void (Self::*)(const tessera::ui::TextChangeEvent&)>;
     };
     namespace FieldPage_detail {
+      // meta binding of node::1 `className` reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<3> kDirty_meta_1_className = tessera::ui::DirtyMask<3>::of({2});
+      // prop binding of node::3 `error` reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<3> kDirty_prop_3_error = tessera::ui::DirtyMask<3>::of({2});
+      // prop binding of node::3 `label` reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<3> kDirty_prop_3_label = tessera::ui::DirtyMask<3>::of({2});
+      // prop binding of node::3 `name` reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<3> kDirty_prop_3_name = tessera::ui::DirtyMask<3>::of({2});
+      // prop binding of node::3 `required` reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<3> kDirty_prop_3_required = tessera::ui::DirtyMask<3>::of({2});
+      // prop binding of node::3 `validators` reads: state::rules.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<3> kDirty_prop_3_validators = tessera::ui::DirtyMask<3>::of({1, 2});
+      // prop binding of node::3 `value` reads: state::email.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<3> kDirty_prop_3_value = tessera::ui::DirtyMask<3>::of({0, 2});
       template <class Self>
       struct Thunks {
         static void event_adapter_2_onClick(void* context, const tessera::ui::Event& event) {
@@ -141,44 +170,74 @@ namespace demo {
     inline void FieldPageBase<Self>::apply_props() {
       using namespace FieldPage_detail;
       // comp::Field instance (pre-order index 3) props.
-      std::uint64_t prop_3_name_hash = tessera::ui::kEffectHashSeed;
-      prop_3_name_hash = tessera::ui::effect_hash(prop_3_name_hash, std::string_view("email"));
-      if (prop_3_name_hash != child_3_prop_name_hash_) {
-        child_3_prop_name_hash_ = prop_3_name_hash;
-        this->child_3_.prop_name_ = "email";
+      if (dirty_.intersects(kDirty_prop_3_name)) {
+        TESSERA_BINDING_RAN(this, "prop:3:name");
+        std::uint64_t prop_3_name_hash = tessera::ui::kEffectHashSeed;
+        prop_3_name_hash = tessera::ui::effect_hash(prop_3_name_hash, std::string_view("email"));
+        if (prop_3_name_hash != child_3_prop_name_hash_) {
+          child_3_prop_name_hash_ = prop_3_name_hash;
+          this->child_3_.prop_name_ = "email";
+          this->child_3_.note_dirty(Field::kBit_prop_name_);
+          this->child_3_.schedule_update();
+        }
       }
-      std::uint64_t prop_3_label_hash = tessera::ui::kEffectHashSeed;
-      prop_3_label_hash = tessera::ui::effect_hash(prop_3_label_hash, std::string_view("Email"));
-      if (prop_3_label_hash != child_3_prop_label_hash_) {
-        child_3_prop_label_hash_ = prop_3_label_hash;
-        this->child_3_.prop_label_ = "Email";
+      if (dirty_.intersects(kDirty_prop_3_label)) {
+        TESSERA_BINDING_RAN(this, "prop:3:label");
+        std::uint64_t prop_3_label_hash = tessera::ui::kEffectHashSeed;
+        prop_3_label_hash = tessera::ui::effect_hash(prop_3_label_hash, std::string_view("Email"));
+        if (prop_3_label_hash != child_3_prop_label_hash_) {
+          child_3_prop_label_hash_ = prop_3_label_hash;
+          this->child_3_.prop_label_ = "Email";
+          this->child_3_.note_dirty(Field::kBit_prop_label_);
+          this->child_3_.schedule_update();
+        }
       }
-      std::uint64_t prop_3_value_hash = tessera::ui::kEffectHashSeed;
-      prop_3_value_hash = tessera::ui::effect_hash(prop_3_value_hash, std::string_view(state_email_));
-      if (prop_3_value_hash != child_3_prop_value_hash_) {
-        child_3_prop_value_hash_ = prop_3_value_hash;
-        this->child_3_.prop_value_ = state_email_;
+      if (dirty_.intersects(kDirty_prop_3_value)) {
+        TESSERA_BINDING_RAN(this, "prop:3:value");
+        std::uint64_t prop_3_value_hash = tessera::ui::kEffectHashSeed;
+        prop_3_value_hash = tessera::ui::effect_hash(prop_3_value_hash, std::string_view(state_email_));
+        if (prop_3_value_hash != child_3_prop_value_hash_) {
+          child_3_prop_value_hash_ = prop_3_value_hash;
+          this->child_3_.prop_value_ = state_email_;
+          this->child_3_.note_dirty(Field::kBit_prop_value_);
+          this->child_3_.schedule_update();
+        }
       }
-      std::uint64_t prop_3_required_hash = tessera::ui::kEffectHashSeed;
-      prop_3_required_hash = tessera::ui::effect_hash(prop_3_required_hash, true);
-      if (prop_3_required_hash != child_3_prop_required_hash_) {
-        child_3_prop_required_hash_ = prop_3_required_hash;
-        this->child_3_.prop_required_ = true;
+      if (dirty_.intersects(kDirty_prop_3_required)) {
+        TESSERA_BINDING_RAN(this, "prop:3:required");
+        std::uint64_t prop_3_required_hash = tessera::ui::kEffectHashSeed;
+        prop_3_required_hash = tessera::ui::effect_hash(prop_3_required_hash, true);
+        if (prop_3_required_hash != child_3_prop_required_hash_) {
+          child_3_prop_required_hash_ = prop_3_required_hash;
+          this->child_3_.prop_required_ = true;
+          this->child_3_.note_dirty(Field::kBit_prop_required_);
+          this->child_3_.schedule_update();
+        }
       }
-      std::uint64_t prop_3_validators_hash = tessera::ui::kEffectHashSeed;
-      prop_3_validators_hash = tessera::ui::effect_hash(prop_3_validators_hash, static_cast<std::int64_t>(state_rules_.size()));
-      for (const auto& guard_value : state_rules_) {
-        prop_3_validators_hash = tessera::ui::effect_hash(prop_3_validators_hash, std::string_view(guard_value));
+      if (dirty_.intersects(kDirty_prop_3_validators)) {
+        TESSERA_BINDING_RAN(this, "prop:3:validators");
+        std::uint64_t prop_3_validators_hash = tessera::ui::kEffectHashSeed;
+        prop_3_validators_hash = tessera::ui::effect_hash(prop_3_validators_hash, static_cast<std::int64_t>(state_rules_.size()));
+        for (const auto& guard_value : state_rules_) {
+          prop_3_validators_hash = tessera::ui::effect_hash(prop_3_validators_hash, std::string_view(guard_value));
+        }
+        if (prop_3_validators_hash != child_3_prop_validators_hash_) {
+          child_3_prop_validators_hash_ = prop_3_validators_hash;
+          this->child_3_.prop_validators_ = state_rules_;
+          this->child_3_.note_dirty(Field::kBit_prop_validators_);
+          this->child_3_.schedule_update();
+        }
       }
-      if (prop_3_validators_hash != child_3_prop_validators_hash_) {
-        child_3_prop_validators_hash_ = prop_3_validators_hash;
-        this->child_3_.prop_validators_ = state_rules_;
-      }
-      std::uint64_t prop_3_error_hash = tessera::ui::kEffectHashSeed;
-      prop_3_error_hash = tessera::ui::effect_hash(prop_3_error_hash, std::string_view(""));
-      if (prop_3_error_hash != child_3_prop_error_hash_) {
-        child_3_prop_error_hash_ = prop_3_error_hash;
-        this->child_3_.prop_error_ = "";
+      if (dirty_.intersects(kDirty_prop_3_error)) {
+        TESSERA_BINDING_RAN(this, "prop:3:error");
+        std::uint64_t prop_3_error_hash = tessera::ui::kEffectHashSeed;
+        prop_3_error_hash = tessera::ui::effect_hash(prop_3_error_hash, std::string_view(""));
+        if (prop_3_error_hash != child_3_prop_error_hash_) {
+          child_3_prop_error_hash_ = prop_3_error_hash;
+          this->child_3_.prop_error_ = "";
+          this->child_3_.note_dirty(Field::kBit_prop_error_);
+          this->child_3_.schedule_update();
+        }
       }
       if (!child_3_prop_onValidate_bound_) {
         child_3_prop_onValidate_bound_ = true;
@@ -190,7 +249,9 @@ namespace demo {
     template <class Self>
     inline void FieldPageBase<Self>::apply_state() {
       using namespace FieldPage_detail;
+      const auto consumed_dirty = dirty_;
       apply_props();
+      dirty_.clear(consumed_dirty);
     }
     template <class Self>
     inline void FieldPageBase<Self>::mount() {
@@ -209,16 +270,31 @@ namespace demo {
     template <class Self>
     inline void FieldPageBase<Self>::update() {
       using namespace FieldPage_detail;
+      mark_all_dirty();
+      flush_update();
+    }
+    template <class Self>
+    inline void FieldPageBase<Self>::flush_update() {
+      using namespace FieldPage_detail;
       update_effects();
       apply_state();
-      child_3_.update();
+    }
+    template <class Self>
+    inline void FieldPageBase<Self>::note_dirty(std::size_t bit) {
+      using namespace FieldPage_detail;
+      dirty_.set(bit);
+    }
+    template <class Self>
+    inline void FieldPageBase<Self>::mark_all_dirty() {
+      using namespace FieldPage_detail;
+      dirty_.set_all();
     }
     template <class Self>
     inline void FieldPageBase<Self>::attach_scheduler(tessera::ui::UpdateScheduler& scheduler) {
       using namespace FieldPage_detail;
       update_ticket_.context = this;
       update_ticket_.update = [](void* context) {
-        static_cast<FieldPageBase<Self>*>(context)->update();
+        static_cast<FieldPageBase<Self>*>(context)->flush_update();
       };
       scheduler.attach(update_ticket_);
       child_3_.attach_scheduler(scheduler);
@@ -241,6 +317,7 @@ namespace demo {
         return;
       }
       state_email_ = std::move(value);
+      dirty_.set(kBit_state_email_);
       schedule_update();
     }
     template <class Self>
@@ -250,6 +327,7 @@ namespace demo {
         return;
       }
       state_rules_ = std::move(value);
+      dirty_.set(kBit_state_rules_);
       schedule_update();
     }
     template <class Self>
@@ -265,6 +343,7 @@ namespace demo {
       using namespace FieldPage_detail;
       (void)event;
       state_email_ = "ada@example.com";
+      dirty_.set(kBit_state_email_);
       apply_state();
     }
   }

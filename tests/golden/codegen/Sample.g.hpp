@@ -5,6 +5,7 @@
 
 #include "tessera/ui/scene/component_lifecycle.hpp"
 #include "tessera/ui/scene/update_scheduler.hpp"
+#include "tessera/ui/scene/dirty_mask.hpp"
 #include "tessera/ui/animation/animated_scalar.hpp"
 #include "tessera/ui/scene/event_payloads.hpp"
 #include "tessera/ui/scene/state_snapshot.hpp"
@@ -111,8 +112,24 @@ namespace demo {
       void unmount();
       // Recompute interpolated values; marks Paint|Render only when a value changed.
       void apply_state();
-      // Runs update_effects() then apply_state(); the scheduler calls it at its flush.
+      // A hand call: marks every cell dirty, then runs flush_update() (headless tests).
       void update();
+      // Runs update_effects() then apply_state() over the dirty cells; the scheduler calls it.
+      void flush_update();
+      // ADR-056 dirty mask: one bit per state cell, animated value and prop. A setter sets
+      // its cell's bit; apply_state() re-evaluates a binding only when a cell it reads is
+      // dirty. The bit constants are public so an owner can mark a child's prop.
+      static constexpr std::size_t kBit_anim_opacity_ = 0;
+      static constexpr std::size_t kBit_prop_title_ = 1;
+      static constexpr std::size_t kBit_state_count_ = 2;
+      static constexpr std::size_t kBit_state_name_ = 3;
+    private:
+      tessera::ui::DirtyMask<5> dirty_ = tessera::ui::DirtyMask<5>::all();
+    public:
+      // Marks one cell dirty without scheduling (the caller schedules).
+      void note_dirty(std::size_t bit);
+      // Marks every cell dirty: the next apply_state() re-evaluates every binding.
+      void mark_all_dirty();
     private:
       // Scheduled updates: a setter marks this component dirty and the host's
       // UpdateScheduler runs update() once at its next flush (UI thread only). The ticket
@@ -178,6 +195,22 @@ namespace demo {
       [[maybe_unused]] inline std::string format_value(const char* value) {
         return std::string(value);
       }
+      // text binding of node::3 reads: state::count.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<5> kDirty_text_3 = tessera::ui::DirtyMask<5>::of({2, 4});
+      // text binding of node::5 reads: state::name.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<5> kDirty_text_5 = tessera::ui::DirtyMask<5>::of({3, 4});
+      // meta binding of node::1 `aria-label` reads: state::count.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<5> kDirty_meta_1_aria_label = tessera::ui::DirtyMask<5>::of({2, 4});
+      // meta binding of node::1 `className` reads: state::count.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<5> kDirty_meta_1_className = tessera::ui::DirtyMask<5>::of({2, 4});
+      // meta binding of node::1 `id` reads: state::count.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<5> kDirty_meta_1_id = tessera::ui::DirtyMask<5>::of({2, 4});
+      // meta binding of node::1 `role` reads: state::count.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<5> kDirty_meta_1_role = tessera::ui::DirtyMask<5>::of({2, 4});
+      // style binding of node::1 `opacity` reads: anim::opacity.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<5> kDirty_style_1_opacity = tessera::ui::DirtyMask<5>::of({0, 4});
+      // style binding of node::1 `width` reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<5> kDirty_style_1_width = tessera::ui::DirtyMask<5>::of({4});
       template <class Self>
       struct Thunks {
         static void event_adapter_2_onClick(void* context, const tessera::ui::Event& event) {
@@ -256,118 +289,141 @@ namespace demo {
     template <class Self>
     inline void SampleBase<Self>::apply_state() {
       using namespace Sample_detail;
-      std::uint64_t hash_3 = tessera::ui::kEffectHashSeed;
-      hash_3 = tessera::ui::effect_hash(hash_3, std::string_view("Count: "));
-      hash_3 = tessera::ui::effect_hash(hash_3, state_count_);
-      if (!text_node_3_set_ || hash_3 != text_node_3_hash_) {
-          text_node_3_hash_ = hash_3;
-          text_node_3_set_ = true;
-          std::string next_3;
-          next_3 += "Count: ";
-          next_3 += format_value(state_count_);
-          text_node_3_value_ = std::move(next_3);
-          tessera::ui::PaintData paint_3;
-          paint_3.text = text_node_3_value_;
-          text_node_3_->set_paint_data(std::move(paint_3));
-      }
-      std::uint64_t hash_5 = tessera::ui::kEffectHashSeed;
-      hash_5 = tessera::ui::effect_hash(hash_5, std::string_view(state_name_));
-      if (!text_node_5_set_ || hash_5 != text_node_5_hash_) {
-          text_node_5_hash_ = hash_5;
-          text_node_5_set_ = true;
-          std::string next_5;
-          next_5 += format_value(state_name_);
-          text_node_5_value_ = std::move(next_5);
-          tessera::ui::PaintData paint_5;
-          paint_5.text = text_node_5_value_;
-          text_node_5_->set_paint_data(std::move(paint_5));
-      }
-      std::uint64_t meta_1_id_hash = tessera::ui::kEffectHashSeed;
-      meta_1_id_hash = tessera::ui::effect_hash(meta_1_id_hash, std::string_view("root-"));
-      meta_1_id_hash = tessera::ui::effect_hash(meta_1_id_hash, state_count_);
-      if (!meta_1_id_set_ || meta_1_id_hash != meta_1_id_hash_) {
-          meta_1_id_hash_ = meta_1_id_hash;
-          meta_1_id_set_ = true;
-          std::string next_meta_1_id;
-          next_meta_1_id += "root-";
-          next_meta_1_id += format_value(state_count_);
-          if (meta_1_id_value_ != next_meta_1_id) {
-            std::string previous_meta_1_id = std::move(meta_1_id_value_);
-            meta_1_id_value_ = std::move(next_meta_1_id);
-            meta_1_id_node_->set_element_id(meta_1_id_value_);
-            meta_1_id_node_->mark_dirty(tessera::ui::Dirty::Style);
+      const auto consumed_dirty = dirty_;
+      if (dirty_.intersects(kDirty_text_3)) {
+        TESSERA_BINDING_RAN(this, "text:3");
+        std::uint64_t hash_3 = tessera::ui::kEffectHashSeed;
+        hash_3 = tessera::ui::effect_hash(hash_3, std::string_view("Count: "));
+        hash_3 = tessera::ui::effect_hash(hash_3, state_count_);
+        if (!text_node_3_set_ || hash_3 != text_node_3_hash_) {
+            text_node_3_hash_ = hash_3;
+            text_node_3_set_ = true;
+            std::string next_3;
+            next_3 += "Count: ";
+            next_3 += format_value(state_count_);
+            text_node_3_value_ = std::move(next_3);
+            tessera::ui::PaintData paint_3;
+            paint_3.text = text_node_3_value_;
+            text_node_3_->set_paint_data(std::move(paint_3));
         }
       }
-      std::uint64_t meta_1_class_hash = tessera::ui::kEffectHashSeed;
-      meta_1_class_hash = tessera::ui::effect_hash(meta_1_class_hash, std::string_view("box "));
-      meta_1_class_hash = tessera::ui::effect_hash(meta_1_class_hash, state_count_);
-      if (!meta_1_class_set_ || meta_1_class_hash != meta_1_class_hash_) {
-          meta_1_class_hash_ = meta_1_class_hash;
-          meta_1_class_set_ = true;
-          std::string next_meta_1_class;
-          next_meta_1_class += "box ";
-          next_meta_1_class += format_value(state_count_);
-          if (meta_1_class_value_ != next_meta_1_class) {
-            std::string previous_meta_1_class = std::move(meta_1_class_value_);
-            meta_1_class_value_ = std::move(next_meta_1_class);
-            meta_1_class_node_->set_class_name(meta_1_class_value_);
-            meta_1_class_node_->mark_dirty(tessera::ui::Dirty::Style);
+      if (dirty_.intersects(kDirty_text_5)) {
+        TESSERA_BINDING_RAN(this, "text:5");
+        std::uint64_t hash_5 = tessera::ui::kEffectHashSeed;
+        hash_5 = tessera::ui::effect_hash(hash_5, std::string_view(state_name_));
+        if (!text_node_5_set_ || hash_5 != text_node_5_hash_) {
+            text_node_5_hash_ = hash_5;
+            text_node_5_set_ = true;
+            std::string next_5;
+            next_5 += format_value(state_name_);
+            text_node_5_value_ = std::move(next_5);
+            tessera::ui::PaintData paint_5;
+            paint_5.text = text_node_5_value_;
+            text_node_5_->set_paint_data(std::move(paint_5));
         }
       }
-      std::uint64_t meta_1_role_hash = tessera::ui::kEffectHashSeed;
-      if (state_count_ == 0) {
-        meta_1_role_hash = tessera::ui::effect_hash(meta_1_role_hash, std::string_view("generic"));
-      } else {
-        meta_1_role_hash = tessera::ui::effect_hash(meta_1_role_hash, std::string_view("status"));
-      }
-      if (!meta_1_role_set_ || meta_1_role_hash != meta_1_role_hash_) {
-          meta_1_role_hash_ = meta_1_role_hash;
-          meta_1_role_set_ = true;
-          std::string next_meta_1_role;
-          if (state_count_ == 0) {
-            next_meta_1_role += format_value("generic");
-          } else {
-            next_meta_1_role += format_value("status");
+      if (dirty_.intersects(kDirty_meta_1_id)) {
+        TESSERA_BINDING_RAN(this, "meta:1:id");
+        std::uint64_t meta_1_id_hash = tessera::ui::kEffectHashSeed;
+        meta_1_id_hash = tessera::ui::effect_hash(meta_1_id_hash, std::string_view("root-"));
+        meta_1_id_hash = tessera::ui::effect_hash(meta_1_id_hash, state_count_);
+        if (!meta_1_id_set_ || meta_1_id_hash != meta_1_id_hash_) {
+            meta_1_id_hash_ = meta_1_id_hash;
+            meta_1_id_set_ = true;
+            std::string next_meta_1_id;
+            next_meta_1_id += "root-";
+            next_meta_1_id += format_value(state_count_);
+            if (meta_1_id_value_ != next_meta_1_id) {
+              std::string previous_meta_1_id = std::move(meta_1_id_value_);
+              meta_1_id_value_ = std::move(next_meta_1_id);
+              meta_1_id_node_->set_element_id(meta_1_id_value_);
+              meta_1_id_node_->mark_dirty(tessera::ui::Dirty::Style);
           }
-          if (meta_1_role_value_ != next_meta_1_role) {
-            std::string previous_meta_1_role = std::move(meta_1_role_value_);
-            meta_1_role_value_ = std::move(next_meta_1_role);
-            meta_1_role_node_->set_role(meta_1_role_value_);
         }
       }
-      std::uint64_t meta_1_aria_aria_label_hash = tessera::ui::kEffectHashSeed;
-      meta_1_aria_aria_label_hash = tessera::ui::effect_hash(meta_1_aria_aria_label_hash, std::string_view("label "));
-      meta_1_aria_aria_label_hash = tessera::ui::effect_hash(meta_1_aria_aria_label_hash, state_count_);
-      if (!meta_1_aria_aria_label_set_ || meta_1_aria_aria_label_hash != meta_1_aria_aria_label_hash_) {
-          meta_1_aria_aria_label_hash_ = meta_1_aria_aria_label_hash;
-          meta_1_aria_aria_label_set_ = true;
-          std::string next_meta_1_aria_aria_label;
-          next_meta_1_aria_aria_label += "label ";
-          next_meta_1_aria_aria_label += format_value(state_count_);
-          if (meta_1_aria_aria_label_value_ != next_meta_1_aria_aria_label) {
-            std::string previous_meta_1_aria_aria_label = std::move(meta_1_aria_aria_label_value_);
-            meta_1_aria_aria_label_value_ = std::move(next_meta_1_aria_aria_label);
-            meta_1_aria_aria_label_node_->set_aria("aria-label", meta_1_aria_aria_label_value_);
+      if (dirty_.intersects(kDirty_meta_1_className)) {
+        TESSERA_BINDING_RAN(this, "meta:1:className");
+        std::uint64_t meta_1_class_hash = tessera::ui::kEffectHashSeed;
+        meta_1_class_hash = tessera::ui::effect_hash(meta_1_class_hash, std::string_view("box "));
+        meta_1_class_hash = tessera::ui::effect_hash(meta_1_class_hash, state_count_);
+        if (!meta_1_class_set_ || meta_1_class_hash != meta_1_class_hash_) {
+            meta_1_class_hash_ = meta_1_class_hash;
+            meta_1_class_set_ = true;
+            std::string next_meta_1_class;
+            next_meta_1_class += "box ";
+            next_meta_1_class += format_value(state_count_);
+            if (meta_1_class_value_ != next_meta_1_class) {
+              std::string previous_meta_1_class = std::move(meta_1_class_value_);
+              meta_1_class_value_ = std::move(next_meta_1_class);
+              meta_1_class_node_->set_class_name(meta_1_class_value_);
+              meta_1_class_node_->mark_dirty(tessera::ui::Dirty::Style);
+          }
         }
       }
-      std::uint64_t meta_1_style_opacity_hash = tessera::ui::kEffectHashSeed;
-      meta_1_style_opacity_hash = tessera::ui::effect_hash(meta_1_style_opacity_hash, anim_opacity_);
-      if (!meta_1_style_opacity_set_ || meta_1_style_opacity_hash != meta_1_style_opacity_hash_) {
-          meta_1_style_opacity_hash_ = meta_1_style_opacity_hash;
-          meta_1_style_opacity_set_ = true;
-          std::string next_meta_1_style_opacity;
-          next_meta_1_style_opacity += format_value(anim_opacity_);
-          if (meta_1_style_opacity_value_ != next_meta_1_style_opacity) {
-            std::string previous_meta_1_style_opacity = std::move(meta_1_style_opacity_value_);
-            meta_1_style_opacity_value_ = std::move(next_meta_1_style_opacity);
-            meta_1_style_opacity_node_->set_inline_style("opacity", meta_1_style_opacity_value_);
-            meta_1_style_opacity_node_->mark_dirty(tessera::ui::Dirty::Style);
+      if (dirty_.intersects(kDirty_meta_1_role)) {
+        TESSERA_BINDING_RAN(this, "meta:1:role");
+        std::uint64_t meta_1_role_hash = tessera::ui::kEffectHashSeed;
+        if (state_count_ == 0) {
+          meta_1_role_hash = tessera::ui::effect_hash(meta_1_role_hash, std::string_view("generic"));
+        } else {
+          meta_1_role_hash = tessera::ui::effect_hash(meta_1_role_hash, std::string_view("status"));
+        }
+        if (!meta_1_role_set_ || meta_1_role_hash != meta_1_role_hash_) {
+            meta_1_role_hash_ = meta_1_role_hash;
+            meta_1_role_set_ = true;
+            std::string next_meta_1_role;
+            if (state_count_ == 0) {
+              next_meta_1_role += format_value("generic");
+            } else {
+              next_meta_1_role += format_value("status");
+            }
+            if (meta_1_role_value_ != next_meta_1_role) {
+              std::string previous_meta_1_role = std::move(meta_1_role_value_);
+              meta_1_role_value_ = std::move(next_meta_1_role);
+              meta_1_role_node_->set_role(meta_1_role_value_);
+          }
+        }
+      }
+      if (dirty_.intersects(kDirty_meta_1_aria_label)) {
+        TESSERA_BINDING_RAN(this, "meta:1:aria-label");
+        std::uint64_t meta_1_aria_aria_label_hash = tessera::ui::kEffectHashSeed;
+        meta_1_aria_aria_label_hash = tessera::ui::effect_hash(meta_1_aria_aria_label_hash, std::string_view("label "));
+        meta_1_aria_aria_label_hash = tessera::ui::effect_hash(meta_1_aria_aria_label_hash, state_count_);
+        if (!meta_1_aria_aria_label_set_ || meta_1_aria_aria_label_hash != meta_1_aria_aria_label_hash_) {
+            meta_1_aria_aria_label_hash_ = meta_1_aria_aria_label_hash;
+            meta_1_aria_aria_label_set_ = true;
+            std::string next_meta_1_aria_aria_label;
+            next_meta_1_aria_aria_label += "label ";
+            next_meta_1_aria_aria_label += format_value(state_count_);
+            if (meta_1_aria_aria_label_value_ != next_meta_1_aria_aria_label) {
+              std::string previous_meta_1_aria_aria_label = std::move(meta_1_aria_aria_label_value_);
+              meta_1_aria_aria_label_value_ = std::move(next_meta_1_aria_aria_label);
+              meta_1_aria_aria_label_node_->set_aria("aria-label", meta_1_aria_aria_label_value_);
+          }
+        }
+      }
+      if (dirty_.intersects(kDirty_style_1_opacity)) {
+        TESSERA_BINDING_RAN(this, "style:1:opacity");
+        std::uint64_t meta_1_style_opacity_hash = tessera::ui::kEffectHashSeed;
+        meta_1_style_opacity_hash = tessera::ui::effect_hash(meta_1_style_opacity_hash, anim_opacity_);
+        if (!meta_1_style_opacity_set_ || meta_1_style_opacity_hash != meta_1_style_opacity_hash_) {
+            meta_1_style_opacity_hash_ = meta_1_style_opacity_hash;
+            meta_1_style_opacity_set_ = true;
+            std::string next_meta_1_style_opacity;
+            next_meta_1_style_opacity += format_value(anim_opacity_);
+            if (meta_1_style_opacity_value_ != next_meta_1_style_opacity) {
+              std::string previous_meta_1_style_opacity = std::move(meta_1_style_opacity_value_);
+              meta_1_style_opacity_value_ = std::move(next_meta_1_style_opacity);
+              meta_1_style_opacity_node_->set_inline_style("opacity", meta_1_style_opacity_value_);
+              meta_1_style_opacity_node_->mark_dirty(tessera::ui::Dirty::Style);
+          }
         }
       }
       if (input_5_editor_.buffer().text() != text_node_5_value_) {
           input_5_editor_.set_text(text_node_5_value_);
       }
       this->input_5_runtime_.publish_decoration();
+      dirty_.clear(consumed_dirty);
     }
     template <class Self>
     inline void SampleBase<Self>::mount() {
@@ -390,6 +446,12 @@ namespace demo {
     template <class Self>
     inline void SampleBase<Self>::update() {
       using namespace Sample_detail;
+      mark_all_dirty();
+      flush_update();
+    }
+    template <class Self>
+    inline void SampleBase<Self>::flush_update() {
+      using namespace Sample_detail;
       update_effects();
       apply_state();
     }
@@ -402,11 +464,21 @@ namespace demo {
       }
     }
     template <class Self>
+    inline void SampleBase<Self>::note_dirty(std::size_t bit) {
+      using namespace Sample_detail;
+      dirty_.set(bit);
+    }
+    template <class Self>
+    inline void SampleBase<Self>::mark_all_dirty() {
+      using namespace Sample_detail;
+      dirty_.set_all();
+    }
+    template <class Self>
     inline void SampleBase<Self>::attach_scheduler(tessera::ui::UpdateScheduler& scheduler) {
       using namespace Sample_detail;
       update_ticket_.context = this;
       update_ticket_.update = [](void* context) {
-        static_cast<SampleBase<Self>*>(context)->update();
+        static_cast<SampleBase<Self>*>(context)->flush_update();
       };
       update_ticket_.tick = [](void* context, double dt) {
         return static_cast<SampleBase<Self>*>(context)->tick_animations(dt);
@@ -434,6 +506,7 @@ namespace demo {
       moving = anim_opacity_scalar_.tick(dt) || moving;
       if (anim_opacity_ != anim_opacity_scalar_.value()) {
         anim_opacity_ = anim_opacity_scalar_.value();
+        dirty_.set(kBit_anim_opacity_);
         changed = true;
       }
       if (anim_opacity_scalar_.take_completed()) {
@@ -456,6 +529,7 @@ namespace demo {
       anim_opacity_scalar_.set_reduced_motion(reduced);
       if (anim_opacity_ != anim_opacity_scalar_.value() || anim_opacity_scalar_.completion_pending()) {
         anim_opacity_ = anim_opacity_scalar_.value();
+        dirty_.set(kBit_anim_opacity_);
         changed = true;
       }
       if (changed) {
@@ -469,6 +543,7 @@ namespace demo {
         return;
       }
       state_count_ = std::move(value);
+      dirty_.set(kBit_state_count_);
       schedule_update();
     }
     template <class Self>
@@ -478,6 +553,7 @@ namespace demo {
         return;
       }
       state_name_ = std::move(value);
+      dirty_.set(kBit_state_name_);
       schedule_update();
     }
     template <class Self>
@@ -512,6 +588,7 @@ namespace demo {
       using namespace Sample_detail;
       (void)event;
       state_count_ = 1;
+      dirty_.set(kBit_state_count_);
       {
       anim_opacity_on_complete_ = 0;
       tessera::ui::animation::ScalarOptions options;
@@ -521,6 +598,7 @@ namespace demo {
       options.easing = easing;
       anim_opacity_scalar_.set(static_cast<double>(0.5), options);
       anim_opacity_ = anim_opacity_scalar_.value();
+      dirty_.set(kBit_anim_opacity_);
       if (anim_opacity_scalar_.active() || anim_opacity_scalar_.completion_pending()) {
       schedule_update();
       }
@@ -532,12 +610,14 @@ namespace demo {
       using namespace Sample_detail;
       (void)e;
       state_name_ = std::string(e.value);
+      dirty_.set(kBit_state_name_);
       {
       anim_opacity_on_complete_ = 0;
       tessera::ui::animation::ScalarOptions options;
       options.animate = false;
       anim_opacity_scalar_.set(static_cast<double>(1.0), options);
       anim_opacity_ = anim_opacity_scalar_.value();
+      dirty_.set(kBit_anim_opacity_);
       if (anim_opacity_scalar_.active() || anim_opacity_scalar_.completion_pending()) {
       schedule_update();
       }
@@ -557,6 +637,7 @@ namespace demo {
       options.spring->mass = static_cast<float>(1.0);
       anim_opacity_scalar_.set(static_cast<double>(0.25), options);
       anim_opacity_ = anim_opacity_scalar_.value();
+      dirty_.set(kBit_anim_opacity_);
       if (anim_opacity_scalar_.active() || anim_opacity_scalar_.completion_pending()) {
       schedule_update();
       }
@@ -568,6 +649,7 @@ namespace demo {
       using namespace Sample_detail;
       (void)event;
       state_count_ = 7;
+      dirty_.set(kBit_state_count_);
       apply_state();
     }
   }

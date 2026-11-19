@@ -55,6 +55,13 @@ Rules:
 | `useAnimatedValue(init)` | sampled animated value with tween/spring | `AnimationController` member |
 
 - State updates are batched per tick/frame (a tick is one fixed-step update, [`game-loop.md`](../design/game-loop.md)); setters do not render synchronously.
+- Generated components keep a dirty mask with one bit per state cell, animated value and prop; a
+  setter sets its bit and `apply_state()` re-evaluates only the bindings that read a dirty cell
+  ([`compiler-node-state.md`](../design/compiler-node-state.md) section 9, ADR-056).
+- **A parent never calls a child's `update()`.** It writes the child's prop when the prop's value
+  changed, marks that prop's bit on the child and schedules the child's own ticket; the scheduler runs
+  the child later in the same flush pass (parent before child, attach order). `update()` stays public
+  as a hand call that evaluates every binding of that one component.
 - Effects run on the UI thread after commit; they must not block.
 - An effect may declare a cleanup handler (IR field `cleanup`, [`ir-v1.md`](ir-v1.md) section 2; source form in [`jsx-subset-v1.md`](jsx-subset-v1.md) section 7). It runs before the effect runs again and on unmount.
 - Effect dependency arrays are exact; V1 rejects missing/extra deps.

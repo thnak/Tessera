@@ -232,9 +232,9 @@ void test_generated_shape() {
               page_source.find("component->on_tap(event);") != std::string::npos,
           "event bindings of slot content reach the caller's developer member");
     check(page_source.find("child_2_.mount();") != std::string::npos &&
-              page_source.find("child_2_.update();") != std::string::npos &&
+              page_source.find("child_2_.update();") == std::string::npos &&
               page_source.find("child_2_.unmount();") != std::string::npos,
-          "the instance lifecycle is driven by the caller");
+          "mount/unmount are driven by the caller; the child's update is scheduled (ADR-056)");
 
     // ADR-040 item 2 keeps the instance member private, but a caller's developer code has to reach
     // the child to write its (public) props. `child_2()` is that door, and it must not replace the

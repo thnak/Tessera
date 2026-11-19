@@ -5,6 +5,7 @@
 
 #include "tessera/ui/scene/component_lifecycle.hpp"
 #include "tessera/ui/scene/update_scheduler.hpp"
+#include "tessera/ui/scene/dirty_mask.hpp"
 #include "tessera/ui/scene/event_payloads.hpp"
 #include "tessera/ui/scene/state_snapshot.hpp"
 #include "tessera/ui/scene/node.hpp"
@@ -152,8 +153,27 @@ namespace vlist {
       void unmount();
       // Recompute interpolated values; marks Paint|Render only when a value changed.
       void apply_state();
-      // Runs update_effects() then apply_state(); the scheduler calls it at its flush.
+      // A hand call: marks every cell dirty, then runs flush_update() (headless tests).
       void update();
+      // Runs update_effects() then apply_state() over the dirty cells; the scheduler calls it.
+      void flush_update();
+      // ADR-056 dirty mask: one bit per state cell, animated value and prop. A setter sets
+      // its cell's bit; apply_state() re-evaluates a binding only when a cell it reads is
+      // dirty. The bit constants are public so an owner can mark a child's prop.
+      static constexpr std::size_t kBit_prop_item_extent_ = 0;
+      static constexpr std::size_t kBit_prop_seed_ = 1;
+      static constexpr std::size_t kBit_state_count_ = 2;
+      static constexpr std::size_t kBit_state_grid_row_ = 3;
+      static constexpr std::size_t kBit_state_items_ = 4;
+      static constexpr std::size_t kBit_state_row_extent_ = 5;
+      static constexpr std::size_t kBit_state_row_gap_ = 6;
+    private:
+      tessera::ui::DirtyMask<8> dirty_ = tessera::ui::DirtyMask<8>::all();
+    public:
+      // Marks one cell dirty without scheduling (the caller schedules).
+      void note_dirty(std::size_t bit);
+      // Marks every cell dirty: the next apply_state() re-evaluates every binding.
+      void mark_all_dirty();
     private:
       // Scheduled updates: a setter marks this component dirty and the host's
       // UpdateScheduler runs update() once at its next flush (UI thread only). The ticket
@@ -246,6 +266,16 @@ namespace vlist {
       }
       // Item nodes of a list template use `template id + item index * kItemIdStride`.
       constexpr std::uint64_t kItemIdStride = 12ull;
+      // text binding of node::2 reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<8> kDirty_text_2 = tessera::ui::DirtyMask<8>::of({7});
+      // text binding of node::9 reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<8> kDirty_text_9 = tessera::ui::DirtyMask<8>::of({7});
+      // text binding of node::11 reads: nothing.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<8> kDirty_text_11 = tessera::ui::DirtyMask<8>::of({7});
+      // list binding of node::4 reads: state::count state::items.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<8> kDirty_list_4 = tessera::ui::DirtyMask<8>::of({2, 4, 7});
+      // list binding of node::7 reads: state::items.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<8> kDirty_list_7 = tessera::ui::DirtyMask<8>::of({4, 7});
       template <class Self>
       struct Thunks {
         static void event_adapter_10_onClick(void* context, const tessera::ui::Event& event) {
@@ -879,15 +909,31 @@ namespace vlist {
     template <class Self>
     inline void VirtualDemoBase<Self>::update() {
       using namespace VirtualDemo_detail;
+      mark_all_dirty();
+      flush_update();
+    }
+    template <class Self>
+    inline void VirtualDemoBase<Self>::flush_update() {
+      using namespace VirtualDemo_detail;
       update_effects();
       apply_state();
+    }
+    template <class Self>
+    inline void VirtualDemoBase<Self>::note_dirty(std::size_t bit) {
+      using namespace VirtualDemo_detail;
+      dirty_.set(bit);
+    }
+    template <class Self>
+    inline void VirtualDemoBase<Self>::mark_all_dirty() {
+      using namespace VirtualDemo_detail;
+      dirty_.set_all();
     }
     template <class Self>
     inline void VirtualDemoBase<Self>::attach_scheduler(tessera::ui::UpdateScheduler& scheduler) {
       using namespace VirtualDemo_detail;
       update_ticket_.context = this;
       update_ticket_.update = [](void* context) {
-        static_cast<VirtualDemoBase<Self>*>(context)->update();
+        static_cast<VirtualDemoBase<Self>*>(context)->flush_update();
       };
       scheduler.attach(update_ticket_);
     }
@@ -908,6 +954,7 @@ namespace vlist {
         return;
       }
       state_count_ = std::move(value);
+      dirty_.set(kBit_state_count_);
       schedule_update();
     }
     template <class Self>
@@ -917,6 +964,7 @@ namespace vlist {
         return;
       }
       state_items_ = std::move(value);
+      dirty_.set(kBit_state_items_);
       schedule_update();
     }
     template <class Self>
@@ -926,6 +974,7 @@ namespace vlist {
         return;
       }
       state_row_extent_ = std::move(value);
+      dirty_.set(kBit_state_row_extent_);
       schedule_update();
     }
     template <class Self>
@@ -935,6 +984,7 @@ namespace vlist {
         return;
       }
       state_row_gap_ = std::move(value);
+      dirty_.set(kBit_state_row_gap_);
       schedule_update();
     }
     template <class Self>
@@ -944,6 +994,7 @@ namespace vlist {
         return;
       }
       state_grid_row_ = std::move(value);
+      dirty_.set(kBit_state_grid_row_);
       schedule_update();
     }
     template <class Self>
@@ -962,6 +1013,7 @@ namespace vlist {
       using namespace VirtualDemo_detail;
       (void)event;
       state_count_ = 1;
+      dirty_.set(kBit_state_count_);
     }
   }
 }

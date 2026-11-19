@@ -11,6 +11,7 @@
 #include "codegen_internal.hpp"
 #include "emit_base.hpp"
 #include "emit_controlled.hpp"
+#include "emit_dirty.hpp"
 #include "emit_dynamic.hpp"
 #include "emit_events.hpp"
 #include "emit_forms.hpp"
@@ -122,6 +123,7 @@ bool emit_source(const ir::Component& component, const ir::IrModule& module,
         emit_format_helpers(writer);
     }
     emit_dynamic_helpers(writer, plan);
+    emit_dirty_mask_constants(writer, plan.dirty);
     (void)instances;
     unsigned ordinal = 0;
     std::vector<EventAdapter> adapters;
@@ -168,7 +170,7 @@ bool emit_source(const ir::Component& component, const ir::IrModule& module,
     }
     writer.close("");
     writer.line("");
-    if (!emit_apply_props(writer, component, instances, error)) {
+    if (!emit_apply_props(writer, component, plan.dirty, instances, error)) {
         return false;
     }
     if (!emit_form_source(writer, component, forms, error)) {
@@ -191,6 +193,7 @@ bool emit_source(const ir::Component& component, const ir::IrModule& module,
     if (!emit_lifecycle(component, module, bindings, instances, plan, writer, error)) {
         return false;
     }
+    emit_dirty_definitions(writer, component);
     if (!emit_schedule_definitions(writer, module, component, instances, plan, error)) {
         return false;
     }
@@ -265,6 +268,7 @@ bool emit_component(const ir::Component& component, const ir::IrModule& module,
     if (!collect_dynamic_plan(component, plan, error)) {
         return false;
     }
+    plan.dirty = make_dirty_plan(component);
     // The collection-level events of every virtual collection in the plan (onScroll/onEndReached):
     // resolved here so a failing form reports one deterministic error before any file is emitted.
     if (!collect_virtual_events(component, owned, plan, error)) {

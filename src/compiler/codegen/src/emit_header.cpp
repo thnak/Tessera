@@ -5,6 +5,7 @@
 #include "codegen_internal.hpp"
 #include "emit_base.hpp"
 #include "emit_controlled.hpp"
+#include "emit_dirty.hpp"
 #include "emit_dynamic.hpp"
 #include "emit_events.hpp"
 #include "emit_forms.hpp"
@@ -82,6 +83,7 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
     writer.line("");
     writer.line("#include \"tessera/ui/scene/component_lifecycle.hpp\"");
     writer.line("#include \"tessera/ui/scene/update_scheduler.hpp\"");
+    writer.line("#include \"tessera/ui/scene/dirty_mask.hpp\"");
     if (!component.animated_values.empty()) {
         writer.line("#include \"tessera/ui/animation/animated_scalar.hpp\"");
     }
@@ -318,8 +320,12 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
         writer.line("void apply_props();");
     }
     writer.line(
-        "// Runs update_effects() then apply_state(); the scheduler calls it at its flush.");
+        "// A hand call: marks every cell dirty, then runs flush_update() (headless tests).");
     writer.line("void update();");
+    writer.line("// Runs update_effects() then apply_state() over the dirty cells; the scheduler "
+                "calls it.");
+    writer.line("void flush_update();");
+    emit_dirty_declarations(writer, plan.dirty);
     if (!emit_schedule_declarations(writer, module, component, error)) {
         return false;
     }

@@ -145,8 +145,9 @@ std::vector<std::string> apply_access(const std::vector<std::string>& struct_bod
             // the controller lazily *so that the host can set the config* (a CompletionQueue, a
             // require-touched policy), and reads the report back. They stay public for the same
             // reason the `prop_` fields do.
+            // The `kBit_` cell constants are how an owner marks a child's prop dirty (ADR-056).
             wants_private = !starts_with(name, "prop_") && name != "node_id_base_" &&
-                            !starts_with(name, "form_");
+                            !starts_with(name, "form_") && !starts_with(name, "kBit_");
         } else {
             for (const std::string& line : item.code) {
                 wants_private =
@@ -162,11 +163,19 @@ std::vector<std::string> apply_access(const std::vector<std::string>& struct_bod
 
 // The accessor/reserved names a generated member already uses.
 bool reserved_member(std::string_view name) {
-    static constexpr std::string_view kReserved[] = {
-        "build",           "mount",           "update",
-        "unmount",         "apply_state",     "update_effects",
-        "snapshot_state",  "schedule_update", "attach_scheduler",
-        "detach_scheduler"};
+    static constexpr std::string_view kReserved[] = {"build",
+                                                     "mount",
+                                                     "update",
+                                                     "unmount",
+                                                     "apply_state",
+                                                     "update_effects",
+                                                     "snapshot_state",
+                                                     "schedule_update",
+                                                     "attach_scheduler",
+                                                     "detach_scheduler",
+                                                     "flush_update",
+                                                     "note_dirty",
+                                                     "mark_all_dirty"};
     return std::find(std::begin(kReserved), std::end(kReserved), name) != std::end(kReserved);
 }
 
