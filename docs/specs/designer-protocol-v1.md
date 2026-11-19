@@ -300,7 +300,8 @@ other fields.
 ### 9.2 Setting an override
 
 `style.override.set` applies the value in the override layer above the author and inline origins
-(it wins over them for the same property). The viewer validates `property` and `value` with the
+(it wins over them for the same property, with one exception: a competing `!important` author
+declaration still wins, see section 9.5, "Known deviation"). The viewer validates `property` and `value` with the
 stylesheet engine, the same code the compiler uses
 ([`stylesheet-v1.md`](stylesheet-v1.md) section 15):
 
@@ -340,6 +341,15 @@ The studio's Wasm canvas module implements sections 9.2-9.4 and the last step of
   Setting, clearing and undoing re-lay the running tree out (one pass, no evaluation), so state,
   hover and focus survive, and one frame is owed. Overrides are re-applied to every tree the session
   builds, including after a re-evaluation.
+- **Known deviation: an author `!important` beats an override.** The override layer is realized as
+  an inline declaration (the line above), so it takes part in the ordinary cascade, where a
+  declaration marked `!important` in an author rule outranks a normal inline one. For a property
+  that an author rule marks `!important`, `style.override.set` is therefore accepted (`ok: true`) but
+  has no visible effect, and `style.info` keeps reporting the author declaration as the winner. The
+  owner accepted this on 2026-11-19 instead of adding a dedicated cascade origin above `!important`,
+  which would change the stylesheet engine's cascade for one tool. Section 9.2's "wins over them"
+  is read with this exception. Revisit if designers report overrides that do nothing: the fix is a
+  separate override origin in the cascade, not a change to this layer.
 - Validation is the stylesheet engine's: the declaration is prepared as a one-rule sheet, so the
   diagnostics are the compiler's `TESSERA_CSS_*` codes. A declaration the scene cannot hold (longer
   than 64/256 bytes, or a node already carrying 16 inline declarations) is refused with
