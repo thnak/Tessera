@@ -7,6 +7,14 @@ on:
   schedule:
     - cron: '0 3 * * *'
   workflow_dispatch:
+    inputs:
+      metal_only:
+        # A full dispatch runs every job, and the `macos` job is a whole-tree build that costs
+        # minutes we do not need when we are only iterating on Metal. Set this to run just the
+        # Metal job: `gh workflow run macOS --ref <branch> -f metal_only=true`.
+        description: 'Run only the Metal backend job (skip the full macOS build)'
+        type: boolean
+        default: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -14,6 +22,8 @@ concurrency:
 
 jobs:
   macos:
+    # Skipped by an opt-in Metal-only dispatch; always runs on the nightly schedule.
+    if: github.event_name == 'schedule' || inputs.metal_only != true
     runs-on: macos-latest
     timeout-minutes: 30
 
@@ -69,6 +79,90 @@ jobs:
 
       - name: Tests
         run: ctest --test-dir build/macos --output-on-failure
+
+  # The native Metal backend (ADR-053). This is the only lane where the Objective-C++ device half
+  # is actually compiled: the Windows and Linux lanes build only the API-free mapping and MSL
+  # tables, and syntax-check the .mm files against a stub header.
+  #
+  # Opt-in only (`workflow_dispatch`), unlike the nightly `macos` job: this backend is post-V1 and
+  # advisory, so it must not spend macOS minutes on every nightly run. Dispatch it while working on
+  # Metal; a nightly cadence can be added when the backend has an owner and a passing conformance
+  # run (ADR-053 slice 4).
+  #
+  # It builds only the targets it tests, not the whole tree. A full `cmake --build` links ~1000 test
+  # executables that have nothing to do with Metal and triples the wall clock of every run.
+  #
+  # It does not claim Tier 1: a hosted runner's GPU may not match hardware, so pixel goldens still
+  # come from lavapipe and Metal is checked against tolerance.json only (ADR-009, ADR-053
+  # decision 3).
+  metal:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: macos-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/ccache
+        with:
+          name: macos-metal
+
+      # The MSL shader table is built from ADR-049's cross-compile path, which needs glslc and
+      # spirv-cross. Homebrew ships both (shaderc provides glslc). Without them the Metal build has
+      # an empty shader table and every pipeline creation fails, so this is a hard requirement of
+      # the job rather than an optional extra.
+      #
+      # shaderc is a large bottle, so the Homebrew download cache is restored across runs; the key
+      # is tied to this workflow file, which is the only thing that changes the formula set.
+      - name: Cache Homebrew downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/Homebrew
+          key: brew-metal-${{ runner.os }}-${{ hashFiles('.github/workflows/macos.yml') }}
+
+      - name: Install shader cross tools
+        run: |
+          brew install shaderc spirv-cross
+          echo "$(brew --prefix shaderc)/bin" >> "$GITHUB_PATH"
+          echo "$(brew --prefix spirv-cross)/bin" >> "$GITHUB_PATH"
+
+      - name: Verify the cross tools are on PATH
+        run: |
+          command -v glslc || { echo "glslc missing: the MSL table cannot be built"; exit 1; }
+          command -v spirv-cross || { echo "spirv-cross missing"; exit 1; }
+
+      # TESSERA_BUILD_TESTS=ON so the unit tests and the conformance runner exist, but the build
+      # below names only the targets this lane needs.
+      - name: Configure (Metal backend, MSL cross-compile)
+        run: >
+          cmake -S . -B build/metal
+          -DCMAKE_BUILD_TYPE=Release
+          -DTESSERA_BUILD_METAL=ON
+          -DTESSERA_SHADER_CROSS=ON
+          -DTESSERA_BUILD_TESTS=ON
+          -DTESSERA_BUILD_VULKAN=OFF
+          -DTESSERA_BUILD_POC=OFF
+          -DTESSERA_WARNINGS_AS_ERRORS=ON
+
+      - name: Build (Metal targets only)
+        # The macOS runners hit their process limit with an unbounded --parallel.
+        run: >
+          cmake --build build/metal --parallel 4
+          --target metal_mapping_tests metal_shader_registry_tests retire_queue_tests
+          gpu_conformance
+
+      - name: Tests (Metal mapping, MSL table, retire queue)
+        run: >
+          ctest --test-dir build/metal --output-on-failure
+          -R "metal_mapping|metal_shader_registry|retire_queue"
+
+      # The conformance entry is registered on every lane and skips when no Metal device exists.
+      # On a hosted runner it may skip; the run is reported either way, and a skip is not a pass.
+      - name: Conformance (Metal)
+        run: ctest --test-dir build/metal --output-on-failure -R gpu_conformance_metal
+
+      - name: ccache statistics
+        run: ccache --show-stats
 
   release-gates:
     runs-on: macos-latest

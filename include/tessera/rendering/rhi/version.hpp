@@ -32,8 +32,12 @@ namespace tessera::rendering::rhi {
 // of sampled images a shader indexes per vertex) and the capability that gates it,
 // `Device::texture_array_capacity()`. The default is 0, which is the one-set-per-texture path every
 // existing caller keeps (issue #480 part 2).
+// 1.8 (2026-11-19): additive `Backend::Metal`, the native macOS/iOS backend (ADR-053). No existing
+// enumerator changes value and no interface member changes, so a backend that does not implement
+// Metal is unaffected; the enumerator exists so a Metal device can report itself honestly instead
+// of borrowing another backend's name.
 inline constexpr std::uint32_t kRhiVersionMajor = 1;
-inline constexpr std::uint32_t kRhiVersionMinor = 7;
+inline constexpr std::uint32_t kRhiVersionMinor = 8;
 inline constexpr std::uint32_t kRhiVersion = (kRhiVersionMajor << 16) | kRhiVersionMinor;
 
 } // namespace tessera::rendering::rhi

@@ -24,11 +24,11 @@ using namespace tessera::rendering;
 constexpr std::uint32_t kTargetExtent = 64;
 
 CheckResult device_create(rhi::Device& device) {
-    // The backends this suite can select (issue #245 adds WebGPU alongside null/Vulkan; Metal is a
-    // separate decision, ADR-053, and is not part of this harness).
+    // The backends this suite can select (issue #245 adds WebGPU alongside null/Vulkan; Metal is
+    // ADR-053 and joins the harness with its own arm).
     const rhi::Backend backend = device.backend();
     if (backend != rhi::Backend::Null && backend != rhi::Backend::Vulkan &&
-        backend != rhi::Backend::WebGpu) {
+        backend != rhi::Backend::WebGpu && backend != rhi::Backend::Metal) {
         return CheckResult::fail("device reports a backend the harness cannot select");
     }
     return CheckResult::pass();

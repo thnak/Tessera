@@ -1,10 +1,16 @@
 // SPDX-License-Identifier: MIT
 
 #include "conformance_backend.hpp"
+#include "tessera/rendering/gpu/shader_ids.hpp"
+#include "tessera/rendering/gpu/vertex2d.hpp"
 #include "tessera/rendering/null/null_device.hpp"
 #if defined(TESSERA_TEST_HAS_VULKAN)
 #include "tessera/rendering/vulkan/batched2d_pipeline.hpp"
 #include "tessera/rendering/vulkan/vulkan_device.hpp"
+#endif
+#if defined(TESSERA_TEST_HAS_METAL)
+#include "tessera/rendering/metal/metal_device.hpp"
+#include "tessera/rendering/metal/metal_shader_registry.hpp"
 #endif
 
 #include <exception>
@@ -86,6 +92,36 @@ OpenedBackend open_webgpu() {
     return opened;
 }
 
+OpenedBackend open_metal() {
+    OpenedBackend opened;
+    opened.name = "metal";
+#if defined(TESSERA_TEST_HAS_METAL)
+    rhi::DeviceDesc desc;
+    desc.backend = rhi::Backend::Metal;
+    desc.validation = false;
+    try {
+        opened.device = metal::create_metal_device(desc);
+    } catch (const std::exception&) {
+        opened.device.reset();
+        opened.unavailable_reason = "no Metal device could be created";
+        return opened;
+    }
+    if (opened.device == nullptr || opened.device->backend() != rhi::Backend::Metal) {
+        opened.device.reset();
+        opened.unavailable_reason = "the Metal backend did not return a Metal device";
+        return opened;
+    }
+    opened.profile = profile_for(*opened.device);
+    // The MSL shader table is built only when the build embedded cross-compiled MSL. Without it a
+    // pipeline cannot be created, so the profile says so instead of letting the pipeline check fail
+    // with a confusing message.
+    opened.profile.pipeline = metal::has_msl_shaders();
+#else
+    opened.unavailable_reason = "the Metal backend is not part of this build";
+#endif
+    return opened;
+}
+
 } // namespace
 
 std::string_view backend_name(BackendChoice choice) {
@@ -96,6 +132,8 @@ std::string_view backend_name(BackendChoice choice) {
         return "vulkan";
     case BackendChoice::WebGpu:
         return "webgpu";
+    case BackendChoice::Metal:
+        return "metal";
     case BackendChoice::Unknown:
         break;
     }
@@ -111,6 +149,9 @@ BackendChoice parse_backend(std::string_view name) {
     }
     if (name == "webgpu") {
         return BackendChoice::WebGpu;
+    }
+    if (name == "metal") {
+        return BackendChoice::Metal;
     }
     return BackendChoice::Unknown;
 }
@@ -147,6 +188,8 @@ OpenedBackend open_backend(BackendChoice choice) {
         return open_vulkan();
     case BackendChoice::WebGpu:
         return open_webgpu();
+    case BackendChoice::Metal:
+        return open_metal();
     case BackendChoice::Unknown:
         break;
     }
@@ -162,6 +205,21 @@ rhi::PipelineDesc pipeline_template(rhi::Backend backend) {
         return vulkan::batched2d_pipeline_desc();
     }
 #endif
+    if (backend == rhi::Backend::Metal) {
+        // Metal consumes MSL, so the same program is named by its manifest id rather than by
+        // SPIR-V words (ADR-049: one logical program, one stable shader_id). The vertex layout is
+        // still required: the MSL declares `[[stage_in]]` attributes by location, and Metal
+        // rejects a pipeline whose descriptor omits an attribute the shader reads.
+        rhi::PipelineDesc desc;
+        desc.shader_id = rendering::gpu::kBatched2dShaderId;
+        desc.vertex_layout.stride = rendering::gpu::kVertex2DStride;
+        desc.vertex_layout.attributes = rendering::gpu::kVertex2DAttributes;
+        desc.vertex_layout.attribute_count = rendering::gpu::kVertex2DAttributeCount;
+        desc.color_format = rhi::TextureFormat::R8G8B8A8Unorm;
+        desc.blend = rhi::BlendMode::Alpha;
+        desc.push_constant_size = sizeof(rendering::gpu::Batched2DPushConstants);
+        return desc;
+    }
     static_cast<void>(backend);
     return rhi::PipelineDesc{};
 }

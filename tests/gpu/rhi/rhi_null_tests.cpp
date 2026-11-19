@@ -16,10 +16,13 @@ int main() {
     // issue #243); 1.3 added the sampled view of a render target (`bind_sampled_target` and the
     // target's sampler state, issue #254); 1.4 added `DeviceDesc::surface`/`SurfacePlatform`, the
     // presentation surface family a device is created for (issue #155); 1.5 added
-    // `BlendMode::DualSource` and `Device::supports_dual_source_blend()` (issue #471). All are
-    // additive compatible changes.
-    if (rhi::kRhiVersionMajor != 1 || rhi::kRhiVersionMinor != 7 ||
-        rhi::kRhiVersion != ((1u << 16) | 7u)) {
+    // `BlendMode::DualSource` and `Device::supports_dual_source_blend()` (issue #471); 1.6 added
+    // `TextureDesc::levels` and `Device::supports_texture_mipmaps()` (issue #491); 1.7 added
+    // `CommandList::bind_texture_array` and `Device::texture_array_capacity()` (issue #480);
+    // 1.8 added `Backend::Metal`, the native macOS/iOS backend (ADR-053). All are additive
+    // compatible changes.
+    if (rhi::kRhiVersionMajor != 1 || rhi::kRhiVersionMinor != 8 ||
+        rhi::kRhiVersion != ((1u << 16) | 8u)) {
         std::cerr << "unexpected RHI version constants\n";
         return 1;
     }

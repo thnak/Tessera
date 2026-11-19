@@ -48,7 +48,10 @@ RHI versioning and capabilities (ADR-049):
   `Device::supports_texture_mipmaps(format)` (issue #491, section 5.2 below); 1.7 adds
   `CommandList::bind_texture_array`, `PipelineDesc::texture_array`, `VertexFormat::UInt` and the
   capability that gates them, `Device::texture_array_capacity()` (issue #480 part 2, section 5.3
-  below).
+  below); 1.8 adds `Backend::Metal`, the native macOS/iOS backend
+  ([ADR-053](../../../decisions/ADR-053-native-metal-backend.md),
+  [`metal-backend.md`](metal-backend.md)). No enumerator changes value and no interface member
+  changes, so a backend that does not implement Metal is unaffected.
   All later versions are additive compatible changes.
 - `RhiCapabilities { Backend backend; std::uint32_t rhi_version; GpuTimestampCapability timestamps; }`
   is reported by `Device::capabilities()` (default: current backend, `kRhiVersion`,

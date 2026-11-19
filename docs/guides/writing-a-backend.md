@@ -40,7 +40,7 @@ Current assignments:
 | Software/lavapipe | 1 | Deterministic golden source; never a real GPU framebuffer. |
 | WebGPU (Dawn/emdawnwebgpu) | 1 | Promoted 2026-11-13 once `wasm-build` and `wgsl-validation` were green in CI. Browser/Wasm GPU API. |
 | MoltenVK | 3 | Deferred; see [ADR-010](../../decisions/ADR-010-macos-via-moltenvk-deferred.md). |
-| Metal (native) | planned 1 | [ADR-053](../../decisions/ADR-053-native-metal-backend.md); enters at Tier 1 with its own CI lane. |
+| Metal (native) | 2 | [ADR-053](../../decisions/ADR-053-native-metal-backend.md); in progress, enters at Tier 2 until the conformance suite passes on a macOS lane. Mapping tables build and test on every host; the device half is Apple-only behind `TESSERA_BUILD_METAL`. See [its README](../../src/rendering/backend/metal/README.md). |
 
 Tier-2 duties: a named maintainer; a backend README stating the RHI version implemented, supported
 platforms and known gaps; a conformance run attached to each release candidate; and a response

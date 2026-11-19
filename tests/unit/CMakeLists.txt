@@ -2264,6 +2264,33 @@ target_link_libraries(swapchain_tests PRIVATE tessera_rhi_null)
 
 add_test(NAME swapchain COMMAND swapchain_tests)
 
+# The shared retire rule (ADR-053 decision 2): backend-independent, so it runs on every platform
+# with a fake completion source and needs no GPU.
+add_executable(retire_queue_tests
+    retire_queue_tests.cpp)
+
+target_link_libraries(retire_queue_tests PRIVATE tessera_rhi_shared)
+
+add_test(NAME retire_queue COMMAND retire_queue_tests)
+
+# The RHI -> Metal mapping tables (ADR-053). API-free, so they run on every host; the device half
+# is Apple-only and gated in src/rendering/backend/metal/CMakeLists.txt.
+add_executable(metal_mapping_tests
+    metal_mapping_tests.cpp)
+
+target_link_libraries(metal_mapping_tests PRIVATE tessera_metal_mapping)
+
+add_test(NAME metal_mapping COMMAND metal_mapping_tests)
+
+# The MSL shader table (ADR-053 decision 2). API-free; the table is populated only when the build
+# embedded cross-compiled MSL, and both states are covered.
+add_executable(metal_shader_registry_tests
+    metal_shader_registry_tests.cpp)
+
+target_link_libraries(metal_shader_registry_tests PRIVATE tessera_metal_mapping)
+
+add_test(NAME metal_shader_registry COMMAND metal_shader_registry_tests)
+
 add_executable(frame_wait_tests
     frame_wait_tests.cpp)
 

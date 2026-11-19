@@ -2,7 +2,7 @@
 //
 // Backend-selectable GPU conformance runner (issue #161).
 //
-//   gpu_conformance [--backend null|vulkan|webgpu] [--summary <path>]
+//   gpu_conformance [--backend null|vulkan|webgpu|metal] [--summary <path>]
 //
 // Runs every check against the selected RHI backend, prints one deterministic line per check, and
 // optionally writes the deterministic JSON summary. Exit codes: 0 when no check fails (skips are
@@ -23,7 +23,7 @@ namespace {
 using namespace tessera::tests::gpu::conformance;
 
 void print_usage(std::ostream& out) {
-    out << "usage: gpu_conformance [--backend null|vulkan|webgpu] [--summary <path>]\n"
+    out << "usage: gpu_conformance [--backend null|vulkan|webgpu|metal] [--summary <path>]\n"
            "  --backend   RHI backend to run the checks on (default: null)\n"
            "  --summary   write the deterministic JSON summary to <path>\n";
 }

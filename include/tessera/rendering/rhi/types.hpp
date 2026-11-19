@@ -163,7 +163,9 @@ inline bool Mat3::try_inverse(Mat3& out) const {
     return true;
 }
 
-enum class Backend { Null, Vulkan, WebGpu };
+// `Metal` is the native macOS/iOS backend (ADR-053), not MoltenVK: it is a distinct API, so it is a
+// distinct enumerator. A build that does not compile it in never reports it.
+enum class Backend { Null, Vulkan, WebGpu, Metal };
 
 // Color-renderable 8-bit formats. The `*Srgb` variants have the same byte layout as their UNORM
 // siblings but store/return sRGB-encoded values: attachment writes are encoded from linear light
