@@ -209,3 +209,80 @@ button.palette-button {
   .menu-popup { position: fixed; top: 44px; left: 8px; right: 8px; max-width: none; max-height: calc(100vh - 56px); overflow-y: auto; }
   .menu-popup .menu-popup { position: static; margin: 0 0 0 12px; box-shadow: none; border: 0; padding: 0; }
 }
+
+/* --- the command palette and Quick Open (issue #558) ------------------------------------------- */
+
+.palette-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 12vh;
+  pointer-events: none;
+}
+
+.palette {
+  pointer-events: auto;
+  width: min(600px, calc(100vw - 24px));
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--pane-bg);
+  box-shadow: 0 12px 36px color-mix(in srgb, #000 35%, transparent);
+  overflow: hidden;
+}
+
+.palette-title {
+  padding: 8px 12px 0;
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+input.palette-input {
+  display: block;
+  width: calc(100% - 16px);
+  margin: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+}
+
+input.palette-input:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
+input.palette-input[aria-invalid="true"] { border-color: var(--error); }
+
+.palette-list {
+  max-height: min(50vh, 360px);
+  margin: 0;
+  padding: 0 4px 4px;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.palette-option {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.palette-option.is-active { background: var(--accent); color: var(--accent-text); }
+.po-label { flex: 0 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.po-label b { font-weight: 700; text-decoration: underline; }
+.po-detail { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: 0.65; font-size: 12px; }
+.po-chord { flex: none; margin-left: auto; padding: 0 6px; border: 1px solid color-mix(in srgb, currentColor 35%, transparent); border-radius: 4px; font: 11px var(--mono); }
+
+.palette-status { padding: 4px 12px 8px; color: var(--text-dim); font-size: 12px; }
+
+/* --- context menus ------------------------------------------------------------------------------ */
+
+.context-menu { position: fixed; z-index: 50; }
+.context-menu .menu-popup { position: static; margin: 0; }

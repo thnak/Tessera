@@ -29,6 +29,7 @@ import {
   type Registry,
   type ChordStep,
   type ToolbarEntry,
+  buildContextMenu,
 } from "./workbench/index.js";
 import commandsDocument from "./workbench/commands.json";
 import menusDocument from "./workbench/menus.json";
@@ -37,6 +38,7 @@ import { DPRS, THEMES, VIEWPORTS } from "./lib/preferences";
 import type { ControlValues } from "./regions/StudioChrome";
 import type { ProjectIo } from "./page-project-io";
 import type { PaneRefs } from "./page-state";
+import { usePaletteHost, type PaletteHost } from "./page-palette";
 import type { CommandRecord } from "./workbench/index.js";
 
 const DOCS_URL = "https://github.com/thnak/Tessera/blob/main/docs/README.md";
@@ -65,6 +67,9 @@ export interface WorkbenchApi {
   setControl: (name: keyof ControlValues, value: string) => void;
   setCustomSize: (width: number, height: number) => void;
   pickComponent: (name: string) => void;
+  /** The project's files, for Quick Open, and the page's way to open one in the editor. */
+  files: readonly { path: string }[];
+  openFile: (path: string) => void;
   buildId: string;
   /** The share flow's own progress text (`encoding...`, `link copied`), shown beside the toolbar. */
   shareStatus: string;
@@ -90,6 +95,13 @@ export interface Workbench {
   /** Subscribes the chrome to context and handler changes (a store for `useSyncExternalStore`). */
   subscribe: (listener: () => void) => () => void;
   version: () => number;
+  /** The command palette, Quick Open and Go to Line overlay's state and the page facts it needs. */
+  palette: PaletteHost;
+  /** A context menu (`tree.item`, `editor`, `panel.tab`, `canvas`) as built items; empty when nothing is live. */
+  contextItems: (name: string) => MenuEntry[];
+  /** The hidden file input behind `file.openZip`, rendered by the chrome, and what it does with a chosen file. */
+  zipInputRef: React.RefObject<HTMLInputElement | null>;
+  openZip: (file: File) => void;
   /** The device chip's text, `<skin or profile> · <viewport> · <dpr>x`. */
   chipText: string;
   /** Alt+letter reaches the menu bar through this: the chrome listens and opens the matching menu. */
@@ -157,20 +169,6 @@ function usePhone(): boolean {
   );
 }
 
-/** Opens a file chooser for a project zip; the click that called it is the gesture the browser needs. */
-function chooseZip(open: (file: File) => void): void {
-  const input = document.createElement("input");
-  input.type = "file";
-  input.accept = ".zip,application/zip";
-  input.addEventListener("change", () => {
-    const file = input.files?.[0];
-    if (file !== undefined) {
-      open(file);
-    }
-  });
-  input.click();
-}
-
 function focusTree(): void {
   const tree = document.getElementById("project-tree");
   const target = tree?.querySelector<HTMLElement>('[role="treeitem"][aria-selected="true"]') ?? tree?.querySelector<HTMLElement>('[role="treeitem"]');
@@ -194,6 +192,10 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
   const picker = useButtonState(api.refs.pickToggle);
   const inspector = useButtonState(api.refs.inspectToggle);
   const phone = usePhone();
+  // The chooser the Open Zip command clicks; the chrome renders it (a hidden file input) and reports the file.
+  const zipInputRef = useRef<HTMLInputElement | null>(null);
+  const paletteRef = useRef<PaletteHost | null>(null);
+  const providersRef = useRef<MenuProviders>({});
 
   const hostRef = useRef<{ registry: Registry; extra: ContextRecord } | null>(null);
   if (hostRef.current === null) {
@@ -211,7 +213,7 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
     const a = () => apiRef.current;
     const handlers: Record<string, (args: CommandArgs) => unknown> = {
       "file.openFolder": () => a().io.openFolder(),
-      "file.openZip": () => chooseZip((file) => a().io.openZip(file)),
+      "file.openZip": () => zipInputRef.current?.click(),
       "file.openRecent": (args) => a().io.reopenRecent(Number(args.index)),
       "file.samples": () => a().toggleGallery(),
       "file.newFile": () => a().io.newFile(),
@@ -220,6 +222,10 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
       "file.save": () => a().io.save(),
       "file.download": () => a().io.download(),
       "file.share": () => a().share(),
+      "view.palette": () => paletteRef.current?.open(">"),
+      "view.quickOpen": () => paletteRef.current?.open("", "files"),
+      "view.gotoLine": () => paletteRef.current?.open(":", "line"),
+      "help.shortcuts": () => paletteRef.current?.open(">", "shortcuts"),
       "view.explorer": () => focusTree(),
       "view.setTheme": (args) => a().setControl("theme", String(args.value)),
       "view.cycleTheme": () => {
@@ -364,6 +370,9 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
     viewports: () => VIEWPORTS.map(([width, height, label]) => ({ label, args: { value: `${width}x${height}` } })),
     dprs: () => DPRS.map((dpr) => ({ label: `${dpr}×`, args: { value: String(dpr) } })),
   };
+  providersRef.current = providers;
+  const palette = usePaletteHost(apiRef, providersRef);
+  paletteRef.current = palette;
   const deps = { registry, providers };
   const allMenus = buildMenuBar(menusDocument as unknown as MenusDocument, deps);
   const toolbar = buildToolbar(menusDocument as unknown as MenusDocument, deps);
@@ -405,6 +414,10 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
     setFocusOwner,
     subscribe: registry.subscribe,
     version: registry.version,
+    zipInputRef,
+    openZip: (file) => apiRef.current.io.openZip(file),
+    palette,
+    contextItems: (name) => buildContextMenu(menusDocument as unknown as MenusDocument, name, deps),
     chipText,
     onMnemonic: (listener) => {
       mnemonicListeners.current.add(listener);

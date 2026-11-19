@@ -117,7 +117,12 @@ export function useMenuController(
         options.onRun(effect.item);
         restore();
       } else if (effect.type === "close-bar") {
-        options.barButton(result.nav.bar)?.focus();
+        const button = options.barButton(result.nav.bar);
+        if (button !== null) {
+          button.focus();
+        } else {
+          restore();
+        }
       } else if (effect.type === "exit") {
         restore();
         options.onExit?.();

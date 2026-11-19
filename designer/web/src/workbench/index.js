@@ -8,3 +8,4 @@ export { createKeymap, parseChord, formatChord, chordProblem, reservedProblem, s
 export { createRegistry, validateRecords, checkIntegrity } from "./registry.js";
 export { validateMenus, walkMenus, buildMenuBar, buildItems, buildContextMenu, buildToolbar } from "./menus.js";
 export { CLOSED, navigate, openByMnemonic, focusedItem } from "./menu-nav.js";
+export { fuzzyMatch, rankItems, createRecentList, commandItems, parseInput, parseLine, createArgFlow, needsPrompt } from "./palette.js";

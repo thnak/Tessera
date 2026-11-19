@@ -119,7 +119,35 @@
       ]
     }
   ],
-  "contexts": {},
+  "contexts": {
+    "tree.item": [
+      { "command": "file.newFile", "group": "new@1" },
+      { "command": "file.renameFile", "group": "edit@1" },
+      { "command": "file.deleteFile", "group": "edit@2" }
+    ],
+    "editor": [
+      { "command": "edit.undo", "group": "history@1" },
+      { "command": "edit.redo", "group": "history@2" },
+      { "command": "edit.cut", "group": "clipboard@1" },
+      { "command": "edit.copy", "group": "clipboard@2" },
+      { "command": "edit.paste", "group": "clipboard@3" },
+      { "command": "edit.selectAll", "group": "select@1" },
+      { "command": "edit.find", "group": "find@1" },
+      { "command": "edit.replace", "group": "find@2" },
+      { "command": "edit.toggleComment", "group": "code@1" },
+      { "command": "edit.format", "group": "code@2" },
+      { "command": "edit.renameSymbol", "group": "code@3" },
+      { "command": "go.definition", "group": "code@4" },
+      { "command": "view.gotoLine", "group": "go@1" },
+      { "command": "view.palette", "group": "go@2" }
+    ],
+    "panel.tab": [
+      { "command": "view.maximizePanel", "group": "panel@1" },
+      { "command": "view.movePanel", "group": "panel@2" },
+      { "command": "view.togglePanel", "group": "panel@3" }
+    ],
+    "canvas": []
+  },
   "toolbar": [
     { "command": "run.restart", "emphasis": "primary", "title": "Restart" },
     { "command": "file.save", "icon": "save", "title": "Save" },

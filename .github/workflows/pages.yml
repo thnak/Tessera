@@ -278,6 +278,9 @@ jobs:
       - name: Studio workbench menus (model, keyboard navigation)
         run: node scripts/ci/preview_workbench_menus.mjs
 
+      - name: Studio command palette (fuzzy ranking, recent list, argument prompts)
+        run: node scripts/ci/preview_workbench_palette.mjs
+
       - name: Studio chrome smoke (rendered build, stub browser)
         run: node scripts/ci/preview_studio_smoke.mjs
 

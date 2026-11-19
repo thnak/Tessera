@@ -16,6 +16,8 @@ import { createServer } from 'node:http';
 import { mkdir, readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 
+import { writeZip } from '../../designer/web/studio-zip.js';
+
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.wasm': 'application/wasm', '.ttf': 'font/ttf', '.txt': 'text/plain; charset=utf-8' };
 const argument = (name, fallback) => {
   const index = process.argv.indexOf(name);
@@ -198,6 +200,156 @@ try {
     await context.close();
   }
 
+  // --- the command palette, Quick Open, Go to Line, context menus ------------------------------------------
+  {
+    const { page, context, problems } = await open();
+    const encoder = new TextEncoder();
+    const lines = Array.from({ length: 60 }, (_, index) => `// line ${index + 1}`).join('\n');
+    const files = {
+      'tessera.json': '{"schemaVersion":1,"app":{"name":"zip-demo","entry":"ui/Home.tsx","namespace":"zip_demo"}}',
+      'ui/Home.tsx': `export function Home(): Node {\n  return <View />;\n}\n${lines}\n`,
+      'ui/Settings.tsx': 'export function Settings(): Node {\n  return <View />;\n}\n',
+      'styles/app.css': '.page { width: 320px; }\n',
+    };
+    const buffer = Buffer.from(writeZip(Object.entries(files).map(([path, text]) => ({ path, bytes: encoder.encode(text) }))));
+    await page.locator('input[type=file]').setInputFiles({ name: 'my-app.zip', mimeType: 'application/zip', buffer });
+    await page.waitForSelector('#project-name');
+    const palette = {
+      open: () => page.waitForSelector('#palette-input'),
+      options: () => page.$$eval('#palette-list [role="option"]', (nodes) => nodes.map((node) => node.textContent.trim())),
+      active: () =>
+        page.evaluate(() => {
+          const input = document.getElementById('palette-input');
+          const id = input?.getAttribute('aria-activedescendant');
+          return id ? document.getElementById(id)?.textContent.trim() : null;
+        }),
+      closed: async () => (await page.locator('#palette-input').count()) === 0,
+    };
+
+    // --- Ctrl+Shift+P and F1 ----------------------------------------------------------------------------
+    await page.focus('#share');
+    await page.keyboard.press('Control+Shift+P');
+    await palette.open();
+    const aria = await page.evaluate(() => {
+      const input = document.getElementById('palette-input');
+      const list = document.getElementById('palette-list');
+      return {
+        role: input.getAttribute('role'),
+        expanded: input.getAttribute('aria-expanded'),
+        controls: input.getAttribute('aria-controls') === list.id,
+        listRole: list.getAttribute('role'),
+        options: list.querySelectorAll('[role="option"]').length,
+        focused: document.activeElement === input,
+        value: input.value,
+        activedescendant: input.hasAttribute('aria-activedescendant'),
+      };
+    });
+    check('Ctrl+Shift+P opens the palette: combobox + listbox, input focused, ">" prefilled', aria.role === 'combobox' && aria.expanded === 'true' && aria.controls && aria.listRole === 'listbox' && aria.options > 10 && aria.focused && aria.value === '>' && aria.activedescendant, JSON.stringify(aria));
+    await page.keyboard.press('ArrowDown');
+    const moved = await palette.active();
+    const selected = await page.$$eval('#palette-list [role="option"][aria-selected="true"]', (nodes) => nodes.map((node) => node.textContent.trim()));
+    check('Down moves aria-activedescendant to the next option', moved !== null && selected.length === 1 && selected[0] === moved, String(moved));
+    await page.keyboard.press('Escape');
+    check('Escape closes the palette and restores focus', (await palette.closed()) && (await focusedId(page)) === 'share');
+    await page.keyboard.press('F1');
+    await palette.open();
+    check('F1 opens the palette too', true);
+    await page.keyboard.press('Escape');
+
+    // --- a command without arguments -------------------------------------------------------------------------
+    await page.keyboard.press('Control+Shift+P');
+    await palette.open();
+    await page.keyboard.type('toggle theme');
+    check('typing filters and ranks (Toggle Theme first)', (await palette.options())[0].startsWith('View: Toggle Theme'), (await palette.options()).slice(0, 3).join(' | '));
+    await page.keyboard.press('Enter');
+    check('Enter runs it (the theme cycles to light) and closes', (await palette.closed()) && (await page.evaluate(() => document.documentElement.dataset.theme)) === 'light');
+    await page.evaluate(() => window.__tesseraWorkbench.run('view.setTheme', { value: 'system' }));
+
+    // --- recent commands lead an empty query ----------------------------------------------------------------------
+    await page.keyboard.press('Control+Shift+P');
+    await palette.open();
+    check('the command just used is first in the recent list', (await palette.options())[0].startsWith('View: Toggle Theme'), (await palette.options())[0]);
+    await page.keyboard.press('Escape');
+
+    // --- a command with a choice argument -----------------------------------------------------------------------------
+    await page.keyboard.press('Control+Shift+P');
+    await palette.open();
+    await page.keyboard.type('device: viewport');
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => document.querySelector('#palette-list [role="option"]'));
+    const choices = await palette.options();
+    check('a command with args opens a choice prompt over the provider choices', choices.length === 4 && choices[0].includes('320'), choices.join(' | '));
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => document.querySelector('#device-chip .chip-text')?.textContent.includes('390'));
+    check('picking the choice runs the command with it (the chip shows 390x844)', await palette.closed());
+
+    // --- typed arguments, validated -----------------------------------------------------------------------------------
+    await page.keyboard.press('Control+Shift+P');
+    await palette.open();
+    await page.keyboard.type('custom size');
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('10');
+    await page.keyboard.press('Enter');
+    const invalid = await page.evaluate(() => ({ invalid: document.getElementById('palette-input').getAttribute('aria-invalid'), status: document.getElementById('palette-status').textContent }));
+    check('an out-of-range number is refused with a message, the prompt stays', invalid.invalid === 'true' && /120/.test(invalid.status), JSON.stringify(invalid));
+    await page.keyboard.press('Control+A');
+    await page.keyboard.type('700');
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('500');
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => document.querySelector('#device-chip .chip-text')?.textContent.includes('700'));
+    check('two typed arguments run Custom Size (the chip shows 700x500)', (await page.textContent('#device-chip .chip-text')).includes('700×500'));
+
+    // --- Quick Open (Ctrl+P), file at line, Go to Line (Ctrl+G) -------------------------------------------------------------
+    await page.focus('#share');
+    await page.keyboard.press('Control+p');
+    await palette.open();
+    check('Ctrl+P opens Quick Open with the project files', (await palette.options()).includes('ui/Home.tsx') && (await page.inputValue('#palette-input')) === '');
+    await page.keyboard.type('sett');
+    check('fuzzy search ranks Settings first', (await palette.options())[0] === 'ui/Settings.tsx', (await palette.options()).join(' | '));
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => document.querySelector('#editor-file')?.dataset.path === 'ui/Settings.tsx');
+    check('Enter opens the file in the editor', true);
+    await page.focus('#share');
+    await page.keyboard.press('Control+p');
+    await palette.open();
+    await page.keyboard.type('Home.tsx:25');
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => document.querySelector('#editor-file')?.dataset.path === 'ui/Home.tsx');
+    await page.waitForTimeout(300);
+    const caretLine = await page.evaluate(() => document.querySelector('.cm-activeLine')?.textContent ?? '');
+    check('name:line opens the file and puts the caret on that line', caretLine.includes('line 22'), caretLine);
+    await page.keyboard.press('Control+g');
+    await palette.open();
+    check('Ctrl+G opens Go to Line (":" prefilled) even with the editor focused', (await page.inputValue('#palette-input')) === ':');
+    await page.keyboard.type('2');
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(300);
+    const goneTo = await page.evaluate(() => document.querySelector('.cm-activeLine')?.textContent ?? '');
+    check('Enter goes to the line', (await palette.closed()) && goneTo.includes('return'), goneTo);
+
+    // --- context menus ---------------------------------------------------------------------------------------------------------
+    await page.click('#project-tree [role="treeitem"]', { button: 'right' });
+    await page.waitForSelector('.context-menu [role="menu"]');
+    const labels = await page.$$eval('.context-menu [role="menuitem"]', (nodes) => nodes.map((node) => node.textContent.trim()));
+    check('right-click on a file opens the tree.item menu (New File, Rename, Delete)', labels.some((label) => label.startsWith('New File')) && labels.some((label) => label.startsWith('Rename')) && labels.some((label) => label.startsWith('Delete')), labels.join(' | '));
+    await page.keyboard.press('Escape');
+    check('Escape closes the context menu', (await page.locator('.context-menu').count()) === 0);
+    await page.focus('#project-tree [role="treeitem"]');
+    await page.keyboard.press('Shift+F10');
+    await page.waitForSelector('.context-menu [role="menu"]');
+    check('Shift+F10 opens the tree menu from the keyboard, focus on its first item', (await page.evaluate(() => document.activeElement?.getAttribute('role'))) === 'menuitem');
+    await page.keyboard.press('Escape');
+    await page.click('.cm-content', { button: 'right' });
+    await page.waitForSelector('.context-menu [role="menu"]');
+    const editorLabels = await page.$$eval('.context-menu [role="menuitem"]', (nodes) => nodes.map((node) => node.textContent.trim()));
+    check('right-click in the editor opens the editor menu (Undo ... Go to Line)', editorLabels.some((label) => label.startsWith('Undo')) && editorLabels.some((label) => label.startsWith('Go to Line')), editorLabels.join(' | '));
+    await page.keyboard.press('Escape');
+    check('no uncaught page error (palette and menus)', problems.length === 0, problems.join(' | '));
+    await context.close();
+  }
+
   // --- screenshots (light, dark, 390) -----------------------------------------------------------------------
   if (shots !== null) {
     await mkdir(shots, { recursive: true });
@@ -206,6 +358,13 @@ try {
       await page.screenshot({ path: join(shots, `workbench-${name}-closed.png`) });
       await page.click('.menubar-item');
       await page.screenshot({ path: join(shots, `workbench-${name}-menu.png`) });
+      await page.keyboard.press('Escape');
+      await page.keyboard.press('Escape');
+      await page.keyboard.press('Control+Shift+P');
+      await page.waitForSelector('#palette-input');
+      await page.keyboard.type('device');
+      await page.screenshot({ path: join(shots, `workbench-${name}-palette.png`) });
+      await page.keyboard.press('Escape');
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
       check(`${name}: no horizontal scroll`, !overflow);
       await context.close();

@@ -12,6 +12,8 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent } from "react";
 import type { MenuEntry, ToolbarEntry } from "../workbench/index.js";
 import type { Workbench } from "../page-workbench";
+import { CommandPalette } from "./CommandPalette";
+import { ContextMenuHost } from "./ContextMenuHost";
 import { MenuBar, MenuList, useMenuController } from "./MenuBar";
 
 const TOOLBAR_IDS: Record<string, string> = {
@@ -190,6 +192,22 @@ export function WorkbenchChrome({ workbench }: { workbench: Workbench }) {
         ) : null}
       </div>
       <Toolbar workbench={workbench} />
+      <input
+        ref={workbench.zipInputRef}
+        type="file"
+        accept=".zip,application/zip"
+        hidden
+        aria-label="Project zip"
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0];
+          event.currentTarget.value = "";
+          if (file) {
+            workbench.openZip(file);
+          }
+        }}
+      />
+      {workbench.palette.request !== null ? <CommandPalette key={workbench.palette.request.nonce} workbench={workbench} request={workbench.palette.request} /> : null}
+      <ContextMenuHost workbench={workbench} />
     </header>
   );
 }

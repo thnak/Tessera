@@ -314,8 +314,7 @@
           "F1"
         ]
       },
-      "note": "reserved: command palette slice W3",
-      "status": "reserved"
+      "status": "live"
     },
     {
       "id": "view.quickOpen",
@@ -326,8 +325,7 @@
         "default": "Mod+P"
       },
       "enabled": "project.open",
-      "note": "reserved: command palette slice W3",
-      "status": "reserved"
+      "status": "live"
     },
     {
       "id": "view.gotoLine",
@@ -338,8 +336,7 @@
         "default": "Mod+G"
       },
       "enabled": "project.open",
-      "note": "reserved: command palette slice W3",
-      "status": "reserved"
+      "status": "live"
     },
     {
       "id": "view.explorer",
@@ -885,8 +882,7 @@
       "title": "Keyboard Shortcuts",
       "category": "Help",
       "description": "List every command and its chord",
-      "note": "reserved: command palette slice W3",
-      "status": "reserved"
+      "status": "live"
     },
     {
       "id": "help.docs",

@@ -210,3 +210,56 @@ export const CLOSED: MenuNav;
 export function navigate(menus: readonly { items: MenuEntry[]; mnemonic?: string }[], nav: MenuNav, key: string): { nav: MenuNav; handled: boolean; effect: MenuEffect };
 export function openByMnemonic(menus: readonly { items: MenuEntry[]; mnemonic?: string }[], letter: string): MenuNav | null;
 export function focusedItem(menus: readonly { items: MenuEntry[] }[], nav: MenuNav): MenuEntry | null;
+
+export interface RankItem {
+  id: string;
+  label: string;
+  detail?: string;
+  basename?: string;
+  chord?: string;
+}
+export interface Ranked<T extends RankItem = RankItem> {
+  item: T;
+  score: number;
+  positions: number[];
+  basenameMatch: boolean;
+}
+export interface RecentList {
+  touch(id: string): void;
+  list(): string[];
+  indexOf(id: string): number;
+  load(saved: unknown): void;
+  toJSON(): string[];
+}
+export function fuzzyMatch(query: string, text: string): { score: number; positions: number[] } | null;
+export function rankItems<T extends RankItem>(query: string, items: readonly T[], options?: { recent?: { indexOf(id: string): number }; limit?: number }): Ranked<T>[];
+export function createRecentList(limit?: number): RecentList;
+export function commandItems(registry: Registry): RankItem[];
+export function parseInput(value: string): { mode: "commands" | "line" | "files"; text: string; line?: number };
+export function parseLine(text: string, lineCount: number): { ok: true; line: number } | { ok: false; message: string };
+export interface ArgChoice {
+  label: string;
+  value: string | number;
+  detail: string;
+}
+export interface ArgStep {
+  name: string;
+  kind: "choice" | "number" | "text";
+  label: string;
+  required: boolean;
+  choices?: ArgChoice[];
+  hint?: string;
+}
+export interface ArgFlow {
+  record: CommandRecord;
+  steps: ArgStep[];
+  index: number;
+  done: boolean;
+  step: ArgStep | null;
+  args: CommandArgs;
+  answer(value: string | number): ArgFlow;
+  answerText(text: string): { ok: true; flow: ArgFlow } | { ok: false; message: string };
+  back(): ArgFlow;
+}
+export function createArgFlow(record: CommandRecord, given?: CommandArgs, providers?: MenuProviders): ArgFlow;
+export function needsPrompt(record: CommandRecord, given?: CommandArgs): boolean;

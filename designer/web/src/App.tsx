@@ -626,6 +626,8 @@ export function App() {
     setControl: onControlChange,
     setCustomSize: onCustomSize,
     pickComponent: onPickComponent,
+    files: workspace.state.files,
+    openFile: onSelectTab,
     buildId: state.buildId,
     shareStatus: state.shareStatus,
     refs,
