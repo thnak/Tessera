@@ -153,26 +153,30 @@
     {
       "id": "edit.undo",
       "title": "Undo",
+      "titleKey": "edit.undoTitle",
       "category": "Edit",
+      "description": "Undoes in the history the focus targets: the override stack for the canvas and inspector controls, the text history for the code editor; a text field keeps its own undo",
       "keybinding": {
         "default": "Mod+Z",
-        "when": "editor.focus"
+        "when": "edit.target != 'native'"
       },
-      "enabled": "project.open",
+      "enabled": "project.open && edit.canUndo",
       "status": "live"
     },
     {
       "id": "edit.redo",
       "title": "Redo",
+      "titleKey": "edit.redoTitle",
       "category": "Edit",
+      "description": "Redoes in the history the focus targets, as Undo does",
       "keybinding": {
         "default": "Mod+Y",
         "also": [
           "Mod+Shift+Z"
         ],
-        "when": "editor.focus"
+        "when": "edit.target != 'native'"
       },
-      "enabled": "project.open",
+      "enabled": "project.open && edit.canRedo",
       "status": "live"
     },
     {

@@ -304,11 +304,13 @@ being `var(<token>)`, because that is the only override-shaped value that exists
 narrower than the spec and both are reported rather than papered over: the engine does not invent an
 override layer to make a commit succeed.
 
-**The page half.** `designer/web/src/views/canvas-inspector.ts` gains a `commit` section: one button
-per destination, and the answer the last commit produced - the edit list with each file, byte range
-and replacement text, or the spec's reason. It says **"produced — not applied (no host)"**, because
-that is the truth: this page has no host, so nothing was written. A button that said "committed"
-would be claiming a write that never happened.
+**The page half.** `designer/web/src/views/canvas-inspector.ts` gained a `commit` section: one button
+per destination, and the answer the last commit produced. Since #585 the studio page IS the host: the
+commit round trip (`lib/override-client.ts`) applies the returned `source.patch` to the file buffers and
+settles the overrides, so the section reports `committed`, a `patch rejected (version_mismatch)` that kept
+the overrides, or the spec's reason, instead of the earlier "produced — not applied (no host)" edit list.
+The override rows, the colour control, the refused-value diagnostic and Undo/Redo routing are described
+in [designer-protocol-v1.md section 9.6](../specs/designer-protocol-v1.md#96-page-behavior-issue-585).
 
 ## 6. The page half (landed)
 The page half landed after the React conversion (#422) as `designer/web/src/views/canvas-pointer.ts`,

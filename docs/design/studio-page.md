@@ -554,7 +554,8 @@ needs an engine slice), sharing a whole project (waits for cloud storage), addin
 files from the tree (the folder picker, the zip drop, Save and Download landed with #391), a real code
 editor widget (the textarea is per file, which is what #431 asks for), text drawing (#387, shipped),
 conditional children (#389), and #171's editable inspector panel (the picker overlay, skins, `source.patch`
-and the engine's override layer, #536, shipped). The theme toolbar toggle is now applied (section 1.1); `assets.theme` still did not
+and the engine's override layer, #536, shipped; the page wires the override calls, the commit round trip
+and Undo/Redo routing since #585, [designer-protocol-v1.md section 9.6](../specs/designer-protocol-v1.md#96-page-behavior-issue-585)). The theme toolbar toggle is now applied (section 1.1); `assets.theme` still did not
 arrive with #390, so the *project's* theme asset is carried-but-not-applied
 ([`compiler-wasm.md`](compiler-wasm.md) section 10.2).
 

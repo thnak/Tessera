@@ -8,7 +8,7 @@
 // The target finds the view from the DOM (`EditorView.findFromDOM` on the content element `#source`), so
 // the editor module keeps its small handle and nothing here reaches into `CodeRegion`.
 
-import { redo, selectAll, toggleComment, undo } from "@codemirror/commands";
+import { selectAll, toggleComment } from "@codemirror/commands";
 import { findNext, findPrevious, openSearchPanel } from "@codemirror/search";
 import { EditorView } from "@codemirror/view";
 
@@ -37,8 +37,7 @@ function withView(action: (view: EditorView) => void): void {
 
 /** The commands, keyed by workbench command id. Each focuses the editor first: a menu click took focus. */
 export const EDITOR_COMMANDS: Record<string, () => void | Promise<void>> = {
-  "edit.undo": () => withView((view) => void undo(view)),
-  "edit.redo": () => withView((view) => void redo(view)),
+  // `edit.undo` / `edit.redo` are routed by focus (`page-edit-routing.ts`), so they are not editor-only.
   "edit.selectAll": () => withView((view) => void selectAll(view)),
   "edit.find": () => withView((view) => void openSearchPanel(view)),
   "edit.replace": () => withView((view) => void openSearchPanel(view)),

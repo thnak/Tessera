@@ -92,7 +92,10 @@ the canvas into another document; main spec decision 8).
 ## What stays data-driven
 
 The menu tree, toolbar and status bar items are `menus.json` (`menus`, `toolbar`, `statusBar`); command ids are
-append-only (`command-ids.json`): none were added or renamed. `file.share` was retired (above); `view.problems`
+append-only (`command-ids.json`): none were added or renamed. Undo and Redo (#585) kept their ids and gained a
+focus-routed `when`, an `enabled` clause on the target stack, and a `titleKey` so the Edit menu names the target
+(`Undo Set color on Button`, `Undo typing`); the inspector grew the override rows, the colour control and the
+commit answer, and the status bar gained nothing. `file.share` was retired (above); `view.problems`
 went from `reserved` to `live`; `file.samples` and `help.about` changed behaviour only. React draws what the
 registry says is live; the caret is written without a render, and the Problems counts re-render only their own
 status item.

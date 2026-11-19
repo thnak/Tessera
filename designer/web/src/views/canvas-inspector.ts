@@ -1,24 +1,24 @@
 // SPDX-License-Identifier: MIT
 
-// The Canvas view's style inspector (issue #171, designer-protocol-v1 section 9.1).
+// The Canvas view's style inspector (issue #171, designer-protocol-v1 section 9.1) and its write half
+// (issue #585, sections 9.2-9.4 and 10).
 //
 // **What it is.** With the inspector armed, clicking a node in the canvas shows that node's computed
 // style, the rules that matched it (highest precedence first, with the origin, the selector text,
-// the specificity and each declaration's `overridden` flag), and its box. It is the read half of
-// `style.info`.
+// the specificity and each declaration's `overridden` flag), and its box. That is `style.info`.
 //
-// **The commit action is the write half's first step, and only the first step.** Pressing a
-// destination button asks the engine for the `source.patch` that commit would produce
-// (designer-protocol-v1 §10.2) and shows the resulting edits, or the spec's reason there are none.
-// It does **not** write the file: applying a patch is the host's job (§10.3), and this page has no
-// host. The panel says "produced — not applied" for exactly that reason; a button that claimed the
-// file was written would be lying about the developer's source.
+// **The write half.** The same panel sets, clears and reverts a style override on the node
+// (`canvas-inspector-style.ts`), and commits the node's overrides to the project: the commit round trip of
+// section 10.3 is `lib/override-client.ts`, which asks the module for the `source.patch`, applies it to the
+// file buffers through the page, and settles the overrides after the next evaluation. This file only wires
+// the two to the panel and to the frame.
 //
 // **Why the panel is a page element and not engine paint.** The engine draws the previewed app and
 // nothing else (ADR-054 decision 3). A panel drawn by the engine would be part of the frame, so it
 // would have to be repainted on every selection and would contaminate the pixels a golden compares.
 // Drawn on the page, it costs no frame at all: the query (`tessera_canvas_style`) dispatches
-// nothing, and the panel is a `div` the browser composites.
+// nothing, and the panel is a `div` the browser composites. (An override DOES owe one frame: the layer
+// restyles the running tree, and the session draws it.)
 //
 // **Why it is off by default.** The inspector is a tool, not the preview: an armed inspector
 // consumes the click that would otherwise reach the app, so a visitor who never opens it keeps a
@@ -29,7 +29,16 @@
 // CSS-to-logical ratio — never the device pixel ratio (docs/design/canvas-input-session.md §4).
 
 import type { StatusReporter } from "../lib/views";
-import { callExport, handOverTheme, type ThemeHandover, type WasmModule } from "../lib/wasm-call";
+import { callExport, type WasmModule } from "../lib/wasm-call";
+import type {
+  CommitDestination,
+  CommitHost,
+  CommitOutcome,
+  OverrideClient,
+  OverrideDiagnostic,
+  OverrideResult,
+} from "../lib/override-client";
+import { commitBlock, computedBlock, outcomeText, overridesBlock } from "./canvas-inspector-style";
 
 /** One declaration of one matched rule; the shape `canvas_style_report_json()` writes. */
 export interface StyleDeclarationReport {
@@ -76,39 +85,6 @@ export interface CanvasStyleReport {
   overrides?: { property: string; value: string }[];
 }
 
-/** One edit of a `source.patch`; the shape `canvas_patch_report_json()` writes. */
-export interface PatchEditReport {
-  file: string;
-  /** Byte offset into the file; on a UTF-8 code point boundary (designer-protocol-v1 §3.3). */
-  offset: number;
-  /** Bytes replaced; 0 inserts. */
-  length: number;
-  newText: string;
-}
-
-/**
- * What one commit produced (designer-protocol-v1 §10.2).
- *
- * **`ok:false` carries no `edits` and no `baseVersions`**, because the spec sends no `source.patch`
- * for a failed commit. The panel shows the `reason` and says nothing was produced.
- */
-export interface CanvasPatchReport {
-  ok: boolean;
-  /** One of the spec's six reasons when `ok` is false. */
-  reason?: string;
-  /** A human-readable detail for the status line; never part of the protocol's `reason`. */
-  detail?: string;
-  /** The viewer's handle for this patch, which the host's `source.patch` names. */
-  patchId?: string;
-  /** Sorted by file and descending offset, so applying in order never shifts a later edit. */
-  edits?: PatchEditReport[];
-  /** Each affected file path to the version the viewer used. */
-  baseVersions?: Record<string, number>;
-}
-
-/** The three commit destinations (designer-protocol-v1 §10.1). */
-export type PatchDestination = "inline" | "class" | "token";
-
 /** The elements the inspector needs. */
 export interface CanvasInspectorElements {
   /** The panel: a page element beside the canvas, hidden until a node is inspected. */
@@ -125,10 +101,15 @@ export interface CanvasInspectorOptions {
   elements: CanvasInspectorElements;
   /** The instantiated module, or null before it loads. */
   module: () => WasmModule | null;
-  /** The project's theme asset for the `token` destination; `null` when it has none. */
-  theme?: () => ThemeHandover | null;
+  /** The override layer's client and the commit host (buffers, editor, evaluation), or `null` without a page. */
+  overrides: OverrideClient;
+  commitHost: () => CommitHost | null;
+  /** The project's stylesheet paths, for the `class` destination. */
+  stylesheets: () => string[];
   /** The logical viewport the running session was laid out at. */
   viewport: () => { width: number; height: number };
+  /** An override operation or commit changed the tree: one frame is owed. */
+  requestFrame: () => void;
   setStatus: StatusReporter;
 }
 
@@ -145,14 +126,13 @@ export interface CanvasInspector {
   hide(): void;
   /** Re-asks for the last node, after a frame moved the boxes. */
   refresh(): void;
-  /**
-   * Asks for the patch a commit would produce, and shows the edits or the rejection reason.
-   *
-   * **It does not write anything.** The viewer produces a `source.patch`; applying it is the host's
-   * job (designer-protocol-v1 §10.3), and this page has no host. The panel therefore says "edits
-   * produced", never "file written" — claiming otherwise would be a lie about the developer's file.
-   */
-  commit(destination: PatchDestination): void;
+  /** Commits the selected node's overrides to `destination` (the round trip of section 10.3). */
+  commit(
+    destination: CommitDestination,
+    fields?: { className?: string; file?: string; token?: string; tokenValue?: string },
+  ): Promise<CommitOutcome | null>;
+  /** A commit finished outside `commit()` (a settle that waited for the source to compile). */
+  showOutcome(outcome: CommitOutcome): void;
 }
 
 /** The canvas' CSS-to-logical ratio, the same conversion the picker and the pointer use. */
@@ -168,20 +148,6 @@ function canvasMapping(canvas: HTMLCanvasElement, logicalWidth: number): {
 /** `[ids, classes, types]` as the CSS spelling a developer reads: `0,1,0`. */
 function specificityText(specificity: [number, number, number]): string {
   return specificity.join(",");
-}
-
-/** One row of the computed-style table. */
-function computedRow(property: string, value: string): HTMLElement {
-  const row = document.createElement("div");
-  row.className = "inspect-row";
-  const name = document.createElement("span");
-  name.className = "inspect-name";
-  name.textContent = property;
-  const shown = document.createElement("span");
-  shown.className = "inspect-value";
-  shown.textContent = value;
-  row.replaceChildren(name, shown);
-  return row;
 }
 
 /**
@@ -240,114 +206,94 @@ function boxBlock(box: StyleBoxReport): HTMLElement {
     shown.className = "inspect-value";
     shown.textContent = values.join(" ");
     row.replaceChildren(name, shown);
-    return row;
+    return block.appendChild(row);
   };
-  block.replaceChildren(
-    line("x y", [box.x, box.y, box.width, box.height]),
-    line("margin", box.margin),
-    line("border", box.border),
-    line("padding", box.padding),
-  );
+  line("x y", [box.x, box.y, box.width, box.height]);
+  line("margin", box.margin);
+  line("border", box.border);
+  line("padding", box.padding);
   return block;
 }
 
-/**
- * The commit section: one button per destination, and the answer the last commit produced.
- *
- * **Why the answer is shown as edits and not as "done".** The viewer produces a patch; the host
- * applies it (designer-protocol-v1 §10.3). This page has no host, so the honest report is the edit
- * list — file, byte range, replacement — plus a line saying it was produced and not applied. A
- * button that said "committed" would be claiming a write that never happened.
- */
-function commitBlock(
-  report: CanvasPatchReport | null,
-  onCommit: (destination: PatchDestination) => void,
-): HTMLElement {
+function sectionWith(className: string, title: string, child: HTMLElement): HTMLElement {
   const block = document.createElement("div");
-  block.className = "inspect-commit";
-  const title = document.createElement("div");
-  title.className = "inspect-section";
-  title.textContent = "commit";
-  block.appendChild(title);
-
-  const buttons = document.createElement("div");
-  buttons.className = "inspect-commit-actions";
-  const destinations: { id: PatchDestination; label: string }[] = [
-    { id: "inline", label: "inline" },
-    { id: "class", label: "class" },
-    { id: "token", label: "token" },
-  ];
-  for (const destination of destinations) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "inspect-commit-button";
-    button.dataset.destination = destination.id;
-    button.textContent = destination.label;
-    button.addEventListener("click", () => onCommit(destination.id));
-    buttons.appendChild(button);
-  }
-  block.appendChild(buttons);
-
-  if (report === null) {
-    return block;
-  }
-  const answer = document.createElement("div");
-  answer.className = "inspect-commit-answer";
-  if (!report.ok) {
-    // The spec's reason, verbatim, so a developer can look it up; the detail is the sentence that
-    // says which node or file it was about.
-    answer.dataset.ok = "false";
-    answer.textContent = `no patch: ${report.reason ?? "unknown"}${
-      report.detail !== undefined && report.detail !== "" ? ` — ${report.detail}` : ""
-    }`;
-    block.appendChild(answer);
-    return block;
-  }
-  answer.dataset.ok = "true";
-  const edits = report.edits ?? [];
-  const versions = report.baseVersions ?? {};
-  const files = Object.keys(versions);
-  const header = document.createElement("div");
-  header.className = "inspect-commit-summary";
-  // "produced", not "applied": the host is what writes, and this page is not the host.
-  header.textContent = `${edits.length} edit${edits.length === 1 ? "" : "s"} produced in ${
-    files.length
-  } file${files.length === 1 ? "" : "s"} — not applied (no host)`;
-  answer.appendChild(header);
-  for (const edit of edits) {
-    const row = document.createElement("div");
-    row.className = "inspect-edit";
-    row.dataset.file = edit.file;
-    const where = document.createElement("code");
-    where.className = "inspect-edit-range";
-    where.textContent = `${edit.file}:${edit.offset}+${edit.length}`;
-    const text = document.createElement("code");
-    text.className = "inspect-edit-text";
-    text.textContent = edit.newText;
-    row.replaceChildren(where, text);
-    answer.appendChild(row);
-  }
-  block.appendChild(answer);
+  block.className = className;
+  const heading = document.createElement("div");
+  heading.className = "inspect-section";
+  heading.textContent = title;
+  block.append(heading, child);
   return block;
+}
+
+/** What the page restores after the panel is rebuilt: the field that had focus, its text and caret. */
+interface FocusMemory {
+  field: string;
+  value: string;
+  start: number | null;
+  end: number | null;
+}
+
+function rememberFocus(body: HTMLElement): FocusMemory | null {
+  const active = document.activeElement;
+  if (!(active instanceof HTMLInputElement) || !body.contains(active) || active.dataset.field === undefined) {
+    return null;
+  }
+  return { field: active.dataset.field, value: active.value, start: active.selectionStart, end: active.selectionEnd };
+}
+
+function restoreFocus(body: HTMLElement, memory: FocusMemory | null): void {
+  if (memory === null) {
+    return;
+  }
+  const target = [...body.querySelectorAll<HTMLInputElement>("input[data-field]")].find(
+    (candidate) => candidate.dataset.field === memory.field,
+  );
+  if (target === undefined) {
+    return;
+  }
+  target.value = memory.value;
+  target.focus();
+  if (memory.start !== null && memory.end !== null && target.type === "text") {
+    target.setSelectionRange(memory.start, memory.end);
+  }
 }
 
 export function createCanvasInspector(options: CanvasInspectorOptions): CanvasInspector {
   const { panel, body, toggle, canvas } = options.elements;
   const setStatus = options.setStatus;
+  const client = options.overrides;
   let isArmed = false;
   // The last node asked about, so a frame that moved the boxes can re-ask without a new click.
   let last: { clientX: number; clientY: number } | null = null;
   // The node the panel is showing, so a commit names the same node the panel describes even after
-  // the pointer moved away. Zero means no node is selected.
-  let selected = 0;
-  // The last commit's answer, kept so a re-render (a frame moved the boxes) does not lose it.
-  let lastPatch: CanvasPatchReport | null = null;
+  // the pointer moved away. An empty string means no node is selected (the id is a decimal string: a 64-bit id does not survive Number).
+  let selected = "";
+  let selectedLabel = "node";
+  // The last commit's answer and the last refused value, kept so a re-render (a frame moved the boxes) does
+  // not lose them.
+  let lastOutcome: CommitOutcome | null = null;
+  let refusal: OverrideDiagnostic[] | null = null;
+  let lastReport: CanvasStyleReport | null = null;
 
   function hide(): void {
     panel.hidden = true;
     last = null;
-    selected = 0;
-    lastPatch = null;
+    selected = "";
+    lastOutcome = null;
+    refusal = null;
+    lastReport = null;
+  }
+
+  function onResult(result: OverrideResult): void {
+    // A refused value keeps its diagnostic next to the field; an accepted one clears it. Either way the layer
+    // is the module's, so the panel re-asks it rather than patching its own copy.
+    refusal = result.ok ? null : result.diagnostics;
+    if (!result.ok) {
+      setStatus(`override refused: ${result.diagnostics[0]?.code ?? result.reason ?? "unknown"}`, "warning");
+    } else if (result.changed) {
+      options.requestFrame();
+    }
+    refreshStyle();
   }
 
   function render(report: CanvasStyleReport): void {
@@ -357,105 +303,104 @@ export function createCanvasInspector(options: CanvasInspectorOptions): CanvasIn
       hide();
       return;
     }
+    lastReport = report;
+    const memory = rememberFocus(body);
     const sections: HTMLElement[] = [];
     const heading = document.createElement("div");
     heading.className = "inspect-heading";
-    heading.textContent = `node #${report.node ?? "0"}`;
+    heading.textContent = `${selectedLabel} #${report.node ?? "0"}`;
     sections.push(heading);
-    selected = Number(report.node ?? "0");
+    selected = report.node ?? "";
 
-    const computed = report.computed ?? {};
-    const computedNames = Object.keys(computed).sort();
-    if (computedNames.length > 0) {
-      const block = document.createElement("div");
-      block.className = "inspect-computed";
-      const title = document.createElement("div");
-      title.className = "inspect-section";
-      title.textContent = "computed";
-      block.appendChild(title);
-      for (const name of computedNames) {
-        block.appendChild(computedRow(name, computed[name]));
-      }
-      sections.push(block);
+    const deps = {
+      client,
+      node: String(report.node ?? "0"),
+      nodeLabel: selectedLabel,
+      computed: report.computed ?? {},
+      overrides: report.overrides ?? [],
+      refusal,
+      onResult,
+    };
+    // The write half sits first: it is what a designer came to the panel to do.
+    sections.push(overridesBlock(deps));
+    const computed = computedBlock(deps);
+    if (computed !== null) {
+      sections.push(computed);
     }
 
     const matched = report.matched ?? [];
     if (matched.length > 0) {
-      const block = document.createElement("div");
-      block.className = "inspect-matched";
-      const title = document.createElement("div");
-      title.className = "inspect-section";
-      title.textContent = "matched";
-      block.appendChild(title);
+      const rules = document.createElement("div");
       for (const rule of matched) {
-        block.appendChild(matchedRule(rule));
+        rules.appendChild(matchedRule(rule));
       }
-      sections.push(block);
+      sections.push(sectionWith("inspect-matched", "matched", rules));
     }
-
     if (report.box !== undefined) {
-      const block = document.createElement("div");
-      block.className = "inspect-boxes";
-      const title = document.createElement("div");
-      title.className = "inspect-section";
-      title.textContent = "box";
-      block.appendChild(title);
-      block.appendChild(boxBlock(report.box));
-      sections.push(block);
+      sections.push(sectionWith("inspect-boxes", "box", boxBlock(report.box)));
     }
 
-    // The commit action is last: it is the write half, and a developer reads the style before
-    // deciding to commit it.
-    sections.push(commitBlock(lastPatch, commit));
+    // The commit action is last: a developer reads the style before deciding to commit it.
+    const first = deps.overrides[0];
+    sections.push(
+      commitBlock({
+        stylesheets: options.stylesheets(),
+        tokenValue: first === undefined ? "" : (deps.computed[first.property] ?? first.value),
+        hasOverrides: deps.overrides.length > 0,
+        outcome: lastOutcome,
+        onCommit: (destination, fields) => void commit(destination, fields),
+      }),
+    );
 
     body.replaceChildren(...sections);
+    restoreFocus(body, memory);
     panel.hidden = false;
   }
 
-  function commit(destination: PatchDestination): void {
+  /** Re-asks `style.info` for the selected node (a query: no frame). */
+  function refreshStyle(): void {
     const module = options.module();
-    if (module === null || selected === 0) {
+    if (module === null || selected === "") {
       return;
     }
-    // The declarations a commit writes are the node's overrides (designer-protocol-v1 §10.1), which
-    // the engine holds in its override layer (issue #536): the page names the node and the
-    // destination, never the values. A node with no overrides answers `no_overrides`, and the panel
-    // shows that reason rather than inventing a value.
-    let report: CanvasPatchReport;
     try {
-      // The `token` destination edits the theme asset, which the module only knows if the page hands it
-      // over. Doing it here, per commit, makes the text the editor's current buffer and not the Run's.
-      if (options.theme !== undefined) {
-        handOverTheme(module, options.theme());
-      }
-      report = JSON.parse(
-        callExport(
-          module,
-          "_tessera_canvas_patch",
-          [String(selected), destination, "", "", "", ""],
-          [],
-        ),
-      ) as CanvasPatchReport;
+      render(JSON.parse(callExport(module, "_tessera_canvas_style", [selected], [])) as CanvasStyleReport);
     } catch (error) {
-      setStatus("commit unavailable: " + String(error), "warning");
-      return;
+      setStatus("inspector unavailable: " + String(error), "warning");
     }
-    lastPatch = report;
-    // Re-render the panel so the answer appears in place. The style report is unchanged, so it is
-    // re-asked rather than kept: the panel is a view of the running tree, and a stale copy would
-    // show a node that a rebuild may have replaced.
-    if (last !== null) {
-      ask(last.clientX, last.clientY);
+  }
+
+  function showOutcome(outcome: CommitOutcome): void {
+    lastOutcome = outcome;
+    setStatus(outcomeText(outcome), outcome.status === "committed" ? "ok" : "warning");
+    options.requestFrame();
+    refreshStyle();
+  }
+
+  async function commit(
+    destination: CommitDestination,
+    fields: { className?: string; file?: string; token?: string; tokenValue?: string } = {},
+  ): Promise<CommitOutcome | null> {
+    const host = options.commitHost();
+    if (host === null || selected === "") {
+      return null;
     }
-    if (report.ok) {
-      const count = (report.edits ?? []).length;
-      setStatus(
-        `commit produced ${count} edit${count === 1 ? "" : "s"} — not applied (no host)`,
-        "ok",
-      );
-    } else {
-      setStatus(`commit rejected: ${report.reason ?? "unknown"}`, "warning");
-    }
+    // The declarations a commit writes are the node's overrides (designer-protocol-v1 §10.1), which the
+    // module holds in its override layer: the page names the node and the destination, never the values.
+    const outcome = await client.commit(
+      {
+        node: selected,
+        nodeLabel: selectedLabel,
+        destination,
+        className: fields.className,
+        file: fields.file,
+        token: fields.token,
+        tokenValue: fields.tokenValue,
+      },
+      host,
+    );
+    showOutcome(outcome);
+    return outcome;
   }
 
   function ask(clientX: number, clientY: number): boolean {
@@ -469,12 +414,9 @@ export function createCanvasInspector(options: CanvasInspectorOptions): CanvasIn
     const y = (clientY - rect.top) * scale;
     // The click names a node through the picker's query, which is the same hit test the router uses:
     // the node the inspector describes is the node a press at the same point would reach.
-    let picked: { found: boolean; automationId: string };
+    let picked: { found: boolean; automationId: string; elementKind?: string };
     try {
-      picked = JSON.parse(callExport(module, "_tessera_canvas_pick", [], [x, y])) as {
-        found: boolean;
-        automationId: string;
-      };
+      picked = JSON.parse(callExport(module, "_tessera_canvas_pick", [], [x, y])) as typeof picked;
     } catch (error) {
       hide();
       setStatus("inspector unavailable: " + String(error), "warning");
@@ -484,6 +426,12 @@ export function createCanvasInspector(options: CanvasInspectorOptions): CanvasIn
       hide();
       return false;
     }
+    if (picked.automationId !== selected) {
+      // A different node: its refusal and last commit answer are not this node's.
+      refusal = null;
+      lastOutcome = null;
+    }
+    selectedLabel = picked.elementKind === undefined || picked.elementKind === "" ? "node" : picked.elementKind;
     let report: CanvasStyleReport;
     try {
       report = JSON.parse(
@@ -520,14 +468,27 @@ export function createCanvasInspector(options: CanvasInspectorOptions): CanvasIn
   }
 
   function refresh(): void {
-    if (!isArmed || last === null) {
+    if (!isArmed) {
       return;
     }
-    ask(last.clientX, last.clientY);
+    // The selected node survives a frame by id; the pointer position only matters for the first pick, and a
+    // layout move would make a re-pick at the old point name a different node.
+    if (selected !== "") {
+      refreshStyle();
+    } else if (last !== null) {
+      ask(last.clientX, last.clientY);
+    }
   }
 
   toggle?.addEventListener("click", () => {
     setArmed(!isArmed);
+  });
+
+  // The overrides changed outside the panel (Edit > Undo, a settle): the rows follow.
+  client.subscribe(() => {
+    if (isArmed && selected !== "" && lastReport !== null) {
+      refreshStyle();
+    }
   });
 
   return {
@@ -538,5 +499,6 @@ export function createCanvasInspector(options: CanvasInspectorOptions): CanvasIn
     hide,
     refresh,
     commit,
+    showOutcome,
   };
 }

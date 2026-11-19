@@ -123,7 +123,7 @@ export function buildItems(items, deps) {
       {
         kind: toggle ? (args === undefined || provided !== undefined ? "check" : "radio") : "item",
         key,
-        label: title ?? state.record.title,
+        label: title ?? state.title,
         detail,
         command,
         args,

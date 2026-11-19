@@ -226,8 +226,10 @@ canvas_report_json(const SceneFrameResult& result, std::uint32_t width, std::uin
 [[nodiscard]] std::string canvas_override_report_json(const OverrideOutcome& outcome);
 
 // The answer to settling a commit (section 10.3): `{"settleVersion":1,"ok":true,"consumed":true,
-// "overrides":[]}`, or `ok:false` with `reason` (`no_such_node` or `patch_mismatch`) and, for a
-// mismatch, a `TESSERA_DESIGNER_PATCH_MISMATCH` diagnostic the page forwards as a `diagnostic`.
+// "canUndo":false,"canRedo":false,"overrides":[]}` (the flags say whether the override history
+// still has a step after the node's operations left it), or `ok:false` with `reason`
+// (`no_such_node` or `patch_mismatch`) and, for a mismatch, a `TESSERA_DESIGNER_PATCH_MISMATCH`
+// diagnostic the page forwards as a `diagnostic`.
 [[nodiscard]] std::string canvas_settle_report_json(const CommitSettleResult& result);
 
 } // namespace tessera::compiler::codegen::cli

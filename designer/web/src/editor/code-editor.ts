@@ -46,6 +46,7 @@ import {
   lineNumbers,
 } from "@codemirror/view";
 import { studioHighlight, studioTheme } from "./editor-theme";
+import { quietCommit } from "./editor-commit";
 
 /** The part of an editor the diagnostics list needs: read the text, select a span. */
 export interface EditorSurface {
@@ -188,7 +189,8 @@ export function createCodeEditor(parent: HTMLElement, options: CodeEditorOptions
       ...defaultKeymap,
     ]),
     EditorView.updateListener.of((update) => {
-      if (update.docChanged) {
+      // A style commit reports itself (`editor-commit.ts`): it is not a keystroke to debounce.
+      if (update.docChanged && !update.transactions.some((tr) => tr.annotation(quietCommit) === true)) {
         options.onChange(update.state.doc.toString());
       }
       if (update.docChanged || update.selectionSet) {

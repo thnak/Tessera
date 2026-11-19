@@ -81,6 +81,8 @@ std::string canvas_settle_report_json(const CommitSettleResult& result) {
         out += quoted(result.reason);
     }
     append_flag(out, "consumed", result.consumed);
+    append_flag(out, "canUndo", result.can_undo);
+    append_flag(out, "canRedo", result.can_redo);
     append_diagnostics(out, result.diagnostics);
     append_overrides(out, result.overrides);
     out += "}\n";

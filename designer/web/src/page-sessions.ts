@@ -19,6 +19,8 @@ import { setStatusText } from "./page-state";
 import type { SkinSafeArea } from "./views/canvas-session";
 import { createCanvasSession } from "./views/canvas-session";
 import type { Diagnostic } from "./views/diagnostics-render";
+import type { CommitBridge } from "./lib/override-client";
+import type { OverrideDomainHost } from "./lib/edit-routing";
 import { createDiagnosticsSession } from "./views/diagnostics-session";
 import { createSceneSession } from "./views/scene-session";
 
@@ -54,6 +56,9 @@ export interface SessionDeps {
   onDiagnostics: (diagnostics: readonly Diagnostic[]) => void;
   /** `true` while `id` is the view the preview column is showing (a readiness callback's guard). */
   isCurrent: (id: ViewDefinition["id"]) => boolean;
+  /** The canvas's style commit round trip and Undo/Redo routing (issue #585). */
+  commit: CommitBridge;
+  editing: OverrideDomainHost;
 }
 
 /** The three sessions, keyed by view. Read through `.current`; the object never changes identity. */
@@ -210,6 +215,8 @@ export function useSessions(deps: SessionDeps, settled: boolean, present: string
         safeArea: () => latest.current.safeArea(),
         component: () => latest.current.component(),
         onComponents: (names, chosen) => latest.current.onComponents(names, chosen),
+        commit: deps.commit,
+        editing: deps.editing,
         onReady: (ready) => {
           if (deps.isCurrent("canvas")) {
             deps.setters.setRunEnabled(ready);

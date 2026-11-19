@@ -62,6 +62,9 @@ import { attachCanvasPointer } from "./canvas-pointer";
 import { createCanvasInspector, type CanvasInspector } from "./canvas-inspector";
 import { createCanvasPane, type CanvasPane, type CanvasPaneElements } from "./canvas-pane";
 import { createCanvasPicker, type CanvasPicker } from "./canvas-picker";
+import type { CommitBridge } from "../lib/override-client";
+import { createCanvasOverrides } from "./canvas-overrides";
+import type { OverrideDomainHost } from "../lib/edit-routing";
 
 export type { CanvasApplyReport, CanvasFrameReport, CanvasStateCell };
 
@@ -111,6 +114,13 @@ export interface CanvasSessionOptions {
   onComponents: (names: string[], chosen: string) => void;
   /** Reports readiness to the page's shared Run button. */
   onReady: (ready: boolean) => void;
+  /**
+   * The page's half of the style commit round trip (issue #585): the file buffers, the editor and the
+   * live-edit trigger. Without it a commit cannot be applied, and the inspector's commit says so.
+   */
+  commit?: CommitBridge;
+  /** Where Undo/Redo learns about this session's override stack (issue #585, rule D3). */
+  editing?: OverrideDomainHost;
 }
 
 export interface CanvasSession extends ViewSession {
@@ -180,6 +190,13 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
   // interactive canvas. The listener is registered in the capture phase and stops the event when the
   // inspector took it: the engine's pointer path must not also see a press that was meant to select
   // a node, or the click would both inspect and activate the control under it.
+  const overrides = createCanvasOverrides({
+    module: () => (gpu !== null ? gpu.module : null),
+    commit: options.commit,
+    editing: options.editing,
+    source,
+    requestFrame: () => requestFrame(),
+  });
   const inspector = createCanvasInspector({
     elements: {
       panel: options.elements.inspectPanel ?? document.createElement("div"),
@@ -188,8 +205,14 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
       canvas,
     },
     module: () => (gpu !== null ? gpu.module : null),
-    theme: () => options.source().theme ?? null,
+    overrides: overrides.client,
+    commitHost: overrides.host,
+    stylesheets: () =>
+      source()
+        .stylesheets.map((sheet) => sheet.path)
+        .sort(),
     viewport: () => requestedViewport(options.environment),
+    requestFrame: () => requestFrame(),
     setStatus: options.setStatus,
   });
   canvas.addEventListener(
@@ -305,6 +328,7 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
         ]),
       ) as CanvasApplyReport;
     } catch (error) {
+      overrides.evaluated(false);
       pane.showFailed(String(error));
       options.onReady(true);
       return;
@@ -312,6 +336,7 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
     // The apply failed: the module kept the running evaluation, so nothing is drawn and the last good
     // frame stays on the canvas. The reason goes to the pane's status line, never to a blank surface.
     if (applied.error !== "") {
+      overrides.evaluated(false);
       options.onComponents(applied.components ?? [], applied.component ?? "");
       pane.setStatus("source not applied: " + applied.error, "warning");
       options.onReady(true);
@@ -322,6 +347,13 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
     // the previous one (a reused apply reports it too).
     pane.renderState(applied.state ?? []);
     options.onComponents(applied.components ?? [], applied.component ?? "");
+    // The source evaluated (issue #585): a commit waiting for it may settle, and the text the module now
+    // holds is what a later patch's offsets are measured in.
+    overrides.staged(target);
+    const settled = overrides.evaluated(true);
+    if (settled !== null) {
+      inspector.showOutcome(settled);
+    }
     // The skin's safe area, applied AFTER the evaluation and BEFORE the frame (issue #171's skins
     // slice). It is a layout pass of its own (`tessera_canvas_set_safe_area`), so the boxes the next
     // `draw` paints already carry the skin's padding - no frame of stale insets. It runs on every
@@ -531,6 +563,8 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
       picker.hide();
       // The inspector's panel described a node of the same evaluation.
       inspector.hide();
+      // Overrides live in the released session (designer-protocol-v1 section 9.2): they and their history go.
+      overrides.ended();
     }
     requestFrame();
   }
@@ -682,6 +716,8 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
       }
       gpu = null;
       factory = null;
+      // After the device is released, so a listener of the routing store can never keep it alive.
+      overrides.dispose();
     },
     /**
      * The toolbar moved: on this view the viewport, the DPR and the fold posture are what the canvas is
@@ -741,6 +777,7 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
         pane.renderState([]);
         picker.hide();
         inspector.hide();
+        overrides.ended();
       }
       if (reply.ok && (reply.relaunch || reply.changed) && visible) {
         requestFrame();

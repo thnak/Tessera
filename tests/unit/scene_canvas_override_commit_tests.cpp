@@ -114,6 +114,8 @@ void test_commit_round_trip() {
     expect(settled.ok && settled.consumed && settled.diagnostics.empty(),
            "the round trip gives the committed values, so the overrides are consumed");
     expect(session.overrides_of(id).empty(), "the layer no longer holds them");
+    expect(!settled.can_undo && !settled.can_redo,
+           "the settle reports an empty history once the commit consumed its only node's steps");
     expect(!session.edit_undo().changed, "a commit is not undoable by edit.undo");
     const ui::Node* now = find_class(*session.root(), "card");
     expect(now != nullptr && session.inspect(now->automation_id()).overrides.empty(),
@@ -138,6 +140,7 @@ void test_commit_mismatch_keeps_overrides() {
     const cli::CommitSettleResult settled = session.settle_commit(id);
     expect(!settled.ok && !settled.consumed && settled.reason == "patch_mismatch",
            "a source that does not give the style is a mismatch");
+    expect(settled.can_undo, "a mismatch leaves the history, and the report says so");
     bool reported = false;
     for (const cli::OverrideDiagnostic& diagnostic : settled.diagnostics) {
         reported = reported || diagnostic.code == "TESSERA_DESIGNER_PATCH_MISMATCH";
