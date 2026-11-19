@@ -48,6 +48,8 @@ on:
       - 'scripts/ci/preview_studio_smoke.mjs'
       - 'scripts/ci/preview_page_checks.mjs'
       - 'scripts/ci/preview_skins.mjs'
+      - 'scripts/ci/workbench_layout.mjs'
+      - 'tests/fixtures/studio-layout/**'
       - 'scripts/ci/preview_project_load.mjs'
       - 'scripts/ci/preview_generated_staleness.mjs'
       - 'scripts/ci/preview_recent_projects.mjs'
@@ -78,6 +80,8 @@ on:
       - 'scripts/ci/preview_studio_smoke.mjs'
       - 'scripts/ci/preview_page_checks.mjs'
       - 'scripts/ci/preview_skins.mjs'
+      - 'scripts/ci/workbench_layout.mjs'
+      - 'tests/fixtures/studio-layout/**'
       - 'scripts/ci/preview_project_load.mjs'
       - 'scripts/ci/preview_generated_staleness.mjs'
       - 'scripts/ci/preview_recent_projects.mjs'
@@ -290,6 +294,12 @@ jobs:
       # the page ships rather than a copy of them.
       - name: Skin manifests, geometry and retint (built validator, no browser)
         run: node scripts/ci/preview_skins.mjs
+
+      # The workbench layout model (issue #556, `studio-workbench-layout-v1.md` sections 1 to 3): the
+      # validator's every rule, the operations and canonical flattening, migration fixtures, reconcile,
+      # the phone projection and localStorage persistence, imported from `dist-ssr/workbench.js`.
+      - name: Workbench layout model (built, no browser)
+        run: node scripts/ci/workbench_layout.mjs
 
       - name: Sample manifest is generated and current
         run: python3 -B scripts/ci/gen_sample_manifest.py --check

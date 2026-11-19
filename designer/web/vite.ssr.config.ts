@@ -48,6 +48,9 @@ export default defineConfig({
         "device-profile-load": "src/lib/device-profile-load.ts",
         "platform-events": "src/lib/platform-events.ts",
         "profiles-switch": "src/page-profiles.ts",
+        // The workbench layout model, operations, migration and persistence (issue #556), so
+        // `scripts/ci/workbench_layout.mjs` tests the code the page ships.
+        workbench: "src/workbench/index.ts",
       },
       output: {
         format: "es",

@@ -1,7 +1,9 @@
 # Studio workbench v1: dock and layout model, constraints, library choice
 
 Status: library choice (flexlayout-react 0.11.2, section 5.4) Accepted by the owner 2026-11-19; the
-model and the rest are proposed until their slices land. Companion of [studio-workbench-v1.md](studio-workbench-v1.md) (commands, menus,
+model and its operations, migration, reconcile, phone projection and persistence (sections 1 to 3) are
+implemented in `designer/web/src/workbench/` (W4, [#556](https://github.com/thnak/Tessera/issues/556)) and
+gated by `scripts/ci/workbench_layout.mjs`; the rest is proposed until its slice lands. Companion of [studio-workbench-v1.md](studio-workbench-v1.md) (commands, menus,
 toolbar, slice plan, open decisions). Implements the design that
 [#516](https://github.com/thnak/Tessera/issues/516) requires "before code", and supersedes the
 "three panes inside one right-hand column" rule of [../design/studio-page.md](../design/studio-page.md)
