@@ -114,3 +114,15 @@ Zen mode is `shell.zen`: the dock shows the editor alone as a view of the layout
 `collapsed` untouched), the toolbar and status line are not drawn, and panels stay mounted but report
 hidden. `view.toggleActivityBar` stays reserved (there is no activity bar). On a phone, toggles reveal or
 leave a panel instead of collapsing a group.
+
+Entering zen mode raises one notification, "Zen mode: press Esc twice or F1 and choose Exit Zen Mode to leave", with an
+Exit Zen Mode action, because the menu bar that could say so is hidden. It is raised once per page session (re-entering
+does not repeat it) and goes through the notification service, so do-not-disturb suppresses the toast but the hint stays
+in the bell history.
+
+## 8. `?view=` and the stored layout
+
+`?view=<panel>` is deliberate (owner decision, 2026-11-19): at boot the named panel is opened or revealed even when the
+stored layout had closed it, and a later change of the shown view writes `?view=` back, so a reload keeps showing it.
+`workbench_commands_dock.mjs` covers it: close Canvas, reload with `?view=canvas`, and the panel is back.
+

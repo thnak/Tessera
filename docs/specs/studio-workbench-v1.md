@@ -284,6 +284,18 @@ multi-cursor commands live in the editor keymap rather than a menu.
 Six top-level menus are live (File, Edit, View, Run, Device, Help). `Go` is entirely reserved and
 appears when its first `go.*` command lands.
 
+### 3.3 Dock-owned commands
+
+The commands the layout store owns (`designer/web/src/page-layout-commands.ts`, `docs/design/studio-workbench-dock.md`).
+Each handler is one call into the store; the menu, the chord, the palette and the panel-tab menu run the same code.
+
+| Id | Arguments | Default chord | Enabled | Notes |
+|---|---|---|---|---|
+| `view.movePanelToGroup` | `id`, `group` | none | `!layout.phone` | Moves a panel into another group as a tab ("Into Group >"; `group` is offered by the `groups` provider) |
+| `view.exitZenMode` | none | `Esc Esc` while `layout.zen` and no menu or palette is open | `layout.zen` | Leaves zen mode. Entering zen raises a notification with the hint and an Exit Zen Mode action; it is shown once per session, respects do-not-disturb, and stays in the bell history |
+| `view.undoLayoutChange` | none | none | `layout.canUndo` | Restores the layout from before the last preset or reset; available only while the layout is still the one that change produced |
+
+
 ## 4. From today's buttons to menus and toolbar
 
 ### 4.1 Mapping
