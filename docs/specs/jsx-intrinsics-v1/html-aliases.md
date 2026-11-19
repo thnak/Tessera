@@ -163,12 +163,11 @@ All of these are `TESSERA_JSX_SUBSET_HTML_TAG`; the suggestion is the Alternativ
 | `select`, `option`, `optgroup`, `datalist` | **Planned** (#544). Until then library `Select` |
 | `table`, `thead`, `tbody`, `tfoot`, `tr`, `td`, `th`, `caption`, `colgroup`, `col` | **Planned**, implemented completely (#543, ADR-059 owner answer 3). Until then `View` with flex or grid style; `VirtualGrid` or library `DataGrid` for large data |
 | `svg`, `g`, `circle`, `rect`, `line`, `polyline`, `polygon`, `ellipse`, `text`, `defs`, `use`, `path` | `Path` with `d` and `viewBox` ([Q17] for an automatic single-path rewrite) |
-| `video`, `audio`, `picture`, `source`, `track` | **Planned** (#545). Until then `CustomElement` ([`custom-elements-v1.md`](../custom-elements-v1.md)) |
-| `canvas` | `CustomElement` ([`custom-elements-v1.md`](../custom-elements-v1.md)) |
+| `video`, `audio`, `picture`, `source`, `track`, `canvas` | **Planned** (#545). Until then `CustomElement` ([`custom-elements-v1.md`](../custom-elements-v1.md)) |
 | `dialog`, `details`, `summary`, `menu`, `popover` | Overlay service and library components ([`overlays-and-layers-v1.md`](../overlays-and-layers-v1.md)) |
 | `progress`, `meter` | Library `Progress` (after V1) |
 | `html`, `head`, `body`, `title`, `meta`, `link`, `style`, `base`, `noscript`, `template`, `slot` | None: the app shell, `tessera.json` and `import "./file.css"` replace them |
-| `iframe`, `embed`, `object`, `script` | **Will not be done** (ADR-059 owner answer 5): they need a web engine or a JS runtime (ADR-024, ADR-036 item 6). Permanent `TESSERA_JSX_SUBSET_HTML_TAG` with the reason; the same holds for the `dangerouslySetInnerHTML` prop |
+| `iframe`, `embed`, `object`, `script` | **Will not be done** (ADR-059 owner answer 5): they need a web engine or a JS runtime (ADR-024, ADR-036 item 6). Permanent `TESSERA_JSX_SUBSET_HTML_TAG` with the reason; the `dangerouslySetInnerHTML` prop is on the same list and keeps its own `TESSERA_JSX_SUBSET_DOM` |
 
 ## 6. Diagnostics
 
