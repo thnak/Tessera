@@ -53,7 +53,10 @@ export function StatusLine({
   file,
   onToggleDiagnostics,
   diagnosticsOpen,
+  hidden,
 }: {
+  /** `view.toggleStatusBar` and zen mode hide the line; its cells keep their refs, so sessions still write them. */
+  hidden?: boolean;
   /** Makes the Diagnostics cell a button that toggles the panel area (`view.togglePanelArea`). */
   onToggleDiagnostics?: () => void;
   diagnosticsOpen?: boolean;
@@ -68,7 +71,7 @@ export function StatusLine({
   file: string;
 }) {
   return (
-    <footer className="page-footer" aria-label="Status">
+    <footer className="page-footer" aria-label="Status" hidden={hidden}>
       <dl className="status-line">
         <div className="status-cell">
           <dt>Build</dt>

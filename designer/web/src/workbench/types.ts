@@ -103,7 +103,9 @@ export type Operation =
   | { kind: "maximize"; panelId: string | null }
   | { kind: "reset" }
   | { kind: "collapse"; groupId: string; collapsed: boolean }
-  | { kind: "preset"; presetId: string };
+  | { kind: "preset"; presetId: string }
+  /** Flips shell flags (`zen`, `statusBar`, `toolbar`, `activityBar`); `sideBar` is a side, not a flag. */
+  | { kind: "shell"; patch: Partial<Pick<Shell, "activityBar" | "statusBar" | "toolbar" | "zen">> };
 
 export interface ValidationError {
   /** Spec rule id, e.g. `sizes-sum`. */

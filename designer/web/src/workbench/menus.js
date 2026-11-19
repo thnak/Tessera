@@ -8,6 +8,7 @@
 //   { command, args?, title?, group? }            a command (a radio or check item is derived, below)
 //   { submenu, title, mnemonic?, group?, items }  a nested menu (`submenu` is its stable id)
 //   { dynamic, command, group? }                  entries a page-registered provider returns at open time
+//                                                 (a context menu's provider also gets the clicked target)
 // `group` is `name@order`; a separator is drawn between groups, never authored. A reserved command's item is
 // hidden until the command is live. A command with a `checked` clause is a toggle (`check`) or, when the item
 // carries arguments, one entry of a radio group (`radio`).
@@ -106,15 +107,18 @@ export function buildItems(items, deps) {
     lastGroup = group;
     out.push(entry);
   };
-  const forCommand = (command, args, title, group, key, detail) => {
+  const forCommand = (command, args, title, group, key, detail, provided) => {
     const state = registry.describe(command, args);
     if (state === null || !state.visible) {
       return;
     }
-    const toggle = state.checked !== null;
+    // A provider may state a per-entry check (the Panels submenu: one command, a check per panel); the
+    // command's own clause cannot index by argument.
+    const checked = provided === undefined ? state.checked : provided;
+    const toggle = checked !== null;
     push(
       {
-        kind: toggle ? (args === undefined ? "check" : "radio") : "item",
+        kind: toggle ? (args === undefined || provided !== undefined ? "check" : "radio") : "item",
         key,
         label: title ?? state.record.title,
         detail,
@@ -123,7 +127,7 @@ export function buildItems(items, deps) {
         chord: args === undefined ? keymap.chordFor(command) : "",
         enabled: state.enabled,
         reason: state.reason,
-        checked: state.checked === true,
+        checked: checked === true,
         description: state.record.description ?? "",
       },
       group,
@@ -142,8 +146,8 @@ export function buildItems(items, deps) {
       );
     } else if (item.dynamic !== undefined) {
       const provide = providers[item.dynamic];
-      const entries = provide === undefined ? [] : provide();
-      entries.forEach((entry, index) => forCommand(item.command, entry.args, entry.label, group.name, `${key}/${index}`, entry.detail));
+      const entries = provide === undefined ? [] : provide(deps.target);
+      entries.forEach((entry, index) => forCommand(item.command, entry.args, entry.label, group.name, `${key}/${index}`, entry.detail, entry.checked));
     } else {
       forCommand(item.command, item.args, item.title, group.name, key);
     }
@@ -166,8 +170,8 @@ export function buildMenuBar(doc, deps) {
 }
 
 /** A context menu (`tree.item`, `editor`, `panel.tab`, `canvas`) as built items. */
-export function buildContextMenu(doc, name, deps) {
-  return buildItems(doc.contexts?.[name] ?? [], { ...deps, keymap: deps.keymap ?? deps.registry.keymap(), keyPrefix: `ctx.${name}` });
+export function buildContextMenu(doc, name, deps, target) {
+  return buildItems(doc.contexts?.[name] ?? [], { ...deps, target, keymap: deps.keymap ?? deps.registry.keymap(), keyPrefix: `ctx.${name}` });
 }
 
 /** The toolbar's quick actions as built entries (only live commands; emphasis carried through). */

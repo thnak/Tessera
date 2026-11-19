@@ -165,11 +165,18 @@ export interface ProviderEntry {
   label: string;
   args?: CommandArgs;
   detail?: string;
+  /** A per-entry check mark (a check item), for a menu whose one command cannot index its clause by argument. */
+  checked?: boolean;
 }
-export type MenuProviders = Record<string, () => ProviderEntry[]>;
+/** What a context menu was opened on (`panel.tab`: the panel whose tab it is). */
+export interface MenuTarget {
+  panelId?: string;
+}
+export type MenuProviders = Record<string, (target?: MenuTarget) => ProviderEntry[]>;
 export interface MenuDeps {
   registry: Registry;
   providers?: MenuProviders;
+  target?: MenuTarget;
   keymap?: Keymap;
   keyPrefix?: string;
 }
@@ -197,7 +204,7 @@ export function validateMenus(doc: MenusDocument, records: readonly CommandRecor
 export function walkMenus(doc: MenusDocument, visit: (item: Record<string, unknown>, where: string) => void): void;
 export function buildMenuBar(doc: MenusDocument, deps: MenuDeps): MenuBarMenu[];
 export function buildItems(items: readonly unknown[], deps: MenuDeps & { keyPrefix: string }): MenuEntry[];
-export function buildContextMenu(doc: MenusDocument, name: string, deps: MenuDeps): MenuEntry[];
+export function buildContextMenu(doc: MenusDocument, name: string, deps: MenuDeps, target?: MenuTarget): MenuEntry[];
 export function buildToolbar(doc: MenusDocument, deps: MenuDeps): ToolbarEntry[];
 
 export interface MenuNav {

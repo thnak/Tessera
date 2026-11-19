@@ -163,13 +163,13 @@ function Toolbar({ workbench }: { workbench: Workbench }) {
 }
 
 /** The whole top chrome. */
-export function WorkbenchChrome({ workbench }: { workbench: Workbench }) {
+export function WorkbenchChrome({ workbench, zen = false }: { workbench: Workbench; zen?: boolean }) {
   useSyncExternalStore(workbench.subscribe, workbench.version, workbench.version);
   const mnemonic = useRef<((letter: string) => boolean) | null>(null);
   const paletteVisible = workbench.registry.describe("view.palette")?.visible === true;
   useEffect(() => workbench.onMnemonic((letter) => mnemonic.current?.(letter) ?? false), [workbench]);
   return (
-    <header className="workbench-chrome" aria-label="Studio">
+    <header className={zen ? "workbench-chrome is-zen" : "workbench-chrome"} aria-label="Studio">
       <div className="titlebar">
         <h1 className="title-mark">
           <span aria-hidden="true" className="title-logo">

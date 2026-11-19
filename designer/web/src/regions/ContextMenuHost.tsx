@@ -3,12 +3,13 @@
 // Context menus (issue #558): `tree.item`, `editor`, `panel.tab` from `menus.json`, opened by a right click or
 // by `Shift+F10` / the Menu key on the focused element. The items are the same command entries the menu bar
 // builds, so a context menu cannot do anything the registry does not; the popup is the shared `MenuList` with
-// the same keyboard model. When a context has no live items (the dock's `panel.tab` entries are reserved until
-// the dock lands) nothing is opened and the browser's own menu shows.
+// the same keyboard model. When a context has no live items (for instance a tab of a panel the
+// layout cannot close) nothing is opened and the browser's own menu shows.
 
 import { useEffect, useRef, useState } from "react";
 import type { MenuEntry } from "../workbench/index.js";
 import type { Workbench } from "../page-commands";
+import { panelOfTab } from "../dock/tab-id";
 import { MenuList, useMenuController } from "./MenuBar";
 
 interface Open {
@@ -31,7 +32,8 @@ export function contextNameOf(target: Element | null): string | null {
   if (target.closest('[role="treeitem"], #project-tree') !== null) {
     return "tree.item";
   }
-  if (target.closest('[role="tab"]') !== null) {
+  // Only the dock's tab buttons: the editor's file tabs are `role="tab"` too, and their menu is not this one.
+  if (panelOfTab(target) !== null) {
     return "panel.tab";
   }
   return null;
@@ -82,7 +84,7 @@ export function ContextMenuHost({ workbench }: { workbench: Workbench }) {
       if (name === null) {
         return false;
       }
-      const items = workbenchRef.current.contextItems(name);
+      const items = workbenchRef.current.contextItems(name, { panelId: panelOfTab(target) ?? undefined });
       if (items.every((item) => item.kind === "separator")) {
         return false;
       }

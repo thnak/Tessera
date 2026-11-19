@@ -363,6 +363,12 @@ button.toast-dismiss { padding: 0 6px; border: 0; background: transparent; font-
 .nc-message { flex: 1 1 180px; min-width: 0; overflow-wrap: anywhere; }
 .nc-time { color: var(--text-dim); font-size: 11px; font-variant-numeric: tabular-nums; }
 
+/* Zen mode (`shell.zen`) and the hidden status line: the bars are only not drawn, so the keymap, the toasts
+ * and the palette (which live in this header) keep working. */
+.workbench-chrome.is-zen .titlebar,
+.workbench-chrome.is-zen .toolbar-row { display: none; }
+.page-footer[hidden] { display: none; }
+
 @media (max-width: 719.98px) {
   .toast-stack { right: 8px; bottom: 8px; }
   .notification-center { position: fixed; top: 44px; right: 8px; left: 8px; width: auto; }

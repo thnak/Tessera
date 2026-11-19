@@ -6,15 +6,17 @@
 import { defaultContext } from "./layout-context";
 import { PANEL_AREA_GROUP, directionTarget, type Direction } from "./keyboard";
 import { applyOperation, resetLayout } from "./ops";
-import { findGroup, groupOfPanel, visiblePanels } from "./tree";
+import { diff, findGroup, groupOfPanel, visiblePanels } from "./tree";
 import type { Context, Layout, Operation, Result } from "./types";
 
 export interface LayoutStore {
   get(): Layout;
   /** Applies an operation; listeners run only when the layout actually changed. */
   dispatch(operation: Operation): Result;
-  /** Replaces the layout wholesale (a stored layout loaded at boot). */
+  /** Replaces the layout wholesale (a stored layout loaded at boot). Does not notify. */
   set(layout: Layout): void;
+  /** Replaces the layout and notifies, e.g. "Undo layout change" putting the previous layout back. */
+  restore(layout: Layout): Result;
   subscribe(listener: (result: Result) => void): () => void;
 }
 
@@ -36,6 +38,14 @@ export function createLayoutStore(initial: Layout, ctx: Context = defaultContext
     set(next) {
       layout = next;
     },
+    restore(next) {
+      const result = { layout: next, change: diff(layout, next) };
+      layout = next;
+      for (const listener of [...listeners]) {
+        listener(result);
+      }
+      return result;
+    },
     subscribe(listener) {
       listeners.add(listener);
       return () => void listeners.delete(listener);
@@ -54,6 +64,17 @@ export function panelAreaOpen(layout: Layout): boolean {
   return id !== null && !layout.collapsed.includes(id);
 }
 
+/** The group `view.toggleSideBar` shows and hides: the one holding the Project panel. */
+export function sideBarGroup(layout: Layout): string | null {
+  return groupOfPanel(layout, "project")?.id ?? null;
+}
+
+/** Whether the side bar is open (the Project panel is in the layout and its group is not collapsed). */
+export function sideBarOpen(layout: Layout): boolean {
+  const id = sideBarGroup(layout);
+  return id !== null && !layout.collapsed.includes(id);
+}
+
 /**
  * The command surface over a store, as plain functions: the registry binds `view.togglePanel`,
  * `view.togglePanelArea`, `view.movePanel`, `view.maximizePanel`, `view.layoutPreset` and `layout.reset` to
@@ -63,11 +84,18 @@ export interface WorkbenchCommands {
   /** Open if closed, reveal if hidden, close if visible (VS Code's toggle). */
   togglePanel(panelId: string): Result;
   togglePanelArea(): Result;
+  /** Open (or reveal) the side bar, or collapse it; the Project panel opens again if it was closed. */
+  toggleSideBar(): Result;
   /** Open (or reveal) the panel area, e.g. on a new diagnostic. */
   revealPanelArea(): Result;
   movePanelDirection(panelId: string, direction: Direction): Result;
   maximizePanel(panelId?: string | null): Result;
+  /** Puts `panelId` into `groupId` as a tab (the "Into group" move). */
+  movePanelToGroup(panelId: string, groupId: string): Result;
   layoutPreset(presetId: string): Result;
+  /** Zen mode and the status bar are shell flags: transient and persisted respectively. */
+  setZen(zen: boolean): Result;
+  setStatusBar(visible: boolean): Result;
   resetLayout(): Result;
   isDefault(): boolean;
 }
@@ -90,6 +118,14 @@ export function createCommands(store: LayoutStore, ctx: Context = defaultContext
       }
       return run({ kind: "collapse", groupId: id, collapsed: !layout.collapsed.includes(id) });
     },
+    toggleSideBar() {
+      const layout = store.get();
+      const id = sideBarGroup(layout);
+      if (id === null) {
+        return run({ kind: "open", panelId: "project" });
+      }
+      return run({ kind: "collapse", groupId: id, collapsed: !layout.collapsed.includes(id) });
+    },
     revealPanelArea() {
       const layout = store.get();
       const id = panelAreaGroup(layout);
@@ -109,6 +145,9 @@ export function createCommands(store: LayoutStore, ctx: Context = defaultContext
       }
       return run({ kind: "maximize", panelId });
     },
+    movePanelToGroup: (panelId, groupId) => run({ kind: "move", panelId, target: { group: groupId } }),
+    setZen: (zen) => run({ kind: "shell", patch: { zen } }),
+    setStatusBar: (visible) => run({ kind: "shell", patch: { statusBar: visible } }),
     layoutPreset: (presetId) => run({ kind: "preset", presetId }),
     resetLayout: () => run({ kind: "reset" }),
     isDefault: () => JSON.stringify(store.get()) === JSON.stringify(resetLayout(store.get(), ctx).layout),

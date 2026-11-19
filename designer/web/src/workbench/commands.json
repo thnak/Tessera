@@ -385,8 +385,9 @@
       "keybinding": {
         "default": "Mod+B"
       },
-      "note": "reserved: dock slices W4/W5",
-      "status": "reserved"
+      "status": "live",
+      "description": "Show or hide the side bar (the Project panel's group)",
+      "checked": "layout.sideBar"
     },
     {
       "id": "view.togglePanelArea",
@@ -395,21 +396,23 @@
       "keybinding": {
         "default": "Mod+J"
       },
-      "note": "reserved: dock slices W4/W5",
-      "status": "reserved"
+      "status": "live",
+      "description": "Show or hide the panel area at the bottom",
+      "checked": "layout.panelArea"
     },
     {
       "id": "view.toggleStatusBar",
       "title": "Toggle Status Bar",
       "category": "View",
-      "note": "reserved: dock slices W4/W5",
-      "status": "reserved"
+      "status": "live",
+      "description": "Show or hide the status line",
+      "checked": "layout.statusBar"
     },
     {
       "id": "view.toggleActivityBar",
       "title": "Toggle Activity Bar",
       "category": "View",
-      "note": "reserved: dock slices W4/W5",
+      "note": "reserved: no activity bar until the side bar shell (W5b)",
       "status": "reserved"
     },
     {
@@ -419,8 +422,9 @@
       "keybinding": {
         "default": "Mod+K Z"
       },
-      "note": "reserved: dock slices W4/W5",
-      "status": "reserved"
+      "status": "live",
+      "description": "Show only the editor, with no toolbar or status line; Escape twice leaves",
+      "checked": "layout.zen"
     },
     {
       "id": "view.focusNextRegion",
@@ -429,8 +433,8 @@
       "keybinding": {
         "default": "F6"
       },
-      "note": "reserved: dock slices W4/W5",
-      "status": "reserved"
+      "status": "live",
+      "description": "Move keyboard focus to the next region: menu bar, toolbar, panels, status line"
     },
     {
       "id": "view.focusPreviousRegion",
@@ -439,22 +443,33 @@
       "keybinding": {
         "default": "Shift+F6"
       },
-      "note": "reserved: dock slices W4/W5",
-      "status": "reserved"
+      "status": "live",
+      "description": "Move keyboard focus to the previous region"
     },
     {
       "id": "view.maximizePanel",
       "title": "Maximize or Restore Panel",
       "category": "View",
-      "note": "reserved: dock slices W4/W5",
-      "status": "reserved"
+      "status": "live",
+      "description": "Make the focused panel fill the dock, or restore it",
+      "checked": "layout.maximized",
+      "args": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "x-provider": "panels"
+          }
+        }
+      },
+      "enabled": "!layout.phone"
     },
     {
       "id": "view.resetLayout",
       "title": "Reset Layout",
       "category": "View",
-      "note": "reserved: dock slices W4/W5",
-      "status": "reserved"
+      "status": "live",
+      "description": "Put the panels back where the studio ships them"
     },
     {
       "id": "view.layoutPreset",
@@ -467,9 +482,9 @@
             "type": "string",
             "enum": [
               "default",
-              "editorOnly",
-              "previewFocus",
-              "sideBySide"
+              "editor-only",
+              "preview-focus",
+              "side-by-side"
             ]
           }
         },
@@ -477,8 +492,10 @@
           "preset"
         ]
       },
-      "note": "reserved: dock slices W4/W5",
-      "status": "reserved"
+      "status": "live",
+      "description": "Switch to a named arrangement of the panels",
+      "checked": "layout.preset == arg.preset",
+      "enabled": "!layout.phone"
     },
     {
       "id": "view.togglePanel",
@@ -488,15 +505,20 @@
         "type": "object",
         "properties": {
           "id": {
-            "type": "string"
+            "type": "string",
+            "x-provider": "panels"
+          },
+          "close": {
+            "type": "boolean",
+            "description": "Close the panel instead of showing it (the tab menu's Close Panel)"
           }
         },
         "required": [
           "id"
         ]
       },
-      "note": "reserved: dock slices W4/W5",
-      "status": "reserved"
+      "status": "live",
+      "description": "Open, show or close a panel"
     },
     {
       "id": "view.movePanel",
@@ -506,13 +528,15 @@
         "type": "object",
         "properties": {
           "id": {
-            "type": "string"
+            "type": "string",
+            "x-provider": "panels"
           },
           "to": {
             "type": "string",
             "enum": [
               "left",
               "right",
+              "top",
               "bottom"
             ]
           }
@@ -522,8 +546,54 @@
           "to"
         ]
       },
-      "note": "reserved: dock slices W4/W5",
-      "status": "reserved"
+      "status": "live",
+      "description": "Move a panel to the left, right, top or bottom of the dock",
+      "enabled": "!layout.phone"
+    },
+    {
+      "id": "view.movePanelToGroup",
+      "title": "Move Panel into Group",
+      "category": "View",
+      "description": "Move a panel into another group as a tab",
+      "enabled": "!layout.phone",
+      "args": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "x-provider": "panels"
+          },
+          "group": {
+            "type": "string",
+            "x-provider": "groups"
+          }
+        },
+        "required": [
+          "id",
+          "group"
+        ]
+      },
+      "status": "live"
+    },
+    {
+      "id": "view.exitZenMode",
+      "title": "Exit Zen Mode",
+      "category": "View",
+      "description": "Leave zen mode",
+      "keybinding": {
+        "default": "Escape Escape",
+        "when": "layout.zen && !focus.menu && !focus.palette"
+      },
+      "enabled": "layout.zen",
+      "status": "live"
+    },
+    {
+      "id": "view.undoLayoutChange",
+      "title": "Undo Layout Change",
+      "category": "View",
+      "description": "Put the layout back as it was before the last preset or reset",
+      "enabled": "layout.canUndo",
+      "status": "live"
     },
     {
       "id": "view.setTheme",

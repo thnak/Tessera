@@ -132,7 +132,7 @@ await test('build: chords come from the keymap, disabled items carry a reason', 
 await test('build: radio and check kinds derive from the checked clause; dynamic providers fill submenus', () => {
   const { registry } = bootRegistry({ 'ui.theme': 'dark', 'device.viewport': '390x844', 'device.keepState': true, 'run.picker': false });
   const bar = buildMenuBar(MENUS, { registry, providers });
-  const appearance = bar.find((menu) => menu.id === 'view').items.find((item) => item.kind === 'submenu');
+  const appearance = bar.find((menu) => menu.id === 'view').items.find((item) => item.label === 'Appearance');
   assert.deepEqual(appearance.items.map((item) => [item.label, item.kind, item.checked]), [['Theme: System', 'radio', false], ['Theme: Light', 'radio', false], ['Theme: Dark', 'radio', true]]);
   const device = bar.find((menu) => menu.id === 'device');
   const viewport = device.items.find((item) => item.label === 'Viewport');

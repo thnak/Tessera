@@ -24,6 +24,7 @@ import {
 import { gestureOf } from "./actions";
 import { toLibrary } from "./codec";
 import { PanelSlot } from "./PanelSlot";
+import { panelOfTab } from "./tab-id";
 import { minFractionsOf, parseSplitterPath, separatorValues, sizesForKey, splitAtPath } from "./separators";
 
 export interface FlexDockProps {
@@ -38,13 +39,6 @@ export interface FlexDockProps {
 }
 
 const ARROWS: Record<string, Direction> = { ArrowLeft: "left", ArrowRight: "right", ArrowUp: "top", ArrowDown: "bottom" };
-
-function panelOfTab(element: Element | null): string | null {
-  const tab = element?.closest("[role=tab]");
-  const id = tab?.getAttribute("id") ?? "";
-  const match = /flexlayout-tabbutton-(.+)$/.exec(id) ?? /tabbutton[-_](.+)$/.exec(id);
-  return match === null ? (tab?.getAttribute("data-panel-tab") ?? null) : match[1];
-}
 
 export function FlexDock({ layout, defs, phone, activeGroup, onOperation, announce }: FlexDockProps): ReactNode {
   const json = useMemo(() => toLibrary(layout, { defs, activeGroup, phone }), [layout, defs, activeGroup, phone]);

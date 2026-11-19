@@ -20,7 +20,7 @@ import {
   groupsOf,
   sumsToOne,
 } from "./tree";
-import type { Context, Dir, Layout, MoveTarget, Operation, Result, SplitNode } from "./types";
+import type { Context, Dir, Layout, MoveTarget, Operation, Result, Shell, SplitNode } from "./types";
 
 function result(before: Layout, after: Layout): Result {
   return { layout: after, change: diff(before, after) };
@@ -197,6 +197,19 @@ export function applyPreset(layout: Layout, presetId: string, ctx: Context = def
   return result(layout, reconcile(cloneLayout(preset), ctx));
 }
 
+/** Sets shell flags (zen mode, status bar). No panel changes state, so `change` is empty. */
+export function setShell(layout: Layout, patch: Partial<Pick<Shell, "activityBar" | "statusBar" | "toolbar" | "zen">>): Result {
+  const flags = ["activityBar", "statusBar", "toolbar", "zen"] as const;
+  if (flags.every((flag) => patch[flag] === undefined || patch[flag] === layout.shell[flag])) {
+    return unchanged(layout);
+  }
+  const next = cloneLayout(layout);
+  for (const flag of flags) {
+    next.shell[flag] = patch[flag] ?? next.shell[flag];
+  }
+  return result(layout, next);
+}
+
 /** The single dispatcher: adapters and the command registry call this with a gesture or command. */
 export function applyOperation(layout: Layout, op: Operation, ctx: Context = defaultContext): Result {
   switch (op.kind) {
@@ -220,5 +233,7 @@ export function applyOperation(layout: Layout, op: Operation, ctx: Context = def
       return collapseGroup(layout, op.groupId, op.collapsed);
     case "preset":
       return applyPreset(layout, op.presetId, ctx);
+    case "shell":
+      return setShell(layout, op.patch);
   }
 }

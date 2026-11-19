@@ -42,7 +42,9 @@ import type { ControlValues } from "./regions/StudioChrome";
 import type { ProjectIo } from "./page-project-io";
 import type { PaneRefs } from "./page-state";
 import { usePaletteHost, type PaletteHost } from "./page-palette";
-import type { CommandRecord } from "./workbench/index.js";
+import type { CommandRecord, MenuTarget } from "./workbench/index.js";
+import type { Workbench as Dock } from "./dock/use-workbench";
+import { layoutContext, layoutHandlers, layoutProviders, useLayoutNotices, type LayoutUndo } from "./page-layout-commands";
 
 const DOCS_URL = "https://github.com/thnak/Tessera/blob/main/docs/README.md";
 const ISSUE_URL = "https://github.com/thnak/Tessera/issues/new";
@@ -52,6 +54,8 @@ const PHONE_QUERY = "(max-width: 719.98px)";
 
 /** What the page hands the workbench: its own callbacks and the state the context keys read. */
 export interface WorkbenchApi {
+  /** The dock's layout store and operations: the dock-owned commands (`page-layout-commands.ts`) call into it. */
+  dock: Dock;
   io: ProjectIo;
   dirtyCount: number;
   hasProject: boolean;
@@ -106,7 +110,7 @@ export interface Workbench {
   /** The command palette, Quick Open and Go to Line overlay's state and the page facts it needs. */
   palette: PaletteHost;
   /** A context menu (`tree.item`, `editor`, `panel.tab`, `canvas`) as built items; empty when nothing is live. */
-  contextItems: (name: string) => MenuEntry[];
+  contextItems: (name: string, target?: MenuTarget) => MenuEntry[];
   /** The hidden file input behind `file.openZip`, rendered by the chrome, and what it does with a chosen file. */
   zipInputRef: React.RefObject<HTMLInputElement | null>;
   openZip: (file: File) => void;
@@ -196,11 +200,12 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
   const zipInputRef = useRef<HTMLInputElement | null>(null);
   const paletteRef = useRef<PaletteHost | null>(null);
   const providersRef = useRef<MenuProviders>({});
+  const undoRef = useRef<LayoutUndo | null>(null);
 
   const hostRef = useRef<{ registry: Registry; notifications: Notifications } | null>(null);
   if (hostRef.current === null) {
     const platform = platformOf();
-    const context = createContext(computeContext(api, {}));
+    const context = createContext(computeContext(api, layoutContext(api.dock, null)));
     const registry = createRegistry(COMMANDS, {
       context,
       platform,
@@ -265,6 +270,7 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
       },
       "notify.clearAll": () => notifications.clearHistory(),
       "notify.toggleDoNotDisturb": () => notifications.setDoNotDisturb(!notifications.snapshot().dnd),
+      ...layoutHandlers({ dock: () => apiRef.current.dock, notify: (input) => notifications.notify(input), undo: undoRef }),
       ...EDITOR_COMMANDS,
     };
     for (const [id, handler] of Object.entries(handlers)) {
@@ -288,6 +294,7 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
         "run.picker": picker.pressed,
         "run.inspector": inspector.pressed,
         "layout.phone": phone,
+        ...layoutContext(apiRef.current.dock, undoRef.current),
         ...focusOwner.current,
       }),
     );
@@ -367,12 +374,17 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
 
   // A test and automation seam, like `__tesseraEditor`: drive a command by id.
   useEffect(() => {
-    (window as unknown as { __tesseraWorkbench?: unknown }).__tesseraWorkbench = {
+    // Merged into the handle the dock hook already published (`commands`, `dispatch`, `layout`).
+    const handle = ((window as unknown as { __tesseraWorkbench?: object }).__tesseraWorkbench ??= {});
+    Object.assign(handle, {
       run: (id: string, args?: CommandArgs) => registry.run(id, args),
       describe: (id: string, args?: CommandArgs) => registry.describe(id, args),
       context: () => registry.context.snapshot(),
-    };
+    });
   }, [registry]);
+
+  // A stored layout set aside at boot ("Layout from a newer studio; using the default") is a notification.
+  useLayoutNotices(api.dock.notice, notifications);
 
   // The project's last action and the share flow say what they did through the notification service, so the
   // person hears it once (a toast and the bell history) instead of from one live region per region.
@@ -402,6 +414,7 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
     viewports: () => VIEWPORTS.map(([width, height, label]) => ({ label, args: { value: `${width}x${height}` } })),
     dprs: () => DPRS.map((dpr) => ({ label: `${dpr}×`, args: { value: String(dpr) } })),
   };
+  Object.assign(providers, layoutProviders(() => apiRef.current.dock));
   providersRef.current = providers;
   const palette = usePaletteHost(apiRef, providersRef);
   paletteRef.current = palette;
@@ -452,7 +465,7 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
     zipInputRef,
     openZip: (file) => apiRef.current.io.openZip(file),
     palette,
-    contextItems: (name) => buildContextMenu(menusDocument as unknown as MenusDocument, name, deps),
+    contextItems: (name, target) => buildContextMenu(menusDocument as unknown as MenusDocument, name, deps, target),
     chipText,
     onMnemonic: (listener) => {
       mnemonicListeners.current.add(listener);

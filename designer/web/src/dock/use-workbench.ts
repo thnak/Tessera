@@ -98,7 +98,11 @@ export function useWorkbench(): Workbench {
   const [announcement, setAnnouncement] = useState("");
 
   const phoneActive = collapse(layout, phoneActivePanel).active;
-  const rendered = useMemo(() => (phone ? phoneLayout(layout, phoneActive) : layout), [phone, layout, phoneActive]);
+  // Zen mode (`shell.zen`) shows the editor alone without touching `maximized` or `collapsed`: it is a view of the
+  // layout, so leaving zen puts every group back as it was. Panels stay mounted, they are just not visible.
+  const zen = layout.shell.zen && !phone;
+  const shown = useMemo(() => (zen ? { ...layout, maximized: "editor" } : layout), [zen, layout]);
+  const rendered = useMemo(() => (phone ? phoneLayout(layout, phoneActive) : shown), [phone, layout, phoneActive, shown]);
 
   // Persist after the last operation (300 ms) and on pagehide; the first render is the loaded layout itself.
   const first = useRef(true);
@@ -117,30 +121,21 @@ export function useWorkbench(): Workbench {
 
   // The host contract: opens, closes and visibility transitions, reported once each.
   useEffect(() => {
-    runtime.update(layout, { documentVisible, phoneActive: phone ? phoneActive : null });
-  }, [runtime, layout, documentVisible, phone, phoneActive]);
+    runtime.update(shown, { documentVisible, phoneActive: phone ? phoneActive : null });
+  }, [runtime, shown, documentVisible, phone, phoneActive]);
 
-  // Ctrl+J / Cmd+J toggles the panel area (VS Code's chord). A stand-in until the command registry (W1/W3)
-  // binds `view.togglePanelArea` to its keybinding table; it calls the same plain function.
+  // The chords (Ctrl+J, Ctrl+B, Ctrl+K Z, ...) are the command registry's keymap: `page-layout-commands.ts` binds
+  // `view.togglePanelArea` and its siblings to the plain functions in `commands`.
+  //
+  // A read-mostly handle for the browser gates: the layout operations as plain functions, and the layout as
+  // data. The command registry merges `run`, `describe` and `context` into the same object.
   useEffect(() => {
-    const onKey = (event: KeyboardEvent): void => {
-      if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === "j") {
-        event.preventDefault();
-        commands.togglePanelArea();
-      }
-    };
-    globalThis.addEventListener("keydown", onKey);
-    return () => globalThis.removeEventListener("keydown", onKey);
-  }, [commands]);
-
-  // A read-mostly handle for the browser gates and for the command registry's first wiring: the layout
-  // operations as plain functions, and the layout as data. It carries no state of its own.
-  useEffect(() => {
-    (globalThis as { __tesseraWorkbench?: unknown }).__tesseraWorkbench = {
+    const handle = ((globalThis as { __tesseraWorkbench?: object }).__tesseraWorkbench ??= {});
+    Object.assign(handle, {
       commands,
       dispatch: (operation: Operation) => store.dispatch(operation),
       layout: () => store.get(),
-    };
+    });
   }, [commands, store]);
 
   const dispatch = useCallback(
@@ -167,9 +162,9 @@ export function useWorkbench(): Workbench {
 
   const open = useMemo(() => new Set(openPanels(layout)), [layout]);
   const visible = useMemo(() => {
-    const shown = phone ? new Set([phoneActive]) : visiblePanels(layout);
-    return documentVisible ? shown : new Set<string>();
-  }, [layout, phone, phoneActive, documentVisible]);
+    const visibleNow = phone ? new Set([phoneActive]) : visiblePanels(shown);
+    return documentVisible ? visibleNow : new Set<string>();
+  }, [shown, phone, phoneActive, documentVisible]);
   const announce = useCallback((message: string) => setAnnouncement(message), []);
 
   return {

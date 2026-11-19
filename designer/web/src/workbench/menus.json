@@ -46,13 +46,29 @@
         { "command": "view.search", "group": "views@2" },
         { "command": "view.sourceControl", "group": "views@3" },
         { "command": "view.problems", "group": "views@4" },
+        { "submenu": "view.panels", "title": "Panels", "group": "views@5",
+          "items": [ { "dynamic": "panels", "command": "view.togglePanel" } ] },
         { "command": "view.toggleSideBar", "group": "layout@1" },
         { "command": "view.togglePanelArea", "group": "layout@2" },
         { "command": "view.toggleStatusBar", "group": "layout@3" },
         { "command": "view.toggleActivityBar", "group": "layout@4" },
         { "command": "view.zenMode", "group": "layout@5" },
-        { "command": "view.maximizePanel", "group": "layout@6" },
-        { "command": "view.resetLayout", "group": "layout@7" },
+        { "submenu": "view.layoutPreset", "title": "Layout Preset", "group": "layout@6",
+          "items": [
+            { "command": "view.layoutPreset", "args": { "preset": "default" }, "title": "Default" },
+            { "command": "view.layoutPreset", "args": { "preset": "editor-only" }, "title": "Editor Only" },
+            { "command": "view.layoutPreset", "args": { "preset": "preview-focus" }, "title": "Preview Focus" },
+            { "command": "view.layoutPreset", "args": { "preset": "side-by-side" }, "title": "Side by Side" }
+          ] },
+        { "submenu": "view.moveFocusedPanel", "title": "Move Panel", "group": "layout@7",
+          "items": [
+            { "dynamic": "tabMoves", "command": "view.movePanel", "group": "move@1" },
+            { "submenu": "view.moveIntoGroup", "title": "Into Group", "group": "move@2",
+              "items": [ { "dynamic": "tabMoveGroups", "command": "view.movePanelToGroup" } ] }
+          ] },
+        { "command": "view.maximizePanel", "group": "layout@8" },
+        { "command": "view.resetLayout", "group": "layout@9" },
+        { "command": "view.undoLayoutChange", "group": "layout@10" },
         { "command": "view.focusNextRegion", "group": "focus@1" },
         { "command": "view.focusPreviousRegion", "group": "focus@2" },
         { "submenu": "view.appearance", "title": "Appearance", "group": "appearance@1",
@@ -142,9 +158,14 @@
       { "command": "view.palette", "group": "go@2" }
     ],
     "panel.tab": [
-      { "command": "view.maximizePanel", "group": "panel@1" },
-      { "command": "view.movePanel", "group": "panel@2" },
-      { "command": "view.togglePanel", "group": "panel@3" }
+      { "dynamic": "tabMaximize", "command": "view.maximizePanel", "group": "panel@1" },
+      { "submenu": "panel.move", "title": "Move Panel", "group": "panel@2",
+        "items": [
+          { "dynamic": "tabMoves", "command": "view.movePanel", "group": "move@1" },
+          { "submenu": "panel.moveIntoGroup", "title": "Into Group", "group": "move@2",
+            "items": [ { "dynamic": "tabMoveGroups", "command": "view.movePanelToGroup" } ] }
+        ] },
+      { "dynamic": "tabClose", "command": "view.togglePanel", "group": "panel@3" }
     ],
     "canvas": []
   },

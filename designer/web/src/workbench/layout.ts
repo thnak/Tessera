@@ -19,6 +19,7 @@ export {
   openPanel,
   resetLayout,
   resizeSplit,
+  setShell,
   splitGroup,
 } from "./ops";
 export { migrateLayout, migrations, type Migration } from "./migrate";
@@ -63,6 +64,8 @@ export {
   createLayoutStore,
   panelAreaGroup,
   panelAreaOpen,
+  sideBarGroup,
+  sideBarOpen,
   type LayoutStore,
   type WorkbenchCommands,
 } from "./store";

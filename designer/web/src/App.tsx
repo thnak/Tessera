@@ -602,8 +602,8 @@ export function App() {
     [],
   );
 
-  // ---- the workbench: commands, menus, keyboard (issues #555 and #557) ---------------------------
   const commandHost = useCommands({
+    dock: workbench,
     io: projectIo,
     dirtyCount: new Set([...workspace.state.dirty, ...workspace.state.removed]).size,
     hasProject: workspace.state.files.length > 0,
@@ -631,8 +631,7 @@ export function App() {
 
   return (
     <>
-      <WorkbenchChrome workbench={commandHost} />
-
+      <WorkbenchChrome workbench={commandHost} zen={workbench.layout.shell.zen} />
       <GalleryRegion open={state.galleryOpen} onPick={onSample} />
 
       <p className="link-note" id="link-note" role="alert" hidden={state.linkNote === null}>
@@ -700,8 +699,9 @@ export function App() {
         diagnosticsRef={refs.statusDiagnostics}
         frameRef={refs.statusFrame}
         file={entryPath ?? ""}
-        onToggleDiagnostics={workbench.commands.togglePanelArea}
+        onToggleDiagnostics={() => void commandHost.run("view.togglePanelArea")}
         diagnosticsOpen={workbench.visible.has("diagnostics")}
+        hidden={!workbench.layout.shell.statusBar || workbench.layout.shell.zen}
       />
     </>
   );
