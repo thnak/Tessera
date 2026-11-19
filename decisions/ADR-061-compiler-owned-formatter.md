@@ -1,7 +1,7 @@
 # ADR-061: The compiler owns formatting: one canonical printer, `tessera fmt`
 
-- Status: Proposed (2026-11-19). The owner asked for a proposal (decision D8 of the studio-as-IDE
-  survey); nothing here is decided until the owner answers the questions at the end.
+- Status: Accepted (2026-11-19, owner). The owner asked for a proposal (decision D8 of the
+  studio-as-IDE survey) and accepted it with all four proposals as written (see "Owner answers").
 - Date: 2026-11-19
 - Related: [ADR-036](ADR-036-own-jsx-frontend-and-react-like-model.md) (own front end),
   [ADR-024](ADR-024-native-first-boundaries.md) (no JS runtime in production),
@@ -54,7 +54,7 @@ versions (a format is just another edit against a base version).
 
 ### 4. Style: one opinionated style, almost no options
 
-The style is fixed by the compiler; the proposal (to be confirmed, Question 2): 2-space indent, print
+The style is fixed by the compiler; accepted (Question 2): 2-space indent, print
 width 100, double quotes, trailing commas where a construct breaks across lines, one attribute per
 line when a JSX element breaks, `className` and `style` keep author order. The only project options,
 under `format` in `tessera.json`, are `printWidth` and `indentWidth`; there is no per-rule switch.
@@ -98,13 +98,13 @@ CSS is printed one declaration per line, custom-property values and `@`-rule pre
 - **Format on commit through `source.patch` only.** Rejected: it formats only what the canvas touched
   and gives no format command.
 
-## Open questions for the owner
+## Owner answers (2026-11-19)
 
-1. **Compiler-owned printer** (this ADR) rather than Prettier. Confirm.
-2. **The proposed style** (2 spaces, width 100, double quotes, trailing commas): change any of it?
-3. **Format-on-save in the studio:** default on, or default off with a setting?
-4. **Refusal on an unplaceable comment** (never drop, never guess) is the proposal; the alternative is
-   best-effort placement with a warning.
+1. **Compiler-owned printer** rather than Prettier: accepted.
+2. **Style** (2 spaces, width 100, double quotes, trailing commas, one attribute per line when a JSX
+   element breaks): accepted without change.
+3. **Format-on-save in the studio: on by default**, with a setting to turn it off.
+4. **An unplaceable comment refuses the file** (never drop, never guess): accepted.
 
 ## Follow-up
 
