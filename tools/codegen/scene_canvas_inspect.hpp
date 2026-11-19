@@ -106,6 +106,10 @@ struct CommitSettleResult {
     std::vector<OverrideDiagnostic> diagnostics;
     // What the layer still holds for the node (everything of the node's, on a mismatch).
     std::vector<StyleOverrideInfo> overrides;
+    // Whether the override history still has a step to undo or redo AFTER the settle. A consumed
+    // node's operations leave the history, so the page cannot derive these from its own copy.
+    bool can_undo = false;
+    bool can_redo = false;
 };
 
 // The whole answer. `found:false` is `no_such_node`: the NodeRef names no node in the running

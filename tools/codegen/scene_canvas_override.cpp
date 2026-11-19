@@ -145,16 +145,23 @@ OverrideOutcome CanvasSceneSession::edit_redo() {
 
 CommitSettleResult CanvasSceneSession::settle_commit(std::uint64_t automation_id) {
     CommitSettleResult result;
+    // A settle consumes the node's operations from the history (and only that node's), so the page
+    // cannot know afterwards whether Undo still has a step: every answer carries the flags.
+    const auto finish = [&]() {
+        result.can_undo = overrides_.can_undo();
+        result.can_redo = overrides_.can_redo();
+        return result;
+    };
     const ui::Node* node = started() ? session_->find_by_automation_id(automation_id) : nullptr;
     if (node == nullptr) {
         result.reason = "no_such_node";
         result.overrides = overrides_of(automation_id);
-        return result;
+        return finish();
     }
     const std::vector<StyleOverride> committed = overrides_.of(automation_id);
     if (committed.empty()) {
         result.ok = true;
-        return result;
+        return finish();
     }
 
     // The longhands the overrides touch, by the registry's own expansion, so a `padding` override
@@ -191,7 +198,7 @@ CommitSettleResult CanvasSceneSession::settle_commit(std::uint64_t automation_id
     if (actual == expected) {
         result.ok = true;
         result.consumed = true;
-        return result;
+        return finish();
     }
     // The committed edit did not produce the expected style: put the overrides back so the
     // developer can see the difference and commit again.
@@ -209,7 +216,7 @@ CommitSettleResult CanvasSceneSession::settle_commit(std::uint64_t automation_id
         "TESSERA_DESIGNER_PATCH_MISMATCH",
         "the committed source does not give the node the overridden style: " + detail});
     result.overrides = overrides_of(automation_id);
-    return result;
+    return finish();
 }
 
 } // namespace tessera::compiler::codegen::cli
