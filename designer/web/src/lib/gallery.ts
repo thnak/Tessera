@@ -14,17 +14,29 @@
 // because a page shipped a gallery.
 
 /** The manifest schema this page reads; a newer one is a page change, not a data fix. */
-export const MANIFEST_SCHEMA = 1;
+export const MANIFEST_SCHEMA = 2;
 
-/** One entry of the generated manifest, and the text the gallery loads for it. */
+/** A companion file of a sample: the repository path the page fetches and the project path it opens at. */
+export interface SampleFile {
+  from: string;
+  as: string;
+}
+
+/**
+ * One entry of the generated manifest. A sample is a small project: `path` is the entry, `files` the
+ * companions its relative imports reach (the library `Button`, a CSS module), derived by the generator.
+ */
 export interface Sample {
   path: string;
   component: string;
+  files: SampleFile[];
 }
 
-/** What a gallery pick reports: the manifest entry plus the TSX it fetched. */
+/** What a gallery pick reports: the manifest entry, the entry's TSX and the fetched companions. */
 export interface LoadedSample extends Sample {
   text: string;
+  /** The companion files, fetched, at their project paths (`SampleFile.as`). */
+  companions: { path: string; text: string }[];
 }
 
 /** A per-page-load cache, so opening the gallery twice does not refetch the manifest. */
@@ -33,6 +45,10 @@ export interface GalleryCache {
 }
 
 const UNSAFE_PATH = /^[a-z]+:/i;
+
+function isUnsafePath(path: string): boolean {
+  return path.startsWith("/") || path.includes("..") || path.includes("\\") || UNSAFE_PATH.test(path);
+}
 
 /**
  * Fetches and validates the sample manifest. Called lazily (the gallery's first open), never at
@@ -57,15 +73,32 @@ export async function loadSampleManifest(fetchImpl: typeof fetch = globalThis.fe
   }
   const samples: Sample[] = [];
   for (const entry of document.samples as Partial<Sample>[]) {
-    if (!entry || typeof entry.path !== "string" || typeof entry.component !== "string") {
-      throw new Error("the sample manifest has an entry without a path and component");
+    if (
+      !entry ||
+      typeof entry.path !== "string" ||
+      typeof entry.component !== "string" ||
+      !Array.isArray(entry.files)
+    ) {
+      throw new Error("the sample manifest has an entry without a path, component and files");
     }
-    // The gallery fetches this path. An absolute path or `..` would make the manifest an injection
+    // The gallery fetches these paths. An absolute path or `..` would make the manifest an injection
     // point; the generator never writes one, and a hand-edited manifest is not trusted.
-    if (entry.path.startsWith("/") || entry.path.includes("..") || UNSAFE_PATH.test(entry.path)) {
+    if (isUnsafePath(entry.path)) {
       throw new Error(`the sample manifest has an unsafe path: ${entry.path}`);
     }
-    samples.push({ path: entry.path, component: entry.component });
+    const files: SampleFile[] = [];
+    for (const file of entry.files as Partial<SampleFile>[]) {
+      if (!file || typeof file.from !== "string" || typeof file.as !== "string") {
+        throw new Error(`the sample manifest has a companion file without from and as: ${entry.path}`);
+      }
+      for (const path of [file.from, file.as]) {
+        if (isUnsafePath(path)) {
+          throw new Error(`the sample manifest has an unsafe path: ${path}`);
+        }
+      }
+      files.push({ from: file.from, as: file.as });
+    }
+    samples.push({ path: entry.path, component: entry.component, files });
   }
   return samples;
 }
@@ -80,6 +113,26 @@ export async function loadSampleSource(
     throw new Error(`cannot read ${path} (HTTP ${response.status})`);
   }
   return response.text();
+}
+
+/**
+ * Fetches a sample as a project: the entry plus every companion file its imports need. A companion
+ * that cannot be read fails the whole pick, so the Studio never opens a sample that cannot compile
+ * (the compiler would only say "does not name a file of this project").
+ */
+export async function loadSampleProject(
+  sample: Sample,
+  fetchImpl: typeof fetch = globalThis.fetch,
+): Promise<LoadedSample> {
+  const [text, ...companions] = await Promise.all([
+    loadSampleSource(sample.path, fetchImpl),
+    ...sample.files.map((file) => loadSampleSource(file.from, fetchImpl)),
+  ]);
+  return {
+    ...sample,
+    text,
+    companions: sample.files.map((file, index) => ({ path: file.as, text: companions[index] })),
+  };
 }
 
 /**

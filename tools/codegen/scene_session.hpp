@@ -244,6 +244,12 @@ public:
     [[nodiscard]] bool built() const noexcept {
         return built_;
     }
+    // Why the tree could not be built (a `TESSERA_SCENE_UNSUPPORTED` sentence naming the
+    // construct), or empty when it was. The canvas reports it, so a person reads "a user component
+    // instance needs prop binding..." instead of a generic refusal.
+    [[nodiscard]] const std::string& build_error() const noexcept {
+        return build_error_;
+    }
     // What the most recent `dispatch()` ran and could not run, in binding order. A canvas caller
     // reports these to the page so a handler this slice cannot execute is visible rather than
     // silent, the same split `PreviewClickResult` makes.
@@ -330,6 +336,7 @@ private:
     std::deque<std::string> override_text_;
     double next_timestamp_s_ = 0.0;
     bool built_ = false;
+    std::string build_error_;
     // Set by a handler that changed state during a dispatch; consumed by the rebuild after it.
     bool dirty_ = false;
 };

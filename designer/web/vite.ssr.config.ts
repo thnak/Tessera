@@ -56,6 +56,9 @@ export default defineConfig({
         // The dock adapter's pure core (codec, gesture map, splitter arithmetic), so
         // `scripts/ci/workbench_dock_core.mjs` tests what the page ships (issue #560).
         "dock-core": "src/dock/core.ts",
+        // The canvas pane's state transitions (failed, not applied, nothing to draw), so
+        // `scripts/ci/preview_canvas_pane_states.mjs` tests what the page ships.
+        "canvas-pane": "src/views/canvas-pane.ts",
       },
       output: {
         format: "es",

@@ -9,7 +9,7 @@
 // closes and returns focus to where it was; blur closes too, like VS Code's quick input.
 
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { loadSampleSource, pageManifest, titleOf, type Sample } from "../lib/gallery";
+import { loadSampleProject, pageManifest, titleOf, type Sample } from "../lib/gallery";
 import {
   commandItems,
   createArgFlow,
@@ -185,8 +185,12 @@ export function CommandPalette({ workbench, request }: { workbench: Workbench; r
         positions,
         commit: () => {
           close(false);
-          loadSampleSource(item.id).then(
-            (text) => palette.pickSample({ path: item.id, component: item.detail ?? "", text }),
+          const sample = samples.find((candidate) => candidate.path === item.id);
+          if (sample === undefined) {
+            return;
+          }
+          loadSampleProject(sample).then(
+            (loaded) => palette.pickSample(loaded),
             (error: unknown) => void workbench.notify({ message: String(error instanceof Error ? error.message : error), severity: "error" }),
           );
         },

@@ -24,6 +24,16 @@ keeps the Pages job a pure copy and keeps the gallery's contents reviewable.
 (`SafeAreaPage.tsx` -> "Safe Area Page"), so the manifest carries no prose that could drift from the
 file it describes, and a rename cannot leave a stale title behind.
 
+**A sample is a small project, not one file (schema 2).** `samples/gallery/Gallery.tsx` imports
+`./Button`; the native build satisfies that by copying `packages/tessera-ui/Button.tsx` next to the
+sample before codegen. The Studio must hand the compiler the same project, so each entry carries
+`files: [{from, as}]`: the companion files (repository path -> project-relative path) the page fetches
+and opens next to the entry. They are **derived**, never listed by hand: every relative import
+(`./X`, recursively, stylesheets and CSS modules included) resolves to a sibling file in the sample's
+directory first and else to `packages/tessera-ui/X`, the rule the CMake copies encode. An import that
+resolves to neither is a hard generator failure, so a new sample with a dangling import fails
+`--check` in CI instead of showing "source not applied" in the Studio.
+
 The manifest is also a *budget* input: it is one of the files `scripts/check_preview_budget.py`
 weighs (see `PAGE_FILES` there), which is why the format is as small as it can be while staying
 readable.
@@ -33,6 +43,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import posixpath
 import re
 import sys
 from pathlib import Path
@@ -46,13 +57,27 @@ REPO_ROOT = SCRIPTS_DIR.parent.parent
 SAMPLES_DIR = REPO_ROOT / "samples"
 MANIFEST = REPO_ROOT / "designer" / "web" / "public" / "samples.json"
 
-# The page reads schema 1; a newer one is a page change, not a manifest edit.
-SCHEMA = 1
+# The page reads exactly this schema; a newer one is a page change, not a manifest edit.
+# Schema 2 added `files` (the companion files of a sample, see the module docstring).
+SCHEMA = 2
+
+# Where a relative import falls back to when the sample's own directory does not have the file: the
+# component library the native build copies next to the sample (samples/gallery/CMakeLists.txt).
+LIBRARY_DIR = "packages/tessera-ui"
 
 # `export function Name(` or `export const Name =`, the two shapes the samples use. The front end
 # accepts more (default exports, arrow components without a name), but a sample whose entry point
 # this cannot name is a sample the gallery cannot open, so it is reported rather than skipped.
 EXPORT = re.compile(r"^\s*export\s+(?:async\s+)?(?:function|const|class)\s+([A-Za-z_$][\w$]*)", re.M)
+
+
+# A relative import or re-export specifier: `import {A} from "./X"`, `export {A} from "./X"` and the
+# side-effect form `import "./x.css"`. Comments are blanked first so prose cannot name a file.
+RELATIVE_IMPORT = re.compile(
+    r"""(?:\b(?:import|export)\b[^;"']*?\bfrom\s*|\bimport\s*)["'](\.{1,2}/[^"']*)["']""", re.S
+)
+BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.S)
+LINE_COMMENT = re.compile(r"(?m)^\s*//.*$")
 
 
 class ManifestError(Exception):
@@ -82,6 +107,66 @@ def entry_component(text: str, path: Path, root: Path) -> str:
     )
 
 
+def relative_imports(text: str) -> List[str]:
+    """The relative specifiers `text` imports or re-exports, in source order, comments ignored."""
+    code = LINE_COMMENT.sub("", BLOCK_COMMENT.sub("", text))
+    return [match.group(1) for match in RELATIVE_IMPORT.finditer(code)]
+
+
+def import_target(specifier: str) -> str:
+    """The file name a specifier names: a bare `./Button` is the `.tsx` module, `./x.css` is itself."""
+    return specifier if re.search(r"\.[A-Za-z0-9]+$", specifier) else specifier + ".tsx"
+
+
+def companion_files(entry: Path, root: Path) -> List[dict]:
+    """The `{from, as}` companions of one sample: everything its relative imports reach, recursively.
+
+    `as` is project-relative and sits under the entry's own directory (the Studio opens the sample at
+    its repository path, so `./Button` resolves exactly as it does in the native build's flat source
+    directory).
+    """
+    base = relative(entry, root)
+    base_dir = posixpath.dirname(base)
+    found: dict = {}
+    seen = {base}
+    pending = [(base, entry.read_text(encoding="utf-8", errors="replace"))]
+    errors: List[str] = []
+    while pending:
+        importer, text = pending.pop()
+        for specifier in relative_imports(text):
+            target = posixpath.normpath(
+                posixpath.join(posixpath.dirname(importer), import_target(specifier))
+            )
+            inside = posixpath.relpath(target, base_dir)
+            if inside.startswith(".."):
+                errors.append(
+                    "{}: import `{}` leaves the sample's directory".format(importer, specifier)
+                )
+                continue
+            if target in seen:
+                continue
+            sibling = root / target
+            library = root / LIBRARY_DIR / inside
+            if sibling.is_file():
+                source = sibling
+            elif library.is_file():
+                source = library
+            else:
+                errors.append(
+                    "{}: import `{}` resolves to neither {} nor {}/{}".format(
+                        importer, specifier, target, LIBRARY_DIR, inside
+                    )
+                )
+                continue
+            seen.add(target)
+            found[target] = relative(source, root)
+            if target.endswith((".tsx", ".ts")):
+                pending.append((target, source.read_text(encoding="utf-8", errors="replace")))
+    if errors:
+        raise ManifestError("\n".join(sorted(errors)))
+    return [{"as": name, "from": found[name]} for name in sorted(found)]
+
+
 def sample_entries(root: Path) -> List[dict]:
     """Every `.tsx` under `samples/`, sorted by path so the manifest is reproducible."""
     samples_dir = root / "samples"
@@ -98,7 +183,12 @@ def sample_entries(root: Path) -> List[dict]:
         except ManifestError as exc:
             errors.append(str(exc))
             continue
-        entries.append({"path": relative(path, root), "component": component})
+        try:
+            files = companion_files(path, root)
+        except ManifestError as exc:
+            errors.append(str(exc))
+            continue
+        entries.append({"path": relative(path, root), "component": component, "files": files})
     if errors:
         raise ManifestError("\n".join(errors))
     if not entries:
@@ -171,7 +261,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                     if isinstance(entry, dict) and "path" in entry
                 }
             except (json.JSONDecodeError, AttributeError):
-                print("  the checked-in file is not a schema-1 manifest", file=sys.stderr)
+                print(
+                    "  the checked-in file is not a schema-{} manifest".format(SCHEMA), file=sys.stderr
+                )
                 known = set()
             current = {entry["path"] for entry in entries}
             for path in sorted(current - known):
@@ -179,7 +271,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             for path in sorted(known - current):
                 print("  removed: {}".format(path), file=sys.stderr)
             if current == known:
-                print("  the sample set matches; the component name or format changed", file=sys.stderr)
+                print("  the sample set matches; the component name, companion files or format changed", file=sys.stderr)
             return 1
         print("sample manifest: {} sample(s), up to date".format(len(entries)))
         return 0

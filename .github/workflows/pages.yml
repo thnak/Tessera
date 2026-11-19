@@ -47,6 +47,9 @@ on:
       - 'scripts/ci/preview_problems.mjs'
       - 'scripts/ci/preview_studio_smoke.mjs'
       - 'scripts/ci/preview_page_checks.mjs'
+      - 'scripts/ci/preview_sample_projects.mjs'
+      - 'scripts/ci/preview_canvas_pane_states.mjs'
+      - 'packages/tessera-ui/**'
       - 'scripts/ci/preview_skins.mjs'
       - 'scripts/ci/workbench_layout.mjs'
       - 'scripts/ci/workbench_dock_core.mjs'
@@ -82,6 +85,9 @@ on:
       - 'scripts/ci/preview_problems.mjs'
       - 'scripts/ci/preview_studio_smoke.mjs'
       - 'scripts/ci/preview_page_checks.mjs'
+      - 'scripts/ci/preview_sample_projects.mjs'
+      - 'scripts/ci/preview_canvas_pane_states.mjs'
+      - 'packages/tessera-ui/**'
       - 'scripts/ci/preview_skins.mjs'
       - 'scripts/ci/workbench_layout.mjs'
       - 'scripts/ci/workbench_dock_core.mjs'
@@ -221,6 +227,13 @@ jobs:
       - name: Build native compiler
         run: cmake --build build/native-pages --target tessera_codegen_cli --parallel
 
+      # Every manifest sample, assembled as the Studio opens it (entry plus companion files), must
+      # compile with no unresolved import under the real native compiler.
+      - name: Sample projects (every manifest sample resolves its imports)
+        run: >-
+          node scripts/ci/preview_sample_projects.mjs
+          --codegen build/native-pages/src/compiler/codegen/tessera_codegen
+
       - name: Diagnostics parity (native vs Wasm)
         run: >-
           python3 -B scripts/ci/wasm_diagnostics_parity.py
@@ -300,6 +313,9 @@ jobs:
 
       - name: Studio chrome smoke (rendered build, stub browser)
         run: node scripts/ci/preview_studio_smoke.mjs
+
+      - name: Canvas pane states (not applied, nothing to draw; never a silent blank)
+        run: node scripts/ci/preview_canvas_pane_states.mjs
 
       # The built half: `dist/index.html` is CSP-clean and its asset references resolve, the rendered
       # chrome carries every id the page's code looks up, the redirect stubs preserve the query and the
@@ -396,6 +412,18 @@ jobs:
           # checkout has samples/ next to designer/ but the assembled site does not.
           mkdir -p "$site/samples"
           cp -R samples/. "$site/samples/"
+          # A sample is a small project (manifest schema 2): its companions are fetched from their
+          # repository paths too, and the library ones live under packages/tessera-ui, not samples/.
+          python3 - "$site" <<'PY'
+          import json, pathlib, shutil, sys
+          site = pathlib.Path(sys.argv[1])
+          manifest = json.loads(pathlib.Path("designer/web/public/samples.json").read_text(encoding="utf-8"))
+          for entry in manifest["samples"]:
+              for companion in entry["files"]:
+                  target = site / companion["from"]
+                  target.parent.mkdir(parents=True, exist_ok=True)
+                  shutil.copyfile(companion["from"], target)
+          PY
           # The three Wasm modules stay three (ADR-054 decision 3, and #392's merge did not merge them):
           # each is a lazy `import()` from the page's own base, so they are copied next to `index.html`
           # and never bundled.
@@ -451,8 +479,8 @@ jobs:
           samples = json.loads((site / "samples.json").read_text(encoding="utf-8"))["samples"]
           assert samples, "the manifest lists no samples"
           for entry in samples:
-              target = site / entry["path"]
-              assert target.is_file(), f"manifest path missing from the site: {entry['path']}"
+              for path in [entry["path"]] + [file["from"] for file in entry["files"]]:
+                  assert (site / path).is_file(), f"manifest path missing from the site: {path}"
           print(f"{len(samples)} manifest path(s) present in the site")
           PY
 

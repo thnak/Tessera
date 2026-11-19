@@ -395,6 +395,18 @@ JavaScript. Display titles are derived from the file stem in the page. `--check`
 manifest, and the Pages lane copies `samples/` into the site and asserts every manifest path exists
 there.
 
+**A sample is a small project (manifest schema 2).** Each entry also carries `files: [{from, as}]`, the
+companion files the entry's relative imports reach, so the Studio opens the sample the way the native
+build compiles it (`samples/gallery/CMakeLists.txt` copies the library `Button` next to `Gallery.tsx`).
+The generator **derives** the list, never a hand-kept one: every `./X` import (recursively; stylesheets
+and CSS modules included) resolves to a sibling file in the sample's directory first, else to
+`packages/tessera-ui/X`, and an import that resolves to neither fails the generator and `--check`.
+`from` is the repository path the page fetches (the Pages lane copies the library files next to
+`samples/`), `as` the project path it opens at, in the entry's own directory; both pass the same
+no-absolute, no-`..`, no-scheme validation, and the reader rejects any other `schema`.
+`scripts/ci/preview_sample_projects.mjs` loads every sample through the page's own `loadSampleProject`
+and requires zero unresolved imports, also under the native compiler in CI.
+
 **Viewport and DPR reach the layout.** The P2 module export
 `tessera_scene_json(source, file, component)` keeps its fixed 320×240 defaults because the parity gate
 pins them; P5 adds `tessera_scene_json_sized(source, file, component, width, height, dpr)` for the

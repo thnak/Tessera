@@ -143,6 +143,7 @@ void PreviewSession::rebuild() {
 
     const SceneBuildResult built = build_scene(component_, *root_, scope_);
     built_ = built.error.empty();
+    build_error_ = built.error;
     // The spans belong to the tree that was just built, so they are replaced with it - including
     // with an empty list when the build failed, because a span for a node that is not on screen
     // would let a commit edit a range nothing is showing.

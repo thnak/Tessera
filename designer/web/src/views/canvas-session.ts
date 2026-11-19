@@ -338,13 +338,14 @@ export function createCanvasSession(options: CanvasSessionOptions): CanvasSessio
     if (applied.error !== "") {
       overrides.evaluated(false);
       options.onComponents(applied.components ?? [], applied.component ?? "");
-      pane.setStatus("source not applied: " + applied.error, "warning");
+      pane.showNotApplied(applied.error);
       options.onReady(true);
       return;
     }
     // The state row follows every successful apply, `changed` or not: a cell that was carried is the
     // point of the edit, and it is the one fact a developer wants to see *while* the picture is still
     // the previous one (a reused apply reports it too).
+    pane.clearNotApplied();
     pane.renderState(applied.state ?? []);
     options.onComponents(applied.components ?? [], applied.component ?? "");
     // The source evaluated (issue #585): a commit waiting for it may settle, and the text the module now

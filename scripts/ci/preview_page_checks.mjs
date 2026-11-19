@@ -561,16 +561,20 @@ if (!requireBuilt()) {
   // --- 5. every manifest path exists, under the path the site uses --------------------------------
 
   const manifest = JSON.parse(readFileSync(resolve(DIST, "samples.json"), "utf8"));
-  if (manifest.schema !== 1) {
-    fail(`samples.json is schema ${manifest.schema}, expected 1`);
+  if (manifest.schema !== 2) {
+    fail(`samples.json is schema ${manifest.schema}, expected 2`);
   }
   let missingSamples = 0;
+  // A sample is a project: its companion files (`from`, repository paths) are published beside it, so each
+  // must exist too, or the Studio could not open the sample ("import does not name a file").
   for (const entry of manifest.samples || []) {
-    try {
-      readFileSync(resolve(REPO_ROOT, entry.path));
-    } catch {
-      fail(`samples.json names a missing file: ${entry.path}`);
-      missingSamples += 1;
+    for (const path of [entry.path, ...(entry.files || []).map((file) => file.from)]) {
+      try {
+        readFileSync(resolve(REPO_ROOT, path));
+      } catch {
+        fail(`samples.json names a missing file: ${path}`);
+        missingSamples += 1;
+      }
     }
   }
   if (missingSamples === 0) {

@@ -149,7 +149,9 @@ std::string CanvasSceneSession::start(const ProjectInput& project,
     session_ = std::make_unique<PreviewSession>(evaluated_.module, evaluated_.selected(), sheet_,
                                                 std::move(options));
     if (!session_->built()) {
-        error_ = "TESSERA_SCENE_UNSUPPORTED: the source's tree cannot be previewed";
+        error_ = session_->build_error().empty()
+                     ? "TESSERA_SCENE_UNSUPPORTED: the source's tree cannot be previewed"
+                     : session_->build_error();
         return error_;
     }
     carry_report_ = session_->carry_report();

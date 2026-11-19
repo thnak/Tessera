@@ -111,7 +111,7 @@ class SampleManifestTests(unittest.TestCase):
         self.assertNotIn("useState", text)
         self.assertNotIn("Node", text)
         entry = self.read_manifest()["samples"][0]
-        self.assertEqual(sorted(entry), ["component", "path"], "a path and a name, nothing else")
+        self.assertEqual(sorted(entry), ["component", "files", "path"], "a path, a name and companions")
 
     def test_output_is_byte_identical_across_runs(self) -> None:
         self.add_sample("demo/Counter.tsx")
@@ -127,6 +127,80 @@ class SampleManifestTests(unittest.TestCase):
         self.assertEqual(
             self.read_manifest()["samples"][0]["path"], "samples/deep/nested/dir/Thing.tsx"
         )
+
+    # --- companion files (a sample is a small project) ---------------------------------------------
+
+    def add_library(self, name: str, text: str) -> None:
+        path = self.root / "packages" / "tessera-ui" / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+
+    def files_of(self, sample: str) -> list:
+        entries = {entry["path"]: entry for entry in self.read_manifest()["samples"]}
+        return entries[sample]["files"]
+
+    def test_a_sibling_import_is_a_companion_at_its_own_path(self) -> None:
+        self.add_sample("demo/Page.tsx", 'import { Row } from "./Row";\n' + COUNTER)
+        self.add_sample("demo/Row.tsx")
+        self.assertEqual(self.run_generator().returncode, 0)
+        self.assertEqual(
+            self.files_of("samples/demo/Page.tsx"),
+            [{"as": "samples/demo/Row.tsx", "from": "samples/demo/Row.tsx"}],
+        )
+
+    def test_a_library_import_comes_from_the_component_library(self) -> None:
+        self.add_library("Button.tsx", COUNTER)
+        self.add_sample("demo/Page.tsx", 'import { Button } from "./Button";\n' + COUNTER)
+        self.assertEqual(self.run_generator().returncode, 0)
+        self.assertEqual(
+            self.files_of("samples/demo/Page.tsx"),
+            [{"as": "samples/demo/Button.tsx", "from": "packages/tessera-ui/Button.tsx"}],
+        )
+
+    def test_a_sibling_wins_over_the_library(self) -> None:
+        self.add_library("Button.tsx", COUNTER)
+        self.add_sample("demo/Button.tsx")
+        self.add_sample("demo/Page.tsx", 'import { Button } from "./Button";\n' + COUNTER)
+        self.run_generator()
+        self.assertEqual(self.files_of("samples/demo/Page.tsx")[0]["from"], "samples/demo/Button.tsx")
+
+    def test_imports_are_followed_recursively_and_stylesheets_are_included(self) -> None:
+        self.add_library("Button.tsx", 'import "./button.css";\n' + COUNTER)
+        self.add_library("button.css", ".a {}\n")
+        self.add_sample(
+            "demo/Page.tsx",
+            'import { useState } from "tessera";\nimport { Button } from "./Button";\n'
+            'import styles from "./page.module.css";\n' + COUNTER,
+        )
+        (self.samples / "demo" / "page.module.css").write_text(".b {}\n", encoding="utf-8")
+        self.assertEqual(self.run_generator().returncode, 0)
+        self.assertEqual(
+            [file["as"] for file in self.files_of("samples/demo/Page.tsx")],
+            ["samples/demo/Button.tsx", "samples/demo/button.css", "samples/demo/page.module.css"],
+        )
+
+    def test_commented_out_imports_and_bare_specifiers_are_ignored(self) -> None:
+        self.add_sample(
+            "demo/Page.tsx",
+            '// import { Gone } from "./Gone";\nimport { useState } from "tessera";\n' + COUNTER,
+        )
+        self.assertEqual(self.run_generator().returncode, 0)
+        self.assertEqual(self.files_of("samples/demo/Page.tsx"), [])
+
+    def test_an_unresolved_import_fails_the_generator_and_the_check(self) -> None:
+        self.add_sample("demo/Page.tsx", 'import { Nope } from "./Nope";\n' + COUNTER)
+        for args in ((), ("--check",)):
+            result = self.run_generator(*args)
+            self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+            self.assertIn("samples/demo/Page.tsx: import `./Nope` resolves to neither", result.stderr)
+        self.assertFalse(self.manifest.exists(), "nothing is written for a sample that cannot resolve")
+
+    def test_an_import_leaving_the_samples_directory_is_refused(self) -> None:
+        self.add_sample("demo/Page.tsx", 'import { X } from "../other/X";\n' + COUNTER)
+        self.add_sample("other/X.tsx")
+        result = self.run_generator()
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("leaves the sample's directory", result.stderr)
 
     # --- drift ---------------------------------------------------------------------------------
 
@@ -170,7 +244,7 @@ class SampleManifestTests(unittest.TestCase):
         self.add_sample("demo/Counter.tsx", COUNTER.replace("Counter", "Renamed"))
         result = self.run_generator("--check")
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
-        self.assertIn("component name or format changed", result.stderr)
+        self.assertIn("companion files or format changed", result.stderr)
 
     def test_check_reports_a_hand_mangled_manifest(self) -> None:
         self.add_sample("demo/Counter.tsx")
@@ -178,7 +252,7 @@ class SampleManifestTests(unittest.TestCase):
         self.manifest.write_text("{not json", encoding="utf-8")
         result = self.run_generator("--check")
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
-        self.assertIn("not a schema-1 manifest", result.stderr)
+        self.assertIn("not a schema-2 manifest", result.stderr)
 
     # --- failure modes -------------------------------------------------------------------------
 
