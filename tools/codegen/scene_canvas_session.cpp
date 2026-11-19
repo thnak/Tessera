@@ -100,7 +100,12 @@ std::string CanvasSceneSession::start(const ProjectInput& project,
     // Capture before the old tree dies: `capture()` reads the scope the tree was built from, and
     // the tree borrows strings from `evaluated_`, which is about to be replaced.
     CarriedState carried;
-    if (session_ != nullptr) {
+    if (relaunch_carry_) {
+        // A relaunch after the process died: what the Suspend saved (or nothing), never the dead
+        // tree's cells.
+        carried = std::move(*relaunch_carry_);
+        relaunch_carry_.reset();
+    } else if (session_ != nullptr) {
         carried = session_->capture();
     }
     session_.reset();

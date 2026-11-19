@@ -75,10 +75,52 @@ void append_scalar(std::string& out, const ui::StateScalar& scalar) {
     out.push_back('}');
 }
 
+// `<type> [value] [@<timestampNs>]`: the part of a `platform` line after the keyword.
+bool parse_platform_step(std::string_view rest, PlatformEvent& out, std::string& error) {
+    std::vector<std::string_view> words;
+    while (true) {
+        const std::size_t first = rest.find_first_not_of(" \t");
+        if (first == std::string_view::npos) {
+            break;
+        }
+        rest = rest.substr(first);
+        const std::size_t end = rest.find_first_of(" \t");
+        words.push_back(rest.substr(0, end));
+        rest = end == std::string_view::npos ? std::string_view() : rest.substr(end);
+    }
+    if (words.empty()) {
+        error = "`platform` needs an event type";
+        return false;
+    }
+    if (!platform_kind_from(words[0], out.kind)) {
+        error = "`" + std::string(words[0]) + "` is not a platform event type";
+        return false;
+    }
+    for (std::size_t index = 1; index < words.size(); ++index) {
+        const std::string_view word = words[index];
+        if (word.front() == '@') {
+            std::int64_t nanos = 0;
+            const auto [ptr, code] =
+                std::from_chars(word.data() + 1, word.data() + word.size(), nanos);
+            if (code != std::errc{} || ptr != word.data() + word.size() || nanos < 0) {
+                error = "the timestamp must be `@<nanoseconds>`, got `" + std::string(word) + "`";
+                return false;
+            }
+            out.timestamp_ns = nanos;
+        } else if (out.value.empty()) {
+            out.value = std::string(word);
+        } else {
+            error = "`platform` takes one value, got `" + std::string(word) + "` as well";
+            return false;
+        }
+    }
+    return true;
+}
+
 } // namespace
 
 std::string_view input_script_format() noexcept {
-    return "one step per line: `click <automationId>`";
+    return "one step per line: `click <automationId>` or `platform <type> [value] [@ns]`";
 }
 
 bool parse_input_script(std::string_view text, std::vector<PreviewInputStep>& out,
@@ -107,9 +149,21 @@ bool parse_input_script(std::string_view text, std::vector<PreviewInputStep>& ou
             error = "the script has more than " + std::to_string(kMaxInputSteps) + " steps";
             return false;
         }
+        constexpr std::string_view kPlatform = "platform";
+        if (trimmed.rfind(kPlatform, 0) == 0) {
+            PreviewInputStep step;
+            step.kind = "platform";
+            if (!parse_platform_step(trimmed.substr(kPlatform.size()), step.platform, error)) {
+                error = "line " + std::to_string(line_number) + ": " + error;
+                return false;
+            }
+            out.push_back(std::move(step));
+            continue;
+        }
         constexpr std::string_view kClick = "click";
         if (trimmed.rfind(kClick, 0) != 0) {
-            error = "line " + std::to_string(line_number) + ": expected `click <automationId>`";
+            error = "line " + std::to_string(line_number) +
+                    ": expected `click <automationId>` or `platform <type> [value] [@ns]`";
             return false;
         }
         std::string_view rest = trimmed.substr(kClick.size());
@@ -126,7 +180,9 @@ bool parse_input_script(std::string_view text, std::vector<PreviewInputStep>& ou
                     ": the automation id must be a decimal number, got `" + std::string(rest) + "`";
             return false;
         }
-        out.push_back(PreviewInputStep{id, "click"});
+        PreviewInputStep step;
+        step.automation_id = id;
+        out.push_back(std::move(step));
     }
     return true;
 }
@@ -210,8 +266,16 @@ InputRunResult run_input_script(const ProjectInput& project, const ScenePreviewO
     // The state before any step: the parity runner's `initial state`, which is what proves the two
     // sides started from the same cells as well as ending on them.
     result.states.push_back(session.state());
+    PlatformEventDriver platform;
     for (const PreviewInputStep& step : steps) {
-        result.clicks.push_back(session.click(step.automation_id));
+        result.kinds.push_back(step.kind);
+        if (step.kind == "platform") {
+            result.clicks.emplace_back();
+            result.platforms.push_back(platform.deliver(session, step.platform));
+        } else {
+            result.clicks.push_back(session.click(step.automation_id));
+            result.platforms.emplace_back();
+        }
         result.states.push_back(session.state());
     }
     return result;
@@ -253,6 +317,20 @@ std::string scene_input_document(const ProjectInput& project, const ScenePreview
     for (std::size_t index = 0; index < run.clicks.size(); ++index) {
         if (index != 0) {
             out.push_back(',');
+        }
+        if (run.kinds[index] == "platform") {
+            out += "{\"step\":";
+            out += std::to_string(index);
+            out += ",\"kind\":\"platform\",\"type\":";
+            append_quoted(out, platform_kind_name(steps[index].platform.kind));
+            out += ",\"value\":";
+            append_quoted(out, steps[index].platform.value);
+            out += ",\"reply\":";
+            out += platform_reply_json(run.platforms[index]);
+            out += ",\"state\":";
+            out += state_cells_json(run.states[index + 1]);
+            out.push_back('}');
+            continue;
         }
         const PreviewClickResult& click = run.clicks[index];
         out += "{\"step\":";

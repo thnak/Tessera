@@ -21,10 +21,23 @@ add_library(tessera_hal_metrics STATIC
     # The simulated fold postures of the design-time studio (designer-studio-v1.md section 6,
     # issue #408): the ONE posture -> `FoldInfo` mapping the Wasm viewer, the native preview CLI and
     # `tessera-mcp` share, so a posture cannot mean two things in three places.
-    ${CMAKE_CURRENT_SOURCE_DIR}/fold_posture.cpp)
+    ${CMAKE_CURRENT_SOURCE_DIR}/fold_posture.cpp
+    # The normalized OsEvent taxonomy and the deterministic synthetic injector (issue #446): the
+    # studio's `platform.event` feeds the injector in the Wasm viewer, which links no OS backend, so
+    # these pure files live beside the other platform-neutral HAL rules instead of in the window
+    # library. `tessera_hal_window` links this target, so every native consumer still sees them.
+    ${CMAKE_CURRENT_SOURCE_DIR}/event_reason.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/display.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/os_event.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/window_events.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/synthetic_events.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/synthetic_system_buttons.cpp)
 
 target_include_directories(tessera_hal_metrics PUBLIC
     ${PROJECT_SOURCE_DIR}/include)
+
+# The injector's `feed_input` hands events to the pump's `ui::InputQueue`.
+target_link_libraries(tessera_hal_metrics PUBLIC tessera_input)
 
 target_compile_features(tessera_hal_metrics PUBLIC cxx_std_23)
 
@@ -64,18 +77,8 @@ target_sources(tessera_hal_window PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/cursor.cpp
     # SafeArea inset arithmetic and the simulated fold postures live in `tessera_hal_metrics`
     # above, because the style module links them and must not pull an OS backend with them.
-    # Display identity, per-monitor capabilities and the documented fallbacks (ADR-023 rule 7).
-    ${CMAKE_CURRENT_SOURCE_DIR}/display.cpp
-    # Event reasons and their coalescing rule (docs/specs/os-events-v1.md section 2).
-    ${CMAKE_CURRENT_SOURCE_DIR}/event_reason.cpp
-    # The normalized OsEvent taxonomy: category (delivery order), coalescing, wake sources.
-    ${CMAKE_CURRENT_SOURCE_DIR}/os_event.cpp
-    # The window-path projection onto that taxonomy: category, coalescing, spec names.
-    ${CMAKE_CURRENT_SOURCE_DIR}/window_events.cpp
-    # The deterministic synthetic event injector and the display-capability scripts (ADR-023 rule 8).
-    ${CMAKE_CURRENT_SOURCE_DIR}/synthetic_events.cpp
-    # System-button presses (Back, Home, Recents, Volume, Power) and their named scripts (#445).
-    ${CMAKE_CURRENT_SOURCE_DIR}/synthetic_system_buttons.cpp
+    # Event reasons, the OsEvent taxonomy and the synthetic injector (issue #446) are in
+    # `tessera_hal_metrics` above; this target links it.
     # The OS appearance preferences (issue #187): the portal value/message decode and the GTK
     # settings-file fallback. Both pure, so the Linux feature's decisions are testable on a box with
     # no session bus. The normalized snapshot itself is `constexpr` in

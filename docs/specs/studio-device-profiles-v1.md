@@ -164,6 +164,13 @@ the camera; vendor device art; user-provided profiles; a second window or pictur
 [os-events-v1.md](os-events-v1.md) section 2.3, with the saved-state record following the working choice of
 section 9 item 1 (the P4 rule at `Suspend`).
 
+**E2 is implemented (issue #446):** `platform.event` is specified in
+[designer-protocol-v1.md](designer-protocol-v1.md) section 5.1 and runs through `tools/codegen/scene_platform.cpp`,
+the one code path of the Wasm export `tessera_canvas_platform_event` and the native scripted run. The page-side
+call is `designer/web/src/views/canvas-platform.ts`. The Wasm path answers Back as unhandled (the preview has no
+route stack or overlay host); process death restores the cells the last `home` saved by the P4 rule (section 9
+item 1).
+
 E5 does not depend on E1 to E4 and can land first. It has: its browser half is implemented (section 6).
 
 ## 9. Working choices (revisable)
