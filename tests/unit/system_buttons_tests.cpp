@@ -47,7 +47,10 @@ struct Driver {
 
     // Delivers one injected input event the way the window would: through the pump's queue.
     void deliver(SyntheticEventInjector& injector) {
-        check(injector.feed_input(pump.queue()) > 0, "an input event was pending");
+        // One event per call: `feed_input` would move every pending event at once.
+        InputEvent event;
+        check(injector.pop_input(event), "an input event was pending");
+        pump.queue().push(event);
         pump.pump(fixture.root, fixture.loop);
         fixture.frame();
     }
@@ -327,9 +330,9 @@ void home_then_resume_keeps_state_without_a_restore() {
         states.push_back(fold_state(seen, window, suspended));
         seen.clear();
     }
-    check((states == std::vector<AppState>{AppState::Hidden, AppState::Hidden, AppState::Hidden,
+    check((states == std::vector<AppState>{AppState::Hidden, AppState::Suspended, AppState::Hidden,
                                            AppState::Active}),
-          "Home hides then suspends; the return resumes and shows");
+          "Home hides then suspends; Resume leaves it hidden until WindowShown");
     check(recorder.captures() == 1, "Suspend captured once");
     check(counter.count == 7 && counter.items.size() == 2,
           "a hot resume touched nothing: the live state is still there");
