@@ -176,8 +176,6 @@ button.palette-button {
   font-size: 12px;
 }
 
-.toolbar-row .share-status { margin-left: 8px; }
-
 /* --- phone: one menu button, Restart and the palette stay on the toolbar ---------------------- */
 
 @media (max-width: 719.98px) {

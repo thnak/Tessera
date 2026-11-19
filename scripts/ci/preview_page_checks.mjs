@@ -25,15 +25,15 @@
 // 2. **Every element the shared chrome and the shell look up is rendered.** The ids `App` and the four
 //    regions resolve, against the SSR markup of the real components.
 // 3. **Every id a view session resolves is rendered**, per view, so a failure names the pane that is wrong.
-// 4. **The redirect stubs carry the query and the fragment.** This is the share-link migration: the old
+// 4. **The redirect stubs carry the query and the fragment.** This is the pre-merge URL migration: the old
 //    URLs must forward to `index.html` with `location.search` and `location.hash` intact and the view
 //    selected. The check drives the real `redirect.js` under Node against the six old-URL shapes a real
 //    link takes, and each stub's own HTML is checked for the call and for the absence of engine code.
 // 5. **Every `samples.json` path exists.** The Pages lane copies `samples/` into the site and the gallery
 //    fetches `./<path>`; a missing file is a button that cannot load. This passes locally (where `samples/`
 //    sits beside `designer/`) and fails only on the deployed site, which is the worst place to find it.
-// 6. **`share.js` and `preview-state.js` are still pure ES modules.** ADR-054's risk section: no DOM, no
-//    React, no bundler syntax, so the 19-codec-check gate and the page keep importing the same bytes.
+// 6. **`preview-state.js` is still a pure ES module.** ADR-054's risk section: no DOM, no React, no bundler
+//    syntax, so the Node gates and the page keep importing the same bytes.
 // 7. **The three Wasm modules stayed three and stayed lazy.** No module is imported at the top level of the
 //    built bundle, and each module's URL appears exactly once, inside a dynamic `import()`.
 // 8. **No page module calls a function it does not declare.** The audit that caught five shipped defects in
@@ -58,10 +58,9 @@ const DIST_SSR = resolve(WEB, "dist-ssr");
 // list grew by the workspace's own ids (`workspace`, `project-tree`, the tab strip, the status line's
 // cells) and lost nothing: every id a pre-#431 link or gate depended on is still here.
 const SHARED_IDS = [
-  // The workbench chrome (issue #557): the toolbar's Share and its polite status line, the device chip that
+  // The workbench chrome (issue #557): the notification bell and live region, the device chip that
   // replaced the preview toolbar's selects, and the menu bar (one button per top-level menu; `Go` is
   // hidden until its first command is live).
-  "share",
   "notifications",
   "notification-live",
   "notifications-bell",
@@ -72,16 +71,17 @@ const SHARED_IDS = [
   "menubar-run",
   "menubar-device",
   "menubar-help",
-  "link-note",
   "editor-host",
   // The three-column workspace (issue #431). `workspace` is the grid, `project-tree` is its left column,
-  // `editor-panel` is the middle column's tab panel, and the three `status-*` ids are the status bar (Problems, caret, language).
+  // `editor-panel` is the middle column's tab panel, and the `status-*` ids are the status bar (the Problems
+  // item with its split error and warning counts, the caret, the language).
   "workspace",
   "project-tree",
   "project-status",
   "editor-panel",
-  "editor-hint",
-  "status-diagnostics",
+  "status-diagnostics-toggle",
+  "status-errors",
+  "status-warnings",
   "status-caret",
   "status-language",
 ];
@@ -102,11 +102,11 @@ const SHELL_IDS = [
   // gets.
   "restart-app",
   "apply-status",
-  // The hint under the shared editor: the page owns it (the Scene session appends the live rectangle),
-  // so it is a shell id rather than any one view's. #431 lists it among the workspace ids above; it is
-  // named here too because it is the shell's, not a pane's.
-  "editor-hint",
 ];
+
+// Ids that were removed on purpose (owner decisions, studio focus pass) and must not come back: the Share
+// button, the broken-link banner and the two visually hidden editor lines.
+const REMOVED_IDS = ["share", "link-note", "editor-hint", "editor-file", "share-status"];
 
 // Each view session's own ids, kept separate so a failure names the view whose pane is wrong.
 const VIEW_IDS = {
@@ -206,8 +206,7 @@ function walk(root, prefix = "") {
 /**
  * Strips comments, string literals and template literals from JavaScript, leaving the code.
  *
- * Both of the pure modules this script audits *document* the rule they keep -- `share.js`'s header says "no
- * DOM, no `window`, no `fetch`" -- so a scan of the raw text would fail a file for explaining itself. This
+ * The pure module this script audits *documents* the rule it keeps ("no DOM") -- so a scan of the raw text would fail a file for explaining itself. This
  * is a small lexer, not a parser: it tracks comments, the three quote styles and regex literals, which is
  * everything the audit needs and nothing it does not.
  */
@@ -428,6 +427,13 @@ if (!requireBuilt()) {
     const missing = [...SHARED_IDS, ...SHELL_IDS].filter((id) => !markup.includes(`id="${id}"`));
     for (const id of missing) {
       fail(`the rendered chrome is missing id="${id}" that App/StudioChrome/ViewPanes resolve`);
+    }
+    const revived = REMOVED_IDS.filter((id) => markup.includes(`id="${id}"`));
+    for (const id of revived) {
+      fail(`the rendered chrome carries id="${id}", which was removed on purpose`);
+    }
+    if (revived.length === 0) {
+      ok(`the rendered chrome carries none of the removed ids (${REMOVED_IDS.join(", ")})`);
     }
     if (missing.length === 0) {
       ok(
@@ -684,29 +690,28 @@ if (!requireBuilt()) {
 
   // --- 6. the codec is still a pure ES module ----------------------------------------------------
 
-  // ADR-054's risk section names this: `share.js` and `preview-state.js` must have no DOM and no React, so
-  // `scripts/ci/preview_share_roundtrip.mjs` keeps testing the same bytes the page ships. The check is
-  // deliberately about *imports and globals*, not about style: a bundler-only specifier, a DOM call or a
-  // React import in either file would break that gate's meaning, and nothing else in the suite would see it.
-  for (const name of ["share.js", "preview-state.js"]) {
+  // ADR-054's risk section names this: `preview-state.js` must have no DOM and no React, so the Node gates keep
+  // testing the same bytes the page ships. The check is deliberately about *imports and globals*, not about
+  // style: a bundler-only specifier, a DOM call or a React import would break that, and nothing else in the
+  // suite would see it.
+  for (const name of ["preview-state.js"]) {
     const raw = readFileSync(resolve(WEB, "src", "lib", name), "utf8");
     // Comments and string literals are stripped first: both files *describe* what they must not do
-    // ("no DOM, no `window`, no `fetch`" in share.js's own header), and a scan that read the prose would
-    // fail the file for explaining the rule it keeps. What is left is code.
+    // (its own header says "no DOM"), and a scan that read the prose would fail the file for explaining the
+    // rule it keeps. What is left is code.
     const source = stripNonCode(raw);
     const problems = [];
     if (/\bimport\b[^;]*\breact\b/i.test(source)) {
       problems.push("imports React");
     }
     // Only relative specifiers: a bare or bundler-alias specifier would not resolve under plain Node, which
-    // is exactly how the round-trip test imports this file.
+    // is exactly how the gates import this file.
     for (const match of source.matchAll(/\bfrom\s+["']([^"']+)["']/g)) {
       if (!match[1].startsWith("./")) {
         problems.push(`imports a non-relative specifier ${match[1]}`);
       }
     }
-    // DOM entry points. `globalThis.CompressionStream` and friends are platform APIs the codec legitimately
-    // uses; `document`, `window`, `localStorage` and `navigator` are the ones that would make it untestable.
+    // DOM entry points: `document`, `window`, `localStorage` and `navigator` are the ones that would make it untestable.
     for (const global of ["document", "window", "localStorage", "navigator", "history", "location"]) {
       if (new RegExp(`(?<![.\\w$])${global}\\s*(?:\\.|\\[)`).test(source)) {
         problems.push(`uses the DOM global \`${global}\``);
@@ -831,7 +836,6 @@ if (!requireBuilt()) {
   // module itself. `tsconfig.json` is what catches the TypeScript half statically (`tsc --noEmit`, part of
   // `npm run build`); this scan covers the `.js` files the compiler never looks at.
   const PAGE_MODULES = [
-    ["src/lib/share.js", resolve(WEB, "src/lib/share.js")],
     ["src/lib/preview-state.js", resolve(WEB, "src/lib/preview-state.js")],
     ["public/redirect.js", resolve(DIST, "redirect.js")],
   ];

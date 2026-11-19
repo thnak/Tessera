@@ -139,11 +139,9 @@
       "id": "file.share",
       "title": "Copy Share Link",
       "category": "File",
-      "description": "Copy a link that opens this source, viewport and theme",
-      "services": [
-        "share"
-      ],
-      "status": "live"
+      "description": "Removed: the studio has no cloud storage to share to",
+      "status": "removed",
+      "replacedBy": null
     },
     {
       "id": "file.closeProject",
@@ -375,8 +373,8 @@
       "keybinding": {
         "default": "Mod+Shift+M"
       },
-      "note": "reserved: Problems panel",
-      "status": "reserved"
+      "description": "Show the Problems panel and focus it; again from inside it, hide it",
+      "status": "live"
     },
     {
       "id": "view.toggleSideBar",

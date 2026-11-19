@@ -142,7 +142,7 @@ function EditorTabs({
 }
 
 /**
- * The code column: the tab strip, the editor and the hint below it.
+ * The code column: the tab strip, the editor and the notes below it.
  *
  * Since issue #444 an edit needs no button -- it applies ~150 ms after the last keystroke -- and since issue #557
  * the cold start is a command (`run.restart`, on the toolbar and in the Run menu), not a button here.
@@ -155,7 +155,6 @@ export function CodeRegion({
   text,
   revision,
   sourceRef,
-  editorHintRef,
   onSelectTab,
   onCloseTab,
   onEdit,
@@ -173,7 +172,7 @@ export function CodeRegion({
   /** The active file's text: what the editor shows after a tab switch or a programmatic replace. */
   text: string;
   /**
-   * Bumped by the page whenever it wrote a buffer itself (a tab switch, a sample, a share link).
+   * Bumped by the page whenever it wrote a buffer itself (a tab switch, a sample).
    *
    * The editor is uncontrolled, so typing does not come back through here: a keystroke is written to
    * the page's buffer and never re-sent. Only a *page* write bumps this, which is what lets the effect
@@ -183,7 +182,6 @@ export function CodeRegion({
   revision: number;
   /** Receives the editor once it is mounted; the sessions reveal spans and mark diagnostics through it. */
   sourceRef: React.MutableRefObject<CodeEditor | null>;
-  editorHintRef: React.RefObject<HTMLParagraphElement | null>;
   onSelectTab: (path: string) => void;
   onCloseTab: (path: string) => void;
   onEdit: (text: string) => void;
@@ -276,15 +274,6 @@ export function CodeRegion({
       </div>
       {empty}
 
-      {/* The hint belongs to the page, not to a view: the editor is shared by the three preview panes,
-          and a hint that said "a diagnostics run has no viewport" while the preview showed the canvas
-          would be wrong. The page swaps it per active preview view; the Scene session appends the live
-          rectangle to it. Since #444 it also carries the edit's own state: the page is applying the
-          change, or it has applied it, and saying which is what keeps the debounce from looking like a
-          preview that lags. */}
-      <p className="hint visually-hidden" id="editor-hint" ref={editorHintRef}>
-        Ctrl+Enter (or Cmd+Enter) applies now.
-      </p>
       <p className="hint" id="apply-status" role="status" aria-live="polite" hidden={!applying}>
         applying…
       </p>
@@ -302,11 +291,6 @@ export function CodeRegion({
             : current.viewText === undefined
               ? "Reading..."
               : ""}
-        </p>
-      ) : current ? (
-        <p className="hint visually-hidden" id="editor-file" data-path={current.path}>
-          Editing <code>{current.path}</code>
-          {dirty.includes(current.path) ? " (unsaved changes)" : ""}
         </p>
       ) : null}
     </section>

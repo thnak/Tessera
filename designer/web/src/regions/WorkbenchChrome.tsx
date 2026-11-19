@@ -6,7 +6,7 @@
 // a command (`page-commands.ts` registers the handlers, `workbench/menus.json` says what appears).
 //
 // The ids the page's older code and the developer-run browser scripts look up are kept where a control has a
-// direct successor: `restart-app` (Restart), `share` (Share), `save-project` (Save). What the old `share-status` line and the project note said is a
+// direct successor: `restart-app` (Restart), `save-project` (Save). What the old status line and the project note said is a
 // notification now (`regions/Notifications.tsx`). The Samples gallery, Open folder/zip, Download, the device `<select>`s and the
 // component picker are menu items now and have no element ids of their own.
 
@@ -22,14 +22,12 @@ import { ToastStack } from "./Notifications";
 const TOOLBAR_IDS: Record<string, string> = {
   "run.restart": "restart-app",
   "file.save": "save-project",
-  "file.share": "share",
   "view.cycleTheme": "cycle-theme",
 };
 
 const ICONS: Record<string, string> = {
   "run.restart": "▶",
   "file.save": "💾︎",
-  "file.share": "↪",
   "view.cycleTheme": "◐",
 };
 

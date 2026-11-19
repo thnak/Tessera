@@ -9,8 +9,7 @@
 // host element) does not reach them.
 //
 // **One document per open file, history kept.** Each open file keeps its own `EditorState`, so undo works
-// after a tab switch and the caret and scroll come back. A page write -- a sample, a restored draft, a
-// share link -- is detected by comparing the stored document with the text the page hands over: equal
+// after a tab switch and the caret and scroll come back. A page write -- a sample or a restored draft -- is detected by comparing the stored document with the text the page hands over: equal
 // means "the person's own edit history is still right" (reuse the state), different means "the page
 // replaced the file" (a fresh state, history cleared, which is what the textarea did).
 //

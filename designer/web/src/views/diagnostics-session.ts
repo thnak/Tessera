@@ -22,7 +22,7 @@ import type { CodeEditor, EditorMark } from "../editor/code-editor";
 import { wasmModuleUrl } from "../lib/module-url";
 import type { StatusReporter, ProjectReader, ViewSession } from "../lib/views";
 import { callExport, requireExports, stageProject, type WasmModule } from "../lib/wasm-call";
-import { renderDiagnostics, type DiagnosticsDocument } from "./diagnostics-render";
+import { renderDiagnostics, type Diagnostic, type DiagnosticsDocument } from "./diagnostics-render";
 import { unavailableBox } from "./dom";
 
 /** The module factory `tessera_diagnostics.js` exports (Emscripten `MODULARIZE`+`EXPORT_ES6`). */
@@ -35,8 +35,8 @@ export interface DiagnosticsElements {
   emptyState: HTMLElement;
   /** The editor, for "show in source". The page decides whether it holds the compiled text. */
   editor: CodeEditor;
-  /** The status line's diagnostics cell (issue #431): the count, where it stays visible. */
-  statusCount: HTMLElement | null;
+  /** An optional cell that receives the "N errors, M warnings" text (issue #431); the page uses the Problems store instead. */
+  statusCount?: HTMLElement | null;
 }
 
 export interface DiagnosticsSession extends ViewSession {
@@ -87,6 +87,11 @@ export function createDiagnosticsSession(options: {
   source: ProjectReader;
   setStatus: StatusReporter;
   onReady: (ready: boolean) => void;
+  /**
+   * The finished compile's diagnostics array, handed over unchanged after the list is rendered. The Problems
+   * panel and the status bar's split counts derive from it; the session's own output is not altered.
+   */
+  onDiagnostics?: (diagnostics: readonly Diagnostic[]) => void;
 }): DiagnosticsSession {
   const { editor, list, emptyState, statusCount } = options.elements;
   const setStatus = options.setStatus;
@@ -149,6 +154,7 @@ export function createDiagnosticsSession(options: {
       const counts = renderDiagnostics(list, emptyState, document_, { element: editor, file: target.active });
       markEditor(editor, document_);
       report(counts);
+      options.onDiagnostics?.(Array.isArray(document_.diagnostics) ? document_.diagnostics : []);
     } catch (error) {
       list.replaceChildren();
       emptyState.hidden = true;

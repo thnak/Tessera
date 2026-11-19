@@ -91,7 +91,7 @@
 
 /* The toolbar's theme control, as an explicit override (issue #171's skins slice).
  *
- * Before this, `theme` was carried into the share link and nothing else: the page followed
+ * Before this, `theme` was a stored value and nothing else: the page followed
  * `prefers-color-scheme` and the select was a value with no effect. The skins slice needs the
  * override to be real, because its acceptance is that "a theme switch retints the frame and the
  * canvas in the same frame" - and a control that changes nothing cannot demonstrate that.

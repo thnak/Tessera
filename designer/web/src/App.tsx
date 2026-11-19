@@ -11,9 +11,9 @@
 // **Why the sessions live in a ref and not in state.** A session owns a Wasm module instance, a WebGPU device
 // and an animation-frame callback. None of that may be created by a render or destroyed by a re-render, so each
 // is created once against the committed DOM nodes (`page-sessions.ts`). The page's React state is exactly what a
-// visitor changes by hand: the workspace (`page-workspace.ts`), the toolbar, the share status and the build id.
-// Startup, the toolbar handlers and the sample/share actions are hooks of their own (`page-startup.ts`,
-// `page-toolbar.ts`, `page-sample-share.ts`) to keep this file under the size limit.
+// visitor changes by hand: the workspace (`page-workspace.ts`), the toolbar and the build id.
+// Startup, the toolbar handlers and the sample action are hooks of their own (`page-startup.ts`,
+// `page-toolbar.ts`, `page-sample.ts`) to keep this file under the size limit.
 //
 // **Laziness** survives verbatim: the Diagnostics module is the only one on the first-paint path; Scene's is
 // imported the first time that pane is shown; Canvas' is imported on its first open and its WebGPU device is
@@ -34,7 +34,7 @@ import { createLiveEdit, type LiveEdit } from "./page-live";
 import { usePageState, usePaneRefs } from "./page-state";
 import { useStartup } from "./page-startup";
 import { useToolbarControls } from "./page-toolbar";
-import { useSampleAndShare } from "./page-sample-share";
+import { useSample } from "./page-sample";
 import { useSessions } from "./page-sessions";
 import { useProjectIo } from "./page-project-io";
 import { useViewOnlyLoader } from "./page-view-only";
@@ -42,7 +42,8 @@ import { useWorkspace } from "./page-workspace";
 import { WelcomeView } from "./regions/WelcomeView";
 import { useWorkbench } from "./dock/use-workbench";
 import { useMockConsole } from "./lib/mock-console";
-import { usePanelVisibility, useDiagnosticsAutoOpen, useViewFromUrl } from "./page-panels";
+import { usePanelVisibility, useViewFromUrl } from "./page-panels";
+import { useProblems, useProblemsStore } from "./page-problems";
 import { WorkbenchSurface } from "./page-workbench";
 import { WorkbenchChrome } from "./regions/WorkbenchChrome";
 import { useWorkbench as useCommands } from "./page-commands";
@@ -62,8 +63,8 @@ export function App() {
   const projectIo = useProjectIo(workspace);
   // The dock (W5, #560): the layout model, its persistence and which panels are open and visible.
   const workbench = useWorkbench();
+  const problemsStore = useProblemsStore();
   useViewFromUrl(workbench);
-  useDiagnosticsAutoOpen(workbench, refs.statusDiagnostics);
   // The view panels that are open, so a session exists exactly while its panel does; `reloadEpoch` is what
   // "Reload panel" bumps to bind a session to the re-rendered content.
   const [reloadEpoch, setReloadEpoch] = useState(0);
@@ -71,10 +72,10 @@ export function App() {
   // The view the sessions' readiness callbacks are talking about (they are not re-created per view).
   const viewRef = useRef(view);
   viewRef.current = view;
-  // The toolbar is settled once the fragment (or storage) has been decoded. The sessions wait for it, so a
-  // `?view=scene#p5=<390x844>` link lays the scene out once, at 390x844.
+  // The toolbar is settled once the stored toolbar has been read. The sessions wait for it, so a
+  // stored 390x844 lays the scene out once, at 390x844.
   const [toolbarSettled, setToolbarSettled] = useState(false);
-  // Bumped when the page itself replaces a buffer (a tab switch, a share link, a gallery pick), so the
+  // Bumped when the page itself replaces a buffer (a tab switch, a gallery pick), so the
   // editor's effect can tell a page write from a keystroke.
   const [revision, setRevision] = useState(0);
   // Bumped when a `*.mock.ts` buffer is edited, so the mock sandbox worker is recreated (ADR-055).
@@ -168,6 +169,9 @@ export function App() {
       safeArea: currentSafeArea,
       component: currentComponent,
       onComponents,
+      // With no project open the compiler's answer is "the project names no entry file": not a problem to list.
+      onDiagnostics: (diagnostics) =>
+        filesRef.current.length === 0 ? problemsStore.reset() : problemsStore.publish(diagnostics),
       source: currentSource,
       isCurrent,
     },
@@ -176,7 +180,7 @@ export function App() {
   );
   const sessions = sessionHandle.current;
 
-  useStartup({ refs, workspace, projectIo, state_, setRevision, setToolbarSettled });
+  useStartup({ state_, setToolbarSettled });
 
 
   // ---- the live edit (issue #444) -------------------------------------------------------------------
@@ -325,6 +329,8 @@ export function App() {
     [workspace.state.files],
   );
 
+  const problems = useProblems({ store: problemsStore, workbench, workspace, refs, onSelectTab });
+
   const onEdit = useCallback(
     (text: string) => {
       // A locked file opens read-only, so this is not reached for one; the guard keeps it so.
@@ -356,16 +362,7 @@ export function App() {
   });
 
 
-  const { onSample, onShare } = useSampleAndShare({
-    workspace,
-    projectIo,
-    state_,
-    controls: state.controls,
-    entryPath,
-    textOfRef,
-    setRevision,
-    sessions,
-  });
+  const { onSample } = useSample({ workspace, projectIo, setRevision, sessions });
 
   // The sandbox worker starts only while a panel that shows its output is visible *and* the project has a mock
   // file (spec section 2.4), so a project without mocks, or a collapsed panel area, pays nothing.
@@ -407,24 +404,18 @@ export function App() {
     pickSample: onSample,
     restart: restartActiveView,
     applyNow: onEditorApplyNow,
-    share: onShare,
     setControl: onControlChange,
     setCustomSize: onCustomSize,
     pickComponent: onPickComponent,
     files: workspace.state.files,
     openFile: onSelectTab,
     buildId: state.buildId,
-    shareStatus: state.shareStatus,
     refs,
   });
 
   return (
     <>
       <WorkbenchChrome workbench={commandHost} zen={workbench.layout.shell.zen} />
-
-      <p className="link-note" id="link-note" role="alert" hidden={state.linkNote === null}>
-        {state.linkNote}
-      </p>
 
       {/* The workspace is the dock (W5): panels the viewer arranges, not three fixed columns. */}
       <main
@@ -452,6 +443,7 @@ export function App() {
           revision={revision}
           runEnabled={state.runEnabled}
           applying={state.applying}
+          problems={problems}
           onSelectTab={onSelectTab}
           onEdit={onEdit}
           onRestart={restartActiveView}
@@ -487,11 +479,11 @@ export function App() {
 
       <StatusLine
         workbench={commandHost}
-        diagnosticsRef={refs.statusDiagnostics}
+        problems={problems.store}
         caretRef={refs.statusCaret}
         activePath={workspace.state.active}
         entryPath={entryPath ?? ""}
-        diagnosticsOpen={workbench.visible.has("diagnostics")}
+        problemsOpen={workbench.visible.has("problems")}
         hidden={!workbench.layout.shell.statusBar || workbench.layout.shell.zen}
       />
     </>

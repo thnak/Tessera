@@ -193,13 +193,16 @@ export function createRegistry(records, options) {
     }
   };
 
-  /** The state of a command for a surface: enabled, visible, checked, and why it cannot run. */
-  function describe(id, args) {
+  /**
+   * The state of a command for a surface: enabled, visible, checked, and why it cannot run. `overrides` patch
+   * the context for this one answer (a menu built mid-render, before the page published its new state).
+   */
+  function describe(id, args, overrides) {
     const record = byId.get(id);
     if (record === undefined) {
       return null;
     }
-    const base = context.snapshot();
+    const base = overrides === undefined ? context.snapshot() : { ...context.snapshot(), ...overrides };
     const scope = args === undefined || args === null ? base : { ...base, ...Object.fromEntries(Object.entries(args).map(([key, value]) => [`arg.${key}`, value])) };
     let reason = "";
     if (record.status !== "live") {

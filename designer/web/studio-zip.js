@@ -17,8 +17,8 @@
 //   * **Reader: STORE and DEFLATE.** A zip a person actually has (from Finder, Explorer, `zip -r`,
 //     a CI artifact) is deflated, so refusing method 8 would refuse almost every real file. The
 //     inflater is the platform's own `DecompressionStream("deflate-raw")` -- the same browser
-//     primitive `share.js` uses for the share link, and the same rule: a platform API, never a
-//     library. A browser without it gets a named refusal instead of a silent empty import.
+//     primitive of the platform (a browser API, never a
+//     library). A browser without it gets a named refusal instead of a silent empty import.
 //
 // **What the reader does not do.** It does not follow a symlink out of the archive: a Unix symlink
 // entry (`S_IFLNK` in the external attributes) is refused by `readZip`, because a preview project is
@@ -293,7 +293,7 @@ async function decodeEntry(body, method, size, name) {
     );
   }
   // `deflate-raw` is exactly the DEFLATE stream a zip entry carries (RFC 1951, no zlib or gzip
-  // wrapper). It is the same primitive `share.js` uses, so this adds no dependency and no polyfill.
+  // wrapper). It is a platform primitive, so this adds no dependency and no polyfill.
   if (typeof DecompressionStream !== 'function') {
     throw new ZipError(
       'no-inflater',

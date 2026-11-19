@@ -72,7 +72,6 @@ export interface WorkbenchApi {
   pickSample: (sample: LoadedSample) => void;
   restart: () => void;
   applyNow: () => void;
-  share: () => Promise<void>;
   setControl: (name: keyof ControlValues, value: string) => void;
   setCustomSize: (width: number, height: number) => void;
   pickComponent: (name: string) => void;
@@ -80,8 +79,6 @@ export interface WorkbenchApi {
   files: readonly { path: string }[];
   openFile: (path: string) => void;
   buildId: string;
-  /** The share flow's own progress text (`encoding...`, `link copied`), shown beside the toolbar. */
-  shareStatus: string;
   refs: Pick<PaneRefs, "pickToggle" | "inspectToggle" | "runInput">;
 }
 
@@ -245,7 +242,6 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
       "file.deleteFile": () => a().io.deleteFile(),
       "file.save": () => a().io.save(),
       "file.download": () => a().io.download(),
-      "file.share": () => a().share(),
       "view.palette": () => paletteRef.current?.open(">"),
       "view.quickOpen": () => paletteRef.current?.open("", "files"),
       "view.gotoLine": () => paletteRef.current?.open(":", "line"),
@@ -300,16 +296,20 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
   // of the same values wakes nobody (`context.set` compares).
   const mnemonicListeners = useRef(new Set<(letter: string) => boolean>());
   const focusOwner = useRef<ContextRecord>({});
+  // The context the page's state implies right now. `publish` writes it to the registry after every render;
+  // the menus below are built in the render itself, so they read it directly (`describe`'s third argument)
+  // rather than the registry's copy, which still holds the previous render's answer until the effect runs.
+  const currentContext = (): ContextRecord =>
+    computeContext(apiRef.current, {
+      "run.picker": picker.pressed,
+      "run.inspector": inspector.pressed,
+      "layout.phone": phone,
+      ...layoutContext(apiRef.current.dock, undoRef.current),
+      ...focusOwner.current,
+    });
   const publish = useCallback(() => {
-    registry.context.set(
-      computeContext(apiRef.current, {
-        "run.picker": picker.pressed,
-        "run.inspector": inspector.pressed,
-        "layout.phone": phone,
-        ...layoutContext(apiRef.current.dock, undoRef.current),
-        ...focusOwner.current,
-      }),
-    );
+    registry.context.set(currentContext());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [registry, picker.pressed, inspector.pressed, phone]);
   useEffect(publish);
 
@@ -398,7 +398,7 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
   // A stored layout set aside at boot ("Layout from a newer studio; using the default") is a notification.
   useLayoutNotices(api.dock.notice, notifications);
 
-  // The project's last action and the share flow say what they did through the notification service, so the
+  // The project's last action says what it did through the notification service, so the
   // person hears it once (a toast and the bell history) instead of from one live region per region.
   const projectNote = api.io.state.note;
   useEffect(() => {
@@ -406,12 +406,6 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
       notifications.notify({ message: projectNote, key: "project-note" });
     }
   }, [projectNote, notifications]);
-  const shareText = api.shareStatus;
-  useEffect(() => {
-    if (shareText !== "" && !shareText.endsWith("...")) {
-      notifications.notify({ message: `Share: ${shareText}`, key: "share" });
-    }
-  }, [shareText, notifications]);
 
   const providers: MenuProviders = {
     recent: () =>
@@ -430,7 +424,8 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
   providersRef.current = providers;
   const palette = usePaletteHost(apiRef, providersRef);
   paletteRef.current = palette;
-  const deps = { registry, providers };
+  const fresh = currentContext();
+  const deps = { registry: { ...registry, describe: (id: string, args?: CommandArgs) => registry.describe(id, args, fresh) }, providers };
   const allMenus = buildMenuBar(menusDocument as unknown as MenusDocument, deps);
   const toolbar = buildToolbar(menusDocument as unknown as MenusDocument, deps);
   const statusItems = buildToolbar(menusDocument as unknown as MenusDocument, deps, "statusBar");

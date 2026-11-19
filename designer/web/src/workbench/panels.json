@@ -9,6 +9,8 @@
   { "id": "scene", "title": "Scene", "icon": "scene", "singleton": true, "closable": true,
     "defaultLocation": { "group": "preview" }, "minSize": { "w": 240, "h": 160 },
     "lazyModule": "tessera_scene_preview", "drawsWhenHidden": false },
+  { "id": "problems", "title": "Problems", "icon": "problems", "singleton": true, "closable": true,
+    "defaultLocation": { "group": "bottom" }, "minSize": { "w": 240, "h": 96 } },
   { "id": "diagnostics", "title": "Diagnostics", "icon": "diagnostics", "singleton": true, "closable": true,
     "defaultLocation": { "group": "bottom" }, "minSize": { "w": 240, "h": 96 },
     "lazyModule": "tessera_diagnostics", "drawsWhenHidden": false },
@@ -18,8 +20,6 @@
     "defaultLocation": { "group": "bottom" }, "minSize": { "w": 240, "h": 96 } },
   { "id": "platform-events", "title": "Platform events", "icon": "events", "singleton": true, "closable": true,
     "defaultLocation": { "group": "bottom" }, "minSize": { "w": 240, "h": 96 } },
-  { "id": "problems", "title": "Problems", "icon": "problems", "singleton": true, "closable": true,
-    "reserved": true, "defaultLocation": { "group": "bottom" } },
   { "id": "source-control", "title": "Source control", "icon": "git", "singleton": true, "closable": true,
     "reserved": true, "defaultLocation": { "group": "project" } }
 ]

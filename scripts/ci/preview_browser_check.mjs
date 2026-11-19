@@ -252,7 +252,7 @@ const SAMPLE_SOURCE = `export function Counter(): Node {
 }
 `;
 
-/** A payload made by the pre-merge codec (recorded in preview_share_roundtrip.mjs) for 390x844/dark. */
+/** A payload made by the removed share codec for 390x844/dark: kept only to prove a stale link is carried and ignored. */
 const PRE_MERGE_FRAGMENT =
   'zPY7NasMwEIRfZdiTTAVOmhxSRRa0uefS0kvcQ7BUalJWRV41AeN3L1aKb8PuNz8j_ZJZaxrIULj9xCT4zNxJ' +
   'HxmHmFlCUpXBMfqAsWWgizwITt380xiCFOoDDfIQXuUswfYsTq2qfcuzIQXJiaFmDdj3PlzdXQP2LdzElQSDs' +
@@ -329,7 +329,7 @@ async function main() {
      * scripts run, and the merged page -- which reads its fragment once at load -- would keep the old
      * state while the address bar showed the new link. That is a real behaviour of the page (a fragment
      * typed into the bar of a loaded page does nothing until a reload), but it is not what these cases
-     * are testing, and the two share-link cases here differ from the preceding URL exactly that way. A
+     * are testing, and the fragment cases here differ from the preceding URL exactly that way. A
      * stop at `about:blank` guarantees a new document, so each case measures the arrival path a visitor
      * with a link actually takes.
      */
@@ -441,39 +441,18 @@ async function main() {
       );
     });
 
-    // --- 5. the share link restores state and the view ---------------------------------------
-    await test('a share link restores its source, environment and view', async () => {
-      await navigate(`${base}/index.html?view=scene#p5=${PRE_MERGE_FRAGMENT}`, {
-        ready: `document.getElementById('tab-scene') && document.getElementById('tab-scene').getAttribute('aria-selected') === 'true'`,
-        what: 'the ?view= scene tab to be selected',
-      });
-      const state = await cdp.evaluate(`(() => ({
-        source: window.__tesseraEditor.text(),
-        viewport: document.querySelector('#controls select').value,
-        dpr: document.querySelectorAll('#controls select')[1].value,
-        theme: document.querySelectorAll('#controls select')[2].value,
-        linkNote: document.getElementById('link-note').hidden,
-      }))()`);
-      assertEqual(state.viewport, '390x844', 'the fragment viewport reached the toolbar');
-      assertEqual(state.dpr, '2', 'the fragment DPR reached the toolbar');
-      assertEqual(state.theme, 'dark', 'the fragment theme reached the toolbar');
-      assert(state.linkNote === true, 'no "the link did not load" banner for a good link');
-      assert(/useState/.test(state.source), 'the fragment source is in the editor');
-    });
-
     // --- 6. the old URLs: scene.html and canvas.html forward with the state ------------------
     //
     // The four URL shapes the issue names, each through a real browser navigation rather than the pure
     // function in `preview_page_checks.mjs` -- that check proves the *string* is right, this one proves
     // the browser accepts it and the merged page then restores the state. The shapes are the ones a
-    // real pre-merge link takes: both query and fragment (the ordinary share link), neither (a bare
-    // bookmark), a fragment only, and a query only.
+    // real pre-merge link takes: both query and fragment, neither (a bare bookmark), a fragment only, and a
+    // query only. The Share feature is gone, so a `#p5=` fragment is carried by the stub and then ignored by
+    // the page: every case opens at the default rectangle.
     //
-    // **The query is carried, never read.** `expectViewport` is 320x240 for the query-only case on
-    // purpose: the pre-merge pages never took environment from the query (only the `#p5=` fragment and
-    // localStorage did -- see `initialState` in `studio.js`, which is unchanged), so a query-only link
-    // always opened at the default rectangle. The merge must preserve that exactly: forwarding must not
-    // *start* reading the query, or an old link would restore a state it never had.
+    // **The query and the fragment are carried, never read.** `expectViewport` is 320x240 everywhere on
+    // purpose: forwarding must not *start* reading either, or an old link would restore state the studio no
+    // longer has a way to produce.
     const redirectCases = [
       {
         why: 'a query and a #p5= fragment',
@@ -481,7 +460,7 @@ async function main() {
         view: 'scene',
         search: '?viewport=390x844&dpr=2&theme=dark',
         hash: `#p5=${PRE_MERGE_FRAGMENT}`,
-        expectViewport: '390x844',
+        expectViewport: '320x240',
       },
       {
         why: 'no query and no fragment',
@@ -497,7 +476,7 @@ async function main() {
         view: 'scene',
         search: '',
         hash: `#p5=${PRE_MERGE_FRAGMENT}`,
-        expectViewport: '390x844',
+        expectViewport: '320x240',
       },
       {
         why: 'a query only',

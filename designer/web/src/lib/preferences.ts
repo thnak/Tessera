@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-// The local-preference and share-link half of the P5 chrome (issue #169), kept DOM-free so both the React
-// toolbar and the Node smoke test read the same code.
+// The local-preference half of the P5 chrome (issue #169), kept DOM-free so both the React toolbar and the
+// Node smoke test read the same code.
 //
-// `share.js` is the codec and `preview-state.js` is the vocabulary; this module is what the page *does* with
-// them: decode the URL's fragment, remember the toolbar locally, and produce the link. The two are
-// deliberately separate concerns: a local toggle must never rewrite the URL, and a link must override
-// whatever a visitor last chose here.
+// `preview-state.js` is the vocabulary; this module is what the page *does* with it: remember the toolbar
+// locally and read it back at startup. There is no share link (the studio has no cloud storage to share to),
+// so the URL is never read or written for state.
 //
 // Reading `localStorage` can throw (a sandboxed frame, a private-mode browser, a quota), and none of those are
 // page errors -- preferences are an optimization, not state.
@@ -21,14 +20,10 @@ export {
   THEMES,
   VIEWPORTS,
   DPRS,
-  ShareError,
   parseViewport,
 } from "./preview-state";
-export type { ShareState } from "./preview-state";
 
-import { DEFAULT_FILE, ShareError, parseViewport } from "./preview-state";
-import type { ShareState } from "./preview-state";
-import { encodeShare, stateFromHash } from "./share";
+import { parseViewport } from "./preview-state";
 
 /** The locally stored toggles, kept apart from the fragment so a local toggle cannot rewrite the URL. */
 const STORAGE_KEY = "tessera.preview.p5";
@@ -65,14 +60,13 @@ export interface Controls {
   profile: string;
 }
 
-/** The stored preference fields: the toolbar's three plus the file name a link carried. */
+/** The stored preference fields: the toolbar's controls plus the file name. */
 type Preferences = Partial<Controls & { file: string }>;
 
 /**
- * The page's environment state: the toolbar's three toggles plus the file a share link names.
+ * The page's environment state: the toolbar's toggles plus the entry file name.
  *
- * `from` says where it arrived from, which is what the page uses to decide whether to mention the link at
- * all: a `link` that failed to decode is a banner, a `local` preference is not.
+ * `from` says where it arrived from: a stored `local` preference or the `default`.
  */
 export interface EnvironmentState {
   source: string;
@@ -87,7 +81,7 @@ export interface EnvironmentState {
   skin: string;
   /** The device profile; `""` is none (issue #447). */
   profile: string;
-  from?: "link" | "local" | "default";
+  from?: "local" | "default";
 }
 
 /** The toolbar a page starts from before the fragment or storage says otherwise. */
@@ -151,22 +145,10 @@ export function rememberLocally(controls: Controls): void {
 }
 
 /**
- * The state the page should start from: the URL's fragment when it carries one, else the locally stored
- * toggles, else `fallback`.
- *
- * A fragment wins over local storage because a link is an explicit instruction from whoever shared it; local
- * storage is only the visitor's last toolbar position. A fragment that fails to decode throws `ShareError`,
- * and the caller shows it: a broken link must say so rather than load the default source and look like the
- * link never arrived.
+ * The state the page should start from: the locally stored toggles, else `fallback`. The source never comes
+ * from storage; it is the open project's.
  */
-export async function initialState(
-  fallback: EnvironmentState,
-  hash: string | null | undefined = globalThis.location?.hash,
-): Promise<EnvironmentState> {
-  const shared = await stateFromHash(hash);
-  if (shared) {
-    return { ...shared, from: "link" };
-  }
+export function initialState(fallback: EnvironmentState): EnvironmentState {
   const stored = readLocalPreferences();
   if (stored) {
     // Only the environment fields are ever read back: the source comes from the sample (or the visitor's
@@ -200,53 +182,4 @@ function parseStoredViewport(text: unknown): { width: number; height: number } |
   } catch {
     return null;
   }
-}
-
-/** The state object for `encodeShare` from the toolbar's string-valued controls. */
-export function shareStateOf(
-  source: string,
-  controls: Controls,
-  file: string = DEFAULT_FILE,
-): ShareState {
-  const viewport = parseViewport(controls.viewport);
-  return {
-    source,
-    file,
-    width: viewport.width,
-    height: viewport.height,
-    dpr: Number(controls.dpr),
-    theme: String(controls.theme),
-    foldPosture: String(controls.foldPosture),
-    skin: String(controls.skin),
-    profile: String(controls.profile ?? ""),
-  };
-}
-
-/**
- * Writes the share link to the address bar (`history.replaceState`, so it does not add a back step) and
- * returns the text a "Copy link" button should put on the clipboard.
- */
-export async function shareToLocation(
-  state: ShareState,
-  history: Pick<History, "replaceState"> | undefined = globalThis.history,
-  location: Pick<Location, "origin" | "pathname" | "search"> | undefined = globalThis.location,
-): Promise<string> {
-  const payload = await encodeShare(state);
-  // Deliberately no `view` parameter: the fragment is the state, and the view is the page's own. A link
-  // made on the Scene tab still opens on whichever view the address bar's `?view=` names.
-  const prefix = location ? `${location.origin}${location.pathname}${location.search}` : "";
-  const url = `${prefix}#p5=${payload}`;
-  try {
-    history?.replaceState(null, "", url);
-  } catch {
-    // A `data:` or `file:` origin can refuse the rewrite; the returned text is still shareable.
-  }
-  return url;
-}
-
-/** The banner's sentence for a link that did not decode; the code is shown when it is a `ShareError`. */
-export function linkProblemMessage(error: unknown): string {
-  return error instanceof ShareError
-    ? `This share link could not be opened (${error.code}): ${error.message}`
-    : `This share link could not be opened: ${String(error)}`;
 }

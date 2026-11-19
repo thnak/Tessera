@@ -3,7 +3,7 @@
  * Verify the studio's **layout** in a real browser (issue #431's acceptance).
  *
  * **Why this exists beside `preview_browser_verify.mjs`.** That script proves the page *works*: WebGPU
- * is available, the three views compile/evaluate/draw, a share link round-trips. None of that can see
+ * is available, the three views compile/evaluate/draw, a leftover `#p5=` link is ignored. None of that can see
  * the thing #431 is about -- that the page is one three-column workspace whose shape does not change
  * when the preview view does. A regression there (the view switch moving back above the workspace, the
  * tree collapsing to nothing, the phone layout gaining a horizontal scrollbar) leaves every one of those
@@ -271,20 +271,10 @@ async function open(width, height, path = '/index.html') {
 }
 
 {
-  // A real fragment from the current codec (the same shape a share link produces), decoded on load.
+  // The Share feature is gone: no toolbar button, and a leftover fragment neither errors nor changes the source.
   const { page, context } = await open(1440, 900);
-  await page.locator('#share').click();
-  await page.waitForTimeout(600);
-  const shared = page.url();
+  check('no #share control in the chrome', (await page.locator('#share').count()) === 0);
   await context.close();
-
-  const { page: reopened, context: reopenedContext } = await open(1440, 900);
-  await reopened.goto(shared, { waitUntil: 'load' });
-  await reopened.waitForTimeout(1400);
-  const hasFragment = shared.includes('#p5=');
-  const text = await reopened.evaluate(() => window.__tesseraEditor.text());
-  check('#p5= share link restores the source', hasFragment && text.includes('Count: {count}'), shared.slice(-24));
-  await reopenedContext.close();
 }
 
 // --- 390x844: one column, preview reachable, no horizontal scroll ---------------------------------

@@ -70,7 +70,7 @@ export interface Workspace {
   /**
    * Replaces a file's project text and forgets its buffer, then opens and focuses it.
    *
-   * This is how a sample, a share link or a view's own "Load sample" arrives: the project copy is what
+   * This is how a sample or a view's own "Load sample" arrives: the project copy is what
    * the file *is*, and the buffer is dropped so the editor's effect writes the new text. Without it, a
    * sample written into an already-open file would leave the old buffer in front of the new text.
    */

@@ -30,7 +30,7 @@ and reports user gestures back as operations. The library's own serialization is
 | Shell | the VS Code-shaped frame around the dock: title/menu bar, optional toolbar, **activity bar** (icon column choosing the side bar view), status bar. Visibility flags live in the layout document's `shell` block |
 | Side bar | a group-like container (left by default, right allowed) holding view panels (`project` now; `search`, `source-control` reserved); one view visible at a time, switched by the activity bar |
 | Editor area | the central splits holding the `editor` panel (and later editor groups, main spec section 6) |
-| Panel area | the bottom group of the default layout (Problems/Output analogues: Diagnostics, Mock console, Call trace, Platform events); it can be collapsed, maximized, or dragged elsewhere |
+| Panel area | the bottom group of the default layout (Problems/Output analogues: Problems, Diagnostics, Mock console, Call trace, Platform events); it can be collapsed, maximized, or dragged elsewhere |
 | Region | the shell areas collectively: menu bar, toolbar, activity bar, dock, status bar; only the dock content is user-arrangeable |
 
 ### 1.2 Panel definitions (`panels.json`)
@@ -60,11 +60,13 @@ and reports user gestures back as operations. The library's own serialization is
 | `minSize` | CSS px; the dock never makes a visible group smaller; below it the group collapses to its tab strip |
 | `openCommand` | always `view.togglePanel` with `{ "panelId": id }`; the command is how a closed panel returns |
 
-V1 panels: `project` (tree), `editor`, `canvas`, `scene`, `diagnostics`, `platform-events`,
-`mock-console`, `call-trace`. `platform-events` is owned by
+V1 panels: `project` (tree), `editor`, `canvas`, `scene`, `problems`, `diagnostics`,
+`platform-events`, `mock-console`, `call-trace`. `problems` is the compiler's diagnostics as a list (severity
+icon, code, message, `file:line:col`, severity filter, click to jump to the span; `regions/ProblemsPanel.tsx`),
+and `diagnostics` is the compile report pane; both default to the bottom dock, `problems` first. `platform-events` is owned by
 [#448](https://github.com/thnak/Tessera/issues/448) and `mock-console`/`call-trace` by
 [studio-mock-services-v1.md](studio-mock-services-v1.md); until their slices land they are `reserved`
-(not offered, not in the default layout). Reserved for the IDE slices: `problems`, `source-control`.
+(not offered, not in the default layout). Reserved for the IDE slices: `source-control`.
 
 The editor is one panel whose *content* is the open-file tab strip ([#431](https://github.com/thnak/Tessera/issues/431));
 file tabs are not dock panels. Splitting the editor into two files side by side is out of scope for V1.
@@ -74,7 +76,7 @@ file tabs are not dock panels. Splitting the editor into two files side by side 
 ```json
 {
   "format": "tessera.studio.layout",
-  "version": 1,
+  "version": 2,
   "root": {
     "type": "split", "dir": "row", "sizes": [0.18, 0.82],
     "children": [
@@ -85,7 +87,7 @@ file tabs are not dock panels. Splitting the editor into two files side by side 
           { "type": "group", "id": "g-preview", "panels": ["canvas", "scene"], "active": "canvas" }
         ] },
         { "type": "group", "id": "g-bottom",
-          "panels": ["diagnostics", "mock-console", "call-trace", "platform-events"], "active": "diagnostics" }
+          "panels": ["problems", "diagnostics", "mock-console", "call-trace", "platform-events"], "active": "problems" }
       ] }
     ]
   },
@@ -139,7 +141,7 @@ Commands (registered in the workbench registry): `view.togglePanel {panelId}`, `
 | Aspect | Rule |
 |---|---|
 | Where | `localStorage` key `tessera.studio.layout`, wrapped in try/catch for the empty/throwing case exactly as `lib/preferences.ts` does; the page renders the default layout when storage is unavailable |
-| Scope | per viewer (per browser profile); never in a share link, never in project files ([#516](https://github.com/thnak/Tessera/issues/516)) |
+| Scope | per viewer (per browser profile); never in a link, never in project files ([#516](https://github.com/thnak/Tessera/issues/516)) |
 | Writes | debounced 300 ms after the last operation and on `pagehide`; a quota error is swallowed (layout is a convenience) |
 | Reads | once at boot, before first paint of the dock, so there is no flash of the default layout |
 | Phone | the persisted layout is the *desktop* layout; the phone view is derived (section 3.4), so rotating a tablet or resizing a window never rewrites storage |
@@ -150,8 +152,13 @@ Commands (registered in the workbench registry): `view.togglePanel {panelId}`, `
 - `version` is bumped when the *meaning* of the document changes, not on every panel addition (a new
   panel is handled by section 2.3, not a version bump).
 - The migration table is `migrations[n]: (layoutV_n) => layoutV_n+1`, pure and total, covered by a
-  fixture per step (`tests/fixtures/studio-layout/v<n>.json`), the same pattern as the IR and share
-  codec fixtures.
+  fixture per step (`tests/fixtures/studio-layout/v<n>.json`), the same pattern as the IR fixtures.
+- **Version 2 (the Problems panel).** `migrations[1]` puts `problems` first in the tab strip of the group that
+  holds `diagnostics`, unless the viewer closed it (`closed` has it) or it is already in a group; it changes
+  nothing else (the active tab, the collapsed state and every size are kept), so a stored layout reads like the
+  new default. Without a Diagnostics group `reconcile` gives the panel its default place instead. Evidence:
+  `scripts/ci/workbench_layout.mjs` (the migration cases and the v1/v2 fixtures) and
+  `scripts/ci/workbench_problems.mjs` (a stored version 1 layout loading in a browser).
 - A document with `version` greater than the code knows is **not** migrated down: it is kept under
   `tessera.studio.layout.backup`, the default layout is used for this session, and a notice appears in
   the status line ("Layout from a newer studio; using the default"). This is what lets a viewer open an
@@ -168,8 +175,8 @@ build:
 2. Panels that are `reserved` are dropped from groups.
 3. A panel that is **new** (defined, not in any group, not in `closed`) is placed at its
    `defaultLocation`, falling back to the group of the default layout that holds it, else a new tab in
-   the last-created group. So shipping `problems` in a later release adds it to the bottom dock for
-   everyone who has not closed it.
+   the last-created group. So shipping a panel without a version bump adds it to its default group for
+   everyone who has not closed it (`problems` bumped the version only to be placed *first*, section 2.2).
 4. If `editor` is missing (never closable in the default; defined `closable: false`) it is restored.
 5. Panels with unmet `requires` stay in the layout (their unsupported state is the panel's content).
 
@@ -193,14 +200,16 @@ first load, like VS Code's first run:
 |A | Project  | Editor                     | Canvas | Scene             |
 |B | (tree)   | (file tabs)                | (active: Canvas)           |
 +--+----------+----------------------------+----------------------------+
-|  Panel area (collapsed): Diagnostics | Mock console | Call trace | Platform events
+|  Panel area (collapsed): Problems | Diagnostics | Mock console | Call trace | Platform events
 +------------------------------------------------------------------------+
 ```
 
 Widths 18% / 41% / 41%; the panel area, when opened, takes 28% of the height and shows
-`Diagnostics` first (the first-paint module). A collapsed panel area costs nothing: its panels are
-not visible, so their lazy modules are not imported until it first opens. The status bar shows the
-Diagnostics count as a clickable item (`view.togglePanelArea`), so a collapsed dock never hides an
+`Problems` first. The `diagnostics` module is still the first-paint module and starts while its pane is
+hidden, because the Problems list and counts are derived from its compile; a collapsed panel area otherwise
+costs nothing: the Problems panel subscribes to its store only while it is visible, and the other panels' lazy
+modules are not imported until it first opens. The status bar shows the error and warning counts as one
+clickable item (`view.problems`: opens and focuses the Problems panel), so a collapsed dock never hides an
 error. Two earlier statements are superseded and flagged (main spec decisions 9 and 10): #516's
 "Scene/Diagnostics as tabs" and the owner's answer that the bottom dock is open by default.
 
@@ -519,8 +528,8 @@ studio build yet; the adopting slice (W5) re-records it with `scripts/check_prev
 ## 6. What this does not do
 
 - It does not implement anything; W0 to W9 in [studio-workbench-v1.md](studio-workbench-v1.md) do.
-- It does not change the engine, the Wasm modules, `tessera.json`, or the share-link format. Layout is
-  per-viewer and never in a link.
+- It does not change the engine, the Wasm modules, `tessera.json`, or any link format. Layout is
+  per-viewer and never in a link or a project file.
 - It does not pick pop-out windows (a pop-out re-parents the canvas into another document); see open
   decision 8 of the main spec.
 - It does not specify the palette's ranking, fuzzy matching or recent-commands list; slice W3 does.

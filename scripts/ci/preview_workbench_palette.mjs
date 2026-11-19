@@ -39,7 +39,7 @@ await test('fuzzy: word starts, camel humps and consecutive runs beat scattered 
   assert.equal(top('save', ['File: Download Project (.zip)', 'Device: Skin Variants', 'File: Save'])[0], 'File: Save');
   assert.equal(top('ss', ['Device: Skin', 'View: Toggle Status Bar', 'File: Save Something'])[0], 'File: Save Something');
   assert.equal(top('tb', ['ui/ThemeButton.tsx', 'ui/atbq.tsx'])[0], 'ui/ThemeButton.tsx');
-  assert.ok(fuzzyMatch('sh', 'Copy Share Link').score > fuzzyMatch('sh', 'Download Project (.zip) Shortcuts').score - 5);
+  assert.ok(fuzzyMatch('sh', 'Show Shortcuts').score > fuzzyMatch('sh', 'Download Project (.zip) Shortcuts').score - 5);
   assert.deepEqual(top('zzz', ['a', 'b']), [], 'no match is dropped');
 });
 

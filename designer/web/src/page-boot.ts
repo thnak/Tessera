@@ -22,11 +22,6 @@ export function bootProject(): ProjectFile[] {
   return seedForRender ? seedProject() : [];
 }
 
-/** `true` when the page was opened with a URL fragment (a share link); the decoder otherwise yields its default source. */
-export function hasShareLink(): boolean {
-  return (globalThis.location?.hash ?? "") !== "";
-}
-
 /**
  * A sample as a one-file project: the sample plus the `tessera.json` that names it as the entry, so
  * the preview has something to run. It lives in memory only (a sample is never written anywhere).

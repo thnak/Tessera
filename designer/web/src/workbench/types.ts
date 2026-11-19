@@ -5,7 +5,7 @@
 // operations (`ops.ts`).
 
 export const LAYOUT_FORMAT = "tessera.studio.layout";
-export const LAYOUT_VERSION = 1;
+export const LAYOUT_VERSION = 2;
 
 export type Dir = "row" | "column";
 export type Edge = "left" | "right" | "top" | "bottom";

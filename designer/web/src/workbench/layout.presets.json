@@ -1,32 +1,32 @@
 {
   "editor-only": {
-    "format": "tessera.studio.layout", "version": 1,
+    "format": "tessera.studio.layout", "version": 2,
     "root": { "type": "split", "dir": "column", "sizes": [0.72, 0.28], "children": [
       { "type": "split", "dir": "row", "sizes": [0.18, 0.82], "children": [
         { "type": "group", "id": "g-project", "panels": ["project"], "active": "project" },
         { "type": "group", "id": "g-editor", "panels": ["editor"], "active": "editor" }
       ] },
       { "type": "group", "id": "g-bottom",
-        "panels": ["diagnostics", "mock-console", "call-trace", "platform-events"], "active": "diagnostics" }
+        "panels": ["problems", "diagnostics", "mock-console", "call-trace", "platform-events"], "active": "problems" }
     ] },
     "maximized": null, "closed": ["canvas", "scene"],
     "shell": { "activityBar": true, "statusBar": true, "toolbar": true, "sideBar": "left", "zen": false },
     "collapsed": ["g-bottom"]
   },
   "preview-focus": {
-    "format": "tessera.studio.layout", "version": 1,
+    "format": "tessera.studio.layout", "version": 2,
     "root": { "type": "split", "dir": "row", "sizes": [0.18, 0.22, 0.6], "children": [
       { "type": "group", "id": "g-project", "panels": ["project"], "active": "project" },
       { "type": "group", "id": "g-editor", "panels": ["editor"], "active": "editor" },
       { "type": "group", "id": "g-preview",
-        "panels": ["canvas", "scene", "diagnostics", "mock-console", "call-trace", "platform-events"], "active": "canvas" }
+        "panels": ["canvas", "scene", "problems", "diagnostics", "mock-console", "call-trace", "platform-events"], "active": "canvas" }
     ] },
     "maximized": null, "closed": [],
     "shell": { "activityBar": true, "statusBar": true, "toolbar": true, "sideBar": "left", "zen": false },
     "collapsed": []
   },
   "side-by-side": {
-    "format": "tessera.studio.layout", "version": 1,
+    "format": "tessera.studio.layout", "version": 2,
     "root": { "type": "split", "dir": "column", "sizes": [0.68, 0.32], "children": [
       { "type": "split", "dir": "row", "sizes": [0.16, 0.42, 0.42], "children": [
         { "type": "group", "id": "g-project", "panels": ["project"], "active": "project" },
@@ -34,7 +34,7 @@
         { "type": "group", "id": "g-preview", "panels": ["canvas", "scene"], "active": "canvas" }
       ] },
       { "type": "group", "id": "g-bottom",
-        "panels": ["diagnostics", "mock-console", "call-trace", "platform-events"], "active": "diagnostics" }
+        "panels": ["problems", "diagnostics", "mock-console", "call-trace", "platform-events"], "active": "problems" }
     ] },
     "maximized": null, "closed": [],
     "shell": { "activityBar": true, "statusBar": true, "toolbar": true, "sideBar": "left", "zen": false },

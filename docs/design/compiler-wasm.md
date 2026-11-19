@@ -545,12 +545,12 @@ no `$env:EMSDK`, so `tessera_input_json` was authored to the P1/P2 pattern and t
 build but not executed. The byte comparison in `scene_input_parity.py` — and therefore P4's acceptance
 sentence — is proven by the lane that runs the Wasm build.
 
-## 10. P5: share links, the sample gallery and the environment toggles
+## 10. P5: the sample gallery and the environment toggles (share links removed)
 
-P5's acceptance is **"a compressed URL-fragment link round-trips; the samples from `samples/` load
-within the project-load budget"**. The format is normative in
-[`designer-studio-v1.md`](../specs/designer-studio-v1.md) section 7.1; this section records what is
-implemented, what is proven locally, and what only CI can prove.
+P5's acceptance was **"a compressed URL-fragment link round-trips; the samples from `samples/` load
+within the project-load budget"**. The share link half was **removed** (owner decision, studio focus pass:
+no cloud storage to share to; [`designer-studio-v1.md`](../specs/designer-studio-v1.md) section 7.1); the
+rest of this section is the historical record of what was implemented and proven.
 
 ### 10.1 The pieces
 

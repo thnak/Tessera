@@ -11,7 +11,7 @@ are in [studio-workbench-v1.md](../specs/studio-workbench-v1.md); this note reco
 `@codemirror/*`, dock library or DOM global, so a Node gate runs every rule without a browser and the V1
 rebuild of the studio with Tessera reuses it unchanged. `scripts/ci/preview_workbench.mjs` enforces the
 import rule by scanning the module sources. The modules are `.js` with an `index.d.ts`, the same pattern as
-`lib/share.js` and `lib/preview-state.js`.
+`lib/preview-state.js`.
 
 | File | Owns |
 |---|---|
@@ -86,8 +86,8 @@ popup lists the menus as submenus, and the toolbar keeps Restart (and the palett
 
 Where the spec's mapping (section 4.1) lands today: Open folder, Open zip, Reopen (Open Recent), Samples and
 Load sample (one `file.samples`), New file, Rename, Delete, Download and Save moved out of `ProjectBar`;
-Restart app moved out of the code column; Copy share link and the five device selectors moved out of the
-header and the preview column. The Picker, Inspector and Run input buttons stay in the canvas and scene panes
+Restart app moved out of the code column; the five device selectors moved out of the
+header and the preview column (Copy share link was removed with the Share feature; `file.share` is retired). The Picker, Inspector and Run input buttons stay in the canvas and scene panes
 (they act on those panes) and the Run menu items click them. `ProjectBar` keeps the project name, the status
 note, the draft offer and the conflict choice. Developer-run browser scripts that selected the old controls
 (`#control-viewport`, `#control-foldPosture`) drive the same commands through `window.__tesseraWorkbench.run`.
@@ -175,7 +175,7 @@ Commands (ids are append-only like the others): `notify.show` (arguments `messag
 severity, actions, key })` or `notify.show` through the registry. Context keys: `notify.dnd`, `notify.unread`,
 `notify.any`.
 
-What now goes through it: the share flow's progress text (`Share: link copied`), the project's note (the line
+What now goes through it: the project's note (the line
 under the file tree keeps its text, but is no longer its own live region, so it is announced once, as a toast),
 a command that failed or was refused (`severity` `error` or `warning`), and the toast for a failed sample fetch. `Help > About` is no longer a toast: it opens `regions/AboutDialog.tsx`, an
 accessible modal (`role="dialog"`, `aria-modal`, focus trapped, Escape and Close leave, focus returns) that now carries the

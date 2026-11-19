@@ -195,7 +195,7 @@ test("activatePanel: switches the tab, expands a collapsed group, reports the vi
 test("collapseGroup: toggles, keeps size and tabs, refuses the last expanded group", () => {
   const out = wb.collapseGroup(dflt(), "g-bottom", false);
   assert.deepEqual(out.layout.collapsed, []);
-  assert.deepEqual(out.change.shown, ["diagnostics"]);
+  assert.deepEqual(out.change.shown, ["problems"], "the Problems tab is the active tab of the panel area");
   const back = wb.collapseGroup(out.layout, "g-bottom", true);
   assert.deepEqual(back.layout, dflt(), "collapse and expand round-trips");
   let layout = out.layout;
@@ -228,7 +228,7 @@ test("openPanel: default location, activates an open one, honors `where`, expand
   assert.equal(wb.groupOfPanel(where.layout, "canvas").id, "g-editor");
   const hidden = wb.openPanel(dflt(), "call-trace");
   assert.deepEqual(hidden.layout.collapsed, [], "opening a panel of the collapsed panel area expands it");
-  assert.equal(wb.openPanel(dflt(), "problems").layout.root.type, "split", "a reserved panel is not offered");
+  assert.equal(wb.openPanel(dflt(), "source-control").layout.root.type, "split", "a reserved panel is not offered");
 });
 
 test("movePanel: into another group as a tab, at an index, and reordering inside a group", () => {
@@ -360,8 +360,8 @@ test("reconcile: a new panel appears, a closed one stays closed, the editor is r
   assert.equal(JSON.stringify(restored).includes("ghost"), false, "unknown panel ids are dropped");
   assertValid(restored, "restored");
   const reserved = clone(doc);
-  reserved.root.children[0].panels.push("problems");
-  assert.equal(wb.groupOfPanel(wb.reconcile(reserved), "problems"), null, "a reserved panel is dropped");
+  reserved.root.children[0].panels.push("source-control");
+  assert.equal(wb.groupOfPanel(wb.reconcile(reserved), "source-control"), null, "a reserved panel is dropped");
 });
 
 // ---- 5. phone collapse -----------------------------------------------------------------------------------------
@@ -370,7 +370,7 @@ test("phone collapse: Editor, Canvas, Scene, Diagnostics first; the rest in read
   const layout = dflt();
   const before = clone(layout);
   const phone = wb.collapse(layout);
-  assert.deepEqual(phone.panels, ["editor", "canvas", "scene", "diagnostics", "project", "mock-console", "call-trace", "platform-events"]);
+  assert.deepEqual(phone.panels, ["editor", "canvas", "scene", "diagnostics", "project", "problems", "mock-console", "call-trace", "platform-events"]);
   assert.equal(phone.active, "editor");
   assert.equal(wb.collapse(layout, "scene").active, "scene");
   assert.equal(wb.collapse(layout, "ghost").active, "editor");
@@ -497,22 +497,84 @@ test("panel runtime: visibility transitions are reported once, hidden panels get
   assert.equal(runtime.isVisible("canvas"), false);
 });
 
-// ---- 8. layout never travels with a project or a share link -------------------------------------------------
+// ---- 8. layout never travels with a project ---------------------------------------------------------------------
 
-test("the share codec and the project package carry no layout", async () => {
-  for (const file of ["src/lib/share.js", "src/lib/preview-state.js", "project-package.js", "project-io.js"]) {
+test("the project package and the preview vocabulary carry no layout", () => {
+  for (const file of ["src/lib/preview-state.js", "project-package.js", "project-io.js"]) {
     const text = readFileSync(resolve(WEB, file), "utf8");
     assert.equal(/tessera\.studio\.layout|workbench/.test(text), false, `${file} must not mention the layout`);
   }
-  const share = await import(new URL("../../designer/web/src/lib/share.js", import.meta.url).href);
-  const state = {
-    source: "export const A = () => <div/>;", file: "ui/A.tsx", width: 320, height: 240, dpr: 1, theme: "system",
-    foldPosture: "", skin: "", profile: "",
-  };
-  const fragment = await share.encodeShare({ ...state, layout: dflt() });
-  const decoded = await share.decodeShare(fragment);
-  assert.equal(Object.keys(decoded).some((key) => /layout/i.test(key)), false, "a layout field in the state is not encoded");
-  assert.equal(fragment.includes("studio"), false);
+});
+
+// ---- 8b. the Problems panel (layout version 2) ----------------------------------------------------------------
+
+test("problems: a live bottom-dock panel, first tab of the collapsed panel area, in every preset", () => {
+  const def = wb.panelDef("problems");
+  assert.ok(def !== undefined && def.reserved !== true && def.closable === true && def.singleton === true);
+  assert.deepEqual(def.defaultLocation, { group: "bottom" });
+  assert.equal(wb.LAYOUT_VERSION, 2);
+  const layout = dflt();
+  assert.equal(layout.version, 2);
+  assert.deepEqual(wb.groupOfPanel(layout, "problems").panels.slice(0, 2), ["problems", "diagnostics"]);
+  assert.equal(wb.groupOfPanel(layout, "problems").active, "problems");
+  assert.ok(layout.collapsed.includes("g-bottom"), "the bottom dock stays collapsed by default");
+  for (const [id, preset] of Object.entries(wb.PRESETS)) {
+    assert.equal(preset.version, 2, `${id} is version 2`);
+    assert.ok(wb.groupOfPanel(preset, "problems") !== null, `${id} has the Problems panel`);
+    assertValid(preset, id);
+  }
+  assert.deepEqual(wb.openPanels(wb.reconcile(layout)), wb.openPanels(layout), "reconcile keeps the default as it is");
+});
+
+test("problems: a version 1 layout migrates, Problems joining the Diagnostics group first", () => {
+  const v1 = clone(dflt());
+  v1.version = 1;
+  const bottom = wb.groupOfPanel(v1, "diagnostics");
+  bottom.panels = bottom.panels.filter((id) => id !== "problems");
+  bottom.active = "mock-console";
+  const migrated = wb.migrateLayout(v1);
+  assert.ok(migrated.ok && migrated.doc.version === 2);
+  const group = wb.groupOfPanel(migrated.doc, "problems");
+  assert.equal(group.id, "g-bottom");
+  assert.deepEqual(group.panels, ["problems", "diagnostics", "mock-console", "call-trace", "platform-events"]);
+  assert.equal(group.active, "mock-console", "the viewer's active tab is not changed");
+  assertValid(wb.reconcile(migrated.doc), "migrated v1");
+  assert.equal(v1.version, 1, "the input document is not mutated");
+});
+
+test("problems: migration leaves a closed or already placed Problems panel alone and tolerates no Diagnostics group", () => {
+  const closed = clone(dflt());
+  closed.version = 1;
+  wb.groupOfPanel(closed, "problems").panels = ["diagnostics", "mock-console"];
+  closed.closed = ["problems"];
+  const kept = wb.migrateLayout(closed);
+  assert.deepEqual(wb.groupOfPanel(kept.doc, "diagnostics").panels, ["diagnostics", "mock-console"]);
+  assert.deepEqual(kept.doc.closed, ["problems"]);
+  assert.equal(wb.groupOfPanel(wb.reconcile(kept.doc), "problems"), null, "a closed panel stays closed after reconcile");
+
+  const noDiagnostics = clone(dflt());
+  noDiagnostics.version = 1;
+  const host = wb.groupOfPanel(noDiagnostics, "diagnostics");
+  host.panels = ["mock-console"];
+  host.active = "mock-console";
+  const moved = wb.migrateLayout(noDiagnostics);
+  assert.ok(moved.ok);
+  const reconciled = wb.reconcile(moved.doc);
+  assertValid(reconciled, "no diagnostics group");
+  assert.equal(wb.groupOfPanel(reconciled, "problems").id, "g-bottom", "reconcile gives it its default place");
+});
+
+test("problems: a stored version 1 layout loads through persistence as version 2 with the panel, without a notice", () => {
+  const v1 = clone(dflt());
+  v1.version = 1;
+  wb.groupOfPanel(v1, "diagnostics").panels = ["diagnostics", "mock-console", "call-trace", "platform-events"];
+  wb.groupOfPanel(v1, "diagnostics").active = "diagnostics";
+  const storage = memoryStorage({ [wb.LAYOUT_STORAGE_KEY]: JSON.stringify(v1) });
+  const loaded = wb.loadLayout(storage);
+  assert.equal(loaded.notice, null);
+  assert.equal(loaded.layout.version, 2);
+  assert.ok(wb.groupOfPanel(loaded.layout, "problems") !== null);
+  assert.ok(wb.groupOfPanel(loaded.layout, "diagnostics").panels[0] === "problems");
 });
 
 // ---- 9. keyboard moves, the store and the plain command functions ----------------------------------------------
@@ -535,7 +597,7 @@ test("keyboard moves: Down joins the panel area (and opens it), Right and Left m
 
 test("keyboard moves: the group submenu names groups by their active panel; the live message", () => {
   const choices = wb.groupChoices(dflt(), "canvas", wb.PANELS);
-  assert.deepEqual(choices.map((choice) => choice.label), ["Project", "Editor", "Diagnostics"]);
+  assert.deepEqual(choices.map((choice) => choice.label), ["Project", "Editor", "Problems"]);
   assert.equal(wb.moveMessage("Canvas", "bottom"), "Canvas moved to the bottom");
 });
 
@@ -547,7 +609,7 @@ test("store and commands: toggles, reveal, preset, reset, maximize, change notif
   assert.equal(wb.panelAreaOpen(store.get()), false, "the panel area starts collapsed");
   commands.togglePanelArea();
   assert.equal(wb.panelAreaOpen(store.get()), true);
-  assert.deepEqual(seen.at(-1).shown, ["diagnostics"]);
+  assert.deepEqual(seen.at(-1).shown, ["problems"]);
   commands.togglePanelArea();
   assert.equal(wb.panelAreaOpen(store.get()), false);
   commands.revealPanelArea();

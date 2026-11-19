@@ -5,7 +5,7 @@
  * each switch costs exactly one frame and no re-evaluation.
  *
  * **Why this needs its own probe.** Every other browser script proves the page *works*: the module
- * loads, a frame presents, an edit applies, a share link round-trips. None of them can see the thing
+ * loads, a frame presents, an edit applies. None of them can see the thing
  * this issue is about, because before #436 a viewport change *looked* fine: the boxes re-laid out
  * and the stylesheet silently kept its startup answer, so a phone preset showed a desktop's colours
  * at a phone's size. A probe that only checked "the canvas repainted" would have passed.

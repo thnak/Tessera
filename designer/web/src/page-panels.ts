@@ -105,37 +105,3 @@ export function useViewFromUrl(workbench: Workbench): void {
 }
 
 export const AUTO_OPEN_KEY = "tessera.studio.diagnostics.autoOpen";
-
-function autoOpenEnabled(): boolean {
-  try {
-    return globalThis.localStorage?.getItem(AUTO_OPEN_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
-/**
- * `diagnostics.autoOpen` (default off, like VS Code's Problems): when a compile first reports a problem, a
- * collapsed panel area opens. The count lives in a status-bar cell the Diagnostics session writes, so this
- * watches that cell rather than asking the session.
- */
-export function useDiagnosticsAutoOpen(workbench: Workbench, countRef: { current: HTMLElement | null }): void {
-  const commands = workbench.commands;
-  useEffect(() => {
-    const cell = countRef.current;
-    if (cell === null) {
-      return;
-    }
-    const hasProblems = (): boolean => /^[1-9]\d* errors?|^\d+ errors?, [1-9]/.test(cell.textContent ?? "");
-    let had = hasProblems();
-    const observer = new MutationObserver(() => {
-      const now = hasProblems();
-      if (now && !had && autoOpenEnabled()) {
-        commands.revealPanelArea();
-      }
-      had = now;
-    });
-    observer.observe(cell, { childList: true, characterData: true, subtree: true });
-    return () => observer.disconnect();
-  }, [commands, countRef]);
-}

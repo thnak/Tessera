@@ -44,7 +44,7 @@ on:
       - 'src/compiler/**'
       - 'scripts/ci/wasm_diagnostics_parity.py'
       - 'scripts/ci/preview_budget_probe.mjs'
-      - 'scripts/ci/preview_share_roundtrip.mjs'
+      - 'scripts/ci/preview_problems.mjs'
       - 'scripts/ci/preview_studio_smoke.mjs'
       - 'scripts/ci/preview_page_checks.mjs'
       - 'scripts/ci/preview_skins.mjs'
@@ -78,7 +78,7 @@ on:
       - 'src/compiler/**'
       - 'scripts/ci/wasm_diagnostics_parity.py'
       - 'scripts/ci/preview_budget_probe.mjs'
-      - 'scripts/ci/preview_share_roundtrip.mjs'
+      - 'scripts/ci/preview_problems.mjs'
       - 'scripts/ci/preview_studio_smoke.mjs'
       - 'scripts/ci/preview_page_checks.mjs'
       - 'scripts/ci/preview_skins.mjs'
@@ -239,16 +239,16 @@ jobs:
           --wasm build/wasm-webgpu/src/compiler/codegen/tessera_scene_preview.js
           --node "$EMSDK_NODE"
 
-      # P5 (issue #169): the share-link round trip, the page chrome, and the page's built wiring. All
-      # three need Node but not Wasm: the codec is a pure ES module, and the chrome is rendered from the
-      # front end's `dist-ssr/` bundle (ADR-054 decision 6 -- React creates the DOM at runtime, so "every
-      # id exists" is asserted against `renderToStaticMarkup` rather than against a static file). They run
-      # BEFORE the site is assembled, so a broken link format cannot be published.
+      # P5 (issue #169): the Problems model, the page chrome, and the page's built wiring. All of them need
+      # Node but not Wasm: the model is a pure module of the front end's `dist-ssr/` bundle, and the chrome is
+      # rendered from the same bundle (ADR-054 decision 6 -- React creates the DOM at runtime, so "every id
+      # exists" is asserted against `renderToStaticMarkup` rather than against a static file). They run
+      # BEFORE the site is assembled.
       #
       # What they do NOT prove: that a browser paints the page. That is this lane's deploy and a human
       # opening the URL (or the developer-run `preview_browser_check.mjs`). The scripts say so themselves.
-      - name: Share-link round trip (codec, no browser)
-        run: node scripts/ci/preview_share_roundtrip.mjs
+      - name: Problems model (severity counts, filter, store, no browser)
+        run: node scripts/ci/preview_problems.mjs
 
       # The project load and save, against an in-memory folder handle: a folder and its zip are the same
       # project, every limit refuses before a byte is read, a locked file is never read, and Save notices a

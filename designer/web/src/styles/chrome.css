@@ -1,16 +1,9 @@
 /* SPDX-License-Identifier: MIT
  *
- * The studio chrome's sheet (issue #392, #422, #431): the share status, the welcome view and the
+ * The studio chrome's sheet (issue #392, #422, #431): the welcome view and the
  * broken-link banner. The page header and the preview toolbar are the workbench chrome since issue #557
  * (`workbench.css`); the view tabs live in the preview column (`preview.css`).
  */
-
-.share-status {
-  font-size: 12px;
-  color: var(--ok);
-  min-width: 0;
-  white-space: nowrap;
-}
 
 /* The welcome view (the editor column while no project is open): the samples live here, not in a bar. */
 .welcome {
@@ -42,14 +35,4 @@
 .welcome-sample:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 10%, transparent); }
 .welcome-sample code { color: var(--text-dim); font-family: var(--mono); font-size: 12px; }
 .welcome-note { margin: 12px 0 0; font-size: 12px; color: var(--warning); }
-
-/* A broken share link is a first-class state, not a console message. */
-.link-note {
-  margin: 0;
-  padding: 8px 20px;
-  border-bottom: 1px solid var(--border);
-  background: var(--warning-bg);
-  color: var(--warning);
-  font-size: 12px;
-}
 

@@ -100,11 +100,11 @@ try {
     await page.keyboard.press('ArrowDown');
     check('Down moves to the next item', (await focusedLabel(page)).startsWith('Open Zip'));
     await page.keyboard.press('End');
-    check('End goes to the last item', (await focusedLabel(page)).startsWith('Copy Share Link'));
+    check('End goes to the last item', (await focusedLabel(page)).startsWith('Delete File'));
     await page.keyboard.press('ArrowDown');
     check('Down wraps to the first item', (await focusedLabel(page)).startsWith('Open Folder'));
     await page.keyboard.press('ArrowUp');
-    check('Up wraps to the last item', (await focusedLabel(page)).startsWith('Copy Share Link'));
+    check('Up wraps to the last item', (await focusedLabel(page)).startsWith('Delete File'));
     await page.keyboard.press('n');
     check('type-ahead: n focuses New File', (await focusedLabel(page)).startsWith('New File'));
     await page.keyboard.press('Escape');
@@ -167,12 +167,12 @@ try {
     check('File > New File and Ctrl+Alt+N run the same command (two identical prompts)', prompts.length === 2 && prompts[0] === prompts[1] && prompts[0].startsWith('New file path'), JSON.stringify(prompts));
 
     // --- focus returns to where it was -----------------------------------------------------------------------
-    await page.focus('#share');
+    await page.focus('#restart-app');
     await page.keyboard.press('Alt+h');
     await page.keyboard.press('Escape');
     check('Escape closes onto the bar button first (APG)', (await focusedId(page)) === 'menubar-help');
     await page.keyboard.press('Escape');
-    check('a second Escape on the bar restores the previous focus', (await focusedId(page)) === 'share');
+    check('a second Escape on the bar restores the previous focus', (await focusedId(page)) === 'restart-app');
     check('no uncaught page error', problems.length === 0, problems.join(' | '));
     await context.close();
   }
@@ -227,7 +227,7 @@ try {
     };
 
     // --- Ctrl+Shift+P and F1 ----------------------------------------------------------------------------
-    await page.focus('#share');
+    await page.focus('#restart-app');
     await page.keyboard.press('Control+Shift+P');
     await palette.open();
     const aria = await page.evaluate(() => {
@@ -250,7 +250,7 @@ try {
     const selected = await page.$$eval('#palette-list [role="option"][aria-selected="true"]', (nodes) => nodes.map((node) => node.textContent.trim()));
     check('Down moves aria-activedescendant to the next option', moved !== null && selected.length === 1 && selected[0] === moved, String(moved));
     await page.keyboard.press('Escape');
-    check('Escape closes the palette and restores focus', (await palette.closed()) && (await focusedId(page)) === 'share');
+    check('Escape closes the palette and restores focus', (await palette.closed()) && (await focusedId(page)) === 'restart-app');
     await page.keyboard.press('F1');
     await palette.open();
     check('F1 opens the palette too', true);
@@ -302,21 +302,21 @@ try {
     check('two typed arguments run Custom Size (the chip shows 700x500)', (await page.textContent('#device-chip .chip-text')).includes('700×500'));
 
     // --- Quick Open (Ctrl+P), file at line, Go to Line (Ctrl+G) -------------------------------------------------------------
-    await page.focus('#share');
+    await page.focus('#restart-app');
     await page.keyboard.press('Control+p');
     await palette.open();
     check('Ctrl+P opens Quick Open with the project files', (await palette.options()).includes('ui/Home.tsx') && (await page.inputValue('#palette-input')) === '');
     await page.keyboard.type('sett');
     check('fuzzy search ranks Settings first', (await palette.options())[0] === 'ui/Settings.tsx', (await palette.options()).join(' | '));
     await page.keyboard.press('Enter');
-    await page.waitForFunction(() => document.querySelector('#editor-file')?.dataset.path === 'ui/Settings.tsx');
+    await page.waitForFunction(() => document.querySelector('.editor-tab-select[aria-selected="true"]')?.title === 'ui/Settings.tsx');
     check('Enter opens the file in the editor', true);
-    await page.focus('#share');
+    await page.focus('#restart-app');
     await page.keyboard.press('Control+p');
     await palette.open();
     await page.keyboard.type('Home.tsx:25');
     await page.keyboard.press('Enter');
-    await page.waitForFunction(() => document.querySelector('#editor-file')?.dataset.path === 'ui/Home.tsx');
+    await page.waitForFunction(() => document.querySelector('.editor-tab-select[aria-selected="true"]')?.title === 'ui/Home.tsx');
     await page.waitForTimeout(300);
     const caretLine = await page.evaluate(() => document.querySelector('.cm-activeLine')?.textContent ?? '');
     check('name:line opens the file and puts the caret on that line', caretLine.includes('line 22'), caretLine);

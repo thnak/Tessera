@@ -57,7 +57,6 @@ export interface SceneElements {
   status: HTMLElement;
   nodes: HTMLElement;
   emptyState: HTMLElement;
-  editorHint: HTMLElement;
   script: HTMLTextAreaElement;
   inputStatus: HTMLElement;
   cells: HTMLElement;
@@ -93,7 +92,7 @@ export interface SceneSession extends ViewSession {
 }
 
 export function createSceneSession(options: SceneSessionOptions): SceneSession {
-  const { nodes, emptyState, editorHint, script, cells, runInput } = options.elements;
+  const { nodes, emptyState, script, cells, runInput } = options.elements;
   const setStatus = options.setStatus;
 
   // The module factory, or null when the artifacts are absent or refused to start.
@@ -109,20 +108,6 @@ export function createSceneSession(options: SceneSessionOptions): SceneSession {
 
   function currentDpr(): number {
     return Number(options.environment().dpr);
-  }
-
-  /**
-   * Appends the live viewport to the page's editor hint.
-   *
-   * The hint element is the page's (one shared editor), and the page sets the per-view sentence when the
-   * tab changes. On this view the viewport is a real layout input, so the number in that sentence has to
-   * follow the toolbar -- otherwise the hint would say "the toolbar re-runs the layout" next to a
-   * rectangle it no longer names. Every other view leaves the static sentence alone.
-   */
-  function describeEnvironment(): void {
-    const base = editorHint.textContent?.split(" The viewport is ")[0] ?? "";
-    const viewport = currentViewport();
-    editorHint.textContent = `${base} The viewport is ${viewport.width}x${viewport.height} at DPR ${currentDpr()}.`;
   }
 
   const input = createInputPane({
@@ -208,7 +193,6 @@ export function createSceneSession(options: SceneSessionOptions): SceneSession {
       if (runInput) {
         runInput.disabled = false;
       }
-      describeEnvironment();
       // The view is being opened for the first time with the source already in place: laying it out
       // straight away is what makes the Scene tab show a snapshot rather than an empty pane.
       await run();
@@ -245,7 +229,6 @@ export function createSceneSession(options: SceneSessionOptions): SceneSession {
      * for `run` (Restart) and `onSample` (a different document) to reset.
      */
     apply: () => {
-      describeEnvironment();
       if (factory !== null) {
         void run();
       }
@@ -266,7 +249,6 @@ export function createSceneSession(options: SceneSessionOptions): SceneSession {
     setVisible: () => {},
     /** Re-runs the layout because the toolbar changed: on this view the toggles are real inputs. */
     onEnvironmentChange: () => {
-      describeEnvironment();
       if (factory !== null) {
         void run();
       }
@@ -275,7 +257,6 @@ export function createSceneSession(options: SceneSessionOptions): SceneSession {
     onSample: () => {
       input.reset();
       script.value = "";
-      describeEnvironment();
       if (factory !== null) {
         void run();
       }

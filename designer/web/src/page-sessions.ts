@@ -18,6 +18,7 @@ import type { PageRefs, PageStateSetters } from "./page-state";
 import { setStatusText } from "./page-state";
 import type { SkinSafeArea } from "./views/canvas-session";
 import { createCanvasSession } from "./views/canvas-session";
+import type { Diagnostic } from "./views/diagnostics-render";
 import { createDiagnosticsSession } from "./views/diagnostics-session";
 import { createSceneSession } from "./views/scene-session";
 
@@ -49,6 +50,8 @@ export interface SessionDeps {
    * one question and gets the file to compile and the sheet to compile it against together.
    */
   source: ProjectReader;
+  /** A finished diagnostics run's array, for the Problems store. */
+  onDiagnostics: (diagnostics: readonly Diagnostic[]) => void;
   /** `true` while `id` is the view the preview column is showing (a readiness callback's guard). */
   isCurrent: (id: ViewDefinition["id"]) => boolean;
 }
@@ -63,8 +66,8 @@ export interface Sessions {
 /**
  * Creates the three sessions once, as soon as the chrome has settled and its nodes exist.
  *
- * `settled` gates creation on the fragment/storage decode: a `?view=scene#p5=<390x844>` link must lay the
- * scene out once, at 390x844, rather than first at the default rectangle and then again.
+ * `settled` gates creation on the stored-toolbar read: a stored 390x844 must lay the scene out once, at
+ * 390x844, rather than first at the default rectangle and then again.
  *
  * `present` is the comma-joined list of view panels that are open in the dock (W5, #560). A panel that is
  * closed has no nodes, so its session is disposed (Canvas releases its GPU device); opening it again renders
@@ -104,10 +107,10 @@ export function useSessions(deps: SessionDeps, settled: boolean, present: string
           list: pane.diagList.current,
           emptyState: pane.diagEmpty.current,
           editor: source,
-          statusCount: pane.statusDiagnostics.current,
         },
         source: deps.source,
         setStatus: (text, kind) => setStatusText(status, text, kind ?? null),
+        onDiagnostics: (diagnostics) => latest.current.onDiagnostics(diagnostics),
         onReady: (ready) => {
           if (deps.isCurrent("diagnostics")) {
             deps.setters.setRunEnabled(ready);
@@ -121,7 +124,6 @@ export function useSessions(deps: SessionDeps, settled: boolean, present: string
       pane.sceneStatus.current &&
       pane.nodes.current &&
       pane.sceneEmpty.current &&
-      pane.editorHint.current &&
       pane.script.current &&
       pane.inputStatus.current &&
       pane.cells.current
@@ -133,7 +135,6 @@ export function useSessions(deps: SessionDeps, settled: boolean, present: string
           status,
           nodes: pane.nodes.current,
           emptyState: pane.sceneEmpty.current,
-          editorHint: pane.editorHint.current,
           script: pane.script.current,
           inputStatus,
           cells: pane.cells.current,

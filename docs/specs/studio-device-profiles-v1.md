@@ -175,10 +175,10 @@ item 1).
 validated by `designer/web/src/lib/device-profile.ts` (`TESSERA_STUDIO_PROFILE` on a bad file; one bad profile is
 disabled, the rest still load). The Device select applies a profile's size, DPR, skin and fold and restarts the app
 (`page-profiles.ts`); "Keep state on device change" applies it in place only between profiles of the same `os`. A
-custom size is a width and a height within `CUSTOM_SIZE_RANGE`. The share link carries the profile under envelope
-key `n` (`""` or absent is the custom size); a named profile or `custom` widens the size and DPR the link may
-carry to what the profile allows (`PROFILE_GEOMETRY` in `preview-state.js`), and every other stray size is still
-refused. Evidence: `scripts/ci/preview_profiles.mjs` and the extended `preview_share_roundtrip.mjs`.
+custom size is a width and a height within `CUSTOM_SIZE_RANGE`. The chosen profile is remembered with the toolbar under
+`tessera.preview.p5` (`""` is the custom size); `PROFILE_GEOMETRY` in `preview-state.js` holds the size and DPR each
+profile applies. (There is no share link any more, so nothing else carries a profile.) Evidence:
+`scripts/ci/preview_profiles.mjs`.
 
 **E4 is implemented (issue #448):** the hardware strip (`regions/DeviceControls.tsx`) shows only the controls the
 profile lists, the app-state overlay shows a closed or backgrounded app, and the dock's Platform events panel

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-// Type declarations for the workbench-core modules. The modules stay `.js` on purpose, like `share.js` and
+// Type declarations for the workbench-core modules. The modules stay `.js` on purpose, like
 // `preview-state.js`: they are pure ES modules that `scripts/ci/preview_workbench*.mjs` imports directly under
 // Node, so the gates test the shipped source with no build.
 
@@ -124,7 +124,7 @@ export interface Registry {
   handlerIds(): string[];
   register(id: string, handler: CommandHandler): () => void;
   integrity(): string[];
-  describe(id: string, args?: CommandArgs | null): CommandState | null;
+  describe(id: string, args?: CommandArgs | null, overrides?: ContextRecord): CommandState | null;
   forSurface(surface: string): CommandRecord[];
   run(id: string, args?: CommandArgs): Promise<RunResult>;
   keymap(): Keymap;

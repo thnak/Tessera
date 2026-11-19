@@ -170,10 +170,9 @@ React panes over three lazy Wasm modules, and the file tree, editor widget and s
 follow-ups this spec sequences. It is one TypeScript module per responsibility, not "one ES module per
 hand-written file": the conversion replaced the vanilla-JS module split with components plus
 DOM-free library modules plus view sessions, which is what keeps each file inside the source-size
-limit. Two modules stay plain JavaScript on purpose -- `share.js` and `preview-state.js`, the share
-codec and its vocabulary -- because `scripts/ci/preview_share_roundtrip.mjs` imports them directly
-from source and must keep testing the same bytes the page ships (ADR-054, Consequences). They have no
-DOM and no React; `.d.ts` files type them for the React side.
+limit. One module stays plain JavaScript on purpose -- `preview-state.js`, the toolbar's vocabulary --
+because the Node gates import it directly from source and must keep testing the same bytes the page ships
+(ADR-054, Consequences). It has no DOM and no React; a `.d.ts` file types it for the React side.
 
 ## 4. Host and viewer in one page
 
@@ -331,8 +330,7 @@ Evidence: ctest `fold_posture` (the posture to `FoldInfo` mapping and the rotati
 `scene_fold` (the preview's insets against a real `AppHost` on the same metrics, and one-pass
 posture changes), `scene_viewport` (a resize re-resolving `@media` in place and the generation
 counter), `mcp_preview_tools` (MCP snapshots byte-identical to the driver);
-`scripts/ci/preview_studio_smoke.mjs` and `scripts/ci/preview_share_roundtrip.mjs` for the control
-and the link that carries it.
+`scripts/ci/preview_studio_smoke.mjs` for the control and its persistence.
 
 ## 7. Project load, edit and save
 
@@ -374,57 +372,20 @@ and the link that carries it.
 - **Samples** live in `samples/`; the studio loads them read-only and offers "Copy to workspace" so a
   visitor cannot edit the bundled copy.
 
-### 7.1 Share links (P5, issue #169)
+### 7.1 Environment, samples and no share links (P5, issue #169)
 
-A preview's state travels in the **URL fragment**, so a link works with no server (ADR-045 decision 1)
-and nothing is uploaded. The implementing module is `designer/web/share.js`; this section is the
-normative format.
+**There is no share link.** The studio once encoded the source and the toolbar into a `#p5=` URL fragment
+(a codec in `share.js`, a toolbar Share button, `file.share`). Owner decision (studio focus pass): the studio
+has no cloud storage to share to, so the feature was **removed entirely**: the button, the command, the codec
+and its round-trip gate, the broken-link banner and the fragment decode at startup. A leftover `#p5=` fragment
+is neither read nor reported. The redirect stubs for the pre-merge `scene.html` and `canvas.html` still carry
+the query and the fragment verbatim (section 4 of [`studio-page`](../design/studio-page.md)); the page
+ignores them. The command id `file.share` is retired (`status: "removed"`, `replacedBy: null`) and stays in
+`command-ids.json` so the id is never reused.
 
-**Shape.** `#p5=<payload>`, where `<payload>` is one mode character followed by base64url data:
-
-| Mode | Meaning |
-|---|---|
-| `z` | deflate-raw compressed, the default |
-| `g` | gzip compressed, the fallback for a browser with gzip but not deflate-raw |
-| `u` | uncompressed base64url, the fallback for a browser with no compression stream |
-
-Compression uses the browser's own `CompressionStream`/`DecompressionStream`; there is **no
-compression library**, which is what keeps the codec dependency-free and lets the same bytes run under
-Node in the test. The page around it is a React application built by Vite
-([ADR-054](../../decisions/ADR-054-studio-front-end-react-vite.md)).
-
-**Envelope.** The decoded bytes are UTF-8 JSON. Keys are one character because the fragment is the
-artifact a person pastes.
-
-```json
-{"v":1,"s":"<source>","w":320,"h":240,"d":1,"t":"system","f":"ui/Counter.tsx"}
-```
-
-| Key | Required | Meaning |
-|---|---|---|
-| `v` | yes | Format version, exactly `1`. An unknown value is **refused**, never guessed |
-| `s` | yes | The source text, verbatim. It is the single source of truth: never a sample id, never a diff |
-| `w`, `h` | yes | Viewport in logical pixels, one of the toolbar's presets |
-| `d` | yes | Device pixel ratio, one of `1`, `2`, `3` |
-| `t` | yes | Theme: `system`, `light` or `dark` |
-| `f` | no | Source file name; omitted when it is `ui/Preview.tsx`, so the common case pays no bytes |
-
-**Caps and failure mode.** A payload over **8192 characters** is refused in both directions with
-`ShareError("too-large")` naming the actual size and the limit. It is **never truncated**: a truncated
-link would silently load different source than the one that was shared, the one failure a share
-feature must not have. 8 KiB is a pasteability limit, not a browser one; a project too large for it is
-what the zip export (7.3 item 6) is for. The decompressed side is capped at 1 MiB + 4 KiB and the cap
-is enforced **while reading**, so a small hostile fragment cannot expand into a large allocation.
-
-**Precedence.** A fragment wins over the locally remembered toolbar position, which wins over the
-page's default. Local preferences store only the environment (`viewport`, `dpr`, `theme`, `file`) under
-`tessera.preview.p5`, never the source, so reopening the page is not a surprise. A fragment that fails
-to decode shows a banner naming the `ShareError` code and loads the page's own sample; it is never
-silently ignored.
-
-**Not in the fragment.** Assets, fonts, multi-file projects, and the C++ developer class
-([ADR-040](../../decisions/ADR-040-generated-base-and-developer-class.md)). A link is one source file
-plus its environment; the studio's project IO (D-S4) is the path for everything else.
+**Precedence.** The locally remembered toolbar position (`viewport`, `dpr`, `theme`, `file`, `foldPosture`,
+`skin`, `profile`, under `tessera.preview.p5`, never the source) wins over the page's default. The URL carries
+no state; `?view=` still names the opening preview panel.
 
 **Gallery.** The sample gallery reads `designer/web/samples.json`, **generated** from `samples/**/*.tsx`
 by `scripts/ci/gen_sample_manifest.py` and committed so a deploy runs no generator step (the page itself
@@ -440,7 +401,7 @@ there.
 pins them; P5 adds `tessera_scene_json_sized(source, file, component, width, height, dpr)` for the
 same document at an explicit rectangle. A non-positive value falls back to the default rather than
 laying out a degenerate tree. **Theme is carried but not applied**: the null-RHI snapshot has no theme
-asset, so the toggle is honest about being a share-link field, not a style input, until the theme
+asset, so the toggle is honest about being a stored preference, not a style input, until the theme
 asset is in that module.
 
 ### 7.2 Mock services (ADR-055)
