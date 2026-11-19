@@ -7,6 +7,7 @@
 #include "lcd_text_sink.hpp"
 #include "paint_properties.hpp"
 #include "paint_text.hpp"
+#include "paint_text_rules.hpp"
 #include "paint_text_runs.hpp"
 #include "tessera/ui/text/font_metrics.hpp"
 #include "tessera/ui/text/text_layout.hpp"
@@ -349,10 +350,22 @@ void paint_text_lines(const Node& node, const style::ComputedStyle& style, const
             content_height = std::max(0.0f, content_height - offset);
         }
     }
+    // `vertical-align` is a paint-time baseline shift (docs/design/text-decoration.md): the line
+    // box, the node's size and every layout cache stay as `baseline` produces them, and the text
+    // and its rules move together.
+    content_y -= text_style.baseline_shift;
+    const TextRuleStyle rules = resolve_text_rules(style, text_style, color, opacity);
+    const auto paint_rules = [&](const text::TextLine& line, float left, float available,
+                                 float line_top) {
+        if (rules.lines != 0) {
+            emit_text_rules(rules, metrics_source->metrics(text_style), text_style.font_size, left,
+                            left + std::min(line.width, available), line_top + line.baseline, sink);
+        }
+    };
     if (!data->spans.empty() && !data->decoration) {
         // Inline spans: one measured paragraph, per-span painted runs (issue #229).
         paint_spanned_text(node, text_style, {content_x, content_y, content_width, content_height},
-                           color, opacity, wrap,
+                           color, rules, opacity, wrap,
                            data->text_align.value_or(computed_text_align(style)), data->max_lines,
                            context, sink, stats);
         return;
@@ -406,6 +419,7 @@ void paint_text_lines(const Node& node, const style::ComputedStyle& style, const
         if (!identity) {
             emit_line_runs(line, data->text, text_style, *metrics_source, line_x, content_y,
                            available_width, color, sink, stats);
+            paint_rules(line, line_x, available_width, content_y);
             return;
         }
         TextDraw run;
@@ -436,6 +450,7 @@ void paint_text_lines(const Node& node, const style::ComputedStyle& style, const
         run.color = color;
         sink.draw_text(run);
         ++stats.texts;
+        paint_rules(line, line_x, available_width, content_y);
         return;
     }
 
@@ -471,6 +486,7 @@ void paint_text_lines(const Node& node, const style::ComputedStyle& style, const
         line_x = std::max(content_x, line_x);
         emit_line_runs(line, data->text, text_style, *metrics_source, line_x, line_top,
                        std::max(0.0f, content_x + content_width - line_x), color, sink, stats);
+        paint_rules(line, line_x, std::max(0.0f, content_x + content_width - line_x), line_top);
         line_top += line.height;
     }
 }

@@ -2627,6 +2627,30 @@
     },
     {
       "kind": "keyword",
+      "name": "text-decoration-line",
+      "note": "none or a set of underline, overline, line-through"
+    },
+    {
+      "kind": "keyword",
+      "name": "text-decoration-style",
+      "note": "solid only"
+    },
+    {
+      "kind": "color",
+      "name": "text-decoration-color"
+    },
+    {
+      "kind": "length",
+      "name": "text-decoration-thickness",
+      "note": "auto, from-font or a length"
+    },
+    {
+      "kind": "length",
+      "name": "vertical-align",
+      "note": "baseline, sub, super or a length"
+    },
+    {
+      "kind": "keyword",
       "name": "white-space"
     },
     {

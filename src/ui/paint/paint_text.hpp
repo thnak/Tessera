@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "paint_text_rules.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
 
 namespace tessera::ui::paint::detail {
@@ -21,10 +22,12 @@ void paint_text_lines(const Node& node, const style::ComputedStyle& style, const
 // weight/italic/colour. Also stores each span's run rectangle on its child node (in the parent's
 // border-box space) so the generic hit test resolves a point to the span; the parent's box is the
 // only layout box. `content` is the content box in absolute paint coordinates, `align` the resolved
-// text-align, and `max_lines` truncates whole lines (0 = unlimited).
+// text-align, `rules` the parent's decoration (unattributed bytes), and `max_lines` truncates whole
+// lines (0 = unlimited).
 void paint_spanned_text(const Node& node, const text::TextStyle& text_style,
-                        const rhi::Rect& content, const rhi::Color& color, float opacity, bool wrap,
-                        PaintTextAlign align, std::uint32_t max_lines, const PaintContext& context,
-                        PaintSink& sink, PaintStats& stats);
+                        const rhi::Rect& content, const rhi::Color& color,
+                        const TextRuleStyle& rules, float opacity, bool wrap, PaintTextAlign align,
+                        std::uint32_t max_lines, const PaintContext& context, PaintSink& sink,
+                        PaintStats& stats);
 
 } // namespace tessera::ui::paint::detail

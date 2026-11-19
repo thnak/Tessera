@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 
+#include "property_text_decoration.hpp"
 #include "tessera/ui/style/backdrop_filter.hpp"
+#include "tessera/ui/style/color.hpp"
 #include "tessera/ui/style/cursor_value.hpp"
 #include "tessera/ui/style/grid_values.hpp"
 #include "tessera/ui/style/interaction_values.hpp"
 #include "tessera/ui/style/selector.hpp"
 #include "tessera/ui/style/supports.hpp"
+#include "tessera/ui/style/text_decoration.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -107,6 +110,26 @@ bool value_supported(std::string_view property, std::string_view value) {
     }
     if (property == "text-transform") {
         return keyword_in(normalized, {"none", "capitalize", "uppercase", "lowercase"});
+    }
+    if (property == "text-decoration") {
+        return !expand_text_decoration_shorthand(
+                    Declaration{"text-decoration", normalized, false, 0})
+                    .declarations.empty();
+    }
+    if (property == "text-decoration-line") {
+        return parse_text_decoration_line(normalized).has_value();
+    }
+    if (property == "text-decoration-style") {
+        return is_supported_text_decoration_style(normalized);
+    }
+    if (property == "text-decoration-color") {
+        return normalized == "currentcolor" || parse_color(normalized).ok;
+    }
+    if (property == "text-decoration-thickness") {
+        return is_supported_text_decoration_thickness(normalized);
+    }
+    if (property == "vertical-align") {
+        return is_supported_vertical_align(normalized);
     }
     if (property == "text-overflow") {
         // One value only: the two-value `<overflow> <side>` form is not implemented (the registry

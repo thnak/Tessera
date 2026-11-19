@@ -133,6 +133,12 @@ longhand text-align typography
 longhand text-transform typography
 longhand white-space typography
 longhand text-overflow typography
+longhand text-decoration-line typography
+longhand text-decoration-style typography
+longhand text-decoration-color typography
+longhand text-decoration-thickness typography
+longhand vertical-align typography
+shorthand text-decoration typography
 
 # Transforms: the 2D matrix and its origin.
 longhand transform transforms

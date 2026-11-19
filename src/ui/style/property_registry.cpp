@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "property_background.hpp"
+#include "property_text_decoration.hpp"
 #include "tessera/ui/style/backdrop_filter.hpp"
 #include "tessera/ui/style/interaction_values.hpp"
 #include "tessera/ui/style/property_registry.hpp"
@@ -79,6 +80,13 @@ constexpr PropertyDef kProperties[] = {
     // Not inherited (CSS): the box that paints the line owns truncation (docs/design/text.md 6.3).
     {"text-overflow", "clip", false},
     {"white-space", "normal", true},
+    // Decorations propagate to descendants in CSS; the engine models that as inheritance
+    // (docs/design/text-decoration.md section 3). `vertical-align` is not inherited.
+    {"text-decoration-line", "none", true},
+    {"text-decoration-style", "solid", true},
+    {"text-decoration-color", "currentColor", true},
+    {"text-decoration-thickness", "auto", true},
+    {"vertical-align", "baseline", false},
     {"visibility", "visible", true},
     {"cursor", "auto", true},
     // Interaction (issue #247): inherited; the scene reads both through sync_interaction_style.
@@ -245,6 +253,10 @@ PropertyRegistry::PropertyRegistry() {
     shorthands_["place-self"] = ShorthandInfo{{"align-self", "justify-self"}, ShorthandKind::Pair};
     shorthands_["place-content"] =
         ShorthandInfo{{"align-content", "justify-content"}, ShorthandKind::Pair};
+    shorthands_["text-decoration"] =
+        ShorthandInfo{{"text-decoration-line", "text-decoration-style", "text-decoration-color",
+                       "text-decoration-thickness"},
+                      ShorthandKind::Pair};
     shorthands_["flex"] =
         ShorthandInfo{{"flex-grow", "flex-shrink", "flex-basis"}, ShorthandKind::Flex};
     register_logical_properties();
@@ -336,6 +348,9 @@ PropertyExpansionResult PropertyRegistry::expand(const Declaration& declaration)
     }
     if (property == "background") {
         return expand_background_shorthand(declaration);
+    }
+    if (property == "text-decoration") {
+        return expand_text_decoration_shorthand(declaration);
     }
     if (find(property) != nullptr) {
         Declaration normalized = make_declaration(declaration, property, declaration.value);

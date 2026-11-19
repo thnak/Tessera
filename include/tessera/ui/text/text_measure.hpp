@@ -5,6 +5,7 @@
 #include "tessera/ui/style/cascade.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <limits>
 #include <memory>
 #include <string>
@@ -97,6 +98,14 @@ struct TextStyle {
     TextTransform text_transform = TextTransform::None;
     // Paint-only: the measure cache key deliberately omits it, because it changes no glyph advance.
     TextOverflow text_overflow = TextOverflow::Clip;
+    // Paint-only, like `text_overflow` (docs/design/text-decoration.md): neither changes a glyph
+    // advance, a line box or a baseline, so none is part of a measure or layout cache key.
+    //   * decoration_lines: `style::kDecoration*` bits of `text-decoration-line` (0 = none).
+    //   * decoration_thickness: px from `text-decoration-thickness`, 0 = derive from the font size.
+    //   * baseline_shift: px from `vertical-align`, positive raises the painted run.
+    std::uint8_t decoration_lines = 0;
+    float decoration_thickness = 0.0f;
+    float baseline_shift = 0.0f;
 };
 
 struct TextConstraints {

@@ -205,7 +205,7 @@ algorithm, layer remapping and the `AppHost` registration API are specified in
 
 - Inherited by default: `color`, `font-*`, `line-height`, `letter-spacing`, `word-spacing`,
   `text-align`, `text-transform`, `white-space`, `visibility`, `cursor`, `direction`,
-  `writing-mode`.
+  `writing-mode`, `text-decoration-*` (propagation modeled as inheritance).
 - Non-inherited properties reset to their initial value unless matched.
 - `inherit`, `initial`, `unset`, `revert`, `revert-layer` are parsed; `revert*` is a V1.1
   semantic (treated as `unset` with a diagnostic).
@@ -361,7 +361,7 @@ Legend: **V1** = implemented semantics; **Parse** = parsed/preserved, no semanti
 | Positioning | `static`, `relative`, `absolute`, `fixed`, `sticky` | anchor positioning |
 | Paint | `background-color`, `border-radius`, `border-color/width/style`, `box-shadow`, `opacity`, `color`, `background-image: linear-gradient()` and the `background` shorthand, `backdrop-filter` (`blur`, `saturate`, `brightness`, `contrast`; [`glass-v1.md`](glass-v1.md)) | radial/conic/repeating gradients, `url()` images, `filter`, general `clip-path`, lens/refraction |
 | View transitions | `::view-transition-*(root)`, `circle()/inset()/ellipse()` `clip-path` on those pseudos only, `--vt-*` | other names, filters/masks; see [`view-transitions-v1.md`](view-transitions-v1.md) |
-| Typography | `font-family/size/weight/style`, `line-height`, `letter-spacing`, `word-spacing` (additive per painted ASCII space U+0020 on both measure paths; [`text.md`](../design/text.md) section 6.4), `text-align`, `text-transform` (`none`, `uppercase`, `lowercase`, `capitalize`; ASCII 1:1 mapping in [`text.md`](../design/text.md) section 6.5), `white-space` (`normal`, `nowrap`, `pre`, `pre-wrap`, `break-spaces`; mode semantics in [`text.md`](../design/text.md) section 6.1), `text-overflow` (`clip`, `ellipsis`; one value only, paint-side truncation in [`text.md`](../design/text.md) section 6.3) | full OpenType features, justification |
+| Typography | `font-family/size/weight/style`, `line-height`, `letter-spacing`, `word-spacing` (additive per painted ASCII space U+0020 on both measure paths; [`text.md`](../design/text.md) section 6.4), `text-align`, `text-transform` (`none`, `uppercase`, `lowercase`, `capitalize`; ASCII 1:1 mapping in [`text.md`](../design/text.md) section 6.5), `white-space` (`normal`, `nowrap`, `pre`, `pre-wrap`, `break-spaces`; mode semantics in [`text.md`](../design/text.md) section 6.1), `text-decoration` and its longhands, `vertical-align` (`baseline`, `sub`, `super`, length; [`text-decoration.md`](../design/text-decoration.md)), `text-overflow` (`clip`, `ellipsis`; one value only, paint-side truncation in [`text.md`](../design/text.md) section 6.3) | full OpenType features, justification |
 | Transforms | `transform` functions `translate`, `scale`, `rotate`, `skew`, `matrix` (2D affine) and `transform-origin` | the individual `translate`/`rotate`/`scale` properties, 3D, perspective |
 | Transitions | property/duration/timing/delay, fixed-step sampling | spring physics |
 | Animations | `@keyframes`, iteration, direction, fill-mode | scroll-driven |
