@@ -2,7 +2,9 @@
 
 // Inline spans (issue #229, elements-basic.md section 2.1): a Text may contain Text children that
 // become attributed runs, the emphasis aliases map to spans with injected default styles, and the
-// V1 limits are reported as first errors.
+// V1 limits are reported as first errors. Issue #592 (ADR-039): a lowercase alias is resolved
+// wherever it is written, so the same table also maps a tag written outside a `Text`, and a tag
+// with no mapping keeps TESSERA_JSX_SUBSET_HTML_TAG from the lowering lookup.
 
 #include "lowering_nodes_test_util.hpp"
 
@@ -176,12 +178,102 @@ void test_rejections() {
         check(!result && first_code(result) == "TESSERA_JSX_SPAN_LIMIT",
               "more than 256 span text bytes is rejected");
     }
-    {
-        // Alias resolution outside a span is still slice 13; the diagnostic is unchanged.
-        const auto fixture = parse(component("", "<b>x</b>", "props: P"));
+}
+
+// Issue #592 (ADR-039): a lowercase alias is not limited to a `Text` child. Outside a span it is
+// the plain intrinsic, and the emphasis defaults of html-aliases.md section 2 still apply.
+void test_alias_outside_span() {
+    const auto fixture = parse(component("", "<b>x</b>", "props: P"));
+    const auto result = lower(*fixture);
+    check(result.has_value(),
+          "an alias outside a Text span lowers: " + describe_errors(*fixture, result));
+    if (!result) {
+        return;
+    }
+    const ir::Node& root = result->component.root;
+    check_eq(std::string(node_kind(root)), "Text", "b outside a span is a Text element");
+    check(root.style.count("font-weight") == 1, "the b default font-weight still applies");
+    check_eq(expr_text(root.text.get()), "{\"kind\":\"literal\",\"value\":\"x\"}",
+             "its text is the run");
+}
+
+// Issue #592: the parser accepts every lowercase tag, so TESSERA_JSX_SUBSET_HTML_TAG now comes from
+// the lowering alias lookup (schema_bridge.cpp): a tag in neither the element nor the alias table
+// gets the generic alternative, a section-5 row gets its own Alternative text.
+void test_unmapped_tag_diagnostic() {
+    const auto unknown = parse(component("", "<foo/>", "props: P"));
+    const auto unknown_result = lower(*unknown);
+    check(!unknown_result.has_value(), "a tag with no mapping is refused at lowering");
+    if (unknown_result || unknown_result.error().empty()) {
+        return;
+    }
+    const jsx::Diagnostic& unmapped = unknown_result.error().front();
+    check_eq(std::string(unmapped.code), "TESSERA_JSX_SUBSET_HTML_TAG", "the unknown-tag code");
+    check_eq(unmapped.message, "HTML tag `<foo>` is not supported", "the unknown-tag message");
+    check_eq(unmapped.suggestion, "use an intrinsic such as `<View>` or `<Text>`",
+             "the generic alternative");
+    check_eq(std::string(unknown->map.slice(unmapped.span.span)), "foo", "the tag-name span");
+
+    const auto section_five = parse(component("", "<iframe/>", "props: P"));
+    const auto section_result = lower(*section_five);
+    check(!section_result.has_value(), "a section-5 tag keeps its refusal");
+    if (section_result || section_result.error().empty()) {
+        return;
+    }
+    const jsx::Diagnostic& unsupported = section_result.error().front();
+    check_eq(std::string(unsupported.code), "TESSERA_JSX_SUBSET_HTML_TAG", "the section-5 code");
+    check_eq(unsupported.suggestion, "`CustomElement`", "the row's Alternative is the suggestion");
+    check_eq(std::string(section_five->map.slice(unsupported.span.span)), "iframe", "the span");
+}
+
+// Issue #592 acceptance: every mapped tag of html-aliases.md section 2 compiles to its carrier, the
+// AST keeps the tag as written (rule 7), and the IR keeps its closed node kinds (ADR-039, ADR-059).
+struct AliasCase {
+    const char* tag;     // as written in the source
+    const char* source;  // the returned element
+    const char* carrier; // the closed IR kind
+    const char* role;    // injected role, empty when the row injects none
+};
+
+constexpr AliasCase kAliasCases[] = {
+    {"div", "<div>hi</div>", "View", ""},
+    {"span", "<span>hi</span>", "Text", ""},
+    {"p", "<p>hi</p>", "Text", ""},
+    {"h1", "<h1>hi</h1>", "Text", "heading"},
+    {"h2", "<h2>hi</h2>", "Text", "heading"},
+    {"h3", "<h3>hi</h3>", "Text", "heading"},
+    {"section", "<section><div/></section>", "View", ""},
+    {"main", "<main/>", "View", ""},
+    {"label", "<label>hi</label>", "Text", ""},
+    {"button", "<button>Go</button>", "Button", ""},
+    {"img", "<img src=\"a.png\" alt=\"x\"/>", "Image", ""},
+    {"input", "<input/>", "TextInput", ""},
+    {"textarea", "<textarea/>", "TextArea", ""},
+};
+
+void test_alias_tag_conformance() {
+    for (const AliasCase& test : kAliasCases) {
+        const std::string where = std::string("`<") + test.tag + ">`: ";
+        const auto fixture = parse(component("", test.source, "props: P"));
         const auto result = lower(*fixture);
-        check(!result && first_code(result) == "TESSERA_IR_UNSUPPORTED",
-              "an alias outside a Text span is still refused");
+        check(result.has_value(), where + "lowers: " + describe_errors(*fixture, result));
+        if (!result) {
+            continue;
+        }
+        const ir::Node& root = result->component.root;
+        check_eq(std::string(node_kind(root)), test.carrier, where + "carrier");
+        const rules::ComponentAnalysis* analysis = analysis_of(*fixture);
+        check(analysis != nullptr && analysis->item != nullptr &&
+                  analysis->item->returned != nullptr && analysis->item->returned->tag == test.tag,
+              where + "the AST keeps the tag as written");
+        if (test.role[0] == '\0') {
+            check(root.props.count("role") == 0, where + "no role is injected");
+        } else {
+            check(root.props.count("role") == 1 &&
+                      expr_text(root.props.at("role").get()) ==
+                          "{\"kind\":\"literal\",\"value\":\"" + std::string(test.role) + "\"}",
+                  where + "the row's role is injected");
+        }
     }
 }
 
@@ -193,5 +285,8 @@ int main() {
     test_explicit_style_wins();
     test_intrinsic_text_span();
     test_rejections();
+    test_alias_outside_span();
+    test_unmapped_tag_diagnostic();
+    test_alias_tag_conformance();
     return finish("lowering_inline_span");
 }

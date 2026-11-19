@@ -17,8 +17,8 @@ namespace tessera::compiler::jsx {
 
 // Result of one parse. `root` is null after a syntax error that makes the structure unknowable
 // (unclosed element, unexpected token, a limit). It can be present together with error
-// diagnostics when the structure was clear and only the subset was violated (a lowercase tag,
-// `==`, an unknown entity): the parser keeps going so all independent errors are reported
+// diagnostics when the structure was clear and only the subset was violated (`==`, an unknown
+// entity): the parser keeps going so all independent errors are reported
 // (spec section 13.3), but the tree must not be lowered while has_errors() is true.
 template<typename Node> struct ParseResult {
     std::unique_ptr<Node> root;

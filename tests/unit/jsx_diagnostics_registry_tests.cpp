@@ -298,10 +298,12 @@ void test_excerpt_cap() {
              "excerpt caps at 32 bytes and marks the cut");
     const std::string split = std::string(31, 'a') + "\xC3\xA9"; // the last code point is 2 bytes
     check_eq(excerpt(split), std::string(31, 'a') + "...", "excerpt never splits a code point");
-    const std::string name(40, 'q');
+    // Issue #592: a lowercase tag is no longer a parse-time rejection, so the quoted-name check
+    // uses the tag rejection the parser still owns: a member tag.
+    const std::string name = std::string(40, 'q') + ".x";
     const auto result = parse_jsx_element("<" + name + "/>");
-    check_eq(std::string(first_diag(result).code), "TESSERA_JSX_SUBSET_HTML_TAG",
-             "a long tag name still reports the tag code");
+    check_eq(std::string(first_diag(result).code), "TESSERA_JSX_SUBSET_DYNAMIC_TAG",
+             "a long tag name still reports a tag code");
     const std::string message = first_diag(result).message;
     check(message.find(std::string(32, 'q') + "...") != std::string::npos,
           "the message quotes the capped excerpt");

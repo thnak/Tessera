@@ -6,34 +6,6 @@
 #include "parser_internal.hpp"
 
 namespace tessera::compiler::jsx {
-namespace {
-
-std::string suggest_intrinsic(const std::string& tag) {
-    struct Alias {
-        std::string_view html;
-        std::string_view intrinsic;
-    };
-    static constexpr Alias kAliases[] = {
-        {"div", "View"},          {"section", "View"}, {"main", "View"},
-        {"span", "Text"},         {"p", "Text"},       {"label", "Text"},
-        {"h1", "Text"},           {"h2", "Text"},      {"h3", "Text"},
-        {"button", "Button"},     {"img", "Image"},    {"input", "TextInput"},
-        {"textarea", "TextArea"}, {"path", "Path"},
-    };
-    for (const auto& alias : kAliases) {
-        if (tag == alias.html) {
-            return "use `<" + std::string(alias.intrinsic) + ">`";
-        }
-    }
-    std::string capitalized = tag;
-    // ASCII only: std::toupper would make the output depend on the process locale.
-    if (capitalized[0] >= 'a' && capitalized[0] <= 'z') {
-        capitalized[0] = static_cast<char>(capitalized[0] - 'a' + 'A');
-    }
-    return "tags start with an uppercase letter, for example `<" + capitalized + ">`";
-}
-
-} // namespace
 
 ExprPtr Parser::parse_jsx_expression() {
     const std::uint32_t begin = cur_.span.offset;
@@ -101,21 +73,14 @@ bool Parser::parse_tag_name(std::string& name, Span& span) {
     return true;
 }
 
-// Issue #229: the inline-span aliases are accepted spellings of `Text` children (html-aliases.md
-// section 2); lowering resolves them. Every other lowercase tag keeps the HTML-tag diagnostic.
-bool is_inline_span_alias(std::string_view name) {
-    return name == "span" || name == "b" || name == "strong" || name == "i" || name == "em" ||
-           name == "code" || name == "a";
-}
-
+// Issue #229, ADR-039 and ADR-059: a lowercase tag is a spelling of an intrinsic, resolved in
+// analysis against the shared alias table (html-aliases.md). The parser therefore accepts every
+// lowercase tag; only the member and namespace forms are still parse-time rejections.
 void Parser::check_tag_name(const std::string& name, Span span) {
     if (name.find_first_of(".:") != std::string::npos) {
         report("TESSERA_JSX_SUBSET_DYNAMIC_TAG",
                "member and namespace tags (`<" + excerpt(name) + ">`) are not supported", span,
                "use a fixed tag");
-    } else if (name[0] >= 'a' && name[0] <= 'z' && !is_inline_span_alias(name)) {
-        report("TESSERA_JSX_SUBSET_HTML_TAG", "HTML tag `<" + excerpt(name) + ">` is not supported",
-               span, suggest_intrinsic(excerpt(name)));
     }
 }
 

@@ -127,6 +127,11 @@ void test_wide_inputs_are_accepted() {
           "10k attributes are kept");
 
     check(parse_jsx_element("<A>" + repeat("x", 4096) + "</A>").ok(), "4 KiB text node");
+    // ADR-039 / issue #592: a lowercase tag is an alias spelling, not a rejection, so a 512 KiB
+    // lowercase tag name is an ordinary bounded parse (the HTML-tag diagnostic comes from
+    // lowering).
+    check(parse_jsx_element("<" + repeat("a", 512 * 1024) + "/>").ok(),
+          "a 512 KiB lowercase tag name parses without a diagnostic");
     check(parse_expression("[" + repeat("1,", 9999) + "1]").ok(), "10k array elements");
     check(parse_expression("f(" + repeat("1,", 9999) + "1)").ok(), "10k call arguments");
     check(parse_expression("{" + repeat("a:1,", 9999) + "a:1}").ok(), "10k object properties");
@@ -313,8 +318,6 @@ int main() {
          "TESSERA_JSX_LEX_INVALID_ESCAPE", true},
         {"number literal flood", Entry::kExpression, "1" + repeat("a", kFlood),
          "TESSERA_JSX_LEX_INVALID_NUMBER", true},
-        {"lowercase tag flood", Entry::kJsx, "<" + repeat("a", kFlood) + "/>",
-         "TESSERA_JSX_SUBSET_HTML_TAG", true},
         {"unclosed tag flood", Entry::kJsx, "<" + repeat("A", kFlood),
          "TESSERA_JSX_PARSE_UNCLOSED_ELEMENT", false},
         {"member tag flood", Entry::kJsx, "<" + repeat("A.", 40000) + "A/>",

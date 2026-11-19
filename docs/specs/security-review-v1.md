@@ -133,12 +133,13 @@ Probe (`probe_style.exe`, throwaway, linked against the workspace's `tessera_sty
 
 Reproduced through the shipped CLI, not just the harness. A `page.tsx` containing
 `import "./evil.css";` against an `evil.css` of nested `:not(` gave the same `0xC00000FD` after 2.9 s.
-The fixture must use a **supported primitive**: an HTML tag such as `<div>` is refused at
-`TESSERA_JSX_SUBSET_HTML_TAG` *before* the stylesheet is prepared, so the crash is reachable only from
-a project that is otherwise **valid** — which makes it worse, not better, because "write valid TSX"
-does not avoid it. `security.md` section 3.1's "never a crash, a hang or a stack overflow" is scoped
-to the JSX front end, so this contradicts its intent rather than its letter; the stylesheet engine has
-no equivalent invariant and no hostile-input corpus like `tests/unit/compiler_limits_tests.cpp`.
+Nothing in the TSX has to be unusual for that: the page only imports the sheet, and since issue #592
+an HTML tag such as `<div>` is accepted ([ADR-039](../../decisions/ADR-039-lowercase-html-tags-accepted.md)),
+so the crash is reachable from a project that is otherwise **valid** — which makes it worse, not
+better, because "write valid TSX" does not avoid it. `security.md` section 3.1's "never a crash, a
+hang or a stack overflow" is scoped to the JSX front end, so this contradicts its intent rather than
+its letter; the stylesheet engine has no equivalent invariant and no hostile-input corpus like
+`tests/unit/compiler_limits_tests.cpp`.
 
 The blob **reader** does have a budget — `kMaxSelectorDepth = 16`
 (`src/ui/style/blob_io.hpp:19`, enforced at `stylesheet_blob_read.cpp:84`) — so a compiled stylesheet
