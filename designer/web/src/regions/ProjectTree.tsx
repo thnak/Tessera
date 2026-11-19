@@ -19,7 +19,7 @@
 // decision 3 intact -- the tree is not a document a Wasm module produced.
 
 import { useRef, type ReactNode } from "react";
-import type { TreeRow } from "../lib/project";
+import { STALE_TEXT, type TreeRow } from "../lib/project";
 
 /** The index of the selected row, or 0 when it is not among the visible rows. */
 function selectedIndex(rows: readonly TreeRow[], selected: string): number {
@@ -52,6 +52,7 @@ export function ProjectTree({
   rows,
   selected,
   dirty,
+  stale = [],
   onSelect,
   onToggleDir,
   toolbar,
@@ -60,6 +61,8 @@ export function ProjectTree({
   selected: string;
   /** The files with unsaved changes: a row for one carries the same dot a tab does. */
   dirty: readonly string[];
+  /** Generated files whose source is newer (advisory; see `generated-staleness.js`). */
+  stale?: readonly string[];
   onSelect: (row: TreeRow) => void;
   onToggleDir: (path: string) => void;
   /** The load/save controls, drawn between the header and the tree. */
@@ -190,6 +193,11 @@ export function ProjectTree({
               {!row.dir && !row.editable ? (
                 <span className="tree-lock" title={row.viewOnly ? "Locked: opens read-only" : "Locked: not shown"}>
                   locked
+                </span>
+              ) : null}
+              {!row.dir && stale.includes(row.path) ? (
+                <span className="tree-stale" title={STALE_TEXT} aria-label={STALE_TEXT}>
+                  stale?
                 </span>
               ) : null}
             </div>

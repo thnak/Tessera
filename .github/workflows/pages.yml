@@ -49,6 +49,7 @@ on:
       - 'scripts/ci/preview_page_checks.mjs'
       - 'scripts/ci/preview_skins.mjs'
       - 'scripts/ci/preview_project_load.mjs'
+      - 'scripts/ci/preview_generated_staleness.mjs'
       - 'scripts/ci/preview_theme_handover.mjs'
       - 'scripts/ci/gen_sample_manifest.py'
       - 'scripts/check_preview_budget.py'
@@ -73,6 +74,7 @@ on:
       - 'scripts/ci/preview_page_checks.mjs'
       - 'scripts/ci/preview_skins.mjs'
       - 'scripts/ci/preview_project_load.mjs'
+      - 'scripts/ci/preview_generated_staleness.mjs'
       - 'scripts/ci/preview_theme_handover.mjs'
       - 'scripts/ci/gen_sample_manifest.py'
       - 'scripts/check_preview_budget.py'
@@ -235,6 +237,10 @@ jobs:
       # file that changed on disk. The browser half is `preview_browser_project_io.mjs`, run by hand.
       - name: Project load and save (limits, locked files, conflicts)
         run: node scripts/ci/preview_project_load.mjs
+
+      # A generated header older than its source gets a "may be out of date" hint (heuristic, advisory).
+      - name: Generated-file staleness advice
+        run: node scripts/ci/preview_generated_staleness.mjs
 
       - name: Theme asset hand-over (token commits)
         run: node scripts/ci/preview_theme_handover.mjs

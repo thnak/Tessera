@@ -27,6 +27,12 @@ import {
   parentOf,
 } from "../../project-paths.js";
 
+/**
+ * The advice shown for a generated file whose source is newer. Worded as a "may be": a generated header has no
+ * source digest and a checkout resets modification times, so the heuristic can be wrong both ways.
+ */
+export const STALE_TEXT = "May be out of date: its source is newer. Regenerate with the native CLI.";
+
 /** One file of the opened project, as the editor and the tree see it. */
 export interface ProjectFile {
   /** A canonical project-relative path, as `confinePath` returned it. */

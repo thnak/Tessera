@@ -124,6 +124,18 @@
   letter-spacing: 0.04em;
 }
 
+.tree-stale {
+  flex: none;
+  margin-left: 4px;
+  padding: 0 4px;
+  border: 1px solid var(--warning);
+  border-radius: 3px;
+  color: var(--warning);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .tree-empty {
   margin: 12px;
   color: var(--text-dim);

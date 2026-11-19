@@ -33,6 +33,7 @@ import {
   saveDraft,
 } from "../drafts.js";
 import { forgetFolder, recallFolder, rememberFolder } from "../recent-folder.js";
+import { staleGenerated } from "../generated-staleness.js";
 import { PathError } from "../project-paths.js";
 import { writeZip, ZipError } from "../studio-zip.js";
 import { projectFile, type ProjectFile } from "./lib/project";
@@ -51,6 +52,11 @@ export interface ProjectIoState {
   conflicts: string[];
   /** A stored draft of unsaved edits for this project, offered back; `null` when there is none. */
   draft: { files: number; savedAt: number } | null;
+  /**
+   * Generated files whose source is newer than they are (advisory: "may be out of date", never a fact;
+   * `generated-staleness.js`). Empty when nothing is flagged.
+   */
+  stale: readonly string[];
 }
 
 interface DirectoryPickerWindow {
@@ -113,6 +119,7 @@ export function useProjectIo(workspace: Workspace): ProjectIo {
     busy: false,
     conflicts: [],
     draft: null,
+    stale: [],
   });
   const [epoch, setEpoch] = useState(0);
   const [recent, setRecent] = useState("");
@@ -196,7 +203,22 @@ export function useProjectIo(workspace: Workspace): ProjectIo {
         setRecent(handle.name);
         void rememberFolder(handle);
       }
-      setState({ source, name, note: "", busy: false, conflicts: [], draft: null });
+      setState({
+        source,
+        name,
+        note: "",
+        busy: false,
+        conflicts: [],
+        draft: null,
+        stale: staleGenerated(
+          project.entries.map((entry) => ({
+            path: entry.path,
+            kind: entry.path.endsWith(".tsx") || entry.path.endsWith(".jsx") ? "source" : "other",
+            text: entry.text,
+            modified: entry.lastModified ?? 0,
+          })),
+        ),
+      });
       setEpoch((value) => value + 1);
       pendingDraft.current = null;
       void offerDraft(source, name, toProjectFiles(project.entries, project.context));
@@ -305,11 +327,20 @@ export function useProjectIo(workspace: Workspace): ProjectIo {
         baseline.current.delete(path);
       }
       workspaceRef.current.markSaved(new Map(files.map((file) => [file.path, file.text])), deletes);
+      const current = workspaceRef.current;
+      const stale = staleGenerated(
+        current.state.files.map((file) => ({
+          path: file.path,
+          kind: file.kind,
+          text: current.textOf(file.path),
+          modified: baseline.current.get(file.path) ?? file.modified ?? 0,
+        })),
+      );
       const parts = [
         files.length === 1 ? `saved ${files[0].path}` : files.length > 1 ? `saved ${files.length} files` : "",
         deletes.length > 0 ? `deleted ${deletes.length} file(s) from the folder` : "",
       ].filter((part) => part !== "");
-      say({ busy: false, conflicts: [], note: parts.join("; ") });
+      say({ busy: false, conflicts: [], note: parts.join("; "), stale });
     },
     [say],
   );

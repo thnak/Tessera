@@ -527,6 +527,7 @@ export function App() {
           rows={workspace.rows}
           selected={workspace.state.selected}
           dirty={workspace.state.dirty}
+          stale={projectIo.state.stale}
           onSelect={workspace.selectRow}
           onToggleDir={workspace.toggleDir}
           toolbar={<ProjectBar io={projectIo} dirtyCount={new Set([...workspace.state.dirty, ...workspace.state.removed]).size} />}
@@ -550,6 +551,7 @@ export function App() {
           applying={state.applying}
           onSave={onEditorSave}
           onApplyNow={onEditorApplyNow}
+          stale={projectIo.state.stale}
         />
 
         <PreviewColumn

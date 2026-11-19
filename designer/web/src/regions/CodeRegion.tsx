@@ -20,7 +20,7 @@
 
 import { useEffect, useRef } from "react";
 import { createCodeEditor, type CodeEditor } from "../editor/code-editor";
-import type { ProjectFile } from "../lib/project";
+import { STALE_TEXT, type ProjectFile } from "../lib/project";
 
 /** The id of the tab for `path` (`aria-controls`/`aria-labelledby` need one, and a path has slashes). */
 export function tabIdOf(path: string): string {
@@ -167,6 +167,7 @@ export function CodeRegion({
   applying,
   onSave,
   onApplyNow,
+  stale = [],
 }: {
   open: readonly string[];
   files: readonly ProjectFile[];
@@ -199,6 +200,8 @@ export function CodeRegion({
   onSave: () => void;
   /** Mod-Enter in the editor: apply now, skipping the debounce. */
   onApplyNow: () => void;
+  /** Generated files that may be out of date (advisory). */
+  stale?: readonly string[];
 }) {
   // The editor is created once, in an effect (it needs the DOM, and the Node render of the chrome has none).
   // Its callbacks go through a ref so the page's handlers can change without recreating the editor.
@@ -298,6 +301,11 @@ export function CodeRegion({
       <p className="hint" id="apply-status" role="status" aria-live="polite" hidden={!applying}>
         applying…
       </p>
+      {current !== null && stale.includes(current.path) ? (
+        <p className="hint stale-note" id="editor-stale" role="status">
+          {STALE_TEXT}
+        </p>
+      ) : null}
       {current?.viewOnly ? (
         <p className="hint view-only-note" id="editor-view-only" data-path={current.path}>
           <span className="tree-lock">locked</span> <code>{current.path}</code> is read-only: the studio never edits,
