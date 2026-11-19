@@ -56,8 +56,9 @@ if (base === null) {
     let path = normalize(decodeURIComponent(new URL(request.url, 'http://x').pathname));
     if (path === '/' || path === '\\') path = '/index.html';
     try {
+      const body = await readFile(join(site, path));
       response.writeHead(200, { 'content-type': MIME[extname(path)] ?? 'application/octet-stream', 'cache-control': 'no-store' });
-      response.end(await readFile(join(site, path)));
+      response.end(body);
     } catch {
       response.writeHead(404);
       response.end('not found');

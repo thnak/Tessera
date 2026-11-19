@@ -452,7 +452,6 @@
       "category": "View",
       "status": "live",
       "description": "Make the focused panel fill the dock, or restore it",
-      "checked": "layout.maximized",
       "args": {
         "type": "object",
         "properties": {
