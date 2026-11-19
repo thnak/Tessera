@@ -30,7 +30,7 @@ The page is a single workspace and it always looks the same:
 |    App.tsx   |                           |                           |
 |  styles/     |  the editor               |  the device frame         |
 +--------------+---------------------------+---------------------------+
-| status line: build id, compile target, diagnostics count, frame       |
+| status bar: problems, line:col, language, bell                         |
 +-----------------------------------------------------------------------+
 ```
 
@@ -180,7 +180,7 @@ a **childless leaf React renders once** and a *session* fills:
 The sessions are created once, in a ref, against the nodes React committed. They are never re-created by a
 re-render, because each of them owns a Wasm instance, a GPU device or an animation-frame callback -- none of
 which may be created by a render or destroyed by one. The React state is exactly what a visitor changes by
-hand: the workspace (`page-workspace.ts`), the toolbar, whether the gallery is open, the share status and the
+hand: the workspace (`page-workspace.ts`), the toolbar, the share status and the
 build id.
 
 **The canvas is the load-bearing case.** `regions/CanvasPane.tsx` renders `<canvas>` as a childless leaf
@@ -287,8 +287,8 @@ strict style CSP, pass a nonce (`EditorView.cspNonce`) rather than loosening the
 
 The rule is **the whole project, from the entry `tessera.json` names** (`entryOf()` in
 `lib/project-snapshot.ts`). The active file does not decide what is previewed: selecting
-`styles/theme.css` edits that sheet, and the preview keeps running the entry. The status line's file cell
-names the entry, so the choice is visible rather than surprising.
+`styles/theme.css` edits that sheet, and the preview keeps running the entry. The status bar's language cell
+names the entry in its tooltip, so the choice is visible rather than surprising.
 
 The sessions no longer read `#source.value`: the page hands each of them a `ProjectReader` that returns
 `{ entry, sources, stylesheets, active }` -- the whole project and the entry `tessera.json` names

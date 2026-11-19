@@ -199,7 +199,7 @@ File
   Open Folder...                *file.openFolder        Ctrl+K Ctrl+O (VS Code)
   Open Zip...                   *file.openZip           
   Open Recent >                 *file.recent            (one entry today: the last folder; list later)
-  Open Sample >                 *file.samples           (replaces the Samples gallery toggle + Load sample)
+  Open Sample >                 *file.samples           (a quick pick of the samples; replaces the Samples gallery bar + Load sample; the welcome view lists them too)
   ------
   New File                      *file.newFile           Ctrl+Alt+N (VS Code Ctrl+N is reserved)
   Save                          *file.save              Ctrl+S
@@ -274,7 +274,7 @@ Help
   Keyboard Shortcuts            *help.shortcuts
   Studio Documentation          *help.docs               (opens the docs site)
   Report an Issue               *help.reportIssue        (GitHub issue form, new tab)
-  About Tessera Studio          *help.about              (build id, engine id, backend: the status line's data)
+  About Tessera Studio          *help.about              (accessible modal: the studio title and description, build, status, links)
 ```
 
 `Source Control` (R: `view.sourceControl`, `scm.*`) is reserved as a panel and a menu slot only.
@@ -310,7 +310,7 @@ Source column is the file that renders the control today.
 | Save `#save-project` (shows `(n)` dirty count) | `file.save`; count moves to the tab/status line | yes, icon with dirty badge |
 | Download `#download-project` | `file.download` | no |
 | New file / Rename / Delete (`ProjectBar.tsx`) | `file.newFile`, `file.renameFile`, `file.deleteFile`; also the `tree.item` context menu | no |
-| Samples `#toggle-gallery`, `PageHeader` | `File > Open Sample >`; the gallery region becomes the quick-pick behind it | no |
+| Samples `#toggle-gallery`, `PageHeader` | `File > Open Sample`; a quick pick (palette intent `samples`) behind it, and the **welcome view** (the editor column while no project is open) lists them; the horizontal gallery bar is gone | no |
 | Load sample `#load-sample`, `CodeRegion.tsx` | same command as above (duplicate removed) | no |
 | Copy share link `#share` + `#share-status` | `file.share`; the status text moves to the status line | yes, icon |
 | Restart app `#restart-app` | `run.restart` | yes, the single primary action |
@@ -320,7 +320,7 @@ Source column is the file that renders the control today.
 | Skin, Viewport, DPR, Theme, Fold `<select>`s, `EnvironmentToolbar` | `Device` and `View > Appearance` menus | yes, one compact **device chip** (section 4.2) |
 | Preview tablist (Diagnostics/Scene/Canvas), `PreviewColumn.tsx` | panels in the dock; `View > Panels` | no (the dock's tab strips replace it) |
 | Editor tab strip and its close buttons | stay: they are the editor panel's own content | n/a |
-| Status line | stays; gains nothing from menus | n/a |
+| Status line | reduced to a VS Code-style bar (section 4.4); build id, compile target, frame time and the description paragraph left it | n/a |
 
 ### 4.2 Toolbar quick actions
 
@@ -330,8 +330,12 @@ The toolbar is one row under the menu bar. It holds only what a person uses cont
 2. **Save** with dirty badge, **Share** (icon buttons).
 3. **Device chip**: one button showing `<skin or profile> · <viewport> · <dpr>x`; click opens the Device
    menu as a popover. It replaces five `<select>`s. Its keyboard path is the Device menu.
-4. **Theme toggle** (icon, cycles System/Light/Dark).
-5. **Palette** button (a search-like field that opens the palette; VS Code's command center).
+4. **Palette** button (a search-like field that opens the palette; VS Code's command center).
+
+The toolbar shares the menu bar's row (one chrome row, like VS Code's title bar with a command center); it
+is no longer a second row. The Theme toggle left the toolbar (View > Appearance, `view.cycleTheme` and the
+palette keep it) and so did the bell (it is a status bar item, section 4.4). The studio title and its
+description are not chrome: they are `help.about`.
 
 Everything else is menu-only. A quick action is a projection of a command: it shows the same
 `enabled`/`checked` state and the same chord tooltip, and cannot exist without a command. At phone
@@ -343,6 +347,25 @@ width the toolbar keeps Restart and the palette button; the rest is reachable th
 Fold posture stays always enabled, as the existing control comment explains (it is a layout input,
 not tied to a foldable skin); `device.foldable` only affects ordering (the item moves to the top of the
 Device menu for a foldable skin).
+
+### 4.4 Status bar
+
+The status bar is one coloured band (`--status-bg`/`--status-fg`) and its items are data: `menus.json`
+`statusBar` lists widgets in order, `buildToolbar(doc, deps, "statusBar")` builds them, `StatusLine.tsx` draws
+each. The v1 set, left to right:
+
+1. **Problems** (`problems`): the diagnostics error and warning counts, written by the Diagnostics session
+   without a React render; a button that runs `view.togglePanelArea` (`aria-pressed` follows the panel area).
+2. **Caret** (`caret`): `Ln 3, Col 5 (12 selected)`, written by the editor's update listener; runs `view.gotoLine`.
+3. **Language** (`language`): the active file's language (TSX, CSS, JSON ...); the tooltip names the file and
+   the entry Run compiles.
+4. **Bell** (`bell`): the notification history (`notify.toggleCenter`), opening upward.
+
+The active device is not repeated here (the device chip is in the toolbar). Moved out: build id and the
+description (About), frame time (the Canvas panel's own stats), compile target (language tooltip). Adding an
+item is a `menus.json` entry plus a widget case in `StatusLine.tsx`; ids are not a contract for `statusBar`
+(there is nothing to rename), but the three `id`s `status-diagnostics`, `status-caret` and `status-language`
+are what the sessions and the gates look up.
 
 ## 5. Wireframe
 
@@ -363,7 +386,7 @@ shows it opened with `Ctrl+J`. The dock is specified in [the layout spec](studio
 |   |  styles/    |  2    return <Column>...                |     |  engine canvas     |         |
 |   |             |                                         |     +--------------------+         |
 +--+-------------+-----------------------------------------+------------------------------------+
-| WebGPU | main | diagnostics 2 (click opens the panel) | Ln 2, Col 5 | App.tsx | frame 2.1 ms     |  status bar (items run commands)
+| x 2 errors, 0 warnings (click opens the panel)                       Ln 2, Col 5   TSX   bell |  status bar (section 4.4)
 +----------------------------------------------------------------------------------------------+
 
  Ctrl+J opens the panel area (bottom, over the editor and preview columns):
@@ -427,7 +450,7 @@ VS = Visual Studio. "Chord" = VS Code default unless noted.
 | Panel maximize/restore | header button, double-click tab strip | none | W5 |
 | Drag-and-drop docking | drop-zone overlays (centre, edges), live preview of the target region | none | W5 (library) |
 | Sash resize | drag, double-click resets, snap to default and to collapse | none (fixed CSS columns) | W5, W7 |
-| Status bar | left: branch, problems; right: language, position; clickable items | exists (`StatusLine.tsx`), not clickable, no commands | W2 (items run commands) |
+| Status bar | left: branch, problems; right: language, position; clickable items | `StatusLine.tsx`: Problems (opens the panel area), caret (Go to Line), language, bell; items are `menus.json` `statusBar` | done (owner feedback on #586) |
 | Notifications / toasts | bell, toasts with actions, do-not-disturb | page `role="status"` lines scattered per region | W3b |
 | Context menus | right-click, `Shift+F10` | none | W3 |
 | Keybindings JSON | `keybindings.json`, conflict display, chords | hard-coded CodeMirror keymap | W8 |
