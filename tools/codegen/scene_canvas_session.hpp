@@ -239,6 +239,45 @@ public:
     // spells `no_such_node` (designer-protocol-v1 section 9.1).
     [[nodiscard]] StyleInfoResult inspect(std::uint64_t automation_id);
 
+    // The designer's override layer (issue #536, designer-protocol-v1 sections 9.2-9.4): values a
+    // developer tries on one node before committing them. Every operation restyles the RUNNING
+    // tree - a layout pass inside the call, never an evaluation - so the state cells, hover and
+    // focus survive, and a frame is owed afterwards (`needs_frame()`).
+    //
+    // **Validation is the stylesheet engine's** (`validate_override`): a refused declaration is
+    // `ok:false` with the `TESSERA_CSS_*` diagnostic and leaves the node's overrides, the history
+    // and the tree exactly as they were.
+    //
+    // **An override changes only the node it names.** It is applied to that one scene node, so
+    // another instance of the same component, with another automation id, is untouched.
+    // **Overrides belong to the session**: they are lost when it ends, are never written to source
+    // without a commit, and survive a re-evaluation (they are re-applied to each tree built; one
+    // whose node an edit removed stays in the layer, unapplied, until cleared or reverted).
+    [[nodiscard]] OverrideOutcome override_set(std::uint64_t automation_id,
+                                               std::string_view property, std::string_view value);
+    // Removes one override of a node, or every override of it when `property` is empty.
+    [[nodiscard]] OverrideOutcome override_clear(std::uint64_t automation_id,
+                                                 std::string_view property = {});
+    // Removes every override in the viewer.
+    [[nodiscard]] OverrideOutcome override_revert();
+    // `edit.undo` / `edit.redo` (section 9.4): step the history of `set`/`clear`/`revert`. A commit
+    // is not part of it (`settle_commit` consumes its operations).
+    [[nodiscard]] OverrideOutcome edit_undo();
+    [[nodiscard]] OverrideOutcome edit_redo();
+    // The node's current overrides, in the order they were set.
+    [[nodiscard]] std::vector<StyleOverrideInfo> overrides_of(std::uint64_t automation_id) const;
+
+    // The host round trip's last step (section 10.3), called after `source.patch.result` said
+    // `applied` AND the following `source.update` has been evaluated (`start()`): the node's
+    // overrides leave the layer if the new evaluation gives the node the computed values they
+    // produced; otherwise they stay and the answer carries a `TESSERA_DESIGNER_PATCH_MISMATCH`
+    // diagnostic, so a commit that did not round-trip is visible rather than silently dropped.
+    //
+    // **The comparison is the engine's, not a string match**: the values with the overrides on
+    // are read, the overrides are taken off, and the values of every longhand the overrides touch
+    // are read again. Equal means the source now produces what the override did.
+    [[nodiscard]] CommitSettleResult settle_commit(std::uint64_t automation_id);
+
     // Changes the simulated fold posture of the RUNNING evaluation (issue #408): the tree is
     // re-laid out in place, so `SafeArea` padding and every box follow the new hinge without the
     // source being evaluated again and without hover, focus or the state cells being lost.
@@ -370,6 +409,13 @@ public:
         return project_;
     }
 
+    // Stages the theme asset (`assets.theme`, stylesheet-v1 section 9.1) a `token` commit edits:
+    // its project-relative path, its bytes and the id of the active theme. The preview never
+    // compiles the asset, so the session holds the bytes only to measure a token edit's offsets in
+    // (issue #536). Without it a `token` commit is `not_token_bound`. It belongs to the session,
+    // not to an evaluation, so a re-evaluation keeps it; staging again replaces it.
+    void set_theme_asset(std::string file, std::string text, std::string theme_id);
+
     // The patch for one style commit (issue #171, designer-protocol-v1 section 10.2): the minimal
     // edit list and the base versions, or the spec's reason there is none.
     //
@@ -401,6 +447,13 @@ private:
 
     // The lowered IR the scene borrows its strings from: declared before the session so it outlives
     // the tree, which is the ownership rule `PreparedScene` states.
+    // The override layer outlives every `PreviewSession`, which only borrows it: each tree the
+    // session builds has the layer applied, so an override survives a rebuild and a re-evaluation.
+    OverrideLayer overrides_;
+    // The staged theme asset for `token` commits (`set_theme_asset`).
+    std::string theme_file_;
+    std::string theme_text_;
+    std::string theme_id_;
     EvaluatedScene evaluated_;
     ui::style::CompiledStyleSheet sheet_;
     std::unique_ptr<PreviewSession> session_;

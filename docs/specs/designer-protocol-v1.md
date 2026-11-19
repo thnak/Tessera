@@ -300,7 +300,8 @@ other fields.
 ### 9.2 Setting an override
 
 `style.override.set` applies the value in the override layer above the author and inline origins
-(it wins over them for the same property). The viewer validates `property` and `value` with the
+(it wins over them for the same property, with one exception: a competing `!important` author
+declaration still wins, see section 9.5, "Known deviation"). The viewer validates `property` and `value` with the
 stylesheet engine, the same code the compiler uses
 ([`stylesheet-v1.md`](stylesheet-v1.md) section 15):
 
@@ -323,6 +324,43 @@ The viewer keeps an undo stack of override operations (`set`, `clear`, `revert`)
 `edit.undo` and `edit.redo` act on it. A commit is not undoable by `edit.undo`: its effect is in
 the host's files, and the host's own undo applies. After a commit the stack is cleared of the
 operations the commit consumed.
+
+### 9.5 Engine mapping (issue #536)
+
+The studio's Wasm canvas module implements sections 9.2-9.4 and the last step of 10.3 as exports
+(`tools/codegen/wasm_canvas_override.cpp`); the messages above are the page's wrapping of them.
+
+| Message | Export | Notes |
+|---|---|---|
+| `style.override.set` / `clear` / `revert` | `tessera_canvas_override(op, node, property, value)` | `op` is `set`, `clear`, `revert`; answers `{"overrideVersion":1,"ok","changed","canUndo","canRedo","diagnostics","overrides"}` |
+| `edit.undo` / `edit.redo` | `tessera_canvas_override("undo" \| "redo", ...)` | Same report |
+| commit round trip (10.3) | `tessera_canvas_settle(node)` | After `source.patch.result` `applied` and the following `source.update` has been evaluated |
+
+- An override is applied to its one scene node as an inline declaration, so layout, paint and
+  `style.info` read it through the one cascade call; it wins over the author and inline origins.
+  Setting, clearing and undoing re-lay the running tree out (one pass, no evaluation), so state,
+  hover and focus survive, and one frame is owed. Overrides are re-applied to every tree the session
+  builds, including after a re-evaluation.
+- **Known deviation: an author `!important` beats an override.** The override layer is realized as
+  an inline declaration (the line above), so it takes part in the ordinary cascade, where a
+  declaration marked `!important` in an author rule outranks a normal inline one. For a property
+  that an author rule marks `!important`, `style.override.set` is therefore accepted (`ok: true`) but
+  has no visible effect, and `style.info` keeps reporting the author declaration as the winner. The
+  owner accepted this on 2026-11-19 instead of adding a dedicated cascade origin above `!important`,
+  which would change the stylesheet engine's cascade for one tool. Section 9.2's "wins over them"
+  is read with this exception. Revisit if designers report overrides that do nothing: the fix is a
+  separate override origin in the cascade, not a change to this layer.
+- Validation is the stylesheet engine's: the declaration is prepared as a one-rule sheet, so the
+  diagnostics are the compiler's `TESSERA_CSS_*` codes. A declaration the scene cannot hold (longer
+  than 64/256 bytes, or a node already carrying 16 inline declarations) is refused with
+  `TESSERA_DESIGNER_LIMIT`.
+- History is snapshots of the layer (bounded at 128), not inverse operations.
+- `style.commit`'s declarations come from the layer, never from the page: `tessera_canvas_patch` takes
+  no declarations argument. The `token` destination needs the theme asset staged
+  (`CanvasSceneSession::set_theme_asset`); until the page stages it, `token` answers `not_token_bound`.
+- `settle` compares the node's computed longhands with the overrides on against the new evaluation
+  without them. Equal: the overrides leave the layer and the history. Different: they stay and the
+  report carries a `TESSERA_DESIGNER_PATCH_MISMATCH` diagnostic for the page to forward.
 
 ## 10. Commit
 

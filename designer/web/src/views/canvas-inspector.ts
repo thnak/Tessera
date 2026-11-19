@@ -415,18 +415,17 @@ export function createCanvasInspector(options: CanvasInspectorOptions): CanvasIn
     if (module === null || selected === 0) {
       return;
     }
-    // The declarations a commit writes are the node's overrides (designer-protocol-v1 §10.1). The
-    // override layer is `style.override.set`, a later slice, so this slice has none to commit and
-    // the engine answers `no_overrides`. The panel shows that reason rather than inventing a value:
-    // a commit that guessed a declaration would write something the developer never chose.
-    const declarations = "";
+    // The declarations a commit writes are the node's overrides (designer-protocol-v1 §10.1), which
+    // the engine holds in its override layer (issue #536): the page names the node and the
+    // destination, never the values. A node with no overrides answers `no_overrides`, and the panel
+    // shows that reason rather than inventing a value.
     let report: CanvasPatchReport;
     try {
       report = JSON.parse(
         callExport(
           module,
           "_tessera_canvas_patch",
-          [String(selected), destination, "", "", "", "", declarations],
+          [String(selected), destination, "", "", "", ""],
           [],
         ),
       ) as CanvasPatchReport;

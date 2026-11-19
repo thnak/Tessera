@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "scene_override.hpp"
 #include "tessera/rendering/rhi/types.hpp"
 #include "tessera/ui/style/cascade.hpp"
 
@@ -63,12 +64,46 @@ struct StyleBoxInfo {
     std::array<float, 4> padding{};
 };
 
-// One designer override. Empty for this slice: overrides are `style.override.set`
-// (designer-protocol-v1 section 9.2), a later slice, and an empty list is the correct answer for a
-// node that has none.
+// One designer override (designer-protocol-v1 section 9.2): a property the developer set on a node
+// in the override layer, with the value as typed. An empty list is the correct answer for a node
+// that has none.
 struct StyleOverrideInfo {
+    // The node it belongs to. `style.info` is about one node and does not print it; the override
+    // operations answer for several nodes at once (`revert`, `undo`) and do.
+    std::uint64_t automation_id = 0;
     std::string property;
     std::string value;
+};
+
+// The answer to one override operation (designer-protocol-v1 sections 9.2-9.4).
+struct OverrideOutcome {
+    // False when the operation was refused: `diagnostics` says why for an invalid declaration
+    // (a `TESSERA_CSS_*` code, or `TESSERA_DESIGNER_LIMIT`), and `reason` is `no_such_node` when
+    // the NodeRef names no node. A refusal changes nothing.
+    bool ok = false;
+    std::string reason;
+    std::vector<OverrideDiagnostic> diagnostics;
+    // True when the layer changed and a frame is owed; false for a no-op (the same value set twice,
+    // a clear of nothing, an undo with an empty history).
+    bool changed = false;
+    // The layer after the operation: the named node's overrides for `set`/`clear`, every node's for
+    // `revert`/`undo`/`redo`.
+    std::vector<StyleOverrideInfo> overrides;
+    bool can_undo = false;
+    bool can_redo = false;
+};
+
+// The answer to settling a commit (designer-protocol-v1 section 10.3).
+struct CommitSettleResult {
+    // False when the node is not in the running evaluation (`reason` `no_such_node`) or its
+    // overrides did not round-trip (`diagnostics` holds `TESSERA_DESIGNER_PATCH_MISMATCH`).
+    bool ok = false;
+    std::string reason;
+    // True when the node's overrides were consumed: they left the layer and the history.
+    bool consumed = false;
+    std::vector<OverrideDiagnostic> diagnostics;
+    // What the layer still holds for the node (everything of the node's, on a mismatch).
+    std::vector<StyleOverrideInfo> overrides;
 };
 
 // The whole answer. `found:false` is `no_such_node`: the NodeRef names no node in the running
