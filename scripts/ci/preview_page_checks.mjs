@@ -25,10 +25,7 @@
 // 2. **Every element the shared chrome and the shell look up is rendered.** The ids `App` and the four
 //    regions resolve, against the SSR markup of the real components.
 // 3. **Every id a view session resolves is rendered**, per view, so a failure names the pane that is wrong.
-// 4. **The redirect stubs carry the query and the fragment.** This is the pre-merge URL migration: the old
-//    URLs must forward to `index.html` with `location.search` and `location.hash` intact and the view
-//    selected. The check drives the real `redirect.js` under Node against the six old-URL shapes a real
-//    link takes, and each stub's own HTML is checked for the call and for the absence of engine code.
+// 4. (The pre-merge redirect stubs and their check were removed; old scene.html/canvas.html links no longer resolve.)
 // 5. **Every `samples.json` path exists.** The Pages lane copies `samples/` into the site and the gallery
 //    fetches `./<path>`; a missing file is a button that cannot load. This passes locally (where `samples/`
 //    sits beside `designer/`) and fails only on the deployed site, which is the worst place to find it.
@@ -37,7 +34,7 @@
 // 7. **The three Wasm modules stayed three and stayed lazy.** No module is imported at the top level of the
 //    built bundle, and each module's URL appears exactly once, inside a dynamic `import()`.
 // 8. **No page module calls a function it does not declare.** The audit that caught five shipped defects in
-//    P5, now run over the built bundle's sources and the redirect script.
+//    P5, now run over the built bundle's sources.
 //
 // This is NOT a rendering test. That the page *paints* is what the deploy and a human opening the URL
 // verify (`preview_browser_check.mjs` is the developer-run browser half); nothing here claims otherwise.
@@ -561,104 +558,6 @@ if (!requireBuilt()) {
     }
   }
 
-  // --- 4. the redirect stubs preserve the query, the fragment and the view -------------------------
-
-  // The real module, loaded the way a browser loads it: a classic script that publishes
-  // `globalThis.tesseraRedirect`, so importing it under Node is the same code path with a fake global.
-  await import(pathToFileURL(resolve(DIST, "redirect.js")).href);
-
-  const redirect = globalThis.tesseraRedirect;
-  if (!redirect || typeof redirect.mergedUrl !== "function") {
-    fail("redirect.js does not publish tesseraRedirect.mergedUrl (the stubs would not forward)");
-  } else {
-    // The old-URL shapes a real link takes, including the ones with nothing in them. A share link's
-    // fragment is the whole project state, so it is compared byte for byte rather than "present".
-    const PAYLOAD = "zKLUv_QBFYgA"; // a real-looking deflate-raw payload, short enough to read
-    const cases = [
-      {
-        why: "a pre-merge share link with a query and a fragment",
-        view: "scene",
-        search: "?viewport=390x844&dpr=2&theme=dark",
-        hash: `#p5=${PAYLOAD}`,
-        want: `index.html?viewport=390x844&dpr=2&theme=dark&view=scene#p5=${PAYLOAD}`,
-      },
-      {
-        why: "a pre-merge link with no query and no fragment",
-        view: "canvas",
-        search: "",
-        hash: "",
-        want: "index.html?view=canvas",
-      },
-      {
-        why: "a pre-merge link with a fragment only",
-        view: "canvas",
-        search: "",
-        hash: `#p5=${PAYLOAD}`,
-        want: `index.html?view=canvas#p5=${PAYLOAD}`,
-      },
-      {
-        why: "a pre-merge link with a query only",
-        view: "scene",
-        search: "?theme=light",
-        hash: "",
-        want: "index.html?theme=light&view=scene",
-      },
-      {
-        why: "a stale ?view= in the old query is replaced, not duplicated",
-        view: "canvas",
-        search: "?view=scene&dpr=3",
-        hash: "#p5=abc",
-        want: "index.html?view=canvas&dpr=3#p5=abc",
-      },
-      {
-        why: "a fragment that is not a share payload is still carried verbatim",
-        view: "scene",
-        search: "",
-        hash: "#section-2",
-        want: "index.html?view=scene#section-2",
-      },
-    ];
-
-    let bad = 0;
-    for (const testCase of cases) {
-      const got = redirect.mergedUrl(testCase.view, testCase.search, testCase.hash);
-      if (got !== testCase.want) {
-        fail(
-          `redirect for ${testCase.why} produced ${JSON.stringify(got)}, ` +
-            `expected ${JSON.stringify(testCase.want)}`,
-        );
-        bad += 1;
-      }
-    }
-    if (bad === 0) {
-      ok(`the redirect preserves the query and the #p5= fragment for all ${cases.length} old-URL shapes`);
-    }
-
-    // The stubs themselves: each must load the redirect module and call it with its own view, and must
-    // not import engine code (a stub that had to fetch a module before forwarding could fail to forward).
-    for (const [page, view] of [
-      ["scene.html", "scene"],
-      ["canvas.html", "canvas"],
-    ]) {
-      const stub = readFileSync(resolve(DIST, page), "utf8");
-      const problems = [];
-      if (!stub.includes('src="redirect.js"')) {
-        problems.push("does not load redirect.js");
-      }
-      if (!stub.includes(`redirectTo('${view}')`)) {
-        problems.push(`does not forward to the ${view} view`);
-      }
-      if (/type="module"|tessera_(diagnostics|scene_preview|canvas)\.js/.test(stub)) {
-        problems.push("loads engine code (a stub must not depend on a module loading)");
-      }
-      if (problems.length > 0) {
-        fail(`${page} ${problems.join("; ")}`);
-      } else {
-        ok(`${page} is a redirect stub to the ${view} view with no engine code`);
-      }
-    }
-  }
-
   // --- 5. every manifest path exists, under the path the site uses --------------------------------
 
   const manifest = JSON.parse(readFileSync(resolve(DIST, "samples.json"), "utf8"));
@@ -678,9 +577,9 @@ if (!requireBuilt()) {
     ok(`samples.json names ${(manifest.samples || []).length} sample(s), all present`);
   }
 
-  // The manifest and the two stubs must be *in the built tree*: they are copied through `public/`, and a
+  // The manifest must be *in the built tree*: it is copied through `public/`, and a
   // Vite configuration that stops copying it would publish a site whose gallery 404s.
-  for (const name of ["samples.json", "scene.html", "canvas.html"]) {
+  for (const name of ["samples.json"]) {
     try {
       readFileSync(resolve(DIST, name));
     } catch {
@@ -831,13 +730,12 @@ if (!requireBuilt()) {
     return [...names].sort();
   }
 
-  // Every module the studio page ships as source: the React tree, the sessions, the pure library modules and
-  // the stub's redirect script. The list is explicit so a new module is added here in the same change as the
+  // Every module the studio page ships as source: the React tree, the sessions, the pure library modules.
+  // The list is explicit so a new module is added here in the same change as the
   // module itself. `tsconfig.json` is what catches the TypeScript half statically (`tsc --noEmit`, part of
   // `npm run build`); this scan covers the `.js` files the compiler never looks at.
   const PAGE_MODULES = [
     ["src/lib/preview-state.js", resolve(WEB, "src/lib/preview-state.js")],
-    ["public/redirect.js", resolve(DIST, "redirect.js")],
   ];
 
   for (const [label, path] of PAGE_MODULES) {

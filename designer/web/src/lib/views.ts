@@ -173,8 +173,7 @@ export function viewFromSearch(search: string | null | undefined): ViewDefinitio
 /**
  * The view the page should show: the URL's `?view=` when it names one, else `fallback`.
  *
- * A pre-merge `scene.html` link can only say "I was a scene link" through the *path* it arrived on. The redirect stubs translate the old path into `?view=`, which is
- * why this function never has to guess.
+ * The URL names the view explicitly, so this function never has to guess.
  */
 export function resolveView(
   search: string | null | undefined,

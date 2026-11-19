@@ -93,7 +93,7 @@ loosening):
 | Landing | Recorded | Why |
 |---|---|---|
 | P6 (#170) | 375 KiB | the hand-written P1 page |
-| #392 (the three-page merge) | 436794 bytes | one artifact now ships all three views and the two redirect stubs |
+| #392 (the three-page merge) | 436794 bytes | one artifact now ships all three views (the two redirect stubs it carried were later removed) |
 | #422 (React 19 + Vite, ADR-054 decision 6) | 470568 bytes | React's framework floor (+69007 gzip) minus the vanilla JS it replaces (-30211) minus minified CSS/HTML (-5022); measured against the built `designer/web/dist/`, not the sources |
 
 The measurement walks the built `dist/` directory rather than naming files, because a Vite build's assets
@@ -378,9 +378,8 @@ counter), `mcp_preview_tools` (MCP snapshots byte-identical to the driver);
 (a codec in `share.js`, a toolbar Share button, `file.share`). Owner decision (studio focus pass): the studio
 has no cloud storage to share to, so the feature was **removed entirely**: the button, the command, the codec
 and its round-trip gate, the broken-link banner and the fragment decode at startup. A leftover `#p5=` fragment
-is neither read nor reported. The redirect stubs for the pre-merge `scene.html` and `canvas.html` still carry
-the query and the fragment verbatim (section 4 of [`studio-page`](../design/studio-page.md)); the page
-ignores them. The command id `file.share` is retired (`status: "removed"`, `replacedBy: null`) and stays in
+is neither read nor reported. The pre-merge `scene.html` and `canvas.html` redirect stubs were removed, so old
+links to them no longer resolve (section 4 of [`studio-page`](../design/studio-page.md)). The command id `file.share` is retired (`status: "removed"`, `replacedBy: null`) and stays in
 `command-ids.json` so the id is never reused.
 
 **Precedence.** The locally remembered toolbar position (`viewport`, `dpr`, `theme`, `file`, `foldPosture`,

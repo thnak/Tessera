@@ -369,7 +369,7 @@ jobs:
       # Issue #422 converted the page to React 19 + Vite (ADR-054), so there is no longer a hand-written
       # page to copy: `designer/web/dist/` is what a browser downloads, and it carries content-hashed
       # asset names (`assets/index-<hash>.js`). `dist/` already includes the files Vite copies from
-      # `designer/web/public/` (the two redirect stubs, `redirect.js`, `samples.json`), which is why the
+      # `designer/web/public/` (`samples.json`), which is why the
       # copies below are only the Wasm modules, the samples and the build id.
       #
       # The old fixed `test -f` list cannot survive content hashes, so the integrity check is derived from
@@ -433,10 +433,9 @@ jobs:
           print(f"{len(local)} asset reference(s) from index.html all present")
           PY
 
-          # The public files and the stubs, which are not referenced by index.html and so are not covered
-          # by the scan above. `scene.html`/`canvas.html` are somebody's old share link
-          # (`docs/specs/designer-studio-v1.md` section 7.1); `redirect.js` is what forwards them.
-          for asset in scene.html canvas.html redirect.js samples.json; do
+          # The public files, which are not referenced by index.html and so are not covered by the scan
+          # above. (The pre-merge scene.html/canvas.html redirect stubs were removed; old links no longer resolve.)
+          for asset in samples.json; do
             test -f "$site/$asset" || { echo "missing from the site: $asset"; exit 1; }
           done
           # The manifest names repository paths; every one of them must exist in the artifact or the

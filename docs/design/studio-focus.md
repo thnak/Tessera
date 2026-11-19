@@ -56,9 +56,8 @@ Owner decision: the studio has no cloud storage to share to, so the Share featur
 | `useSampleAndShare`'s share half (the file is now `page-sample.ts`, `useSample`) | `page-sample-share.ts` |
 | the codec's round-trip gate | `scripts/ci/preview_share_roundtrip.mjs` and its `pages.yml` steps |
 
-Kept on purpose: `File > Open Sample` (and the welcome view), the theme command (`View > Appearance`, palette), and the
-redirect stubs for the pre-merge `scene.html`/`canvas.html`, which still forward the query and a `#p5=` fragment
-byte for byte; the page now ignores the fragment. Every gate that used `#share` as a focus anchor uses the Restart
+Kept on purpose: `File > Open Sample` (and the welcome view), and the theme command (`View > Appearance`, palette). The
+pre-merge `scene.html`/`canvas.html` redirect stubs were removed: old links no longer resolve. Every gate that used `#share` as a focus anchor uses the Restart
 button (`#restart-app`, always focusable: the toolbar uses `aria-disabled`, not `disabled`).
 
 **Retired id.** `file.share` stays in `command-ids.json` (append-only) and in `commands.json` as

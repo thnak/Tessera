@@ -222,8 +222,6 @@ The rest of the page is TypeScript:
 | `lib/module-url.ts` | resolves a Wasm loader against the document's base, so a hashed asset dir cannot break it |
 | `views/dom.ts` | the textContent-only element builder the engine-facing renderers share |
 | `ssr-chrome.tsx` | the chrome rendered with `react-dom/server`, for the Node gates only |
-| `public/redirect.js` | the pre-merge URLs' forwarding (section 3) |
-| `public/{scene,canvas}.html` | the redirect stubs |
 
 ## 3. The workspace: tree, tabs, and what an edit compiles
 
@@ -320,36 +318,12 @@ to share to, and the Share feature (button, `file.share`, the `#p5=` codec) was 
 
 ## 4. Old URLs
 
-`scene.html` and `canvas.html` still resolve. Each is a **redirect stub** in `designer/web/public/` (so Vite
-copies it to the site root): a few dozen lines of HTML, the shared `redirect.js`, and no engine code and no
-module import. A stub that had to fetch a module before forwarding would be a stub that can fail to forward,
-and an old link is somebody's project state.
-
-`redirect.js` builds
-
-```text
-index.html?<old query>&view=<scene|canvas><old fragment>
-```
-
-and calls `location.replace`, so the stub does not become a history step the visitor can get stuck on. Two
-details are load-bearing:
-
-- **The hash is concatenated, never re-serialized.** A fragment is opaque: an old `#p5=` payload is base64url
-  and may contain characters a `URL` round trip would re-encode, so the stub passes it through byte for byte.
-- **The query is carried, not read.** Forwarding never starts reading it: an old link opens at the stored
-  toolbar position, or the default rectangle.
-
-The view is not a fragment field, which is exactly why the old *path* is translated into `?view=` at the stub
-rather than guessed at on the merged page. The page reads `?view=` once at load and writes it with
-`history.replaceState` on a switch (replace, not push: a view switch is not a navigation step). **#431 kept
-the parameter and every id it resolves** (`tab-scene`, `view-canvas`, ...), so a link made against the
-three-tab page opens on the same preview pane it names.
-
-**A `#p5=` link no longer restores state.** The share codec was removed (owner decision, studio focus pass), so
-an old fragment is carried by the stub, kept in the address bar and ignored by the page: no decode, no banner,
-no error. `scripts/ci/preview_page_checks.mjs` still pins the six old-URL shapes the stubs forward, and
-`preview_studio_smoke.mjs` asserts that a leftover fragment leaves the startup state at the stored toolbar or
-the default.
+The pre-merge `scene.html` and `canvas.html` redirect stubs (and `redirect.js`) were **removed** (owner decision,
+pre-alpha, no external users): old links to them no longer resolve. The page reads `?view=` once at load and
+writes it with `history.replaceState` on a switch (replace, not push: a view switch is not a navigation step).
+**#431 kept the parameter and every id it resolves** (`tab-scene`, `view-canvas`, ...). A leftover `#p5=`
+fragment is ignored: no decode, no banner, no error; `preview_studio_smoke.mjs` asserts that it leaves the
+startup state at the stored toolbar or the default.
 
 ## 5. Layout and gating
 

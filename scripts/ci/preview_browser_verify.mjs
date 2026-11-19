@@ -167,14 +167,8 @@ if (foldCommand !== null) {
 // 6. Text paints: the font loaded, so a label is a glyph run rather than a box.
 check('The preview font loaded', !/font unavailable/i.test((await status()) ?? ''));
 
-// 7. The Share feature is gone, and a pre-merge URL still redirects with its fragment intact.
+// 7. The Share feature is gone.
 check('No Share control in the chrome', (await page.locator('#share').count()) === 0);
-
-const legacy = await (await browser.newContext()).newPage();
-await legacy.goto(`${base}/scene.html#p5=abc`, { waitUntil: 'load' });
-await legacy.waitForTimeout(800);
-check('scene.html redirects with the fragment intact',
-  legacy.url().includes('index.html') && legacy.url().includes('#p5=abc'));
 
 check('No console errors', consoleErrors.length === 0, consoleErrors.slice(0, 3).join(' | ') || 'none');
 
