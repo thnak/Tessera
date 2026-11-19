@@ -10,7 +10,7 @@ subset; it is not browser behavior ([ADR-036](../../../decisions/ADR-036-own-jsx
 
 | Area | Result |
 |---|---|
-| Lowercase tags | Accepted as aliases (decided, [ADR-039](../../../decisions/ADR-039-lowercase-html-tags-accepted.md), [`html-aliases.md`](html-aliases.md)) |
+| Lowercase tags | Accepted as aliases (implemented, issue #592; [ADR-039](../../../decisions/ADR-039-lowercase-html-tags-accepted.md), [`html-aliases.md`](html-aliases.md)) |
 | `onClick`, `onChange`, `onFocus`, `onBlur`, `onKeyDown`, `onKeyUp`, `onSubmit` (inputs) | Same names. `onChange` is `(e) => setX(e.target.value)` as in React, and also `onChange={setX}` (Q1) |
 | `className`, `style` (object, numbers are px for lengths), `key`, `ref` (from `useRef`), `disabled`, `readOnly`, `placeholder`, `value`, `defaultValue`, `maxLength`, `rows` | Same names and meaning |
 | Fragments, `&&`, `?:`, `.map` | Accepted in the forms of subset 10.4/10.5 |
@@ -150,33 +150,40 @@ outweighs the IR cost. The owning specs now state it: `ir-v1.md` section 3.4
 `component-model-v1.md` section 3 and `jsx-subset-v1.md` sections 5 and 10.4. The front end still
 rejects component children until the code slice lands.
 
-## 5. Code slice required by ADR-039 (not done in this round)
+## 5. Code slice required by ADR-039 (first slice landed, issue #592)
 
-The parser and tests currently reject lowercase tags. Nothing in code is changed by this documentation
-round. The follow-up slice changes exactly:
+The front end no longer rejects lowercase tags. Issue #592 (the first slice of the group C work of
+[ADR-059](../../../decisions/ADR-059-html-tags-supported-not-rejected.md)) removed the parse-time
+rejection and the alias resolution guard, so a mapped tag compiles and a tag with no mapping keeps
+its own diagnostic. The parser holds no alias table: `tessera_schema` is the only source.
 
-| File | Function or test | Change |
+| File | Function or test | State |
 |---|---|---|
-| `src/compiler/analyzer/src/parser_jsx.cpp` | `Parser::check_tag_name` | Remove the lowercase branch that reports `TESSERA_JSX_SUBSET_HTML_TAG`; keep the `DYNAMIC_TAG` branch for `.` and `:` |
-| same | `suggest_intrinsic` (anonymous namespace) | Delete; the suggestion comes from the alias table in analysis. The generic "tags start with an uppercase letter" text moves with it |
+| `src/compiler/analyzer/src/parser_jsx.cpp` | `Parser::check_tag_name` | **Done.** The lowercase branch that reported `TESSERA_JSX_SUBSET_HTML_TAG` is removed; the `DYNAMIC_TAG` branch for `.` and `:` stays |
+| same | `suggest_intrinsic` (anonymous namespace) | **Done.** Deleted with the duplicate table; the suggestion now comes from the alias row (`AliasRow::alternative`), or the generic "use an intrinsic such as `<View>` or `<Text>`" for an unknown tag |
 | same | `Parser::parse_named_element` (the call to `check_tag_name`) | Unchanged call, new behavior of the callee |
-| `src/compiler/analyzer/src/parser_internal.hpp` | declaration of `check_tag_name` | Signature stays |
-| `src/compiler/analyzer/include/tessera/compiler/jsx/parser.hpp` | comment near line 20 that lists "a lowercase tag" among parse-time subset rejections | Update the comment |
-| `src/compiler/rules/` | new function in the analysis pass | Resolve alias tag, injected props and attribute rewrites from the table; report `HTML_TAG`, `HTML_ATTR`, `HTML_INPUT_TYPE`; record the canonical tag in the per-component analysis |
-| `src/schema/` (new, [Q22]) | alias table | Source of the mapping |
-| `tests/unit/jsx_parser_tests.cpp` | `test_subset_rejections`: `parse_jsx_element("<div>x</div>")`, the `<foo/>` suggestion check, `<div><span/></div>` | These parse without `HTML_TAG` in the parser; move the expectations to a `rules_*` test. `<foo/>` and others with no mapping are tested at the analysis level |
-| same | `test_locations_with_crlf_and_non_ascii` (`<b/>` expects `HTML_TAG` at line 2, column 7) | Move the span check to the analysis test (`b` is unsupported there), or use a different parse-time error for the span check |
-| same | the fixture at about line 220 that ends with `<div/>` | Check its expected error count |
-| `tests/unit/jsx_concurrent_tests.cpp` | the case `<View a="1" b={x == y}> text &foo; <div/> </View>` | The expected diagnostics lose `HTML_TAG` at parse time; adjust the expected text |
-| `tests/unit/` | new `rules_html_alias_tests.cpp` | One fixture per row of [`html-aliases.md`](html-aliases.md) sections 2, 3 and 5, including attribute rewrites and mutation checks |
+| `src/compiler/analyzer/include/tessera/compiler/jsx/parser.hpp` | comment near line 20 that listed "a lowercase tag" among parse-time subset rejections | **Done.** Updated |
+| `src/compiler/lowering/src/schema_bridge.cpp` | `resolve_element` | **Done.** An alias resolves through `find_element(alias->target)` + `ir_node_kind` wherever it is written, not only inside a `Text` span; `alias->inject` and `alias_style_defaults` still apply. An `Unsupported` row and a tag in neither table report `TESSERA_JSX_SUBSET_HTML_TAG` here, since the parser no longer can |
+| `src/compiler/rules/` | attribute rewrites from the table (`class` to `className`, `input type`, `autoComplete`, `img width`, `textarea wrap`) and `TESSERA_JSX_SUBSET_HTML_ATTR` / `HTML_INPUT_TYPE` | **Not done.** The data (`AliasRow::attrs`, `type_map`, `common_alias_attrs()`) exists; no pass reads it yet. This is the rest of slice 13 ([`html-aliases.md`](html-aliases.md) section 3) |
+| `src/compiler/rules/` | `from "react"` alias and the `useMemo`/`useCallback` safe forms ([Q15], [Q16]) | **Not done** |
+| `src/schema/` | alias table | Done earlier (slice 12); this slice adds no second table |
+| typings | `JSX.IntrinsicElements` for the alias tags | **Not done** |
+
+Test coverage of the slice:
+
+| Test | Covers |
+|---|---|
+| `tests/unit/lowering_inline_span_tests.cpp` | One case per mapped tag of [`html-aliases.md`](html-aliases.md) section 2 (`div`, `span`, `p`, `h1`-`h3`, `section`, `main`, `label`, `button`, `img`, `input`, `textarea`): the carrier of the row, the AST keeping the tag as written, the injected role, and the closed IR kind. Also the `HTML_TAG` cases (an unknown tag and a section-5 row) and the inline-span rules |
+| `tests/unit/jsx_parser_tests.cpp` | A lowercase tag parses (no parse-time `HTML_TAG`); member and namespace tags are still rejected; the CRLF/non-ASCII span check uses a member tag |
+| `tests/unit/jsx_diagnostics_cases.hpp` | `TESSERA_JSX_SUBSET_HTML_TAG` is an explicit skip instead of a fixture: lowering owns it now, and this registry scans the front end and the rules only |
+| new `rules_html_alias_tests.cpp` | **Not done**, waits for the attribute rewrites above: one fixture per row of `html-aliases.md` sections 2, 3 and 5, including attribute rewrites and mutation checks |
 
 Documentation edits already applied: [`jsx-subset-v1.md`](../jsx-subset-v1.md) sections 4 (`"react"`
 import, Q15), 9.1 and 9.4 (Q1), 10.1, 11, 12 (the `Lowercase tags` and `useMemo`/`useCallback` rows, Q16)
 and 18; a clause of [`jsx-frontend.md`](../../design/jsx-frontend.md); and in
 [`jsx-ir-lowering.md`](../../design/jsx-ir-lowering.md) the slice list (items 12 and 13), the hook-rule row
-and the notes. The `"react"` import alias and the `useMemo`/`useCallback` lowering belong to slice 13 of
-that list together with the alias code above; `tessera_schema` is slice 12. `jsx-subset-v1.md` is about
-780 lines, over the 600-line hard limit; it should be split into a folder when next edited
+and the notes. `tessera_schema` is slice 12. `jsx-subset-v1.md` is about 780 lines, over the 600-line
+hard limit; it should be split into a folder when next edited
 ([`docs/README.md`](../../README.md) rules).
 
 ## 6. Open questions

@@ -32,7 +32,6 @@ TESSERA_JSX_SUBSET_COMPONENT_NAME	subset-component-name	component name `a` must 
 TESSERA_JSX_SUBSET_DOM	subset-dom	`dangerouslySetInnerHTML` is not supported
 TESSERA_JSX_SUBSET_DYNAMIC_TAG	subset-dynamic-tag	member and namespace tags (`<A.B>`) are not supported
 TESSERA_JSX_SUBSET_FUNCTION_VALUE	subset-function-value	`function` is not supported
-TESSERA_JSX_SUBSET_HTML_TAG	subset-html-tag	HTML tag `<div>` is not supported
 TESSERA_JSX_SUBSET_IMPORT	subset-import	`export default` is not supported
 TESSERA_JSX_SUBSET_LITERAL	subset-literal	computed object keys are not supported
 TESSERA_JSX_SUBSET_LOOSE_EQUALITY	subset-loose-equality	loose equality is not supported

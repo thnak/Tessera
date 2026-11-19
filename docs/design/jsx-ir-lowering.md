@@ -54,9 +54,9 @@ Rejected at lowering (`TESSERA_IR_*`) because they parse but have no V1 IR form:
 with no manifest entry, a `call` off the allowlist ([`ir-v1.md`](../specs/ir-v1.md) section 4.2),
 member access on a value without a known record type, an unknown intrinsic prop or event, and any
 node kind outside the closed list of IR section 3. The parser already rejects classes, `let`,
-async, `==` and the array methods. Lowercase tags are HTML aliases resolved in analysis
-([ADR-039](../../decisions/ADR-039-lowercase-html-tags-accepted.md)); the parser stops rejecting them
-when that slice lands.
+async, `==` and the array methods. Lowercase tags are HTML aliases resolved from the shared table
+([ADR-039](../../decisions/ADR-039-lowercase-html-tags-accepted.md)): the parser accepts them and a tag
+with no mapping is `TESSERA_JSX_SUBSET_HTML_TAG` from the lowering alias lookup (issue #592).
 Only items with `valid == true` are lowered; an invalid item produces no IR and no cascade.
 
 ## 3. The missing analysis pass
@@ -332,9 +332,9 @@ What the slice lowers:
 Not in slice 7: component references (`Component` nodes, slice 9); conditional rendering and loops
 (`&&`, `?:`, `.map`, virtualized templates, `key` placement, slice 8); the type table and expression
 typing (slice 4), so required props, type mismatches and schema constraints are not evaluated;
-custom elements (slice 11); lowercase alias resolution (slice 13, the parser rejects them until
-then); `environment`/library hooks (slice 11); `props[]` (props parameter and defaults, 4/9);
-`componentId`/`uiId` (slice 10). Slices 5 and 12 are reused, not duplicated.
+custom elements (slice 11); the lowercase alias attribute rewrites (slice 13: the tag itself
+resolves, issue #592); `environment`/library hooks (slice 11); `props[]` (props parameter and
+defaults, 4/9); `componentId`/`uiId` (slice 10). Slices 5 and 12 are reused, not duplicated.
 
 Tests are `lowering_nodes` (one fixture per construct in the table above), `lowering_nodes_reject`
 (every rejection and slice boundary, first-error-only, no partial component) and
@@ -544,8 +544,9 @@ Each slice is behavior, tests and docs, committed on its own.
     tables, the dump tool (JSON and `.d.ts`) and its golden
     ([`machine-readable.md`](../specs/jsx-intrinsics-v1/machine-readable.md)). Slice 4 (types) needs
     the intrinsic part of it, so it comes before slice 4 or is built with it.
-13. **Lowercase alias and `react` import.** Analysis-side alias resolution and attribute rewrites,
-    parser change, `from "react"` hooks alias, `useMemo`/`useCallback` safe-form lowering
+13. **Lowercase alias and `react` import.** Tag resolution and the parser change are done (issue
+    #592); the analysis-side attribute rewrites, the `from "react"` hooks alias and the
+    `useMemo`/`useCallback` safe-form lowering remain
     ([ADR-039](../../decisions/ADR-039-lowercase-html-tags-accepted.md);
     [`react-compat.md`](../specs/jsx-intrinsics-v1/react-compat.md) sections 4.2 and 5). Needs slice 12.
 

@@ -141,7 +141,6 @@ inline const std::vector<Case> kCases = {
     fixture("TESSERA_JSX_SUBSET_DYNAMIC_TAG", "subset-dynamic-tag", Entry::kJsx, "<A.B/>", 1, 3),
     fixture("TESSERA_JSX_SUBSET_FUNCTION_VALUE", "subset-function-value", Entry::kExpression,
             "function", 0, 8),
-    fixture("TESSERA_JSX_SUBSET_HTML_TAG", "subset-html-tag", Entry::kJsx, "<div/>", 1, 3),
     fixture("TESSERA_JSX_SUBSET_IMPORT", "subset-import", Entry::kModule, "export default 1;", 7,
             7),
     fixture("TESSERA_JSX_SUBSET_LITERAL", "subset-literal", Entry::kExpression, "{[k]: 1}", 1, 1),
@@ -236,6 +235,14 @@ inline const std::vector<Skip> kSkips = {
      "declared as a constraint code in src/schema, but no pass evaluates element constraints yet"},
     {"TESSERA_JSX_SUBSET_ANIMATED_READ", "analyzer (later slice)",
      "reading an animated value needs the hook/type state of the later analysis slice"},
+    // Issue #592 / ADR-039: the parser accepts every lowercase tag, so this code is now reported by
+    // the lowering alias lookup (src/compiler/lowering/src/schema_bridge.cpp) for a tag that is
+    // neither an element, nor an alias row, nor a component. The scan below covers the front end
+    // and the rules, not lowering, so the case is pinned in lowering_inline_span_tests.cpp
+    // (`test_unmapped_tag_diagnostic`) instead of a fixture here.
+    {"TESSERA_JSX_SUBSET_HTML_TAG", "lowering",
+     "reported by the lowering alias lookup for a lowercase tag with no mapping (issue #592); "
+     "lowering is outside this registry's source scan and fixtures"},
     {"TESSERA_JSX_SUBSET_IMPORT_CYCLE", "project resolver",
      "an import cycle spans files; the single-file parser cannot decide it"},
     {"TESSERA_JSX_TYPE_MISMATCH", "type/lowering",

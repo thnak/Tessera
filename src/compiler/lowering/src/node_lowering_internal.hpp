@@ -51,15 +51,15 @@ void fail_node(NodeState& state, std::string_view code, std::string_view message
 [[nodiscard]] ir::ExprPtr lower_node_expression(NodeState& state, const jsx::Expr& expr);
 
 // The intrinsic row and IR kind of a JSX element, or null after reporting why it cannot be lowered
-// in this slice (component reference, custom element, HTML alias, unknown tag).
+// in this slice (component reference, custom element, no alias mapping, unknown tag).
 struct ElementInfo {
     const schema::ElementRow* row = nullptr;
     ir::NodeKind kind = ir::NodeKind::View;
     bool is_component = false; // slice 9: kind is Component and `component_id` is set
     std::string component_id;  // `comp::<Name>`
-    // Lowercase alias resolution inside a Text span (issue #229): injected props (`a` -> role=link)
-    // and injected default run styles (`b` -> font-weight: 700). Both are defaults; an explicit
-    // attribute/style wins. Empty for intrinsic elements and outside a span.
+    // Lowercase alias resolution (issue #229, #592; ADR-039): injected props (`a` -> role=link) and
+    // injected default run styles (`b` -> font-weight: 700). Both are defaults; an explicit
+    // attribute/style wins. Empty for intrinsic elements.
     std::span<const schema::AliasInject> inject = {};
     std::span<const schema::AliasStyle> style_defaults = {};
 };

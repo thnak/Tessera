@@ -177,23 +177,16 @@ std::optional<ElementInfo> resolve_element(NodeState& state, const jsx::JsxNode&
         return ElementInfo{row, *kind, false, {}};
     }
     if (const schema::AliasRow* alias = schema::find_alias(element.tag); alias != nullptr) {
+        // ADR-039 decision 3, html-aliases.md section 6: an unsupported row (the ADR-059 `planned`
+        // and `rejected` tags) keeps TESSERA_JSX_SUBSET_HTML_TAG with the alternative of its row.
         if (alias->status == schema::AliasStatus::Unsupported) {
-            fail_node(state, "TESSERA_IR_UNSUPPORTED",
-                      "`<" + std::string(element.tag) + ">` has no V1 intrinsic mapping",
+            fail_node(state, "TESSERA_JSX_SUBSET_HTML_TAG",
+                      "HTML tag `<" + std::string(element.tag) + ">` is not supported",
                       element.tag_span, alias->alternative);
             return std::nullopt;
         }
-        if (state.span_depth == 0) {
-            fail_node(state, "TESSERA_IR_UNSUPPORTED",
-                      "`<" + std::string(element.tag) + ">` is a lowercase alias of `<" +
-                          std::string(alias->target) +
-                          ">`; alias resolution outside an inline span is slice 13, write the "
-                          "intrinsic tag",
-                      element.tag_span, "write `<" + std::string(alias->target) + ">`");
-            return std::nullopt;
-        }
-        // Inside a Text span a lowercase alias resolves to its intrinsic (issue #229,
-        // html-aliases.md sections 2 and 3.6).
+        // Issue #592 / ADR-039: an alias resolves wherever it is written, inside a `Text` span or
+        // as a node of its own; only a `Text` child becomes an inline run (html-aliases.md 3.6).
         const schema::ElementRow* row = schema::find_element(alias->target);
         if (row == nullptr) {
             fail_node(state, "TESSERA_IR_MALFORMED",
@@ -223,12 +216,19 @@ std::optional<ElementInfo> resolve_element(NodeState& state, const jsx::JsxNode&
         }
     }
     const bool component = !element.tag.empty() && element.tag[0] >= 'A' && element.tag[0] <= 'Z';
+    const bool lowercase = !element.tag.empty() && element.tag[0] >= 'a' && element.tag[0] <= 'z';
     if (component) {
         fail_node(state, "TESSERA_IR_UNSUPPORTED",
                   "`<" + element.tag +
                       ">` is neither an intrinsic element nor a component declared or imported in "
                       "this file (slice 9)",
                   element.tag_span, "declare or import the component, or fix the tag");
+    } else if (lowercase) {
+        // ADR-039 decision 3, html-aliases.md section 1: a lowercase tag that is neither an element
+        // nor an alias row is still TESSERA_JSX_SUBSET_HTML_TAG, with the generic alternative.
+        fail_node(state, "TESSERA_JSX_SUBSET_HTML_TAG",
+                  "HTML tag `<" + element.tag + ">` is not supported", element.tag_span,
+                  "use an intrinsic such as `<View>` or `<Text>`");
     } else {
         fail_node(state, "TESSERA_IR_UNSUPPORTED",
                   "`<" + element.tag + ">` is not an intrinsic element", element.tag_span,

@@ -99,16 +99,15 @@ void test_expression_children() {
 }
 
 void test_subset_rejections() {
+    // Issue #592 (ADR-039): a lowercase tag is not a parse-time rejection. The alias table decides
+    // in lowering, so the AST keeps the tag as written and the parser reports nothing; a tag with
+    // no alias row is TESSERA_JSX_SUBSET_HTML_TAG from lowering (proven in
+    // tests/unit/lowering_inline_span_tests.cpp).
     const auto html = parse_jsx_element("<div>x</div>");
-    check_eq(codes(html), "TESSERA_JSX_SUBSET_HTML_TAG;", "lowercase tag");
-    check(html.root != nullptr && !html.ok(), "tree kept but not ok");
-    check_eq(first_diag(html).suggestion, "use `<View>`", "suggests the intrinsic");
-    check_eq(format_diagnostic(first_diag(html)),
-             "1:2: error[TESSERA_JSX_SUBSET_HTML_TAG]: HTML tag `<div>` is not supported\n"
-             "  help: use `<View>`",
-             "html tag diagnostic text");
-    check_eq(first_diag(parse_jsx_element("<foo/>")).suggestion,
-             "tags start with an uppercase letter, for example `<Foo>`", "generic suggestion");
+    check(html.ok(), "a lowercase tag parses");
+    check(html.root != nullptr && html.root->tag == "div", "the tree keeps the tag as written");
+    check(parse_jsx_element("<foo/>").ok(), "an unknown lowercase tag parses too");
+    check(parse_jsx_element("<div><form/></div>").ok(), "nested lowercase tags parse");
 
     check_eq(codes(parse_jsx_element("<A.B/>")), "TESSERA_JSX_SUBSET_DYNAMIC_TAG;", "member tag");
     check_eq(codes(parse_jsx_element("<a:b/>")), "TESSERA_JSX_SUBSET_DYNAMIC_TAG;",
@@ -121,8 +120,8 @@ void test_subset_rejections() {
              "TESSERA_JSX_SUBSET_DOM;", "dangerouslySetInnerHTML");
     check_eq(codes(parse_jsx_element("<A b={x == y}/>")), "TESSERA_JSX_SUBSET_LOOSE_EQUALITY;",
              "expression rejections surface from attributes");
-    check_eq(codes(parse_jsx_element("<div><form/></div>")),
-             "TESSERA_JSX_SUBSET_HTML_TAG;TESSERA_JSX_SUBSET_HTML_TAG;",
+    check_eq(codes(parse_jsx_element("<A data-x=\"1\" b={x == y}/>")),
+             "TESSERA_JSX_SUBSET_UNKNOWN_PROP;TESSERA_JSX_SUBSET_LOOSE_EQUALITY;",
              "independent errors are all reported, in source order");
 }
 
@@ -205,19 +204,24 @@ void test_spans() {
 }
 
 void test_locations_with_crlf_and_non_ascii() {
-    const std::string source = "<A>\r\n  \xC3\xA9\xC3\xA9 <u/>\r\n</A>";
+    // A lowercase tag is no longer a parse-time error (issue #592), so the span check uses the
+    // remaining parse-time tag rejection: a member tag.
+    const std::string source = "<A>\r\n  \xC3\xA9\xC3\xA9 <A.B/>\r\n</A>";
     const auto result = parse_jsx_element(source);
-    check_eq(codes(result), "TESSERA_JSX_SUBSET_HTML_TAG;", "lowercase child tag");
+    check_eq(codes(result), "TESSERA_JSX_SUBSET_DYNAMIC_TAG;", "member child tag");
     const auto& where = first_diag(result).span;
     check(where.start.line == 2 && where.start.column == 7,
           "line 2, column 7 counts the two 2-byte code points and the space after the indent");
-    check(where.end.line == 2 && where.end.column == 8, "end column");
-    check(where.span.length == 1, "byte length of `u`");
+    check(where.end.line == 2 && where.end.column == 10, "end column");
+    check(where.span.length == 3, "byte length of `A.B`");
 }
 
 void test_determinism() {
+    // A lowercase tag is part of the tree now (issue #592); the sibling `<A data-x="1"/>` keeps a
+    // diagnostic in the sample so the report is compared too.
     const std::string source =
-        "<View a=\"1\">\n  {rows.map((r) => (<Row key={r.id}/>))}\n  <div/>\n</View>";
+        "<View a=\"1\">\n  {rows.map((r) => (<Row key={r.id}/>))}\n  <div/>\n"
+        "  <A data-x=\"1\"/>\n</View>";
     const auto first = parse_jsx_element(source);
     if (!first.root || first.diagnostics.empty()) {
         check(false, "the determinism sample parses with its diagnostic");
