@@ -137,6 +137,7 @@ std::string CanvasSceneSession::start(const ProjectInput& project,
     options.carried = &carried;
     options.live_component_ids = &live_ids;
     options.measurer = source.measurer;
+    options.overrides = &overrides_;
     options.prepared = std::move(prepared);
     options.media = media;
 

@@ -585,8 +585,8 @@ router and user component instances (the scene builder does not render `<Home />
 needs an engine slice), sharing a whole project (waits for cloud storage), adding, deleting and renaming
 files from the tree (the folder picker, the zip drop, Save and Download landed with #391), a real code
 editor widget (the textarea is per file, which is what #431 asks for), text drawing (#387, shipped),
-conditional children (#389), and #171's remaining style inspector and `source.patch` (the picker overlay
-and the skins shipped). The theme toolbar toggle is now applied (section 1.1); `assets.theme` still did not
+conditional children (#389), and #171's editable inspector panel (the picker overlay, skins, `source.patch`
+and the engine's override layer, #536, shipped). The theme toolbar toggle is now applied (section 1.1); `assets.theme` still did not
 arrive with #390, so the *project's* theme asset is carried-but-not-applied
 ([`compiler-wasm.md`](compiler-wasm.md) section 10.2).
 

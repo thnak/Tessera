@@ -70,8 +70,7 @@ CanvasViewportRequest canvas_viewport_request(int width, int height, float dpi) 
 
 PatchRequest canvas_patch_request(std::string_view automation_id, std::string_view destination,
                                   std::string_view class_name, std::string_view file,
-                                  std::string_view token, std::string_view token_value,
-                                  std::string_view declarations) {
+                                  std::string_view token, std::string_view token_value) {
     PatchRequest request;
     // `strtoull` rather than `std::stoull`: the latter throws on a malformed id, and nothing may
     // throw across the FFI boundary. A malformed id parses to 0, which is `no_such_node`.
@@ -92,23 +91,6 @@ PatchRequest canvas_patch_request(std::string_view automation_id, std::string_vi
     request.file = std::string(file);
     request.token = std::string(token);
     request.token_value = std::string(token_value);
-    // The declarations arrive as `property:value` lines. A line without a colon is skipped rather
-    // than committed as a property with an empty value, which would write `color: ;` into a file.
-    std::size_t start = 0;
-    while (start <= declarations.size()) {
-        const std::size_t newline = declarations.find('\n', start);
-        const std::string_view line = declarations.substr(
-            start, newline == std::string_view::npos ? std::string_view::npos : newline - start);
-        const std::size_t colon = line.find(':');
-        if (colon != std::string_view::npos && colon != 0) {
-            request.declarations.emplace_back(std::string(line.substr(0, colon)),
-                                              std::string(line.substr(colon + 1)));
-        }
-        if (newline == std::string_view::npos) {
-            break;
-        }
-        start = newline + 1;
-    }
     return request;
 }
 

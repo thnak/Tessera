@@ -106,7 +106,10 @@ void test_session_patch_uses_the_span() {
     PatchRequest request;
     request.automation_id = card->automation_id();
     request.destination = PatchDestination::Inline;
-    request.declarations = {{"padding-left", "8px"}};
+    // The declarations are the node's overrides (issue #536), never the request's: the session
+    // commits what `style.override.set` put in the layer.
+    expect(session.override_set(card->automation_id(), "padding-left", "8px").ok,
+           "the override is accepted");
     const cli::SourcePatchResult result = session.patch(request);
     expect(result.ok, "the session produces a patch, got `" +
                           std::string(cli::patch_error_name(result.reason)) +
@@ -140,7 +143,6 @@ void test_patch_before_a_run_is_no_such_node() {
     PatchRequest request;
     request.automation_id = 1;
     request.destination = PatchDestination::Inline;
-    request.declarations = {{"color", "red"}};
     const cli::SourcePatchResult result = session.patch(request);
     expect(!result.ok, "a commit before the first Run produces no patch");
     expect(cli::patch_error_name(result.reason) == "no_such_node",

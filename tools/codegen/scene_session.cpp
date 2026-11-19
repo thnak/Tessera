@@ -137,6 +137,9 @@ void PreviewSession::rebuild() {
     router_.reset();
     slots_.clear();
     root_ = std::make_unique<ui::Node>(1);
+    // The old tree is gone, so what was applied to it is gone too; the layer is re-applied below.
+    applied_overrides_.clear();
+    override_text_.clear();
 
     const SceneBuildResult built = build_scene(component_, *root_, scope_);
     built_ = built.error.empty();
@@ -153,6 +156,8 @@ void PreviewSession::rebuild() {
         bind_handler(handler.automation_id, handler.event, handler.handler);
     }
 
+    // Before layout: an override can move a box, so the pass must see it.
+    apply_overrides();
     ui::layout::LayoutEngine engine(options_.measurer);
     const SceneLayoutResult laid_out =
         layout_scene(*root_, sheet_, engine, layout_metrics_, options_.measurer);

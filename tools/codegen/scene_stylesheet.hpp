@@ -70,6 +70,12 @@ struct PreviewCssDiagnostic {
     bool warning = true;
 };
 
+// The spec's `TESSERA_CSS_*` spelling of a diagnostic kind (stylesheet-v1 section 15). The one
+// conversion: the sheet's own diagnostics and an override's refusal (`scene_override.hpp`) both
+// speak it, so a page never meets two spellings of one problem.
+[[nodiscard]] const char*
+css_diagnostic_code(tessera::ui::style::StyleDiagnosticKind kind) noexcept;
+
 // True when `stylesheet` holds CSS the author wrote. Blank text, whitespace and comments only are
 // all "no author CSS", so every caller written before issue #390 keeps the built-in fallback and
 // the same bytes.

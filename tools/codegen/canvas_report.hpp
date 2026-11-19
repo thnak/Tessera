@@ -211,4 +211,23 @@ canvas_report_json(const SceneFrameResult& result, std::uint32_t width, std::uin
 // the same id and a host can tell a retry from a new commit.
 [[nodiscard]] std::string canvas_patch_report_json(const SourcePatchResult& result);
 
+// What one override operation did (issue #536, designer-protocol-v1 sections 9.2-9.4), one line:
+//
+//   {"overrideVersion":1,"ok":true,"changed":true,"canUndo":true,"canRedo":false,
+//    "overrides":[{"node":"123","property":"color","value":"red"}]}
+//
+// or, for a refused declaration or a missing node:
+//
+//   {"overrideVersion":1,"ok":false,"reason":"invalid_override","changed":false,"canUndo":...,
+//    "diagnostics":[{"code":"TESSERA_CSS_INVALID_VALUE","message":"..."}],"overrides":[...]}
+//
+// `node` is a decimal string, like every id in this module, because a 64-bit `uiId` does not
+// survive `JSON.parse` as a number. `diagnostics` is present only when there is one.
+[[nodiscard]] std::string canvas_override_report_json(const OverrideOutcome& outcome);
+
+// The answer to settling a commit (section 10.3): `{"settleVersion":1,"ok":true,"consumed":true,
+// "overrides":[]}`, or `ok:false` with `reason` (`no_such_node` or `patch_mismatch`) and, for a
+// mismatch, a `TESSERA_DESIGNER_PATCH_MISMATCH` diagnostic the page forwards as a `diagnostic`.
+[[nodiscard]] std::string canvas_settle_report_json(const CommitSettleResult& result);
+
 } // namespace tessera::compiler::codegen::cli

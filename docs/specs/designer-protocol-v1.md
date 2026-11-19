@@ -324,6 +324,34 @@ The viewer keeps an undo stack of override operations (`set`, `clear`, `revert`)
 the host's files, and the host's own undo applies. After a commit the stack is cleared of the
 operations the commit consumed.
 
+### 9.5 Engine mapping (issue #536)
+
+The studio's Wasm canvas module implements sections 9.2-9.4 and the last step of 10.3 as exports
+(`tools/codegen/wasm_canvas_override.cpp`); the messages above are the page's wrapping of them.
+
+| Message | Export | Notes |
+|---|---|---|
+| `style.override.set` / `clear` / `revert` | `tessera_canvas_override(op, node, property, value)` | `op` is `set`, `clear`, `revert`; answers `{"overrideVersion":1,"ok","changed","canUndo","canRedo","diagnostics","overrides"}` |
+| `edit.undo` / `edit.redo` | `tessera_canvas_override("undo" \| "redo", ...)` | Same report |
+| commit round trip (10.3) | `tessera_canvas_settle(node)` | After `source.patch.result` `applied` and the following `source.update` has been evaluated |
+
+- An override is applied to its one scene node as an inline declaration, so layout, paint and
+  `style.info` read it through the one cascade call; it wins over the author and inline origins.
+  Setting, clearing and undoing re-lay the running tree out (one pass, no evaluation), so state,
+  hover and focus survive, and one frame is owed. Overrides are re-applied to every tree the session
+  builds, including after a re-evaluation.
+- Validation is the stylesheet engine's: the declaration is prepared as a one-rule sheet, so the
+  diagnostics are the compiler's `TESSERA_CSS_*` codes. A declaration the scene cannot hold (longer
+  than 64/256 bytes, or a node already carrying 16 inline declarations) is refused with
+  `TESSERA_DESIGNER_LIMIT`.
+- History is snapshots of the layer (bounded at 128), not inverse operations.
+- `style.commit`'s declarations come from the layer, never from the page: `tessera_canvas_patch` takes
+  no declarations argument. The `token` destination needs the theme asset staged
+  (`CanvasSceneSession::set_theme_asset`); until the page stages it, `token` answers `not_token_bound`.
+- `settle` compares the node's computed longhands with the overrides on against the new evaluation
+  without them. Equal: the overrides leave the layer and the history. Different: they stay and the
+  report carries a `TESSERA_DESIGNER_PATCH_MISMATCH` diagnostic for the page to forward.
+
 ## 10. Commit
 
 ### 10.1 Request
