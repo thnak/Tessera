@@ -122,11 +122,11 @@ the design work, the part that takes longest.
    - **After v1:** `useGridFocus`, `useTreeFocus`, `usePanGesture`, `useLongPress`,
      `useDragToSnapPoints`, `useStreamingText`, `useImageMode`, reorderable lists.
    - **Dropped:** browser-only helpers (dev warnings, IME and selection workarounds, click timing).
-   - **Component hooks.** A component may have hooks of its own, public and documented next to it
-     (`useTable*`, below). They follow the same rules: contract spec, test per rule, no hidden global
-     state.
+   - **Component-specific behavior** is a typed prop group of the component (the Table plugins
+     below), not a hook that returns an opaque value. Package-declared hooks are not part of V1; a
+     third-party package that needs its own behavior hooks is a later decision.
 8. **Data components use a plugin model with caller-owned data.** `Table` (and later `DataGrid`)
-   takes named plugins, each added by a hook: sorting, selection, pagination, infinite scroll,
+   takes named plugins, each a typed prop group (`sorting`, `selection`, `pagination`, ...): sorting, selection, pagination, infinite scroll,
    filtering, grouping, tree, row expansion, column resize, sticky columns, virtualization. Plugins
    run in a fixed canonical order so their results do not depend on the order they are written in.
    - **Server data and lazy loading are plugins, and the application owns the data.** The component
@@ -199,7 +199,7 @@ the design work, the part that takes longest.
 - The `behavior` hook kind first (design in `behavior-hooks.md`, then a spec, analyzer and lowering,
   engine interface and registry, code generation, preview wiring), then one issue per core hook
   (milestone V1-M4) and the stage-2 hooks as their engine features land.
-- Table plugin contract with the request-token hook; revise the DataGrid scope in
+- Table plugin contract with the request token; revise the DataGrid scope in
   `component-library.md`.
 - Move the tactile mock under `samples/` as a demo ("Device" theme candidate) and update its README.
 - Record the Astryx reference commit in `dependencies.md` and `THIRD_PARTY_NOTICES.md`.

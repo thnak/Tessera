@@ -44,7 +44,7 @@ placement and order rules as every hook (`TESSERA_REACT_HOOK_ORDER`). Its argume
 
 | Argument kind | Accepted form | Reactive |
 |---|---|---|
-| Target | a `useRef` name of a declared element type, first position | n/a |
+| Targets | one `useRef` name per target the manifest lists, in leading positions (a Popover hook takes `trigger` and `floating`) | n/a |
 | Option value | a pure expression of boolean, number, string or a closed token | yes: read on every update |
 | Callback | a handler form of [`jsx-subset-v1.md`](../specs/jsx-subset-v1.md) section 9: a setter-call arrow or a `bind::` native handler | no: fixed at build |
 
@@ -94,7 +94,7 @@ v1 and older consumers ignore it):
 
 ```json
 { "id": "beh::trap", "hook": "useFocusTrap", "behavior": "focus_trap",
-  "target": "ref::trapRef",
+  "targets": [ "ref::trapRef" ],
   "args": [ { "name": "active", "expr": { "ref": "state::open" } },
             { "name": "restoreFocus", "expr": { "literal": true } },
             { "name": "onEscape", "handler": "handler::1" } ],
@@ -165,9 +165,10 @@ Not every library hook should be a behavior:
   It is dropped from the core set unless a case appears that a behavior cannot cover.
 - `useAnnounce` and `useClipboard` are services (ADR-040 `useService`): an injected interface with a
   production and a test implementation. They return a handle, not behavior outputs.
-- A hook that returns an opaque value for a component to consume (the Table plugins of ADR-064 item 8)
-  needs an **opaque handle** type in the IR (`handle<TablePlugin>`). It is deferred to the Table
-  design; this document does not decide it.
+- The Table plugins of ADR-064 item 8 would need an **opaque handle** output (`handle<TablePlugin>`) if
+  they were hooks that return a plugin for `<Table plugins=...>`. They are not hooks: each plugin is a
+  typed prop group of `Table` (`sorting`, `selection`, `pagination`, `infiniteScroll`, ...), so no handle
+  type and no package-declared hook is needed in V1 (section 10).
 
 ## 9. Order of work
 
@@ -193,3 +194,9 @@ Owner, 2026-11-20 ("follow the proposals"):
 - An element may carry two behaviors of different kinds. Exclusive kinds (two focus traps on one
   element) are rejected with `TESSERA_BEHAVIOR_DUPLICATE`.
 - A behavior output may be used as an effect dependency, as state can.
+- A hook may take more than one target (owner): V1 supports several `ref` parameters, all required, and a
+  behavior attaches only when every target holds a node.
+- Opaque handle outputs and package-declared hooks are not in V1 (proposal accepted on the owner's
+  request to choose; easy to reverse): Table's plugins are typed props and application state stays in
+  `useState`. If a third-party package later needs its own behavior hooks, that is a new decision on
+  package manifests, and the manifest entries of the spec do not change.

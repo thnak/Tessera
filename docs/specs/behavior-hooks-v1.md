@@ -36,12 +36,14 @@ before the `return`, under the placement and order rules of every hook (`TESSERA
 const trap = useFocusTrap(trapRef, { active: open, onEscape: () => setOpen(false) });
 ```
 
-- The first argument is the **target**: the name of a `useRef` of the element type the hook allows.
-- The second argument is an **options** object literal, optional when every option has a default.
+- The leading arguments are the **targets**, in the manifest's order: each is the name of a `useRef` of an
+  element type the hook allows for that position (a Popover hook takes `trigger` and `floating`).
+  Every manifest target is required; there is no optional target.
+- The last argument is an **options** object literal, optional when every option has a default.
 - A hook with no outputs may be called as a bare statement `useFocusTrap(...);`; one with outputs must
   bind them (an unused binding is allowed, so a hook never changes shape by use).
 - No destructuring, no spread, no computed keys, no more arguments. The same hook called twice with the
-  same target is `TESSERA_BEHAVIOR_DUPLICATE` when the hook is exclusive (section 6).
+  same first target is `TESSERA_BEHAVIOR_DUPLICATE` when the hook is exclusive (section 7).
 
 ## 3. Manifest entry
 
@@ -52,9 +54,9 @@ the existing refusal rule). A `behavior` entry:
 | Field | Type | Meaning |
 |---|---|---|
 | `name` | string | `use` plus an uppercase letter; unique across all hooks; not a core hook name |
-| `params` | array | Exactly: a `ref` parameter first, then at most one `options` parameter |
-| `params[0]` | `{ "name", "kind": "ref", "element": <intrinsic name or "any"> }` | The target and the element types it accepts |
-| `params[1]` | `{ "name", "kind": "options", "fields": [Field] }` | The options object |
+| `params` | array | One or more `ref` parameters first, then at most one `options` parameter |
+| `ref` parameter | `{ "name", "kind": "ref", "element": <intrinsic name or "any"> }` | A target and the element types it accepts; names are unique |
+| `options` parameter | `{ "name", "kind": "options", "fields": [Field] }` | The options object |
 | `Field` (value) | `{ "name", "ts", "ir", "default"? }` | A reactive option. `ts` is a type of [`jsx-subset-v1.md`](jsx-subset-v1.md) section 5, `ir` an IR type; a closed token type is `ts: "\"a\" \| \"b\""`, `ir: "string"` |
 | `Field` (callback) | `{ "name", "kind": "handler", "payload": [{ "name", "type" }] }` | A callback; `payload` is the IR types the engine passes, in order |
 | `returns` | `{ "fields": [{ "name", "ts", "ir" }] }` | The outputs; omitted for a hook with none |
@@ -73,7 +75,7 @@ the component hooks of ADR-064 item 7, are a separate decision and are not speci
 
 | Argument | Accepted | Evaluated |
 |---|---|---|
-| Target | An identifier bound by `useRef<T>(null)` where `T` is allowed by `params[0].element` | Once, at attach |
+| Target | An identifier bound by `useRef<T>(null)` where `T` is allowed by that parameter's `element`; two targets of one call must be different refs | Once, at attach |
 | Value option | A pure expression ([`jsx-subset-v1.md`](jsx-subset-v1.md) section 8) of the declared type; an omitted option takes `default`; an option with no default is required | On every component update |
 | Callback option | A setter-call arrow (section 9.2) or the name of a declared handler or native handler (section 9.3) | Once, at build; the callback is invoked, never re-created |
 
@@ -106,7 +108,7 @@ unchanged; additive, `irVersion` stays `1`):
 
 ```json
 { "id": "beh::trap", "hook": "useFocusTrap", "behavior": "focus_trap", "exclusive": true,
-  "target": "ref::trapRef",
+  "targets": [ "ref::trapRef" ],
   "args": [
     { "name": "active", "expr": { "kind": "ref", "id": "state::open" } },
     { "name": "restoreFocus", "expr": { "kind": "literal", "value": true } },
@@ -125,7 +127,7 @@ unchanged; additive, `irVersion` stays `1`):
   is copied from the manifest so the validator needs no manifest either.
 
 Validation (section 9 of `ir-v1-expr.md` gains these hard errors): a `beh::` id that is duplicated; a
-`target` that is not a `ref::` of the component; an arg name that is duplicated; an expression that
+`targets` entry that is not a `ref::` of the component; an arg name that is duplicated; an expression that
 does not type-check against its field type; a `handler` that does not resolve; a `behavior` name unknown
 to the registry (`TESSERA_BEHAVIOR_UNKNOWN`, at generation time, not in the IR validator).
 
@@ -137,9 +139,9 @@ All are errors. New codes are registered in `diagnostic_registry.hpp` with a fix
 | Code | When |
 |---|---|
 | `TESSERA_REACT_HOOK_ARG` | An argument is not of the declared kind or type (section 4) |
-| `TESSERA_BEHAVIOR_TARGET_KIND` | The target ref's element type is not allowed by the manifest |
-| `TESSERA_BEHAVIOR_TARGET_UNUSED` | The target ref is not attached to any element of the component's output |
-| `TESSERA_BEHAVIOR_DUPLICATE` | Two calls of an exclusive hook share one target |
+| `TESSERA_BEHAVIOR_TARGET_KIND` | A target ref's element type is not allowed by the manifest for that position |
+| `TESSERA_BEHAVIOR_TARGET_UNUSED` | A target ref is not attached to any element of the component's output |
+| `TESSERA_BEHAVIOR_DUPLICATE` | Two calls of an exclusive hook share their first target |
 | `TESSERA_BEHAVIOR_UNKNOWN` | The manifest names a behavior the registry lacks (build tooling, not a source error) |
 
 ## 8. Runtime contract
@@ -148,7 +150,7 @@ A behavior implements the engine interface of `include/tessera/ui/behavior/behav
 
 | Call | Contract |
 |---|---|
-| `attach(Node&, Args)` | Called when the target ref holds a node. May allocate. Registers listeners with the focus, input and accessibility services. May not invoke a callback. |
+| `attach(Targets, Args)` | Called when **every** target ref holds a node (one node per target, in manifest order). May allocate. Registers listeners with the focus, input and accessibility services. May not invoke a callback. |
 | `update(Args)` | Called when the hash of the evaluated value options changed (section 9). No allocation. May not invoke a callback. |
 | `detach()` | Called before the target node is destroyed, when the ref becomes empty, and at unmount. Removes every registration. Idempotent. |
 | `outputs()` | Returns the current outputs; read by the component after each dispatch and update. |
@@ -157,9 +159,9 @@ Lifecycle rules:
 
 1. **Order.** Attach in declaration order; detach in reverse. Two behaviors on one element never see
    each other.
-2. **Conditional target.** When the target element is a conditional child, the behavior attaches when
-   the ref becomes non-null and detaches when it becomes null; outputs return to their defaults. A
-   behavior is therefore never attached to a destroyed node.
+2. **Conditional target.** When a target element is a conditional child, the behavior attaches when
+   all its refs are non-null and detaches as soon as any becomes null; outputs return to their
+   defaults. A behavior is therefore never attached to a destroyed node, and never half-attached.
 3. **Callbacks** run synchronously inside the input dispatch that caused them, on the UI thread, with
    the normalized payload; a callback never runs inside `attach` or `update` (a state change made there
    is deferred to the next dispatch).
@@ -224,8 +226,6 @@ the component spec template, sections 4, 5 and 8, in `docs/specs/components/_tem
 
 ## 13. Open items
 
-- Whether a hook may take more than one target (a trigger and a floating element, for Popover); v1 allows
-  one. A second ref would be a `refs` parameter kind added to the manifest.
-- Opaque handle outputs (for the Table plugins of ADR-064 item 8) are not specified; see
-  [`behavior-hooks.md`](../design/behavior-hooks.md) section 8.
-- Package-declared hooks (section 3).
+- Opaque handle outputs and package-declared hooks are not part of V1: the Table plugins of ADR-064
+  item 8 are typed props, not hooks that return a handle ([`behavior-hooks.md`](../design/behavior-hooks.md)
+  sections 8 and 10). Both can be added later without changing this spec's entries.
