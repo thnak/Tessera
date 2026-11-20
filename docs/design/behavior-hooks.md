@@ -181,9 +181,13 @@ Not every library hook should be a behavior:
    hooks, delete the wrapper versions and update `Button` to call the hook. No wrapper component is kept
    as an interim form.
 
-## 10. Open questions for the owner
+## 10. Decisions
 
-- Whether the first behavior is `press_feedback` (smallest) or `focus_trap` (what Dialog needs first).
-- Whether an element may carry two behaviors of different kinds (a list that is also a focus trap):
-  proposed yes, with the duplicate rule above for exclusive kinds.
-- Whether behavior outputs may be used as an effect dependency (proposed yes, like state).
+Owner, 2026-11-20 ("follow the proposals"):
+
+- The first behavior is `press_feedback`: the smallest one that needs a target, an output pair
+  (`pressed`, `hovered`) and the full path through the manifest, IR, engine, code generation and
+  preview. `focus_trap` follows, because Dialog needs it.
+- An element may carry two behaviors of different kinds. Exclusive kinds (two focus traps on one
+  element) are rejected with `TESSERA_BEHAVIOR_DUPLICATE`.
+- A behavior output may be used as an effect dependency, as state can.
