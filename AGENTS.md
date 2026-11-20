@@ -136,6 +136,12 @@ How unattended agents pick and land work. Milestones live on GitHub only (no oth
   not already claimed by an open PR (`gh pr list --search "<item words>"`).
 - **Blocked by ADR:** ADR-049 and ADR-050 are Accepted (2026-11-12), so their items are open. If an
   item depends on a Proposed ADR, wait until it is Accepted on `main`.
+- **Spikes:** an item labeled `spike` may depend on a Proposed ADR. It proves one decision with
+  measured evidence: it lands off by default (an experimental flag or CMake option) and changes no
+  default behavior, its PR appends the requested evidence and what the ADR got wrong to the ADR's
+  "Evidence required before Accepted" section, and it never changes the ADR's status. Only the owner
+  moves an ADR to Accepted; the items that implement it wait for that, then the sweep below labels
+  them `ready`.
 - **One landing per PR**, branched from `origin/main`: a whole issue, a whole family or step of a
   multi-part issue, or several related issues together (`Closes #a, #b`). Attach the milestone
   (`gh pr create --milestone "V1-M1 Core runtime"`) and tick each item's checkbox in this file in
@@ -456,6 +462,14 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
       `visibility` (`Node::set_style_hidden`/`rendered()` gating paint, hit test, a11y, focus,
       damage), `PropertyRegistry::longhand_names()`, tests `property_effects` and `property_status`
       (the latter fails when the registry and the table disagree).
+- [ ] Style and paint gaps found by the tactile design mock and the Astryx theme model, one landing
+      each (Chromium-measured, golden on lavapipe, property-status doc updated): #612 inset
+      `box-shadow`, #613 radial and repeating gradients, #614 several background layers, #615
+      `clip-path` basic shapes, #616 `text-shadow`, #617 conic gradient, `mask`, `filter` or the
+      `Path` route (decide first), #620 `light-dark()`, #621 `color-mix()`, #622 `:has()` and
+      `@scope`. Umbrella #618.
+- [ ] Behavior hook engine and core hooks (ADR-064 item 7; waits for ADR-064 Accepted, after spikes
+      #658 and #662): engine interface, registry and `press_feedback` #640, then #624 to #635.
 
 
 ### V1-M2 Compiler and animation ([milestone 2](https://github.com/thnak/Tessera/milestone/2)) — Big Step C
@@ -540,6 +554,19 @@ Acceptance: a `useState`/`useEffect`/`useRef` screen regenerates without losing 
       tests `codegen_instances` + `codegen_instances_runtime` (state survives reorder, key removal
       unmounts, per-item presence, list-typed prop); open decision on conditional-instance
       destroy-vs-keep-alive recorded in #283.
+- [ ] Spikes that decide the Proposed ADRs 064 to 067 (each lands off by default and records
+      evidence in its ADR): #658 behavior hook vertical slice, #659 custom hook expansion on a
+      fixture corpus, #660 React port corpus measurement, #661 Suspense and transition on a fake
+      resource.
+- [ ] Behavior hooks in the front end (ADR-064, waits for Acceptance): spec #638, analyzer and lowering
+      #639, code generation #641.
+- [ ] Custom hooks by inlining (ADR-065, waits for Acceptance): #645 expansion pass, #646
+      diagnostics, #647 typings, member names and preview state carry, #648 documentation sweep.
+- [ ] React core additions (ADR-066, waits for Acceptance): #651 cheap acceptances, #652 control flow
+      in handlers, #653 list and string expressions, #654 limited `useReducer` and static
+      `useContext`.
+- [ ] Pending UI (ADR-067, waits for Acceptance): spec #655, front end and engine behaviors #656
+      (preview support #657 belongs to V1-M4).
 
 
 ### V1-M3 Backends and shader chain ([milestone 3](https://github.com/thnak/Tessera/milestone/3))
