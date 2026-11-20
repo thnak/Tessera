@@ -7,6 +7,8 @@ add_library(tessera_jsx_frontend STATIC
     src/lexer.cpp
     src/lexer_literals.cpp
     src/jsx_text.cpp
+    src/json.cpp
+    src/hook_manifest.cpp
     src/parser.cpp
     src/parser_expr.cpp
     src/parser_jsx.cpp
@@ -59,4 +61,11 @@ if (TESSERA_BUILD_TESTS)
         TESSERA_COMPILER_SOURCE_DIR="${CMAKE_SOURCE_DIR}/src/compiler"
         TESSERA_JSX_GOLDEN_DIR="${CMAKE_SOURCE_DIR}/tests/golden/jsx")
     add_test(NAME jsx_diagnostics_registry COMMAND jsx_diagnostics_registry_tests)
+
+    add_executable(hook_manifest_tests
+        ${CMAKE_SOURCE_DIR}/tests/unit/hook_manifest_tests.cpp)
+    target_link_libraries(hook_manifest_tests PRIVATE tessera_jsx_frontend)
+    target_compile_definitions(hook_manifest_tests PRIVATE
+        TESSERA_HOOKS_MANIFEST="${CMAKE_CURRENT_SOURCE_DIR}/hooks-manifest.json")
+    add_test(NAME hook_manifest COMMAND hook_manifest_tests)
 endif()
