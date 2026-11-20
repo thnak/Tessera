@@ -31,6 +31,11 @@
 }
 
 
+/* Element selectors, as a React + Vite project writes them (issue #610). */
+h1 { color: var(--ink); margin: 8px 0; }
+h3 { margin: 0 0 4px 0; font-size: 16px; }
+a { color: var(--brand); }
+
 @media (max-width: 600px) {
   .app { padding: 16px 12px; gap: 16px; }
 }

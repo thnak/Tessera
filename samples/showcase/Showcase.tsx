@@ -19,7 +19,7 @@ export function Showcase() {
     <div className="app">
       <header className={styles.hero}>
         <p className={styles.eyebrow}>Tessera</p>
-        <h1 className={styles.title}>React-style UI, native speed</h1>
+        <h1>React-style UI, native speed</h1>
         <p className={styles.lead}>
           Write TSX and CSS the way you already do. Tessera compiles it to C++ and draws it with its own
           renderer, so the page below is the same code in the Studio and in a shipped app.
@@ -61,21 +61,21 @@ export function Showcase() {
             <li className={styles.step}>
               <span className={styles.stepIndex}>1</span>
               <div className={styles.stepBody}>
-                <h3 className={styles.stepTitle}>Write</h3>
+                <h3>Write</h3>
                 <p>Components, props, hooks and a stylesheet, as in React.</p>
               </div>
             </li>
             <li className={styles.step}>
               <span className={styles.stepIndex}>2</span>
               <div className={styles.stepBody}>
-                <h3 className={styles.stepTitle}>Compile</h3>
+                <h3>Compile</h3>
                 <p>TSX becomes IR, then C++ with no JavaScript at run time.</p>
               </div>
             </li>
             <li className={styles.step}>
               <span className={styles.stepIndex}>3</span>
               <div className={styles.stepBody}>
-                <h3 className={styles.stepTitle}>Ship</h3>
+                <h3>Ship</h3>
                 <p>One engine draws the Studio preview and your app.</p>
               </div>
             </li>

@@ -919,6 +919,17 @@
       "value": "literal"
     },
     {
+      "lowersTo": "props.tag",
+      "name": "tag",
+      "notOn": [
+        "Spacer",
+        "ErrorBoundary"
+      ],
+      "note": "the HTML tag an alias was written as; the `h1`-style aliases inject it and a type selector (`h1 { }`) matches it (issue #610)",
+      "type": "string",
+      "value": "literal"
+    },
+    {
       "lowersTo": "props.aria-label",
       "name": "aria-label",
       "notOn": [

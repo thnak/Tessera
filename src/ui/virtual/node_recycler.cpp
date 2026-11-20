@@ -45,7 +45,8 @@ bool node_carries_item_state(const Node& node) noexcept {
         return true;
     }
     if (!node.element_kind().empty() || !node.element_id().empty() || !node.class_name().empty() ||
-        !node.part().empty() || !node.component_name().empty() || !node.role().empty() ||
+        !node.part().empty() || !node.component_name().empty() || !node.element_tag().empty() ||
+        !node.role().empty() ||
         node.automation_id() != 0) {
         return true;
     }
@@ -81,6 +82,7 @@ void clear_node_item_state(Node& node) noexcept {
     node.clear_class_name();
     node.clear_part();
     node.clear_component_name();
+    node.set_element_tag(std::string_view{});
     node.clear_role();
     node.set_automation_id(0);
     node.clear_aria();

@@ -45,7 +45,8 @@ bool is_metric_style(std::string_view name) {
 }
 
 bool is_span_prop(std::string_view name) {
-    return name == "id" || name == "className" || name == "role" || name.rfind("aria-", 0) == 0;
+    return name == "id" || name == "className" || name == "role" || name == "tag" ||
+           name.rfind("aria-", 0) == 0;
 }
 
 std::size_t literal_size(const ir::Expr& expr) {

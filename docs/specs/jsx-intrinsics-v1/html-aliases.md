@@ -11,9 +11,9 @@ against it.
    neither table, is `TESSERA_JSX_SUBSET_HTML_TAG`; the message names the tag, the suggestion is the
    `Alternative` text of section 5, or "use an intrinsic such as `<View>` or `<Text>`" when the tag is
    unknown. Component names stay uppercase (`TESSERA_JSX_SUBSET_COMPONENT_NAME`), so there is no collision.
-2. **Alias is spelling only.** No default styles, sizes, margins, list markers or semantics beyond the
-   `Injected` column are added. A browser renders `h1` large and bold, `ul` with markers and `div`
-   as a block; the alias does not ([Q12]). Layout of a `View` is the style engine's, not the browser's.
+2. **The alias adds no style of its own.** Its look comes from the user-agent stylesheet
+   ([ADR-063](../../../decisions/ADR-063-browser-matching-user-agent-defaults.md),
+   [`ua-audit.md`](../../reference/ua-audit.md)), which reproduces the browser defaults (`h1` large and bold, `div` a block, `ul` indented) and is overridden by any author rule. List markers are the one named exception.
    The one exception is the inline-emphasis group of section 2 (`b`, `strong`, `i`, `em`, `code`):
    those tags inject only the run style that names their emphasis, because a span with no visual
    difference would make the tag meaningless. The injected style is a default: an explicit
@@ -30,6 +30,7 @@ against it.
 6. The closing tag must match the opening tag as written (`<div></div>`, not `<div></View>`).
 7. Resolution runs in analysis; the AST keeps the tag as written; the IR node `source` is the span of
    the element as written. Diagnostics point at the original attribute or tag.
+9. **The tag is kept for selectors.** Every alias also injects `tag` (the tag as written, `h1`, `p`, `a`, ...), so a type selector matches it as well as the carrier: a global `h1 { margin: 8px 0 }` styles the heading, and `p`, `a`, `ul`, `li` work the same way, as in a React + Vite project (issue #610). The carrier (`Text`, `View`, `Button`) still matches too. An explicit `tag` wins like any injected prop.
 8. Event props follow the intrinsic's table. React names that the table lacks (`onMouseDown`,
    `onDoubleClick`, `onInput`, `onKeyPress`, ...) are `TESSERA_JSX_SUBSET_UNKNOWN_PROP` with a
    suggestion where one exists (`onMouseDown` to `onPointerDown`, `onInput` to `onChange`) [Q21].

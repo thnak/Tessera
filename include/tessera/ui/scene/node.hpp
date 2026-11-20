@@ -438,6 +438,14 @@ public:
     [[nodiscard]] std::string_view component_name() const {
         return component_metadata_ ? component_metadata_->component_name : std::string_view{};
     }
+    // The HTML tag an alias was written as (`h1`, `p`, `a`, ...), which `element_kind()` loses
+    // because several tags share one carrier (`Text`). A type selector matches it as well as the
+    // carrier, so a global `h1 { }` works as in a browser (issue #610). Empty for a node written
+    // as a built-in element. Static metadata: setting it marks Dirty::Style.
+    void set_element_tag(std::string_view tag);
+    [[nodiscard]] std::string_view element_tag() const {
+        return component_metadata_ ? component_metadata_->element_tag : std::string_view{};
+    }
     void set_automation_id(std::uint64_t automation_id);
     [[nodiscard]] std::uint64_t automation_id() const {
         return automation_id_;
@@ -589,6 +597,7 @@ private:
     struct ComponentMetadata {
         std::string_view part;
         std::string_view component_name;
+        std::string_view element_tag;
     };
     std::unique_ptr<std::optional<PaintData>> paint_data_;
     // Borrowed views: the caller keeps the storage alive (codegen passes literals). No allocations.

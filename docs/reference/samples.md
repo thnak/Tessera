@@ -8,7 +8,7 @@ ADR-063 decision 5: a sample exists to prove Tessera carries a complex UI stack 
 | `@media` (narrow window folds the stat grid and the actions row) | Showcase | shown |
 | `:hover`, `:active`, `:focus-visible` | Showcase (buttons, tabs, link, input) | shown |
 | Flexbox, grid, `gap`, `position` | Showcase, DashPage, FormPage | shown |
-| Headings, paragraphs, lists, links as a browser draws them | Showcase | shown (type selectors by tag: #610) |
+| Headings, paragraphs, lists, links as a browser draws them | Showcase | shown (global `h1`, `h3`, `a` selectors) |
 | `useState`, conditional rendering, controlled input | Showcase | shown (typing in the Studio: #601) |
 | Library components (`Button`, `Field`, `Form`) | FormPage, Gallery | shown |
 | `@layer`, `@container`, theme dark/light | Gallery, SafeAreaPage | partly; Showcase to follow |

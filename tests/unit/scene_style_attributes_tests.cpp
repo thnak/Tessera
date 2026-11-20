@@ -71,5 +71,17 @@ int main() {
     ok &= expect(unmatched.find("font-size") == nullptr || *unmatched.find("font-size") != "24px",
                  "plain text is not matched");
 
+    // A type selector matches the HTML tag an alias was written as (issue #610), through the
+    // index as well: `h1` reaches a `Text` carrying element_tag "h1", never a plain Text.
+    heading_ptr->set_element_tag("h1");
+    style::SceneStyleTree tagged(root);
+    const style::CompiledStyleSheet by_tag = style::compile_stylesheet("h1 { margin-top: 8px; }\n");
+    const style::ComputedStyle h1_style = by_tag.compute(*tagged.view(*heading_ptr), nullptr);
+    ok &= expect(h1_style.find("margin-top") != nullptr && *h1_style.find("margin-top") == "8px",
+                 "an `h1` selector matches the node written as h1");
+    const style::ComputedStyle other = by_tag.compute(*tagged.view(*plain_ptr), nullptr);
+    ok &= expect(other.find("margin-top") == nullptr || *other.find("margin-top") != "8px",
+                 "an `h1` selector skips a plain Text");
+
     return ok ? 0 : 1;
 }

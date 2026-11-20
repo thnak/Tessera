@@ -63,7 +63,8 @@ bool is_metric_style(std::string_view name) {
 }
 
 bool is_span_prop(std::string_view name) {
-    return name == "id" || name == "className" || name == "role" || starts_with(name, "aria-");
+    return name == "id" || name == "className" || name == "role" || name == "tag" ||
+           starts_with(name, "aria-");
 }
 
 struct NodeWalker {

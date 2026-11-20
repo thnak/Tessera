@@ -145,6 +145,7 @@ export interface CommonProps {
   style?: Record<string, string | number>;
   id?: string;
   role?: RoleToken;
+  'tag'?: string;
   'aria-label'?: string;
   'aria-level'?: string;
   'aria-hidden'?: boolean;

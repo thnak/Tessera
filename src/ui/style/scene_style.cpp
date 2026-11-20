@@ -23,6 +23,7 @@ void SceneStyleTree::build(const Node& node, StyleNode* parent) {
     const std::string_view component = node.component_name();
     entry.view.component_host = !component.empty();
     entry.view.tag = entry.view.component_host ? component : node.element_kind();
+    entry.view.alias_tag = node.element_tag();
     entry.view.id = node.element_id();
     entry.view.part = node.part();
     entry.view.state = node.pseudo_state();

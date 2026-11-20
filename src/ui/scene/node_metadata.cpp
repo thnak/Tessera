@@ -102,6 +102,18 @@ void Node::clear_part() {
     mark_dirty(Dirty::Style);
 }
 
+void Node::set_element_tag(std::string_view tag) {
+    const std::string_view next = bounded_view(tag, kMaxMetadataBytes);
+    if (element_tag() == next) {
+        return;
+    }
+    if (!component_metadata_) {
+        component_metadata_ = std::make_unique<ComponentMetadata>();
+    }
+    component_metadata_->element_tag = next;
+    mark_dirty(Dirty::Style);
+}
+
 void Node::set_component_name(std::string_view component) {
     const std::string_view next = bounded_view(component, kMaxMetadataBytes);
     if (next.empty()) {

@@ -204,7 +204,8 @@ std::optional<ElementInfo> resolve_element(NodeState& state, const jsx::JsxNode&
             return std::nullopt;
         }
         return ElementInfo{row, *kind,         false,
-                           {},  alias->inject, schema::alias_style_defaults(alias->tag)};
+                           {},  alias->inject, schema::alias_style_defaults(alias->tag),
+                           alias->tag};
     }
     for (const ComponentRef& reference : state.context.component_refs) {
         if (reference.name == element.tag) {

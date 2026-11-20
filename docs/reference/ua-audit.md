@@ -70,7 +70,7 @@ Box size at a 400px viewport, 16px root, before and after this change.
 | Finding | Status |
 |---|---|
 | Controls inherited `line-height` (button 42.5px instead of 40px) | fixed: `Button, TextInput, TextArea { line-height: normal }` |
-| Author `h1 { ... }`, `h3 { ... }`, `a { ... }` never match: the tag is not kept | open: #610 (the sample uses classes until it lands) |
+| Author `h1 { ... }`, `h3 { ... }`, `a { ... }` never match: the tag is not kept | fixed (#610): an alias keeps its tag as `tag`, which a type selector matches |
 | `max-width` + `margin: 0 auto` on the page root: 866px off-centre at 900, 426px at 400 | open: #611 |
 | Root is the window height: taller content shrinks instead of growing | open, in #611 |
 | 8px collapsed margin between `h1` and the next paragraph shows as 16px | named exception (margin collapsing, above) |
