@@ -469,7 +469,9 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
       painting by bounded 32×32 tessellation through the shared sink hook (so CPU and GPU emit
       identical geometry), repeating as a stop-list transform, gradient interpolation wired into
       keyframes — `src/ui/style/gradient_radial.cpp`, `src/ui/paint/paint_gradient.cpp`,
-      `tests/unit/gradient_interpolation_tests.cpp` (PR #675).
+      `tests/unit/gradient_interpolation_tests.cpp` (PR #675). A layer is a whole `GradientValue`, so
+      #613 and #614 compose in one stack: the paint path walks the layer list bottom to top and
+      resolves each layer into the sink's own draw type.
 - [x] #614 several background layers — `background-image` is a comma-separated layer list painted
       bottom to top, the `background` shorthand puts the colour on the final layer only, `url()` is
       rejected with a diagnostic — `src/ui/style/background_layers.cpp`,
