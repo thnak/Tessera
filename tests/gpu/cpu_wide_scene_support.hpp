@@ -30,6 +30,7 @@ using tessera::ui::LinearGradient;
 using tessera::ui::LinearGradientStop;
 using tessera::ui::Node;
 using tessera::ui::PaintData;
+using tessera::ui::RadialGradient;
 using tessera::ui::paint::PaintStats;
 using tessera::ui::paint::StyleProvider;
 using tessera::ui::style::ComputedStyle;
@@ -118,6 +119,27 @@ inline PaintData gradient_payload(float angle_degrees,
     }
     PaintData data;
     data.gradient = gradient;
+    return data;
+}
+
+// A radial payload (issue #613). Centre and radii are fractions of the node box, so a scene reads
+// in the same terms a stylesheet would. `repeating` expands the authored ramp over the radius.
+inline PaintData radial_payload(float center_x, float center_y, float radius_x, float radius_y,
+                                std::initializer_list<LinearGradientStop> stops,
+                                bool repeating = false) {
+    RadialGradient gradient;
+    gradient.center_x = center_x;
+    gradient.center_y = center_y;
+    gradient.radius_x = radius_x;
+    gradient.radius_y = radius_y;
+    gradient.repeating = repeating;
+    gradient.stop_count = stops.size();
+    std::size_t index = 0;
+    for (const LinearGradientStop& stop : stops) {
+        gradient.stops[index++] = stop;
+    }
+    PaintData data;
+    data.radial_gradient = gradient;
     return data;
 }
 

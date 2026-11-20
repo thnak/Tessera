@@ -107,6 +107,28 @@ void Batched2DSink::fill_linear_gradient(const GradientDraw& draw) {
     }
 }
 
+// A radial gradient has no dominant axis to band along, so it is tessellated into a bounded grid of
+// solid cells by the shared `tessellate_radial_gradient` (paint_sink.hpp), which both this sink and
+// the CPU reference sink call. The geometry is therefore identical on both paths; only the
+// rasterization of a solid quad differs. The approximation is documented in
+// docs/design/paint-pass.md section 13.
+void Batched2DSink::fill_radial_gradient(const RadialGradientDraw& draw) {
+    if (draw.stop_count == 0 || draw.rect.width <= 0.0f || draw.rect.height <= 0.0f) {
+        return;
+    }
+    const bool clipped = draw.clip.rounded();
+    if (clipped) {
+        renderer_->push_clip(rendering::gpu::clip::RoundedRect{
+            draw.clip.rect, draw.clip.top_left, draw.clip.top_right, draw.clip.bottom_right,
+            draw.clip.bottom_left});
+    }
+    tessellate_radial_gradient(
+        draw, [this](const RadialBand& band) { renderer_->push_rect(band.rect, band.color); });
+    if (clipped) {
+        renderer_->pop_clip();
+    }
+}
+
 void Batched2DSink::push_clip(const RoundedClip& clip) {
     renderer_->push_clip(rendering::gpu::clip::RoundedRect{clip.rect, clip.top_left, clip.top_right,
                                                            clip.bottom_right, clip.bottom_left});

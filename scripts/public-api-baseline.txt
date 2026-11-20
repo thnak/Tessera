@@ -2151,11 +2151,17 @@ struct include/tessera/ui/paint/paint_sink.hpp tessera::ui::paint::BackdropDraw
 struct include/tessera/ui/paint/paint_sink.hpp tessera::ui::paint::BoxShadowDraw
 struct include/tessera/ui/paint/paint_sink.hpp tessera::ui::paint::GradientDraw
 struct include/tessera/ui/paint/paint_sink.hpp tessera::ui::paint::ImageDraw
+struct include/tessera/ui/paint/paint_sink.hpp tessera::ui::paint::RadialBand
+struct include/tessera/ui/paint/paint_sink.hpp tessera::ui::paint::RadialGradientDraw
 struct include/tessera/ui/paint/paint_sink.hpp tessera::ui::paint::RoundedClip
 struct include/tessera/ui/paint/paint_sink.hpp tessera::ui::paint::TextDraw
 struct include/tessera/ui/paint/paint_sink.hpp tessera::ui::paint::VectorDraw
 alias include/tessera/ui/paint/paint_sink.hpp tessera::ui::paint::rhi
+function include/tessera/ui/paint/paint_sink.hpp tessera::ui::paint::sample_gradient_stops
 function include/tessera/ui/paint/paint_sink.hpp tessera::ui::paint::sample_linear_gradient
+function include/tessera/ui/paint/paint_sink.hpp tessera::ui::paint::tessellate_radial_gradient
+constant include/tessera/ui/paint/paint_sink.hpp tessera::ui::paint::kMaxDrawStops
+constant include/tessera/ui/paint/paint_sink.hpp tessera::ui::paint::kRadialBands
 
 header include/tessera/ui/paint/paint_text_metrics.hpp
 class include/tessera/ui/paint/paint_text_metrics.hpp tessera::ui::paint::FontPaintTextMetrics
@@ -2313,6 +2319,7 @@ struct include/tessera/ui/scene/paint_data.hpp tessera::ui::PaintImageStyle
 struct include/tessera/ui/scene/paint_data.hpp tessera::ui::PaintSpan
 struct include/tessera/ui/scene/paint_data.hpp tessera::ui::PaintTextStyle
 struct include/tessera/ui/scene/paint_data.hpp tessera::ui::PaintVectorStyle
+struct include/tessera/ui/scene/paint_data.hpp tessera::ui::RadialGradient
 struct include/tessera/ui/scene/paint_data.hpp tessera::ui::TextDecoration
 enum include/tessera/ui/scene/paint_data.hpp tessera::ui::PaintKind
 enum include/tessera/ui/scene/paint_data.hpp tessera::ui::PaintTextAlign
@@ -2457,9 +2464,18 @@ function include/tessera/ui/style/cursor_value.hpp tessera::ui::style::report_un
 
 header include/tessera/ui/style/gradient.hpp
 struct include/tessera/ui/style/gradient.hpp tessera::ui::style::GradientStopValue
+struct include/tessera/ui/style/gradient.hpp tessera::ui::style::GradientValue
 struct include/tessera/ui/style/gradient.hpp tessera::ui::style::LinearGradientValue
+struct include/tessera/ui/style/gradient.hpp tessera::ui::style::RadialGradientValue
+struct include/tessera/ui/style/gradient.hpp tessera::ui::style::RadialPosition
+enum include/tessera/ui/style/gradient.hpp tessera::ui::style::RadialShape
+enum include/tessera/ui/style/gradient.hpp tessera::ui::style::RadialSize
+function include/tessera/ui/style/gradient.hpp tessera::ui::style::expand_repeating_stops
+function include/tessera/ui/style/gradient.hpp tessera::ui::style::is_gradient_function
+function include/tessera/ui/style/gradient.hpp tessera::ui::style::parse_gradient
 function include/tessera/ui/style/gradient.hpp tessera::ui::style::parse_linear_gradient
 constant include/tessera/ui/style/gradient.hpp tessera::ui::style::kMaxGradientStops
+constant include/tessera/ui/style/gradient.hpp tessera::ui::style::kMaxRepeatingStops
 
 header include/tessera/ui/style/grid_values.hpp
 struct include/tessera/ui/style/grid_values.hpp tessera::ui::style::GridLine

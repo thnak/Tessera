@@ -118,6 +118,9 @@ void replay_paint_ops(const std::vector<PaintOp>& ops, PaintSink& sink) {
         case PaintOp::Kind::FillLinearGradient:
             sink.fill_linear_gradient(op.gradient);
             break;
+        case PaintOp::Kind::FillRadialGradient:
+            sink.fill_radial_gradient(op.radial_gradient);
+            break;
         case PaintOp::Kind::PushClip:
             sink.push_clip(op.clip);
             break;
@@ -230,6 +233,14 @@ void PaintCache::Recorder::fill_linear_gradient(const GradientDraw& draw) {
     op.gradient = draw;
     record(std::move(op));
     target_.fill_linear_gradient(draw);
+}
+
+void PaintCache::Recorder::fill_radial_gradient(const RadialGradientDraw& draw) {
+    PaintOp op;
+    op.kind = PaintOp::Kind::FillRadialGradient;
+    op.radial_gradient = draw;
+    record(std::move(op));
+    target_.fill_radial_gradient(draw);
 }
 
 void PaintCache::Recorder::push_clip(const RoundedClip& clip) {

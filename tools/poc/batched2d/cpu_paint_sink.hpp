@@ -109,6 +109,18 @@ public:
         }
     }
 
+    // Radial parity: the same shared tessellation the GPU sink uses (paint_sink.hpp), drawn through
+    // this sink's solid-quad path. Because both sinks consume the identical band list, the CPU and
+    // GPU results differ only by how a solid quad is rasterized, which is what makes the golden
+    // meaningful. Rounded corners fall back to the rect bounds here, like the linear path.
+    void fill_radial_gradient(const ui::paint::RadialGradientDraw& draw) override {
+        if (draw.stop_count == 0 || draw.rect.width <= 0.0f || draw.rect.height <= 0.0f) {
+            return;
+        }
+        ui::paint::tessellate_radial_gradient(
+            draw, [this](const ui::paint::RadialBand& band) { fill_rect(band.rect, band.color); });
+    }
+
     void push_clip(const ui::paint::RoundedClip& clip) override {
         stack_.push_back(clip_);
         clip_ = intersect(clip_, clip.rect);

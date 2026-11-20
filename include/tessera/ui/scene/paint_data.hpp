@@ -174,9 +174,38 @@ struct LinearGradient {
     float angle_degrees = 180.0f;
     std::array<LinearGradientStop, kMaxStops> stops{};
     std::size_t stop_count = 0;
+    // `repeating-linear-gradient()` (issue #613): the authored ramp repeats over the gradient line.
+    // The paint pass expands it, so a sink still sees one ordinary stop list.
+    bool repeating = false;
 
     bool operator==(const LinearGradient& other) const {
         return angle_degrees == other.angle_degrees && stop_count == other.stop_count &&
+               repeating == other.repeating &&
+               std::equal(stops.begin(), stops.begin() + stop_count, other.stops.begin());
+    }
+};
+
+// Radial gradient background (issue #613). `center_x`/`center_y` are fractions of the node's border
+// box (0.5, 0.5 is the CSS default centre) and `radius_x`/`radius_y` are fractions of the box's
+// width/height, so a payload set in code scales with the node instead of freezing a pixel size. The
+// paint pass resolves both against the box it paints. A circle has `radius_x == radius_y`; the
+// stops follow the same clamp/sort/opacity rules as `LinearGradient`.
+struct RadialGradient {
+    static constexpr std::size_t kMaxStops = 8;
+    float center_x = 0.5f;
+    float center_y = 0.5f;
+    float radius_x = 0.5f;
+    float radius_y = 0.5f;
+    std::array<LinearGradientStop, kMaxStops> stops{};
+    std::size_t stop_count = 0;
+    // `repeating-radial-gradient()` (issue #613): the authored ramp repeats over the radius. The
+    // paint pass expands it, so a sink still sees one ordinary stop list.
+    bool repeating = false;
+
+    bool operator==(const RadialGradient& other) const {
+        return center_x == other.center_x && center_y == other.center_y &&
+               radius_x == other.radius_x && radius_y == other.radius_y &&
+               stop_count == other.stop_count && repeating == other.repeating &&
                std::equal(stops.begin(), stops.begin() + stop_count, other.stops.begin());
     }
 };
@@ -226,6 +255,9 @@ struct PaintData {
     // rounded by border-radius) under content/text/vector/image draws. Absent keeps the solid
     // background-color behavior.
     std::optional<LinearGradient> gradient;
+    // Optional radial-gradient background (issue #613), painted in the same place as `gradient`.
+    // When both are set the radial one wins, because a node paints one background image.
+    std::optional<RadialGradient> radial_gradient;
     // Inline spans of this text (empty for ordinary text). Ordered by `begin`; the ranges cover the
     // non-empty parts of `text`. Each entry names the child scene node that carries the run style.
     std::vector<PaintSpan> spans;

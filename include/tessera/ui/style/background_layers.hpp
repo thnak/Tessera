@@ -37,12 +37,16 @@ enum class BackgroundLayerKind : unsigned char {
     // during interpolation (a `none` layer fades a gradient in or out).
     None,
     LinearGradient,
+    // `radial-gradient()` (issue #613). The layer carries the whole `GradientValue`, so the shape
+    // tag inside it is authoritative and this enumerator only says "a gradient is present".
+    RadialGradient,
 };
 
 struct BackgroundLayer {
     BackgroundLayerKind kind = BackgroundLayerKind::None;
-    // Meaningful only for `LinearGradient`.
-    LinearGradientValue gradient;
+    // Meaningful for `LinearGradient` and `RadialGradient`: the parsed value, whose own `kind` and
+    // `repeating` flag carry the shape and the repeating form.
+    GradientValue gradient;
 };
 
 // CSS order: `layers[0]` is the topmost layer and `layers[count - 1]` is painted first.

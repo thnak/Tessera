@@ -199,9 +199,9 @@ bool validate_property_value(const Declaration& declaration, std::string_view pr
         if (text.find("var(") == std::string_view::npos && !parse_background_layers(text)) {
             out.push_back(StyleDiagnostic{StyleDiagnosticKind::UnsupportedValue, declaration.offset,
                                           std::string(property),
-                                          "only a comma-separated list of linear-gradient() (2 to "
-                                          "8 colour stops) and none is "
-                                          "supported; no image is painted"});
+                                          "only a comma-separated list of linear-gradient() or "
+                                          "radial-gradient() (optionally repeating-, 2 to 8 colour "
+                                          "stops) and none is supported; no image is painted"});
         }
         return true;
     }

@@ -1,223 +1,126 @@
 // SPDX-License-Identifier: MIT
 
+#include "gradient_bodies.hpp"
+#include "gradient_internal.hpp"
 #include "tessera/ui/style/gradient.hpp"
 
 #include <algorithm>
-#include <cctype>
-#include <cmath>
-#include <cstdlib>
+#include <array>
 #include <string>
-#include <vector>
+#include <string_view>
 
 namespace tessera::ui::style {
 namespace {
 
-std::string_view trim(std::string_view text) {
-    const auto first = text.find_first_not_of(" \t\r\n\f");
-    if (first == std::string_view::npos) {
-        return {};
-    }
-    return text.substr(first, text.find_last_not_of(" \t\r\n\f") - first + 1);
-}
+using detail::lower;
+using detail::trim;
 
-std::string lower(std::string_view text) {
-    std::string result(text);
-    std::transform(result.begin(), result.end(), result.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return result;
-}
+// The four function names this grammar knows, longest first so `repeating-linear-gradient(` is not
+// matched as `linear-gradient(`.
+struct FunctionName {
+    std::string_view text;
+    GradientValue::Kind kind;
+    bool repeating;
+};
 
-// Splits at top-level commas (a colour such as rgba(0, 0, 0, .5) has commas of its own).
-std::vector<std::string_view> split_commas(std::string_view text) {
-    std::vector<std::string_view> parts;
-    int depth = 0;
-    std::size_t start = 0;
-    for (std::size_t i = 0; i <= text.size(); ++i) {
-        if (i < text.size()) {
-            if (text[i] == '(') {
-                ++depth;
-            } else if (text[i] == ')') {
-                --depth;
-            }
-        }
-        if (i == text.size() || (text[i] == ',' && depth == 0)) {
-            parts.push_back(trim(text.substr(start, i - start)));
-            start = i + 1;
-        }
-    }
-    return parts;
-}
+constexpr FunctionName kFunctionNames[] = {
+    {"repeating-linear-gradient(", GradientValue::Kind::Linear, true},
+    {"repeating-radial-gradient(", GradientValue::Kind::Radial, true},
+    {"linear-gradient(", GradientValue::Kind::Linear, false},
+    {"radial-gradient(", GradientValue::Kind::Radial, false},
+};
 
-bool parse_number(const std::string& text, float& value, std::string& unit) {
-    char* end = nullptr;
-    const float parsed = std::strtof(text.c_str(), &end);
-    if (end == text.c_str() || !std::isfinite(parsed)) {
-        return false;
-    }
-    value = parsed;
-    unit = end;
-    return true;
-}
-
-std::optional<float> parse_angle(std::string_view text) {
-    const std::string token = lower(trim(text));
-    float value = 0.0f;
-    std::string unit;
-    if (!parse_number(token, value, unit)) {
+// Matches `text` against one function name and returns the text between its parentheses. The value
+// must end with the matching `)`.
+std::optional<std::string_view> body_of(std::string_view text, std::string_view head) {
+    if (text.size() <= head.size() || text.back() != ')') {
         return std::nullopt;
     }
-    if (unit == "deg") {
-        return value;
-    }
-    if (unit == "grad") {
-        return value * 0.9f;
-    }
-    if (unit == "rad") {
-        return value * 180.0f / 3.14159265358979f;
-    }
-    if (unit == "turn") {
-        return value * 360.0f;
-    }
-    return value == 0.0f && unit.empty() ? std::optional<float>(0.0f) : std::nullopt;
-}
-
-std::optional<float> parse_direction(std::string_view text) {
-    const std::string token = lower(trim(text));
-    if (token.rfind("to ", 0) != 0) {
+    if (text.substr(0, head.size()) != head) {
         return std::nullopt;
     }
-    bool top = false;
-    bool bottom = false;
-    bool left = false;
-    bool right = false;
-    std::size_t start = 3;
-    while (start < token.size()) {
-        const std::size_t end = std::min(token.find(' ', start), token.size());
-        const std::string word = token.substr(start, end - start);
-        if (word == "top") {
-            top = true;
-        } else if (word == "bottom") {
-            bottom = true;
-        } else if (word == "left") {
-            left = true;
-        } else if (word == "right") {
-            right = true;
-        } else if (!word.empty()) {
-            return std::nullopt;
-        }
-        start = end + 1;
-    }
-    if ((top && bottom) || (left && right) || !(top || bottom || left || right)) {
-        return std::nullopt;
-    }
-    if (top && right) {
-        return 45.0f;
-    }
-    if (bottom && right) {
-        return 135.0f;
-    }
-    if (bottom && left) {
-        return 225.0f;
-    }
-    if (top && left) {
-        return 315.0f;
-    }
-    return top ? 0.0f : right ? 90.0f : bottom ? 180.0f : 270.0f;
-}
-
-// `<color> <percentage>?`; the colour may itself contain spaces inside its parentheses.
-bool parse_stop(std::string_view text, ColorRgba& color, std::optional<float>& position) {
-    std::string_view body = trim(text);
-    position.reset();
-    const std::size_t split = body.find_last_of(" \t");
-    if (split != std::string_view::npos && body.back() == '%' &&
-        body.find(')', split) == std::string_view::npos) {
-        const std::string number(trim(body.substr(split)));
-        float value = 0.0f;
-        std::string unit;
-        if (!parse_number(number, value, unit) || unit != "%") {
-            return false;
-        }
-        position = value / 100.0f;
-        body = trim(body.substr(0, split));
-    }
-    const ColorParseResult parsed = parse_color(body);
-    if (!parsed.ok) {
-        return false;
-    }
-    color = parsed.color;
-    return true;
+    return text.substr(head.size(), text.size() - head.size() - 1);
 }
 
 } // namespace
 
-std::optional<LinearGradientValue> parse_linear_gradient(std::string_view text) {
+bool is_gradient_function(std::string_view text) {
     const std::string value = lower(trim(text));
-    constexpr std::string_view kHead = "linear-gradient(";
-    if (value.rfind(kHead, 0) != 0 || value.back() != ')') {
-        return std::nullopt;
+    for (const FunctionName& name : kFunctionNames) {
+        if (value.rfind(name.text, 0) == 0) {
+            return true;
+        }
     }
-    const std::string_view inner =
-        std::string_view(value).substr(kHead.size(), value.size() - kHead.size() - 1);
-    const std::vector<std::string_view> parts = split_commas(inner);
-    if (parts.empty()) {
-        return std::nullopt;
-    }
+    return false;
+}
 
-    LinearGradientValue gradient;
-    std::size_t first_stop = 0;
-    if (const std::optional<float> angle = parse_angle(parts[0])) {
-        gradient.angle_degrees = std::fmod(std::fmod(*angle, 360.0f) + 360.0f, 360.0f);
-        first_stop = 1;
-    } else if (const std::optional<float> direction = parse_direction(parts[0])) {
-        gradient.angle_degrees = *direction;
-        first_stop = 1;
+std::size_t expand_repeating_stops(GradientStopValue* stops, std::size_t count) {
+    // The destination holds kMaxRepeatingStops entries, so a longer authored ramp cannot be copied
+    // into the cycle buffer; it is truncated to what fits rather than read past the end.
+    count = std::min(count, kMaxRepeatingStops);
+    if (count < 2) {
+        return count;
     }
-
-    const std::size_t count = parts.size() - first_stop;
-    if (count < 2 || count > kMaxGradientStops) {
-        return std::nullopt;
+    // The authored ramp is one cycle: its period is the span from the first to the last offset. A
+    // zero or negative period cannot repeat, so the ramp is left as authored.
+    const float period = stops[count - 1].offset - stops[0].offset;
+    if (!(period > 0.0f)) {
+        return count;
     }
-    std::array<std::optional<float>, kMaxGradientStops> positions;
+    // The cycle is repeated forwards and backwards from the authored one until it spans 0..1. The
+    // authored ramp is copied first, because the expansion writes over the same array.
+    std::array<GradientStopValue, kMaxRepeatingStops> cycle{};
     for (std::size_t index = 0; index < count; ++index) {
-        if (!parse_stop(parts[first_stop + index], gradient.stops[index].color, positions[index])) {
-            return std::nullopt;
-        }
+        cycle[index] = stops[index];
     }
-    gradient.stop_count = count;
+    const float base = cycle[0].offset;
+    // How many whole cycles fit before the authored one starts, and after it ends.
+    const int before = static_cast<int>((base - 0.0f) / period);
+    const int after = static_cast<int>((1.0f - cycle[count - 1].offset) / period);
+    std::size_t written = 0;
+    const auto emit_cycle = [&](int shift) {
+        for (std::size_t index = 0; index < count && written < kMaxRepeatingStops; ++index) {
+            GradientStopValue stop = cycle[index];
+            stop.offset += static_cast<float>(shift) * period;
+            stops[written++] = stop;
+        }
+    };
+    for (int shift = -before; shift <= after && written < kMaxRepeatingStops; ++shift) {
+        emit_cycle(shift);
+    }
+    return written;
+}
 
-    // CSS Images 3 section 3.4.3 colour-stop fix-up.
-    if (!positions[0]) {
-        positions[0] = 0.0f;
-    }
-    if (!positions[count - 1]) {
-        positions[count - 1] = 1.0f;
-    }
-    float highest = positions[0].value();
-    for (std::size_t index = 1; index < count; ++index) {
-        if (positions[index]) {
-            positions[index] = std::max(*positions[index], highest);
-            highest = *positions[index];
-        }
-    }
-    for (std::size_t index = 1; index + 1 < count; ++index) {
-        if (positions[index]) {
+std::optional<GradientValue> parse_gradient(std::string_view text) {
+    const std::string value = lower(trim(text));
+    for (const FunctionName& name : kFunctionNames) {
+        const std::optional<std::string_view> body = body_of(value, name.text);
+        if (!body) {
             continue;
         }
-        std::size_t next = index + 1;
-        while (!positions[next]) {
-            ++next;
+        GradientValue gradient;
+        gradient.kind = name.kind;
+        gradient.repeating = name.repeating;
+        if (name.kind == GradientValue::Kind::Linear) {
+            if (!detail::parse_linear_body(*body, gradient.linear)) {
+                return std::nullopt;
+            }
+        } else {
+            if (!detail::parse_radial_body(*body, gradient.radial)) {
+                return std::nullopt;
+            }
         }
-        const float from = positions[index - 1].value();
-        const float step = (*positions[next] - from) / static_cast<float>(next - index + 1);
-        for (std::size_t fill = index; fill < next; ++fill) {
-            positions[fill] = from + step * static_cast<float>(fill - index + 1);
-        }
+        return gradient;
     }
-    for (std::size_t index = 0; index < count; ++index) {
-        gradient.stops[index].offset = positions[index].value();
+    return std::nullopt;
+}
+
+std::optional<LinearGradientValue> parse_linear_gradient(std::string_view text) {
+    const std::optional<GradientValue> gradient = parse_gradient(text);
+    if (!gradient || gradient->kind != GradientValue::Kind::Linear) {
+        return std::nullopt;
     }
-    return gradient;
+    return gradient->linear;
 }
 
 } // namespace tessera::ui::style

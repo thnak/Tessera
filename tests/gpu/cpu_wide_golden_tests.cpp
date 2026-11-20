@@ -1,15 +1,17 @@
 // SPDX-License-Identifier: MIT
 //
-// Vulkan-free CPU paint goldens for four V1 paint capabilities: borders, nested clips, linear
-// gradients and the carved outer box shadow (#461). Each case is an ordinary scene graph painted by
-// the shared paint pass
+// Vulkan-free CPU paint goldens for five V1 paint capabilities: borders, nested clips, linear
+// gradients, radial gradients (#613) and the carved outer box shadow (#461). Each case is an
+// ordinary scene graph painted by the shared paint pass
 // (`ui::paint::paint_scene`) into `CpuPaintSink` (`tools/poc/batched2d/cpu_paint_sink.hpp`), which
 // maps the commands onto the deterministic `CpuCanvas`: axis-aligned fills, an intersecting clip
-// stack, the documented rounded-bounds approximation, and 64-band gradients sampled through
-// `ui::paint::sample_linear_gradient`. `ui::paint::Batched2DSink` is the GPU twin of that sink (see
-// `paint_gradient_tests.cpp`); it needs a device, so the committed CPU baselines use the CPU sink.
+// stack, the documented rounded-bounds approximation, 64-band linear gradients sampled through
+// `ui::paint::sample_linear_gradient`, and radial gradients tessellated by the shared
+// `ui::paint::tessellate_radial_gradient`. `ui::paint::Batched2DSink` is the GPU twin of that sink
+// (see `paint_gradient_tests.cpp`); it needs a device, so the committed CPU baselines use the CPU
+// sink.
 //
-// The four baselines under `tests/golden/baseline/cpu_wide/` are generated on the CPU path only,
+// The five baselines under `tests/golden/baseline/cpu_wide/` are generated on the CPU path only,
 // through this executable's own write mode:
 //
 //     cpu_wide_golden_tests --update-goldens
@@ -379,6 +381,93 @@ bool check_layers(const PaintStats& stats, const CpuCanvas& canvas) {
     return ok;
 }
 
+// radials (issue #613): a centred circle, an off-centre ellipse, a repeating radial ramp and a
+// radial cut by an overflow clip. The tessellation is the shared one both sinks call, so this
+// baseline pins the geometry the GPU path emits as well.
+// -------------------------------------------------------------------------------------------------
+void build_radials_scene(Node& root, StubStyles& styles) {
+    root.set_bounds({0, 0, static_cast<float>(kWidth), static_cast<float>(kHeight)});
+    styles.set(1, styled({{"background-color", "#0B1120"}}));
+
+    // A centred circle: the ramp runs from the middle out to the nearest side.
+    Node& circle = add_node(root, 2, {16, 16, 120, 120});
+    circle.set_paint_data(radial_payload(0.5f, 0.5f, 0.5f, 0.5f,
+                                         {LinearGradientStop{0.0f, rgba8(250, 204, 21)},
+                                          LinearGradientStop{0.5f, rgba8(219, 39, 119)},
+                                          LinearGradientStop{1.0f, rgba8(29, 78, 216)}}));
+
+    // An off-centre ellipse: the centre sits at 25 % / 50 % and the radii differ per axis.
+    Node& ellipse = add_node(root, 3, {152, 16, 148, 70});
+    ellipse.set_paint_data(radial_payload(0.25f, 0.5f, 0.75f, 0.5f,
+                                          {LinearGradientStop{0.0f, rgba8(16, 185, 129)},
+                                           LinearGradientStop{1.0f, rgba8(245, 158, 11)}}));
+
+    // A repeating radial ramp: the authored cycle is short, so it repeats several times.
+    Node& repeating = add_node(root, 4, {152, 100, 148, 76});
+    repeating.set_paint_data(radial_payload(0.5f, 0.5f, 0.5f, 0.5f,
+                                            {LinearGradientStop{0.0f, rgba8(14, 165, 233)},
+                                             LinearGradientStop{0.25f, rgba8(244, 63, 94)}},
+                                            /*repeating=*/true));
+
+    // A radial cut by two nested overflow clips.
+    Node& outer = add_node(root, 5, {16, 148, 120, 40});
+    styles.set(5, styled({{"background-color", "#1E293B"}}));
+    clip_children(styles, 5);
+    Node& clipped = add_node(outer, 6, {-10, -10, 160, 60});
+    clipped.set_paint_data(radial_payload(0.5f, 0.5f, 0.5f, 0.5f,
+                                          {LinearGradientStop{0.0f, rgba8(167, 139, 250)},
+                                           LinearGradientStop{1.0f, rgba8(34, 197, 94)}}));
+}
+
+bool check_radials(const PaintStats& stats, const CpuCanvas& canvas) {
+    bool ok = expect(stats.nodes == 6, "radials: six nodes painted") &&
+              expect(stats.gradients == 4, "radials: four radial fills emitted");
+    // The circle's centre is the first stop (amber) and its edge the last (blue).
+    ok = expect(channel(canvas, 76, 76, 0) > channel(canvas, 76, 76, 2),
+                "radials: the circle centre is the first stop") &&
+         ok;
+    ok = expect(channel(canvas, 76, 20, 2) > channel(canvas, 76, 20, 0),
+                "radials: the circle edge is the last stop") &&
+         ok;
+    // Outside the ellipse the node's own background shows through: the payload paints no fill
+    // there.
+    ok = expect(is_pixel(canvas, 20, 20, kRoot),
+                "radials: the ellipse leaves the box corner unpainted") &&
+         ok;
+    // The off-centre ellipse is green at its centre (25 % of the width) and amber at its far edge.
+    ok = expect(channel(canvas, 152 + 37, 51, 1) > channel(canvas, 152 + 37, 51, 0),
+                "radials: the ellipse centre is the first stop") &&
+         ok;
+    ok = expect(channel(canvas, 152 + 140, 51, 0) > channel(canvas, 152 + 140, 51, 1),
+                "radials: the ellipse far edge is the last stop") &&
+         ok;
+    // The repeating ramp alternates: along the horizontal radius the blue-vs-red dominance must
+    // flip more than once, which a single (non-repeating) ramp cannot do. The node is x 152..300,
+    // y 100..176, so its centre row is y = 138 and the radius reaches x = 226 + 74.
+    int flips = 0;
+    int previous = 0;
+    for (std::uint32_t x = 228; x < 298; x += 2) {
+        const int sign = static_cast<int>(channel(canvas, x, 138, 2)) -
+                         static_cast<int>(channel(canvas, x, 138, 0));
+        const int current = sign > 10 ? 1 : (sign < -10 ? -1 : 0);
+        if (current != 0 && previous != 0 && current != previous) {
+            ++flips;
+        }
+        if (current != 0) {
+            previous = current;
+        }
+    }
+    ok = expect(flips >= 2, "radials: the repeating ramp alternates along the radius") && ok;
+    // The clipped radial paints inside the clip and not outside it.
+    ok = expect(channel(canvas, 76, 168, 2) > channel(canvas, 76, 168, 1),
+                "radials: the clipped radial paints inside the clip") &&
+         ok;
+    ok = expect(is_pixel(canvas, 76, 190, kRoot),
+                "radials: the clip cuts the radial at the panel edge") &&
+         ok;
+    return ok;
+}
+
 using BuildFn = void (*)(Node&, StubStyles&);
 using CheckFn = bool (*)(const PaintStats&, const CpuCanvas&);
 
@@ -461,6 +550,7 @@ int main(int argc, char** argv) {
     ok = run_case("clips", build_clips_scene, check_clips) && ok;
     ok = run_case("gradients", build_gradients_scene, check_gradients) && ok;
     ok = run_case("layers", build_layers_scene, check_layers) && ok;
+    ok = run_case("radials", build_radials_scene, check_radials) && ok;
     ok = run_case("shadows", build_shadows_scene, check_shadows) && ok;
     if (!ok) {
         std::cerr << "cpu-wide-golden: FAILED\n";
