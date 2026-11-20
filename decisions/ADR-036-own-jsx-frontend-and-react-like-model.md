@@ -1,6 +1,6 @@
 # ADR-036: Own JSX/TSX front end and a React-like (not React-identical) model
 
-- Status: Accepted
+- Status: Accepted; item 3 (hooks written by app developers are rejected) is amended by [ADR-065](ADR-065-custom-hooks-by-compile-time-inlining.md)
 - Date: 2026-11-08
 - Related (number: subject): ADR-007: neutral IR between JSX and C++ code generation; ADR-016:
   stylesheet engine; ADR-024: no JS/React runtime in production; ADR-025: error boundaries.
