@@ -91,7 +91,7 @@ and not a second renderer ([design](docs/design/designer.md)). What V1 promises,
 1. The compiler in Wasm, and a diagnostics-only page on GitHub Pages.
 2. An IR evaluator in the browser, so hooks and handlers run without a native build.
 3. A WebGPU canvas preview with browser input; component state survives edits.
-4. Shareable links, a sample gallery, and theme, DPR and viewport toggles.
+4. Theme, DPR and viewport toggles. To try a sample, clone the repo, then open `samples/<name>` in the studio.
 5. Size and latency budgets enforced in CI.
 6. Studio slices: a picker overlay, a style inspector that writes a `source.patch`, and device skins.
 

@@ -17,8 +17,8 @@
 // out of one hand-written module and into components plus DOM-free library modules:
 //
 //   1. **The library layer, imported from source.** `designer/web/src/lib/preferences.ts` (the toolbar's
-//      persistence) and `designer/web/src/lib/gallery.ts` (the lazy
-//      manifest and the sample fetch) have no DOM beyond `localStorage`/`location`/`navigator`, both of which
+//      persistence) and `designer/web/src/lib/sample-folder.ts` (a picked
+//      folder's sample entries and companion files) have no DOM beyond `localStorage`/`location`/`navigator`, both of which
 //      this file stubs. They are compiled to `dist-ssr/` by the same build that renders the chrome, so this
 //      runs the shipped code and not a copy.
 //   2. **The rendered chrome, from `dist-ssr/chrome.js`.** The components are rendered with
@@ -30,7 +30,8 @@
 //   * the toolbar's three selects carry the documented option sets, in the rendered markup;
 //   * the controls persist to `localStorage` under one key, and the source never does;
 //   * the initial state comes from storage, then the page's default (a leftover share fragment is ignored);
-//   * the gallery fetches nothing until it is opened, then the manifest once, then the chosen sample.
+//   * a sample opens from the folder the visitor picked: its entries, the library files its imports need
+//     (copied from packages/tessera-ui when the folder has them), and a named diagnostic when it does not.
 
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -108,14 +109,14 @@ function installBrowser({ hash = "", clipboard = true } = {}) {
   return { storage, historyCalls };
 }
 
-// `preferences.ts` and `gallery.ts` are TypeScript; the build compiles them into the bundles. The SSR bundle
+// `preferences.ts` and `sample-folder.ts` are TypeScript; the build compiles them into the bundles. The SSR bundle
 // has the chrome and its imports, and the same modules are reachable from `dist-ssr/`'s chunk graph, so this
 // imports the *site* bundle where it can and the SSR bundle for the rest. `vite.ssr.config.ts` keeps `react`
 // external so both are importable under Node.
 
 const chrome = await import(pathToFileURL(resolve(DIST_SSR, "ssr-chrome.js")).href);
 const preferences = await import(pathToFileURL(resolve(DIST_SSR, "preferences.js")).href);
-const gallery = await import(pathToFileURL(resolve(DIST_SSR, "gallery.js")).href);
+const samples = await import(pathToFileURL(resolve(DIST_SSR, "sample-folder.js")).href);
 
 const MARKUP = chrome.renderChrome();
 
@@ -254,111 +255,83 @@ await test("a share link in the address bar is ignored: the studio reads no URL 
   }
 });
 
-await test("the gallery fetches nothing until it is asked to, then the manifest once", async () => {
-  const fetched = [];
-  const MANIFEST = {
-    schema: 2,
-    samples: [
-      { path: "samples/parity-demo/Counter.tsx", component: "Counter", files: [] },
-      {
-        path: "samples/gallery/Gallery.tsx",
-        component: "Gallery",
-        files: [{ as: "samples/gallery/Button.tsx", from: "packages/tessera-ui/Button.tsx" }],
-      },
-    ],
-  };
-  const fetchImpl = async (url) => {
-    fetched.push(url);
-    if (url === "./samples.json") {
-      return { ok: true, status: 200, json: async () => MANIFEST };
-    }
-    if (url.endsWith(".tsx")) {
-      return { ok: true, status: 200, text: async () => "SAMPLE" };
-    }
-    return { ok: false, status: 404, text: async () => "" };
-  };
-  const cache = { samples: null };
-  assert.deepEqual(fetched, [], "nothing is fetched before the gallery opens");
-  const first = await gallery.cachedManifest(cache, fetchImpl);
-  assert.deepEqual(fetched, ["./samples.json"], "the manifest is fetched on first open");
-  assert.equal(first.length, 2, "one entry per sample");
-  await gallery.cachedManifest(cache, fetchImpl);
-  assert.equal(
-    fetched.filter((url) => url === "./samples.json").length,
-    1,
-    "the manifest is fetched once per page load",
-  );
-  const text = await gallery.loadSampleSource("samples/parity-demo/Counter.tsx", fetchImpl);
-  assert.equal(text, "SAMPLE");
-  assert.equal(gallery.titleOf("samples/parity-demo/Counter.tsx"), "Counter (parity-demo)");
-});
-
-await test("a sample loads as a project: the entry plus its companions at their project paths", async () => {
-  const served = [];
-  const fetchImpl = async (url) => {
-    served.push(url);
-    return { ok: true, status: 200, text: async () => `TEXT(${url})` };
-  };
-  const [, withButton] = [
-    { path: "samples/parity-demo/Counter.tsx", component: "Counter", files: [] },
-    {
-      path: "samples/gallery/Gallery.tsx",
-      component: "Gallery",
-      files: [{ as: "samples/gallery/Button.tsx", from: "packages/tessera-ui/Button.tsx" }],
-    },
+await test("a picked folder's sample entries: the repository root, samples/<name>, or an ordinary project", async () => {
+  const component = (name) => `export function ${name}() { return <View/>; }\n`;
+  const root = [
+    { path: "README.md", text: "" },
+    { path: "designer/web/src/App.tsx", text: component("App") },
+    { path: "packages/tessera-ui/Button.tsx", text: component("Button") },
+    { path: "samples/gallery/Gallery.tsx", text: component("Gallery") },
+    { path: "samples/gallery/helpers.tsx", text: "export function helper() {}\n" },
+    { path: "samples/showcase/Showcase.tsx", text: component("Showcase") },
   ];
-  const loaded = await gallery.loadSampleProject(withButton, fetchImpl);
-  assert.equal(loaded.text, "TEXT(./samples/gallery/Gallery.tsx)");
-  assert.deepEqual(loaded.companions, [
-    { path: "samples/gallery/Button.tsx", text: "TEXT(./packages/tessera-ui/Button.tsx)" },
+  assert.deepEqual(samples.sampleEntries(root), ["samples/gallery/Gallery.tsx", "samples/showcase/Showcase.tsx"]);
+  const folder = [
+    { path: "Gallery.tsx", text: component("Gallery") },
+    { path: "FormPage.tsx", text: component("FormPage") },
+    { path: "main.cpp", text: "" },
+  ];
+  assert.deepEqual(samples.sampleEntries(folder), ["FormPage.tsx", "Gallery.tsx"]);
+  const project = [
+    { path: "tessera.json", text: JSON.stringify({ app: { entry: "src/App.tsx" } }) },
+    { path: "src/App.tsx", text: component("App") },
+  ];
+  assert.deepEqual(samples.sampleEntries(project), [], "a project naming its entry opens as it is");
+  // samples/parity-demo has a tessera.json without app.entry: still a sample, and its fields are kept.
+  const parity = [
+    { path: "tessera.json", text: JSON.stringify({ schemaVersion: 1, app: { namespace: "parity_demo" } }) },
+    { path: "Counter.tsx", text: component("Counter") },
+  ];
+  assert.deepEqual(samples.sampleEntries(parity), ["Counter.tsx"]);
+  const config = samples.sampleProject(parity, "Counter.tsx").files.find((file) => file.path === "tessera.json");
+  assert.deepEqual(JSON.parse(config.text).app, { name: "counter", namespace: "parity_demo", entry: "Counter.tsx" });
+});
+
+await test("the repository root: a library import is copied next to the sample from packages/tessera-ui", async () => {
+  const tree = [
+    { path: "packages/tessera-ui/Button.tsx", text: 'import "./button.css";\nexport function Button() {}\n' },
+    { path: "packages/tessera-ui/button.css", text: ".b {}" },
+    { path: "samples/gallery/Gallery.tsx", text: '// import "./Nope"\nimport { Button } from "./Button";\nexport function Gallery() {}\n' },
+    { path: "samples/gallery/DashPage.tsx", text: "export function DashPage() {}\n" },
+  ];
+  const project = samples.sampleProject(tree, "samples/gallery/Gallery.tsx");
+  assert.deepEqual(project.files.map((file) => file.path), [
+    "samples/gallery/Button.tsx",
+    "samples/gallery/Gallery.tsx",
+    "samples/gallery/button.css",
+    "tessera.json",
   ]);
-  assert.equal(served.length, 2, "one fetch per file");
-  const missing = async (url) => ({ ok: !url.includes("Button"), status: 404, text: async () => "" });
-  await assert.rejects(() => gallery.loadSampleProject(withButton, missing), /Button.tsx.*404/);
+  assert.deepEqual(project.companions, [
+    { path: "samples/gallery/Button.tsx", from: "packages/tessera-ui/Button.tsx" },
+    { path: "samples/gallery/button.css", from: "packages/tessera-ui/button.css" },
+  ]);
+  assert.deepEqual(project.missing, [], "a commented-out import is not an import");
+  const config = JSON.parse(project.files.find((file) => file.path === "tessera.json").text);
+  assert.equal(config.app.entry, "samples/gallery/Gallery.tsx");
+  assert.equal(config.app.namespace, "gallery");
 });
 
-await test("a failed sample fetch is an error the gallery can show, not a thrown page", async () => {
-  const fetchImpl = async () => ({ ok: false, status: 404, text: async () => "" });
-  await assert.rejects(
-    () => gallery.loadSampleSource("samples/missing/Missing.tsx", fetchImpl),
-    /404/,
+await test("samples/<name> alone: a missing library file is named with its repository path", async () => {
+  const tree = [
+    { path: "Gallery.tsx", text: 'import { Button } from "./Button";\nimport { X } from "../x";\nexport function Gallery() {}\n' },
+    { path: "form.module.css", text: "" },
+  ];
+  const project = samples.sampleProject(tree, "Gallery.tsx");
+  assert.deepEqual(project.missing, [
+    { importer: "Gallery.tsx", specifier: "../x", path: "../x.tsx", library: null },
+    { importer: "Gallery.tsx", specifier: "./Button", path: "Button.tsx", library: "packages/tessera-ui/Button.tsx" },
+  ]);
+  const sentence = samples.missingSentence(project.missing);
+  assert.match(sentence, /Gallery\.tsx imports \.\/Button, which is not in the opened folder/);
+  assert.match(sentence, /packages\/tessera-ui\/Button\.tsx in the repository/);
+  assert.match(sentence, /Open the repository root/);
+  // A sibling in the folder wins over the library, as in the native build's copy.
+  const own = samples.sampleProject(
+    [...tree, { path: "Button.tsx", text: "export function Button() {}\n" }, { path: "packages/tessera-ui/Button.tsx", text: "LIB" }],
+    "Gallery.tsx",
   );
-});
-
-await test("the manifest is validated, not trusted", async () => {
-  const unsafe = async () => ({
-    ok: true,
-    status: 200,
-    json: async () => ({ schema: 2, samples: [{ path: "../escape.tsx", component: "X", files: [] }] }),
-  });
-  await assert.rejects(() => gallery.loadSampleManifest(unsafe), /unsafe path/);
-  const unsafeCompanion = async () => ({
-    ok: true,
-    status: 200,
-    json: async () => ({
-      schema: 2,
-      samples: [{ path: "samples/a/A.tsx", component: "A", files: [{ from: "/etc/passwd", as: "samples/a/B.tsx" }] }],
-    }),
-  });
-  await assert.rejects(() => gallery.loadSampleManifest(unsafeCompanion), /unsafe path/);
-  const noFiles = async () => ({
-    ok: true,
-    status: 200,
-    json: async () => ({ schema: 2, samples: [{ path: "samples/a/A.tsx", component: "A" }] }),
-  });
-  await assert.rejects(() => gallery.loadSampleManifest(noFiles), /path, component and files/);
-  const oldSchema = async () => ({
-    ok: true,
-    status: 200,
-    json: async () => ({ schema: 1, samples: [{ path: "samples/a/A.tsx", component: "A" }] }),
-  });
-  await assert.rejects(() => gallery.loadSampleManifest(oldSchema), /schema 1, expected 2/);
-  const wrongSchema = async () => ({
-    ok: true,
-    status: 200,
-    json: async () => ({ schema: 3, samples: [] }),
-  });
-  await assert.rejects(() => gallery.loadSampleManifest(wrongSchema), /schema 3/);
+  assert.deepEqual(own.companions, []);
+  assert.equal(own.files.find((file) => file.path === "Button.tsx").text, "export function Button() {}\n");
 });
 
 process.stdout.write(`\n${failures === 0 ? "studio smoke: all cases passed" : `${failures} failed`}\n`);

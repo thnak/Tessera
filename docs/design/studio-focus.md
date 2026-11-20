@@ -9,7 +9,7 @@ toolbar, status bar); the core as built is [`studio-workbench-core.md`](studio-w
 
 | Element | Before | After | Why |
 |---|---|---|---|
-| Samples bar | a horizontal strip of buttons above the workspace, opened on first view | **removed**. Samples are in `File > Open Sample` (a quick pick, palette intent `samples`), in the palette, and in the welcome view the editor column shows while no project is open | a permanent bar for something used once per project |
+| Samples bar | a horizontal strip of buttons above the workspace, opened on first view | **removed**. Samples open from the visitor's clone: `File > Open Sample` picks a folder, a folder with several samples offers them in a quick pick (palette intent `samples`) and the welcome view, which says to clone the repository and open `samples/<name>` | a permanent bar for something used once per project |
 | Title and logo | "T Tessera Studio" in the menu row | **moved** to `Help > About` (`help.about`, an accessible modal with the description, build and links). One visually hidden `h1` stays | the name is not a control |
 | Footer description | a paragraph about the three Wasm modules under the status line | **moved** into About | prose in permanent chrome |
 | Status: build id | "Build: ..." cell | **moved** to About | rarely needed |
@@ -53,7 +53,7 @@ Owner decision: the studio has no cloud storage to share to, so the Share featur
 | the command `file.share` ("Copy Share Link") | `commands.json`, `page-commands.ts`, the File menu |
 | the `#p5=` codec and its validator | `lib/share.js`, `share.d.ts`, `normalizeState`/`ShareError` in `preview-state.js` |
 | the startup fragment decode and the broken-link banner (`#link-note`) | `lib/preferences.ts`, `page-startup.ts`, `App.tsx` |
-| `useSampleAndShare`'s share half (the file is now `page-sample.ts`, `useSample`) | `page-sample-share.ts` |
+| `useSampleAndShare`'s share half (the rest became `page-sample.ts`, removed when samples moved to the visitor's clone) | `page-sample-share.ts` |
 | the codec's round-trip gate | `scripts/ci/preview_share_roundtrip.mjs` and its `pages.yml` steps |
 
 Kept on purpose: `File > Open Sample` (and the welcome view), and the theme command (`View > Appearance`, palette). The
