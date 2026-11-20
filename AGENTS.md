@@ -463,10 +463,23 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
       damage), `PropertyRegistry::longhand_names()`, tests `property_effects` and `property_status`
       (the latter fails when the registry and the table disagree).
 - [ ] Style and paint gaps found by the tactile design mock and the Astryx theme model, one landing
-      each (Chromium-measured, golden on lavapipe, property-status doc updated): #613 radial and
-      repeating gradients, #614 several background layers, #615 `clip-path` basic shapes, #617 conic
-      gradient, `mask`, `filter` or the `Path` route (decide first), #622 `:has()` and `@scope`.
-      Umbrella #618.
+      each (Chromium-measured, golden on lavapipe, property-status doc updated): #617 conic gradient,
+      `mask`, `filter` or the `Path` route (decide first). Umbrella #618.
+- [x] #613 `radial-gradient()` and the repeating forms — one grammar with two shape halves, radial
+      painting by bounded 32×32 tessellation through the shared sink hook (so CPU and GPU emit
+      identical geometry), repeating as a stop-list transform, gradient interpolation wired into
+      keyframes — `src/ui/style/gradient_radial.cpp`, `src/ui/paint/paint_gradient.cpp`,
+      `tests/unit/gradient_interpolation_tests.cpp` (PR #675).
+- [x] #614 several background layers — `background-image` is a comma-separated layer list painted
+      bottom to top, the `background` shorthand puts the colour on the final layer only, `url()` is
+      rejected with a diagnostic — `src/ui/style/background_layers.cpp`,
+      `tests/unit/background_layers_tests.cpp` (PR #676).
+- [x] #622 `:has()` and `@scope` — both supported, no named exception: `@scope` styles a component's
+      subtree without a class on every descendant and `:has()` lets a rule reach a nested region it
+      hosts, which is what ADR-064 item 6's nested theme region needs; the `:has()` walk is bounded
+      by the subtree it visits and the index still narrows by subject compound first —
+      `src/ui/style/selector_has.cpp`, `docs/design/theme-scoping.md`,
+      `tests/unit/theme_scoping_tests.cpp` (PR #676).
 - [x] #620 `light-dark()` and #621 `color-mix()` — computed-value-time colour functions that resolve
       inside any value, `color-scheme` as the inherited branch selector, four interpolation spaces
       with premultiplied alpha — `src/ui/style/color_functions.cpp`, `tests/unit/color_functions_tests.cpp`
