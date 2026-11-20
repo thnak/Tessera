@@ -1182,6 +1182,15 @@ target_link_libraries(text_shadow_interpolation_tests PRIVATE tessera_animation)
 
 add_test(NAME text_shadow_interpolation COMMAND text_shadow_interpolation_tests)
 
+# `background-image` gradient interpolation (issue #613): linear and radial stop/geometry blending,
+# the discrete shape and repeating mismatches, and the endpoints.
+add_executable(gradient_interpolation_tests
+    gradient_interpolation_tests.cpp)
+
+target_link_libraries(gradient_interpolation_tests PRIVATE tessera_animation)
+
+add_test(NAME gradient_interpolation COMMAND gradient_interpolation_tests)
+
 add_executable(animation_quality_pause_tests
     animation_quality_pause_tests.cpp)
 

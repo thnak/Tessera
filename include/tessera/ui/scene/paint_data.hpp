@@ -11,6 +11,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <variant>
 #include <vector>
 
 namespace tessera::ui {
@@ -154,11 +155,15 @@ struct TextDecoration {
     bool operator==(const TextDecoration&) const = default;
 };
 
-// Linear gradient background (V1). Stops are clamped to [0,1] and sorted by offset; equal offsets
-// keep their input order and the later stop wins at the duplicate sample point (documented rule).
-// `angle_degrees` uses the CSS convention: 0 = to top, 90 = to right, 180 = to bottom.
-// Interpolation is encoded-space (sRGB bytes, no linearization) — the V1 sRGB approximation — and
-// the paint pass folds node opacity into each stop's alpha before handing the gradient to a sink.
+// Gradient background (V1 linear, issue #613 radial). Stops are clamped to [0,1] and sorted by
+// offset; equal offsets keep their input order and the later stop wins at the duplicate sample
+// point (documented rule). Interpolation is encoded-space (sRGB bytes, no linearization) - the V1
+// sRGB approximation - and the paint pass folds node opacity into each stop's alpha before handing
+// the gradient to a sink.
+//
+// One struct with a shape tag rather than two types: a node paints one background image, and a
+// second stop array would grow PaintData past its recorded budget
+// (tests/golden/perf/memory_budget.json `paint_slot_bytes`).
 struct LinearGradientStop {
     float offset = 0.0f;
     rendering::rhi::Color color;
@@ -169,17 +174,69 @@ struct LinearGradientStop {
     }
 };
 
+enum class GradientShape : std::uint8_t {
+    Linear,
+    Radial,
+};
+
+// The radial geometry of a gradient payload (issue #613): `center_x`/`center_y` are fractions of
+// the node's border box (0.5, 0.5 is the CSS default centre) and `radius_x`/`radius_y` are
+// fractions of the box's width/height, so a payload set in code scales with the node instead of
+// freezing a pixel size. The paint pass resolves both against the box it paints. A circle has
+// `radius_x == radius_y`.
+struct RadialGradientGeometry {
+    float center_x = 0.5f;
+    float center_y = 0.5f;
+    float radius_x = 0.5f;
+    float radius_y = 0.5f;
+
+    bool operator==(const RadialGradientGeometry&) const = default;
+};
+
 struct LinearGradient {
     static constexpr std::size_t kMaxStops = 8;
-    float angle_degrees = 180.0f;
     std::array<LinearGradientStop, kMaxStops> stops{};
+    // A payload is one shape, so the linear angle and the radial geometry share one slot rather
+    // than sitting side by side. That keeps `PaintData` inside its recorded budget
+    // (tests/golden/perf/memory_budget.json `paint_slot_bytes`). `angle_degrees` uses the CSS
+    // convention: 0 = to top, 90 = to right, 180 = to bottom.
+    union {
+        float angle_degrees;
+        RadialGradientGeometry radial;
+    };
     std::size_t stop_count = 0;
+    GradientShape shape = GradientShape::Linear;
+    // `repeating-linear-gradient()` / `repeating-radial-gradient()` (issue #613): the authored ramp
+    // repeats over the gradient line or radius. The paint pass expands it, so a sink still sees one
+    // ordinary stop list.
+    bool repeating = false;
+
+    LinearGradient()
+        : angle_degrees(180.0f) {}
+
+    [[nodiscard]] bool is_radial() const {
+        return shape == GradientShape::Radial;
+    }
 
     bool operator==(const LinearGradient& other) const {
-        return angle_degrees == other.angle_degrees && stop_count == other.stop_count &&
-               std::equal(stops.begin(), stops.begin() + stop_count, other.stops.begin());
+        if (shape != other.shape || stop_count != other.stop_count ||
+            repeating != other.repeating) {
+            return false;
+        }
+        if (shape == GradientShape::Radial) {
+            if (!(radial == other.radial)) {
+                return false;
+            }
+        } else if (angle_degrees != other.angle_degrees) {
+            return false;
+        }
+        return std::equal(stops.begin(), stops.begin() + stop_count, other.stops.begin());
     }
 };
+
+// The radial payload is the same struct with `shape == Radial`; this alias keeps the call sites
+// that name the shape readable without a second stop array.
+using RadialGradient = LinearGradient;
 
 // One inline span of a `Text` node (issue #229; elements-basic.md section 2.1, ir-v1 section 3.6).
 // `node_id` is the span's child scene node, which carries the span class/style/role/onClick;
@@ -222,9 +279,9 @@ struct PaintData {
     PaintVectorStyle vector;
     // Image payload; only painted when kind == PaintKind::Image.
     PaintImageStyle image;
-    // Optional linear-gradient background, painted where the background would be (node box,
-    // rounded by border-radius) under content/text/vector/image draws. Absent keeps the solid
-    // background-color behavior.
+    // Optional gradient background, painted where the background would be (node box, rounded by
+    // border-radius) under content/text/vector/image draws. Absent keeps the solid
+    // background-color behavior. One payload with a shape tag: a node paints one background image.
     std::optional<LinearGradient> gradient;
     // Inline spans of this text (empty for ordinary text). Ordered by `begin`; the ranges cover the
     // non-empty parts of `text`. Each entry names the child scene node that carries the run style.

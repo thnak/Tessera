@@ -163,7 +163,7 @@ void paint_box_and_border(const Node& node, const style::ComputedStyle& style,
                           float device_scale, PaintSink& sink, PaintStats& stats,
                           bool reduce_effects) {
     paint_background(style, rect, opacity, current, sink, stats);
-    detail::paint_linear_gradient(node, style, rect, opacity, sink, stats);
+    detail::paint_gradient(node, style, rect, opacity, sink, stats);
     if (const std::optional<RingBorder> ring =
             rounded_ring(style, rect, opacity, current, device_scale)) {
         sink.fill_rounded_ring(rect, ring->color, ring->radius, ring->width);

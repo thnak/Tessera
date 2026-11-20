@@ -557,19 +557,19 @@ are in [`thorvg-spike/12-image-assets.md`](thorvg-spike/12-image-assets.md).
 Empty `visual_runs` keeps the pre-bidi emission; bidi lines emit one `TextDraw` per visual run and
 caret/selection use `bidi_offset_x` (`text.md`); RTL click-to-position is deferred.
 
-### 13. Linear gradients (task-76)
+### 13. Gradients (task-76, issues #457 and #613)
 
-`PaintData::gradient`, or else the stylesheet's `background-image` (#457, grammar in `style/gradient.hpp`, corner directions use square-box angles) (1-8 stops; offsets clamped/sorted, later duplicate wins; CSS angle 0=top,
-90=right, 180=bottom) paints after `background-color`, before borders/content, inside border radius;
-opacity folds into stop alphas. Interpolation is encoded-space sRGB (V1); emission is 64 dominant-axis
-solid bands (exact on axes, banded otherwise; LUT/dithering follow-up), shared by CPU/GPU within
-2/255 per channel. CPU rounds corners by bounds, GPU uses the rounded clip, damage replay is
-band-identical. Deferrals: radial/conic, dithering, text/clip gradients, LUT. `background-image` is a
-comma-separated **layer list** painted bottom to top (#614): [background-layers.md](background-layers.md).
+`PaintData::gradient`, or else the stylesheet's `background-image` (#457/#613/#614, grammar in
+`style/gradient.hpp`, corner directions use square-box angles) (1-8 stops; offsets clamped/sorted,
+later duplicate wins; CSS angle 0=top, 90=right, 180=bottom) paints after `background-color`, before
+borders/content, inside border radius; opacity folds into stop alphas. Interpolation is encoded-space
+sRGB (V1); linear emission is 64 dominant-axis solid bands (exact on axes, banded otherwise), shared
+by CPU/GPU within 2/255 per channel. Radial has no dominant axis, so a 32x32 grid (`kRadialBands`) of
+solid cells from the shared `tessellate_radial_gradient` (`paint_sink.hpp`), so CPU/GPU emit identical
+geometry (no new shader); `repeating-*` is a stop-list transform (`expand_repeating_stops`).
+`background-image` is a **layer list** painted bottom to top (#614): [background-layers.md](background-layers.md).
 
-## 14. Isolated-layer seam (issue #242)
-
-The renderer can break its render pass without finishing the frame and copy one region of the frame
+## 14. Isolated-layer seam (issue #242)The renderer can break its render pass without finishing the frame and copy one region of the frame
 target into an offscreen target: `Batched2DRenderer::break_pass()`/`resume_pass()` plus the RHI
 `CommandList::copy_target_region`, with a pooled target bounded by `glassMaxBlurTargets` (default 4).
 `resume_pass()` reopens the same target with `LoadOp::Load`, so geometry before and after the break

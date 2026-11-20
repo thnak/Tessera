@@ -4,6 +4,7 @@ add_library(tessera_animation STATIC
     animated_scalar.cpp
     easing.cpp
     keyframes.cpp
+    gradient_interpolation.cpp
     property_dirty.cpp
     runtime.cpp
     shadow_interpolation.cpp

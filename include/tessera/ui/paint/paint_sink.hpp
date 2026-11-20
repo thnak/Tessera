@@ -5,7 +5,9 @@
 #include "tessera/rendering/rhi/types.hpp"
 #include "tessera/ui/scene/paint_data.hpp"
 
+#include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <optional>
 #include <string_view>
@@ -85,11 +87,34 @@ struct ImageDraw {
 // One resolved linear-gradient fill. Stops are clamped/sorted by the paint pass and each color's
 // alpha already includes node opacity. `clip` is the node's border-rounded box; sinks that cannot
 // express rounded clipping may use its rect bounds (documented CPU approximation).
+//
+// `kMaxDrawStops` is larger than the authored cap (8) because a repeating gradient arrives with its
+// ramp already expanded to cover the whole gradient line/radius (issue #613), so a sink draws the
+// repeat without a second code path. A non-repeating gradient never uses more than 8.
+inline constexpr std::size_t kMaxDrawStops = 32;
+
 struct GradientDraw {
     rhi::Rect rect;
     RoundedClip clip;
     float angle_degrees = 180.0f;
-    std::array<LinearGradientStop, 8> stops{};
+    std::array<LinearGradientStop, kMaxDrawStops> stops{};
+    std::size_t stop_count = 0;
+};
+
+// One resolved radial-gradient fill (issue #613). `center_x`/`center_y` are the gradient's centre
+// in absolute paint coordinates and `radius_x`/`radius_y` are its two radii in px, already resolved
+// from the size keyword against `rect` by the paint pass, so a sink never needs the box to place
+// the ramp. A circle has `radius_x == radius_y`. Stops follow the same clamp/sort/opacity rules as
+// `GradientDraw`, and a repeating gradient arrives with its ramp already expanded (offsets may run
+// past 1.0, which the shared sampler clamps).
+struct RadialGradientDraw {
+    rhi::Rect rect;
+    RoundedClip clip;
+    float center_x = 0.0f;
+    float center_y = 0.0f;
+    float radius_x = 0.0f;
+    float radius_y = 0.0f;
+    std::array<LinearGradientStop, kMaxDrawStops> stops{};
     std::size_t stop_count = 0;
 };
 
@@ -111,31 +136,33 @@ struct BackdropDraw {
 };
 
 // Encoded-space (sRGB byte) interpolation over sorted stops; at a duplicate offset the later stop
-// wins. Sinks share this so the CPU/GPU ramps agree.
-[[nodiscard]] inline rhi::Color sample_linear_gradient(const GradientDraw& draw, float t) {
-    if (draw.stop_count == 0) {
+// wins. Sinks share this so the CPU/GPU ramps agree. Both gradient shapes sample through here, so
+// the linear and radial ramps cannot drift.
+[[nodiscard]] inline rhi::Color sample_gradient_stops(const LinearGradientStop* stops,
+                                                      std::size_t stop_count, float t) {
+    if (stop_count == 0) {
         return rhi::Color{0.0f, 0.0f, 0.0f, 0.0f};
     }
-    if (draw.stop_count == 1) {
-        return draw.stops[0].color;
+    if (stop_count == 1) {
+        return stops[0].color;
     }
     t = std::clamp(t, 0.0f, 1.0f);
-    for (std::size_t index = 0; index < draw.stop_count; ++index) {
-        if (t == draw.stops[index].offset) {
+    for (std::size_t index = 0; index < stop_count; ++index) {
+        if (t == stops[index].offset) {
             std::size_t last = index;
-            while (last + 1 < draw.stop_count && draw.stops[last + 1].offset == t) {
+            while (last + 1 < stop_count && stops[last + 1].offset == t) {
                 ++last;
             }
-            return draw.stops[last].color;
+            return stops[last].color;
         }
     }
-    if (t <= draw.stops[0].offset) {
-        return draw.stops[0].color;
+    if (t <= stops[0].offset) {
+        return stops[0].color;
     }
-    for (std::size_t index = 1; index < draw.stop_count; ++index) {
-        if (t <= draw.stops[index].offset) {
-            const LinearGradientStop& a = draw.stops[index - 1];
-            const LinearGradientStop& b = draw.stops[index];
+    for (std::size_t index = 1; index < stop_count; ++index) {
+        if (t <= stops[index].offset) {
+            const LinearGradientStop& a = stops[index - 1];
+            const LinearGradientStop& b = stops[index];
             const float span = b.offset - a.offset;
             const float local = span > 0.0f ? (t - a.offset) / span : 1.0f;
             rhi::Color result;
@@ -146,7 +173,63 @@ struct BackdropDraw {
             return result;
         }
     }
-    return draw.stops[draw.stop_count - 1].color;
+    return stops[stop_count - 1].color;
+}
+
+[[nodiscard]] inline rhi::Color sample_linear_gradient(const GradientDraw& draw, float t) {
+    return sample_gradient_stops(draw.stops.data(), draw.stop_count, t);
+}
+
+// One band of a tessellated radial gradient: an axis-aligned box plus the colour to fill it with.
+// The shared tessellator below produces these, and both sinks draw them through their existing
+// solid-quad path, so the CPU and GPU results are the same geometry by construction.
+struct RadialBand {
+    rhi::Rect rect;
+    rhi::Color color;
+};
+
+// How many bands a radial gradient is tessellated into, per axis. A radial falloff has no dominant
+// axis to band along the way a linear one does, so the gradient's bounding box is cut into a
+// kRadialBands x kRadialBands grid and each cell is filled with the ramp colour at its centre. This
+// is a bounded approximation (documented in docs/design/paint-pass.md section 13): the error is
+// bounded by the colour change across one cell, and a golden pins the exact result. 32 keeps a
+// 200 px box at ~6 px cells, which is smooth for the ramps V1 paints without a per-pixel shader.
+inline constexpr int kRadialBands = 32;
+
+// Tessellates `draw` into at most kRadialBands * kRadialBands bands, in row-major order, and calls
+// `emit` for each. Cells whose centre falls outside the ellipse are skipped, so the fill is the
+// ellipse itself rather than its bounding box; a cell that straddles the edge is drawn with the
+// colour the ramp gives at its centre, which is the documented edge approximation. `emit` is a
+// callable taking `const RadialBand&`.
+//
+// Both sinks call this, so the CPU reference and the GPU path cannot disagree about the geometry:
+// the only difference between them is how a solid quad is rasterized.
+template<typename Emit>
+void tessellate_radial_gradient(const RadialGradientDraw& draw, Emit&& emit) {
+    if (draw.stop_count == 0 || draw.radius_x <= 0.0f || draw.radius_y <= 0.0f ||
+        draw.rect.width <= 0.0f || draw.rect.height <= 0.0f) {
+        return;
+    }
+    const float cell_width = draw.rect.width / static_cast<float>(kRadialBands);
+    const float cell_height = draw.rect.height / static_cast<float>(kRadialBands);
+    for (int row = 0; row < kRadialBands; ++row) {
+        const float center_y = draw.rect.y + (static_cast<float>(row) + 0.5f) * cell_height;
+        const float normalized_y = (center_y - draw.center_y) / draw.radius_y;
+        for (int column = 0; column < kRadialBands; ++column) {
+            const float center_x = draw.rect.x + (static_cast<float>(column) + 0.5f) * cell_width;
+            const float normalized_x = (center_x - draw.center_x) / draw.radius_x;
+            const float distance =
+                std::sqrt(normalized_x * normalized_x + normalized_y * normalized_y);
+            if (distance > 1.0f) {
+                continue;
+            }
+            // The band is grown by half a pixel on the right/bottom so neighbouring cells meet
+            // without a seam under a fractional box (the same trick the linear bands use).
+            emit(RadialBand{{center_x - cell_width * 0.5f, center_y - cell_height * 0.5f,
+                             cell_width + 0.5f, cell_height + 0.5f},
+                            sample_gradient_stops(draw.stops.data(), draw.stop_count, distance)});
+        }
+    }
 }
 
 // One resolved `box-shadow` layer (issue #461), outer or inset (issue #612). `box` is the shadow's
@@ -196,6 +279,11 @@ public:
     // Optional linear-gradient hook (default no-op); emitted after the background fill and before
     // borders/content, so it paints where the background would be.
     virtual void fill_linear_gradient(const GradientDraw& /*draw*/) {}
+
+    // Optional radial-gradient hook (default no-op), emitted in the same place as the linear one
+    // (issue #613). A sink that does not override it paints the node's background without the
+    // gradient, which is the documented fallback for a sink with no radial support.
+    virtual void fill_radial_gradient(const RadialGradientDraw& /*draw*/) {}
 
     // Optional rounded-clip hooks (default no-ops so sinks that do not render clipping keep
     // working). paint_scene pushes one clip per overflow-clipping parent around its children and

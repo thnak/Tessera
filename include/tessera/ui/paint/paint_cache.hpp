@@ -105,6 +105,7 @@ struct PaintOp {
         FillRoundedRing,
         FillBoxShadow,
         FillLinearGradient,
+        FillRadialGradient,
         PushClip,
         PushTransform,
         DrawText,
@@ -121,8 +122,9 @@ struct PaintOp {
     RoundedClip clip;        // PushClip; the carved border box of FillBoxShadow
     rhi::Mat3 transform;     // PushTransform
     GradientDraw gradient;   // FillLinearGradient (its own rect/clip/stops are authoritative)
-    BackdropDraw backdrop;   // DrawBackdrop (its own rect/clip/filter are authoritative)
-    std::string text;        // DrawText text bytes, or the borrowed asset name of DrawVector/Image
+    RadialGradientDraw radial_gradient; // FillRadialGradient (same rule)
+    BackdropDraw backdrop;              // DrawBackdrop (its own rect/clip/filter are authoritative)
+    std::string text; // DrawText text bytes, or the borrowed asset name of DrawVector/Image
     float font_size = 0.0f;
     int font_weight = 400;
     std::optional<float> baseline;
@@ -263,6 +265,7 @@ public:
         [[nodiscard]] bool supports_box_shadow() const override;
         void fill_box_shadow(const BoxShadowDraw& draw) override;
         void fill_linear_gradient(const GradientDraw& draw) override;
+        void fill_radial_gradient(const RadialGradientDraw& draw) override;
         void push_clip(const RoundedClip& clip) override;
         void pop_clip() override;
         [[nodiscard]] bool supports_transform() const override;

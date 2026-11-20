@@ -30,6 +30,7 @@ using tessera::ui::LinearGradient;
 using tessera::ui::LinearGradientStop;
 using tessera::ui::Node;
 using tessera::ui::PaintData;
+using tessera::ui::RadialGradient;
 using tessera::ui::paint::PaintStats;
 using tessera::ui::paint::StyleProvider;
 using tessera::ui::style::ComputedStyle;
@@ -121,6 +122,28 @@ inline PaintData gradient_payload(float angle_degrees,
     return data;
 }
 
+// A radial payload (issue #613). Centre and radii are fractions of the node box, so a scene reads
+// in the same terms a stylesheet would. `repeating` expands the authored ramp over the radius.
+inline PaintData radial_payload(float center_x, float center_y, float radius_x, float radius_y,
+                                std::initializer_list<LinearGradientStop> stops,
+                                bool repeating = false) {
+    RadialGradient gradient;
+    gradient.shape = ui::GradientShape::Radial;
+    gradient.radial.center_x = center_x;
+    gradient.radial.center_y = center_y;
+    gradient.radial.radius_x = radius_x;
+    gradient.radial.radius_y = radius_y;
+    gradient.repeating = repeating;
+    gradient.stop_count = stops.size();
+    std::size_t index = 0;
+    for (const LinearGradientStop& stop : stops) {
+        gradient.stops[index++] = stop;
+    }
+    PaintData data;
+    data.gradient = gradient;
+    return data;
+}
+
 // Scene colours. Opaque fills round-trip every byte exactly through `CpuCanvas::blend`.
 inline constexpr Pixel kRoot{11, 17, 32, 255};             // #0B1120
 inline constexpr Pixel kCard{30, 41, 59, 255};             // #1E293B
@@ -141,5 +164,16 @@ inline CpuCanvas make_canvas() {
     canvas.clear(rgba8(kRoot[0], kRoot[1], kRoot[2]));
     return canvas;
 }
+
+// One golden case: a scene builder and the assertions that read the painted canvas back. The
+// gradient-family cases live in `cpu_wide_gradient_scenes.cpp` and are registered through
+// `gradient_cases()`, so the split does not change the order the baselines are written in.
+struct Case {
+    const char* name;
+    void (*build)(Node&, StubStyles&);
+    bool (*check)(const PaintStats&, const CpuCanvas&);
+};
+
+[[nodiscard]] const std::vector<Case>& gradient_cases();
 
 } // namespace tessera::poc::batched2d::cpu_wide_support

@@ -33,6 +33,7 @@ using tessera::ui::style::BackgroundLayerList;
 using tessera::ui::style::ComputedStyle;
 using tessera::ui::style::Declaration;
 using tessera::ui::style::format_background_layers;
+using tessera::ui::style::GradientValue;
 using tessera::ui::style::interpolate_background_layers;
 using tessera::ui::style::parse_background_layers;
 using tessera::ui::style::PropertyRegistry;
@@ -61,9 +62,9 @@ bool grammar() {
                                              "linear-gradient(90deg, #00ff00 0%, #000000 100%)");
     bool ok = expect(two && two->count == 2, "two gradient layers parse") &&
               expect(two && two->layers[0].kind == BackgroundLayerKind::LinearGradient &&
-                         near(two->layers[0].gradient.angle_degrees, 180.0F),
+                         near(two->layers[0].gradient.linear.angle_degrees, 180.0F),
                      "the first layer is the first value") &&
-              expect(two && near(two->layers[1].gradient.angle_degrees, 90.0F),
+              expect(two && near(two->layers[1].gradient.linear.angle_degrees, 90.0F),
                      "the second layer is the second value");
 
     const auto mixed = parse_background_layers("none, linear-gradient(red, blue)");
@@ -77,12 +78,21 @@ bool grammar() {
                 "a lone `none` is one transparent layer") &&
          ok;
 
-    // Out of grammar: a `url()` image is not in scope, and neither is a radial gradient (#613).
+    // A radial layer is a layer like any other (#613): the shape tag lives in the value, so the
+    // list order and the paint order are unchanged.
+    const auto radial = parse_background_layers(
+        "radial-gradient(circle, red, blue), linear-gradient(180deg, #000, #FFF)");
+    ok = expect(radial && radial->count == 2 &&
+                    radial->layers[0].kind == BackgroundLayerKind::RadialGradient &&
+                    radial->layers[0].gradient.kind == GradientValue::Kind::Radial &&
+                    radial->layers[1].kind == BackgroundLayerKind::LinearGradient,
+                "a radial layer parses and keeps its slot") &&
+         ok;
+
+    // Out of grammar: a `url()` image is not in scope. A radial gradient is in scope since #613 and
+    // is checked below.
     ok = expect(!parse_background_layers("url(a.png), linear-gradient(red, blue)"),
                 "a url() layer is rejected") &&
-         ok;
-    ok = expect(!parse_background_layers("radial-gradient(red, blue)"),
-                "a radial gradient is rejected") &&
          ok;
     ok = expect(!parse_background_layers("linear-gradient(red, blue),"),
                 "a trailing comma is rejected") &&
@@ -118,8 +128,8 @@ bool round_trip() {
                         "a layer keeps its kind through a round trip") &&
                  ok;
             if (list->layers[index].kind == BackgroundLayerKind::LinearGradient) {
-                ok = expect(near(again->layers[index].gradient.angle_degrees,
-                                 list->layers[index].gradient.angle_degrees),
+                ok = expect(near(again->layers[index].gradient.linear.angle_degrees,
+                                 list->layers[index].gradient.linear.angle_degrees),
                             "a layer keeps its angle through a round trip") &&
                      ok;
             }
@@ -190,8 +200,8 @@ bool interpolation() {
     if (middle) {
         const auto parsed = parse_background_layers(*middle);
         ok = expect(parsed && parsed->count == 1, "the result is one layer") &&
-             expect(parsed && near_byte(parsed->layers[0].gradient.stops[0].color.r, 0.5F) &&
-                        near_byte(parsed->layers[0].gradient.stops[0].color.b, 0.5F),
+             expect(parsed && near_byte(parsed->layers[0].gradient.linear.stops[0].color.r, 0.5F) &&
+                        near_byte(parsed->layers[0].gradient.linear.stops[0].color.b, 0.5F),
                     "the stops blend channel-wise") &&
              ok;
     }
@@ -206,10 +216,10 @@ bool interpolation() {
         const auto parsed = parse_background_layers(*padded);
         ok = expect(parsed && parsed->count == 2, "the result keeps the longer length") &&
              expect(parsed && parsed->layers[1].kind == BackgroundLayerKind::LinearGradient &&
-                        near_byte(parsed->layers[1].gradient.stops[0].color.a, 0.0F),
+                        near_byte(parsed->layers[1].gradient.linear.stops[0].color.a, 0.0F),
                     "the padded bottom layer is transparent at t=0") &&
-             expect(parsed && near_byte(parsed->layers[0].gradient.stops[0].color.g, 0.0F) &&
-                        near_byte(parsed->layers[0].gradient.stops[0].color.r, 1.0F),
+             expect(parsed && near_byte(parsed->layers[0].gradient.linear.stops[0].color.g, 0.0F) &&
+                        near_byte(parsed->layers[0].gradient.linear.stops[0].color.r, 1.0F),
                     "the layer that was already there keeps its value at t=0") &&
              ok;
     }
@@ -222,7 +232,7 @@ bool interpolation() {
         const auto parsed = parse_background_layers(*fade);
         ok = expect(parsed && parsed->count == 1 &&
                         parsed->layers[0].kind == BackgroundLayerKind::LinearGradient &&
-                        near_byte(parsed->layers[0].gradient.stops[0].color.a, 0.5F),
+                        near_byte(parsed->layers[0].gradient.linear.stops[0].color.a, 0.5F),
                     "`none` fades the gradient's alpha instead of snapping") &&
              ok;
     }
@@ -233,8 +243,8 @@ bool interpolation() {
     ok = expect(arc.has_value(), "two angles interpolate");
     if (arc) {
         const auto parsed = parse_background_layers(*arc);
-        ok = expect(parsed && (near(parsed->layers[0].gradient.angle_degrees, 0.0F) ||
-                               near(parsed->layers[0].gradient.angle_degrees, 360.0F)),
+        ok = expect(parsed && (near(parsed->layers[0].gradient.linear.angle_degrees, 0.0F) ||
+                               near(parsed->layers[0].gradient.linear.angle_degrees, 360.0F)),
                     "the angle takes the shorter arc") &&
              ok;
     }

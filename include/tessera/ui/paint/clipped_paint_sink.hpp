@@ -131,6 +131,10 @@ public:
         replay([this, &draw] { target_->fill_linear_gradient(draw); }, device_bounds(draw.rect));
     }
 
+    void fill_radial_gradient(const RadialGradientDraw& draw) override {
+        replay([this, &draw] { target_->fill_radial_gradient(draw); }, device_bounds(draw.rect));
+    }
+
     void draw_text(const TextDraw& run) override {
         replay([this, &run] { target_->draw_text(run); }, device_bounds(run.rect));
     }

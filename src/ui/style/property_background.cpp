@@ -102,11 +102,11 @@ PropertyExpansionResult expand_background_shorthand(const Declaration& declarati
 
     // CSS Backgrounds 3 section 2.1: `background` is `<bg-layer># , <final-bg-layer>`, where a
     // layer is an image and/or a position/size/repeat/attachment/origin/clip, and only the final
-    // layer may carry the colour. V1 supports the image part of a layer (a `linear-gradient()`) and
-    // the colour on the final layer; every other component is reported rather than half applied.
+    // layer may carry the colour. V1 supports the image part of a layer (a gradient) and the colour
+    // on the final layer; every other component is reported rather than half applied.
     const std::vector<std::string_view> layers = layers_of(declaration.value);
     if (layers.empty()) {
-        return reject("background needs a colour, a linear-gradient() or none");
+        return reject("background needs a colour, a gradient or none");
     }
     if (layers.size() == 1 && lower(layers[0]) == "none") {
         emit("background-color", "transparent");
@@ -121,13 +121,14 @@ PropertyExpansionResult expand_background_shorthand(const Declaration& declarati
         const bool final_layer = index + 1 == layers.size();
         std::string_view image;
         for (const std::string_view component : components_of(layers[index])) {
-            if (lower(component).rfind("linear-gradient(", 0) == 0) {
+            if (is_gradient_function(component)) {
                 if (!image.empty()) {
                     return reject("a background layer carries at most one image");
                 }
-                if (!parse_linear_gradient(component)) {
-                    return reject("unsupported gradient in background; only linear-gradient() with "
-                                  "2 to 8 colour stops is supported");
+                if (!parse_gradient(component)) {
+                    return reject("unsupported gradient in background; only linear-gradient() or "
+                                  "radial-gradient() (optionally repeating-) with 2 to 8 colour "
+                                  "stops is supported");
                 }
                 image = component;
                 continue;
@@ -139,8 +140,7 @@ PropertyExpansionResult expand_background_shorthand(const Declaration& declarati
                 continue;
             }
             return reject("unsupported background layer component `" + std::string(component) +
-                          "`; only a colour on the final layer and linear-gradient() layers are "
-                          "supported");
+                          "`; only a colour on the final layer and gradient layers are supported");
         }
         images.push_back(image);
     }

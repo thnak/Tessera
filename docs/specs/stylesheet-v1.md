@@ -244,7 +244,7 @@ diagnostic.
   `hsl()`, `hsla()`, `transparent`, `currentColor`
 - colour functions `light-dark()` and `color-mix()` resolve at computed-value time like `var()`
   (`color_functions.cpp`); `lab()`/`lch()`/`oklab()`/`oklch()`/`color()` are parsed, not evaluated
-- strings, URLs, identifiers, functions
+- strings, URLs, identifiers, functions, and gradients (section 11)
 - `var()` with fallback and cycle detection
 
 ### 8.3 Resolution boundary
@@ -361,7 +361,7 @@ Legend: **V1** = implemented semantics; **Parse** = parsed/preserved, no semanti
 | Flex | direction, wrap, grow/shrink/basis, justify/align, gap, order | baseline edge cases |
 | Grid | `display: grid`, `grid-template-columns/rows` (lengths, percentages, `fr`, `auto`, `min-content`/`max-content`, `minmax()`, `repeat(<integer>, ...)`), item `grid-column`/`grid-row` (line numbers and `span n`), `gap`, `justify-items`/`justify-self`, `align-items`/`align-self`, `justify-content`/`align-content`, `grid-auto-flow` (`row`, `column`); full value list in [`grid-v1.md`](grid-v1.md) | subgrid, masonry, dense auto-placement, named lines/areas, `grid-auto-columns`/`grid-auto-rows`, `fit-content()` |
 | Positioning | `static`, `relative`, `absolute`, `fixed`, `sticky` | anchor positioning |
-| Paint | `background-color`, `border-radius`, `border-color/width/style`, `box-shadow`, `text-shadow`, `opacity`, `color`, `background-image` as a list of `linear-gradient()` layers and the `background` shorthand, `backdrop-filter` (`blur`, `saturate`, `brightness`, `contrast`; [`glass-v1.md`](glass-v1.md)) | radial/conic/repeating gradients, `url()` images, `filter`, general `clip-path`, lens/refraction |
+| Paint | `background-color`, `border-radius`, `border-color/width/style`, `box-shadow`, `text-shadow`, `opacity`, `color`, `background-image` as a list of `linear-gradient()`/`radial-gradient()` layers (each with a `repeating-` form) and the `background` shorthand, `backdrop-filter` (`blur`, `saturate`, `brightness`, `contrast`; [`glass-v1.md`](glass-v1.md)) | conic gradients, `url()` images, `filter`, general `clip-path`, lens/refraction |
 | View transitions | `::view-transition-*(root)`, `circle()/inset()/ellipse()` `clip-path` on those pseudos only, `--vt-*` | other names, filters/masks; see [`view-transitions-v1.md`](view-transitions-v1.md) |
 | Typography | `font-family/size/weight/style`, `line-height`, `letter-spacing`, `word-spacing` (additive per painted ASCII space U+0020 on both measure paths; [`text.md`](../design/text.md) section 6.4), `text-align`, `text-transform` (`none`, `uppercase`, `lowercase`, `capitalize`; ASCII 1:1 mapping in [`text.md`](../design/text.md) section 6.5), `white-space` (`normal`, `nowrap`, `pre`, `pre-wrap`, `break-spaces`; mode semantics in [`text.md`](../design/text.md) section 6.1), `text-decoration` and its longhands, `vertical-align` (`baseline`, `sub`, `super`, length; [`text-decoration.md`](../design/text-decoration.md)), `text-overflow` (`clip`, `ellipsis`; one value only, paint-side truncation in [`text.md`](../design/text.md) section 6.3) | full OpenType features, justification |
 | Transforms | `transform` functions `translate`, `scale`, `rotate`, `skew`, `matrix` (2D affine) and `transform-origin` | the individual `translate`/`rotate`/`scale` properties, 3D, perspective |
