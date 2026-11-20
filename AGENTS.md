@@ -624,7 +624,7 @@ owner-planned item and is not part of this milestone.
 - [x] #169: P5: shareable links, sample gallery, theme/DPR/viewport toggles —
       `designer/web/{share,preview-state,gallery,studio,scene-input}.js`, the generated
       `designer/web/samples.json`, 18 + 9 + 7 page test cases, and the format in
-      `docs/specs/designer-studio-v1.md` section 7.1.
+      `docs/specs/designer-studio-v1.md` section 7.1 (share links, the gallery and `samples.json` since removed).
 - [x] #170: P6: size and latency budgets with a two-sided ratchet —
       `scripts/check_preview_budget.py` + `tests/golden/perf/preview_budget.json`
       (download size enforced; the two engine-share latencies warn; the rest is #395).

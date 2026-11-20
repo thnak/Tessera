@@ -3,6 +3,8 @@
 Status: planned (Big Steps B2, C and F; see [AGENTS.md, Big Steps](../../AGENTS.md#big-steps-group-work-dont-micro-step)). Samples are executable specifications; each one must prove a slice of
 the framework, not just look good. Background: gap G-26 in [app-completeness-gap-resolutions-v1](../architecture/app-completeness-gap-resolutions-v1.md).
 
+To try a sample in the hosted studio: clone the repo, then open `samples/<name>` with Open Folder (open the repository root for a sample that imports `packages/tessera-ui`, such as `samples/gallery`).
+
 ## 1. Template set
 
 `samples/hello` and `samples/dashboard` exist as empty directories; no template is implemented. `notes`, `settings`, `3d-viewer` and `chat` have no directory yet. These six names are planned samples under `samples/`. They are not `tessera new` templates: the generator defines only the templates `blank` and `dashboard` ([project-generator.md, CLI reference](project-generator.md#cli-reference-v1)), and no document defines a generator template for the other names.
