@@ -464,7 +464,9 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
       (the latter fails when the registry and the table disagree).
 - [ ] Style and paint gaps found by the tactile design mock and the Astryx theme model, one landing
       each (Chromium-measured, golden on lavapipe, property-status doc updated): #617 conic gradient,
-      `mask`, `filter` or the `Path` route (decide first). Umbrella #618.
+      `mask`, `filter` or the `Path` route (decided: conic gradient, then `mask`, then `filter`; a
+      live `Path` is a rasterizer project, not a paint primitive —
+      [`dials-and-gauges.md`](docs/design/dials-and-gauges.md)). Umbrella #618.
 - [x] #613 `radial-gradient()` and the repeating forms — one grammar with two shape halves, radial
       painting by bounded 32×32 tessellation through the shared sink hook (so CPU and GPU emit
       identical geometry), repeating as a stop-list transform, gradient interpolation wired into
