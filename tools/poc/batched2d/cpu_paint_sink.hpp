@@ -121,6 +121,14 @@ public:
             draw, [this](const ui::paint::RadialBand& band) { fill_rect(band.rect, band.color); });
     }
 
+    void fill_conic_gradient(const ui::paint::ConicGradientDraw& draw) override {
+        if (draw.stop_count == 0 || draw.rect.width <= 0.0f || draw.rect.height <= 0.0f) {
+            return;
+        }
+        ui::paint::tessellate_conic_gradient(
+            draw, [this](const ui::paint::ConicBand& band) { fill_rect(band.rect, band.color); });
+    }
+
     void push_clip(const ui::paint::RoundedClip& clip) override {
         stack_.push_back(clip_);
         clip_ = intersect(clip_, clip.rect);

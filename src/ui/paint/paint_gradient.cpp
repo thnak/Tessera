@@ -33,6 +33,8 @@ struct ResolvedGradient {
     float center_y = 0.0f;
     float radius_x = 0.0f;
     float radius_y = 0.0f;
+    // Conic only: the sweep's start angle, measured from 12 o'clock clockwise.
+    float from_angle_degrees = 0.0f;
 };
 
 // Copies the authored stops into the resolved list, folding node opacity into each alpha. A
@@ -70,6 +72,14 @@ ResolvedGradient resolve_value(const GradientValue& value, const rhi::Rect& rect
         resolved.angle_degrees = value.linear.angle_degrees;
         copy_stops(value.linear.stops.data(), value.linear.stop_count, value.repeating, opacity,
                    resolved);
+        return resolved;
+    }
+    if (value.kind == GradientValue::Kind::Conic) {
+        const style::ConicGradientValue& conic = value.conic;
+        resolved.center_x = rect.x + conic.position.x * rect.width;
+        resolved.center_y = rect.y + conic.position.y * rect.height;
+        resolved.from_angle_degrees = conic.from_angle_degrees;
+        copy_stops(conic.stops.data(), conic.stop_count, value.repeating, opacity, resolved);
         return resolved;
     }
     const style::RadialGradientValue& radial = value.radial;
@@ -128,12 +138,27 @@ style::BackgroundLayerList resolve_layers(const Node& node, const style::Compute
         // count); the layer list is fixed-size, so clamp here rather than write past its array.
         const std::size_t stops = std::min(data->gradient->stop_count, style::kMaxGradientStops);
         style::BackgroundLayer& layer = list.layers[0];
-        layer.kind = data->gradient->is_radial() ? style::BackgroundLayerKind::RadialGradient
-                                                 : style::BackgroundLayerKind::LinearGradient;
-        layer.gradient.kind =
-            data->gradient->is_radial() ? GradientValue::Kind::Radial : GradientValue::Kind::Linear;
+        const bool conic = data->gradient->shape == GradientShape::Conic;
+        layer.kind = conic                         ? style::BackgroundLayerKind::ConicGradient
+                     : data->gradient->is_radial() ? style::BackgroundLayerKind::RadialGradient
+                                                   : style::BackgroundLayerKind::LinearGradient;
+        layer.gradient.kind = conic                         ? GradientValue::Kind::Conic
+                              : data->gradient->is_radial() ? GradientValue::Kind::Radial
+                                                            : GradientValue::Kind::Linear;
         layer.gradient.repeating = data->gradient->repeating;
-        if (data->gradient->is_radial()) {
+        if (conic) {
+            style::ConicGradientValue& value = layer.gradient.conic;
+            value.from_angle_degrees = data->gradient->from_angle_degrees;
+            value.position.x = data->gradient->radial.center_x;
+            value.position.y = data->gradient->radial.center_y;
+            value.stop_count = stops;
+            for (std::size_t index = 0; index < stops; ++index) {
+                const LinearGradientStop& stop = data->gradient->stops[index];
+                value.stops[index].offset = stop.offset;
+                value.stops[index].color =
+                    style::ColorRgba{stop.color.r, stop.color.g, stop.color.b, stop.color.a};
+            }
+        } else if (data->gradient->is_radial()) {
             style::RadialGradientValue& radial = layer.gradient.radial;
             radial.size = style::RadialSize::Explicit;
             radial.shape = style::RadialShape::Ellipse;
@@ -206,6 +231,21 @@ void paint_gradient(const Node& node, const style::ComputedStyle& style, const r
             }
             draw.stop_count = gradient.stop_count;
             sink.fill_linear_gradient(draw);
+            ++stats.gradients;
+            continue;
+        }
+        if (gradient.kind == GradientValue::Kind::Conic) {
+            ConicGradientDraw draw;
+            draw.rect = rect;
+            draw.clip = clip;
+            draw.center_x = gradient.center_x;
+            draw.center_y = gradient.center_y;
+            draw.from_angle_degrees = gradient.from_angle_degrees;
+            for (std::size_t stop = 0; stop < gradient.stop_count; ++stop) {
+                draw.stops[stop] = gradient.stops[stop];
+            }
+            draw.stop_count = gradient.stop_count;
+            sink.fill_conic_gradient(draw);
             ++stats.gradients;
             continue;
         }

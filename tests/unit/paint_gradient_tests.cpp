@@ -29,6 +29,7 @@ using tessera::ui::Node;
 using tessera::ui::NodeId;
 using tessera::ui::PaintData;
 using tessera::ui::RadialGradient;
+using tessera::ui::paint::ConicGradientDraw;
 using tessera::ui::paint::GradientDraw;
 using tessera::ui::paint::paint_scene;
 using tessera::ui::paint::PaintSink;
@@ -73,10 +74,11 @@ ComputedStyle background_style() {
 }
 
 struct Event {
-    enum class Kind { Fill, Rounded, Gradient, Radial, Text } kind;
+    enum class Kind { Fill, Rounded, Gradient, Radial, Conic, Text } kind;
     Rect rect;
     GradientDraw gradient;
     RadialGradientDraw radial;
+    ConicGradientDraw conic;
 };
 
 class RecordingSink final : public PaintSink {
@@ -93,6 +95,13 @@ public:
     }
     void fill_radial_gradient(const RadialGradientDraw& draw) override {
         Event event{Event::Kind::Radial, draw.rect, {}, draw};
+        events.push_back(event);
+    }
+    void fill_conic_gradient(const ConicGradientDraw& draw) override {
+        Event event;
+        event.kind = Event::Kind::Conic;
+        event.rect = draw.rect;
+        event.conic = draw;
         events.push_back(event);
     }
     void draw_text(const TextDraw& run) override {
@@ -267,8 +276,47 @@ bool test_radial_wins_over_linear() {
     return expect(radials && !linears, "the radial payload wins over the linear one");
 }
 
-} // namespace
+// A conic gradient (issue #617) reaches the sink with its resolved centre and start angle, and the
+// stops are clamped and sorted exactly as the other two shapes' are.
+bool test_conic_gradient() {
+    Node node(1);
+    node.set_bounds({10, 20, 200, 100});
+    PaintData data;
+    data.text = "conic";
+    data.gradient = LinearGradient{};
+    data.gradient->shape = tessera::ui::GradientShape::Conic;
+    data.gradient->radial.center_x = 0.25f;
+    data.gradient->radial.center_y = 0.75f;
+    data.gradient->stop_count = 3;
+    data.gradient->stops[0] = LinearGradientStop{0.8f, rgba8(0, 0, 255)};
+    data.gradient->stops[1] = LinearGradientStop{-0.5f, rgba8(255, 0, 0)};
+    data.gradient->stops[2] = LinearGradientStop{2.0f, rgba8(0, 255, 0)};
+    node.set_paint_data(std::move(data));
+    StubStyles styles;
+    styles.set(1, background_style());
+    RecordingSink sink;
+    paint_scene(node, styles, sink);
+    const ConicGradientDraw* draw = nullptr;
+    for (const Event& event : sink.events) {
+        if (event.kind == Event::Kind::Conic) {
+            draw = &event.conic;
+        }
+    }
+    if (draw == nullptr) {
+        return expect(false, "conic gradient emitted");
+    }
+    return expect(draw->stop_count == 3, "all three conic stops survive") &&
+           expect(std::abs(draw->stops[0].offset) < 0.001f &&
+                      std::abs(draw->stops[1].offset - 0.8f) < 0.001f &&
+                      std::abs(draw->stops[2].offset - 1.0f) < 0.001f,
+                  "conic offsets are clamped and sorted") &&
+           expect(std::abs(draw->center_x - 60.0f) < 0.001f &&
+                      std::abs(draw->center_y - 95.0f) < 0.001f,
+                  "the conic centre resolves against the node box") &&
+           expect(draw->clip.rounded(), "border radius clips the conic gradient");
+}
 
+} // namespace
 int main() {
     bool ok = true;
     ok = test_normalization_order_and_opacity() && ok;
@@ -277,6 +325,7 @@ int main() {
     ok = test_duplicate_sampling() && ok;
     ok = test_radial_payload_normalization() && ok;
     ok = test_radial_wins_over_linear() && ok;
+    ok = test_conic_gradient() && ok;
     if (!ok) {
         std::cerr << "paint_gradient: failed\n";
         return 1;

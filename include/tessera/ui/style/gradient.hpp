@@ -65,15 +65,27 @@ struct RadialGradientValue {
     std::size_t stop_count = 0;
 };
 
+// `conic-gradient()` (issue #617). The ramp sweeps clockwise from `from_angle_degrees` around
+// `position`, which is a fraction of the node's border box like a radial gradient's centre. CSS
+// measures the angle from 12 o'clock (0deg = up, 90deg = right), which is the same convention the
+// linear form uses. A stop's offset is a fraction of the full turn.
+struct ConicGradientValue {
+    float from_angle_degrees = 0.0f;
+    RadialPosition position;
+    std::array<GradientStopValue, kMaxGradientStops> stops{};
+    std::size_t stop_count = 0;
+};
+
 // The tagged union a `background-image` gradient resolves to. `repeating` is carried rather than
 // baked into the stops so a caller can tell the two forms apart (diagnostics, tests, a future
 // per-pixel path); the stops are the authored ramp either way, and `expand_repeating_stops` is what
 // turns a repeating one into a paintable list.
 struct GradientValue {
-    enum class Kind { Linear, Radial } kind = Kind::Linear;
+    enum class Kind { Linear, Radial, Conic } kind = Kind::Linear;
     bool repeating = false;
     LinearGradientValue linear;
     RadialGradientValue radial;
+    ConicGradientValue conic;
 };
 
 // Offsets follow CSS Images 3 section 3.4.3: a missing first/last position is 0/100 %, a missing

@@ -130,6 +130,7 @@ public:
     void fill_box_shadow(const BoxShadowDraw& draw) override;
     void fill_linear_gradient(const GradientDraw& draw) override;
     void fill_radial_gradient(const RadialGradientDraw& draw) override;
+    void fill_conic_gradient(const ConicGradientDraw& draw) override;
     void push_clip(const RoundedClip& clip) override;
     void pop_clip() override;
     [[nodiscard]] bool supports_transform() const override {

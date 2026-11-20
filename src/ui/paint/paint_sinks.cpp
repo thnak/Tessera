@@ -129,6 +129,22 @@ void Batched2DSink::fill_radial_gradient(const RadialGradientDraw& draw) {
     }
 }
 
+void Batched2DSink::fill_conic_gradient(const ConicGradientDraw& draw) {
+    if (draw.stop_count == 0 || draw.rect.width <= 0.0f || draw.rect.height <= 0.0f) {
+        return;
+    }
+    const bool clipped = draw.clip.rounded();
+    if (clipped) {
+        renderer_->push_clip(rendering::gpu::clip::RoundedRect{
+            draw.clip.rect, draw.clip.top_left, draw.clip.top_right, draw.clip.bottom_right,
+            draw.clip.bottom_left});
+    }
+    tessellate_conic_gradient(
+        draw, [this](const ConicBand& band) { renderer_->push_rect(band.rect, band.color); });
+    if (clipped) {
+        renderer_->pop_clip();
+    }
+}
 void Batched2DSink::push_clip(const RoundedClip& clip) {
     renderer_->push_clip(rendering::gpu::clip::RoundedRect{clip.rect, clip.top_left, clip.top_right,
                                                            clip.bottom_right, clip.bottom_left});

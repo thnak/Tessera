@@ -188,6 +188,17 @@ struct RadialBand {
     rhi::Color color;
 };
 
+// A conic gradient (issue #617): the ramp sweeps clockwise from `from_angle_degrees` around
+// `center_x`/`center_y`, which are absolute canvas coordinates like a radial gradient's centre.
+struct ConicGradientDraw {
+    rhi::Rect rect;
+    RoundedClip clip;
+    float center_x = 0.0f;
+    float center_y = 0.0f;
+    float from_angle_degrees = 0.0f;
+    std::array<LinearGradientStop, kMaxDrawStops> stops{};
+    std::size_t stop_count = 0;
+};
 // How many bands a radial gradient is tessellated into, per axis. A radial falloff has no dominant
 // axis to band along the way a linear one does, so the gradient's bounding box is cut into a
 // kRadialBands x kRadialBands grid and each cell is filled with the ramp colour at its centre. This
@@ -228,6 +239,45 @@ void tessellate_radial_gradient(const RadialGradientDraw& draw, Emit&& emit) {
             emit(RadialBand{{center_x - cell_width * 0.5f, center_y - cell_height * 0.5f,
                              cell_width + 0.5f, cell_height + 0.5f},
                             sample_gradient_stops(draw.stops.data(), draw.stop_count, distance)});
+        }
+    }
+}
+
+// One conic band (issue #617): a solid cell of the sweep, in canvas coordinates.
+struct ConicBand {
+    rhi::Rect rect;
+    rhi::Color color;
+};
+
+// Tessellates `draw` into at most kRadialBands * kRadialBands bands, in row-major order, and calls
+// `emit` for each. A conic gradient has no dominant axis either, so it uses the same bounded grid
+// the radial one does: each cell is filled with the ramp colour at its centre, which is the
+// documented approximation (docs/design/paint-pass.md section 13). Cells whose centre falls outside
+// the box are skipped, so the fill is the box itself rather than its bounding rect.
+//
+// The angle is measured from 12 o'clock clockwise, the CSS convention: `atan2(dx, -dy)` gives 0 at
+// the top and grows clockwise, which is why the y term is negated. A cell exactly at the centre has
+// no angle, so it takes the ramp's first stop.
+template<typename Emit> void tessellate_conic_gradient(const ConicGradientDraw& draw, Emit&& emit) {
+    if (draw.stop_count == 0 || draw.rect.width <= 0.0f || draw.rect.height <= 0.0f) {
+        return;
+    }
+    const float cell_width = draw.rect.width / static_cast<float>(kRadialBands);
+    const float cell_height = draw.rect.height / static_cast<float>(kRadialBands);
+    constexpr float kTau = 6.283185307179586f;
+    for (int row = 0; row < kRadialBands; ++row) {
+        const float center_y = draw.rect.y + (static_cast<float>(row) + 0.5f) * cell_height;
+        for (int column = 0; column < kRadialBands; ++column) {
+            const float center_x = draw.rect.x + (static_cast<float>(column) + 0.5f) * cell_width;
+            const float dx = center_x - draw.center_x;
+            const float dy = center_y - draw.center_y;
+            // `atan2(0, 0)` is 0, which is the documented centre case rather than an error.
+            const float degrees = std::atan2(dx, -dy) * (360.0f / kTau);
+            float turn = (degrees - draw.from_angle_degrees) / 360.0f;
+            turn -= std::floor(turn); // into [0, 1)
+            emit(ConicBand{{center_x - cell_width * 0.5f, center_y - cell_height * 0.5f,
+                            cell_width + 0.5f, cell_height + 0.5f},
+                           sample_gradient_stops(draw.stops.data(), draw.stop_count, turn)});
         }
     }
 }
@@ -284,6 +334,9 @@ public:
     // (issue #613). A sink that does not override it paints the node's background without the
     // gradient, which is the documented fallback for a sink with no radial support.
     virtual void fill_radial_gradient(const RadialGradientDraw& /*draw*/) {}
+
+    // A conic gradient (issue #617). Default no-op so a sink that does not paint one keeps working.
+    virtual void fill_conic_gradient(const ConicGradientDraw& /*draw*/) {}
 
     // Optional rounded-clip hooks (default no-ops so sinks that do not render clipping keep
     // working). paint_scene pushes one clip per overflow-clipping parent around its children and
