@@ -1,0 +1,63 @@
+/* SPDX-License-Identifier: MIT */
+
+/* Segmented selector: RECESS tray, RAISED chosen key with a lit LED. The inverse variant sits in a WELL
+   and raises a dark key instead. */
+.tseg {
+  display: inline-flex;
+  gap: 3px;
+  padding: 3px;
+  border-radius: var(--radius-lg);
+}
+
+.tseg-vertical {
+  flex-direction: column;
+}
+
+.tseg-option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 52px;
+  height: 26px;
+  margin: 0;
+  padding: 0px var(--space-2);
+  border: var(--mat-edge-width) solid transparent;
+  border-radius: 5px;
+  background: none;
+  font-family: var(--mat-font-micro);
+  font-size: var(--font-size-label);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--on-surface-muted);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tseg-option:hover {
+  color: var(--on-surface);
+}
+
+.tseg-option-on,
+.tseg-option-on:hover {
+  border-color: var(--mat-edge);
+  background: linear-gradient(180deg, var(--mat-raised-a), var(--mat-raised-b));
+  box-shadow: var(--mat-raised-shadow); /* tessera-gap: inset-shadow */
+  color: var(--on-surface);
+}
+
+.tseg-inverse .tseg-option {
+  color: var(--mat-on-inverse-muted);
+}
+
+.tseg-inverse .tseg-option:hover {
+  color: var(--mat-on-inverse);
+}
+
+.tseg-inverse .tseg-option-on,
+.tseg-inverse .tseg-option-on:hover {
+  border: 1px solid var(--mat-inverse-line);
+  background: linear-gradient(180deg, var(--mat-dark-key-a), var(--mat-dark-key-b));
+  box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.4), inset 0px 1px 0px rgba(255, 255, 255, 0.16); /* tessera-gap: inset-shadow */
+  color: var(--mat-on-inverse);
+}

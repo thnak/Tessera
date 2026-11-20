@@ -1,0 +1,358 @@
+/* SPDX-License-Identifier: MIT */
+
+/* The device: a chassis with a 36px outer radius floating on the backdrop, corner screws, a dark
+   hatched band hanging from the top edge (0 0 26 26 radius), a key column on the left with a grille
+   tab, and a dark band rising from the bottom edge. Regions are told apart by tone and the engraved
+   seam, not by box borders. Breakpoints are literals (= --breakpoint-sm/md): custom properties do not
+   work in @media. Flex only. */
+.tshell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: calc(100% - 2 * var(--space-6));
+  margin: var(--space-6);
+  min-width: 0;
+  overflow: hidden;
+  border: var(--mat-edge-width) solid var(--mat-edge);
+  border-radius: var(--mat-radius-device);
+  background: linear-gradient(180deg, var(--mat-chassis-a), var(--mat-chassis-b) 40%, var(--mat-chassis-b));
+  box-shadow: var(--mat-device-shadow); /* tessera-gap: inset-shadow */
+}
+
+.tshell-middle {
+  display: flex;
+  flex-grow: 1;
+  min-height: 0;
+}
+
+.tshell-main {
+  flex-grow: 1;
+  min-width: 0;
+  overflow-y: auto;
+}
+
+/* App bar: a dark tab hanging from the top edge. */
+.tappbar {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-shrink: 0;
+  height: 72px;
+  margin: 0px 36px;
+  padding: 0px 28px;
+  overflow: hidden;
+  border-radius: 0px 0px var(--mat-radius-band) var(--mat-radius-band);
+  box-shadow: var(--mat-band-shadow); /* tessera-gap: inset-shadow */
+}
+
+/* Decorative traces: a skewed glowing accent line and two faint rules (the reference's header). */
+.tappbar-trace {
+  position: absolute;
+  height: 1px;
+  pointer-events: none;
+  opacity: var(--mat-decor-opacity);
+}
+
+.tappbar-trace-a {
+  left: 38%;
+  right: 30%;
+  top: 22px;
+  height: 2px;
+  background-color: var(--mat-signal);
+  transform: skewX(-30deg);
+  box-shadow: 0px 0px 10px var(--mat-signal);
+}
+
+.tappbar-trace-b {
+  left: 43%;
+  right: 36%;
+  top: 30px;
+  background-color: var(--mat-signal);
+  opacity: calc(0.5 * var(--mat-decor-opacity));
+}
+
+.tappbar-trace-c {
+  left: 48%;
+  right: 33%;
+  top: 48px;
+  background-color: var(--mat-on-inverse);
+  opacity: calc(0.22 * var(--mat-decor-opacity));
+}
+
+.tappbar-brand {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+/* Chamfered brand mark: a light plate with a ring cut in. */
+.tappbar-mark {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: linear-gradient(160deg, var(--mat-raised-a), var(--mat-level-4));
+}
+
+.tappbar-mark-ring {
+  width: 13px;
+  height: 13px;
+  border: 3px solid var(--mat-inverse-a);
+  border-radius: 50%;
+}
+
+.tappbar-names {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.tappbar-title {
+  font-size: 20px;
+  line-height: 24px;
+  color: var(--mat-on-inverse);
+  white-space: nowrap;
+}
+
+.tappbar-sub {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tappbar-actions {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-shrink: 0;
+}
+
+.tappbar-leds {
+  display: flex;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tappbar-led {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Key column */
+.tsidebar {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  flex-shrink: 0;
+  width: 220px;
+  padding: var(--space-6) var(--space-4) var(--space-4) var(--space-6);
+  overflow-y: auto;
+}
+
+.tsidebar-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tsidebar-heading {
+  padding: 0px var(--space-1);
+}
+
+.tsidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 40px;
+  padding: 0px var(--space-3) 0px var(--space-2);
+  border: var(--mat-edge-width) solid transparent;
+  border-radius: var(--mat-radius-key);
+  color: var(--on-surface);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.tsidebar-item:hover {
+  background-color: var(--mat-level-0);
+}
+
+.tsidebar-label {
+  flex-grow: 1;
+}
+
+.tsidebar-count {
+  font-size: var(--font-size-label);
+  color: var(--on-surface-muted);
+}
+
+.tsidebar-item-current,
+.tsidebar-item-current:hover {
+  border-color: var(--mat-edge);
+  background: linear-gradient(180deg, var(--mat-raised-a), var(--mat-raised-b));
+  box-shadow: var(--mat-raised-shadow); /* tessera-gap: inset-shadow */
+  color: var(--accent);
+}
+
+.tsidebar-item-current .tsidebar-index {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* The grille tab hangs off the device's left edge, below the keys. */
+.tsidebar-grille {
+  align-self: flex-start;
+  width: 22px;
+  height: 180px;
+  margin: auto 0px var(--space-6) calc(-1 * var(--space-6));
+  border-radius: 0px 20px 20px 0px;
+}
+
+/* The main area meets the key column at an engraved seam. */
+.tshell-main {
+  box-shadow: inset 1px 0px 0px var(--mat-engrave), inset 2px 0px 0px var(--mat-lip); /* tessera-gap: inset-shadow */
+}
+
+/* Status band: a dark tab rising from the bottom edge. */
+.tstatusbar {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  height: 40px;
+  margin: 0px 36px;
+  padding: 0px var(--space-4);
+  border-radius: var(--mat-radius-band) var(--mat-radius-band) 0px 0px;
+  overflow: hidden;
+}
+
+.tstatusbar-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0px var(--space-3);
+  white-space: nowrap;
+}
+
+.tstatusbar-item + .tstatusbar-item {
+  box-shadow: inset 1px 0px 0px rgba(0, 0, 0, 0.5), inset 2px 0px 0px rgba(255, 255, 255, 0.08); /* tessera-gap: inset-shadow */
+}
+
+.tstatusbar-spacer {
+  flex-grow: 1;
+}
+
+.tstatusbar-spacer + .tstatusbar-item {
+  box-shadow: none;
+}
+
+@media (max-width: 1023px) {
+  .tappbar-leds {
+    display: none;
+  }
+}
+
+@media (max-width: 767px) {
+  .tshell {
+    height: calc(100% - 2 * var(--space-2));
+    margin: var(--space-2);
+    border-radius: var(--mat-radius-band);
+  }
+
+  .tshell-middle {
+    flex-direction: column;
+  }
+
+  .tappbar,
+  .tstatusbar {
+    margin: 0px 28px;
+    padding: 0px var(--space-4);
+  }
+
+  .tappbar {
+    height: 60px;
+    border-radius: 0px 0px 18px 18px;
+  }
+
+  .tappbar-trace {
+    display: none;
+  }
+
+  .tstatusbar {
+    border-radius: 18px 18px 0px 0px;
+  }
+
+  .tsidebar {
+    flex-direction: row;
+    gap: var(--space-1);
+    width: auto;
+    padding: var(--space-3) var(--space-4);
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+
+  .tsidebar-group {
+    flex-direction: row;
+  }
+
+  .tsidebar-heading,
+  .tsidebar-grille,
+  .tsidebar-count {
+    display: none;
+  }
+
+  .tsidebar-item {
+    height: 36px;
+  }
+
+  .tshell-main {
+    box-shadow: inset 0px 1px 0px var(--mat-engrave), inset 0px 2px 0px var(--mat-lip); /* tessera-gap: inset-shadow */
+  }
+}
+
+@media (max-width: 479px) {
+  .tappbar,
+  .tstatusbar {
+    padding: 0px var(--space-3);
+  }
+
+  .tappbar-sub,
+  .tstatusbar-secondary {
+    display: none;
+  }
+
+  .tappbar-title {
+    font-size: 17px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .tappbar-mark {
+    display: none;
+  }
+
+  /* The theme switch keeps its three keys but drops their LEDs to fit beside the title. */
+  .tappbar .tseg-option {
+    min-width: 0px;
+    padding: 0px 6px;
+  }
+
+  .tappbar .tseg-option .m-led {
+    display: none;
+  }
+
+  .tsidebar-index {
+    display: none;
+  }
+}

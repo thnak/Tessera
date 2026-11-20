@@ -85,7 +85,7 @@ This page is the map and reading order for the framework.
 - [`specs/stylesheet-v1.md`](specs/stylesheet-v1.md) — full CSS syntax + semantic matrix
 - [`specs/grid-v1.md`](specs/grid-v1.md) — CSS Grid subset: supported values, track sizing, placement, alignment, engine seam
 - [`specs/stylesheet-property-status-v1.md`](specs/stylesheet-property-status-v1.md) — per registered longhand: applied / parsed only, with the consumer and proving test
-- [`specs/component-parts-v1.md`](specs/component-parts-v1.md) — `::part(name)`: the `part` attribute, cross-boundary matching, specificity, `@supports selector()`; component specs: [`template`](specs/components/_template.md), [`Button`](specs/components/Button.md) (ADR-064)
+- [`specs/component-parts-v1.md`](specs/component-parts-v1.md) — `::part(name)`: the `part` attribute, cross-boundary matching, specificity, `@supports selector()`; behavior hooks: [`specs/behavior-hooks-v1.md`](specs/behavior-hooks-v1.md); component specs: [`template`](specs/components/_template.md), [`Button`](specs/components/Button.md) (ADR-064)
 - [`specs/compiled-stylesheet-v1.md`](specs/compiled-stylesheet-v1.md) — precompiled stylesheet blob format (prepare/resolve split, ADR-048)
 - [`specs/theme-versions-v1.md`](specs/theme-versions-v1.md) — theme versions, `assets.themePins` and `TESSERA_THEME_VERSION_PIN` (ADR-047)
 - [`specs/theme-generation-v1.md`](specs/theme-generation-v1.md) — deriving an Instrument token set
@@ -272,7 +272,7 @@ This page is the map and reading order for the framework.
   crash, capture
 - [`design/error-boundaries.md`](design/error-boundaries.md) — routing classes, RTTI-free catch
   order, retry state machine, cleanup seam, not-caught list, test map
-- [`design/compiler.md`](design/compiler.md) — JSX/TSX -> IR -> C++ pipeline
+- [`design/compiler.md`](design/compiler.md) — JSX/TSX -> IR -> C++ pipeline; hooks as engine behaviors: [`design/behavior-hooks.md`](design/behavior-hooks.md)
 - [`design/compiler-wasm.md`](design/compiler-wasm.md) — the compiler built to Wasm for the
   design-time preview (Emscripten target, `NODERAWFS`, the native-versus-Wasm IR parity gate)
 - [`design/studio-page.md`](design/studio-page.md) — the hosted studio `index.html` (#392, #422, #431):
@@ -376,8 +376,8 @@ This page is the map and reading order for the framework.
   browser/file activation
 - [`guides/agent-automation.md`](guides/agent-automation.md) — use IDs/snapshots/actions/traces
   and audits from a coding agent
-- [`tools/wiki/README.md`](../tools/wiki/README.md) — static React client for the GitHub Wiki (guides with examples;
-  design docs stay here in the source repo), themed with a Tessera stylesheet
+- [`tools/wiki/README.md`](../tools/wiki/README.md) — static React client for the GitHub Wiki (guides with examples; design docs stay here in the source repo), themed with a Tessera stylesheet
+- [`tools/reference/instrument-mock/README.md`](../tools/reference/instrument-mock/README.md) — demo (plain React + Vite, not Tessera) and candidate "Device" theme: a tactile hardware-instrument look, not the first-party design language (see ADR-064, PR #623) (no Tessera), with a material token layer, a contrast report, tessera-gap tags and the gaps found in the theme
 - [`guides/custom-elements.md`](guides/custom-elements.md) — declare/implement/test a custom
   native element with shaders, 3D, input and reuse
 - [`guides/writing-a-backend.md`](guides/writing-a-backend.md) — add a GPU backend: tiers and what

@@ -1,0 +1,97 @@
+/* SPDX-License-Identifier: MIT */
+
+/* TextField and Select: a micro label over a recessed light slot. The slot is separated by tone and an
+   inset shadow, not a box outline; only its bottom edge carries --border-strong, which is the edge that
+   identifies the control (>= 3:1 on every surface, see check-contrast). */
+.tfield {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.tfield-required {
+  text-transform: none;
+  letter-spacing: 0px;
+}
+
+.tfield-control {
+  height: 36px;
+  width: 100%;
+  min-width: 0;
+  padding: 0px var(--control-padding-x);
+  border: max(1px, var(--mat-edge-width)) solid var(--mat-edge);
+  border-bottom-color: var(--border-strong);
+  border-radius: var(--radius-lg) var(--radius-lg) var(--radius-md) var(--radius-md);
+  background: linear-gradient(180deg, var(--mat-level-3), var(--mat-level-0) 70%);
+  box-shadow: var(--mat-field-shadow); /* tessera-gap: inset-shadow */
+  color: var(--on-surface);
+  transition: border-color var(--motion-fast) ease-out;
+}
+
+.tfield-control::placeholder {
+  color: var(--on-surface-muted);
+}
+
+.tfield-control:hover {
+  border-bottom-color: var(--on-surface);
+}
+
+.tfield-control.is-focus {
+  outline: 2px solid var(--ring, var(--mat-focus-ring));
+  outline-offset: 2px;
+}
+
+.tfield-control[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+.tfield-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-size-label);
+  line-height: var(--line-height-label);
+  color: var(--on-surface-muted);
+}
+
+.tfield-error {
+  color: var(--danger);
+}
+
+.tfield-disabled .tfield-control {
+  background: var(--mat-level-3);
+  box-shadow: none;
+  border-bottom-color: var(--mat-level-4);
+  color: var(--on-surface-muted);
+}
+
+/* Select: native control, drawn chevron part. */
+.tselect {
+  position: relative;
+  display: flex;
+}
+
+.tselect .tfield-control {
+  appearance: none;
+  padding-inline-end: calc(var(--control-padding-x) + var(--space-4));
+  cursor: pointer;
+}
+
+.tselect-chevron {
+  position: absolute;
+  inset-inline-end: var(--control-padding-x);
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  margin-top: -6px;
+  border-right: 2px solid var(--on-surface);
+  border-bottom: 2px solid var(--on-surface);
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+
+.tselect option {
+  background-color: var(--mat-level-0);
+  color: var(--on-surface);
+}

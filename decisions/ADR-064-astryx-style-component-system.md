@@ -107,7 +107,10 @@ the design work, the part that takes longest.
      fallback (two token sets, plain mixes) and tests mark the gap by id.
 7. **A behavior-hook layer (ADR-047 "primitives", now a catalogue).** Hooks are a contract, not a
    port. Each has a spec (name, arguments, the behavior it guarantees, accessibility) and is
-   implemented once in the engine, with a thin TSX binding. Astryx's React implementations are not
+   implemented once in the engine as a behavior class and reached from TSX through a compiler-level
+   `behavior` hook kind (manifest, IR `behaviors`, generated wiring), designed in
+   [`behavior-hooks.md`](../docs/design/behavior-hooks.md). Wrapper components are not an interim
+   form: the existing primitives move onto the hooks. Astryx's React implementations are not
    reused. Staged as:
    - **Core (before the 28 components):** `useFocusTrap`, `useListFocus` (roving, one tab stop),
      `useTypeahead`, `useHotkeys`, `usePressFeedback`, `useAnnounce`, `useMergedRefs`,
@@ -119,13 +122,14 @@ the design work, the part that takes longest.
    - **After v1:** `useGridFocus`, `useTreeFocus`, `usePanGesture`, `useLongPress`,
      `useDragToSnapPoints`, `useStreamingText`, `useImageMode`, reorderable lists.
    - **Dropped:** browser-only helpers (dev warnings, IME and selection workarounds, click timing).
-   - **Component hooks.** A component may have hooks of its own, public and documented next to it
-     (`useTable*`, below). They follow the same rules: contract spec, test per rule, no hidden global
-     state.
+   - **Component-specific behavior** is a typed prop group of the component (the Table plugins
+     below), not a hook that returns an opaque value. Package-declared hooks are not part of V1; a
+     third-party package that needs its own behavior hooks is a later decision.
 8. **Data components use a plugin model with caller-owned data.** `Table` (and later `DataGrid`)
-   takes named plugins, each added by a hook: sorting, selection, pagination, infinite scroll,
-   filtering, grouping, tree, row expansion, column resize, sticky columns, virtualization. Plugins
-   run in a fixed canonical order so their results do not depend on the order they are written in.
+   takes named plugins, each a typed prop group: `sorting`, `selection`, `pagination`, `infiniteScroll`,
+   `filtering`, `grouping`, `tree`, `rowExpansion`, `columnResize`, `stickyColumns`, `virtualization`.
+   Plugins run in a fixed canonical order, so their results do not depend on the order they are
+   written in.
    - **Server data and lazy loading are plugins, and the application owns the data.** The component
      does not fetch. Infinite scroll takes `hasMore`, `isLoading` and `onLoadMore` (a function that
      returns when the batch is appended); pagination takes `page`, `onPageChange` and either
@@ -187,15 +191,20 @@ the design work, the part that takes longest.
 - **Make data fetching part of the table.** Rejected: server shapes differ; a controlled plugin with
   a request token covers cursor and total-count APIs without an adapter zoo.
 
+## Evidence required before Accepted
+
+This ADR stays Proposed until measured evidence exists. Spike [#658](https://github.com/thnak/Tessera/issues/658) builds the behavior hook path end to end with one behavior (`press_feedback`), off by default, and records the stages' findings, allocation behavior, golden stability and preview support. Spike [#662](https://github.com/thnak/Tessera/issues/662) builds a role-token theme to plain CSS custom properties and renders Button in three modes, recording missing engine features, measured contrast and the cost of the token vocabulary. Items 3 to 5 and 8 (catalogue, anatomy, plugins) have no spike yet; they are specifications that the first components (#636 Button) will test. The implementing issues wait for Acceptance.
+
 ## Follow-up
 
 - Spec template `docs/specs/components/_template.md`; first specs: Button, Field, TextInput, Dialog,
   TabList, Table.
 - Token spec v1 (role tokens, `light-dark()` pairs, `extends`, adaptations) and a token-build tool;
   update `component-library.md` and `stylesheet-v1.md`.
-- Hook contracts in `docs/specs/` and one issue per core hook (milestone V1-M4), then the stage-2
-  hooks as their engine features land.
-- Table plugin contract with the request-token hook; revise the DataGrid scope in
+- The `behavior` hook kind first (design in `behavior-hooks.md`, then a spec, analyzer and lowering,
+  engine interface and registry, code generation, preview wiring), then one issue per core hook
+  (milestone V1-M4) and the stage-2 hooks as their engine features land.
+- Table plugin contract with the request token; revise the DataGrid scope in
   `component-library.md`.
 - Move the tactile mock under `samples/` as a demo ("Device" theme candidate) and update its README.
 - Record the Astryx reference commit in `dependencies.md` and `THIRD_PARTY_NOTICES.md`.

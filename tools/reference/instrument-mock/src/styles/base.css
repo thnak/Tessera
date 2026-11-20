@@ -1,0 +1,90 @@
+/* SPDX-License-Identifier: MIT */
+
+/* Page base. The only face the repo ships is IBM Plex Sans Regular, Latin subset
+   (designer/web/public/fonts, OFL-1.1, see docs/specs/dependencies.md), referenced in place. No IBM
+   Plex Mono and no other weight ship: --mat-font-micro falls back to the system monospace and the
+   600 display weight is synthesized by the browser. No font was added. */
+@font-face {
+  font-family: "IBM Plex Sans";
+  src: url("../../../../../designer/web/public/fonts/IBMPlexSans-Latin.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+/* The window behind the device. */
+body {
+  /* tessera-gap: radial-gradient */
+  background: radial-gradient(ellipse at 50% 30%, var(--mat-backdrop-a), var(--mat-backdrop-b));
+  background-color: var(--mat-backdrop-b);
+  color: var(--window-foreground);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  height: 100%;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+  font-weight: 400;
+}
+
+.mono {
+  font-family: var(--mat-font-micro);
+  font-variant-numeric: tabular-nums;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* One focus treatment everywhere: a 2px ring offset 2px from the control, so the chassis shows as a
+   gap between ring and control. The ring is --mat-focus-ring (near-black in light, near-white in dark),
+   not the accent, so it stays visible on a filled accent key (the theme's --focus-ring equals the
+   accent: 1.00:1). Dark regions (.m-inverse, .m-well) swap --ring to their own colour. */
+:focus-visible {
+  outline: 2px solid var(--ring, var(--mat-focus-ring));
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0ms !important;
+    animation-duration: 0ms !important;
+  }
+}

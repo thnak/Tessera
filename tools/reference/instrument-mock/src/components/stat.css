@@ -1,0 +1,60 @@
+/* SPDX-License-Identifier: MIT */
+
+/* StatTile: an LCD tile. The figure glows in the signal colour; the meter is a segmented LED bar. */
+.tstat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--mat-radius-key);
+}
+
+.tstat-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tstat-figure {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1);
+}
+
+.tstat-value {
+  font-size: 24px;
+  line-height: 32px;
+}
+
+.tstat-unit {
+  font-size: var(--font-size-label);
+  color: var(--mat-on-well-muted);
+}
+
+.tstat-delta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-size-label);
+  line-height: var(--line-height-label);
+  color: var(--mat-on-well-muted);
+}
+
+.tstat-meter {
+  position: relative;
+  height: 6px;
+  margin-top: 6px;
+  border-radius: 1px;
+  background-color: var(--mat-arc-track-inverse);
+  /* tessera-gap: mask, repeating-linear-gradient */
+  mask: repeating-linear-gradient(90deg, #000 0px 5px, transparent 5px 7px);
+}
+
+.tstat-meter-fill {
+  position: absolute;
+  inset-block: 0px;
+  left: 0px;
+  background-color: var(--mat-signal);
+  box-shadow: 0px 0px 6px var(--mat-signal-glow);
+}

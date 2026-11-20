@@ -157,7 +157,7 @@ font bytes that FreeType already validated, so the two libraries never share a f
 | CMake | V1 build | BSD-3-Clause | build | Build system |
 | vcpkg | V1 build (recommended) | MIT | build | Dependency management |
 | Ninja | V1 optional | Apache-2.0 | build | Fast builds |
-| Node.js | Design-time tooling only ([ADR-045](../../decisions/ADR-045-browser-hosted-studio.md)) | MIT | `designer/web`, `tools/wiki`, `tools/mcp` | Vite build scripts for the studio page and the wiki client, and the `tessera-mcp` stdio server; never a build or runtime dependency of the native app ([ADR-036](../../decisions/ADR-036-own-jsx-frontend-and-react-like-model.md)) |
+| Node.js | Design-time tooling only ([ADR-045](../../decisions/ADR-045-browser-hosted-studio.md)) | MIT | `designer/web`, `tools/wiki`, `tools/mcp`, `tools/reference/instrument-mock` | Vite build scripts for the studio page and the wiki client, and the `tessera-mcp` stdio server; never a build or runtime dependency of the native app ([ADR-036](../../decisions/ADR-036-own-jsx-frontend-and-react-like-model.md)) |
 | Python 3 | Build-time | PSF | `scripts` | Tooling and CI helpers |
 
 ### Studio and wiki front end (design-time)
@@ -170,7 +170,7 @@ of [ADR-045](../../decisions/ADR-045-browser-hosted-studio.md) without supersedi
 `package-lock.json`, and both build with the same pins: `react`/`react-dom` `^19.0.0`, `vite`
 `^7.0.0`, `typescript` `^5.9.0`, `@vitejs/plugin-react` `^5.0.0`. `tools/wiki` is the in-repo
 precedent the studio mirrors, so the two cannot drift into different React or Vite majors by accident;
-a bump is a one-line change in both manifests and a re-record of the studio's download budget.
+a bump is a one-line change in both manifests and a re-record of the studio's download budget. `tools/reference/instrument-mock` (a plain React demo and candidate "Device" theme, never deployed) uses the same pins and adds no other package.
 
 **React is design-time only, and that is a recorded status, not an implication.** It is bundled into the
 static studio page and is never linked into an app binary or into the Wasm engine:
@@ -182,10 +182,10 @@ native build: `designer/web` is outside the CMake graph and nothing in it is com
 
 | Library | Status | License | Module | Role in Tessera |
 |---|---|---|---|---|
-| React, ReactDOM | V1 design-time (studio) | MIT | `designer/web`, `tools/wiki` | Studio chrome components (toolbar, panes, status line) and the wiki client's rendering; bundled into the static page, never linked into an app binary or the Wasm engine ([ADR-054](../../decisions/ADR-054-studio-front-end-react-vite.md), [ADR-024](../../decisions/ADR-024-native-first-boundaries.md)) |
+| React, ReactDOM | V1 design-time (studio) | MIT | `designer/web`, `tools/wiki`, `tools/reference/instrument-mock` | Studio chrome components (toolbar, panes, status line) and the wiki client's rendering; bundled into the static page, never linked into an app binary or the Wasm engine ([ADR-054](../../decisions/ADR-054-studio-front-end-react-vite.md), [ADR-024](../../decisions/ADR-024-native-first-boundaries.md)) |
 | react-markdown, rehype-slug, remark-gfm | V1 design-time (wiki) | MIT | `tools/wiki` | Wiki markdown rendering, heading anchors and GFM tables |
-| Vite, @vitejs/plugin-react | V1 design-time (studio build) | MIT | `designer/web`, `tools/wiki` | Static build of both front ends (`vite build` → `dist/`, git-ignored) and hashed asset names for the versioned Pages paths ([ADR-045](../../decisions/ADR-045-browser-hosted-studio.md), ADR-054) |
-| TypeScript, @types/react, @types/react-dom | V1 design-time (studio build) | Apache-2.0 / MIT | `designer/web`, `tools/wiki` | TSX type checking (`tsc --noEmit`, part of the build) and the React type declarations |
+| Vite, @vitejs/plugin-react | V1 design-time (studio build) | MIT | `designer/web`, `tools/wiki`, `tools/reference/instrument-mock` | Static build of both front ends (`vite build` → `dist/`, git-ignored) and hashed asset names for the versioned Pages paths ([ADR-045](../../decisions/ADR-045-browser-hosted-studio.md), ADR-054) |
+| TypeScript, @types/react, @types/react-dom | V1 design-time (studio build) | Apache-2.0 / MIT | `designer/web`, `tools/wiki`, `tools/reference/instrument-mock` | TSX type checking (`tsc --noEmit`, part of the build) and the React type declarations |
 
 Neither front end adds a *runtime-only* package: the studio's only production dependencies are `react` and
 `react-dom`, and its gates use `react-dom/server`, which ships inside `react-dom`. That is why the page
