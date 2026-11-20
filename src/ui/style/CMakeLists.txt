@@ -13,6 +13,7 @@ add_library(tessera_style STATIC
     cascade.cpp
     font_size.cpp
     color.cpp
+    color_functions.cpp
     gradient.cpp
     property_background.cpp
     property_text_decoration.cpp

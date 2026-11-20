@@ -240,8 +240,8 @@ diagnostic.
 - numbers, integers, angles (`deg`, `rad`, `turn`, `grad`), times (`ms`, `s`)
 - colors: named colors, `#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`, `rgb()`, `rgba()`,
   `hsl()`, `hsla()`, `transparent`, `currentColor`
-- modern color functions (`lab()`, `lch()`, `oklab()`, `oklch()`, `color()`) are parsed and
-  preserved; semantic support is listed as Later in section 11
+- colour functions `light-dark()` and `color-mix()` resolve at computed-value time like `var()`
+  (`color_functions.cpp`); `lab()`/`lch()`/`oklab()`/`oklch()`/`color()` are parsed, not evaluated
 - strings, URLs, identifiers, functions
 - `var()` with fallback and cycle detection
 
@@ -367,7 +367,7 @@ Legend: **V1** = implemented semantics; **Parse** = parsed/preserved, no semanti
 | Animations | `@keyframes`, iteration, direction, fill-mode | scroll-driven |
 | Interaction | `cursor` (keyword grammar and the native-pointer contract: [`window-chrome-v1.md`](window-chrome-v1.md) section 8.5), `pointer-events`, `user-select`, `:hover/:active/:focus/:focus-visible` | `:has()`, `:focus-within` |
 | Responsive | viewport media queries, rem/vw/vh, `@container` size queries with `container-type`/`container-name` | container style/scroll-state queries, `container` shorthand, container query length units |
-| Colors | named/hex/rgb/hsl/currentColor/transparent | lab/lch/oklab/oklch/color() semantics |
+| Colors | named/hex/rgb/hsl/currentColor/transparent, `light-dark()`, `color-mix()` | lab/lch/oklab/oklch/color() semantics |
 | Custom properties | `var()`, inheritance, fallback, cycles | `@property` typed values |
 | Layout direction | `direction` (`ltr`/`rtl`, inherited, per node); physical properties (`left`, `right`, `margin-left`, ...) stay physical; the logical inline-axis properties `margin-inline-*`, `padding-inline-*`, `inset-inline-*`, `border-inline-*` and `text-align: start/end` mirror with the computed direction (section 11.1) | scroll and overscroll mirroring (offsets, scrollbars, overscroll effects stay physical) |
 | Component parts | `part` attribute, `::part(<ident>+)` with the pre-`::part` compound matching the component instance, `@supports selector()` (section 6.3) | shadow DOM, `exportparts`, `::slotted()`, `:host`/`:host-context()` |

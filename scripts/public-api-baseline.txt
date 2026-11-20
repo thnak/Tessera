@@ -2381,6 +2381,7 @@ function include/tessera/ui/style/cascade.hpp tessera::ui::style::resolve_variab
 constant include/tessera/ui/style/cascade.hpp tessera::ui::style::kUnlayeredLayer
 
 header include/tessera/ui/style/color.hpp
+struct include/tessera/ui/style/color.hpp tessera::ui::style::ColorContext
 struct include/tessera/ui/style/color.hpp tessera::ui::style::ColorParseResult
 struct include/tessera/ui/style/color.hpp tessera::ui::style::ColorRgba
 function include/tessera/ui/style/color.hpp tessera::ui::style::format_color

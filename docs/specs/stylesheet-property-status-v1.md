@@ -111,6 +111,7 @@ property that is *documented* as applied and is not, which is what the cross-che
 | `background-image` | applied | one `linear-gradient()` (2-8 stops, `deg`/`turn`/`rad`/`grad` or `to <side\|corner>`); `paint_gradient.cpp`, `style/gradient.cpp` (#457) |
 | `background` | partial | shorthand for a colour and one `linear-gradient()`; other layers rejected with a diagnostic; `property_background.cpp` |
 | `color` | applied | `paint_pass.cpp` `current_color` (also the `currentColor` base); `paint_text` |
+| `color-scheme` | applied | inherited; `var_resolve.cpp` `color_context_for` reads it to pick the `light-dark()` branch (issue #620); `color_functions` |
 | `opacity` | applied | `paint_pass.cpp` effective-opacity product; `paint_opacity` |
 | `box-shadow` | applied | `paint_pass.cpp` `paint_box_shadows` and `scene_style_sync.cpp` outsets; `paint_shadow`; transitions and keyframes interpolate the list (`shadow_interpolation.cpp`, #462) |
 | `z-index` | applied | `scene_style_sync.cpp` → `Node::set_z_index`, read by `for_each_by_z`; `z_order` |

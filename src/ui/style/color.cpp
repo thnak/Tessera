@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "color_functions.hpp"
 #include "color_names.hpp"
 #include "tessera/ui/style/color.hpp"
 
@@ -8,6 +9,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -276,7 +278,7 @@ int channel_byte(float value) {
 
 } // namespace
 
-ColorParseResult parse_color(std::string_view text) {
+ColorParseResult parse_color(std::string_view text, const ColorContext& context) {
     ColorParseResult result;
     const std::string value = lower(trim(text));
     if (value.empty()) {
@@ -295,6 +297,18 @@ ColorParseResult parse_color(std::string_view text) {
     }
     if (value.front() == '#') {
         result.ok = parse_hex(value, result.color);
+        return result;
+    }
+
+    // `light-dark()` and `color-mix()` take other colours as arguments, so they are evaluated by
+    // their own module (color_functions.cpp) before the fixed-channel grammars below. A malformed
+    // call is an invalid colour, not a fallthrough: `light-dark(red)` must not be read as a name.
+    if (detail::is_color_function(value)) {
+        if (const std::optional<ColorRgba> function =
+                detail::evaluate_color_function(value, context)) {
+            result.color = *function;
+            result.ok = true;
+        }
         return result;
     }
 
