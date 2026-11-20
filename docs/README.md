@@ -377,7 +377,7 @@ This page is the map and reading order for the framework.
 - [`guides/agent-automation.md`](guides/agent-automation.md) — use IDs/snapshots/actions/traces
   and audits from a coding agent
 - [`tools/wiki/README.md`](../tools/wiki/README.md) — static React client for the GitHub Wiki (guides with examples; design docs stay here in the source repo), themed with a Tessera stylesheet
-- [`tools/reference/instrument-mock/README.md`](../tools/reference/instrument-mock/README.md) — plain React + Vite mock of the Instrument design language on real screens (no Tessera), with a token generator, a contrast report and the gaps found in the theme
+- [`tools/reference/instrument-mock/README.md`](../tools/reference/instrument-mock/README.md) — plain React + Vite mock of the Instrument design language as a tactile instrument (no Tessera), with a material token layer, a contrast report, tessera-gap tags and the gaps found in the theme
 - [`guides/custom-elements.md`](guides/custom-elements.md) — declare/implement/test a custom
   native element with shaders, 3D, input and reuse
 - [`guides/writing-a-backend.md`](guides/writing-a-backend.md) — add a GPU backend: tiers and what
