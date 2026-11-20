@@ -126,5 +126,24 @@ int main() {
             ok = false;
         }
     }
+
+    // A block child never shrinks to a short container; a flex column child still does.
+    for (const auto& [display, expected] :
+         {std::pair{"block", 300.0f}, std::pair{"flex", 100.0f}}) {
+        LayoutInput parent = node(1, {{"display", display},
+                                      {"flex-direction", "column"},
+                                      {"width", "400px"},
+                                      {"height", "100px"}});
+        parent.children.push_back(node(2, {{"height", "300px"}, {"flex-shrink", "1"}}));
+        LayoutViewport viewport;
+        viewport.width = 400.0f;
+        const auto result = LayoutEngine().layout(parent, viewport);
+        const LayoutBox* box = find(result, 2);
+        if (box == nullptr || !near(box->bounds.height, expected)) {
+            std::cerr << "layout_block_fill: " << display << " child height: got "
+                      << (box ? box->bounds.height : -1.0f) << ", expected " << expected << '\n';
+            ok = false;
+        }
+    }
     return ok ? 0 : 1;
 }

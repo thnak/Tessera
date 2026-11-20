@@ -171,7 +171,7 @@ YGNodeRef build_tree(const LayoutInput& input, const LayoutViewport& viewport,
     YGNodeRef node = YGNodeNewWithConfig(unrounded);
     apply_style(node, input.style, with_element_font_size(viewport, input.style));
     if (block_parent) {
-        apply_block_auto_margin_fill(node, false); // `margin: 0 auto` in a block (issue #611)
+        detail::apply_block_child_style(node); // `margin: 0 auto` fill, no shrink (issue #611)
     }
     if (as_grid_item) {
         // The grid engine already positions the item's border box and folds the margins into the

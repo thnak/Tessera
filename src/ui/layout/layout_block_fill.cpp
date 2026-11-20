@@ -77,6 +77,11 @@ void apply_block_auto_margin_fill(YGNodeRef node, bool is_root) {
     YGNodeStyleSetWidthPercent(node, 100.0f);
 }
 
+void apply_block_child_style(YGNodeRef node) {
+    apply_block_auto_margin_fill(node, false);
+    YGNodeStyleSetFlexShrink(node, 0.0f);
+}
+
 float root_auto_margin_offset(YGNodeRef root, float available_width) {
     const bool auto_left = is_auto(YGNodeStyleGetMargin(root, YGEdgeLeft));
     const bool auto_right = is_auto(YGNodeStyleGetMargin(root, YGEdgeRight));
