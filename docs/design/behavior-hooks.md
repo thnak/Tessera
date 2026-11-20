@@ -80,10 +80,12 @@ place that says what a hook accepts and returns; the analyzer, lowering, code ge
 evaluator and documentation all read it. A manifest that names a behavior the registry lacks fails a
 unit test, so the two cannot drift.
 
-Who may declare a behavior hook: only library packages with a package manifest, never application
-code. This keeps the custom-hook rule of ADR-036 intact for applications and gives library authors,
-including the component hooks of ADR-064 item 7 (`useTable*`), one sanctioned route. Opening
-`TESSERA_REACT_CUSTOM_HOOK` to applications is a separate decision and not needed here.
+Who may declare a behavior hook: the framework's built-in hook manifest only
+([`jsx-subset-v1.md`](../specs/jsx-subset-v1.md) section 7.1; a project cannot add entries). That
+manifest is specified but not yet implemented in the front end; see
+[`behavior-hooks-v1.md`](../specs/behavior-hooks-v1.md) section 1. This keeps the custom-hook rule of
+ADR-036 intact for applications. The component hooks of ADR-064 item 7 (`useTable*`) need
+package-declared hooks, which is a separate decision.
 
 ## 4. IR
 
