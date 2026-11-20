@@ -19,9 +19,11 @@
 // re-rendered the tree would put the canvas back into the render cycle it is deliberately outside of.
 
 import type { ReactNode, RefObject } from "react";
+import { zoomLabel } from "../views/canvas-zoom";
 import type { GeometryMode } from "../views/skin-geometry";
 import type { Skin } from "../views/skins";
 import { SkinFrame } from "./SkinFrame";
+import { useCanvasZoom } from "./use-canvas-zoom";
 
 export function CanvasPane({
   statusRef,
@@ -80,6 +82,9 @@ export function CanvasPane({
   /** Issue #448: the overlay shown while the app is not in the foreground; page chrome, never engine paint. */
   appOverlay?: ReactNode;
 }) {
+  // Zoom and pan are a view of the preview: they scale and scroll the stage the canvas sits in and never
+  // reach the engine, so they cost no frame and keep the app's state.
+  const zoom = useCanvasZoom(frameRef);
   return (
     <section
       className="pane view"
@@ -91,6 +96,53 @@ export function CanvasPane({
             preview. `aria-pressed` is the state a screen reader reads, and the session keeps it in
             step with the overlay it controls. */}
         <div className="pane-actions">
+          <div className="zoom-controls" role="group" aria-label="Preview zoom">
+            <button
+              id="zoom-out"
+              type="button"
+              title="Zoom out"
+              aria-label="Zoom out"
+              onClick={zoom.zoomOut}
+            >
+              &minus;
+            </button>
+            <button
+              id="zoom-actual"
+              type="button"
+              title="Actual size (100%)"
+              aria-label={`Zoom ${zoomLabel(zoom.zoom)}, click for actual size`}
+              onClick={zoom.actualSize}
+            >
+              {zoomLabel(zoom.zoom)}
+            </button>
+            <button
+              id="zoom-in"
+              type="button"
+              title="Zoom in"
+              aria-label="Zoom in"
+              onClick={zoom.zoomIn}
+            >
+              +
+            </button>
+            <button
+              id="zoom-fit"
+              type="button"
+              title="Fit the whole preview in the pane"
+              aria-pressed={zoom.mode.kind === "fit"}
+              onClick={zoom.fit}
+            >
+              Fit
+            </button>
+            <button
+              id="pan-tool"
+              type="button"
+              title="Drag the preview with the primary button (the middle button always pans; Ctrl + wheel zooms)"
+              aria-pressed={zoom.panTool}
+              onClick={() => zoom.setPanTool(!zoom.panTool)}
+            >
+              Pan
+            </button>
+          </div>
           <button
             id="pick-toggle"
             type="button"
@@ -144,29 +196,40 @@ export function CanvasPane({
           coordinate system. It is childless here: the session builds the outline and the readout
           into it, the same way it owns the canvas. */}
       <div className="canvas-frame" id="canvas-frame" ref={frameRef} hidden>
-        <SkinFrame skin={skin} mode={mode}>
-          <div className="canvas-stack">
-            <canvas
-              id="canvas"
-              ref={canvasRef}
-              width={320}
-              height={240}
-              // A focus stop (issue #388): Tab reaches the preview, and its own controls take focus inside it.
-              // `application` tells a screen reader to pass keys through rather than read the page.
-              tabIndex={0}
-              role="application"
-              aria-label="Preview of the evaluated scene (interactive)"
-            />
-            <div
-              className="pick-overlay"
-              id="pick-overlay"
-              ref={pickOverlayRef}
-              aria-hidden="true"
-              hidden
-            />
-            {appOverlay}
+        <div
+          className="canvas-zoom-sizer"
+          style={zoom.scaled === null ? undefined : { width: zoom.scaled.width, height: zoom.scaled.height }}
+        >
+          <div
+            className="canvas-zoom-stage"
+            ref={zoom.stageRef}
+            style={zoom.zoom === 1 ? undefined : { transform: `scale(${zoom.zoom})` }}
+          >
+            <SkinFrame skin={skin} mode={mode}>
+              <div className="canvas-stack">
+                <canvas
+                  id="canvas"
+                  ref={canvasRef}
+                  width={320}
+                  height={240}
+                  // A focus stop (issue #388): Tab reaches the preview, and its own controls take focus inside it.
+                  // `application` tells a screen reader to pass keys through rather than read the page.
+                  tabIndex={0}
+                  role="application"
+                  aria-label="Preview of the evaluated scene (interactive)"
+                />
+                <div
+                  className="pick-overlay"
+                  id="pick-overlay"
+                  ref={pickOverlayRef}
+                  aria-hidden="true"
+                  hidden
+                />
+                {appOverlay}
+              </div>
+            </SkinFrame>
           </div>
-        </SkinFrame>
+        </div>
       </div>
 
       <div className="unavailable" id="failed" ref={failedRef} hidden>

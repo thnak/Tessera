@@ -62,6 +62,8 @@ export default defineConfig({
         // The canvas pane's state transitions (failed, not applied, nothing to draw), so
         // `scripts/ci/preview_canvas_pane_states.mjs` tests what the page ships.
         "canvas-pane": "src/views/canvas-pane.ts",
+        // The pane's zoom arithmetic, so `scripts/ci/preview_canvas_zoom.mjs` tests what the page ships.
+        "canvas-zoom": "src/views/canvas-zoom.ts",
       },
       output: {
         format: "es",

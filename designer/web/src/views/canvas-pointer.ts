@@ -19,6 +19,8 @@
 // nothing: no frame is requested. Only a change calls `onChanged`, and the caller's `requestFrame` already
 // coalesces any number of them into one frame per display refresh -- the render-on-demand rule.
 
+import { cssZoomOf } from "./canvas-zoom";
+
 /** The four gestures the module's router knows (`pointer_kind_from`). */
 export type PointerKind = "move" | "down" | "up" | "cancel";
 
@@ -74,11 +76,14 @@ export function attachCanvasPointer(options: CanvasPointerOptions): () => void {
     // The drawable box is inside the element's border: `clientLeft/Top/Width/Height` exclude it, which is
     // the box the layout viewport is shown in.
     const outer = canvas.getBoundingClientRect();
+    // The pane may zoom the stage with a CSS transform: `clientWidth` and the border are layout sizes, so
+    // they are scaled to screen pixels before they are compared with the event's screen position.
+    const zoom = cssZoomOf(outer.width, canvas.offsetWidth);
     const box = {
-      left: outer.left + canvas.clientLeft,
-      top: outer.top + canvas.clientTop,
-      width: canvas.clientWidth,
-      height: canvas.clientHeight,
+      left: outer.left + canvas.clientLeft * zoom,
+      top: outer.top + canvas.clientTop * zoom,
+      width: canvas.clientWidth * zoom,
+      height: canvas.clientHeight * zoom,
     };
     const { x, y } = toLogical(event, box, options.viewport());
     const report = options.send(kind, x, y, event.button > 0 ? event.button : 0);
