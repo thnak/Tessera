@@ -31,4 +31,15 @@ namespace tessera::ui::layout::detail {
 // margin/padding/border, position, alignment, gap, ...). Unknown or invalid values are ignored.
 void apply_style(YGNodeRef node, const style::ComputedStyle& style, const LayoutViewport& viewport);
 
+// A block-level child with `width: auto` and an auto side margin (`margin: 0 auto`) fills its
+// container, capped by `max-width`, and the auto margins take the rest, as in CSS. Yoga would
+// shrink it to its content, so the fill is made explicit. Call after `apply_style`, for a child of
+// a `display: block` parent, or for the root (which has the viewport as its container) (issue
+// #611).
+void apply_block_auto_margin_fill(YGNodeRef node, bool is_root);
+
+// Where a laid-out root starts horizontally: Yoga leaves a root's auto margins at zero, so the
+// leftover width is split by hand (both auto: half, left only: all of it).
+[[nodiscard]] float root_auto_margin_offset(YGNodeRef root, float available_width);
+
 } // namespace tessera::ui::layout::detail

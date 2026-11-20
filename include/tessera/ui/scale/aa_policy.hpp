@@ -69,8 +69,9 @@ struct AaPolicy {
 // cannot do.
 inline constexpr bool kAutoAllowsLcd = true;
 
-// Render scale from which glyph origins carry a quarter-pixel horizontal fraction.
-inline constexpr float kSubpixelPositionMinScale = 1.25f;
+// Render scale from which glyph origins carry a quarter-pixel horizontal fraction: all of them,
+// because snapping to whole pixels against fractional advances makes letter spacing uneven.
+inline constexpr float kSubpixelPositionMinScale = 1.0f;
 // Render scale from which hinting is switched off (density hides it).
 inline constexpr float kNoHintingMinScale = 2.0f;
 // Render scale from which MSAA is not worth its bandwidth: at 2x the geometry edges are already

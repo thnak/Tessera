@@ -12,6 +12,7 @@ add_library(tessera_layout STATIC
     layout_observer.cpp
     layout_observer_settle.cpp
     layout_read_model.cpp
+    layout_block_fill.cpp
     layout_font_size.cpp
     layout_style.cpp
     layout_scheduler.cpp

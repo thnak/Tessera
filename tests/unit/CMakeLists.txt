@@ -2269,6 +2269,13 @@ target_link_libraries(layout_signature_tests PRIVATE tessera_layout)
 
 add_test(NAME layout_signature COMMAND layout_signature_tests)
 
+add_executable(layout_block_fill_tests
+    layout_block_fill_tests.cpp)
+
+target_link_libraries(layout_block_fill_tests PRIVATE tessera_layout)
+
+add_test(NAME layout_block_fill COMMAND layout_block_fill_tests)
+
 add_executable(swapchain_tests
     swapchain_tests.cpp)
 
