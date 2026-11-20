@@ -46,7 +46,9 @@ that difference as a bug in one of them.
    the built-in fallback sheet. The fallback stays only as the bare-bones look for a project with no CSS.
 6. **The built-in preview fallback sheet is not a user-agent sheet.** `preview_stylesheet()` (sizes and
    colours used when a project has no CSS) stays an author-origin fallback; it gets no layout rules a
-   user-agent default already provides.
+   user-agent default already provides. It also drops the fixed `height: 24px` it gave `Text`: a block with a fixed height puts its
+   glyph at the top of an oversize box, so the label sat above the centre of any centred parent; the
+   engine measures the line box instead, as a browser does (#602).
 
 ## Consequences
 
