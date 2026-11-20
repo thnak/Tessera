@@ -11,6 +11,7 @@ target_compile_features(tessera_css_tokenizer PUBLIC cxx_std_23)
 add_library(tessera_style STATIC
     backdrop_filter.cpp
     cascade.cpp
+    font_size.cpp
     color.cpp
     gradient.cpp
     property_background.cpp
@@ -60,6 +61,7 @@ add_library(tessera_style STATIC
     theme_solve.cpp
     theme_stylesheet.cpp
     transform.cpp
+    ua_stylesheet.cpp
     var_resolve.cpp)
 
 target_include_directories(tessera_style PUBLIC

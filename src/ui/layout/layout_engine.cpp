@@ -31,11 +31,15 @@
 namespace tessera::ui::layout {
 namespace {
 
+using detail::apply_block_auto_margin_fill;
+using detail::apply_root_min_height;
 using detail::apply_style;
 using detail::is_keyword;
 using detail::lower;
 using detail::parse_number;
+using detail::root_auto_margin_offset;
 using detail::trim;
+using detail::with_element_font_size;
 using style::ComputedStyle;
 
 struct MeasureContext {
@@ -154,7 +158,8 @@ bool child_layout_order(const LayoutInput& input, std::vector<std::size_t>& orde
 YGNodeRef build_tree(const LayoutInput& input, const LayoutViewport& viewport,
                      text::TextMeasureCache& cache,
                      std::vector<std::unique_ptr<MeasureContext>>& measure_contexts,
-                     std::vector<std::unique_ptr<GridContext>>& grid_contexts, bool as_grid_item) {
+                     std::vector<std::unique_ptr<GridContext>>& grid_contexts, bool as_grid_item,
+                     bool block_parent = false) {
     // Unrounded layout: Yoga's own pixel rounding floors a measured node's left edge and ceils
     // its right one, which moved a centred glyph by most of a pixel. Positions stay fractional and
     // paint snaps them (pixel_snap.cpp), so a centred mark is centred before it is snapped.
@@ -164,7 +169,10 @@ YGNodeRef build_tree(const LayoutInput& input, const LayoutViewport& viewport,
         return config;
     }();
     YGNodeRef node = YGNodeNewWithConfig(unrounded);
-    apply_style(node, input.style, viewport);
+    apply_style(node, input.style, with_element_font_size(viewport, input.style));
+    if (block_parent) {
+        detail::apply_block_child_style(node); // `margin: 0 auto` fill, no shrink (issue #611)
+    }
     if (as_grid_item) {
         // The grid engine already positions the item's border box and folds the margins into the
         // track sizes, so a root that re-applied them would double-count.
@@ -197,7 +205,8 @@ YGNodeRef build_tree(const LayoutInput& input, const LayoutViewport& viewport,
         const std::size_t index = permuted ? order[i] : i;
         YGNodeInsertChild(node,
                           build_tree(input.children[index], viewport, cache, measure_contexts,
-                                     grid_contexts, false),
+                                     grid_contexts, false,
+                                     is_keyword(input.style.find("display"), "block")),
                           i);
     }
     return node;
@@ -418,14 +427,21 @@ LayoutResult layout_tree(const LayoutInput& root, const LayoutViewport& viewport
     std::vector<std::unique_ptr<GridContext>> grid_contexts;
     YGNodeRef root_node =
         build_tree(root, viewport, cache, measure_contexts, grid_contexts, as_grid_item);
+    // The root is a page (#611): viewport-wide up to `max-width`, centred, at least viewport tall.
+    const bool page = !as_grid_item && available_width >= 0.0f && available_height >= 0.0f;
+    if (page) {
+        apply_block_auto_margin_fill(root_node, true);
+        apply_root_min_height(root_node, available_height);
+    }
     YGNodeCalculateLayout(root_node, available_width < 0.0f ? YGUndefined : available_width,
-                          available_height < 0.0f ? YGUndefined : available_height,
+                          page || available_height < 0.0f ? YGUndefined : available_height,
                           root_direction(root));
 
     LayoutResult result;
     result.boxes.reserve(16);
     const LayoutContext context{&viewport, &cache};
-    collect_boxes(root_node, root, 0.0f, 0.0f, context, result);
+    const float origin_x = page ? root_auto_margin_offset(root_node, available_width) : 0.0f;
+    collect_boxes(root_node, root, origin_x, 0.0f, context, result);
     YGNodeFreeRecursive(root_node);
     return result;
 }

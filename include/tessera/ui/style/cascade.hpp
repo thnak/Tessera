@@ -118,6 +118,12 @@ private:
 void resolve_variables(ComputedStyle& style, const ComputedStyle* parent,
                        std::vector<StyleDiagnostic>* diagnostics = nullptr);
 
+// Computed-value time resolution of `font-size` to `<n>px`: `em` and `%` are relative to the
+// parent's font size, `rem` to the 16px root, `pt` is 4/3 px. Every later `em` (padding, margin,
+// width, letter-spacing) then reads the element's own resolved size (issue #608). A value it does
+// not understand (a keyword, `calc()`) is left as written.
+void resolve_font_size(ComputedStyle& style, const ComputedStyle* parent);
+
 ComputedStyle compute_style(const ComputedStyle* parent, const CascadeTable& cascade,
                             std::vector<StyleDiagnostic>* diagnostics = nullptr);
 

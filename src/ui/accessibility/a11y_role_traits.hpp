@@ -216,6 +216,13 @@ inline constexpr std::array<RoleTraits, static_cast<std::size_t>(Role::kCount)> 
      .uia = UiaControlType::Text,
      .layer = AtspiLayer::Popup,
      .textual = true},
+    // Paragraph: UIA has no paragraph control type; it is Text.
+    {.name = "paragraph",
+     .atspi = AtspiRole::Paragraph,
+     .atspi_name = "paragraph",
+     .uia = UiaControlType::Text,
+     .layer = AtspiLayer::Background,
+     .textual = true},
 }};
 
 static_assert(kRoleTable.size() == static_cast<std::size_t>(Role::kCount),

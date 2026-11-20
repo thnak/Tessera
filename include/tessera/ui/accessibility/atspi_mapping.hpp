@@ -35,6 +35,7 @@ enum class AtspiRole : std::uint32_t {
     PageTab = 36,
     PageTabList = 37,
     Panel = 38,
+    Paragraph = 73,
     ProgressBar = 41,
     PushButton = 42,
     RadioButton = 43,

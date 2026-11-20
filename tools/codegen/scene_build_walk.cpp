@@ -193,6 +193,9 @@ bool Builder::build_node(const ir::Node& node, ui::Node& parent, std::size_t dep
     if (const std::string* text = literal_string(node, "role")) {
         scene.set_role(*text);
     }
+    if (const std::string* text = literal_string(node, "tag")) {
+        scene.set_element_tag(*text);
+    }
     for (const auto& [name, value] : node.props) {
         if (name.rfind("aria-", 0) != 0) {
             continue;

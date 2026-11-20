@@ -308,8 +308,8 @@ void test_parity_policy() {
 
 void test_clear_color() {
     const rhi::Color clear = cli::scene_frame_clear_color();
-    expect(clear.r == 11.0f / 255.0f && clear.g == 18.0f / 255.0f && clear.b == 32.0f / 255.0f,
-           "the preview clears to the app window background, not to black");
+    expect(clear.r == 1.0f && clear.g == 1.0f && clear.b == 1.0f && clear.a == 1.0f,
+           "the preview clears to the canvas colour (white, as a browser), not to black");
 }
 
 } // namespace

@@ -6,6 +6,7 @@
     {"component": "FormPage", "files": [{"as": "samples/gallery/Button.tsx", "from": "packages/tessera-ui/Button.tsx"}, {"as": "samples/gallery/form.module.css", "from": "samples/gallery/form.module.css"}], "path": "samples/gallery/FormPage.tsx"},
     {"component": "Gallery", "files": [{"as": "samples/gallery/Button.tsx", "from": "packages/tessera-ui/Button.tsx"}], "path": "samples/gallery/Gallery.tsx"},
     {"component": "SafeAreaPage", "files": [{"as": "samples/gallery/SafeArea.tsx", "from": "packages/tessera-ui/SafeArea.tsx"}], "path": "samples/gallery/SafeAreaPage.tsx"},
-    {"component": "Counter", "files": [], "path": "samples/parity-demo/Counter.tsx"}
+    {"component": "Counter", "files": [], "path": "samples/parity-demo/Counter.tsx"},
+    {"component": "Showcase", "files": [{"as": "samples/showcase/app.css", "from": "samples/showcase/app.css"}, {"as": "samples/showcase/showcase.module.css", "from": "samples/showcase/showcase.module.css"}], "path": "samples/showcase/Showcase.tsx"}
   ]
 }

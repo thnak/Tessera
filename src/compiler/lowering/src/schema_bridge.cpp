@@ -203,8 +203,9 @@ std::optional<ElementInfo> resolve_element(NodeState& state, const jsx::JsxNode&
                       element.tag_span);
             return std::nullopt;
         }
-        return ElementInfo{row, *kind,         false,
-                           {},  alias->inject, schema::alias_style_defaults(alias->tag)};
+        return ElementInfo{row,       *kind,         false,
+                           {},        alias->inject, schema::alias_style_defaults(alias->tag),
+                           alias->tag};
     }
     for (const ComponentRef& reference : state.context.component_refs) {
         if (reference.name == element.tag) {

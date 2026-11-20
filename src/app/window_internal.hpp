@@ -194,16 +194,17 @@ inline std::unique_ptr<rhi::Texture> create_white(rhi::Device& device) {
 
 // The frame clear color. A translucent window clears to transparent black so the OS material shows
 // through where the stylesheet paints nothing (glass-v1.md section 6); every other window clears to
-// the app background so a frame never presents uninitialized pixels.
+// the canvas colour, white as a browser's default canvas is (ADR-063), so a frame never presents
+// uninitialized pixels. An author paints the window with a background on the root.
 inline rhi::Color frame_clear_color(bool translucent_presentation) {
-    return translucent_presentation ? rhi::rgba8(0, 0, 0, 0) : rhi::rgba8(11, 18, 32);
+    return translucent_presentation ? rhi::rgba8(0, 0, 0, 0) : rhi::rgba8(255, 255, 255);
 }
 
 // Clears to the app window background so a frame never presents uninitialized pixels. A translucent
 // window clears to transparent black instead: the OS material shows through where the stylesheet
 // paints nothing (glass-v1.md section 6).
 inline rhi::RenderTargetDesc target_desc(rhi::Extent2D extent, rhi::TextureFormat format,
-                                         rhi::Color clear_color = rhi::rgba8(11, 18, 32),
+                                         rhi::Color clear_color = rhi::rgba8(255, 255, 255),
                                          std::uint32_t sample_count = 1) {
     rhi::RenderTargetDesc desc;
     desc.extent = extent;

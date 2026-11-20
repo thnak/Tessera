@@ -1,0 +1,41 @@
+/* SPDX-License-Identifier: MIT */
+
+/* The global sheet of the showcase: design tokens as custom properties, the page and the type scale.
+   Headings, paragraphs and lists are NOT restyled here beyond colour and weight: they keep the
+   browser look from the user-agent sheet (ADR-063). Written with the rules a Vite project has. */
+
+:root {
+  --brand: #2f6fed;
+  --brand-strong: #1f56c4;
+  --ink: #16202e;
+  --ink-muted: #5b6676;
+  --paper: #ffffff;
+  --paper-soft: #f3f6fb;
+  --line: #d8dee8;
+  --radius: 10px;
+  --gap: 16px;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 32px 24px;
+  background-color: var(--paper-soft);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+
+/* Element selectors, as a React + Vite project writes them (issue #610). */
+h1 { color: var(--ink); margin: 8px 0; }
+h3 { margin: 0 0 4px 0; font-size: 16px; }
+a { color: var(--brand); }
+
+@media (max-width: 600px) {
+  .app { padding: 16px 12px; gap: 16px; }
+}

@@ -225,6 +225,13 @@ bool emit_element_metadata(NodeEmitContext& context) {
             return fail(context.error, "role: a dynamic role has no printable type");
         }
     }
+    // The alias tag (`h1`, `p`, ...) a type selector can match (issue #610): static, like `role`.
+    if (const ir::Expr* tag_prop = context.prop("tag")) {
+        if (const std::optional<std::string_view> text = literal_string(tag_prop)) {
+            context.writer.line(context.variable + "->set_element_tag(" +
+                                literal_text(ir::LiteralValue{std::string(*text)}) + ");");
+        }
+    }
     // `part` is the component library's styling API (ADR-047 item 3): a static list of names the
     // host's `::part()` selectors can target. It is never dynamic, like `role`.
     if (const ir::Expr* part_prop = context.prop("part")) {

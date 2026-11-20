@@ -50,8 +50,12 @@ std::string_view preview_stylesheet() noexcept {
     // mentions pseudo-classes, and they match nothing while no pointer is over the scene, so every
     // static scene - and therefore every existing golden - resolves to exactly the colours it did
     // before.
+    //
+    // **`Text` has no fixed height** (issue #602): the engine measures the line box, as a browser
+    // does. A fixed 24px box put the glyph at the top of an oversize box, so it sat above the
+    // centre of any centred parent, a `Button` included.
     return "View { display: flex; flex-direction: column; background-color: #101a2c; }\n"
-           "Text { display: block; height: 24px; font-size: 16px; color: #e6edf7; }\n"
+           "Text { display: block; font-size: 16px; color: #e6edf7; }\n"
            "Button { width: 120px; height: 32px; background-color: #2d6cdf; "
            "border-radius: 6px; }\n"
            "Button:hover { background-color: #3d7def; }\n"

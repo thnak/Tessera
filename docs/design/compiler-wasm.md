@@ -283,8 +283,8 @@ P2's sheet gave the intrinsic element kinds a size and nothing else, which was r
 wrong for a render gate: a sheet that paints nothing leaves both images a single clear colour, and two
 clear-colour images are byte-identical — the render equivalent of "both sides returned `{"nodes":[]}`".
 The sheet now carries background colours and one `border-radius`, and the gate declares a **minimum
-draw-call count** per case. The clear colour is the app window background (`rgba8(11, 18, 32)`,
-`detail::frame_clear_color()`), not black, so a preview and the native window start from one pixel.
+draw-call count** per case. The clear colour is the canvas colour (white as a browser's, formerly
+navy; `detail::frame_clear_color()`), not black, so a preview and the native window start from one pixel.
 
 **The project is staged, and only imported stylesheets apply (issues #390 and the project preview).** A
 module no longer takes one source and one sheet per call. The page stages a whole project with

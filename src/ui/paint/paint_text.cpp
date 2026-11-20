@@ -7,6 +7,7 @@
 #include "lcd_text_sink.hpp"
 #include "paint_properties.hpp"
 #include "paint_text.hpp"
+#include "paint_text_flex.hpp"
 #include "paint_text_rules.hpp"
 #include "paint_text_runs.hpp"
 #include "tessera/ui/text/font_metrics.hpp"
@@ -326,26 +327,32 @@ void paint_text_lines(const Node& node, const style::ComputedStyle& style, const
         return;
     }
 
-    // `wrap` is authoritative (NoWrap is the V1 default); a computed `white-space` mode that does
-    // not wrap (nowrap/pre) can only suppress wrapping, never opt into it. pre-wrap and
-    // break-spaces wrap when PaintData asks for it.
-    const bool wrap =
-        data->wrap == PaintWrap::Wrap && text::white_space_wraps(text_style.white_space);
     StubPaintTextMetrics stub_source;
     const PaintTextMetricsSource* metrics_source =
         context.text_metrics_source != nullptr ? context.text_metrics_source : &stub_source;
-    if (node.element_kind() == "TextInput" && !wrap) {
-        // A single-line field centers its line in the content box, as a browser's <input> does; a
-        // `TextArea` and ordinary `Text` stay top-aligned. Caret and selection are placed from the
-        // same content box, so they move with the text.
+    // A Text wraps, as in a browser, unless `white-space` forbids it or layout gave it one line.
+    const bool wrap = text_wraps(node.element_kind(), *data, text_style.white_space,
+                                 *metrics_source, text_style, content_height);
+    const FlexTextCentering flex = flex_text_centering(node.element_kind(), style);
+    PaintTextAlign text_align = data->text_align.value_or(computed_text_align(style));
+    text_align = flex.horizontal ? PaintTextAlign::Center : text_align;
+    if (((node.element_kind() == "TextInput" || node.element_kind() == "Button") && !wrap) ||
+        flex.vertical) {
+        // A single-line field and a button's caption centre their line in the content box, as a
+        // browser does (the caption is the node's own text, so no flex item exists for
+        // `align-items` to centre, issue #602); so does a flex `Text` leaf (`flex`). A `TextArea`
+        // and ordinary `Text` stay top-aligned. Caret and selection use the same content box.
         text::TextConstraints one_line;
-        one_line.wrap = false;
+        one_line.wrap = wrap;
         one_line.max_width = content_width;
         const text::TextLayout probe = metrics_source->layout(
             data->text.empty() ? std::string("x") : data->text, text_style, one_line);
         if (!probe.lines.empty()) {
-            const float offset =
-                std::max(0.0f, (content_height - probe.lines.front().height) * 0.5f);
+            float lines_height = 0.0f;
+            for (const text::TextLine& line : probe.lines) {
+                lines_height += line.height;
+            }
+            const float offset = std::max(0.0f, (content_height - lines_height) * 0.5f);
             content_y += offset;
             content_height = std::max(0.0f, content_height - offset);
         }
@@ -365,16 +372,13 @@ void paint_text_lines(const Node& node, const style::ComputedStyle& style, const
     if (!data->spans.empty() && !data->decoration) {
         // Inline spans: one measured paragraph, per-span painted runs (issue #229).
         paint_spanned_text(node, text_style, {content_x, content_y, content_width, content_height},
-                           color, rules, opacity, wrap,
-                           data->text_align.value_or(computed_text_align(style)), data->max_lines,
-                           context, sink, stats);
+                           color, rules, opacity, wrap, text_align, data->max_lines, context, sink,
+                           stats);
         return;
     }
     if (data->decoration) {
         paint_text_decoration(*data, {content_x, content_y, content_width, content_height},
-                              text_style, color, opacity, wrap,
-                              data->text_align.value_or(computed_text_align(style)), sink, stats,
-                              context);
+                              text_style, color, opacity, wrap, text_align, sink, stats, context);
         return;
     }
     if (!wrap) {
@@ -397,7 +401,7 @@ void paint_text_lines(const Node& node, const style::ComputedStyle& style, const
         // Alignment first: the ellipsis fit is what the line has left from its start offset, so an
         // over-wide line (the documented case) starts at the content box and gets its full width.
         float line_x = content_x;
-        const PaintTextAlign line_align = data->text_align.value_or(computed_text_align(style));
+        const PaintTextAlign line_align = text_align;
         if (line_align == PaintTextAlign::Center) {
             line_x += (content_width - line.width) * 0.5f;
         } else if (line_align == PaintTextAlign::End) {
@@ -474,7 +478,7 @@ void paint_text_lines(const Node& node, const style::ComputedStyle& style, const
         layout = &local_layout;
     }
 
-    const PaintTextAlign align = data->text_align.value_or(computed_text_align(style));
+    const PaintTextAlign align = text_align;
     float line_top = content_y;
     for (const text::TextLine& line : layout->lines) {
         float line_x = content_x;

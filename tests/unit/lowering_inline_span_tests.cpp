@@ -238,7 +238,7 @@ struct AliasCase {
 constexpr AliasCase kAliasCases[] = {
     {"div", "<div>hi</div>", "View", ""},
     {"span", "<span>hi</span>", "Text", ""},
-    {"p", "<p>hi</p>", "Text", ""},
+    {"p", "<p>hi</p>", "Text", "paragraph"},
     {"h1", "<h1>hi</h1>", "Text", "heading"},
     {"h2", "<h2>hi</h2>", "Text", "heading"},
     {"h3", "<h3>hi</h3>", "Text", "heading"},

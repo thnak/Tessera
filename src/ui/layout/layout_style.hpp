@@ -22,8 +22,33 @@ namespace tessera::ui::layout::detail {
 // Parses a finite float token; false (value untouched) on anything else.
 [[nodiscard]] bool parse_number(std::string_view text, float& value);
 
+// `viewport` with `font_size` set to the element's own computed font size (px), the meaning of `em`
+// in its layout lengths (issue #608).
+[[nodiscard]] LayoutViewport with_element_font_size(const LayoutViewport& viewport,
+                                                    const style::ComputedStyle& style);
+
 // Maps the computed CSS declarations that Yoga understands onto `node` (display, flex, sizing,
 // margin/padding/border, position, alignment, gap, ...). Unknown or invalid values are ignored.
 void apply_style(YGNodeRef node, const style::ComputedStyle& style, const LayoutViewport& viewport);
+
+// A block-level child with `width: auto` and an auto side margin (`margin: 0 auto`) fills its
+// container, capped by `max-width`, and the auto margins take the rest, as in CSS. Yoga would
+// shrink it to its content, so the fill is made explicit. Call after `apply_style`, for a child of
+// a `display: block` parent, or for the root (which has the viewport as its container) (issue
+// #611).
+void apply_block_auto_margin_fill(YGNodeRef node, bool is_root);
+
+// Rules for a child of a `display: block` parent, after `apply_style`: the auto-margin fill above,
+// and no shrinking. A block child is not a flex item, so a short container never squeezes it (it
+// overflows, as in a browser); the initial `flex-shrink: 1` applies only to real flex items.
+void apply_block_child_style(YGNodeRef node);
+
+// The root is at least the viewport tall and grows with its content (a document, not a fixed
+// window): height auto, `min-height` the available height, unless the author set either.
+void apply_root_min_height(YGNodeRef root, float available_height);
+
+// Where a laid-out root starts horizontally: Yoga leaves a root's auto margins at zero, so the
+// leftover width is split by hand (both auto: half, left only: all of it).
+[[nodiscard]] float root_auto_margin_offset(YGNodeRef root, float available_width);
 
 } // namespace tessera::ui::layout::detail

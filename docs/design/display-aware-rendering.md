@@ -121,8 +121,9 @@ before.
 ### 3.3 Subpixel positioning (T3)
 
 Glyph origins carry a horizontal fraction quantized to 1/4 px; the atlas key gains a 2-bit
-`x_subpixel`. Enabled when `render_scale >= 1.25` or the policy says so; off at 1.0 (hinted stems
-would blur) and always off in golden mode (`text.md`, determinism). Bound: 4x entries per glyph,
+`x_subpixel`. Enabled at every render scale in a live window, 1.0 included (a whole-pixel snap against
+fractional layout advances put letters up to half a pixel off their even spacing, which reads as
+uneven kerning, found in the Studio showcase); always off in golden mode (`text.md`, determinism). Bound: 4x entries per glyph,
 counted against the existing bounded atlas budget; eviction rules unchanged.
 
 ### 3.4 LCD subpixel text (T4, optional)

@@ -373,7 +373,7 @@ bool matches_compound(const CompoundSelector& selector, const StyleNode& node) {
         return true;
     }
 
-    if (!selector.tag.empty() && selector.tag != node.tag) {
+    if (!selector.tag.empty() && selector.tag != node.tag && selector.tag != node.alias_tag) {
         return false;
     }
     if (!selector.id.empty() && selector.id != node.id) {
