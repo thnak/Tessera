@@ -1,0 +1,107 @@
+/* SPDX-License-Identifier: MIT */
+
+/* TextField and Select share the field frame: label above, 32px control, note below.
+   The control boundary uses --border-strong: --border is a 1.5:1 hairline and fails WCAG 1.4.11
+   for a control edge (scripts/check-contrast.mjs). */
+.tfield {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.tfield-label {
+  font-size: var(--font-size-label);
+  line-height: var(--line-height-label);
+  color: var(--on-surface-muted);
+}
+
+.tfield-required {
+  color: var(--on-surface-muted);
+}
+
+.tfield-control {
+  height: var(--control-height);
+  padding: 0px var(--control-padding-x);
+  border: var(--border-width) solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background-color: var(--surface);
+  color: var(--on-surface);
+  min-width: 0;
+  width: 100%;
+  transition: border-color var(--motion-fast) ease-out;
+}
+
+.tfield-control::placeholder {
+  color: var(--on-surface-muted);
+}
+
+.tfield-control:hover {
+  border-color: var(--on-surface-muted);
+}
+
+.tfield-control:focus-visible,
+.tfield-control.is-focus {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 0px;
+  border-color: var(--focus-ring);
+}
+
+.tfield-control[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+.tfield-hint,
+.tfield-error {
+  font-size: var(--font-size-label);
+  line-height: var(--line-height-label);
+}
+
+.tfield-hint {
+  color: var(--on-surface-muted);
+}
+
+.tfield-error {
+  color: var(--danger);
+}
+
+.tfield-disabled {
+  opacity: 0.4;
+}
+
+/* Select: a native <select> with the field frame and a drawn chevron part. */
+.tselect {
+  position: relative;
+  display: flex;
+}
+
+.tselect .tfield-control {
+  appearance: none;
+  padding-inline-end: calc(var(--control-padding-x) + var(--space-4));
+  cursor: pointer;
+}
+
+.tselect-chevron {
+  position: absolute;
+  inset-inline-end: var(--control-padding-x);
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  margin-top: -5px;
+  border-right: 1px solid var(--on-surface);
+  border-bottom: 1px solid var(--on-surface);
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+
+.tselect-compact .tfield-control {
+  height: var(--control-height-compact);
+  padding-inline-start: var(--control-padding-x-compact);
+  font-size: var(--font-size-label);
+}
+
+/* Native option lists take the page colours only when told to. */
+.tselect option {
+  background-color: var(--surface);
+  color: var(--on-surface);
+}

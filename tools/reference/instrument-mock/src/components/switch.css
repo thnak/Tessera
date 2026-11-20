@@ -1,0 +1,86 @@
+/* SPDX-License-Identifier: MIT */
+
+/* Switch: 32x16 track (2:1 on the 4px grid), 10px square-ish thumb with --radius-sm, so it reads as
+   a mechanical slide rather than a pill. No size tokens exist for it; the numbers are the mock's. */
+.tswitch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: var(--control-height);
+}
+
+.tswitch-label {
+  min-width: 0;
+}
+
+.tswitch-control {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-1);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  cursor: pointer;
+}
+
+.tswitch-control:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 0px;
+}
+
+.tswitch-state {
+  width: 3ch;
+  text-align: end;
+  font-size: var(--font-size-label);
+  line-height: var(--line-height-label);
+  color: var(--on-surface-muted);
+}
+
+.tswitch-track {
+  position: relative;
+  width: 32px;
+  height: 16px;
+  border: var(--border-width) solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background-color: var(--surface-sunken);
+  transition:
+    background-color var(--motion-fast) ease-out,
+    border-color var(--motion-fast) ease-out;
+}
+
+.tswitch-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 10px;
+  height: calc(100% - 4px);
+  border-radius: 1px;
+  background-color: var(--border-strong);
+  transition: transform var(--motion-fast) ease-out;
+}
+
+.tswitch-control[aria-checked="true"] .tswitch-track {
+  background-color: var(--accent);
+  border-color: var(--accent);
+}
+
+.tswitch-control[aria-checked="true"] .tswitch-thumb {
+  background-color: var(--on-accent);
+  /* track width minus both borders, both 2px insets and the thumb */
+  transform: translateX(calc(32px - 2 * var(--border-width) - 14px));
+}
+
+.tswitch-control[aria-checked="true"] .tswitch-state {
+  color: var(--on-surface);
+}
+
+.tswitch-disabled {
+  opacity: 0.4;
+}
+
+.tswitch-disabled .tswitch-control {
+  cursor: default;
+}

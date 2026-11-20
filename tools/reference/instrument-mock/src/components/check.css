@@ -1,0 +1,119 @@
+/* SPDX-License-Identifier: MIT */
+
+/* Checkbox and radio. 16px box on the 4px grid, centred on the 20px body line. Checked fills with
+   the accent; the tick is two borders in --on-accent. There is no control-size token for this box,
+   so 16px is the mock's own number (see the README findings). */
+.tcheck {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  cursor: pointer;
+  min-height: var(--line-height-body);
+}
+
+.tcheck-box {
+  flex-shrink: 0;
+  position: relative;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  border: var(--border-width) solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background-color: var(--surface);
+  transition:
+    background-color var(--motion-fast) ease-out,
+    border-color var(--motion-fast) ease-out;
+}
+
+.tcheck-mark {
+  position: absolute;
+  display: none;
+  left: 4px;
+  top: 1px;
+  width: 5px;
+  height: 9px;
+  border-right: 2px solid var(--on-accent);
+  border-bottom: 2px solid var(--on-accent);
+  transform: rotate(45deg);
+}
+
+.tcheck-input:checked + .tcheck-box {
+  background-color: var(--accent);
+  border-color: var(--accent);
+}
+
+.tcheck-input:checked + .tcheck-box .tcheck-mark {
+  display: block;
+}
+
+.tcheck:hover .tcheck-input:not(:checked) + .tcheck-box {
+  border-color: var(--on-surface);
+}
+
+.tcheck-input:focus-visible + .tcheck-box {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.tcheck-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.tcheck-description {
+  font-size: var(--font-size-label);
+  line-height: var(--line-height-label);
+  color: var(--on-surface-muted);
+}
+
+.tcheck-disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Radio: round box, the mark becomes a dot. */
+.tcheck-radio .tcheck-box {
+  border-radius: 50%;
+}
+
+.tcheck-radio .tcheck-mark {
+  left: 3px;
+  top: 3px;
+  width: 8px;
+  height: 8px;
+  border: 0;
+  border-radius: 50%;
+  background-color: var(--on-accent);
+  transform: none;
+}
+
+.tradio-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.tradio-inline {
+  flex-direction: row;
+  flex-wrap: wrap;
+  column-gap: var(--space-4);
+}
+
+.tradio-legend {
+  padding: 0;
+  margin-bottom: var(--space-2);
+  font-size: var(--font-size-label);
+  line-height: var(--line-height-label);
+  color: var(--on-surface-muted);
+}
+
+/* A legend does not take part in a flex fieldset's row, so the inline group keeps it on its own line. */
+.tradio-inline .tradio-legend {
+  width: 100%;
+}

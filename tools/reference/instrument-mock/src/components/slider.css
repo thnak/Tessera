@@ -1,0 +1,87 @@
+/* SPDX-License-Identifier: MIT */
+
+/* Slider: a 4px sunken track with a hairline edge, an accent fill and an 8x16 bar thumb (a
+   fader cap, not a round knob). The control is the full 32px control height so it is easy to hit. */
+.tslider {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.tslider-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.tslider-label {
+  font-size: var(--font-size-label);
+  line-height: var(--line-height-label);
+  color: var(--on-surface-muted);
+}
+
+.tslider-value {
+  font-size: var(--font-size-label);
+  line-height: var(--line-height-label);
+  color: var(--on-surface);
+}
+
+.tslider-control {
+  display: flex;
+  align-items: center;
+  height: var(--control-height);
+  padding: 0px 4px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  touch-action: none;
+}
+
+.tslider-control:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 0px;
+}
+
+.tslider-track {
+  position: relative;
+  flex-grow: 1;
+  height: 4px;
+  border-radius: var(--radius-sm);
+  background-color: var(--surface-sunken);
+  box-shadow: inset 0px 0px 0px 1px var(--border-strong);
+}
+
+.tslider-fill {
+  position: absolute;
+  inset-block: 0px;
+  left: 0px;
+  border-radius: var(--radius-sm);
+  background-color: var(--accent);
+}
+
+.tslider-thumb {
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 16px;
+  margin-left: -4px;
+  margin-top: -8px;
+  border-radius: var(--radius-sm);
+  border: var(--border-width) solid var(--surface);
+  background-color: var(--accent);
+  box-shadow: 0px 0px 0px 1px var(--accent);
+}
+
+.tslider-control:hover .tslider-thumb {
+  background-color: var(--on-surface);
+  box-shadow: 0px 0px 0px 1px var(--on-surface);
+}
+
+.tslider-disabled {
+  opacity: 0.4;
+}
+
+.tslider-disabled .tslider-control {
+  cursor: default;
+}

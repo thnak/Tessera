@@ -1,0 +1,42 @@
+/* SPDX-License-Identifier: MIT */
+
+/* What a native <button> needs on top of packages/tessera-ui/button.css (the Tessera Button is a
+   View, which has no UA margin and no intrinsic flex-shrink behaviour). */
+.tbtn {
+  margin: 0;
+  flex-shrink: 0;
+  white-space: nowrap;
+  gap: var(--space-2);
+  transition:
+    opacity var(--motion-fast) ease-out,
+    background-color var(--motion-fast) ease-out;
+}
+
+/* Proposal: button.css draws focus as a 2px ring that touches the control, which vanishes on a
+   primary button (focus-ring == accent in light, 1.07:1 in high contrast). A surface-coloured gap
+   keeps the ring visible on every variant. */
+.tbtn:focus-visible,
+.tbtn.is-focus {
+  outline: none;
+  box-shadow:
+    0px 0px 0px 2px var(--surface),
+    0px 0px 0px 4px var(--focus-ring);
+}
+
+.tbtn-disabled {
+  pointer-events: none;
+}
+
+/* Forced states for the state matrix; they repeat the button.css pseudo-class rules. */
+.tbtn.is-hover {
+  opacity: 0.92;
+}
+
+.tbtn-secondary.is-hover,
+.tbtn-ghost.is-hover {
+  background-color: var(--surface-sunken);
+}
+
+.tbtn.is-active {
+  opacity: 0.8;
+}

@@ -1,0 +1,97 @@
+/* SPDX-License-Identifier: MIT */
+
+/* DataTable: 32px rows (the control height), hairline row rules, a raised header with uppercase
+   label text. Hover and focus use the existing surfaces; there is no "selected row" token. */
+.ttable-scroll {
+  overflow-x: auto;
+  min-width: 0;
+  scrollbar-width: thin;
+}
+
+.ttable-scroll:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+
+.ttable {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.ttable-th {
+  padding: 0px;
+  height: var(--control-height);
+  border-bottom: var(--border-width) solid var(--border-strong);
+  background-color: var(--surface-raised);
+  text-align: start;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.ttable-sort {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  width: 100%;
+  height: var(--control-height);
+  margin: 0;
+  padding: 0px var(--space-3);
+  border: 0;
+  background: none;
+  font-size: var(--font-size-label);
+  line-height: var(--line-height-label);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--on-surface-muted);
+  cursor: pointer;
+}
+
+.ttable-num .ttable-sort {
+  justify-content: flex-end;
+}
+
+.ttable-sort:hover {
+  color: var(--on-surface);
+}
+
+.ttable-sort:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+
+.ttable-arrow {
+  font-size: 8px;
+  opacity: 0;
+}
+
+.ttable-arrow-on {
+  opacity: 1;
+  color: var(--accent);
+}
+
+.ttable-row:hover {
+  background-color: var(--surface-raised);
+}
+
+.ttable-cell {
+  height: var(--control-height);
+  padding: 0px var(--space-3);
+  border-bottom: var(--border-width) solid var(--border);
+  white-space: nowrap;
+  color: var(--on-surface);
+}
+
+.ttable-row:last-child .ttable-cell {
+  border-bottom: 0;
+}
+
+.ttable-num {
+  text-align: end;
+}
+
+@media (max-width: 599px) {
+  .ttable-wide {
+    display: none;
+  }
+}

@@ -1,0 +1,41 @@
+/* SPDX-License-Identifier: MIT */
+
+/* Badge: outline only. The theme has no tinted/subtle background per status colour (no
+   --danger-subtle etc.), so the tone sits on the marker and the text stays --on-surface. */
+.tbadge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: 20px;
+  padding: 0px var(--space-2) 0px 6px;
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-sm);
+  background-color: var(--surface);
+  font-size: var(--font-size-label);
+  line-height: var(--line-height-label);
+  color: var(--on-surface);
+  white-space: nowrap;
+}
+
+.tbadge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 1px;
+  background-color: var(--on-surface-muted);
+}
+
+.tbadge-accent .tbadge-dot {
+  background-color: var(--accent);
+}
+
+.tbadge-success .tbadge-dot {
+  background-color: var(--success);
+}
+
+.tbadge-warning .tbadge-dot {
+  background-color: var(--warning);
+}
+
+.tbadge-danger .tbadge-dot {
+  background-color: var(--danger);
+}

@@ -1,0 +1,108 @@
+/* SPDX-License-Identifier: MIT */
+
+/* Dialog: a raised surface with a hairline, --radius-lg and the one floating shadow the theme
+   defines. The backdrop colour is not a token; the mock reuses --shadow-floating-color. */
+.tdialog {
+  width: min(480px, calc(100vw - 2 * var(--space-4)));
+  max-height: calc(100vh - 2 * var(--space-8));
+  margin: auto;
+  padding: 0;
+  border: var(--border-width) solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background-color: var(--surface);
+  color: var(--on-surface);
+  box-shadow: 0px var(--shadow-floating-y) var(--shadow-floating-blur) var(--shadow-floating-color);
+}
+
+.tdialog::backdrop {
+  background-color: var(--shadow-floating-color);
+}
+
+.tdialog[open] {
+  animation: tdialog-in var(--motion-normal) ease-out;
+}
+
+@keyframes tdialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0px);
+  }
+}
+
+.tdialog-surface {
+  display: flex;
+  flex-direction: column;
+}
+
+.tdialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-4) var(--space-2) var(--space-6);
+}
+
+.tdialog-title {
+  font-size: var(--font-size-title);
+  line-height: var(--line-height-title);
+}
+
+.tdialog-close {
+  position: relative;
+  width: var(--control-height);
+  height: var(--control-height);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--on-surface-muted);
+  cursor: pointer;
+}
+
+.tdialog-close:hover {
+  background-color: var(--surface-sunken);
+  color: var(--on-surface);
+}
+
+/* An X from two 1px rules: the language has no icon set wired in yet. */
+.tdialog-close-glyph::before,
+.tdialog-close-glyph::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 12px;
+  height: 1px;
+  margin-left: -6px;
+  background-color: currentColor;
+  transform: rotate(45deg);
+}
+
+.tdialog-close-glyph::after {
+  transform: rotate(-45deg);
+}
+
+.tdialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-6) var(--space-4);
+  color: var(--on-surface-muted);
+  overflow-y: auto;
+}
+
+.tdialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-6);
+  border-top: var(--border-width) solid var(--border);
+  background-color: var(--surface-raised);
+  border-radius: 0px 0px var(--radius-lg) var(--radius-lg);
+}
