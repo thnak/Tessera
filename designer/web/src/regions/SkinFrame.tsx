@@ -93,9 +93,17 @@ export function SkinFrame({
     // The frame element exists either way, so `#skin-frame` is a stable contract: the page checks
     // assert it, and a session that wanted to measure the frame would find it before a skin loads.
     // `is-bare` is what makes it invisible - the pre-#171 page, with the canvas where it always was.
+    //
+    // The tree has the skinned tree's shape on purpose: two empty slots for the menu and title strips,
+    // then `.skin-screen`, then the children. React matches by position, so a canvas that sits one
+    // level shallower here than under a skin would be unmounted and remounted when the skin loads or is
+    // picked, and the session would keep painting into the detached node. `.is-bare > .skin-screen` is
+    // `display: contents`, so the extra element takes no part in layout.
     return (
       <div className="skin-frame is-bare" id="skin-frame" data-skin="" data-mode={mode}>
-        {children}
+        {null}
+        {null}
+        <div className="skin-screen">{children}</div>
       </div>
     );
   }
