@@ -102,6 +102,10 @@ void Node::clear_part() {
     mark_dirty(Dirty::Style);
 }
 
+std::string_view Node::element_tag() const {
+    return component_metadata_ ? component_metadata_->element_tag : std::string_view{};
+}
+
 void Node::set_element_tag(std::string_view tag) {
     const std::string_view next = bounded_view(tag, kMaxMetadataBytes);
     if (element_tag() == next) {

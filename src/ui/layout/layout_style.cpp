@@ -107,11 +107,8 @@ Length parse_length(std::string_view text, const LayoutViewport& viewport) {
     if (unit.empty() || unit == "px") {
         return Length{Length::Kind::Points, value};
     }
-    if (unit == "rem") {
-        return Length{Length::Kind::Points, value * 16.0f};
-    }
-    if (unit == "em") {
-        return Length{Length::Kind::Points, value * viewport.font_size};
+    if (unit == "rem" || unit == "em") {
+        return Length{Length::Kind::Points, value * (unit == "em" ? viewport.font_size : 16.0f)};
     }
     if (unit == "vw") {
         return Length{Length::Kind::Points, value * viewport.width / 100.0f};
@@ -401,18 +398,7 @@ YGFlexDirection flex_direction_from(const std::string* value) {
 
 } // namespace
 
-void apply_style(YGNodeRef node, const ComputedStyle& style, const LayoutViewport& root_viewport) {
-    // `em` in a layout length is the element's own font size, which the cascade already resolved
-    // to px (`resolve_font_size`).
-    LayoutViewport viewport = root_viewport;
-    if (const std::string* size = property(style, "font-size")) {
-        const std::string text = lower(trim(*size));
-        float px = 0.0f;
-        if (text.size() > 2 && text.ends_with("px") &&
-            parse_number(std::string_view(text).substr(0, text.size() - 2), px) && px > 0.0f) {
-            viewport.font_size = px;
-        }
-    }
+void apply_style(YGNodeRef node, const ComputedStyle& style, const LayoutViewport& viewport) {
     const std::string* display = property(style, "display");
     const std::string display_value = display == nullptr ? std::string() : lower(trim(*display));
     if (display_value == "none") {

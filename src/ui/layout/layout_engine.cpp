@@ -36,6 +36,7 @@ using detail::is_keyword;
 using detail::lower;
 using detail::parse_number;
 using detail::trim;
+using detail::with_element_font_size;
 using style::ComputedStyle;
 
 struct MeasureContext {
@@ -164,7 +165,7 @@ YGNodeRef build_tree(const LayoutInput& input, const LayoutViewport& viewport,
         return config;
     }();
     YGNodeRef node = YGNodeNewWithConfig(unrounded);
-    apply_style(node, input.style, viewport);
+    apply_style(node, input.style, with_element_font_size(viewport, input.style));
     if (as_grid_item) {
         // The grid engine already positions the item's border box and folds the margins into the
         // track sizes, so a root that re-applied them would double-count.

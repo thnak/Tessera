@@ -2373,6 +2373,7 @@ function include/tessera/ui/style/cascade.hpp tessera::ui::style::cascades_over
 function include/tessera/ui/style/cascade.hpp tessera::ui::style::compute_style
 function include/tessera/ui/style/cascade.hpp tessera::ui::style::is_inherited_property
 function include/tessera/ui/style/cascade.hpp tessera::ui::style::normalize_property
+function include/tessera/ui/style/cascade.hpp tessera::ui::style::resolve_font_size
 function include/tessera/ui/style/cascade.hpp tessera::ui::style::resolve_variables
 constant include/tessera/ui/style/cascade.hpp tessera::ui::style::kUnlayeredLayer
 

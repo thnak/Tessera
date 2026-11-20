@@ -46,8 +46,7 @@ bool node_carries_item_state(const Node& node) noexcept {
     }
     if (!node.element_kind().empty() || !node.element_id().empty() || !node.class_name().empty() ||
         !node.part().empty() || !node.component_name().empty() || !node.element_tag().empty() ||
-        !node.role().empty() ||
-        node.automation_id() != 0) {
+        !node.role().empty() || node.automation_id() != 0) {
         return true;
     }
     if (!node.aria_attributes().empty() || !node.inline_style().empty() ||

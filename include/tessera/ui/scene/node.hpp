@@ -421,31 +421,22 @@ public:
     [[nodiscard]] std::string_view class_name() const {
         return class_name_;
     }
-    // The `part` attribute (stylesheet-v1 section 6.3, ADR-047 item 3): whitespace-separated names
-    // that expose this element to its component host, so the host's stylesheet can target it with
-    // `::part(name)`. Static metadata of the component source, like `className`: setting or
-    // clearing it marks Dirty::Style and is a no-op when unchanged.
+    // The `part` attribute (stylesheet-v1 section 6.3, ADR-047 item 3): names that expose this
+    // element to its component host's `::part(name)`. Static metadata: marks Dirty::Style.
     void set_part(std::string_view part);
     void clear_part();
     [[nodiscard]] std::string_view part() const {
         return component_metadata_ ? component_metadata_->part : std::string_view{};
     }
-    // The component a component instance host was built from, for example `Button`. Empty on every
-    // other node. It types the host for selector matching, so the host side of `::part()` can name
-    // the component. Setting or clearing it marks Dirty::Style on the subtree.
+    // The component a component instance host was built from (`Button`); empty elsewhere. It types
+    // the host for matching, so `::part()` can name it. Marks Dirty::Style on the subtree.
     void set_component_name(std::string_view component);
     void clear_component_name();
     [[nodiscard]] std::string_view component_name() const {
         return component_metadata_ ? component_metadata_->component_name : std::string_view{};
     }
-    // The HTML tag an alias was written as (`h1`, `p`, `a`, ...), which `element_kind()` loses
-    // because several tags share one carrier (`Text`). A type selector matches it as well as the
-    // carrier, so a global `h1 { }` works as in a browser (issue #610). Empty for a node written
-    // as a built-in element. Static metadata: setting it marks Dirty::Style.
     void set_element_tag(std::string_view tag);
-    [[nodiscard]] std::string_view element_tag() const {
-        return component_metadata_ ? component_metadata_->element_tag : std::string_view{};
-    }
+    [[nodiscard]] std::string_view element_tag() const;
     void set_automation_id(std::uint64_t automation_id);
     [[nodiscard]] std::uint64_t automation_id() const {
         return automation_id_;

@@ -22,6 +22,11 @@ namespace tessera::ui::layout::detail {
 // Parses a finite float token; false (value untouched) on anything else.
 [[nodiscard]] bool parse_number(std::string_view text, float& value);
 
+// `viewport` with `font_size` set to the element's own computed font size (px), the meaning of `em`
+// in its layout lengths (issue #608).
+[[nodiscard]] LayoutViewport with_element_font_size(const LayoutViewport& viewport,
+                                                    const style::ComputedStyle& style);
+
 // Maps the computed CSS declarations that Yoga understands onto `node` (display, flex, sizing,
 // margin/padding/border, position, alignment, gap, ...). Unknown or invalid values are ignored.
 void apply_style(YGNodeRef node, const style::ComputedStyle& style, const LayoutViewport& viewport);
