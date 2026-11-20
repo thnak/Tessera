@@ -1,6 +1,7 @@
 {
   "schema": 2,
   "samples": [
+    {"component": "Showcase", "files": [{"as": "samples/showcase/app.css", "from": "samples/showcase/app.css"}, {"as": "samples/showcase/showcase.module.css", "from": "samples/showcase/showcase.module.css"}], "path": "samples/showcase/Showcase.tsx"},
     {"component": "Demo", "files": [], "path": "samples/compiler-demo/Demo.tsx"},
     {"component": "DashPage", "files": [], "path": "samples/gallery/DashPage.tsx"},
     {"component": "FormPage", "files": [{"as": "samples/gallery/Button.tsx", "from": "packages/tessera-ui/Button.tsx"}, {"as": "samples/gallery/form.module.css", "from": "samples/gallery/form.module.css"}], "path": "samples/gallery/FormPage.tsx"},

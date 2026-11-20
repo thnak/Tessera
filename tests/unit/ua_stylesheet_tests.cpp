@@ -108,6 +108,10 @@ int main() {
                      *host.find("background-color") != "#efefef",
                  "the user-agent sheet must not style a component host named Button");
 
+    // Controls do not inherit `line-height` (a browser resets it to `normal`).
+    ok &= value_is(compute_for("Button", ""), "line-height", "normal");
+    ok &= value_is(compute_for("TextInput", ""), "line-height", "normal");
+
     // A paragraph has Chrome's 1em margin; a span (plain Text) does not (issue #606).
     const style::ComputedStyle paragraph = compute_for("Text", "", {{"role", "paragraph"}});
     ok &= value_is(paragraph, "margin-top", "1em");

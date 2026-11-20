@@ -1,0 +1,54 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: MIT -->
+<!--
+  The browser twin of samples/showcase/Showcase.tsx: the same structure, element for element, and the
+  very stylesheets the sample imports (class names written plain: a CSS module's `styles.hero` is
+  `hero_<hash>` there). There is no reset: this page relies on the browser's own defaults, which is
+  what the engine's user-agent sheet reproduces (ADR-063). `scripts/ua_audit/page.mjs` compares it
+  with the native render, element by element. Shown state: first tab, empty name.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tessera showcase twin</title>
+<style>
+  @font-face { font-family: T; src: url(../../tests/fixtures/fonts/NotoSans-Regular.ttf); }
+  :root { --font-sans: T; }
+  html, body { margin: 0; }
+  /* line height is a font metric: the engine measures text with its stub (1.2), so the twin
+     pins the controls to 1.2 as the element audit does (docs/reference/ua-audit.md) */
+  button, input { font-family: T; line-height: 1.2; }
+</style>
+<link rel="stylesheet" href="../../samples/showcase/app.css">
+<link rel="stylesheet" href="../../samples/showcase/showcase.module.css">
+</head>
+<body>
+<div class="app">
+  <header class="hero">
+    <p class="eyebrow">Tessera</p>
+    <h1 class="title">React-style UI, native speed</h1>
+    <p class="lead">Write TSX and CSS the way you already do. Tessera compiles it to C++ and draws it with its own renderer, so the page below is the same code in the Studio and in a shipped app.</p>
+    <div class="actions">
+      <button class="primary">Get started</button>
+      <a class="link">Read the docs</a>
+    </div>
+  </header>
+  <section class="stats">
+    <div class="stat"><p class="statValue">16 ms</p><p class="statLabel">Frame budget</p></div>
+    <div class="stat"><p class="statValue">0 bytes</p><p class="statLabel">Runtime JS</p></div>
+    <div class="stat"><p class="statValue">0</p><p class="statLabel">Clicks so far</p></div>
+  </section>
+  <section class="panel">
+    <div class="tabs">
+      <button class="tabOn">Overview</button>
+      <button class="tab">Try it</button>
+    </div>
+    <ol class="steps">
+      <li class="step"><span class="stepIndex">1</span><div class="stepBody"><h3 class="stepTitle">Write</h3><p>Components, props, hooks and a stylesheet, as in React.</p></div></li>
+      <li class="step"><span class="stepIndex">2</span><div class="stepBody"><h3 class="stepTitle">Compile</h3><p>TSX becomes IR, then C++ with no JavaScript at run time.</p></div></li>
+      <li class="step"><span class="stepIndex">3</span><div class="stepBody"><h3 class="stepTitle">Ship</h3><p>One engine draws the Studio preview and your app.</p></div></li>
+    </ol>
+  </section>
+</div>
+</body>
+</html>

@@ -25,6 +25,10 @@ std::string_view ua_stylesheet_text() noexcept {
     // between two stacked blocks; a flex column does not, so two adjacent headings sit further
     // apart than in a browser (a named exception, docs/reference/ua-audit.md).
     //
+    // Controls: a browser's `button`/`input`/`textarea` do not inherit `line-height` (Chrome's
+    // sheet sets `font: -webkit-small-control`, which resets it to `normal`), so a page with
+    // `line-height: 1.5` on the body still has 20px buttons (found by the showcase parity check).
+    //
     // `ul`/`ol` (issue #606): Chrome's `margin: 1em 0` and 40px start padding. The marker itself
     // is not drawn (a named exception).
     return "View { display: block; }\n"
@@ -38,6 +42,7 @@ std::string_view ua_stylesheet_text() noexcept {
            "Text[role=\"paragraph\"] { display: block; margin: 1em 0; }\n"
            "Text[role=\"link\"] { color: #0000ee; text-decoration: underline; }\n"
            "View[role=\"list\"] { margin: 1em 0; padding-left: 40px; }\n"
+           "Button, TextInput, TextArea { line-height: normal; }\n"
            "Button { display: flex; flex-direction: row; align-items: center; "
            "justify-content: center; text-align: center; padding: 2px 7px; "
            "box-sizing: border-box; align-self: flex-start; font-size: 13.3333px; color: #000000; "

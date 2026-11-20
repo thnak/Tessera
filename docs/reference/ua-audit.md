@@ -63,6 +63,19 @@ Box size at a 400px viewport, 16px root, before and after this change.
 | A bare `input`/`textarea` in a block parent fills the row | A browser sizes an inline-block input to 176px; here a block is a stretching column, and a fixed width would stop fields stretching in flex layouts (the gallery's form). The audit ignores `width` for these two. |
 | Text width of controls | The width of a button follows the text measurer; the harness uses the test font, so widths differ by font and are not compared. |
 
+## Page parity (the showcase sample)
+
+`scripts/ua_audit/page.mjs` compares a whole sample with its browser twin (`tools/parity/showcase.html`, no reset, the sample's own stylesheets) element by element at two widths. First run on `samples/showcase` found:
+
+| Finding | Status |
+|---|---|
+| Controls inherited `line-height` (button 42.5px instead of 40px) | fixed: `Button, TextInput, TextArea { line-height: normal }` |
+| Author `h1 { ... }`, `h3 { ... }`, `a { ... }` never match: the tag is not kept | open: #610 (the sample uses classes until it lands) |
+| `max-width` + `margin: 0 auto` on the page root: 866px off-centre at 900, 426px at 400 | open: #611 |
+| Root is the window height: taller content shrinks instead of growing | open, in #611 |
+| 8px collapsed margin between `h1` and the next paragraph shows as 16px | named exception (margin collapsing, above) |
+| Text width and wrapping | the harness uses the stub measurer, so a wrapped text node differs by line count; reported as `text`, not counted |
+
 ## Adding a rule
 
 Find the difference with the harness, add the rule to `ua_stylesheet_text()` with a comment naming the browser behaviour, pin it in `tests/unit/ua_stylesheet_tests.cpp`, and move the row from Open to Fixed here. A difference with no rule and no row above is a bug.
