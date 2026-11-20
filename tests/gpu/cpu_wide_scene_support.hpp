@@ -165,4 +165,15 @@ inline CpuCanvas make_canvas() {
     return canvas;
 }
 
+// One golden case: a scene builder and the assertions that read the painted canvas back. The
+// gradient-family cases live in `cpu_wide_gradient_scenes.cpp` and are registered through
+// `gradient_cases()`, so the split does not change the order the baselines are written in.
+struct Case {
+    const char* name;
+    void (*build)(Node&, StubStyles&);
+    bool (*check)(const PaintStats&, const CpuCanvas&);
+};
+
+[[nodiscard]] const std::vector<Case>& gradient_cases();
+
 } // namespace tessera::poc::batched2d::cpu_wide_support

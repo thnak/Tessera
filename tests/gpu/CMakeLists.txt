@@ -312,7 +312,8 @@ endif()
 # under tests/golden/baseline/cpu_wide/ are compared bit-exactly and regenerated only through
 # `cpu_wide_golden_tests --update-goldens` on the CPU path.
 add_executable(cpu_wide_golden_tests
-    cpu_wide_golden_tests.cpp)
+    cpu_wide_golden_tests.cpp
+    cpu_wide_gradient_scenes.cpp)
 target_include_directories(cpu_wide_golden_tests PRIVATE
     ${PROJECT_SOURCE_DIR}/tools/poc/batched2d)
 target_compile_definitions(cpu_wide_golden_tests PRIVATE

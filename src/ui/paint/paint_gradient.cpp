@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 
 // The `background-image` paint path: a list of gradient layers (issue #614), each layer either a
-// linear or a radial gradient (issue #613). The layer list is walked bottom to top, which is the CSS
-// paint order, and each layer is resolved into the sink's own draw type.
+// linear or a radial gradient (issue #613). The layer list is walked bottom to top, which is the
+// CSS paint order, and each layer is resolved into the sink's own draw type.
 
 #include "paint_gradient.hpp"
-
+#include "paint_properties.hpp"
 #include "tessera/ui/style/background_layers.hpp"
 #include "tessera/ui/style/gradient.hpp"
 
@@ -82,7 +82,8 @@ ResolvedGradient resolve_value(const GradientValue& value, const rhi::Rect& rect
     const float dy = std::max(resolved.center_y - rect.y, rect.y + rect.height - resolved.center_y);
     const float near_x =
         std::min(resolved.center_x - rect.x, rect.x + rect.width - resolved.center_x);
-    const float near_y = std::min(resolved.center_y - rect.y, rect.y + rect.height - resolved.center_y);
+    const float near_y =
+        std::min(resolved.center_y - rect.y, rect.y + rect.height - resolved.center_y);
     switch (radial.size) {
     case style::RadialSize::Explicit:
         resolved.radius_x = radial.radius_x;
@@ -118,7 +119,8 @@ ResolvedGradient resolve_value(const GradientValue& value, const rhi::Rect& rect
 // A payload gradient (set in code) wins; otherwise the stylesheet's `background-image` feeds the
 // list. Reading it from the resolved style keeps themes, `var()` and state rules working without
 // the scene holding a second copy. Empty when there is nothing to paint.
-style::BackgroundLayerList resolve_layers(const Node& node, const style::ComputedStyle& style) {
+style::BackgroundLayerList resolve_layers(const Node& node, const style::ComputedStyle& style,
+                                          const rhi::Rect& rect) {
     style::BackgroundLayerList list;
     const auto& data = node.paint_data();
     if (data && data->gradient) {
@@ -128,15 +130,17 @@ style::BackgroundLayerList resolve_layers(const Node& node, const style::Compute
         style::BackgroundLayer& layer = list.layers[0];
         layer.kind = data->gradient->is_radial() ? style::BackgroundLayerKind::RadialGradient
                                                  : style::BackgroundLayerKind::LinearGradient;
-        layer.gradient.kind = data->gradient->is_radial() ? GradientValue::Kind::Radial
-                                                          : GradientValue::Kind::Linear;
+        layer.gradient.kind =
+            data->gradient->is_radial() ? GradientValue::Kind::Radial : GradientValue::Kind::Linear;
         layer.gradient.repeating = data->gradient->repeating;
         if (data->gradient->is_radial()) {
             style::RadialGradientValue& radial = layer.gradient.radial;
             radial.size = style::RadialSize::Explicit;
             radial.shape = style::RadialShape::Ellipse;
-            radial.radius_x = data->gradient->radial.radius_x;
-            radial.radius_y = data->gradient->radial.radius_y;
+            // The payload's geometry is a fraction of the box, so it is resolved here; the
+            // stylesheet's explicit radii are already px and are used as they are.
+            radial.radius_x = data->gradient->radial.radius_x * rect.width;
+            radial.radius_y = data->gradient->radial.radius_y * rect.height;
             radial.position.x = data->gradient->radial.center_x;
             radial.position.y = data->gradient->radial.center_y;
             radial.stop_count = stops;
@@ -170,13 +174,12 @@ style::BackgroundLayerList resolve_layers(const Node& node, const style::Compute
 
 } // namespace
 
-void paint_linear_gradient(const Node& node, const style::ComputedStyle& style,
-                           const rhi::Rect& rect, float opacity, PaintSink& sink,
-                           PaintStats& stats) {
+void paint_gradient(const Node& node, const style::ComputedStyle& style, const rhi::Rect& rect,
+                    float opacity, PaintSink& sink, PaintStats& stats) {
     if (opacity <= 0.0f || rect.width <= 0.0f || rect.height <= 0.0f) {
         return;
     }
-    const style::BackgroundLayerList list = resolve_layers(node, style);
+    const style::BackgroundLayerList list = resolve_layers(node, style, rect);
     if (list.empty()) {
         return;
     }

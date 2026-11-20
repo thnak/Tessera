@@ -190,8 +190,8 @@ std::optional<BackgroundLayerList> parse_background_layers(std::string_view text
                              : BackgroundLayerKind::RadialGradient;
             layer.gradient = *gradient;
         } else {
-            // `url()`, a conic gradient or a malformed stop list: outside this grammar, so the whole
-            // value is rejected rather than painted as a guess.
+            // `url()`, a conic gradient or a malformed stop list: outside this grammar, so the
+            // whole value is rejected rather than painted as a guess.
             return std::nullopt;
         }
         list.layers[list.count++] = layer;
@@ -229,8 +229,7 @@ std::string format_background_layers(const BackgroundLayerList& list) {
             out += format_number(gradient.radial.position.y * 100.0f);
             out += '%';
         }
-        const std::size_t count =
-            linear ? gradient.linear.stop_count : gradient.radial.stop_count;
+        const std::size_t count = linear ? gradient.linear.stop_count : gradient.radial.stop_count;
         for (std::size_t stop = 0; stop < count; ++stop) {
             const GradientStopValue& value =
                 linear ? gradient.linear.stops[stop] : gradient.radial.stops[stop];
