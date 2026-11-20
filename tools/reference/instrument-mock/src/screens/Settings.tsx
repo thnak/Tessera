@@ -65,13 +65,14 @@ export function Settings({ onReset, onSaved }: { onReset: () => void; onSaved: (
     <form className="page settings-page" onSubmit={submit} noValidate>
       <div className="page-header">
         <div className="page-heading">
-          <h1 className="page-title">Settings</h1>
+          <span className="m-micro">Configure / Bench 3</span>
+          <h1 className="page-title m-display">Settings</h1>
           <p className="page-subtitle">Capture defaults for this bench.</p>
         </div>
       </div>
 
       <div className="columns">
-        <Panel title="Capture">
+        <Panel index="01" title="Capture" screws>
           <TextField label="Bench name" value={form.name} onChange={(v) => set("name", v)} required error={nameError} />
           <TextField
             label="Instrument address"
@@ -109,7 +110,7 @@ export function Settings({ onReset, onSaved }: { onReset: () => void; onSaved: (
         </Panel>
 
         <div className="stack">
-          <Panel title="Behaviour">
+          <Panel index="02" title="Behaviour">
             <Checkbox
               label="Start capture on connect"
               checked={form.autoStart}
@@ -124,8 +125,9 @@ export function Settings({ onReset, onSaved }: { onReset: () => void; onSaved: (
             <Switch label="Hardware timestamping" checked={false} onChange={() => undefined} disabled />
           </Panel>
 
-          <Panel title="Danger zone">
+          <Panel index="03" title="Danger zone">
             <div className="settings-danger">
+              <span className="settings-hazard" aria-hidden="true" />
               <div className="settings-danger-text">
                 <span>Reset bench</span>
                 <span className="note">Clears channel maps and calibration. Captures are kept.</span>
@@ -138,10 +140,13 @@ export function Settings({ onReset, onSaved }: { onReset: () => void; onSaved: (
         </div>
       </div>
 
-      <div className="settings-savebar">
-        <span className="note mono">{dirty ? "unsaved changes" : "all changes saved"}</span>
+      <div className="settings-savebar m-inverse">
+        <span className="settings-savestate m-micro">
+          <span className={`m-led ${dirty ? "m-led-warn" : "m-led-ok"}`} aria-hidden="true" />
+          {dirty ? "unsaved changes" : "all changes saved"}
+        </span>
         <div className="page-actions">
-          <Button variant="ghost" disabled={!dirty} onClick={() => setForm(saved)}>
+          <Button variant="secondary" disabled={!dirty} onClick={() => setForm(saved)}>
             Revert
           </Button>
           <Button type="submit" disabled={!dirty || !valid}>

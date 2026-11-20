@@ -8,6 +8,17 @@
   gap: var(--space-3);
 }
 
+/* Hazard stripe: diagonal hatch in the danger colour on a recessed slot. */
+.settings-hazard {
+  align-self: stretch;
+  width: 10px;
+  min-height: 40px;
+  border-radius: var(--radius-sm);
+  /* tessera-gap: repeating-linear-gradient */
+  background: repeating-linear-gradient(135deg, var(--danger) 0px 4px, transparent 4px 8px);
+  box-shadow: var(--mat-recess-shadow); /* tessera-gap: inset-shadow */
+}
+
 .settings-danger-text {
   display: flex;
   flex-direction: column;
@@ -17,7 +28,7 @@
 }
 
 /* The form fills the main area so the save bar sits at its bottom edge on a short page, and sticks
-   there while a long page scrolls. */
+   there while a long page scrolls. It is a dark band (INVERSE) with rounded top corners. */
 .settings-page {
   min-height: 100%;
 }
@@ -26,23 +37,27 @@
   margin-top: auto;
   position: sticky;
   bottom: 0px;
+  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: var(--space-3);
-  margin-left: calc(-1 * var(--space-6));
-  margin-right: calc(-1 * var(--space-6));
+  margin-left: calc(-1 * var(--space-2));
+  margin-right: calc(-1 * var(--space-2));
   margin-bottom: calc(-1 * var(--space-6));
   padding: var(--space-3) var(--space-6);
-  border-top: var(--border-width) solid var(--border);
-  background-color: var(--surface-raised);
+  border-radius: 20px 20px 0px 0px;
+}
+
+.settings-savestate {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 @media (max-width: 767px) {
   .settings-savebar {
-    margin-left: calc(-1 * var(--space-4));
-    margin-right: calc(-1 * var(--space-4));
     margin-bottom: calc(-1 * var(--space-4));
     padding: var(--space-3) var(--space-4);
   }

@@ -1,87 +1,97 @@
 /* SPDX-License-Identifier: MIT */
 
-/* Slider: a 4px sunken track with a hairline edge, an accent fill and an 8x16 bar thumb (a
-   fader cap, not a round knob). The control is the full 32px control height so it is easy to hit. */
+/* Fader: a 6px dark groove (WELL), a glowing accent fill, a raised 14x24 cap with an engraved centre
+   line; the value sits in a small LCD chip like the reference's "+0.3 EV" readouts. */
 .tslider {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: 6px;
   min-width: 0;
 }
 
 .tslider-header {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
+  align-items: center;
   gap: var(--space-2);
 }
 
-.tslider-label {
-  font-size: var(--font-size-label);
-  line-height: var(--line-height-label);
-  color: var(--on-surface-muted);
-}
-
 .tslider-value {
+  padding: 2px 7px;
+  border-radius: 5px;
   font-size: var(--font-size-label);
   line-height: var(--line-height-label);
-  color: var(--on-surface);
 }
 
 .tslider-control {
   display: flex;
   align-items: center;
-  height: var(--control-height);
-  padding: 0px 4px;
-  border-radius: var(--radius-md);
+  height: 36px;
+  padding: 0px 8px;
+  border-radius: var(--radius-lg);
   cursor: pointer;
   touch-action: none;
-}
-
-.tslider-control:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 0px;
 }
 
 .tslider-track {
   position: relative;
   flex-grow: 1;
-  height: 4px;
-  border-radius: var(--radius-sm);
-  background-color: var(--surface-sunken);
-  box-shadow: inset 0px 0px 0px 1px var(--border-strong);
+  height: 6px;
+  border-radius: 3px;
+  overflow: visible;
 }
 
 .tslider-fill {
   position: absolute;
   inset-block: 0px;
   left: 0px;
-  border-radius: var(--radius-sm);
-  background-color: var(--accent);
+  border-radius: 3px;
+  background-color: var(--mat-signal);
+  box-shadow: 0px 0px 6px var(--mat-signal-glow);
 }
 
 .tslider-thumb {
   position: absolute;
   top: 50%;
-  width: 8px;
-  height: 16px;
-  margin-left: -4px;
-  margin-top: -8px;
-  border-radius: var(--radius-sm);
-  border: var(--border-width) solid var(--surface);
-  background-color: var(--accent);
-  box-shadow: 0px 0px 0px 1px var(--accent);
+  width: 14px;
+  height: 24px;
+  margin-left: -7px;
+  margin-top: -12px;
+  border: var(--mat-edge-width) solid var(--mat-edge);
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, var(--mat-raised-a), var(--mat-raised-b));
+  box-shadow: var(--mat-raised-shadow); /* tessera-gap: inset-shadow */
+}
+
+.tslider-thumb::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  top: 50%;
+  height: 2px;
+  margin-top: -1px;
+  background-color: var(--mat-knob-pointer);
 }
 
 .tslider-control:hover .tslider-thumb {
-  background-color: var(--on-surface);
-  box-shadow: 0px 0px 0px 1px var(--on-surface);
+  box-shadow: var(--mat-raised-shadow-hover); /* tessera-gap: inset-shadow */
 }
 
 .tslider-disabled {
-  opacity: 0.4;
+  color: var(--on-surface-muted);
 }
 
 .tslider-disabled .tslider-control {
   cursor: default;
+}
+
+.tslider-disabled .tslider-fill {
+  background-color: var(--on-surface-muted);
+  box-shadow: none;
+}
+
+.tslider-disabled .tslider-thumb {
+  background: var(--mat-level-3);
+  box-shadow: none;
 }

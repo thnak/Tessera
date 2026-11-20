@@ -2,14 +2,15 @@
 
 // The library Button, as a native <button>. Its look is the shipped packages/tessera-ui/button.css,
 // imported unchanged, with the same class names the Tessera Button sets (`tbtn tbtn-<variant>
-// tbtn-<size>`, `tbtn-disabled`). button-extra.css holds only what a <button> element needs on top
-// and the mock's proposed focus ring. `forceState` paints hover/active/focus without the pointer so
-// the Controls screen can show every state side by side.
+// tbtn-<size>`, `tbtn-disabled`). button-extra.css turns it into a tactile key (raised gradient,
+// lift on hover, sink on press) from the material tokens. `forceState` paints hover/active/focus
+// without the pointer so the Controls screen can show every state side by side.
 import type { ReactNode } from "react";
 import "../../../../../packages/tessera-ui/button.css";
 import "./button-extra.css";
 
-export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
+// `dark` is the mock's addition (the reference's dark pill key); the rest are the library's variants.
+export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "dark";
 
 export type ButtonProps = {
   variant?: ButtonVariant;

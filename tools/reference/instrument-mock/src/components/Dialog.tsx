@@ -2,20 +2,22 @@
 
 // A modal dialog on the native <dialog>: showModal() gives the focus trap, Escape, the top layer and
 // inert background (the FocusScope + DismissableLayer contract); closing returns focus to the opener.
-// Parts: `tdialog` (root/backdrop host), `tdialog-header`, `tdialog-title`, `tdialog-close`,
-// `tdialog-body`, `tdialog-actions`.
+// Drawn as a small device face: chassis gradient, corner screws, an engraved head with an index badge,
+// and the actions in a recessed tray. Parts: `tdialog` (root/backdrop host), `tdialog-header`,
+// `tdialog-index`, `tdialog-title`, `tdialog-close`, `tdialog-body`, `tdialog-actions`.
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import "./dialog.css";
 
 export type DialogProps = {
   open: boolean;
   title: string;
+  index?: string;
   onClose: () => void;
   actions: ReactNode;
   children: ReactNode;
 };
 
-export function Dialog({ open, title, onClose, actions, children }: DialogProps) {
+export function Dialog({ open, title, index = "00", onClose, actions, children }: DialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
 
@@ -35,16 +37,22 @@ export function Dialog({ open, title, onClose, actions, children }: DialogProps)
       onClick={(e) => e.target === ref.current && onClose()}
     >
       <div className="tdialog-surface">
+        <span className="m-screw m-screw-tl" aria-hidden="true" />
+        <span className="m-screw m-screw-tr" aria-hidden="true" />
+        <span className="m-screw m-screw-bl" aria-hidden="true" />
+        <span className="m-screw m-screw-br" aria-hidden="true" />
         <div className="tdialog-header">
-          <h2 className="tdialog-title" id={titleId}>
+          <span className="tdialog-index m-index">{index}</span>
+          <h2 className="tdialog-title m-display" id={titleId}>
             {title}
           </h2>
-          <button type="button" className="tdialog-close focusable" aria-label="Close" onClick={onClose}>
+          <span className="m-engrave" aria-hidden="true" />
+          <button type="button" className="tdialog-close m-raised" aria-label="Close" onClick={onClose}>
             <span className="tdialog-close-glyph" aria-hidden="true" />
           </button>
         </div>
         <div className="tdialog-body">{children}</div>
-        <div className="tdialog-actions">{actions}</div>
+        <div className="tdialog-actions m-recess">{actions}</div>
       </div>
     </dialog>
   );

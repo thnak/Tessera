@@ -6,6 +6,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "./components/Button";
 import { Dialog } from "./components/Dialog";
+import { Segmented } from "./components/Segmented";
 import { Select } from "./components/Select";
 import { TextField } from "./components/TextField";
 import { AppBar } from "./components/shell/AppBar";
@@ -16,9 +17,9 @@ import { Dashboard } from "./screens/Dashboard";
 import { Settings } from "./screens/Settings";
 
 const themes = [
-  { value: "instrument-light", label: "Light" },
-  { value: "instrument-dark", label: "Dark" },
-  { value: "instrument-high-contrast", label: "High contrast" },
+  { value: "instrument-light", label: "LT", title: "Light" },
+  { value: "instrument-dark", label: "DK", title: "Dark" },
+  { value: "instrument-high-contrast", label: "HC", title: "High contrast" },
 ];
 
 const screens = ["dashboard", "settings", "controls"] as const;
@@ -67,12 +68,19 @@ export function App() {
 
   return (
     <div className="tshell">
+      <span className="m-screw m-screw-tl" aria-hidden="true" />
+      <span className="m-screw m-screw-tr" aria-hidden="true" />
+      <span className="m-screw m-screw-bl" aria-hidden="true" />
+      <span className="m-screw m-screw-br" aria-hidden="true" />
       <AppBar
         title="Telemetry Bench"
-        crumb={screen}
-        actions={
-          <Select label="Theme" hideLabel compact value={theme} options={themes} onChange={setTheme} />
-        }
+        subtitle={`Bench 3 · 48 kHz · ${screen}`}
+        leds={[
+          { label: "Link", state: "ok" },
+          { label: "Rec", state: "warn" },
+          { label: "Cal", state: "off" },
+        ]}
+        actions={<Segmented inverse label="Theme" value={theme} options={themes} onChange={setTheme} />}
       />
       <div className="tshell-middle">
         <Sidebar groups={nav} current={screen} onNavigate={navigate} />
@@ -96,6 +104,7 @@ export function App() {
       <Dialog
         open={dialog === "capture"}
         title="New capture"
+        index="06"
         onClose={close}
         actions={
           <>
@@ -129,6 +138,7 @@ export function App() {
       <Dialog
         open={dialog === "reset"}
         title="Reset bench?"
+        index="03"
         onClose={close}
         actions={
           <>

@@ -9,6 +9,7 @@ import { DataTable, type Column } from "../components/DataTable";
 import { Panel } from "../components/Panel";
 import { StatTile } from "../components/StatTile";
 import { Tabs } from "../components/Tabs";
+import { Console } from "./Console";
 import { captures, formatInt, series, stats, type Capture, type RangeId } from "../data";
 import "./page.css";
 
@@ -36,14 +37,20 @@ export function Dashboard({ onNewCapture }: { onNewCapture: () => void }) {
     <div className="page">
       <div className="page-header">
         <div className="page-heading">
-          <h1 className="page-title">Overview</h1>
-          <p className="page-subtitle">Bench 3 · 4 channels · last sync 12:04:31 UTC</p>
+          <span className="m-micro">Monitor / Bench 3</span>
+          <h1 className="page-title m-display">Overview</h1>
+          <p className="page-subtitle">4 channels · last sync 12:04:31 UTC</p>
         </div>
         <div className="page-actions">
           <Button variant="secondary">Export CSV</Button>
-          <Button onClick={onNewCapture}>New capture</Button>
+          <Button variant="dark" onClick={onNewCapture}>
+            <span className="m-led m-led-warn" aria-hidden="true" />
+            New capture
+          </Button>
         </div>
       </div>
+
+      <Console />
 
       <div className="tiles">
         {stats.map((s) => (
@@ -61,7 +68,7 @@ export function Dashboard({ onNewCapture }: { onNewCapture: () => void }) {
           { id: "7d", label: "7 days" },
         ]}
       >
-        <Panel title="Throughput" meta={`${data.values.length} samples · MB/s`}>
+        <Panel index="04" title="Throughput" meta={`${data.values.length} samples · MB/s`}>
           <BarChart
             label="Throughput"
             values={data.values}
@@ -73,7 +80,7 @@ export function Dashboard({ onNewCapture }: { onNewCapture: () => void }) {
         </Panel>
       </Tabs>
 
-      <Panel title="Recent captures" meta={`${captures.length} rows`} flush>
+      <Panel index="05" title="Recent captures" meta={`${captures.length} rows`} flush>
         <DataTable caption="Recent captures" columns={columns} rows={captures} rowKey={(r) => r.id} />
       </Panel>
     </div>

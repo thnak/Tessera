@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 
 // Tabs with automatic activation: one Tab stop, Left/Right (wrapping) and Home/End move and select,
-// the RovingFocus primitive's contract. Parts: `ttabs-list`, `ttabs-tab` (selected adds
+// the RovingFocus primitive's contract. Drawn as a segmented well: the list is a recessed tray and the
+// selected tab a raised key with a lit LED. Parts: `ttabs-list`, `ttabs-tab` (selected adds
 // `ttabs-tab-selected`), `ttabs-count` (optional mono badge), `ttabs-panel`.
 import { useId, useRef, type KeyboardEvent, type ReactNode } from "react";
 import "./tabs.css";
@@ -38,7 +39,7 @@ export function Tabs({ label, tabs, selected, onSelect, children }: TabsProps) {
 
   return (
     <div className="ttabs">
-      <div className="ttabs-list" role="tablist" aria-label={label} ref={listRef} onKeyDown={onKeyDown}>
+      <div className="ttabs-list m-recess" role="tablist" aria-label={label} ref={listRef} onKeyDown={onKeyDown}>
         {tabs.map((t) => {
           const on = t.id === selected;
           return (
@@ -53,6 +54,7 @@ export function Tabs({ label, tabs, selected, onSelect, children }: TabsProps) {
               className={`ttabs-tab ${on ? "ttabs-tab-selected" : ""}`}
               onClick={() => onSelect(t.id)}
             >
+              <span className={`m-led ${on ? "m-led-on" : ""}`} aria-hidden="true" />
               {t.label}
               {t.count !== undefined ? <span className="ttabs-count mono">{t.count}</span> : null}
             </button>

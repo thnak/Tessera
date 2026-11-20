@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: MIT */
 
-/* Tabs: text tabs on a hairline, the selected one marked by a 2px accent rule under it and the
-   accent text colour. The list scrolls sideways when it does not fit (narrow widths). */
+/* Segmented well: tabs sit in a recessed tray (RECESS); the selected one is a raised key (RAISED)
+   with a lit LED and accent label. The tray scrolls sideways when it does not fit. */
 .ttabs {
   display: flex;
   flex-direction: column;
@@ -10,62 +10,47 @@
 
 .ttabs-list {
   display: flex;
-  gap: var(--space-1);
-  border-bottom: var(--border-width) solid var(--border);
+  align-self: flex-start;
+  max-width: 100%;
+  gap: 3px;
+  padding: 3px;
+  border-radius: var(--radius-lg);
   overflow-x: auto;
   scrollbar-width: none;
 }
 
 .ttabs-tab {
-  position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-2);
   flex-shrink: 0;
-  height: var(--control-height);
+  height: 30px;
   margin: 0;
   padding: 0px var(--space-3);
-  border: 0;
-  border-radius: var(--radius-sm) var(--radius-sm) 0px 0px;
+  border: var(--mat-edge-width) solid transparent;
+  border-radius: 5px;
   background: none;
   color: var(--on-surface-muted);
+  font-weight: var(--mat-display-weight);
   cursor: pointer;
   transition: color var(--motion-fast) ease-out;
 }
 
 .ttabs-tab:hover {
   color: var(--on-surface);
-  background-color: var(--surface-raised);
 }
 
-.ttabs-tab:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: -2px;
-}
-
-.ttabs-tab-selected {
-  color: var(--accent);
-}
-
+.ttabs-tab-selected,
 .ttabs-tab-selected:hover {
+  border-color: var(--mat-edge);
+  background: linear-gradient(180deg, var(--mat-raised-a), var(--mat-raised-b));
+  box-shadow: var(--mat-raised-shadow); /* tessera-gap: inset-shadow */
   color: var(--accent);
-}
-
-.ttabs-tab-selected::after {
-  content: "";
-  position: absolute;
-  left: var(--space-2);
-  right: var(--space-2);
-  bottom: 0px;
-  height: 2px;
-  background-color: var(--accent);
 }
 
 .ttabs-count {
   padding: 0px var(--space-1);
   border-radius: var(--radius-sm);
-  background-color: var(--surface-sunken);
-  color: var(--on-surface-muted);
   font-size: var(--font-size-label);
   line-height: var(--line-height-label);
 }

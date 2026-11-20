@@ -1,13 +1,12 @@
 /* SPDX-License-Identifier: MIT */
 
-/* Checkbox and radio. 16px box on the 4px grid, centred on the 20px body line. Checked fills with
-   the accent; the tick is two borders in --on-accent. There is no control-size token for this box,
-   so 16px is the mock's own number (see the README findings). */
+/* Checkbox and radio: an 18px recessed socket. Checked, the checkbox socket fills with a raised
+   accent cap and a tick; the radio socket shows a lit accent LED. */
 .tcheck {
   position: relative;
   display: flex;
   align-items: flex-start;
-  gap: var(--space-2);
+  gap: 10px;
   cursor: pointer;
   min-height: var(--line-height-body);
 }
@@ -15,32 +14,32 @@
 .tcheck-box {
   flex-shrink: 0;
   position: relative;
-  width: 16px;
-  height: 16px;
-  margin-top: 2px;
-  border: var(--border-width) solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  background-color: var(--surface);
-  transition:
-    background-color var(--motion-fast) ease-out,
-    border-color var(--motion-fast) ease-out;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  border: max(1px, var(--mat-edge-width)) solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, var(--mat-recess-a), var(--mat-recess-b));
+  box-shadow: var(--mat-recess-shadow); /* tessera-gap: inset-shadow */
+  transition: background var(--motion-fast) ease-out;
 }
 
 .tcheck-mark {
   position: absolute;
   display: none;
-  left: 4px;
+  left: 5px;
   top: 1px;
-  width: 5px;
-  height: 9px;
+  width: 6px;
+  height: 10px;
   border-right: 2px solid var(--on-accent);
   border-bottom: 2px solid var(--on-accent);
   transform: rotate(45deg);
 }
 
 .tcheck-input:checked + .tcheck-box {
-  background-color: var(--accent);
-  border-color: var(--accent);
+  border-color: var(--mat-accent-b);
+  background: linear-gradient(180deg, var(--mat-accent-a), var(--mat-accent-b));
+  box-shadow: var(--mat-raised-shadow); /* tessera-gap: inset-shadow */
 }
 
 .tcheck-input:checked + .tcheck-box .tcheck-mark {
@@ -52,7 +51,7 @@
 }
 
 .tcheck-input:focus-visible + .tcheck-box {
-  outline: 2px solid var(--focus-ring);
+  outline: 2px solid var(--ring, var(--mat-focus-ring));
   outline-offset: 2px;
 }
 
@@ -68,25 +67,47 @@
   color: var(--on-surface-muted);
 }
 
+/* Disabled: flat socket, muted text; no opacity so the label stays readable. */
 .tcheck-disabled {
-  opacity: 0.4;
   cursor: default;
+  color: var(--on-surface-muted);
 }
 
-/* Radio: round box, the mark becomes a dot. */
-.tcheck-radio .tcheck-box {
+.tcheck-disabled .tcheck-box,
+.tcheck-disabled .tcheck-input:checked + .tcheck-box {
+  border-color: var(--mat-level-4);
+  background: var(--mat-level-3);
+  box-shadow: none;
+}
+
+.tcheck-disabled .tcheck-mark {
+  border-color: var(--on-surface-muted);
+}
+
+/* Radio: round socket with an LED. */
+.tcheck-radio .tcheck-box,
+.tcheck-radio .tcheck-input:checked + .tcheck-box {
   border-radius: 50%;
+  border-color: var(--border-strong);
+  background: linear-gradient(180deg, var(--mat-recess-a), var(--mat-recess-b));
+  box-shadow: var(--mat-recess-shadow); /* tessera-gap: inset-shadow */
 }
 
 .tcheck-radio .tcheck-mark {
-  left: 3px;
-  top: 3px;
+  left: 4px;
+  top: 4px;
   width: 8px;
   height: 8px;
   border: 0;
   border-radius: 50%;
-  background-color: var(--on-accent);
+  background-color: var(--accent);
+  box-shadow: 0px 0px 6px var(--mat-signal-glow);
   transform: none;
+}
+
+.tcheck-disabled.tcheck-radio .tcheck-mark {
+  background-color: var(--on-surface-muted);
+  box-shadow: none;
 }
 
 .tradio-group {
@@ -108,12 +129,8 @@
 .tradio-legend {
   padding: 0;
   margin-bottom: var(--space-2);
-  font-size: var(--font-size-label);
-  line-height: var(--line-height-label);
-  color: var(--on-surface-muted);
 }
 
-/* A legend does not take part in a flex fieldset's row, so the inline group keeps it on its own line. */
 .tradio-inline .tradio-legend {
   width: 100%;
 }

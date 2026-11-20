@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-// A labelled single-line text input. Parts: `tfield` (root), `tfield-label`, `tfield-control`,
-// `tfield-hint`, `tfield-error`. The error replaces the hint and is announced through
-// aria-describedby; `aria-invalid` drives the danger border.
+// A labelled single-line text input. Parts: `tfield` (root), `tfield-label` (a micro label),
+// `tfield-control` (the recessed slot), `tfield-note` (`tfield-error` when invalid, with an LED).
+// The error replaces the hint and is announced through aria-describedby; `aria-invalid` drives the
+// danger edge.
 import { useId } from "react";
 import "./field.css";
 
@@ -36,7 +37,7 @@ export function TextField({
   const note = error || hint;
   return (
     <div className={`tfield ${disabled ? "tfield-disabled" : ""}`}>
-      <label className="tfield-label" htmlFor={id}>
+      <label className="tfield-label m-micro" htmlFor={id}>
         {label}
         {required ? <span className="tfield-required"> (required)</span> : null}
       </label>
@@ -52,7 +53,8 @@ export function TextField({
         onChange={(e) => onChange(e.target.value)}
       />
       {note ? (
-        <span id={noteId} className={error ? "tfield-error" : "tfield-hint"}>
+        <span id={noteId} className={`tfield-note ${error ? "tfield-error" : ""}`}>
+          {error ? <span className="m-led m-led-warn" aria-hidden="true" /> : null}
           {note}
         </span>
       ) : null}

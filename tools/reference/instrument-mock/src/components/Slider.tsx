@@ -70,10 +70,10 @@ export function Slider({
   return (
     <div className={`tslider ${disabled ? "tslider-disabled" : ""}`}>
       <div className="tslider-header">
-        <span className="tslider-label" id={id}>
+        <span className="tslider-label m-micro" id={id}>
           {label}
         </span>
-        <span className="tslider-value mono">
+        <span className="tslider-value m-well m-glow mono">
           {value}
           {unit}
         </span>
@@ -92,7 +92,7 @@ export function Slider({
         onPointerDown={onPointerDown}
         onPointerMove={(e) => e.currentTarget.hasPointerCapture(e.pointerId) && setFromPointer(e.clientX)}
       >
-        <span className="tslider-track" ref={trackRef}>
+        <span className="tslider-track m-well" ref={trackRef}>
           <span className="tslider-fill" style={{ width: `${fraction * 100}%` }} />
           <span className="tslider-thumb" style={{ left: `${fraction * 100}%` }} />
         </span>

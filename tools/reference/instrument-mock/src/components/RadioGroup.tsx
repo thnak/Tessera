@@ -20,7 +20,7 @@ export function RadioGroup({ legend, value, options, onChange, inline = false }:
   const name = useId();
   return (
     <fieldset className={`tradio-group ${inline ? "tradio-inline" : ""}`}>
-      <legend className="tradio-legend">{legend}</legend>
+      <legend className="tradio-legend m-micro">{legend}</legend>
       {options.map((o) => (
         <label key={o.value} className={`tcheck tcheck-radio ${o.disabled ? "tcheck-disabled" : ""}`}>
           <input

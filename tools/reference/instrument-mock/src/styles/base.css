@@ -1,9 +1,9 @@
 /* SPDX-License-Identifier: MIT */
 
-/* Page base for the mock. The only face the repo ships is IBM Plex Sans Regular, Latin subset
-   (designer/web/public/fonts, OFL-1.1, see docs/specs/dependencies.md). It is referenced in place,
-   not copied. No IBM Plex Mono and no other weight ship, so --font-mono falls back to the system
-   monospace and any bold is synthesized by the browser; the mock avoids bold for that reason. */
+/* Page base. The only face the repo ships is IBM Plex Sans Regular, Latin subset
+   (designer/web/public/fonts, OFL-1.1, see docs/specs/dependencies.md), referenced in place. No IBM
+   Plex Mono and no other weight ship: --mat-font-micro falls back to the system monospace and the
+   600 display weight is synthesized by the browser. No font was added. */
 @font-face {
   font-family: "IBM Plex Sans";
   src: url("../../../../../designer/web/public/fonts/IBMPlexSans-Latin.ttf") format("truetype");
@@ -24,8 +24,11 @@ body {
   height: 100%;
 }
 
+/* The window behind the device. */
 body {
-  background-color: var(--window-background);
+  /* tessera-gap: radial-gradient */
+  background: radial-gradient(ellipse at 50% 30%, var(--mat-backdrop-a), var(--mat-backdrop-b));
+  background-color: var(--mat-backdrop-b);
   color: var(--window-foreground);
   font-family: var(--font-sans);
   font-size: var(--font-size-body);
@@ -38,7 +41,6 @@ body {
   height: 100%;
 }
 
-/* Native form elements do not inherit the page font by default. */
 button,
 input,
 select,
@@ -55,18 +57,9 @@ p {
   font-weight: 400;
 }
 
-/* Values and labels are monospace with tabular figures (ADR-047 design language). */
 .mono {
-  font-family: var(--font-mono);
+  font-family: var(--mat-font-micro);
   font-variant-numeric: tabular-nums;
-}
-
-.label {
-  font-size: var(--font-size-label);
-  line-height: var(--line-height-label);
-  color: var(--on-surface-muted);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
 .visually-hidden {
@@ -78,10 +71,12 @@ p {
   white-space: nowrap;
 }
 
-/* One focus treatment for every custom control: a ring separated from the control by a surface gap,
-   so it stays visible on an accent fill (the library's button.css ring touches the fill). */
-.focusable:focus-visible {
-  outline: 2px solid var(--focus-ring);
+/* One focus treatment everywhere: a 2px ring offset 2px from the control, so the chassis shows as a
+   gap between ring and control. The ring is --mat-focus-ring (near-black in light, near-white in dark),
+   not the accent, so it stays visible on a filled accent key (the theme's --focus-ring equals the
+   accent: 1.00:1). Dark regions (.m-inverse, .m-well) swap --ring to their own colour. */
+:focus-visible {
+  outline: 2px solid var(--ring, var(--mat-focus-ring));
   outline-offset: 2px;
 }
 

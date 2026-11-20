@@ -1,18 +1,22 @@
 /* SPDX-License-Identifier: MIT */
 
-/* Badge: outline only. The theme has no tinted/subtle background per status colour (no
-   --danger-subtle etc.), so the tone sits on the marker and the text stays --on-surface. */
+/* Badge: a small recessed chip with a status LED and a micro label; the LED carries the tone (with a
+   glow when lit), the text stays --on-surface so status is never colour-only. */
 .tbadge {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-1);
-  height: 20px;
-  padding: 0px var(--space-2) 0px 6px;
-  border: var(--border-width) solid var(--border);
-  border-radius: var(--radius-sm);
-  background-color: var(--surface);
+  gap: 6px;
+  height: 22px;
+  padding: 0px var(--space-2) 0px 7px;
+  border: var(--mat-edge-width) solid var(--mat-edge);
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, var(--mat-recess-a), var(--mat-recess-b));
+  box-shadow: var(--mat-recess-shadow); /* tessera-gap: inset-shadow */
+  font-family: var(--mat-font-micro);
   font-size: var(--font-size-label);
   line-height: var(--line-height-label);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   color: var(--on-surface);
   white-space: nowrap;
 }
@@ -20,22 +24,26 @@
 .tbadge-dot {
   width: 6px;
   height: 6px;
-  border-radius: 1px;
-  background-color: var(--on-surface-muted);
+  border-radius: 50%;
+  background-color: var(--mat-led-off);
 }
 
 .tbadge-accent .tbadge-dot {
   background-color: var(--accent);
+  box-shadow: 0px 0px 5px var(--mat-signal-glow);
 }
 
 .tbadge-success .tbadge-dot {
   background-color: var(--success);
+  box-shadow: 0px 0px 5px var(--mat-led-ok-glow);
 }
 
 .tbadge-warning .tbadge-dot {
   background-color: var(--warning);
+  box-shadow: 0px 0px 5px var(--mat-signal-warn-glow);
 }
 
 .tbadge-danger .tbadge-dot {
   background-color: var(--danger);
+  box-shadow: 0px 0px 5px var(--mat-signal-warn-glow);
 }

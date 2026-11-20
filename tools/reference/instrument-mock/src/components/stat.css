@@ -1,24 +1,16 @@
 /* SPDX-License-Identifier: MIT */
 
-/* StatTile: label, a large mono figure, a delta line and an optional meter. The figure size is the
-   title size: the theme has no display/numeric size, so the mock does not invent one. */
+/* StatTile: an LCD tile. The figure glows in the signal colour; the meter is a segmented LED bar. */
 .tstat {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: 2px;
   min-width: 0;
   padding: var(--space-3) var(--space-4);
-  border: var(--border-width) solid var(--border);
-  border-radius: var(--radius-md);
-  background-color: var(--surface-raised);
+  border-radius: var(--mat-radius-key);
 }
 
 .tstat-label {
-  font-size: var(--font-size-label);
-  line-height: var(--line-height-label);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--on-surface-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -31,47 +23,38 @@
 }
 
 .tstat-value {
-  font-size: var(--font-size-title);
-  line-height: var(--line-height-title);
-  color: var(--on-surface);
+  font-size: 24px;
+  line-height: 32px;
 }
 
 .tstat-unit {
   font-size: var(--font-size-label);
-  line-height: var(--line-height-label);
-  color: var(--on-surface-muted);
+  color: var(--mat-on-well-muted);
 }
 
 .tstat-delta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: var(--font-size-label);
   line-height: var(--line-height-label);
-}
-
-.tstat-delta-good {
-  color: var(--success);
-}
-
-.tstat-delta-bad {
-  color: var(--danger);
-}
-
-.tstat-delta-flat {
-  color: var(--on-surface-muted);
+  color: var(--mat-on-well-muted);
 }
 
 .tstat-meter {
   position: relative;
-  height: 4px;
-  margin-top: var(--space-1);
-  border-radius: var(--radius-sm);
-  background-color: var(--surface-sunken);
-  box-shadow: inset 0px 0px 0px 1px var(--border);
+  height: 6px;
+  margin-top: 6px;
+  border-radius: 1px;
+  background-color: var(--mat-arc-track-inverse);
+  /* tessera-gap: mask, repeating-linear-gradient */
+  mask: repeating-linear-gradient(90deg, #000 0px 5px, transparent 5px 7px);
 }
 
 .tstat-meter-fill {
   position: absolute;
   inset-block: 0px;
   left: 0px;
-  border-radius: var(--radius-sm);
-  background-color: var(--accent);
+  background-color: var(--mat-signal);
+  box-shadow: 0px 0px 6px var(--mat-signal-glow);
 }

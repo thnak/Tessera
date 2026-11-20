@@ -1,21 +1,24 @@
 /* SPDX-License-Identifier: MIT */
 
-/* Dialog: a raised surface with a hairline, --radius-lg and the one floating shadow the theme
-   defines. The backdrop colour is not a token; the mock reuses --shadow-floating-color. */
+/* Dialog: a small device face. Chassis gradient, 24px outer radius, the device shadow recipe, corner
+   screws, an engraved head, actions in a recessed tray. The backdrop blurs (backdrop-filter, which
+   Tessera has) over a tint; there is no scrim token, so the tint reuses --shadow-floating-color. */
 .tdialog {
-  width: min(480px, calc(100vw - 2 * var(--space-4)));
+  width: min(500px, calc(100vw - 2 * var(--space-4)));
   max-height: calc(100vh - 2 * var(--space-8));
   margin: auto;
   padding: 0;
-  border: var(--border-width) solid var(--border-strong);
-  border-radius: var(--radius-lg);
-  background-color: var(--surface);
+  border: var(--mat-edge-width) solid var(--mat-edge);
+  border-radius: 24px;
+  background: linear-gradient(180deg, var(--mat-chassis-a), var(--mat-chassis-b));
+  box-shadow: var(--mat-device-shadow); /* tessera-gap: inset-shadow */
   color: var(--on-surface);
-  box-shadow: 0px var(--shadow-floating-y) var(--shadow-floating-blur) var(--shadow-floating-color);
+  overflow: hidden;
 }
 
 .tdialog::backdrop {
   background-color: var(--shadow-floating-color);
+  backdrop-filter: blur(3px);
 }
 
 .tdialog[open] {
@@ -25,15 +28,16 @@
 @keyframes tdialog-in {
   from {
     opacity: 0;
-    transform: translateY(4px);
+    transform: translateY(6px) scale(0.99);
   }
   to {
     opacity: 1;
-    transform: translateY(0px);
+    transform: translateY(0px) scale(1);
   }
 }
 
 .tdialog-surface {
+  position: relative;
   display: flex;
   flex-direction: column;
 }
@@ -41,35 +45,37 @@
 .tdialog-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-4) var(--space-4) var(--space-2) var(--space-6);
+  gap: 10px;
+  padding: var(--space-6) 36px var(--space-2);
 }
 
 .tdialog-title {
-  font-size: var(--font-size-title);
-  line-height: var(--line-height-title);
+  flex-shrink: 0;
+  font-size: 20px;
+  line-height: 28px;
 }
 
 .tdialog-close {
   position: relative;
-  width: var(--control-height);
-  height: var(--control-height);
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
   margin: 0;
   padding: 0;
-  border: 0;
-  border-radius: var(--radius-md);
-  background: none;
-  color: var(--on-surface-muted);
+  border-radius: var(--radius-lg);
+  color: var(--on-surface);
   cursor: pointer;
 }
 
 .tdialog-close:hover {
-  background-color: var(--surface-sunken);
-  color: var(--on-surface);
+  box-shadow: var(--mat-raised-shadow-hover); /* tessera-gap: inset-shadow */
 }
 
-/* An X from two 1px rules: the language has no icon set wired in yet. */
+.tdialog-close:active {
+  box-shadow: var(--mat-pressed-shadow); /* tessera-gap: inset-shadow */
+}
+
+/* An X from two 2px rules; no icon set is wired in yet. */
 .tdialog-close-glyph::before,
 .tdialog-close-glyph::after {
   content: "";
@@ -77,8 +83,9 @@
   left: 50%;
   top: 50%;
   width: 12px;
-  height: 1px;
-  margin-left: -6px;
+  height: 2px;
+  margin: -1px 0px 0px -6px;
+  border-radius: 1px;
   background-color: currentColor;
   transform: rotate(45deg);
 }
@@ -90,8 +97,8 @@
 .tdialog-body {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-2) var(--space-6) var(--space-4);
+  gap: var(--space-4);
+  padding: var(--space-3) 36px var(--space-6);
   color: var(--on-surface-muted);
   overflow-y: auto;
 }
@@ -100,9 +107,17 @@
   display: flex;
   justify-content: flex-end;
   flex-wrap: wrap;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-6);
-  border-top: var(--border-width) solid var(--border);
-  background-color: var(--surface-raised);
-  border-radius: 0px 0px var(--radius-lg) var(--radius-lg);
+  gap: var(--space-3);
+  /* clear of the corner screws */
+  margin: 0px 36px 20px;
+  padding: var(--space-3);
+  border-radius: 14px;
+}
+
+@media (max-width: 479px) {
+  .tdialog-header,
+  .tdialog-body {
+    padding-left: var(--space-6);
+    padding-right: var(--space-6);
+  }
 }

@@ -63,7 +63,7 @@ export function DataTable<Row extends Record<string, string | number>>({
                   className={`ttable-th ${c.numeric ? "ttable-num" : ""} ${c.hideNarrow ? "ttable-wide" : ""}`}
                   aria-sort={active ? (ascending ? "ascending" : "descending") : undefined}
                 >
-                  <button type="button" className="ttable-sort" onClick={() => toggle(c.key)}>
+                  <button type="button" className="ttable-sort m-micro" onClick={() => toggle(c.key)}>
                     {c.label}
                     <span className={`ttable-arrow ${active ? "ttable-arrow-on" : ""}`} aria-hidden="true">
                       {active && !ascending ? "▼" : "▲"}

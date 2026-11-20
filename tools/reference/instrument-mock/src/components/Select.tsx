@@ -32,7 +32,7 @@ export function Select({
   const id = useId();
   return (
     <div className={`tfield ${disabled ? "tfield-disabled" : ""}`}>
-      <label className={hideLabel ? "visually-hidden" : "tfield-label"} htmlFor={id}>
+      <label className={hideLabel ? "visually-hidden" : "tfield-label m-micro"} htmlFor={id}>
         {label}
       </label>
       <div className={`tselect ${compact ? "tselect-compact" : ""}`}>
@@ -53,7 +53,7 @@ export function Select({
         <span className="tselect-chevron" aria-hidden="true" />
       </div>
       {hint ? (
-        <span id={`${id}-hint`} className="tfield-hint">
+        <span id={`${id}-hint`} className="tfield-note">
           {hint}
         </span>
       ) : null}

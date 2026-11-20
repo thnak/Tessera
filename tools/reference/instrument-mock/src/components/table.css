@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: MIT */
 
-/* DataTable: 32px rows (the control height), hairline row rules, a raised header with uppercase
-   label text. Hover and focus use the existing surfaces; there is no "selected row" token. */
+/* DataTable: rows separated by engraved lines (dark line + white lip, drawn as inset shadows on the
+   cells), a recessed header band with micro labels, numbers in the mono face. */
 .ttable-scroll {
   overflow-x: auto;
   min-width: 0;
@@ -9,7 +9,6 @@
 }
 
 .ttable-scroll:focus-visible {
-  outline: 2px solid var(--focus-ring);
   outline-offset: -2px;
 }
 
@@ -21,9 +20,9 @@
 
 .ttable-th {
   padding: 0px;
-  height: var(--control-height);
-  border-bottom: var(--border-width) solid var(--border-strong);
-  background-color: var(--surface-raised);
+  height: 32px;
+  background: linear-gradient(180deg, var(--mat-recess-a), var(--mat-recess-b));
+  box-shadow: var(--mat-recess-shadow); /* tessera-gap: inset-shadow */
   text-align: start;
   font-weight: 400;
   white-space: nowrap;
@@ -34,16 +33,11 @@
   align-items: center;
   gap: var(--space-1);
   width: 100%;
-  height: var(--control-height);
+  height: 32px;
   margin: 0;
   padding: 0px var(--space-3);
   border: 0;
   background: none;
-  font-size: var(--font-size-label);
-  line-height: var(--line-height-label);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--on-surface-muted);
   cursor: pointer;
 }
 
@@ -56,7 +50,6 @@
 }
 
 .ttable-sort:focus-visible {
-  outline: 2px solid var(--focus-ring);
   outline-offset: -2px;
 }
 
@@ -70,20 +63,21 @@
   color: var(--accent);
 }
 
-.ttable-row:hover {
-  background-color: var(--surface-raised);
+.ttable-row:hover .ttable-cell {
+  background-color: var(--mat-level-0);
 }
 
 .ttable-cell {
-  height: var(--control-height);
+  height: 36px;
   padding: 0px var(--space-3);
-  border-bottom: var(--border-width) solid var(--border);
+  /* engraved row rule: dark line with the white lip under it */
+  box-shadow: inset 0px -1px 0px var(--mat-lip), inset 0px -2px 0px var(--mat-engrave); /* tessera-gap: inset-shadow */
   white-space: nowrap;
   color: var(--on-surface);
 }
 
 .ttable-row:last-child .ttable-cell {
-  border-bottom: 0;
+  box-shadow: none;
 }
 
 .ttable-num {

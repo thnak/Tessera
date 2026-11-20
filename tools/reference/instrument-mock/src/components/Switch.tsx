@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-// An on/off switch: a <button role="switch"> with aria-checked, the Toggle primitive's contract.
-// Parts: `tswitch` (root row), `tswitch-track`, `tswitch-thumb`, `tswitch-label`, `tswitch-state`
-// (a mono ON/OFF readout, so the state is not carried by colour or position alone).
+// An on/off slide switch: a <button role="switch"> with aria-checked, the Toggle primitive's contract.
+// Parts: `tswitch` (root row), `tswitch-label`, `tswitch-control`, `tswitch-state` (LED + mono ON/OFF,
+// so the state is never carried by position or colour alone), `tswitch-track` (a dark well),
+// `tswitch-thumb` (a raised key with grip lines).
 import { useId } from "react";
 import "./switch.css";
 
@@ -29,10 +30,11 @@ export function Switch({ label, checked, onChange, disabled = false }: SwitchPro
         className="tswitch-control"
         onClick={() => onChange(!checked)}
       >
-        <span className="tswitch-state mono" aria-hidden="true">
+        <span className="tswitch-state m-micro" aria-hidden="true">
+          <span className={`m-led ${checked && !disabled ? "m-led-on" : ""}`} />
           {checked ? "ON" : "OFF"}
         </span>
-        <span className="tswitch-track" aria-hidden="true">
+        <span className="tswitch-track m-well" aria-hidden="true">
           <span className="tswitch-thumb" />
         </span>
       </button>

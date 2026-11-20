@@ -1,39 +1,41 @@
 /* SPDX-License-Identifier: MIT */
 
-/* Panel: the flat container every screen is built from. Elevation is a hairline, never a shadow. */
+/* Panel: a plate (material.css .m-plate) with the engraved section head. No border, no fill line
+   between head and body: tone and the engraved rule do the separating. */
 .tpanel {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-width: 0;
-  border: var(--border-width) solid var(--border);
-  border-radius: var(--radius-md);
-  background-color: var(--surface);
 }
 
 .tpanel-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  min-height: var(--control-height);
-  padding: var(--space-1) var(--space-3);
-  border-bottom: var(--border-width) solid var(--border);
-  background-color: var(--surface-raised);
-  border-radius: var(--radius-md) var(--radius-md) 0px 0px;
+  gap: 10px;
+  min-height: 44px;
+  padding: var(--space-3) var(--space-4) 0px;
+}
+
+.tpanel-screwed .tpanel-header {
+  padding-left: 36px;
+  padding-right: 36px;
 }
 
 .tpanel-title {
-  font-size: var(--font-size-label);
-  line-height: var(--line-height-label);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  flex-shrink: 0;
+  font-size: var(--font-size-title);
+  line-height: var(--line-height-title);
   color: var(--on-surface);
 }
 
+.tpanel-rule {
+  min-width: var(--space-4);
+}
+
 .tpanel-meta {
-  font-size: var(--font-size-label);
-  line-height: var(--line-height-label);
-  color: var(--on-surface-muted);
+  flex-shrink: 1;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -47,7 +49,23 @@
   min-width: 0;
 }
 
+.tpanel-screwed .tpanel-body {
+  padding: var(--space-4) 36px var(--space-6);
+}
+
 .tpanel-body-flush {
-  padding: 0px;
+  padding: var(--space-3) 0px 0px;
   gap: 0px;
+}
+
+@media (max-width: 479px) {
+  .tpanel-screwed .tpanel-header,
+  .tpanel-screwed .tpanel-body {
+    padding-left: var(--space-4);
+    padding-right: var(--space-4);
+  }
+
+  .tpanel-screwed .m-screw {
+    display: none;
+  }
 }
