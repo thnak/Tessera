@@ -29,6 +29,7 @@ constexpr AliasInject kInjectHeading[6][2] = {
     {{"role", "heading"}, {"aria-level", "1"}}, {{"role", "heading"}, {"aria-level", "2"}},
     {{"role", "heading"}, {"aria-level", "3"}}, {{"role", "heading"}, {"aria-level", "4"}},
     {{"role", "heading"}, {"aria-level", "5"}}, {{"role", "heading"}, {"aria-level", "6"}}};
+constexpr AliasInject kInjectRoleParagraph[] = {{"role", "paragraph"}};
 constexpr AliasInject kInjectRoleLink[] = {{"role", "link"}};
 
 // `input type="password"` injects secure; the text-ish types inject inputMode.
@@ -303,7 +304,7 @@ constexpr AliasRow kAliases[] = {
      false,
      "",
      "inline span; injects font-family: monospace (no font selection yet, so no metric change)"},
-    {"p", "Text", AliasStatus::Mapped, {}, {}, {}, false, "", ""},
+    {"p", "Text", AliasStatus::Mapped, rows(kInjectRoleParagraph), {}, {}, false, "", ""},
     {"label",
      "Text",
      AliasStatus::Mapped,

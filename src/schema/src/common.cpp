@@ -250,10 +250,10 @@ constexpr AliasAttr kCommonAliasAttrs[] = {
 };
 
 constexpr std::string_view kRoleTokens[] = {
-    "generic",     "presentation", "none",     "button", "link",     "heading",
-    "img",         "textbox",      "checkbox", "radio",  "switch",   "slider",
-    "progressbar", "list",         "listitem", "tab",    "tabpanel", "dialog",
-    "menu",        "menuitem",     "tooltip",  "alert",
+    "generic",     "presentation", "none",     "button", "link",      "heading",
+    "img",         "textbox",      "checkbox", "radio",  "switch",    "slider",
+    "progressbar", "list",         "listitem", "tab",    "tabpanel",  "dialog",
+    "menu",        "menuitem",     "tooltip",  "alert",  "paragraph",
 };
 
 constexpr bool prop_names_are_unique(std::span<const PropRow> list) {
@@ -268,7 +268,7 @@ constexpr bool prop_names_are_unique(std::span<const PropRow> list) {
 }
 
 static_assert(prop_names_are_unique(kCommonProps), "common prop names are unique");
-static_assert(std::size(kRoleTokens) == 22, "the role token list of common-and-events.md 1.1");
+static_assert(std::size(kRoleTokens) == 23, "the role token list of common-and-events.md 1.1");
 
 } // namespace
 

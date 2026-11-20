@@ -100,6 +100,10 @@ int main() {
     ok &= expect(text.find("margin-top") == nullptr || *text.find("margin-top") == "0",
                  "a plain Text must have no margin");
 
+    // A paragraph has Chrome's 1em margin; a span (plain Text) does not (issue #606).
+    const style::ComputedStyle paragraph = compute_for("Text", "", {{"role", "paragraph"}});
+    ok &= value_is(paragraph, "margin-top", "16px");
+
     // A link is blue and underlined; a list has Chrome's margin and start padding.
     const style::ComputedStyle link = compute_for("Text", "", {{"role", "link"}});
     ok &= value_is(link, "color", "#0000ee");

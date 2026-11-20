@@ -57,6 +57,7 @@ enum class Role : std::uint8_t {
     ScrollView,
     Tooltip,
     Alert,
+    Paragraph, // a block of text (`p`); the user-agent sheet gives it a margin
     // Not a role: the count of real values, so the role trait table can be sized and checked at
     // compile time (src/ui/accessibility/a11y_role_traits.hpp).
     kCount,

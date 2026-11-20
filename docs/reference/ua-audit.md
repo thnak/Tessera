@@ -31,7 +31,7 @@ Box size at a 400px viewport, 16px root, before and after this change.
 | `input` | 176 x 22, 1px border, 13.33px font | **0 x 0** | same |
 | `textarea` | 161 x 38 | **0 x 0** | same |
 | `button` | height 22, 13.33px font, grey face | 25px, no face | same height, face and hover/active |
-| `p` | margin 16px 0 | no margin | **open**: see below |
+| `p` | margin 16px 0 | no margin | same (`role="paragraph"`) |
 
 "Before" for a project that has any author CSS: the preview's fallback sheet hid most of these for a project with none.
 
@@ -39,6 +39,7 @@ Box size at a 400px viewport, 16px root, before and after this change.
 
 - `View { display: block; }`: a `div` is block, not a flex row.
 - `h1`-`h6`: bold, size and margin per level. The level reaches the style engine as `aria-level`, which the alias now injects ([`html-aliases.md`](../specs/jsx-intrinsics-v1/html-aliases.md)), and the style tree exposes `role` and `aria-*` as attributes, so `[role="list"]` and `[aria-level="2"]` select as in a browser.
+- `p`: the alias injects `role="paragraph"` (a new role token, a11y role and AT-SPI/UIA mapping), so `p` is told apart from `span` and gets the 16px margin.
 - `ul`/`ol` margin and indent, links blue and underlined.
 - `Button`, `TextInput`, `TextArea`: a size, a 1px border, radius 2px, the 13.33px control font, black on a light face, and the Chrome hover and active colours for `Button`. They are `align-self: flex-start`, so an inline-block control in a block parent takes its own width instead of the full row.
 
@@ -46,7 +47,6 @@ Box size at a 400px viewport, 16px root, before and after this change.
 
 | Gap | Why it is open |
 |---|---|
-| `p` has no margin, and `span` vs `p` cannot be told apart | Both lower to `Text`; the tag is lost. A paragraph needs a marker the style engine can select (an ARIA `paragraph` role is the cleanest, but it adds a token to the public role list). |
 | `em` is 16px, not the element's font size | An engine bug, not a default: #608. The heading margins are written in px until it lands. |
 | `:focus-visible` ring, `:disabled` look, placeholder and selection colours | Not measured yet; needs the per-state pixel method. |
 

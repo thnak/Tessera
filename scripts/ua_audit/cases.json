@@ -18,8 +18,7 @@
     {
       "id": "p",
       "html": "<p>Text</p>",
-      "tsx": "<p>Text</p>",
-      "expect": "gap: p vs span needs a tag-preserving attribute (see docs/reference/ua-audit.md)"
+      "tsx": "<p>Text</p>"
     },
     {
       "id": "h1",

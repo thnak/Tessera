@@ -35,6 +35,7 @@ std::string_view ua_stylesheet_text() noexcept {
            "Text[aria-level=\"4\"] { font-size: 16px; margin: 21.28px 0; }\n"
            "Text[aria-level=\"5\"] { font-size: 13.28px; margin: 22.18px 0; }\n"
            "Text[aria-level=\"6\"] { font-size: 10.72px; margin: 24.98px 0; }\n"
+           "Text[role=\"paragraph\"] { display: block; margin: 16px 0; }\n"
            "Text[role=\"link\"] { color: #0000ee; text-decoration: underline; }\n"
            "View[role=\"list\"] { margin: 16px 0; padding-left: 40px; }\n"
            "Button { display: flex; flex-direction: row; align-items: center; "

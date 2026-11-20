@@ -118,6 +118,12 @@
       "target": "Text"
     },
     {
+      "inject": [
+        {
+          "name": "role",
+          "value": "paragraph"
+        }
+      ],
       "status": "mapped",
       "tag": "p",
       "target": "Text"
@@ -2409,7 +2415,8 @@
     "menu",
     "menuitem",
     "tooltip",
-    "alert"
+    "alert",
+    "paragraph"
   ],
   "schemaVersion": 1,
   "style": [

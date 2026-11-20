@@ -40,8 +40,9 @@ against it.
 |---|---|---|---|---|
 | `div`, `section`, `article`, `main`, `header`, `footer`, `nav`, `aside`, `figure` | `View` | - | mapped | Landmark roles are not in the accessibility role list, so none is injected |
 | `ul`, `ol` | `View` | `role="list"` | mapped | No list markers and no numbering |
+| `p` | `Text` | `role="paragraph"` | mapped | the role lets the user-agent sheet give it a margin ([`ua-audit.md`](../../reference/ua-audit.md)) |
 | `li` | `View` | `role="listitem"` | mapped | |
-| `span`, `p`, `label`, `figcaption` | `Text` | - | mapped | `label` does not focus its control; `htmlFor` is rejected [Q11]. As a child of `Text`, `span` is an inline span ([`elements-basic.md`](elements-basic.md) section 2.1) |
+| `span`, `label`, `figcaption` | `Text` | - | mapped | `label` does not focus its control; `htmlFor` is rejected [Q11]. As a child of `Text`, `span` is an inline span ([`elements-basic.md`](elements-basic.md) section 2.1) |
 | `b`, `strong` | `Text` | `style.font-weight: 700` | mapped | Inline span inside `Text`; the injected weight is a default, not a wrapper style |
 | `i`, `em` | `Text` | `style.font-style: italic` | mapped | Inline span inside `Text`; default style as for `b` |
 | `code` | `Text` | `style.font-family: monospace` | mapped | Inline span inside `Text`; the V1 text stack paints one app face, so the family is recorded but changes no metrics (no font selection yet) |

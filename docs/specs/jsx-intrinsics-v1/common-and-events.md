@@ -44,7 +44,7 @@ Roles are written as WAI-ARIA tokens, because React code already uses them. They
 | `img` | image | `listitem` | list item |
 | `textbox` | text field | `tab` | tab |
 | `checkbox` | checkbox | `tabpanel` | tab panel |
-| `radio` | radio | `dialog`, `menu`, `menuitem`, `tooltip`, `alert` | same name |
+| `radio` | radio | `dialog`, `menu`, `menuitem`, `tooltip`, `alert`, `paragraph` | same name |
 
 `text` and `scroll view` have no token: they are the implied roles of `Text` and `Scroll`. Each
 intrinsic has an implied role (`Button` is `button`, `TextInput`/`TextArea` are `textbox`, `Image`
