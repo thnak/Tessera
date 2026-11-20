@@ -2319,6 +2319,7 @@ struct include/tessera/ui/scene/paint_data.hpp tessera::ui::PaintImageStyle
 struct include/tessera/ui/scene/paint_data.hpp tessera::ui::PaintSpan
 struct include/tessera/ui/scene/paint_data.hpp tessera::ui::PaintTextStyle
 struct include/tessera/ui/scene/paint_data.hpp tessera::ui::PaintVectorStyle
+struct include/tessera/ui/scene/paint_data.hpp tessera::ui::RadialGradientGeometry
 struct include/tessera/ui/scene/paint_data.hpp tessera::ui::TextDecoration
 enum include/tessera/ui/scene/paint_data.hpp tessera::ui::GradientShape
 enum include/tessera/ui/scene/paint_data.hpp tessera::ui::PaintKind
