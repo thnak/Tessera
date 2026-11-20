@@ -1164,6 +1164,15 @@ target_link_libraries(box_shadow_interpolation_tests PRIVATE tessera_animation)
 
 add_test(NAME box_shadow_interpolation COMMAND box_shadow_interpolation_tests)
 
+# `text-shadow` interpolation (issue #616): the same layer walk without spread/inset, and the
+# emitted value stays parseable by the paint pass.
+add_executable(text_shadow_interpolation_tests
+    text_shadow_interpolation_tests.cpp)
+
+target_link_libraries(text_shadow_interpolation_tests PRIVATE tessera_animation)
+
+add_test(NAME text_shadow_interpolation COMMAND text_shadow_interpolation_tests)
+
 add_executable(animation_quality_pause_tests
     animation_quality_pause_tests.cpp)
 
@@ -2051,6 +2060,15 @@ add_executable(paint_text_tests
 target_link_libraries(paint_text_tests PRIVATE tessera_paint tessera_frame tessera_runtime)
 
 add_test(NAME paint_text COMMAND paint_text_tests)
+
+# `text-shadow` (issue #616): grammar, paint order behind every glyph of the block (spans
+# included), the bounded blur stack, the opacity fold, and the layout/ink-box invariants.
+add_executable(paint_text_shadow_tests
+    paint_text_shadow_tests.cpp)
+
+target_link_libraries(paint_text_shadow_tests PRIVATE tessera_paint tessera_scene)
+
+add_test(NAME paint_text_shadow COMMAND paint_text_shadow_tests)
 
 add_executable(paint_text_wrap_tests
     paint_text_wrap_tests.cpp)

@@ -80,6 +80,11 @@ std::string interpolate_value(std::string_view property, std::string_view from, 
             return std::move(*shadow);
         }
     }
+    if (property == "text-shadow") {
+        if (std::optional<std::string> shadow = interpolate_text_shadow(from, to, t)) {
+            return std::move(*shadow);
+        }
+    }
     const style::ColorParseResult from_color = style::parse_color(from);
     const style::ColorParseResult to_color = style::parse_color(to);
     if (from_color.ok && to_color.ok) {

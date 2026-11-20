@@ -92,6 +92,7 @@ struct PaintCounts {
     std::size_t images = 0;
     std::size_t gradients = 0;
     std::size_t shadows = 0;
+    std::size_t text_shadows = 0;
     std::size_t transforms = 0;
     std::size_t backdrops = 0;
 };

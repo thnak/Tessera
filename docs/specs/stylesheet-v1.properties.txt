@@ -96,6 +96,10 @@ longhand background-image paint
 shorthand background paint
 longhand opacity paint
 longhand box-shadow paint
+# `text-shadow` (issue #616) is a Paint-row name: it is painted behind a text node's glyphs and
+# never affects layout. It is listed under Paint, not Typography, because it is a shadow effect
+# with the same grammar family as `box-shadow` (minus spread and inset).
+longhand text-shadow paint
 longhand backdrop-filter paint
 longhand -webkit-backdrop-filter paint
 longhand window-backdrop paint

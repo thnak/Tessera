@@ -6,6 +6,7 @@
 
 #include "paint_properties.hpp"
 #include "paint_shadow.hpp"
+#include "paint_text_shadow.hpp"
 #include "tessera/ui/paint/scene_style_sync.hpp"
 #include "tessera/ui/style/transform.hpp"
 
@@ -76,8 +77,15 @@ bool sync_node(Node& node, StyleProvider& styles, const rendering::gpu::GlassLim
     }
 
     const detail::ShadowOutsets reach = detail::shadow_outsets(style);
-    const Node::PaintOutsets outsets{reach.left, reach.top, reach.right, reach.bottom,
-                                     reach.blurred};
+    // `text-shadow` (issue #616) reaches beyond the text box too, and it is a property of the style
+    // alone (not of the glyphs), so it folds into the same paint outsets. That is what keeps the
+    // culling reach and the damage region correct without ever growing the glyph ink box the fit
+    // and culling code reads.
+    const detail::TextShadowOutsets text_reach = detail::text_shadow_outsets(style);
+    const Node::PaintOutsets outsets{
+        std::max(reach.left, text_reach.left), std::max(reach.top, text_reach.top),
+        std::max(reach.right, text_reach.right), std::max(reach.bottom, text_reach.bottom),
+        reach.blurred || text_reach.blurred};
     const Node::PaintOutsets& current = node.paint_outsets();
     if (outsets.left != current.left || outsets.top != current.top ||
         outsets.right != current.right || outsets.bottom != current.bottom ||
