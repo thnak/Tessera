@@ -2619,6 +2619,11 @@
       "note": "comma-separated shadow list, one per layer"
     },
     {
+      "kind": "list",
+      "name": "text-shadow",
+      "note": "comma-separated shadow list, one per layer"
+    },
+    {
       "kind": "keyword",
       "name": "backdrop-filter"
     },
