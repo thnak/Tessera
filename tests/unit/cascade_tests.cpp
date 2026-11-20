@@ -381,6 +381,73 @@ int main() {
         return 28;
     }
 
+    // Security review finding S12: `var()` resolution had three unbounded recursions. Only
+    // `substitute` carried a depth budget; `collect_references` recursed once per nested fallback,
+    // `detect_cycle` once per dependency link, and `resolve_custom` restarted `substitute` at depth
+    // 0 so a long acyclic chain never tripped the bound either. A stylesheet is untrusted input, so
+    // each of the three must report an invalid property instead of overflowing the stack.
+    //
+    // 1. A deeply nested fallback: `--a: var(--a, var(--a, ... red))`. This is the shape that
+    //    crashed in `collect_references` during cycle detection, before any resolution ran.
+    {
+        std::string nested = "red";
+        for (int i = 0; i < 20000; ++i) {
+            nested = "var(--a, " + nested + ")";
+        }
+        CascadeTable deep_fallback;
+        deep_fallback.add(decl("--a", nested, Origin::Author, 1));
+        deep_fallback.add(decl("color", "var(--a)", Origin::Author, 2));
+        std::vector<StyleDiagnostic> deep_diagnostics;
+        const ComputedStyle deep = compute_style(nullptr, deep_fallback, &deep_diagnostics);
+        if (!expect(count_kind(deep_diagnostics, StyleDiagnosticKind::VarCycle) +
+                            count_kind(deep_diagnostics, StyleDiagnosticKind::UnresolvedVar) >
+                        0,
+                    "a 20000-deep var() fallback is reported, not a crash") ||
+            !expect(!deep.contains("--a"), "the over-deep custom property is invalid")) {
+            return 29;
+        }
+    }
+
+    // 2. A long acyclic dependency chain: `--p0: var(--p1); ... --p20000: red`. This is the shape
+    //    that recursed in `detect_cycle` and, through `resolve_custom`, reset the depth budget at
+    //    every hop.
+    {
+        CascadeTable chain;
+        constexpr int kLinks = 20000;
+        for (int i = 0; i < kLinks; ++i) {
+            chain.add(decl("--p" + std::to_string(i), "var(--p" + std::to_string(i + 1) + ")",
+                           Origin::Author, static_cast<std::uint64_t>(i) + 1));
+        }
+        chain.add(decl("--p" + std::to_string(kLinks), "red", Origin::Author,
+                       static_cast<std::uint64_t>(kLinks) + 1));
+        chain.add(
+            decl("color", "var(--p0)", Origin::Author, static_cast<std::uint64_t>(kLinks) + 2));
+        std::vector<StyleDiagnostic> chain_diagnostics;
+        const ComputedStyle chained = compute_style(nullptr, chain, &chain_diagnostics);
+        if (!expect(count_kind(chain_diagnostics, StyleDiagnosticKind::VarCycle) +
+                            count_kind(chain_diagnostics, StyleDiagnosticKind::UnresolvedVar) >
+                        0,
+                    "a 20000-link var() chain is reported, not a crash") ||
+            !expect(!chained.contains("--p0"), "the over-deep chain head is invalid")) {
+            return 30;
+        }
+    }
+
+    // 3. A chain inside the budget still resolves: the bound must not break ordinary sheets.
+    {
+        CascadeTable short_chain;
+        short_chain.add(decl("--a", "var(--b)", Origin::Author, 1));
+        short_chain.add(decl("--b", "var(--c)", Origin::Author, 2));
+        short_chain.add(decl("--c", "teal", Origin::Author, 3));
+        short_chain.add(decl("color", "var(--a)", Origin::Author, 4));
+        const ComputedStyle resolved = compute_style(nullptr, short_chain, nullptr);
+        if (!expect(value_of(resolved, "color") != nullptr &&
+                        *value_of(resolved, "color") == "teal",
+                    "a short var() chain still resolves")) {
+            return 31;
+        }
+    }
+
     std::cout << "cascade: ok\n";
     return 0;
 }

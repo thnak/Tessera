@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <limits>
 #include <string>
+#include <unordered_set>
 #include <utility>
 
 namespace tessera::harness {
@@ -115,6 +116,12 @@ private:
         }
         ++index_; // '{'
         JsonValue::Object members;
+        // Duplicate detection is a side set, not a scan of `members` (security review finding S13).
+        // `Object` is a vector to preserve insertion order, so the old linear scan made a wide
+        // object quadratic: a 1 MiB line of ~87 000 short distinct keys cost ~3.8e9 comparisons,
+        // which is a repeatable CPU denial of service on the harness and MCP streams. The set is
+        // local to this object, so nesting is unaffected and the emitted value is unchanged.
+        std::unordered_set<std::string> seen_keys;
         skip_whitespace();
         if (at_end()) {
             return fail(JsonParseErrorCode::UnexpectedEnd, index_);
@@ -136,10 +143,8 @@ private:
             if (!key) {
                 return std::unexpected(key.error());
             }
-            for (const JsonValue::Member& member : members) {
-                if (member.first == *key) {
-                    return fail(JsonParseErrorCode::DuplicateKey, key_offset);
-                }
+            if (!seen_keys.insert(*key).second) {
+                return fail(JsonParseErrorCode::DuplicateKey, key_offset);
             }
             skip_whitespace();
             if (at_end()) {

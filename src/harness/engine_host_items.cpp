@@ -41,7 +41,13 @@ std::optional<std::uint64_t> parse_item_key(std::string_view text) {
     return value;
 }
 
-ui::Node* find_visible_item(ui::Node& node, harness::UiId ui_id, std::uint64_t key) {
+// Depth-capped for the same reason as `find_visible` (security review finding S14): a manifest
+// bounds the node count, not the tree depth.
+ui::Node* find_visible_item(ui::Node& node, harness::UiId ui_id, std::uint64_t key,
+                            std::size_t depth = 0) {
+    if (depth > ui::automation::kMaxSnapshotDepth) {
+        return nullptr;
+    }
     if (!node.rendered()) {
         return nullptr;
     }
@@ -49,7 +55,7 @@ ui::Node* find_visible_item(ui::Node& node, harness::UiId ui_id, std::uint64_t k
         return &node;
     }
     for (const auto& child : node.children()) {
-        if (ui::Node* found = find_visible_item(*child, ui_id, key); found != nullptr) {
+        if (ui::Node* found = find_visible_item(*child, ui_id, key, depth + 1); found != nullptr) {
             return found;
         }
     }

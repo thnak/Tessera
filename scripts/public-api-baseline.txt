@@ -449,6 +449,11 @@ constant include/tessera/dbus/wire.hpp tessera::dbus::kMaxWireFieldBytes
 constant include/tessera/dbus/wire.hpp tessera::dbus::kMaxWireMessage
 constant include/tessera/dbus/wire.hpp tessera::dbus::kMaxWireText
 
+header include/tessera/detail/cache_line.hpp
+struct include/tessera/detail/cache_line.hpp tessera::detail::CacheLine
+function include/tessera/detail/cache_line.hpp tessera::detail::cache_line_is_exact
+constant include/tessera/detail/cache_line.hpp tessera::detail::kCacheLine
+
 header include/tessera/detail/json_error.hpp
 enum include/tessera/detail/json_error.hpp tessera::detail::json::ErrorCode
 function include/tessera/detail/json_error.hpp tessera::detail::json::to_string
@@ -1989,6 +1994,7 @@ alias include/tessera/ui/input.hpp tessera::ui::KeyCode
 function include/tessera/ui/input.hpp tessera::ui::has_modifier
 function include/tessera/ui/input.hpp tessera::ui::operator_amp
 function include/tessera/ui/input.hpp tessera::ui::operator_pipe
+constant include/tessera/ui/input.hpp tessera::ui::kInputEventSizeBudget
 constant include/tessera/ui/input.hpp tessera::ui::kMaxEditTextBytes
 
 header include/tessera/ui/input/key_bindings.hpp
@@ -2406,6 +2412,7 @@ struct include/tessera/ui/style/color.hpp tessera::ui::style::ColorRgba
 function include/tessera/ui/style/color.hpp tessera::ui::style::format_color
 function include/tessera/ui/style/color.hpp tessera::ui::style::interpolate_color
 function include/tessera/ui/style/color.hpp tessera::ui::style::parse_color
+constant include/tessera/ui/style/color.hpp tessera::ui::style::kMaxColorFunctionDepth
 
 header include/tessera/ui/style/color_oklch.hpp
 struct include/tessera/ui/style/color_oklch.hpp tessera::ui::style::OklchColor

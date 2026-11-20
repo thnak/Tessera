@@ -28,30 +28,30 @@ InputQueue::InputQueue(std::size_t capacity) {
 }
 
 bool InputQueue::push(const InputEvent& event) {
-    const std::size_t tail = tail_.load(std::memory_order_relaxed);
-    const std::size_t head = head_.load(std::memory_order_acquire);
+    const std::size_t tail = producer_.tail.load(std::memory_order_relaxed);
+    const std::size_t head = consumer_.head.load(std::memory_order_acquire);
     if (tail - head == capacity_) {
-        overflowed_.store(true, std::memory_order_relaxed);
+        producer_.overflowed.store(true, std::memory_order_relaxed);
         return false;
     }
     buffer_[tail % buffer_.size()] = event;
-    tail_.store(tail + 1, std::memory_order_release);
+    producer_.tail.store(tail + 1, std::memory_order_release);
     return true;
 }
 
 bool InputQueue::pop(InputEvent& event) {
-    const std::size_t head = head_.load(std::memory_order_relaxed);
-    if (head == tail_.load(std::memory_order_acquire)) {
+    const std::size_t head = consumer_.head.load(std::memory_order_relaxed);
+    if (head == producer_.tail.load(std::memory_order_acquire)) {
         return false;
     }
     event = buffer_[head % buffer_.size()];
-    head_.store(head + 1, std::memory_order_release);
+    consumer_.head.store(head + 1, std::memory_order_release);
     return true;
 }
 
 std::size_t InputQueue::size() const {
-    const std::size_t head = head_.load(std::memory_order_acquire);
-    const std::size_t tail = tail_.load(std::memory_order_acquire);
+    const std::size_t head = consumer_.head.load(std::memory_order_acquire);
+    const std::size_t tail = producer_.tail.load(std::memory_order_acquire);
     return tail - head;
 }
 

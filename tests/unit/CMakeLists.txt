@@ -496,6 +496,16 @@ target_link_libraries(node_size_tests PRIVATE tessera_scene)
 
 add_test(NAME node_size COMMAND node_size_tests)
 
+# Cache-line layout invariants (security review findings C1, C2, C3, C7): the assertions are
+# compile-time, so this target exists to compile them on every lane.
+add_executable(cache_line_tests
+    cache_line_tests.cpp)
+
+target_link_libraries(cache_line_tests PRIVATE tessera_input tessera_runtime tessera_diagnostics
+    tessera_gpu)
+
+add_test(NAME cache_line COMMAND cache_line_tests)
+
 add_executable(node_metadata_tests
     node_metadata_tests.cpp)
 

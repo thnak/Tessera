@@ -30,6 +30,9 @@ void SelectorIndex::clear() {
     tag_index_.clear();
     part_index_.clear();
     universal_index_.clear();
+    candidates_.clear();
+    seen_.clear();
+    stamp_ = 0;
 }
 
 void SelectorIndex::add_entry(Entry entry) {
@@ -57,14 +60,25 @@ void SelectorIndex::add_entry(Entry entry) {
     }
 }
 
-std::vector<SelectorMatch> SelectorIndex::match(const StyleNode& node) const {
-    std::vector<std::size_t> candidates;
-    std::vector<bool> seen(entries_.size(), false);
+void SelectorIndex::match(const StyleNode& node, std::vector<SelectorMatch>& out) const {
+    out.clear();
+    candidates_.clear();
+    // A stamp instead of a cleared `vector<bool>`: `seen_` is sized once and each match bumps the
+    // stamp, so the per-node cost is proportional to the candidates examined rather than to the
+    // number of indexed selectors (security review finding P3).
+    if (seen_.size() < entries_.size()) {
+        seen_.resize(entries_.size(), 0);
+    }
+    if (++stamp_ == 0) {
+        // Wrapped: every stored stamp is stale, so start over rather than alias an old one.
+        std::fill(seen_.begin(), seen_.end(), 0);
+        stamp_ = 1;
+    }
 
     const auto append = [&](std::size_t index) {
-        if (!seen[index]) {
-            seen[index] = true;
-            candidates.push_back(index);
+        if (seen_[index] != stamp_) {
+            seen_[index] = stamp_;
+            candidates_.push_back(index);
         }
     };
 
@@ -116,22 +130,28 @@ std::vector<SelectorMatch> SelectorIndex::match(const StyleNode& node) const {
         append(index);
     }
 
-    std::vector<SelectorMatch> matches_out;
-    for (const std::size_t index : candidates) {
+    for (const std::size_t index : candidates_) {
         const Entry& entry = entries_[index];
         if (!matches(entry.selector, node)) {
             continue;
         }
-        auto found =
-            std::find_if(matches_out.begin(), matches_out.end(),
-                         [&](const SelectorMatch& result) { return result.value == entry.value; });
-        if (found == matches_out.end()) {
-            matches_out.push_back(SelectorMatch{entry.value, entry.specificity});
+        // The candidate list is deduplicated by entry index, so two entries can still carry the
+        // same rule handle (a selector list). Keep the highest specificity, as before.
+        auto found = std::find_if(out.begin(), out.end(), [&](const SelectorMatch& result) {
+            return result.value == entry.value;
+        });
+        if (found == out.end()) {
+            out.push_back(SelectorMatch{entry.value, entry.specificity});
         } else if (entry.specificity > found->specificity) {
             found->specificity = entry.specificity;
         }
     }
-    return matches_out;
+}
+
+std::vector<SelectorMatch> SelectorIndex::match(const StyleNode& node) const {
+    std::vector<SelectorMatch> out;
+    match(node, out);
+    return out;
 }
 
 } // namespace tessera::ui::style

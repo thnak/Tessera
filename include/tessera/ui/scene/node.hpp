@@ -557,14 +557,6 @@ private:
     NodeId id_ = 0;
     Node* parent_ = nullptr;
     std::vector<std::unique_ptr<Node>> children_;
-    rhi::Rect bounds_;
-    rhi::Mat3 transform_;
-    std::uint16_t flags_ = kVisible | kPointerEvents;
-    FocusGroup focus_group_ = FocusGroup::None;
-    int tab_index_ = 0;
-    int z_index_ = 0;
-    PaintOutsets paint_outsets_;
-    float glass_blur_sigma_ = 0.0f;
     // Rarely used payloads live behind lazily allocated pointers so a plain View pays one pointer
     // each instead of the full inline tables (docs/design/performance.md, memory budgets). A table
     // is allocated by the first set/bind and kept until the node dies; clearing only resets the
@@ -601,6 +593,26 @@ private:
     std::unique_ptr<AriaTable> aria_;
     std::unique_ptr<InlineStyleTable> inline_style_;
     std::unique_ptr<BindingTable> event_bindings_;
+    std::unique_ptr<ComponentMetadata> component_metadata_;
+    rhi::Rect bounds_;
+    rhi::Mat3 transform_;
+    int tab_index_ = 0;
+    int z_index_ = 0;
+    PaintOutsets paint_outsets_;
+    float glass_blur_sigma_ = 0.0f;
+    float content_width_ = 0.0f;
+    float content_height_ = 0.0f;
+    float scroll_x_ = 0.0f;
+    float scroll_y_ = 0.0f;
+    float scrollport_left_ = 0.0f;
+    float scrollport_top_ = 0.0f;
+    float scrollport_right_ = 0.0f;
+    float scrollport_bottom_ = 0.0f;
+    float scroll_animation_target_x_ = 0.0f;
+    float scroll_animation_target_y_ = 0.0f;
+    style::PseudoState pseudo_state_ = style::PseudoState::None;
+    std::uint16_t flags_ = kVisible | kPointerEvents;
+    FocusGroup focus_group_ = FocusGroup::None;
     // Packed scroll bookkeeping: the scrollable-axis flags and the scroll runtime style enums share
     // one byte so the smooth-scroll target (two floats) fits inside kNodeSizeBudget. Enum values
     // are stored in declaration order; the masks are sized to the largest enumerator.
@@ -618,18 +630,6 @@ private:
     // Defaults: not scrollable, `scroll-behavior: auto`, `overscroll-behavior: auto` and the
     // registry initial `overscroll-effect: platform` (ordinal 4).
     std::uint8_t scroll_bits_ = 0x4u << kOverscrollEffectShift;
-    std::unique_ptr<ComponentMetadata> component_metadata_;
-    float content_width_ = 0.0f;
-    float content_height_ = 0.0f;
-    float scroll_x_ = 0.0f;
-    float scroll_y_ = 0.0f;
-    float scrollport_left_ = 0.0f;
-    float scrollport_top_ = 0.0f;
-    float scrollport_right_ = 0.0f;
-    float scrollport_bottom_ = 0.0f;
-    float scroll_animation_target_x_ = 0.0f;
-    float scroll_animation_target_y_ = 0.0f;
-    style::PseudoState pseudo_state_ = style::PseudoState::None;
     UserSelect user_select_ = UserSelect::Auto; // resolved `user-select` value
     // Resolved `cursor` value (issue #191). The initial `auto` is the platform default arrow.
     style::CursorKind cursor_ = style::CursorKind::Auto;
@@ -639,11 +639,11 @@ private:
 
 // Memory budget of one scene node (docs/design/performance.md, memory budgets): a 10k-node screen
 // costs 10k times this plus Yoga and style storage. Raise it only with a recorded decision.
-// 320 -> 336 (2026-11-14, issue #235): the component-parts record (`part` names and the component
-// name of an instance host) added one pointer. 336 -> 320 (issue #285): the node's ten booleans now
-// share one flags word, which took 24 bytes out (Release 312, MSVC Debug 320: its checked
-// vector adds a pointer, so the Debug build is exactly at the budget). Recorded in performance.md.
-inline constexpr std::size_t kNodeSizeBudget = 320;
+// 320 -> 336 (issue #235): the component-parts record added one pointer. 336 -> 320 (issue #285):
+// the ten booleans now share one flags word (Release 312, MSVC Debug 320: its checked vector adds a
+// pointer, so Debug is exactly at the budget). 320 -> 312 (security review finding C4): grouping
+// the members by alignment removed 8 bytes of internal padding (Release 304, MSVC Debug 312).
+inline constexpr std::size_t kNodeSizeBudget = 312;
 static_assert(sizeof(Node) <= kNodeSizeBudget, "ui::Node grew past kNodeSizeBudget");
 
 bool dispatch_event(Node& root, Event& event);

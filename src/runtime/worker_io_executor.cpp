@@ -44,10 +44,11 @@ std::size_t WorkerIoExecutor::capacity() const noexcept {
 }
 
 bool WorkerIoExecutor::reserve_slot() {
-    std::size_t current = in_flight_.load(std::memory_order_relaxed);
+    std::size_t current = shared_.in_flight.load(std::memory_order_relaxed);
     while (current < config_.max_in_flight) {
-        if (in_flight_.compare_exchange_weak(current, current + 1, std::memory_order_acq_rel)) {
-            update_peak(peak_in_flight_, current + 1);
+        if (shared_.in_flight.compare_exchange_weak(current, current + 1,
+                                                    std::memory_order_acq_rel)) {
+            update_peak(ui_.peak_in_flight, current + 1);
             return true;
         }
     }
@@ -55,32 +56,32 @@ bool WorkerIoExecutor::reserve_slot() {
 }
 
 void WorkerIoExecutor::release_slot() {
-    in_flight_.fetch_sub(1, std::memory_order_acq_rel);
+    shared_.in_flight.fetch_sub(1, std::memory_order_acq_rel);
 }
 
 bool WorkerIoExecutor::post(IoTask task) {
     if (!task.valid()) {
-        rejected_.fetch_add(1, std::memory_order_relaxed);
+        ui_.rejected.fetch_add(1, std::memory_order_relaxed);
         return false;
     }
-    if (stopping_.load(std::memory_order_acquire)) {
-        rejected_.fetch_add(1, std::memory_order_relaxed);
+    if (ui_.stopping.load(std::memory_order_acquire)) {
+        ui_.rejected.fetch_add(1, std::memory_order_relaxed);
         return false;
     }
     if (!reserve_slot()) {
-        rejected_.fetch_add(1, std::memory_order_relaxed);
+        ui_.rejected.fetch_add(1, std::memory_order_relaxed);
         return false;
     }
 
     // A refused handoff is not an I/O failure: the job never ran and the slot goes straight back.
     const bool accepted = workers_.post(
         [this, work = std::move(task.work), completion = std::move(task.completion)]() mutable {
-            started_.fetch_add(1, std::memory_order_relaxed);
+            worker_.started.fetch_add(1, std::memory_order_relaxed);
             try {
                 work();
-                completed_.fetch_add(1, std::memory_order_relaxed);
+                worker_.completed.fetch_add(1, std::memory_order_relaxed);
             } catch (...) {
-                failed_.fetch_add(1, std::memory_order_relaxed);
+                worker_.failed.fetch_add(1, std::memory_order_relaxed);
             }
             // Released before the completion is posted: a completion that submits more I/O must not
             // find the bound already exhausted by its own predecessor.
@@ -89,36 +90,36 @@ bool WorkerIoExecutor::post(IoTask task) {
             if (completion) {
                 const bool delivered = completions_->post(config_.priority, std::move(completion));
                 if (!delivered) {
-                    completions_dropped_.fetch_add(1, std::memory_order_relaxed);
+                    worker_.completions_dropped.fetch_add(1, std::memory_order_relaxed);
                 }
             }
         });
 
     if (!accepted) {
         release_slot();
-        rejected_.fetch_add(1, std::memory_order_relaxed);
+        ui_.rejected.fetch_add(1, std::memory_order_relaxed);
         return false;
     }
 
-    posted_.fetch_add(1, std::memory_order_relaxed);
+    ui_.posted.fetch_add(1, std::memory_order_relaxed);
     return true;
 }
 
 void WorkerIoExecutor::shutdown() {
-    stopping_.store(true, std::memory_order_release);
+    ui_.stopping.store(true, std::memory_order_release);
     workers_.shutdown();
 }
 
 WorkerIoExecutor::Stats WorkerIoExecutor::stats() const {
     Stats result;
-    result.posted = posted_.load(std::memory_order_relaxed);
-    result.started = started_.load(std::memory_order_relaxed);
-    result.completed = completed_.load(std::memory_order_relaxed);
-    result.failed = failed_.load(std::memory_order_relaxed);
-    result.rejected = rejected_.load(std::memory_order_relaxed);
-    result.in_flight = in_flight_.load(std::memory_order_relaxed);
-    result.peak_in_flight = peak_in_flight_.load(std::memory_order_relaxed);
-    result.completions_dropped = completions_dropped_.load(std::memory_order_relaxed);
+    result.posted = ui_.posted.load(std::memory_order_relaxed);
+    result.started = worker_.started.load(std::memory_order_relaxed);
+    result.completed = worker_.completed.load(std::memory_order_relaxed);
+    result.failed = worker_.failed.load(std::memory_order_relaxed);
+    result.rejected = ui_.rejected.load(std::memory_order_relaxed);
+    result.in_flight = shared_.in_flight.load(std::memory_order_relaxed);
+    result.peak_in_flight = ui_.peak_in_flight.load(std::memory_order_relaxed);
+    result.completions_dropped = worker_.completions_dropped.load(std::memory_order_relaxed);
     return result;
 }
 

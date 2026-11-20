@@ -31,16 +31,16 @@
   },
   "entries": {
     "sizeof_node": {
-      "budget": 312,
+      "budget": 304,
       "status": "enforce",
       "unit": "bytes",
-      "measures": "sizeof(ui::Node): one plain View node, the number a 10k-node screen multiplies. kNodeSizeBudget is 320, so this row both pins the measured 312 and leaves the 8-byte headroom visible as a diff. Identical on both lanes (312), which is what makes a 0% band honest"
+      "measures": "sizeof(ui::Node): one plain View node, the number a 10k-node screen multiplies. kNodeSizeBudget is 312, so this row both pins the measured 304 and leaves the 8-byte headroom visible as a diff. Identical on both lanes (304), which is what makes a 0% band honest. Was 312 before the member reorder of security review finding C4 removed 8 bytes of internal padding"
     },
     "sizeof_input_event": {
-      "budget": 344,
+      "budget": 320,
       "status": "enforce",
       "unit": "bytes",
-      "measures": "sizeof(ui::InputEvent): the element type of the 256-event input queue (about 86 KiB). Deterministic; was 'measured, not yet asserted' in performance.md section 3.1, and this row is the assertion. Identical on both lanes"
+      "measures": "sizeof(ui::InputEvent): the element type of the 256-event input queue (about 80 KiB). Deterministic; was 'measured, not yet asserted' in performance.md section 3.1, and this row is the assertion. Identical on both lanes. Was 344 before the member reorder of security review finding C5 removed 24 bytes of internal padding"
     },
     "sizeof_paint_data": {
       "budget": 528,

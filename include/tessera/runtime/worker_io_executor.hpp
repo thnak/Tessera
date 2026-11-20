@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "tessera/detail/cache_line.hpp"
 #include "tessera/runtime/async.hpp"
 #include "tessera/runtime/io_task_executor.hpp"
 #include "tessera/runtime/worker_executor.hpp"
@@ -80,18 +81,47 @@ private:
     bool reserve_slot();
     void release_slot();
 
+    // The counters are split into three cache-line groups by *writer*, not by meaning (security
+    // review finding C1). Before this, the eight `std::atomic<std::size_t>` were declared
+    // consecutively: 64 bytes, exactly one cache line, and not even 64-byte aligned because they
+    // follow `config_`. `posted_`/`rejected_`/`peak_in_flight_` are written by the UI thread while
+    // `started_`/`completed_`/`failed_`/`completions_dropped_` are written by the workers, so every
+    // submission and every completion invalidated the same line, and the `in_flight_` CAS - the one
+    // genuinely contended counter - sat in the middle of it. The relaxed atomics were therefore
+    // serializing on one line, which is exactly what the "never block" design was avoiding.
+    //
+    // `kCacheLine` is a fixed 64 rather than `std::hardware_destructive_interference_size`: the
+    // latter is not usable in a `static_assert` on every supported toolchain (GCC warns that it is
+    // not an ABI constant), and 64 is the value on every target this project builds for. Over-
+    // aligning on a machine with 128-byte lines costs a little padding and is never wrong.
+    struct UiCounters {
+        std::atomic<std::size_t> posted{0};
+        std::atomic<std::size_t> rejected{0};
+        std::atomic<std::size_t> peak_in_flight{0};
+        std::atomic<bool> stopping{false};
+    };
+    struct WorkerCounters {
+        std::atomic<std::size_t> started{0};
+        std::atomic<std::size_t> completed{0};
+        std::atomic<std::size_t> failed{0};
+        std::atomic<std::size_t> completions_dropped{0};
+    };
+    // Written by both threads, so it gets a line of its own: its CAS traffic must not invalidate
+    // the counters on either side.
+    struct SharedCounters {
+        std::atomic<std::size_t> in_flight{0};
+    };
+
     WorkerExecutor workers_;
     CompletionQueue* completions_ = nullptr;
     Config config_;
-    std::atomic<std::size_t> posted_{0};
-    std::atomic<std::size_t> started_{0};
-    std::atomic<std::size_t> completed_{0};
-    std::atomic<std::size_t> failed_{0};
-    std::atomic<std::size_t> rejected_{0};
-    std::atomic<std::size_t> in_flight_{0};
-    std::atomic<std::size_t> peak_in_flight_{0};
-    std::atomic<std::size_t> completions_dropped_{0};
-    std::atomic<bool> stopping_{false};
+    // The groups are cache-line aligned, so the executor itself is padded to a line boundary; that
+    // padding is the point (see tessera/detail/cache_line.hpp).
+    TESSERA_CACHE_LINE_BEGIN
+    ::tessera::detail::CacheLine<UiCounters> ui_;
+    ::tessera::detail::CacheLine<WorkerCounters> worker_;
+    ::tessera::detail::CacheLine<SharedCounters> shared_;
+    TESSERA_CACHE_LINE_END
 };
 
 } // namespace tessera::runtime

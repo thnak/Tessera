@@ -160,6 +160,9 @@ private:
     MediaContext media_;
     std::vector<CompiledRule> rules_;
     SelectorIndex index_;
+    // Reused by `matched_rules` so a per-node match does not allocate (security review finding P3).
+    // `mutable` because matching is a read of the sheet; the buffer is scratch, not state.
+    mutable std::vector<SelectorMatch> match_scratch_;
     std::vector<KeyframeBlock> keyframes_;
     std::vector<StyleDiagnostic> diagnostics_;
     std::map<std::string, std::uint32_t> layer_order_;

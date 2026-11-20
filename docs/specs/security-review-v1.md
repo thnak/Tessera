@@ -475,3 +475,41 @@ Recorded so the next reviewer does not repeat them:
 - No `docs/design/services.md` reference: it was split into `docs/design/services/` (the parts used
   here are `storage.md` section 4 and `service-injection.md`), and `ADR-050` is still a single file
   at `decisions/ADR-050-opt-in-app-framework-layer.md` in this checkout — not a directory.
+
+## 12. Second pass: the surfaces section 1 did not review
+
+A follow-up pass covered what section 1 listed as out of scope - the harness, D-Bus, the asset
+decoders, text, the stylesheet value grammars, the compiler stages and the renderer - and re-checked
+that the S1-S10 fixes are complete. It found four more defects of the same classes, all now fixed.
+
+| id | Severity | Finding | Fixed in |
+|---|---|---|---|
+| S11 | high | `light-dark()` and `color-mix()` recurse through `parse_color` with no depth bound, so a nested value overflows the stack in `tessera_codegen` and in the runtime style pass. The same class as S1/S2 on a grammar those fixes did not reach | `kMaxColorFunctionDepth` (16) threaded through `parse_color`, `evaluate_color_function`, `evaluate_light_dark`, `evaluate_color_mix` and `parse_operand`; `tests/unit/color_functions_tests.cpp` |
+| S12 | high | `var()` resolution had three unbounded recursions: `collect_references` (once per nested fallback), `detect_cycle` (once per dependency link), and `resolve_custom`, which restarted `substitute` at depth 0 so a long acyclic chain never tripped `kMaxVarDepth` either | one `kMaxVarDepth` budget carried through all three; `tests/unit/cascade_tests.cpp` |
+| S13 | medium | JSON duplicate-key detection scanned every prior member, so a wide object was quadratic: a 1 MiB line of ~87 000 short keys cost ~3.8e9 comparisons, a repeatable CPU denial of service on the harness and MCP streams | a side `std::unordered_set` per object in `src/harness/json_parse.cpp`; `tests/unit/harness/json_tests.cpp` |
+| S14 | medium | `find_visible` and `find_visible_item` recursed over the scene with no depth cap, unlike the snapshot walk (64) and the accessibility walk (128). A manifest bounds the node *count* but not the tree *depth*, so a long parent chain reached this recursion before any snapshot ran | both finders stop at `kMaxSnapshotDepth` and return `nullptr`, which surfaces the existing `UiIdNotFound`; `tests/unit/harness/engine_host_tests.cpp` |
+
+### 12.1 What the second pass found clean
+
+Recorded so the next reviewer does not repeat it. Each was read, not assumed:
+
+- **D-Bus wire parsing** (`src/dbus/`). `kMaxWireDepth` is enforced on every recursive path
+  (`skip_single`, `push_limit`, `read_array_header`, `complete_type_length_at`), array lengths are
+  checked against `kMaxWireBody` before `push_limit`, and `can_read` cannot wrap.
+- **Asset decoders** (`src/rendering/image/`, `src/rendering/path/`). PNG/WebP/JPEG bound the
+  allocation before decoding and re-check the dimensions after; the SVG prescan rejects
+  DOCTYPE/entities and `href`, and the ThorVG walk caps depth, shapes and segments.
+- **Harness framing and artifacts.** A 1 MiB payload cap with a discarding mode; artifact paths
+  reject absolute, drive-qualified, UNC and `..` components.
+- **The S1/S2/S4/S5/S6/S7/S8 fixes.** Complete as read: `kMaxNestedSelectorDepth` (16),
+  `kMaxAtRuleDepth` (32) on both `at_rule` and `layer_at_rule`, `kMaxSupportsDepth` (32) on both the
+  group and `not` paths, the IR iterative pre-pass, the storage identity rules, the three
+  cross-origin credential headers, the backslash rejection, and the structural
+  `contains_unredacted == (redact_report(text) != text)` gate.
+
+### 12.2 Performance and cache-line findings from the same pass
+
+The same review covered performance and CPU cache-line layout, because the three concerns share the
+hot paths. Those findings are recorded in [`docs/design/performance.md`](../design/performance.md)
+section 3.2 (cache lines) and section 9.1 (the measured style-pass cost), not here: they are not
+security defects, and keeping them in one place avoids two sources of truth for the same fix.

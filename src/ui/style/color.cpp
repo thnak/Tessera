@@ -278,8 +278,13 @@ int channel_byte(float value) {
 
 } // namespace
 
-ColorParseResult parse_color(std::string_view text, const ColorContext& context) {
+ColorParseResult parse_color(std::string_view text, const ColorContext& context, int depth) {
     ColorParseResult result;
+    // A colour function nested past the budget is an invalid colour, not a stack overflow
+    // (security review finding S11). Checked before any work so a hostile value costs nothing.
+    if (depth > kMaxColorFunctionDepth) {
+        return result;
+    }
     const std::string value = lower(trim(text));
     if (value.empty()) {
         return result;
@@ -305,7 +310,7 @@ ColorParseResult parse_color(std::string_view text, const ColorContext& context)
     // call is an invalid colour, not a fallthrough: `light-dark(red)` must not be read as a name.
     if (detail::is_color_function(value)) {
         if (const std::optional<ColorRgba> function =
-                detail::evaluate_color_function(value, context)) {
+                detail::evaluate_color_function(value, context, depth)) {
             result.color = *function;
             result.ok = true;
         }

@@ -91,6 +91,30 @@ void check_rejections() {
     expect(shallow.has_value(), "depth limit is configurable (inclusive)");
     const auto too_deep = parse_json("[[[1]]]", 2);
     expect(!too_deep.has_value() && too_deep.error().code == NestingTooDeep, "custom depth limit");
+
+    // Security review finding S13: duplicate detection used to scan every prior member, so a wide
+    // object was quadratic - a 1 MiB line of ~87 000 short distinct keys cost ~3.8e9 comparisons,
+    // a repeatable CPU denial of service on the harness and MCP streams. The case below is the
+    // structural pin: a duplicate at the end of a 20 000-member object must still be found, and
+    // finding it must not take quadratic time (the case is sized so a regression shows up as CI
+    // wall time, not just as a wrong answer).
+    {
+        std::string wide = "{";
+        for (int i = 0; i < 20000; ++i) {
+            wide += "\"k" + std::to_string(i) + "\":0,";
+        }
+        wide += "\"k0\":0}";
+        rejects(wide, DuplicateKey, "a duplicate in a 20000-member object is still found");
+
+        // The same object without the duplicate parses, so the case is not rejected for its size.
+        std::string clean = "{";
+        for (int i = 0; i < 20000; ++i) {
+            clean += "\"k" + std::to_string(i) + "\":0,";
+        }
+        clean += "\"last\":0}";
+        const auto wide_ok = parse_json(clean);
+        expect(wide_ok.has_value(), "a 20000-member object with distinct keys parses");
+    }
 }
 
 void check_scalars() {
