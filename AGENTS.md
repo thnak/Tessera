@@ -480,13 +480,16 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
       the runs so a later line's shadow never darkens an earlier line's glyphs), interpolated, and
       layout/ink-box invariant — `src/ui/paint/paint_text_shadow.cpp`,
       `tests/unit/paint_text_shadow_tests.cpp` (PR #667).
-- [ ] #615 `clip-path` basic shapes — blocked on an RHI decision: `clip::RoundedRect` is a rect plus
-      four radii in 3 × 32-byte push-constant slots (112 of Vulkan's 128-byte minimum), the
-      `CommandList` seam has no uniform/storage-buffer binding and no stencil attachment, and
-      `CpuCanvas` has no per-pixel mask composite, so `polygon()` cannot reach the fragment shader and
-      no CPU/GPU-agreed golden is reachable. `circle()`/`ellipse()`/`inset()`-with-radius fit the
-      existing SDF path and are the recommended first landing; `polygon()` needs a new buffer binding
-      or stencil (or a ThorVG-rasterized mask texture). `path()` stays out of V1 (fill-rule
+- [ ] #615 `clip-path` basic shapes — blocked on [ADR-068](decisions/ADR-068-clip-state-in-a-storage-buffer.md)
+      (Proposed): `clip::RoundedRect` is a rect plus four circular radii in 3 × 32-byte push-constant
+      slots (112 of Vulkan's 128-byte minimum), the `CommandList` seam has no storage-buffer binding
+      and no stencil attachment, and `CpuCanvas` clips with one rect, so `polygon()` cannot reach the
+      fragment shader and no CPU/GPU-agreed golden is reachable. `ellipse()` and `inset()` with
+      elliptical radii do not fit the existing circular-corner SDF either, so none of the shapes
+      lands before the refactor. ADR-068 moves clip state into a per-frame storage buffer (RHI 1.9);
+      slices 1 to 3 are a no-pixel-change refactor (#669 RHI 1.9 null + Vulkan, #670 Metal +
+      WebGPU, #671 `ClipStateTable` and shader on the buffer), then #672 `circle()`/`ellipse()`/
+      `inset()`, #673 `polygon()`, #674 shape interpolation. `path()` stays out of V1 (fill-rule
       evaluation, no layer budget).
 - [ ] Behavior hook engine and core hooks (ADR-064 item 7; waits for ADR-064 Accepted, after spikes
       #658 and #662): engine interface, registry and `press_feedback` #640, then #624 to #635.
