@@ -381,8 +381,9 @@ bool test_single_line_alignment() {
     return left_ok && center_ok && right_ok && distinct;
 }
 
-// A single-line TextInput centers its line in a taller box, as a browser's <input> does; the same
-// text in an ordinary node (or a node of any other kind) stays at the top.
+// A single-line TextInput centers its line in a taller box, as a browser's <input> does, and a
+// Button centres its caption the way a browser's <button> does (issue #602); the same text in an
+// ordinary node (or a node of any other kind) stays at the top.
 bool test_text_input_is_vertically_centered() {
     constexpr float kBoxHeight = 40.0f;
     StubPaintTextMetrics metrics;
@@ -411,6 +412,8 @@ bool test_text_input_is_vertically_centered() {
     };
     return expect(std::abs(first_run_top("TextInput") - expected_top) < 0.01f,
                   "TextInput line is centered in the content box") &&
+           expect(std::abs(first_run_top("Button") - expected_top) < 0.01f,
+                  "a Button caption is centered in the content box") &&
            expect(first_run_top("Text") == 0.0f, "an ordinary text node stays top-aligned") &&
            expect(first_run_top("TextArea") == 0.0f, "a TextArea stays top-aligned");
 }

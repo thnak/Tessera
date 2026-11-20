@@ -34,7 +34,7 @@ that difference as a bug in one of them.
 3. **The sheet grows one verified rule at a time.** A rule is added when a difference is found, with a
    unit test that pins it (`tests/unit/ua_stylesheet_tests.cpp`). Quirks mode and vendor-prefix
    semantics stay non-goals. The first rule is `Button`: a flex row with both axes centred,
-   `text-align: center`, `padding: 1px 6px` and `box-sizing: border-box` (a browser button is border-box, so an authored width is not grown by the padding). The alias defaults of decision 12 (heading sizes,
+   `text-align: center`, `padding: 1px 6px` and `box-sizing: border-box` (a browser button is border-box, so an authored width is not grown by the padding). A `Button`'s caption is the node's own text, so no flex item exists for `align-items` to centre; the paint pass centres a single-line caption vertically, the way it already did for a `TextInput` (`paint_text.cpp`). The alias defaults of decision 12 (heading sizes,
    bold, margins, list indentation) are rules of this same sheet, not a separate opt-in file, and
    nothing is injected inline.
 4. **Authors always win.** The user-agent origin ranks below user, theme, author and inline for a normal

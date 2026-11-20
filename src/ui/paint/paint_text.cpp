@@ -334,10 +334,12 @@ void paint_text_lines(const Node& node, const style::ComputedStyle& style, const
     StubPaintTextMetrics stub_source;
     const PaintTextMetricsSource* metrics_source =
         context.text_metrics_source != nullptr ? context.text_metrics_source : &stub_source;
-    if (node.element_kind() == "TextInput" && !wrap) {
-        // A single-line field centers its line in the content box, as a browser's <input> does; a
-        // `TextArea` and ordinary `Text` stay top-aligned. Caret and selection are placed from the
-        // same content box, so they move with the text.
+    if ((node.element_kind() == "TextInput" || node.element_kind() == "Button") && !wrap) {
+        // A single-line field centers its line in the content box, as a browser's <input> does, and
+        // so does a button's caption (a browser's <button> centres its content vertically; the
+        // caption here is the Button node's own text, so no flex item exists for `align-items` to
+        // centre, issue #602). A `TextArea` and ordinary `Text` stay top-aligned. Caret and
+        // selection are placed from the same content box, so they move with the text.
         text::TextConstraints one_line;
         one_line.wrap = false;
         one_line.max_width = content_width;
