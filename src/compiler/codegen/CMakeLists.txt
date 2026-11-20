@@ -28,6 +28,7 @@ add_library(tessera_codegen STATIC
     src/emit_layout_observe.cpp
     src/emit_schedule.cpp
     src/emit_services.cpp
+    src/emit_behaviors.cpp
     src/emit_snapshot.cpp
     src/emit_stylesheet_embed.cpp
     src/emit_theme_embed.cpp

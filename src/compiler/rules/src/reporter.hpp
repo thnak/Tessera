@@ -3,6 +3,7 @@
 #pragma once
 
 #include "tessera/compiler/jsx/diagnostic.hpp"
+#include "tessera/compiler/jsx/hook_manifest.hpp"
 #include "tessera/compiler/rules/component_analysis.hpp"
 
 #include <string>
@@ -16,6 +17,8 @@ struct Context {
     const jsx::ModuleItem& item;
     ComponentAnalysis& out;
     jsx::DiagnosticSink& sink;
+    // The built-in hook manifest: the authority on what a library hook accepts and returns.
+    const jsx::HookManifest& manifest;
     bool failed = false;
 
     void error(std::string_view code, std::string message, jsx::Span span,

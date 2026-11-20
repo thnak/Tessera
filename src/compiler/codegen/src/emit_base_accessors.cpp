@@ -12,6 +12,7 @@
 
 #include "emit_base.hpp"
 #include "emit_base_accessors.hpp"
+#include "emit_behaviors.hpp"
 #include "emit_events.hpp"
 #include "emit_props.hpp"
 #include "emit_services.hpp"
@@ -301,6 +302,9 @@ bool emit_base_members(CppWriter& writer, const ir::IrModule& module,
     // ADR-050 section 3.1 (AF5): the `useService<T>()` accessor surface, emitted only for a
     // component that declares a requirement, so a component without one generates no service code.
     // The private slot tuple was already emitted in the header's field run by emit_service_fields.
+    if (!emit_behavior_accessors(writer, component, error)) {
+        return false;
+    }
     return emit_service_accessors(writer, component, error);
 }
 

@@ -7,6 +7,7 @@
 #include "hook_lowering_internal.hpp"
 #include "record_internal.hpp"
 #include "tessera/compiler/lowering/source_span.hpp"
+#include "tessera/compiler/rules/analyze.hpp"
 
 #include <algorithm>
 #include <optional>
@@ -253,6 +254,9 @@ HookLoweringResult lower_hooks(const HookLoweringContext& context) {
             lower_animated(state, index, out, names);
         } else if (hook == "useEffect") {
             internal::lower_effect_hook(state, index, out);
+        } else if (const jsx::HookEntry* entry = rules::builtin_hook_manifest().find(hook);
+                   entry != nullptr && entry->lowering == jsx::HookLoweringKind::Behavior) {
+            internal::lower_behavior_hook(state, index, out);
         } else if (statement.init->kind == jsx::ExprKind::Arrow) {
             internal::lower_declared_arrow_hook(state, index, out);
         }

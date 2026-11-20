@@ -87,6 +87,72 @@ void check_effect(Context& ctx, std::size_t index, const Statement& statement, c
     ctx.out.effects.push_back(std::move(effect));
 }
 
+// A behavior hook call (ADR-064 item 7; docs/specs/behavior-hooks-v1.md section 2):
+//
+//   const trap = useFocusTrap(trapRef, { active: open, restoreFocus: true, onEscape: () => ... });
+//
+// The call is one `const` binding (or a bare statement), the leading arguments are `useRef` names
+// in manifest order, and the last argument is the options object literal. The manifest is the
+// authority on how many targets and which fields, so the check compares against it rather than
+// re-deriving the shape; a hook the manifest does not declare is `TESSERA_REACT_UNKNOWN_HOOK` as
+// for any other.
+void check_behavior(Context& ctx, std::size_t index, const Statement& statement, const Expr& call,
+                    const jsx::HookEntry& hook) {
+    BehaviorInfo info;
+    info.statement = index;
+    info.hook = hook.name;
+    info.behavior = hook.provider;
+    info.exclusive = hook.exclusive;
+    if (statement.kind == StatementKind::Const && !statement.array_pattern) {
+        if (!statement.names.empty()) {
+            info.name = statement.names.front();
+        }
+    } else if (statement.kind != StatementKind::Expression) {
+        form_error(ctx, hook.name, statement,
+                   "const " + std::string(info.name.empty() ? "name" : info.name) + " = " +
+                       hook.name + "(target, { ... });");
+        return;
+    }
+
+    // The leading arguments are the target refs, in manifest order. A `ref` parameter is the only
+    // kind that consumes one; everything else is the options object.
+    std::size_t operand = 1; // operand 0 is the callee
+    for (const jsx::HookParam& param : hook.params) {
+        if (param.kind != "ref") {
+            continue;
+        }
+        if (operand >= call.operands.size()) {
+            form_error(ctx, hook.name, statement,
+                       hook.name + " takes a target ref per target the manifest lists");
+            return;
+        }
+        const Expr& target = *call.operands[operand];
+        if (target.kind != ExprKind::Identifier) {
+            form_error(ctx, hook.name, statement, "a target is a `useRef` name");
+            return;
+        }
+        info.targets.push_back(target.text);
+        ++operand;
+    }
+    if (operand < call.operands.size()) {
+        const Expr& options_expr = *call.operands[operand];
+        if (options_expr.kind != ExprKind::Object) {
+            form_error(ctx, hook.name, statement, "the options are one object literal");
+            return;
+        }
+        info.options = &options_expr;
+        ++operand;
+    }
+    if (operand != call.operands.size()) {
+        form_error(ctx, hook.name, statement, "the call takes a target and one options object");
+        return;
+    }
+    for (const jsx::HookOutput& output : hook.outputs) {
+        info.outputs.push_back(output.name);
+    }
+    ctx.out.behaviors.push_back(std::move(info));
+}
+
 void check_hook_statement(Context& ctx, std::size_t index, const Statement& statement) {
     const Expr& call = *statement.init;
     const std::string_view name = callee_name(call);
@@ -98,6 +164,9 @@ void check_hook_statement(Context& ctx, std::size_t index, const Statement& stat
         check_animated(ctx, index, statement, call);
     } else if (name == "useEffect") {
         check_effect(ctx, index, statement, call);
+    } else if (const jsx::HookEntry* hook = ctx.manifest.find(name);
+               hook != nullptr && hook->lowering == jsx::HookLoweringKind::Behavior) {
+        check_behavior(ctx, index, statement, call, *hook);
     } else {
         report_unknown_hook(ctx, name, call.operands[0]->span);
     }

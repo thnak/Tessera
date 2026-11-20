@@ -59,6 +59,43 @@ struct Environment {
     SourceSpan source;
 };
 
+// One `const <name> = useFocusTrap(...)` behavior call (ADR-064 item 7;
+// docs/specs/behavior-hooks-v1.md section 6). The generated base attaches, updates and detaches the
+// engine instance; the IR carries everything it needs to do that without the manifest, which is why
+// `args` lists every field in manifest order including the defaulted ones and `exclusive` is copied
+// rather than looked up.
+//
+// Additive: a component without behaviors writes the bytes it wrote before, so `irVersion` stays 1
+// and every committed IR golden is unchanged.
+struct BehaviorArg {
+    std::string name;
+    // A value option: the expression the generated base evaluates and hashes. Empty when the arg is
+    // a callback.
+    Expr expr;
+    // A callback option: the handler id (`handler::N` or `bind::<id>`). Empty when the arg is a
+    // value.
+    std::string handler;
+};
+
+struct BehaviorOutput {
+    std::string name;
+    std::string type; // the IR type of `ir-v1.md` section 2 (`bool`, `number`, `string`)
+};
+
+struct Behavior {
+    std::string id;       // `beh::<name>`
+    std::string hook;     // the TSX hook name (`useFocusTrap`)
+    std::string behavior; // the engine registry name (`focus_trap`)
+    // The `ref::` ids the behavior attaches to, in manifest order. A behavior is attached only when
+    // every one holds a node.
+    std::vector<std::string> targets;
+    std::vector<BehaviorArg> args;
+    std::vector<BehaviorOutput> outputs;
+    // Copied from the manifest so the validator needs no manifest either.
+    bool exclusive = false;
+    SourceSpan source;
+};
+
 // One `const <name> = useService<Interface>();` requirement of a component (ADR-050 section 3.1,
 // AF5). The component's requirement set is exactly this list: codegen resolves each entry once, in
 // the generated base's `attach_services()`, and `service<T>()` is a compile error for any other T.
@@ -96,6 +133,10 @@ struct Component {
     std::vector<Ref> refs;
     std::vector<AnimatedValue> animated_values;
     std::vector<Environment> environment;
+    // ADR-064 item 7: the behavior calls, in declaration order. Empty for every component that
+    // calls no behavior hook, which is what keeps the generated base (and every committed golden)
+    // free of behavior code.
+    std::vector<Behavior> behaviors;
     // ADR-050 section 3.1 (AF5): the component's declared service requirements, in source order.
     // Empty for every component that does not call `useService`, which is what keeps the generated
     // base (and every committed golden) free of service code.

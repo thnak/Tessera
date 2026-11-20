@@ -70,6 +70,10 @@ std::string callee_name(const jsx::Expr& call);
 // One hook or binding of a component, in source order. `lower_hooks` calls these from its single
 // body pass; each reports at most one error in `state`.
 void lower_effect_hook(HookState& state, std::size_t index, LoweredHooks& out);
+
+// One behavior hook call (ADR-064 item 7): the analyzer already checked the form against the
+// manifest, so this turns the recorded call into an IR ehaviors entry.
+void lower_behavior_hook(HookState& state, std::size_t index, LoweredHooks& out);
 void lower_declared_arrow_hook(HookState& state, std::size_t index, LoweredHooks& out);
 
 } // namespace tessera::compiler::lowering::internal
