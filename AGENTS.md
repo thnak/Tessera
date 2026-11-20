@@ -463,14 +463,31 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
       damage), `PropertyRegistry::longhand_names()`, tests `property_effects` and `property_status`
       (the latter fails when the registry and the table disagree).
 - [ ] Style and paint gaps found by the tactile design mock and the Astryx theme model, one landing
-      each (Chromium-measured, golden on lavapipe, property-status doc updated): #612 inset
-      `box-shadow`, #613 radial and repeating gradients, #614 several background layers, #615
-      `clip-path` basic shapes, #616 `text-shadow`, #617 conic gradient, `mask`, `filter` or the
-      `Path` route (decide first), #622 `:has()` and `@scope`. Umbrella #618.
+      each (Chromium-measured, golden on lavapipe, property-status doc updated): #613 radial and
+      repeating gradients, #614 several background layers, #615 `clip-path` basic shapes, #617 conic
+      gradient, `mask`, `filter` or the `Path` route (decide first), #622 `:has()` and `@scope`.
+      Umbrella #618.
 - [x] #620 `light-dark()` and #621 `color-mix()` — computed-value-time colour functions that resolve
       inside any value, `color-scheme` as the inherited branch selector, four interpolation spaces
       with premultiplied alpha — `src/ui/style/color_functions.cpp`, `tests/unit/color_functions_tests.cpp`
       (PR #665).
+- [x] #612 inset `box-shadow` — the mirror of the outer shadow: painted inside the rounded border box
+      above the background and below the content, one quad with the coverage inverted
+      (`kInsetShadowModeBase`), the flattening sinks get the inverse strips —
+      `src/ui/paint/paint_shadow.cpp`, `src/rendering/gpu/batched2d_shadow.cpp`,
+      `tests/unit/paint_shadow_tests.cpp`, `tests/gpu/paint_shadow_cpu_tests.cpp` (PR #666).
+- [x] #616 `text-shadow` — parsed, painted behind every glyph run of a block (a sink wrapper buffers
+      the runs so a later line's shadow never darkens an earlier line's glyphs), interpolated, and
+      layout/ink-box invariant — `src/ui/paint/paint_text_shadow.cpp`,
+      `tests/unit/paint_text_shadow_tests.cpp` (PR #667).
+- [ ] #615 `clip-path` basic shapes — blocked on an RHI decision: `clip::RoundedRect` is a rect plus
+      four radii in 3 × 32-byte push-constant slots (112 of Vulkan's 128-byte minimum), the
+      `CommandList` seam has no uniform/storage-buffer binding and no stencil attachment, and
+      `CpuCanvas` has no per-pixel mask composite, so `polygon()` cannot reach the fragment shader and
+      no CPU/GPU-agreed golden is reachable. `circle()`/`ellipse()`/`inset()`-with-radius fit the
+      existing SDF path and are the recommended first landing; `polygon()` needs a new buffer binding
+      or stencil (or a ThorVG-rasterized mask texture). `path()` stays out of V1 (fill-rule
+      evaluation, no layer budget).
 - [ ] Behavior hook engine and core hooks (ADR-064 item 7; waits for ADR-064 Accepted, after spikes
       #658 and #662): engine interface, registry and `press_feedback` #640, then #624 to #635.
 
