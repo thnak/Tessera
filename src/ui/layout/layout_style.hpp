@@ -38,6 +38,10 @@ void apply_style(YGNodeRef node, const style::ComputedStyle& style, const Layout
 // #611).
 void apply_block_auto_margin_fill(YGNodeRef node, bool is_root);
 
+// The root is at least the viewport tall and grows with its content (a document, not a fixed
+// window): height auto, `min-height` the available height, unless the author set either.
+void apply_root_min_height(YGNodeRef root, float available_height);
+
 // Where a laid-out root starts horizontally: Yoga leaves a root's auto margins at zero, so the
 // leftover width is split by hand (both auto: half, left only: all of it).
 [[nodiscard]] float root_auto_margin_offset(YGNodeRef root, float available_width);

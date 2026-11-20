@@ -32,6 +32,7 @@ namespace tessera::ui::layout {
 namespace {
 
 using detail::apply_block_auto_margin_fill;
+using detail::apply_root_min_height;
 using detail::apply_style;
 using detail::is_keyword;
 using detail::lower;
@@ -426,19 +427,20 @@ LayoutResult layout_tree(const LayoutInput& root, const LayoutViewport& viewport
     std::vector<std::unique_ptr<GridContext>> grid_contexts;
     YGNodeRef root_node =
         build_tree(root, viewport, cache, measure_contexts, grid_contexts, as_grid_item);
-    // The root fills the viewport up to `max-width` and its auto margins centre it (issue #611).
-    const bool root_fill = !as_grid_item && available_width >= 0.0f;
-    if (root_fill) {
+    // The root is a page (#611): viewport-wide up to `max-width`, centred, at least viewport tall.
+    const bool page = !as_grid_item && available_width >= 0.0f && available_height >= 0.0f;
+    if (page) {
         apply_block_auto_margin_fill(root_node, true);
+        apply_root_min_height(root_node, available_height);
     }
     YGNodeCalculateLayout(root_node, available_width < 0.0f ? YGUndefined : available_width,
-                          available_height < 0.0f ? YGUndefined : available_height,
+                          page || available_height < 0.0f ? YGUndefined : available_height,
                           root_direction(root));
 
     LayoutResult result;
     result.boxes.reserve(16);
     const LayoutContext context{&viewport, &cache};
-    const float origin_x = root_fill ? root_auto_margin_offset(root_node, available_width) : 0.0f;
+    const float origin_x = page ? root_auto_margin_offset(root_node, available_width) : 0.0f;
     collect_boxes(root_node, root, origin_x, 0.0f, context, result);
     YGNodeFreeRecursive(root_node);
     return result;

@@ -105,8 +105,24 @@ int main() {
         if (box == nullptr || !near(box->bounds.x, x) || !near(box->bounds.width, expected)) {
             std::cerr << "layout_block_fill: nested at " << width
                       << ": got x=" << (box ? box->bounds.x : -1.0f)
-                      << " width=" << (box ? box->bounds.width : -1.0f)
-                      << '\n';
+                      << " width=" << (box ? box->bounds.width : -1.0f) << '\n';
+            ok = false;
+        }
+    }
+
+    // The root is at least the viewport tall and grows with taller content (issue #611).
+    for (const auto& [content, expected] :
+         {std::pair{1000.0f, 1000.0f}, std::pair{100.0f, 600.0f}}) {
+        LayoutInput page = node(1, {{"display", "block"}, {"padding-top", "10px"}});
+        page.children.push_back(node(2, {{"height", content == 1000.0f ? "990px" : "100px"}}));
+        LayoutViewport viewport;
+        viewport.width = 400.0f;
+        viewport.height = 600.0f;
+        const auto result = LayoutEngine().layout(page, viewport);
+        const LayoutBox* box = find(result, 1);
+        if (box == nullptr || !near(box->bounds.height, expected)) {
+            std::cerr << "layout_block_fill: root height for content " << content << ": got "
+                      << (box ? box->bounds.height : -1.0f) << ", expected " << expected << '\n';
             ok = false;
         }
     }

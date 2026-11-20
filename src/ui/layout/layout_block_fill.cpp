@@ -84,4 +84,32 @@ float root_auto_margin_offset(YGNodeRef root, float available_width) {
     return auto_left ? (auto_right ? free / 2.0f : free) : 0.0f;
 }
 
+void apply_root_min_height(YGNodeRef root, float available_height) {
+    if (YGNodeStyleGetHeight(root).unit != YGUnitAuto ||
+        YGNodeStyleGetMinHeight(root).unit != YGUnitUndefined) {
+        return;
+    }
+    // A page is at least as tall as the window and grows with its content, as a document does:
+    // the root's height is auto with the viewport as its minimum. The minimum is a content-box
+    // value unless the root is border-box, so the vertical insets and margins come off it.
+    float taken = 0.0f;
+    for (const YGEdge edge : {YGEdgeTop, YGEdgeBottom}) {
+        const YGValue margin = YGNodeStyleGetMargin(root, edge);
+        if (margin.unit == YGUnitPoint) {
+            taken += margin.value;
+        }
+        if (YGNodeStyleGetBoxSizing(root) == YGBoxSizingContentBox) {
+            const YGValue padding = YGNodeStyleGetPadding(root, edge);
+            if (padding.unit == YGUnitPoint) {
+                taken += padding.value;
+            }
+            const float border = YGNodeStyleGetBorder(root, edge);
+            if (!YGFloatIsUndefined(border)) {
+                taken += border;
+            }
+        }
+    }
+    YGNodeStyleSetMinHeight(root, std::max(0.0f, available_height - taken));
+}
+
 } // namespace tessera::ui::layout::detail
