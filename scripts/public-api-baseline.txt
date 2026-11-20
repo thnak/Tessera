@@ -1822,6 +1822,24 @@ constant include/tessera/ui/automation/snapshot.hpp tessera::ui::automation::kSn
 header include/tessera/ui/automation/snapshot_json.hpp
 function include/tessera/ui/automation/snapshot_json.hpp tessera::ui::automation::snapshot_to_json
 
+header include/tessera/ui/behavior/behavior.hpp
+class include/tessera/ui/behavior/behavior.hpp tessera::ui::InputRouter
+class include/tessera/ui/behavior/behavior.hpp tessera::ui::behavior::Behavior
+struct include/tessera/ui/behavior/behavior.hpp tessera::ui::behavior::ArgValue
+struct include/tessera/ui/behavior/behavior.hpp tessera::ui::behavior::ArgsView
+struct include/tessera/ui/behavior/behavior.hpp tessera::ui::behavior::OutputValue
+struct include/tessera/ui/behavior/behavior.hpp tessera::ui::behavior::Services
+struct include/tessera/ui/behavior/behavior.hpp tessera::ui::behavior::Targets
+
+header include/tessera/ui/behavior/press_feedback.hpp
+class include/tessera/ui/behavior/press_feedback.hpp tessera::ui::behavior::PressFeedback
+
+header include/tessera/ui/behavior/registry.hpp
+struct include/tessera/ui/behavior/registry.hpp tessera::ui::behavior::Registration
+function include/tessera/ui/behavior/registry.hpp tessera::ui::behavior::create_behavior
+function include/tessera/ui/behavior/registry.hpp tessera::ui::behavior::is_registered
+function include/tessera/ui/behavior/registry.hpp tessera::ui::behavior::registry
+
 header include/tessera/ui/boundary/boundary.hpp
 class include/tessera/ui/boundary/boundary.hpp tessera::ui::boundary::BoundaryTable
 class include/tessera/ui/boundary/boundary.hpp tessera::ui::boundary::RootHandler
