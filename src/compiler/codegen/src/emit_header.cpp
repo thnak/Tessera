@@ -4,6 +4,7 @@
 
 #include "codegen_internal.hpp"
 #include "emit_base.hpp"
+#include "emit_behaviors.hpp"
 #include "emit_controlled.hpp"
 #include "emit_dirty.hpp"
 #include "emit_dynamic.hpp"
@@ -12,7 +13,6 @@
 #include "emit_layout_observe.hpp"
 #include "emit_props.hpp"
 #include "emit_schedule.hpp"
-#include "emit_behaviors.hpp"
 #include "emit_services.hpp"
 #include "emit_snapshot.hpp"
 #include "emit_types_header.hpp"

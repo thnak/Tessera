@@ -12,9 +12,9 @@
 
 #include "emit_base.hpp"
 #include "emit_base_accessors.hpp"
+#include "emit_behaviors.hpp"
 #include "emit_events.hpp"
 #include "emit_props.hpp"
-#include "emit_behaviors.hpp"
 #include "emit_services.hpp"
 
 #include <algorithm>
