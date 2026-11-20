@@ -213,7 +213,7 @@ misled.
 ## 12. Per-hook spec and tests
 
 Each library hook has its own contract spec (name, arguments, guarantees, accessibility; the format of
-the component spec template, sections 4, 5 and 8, in `docs/specs/components/_template.md` once it lands), and tests at these layers:
+the component spec template, sections 4, 5 and 8, in [`components/_template.md`](components/_template.md)), and tests at these layers:
 
 | Layer | What it proves | Where |
 |---|---|---|
