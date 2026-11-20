@@ -214,7 +214,7 @@ File
   Open Folder...                *file.openFolder        Ctrl+K Ctrl+O (VS Code)
   Open Zip...                   *file.openZip           
   Open Recent >                 *file.recent            (one entry today: the last folder; list later)
-  Open Sample >                 *file.samples           (a quick pick of the samples; replaces the Samples gallery bar + Load sample; the welcome view lists them too)
+  Open Sample >                 *file.samples           (picks a folder of the visitor's clone; a folder with several samples offers them in a quick pick and the welcome view; nothing bundled)
   ------
   New File                      *file.newFile           Ctrl+Alt+N (VS Code Ctrl+N is reserved)
   Save                          *file.save              Ctrl+S
@@ -324,7 +324,7 @@ Source column is the file that renders the control today.
 | Save `#save-project` (shows `(n)` dirty count) | `file.save`; count moves to the tab/status line | yes, icon with dirty badge |
 | Download `#download-project` | `file.download` | no |
 | New file / Rename / Delete (`ProjectBar.tsx`) | `file.newFile`, `file.renameFile`, `file.deleteFile`; also the `tree.item` context menu | no |
-| Samples `#toggle-gallery`, `PageHeader` | `File > Open Sample`; a quick pick (palette intent `samples`) behind it, and the **welcome view** (the editor column while no project is open) lists them; the horizontal gallery bar is gone | no |
+| Samples `#toggle-gallery`, `PageHeader` | `File > Open Sample` picks a folder of the visitor's clone (`samples/<name>` or the repository root); a folder with several samples offers them in a quick pick (palette intent `samples`) and the **welcome view**, which also says to clone the repository and open `samples/<name>`; no sample is bundled | no |
 | Load sample `#load-sample`, `CodeRegion.tsx` | same command as above (duplicate removed) | no |
 | Copy share link `#share` + `#share-status` | **removed** (owner decision, studio focus pass: no cloud storage to share to); `file.share` is retired | no |
 | Restart app `#restart-app` | `run.restart` | yes, the single primary action |

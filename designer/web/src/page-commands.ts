@@ -37,7 +37,6 @@ import {
 import commandsDocument from "./workbench/commands.json";
 import menusDocument from "./workbench/menus.json";
 import { EDITOR_COMMANDS, editorFacts } from "./editor/editor-target";
-import type { LoadedSample } from "./lib/gallery";
 import { DPRS, THEMES, VIEWPORTS } from "./lib/preferences";
 import type { ControlValues } from "./regions/StudioChrome";
 import type { ProjectIo } from "./page-project-io";
@@ -71,8 +70,8 @@ export interface WorkbenchApi {
   profileId: string;
   components: { names: readonly string[]; chosen: string };
   runEnabled: boolean;
-  /** A sample chosen from the welcome view or the Open Sample quick pick becomes the open project. */
-  pickSample: (sample: LoadedSample) => void;
+  /** A sample entry of the picked folder, chosen from the welcome view or the quick pick, becomes the project. */
+  pickSample: (entry: string) => void;
   restart: () => void;
   applyNow: () => void;
   setControl: (name: keyof ControlValues, value: string) => void;
@@ -241,7 +240,8 @@ export function useWorkbench(api: WorkbenchApi): Workbench {
       "file.openFolder": () => a().io.openFolder(),
       "file.openZip": () => zipInputRef.current?.click(),
       "file.openRecent": (args) => a().io.reopenRecent(Number(args.index)),
-      "file.samples": () => paletteRef.current?.open("", "samples"),
+      // Open Sample: the person's clone, not a bundled list; a folder with several samples offers them.
+      "file.samples": () => (a().io.state.choices.length > 0 ? paletteRef.current?.open("", "samples") : a().io.openFolder()),
       "file.newFile": () => a().io.newFile(),
       "file.renameFile": () => a().io.renameFile(),
       "file.deleteFile": () => a().io.deleteFile(),

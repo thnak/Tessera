@@ -295,7 +295,8 @@ def repinned(document: Dict, measurements: Dict[str, float], encoder: str, count
 BREAKDOWN_ENCODER_SLACK = 0.015
 
 # ...and an absolute floor, because a relative band is the wrong shape across a 178-byte-to-1.3-MB
-# range. The smallest file in the set (`samples.json.gzip`) is mostly gzip header and Huffman table,
+# range. The smallest file in the set at the time (`samples.json.gzip`, since removed) was mostly gzip
+# header and Huffman table,
 # so the same two zlib implementations that differ by 0.03-0.52% on the large files differ by a whole
 # handful of bytes on it -- 182 recorded vs 178 measured, which is 2.2% and would fail a pure ratio.
 # Widening the ratio to cover that would allow 20 KB of slack on a 1.3 MB file. So a difference is

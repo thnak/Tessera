@@ -549,8 +549,8 @@ sentence — is proven by the lane that runs the Wasm build.
 
 P5's acceptance was **"a compressed URL-fragment link round-trips; the samples from `samples/` load
 within the project-load budget"**. The share link half was **removed** (owner decision, studio focus pass:
-no cloud storage to share to; [`designer-studio-v1.md`](../specs/designer-studio-v1.md) section 7.1); the
-rest of this section is the historical record of what was implemented and proven.
+no cloud storage to share to; [`designer-studio-v1.md`](../specs/designer-studio-v1.md) section 7.1), and so
+was the bundled gallery (samples open from a clone); the rest of this section is the historical record.
 
 ### 10.1 The pieces
 

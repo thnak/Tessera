@@ -38,6 +38,7 @@ import { PathError } from "../project-paths.js";
 import { PackageError, writePackage } from "../project-package.js";
 import { ZipError } from "../studio-zip.js";
 import { projectFile, type ProjectFile } from "./lib/project";
+import { missingSentence, sampleEntries, sampleProject } from "./lib/sample-folder";
 import type { Workspace } from "./page-workspace";
 
 type Source = "sample" | "folder" | "zip";
@@ -58,6 +59,17 @@ export interface ProjectIoState {
    * `generated-staleness.js`). Empty when nothing is flagged.
    */
   stale: readonly string[];
+  /** The sample entries of a picked folder that holds several, waiting for `openChoice`; empty otherwise. */
+  choices: readonly string[];
+}
+
+/** A loaded folder or zip before it becomes the project (it may be a sample with several entries). */
+interface PickedTree {
+  source: Source;
+  name: string;
+  project: { entries: LoadedEntry[]; context: object };
+  handle: FileSystemDirectoryHandle | null;
+  baseline: Map<string, number>;
 }
 
 interface DirectoryPickerWindow {
@@ -97,8 +109,8 @@ export interface ProjectIo {
   recents: readonly RecentProject[];
   /** `true` once the recent list was read. */
   recentsLoaded: boolean;
-  /** Opens a gallery sample as an in-memory one-file project (no folder, nothing to save into). */
-  openSample: (name: string, files: readonly { path: string; text: string }[]) => void;
+  /** Opens one of `state.choices` (a sample entry of the picked folder) as the project. */
+  openChoice: (entry: string) => void;
   openFolder: () => void;
   /** Reopens `recents[index]`; the click that calls it is the gesture a permission prompt needs. */
   reopenRecent: (index: number) => void;
@@ -128,6 +140,7 @@ export function useProjectIo(workspace: Workspace): ProjectIo {
     conflicts: [],
     draft: null,
     stale: [],
+    choices: [],
   });
   const [epoch, setEpoch] = useState(0);
   const recent = useRecentProjects();
@@ -207,6 +220,7 @@ export function useProjectIo(workspace: Workspace): ProjectIo {
         busy: false,
         conflicts: [],
         draft: null,
+        choices: [],
         stale: staleGenerated(
           project.entries.map((entry) => ({
             path: entry.path,
@@ -223,6 +237,57 @@ export function useProjectIo(workspace: Workspace): ProjectIo {
     [],
   );
 
+  // A picked folder or zip that is a sample, not a project (`lib/sample-folder.ts`): kept until an entry is
+  // chosen, because a repository root or `samples/gallery` holds several.
+  const pendingTree = useRef<PickedTree | null>(null);
+
+  const openChoice = useCallback(
+    (entry: string) => {
+      const tree = pendingTree.current;
+      if (tree === null) {
+        return;
+      }
+      const sample = sampleProject(tree.project.entries, entry);
+      const copied = new Set(["tessera.json", ...sample.companions.map((companion) => companion.path)]);
+      const onDisk = new Map(tree.project.entries.map((item) => [item.path, item]));
+      const entries = sample.files.map((file) => ({
+        ...file,
+        lastModified: copied.has(file.path) ? 0 : (onDisk.get(file.path)?.lastModified ?? 0),
+      }));
+      const baseline = new Map([...tree.baseline].filter(([path]) => !copied.has(path) && onDisk.has(path)));
+      const stem = entry.slice(entry.lastIndexOf("/") + 1).replace(/\.tsx$/, "");
+      adopt(tree.source, `${tree.name}-${stem}`, { entries, context: tree.project.context }, tree.handle, baseline);
+      // The project opens on its first source file, which may be a copied `Button.tsx`; show the chosen entry.
+      const text = entries.find((file) => file.path === entry)?.text ?? "";
+      workspaceRef.current.openFile(projectFile(entry, text, tree.project.context));
+      const from = sample.companions.map((companion) => companion.from).join(", ");
+      say({
+        note:
+          sample.missing.length > 0
+            ? missingSentence(sample.missing)
+            : from === ""
+              ? `Opened ${entry}.`
+              : `Opened ${entry} with ${from} copied next to it (Save writes a copy only after you edit it).`,
+      });
+    },
+    [adopt, say],
+  );
+
+  const adoptTree = useCallback(
+    (tree: PickedTree) => {
+      const entries = sampleEntries(tree.project.entries);
+      pendingTree.current = entries.length === 0 ? null : tree;
+      if (entries.length === 0) {
+        adopt(tree.source, tree.name, tree.project, tree.handle, tree.baseline);
+      } else if (entries.length === 1) {
+        openChoice(entries[0]);
+      } else {
+        say({ busy: false, choices: entries, note: `${tree.name} holds ${entries.length} samples: choose one to open.` });
+      }
+    },
+    [adopt, openChoice, say],
+  );
+
   /** Loads a picked or remembered folder; a folder that no longer opens is forgotten. */
   const loadFrom = useCallback(
     async (handle: FileSystemDirectoryHandle) => {
@@ -232,7 +297,7 @@ export function useProjectIo(workspace: Workspace): ProjectIo {
       say({ busy: true, note: "reading the folder..." });
       try {
         const project = await loadDirectory(handle);
-        adopt("folder", handle.name, project, handle, project.baseline);
+        adoptTree({ source: "folder", name: handle.name, project, handle, baseline: project.baseline });
       } catch (error) {
         say({ busy: false, note: sentenceOf(error) });
         if (error instanceof DOMException && error.name === "NotFoundError") {
@@ -241,7 +306,7 @@ export function useProjectIo(workspace: Workspace): ProjectIo {
         }
       }
     },
-    [adopt, confirmReplace, recent, say],
+    [adoptTree, confirmReplace, recent, say],
   );
 
   const openFolder = useCallback(() => {
@@ -263,13 +328,6 @@ export function useProjectIo(workspace: Workspace): ProjectIo {
       await loadFrom(handle);
     })();
   }, [loadFrom, say]);
-
-  const openSample = useCallback(
-    (name: string, files: readonly { path: string; text: string }[]) => {
-      adopt("sample", name, { entries: [...files], context: {} }, null, new Map());
-    },
-    [adopt],
-  );
 
   const forgetRecents = useCallback(() => {
     recent.forgetAll();
@@ -302,13 +360,13 @@ export function useProjectIo(workspace: Workspace): ProjectIo {
         say({ busy: true, note: "reading the archive..." });
         try {
           const project = await loadZip(new Uint8Array(await file.arrayBuffer()));
-          adopt("zip", file.name.replace(/\.zip$/i, ""), project, null, new Map());
+          adoptTree({ source: "zip", name: file.name.replace(/\.zip$/i, ""), project, handle: null, baseline: new Map() });
         } catch (error) {
           say({ busy: false, note: sentenceOf(error) });
         }
       })();
     },
-    [adopt, confirmReplace, say],
+    [adoptTree, confirmReplace, say],
   );
 
   /** The files to write: every dirty one, with the text the editor holds. */
@@ -625,7 +683,7 @@ export function useProjectIo(workspace: Workspace): ProjectIo {
     folderSupported,
     recents,
     recentsLoaded: recent.loaded,
-    openSample,
+    openChoice,
     openFolder,
     reopenRecent,
     forgetRecents,

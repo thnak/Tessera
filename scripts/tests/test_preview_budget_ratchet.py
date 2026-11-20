@@ -222,7 +222,7 @@ class RatchetArithmeticTests(unittest.TestCase):
         self.assertIn("a.js.gzip", errors[0])
 
     def test_the_floor_covers_the_smallest_measured_file(self) -> None:
-        # `samples.json.gzip` is the smallest row and the one that failed CI: 182 recorded, 178 measured
+        # `samples.json.gzip` (since removed) was the smallest row and failed CI: 182 recorded, 178 measured
         # on Linux. It is mostly gzip header and Huffman table, so a ratio alone cannot cover it, and a
         # ratio widened enough to cover it would allow tens of KB of slack on a 1.3 MB module.
         self.assertTrue(ratchet.same_measurement(182.0, 178.0))

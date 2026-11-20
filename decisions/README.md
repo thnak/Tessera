@@ -74,6 +74,9 @@ V1 is the first release. A feature is in V1 unless the ADR or spec that owns it 
 | [ADR-062](ADR-062-studio-dock-library-flexlayout-react.md) | The studio dock is flexlayout-react 0.11.2 (exact-pinned) behind our own canonical layout JSON, operations and a thin adapter; no floating windows in V1; proven in a real browser with a real WebGPU canvas. Accepted (2026-11-19) |
 | [ADR-063](ADR-063-browser-matching-user-agent-defaults.md) | Default styles reproduce the browser's look as far as possible, exceptions named (supersedes react-compat decision 12 and the UA-parity non-goal): one shared user-agent sheet (`ua_stylesheet_text()`) in every cascade (app host and preview) at `Origin::UserAgent`, below author/theme/inline; grows one tested rule at a time, first rule centres a bare `Button`'s label (#602); samples ship real author CSS to show the full stack. Accepted (2026-11-20, owner) |
 | [ADR-064](ADR-064-astryx-style-component-system.md) | First-party UI library follows Astryx's system design (catalogue, anatomy, role-token theme model, behavior hooks, plugin tables with caller-owned server data); Instrument becomes a demo theme (amends ADR-047 item 5) | Proposed |
+| [ADR-065](ADR-065-custom-hooks-by-compile-time-inlining.md) | Custom hooks are accepted in V1 by compile-time inlining at each call site (amends ADR-036 item 3; answers ADR-058 question 3 for custom hooks) | Proposed |
+| [ADR-066](ADR-066-react-core-additions-for-v1.md) | React core additions for V1: arrow components, `import React`, `memo`, `useId`, `useMemo`/`useCallback`, `??`/`?.`, handler control flow, list and string expressions, limited `useReducer` and static `useContext` (amends ADR-036) | Proposed |
+| [ADR-067](ADR-067-pending-ui-transitions-suspense-lazy.md) | Pending UI: `useResource`, `Suspense` as a static boundary, `useTransition`, `useDeferredValue`, `lazy` as identity, on the data store's resource model | Proposed |
 
 ## Dependency overview
 
@@ -126,6 +129,9 @@ ADR-060 studio services in web workers (accepted) ── ADR-045 browser-hosted 
 ADR-061 compiler-owned formatter (accepted) ── ADR-036 own front end, ADR-060 format worker, ADR-058 ports, ADR-024 no JS runtime
 ADR-062 studio dock library (accepted) ── ADR-054 React renders the canvas once, ADR-060 V1 rebuilt with Tessera, workbench layout spec
 ADR-064 Astryx-style component system (proposed) ── ADR-047 component library, ADR-063 UA defaults, ADR-016 stylesheet, ADR-024 no JS runtime, ADR-034 interaction
+ADR-065 custom hooks by inlining (proposed) ── ADR-036 own front end, ADR-058 React ports, ADR-064 behavior hooks, ADR-040 generated base
+ADR-066 React core additions (proposed) ── ADR-036 own front end, ADR-058 React ports, ADR-065 custom hooks, ADR-051 records
+ADR-067 pending UI (proposed) ── async-data-v1 resources, ADR-021 async runtime, ADR-050 services, ADR-066 React additions, error-boundaries-v1
 ```
 
 [ADR-035](ADR-035-view-transitions.md), [ADR-036](ADR-036-own-jsx-frontend-and-react-like-model.md), and [ADR-037](ADR-037-self-contained-wasm-designer.md) are listed in the table above but are not drawn in this diagram.

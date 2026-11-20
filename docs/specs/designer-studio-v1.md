@@ -334,7 +334,7 @@ counter), `mcp_preview_tools` (MCP snapshots byte-identical to the driver);
 
 ## 7. Project load, edit and save
 
-- **Sources**: a bundled sample project; "Open folder" through the File System Access API (Chromium);
+- **Sources**: "Open folder" through the File System Access API (Chromium), a sample being a folder of a clone;
   drag-and-drop of a zip (all browsers); a directory previously imported into OPFS.
 - **Accepted files**: `tessera.json`, `.tsx`/`.jsx`, `.css`, theme JSON, and the fonts/images listed
   in `tessera.json`. Other files are shown read-only with a lock badge and are never sent to the
@@ -369,8 +369,8 @@ counter), `mcp_preview_tools` (MCP snapshots byte-identical to the driver);
 - **Limits**: the per-file and per-project limits of [jsx-subset-v1.md](jsx-subset-v1.md) section 15
   apply (1 MiB per file, depth 128, 100 diagnostics, 64 components), plus a 32 MiB workspace cap with
   a clear error. Project text and assets are untrusted input; size checks run before parsing.
-- **Samples** live in `samples/`; the studio loads them read-only and offers "Copy to workspace" so a
-  visitor cannot edit the bundled copy.
+- **Samples** live in `samples/` of the repository; the hosted studio does not bundle them. A visitor clones
+  the repository, then opens `samples/<name>` (or the repository root) as a folder (section 7.1).
 
 ### 7.1 Environment, samples and no share links (P5, issue #169)
 
@@ -386,26 +386,22 @@ links to them no longer resolve (section 4 of [`studio-page`](../design/studio-p
 `skin`, `profile`, under `tessera.preview.p5`, never the source) wins over the page's default. The URL carries
 no state; `?view=` still names the opening preview panel.
 
-**Gallery.** The sample gallery reads `designer/web/samples.json`, **generated** from `samples/**/*.tsx`
-by `scripts/ci/gen_sample_manifest.py` and committed so a deploy runs no generator step (the page itself
-is built by Vite, [ADR-054](../../decisions/ADR-054-studio-front-end-react-vite.md)). The manifest carries
-a `path` and the exported `component` name and no source text: the page fetches the TSX from its path,
-so the file in the repository stays the single source of truth and adding a sample never means editing
-JavaScript. Display titles are derived from the file stem in the page. `--check` fails on a stale
-manifest, and the Pages lane copies `samples/` into the site and asserts every manifest path exists
-there.
+**Samples come from the visitor's clone.** The hosted studio bundles no samples and no manifest (owner
+decision: there is no server, so nothing can be loaded from an API; the Pages site publishes neither
+`samples/` nor a sample list). How to: clone the repository, then open `samples/<name>` with Open Folder or
+`File > Open Sample` (the same picker). `designer/web/src/lib/sample-folder.ts` decides what a picked folder
+is: a root `tessera.json` naming `app.entry` is an ordinary project; otherwise the exported capitalized
+components at the top level (`samples/<name>`), else under `samples/<name>/` (the repository root), are the
+sample entries. One opens directly; several are offered in the welcome view and the Open Sample quick pick.
 
-**A sample is a small project (manifest schema 2).** Each entry also carries `files: [{from, as}]`, the
-companion files the entry's relative imports reach, so the Studio opens the sample the way the native
-build compiles it (`samples/gallery/CMakeLists.txt` copies the library `Button` next to `Gallery.tsx`).
-The generator **derives** the list, never a hand-kept one: every `./X` import (recursively; stylesheets
-and CSS modules included) resolves to a sibling file in the sample's directory first, else to
-`packages/tessera-ui/X`, and an import that resolves to neither fails the generator and `--check`.
-`from` is the repository path the page fetches (the Pages lane copies the library files next to
-`samples/`), `as` the project path it opens at, in the entry's own directory; both pass the same
-no-absolute, no-`..`, no-scheme validation, and the reader rejects any other `schema`.
-`scripts/ci/preview_sample_projects.mjs` loads every sample through the page's own `loadSampleProject`
-and requires zero unresolved imports, also under the native compiler in CI.
+**A sample is a small project.** The entry opens with every file its relative imports reach (recursively;
+stylesheets and CSS modules included) and an in-memory `tessera.json` naming it, so the studio compiles it
+the way the native build does (`samples/gallery/CMakeLists.txt` copies the library `Button` next to
+`Gallery.tsx`). An import the folder lacks resolves to `packages/tessera-ui/X` when the picked tree holds it
+(the visitor opened the repository root): the file is copied next to its importer and written to disk only
+after an edit. Otherwise the studio names the missing file and its repository path, and advises opening the
+repository root. `scripts/ci/preview_sample_projects.mjs` drives that code over the checkout as a repository
+root and requires zero unresolved imports, also under the native compiler in CI.
 
 **Viewport and DPR reach the layout.** The P2 module export
 `tessera_scene_json(source, file, component)` keeps its fixed 320×240 defaults because the parity gate

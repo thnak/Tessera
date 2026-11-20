@@ -2,7 +2,7 @@
 
 // How the studio starts (issue #391, owner direction 2026-11-17): it does **not** open on a fixed sample
 // project. The workspace starts empty, the project bar lists the projects opened before, and with no
-// history the first view is the welcome view: Open folder / Open zip and the samples.
+// history the first view is the welcome view: Open folder / Open zip and how to open a sample.
 //
 // The Node gates render the chrome with `renderToStaticMarkup` and still need a tree to assert the layout
 // (ADR-054 decision 6), so `ssr-chrome.tsx` asks for the seed explicitly through `seedBootProjectForRender`;
@@ -20,21 +20,4 @@ export function seedBootProjectForRender(seed = true): void {
 /** The project the workspace starts with: nothing, except for the Node render of the chrome. */
 export function bootProject(): ProjectFile[] {
   return seedForRender ? seedProject() : [];
-}
-
-/**
- * A sample as a one-file project: the sample plus the `tessera.json` that names it as the entry, so
- * the preview has something to run. It lives in memory only (a sample is never written anywhere).
- */
-export function sampleProjectFiles(
-  path: string,
-  text: string,
-  component: string,
-): { path: string; text: string }[] {
-  const slug = component.replace(/[^A-Za-z0-9]+/g, "_").replace(/^[^A-Za-z]+/, "").toLowerCase() || "sample";
-  const config = { schemaVersion: 1, app: { name: slug, entry: path, namespace: slug } };
-  return [
-    { path: "tessera.json", text: `${JSON.stringify(config, null, 2)}\n` },
-    { path, text },
-  ];
 }

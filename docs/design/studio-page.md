@@ -216,7 +216,7 @@ The rest of the page is TypeScript:
 | `page-workspace.ts` | the workspace's state: the project, the open tabs, the active file, the selection, the dirty set, and the per-file buffer map |
 | `lib/project.ts` | the seeded project, `ProjectFile`/`TreeRow`, `treeRows`, `compileTarget`; every path goes through `project-paths.js` |
 | `lib/preferences.ts` | the toolbar's persistence (DOM-free) |
-| `lib/gallery.ts` | the sample manifest and the sample fetch (DOM-free) |
+| `lib/sample-folder.ts` | a picked folder's sample entries, the library files its imports need, the missing-file advice (DOM-free) |
 | `lib/views.ts` | the `ViewSession`/`ProjectReader` contract, the view table, `?view=` routing |
 | `lib/wasm-call.ts` | the one C-ABI marshalling helper: allocate, call, `tessera_free`, free |
 | `lib/module-url.ts` | resolves a Wasm loader against the document's base, so a hashed asset dir cannot break it |
@@ -232,9 +232,9 @@ the two real load paths (a folder through File System Access, a dropped zip) are
 [`studio-project-io.md`](studio-project-io.md) section 5. The page still boots with a **seeded in-memory project**
 (`lib/project.ts`, `SEED`): `tessera.json` (`app.entry` names `ui/App.tsx`), `ui/App.tsx` (the entry, which
 imports `../styles/theme.css`) and `styles/theme.css`. There is no router yet: the scene builder does not
-render user component instances, so a second screen cannot be composed in until the engine can. The sample gallery still works: a sample opens as a small project (the entry at its own path plus
-the companion files its imports need, manifest schema 2, see [designer-studio-v1.md](../specs/designer-studio-v1.md)),
-so the tree shows where it came from and the compiler resolves `./Button`.
+render user component instances, so a second screen cannot be composed in until the engine can. Samples are not bundled: a visitor opens `samples/<name>` (or the repository root) from a clone, and a sample
+opens as a small project (the entry plus the files its imports need, see [designer-studio-v1.md](../specs/designer-studio-v1.md)
+section 7.1), so the tree shows where it came from and the compiler resolves `./Button`.
 
 **A source that does not apply is said in the pane.** The canvas deliberately keeps the last good frame when an
 apply fails (a blank canvas mid-word is the failure #444 prevents), which used to leave only an amber line in the
@@ -375,13 +375,13 @@ exists in the HTML" check no longer proves anything -- the shipped `index.html` 
   single selected row and a single tab stop, and the status-line footer must exist. A page that put the view
   switch back above the workspace would fail the "two tablists, one of them `Preview views`" check while
   every old id still resolved.
-- `scripts/ci/preview_studio_smoke.mjs` drives the built `preferences`/`gallery` entries and the rendered
+- `scripts/ci/preview_studio_smoke.mjs` drives the built `preferences`/`sample-folder` entries and the rendered
   chrome under a stub browser; the codec is still imported from source.
 - `scripts/preview_budget_measure.py` walks the built `designer/web/dist/` as a **directory** instead of
   naming files, so an asset that ships is weighed by construction, and measures all three Wasm modules
   the studio loads (section 5.3).
 - `.github/workflows/pages.yml` runs `npm ci` + `npm run build` in `designer/web` and assembles the site from
-  `dist/` plus the three Wasm modules, the samples and the build id.
+  `dist/` plus the three Wasm modules and the build id (no samples: they open from a clone).
 - `tests/golden/perf/preview_budget.json`: `download_gzip_bytes` re-recorded (section 6).
 - **Browser verification** is the acceptance bar for a layout change, and it is developer-run (no lane has a
   browser): `scripts/ci/preview_browser_verify.mjs` (the merged harness, 14 checks),

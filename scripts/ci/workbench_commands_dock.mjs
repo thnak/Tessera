@@ -9,7 +9,7 @@
 
 import { createRequire } from 'node:module';
 import { createServer } from 'node:http';
-import { mkdir, readFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile } from 'node:fs/promises';
 import { extname, join, normalize, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -58,8 +58,40 @@ const check = (name, ok, detail = '') => {
   if (!ok) failures += 1;
 };
 
-async function open(width, height, { dark = false } = {}) {
+// The page bundles no samples: Open Sample picks a folder of the visitor's clone. A real picker is a native
+// dialog, so the page gets a `showDirectoryPicker` that hands over an in-memory repository root holding the
+// gallery sample and the library files its imports need, read from this checkout.
+async function repositoryTree() {
+  const files = {};
+  for (const dir of ['samples/gallery', 'packages/tessera-ui']) {
+    for (const name of await readdir(dir)) {
+      if (/\.(tsx|css)$/.test(name)) files[`${dir}/${name}`] = await readFile(join(dir, name), 'utf8');
+    }
+  }
+  return files;
+}
+
+function fakePicker(files) {
+  const dir = (name, prefix) => ({
+    kind: 'directory',
+    name,
+    async *entries() {
+      const seen = new Set();
+      for (const [path, text] of Object.entries(files)) {
+        if (!path.startsWith(prefix)) continue;
+        const [head, ...rest] = path.slice(prefix.length).split('/');
+        if (seen.has(head)) continue;
+        seen.add(head);
+        yield [head, rest.length > 0 ? dir(head, `${prefix}${head}/`) : { kind: 'file', name: head, getFile: async () => new File([text], head) }];
+      }
+    },
+  });
+  window.showDirectoryPicker = async () => dir('Tessera', '');
+}
+
+async function open(width, height, { dark = false, picker = null } = {}) {
   const context = await browser.newContext({ viewport: { width, height }, colorScheme: dark ? 'dark' : 'light' });
+  if (picker !== null) await context.addInitScript(fakePicker, picker);
   const page = await context.newPage();
   const errors = [];
   page.on('console', (m) => { if (m.type() === 'error' && !/404/.test(m.text())) errors.push(m.text().slice(0, 200)); });
@@ -250,10 +282,10 @@ await page.close();
 // Focus on code and preview (owner feedback on #586): no samples bar, About instead of a title, a lean status
 // bar, one accent. The first view is a welcome view; Open Sample is a quick pick; Help > About is a modal.
 {
-  const f = await open(1440, 900);
+  const f = await open(1440, 900, { picker: await repositoryTree() });
   const p = f.page;
   check('no sample gallery bar: the horizontal strip is gone', (await p.locator('#gallery, .gallery, .gallery-item').count()) === 0);
-  check('the welcome view lists Open Folder and the samples while no project is open', (await p.locator('#welcome').count()) === 1 && (await p.locator('#welcome', { hasText: 'Open Folder' }).count()) === 1 && (await p.locator('.welcome-sample').count()) > 0);
+  check('the welcome view offers Open Folder and says to open samples/<name> from a clone, bundling no list', (await p.locator('#welcome').count()) === 1 && (await p.locator('#welcome', { hasText: 'Open Folder' }).count()) === 1 && (await p.locator('#welcome-samples-help', { hasText: 'samples/<name>' }).count()) === 1 && (await p.locator('#welcome-samples-help a[href*="github.com"]').count()) === 1 && (await p.locator('.welcome-sample').count()) === 0);
   check('the visible title is gone from the chrome (it lives in About); one hidden h1 stays', (await p.locator('.title-text, .title-logo').count()) === 0 && (await p.locator('header h1.visually-hidden').count()) === 1);
   check('the status bar has no build id, frame time or description paragraph', (await p.locator('#build-id, #status-frame, .status-note').count()) === 0 && !(await p.locator('footer.page-footer').innerText()).includes('Wasm'));
   check('the status bar carries Problems and the bell (from menus.json statusBar), and the toolbar no longer has the bell', (await p.locator('footer.page-footer #status-diagnostics-toggle').count()) === 1 && (await p.locator('footer.page-footer #notifications-bell').count()) === 1 && (await p.locator('[role=toolbar] #notifications-bell').count()) === 0);
@@ -261,8 +293,9 @@ await page.close();
   await openMenu(p, 'File');
   await item(p, 'Open Sample').click();
   await p.waitForSelector('#palette-input');
-  check('File > Open Sample opens a quick pick of the samples (not a bar)', (await p.getAttribute('#palette-input', 'aria-label')).toLowerCase().includes('sample') && (await p.locator('[role=option]').count()) > 0);
+  check('File > Open Sample picks a folder, then offers its samples in a quick pick', (await p.getAttribute('#palette-input', 'aria-label')).toLowerCase().includes('sample') && (await p.locator('[role=option]').count()) === 4);
   await p.keyboard.press('Escape');
+  check('the welcome view lists the picked folder\'s samples too', (await p.locator('.welcome-sample').count()) === 4);
 
   await openMenu(p, 'Help');
   await item(p, 'About Tessera Studio').click();
@@ -302,17 +335,15 @@ await page.close();
   check('the bell history opens upward from the status bar', upward);
   await p.keyboard.press('Escape');
 
-  await p.locator('.welcome-sample').first().click();
-  const caretShown = await p.waitForSelector('#status-caret', { timeout: 4000 }).then(() => true, () => false);
-  if (caretShown) {
-    const before = await p.textContent('#status-caret');
-    await p.click('#source');
-    await p.keyboard.press('Control+a');
-    const after = await p.textContent('#status-caret');
-    check('the status bar shows line:col, and a selection size, and the file language', /^Ln \d+, Col \d+$/.test(before) && /\(\d+ selected\)$/.test(after) && (await p.textContent('#status-language')) === 'TSX', `${before} -> ${after}`);
-  } else {
-    console.log('skip  status caret/language: the sample TSX is not served by this site directory (no samples/ copied in)');
-  }
+  await p.locator('.welcome-sample[data-path="samples/gallery/Gallery.tsx"]').click();
+  await p.waitForSelector('#status-caret', { timeout: 4000 });
+  const tree = await p.locator('[role=treeitem]').allInnerTexts();
+  check('choosing Gallery opens it with the library Button copied next to it', tree.some((text) => text.includes('Button.tsx')) && tree.some((text) => text.includes('Gallery.tsx')), tree.join(', '));
+  const before = await p.textContent('#status-caret');
+  await p.click('#source');
+  await p.keyboard.press('Control+a');
+  const after = await p.textContent('#status-caret');
+  check('the status bar shows line:col, and a selection size, and the file language', /^Ln \d+, Col \d+$/.test(before) && /\(\d+ selected\)$/.test(after) && (await p.textContent('#status-language')) === 'TSX', `${before} -> ${after}`);
   check('focus layout: no page errors', f.errors.length === 0, f.errors.join(' | '));
   await f.context.close();
 }

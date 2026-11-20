@@ -26,9 +26,9 @@
 //    regions resolve, against the SSR markup of the real components.
 // 3. **Every id a view session resolves is rendered**, per view, so a failure names the pane that is wrong.
 // 4. (The pre-merge redirect stubs and their check were removed; old scene.html/canvas.html links no longer resolve.)
-// 5. **Every `samples.json` path exists.** The Pages lane copies `samples/` into the site and the gallery
-//    fetches `./<path>`; a missing file is a button that cannot load. This passes locally (where `samples/`
-//    sits beside `designer/`) and fails only on the deployed site, which is the worst place to find it.
+// 5. **The page bundles no samples.** There is no server and no sample manifest: a visitor opens
+//    `samples/<name>` from their own clone. So `dist/` holds no `samples.json` or `samples/`, no built chunk
+//    fetches one, and the welcome view says how to open a sample.
 // 6. **`preview-state.js` is still a pure ES module.** ADR-054's risk section: no DOM, no React, no bundler
 //    syntax, so the Node gates and the page keep importing the same bytes.
 // 7. **The three Wasm modules stayed three and stayed lazy.** No module is imported at the top level of the
@@ -395,8 +395,8 @@ if (!requireBuilt()) {
     if (/role="treeitem"/.test(boot)) {
       problems.push("a treeitem is rendered before any project is opened");
     }
-    // The samples bar is gone (owner feedback on #586): the welcome view is where a first-time visitor finds
-    // samples, next to Open Folder / Open Zip, and the chrome carries no horizontal gallery strip.
+    // The samples bar is gone (owner feedback on #586): the welcome view is where a first-time visitor learns
+    // how to open a sample from a clone, next to Open Folder / Open Zip; no horizontal gallery strip.
     if (!/id="welcome"/.test(boot) || !/Open Folder/.test(boot)) {
       problems.push("the welcome view (Open Folder / Open Zip / Samples) is missing from the first view");
     }
@@ -558,36 +558,27 @@ if (!requireBuilt()) {
     }
   }
 
-  // --- 5. every manifest path exists, under the path the site uses --------------------------------
+  // --- 5. the page bundles no samples: they come from the visitor's clone ------------------------
 
-  const manifest = JSON.parse(readFileSync(resolve(DIST, "samples.json"), "utf8"));
-  if (manifest.schema !== 2) {
-    fail(`samples.json is schema ${manifest.schema}, expected 2`);
-  }
-  let missingSamples = 0;
-  // A sample is a project: its companion files (`from`, repository paths) are published beside it, so each
-  // must exist too, or the Studio could not open the sample ("import does not name a file").
-  for (const entry of manifest.samples || []) {
-    for (const path of [entry.path, ...(entry.files || []).map((file) => file.from)]) {
-      try {
-        readFileSync(resolve(REPO_ROOT, path));
-      } catch {
-        fail(`samples.json names a missing file: ${path}`);
-        missingSamples += 1;
-      }
+  {
+    const built = walk(DIST);
+    const bundled = built.filter((path) => path === "samples.json" || path.startsWith("samples/"));
+    for (const path of bundled) {
+      fail(`dist/${path} ships a sample; the Studio opens samples from the visitor's clone`);
     }
-  }
-  if (missingSamples === 0) {
-    ok(`samples.json names ${(manifest.samples || []).length} sample(s), all present`);
-  }
-
-  // The manifest must be *in the built tree*: it is copied through `public/`, and a
-  // Vite configuration that stops copying it would publish a site whose gallery 404s.
-  for (const name of ["samples.json"]) {
-    try {
-      readFileSync(resolve(DIST, name));
-    } catch {
-      fail(`dist/${name} is missing (it is copied from designer/web/public/)`);
+    // A chunk that still fetches `./samples.json` or `./samples/...` would 404 on the site.
+    const fetchers = built
+      .filter((path) => path.endsWith(".js"))
+      .filter((path) => /["'`]\.\/samples(?:\.json|\/)/.test(readFileSync(resolve(DIST, path), "utf8")));
+    for (const path of fetchers) {
+      fail(`dist/${path} still fetches a bundled sample (./samples.json or ./samples/...)`);
+    }
+    const guided = /samples\/&lt;name&gt;/.test(chrome.renderBootChrome());
+    if (!guided) {
+      fail("the welcome view does not say to clone the repository and open samples/<name>");
+    }
+    if (bundled.length === 0 && fetchers.length === 0 && guided) {
+      ok("the page bundles no samples, and the welcome view says to open samples/<name> from a clone");
     }
   }
 

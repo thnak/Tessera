@@ -63,7 +63,7 @@ PAGE_FIXTURE_FILES = (
     "assets/index-Ab1Cd2Ef.js",
     "assets/index-Ab1Cd2Ef.css",
     "assets/vendor-Qq9Qq9Qq.js",
-    "samples.json",
+    "profiles/desktop-linux/profile.json",
 )
 
 # A page and modules whose gzip sizes are stable for a given byte pattern: the content is generated

@@ -65,7 +65,6 @@ on:
       - 'scripts/ci/preview_theme_handover.mjs'
       - 'scripts/ci/preview_override_client.mjs'
       - 'scripts/ci/preview_workbench*.mjs'
-      - 'scripts/ci/gen_sample_manifest.py'
       - 'scripts/check_preview_budget.py'
       - 'scripts/preview_budget_measure.py'
       - 'scripts/preview_budget_ratchet.py'
@@ -104,7 +103,6 @@ on:
       - 'scripts/ci/preview_theme_handover.mjs'
       - 'scripts/ci/preview_override_client.mjs'
       - 'scripts/ci/preview_workbench*.mjs'
-      - 'scripts/ci/gen_sample_manifest.py'
       - 'scripts/check_preview_budget.py'
       - 'scripts/preview_budget_measure.py'
       - 'scripts/preview_budget_ratchet.py'
@@ -229,9 +227,10 @@ jobs:
       - name: Build native compiler
         run: cmake --build build/native-pages --target tessera_codegen_cli --parallel
 
-      # Every manifest sample, assembled as the Studio opens it (entry plus companion files), must
-      # compile with no unresolved import under the real native compiler.
-      - name: Sample projects (every manifest sample resolves its imports)
+      # Every sample, assembled as the Studio opens it from a clone's repository root (entry plus the
+      # library files copied next to it, `lib/sample-folder.ts`), must compile with no unresolved import
+      # under the real native compiler. This replaced the committed sample manifest's drift check.
+      - name: Sample projects (every sample resolves its imports and compiles)
         run: >-
           node scripts/ci/preview_sample_projects.mjs
           --codegen build/native-pages/src/compiler/codegen/tessera_codegen
@@ -327,7 +326,7 @@ jobs:
       # `#p5=` fragment, every manifest path exists, the two codec modules are still pure ES modules, the
       # three Wasm modules are still three lazy `import()`s, and no module calls a function its own
       # refactor deleted. Several of the failures this checks for actually shipped into a draft of P5.
-      - name: Page wiring checks (built output, ids, redirects, sample paths)
+      - name: Page wiring checks (built output, ids, no bundled samples)
         run: node scripts/ci/preview_page_checks.mjs
 
       # The skins slice's acceptance (issue #171, `designer-studio-v1.md` sections 5.1 and 5.2):
@@ -351,9 +350,6 @@ jobs:
       # library `Model`, the gesture map, and the splitter arithmetic and ARIA values.
       - name: Workbench dock adapter core (built, no browser)
         run: node scripts/ci/workbench_dock_core.mjs
-
-      - name: Sample manifest is generated and current
-        run: python3 -B scripts/ci/gen_sample_manifest.py --check
 
       # The page stages its project (`tessera_project_*`) and then asks one scene export, whose viewport
       # and DPR are real layout inputs. A module missing either would show up here instead of as a page
@@ -395,8 +391,8 @@ jobs:
       # Issue #422 converted the page to React 19 + Vite (ADR-054), so there is no longer a hand-written
       # page to copy: `designer/web/dist/` is what a browser downloads, and it carries content-hashed
       # asset names (`assets/index-<hash>.js`). `dist/` already includes the files Vite copies from
-      # `designer/web/public/` (`samples.json`), which is why the
-      # copies below are only the Wasm modules, the samples and the build id.
+      # `designer/web/public/`, which is why the copies below are only the Wasm modules and the build id.
+      # The samples are not published: a visitor opens them from a clone of the repository.
       #
       # The old fixed `test -f` list cannot survive content hashes, so the integrity check is derived from
       # the document instead: every asset `dist/index.html` references must exist in the artifact. That is
@@ -411,24 +407,6 @@ jobs:
           # The built front end (issue #422): index.html, the hashed JS/CSS chunks, and the public files
           # Vite copies verbatim. Copied with a trailing `/.` so `dist`'s contents land at the site root.
           cp -R designer/web/dist/. "$site/"
-          # P5's sample gallery fetches `samples/<path>` from the page's own origin (issue #169). The
-          # TSX is the single source of truth and is copied verbatim, never inlined into the manifest;
-          # without this the gallery 404s in production while passing every local test, because a
-          # checkout has samples/ next to designer/ but the assembled site does not.
-          mkdir -p "$site/samples"
-          cp -R samples/. "$site/samples/"
-          # A sample is a small project (manifest schema 2): its companions are fetched from their
-          # repository paths too, and the library ones live under packages/tessera-ui, not samples/.
-          python3 - "$site" <<'PY'
-          import json, pathlib, shutil, sys
-          site = pathlib.Path(sys.argv[1])
-          manifest = json.loads(pathlib.Path("designer/web/public/samples.json").read_text(encoding="utf-8"))
-          for entry in manifest["samples"]:
-              for companion in entry["files"]:
-                  target = site / companion["from"]
-                  target.parent.mkdir(parents=True, exist_ok=True)
-                  shutil.copyfile(companion["from"], target)
-          PY
           # The three Wasm modules stay three (ADR-054 decision 3, and #392's merge did not merge them):
           # each is a lazy `import()` from the page's own base, so they are copied next to `index.html`
           # and never bundled.
@@ -471,23 +449,10 @@ jobs:
           print(f"{len(local)} asset reference(s) from index.html all present")
           PY
 
-          # The public files, which are not referenced by index.html and so are not covered by the scan
-          # above. (The pre-merge scene.html/canvas.html redirect stubs were removed; old links no longer resolve.)
-          for asset in samples.json; do
-            test -f "$site/$asset" || { echo "missing from the site: $asset"; exit 1; }
-          done
-          # The manifest names repository paths; every one of them must exist in the artifact or the
-          # gallery offers a button that cannot load.
-          python3 - "$site" <<'PY'
-          import json, pathlib, sys
-          site = pathlib.Path(sys.argv[1])
-          samples = json.loads((site / "samples.json").read_text(encoding="utf-8"))["samples"]
-          assert samples, "the manifest lists no samples"
-          for entry in samples:
-              for path in [entry["path"]] + [file["from"] for file in entry["files"]]:
-                  assert (site / path).is_file(), f"manifest path missing from the site: {path}"
-          print(f"{len(samples)} manifest path(s) present in the site")
-          PY
+          # The Studio bundles no samples (they open from the visitor's clone), so none may be published.
+          if [ -e "$site/samples.json" ] || [ -e "$site/samples" ]; then
+            echo "the site publishes samples; the Studio opens them from a clone"; exit 1
+          fi
 
           ls -l "$site"
 
