@@ -138,9 +138,13 @@
         {
           "name": "role",
           "value": "heading"
+        },
+        {
+          "name": "aria-level",
+          "value": "1"
         }
       ],
-      "note": "the level is not exposed in V1",
+      "note": "the level is `aria-level`; the user-agent sheet sizes it",
       "status": "mapped",
       "tag": "h1",
       "target": "Text"
@@ -150,9 +154,13 @@
         {
           "name": "role",
           "value": "heading"
+        },
+        {
+          "name": "aria-level",
+          "value": "2"
         }
       ],
-      "note": "the level is not exposed in V1",
+      "note": "the level is `aria-level`; the user-agent sheet sizes it",
       "status": "mapped",
       "tag": "h2",
       "target": "Text"
@@ -162,9 +170,13 @@
         {
           "name": "role",
           "value": "heading"
+        },
+        {
+          "name": "aria-level",
+          "value": "3"
         }
       ],
-      "note": "the level is not exposed in V1",
+      "note": "the level is `aria-level`; the user-agent sheet sizes it",
       "status": "mapped",
       "tag": "h3",
       "target": "Text"
@@ -174,9 +186,13 @@
         {
           "name": "role",
           "value": "heading"
+        },
+        {
+          "name": "aria-level",
+          "value": "4"
         }
       ],
-      "note": "the level is not exposed in V1",
+      "note": "the level is `aria-level`; the user-agent sheet sizes it",
       "status": "mapped",
       "tag": "h4",
       "target": "Text"
@@ -186,9 +202,13 @@
         {
           "name": "role",
           "value": "heading"
+        },
+        {
+          "name": "aria-level",
+          "value": "5"
         }
       ],
-      "note": "the level is not exposed in V1",
+      "note": "the level is `aria-level`; the user-agent sheet sizes it",
       "status": "mapped",
       "tag": "h5",
       "target": "Text"
@@ -198,9 +218,13 @@
         {
           "name": "role",
           "value": "heading"
+        },
+        {
+          "name": "aria-level",
+          "value": "6"
         }
       ],
-      "note": "the level is not exposed in V1",
+      "note": "the level is `aria-level`; the user-agent sheet sizes it",
       "status": "mapped",
       "tag": "h6",
       "target": "Text"
@@ -896,6 +920,17 @@
         "ErrorBoundary"
       ],
       "note": "accessible name; overrides a derived name",
+      "type": "string",
+      "value": "expr"
+    },
+    {
+      "lowersTo": "props.aria-level",
+      "name": "aria-level",
+      "notOn": [
+        "Spacer",
+        "ErrorBoundary"
+      ],
+      "note": "heading level 1-6; `h1`-`h6` inject it and the user-agent sheet sizes by it",
       "type": "string",
       "value": "expr"
     },

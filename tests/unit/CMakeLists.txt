@@ -1025,6 +1025,12 @@ target_include_directories(ua_stylesheet_tests PRIVATE ${PROJECT_SOURCE_DIR}/inc
 target_link_libraries(ua_stylesheet_tests PRIVATE tessera_style)
 add_test(NAME ua_stylesheet COMMAND ua_stylesheet_tests)
 
+add_executable(scene_style_attributes_tests
+    scene_style_attributes_tests.cpp)
+target_include_directories(scene_style_attributes_tests PRIVATE ${PROJECT_SOURCE_DIR}/include)
+target_link_libraries(scene_style_attributes_tests PRIVATE tessera_style tessera_scene)
+add_test(NAME scene_style_attributes COMMAND scene_style_attributes_tests)
+
 add_executable(stylesheet_blob_tests
     stylesheet_blob_tests.cpp)
 

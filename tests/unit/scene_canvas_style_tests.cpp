@@ -341,8 +341,13 @@ export function Empty(): Node {
     }
     const cli::StyleInfoResult info = session.inspect(card->automation_id());
     expect(info.found, "the inspector finds a node matched by an empty rule");
-    expect(info.matched.size() == 1, "only the rule that sets a property is listed, got " +
-                                         std::to_string(info.matched.size()));
+    // The View also matches the user-agent `View { display: block }`, which is listed as "ua".
+    std::size_t authored = 0;
+    for (const cli::StyleMatchedRule& rule : info.matched) {
+        authored += rule.origin == "ua" ? 0 : 1;
+    }
+    expect(authored == 1, "only the rule that sets a property is listed, got " +
+                              std::to_string(authored));
     for (const cli::StyleMatchedRule& rule : info.matched) {
         expect(!rule.declarations.empty(), "a listed rule has at least one declaration");
         for (const cli::StyleDeclarationInfo& declaration : rule.declarations) {

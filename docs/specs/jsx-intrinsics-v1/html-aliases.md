@@ -45,7 +45,7 @@ against it.
 | `b`, `strong` | `Text` | `style.font-weight: 700` | mapped | Inline span inside `Text`; the injected weight is a default, not a wrapper style |
 | `i`, `em` | `Text` | `style.font-style: italic` | mapped | Inline span inside `Text`; default style as for `b` |
 | `code` | `Text` | `style.font-family: monospace` | mapped | Inline span inside `Text`; the V1 text stack paints one app face, so the family is recorded but changes no metrics (no font selection yet) |
-| `h1`, `h2`, `h3`, `h4`, `h5`, `h6` | `Text` | `role="heading"` | mapped | The level is not exposed in V1; not an inline span |
+| `h1`, `h2`, `h3`, `h4`, `h5`, `h6` | `Text` | `role="heading"`, `aria-level="1"`-`"6"` | mapped | The level is `aria-level`; the user-agent sheet sizes it ([ua-audit.md](../../reference/ua-audit.md)); not an inline span |
 | `a` | `Text` | `role="link"` | partial | `href`, `target`, `rel` are rejected; use `onClick`. See [Q11]. As a child of `Text` it is an inline clickable span |
 | `button` | `Button` | - | mapped | `type` rule in section 3.1 |
 | `input` | `TextInput` | by `type` | mapped | Section 3.2 |

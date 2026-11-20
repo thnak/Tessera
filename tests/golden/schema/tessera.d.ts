@@ -146,6 +146,7 @@ export interface CommonProps {
   id?: string;
   role?: RoleToken;
   'aria-label'?: string;
+  'aria-level'?: string;
   'aria-hidden'?: boolean;
   'aria-disabled'?: boolean;
   'aria-selected'?: boolean;

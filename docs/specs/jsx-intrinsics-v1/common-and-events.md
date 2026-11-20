@@ -17,6 +17,7 @@ that of subset spec 10.2 and [`component-model-v1.md`](../component-model-v1.md)
 | `role` | enum literal | L | per element | `props.role` | `Spacer`, `ErrorBoundary` | One of the tokens of the table in section 1.1; an unknown token is `TESSERA_JSX_SUBSET_UNKNOWN_PROP` with the token list as suggestion |
 | `aria-label` | string | E | - | `props["aria-label"]` | `Spacer`, `ErrorBoundary` | The accessible name; overrides a derived name |
 | `aria-hidden` | bool | E | `false` | `props["aria-hidden"]` | `Spacer`, `ErrorBoundary` | Leaves the node and its subtree out of the accessibility tree |
+| `aria-level` | string | E | `""` | `props["aria-level"]` | same | Heading level `"1"`-`"6"`; `h1`-`h6` inject it and the user-agent sheet sizes by it ([`ua-audit.md`](../../reference/ua-audit.md)) |
 | `aria-disabled`, `aria-selected`, `aria-expanded`, `aria-busy`, `aria-invalid`, `aria-readonly`, `aria-required` | bool | E | `false` | `props["aria-..."]` | same | The state of the same name in [`accessibility-v1.md`](../accessibility-v1.md) section 2 |
 | `aria-checked` | `"true"`, `"false"`, `"mixed"` | E | - | `props["aria-checked"]` | same | `checked/mixed` state |
 | `aria-valuenow`, `aria-valuemin`, `aria-valuemax` | int | E | - | `props["aria-..."]` | same | Slider value and bounds (issue #236); the accessibility tree reads `aria-valuenow` as the value ([`accessibility-v1.md`](../accessibility-v1.md) section 2) |

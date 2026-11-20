@@ -169,7 +169,7 @@ Must handle:
 
 Lowest to highest:
 
-1. user-agent (Tessera's small built-in defaults, `ui::style::ua_stylesheet_text()`: each rule mirrors a browser's behavior for that element, ADR-063)
+1. user-agent (Tessera's small built-in defaults, `ui::style::ua_stylesheet_text()`: each rule mirrors a browser's behavior for that element, ADR-063; the audited elements, the open gaps and the named exceptions are in [`ua-audit.md`](../reference/ua-audit.md))
 2. user
 3. author
 4. inline `style="..."`

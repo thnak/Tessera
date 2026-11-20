@@ -390,7 +390,7 @@ This page is the map and reading order for the framework.
 ## 6. Reference
 
 - [`reference/glossary.md`](reference/glossary.md) — terms and abbreviations
-- [`reference/open-questions.md`](reference/open-questions.md) — register of every `Open questions` section in the specs and design notes: link to the source, the recorded decision or an explicit deferral with its trigger, and the items that unblock the next implementation round
+- [`reference/open-questions.md`](reference/open-questions.md) — register of every `Open questions` section in the specs and design notes: link to the source, the recorded decision or an explicit deferral with its trigger, and the items that unblock the next implementation round; [`reference/ua-audit.md`](reference/ua-audit.md) — the user-agent audit (ADR-063, #606): every element against Chromium, fixed, open and named exceptions
 
 ## 7. Reading orders
 

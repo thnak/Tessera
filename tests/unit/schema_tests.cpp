@@ -71,7 +71,7 @@ void test_schema_version_and_counts() {
     check(schema::dom_types().size() == 14, "14 DOM types (html-aliases.md section 4)");
     check(schema::style_properties().size() == 125, "125 style longhands");
     check(schema::role_tokens().size() == 22, "22 role tokens (common-and-events.md 1.1)");
-    check(schema::common_props().size() == 21, "21 common attributes");
+    check(schema::common_props().size() == 22, "22 common attributes");
 }
 
 void test_element_rows() {
@@ -237,7 +237,8 @@ void test_aliases() {
               ul->inject[0].value == "list",
           "ul injects role=list");
     const schema::AliasRow* h1 = schema::find_alias("h1");
-    check(h1 != nullptr && h1->inject.size() == 1 && h1->inject[0].value == "heading",
+    check(h1 != nullptr && h1->inject.size() == 2 && h1->inject[0].value == "heading" &&
+              h1->inject[1].name == "aria-level" && h1->inject[1].value == "1",
           "h1 injects role=heading");
     const schema::AliasRow* anchor = schema::find_alias("a");
     check(anchor != nullptr && anchor->status == schema::AliasStatus::Partial &&

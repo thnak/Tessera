@@ -10,6 +10,8 @@
 #include <iostream>
 #include <span>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 namespace {
 
@@ -36,7 +38,8 @@ bool value_is(const style::ComputedStyle& computed, const char* property,
 
 // UA first, then the author sheet (if any), the way the preview and the app host build their
 // cascade.
-style::ComputedStyle compute_for(std::string_view tag, std::string_view author) {
+style::ComputedStyle compute_for(std::string_view tag, std::string_view author,
+                                 std::vector<style::AttributeView> attributes = {}) {
     const style::PreparedStyleSheet authored = style::prepare_stylesheet(author);
     std::array<style::StylesheetSource, 2> sources{
         style::StylesheetSource{"user-agent", &style::ua_prepared_stylesheet(),
@@ -48,6 +51,7 @@ style::ComputedStyle compute_for(std::string_view tag, std::string_view author) 
     root.tag = "Root";
     style::StyleNode node;
     node.tag = tag; // a view: the callers pass string literals
+    node.attributes = std::move(attributes);
     node.parent = &root;
     root.children.push_back(&node);
     return sheet.compute(node, nullptr);
@@ -69,16 +73,49 @@ int main() {
     ok &= value_is(button, "align-items", "center");
     ok &= value_is(button, "justify-content", "center");
     ok &= value_is(button, "text-align", "center");
-    ok &= value_is(button, "padding-top", "1px");
-    ok &= value_is(button, "padding-left", "6px");
+    ok &= value_is(button, "padding-top", "2px");
+    ok &= value_is(button, "padding-left", "7px");
     // The padding must not grow an authored width, as in a browser's button (border-box).
     ok &= value_is(button, "box-sizing", "border-box");
 
-    // The sheet is a list of elements, not a global reset: a View keeps the engine's own defaults.
+    // A browser's div is `display: block`; the engine's own default is a flex row (issue #606).
     const style::ComputedStyle view = compute_for("View", "");
-    ok &= value_is(view, "align-items", "stretch");
+    ok &= value_is(view, "display", "block");
     ok &= value_is(view, "text-align", "start");
     ok &= value_is(view, "padding-top", "0");
+
+    // Headings: bold, Chrome's size and margin per `aria-level` (issue #606).
+    const style::ComputedStyle h1 =
+        compute_for("Text", "", {{"role", "heading"}, {"aria-level", "1"}});
+    ok &= value_is(h1, "font-weight", "700");
+    ok &= value_is(h1, "font-size", "32px");
+    ok &= value_is(h1, "margin-top", "21.44px");
+    const style::ComputedStyle h6 =
+        compute_for("Text", "", {{"role", "heading"}, {"aria-level", "6"}});
+    ok &= value_is(h6, "font-size", "10.72px");
+    // Plain text and an unleveled Text keep the engine defaults.
+    const style::ComputedStyle text = compute_for("Text", "");
+    ok &= expect(text.find("font-weight") == nullptr || *text.find("font-weight") != "700",
+                 "a plain Text must not be bold");
+    ok &= expect(text.find("margin-top") == nullptr || *text.find("margin-top") == "0",
+                 "a plain Text must have no margin");
+
+    // A link is blue and underlined; a list has Chrome's margin and start padding.
+    const style::ComputedStyle link = compute_for("Text", "", {{"role", "link"}});
+    ok &= value_is(link, "color", "#0000ee");
+    ok &= value_is(link, "text-decoration-line", "underline");
+    const style::ComputedStyle list = compute_for("View", "", {{"role", "list"}});
+    ok &= value_is(list, "padding-left", "40px");
+    ok &= value_is(list, "margin-top", "16px");
+
+    // Controls have a size, a border and the browser's control font; without it a bare TextInput
+    // is zero wide (the audit's finding).
+    const style::ComputedStyle input = compute_for("TextInput", "");
+    ok &= value_is(input, "width", "176px");
+    ok &= value_is(input, "height", "22px");
+    ok &= value_is(input, "border-top-width", "1px");
+    ok &= value_is(input, "font-size", "13.3333px");
+    ok &= value_is(compute_for("TextArea", ""), "width", "161px");
 
     // Every author declaration wins over the user-agent one, with the weakest possible selector,
     // and the user-agent defaults the author did not touch stay.

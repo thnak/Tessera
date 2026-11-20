@@ -33,6 +33,17 @@ void SceneStyleTree::build(const Node& node, StyleNode* parent) {
     const auto& paint = node.paint_data();
     entry.view.has_text = paint.has_value() && paint->kind == tessera::ui::PaintKind::Text;
 
+    // `role` and `aria-*` are the attributes a selector can name, as in a browser (`[role="list"]`,
+    // `[aria-level="2"]`). The user-agent sheet needs them: `h1`-`h6` are all `Text` and differ
+    // only by `aria-level` (issue #606). The views point at node-owned storage, which outlives this
+    // tree.
+    if (!node.role().empty()) {
+        entry.view.attributes.push_back(AttributeView{"role", node.role()});
+    }
+    for (const Node::AriaAttribute& aria : node.aria_attributes()) {
+        entry.view.attributes.push_back(AttributeView{aria.name, aria.value});
+    }
+
     const std::string_view class_name = node.class_name();
     std::size_t position = 0;
     while (position < class_name.size()) {
