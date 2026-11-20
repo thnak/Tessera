@@ -42,8 +42,7 @@ inline constexpr std::size_t kCacheLine = 64;
 
 // `T` padded to exactly one cache line and aligned to it. `T` must fit in one line; a group that
 // outgrows it is a compile error rather than a silent straddle.
-template <class T>
-struct alignas(kCacheLine) CacheLine : T {
+template<class T> struct alignas(kCacheLine) CacheLine : T {
     static_assert(sizeof(T) <= kCacheLine, "a cache-line group must fit in one cache line");
     static_assert(alignof(T) <= kCacheLine, "a cache-line group must not over-align");
 
@@ -54,8 +53,7 @@ struct alignas(kCacheLine) CacheLine : T {
 
 // The size and alignment are the whole point of the type, so they are asserted where the type is
 // defined rather than at each use.
-template <class T>
-[[nodiscard]] constexpr bool cache_line_is_exact() {
+template<class T> [[nodiscard]] constexpr bool cache_line_is_exact() {
     return sizeof(CacheLine<T>) == kCacheLine && alignof(CacheLine<T>) == kCacheLine;
 }
 
@@ -68,8 +66,7 @@ template <class T>
 // stated at each use. This is the one case the code-style rule "fix warnings instead of adding
 // blanket suppressions" allows: the warning describes the intended design, not a defect.
 #if defined(_MSC_VER)
-#define TESSERA_CACHE_LINE_BEGIN                                                                   \
-    _Pragma("warning(push)") _Pragma("warning(disable : 4324)")
+#define TESSERA_CACHE_LINE_BEGIN _Pragma("warning(push)") _Pragma("warning(disable : 4324)")
 #define TESSERA_CACHE_LINE_END _Pragma("warning(pop)")
 #else
 #define TESSERA_CACHE_LINE_BEGIN
