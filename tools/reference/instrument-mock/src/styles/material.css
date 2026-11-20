@@ -1,0 +1,200 @@
+/* SPDX-License-Identifier: MIT */
+
+/* The material recipes (tokens/material.tokens.json). Every component reuses these classes or the
+   same token lists, so the look is three recipes, not per-component decoration:
+     RAISED   light gradient + outer drop + white top highlight + dark bottom hairline (keys, plates)
+     RECESS   darker tray + inset shadow + 1px white lip below (segmented wells, trays, fields)
+     WELL     near-black LCD + inset shadow + lip, with scanlines and glowing readout text
+     ENGRAVE  1px dark line with a 1px white line under it (dividers instead of borders)
+     INVERSE  the dark band between light regions
+   Each technique Tessera's engine may lack is tagged with a tessera-gap comment so it can be grepped.
+   High contrast switches the recipes off through the tokens (shadows none, solid fills, 2px edges,
+   decoration opacity 0). */
+
+/* RAISED */
+.m-raised {
+  background: linear-gradient(180deg, var(--mat-raised-a), var(--mat-raised-b));
+  box-shadow: var(--mat-raised-shadow); /* tessera-gap: inset-shadow */
+  border: var(--mat-edge-width) solid var(--mat-edge);
+}
+
+/* A plate is a large raised region: flatter drop, same highlight and hairline. */
+.m-plate {
+  background: linear-gradient(180deg, var(--mat-level-0), var(--mat-level-1));
+  box-shadow: var(--mat-plate-shadow); /* tessera-gap: inset-shadow */
+  border: var(--mat-edge-width) solid var(--mat-edge);
+  border-radius: var(--mat-radius-plate);
+}
+
+/* RECESS */
+.m-recess {
+  background: linear-gradient(180deg, var(--mat-recess-a), var(--mat-recess-b));
+  box-shadow: var(--mat-recess-shadow); /* tessera-gap: inset-shadow */
+  border: var(--mat-edge-width) solid var(--mat-edge);
+}
+
+/* WELL: the LCD. Scanlines are a second background layer under the content. */
+.m-well {
+  position: relative;
+  overflow: hidden;
+  /* tessera-gap: multiple-backgrounds, repeating-linear-gradient */
+  background:
+    repeating-linear-gradient(0deg, var(--mat-scanline) 0px 1px, transparent 1px 3px),
+    linear-gradient(180deg, var(--mat-well-a), var(--mat-well-b));
+  box-shadow: var(--mat-well-shadow); /* tessera-gap: inset-shadow */
+  border: var(--mat-edge-width) solid var(--mat-edge);
+  color: var(--mat-on-well);
+  --ring: var(--mat-focus-ring-inverse);
+}
+
+.m-glow {
+  color: var(--mat-signal);
+  text-shadow: 0px 0px 6px var(--mat-signal-glow); /* tessera-gap: text-shadow */
+}
+
+.m-glow-warn {
+  color: var(--mat-signal-warn);
+  text-shadow: 0px 0px 6px var(--mat-signal-warn-glow); /* tessera-gap: text-shadow */
+}
+
+/* ENGRAVE: a horizontal rule that fades out, with its white lip. */
+.m-engrave {
+  height: 1px;
+  flex-grow: 1;
+  background: linear-gradient(90deg, var(--mat-engrave), transparent);
+  box-shadow: 0px 1px 0px var(--mat-lip);
+}
+
+/* Vertical engraved seam between side-by-side regions. */
+.m-seam {
+  box-shadow: inset 1px 0px 0px var(--mat-engrave), inset 2px 0px 0px var(--mat-lip); /* tessera-gap: inset-shadow */
+}
+
+/* INVERSE */
+.m-inverse {
+  /* tessera-gap: multiple-backgrounds, radial-gradient */
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(255, 255, 255, 0.06), transparent 60%),
+    linear-gradient(90deg, var(--mat-inverse-a), var(--mat-inverse-b) 50%, var(--mat-inverse-a));
+  box-shadow: var(--mat-inverse-shadow); /* tessera-gap: inset-shadow */
+  color: var(--mat-on-inverse);
+  --ring: var(--mat-focus-ring-inverse);
+}
+
+/* Diagonal hatch over a dark surface (app bar). */
+.m-hatch {
+  /* tessera-gap: multiple-backgrounds, repeating-linear-gradient */
+  background:
+    repeating-linear-gradient(115deg, var(--mat-hatch) 0px 1px, transparent 1px 7px),
+    linear-gradient(100deg, var(--mat-inverse-a), var(--mat-inverse-b) 60%, var(--mat-inverse-a));
+}
+
+/* Micro label: mono, uppercase, tracked. Never below the 11px label size, never a sub-AA colour. */
+.m-micro {
+  font-family: var(--mat-font-micro);
+  font-size: var(--font-size-label);
+  line-height: var(--line-height-label);
+  letter-spacing: var(--mat-micro-tracking);
+  text-transform: uppercase;
+  color: var(--on-surface-muted);
+}
+
+.m-inverse .m-micro,
+.m-well .m-micro,
+.m-inverse.m-micro,
+.m-well.m-micro {
+  color: var(--mat-on-inverse-muted);
+}
+
+/* Numbered index badge (01, 02...): an engraved outline with a lip. */
+.m-index {
+  flex-shrink: 0;
+  padding: 1px 5px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: 0px 1px 0px var(--mat-lip);
+  font-family: var(--mat-font-micro);
+  font-size: var(--font-size-label);
+  line-height: var(--line-height-label);
+  color: var(--on-surface-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* LED: a 6px dot; on = coloured with a glow, off = dim. */
+.m-led {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--mat-led-off);
+}
+
+.m-led-on {
+  background-color: var(--mat-signal);
+  box-shadow: 0px 0px 6px var(--mat-signal-glow);
+}
+
+.m-led-ok {
+  background-color: var(--mat-led-ok);
+  box-shadow: 0px 0px 6px var(--mat-led-ok-glow);
+}
+
+.m-led-warn {
+  background-color: var(--mat-signal-warn);
+  box-shadow: 0px 0px 6px var(--mat-signal-warn-glow);
+}
+
+/* 45 degree chamfered corners (top-right and bottom-left), as on the reference's badge. */
+.m-chamfer {
+  /* tessera-gap: clip-path */
+  clip-path: polygon(0px 0px, calc(100% - var(--mat-chamfer)) 0px, 100% var(--mat-chamfer), 100% 100%,
+      var(--mat-chamfer) 100%, 0px calc(100% - var(--mat-chamfer)));
+}
+
+/* Corner screw: a domed head with a slot. Decoration only; hidden in high contrast. */
+.m-screw {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  opacity: var(--mat-decor-opacity);
+  /* tessera-gap: radial-gradient */
+  background: radial-gradient(circle at 35% 30%, var(--mat-screw-a), var(--mat-screw-b) 65%, var(--mat-screw-c));
+  box-shadow: inset 0px 0px 0px 1px rgba(0, 0, 0, 0.15), 0px 1px 0px var(--mat-lip); /* tessera-gap: inset-shadow */
+  pointer-events: none;
+}
+
+.m-screw::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  top: 6px;
+  height: 2px;
+  border-radius: 1px;
+  background-color: var(--mat-screw-slot);
+  transform: rotate(var(--slot, 35deg));
+}
+
+.m-screw-tl { left: 13px; top: 13px; --slot: 35deg; }
+.m-screw-tr { right: 13px; top: 13px; --slot: -20deg; }
+.m-screw-bl { left: 13px; bottom: 13px; --slot: 70deg; }
+.m-screw-br { right: 13px; bottom: 13px; --slot: 5deg; }
+
+/* Perforated grille: a dot lattice over a soft gradient. */
+.m-grille {
+  opacity: var(--mat-decor-opacity);
+  /* tessera-gap: multiple-backgrounds, radial-gradient */
+  background:
+    radial-gradient(circle, var(--mat-grille-dot) 1.1px, transparent 1.6px) 5px 5px / 7px 7px,
+    linear-gradient(90deg, var(--mat-grille-a), var(--mat-grille-b));
+  box-shadow: inset -2px 0px 4px rgba(20, 25, 40, 0.14), inset 0px 1px 0px var(--mat-lip); /* tessera-gap: inset-shadow */
+  pointer-events: none;
+}
+
+/* Display headings: the repo ships only Plex Sans Regular, so 600 is synthesized by the browser. */
+.m-display {
+  font-family: var(--mat-font-display);
+  font-weight: var(--mat-display-weight);
+  letter-spacing: -0.01em;
+}

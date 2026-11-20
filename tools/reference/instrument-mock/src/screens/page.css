@@ -1,0 +1,96 @@
+/* SPDX-License-Identifier: MIT */
+
+/* Screen layout shared by every screen: a header row, then sections on a 24px rhythm. */
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  max-width: 1200px;
+  padding: var(--space-6);
+}
+
+.page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.page-heading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+/* 26/32 display: the theme has no size above 18px (README finding), so this is the mock's own. */
+.page-title {
+  font-size: 26px;
+  line-height: 32px;
+}
+
+.page-subtitle {
+  color: var(--on-surface-muted);
+}
+
+.page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.tiles > * {
+  flex: 1 1 180px;
+}
+
+.columns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  align-items: flex-start;
+}
+
+.columns > * {
+  flex: 1 1 320px;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Engraved divider: dark line with the white lip under it. */
+.divider {
+  height: 1px;
+  background-color: var(--mat-engrave);
+  box-shadow: 0px 1px 0px var(--mat-lip);
+}
+
+.note {
+  font-size: var(--font-size-label);
+  line-height: var(--line-height-label);
+  color: var(--on-surface-muted);
+}
+
+@media (max-width: 767px) {
+  .page {
+    padding: var(--space-4);
+    gap: var(--space-4);
+  }
+}

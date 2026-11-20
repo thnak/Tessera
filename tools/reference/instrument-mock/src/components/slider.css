@@ -1,0 +1,97 @@
+/* SPDX-License-Identifier: MIT */
+
+/* Fader: a 6px dark groove (WELL), a glowing accent fill, a raised 14x24 cap with an engraved centre
+   line; the value sits in a small LCD chip like the reference's "+0.3 EV" readouts. */
+.tslider {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.tslider-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.tslider-value {
+  padding: 2px 7px;
+  border-radius: 5px;
+  font-size: var(--font-size-label);
+  line-height: var(--line-height-label);
+}
+
+.tslider-control {
+  display: flex;
+  align-items: center;
+  height: 36px;
+  padding: 0px 8px;
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  touch-action: none;
+}
+
+.tslider-track {
+  position: relative;
+  flex-grow: 1;
+  height: 6px;
+  border-radius: 3px;
+  overflow: visible;
+}
+
+.tslider-fill {
+  position: absolute;
+  inset-block: 0px;
+  left: 0px;
+  border-radius: 3px;
+  background-color: var(--mat-signal);
+  box-shadow: 0px 0px 6px var(--mat-signal-glow);
+}
+
+.tslider-thumb {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 24px;
+  margin-left: -7px;
+  margin-top: -12px;
+  border: var(--mat-edge-width) solid var(--mat-edge);
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, var(--mat-raised-a), var(--mat-raised-b));
+  box-shadow: var(--mat-raised-shadow); /* tessera-gap: inset-shadow */
+}
+
+.tslider-thumb::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  top: 50%;
+  height: 2px;
+  margin-top: -1px;
+  background-color: var(--mat-knob-pointer);
+}
+
+.tslider-control:hover .tslider-thumb {
+  box-shadow: var(--mat-raised-shadow-hover); /* tessera-gap: inset-shadow */
+}
+
+.tslider-disabled {
+  color: var(--on-surface-muted);
+}
+
+.tslider-disabled .tslider-control {
+  cursor: default;
+}
+
+.tslider-disabled .tslider-fill {
+  background-color: var(--on-surface-muted);
+  box-shadow: none;
+}
+
+.tslider-disabled .tslider-thumb {
+  background: var(--mat-level-3);
+  box-shadow: none;
+}
