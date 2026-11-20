@@ -92,6 +92,10 @@ growing the codebase around the gaps, which makes each later change more expensi
 - **Add each form as a separate ADR.** Rejected: they share the IR additive rule and one order of work;
   one ADR keeps the dependencies visible.
 
+## Evidence required before Accepted
+
+This ADR stays Proposed until measured evidence exists, so a wrong choice is amended before it is locked. Spike [#660](https://github.com/thnak/Tessera/issues/660) measures what the front end accepts on a corpus of real components and reports the frequency of each rejection. The order of item 6 is chosen by that table and may change; the implementing issues #651 to #654 wait for Acceptance.
+
 ## Follow-up
 
 - Update `jsx-subset-v1.md` sections 6, 7, 9, 10 and 12, `ir-v1.md` section 2.1 and `ir-v1-expr.md`

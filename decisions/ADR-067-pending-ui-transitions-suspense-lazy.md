@@ -99,6 +99,10 @@ Selector with a search, dialogs with a lazy body) be written against one rule.
   remove the pending UI.
 - **No `lazy`.** Rejected: ported code uses it for routes; an identity costs a parser rule.
 
+## Evidence required before Accepted
+
+This ADR stays Proposed until measured evidence exists. Spike [#661](https://github.com/thnak/Tessera/issues/661) implements a Suspense boundary and a transition mark on a fake resource, off by default, and records: fallback, restore, keep-on-refresh, pending flag and stale-epoch behavior; agreement between the evaluator and generated code; allocation-free updates; and what the data store lacks. The implementing issues #655 to #657 wait for Acceptance.
+
 ## Follow-up
 
 - `docs/specs/pending-ui-v1.md`: the manifest entries, the `Suspense` IR node, the transition mark on
