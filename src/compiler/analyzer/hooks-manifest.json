@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "hooks": [
+    {
+      "name": "useTheme",
+      "params": [],
+      "returns": { "ts": "string", "ir": "string" },
+      "lowering": { "kind": "environment", "provider": "theme" }
+    },
+    {
+      "name": "useThemeState",
+      "params": [],
+      "returns": { "ts": "[string, (id: string) => void]", "ir": "string" },
+      "lowering": { "kind": "environment", "provider": "theme", "writable": true }
+    },
+    {
+      "name": "useBreakpoint",
+      "params": [],
+      "returns": { "ts": "\"compact\" | \"medium\" | \"expanded\"", "ir": "string" },
+      "lowering": { "kind": "environment", "provider": "breakpoint" }
+    },
+    {
+      "name": "usePressFeedback",
+      "params": [
+        { "name": "target", "kind": "ref", "ts": "Element", "ir": "ref" },
+        {
+          "name": "options",
+          "kind": "options",
+          "ts": "PressFeedbackOptions",
+          "ir": "record",
+          "fields": [
+            { "name": "disabled", "ts": "boolean", "ir": "bool", "default": false }
+          ]
+        }
+      ],
+      "returns": {
+        "fields": [
+          { "name": "pressed", "ts": "boolean", "ir": "bool", "default": false },
+          { "name": "hovered", "ts": "boolean", "ir": "bool", "default": false },
+          { "name": "focused", "ts": "boolean", "ir": "bool", "default": false }
+        ]
+      },
+      "lowering": { "kind": "behavior", "behavior": "press_feedback" }
+    }
+  ]
+}
