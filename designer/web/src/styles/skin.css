@@ -52,6 +52,18 @@
   background: transparent;
 }
 
+/* The bare frame keeps the skinned tree's shape so the canvas is never remounted (see `SkinFrame`); the
+   screen wrapper it adds must not take part in layout. */
+.skin-frame.is-bare > .skin-screen {
+  display: contents;
+}
+
+/* ...and the stack keeps the page's own flow box, not the absolute fill a skinned screen gives it. */
+.skin-frame.is-bare > .skin-screen > .canvas-stack {
+  position: relative;
+  inset: auto;
+}
+
 /* --- the strips outside the client area (`system` mode) ----------------------------------------- */
 
 .skin-menu,

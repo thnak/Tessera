@@ -44,6 +44,9 @@ export default defineConfig({
         skins: "src/views/skins.ts",
         "skin-geometry": "src/views/skin-geometry.ts",
         "skin-load": "src/views/skin-load.ts",
+        // The frame component itself: `preview_skins.mjs` walks its element tree to prove the canvas keeps
+        // one position with and without a skin, because a changed position is a remount.
+        "skin-frame": "src/regions/SkinFrame.tsx",
         // The device profile's rules and the platform-event vocabulary (issues #447 and #448), so
         // `scripts/ci/preview_profiles.mjs` and `preview_platform_events.mjs` test what the page ships.
         "device-profile": "src/lib/device-profile.ts",
@@ -59,6 +62,8 @@ export default defineConfig({
         // The canvas pane's state transitions (failed, not applied, nothing to draw), so
         // `scripts/ci/preview_canvas_pane_states.mjs` tests what the page ships.
         "canvas-pane": "src/views/canvas-pane.ts",
+        // The pane's zoom arithmetic, so `scripts/ci/preview_canvas_zoom.mjs` tests what the page ships.
+        "canvas-zoom": "src/views/canvas-zoom.ts",
       },
       output: {
         format: "es",

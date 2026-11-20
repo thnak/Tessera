@@ -133,10 +133,16 @@ export function createCanvasPicker(options: CanvasPickerOptions): CanvasPicker {
   }
 
   function show(report: CanvasPickReport): void {
-    const { rect, scale } = canvasMapping(canvas, options.viewport().width);
+    const { rect } = canvasMapping(canvas, options.viewport().width);
     const built = ensureParts();
-    // The engine's box is logical; the outline is CSS. `scale` is the one conversion, and it is the
-    // inverse of the one `move()` applies to the pointer, so the outline lands under the pointer.
+    // The engine's box is logical; the outline is CSS, laid out inside the overlay. The pane may zoom the
+    // stage with a CSS transform, which scales the overlay with the canvas, so the outline's own units are
+    // the *layout* ones: logical width over `offsetWidth`, which a transform does not change. At 100% that
+    // is the screen ratio `move()` uses, so the outline still lands under the pointer; zoomed, the
+    // transform carries it there.
+    const logicalWidth = options.viewport().width;
+    const scale = canvas.offsetWidth > 0 && logicalWidth > 0 ? logicalWidth / canvas.offsetWidth : 1;
+    const layoutWidth = canvas.offsetWidth > 0 ? canvas.offsetWidth : rect.width;
     const left = report.box.x / scale;
     const top = report.box.y / scale;
     const width = report.box.width / scale;
@@ -149,7 +155,7 @@ export function createCanvasPicker(options: CanvasPickerOptions): CanvasPicker {
     // The readout sits just above the box, and flips below it when there is no room above: a label
     // that leaves the canvas is a label a developer cannot read on the node they are inspecting.
     const above = top - 22;
-    built.readout.style.left = `${Math.max(0, Math.min(left, rect.width - 8))}px`;
+    built.readout.style.left = `${Math.max(0, Math.min(left, layoutWidth - 8))}px`;
     built.readout.style.top = `${above >= 0 ? above : top + height + 4}px`;
     overlay.hidden = false;
   }

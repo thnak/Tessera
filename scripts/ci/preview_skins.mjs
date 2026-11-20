@@ -706,6 +706,48 @@ await (async () => {
   }
 })();
 
+// --- the canvas is never remounted by a skin ---------------------------------------------------------
+//
+// React matches children by position. If the canvas stack sat at a different path under a bare frame than
+// under a skin, loading or picking a skin would unmount the `<canvas>` and mount a new one, and the
+// session (which caches the element at creation) would keep painting into the detached node. No DOM runs
+// here, so the check reads the element tree `SkinFrame` returns and compares the path to its children.
+
+await (async () => {
+  const name = "the canvas keeps one position in the frame with and without a skin";
+  try {
+  const { SkinFrame } = await import(pathToFileURL(resolve(DIST_SSR, "skin-frame.js")).href);
+  const child = { marker: "canvas-stack" };
+  const pathTo = (node, trail = []) => {
+    if (node === child) return trail;
+    if (node === null || typeof node !== "object" || !node.props) return null;
+    const kids = Array.isArray(node.props.children) ? node.props.children : [node.props.children];
+    for (let index = 0; index < kids.length; index += 1) {
+      const found = pathTo(kids[index], [...trail, `${typeof node.type === "string" ? node.type : node.type.name}[${index}]`]);
+      if (found !== null) return found;
+    }
+    return null;
+  };
+  const bare = pathTo(SkinFrame({ skin: null, mode: "mobile", children: child }));
+  assert(bare !== null, "the bare frame does not render its children");
+  for (const id of ["generic-phone-android", "generic-tablet", "generic-desktop-windows", "generic-foldable"]) {
+    const result = parseSkin(id, readManifest(id));
+    assert(result.ok, `${id}: ${result.ok ? "" : result.reason}`);
+    const mode = geometryModeOf(result.skin, null);
+    const skinned = pathTo(SkinFrame({ skin: result.skin, mode, children: child }));
+    assert(skinned !== null, `${id}: the skinned frame does not render its children`);
+    assert(
+      JSON.stringify(skinned) === JSON.stringify(bare),
+      `${id}: the canvas sits at ${skinned.join(" > ")} under the skin but ${bare.join(" > ")} bare, so React remounts it`,
+    );
+  }
+    ok(name);
+  } catch (error) {
+    fail(`${name}
+     ${error && error.message ? error.message : error}`);
+  }
+})();
+
 // --- the summary -----------------------------------------------------------------------------------
 
 process.stdout.write(

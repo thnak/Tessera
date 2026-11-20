@@ -243,6 +243,15 @@ same failing apply, so the frame never changed. The pane now shows a "Source not
 reason, and an applied source that paints nothing shows "Nothing to draw"
 (`scripts/ci/preview_canvas_pane_states.mjs`).
 
+**Zoom and pan are a view of the preview, never an input to the app.** The canvas pane's toolbar has Fit,
+zoom out and in, a 100% button and a Pan tool; Ctrl + wheel zooms around the cursor and the middle button
+always pans. They scale the stage (the canvas and its skin frame) with a CSS transform and scroll the pane's
+frame, so the engine keeps laying out at the device's logical viewport: no `viewport.set`, no frame, no
+restart, state kept. The two places that turn a pointer position into logical pixels read the transform back
+(`cssZoomOf`), so a click lands on the node under the cursor at any zoom; the arithmetic is
+`designer/web/src/views/canvas-zoom.ts` (`scripts/ci/preview_canvas_zoom.mjs`). The frame is bounded by the
+pane, so a tall device scrolls inside it instead of being cut off.
+
 **Every path the tree shows came from `project-paths.js`.** `projectFile()` calls `confinePath` on each
 path, then `classifyPath` to decide the kind, and `isTextKind` to decide whether the editor may open it --
 which is the spec's accepted-file rule made visible: a font or an image is listed with a `locked` badge and

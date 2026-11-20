@@ -322,10 +322,57 @@
  * letting the browser rescale it would make the preview blurry. */
 .canvas-frame {
   display: flex;
-  justify-content: center;
   padding: 12px;
   overflow: auto;
   min-width: 0;
+  /* Bounded by the pane rather than by the preview inside it: a tall device scrolls here instead of
+   * pushing the frame counters off the pane, and "Fit" has a box to fit into. */
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* Zoom and pan. The sizer reserves the zoomed size so the frame can scroll to every edge, and `margin: auto`
+ * centres it when it is smaller than the frame without making its left and top edges unreachable (which
+ * `justify-content: center` does). The stage is the thing that is scaled; it is out of flow so a transform
+ * never changes the layout the engine's pointer mapping reads. */
+.canvas-zoom-sizer {
+  position: relative;
+  flex: none;
+  margin: auto;
+}
+
+.canvas-zoom-stage {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: max-content;
+  transform-origin: 0 0;
+}
+
+/* The canvas keeps the logical size the session gave it; a cap here would distort it under a zoom. */
+.canvas-zoom-stage .canvas-stack,
+.canvas-zoom-stage canvas {
+  max-width: none;
+}
+
+.canvas-frame.pan-tool,
+.canvas-frame.pan-tool * {
+  cursor: grab;
+}
+
+.canvas-frame.is-panning,
+.canvas-frame.is-panning * {
+  cursor: grabbing;
+}
+
+.zoom-controls {
+  display: flex;
+  gap: 4px;
+}
+
+.zoom-controls #zoom-actual {
+  min-width: 52px;
+  font-variant-numeric: tabular-nums;
 }
 
 .canvas-frame canvas {
