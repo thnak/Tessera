@@ -9,12 +9,11 @@
     "statistic": "sizeof and allocation counts: exact (two runs must agree, else the gate fails). resident bytes: min over rss_runs"
   },
   "measurement": {
-    "build_config": "Release",
     "nodes": 20000,
     "idle_cycles": 300,
     "sizes_runs": 2,
     "statistic": "sizes: exact (every run must agree); rss: min",
-    "rss_runs": 5
+    "build_config": "Release"
   },
   "tolerance": {
     "default": {
@@ -44,7 +43,7 @@
       "measures": "sizeof(ui::InputEvent): the element type of the 256-event input queue (about 86 KiB). Deterministic; was 'measured, not yet asserted' in performance.md section 3.1, and this row is the assertion. Identical on both lanes"
     },
     "sizeof_paint_data": {
-      "budget": 536,
+      "budget": 528,
       "status": "enforce",
       "unit": "bytes",
       "measures": "sizeof(ui::PaintData): the lazily allocated paint payload a text or image node carries. Identical on both lanes. 536 since issue #613 added the radial shape to the gradient payload (one stop array, the four radial fractions sharing a union with the linear angle, plus the shape tag). See paint_slot_bytes for what a text node actually allocates"
@@ -86,7 +85,7 @@
       "measures": "bytes the first bind_event allocates (one allocation). 200 on both lanes"
     },
     "paint_slot_bytes": {
-      "budget": 544,
+      "budget": 536,
       "status": "enforce",
       "unit": "bytes",
       "measures": "bytes a text node's first set_paint_data allocates (the PaintData copy into the node's optional slot). 544 on both lanes: 520 was the linear-only payload, and issue #613 added the radial shape to the same struct (one stop array, the four radial fractions sharing a union with the linear angle) so a node still paints one background image. The 24-byte growth is the shape tag plus the union's alignment, not a second stop array."

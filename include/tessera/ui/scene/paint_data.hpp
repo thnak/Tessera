@@ -179,27 +179,29 @@ enum class GradientShape : std::uint8_t {
     Radial,
 };
 
+// The radial geometry of a gradient payload (issue #613): `center_x`/`center_y` are fractions of the
+// node's border box (0.5, 0.5 is the CSS default centre) and `radius_x`/`radius_y` are fractions of
+// the box's width/height, so a payload set in code scales with the node instead of freezing a pixel
+// size. The paint pass resolves both against the box it paints. A circle has `radius_x == radius_y`.
+struct RadialGradientGeometry {
+    float center_x = 0.5f;
+    float center_y = 0.5f;
+    float radius_x = 0.5f;
+    float radius_y = 0.5f;
+
+    bool operator==(const RadialGradientGeometry&) const = default;
+};
+
 struct LinearGradient {
     static constexpr std::size_t kMaxStops = 8;
     std::array<LinearGradientStop, kMaxStops> stops{};
-    // Linear: `angle_degrees` uses the CSS convention, 0 = to top, 90 = to right, 180 = to bottom.
-    float angle_degrees = 180.0f;
-    // Radial (issue #613): `center_x`/`center_y` are fractions of the node's border box (0.5, 0.5 is
-    // the CSS default centre) and `radius_x`/`radius_y` are fractions of the box's width/height, so
-    // a payload set in code scales with the node instead of freezing a pixel size. The paint pass
-    // resolves both against the box it paints. A circle has `radius_x == radius_y`.
-    //
-    // The four radial fractions share the space the linear angle leaves: a payload is one shape, so
-    // the fields are a union rather than four more members. That keeps `PaintData` inside its
-    // recorded budget (tests/golden/perf/memory_budget.json `paint_slot_bytes`).
+    // A payload is one shape, so the linear angle and the radial geometry share one slot rather than
+    // sitting side by side. That keeps `PaintData` inside its recorded budget
+    // (tests/golden/perf/memory_budget.json `paint_slot_bytes`). `angle_degrees` uses the CSS
+    // convention: 0 = to top, 90 = to right, 180 = to bottom.
     union {
         float angle_degrees;
-        struct {
-            float center_x;
-            float center_y;
-            float radius_x;
-            float radius_y;
-        } radial;
+        RadialGradientGeometry radial;
     };
     std::size_t stop_count = 0;
     GradientShape shape = GradientShape::Linear;
@@ -221,10 +223,7 @@ struct LinearGradient {
             return false;
         }
         if (shape == GradientShape::Radial) {
-            if (radial.center_x != other.radial.center_x ||
-                radial.center_y != other.radial.center_y ||
-                radial.radius_x != other.radial.radius_x ||
-                radial.radius_y != other.radial.radius_y) {
+            if (!(radial == other.radial)) {
                 return false;
             }
         } else if (angle_degrees != other.angle_degrees) {
