@@ -59,8 +59,8 @@ on a browser, a DOM, JavaScript, or the platform text stack.
 - Full CSS Grid (subgrid, masonry, dense auto-placement) and full CSS Tables.
 - Full SVG/CSS path/filter/shader effects.
 - Every color space and every `@`-rule.
-- CSS nesting and `@scope` evaluation in V1 (parsed only; the release that evaluates them is not
-  specified, see section 17). Isolation is by class scoping ([`css-isolation.md`](../design/css-isolation.md)).
+- CSS nesting in V1 (parsed only; the release that evaluates it is not specified, see
+  section 17). Isolation is by class scoping ([`css-isolation.md`](../design/css-isolation.md)).
 - Web fonts beyond committed test fonts ([ADR-006](../../decisions/ADR-006-text-stack.md), text stack).
 - Browser-style quirks modes, vendor prefixes semantics, or importing a browser's UA stylesheet wholesale. The user-agent origin reproduces the browser's default look rule by rule, as far as possible, and names each impossible exception ([ADR-063](../../decisions/ADR-063-browser-matching-user-agent-defaults.md)).
 
@@ -151,8 +151,9 @@ Must handle:
   - structural: `:first-child`, `:last-child`, `:only-child`, `:nth-child(An+B)`,
     `:nth-last-child(An+B)`, `:first-of-type`, `:last-of-type`, `:empty`, `:root`
   - logical: `:not(...)`, `:is(...)`, `:where(...)`
-  - `:has(...)` is parsed in V1; evaluation is listed as Later in section 11
-- pseudo-elements: `::before`, `::after`, `::placeholder`, `::selection` (parsed; paint support is not listed in section 11 and is not specified); component parts `::part(<ident>+)` are implemented ([`component-parts-v1.md`](component-parts-v1.md))
+  - `:has(<relative selector list>)` is matched (issue #622): the argument is matched against the
+    node's descendants and following siblings, at its most specific argument's specificity, and
+    `@supports selector(:has(a))` is true; the walk is bounded by the subtree it visits- pseudo-elements: `::before`, `::after`, `::placeholder`, `::selection` (parsed; paint support is not listed in section 11 and is not specified); component parts `::part(<ident>+)` are implemented ([`component-parts-v1.md`](component-parts-v1.md))
 - `:not()`/`:is()`/`:where()` accept a selector list; `:where()` contributes zero specificity
 
 ### 6.2 Matching rules
@@ -342,7 +343,7 @@ Two custom properties are reserved because the framework reads them before a ren
 | `@import` | build-time | resolved by the asset/build pipeline |
 | `@container` | V1 (engine) | `(min-/max-)width/height/inline-size/block-size` and range form, joined with `and`, optional container name; `or`, `not`, `style()` are diagnosed. Rules apply against the nearest ancestor with `container-type: size \| inline-size` (and a matching `container-name`); a container is not styled by its own query. Inline-size containers answer width only. Re-resolution on a size change is the engine observer of the settle loop ([layout-observation.md](../design/layout-observation.md) section 5.4): only a crossed condition restyles |
 | `@property` | Later | parsed; typed custom properties in V1.1 |
-| `@scope` | Later | parsed; evaluated later |
+| `@scope` | yes | `@scope (<start>) [to (<end>)]`; a rule applies only inside the region, and `@layer`/source order are unchanged (issue #622, [`theme-scoping.md`](../design/theme-scoping.md)) |
 | `@page`/`@namespace`/`@charset` | no-op | parsed and ignored |
 
 Unknown at-rules are preserved and skipped with a diagnostic. In the V1 column, `Later` has the
@@ -366,7 +367,7 @@ Legend: **V1** = implemented semantics; **Parse** = parsed/preserved, no semanti
 | Transforms | `transform` functions `translate`, `scale`, `rotate`, `skew`, `matrix` (2D affine) and `transform-origin` | the individual `translate`/`rotate`/`scale` properties, 3D, perspective |
 | Transitions | property/duration/timing/delay, fixed-step sampling | spring physics |
 | Animations | `@keyframes`, iteration, direction, fill-mode | scroll-driven |
-| Interaction | `cursor` (keyword grammar and the native-pointer contract: [`window-chrome-v1.md`](window-chrome-v1.md) section 8.5), `pointer-events`, `user-select`, `:hover/:active/:focus/:focus-visible` | `:has()`, `:focus-within` |
+| Interaction | `cursor` (keyword grammar and the native-pointer contract: [`window-chrome-v1.md`](window-chrome-v1.md) section 8.5), `pointer-events`, `user-select`, `:hover/:active/:focus/:focus-visible`, `:has()` | `:focus-within` |
 | Responsive | viewport media queries, rem/vw/vh, `@container` size queries with `container-type`/`container-name` | container style/scroll-state queries, `container` shorthand, container query length units |
 | Colors | named/hex/rgb/hsl/currentColor/transparent, `light-dark()`, `color-mix()` | lab/lch/oklab/oklch/color() semantics |
 | Custom properties | `var()`, inheritance, fallback, cycles | `@property` typed values |
@@ -414,12 +415,11 @@ Legend: **V1** = implemented semantics; **Parse** = parsed/preserved, no semanti
   ([`box-shadow-clipping.md`](../design/gpu/box-shadow-clipping.md)). `text-shadow` takes up to 4
   `[<color>? <x> <y> <blur>?]` layers (no spread, no `inset`), each painted behind every run's
   glyphs without changing layout or the ink box ([`text-shadow.md`](../design/text-shadow.md)).
-- `background-image` is a comma-separated **layer list** (CSS Backgrounds 3 section 2.1, #614):
-  each layer is a `linear-gradient()` or `none`, painted bottom to top (the last layer first, the
-  first layer on top); the `background` shorthand puts the colour on the final layer only, and a
-  `url()` layer is out of scope and is rejected with a diagnostic. See
-  [`background-layers.md`](../design/background-layers.md).
-- Value forms V1 ignores on a recognised property (3D `transform`, any
+- `background-image` is a comma-separated **layer list** (CSS Backgrounds 3 section 2.1, #614): each
+  layer is a `linear-gradient()` or `none`, painted bottom to top (the last layer first, the first on
+  top); the `background` shorthand puts the colour on the final layer only, and a `url()` layer is
+  out of scope and is rejected with a diagnostic
+  ([`background-layers.md`](../design/background-layers.md)).- Value forms V1 ignores on a recognised property (3D `transform`, any
   `backdrop-filter` function other than `blur`/`saturate`/`brightness`/`contrast`) produce a
   `StyleDiagnosticKind::UnsupportedValue` diagnostic per declaration and stay in the AST, like
   other unsupported declarations (below).
@@ -594,8 +594,7 @@ fail the build only when configured to do so; runtime diagnostics go to the dev 
 - ~~Build-time precompilation format~~ decided by [ADR-048](../../decisions/ADR-048-precompiled-embedded-stylesheets.md): versioned binary blob, see [`compiled-stylesheet-v1.md`](compiled-stylesheet-v1.md).
 - Whether to adopt a mature parser (for example `libcss`) behind `CssParser` if full syntax
   coverage becomes a maintenance burden. Decision must be recorded in a follow-up ADR.
-- CSS nesting, `@scope`, `@container`, `:has()` evaluation order and invalidation. `@scope` is the
-  later standard-CSS isolation path; V1 isolates by class scoping (section 3).- Full color-management and wide-gamut color handling.
+- CSS nesting and `@container` evaluation order and invalidation. `:has()`/`@scope` are decided and implemented ([`theme-scoping.md`](../design/theme-scoping.md)).
 - Typed custom properties (`@property`) and animation of custom properties.
 - Window-wide theme switch effects use view transitions (`view-transitions-v1.md`), not per-token
   animation; the update recalc suppresses style transitions.

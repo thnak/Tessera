@@ -48,6 +48,11 @@ bool matches(const CompoundSelector& selector, const StyleNode& node);
 bool matches(const ComplexSelector& selector, const StyleNode& node);
 bool matches(const SelectorList& selectors, const StyleNode& node);
 
+// `:has(<relative selector list>)` (issue #622): whether the node's descendants or its following
+// siblings (and their descendants) match the argument. Split into selector_has.cpp because it is
+// the one selector form that looks *down*, so its walk and its cost bound live together.
+[[nodiscard]] bool matches_has(const PseudoClass& pseudo, const StyleNode& node);
+
 class SelectorIndex {
 public:
     struct Entry {

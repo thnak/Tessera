@@ -2513,6 +2513,7 @@ function include/tessera/ui/style/parser.hpp tessera::ui::style::parse_styleshee
 header include/tessera/ui/style/prepared_stylesheet.hpp
 struct include/tessera/ui/style/prepared_stylesheet.hpp tessera::ui::style::PreparedItem
 struct include/tessera/ui/style/prepared_stylesheet.hpp tessera::ui::style::PreparedStyleSheet
+struct include/tessera/ui/style/prepared_stylesheet.hpp tessera::ui::style::ScopeRegion
 enum include/tessera/ui/style/prepared_stylesheet.hpp tessera::ui::style::PreparedItemKind
 function include/tessera/ui/style/prepared_stylesheet.hpp tessera::ui::style::fnv1a64
 function include/tessera/ui/style/prepared_stylesheet.hpp tessera::ui::style::prepare_stylesheet
@@ -2576,6 +2577,7 @@ struct include/tessera/ui/style/selector_match.hpp tessera::ui::style::Attribute
 struct include/tessera/ui/style/selector_match.hpp tessera::ui::style::SelectorMatch
 struct include/tessera/ui/style/selector_match.hpp tessera::ui::style::StyleNode
 function include/tessera/ui/style/selector_match.hpp tessera::ui::style::matches
+function include/tessera/ui/style/selector_match.hpp tessera::ui::style::matches_has
 
 header include/tessera/ui/style/stylesheet_blob.hpp
 struct include/tessera/ui/style/stylesheet_blob.hpp tessera::ui::style::BlobError

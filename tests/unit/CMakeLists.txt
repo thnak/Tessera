@@ -998,6 +998,15 @@ target_link_libraries(selector_match_tests PRIVATE tessera_style)
 
 add_test(NAME selector_match COMMAND selector_match_tests)
 
+# `:has()` and `@scope` (issue #622): the selector half (parse, match, specificity, `@supports`) and
+# the at-rule half (a rule applies only inside the region), plus their composition with `@layer`.
+add_executable(theme_scoping_tests
+    theme_scoping_tests.cpp)
+
+target_link_libraries(theme_scoping_tests PRIVATE tessera_style)
+
+add_test(NAME theme_scoping COMMAND theme_scoping_tests)
+
 add_executable(cascade_tests
     cascade_tests.cpp)
 

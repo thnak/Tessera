@@ -48,8 +48,10 @@ add_library(tessera_style STATIC
     scroll_style_sync.cpp
     supports.cpp
     selector.cpp
+    selector_specificity.cpp
     selector_index.cpp
     selector_match.cpp
+    selector_has.cpp
     selector_parts.cpp
     # The selector list printed back from its parsed form: the fallback for a sheet that arrived as
     # a blob, whose authored text is not carried (docs/specs/compiled-stylesheet-v1.md section 5).

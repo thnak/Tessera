@@ -169,7 +169,8 @@ int main() {
         !expect(!matches_text(":not(.card)", card), "not false") ||
         !expect(matches_text(":is(.card, #save)", card), "is") ||
         !expect(matches_text(":where(.card)", card), "where") ||
-        !expect(!matches_text("div:has(.title)", card), "has deferred")) {
+        // `:has()` is matched (issue #622): the card contains the title, so it matches.
+        !expect(matches_text("div:has(.title)", card), "has")) {
         return 7;
     }
 

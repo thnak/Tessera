@@ -101,6 +101,15 @@ void write_item(Writer& out, const PreparedItem& item) {
         for (const ContainerQuery& query : item.containers) {
             write_container(out, query);
         }
+        // Enclosing `@scope` regions (issue #622): the start list, then a flag and the end list.
+        out.count(item.scopes.size());
+        for (const ScopeRegion& region : item.scopes) {
+            write_selector_list(out, region.start);
+            out.u8(region.has_end ? 1 : 0);
+            if (region.has_end) {
+                write_selector_list(out, region.end);
+            }
+        }
         break;
     case PreparedItemKind::Layer:
         out.count(item.layer_refs.size());

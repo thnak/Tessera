@@ -247,8 +247,11 @@ bool match_logical(const PseudoClass& pseudo, const StyleNode& node) {
 }
 
 bool match_pseudo(const PseudoClass& pseudo, const StyleNode& node) {
-    if (pseudo.pseudo_element || pseudo.name == "has") {
+    if (pseudo.pseudo_element) {
         return false;
+    }
+    if (pseudo.name == "has") {
+        return matches_has(pseudo, node);
     }
     if (pseudo.name == "hover") {
         return has_state(node.state, PseudoState::Hover);

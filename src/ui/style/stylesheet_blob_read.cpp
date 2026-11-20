@@ -157,6 +157,17 @@ PreparedItem read_item(Reader& in, std::size_t layer_count) {
         for (std::size_t i = 0; i < containers && !in.failed(); ++i) {
             item.containers.push_back(read_container(in));
         }
+        // Enclosing `@scope` regions (issue #622).
+        const std::size_t scopes = in.count();
+        for (std::size_t i = 0; i < scopes && !in.failed(); ++i) {
+            ScopeRegion region;
+            region.start = read_selector_list(in, 0);
+            region.has_end = in.boolean();
+            if (region.has_end) {
+                region.end = read_selector_list(in, 0);
+            }
+            item.scopes.push_back(std::move(region));
+        }
         break;
     }
     case PreparedItemKind::Layer: {

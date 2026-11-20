@@ -53,6 +53,7 @@ private:
     void rule(const Rule& source, std::uint32_t layer);
     void at_rule(const AtRule& source, std::uint32_t layer, int depth = 0);
     void layer_at_rule(const AtRule& source, std::uint32_t layer, int depth = 0);
+    void scope_at_rule(const AtRule& source, std::uint32_t layer, int depth = 0);
     std::uint32_t layer_for(std::string_view name);
     void diagnose(const AtRule& source, std::string_view name, const char* message);
     PreparedItem make_item(PreparedItemKind kind) const;
@@ -61,12 +62,14 @@ private:
     PreparedStyleSheet& out_;
     std::vector<MediaQueryList> media_;
     std::vector<ContainerQuery> containers_;
+    std::vector<ScopeRegion> scopes_;
 };
 
 PreparedItem Preparer::make_item(PreparedItemKind kind) const {
     PreparedItem item;
     item.kind = kind;
     item.media = media_;
+    item.scopes = scopes_;
     return item;
 }
 
@@ -180,6 +183,82 @@ void Preparer::layer_at_rule(const AtRule& source, std::uint32_t layer, int dept
     rules(parse_stylesheet(source.block), target, depth + 1);
 }
 
+// `@scope (<start>) [to (<end>)]` (issue #622): the prelude is a parenthesised selector list, an
+// optional `to` and a second parenthesised selector list. Returns false when the prelude is not
+// that form, so the block is dropped with a diagnostic instead of applying unscoped.
+bool parse_scope_prelude(std::string_view prelude, ScopeRegion& region) {
+    // `trim` returns an owning string, so the view must borrow from a named local: binding it to a
+    // temporary would leave `text` dangling before the first group is read. The same applies to the
+    // two re-trims below, which is why they assign to `owned` first.
+    std::string owned = trim(prelude);
+    std::string_view text = owned;
+    const auto take_group = [&text, &owned](SelectorList& out) {
+        if (text.empty() || text.front() != '(') {
+            return false;
+        }
+        // The matching `)` of the opening one, so a selector list with its own parentheses (a
+        // `:not(...)`, an `:nth-child(...)`) stays inside the group.
+        int depth = 0;
+        std::size_t close = std::string_view::npos;
+        for (std::size_t i = 0; i < text.size(); ++i) {
+            if (text[i] == '(') {
+                ++depth;
+            } else if (text[i] == ')') {
+                --depth;
+                if (depth == 0) {
+                    close = i;
+                    break;
+                }
+            }
+        }
+        if (close == std::string_view::npos) {
+            return false;
+        }
+        const SelectorParseResult parsed = parse_selector_list(text.substr(1, close - 1));
+        if (!parsed.ok || parsed.list.selectors.empty()) {
+            return false;
+        }
+        out = parsed.list;
+        owned = trim(text.substr(close + 1));
+        text = owned;
+        return true;
+    };
+
+    if (!take_group(region.start)) {
+        return false;
+    }
+    region.has_end = false;
+    if (text.empty()) {
+        return true;
+    }
+    // `to (<end>)`: the keyword is case-insensitive, as every CSS keyword is.
+    if (text.size() < 2 || lower(text.substr(0, 2)) != "to") {
+        return false;
+    }
+    owned = trim(text.substr(2));
+    text = owned;
+    if (!take_group(region.end)) {
+        return false;
+    }
+    region.has_end = true;
+    return text.empty();
+}
+
+void Preparer::scope_at_rule(const AtRule& source, std::uint32_t layer, int depth) {
+    if (depth >= kMaxAtRuleDepth) {
+        diagnose(source, "scope", "at-rules nested too deeply");
+        return;
+    }
+    ScopeRegion region;
+    if (!parse_scope_prelude(source.prelude, region)) {
+        diagnose(source, "scope", "invalid @scope prelude; expected `(<start>) [to (<end>)]`");
+        return;
+    }
+    scopes_.push_back(std::move(region));
+    rules(parse_stylesheet(source.block), layer, depth + 1);
+    scopes_.pop_back();
+}
+
 void Preparer::at_rule(const AtRule& source, std::uint32_t layer, int depth) {
     if (depth >= kMaxAtRuleDepth) {
         // Refuse rather than recurse: a stylesheet must not be able to overflow the stack by
@@ -215,6 +294,10 @@ void Preparer::at_rule(const AtRule& source, std::uint32_t layer, int depth) {
     }
     if (name == "layer") {
         layer_at_rule(source, layer, depth);
+        return;
+    }
+    if (name == "scope") {
+        scope_at_rule(source, layer, depth);
         return;
     }
     if (name == "supports") {
