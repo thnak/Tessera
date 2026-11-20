@@ -1,0 +1,371 @@
+/* SPDX-License-Identifier: MIT */
+
+/* The hero console: a light deck (three units divided by engraved seams, grille tabs on both edges)
+   over a dark macro band joined by scalloped notches. Layout follows the console's own width through
+   a container query, so it degrades the same in a narrow window and a narrow column. */
+.tconsole {
+  /* tessera-gap: container-query */
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border-radius: 28px;
+  box-shadow: var(--mat-device-shadow); /* tessera-gap: inset-shadow */
+  border: var(--mat-edge-width) solid var(--mat-edge);
+}
+
+/* Deck */
+.tconsole-deck {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  padding: var(--space-4) 30px var(--space-6);
+  border-radius: 28px 28px 0px 0px;
+  background: linear-gradient(180deg, var(--mat-level-0), var(--mat-chassis-b));
+  box-shadow: inset 0px 1px 0px var(--mat-lip); /* tessera-gap: inset-shadow */
+}
+
+.tconsole-grille {
+  position: absolute;
+  top: 72px;
+  width: 22px;
+  height: 160px;
+}
+
+.tconsole-grille-l {
+  left: 0px;
+  border-radius: 0px 20px 20px 0px;
+}
+
+.tconsole-grille-r {
+  right: 0px;
+  border-radius: 20px 0px 0px 20px;
+  /* tessera-gap: multiple-backgrounds, radial-gradient */
+  background:
+    radial-gradient(circle, var(--mat-grille-dot) 1.1px, transparent 1.6px) 5px 5px / 7px 7px,
+    linear-gradient(270deg, var(--mat-grille-a), var(--mat-grille-b));
+  box-shadow: inset 2px 0px 4px rgba(20, 25, 40, 0.14), inset 0px 1px 0px var(--mat-lip); /* tessera-gap: inset-shadow */
+}
+
+.tconsole-unit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  flex: 1 1 260px;
+  min-width: 0;
+  padding: var(--space-2) var(--space-6) var(--space-2);
+}
+
+/* The two-knob unit gets the extra width so its knobs sit side by side. */
+.tconsole-unit-wide {
+  flex: 1.4 1 320px;
+}
+
+.tconsole-unit-seam {
+  box-shadow: inset 1px 0px 0px var(--mat-engrave), inset 2px 0px 0px var(--mat-lip); /* tessera-gap: inset-shadow */
+}
+
+.tconsole-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tconsole-title {
+  font-size: 20px;
+  line-height: 28px;
+}
+
+.tconsole-power {
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--on-surface);
+  cursor: pointer;
+}
+
+.tconsole-power:hover {
+  background-color: var(--mat-level-0);
+}
+
+.tconsole-power-glyph {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+
+.tconsole-power-led {
+  position: absolute;
+  top: 6px;
+  right: 5px;
+}
+
+/* LCD preset display with step keys */
+.tconsole-lcdrow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.tconsole-lcd {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  flex-grow: 1;
+  min-width: 0;
+  height: 48px;
+  padding: 6px 14px;
+  border-radius: var(--mat-radius-key);
+}
+
+.tconsole-lcd-name {
+  font-size: 15px;
+  line-height: 20px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tconsole-lcd-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.tconsole-step {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 44px;
+  margin: 0;
+  padding: 0;
+  border-radius: var(--mat-radius-key);
+  color: var(--on-surface);
+  cursor: pointer;
+}
+
+.tconsole-step:hover {
+  box-shadow: var(--mat-raised-shadow-hover); /* tessera-gap: inset-shadow */
+}
+
+.tconsole-step:active {
+  box-shadow: var(--mat-pressed-shadow); /* tessera-gap: inset-shadow */
+  transform: translateY(var(--mat-press-depth));
+}
+
+.tconsole-tri {
+  width: 0px;
+  height: 0px;
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
+  border-left: 9px solid currentColor;
+}
+
+.tconsole-tri-left {
+  border-left: 0;
+  border-right: 9px solid currentColor;
+}
+
+.tconsole-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+  min-height: 190px;
+  padding-top: var(--space-2);
+}
+
+.tconsole-switch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Macro band */
+.tconsole-band {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  padding: 26px var(--space-4) var(--space-6);
+  border-radius: 0px 0px 28px 28px;
+}
+
+/* Scalloped notches: the deck's colour dipping into the band (inline SVG path, fill from a token). */
+.tconsole-notch {
+  /* tessera-gap: svg-path */
+  position: absolute;
+  top: -1px;
+  width: 64px;
+  height: 20px;
+  fill: var(--mat-chassis-b);
+}
+
+.tconsole-n1 { left: calc(16.667% - 32px); }
+.tconsole-n2 { left: calc(50% - 32px); }
+.tconsole-n3 { left: calc(83.333% - 32px); }
+
+.tconsole-group {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 3 1 230px;
+  min-width: 0;
+  padding: var(--space-4) var(--space-2) 0px;
+}
+
+.tconsole-group-4 {
+  flex: 4 1 300px;
+}
+
+.tconsole-group + .tconsole-group {
+  border-left: 1.5px dotted var(--mat-inverse-line);
+}
+
+.tconsole-group-name {
+  position: absolute;
+  left: var(--space-4);
+  top: 0px;
+}
+
+/* Connector tree: stem, glowing node, then one branch per knob. */
+.tconsole-stem {
+  width: 1.5px;
+  height: 20px;
+  background-color: var(--mat-signal);
+}
+
+.tconsole-node {
+  position: relative;
+  z-index: 1;
+  width: 7px;
+  height: 7px;
+  margin: -3.5px 0px;
+  border-radius: 50%;
+  background-color: var(--mat-signal);
+  box-shadow: 0px 0px 8px var(--mat-signal-glow);
+}
+
+.tconsole-macros {
+  display: flex;
+  width: 100%;
+}
+
+.tconsole-macro {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1 1 0px;
+  min-width: 0;
+}
+
+.tconsole-branch {
+  position: relative;
+  width: 100%;
+  height: 22px;
+  margin-bottom: var(--space-1);
+}
+
+.tconsole-branch::before,
+.tconsole-branch::after {
+  content: "";
+  position: absolute;
+  top: 0px;
+  bottom: 0px;
+  border-color: var(--mat-signal);
+  border-style: solid;
+  border-width: 0px;
+  opacity: 0.75;
+}
+
+.tconsole-branch-first::before {
+  left: 50%;
+  right: 0px;
+  border-top-width: 1.5px;
+  border-left-width: 1.5px;
+  border-top-left-radius: 12px;
+}
+
+.tconsole-branch-last::before {
+  left: 0px;
+  right: 50%;
+  border-top-width: 1.5px;
+  border-right-width: 1.5px;
+  border-top-right-radius: 12px;
+}
+
+.tconsole-branch-mid::before {
+  left: 0px;
+  right: 0px;
+  bottom: auto;
+  border-top-width: 1.5px;
+}
+
+.tconsole-branch-mid::after {
+  left: 50%;
+  border-left-width: 1.5px;
+}
+
+/* Narrow console: units and groups stack; seams turn horizontal; one centred notch; no grilles. */
+@container (max-width: 860px) {
+  .tconsole-unit-seam {
+    box-shadow: inset 0px 1px 0px var(--mat-engrave), inset 0px 2px 0px var(--mat-lip); /* tessera-gap: inset-shadow */
+    padding-top: var(--space-4);
+    margin-top: var(--space-2);
+  }
+
+  .tconsole-n1,
+  .tconsole-n3 {
+    display: none;
+  }
+
+  .tconsole-group + .tconsole-group {
+    border-left: 0;
+    border-top: 1.5px dotted var(--mat-inverse-line);
+    margin-top: var(--space-4);
+    padding-top: var(--space-6);
+  }
+
+  .tconsole-group + .tconsole-group .tconsole-group-name {
+    top: var(--space-2);
+  }
+}
+
+@container (max-width: 560px) {
+  .tconsole-deck {
+    padding: var(--space-3) var(--space-2) var(--space-4);
+  }
+
+  .tconsole-grille {
+    display: none;
+  }
+
+  .tconsole-unit {
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .tconsole-band {
+    padding: 26px var(--space-1) var(--space-4);
+  }
+
+  .tconsole-group {
+    padding-left: 0px;
+    padding-right: 0px;
+  }
+}

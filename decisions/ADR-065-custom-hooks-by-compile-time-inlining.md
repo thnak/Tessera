@@ -92,6 +92,10 @@ decision and its limits explicit, and promotes it to V1.
 - **Native hooks declared by packages.** Rejected for V1: see ADR-064 and the reasons in
   [`behavior-hooks.md`](../docs/design/behavior-hooks.md) (no Studio support, ABI, supply chain).
 
+## Evidence required before Accepted
+
+This ADR stays Proposed until measured evidence exists. Spike [#659](https://github.com/thnak/Tessera/issues/659) implements the expansion pass off by default and runs it on at least eight fixtures, comparing each with the hand-expanded component (same IR after id mapping), recording generated size and member names, the related-span diagnostics, and the spec rules that were wrong or missing (including `useService` inside a hook). The implementing issues #645 to #648 wait for Acceptance.
+
 ## Follow-up
 
 - `docs/specs/custom-hooks-v1.md` accepted; update the sentences that say custom hooks are rejected

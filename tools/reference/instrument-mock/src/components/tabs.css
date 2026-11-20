@@ -1,0 +1,61 @@
+/* SPDX-License-Identifier: MIT */
+
+/* Segmented well: tabs sit in a recessed tray (RECESS); the selected one is a raised key (RAISED)
+   with a lit LED and accent label. The tray scrolls sideways when it does not fit. */
+.ttabs {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.ttabs-list {
+  display: flex;
+  align-self: flex-start;
+  max-width: 100%;
+  gap: 3px;
+  padding: 3px;
+  border-radius: var(--radius-lg);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.ttabs-tab {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+  height: 30px;
+  margin: 0;
+  padding: 0px var(--space-3);
+  border: var(--mat-edge-width) solid transparent;
+  border-radius: 5px;
+  background: none;
+  color: var(--on-surface-muted);
+  font-weight: var(--mat-display-weight);
+  cursor: pointer;
+  transition: color var(--motion-fast) ease-out;
+}
+
+.ttabs-tab:hover {
+  color: var(--on-surface);
+}
+
+.ttabs-tab-selected,
+.ttabs-tab-selected:hover {
+  border-color: var(--mat-edge);
+  background: linear-gradient(180deg, var(--mat-raised-a), var(--mat-raised-b));
+  box-shadow: var(--mat-raised-shadow); /* tessera-gap: inset-shadow */
+  color: var(--accent);
+}
+
+.ttabs-count {
+  padding: 0px var(--space-1);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-label);
+  line-height: var(--line-height-label);
+}
+
+.ttabs-panel {
+  padding-top: var(--space-4);
+  min-width: 0;
+}

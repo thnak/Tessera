@@ -1,0 +1,111 @@
+/* SPDX-License-Identifier: MIT */
+
+.matrix {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  overflow-x: auto;
+  scrollbar-width: thin;
+  padding: var(--space-2);
+}
+
+.matrix-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.matrix-head,
+.matrix-name,
+.matrix-cell {
+  flex: 0 0 100px;
+}
+
+.matrix-head {
+  font-family: var(--mat-font-micro);
+  font-size: var(--font-size-label);
+  line-height: var(--line-height-label);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--on-surface-muted);
+}
+
+.matrix-name {
+  font-size: var(--font-size-label);
+  color: var(--on-surface-muted);
+}
+
+.matrix-cell {
+  display: flex;
+}
+
+.type-title {
+  font-size: var(--font-size-title);
+  line-height: var(--line-height-title);
+}
+
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.swatch {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.swatch-chip {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+}
+
+.swatch-name {
+  font-size: var(--font-size-label);
+  color: var(--on-surface);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.type-display {
+  font-size: 26px;
+  line-height: 32px;
+}
+
+/* Instrument parts row */
+.parts-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.parts-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.parts-lcd {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 14px;
+  border-radius: var(--mat-radius-key);
+}
+
+.parts-band {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+  padding: var(--space-4) var(--space-6);
+  border-radius: var(--mat-radius-plate);
+}
