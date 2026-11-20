@@ -10,7 +10,7 @@ export interface ElementRef<T> {
   readonly current: T | null;
 }
 
-export type RoleToken = "generic" | "presentation" | "none" | "button" | "link" | "heading" | "img" | "textbox" | "checkbox" | "radio" | "switch" | "slider" | "progressbar" | "list" | "listitem" | "tab" | "tabpanel" | "dialog" | "menu" | "menuitem" | "tooltip" | "alert";
+export type RoleToken = "generic" | "presentation" | "none" | "button" | "link" | "heading" | "img" | "textbox" | "checkbox" | "radio" | "switch" | "slider" | "progressbar" | "list" | "listitem" | "tab" | "tabpanel" | "dialog" | "menu" | "menuitem" | "tooltip" | "alert" | "paragraph";
 
 export interface ViewElement {
   readonly kind: "View";
@@ -145,7 +145,9 @@ export interface CommonProps {
   style?: Record<string, string | number>;
   id?: string;
   role?: RoleToken;
+  'tag'?: string;
   'aria-label'?: string;
+  'aria-level'?: string;
   'aria-hidden'?: boolean;
   'aria-disabled'?: boolean;
   'aria-selected'?: boolean;

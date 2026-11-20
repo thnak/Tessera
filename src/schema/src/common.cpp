@@ -79,6 +79,16 @@ constexpr PropRow kCommonProps[] = {
      {},
      tags(kHiddenExcept),
      "one of the role tokens; an explicit role replaces the implied role"},
+    {"tag",
+     "string",
+     ValueKind::Literal,
+     false,
+     "",
+     "props.tag",
+     {},
+     tags(kHiddenExcept),
+     "the HTML tag an alias was written as; the `h1`-style aliases inject it and a type selector "
+     "(`h1 { }`) matches it (issue #610)"},
     {"aria-label",
      "string",
      ValueKind::Expression,
@@ -88,6 +98,15 @@ constexpr PropRow kCommonProps[] = {
      {},
      tags(kHiddenExcept),
      "accessible name; overrides a derived name"},
+    {"aria-level",
+     "string",
+     ValueKind::Expression,
+     false,
+     "",
+     "props.aria-level",
+     {},
+     tags(kHiddenExcept),
+     "heading level 1-6; `h1`-`h6` inject it and the user-agent sheet sizes by it"},
     {"aria-hidden",
      "bool",
      ValueKind::Expression,
@@ -241,10 +260,10 @@ constexpr AliasAttr kCommonAliasAttrs[] = {
 };
 
 constexpr std::string_view kRoleTokens[] = {
-    "generic",     "presentation", "none",     "button", "link",     "heading",
-    "img",         "textbox",      "checkbox", "radio",  "switch",   "slider",
-    "progressbar", "list",         "listitem", "tab",    "tabpanel", "dialog",
-    "menu",        "menuitem",     "tooltip",  "alert",
+    "generic",     "presentation", "none",     "button", "link",      "heading",
+    "img",         "textbox",      "checkbox", "radio",  "switch",    "slider",
+    "progressbar", "list",         "listitem", "tab",    "tabpanel",  "dialog",
+    "menu",        "menuitem",     "tooltip",  "alert",  "paragraph",
 };
 
 constexpr bool prop_names_are_unique(std::span<const PropRow> list) {
@@ -259,7 +278,7 @@ constexpr bool prop_names_are_unique(std::span<const PropRow> list) {
 }
 
 static_assert(prop_names_are_unique(kCommonProps), "common prop names are unique");
-static_assert(std::size(kRoleTokens) == 22, "the role token list of common-and-events.md 1.1");
+static_assert(std::size(kRoleTokens) == 23, "the role token list of common-and-events.md 1.1");
 
 } // namespace
 

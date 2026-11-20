@@ -241,6 +241,12 @@ CompiledStyleSheet::matched_rules(const StyleNode& node,
             continue;
         }
         const CompiledRule& rule = rules_[match.value];
+        // The user-agent sheet describes the built-in elements. A component whose name happens to
+        // be `Button` or `Text` is the author's own element, so a bare `Button { ... }` default
+        // must not style its host box (it drew a grey frame around the gallery's buttons).
+        if (rule.origin == Origin::UserAgent && node.component_host) {
+            continue;
+        }
         if (!rule.containers.empty()) {
             const bool applies = containers != nullptr &&
                                  std::all_of(rule.containers.begin(), rule.containers.end(),

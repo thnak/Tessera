@@ -108,7 +108,7 @@ Length parse_length(std::string_view text, const LayoutViewport& viewport) {
         return Length{Length::Kind::Points, value};
     }
     if (unit == "rem" || unit == "em") {
-        return Length{Length::Kind::Points, value * 16.0f};
+        return Length{Length::Kind::Points, value * (unit == "em" ? viewport.font_size : 16.0f)};
     }
     if (unit == "vw") {
         return Length{Length::Kind::Points, value * viewport.width / 100.0f};

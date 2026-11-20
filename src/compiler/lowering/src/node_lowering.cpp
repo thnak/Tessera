@@ -58,6 +58,9 @@ bool check_focusable_semantics(NodeState& state, const jsx::JsxNode& element,
 // injected run style (`b` -> font-weight: 700). Explicit attributes and inline style declarations
 // win, so a default is only added when the slot is still empty.
 void apply_alias_defaults(const ElementInfo& info, ir::Node& node) {
+    if (!info.alias_tag.empty() && node.props.find("tag") == node.props.end()) {
+        node.props.emplace("tag", ir::make_literal(std::string(info.alias_tag)));
+    }
     for (const schema::AliasInject& inject : info.inject) {
         const std::string name(inject.name);
         if (node.props.find(name) == node.props.end()) {

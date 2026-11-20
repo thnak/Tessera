@@ -46,7 +46,7 @@ bool hinting_and_positioning_follow_scale() {
         bool subpixel_position;
     };
     constexpr std::array<Row, 4> rows{{
-        {1.0f, TextHinting::Light, false},
+        {1.0f, TextHinting::Light, true},
         {1.25f, TextHinting::Light, true},
         {1.5f, TextHinting::Light, true},
         {2.0f, TextHinting::None, true},

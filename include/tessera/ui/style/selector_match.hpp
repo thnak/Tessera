@@ -19,6 +19,8 @@ struct AttributeView {
 
 struct StyleNode {
     std::string_view tag;
+    // The HTML tag an alias was written as (`h1`); a type selector matches it as well as `tag`.
+    std::string_view alias_tag;
     std::string_view id;
     // Whitespace-separated `part` attribute names: the styling API an element exposes to its host
     // (stylesheet-v1 section 6.3). Empty for an element that is no part.

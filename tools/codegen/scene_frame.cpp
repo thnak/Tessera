@@ -107,11 +107,10 @@ private:
 } // namespace
 
 rhi::Color scene_frame_clear_color() noexcept {
-    // The app window background (`detail::frame_clear_color(false)` of
-    // src/app/window_internal.hpp). A preview that cleared to black would differ from the native
-    // window everywhere the stylesheet paints nothing, which is a fake parity failure rather than a
-    // real one.
-    return rhi::rgba8(11, 18, 32);
+    // The canvas colour (`detail::frame_clear_color(false)` of src/app/window_internal.hpp): white,
+    // as a browser's default canvas. A preview that cleared to anything else would differ from the
+    // native window everywhere the stylesheet paints nothing, a fake parity failure.
+    return rhi::rgba8(255, 255, 255);
 }
 
 rhi::PipelineDesc scene_frame_pipeline_desc(rhi::TextureFormat format, std::uint32_t sample_count) {

@@ -104,6 +104,14 @@ std::vector<SelectorMatch> SelectorIndex::match(const StyleNode& node) const {
             }
         }
     }
+    if (!node.alias_tag.empty() && node.alias_tag != node.tag) {
+        const auto found = tag_index_.find(std::string(node.alias_tag));
+        if (found != tag_index_.end()) {
+            for (const std::size_t index : found->second) {
+                append(index);
+            }
+        }
+    }
     for (const std::size_t index : universal_index_) {
         append(index);
     }

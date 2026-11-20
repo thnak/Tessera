@@ -42,6 +42,29 @@ const std::string* value_of(const ComputedStyle& style, const char* property) {
 } // namespace
 
 int main() {
+    // `font-size` resolves at computed-value time: `em` and `%` against the parent, `rem` against
+    // the 16px root, so a child of a 24px parent that asks for 1.5em is 36px (issue #608).
+    {
+        ComputedStyle root;
+        root.set("font-size", "24px");
+        CascadeTable child;
+        child.add(decl("font-size", "1.5em", Origin::Author, 1));
+        const ComputedStyle computed = compute_style(&root, child);
+        CascadeTable percent;
+        percent.add(decl("font-size", "50%", Origin::Author, 1));
+        CascadeTable rem;
+        rem.add(decl("font-size", "2rem", Origin::Author, 1));
+        if (!expect(value_of(computed, "font-size") != nullptr &&
+                        *value_of(computed, "font-size") == "36px",
+                    "1.5em of a 24px parent is 36px") ||
+            !expect(*value_of(compute_style(&root, percent), "font-size") == "12px",
+                    "50% of a 24px parent is 12px") ||
+            !expect(*value_of(compute_style(&root, rem), "font-size") == "32px",
+                    "2rem is 32px whatever the parent is")) {
+            return 90;
+        }
+    }
+
     CascadeTable table;
     table.add(decl("color", "ua", Origin::UserAgent, 1));
     table.add(decl("color", "author", Origin::Author, 2));

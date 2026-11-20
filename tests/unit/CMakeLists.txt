@@ -1025,6 +1025,12 @@ target_include_directories(ua_stylesheet_tests PRIVATE ${PROJECT_SOURCE_DIR}/inc
 target_link_libraries(ua_stylesheet_tests PRIVATE tessera_style)
 add_test(NAME ua_stylesheet COMMAND ua_stylesheet_tests)
 
+add_executable(scene_style_attributes_tests
+    scene_style_attributes_tests.cpp)
+target_include_directories(scene_style_attributes_tests PRIVATE ${PROJECT_SOURCE_DIR}/include)
+target_link_libraries(scene_style_attributes_tests PRIVATE tessera_style tessera_scene)
+add_test(NAME scene_style_attributes COMMAND scene_style_attributes_tests)
+
 add_executable(stylesheet_blob_tests
     stylesheet_blob_tests.cpp)
 
@@ -2262,6 +2268,20 @@ add_executable(layout_signature_tests
 target_link_libraries(layout_signature_tests PRIVATE tessera_layout)
 
 add_test(NAME layout_signature COMMAND layout_signature_tests)
+
+add_executable(layout_block_fill_tests
+    layout_block_fill_tests.cpp)
+
+target_link_libraries(layout_block_fill_tests PRIVATE tessera_layout)
+
+add_test(NAME layout_block_fill COMMAND layout_block_fill_tests)
+
+add_executable(paint_wrap_policy_tests
+    paint_wrap_policy_tests.cpp)
+
+target_link_libraries(paint_wrap_policy_tests PRIVATE tessera_scene)
+
+add_test(NAME paint_wrap_policy COMMAND paint_wrap_policy_tests)
 
 add_executable(swapchain_tests
     swapchain_tests.cpp)

@@ -1,0 +1,119 @@
+{
+  "viewport": [
+    400,
+    600
+  ],
+  "note": "Each case is one markup written twice: `html` for Chromium, `tsx` (the body of App's root <div>) for Tessera. Every element sits in a wrapper so its box is read relative to the wrapper.",
+  "cases": [
+    {
+      "id": "div",
+      "html": "<div>Text</div>",
+      "tsx": "<div>Text</div>"
+    },
+    {
+      "id": "span",
+      "html": "<span>Text</span>",
+      "tsx": "<span>Text</span>"
+    },
+    {
+      "id": "p",
+      "html": "<p>Text</p>",
+      "tsx": "<p>Text</p>"
+    },
+    {
+      "id": "h1",
+      "html": "<h1>Text</h1>",
+      "tsx": "<h1>Text</h1>"
+    },
+    {
+      "id": "h2",
+      "html": "<h2>Text</h2>",
+      "tsx": "<h2>Text</h2>"
+    },
+    {
+      "id": "h3",
+      "html": "<h3>Text</h3>",
+      "tsx": "<h3>Text</h3>"
+    },
+    {
+      "id": "h4",
+      "html": "<h4>Text</h4>",
+      "tsx": "<h4>Text</h4>"
+    },
+    {
+      "id": "h5",
+      "html": "<h5>Text</h5>",
+      "tsx": "<h5>Text</h5>"
+    },
+    {
+      "id": "h6",
+      "html": "<h6>Text</h6>",
+      "tsx": "<h6>Text</h6>"
+    },
+    {
+      "id": "a",
+      "html": "<a>Text</a>",
+      "tsx": "<a>Text</a>"
+    },
+    {
+      "id": "strong",
+      "html": "<strong>Text</strong>",
+      "tsx": "<strong>Text</strong>"
+    },
+    {
+      "id": "em",
+      "html": "<em>Text</em>",
+      "tsx": "<em>Text</em>"
+    },
+    {
+      "id": "code",
+      "html": "<code>Text</code>",
+      "tsx": "<code>Text</code>"
+    },
+    {
+      "id": "label",
+      "html": "<label>Text</label>",
+      "tsx": "<label>Text</label>"
+    },
+    {
+      "id": "ul",
+      "html": "<ul><li>One</li><li>Two</li></ul>",
+      "tsx": "<ul><li>One</li><li>Two</li></ul>"
+    },
+    {
+      "id": "ol",
+      "html": "<ol><li>One</li><li>Two</li></ol>",
+      "tsx": "<ol><li>One</li><li>Two</li></ol>"
+    },
+    {
+      "id": "button",
+      "html": "<button>Go</button>",
+      "tsx": "<button>Go</button>",
+      "ignore": [
+        "width"
+      ]
+    },
+    {
+      "id": "input",
+      "html": "<input />",
+      "tsx": "<input />",
+      "ignore": ["width"]
+    },
+    {
+      "id": "textarea",
+      "html": "<textarea></textarea>",
+      "tsx": "<textarea />",
+      "ignore": ["width"]
+    },
+    {
+      "id": "section",
+      "html": "<section>Text</section>",
+      "tsx": "<section>Text</section>"
+    },
+    {
+      "id": "nav",
+      "html": "<nav>Text</nav>",
+      "tsx": "<nav>Text</nav>"
+    }
+  ]
+}

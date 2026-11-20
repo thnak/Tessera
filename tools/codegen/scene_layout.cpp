@@ -4,6 +4,7 @@
 #include "tessera/ui/layout/apply_layout.hpp"
 #include "tessera/ui/layout/layout_engine.hpp"
 #include "tessera/ui/scene/paint_data.hpp"
+#include "tessera/ui/scene/text_wrap.hpp"
 #include "tessera/ui/style/safe_area_style.hpp"
 #include "tessera/ui/style/scene_style.hpp"
 
@@ -51,7 +52,7 @@ ui::layout::LayoutInput build_layout_input(const ui::Node& node, ui::style::Scen
     if (text_payload) {
         input.text = paint->text;
         // Layout's text-fit fact must use paint's own wrap decision (issue #490).
-        input.text_wrap = paint->wrap == ui::PaintWrap::Wrap;
+        input.text_wrap = ui::paint_wraps(node.element_kind(), *paint);
     }
     for (const auto& child : node.children()) {
         if (text_payload && paint->has_span(child->id())) {

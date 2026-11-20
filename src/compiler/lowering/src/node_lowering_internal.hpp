@@ -62,6 +62,9 @@ struct ElementInfo {
     // attribute/style wins. Empty for intrinsic elements.
     std::span<const schema::AliasInject> inject = {};
     std::span<const schema::AliasStyle> style_defaults = {};
+    // The lowercase tag the element was written as (`h1`); becomes the `tag` prop so a type
+    // selector can match it (issue #610). Empty for every other element.
+    std::string_view alias_tag = {};
 };
 [[nodiscard]] std::optional<ElementInfo> resolve_element(NodeState& state,
                                                          const jsx::JsxNode& element);

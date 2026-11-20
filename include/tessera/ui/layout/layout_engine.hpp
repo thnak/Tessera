@@ -47,6 +47,9 @@ struct LayoutViewport {
     float width = 800.0f;
     float height = 600.0f;
     float dpi_scale = 1.0f;
+    // What `em` means for the element being styled: its own computed font size (issue #608).
+    // The engine sets it per element; `rem` is always the 16px root.
+    float font_size = 16.0f;
 };
 
 // Resolved padding plus border on each side, in logical pixels: the distance from the border box

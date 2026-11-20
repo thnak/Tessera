@@ -47,14 +47,14 @@ int main() {
     bool ok = true;
 
     // The default window (1x, unknown pixel geometry, opaque, landscape) resolves the policy the
-    // design describes for 1.0: light hinting, no subpixel positioning, screen-space edges, clip
+    // design describes for 1.0: light hinting, subpixel positioning, screen-space edges, clip
     // AA.
     const AaPolicy defaults = window_aa_policy(metrics_at(1.0f), WindowAaOptions{});
     ok = expect(defaults.render_scale == 1.0f, "the default window resolves scale 1.0") && ok;
     ok = expect(defaults.hinting == TextHinting::Light,
                 "1.0 selects light hinting, not the font's own hints") &&
          ok;
-    ok = expect(!defaults.subpixel_position, "1.0 keeps whole-pixel glyph origins") && ok;
+    ok = expect(defaults.subpixel_position, "1.0 positions glyph origins at a subpixel") && ok;
     ok = expect(defaults.text_mode == TextAaMode::Grayscale, "text stays grayscale") && ok;
     ok = expect(defaults.edge_mode == EdgeMode::ScreenSpace && defaults.clip_aa,
                 "AA on selects screen-space edges and clip AA") &&

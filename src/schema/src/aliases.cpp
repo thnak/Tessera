@@ -22,7 +22,14 @@ template<typename Row, std::size_t N> constexpr std::span<const Row> rows(const 
 
 constexpr AliasInject kInjectRoleList[] = {{"role", "list"}};
 constexpr AliasInject kInjectRoleListItem[] = {{"role", "listitem"}};
-constexpr AliasInject kInjectRoleHeading[] = {{"role", "heading"}};
+// `h1`-`h6` also carry their level as `aria-level`, which the user-agent sheet sizes by.
+constexpr std::string_view kHeadingNote =
+    "the level is `aria-level`; the user-agent sheet sizes it";
+constexpr AliasInject kInjectHeading[6][2] = {
+    {{"role", "heading"}, {"aria-level", "1"}}, {{"role", "heading"}, {"aria-level", "2"}},
+    {{"role", "heading"}, {"aria-level", "3"}}, {{"role", "heading"}, {"aria-level", "4"}},
+    {{"role", "heading"}, {"aria-level", "5"}}, {{"role", "heading"}, {"aria-level", "6"}}};
+constexpr AliasInject kInjectRoleParagraph[] = {{"role", "paragraph"}};
 constexpr AliasInject kInjectRoleLink[] = {{"role", "link"}};
 
 // `input type="password"` injects secure; the text-ish types inject inputMode.
@@ -297,7 +304,7 @@ constexpr AliasRow kAliases[] = {
      false,
      "",
      "inline span; injects font-family: monospace (no font selection yet, so no metric change)"},
-    {"p", "Text", AliasStatus::Mapped, {}, {}, {}, false, "", ""},
+    {"p", "Text", AliasStatus::Mapped, rows(kInjectRoleParagraph), {}, {}, false, "", ""},
     {"label",
      "Text",
      AliasStatus::Mapped,
@@ -308,60 +315,14 @@ constexpr AliasRow kAliases[] = {
      "",
      "does not focus its control; `htmlFor` is rejected [Q11]"},
     {"figcaption", "Text", AliasStatus::Mapped, {}, {}, {}, false, "", ""},
-    {"h1",
-     "Text",
-     AliasStatus::Mapped,
-     rows(kInjectRoleHeading),
-     {},
-     {},
-     false,
-     "",
-     "the level is not exposed in V1"},
-    {"h2",
-     "Text",
-     AliasStatus::Mapped,
-     rows(kInjectRoleHeading),
-     {},
-     {},
-     false,
-     "",
-     "the level is not exposed in V1"},
-    {"h3",
-     "Text",
-     AliasStatus::Mapped,
-     rows(kInjectRoleHeading),
-     {},
-     {},
-     false,
-     "",
-     "the level is not exposed in V1"},
-    {"h4",
-     "Text",
-     AliasStatus::Mapped,
-     rows(kInjectRoleHeading),
-     {},
-     {},
-     false,
-     "",
-     "the level is not exposed in V1"},
-    {"h5",
-     "Text",
-     AliasStatus::Mapped,
-     rows(kInjectRoleHeading),
-     {},
-     {},
-     false,
-     "",
-     "the level is not exposed in V1"},
-    {"h6",
-     "Text",
-     AliasStatus::Mapped,
-     rows(kInjectRoleHeading),
-     {},
-     {},
-     false,
-     "",
-     "the level is not exposed in V1"},
+    // clang-format off
+    {"h1", "Text", AliasStatus::Mapped, rows(kInjectHeading[0]), {}, {}, false, "", kHeadingNote},
+    {"h2", "Text", AliasStatus::Mapped, rows(kInjectHeading[1]), {}, {}, false, "", kHeadingNote},
+    {"h3", "Text", AliasStatus::Mapped, rows(kInjectHeading[2]), {}, {}, false, "", kHeadingNote},
+    {"h4", "Text", AliasStatus::Mapped, rows(kInjectHeading[3]), {}, {}, false, "", kHeadingNote},
+    {"h5", "Text", AliasStatus::Mapped, rows(kInjectHeading[4]), {}, {}, false, "", kHeadingNote},
+    {"h6", "Text", AliasStatus::Mapped, rows(kInjectHeading[5]), {}, {}, false, "", kHeadingNote},
+    // clang-format on
     {"a",
      "Text",
      AliasStatus::Partial,
