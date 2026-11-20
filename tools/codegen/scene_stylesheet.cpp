@@ -15,6 +15,7 @@
 #include "scene_stylesheet.hpp"
 #include "tessera/ui/style/prepared_stylesheet.hpp"
 #include "tessera/ui/style/tokenizer.hpp"
+#include "tessera/ui/style/ua_stylesheet.hpp"
 
 #include <optional>
 #include <string>
@@ -198,7 +199,11 @@ preview_stylesheet_file(std::string_view stylesheet, std::string_view stylesheet
 
 style::CompiledStyleSheet PreparedPreviewSheets::resolve(const style::MediaContext& media) const {
     std::vector<style::StylesheetSource> sources;
-    sources.reserve(sheets_.size());
+    sources.reserve(sheets_.size() + 1);
+    // The user-agent defaults first, the same sheet the app host appends: the preview and a native
+    // build must agree about what an unstyled control looks like.
+    sources.push_back(style::StylesheetSource{"user-agent", &style::ua_prepared_stylesheet(),
+                                              style::Origin::UserAgent, false});
     for (std::size_t index = 0; index < sheets_.size(); ++index) {
         sources.push_back(
             style::StylesheetSource{paths_[index], &sheets_[index], style::Origin::Author, false});

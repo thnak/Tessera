@@ -62,7 +62,7 @@ on a browser, a DOM, JavaScript, or the platform text stack.
 - CSS nesting and `@scope` evaluation in V1 (parsed only; the release that evaluates them is not
   specified, see section 17). Isolation is by class scoping ([`css-isolation.md`](../design/css-isolation.md)).
 - Web fonts beyond committed test fonts ([ADR-006](../../decisions/ADR-006-text-stack.md), text stack).
-- Browser-style quirks modes, vendor prefixes semantics, or UA stylesheet parity.
+- Browser-style quirks modes, vendor prefixes semantics, or importing a browser's UA stylesheet wholesale. The user-agent origin reproduces the browser's default look rule by rule, as far as possible, and names each impossible exception ([ADR-063](../../decisions/ADR-063-browser-matching-user-agent-defaults.md)).
 
 ## 4. Pipeline
 
@@ -169,7 +169,7 @@ Must handle:
 
 Lowest to highest:
 
-1. user-agent (Tessera's small built-in defaults)
+1. user-agent (Tessera's small built-in defaults, `ui::style::ua_stylesheet_text()`: each rule mirrors a browser's behavior for that element, ADR-063)
 2. user
 3. author
 4. inline `style="..."`

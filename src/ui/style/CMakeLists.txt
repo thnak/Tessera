@@ -60,6 +60,7 @@ add_library(tessera_style STATIC
     theme_solve.cpp
     theme_stylesheet.cpp
     transform.cpp
+    ua_stylesheet.cpp
     var_resolve.cpp)
 
 target_include_directories(tessera_style PUBLIC

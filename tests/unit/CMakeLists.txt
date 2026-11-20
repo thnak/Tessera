@@ -1019,6 +1019,12 @@ target_link_libraries(compiled_stylesheet_tests PRIVATE tessera_style)
 
 add_test(NAME compiled_stylesheet COMMAND compiled_stylesheet_tests)
 
+add_executable(ua_stylesheet_tests
+    ua_stylesheet_tests.cpp)
+target_include_directories(ua_stylesheet_tests PRIVATE ${PROJECT_SOURCE_DIR}/include)
+target_link_libraries(ua_stylesheet_tests PRIVATE tessera_style)
+add_test(NAME ua_stylesheet COMMAND ua_stylesheet_tests)
+
 add_executable(stylesheet_blob_tests
     stylesheet_blob_tests.cpp)
 

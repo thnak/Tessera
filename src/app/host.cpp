@@ -6,6 +6,7 @@
 #include "tessera/runtime/frame_time_source.hpp"
 #include "tessera/ui/key_code.hpp"
 #include "tessera/ui/scene/paint_data.hpp"
+#include "tessera/ui/style/ua_stylesheet.hpp"
 
 #include <algorithm>
 #include <array>
@@ -239,6 +240,9 @@ void AppHost::Impl::rebuild_cascade() {
     // change is applied. `base_sheet` is the compiled copy that this then replaces.
     if (base_prepared) {
         ui::style::CompiledStyleSheet combined(*base_prepared, base_origin, {}, media_context);
+        // The user-agent defaults ride in every cascade; their origin ranks below all others, so
+        // the position here does not matter and an author declaration always wins.
+        combined.append_sheet(ui::style::ua_prepared_stylesheet(), ui::style::Origin::UserAgent);
         for (const ui::style::PreparedStyleSheet& prepared : embedded_sheets) {
             combined.append_sheet(prepared);
         }
@@ -248,6 +252,7 @@ void AppHost::Impl::rebuild_cascade() {
         return;
     }
     ui::style::CompiledStyleSheet combined = base_sheet;
+    combined.append_sheet(ui::style::ua_prepared_stylesheet(), ui::style::Origin::UserAgent);
     for (const ui::style::PreparedStyleSheet& prepared : embedded_sheets) {
         combined.append_sheet(prepared);
     }

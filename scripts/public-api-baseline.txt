@@ -2643,6 +2643,10 @@ class include/tessera/ui/style/tokenizer.hpp tessera::ui::style::Tokenizer
 header include/tessera/ui/style/transform.hpp
 function include/tessera/ui/style/transform.hpp tessera::ui::style::compute_transform
 
+header include/tessera/ui/style/ua_stylesheet.hpp
+function include/tessera/ui/style/ua_stylesheet.hpp tessera::ui::style::ua_prepared_stylesheet
+function include/tessera/ui/style/ua_stylesheet.hpp tessera::ui::style::ua_stylesheet_text
+
 header include/tessera/ui/text/bidi.hpp
 alias include/tessera/ui/text/bidi.hpp tessera::ui::text::BidiAdvance
 function include/tessera/ui/text/bidi.hpp tessera::ui::text::bidi_apply_visual_runs
