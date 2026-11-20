@@ -73,6 +73,7 @@ V1 is the first release. A feature is in V1 unless the ADR or spec that owns it 
 | [ADR-061](ADR-061-compiler-owned-formatter.md) | The compiler owns formatting: one canonical printer (`tessera fmt`) for `.tsx`, `.css` and `tessera.json`, idempotent, meaning-preserving, never drops a comment, returns a minimal edit list; not Prettier. Accepted (2026-11-19, owner): the proposed style, format-on-save on by default, an unplaceable comment refuses the file |
 | [ADR-062](ADR-062-studio-dock-library-flexlayout-react.md) | The studio dock is flexlayout-react 0.11.2 (exact-pinned) behind our own canonical layout JSON, operations and a thin adapter; no floating windows in V1; proven in a real browser with a real WebGPU canvas. Accepted (2026-11-19) |
 | [ADR-063](ADR-063-browser-matching-user-agent-defaults.md) | Default styles reproduce the browser's look as far as possible, exceptions named (supersedes react-compat decision 12 and the UA-parity non-goal): one shared user-agent sheet (`ua_stylesheet_text()`) in every cascade (app host and preview) at `Origin::UserAgent`, below author/theme/inline; grows one tested rule at a time, first rule centres a bare `Button`'s label (#602); samples ship real author CSS to show the full stack. Accepted (2026-11-20, owner) |
+| [ADR-064](ADR-064-astryx-style-component-system.md) | First-party UI library follows Astryx's system design (catalogue, anatomy, role-token theme model, behavior hooks, plugin tables with caller-owned server data); Instrument becomes a demo theme (amends ADR-047 item 5) | Proposed |
 
 ## Dependency overview
 
@@ -124,6 +125,7 @@ ADR-059 HTML tags supported not rejected (accepted) ── ADR-039 lowercase tag
 ADR-060 studio services in web workers (accepted) ── ADR-045 browser-hosted studio, ADR-054 React chrome (stepping stone), ADR-055 mock worker, ADR-024 no JS runtime, ADR-061 formatter service
 ADR-061 compiler-owned formatter (accepted) ── ADR-036 own front end, ADR-060 format worker, ADR-058 ports, ADR-024 no JS runtime
 ADR-062 studio dock library (accepted) ── ADR-054 React renders the canvas once, ADR-060 V1 rebuilt with Tessera, workbench layout spec
+ADR-064 Astryx-style component system (proposed) ── ADR-047 component library, ADR-063 UA defaults, ADR-016 stylesheet, ADR-024 no JS runtime, ADR-034 interaction
 ```
 
 [ADR-035](ADR-035-view-transitions.md), [ADR-036](ADR-036-own-jsx-frontend-and-react-like-model.md), and [ADR-037](ADR-037-self-contained-wasm-designer.md) are listed in the table above but are not drawn in this diagram.

@@ -1,6 +1,6 @@
 # ADR-047: Component library layers, theme versioning, design language and coverage
 
-- Status: Accepted (2026-11-11)
+- Status: Accepted (2026-11-11); item 5 (default design language) is amended by [ADR-064](ADR-064-astryx-style-component-system.md), which also refines items 2, 3, 4 and 7
 - Date: 2026-11-11
 - Amends: [ADR-032](ADR-032-bundled-component-library.md) items 1, 2, 3 and 6, and the catalog and
   roadmap in [`component-library.md`](../docs/design/component-library.md) sections 3 and 8.
