@@ -160,13 +160,11 @@ int main() {
         return 13;
     }
 
-    // Recognised properties with value forms V1 does not implement are reported, and kept.
+    // Recognised properties with value forms V1 does not implement are reported, and kept. An
+    // `inset` box-shadow is implemented (issue #612), so it is kept with no diagnostic.
     result = registry.expand(Declaration{"box-shadow", "inset 0 0 4px #000", false, 5});
     if (!expect(result.declarations.size() == 1, "inset declaration is kept") ||
-        !expect(result.diagnostics.size() == 1 &&
-                    result.diagnostics[0].kind == StyleDiagnosticKind::UnsupportedValue &&
-                    result.diagnostics[0].offset == 5,
-                "inset is reported as an unsupported value")) {
+        !expect(result.diagnostics.empty(), "inset is a supported value")) {
         return 30;
     }
     result = registry.expand(Declaration{"box-shadow", "0 2px 4px rgba(0,0,0,.2)", false, 0});
