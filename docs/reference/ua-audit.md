@@ -72,6 +72,7 @@ Box size at a 400px viewport, 16px root, before and after this change.
 | Controls inherited `line-height` (button 42.5px instead of 40px) | fixed: `Button, TextInput, TextArea { line-height: normal }` |
 | Author `h1 { ... }`, `h3 { ... }`, `a { ... }` never match: the tag is not kept | fixed (#610): an alias keeps its tag as `tag`, which a type selector matches |
 | `max-width` + `margin: 0 auto` on the page root: 866px off-centre at 900, 426px at 400 | fixed (#611): a block child with `width: auto` and auto margins fills up to `max-width` and centres, root included |
+| A page taller than the window was squeezed to the window height (a 751px page at 300px: hero 79px instead of 260px) | fixed (#611): a child of `display: block` never shrinks, so content overflows the window and is cut at its edge, as in a browser viewport (scrolling is separate) |
 | Root is the window height: taller content shrinks instead of growing | fixed (#611): the root is at least the viewport tall and grows with its content. The page background still does not propagate to the window area below a short page (a browser paints the body background on the canvas): named exception |
 | 8px collapsed margin between `h1` and the next paragraph shows as 16px | named exception (margin collapsing, above) |
 | Text width and wrapping | the harness uses the stub measurer, so a wrapped text node differs by line count; reported as `text`, not counted |
