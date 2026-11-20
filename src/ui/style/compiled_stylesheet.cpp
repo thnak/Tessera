@@ -236,7 +236,10 @@ std::vector<CompiledStyleSheet::MatchedRule>
 CompiledStyleSheet::matched_rules(const StyleNode& node,
                                   const ContainerSizeSource* containers) const {
     std::vector<MatchedRule> matched;
-    for (const SelectorMatch& match : index_.match(node)) {
+    // The selector matches go into a reused buffer, so a whole-tree style pass does not allocate
+    // one vector per node (security review finding P3).
+    index_.match(node, match_scratch_);
+    for (const SelectorMatch& match : match_scratch_) {
         if (match.value >= rules_.size()) {
             continue;
         }

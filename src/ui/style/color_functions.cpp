@@ -134,27 +134,28 @@ struct MixOperand {
 // Splits `<color> <pct>?` where the colour may itself be a function with spaces inside it. The
 // percentage, when present, is the last top-level whitespace-separated token and parses as a
 // number.
-std::optional<MixOperand> parse_operand(std::string_view text, const ColorContext& context) {
+std::optional<MixOperand> parse_operand(std::string_view text, const ColorContext& context,
+                                        int depth) {
     const std::string_view value = trim(text);
     if (value.empty()) {
         return std::nullopt;
     }
     // Try the whole token first: `red`, `#fff`, `rgb(1 2 3)` and `light-dark(a, b)` all parse as a
     // colour with no percentage, and that is the common case.
-    if (const ColorParseResult whole = parse_color(value, context); whole.ok) {
+    if (const ColorParseResult whole = parse_color(value, context, depth); whole.ok) {
         return MixOperand{whole.color, std::nullopt};
     }
     // Otherwise the last top-level space separates the colour from its percentage. Scanning forward
     // and remembering the last depth-zero space is what makes `rgb(1 2 3) 40%` split after the
     // function rather than inside it.
-    int depth = 0;
+    int paren_depth = 0;
     std::size_t split = std::string_view::npos;
     for (std::size_t i = 0; i < value.size(); ++i) {
         if (value[i] == '(') {
-            ++depth;
+            ++paren_depth;
         } else if (value[i] == ')') {
-            --depth;
-        } else if (depth == 0 && is_space(value[i])) {
+            --paren_depth;
+        } else if (paren_depth == 0 && is_space(value[i])) {
             split = i;
         }
     }
@@ -165,7 +166,7 @@ std::optional<MixOperand> parse_operand(std::string_view text, const ColorContex
     if (!percentage) {
         return std::nullopt;
     }
-    const ColorParseResult color = parse_color(trim(value.substr(0, split)), context);
+    const ColorParseResult color = parse_color(trim(value.substr(0, split)), context, depth);
     if (!color.ok) {
         return std::nullopt;
     }
@@ -259,7 +260,7 @@ ColorRgba mix_in_space(const ColorRgba& first, const ColorRgba& second, double t
 }
 
 std::optional<ColorRgba> evaluate_light_dark(std::string_view arguments,
-                                             const ColorContext& context) {
+                                             const ColorContext& context, int depth) {
     const std::vector<std::string_view> parts = split_top_level(arguments, ',');
     if (parts.size() != 2) {
         return std::nullopt;
@@ -268,16 +269,16 @@ std::optional<ColorRgba> evaluate_light_dark(std::string_view arguments,
     // function when either is invalid, so `light-dark(red, notacolor)` is not a colour in the light
     // scheme either. Validating both also keeps the result independent of the scheme, which is what
     // makes a theme's light and dark token sets fail together instead of only in dark mode.
-    const ColorParseResult light = parse_color(parts[0], context);
-    const ColorParseResult dark = parse_color(parts[1], context);
+    const ColorParseResult light = parse_color(parts[0], context, depth + 1);
+    const ColorParseResult dark = parse_color(parts[1], context, depth + 1);
     if (!light.ok || !dark.ok) {
         return std::nullopt;
     }
     return context.dark ? dark.color : light.color;
 }
 
-std::optional<ColorRgba> evaluate_color_mix(std::string_view arguments,
-                                            const ColorContext& context) {
+std::optional<ColorRgba> evaluate_color_mix(std::string_view arguments, const ColorContext& context,
+                                            int depth) {
     const std::vector<std::string_view> parts = split_top_level(arguments, ',');
     if (parts.size() != 3) {
         return std::nullopt;
@@ -292,8 +293,8 @@ std::optional<ColorRgba> evaluate_color_mix(std::string_view arguments,
     if (!space) {
         return std::nullopt;
     }
-    const std::optional<MixOperand> first = parse_operand(parts[1], context);
-    const std::optional<MixOperand> second = parse_operand(parts[2], context);
+    const std::optional<MixOperand> first = parse_operand(parts[1], context, depth + 1);
+    const std::optional<MixOperand> second = parse_operand(parts[2], context, depth + 1);
     if (!first || !second) {
         return std::nullopt;
     }
@@ -333,13 +334,13 @@ bool is_color_function(std::string_view text) {
            call_arguments(text, "color-mix").has_value();
 }
 
-std::optional<ColorRgba> evaluate_color_function(std::string_view text,
-                                                 const ColorContext& context) {
+std::optional<ColorRgba> evaluate_color_function(std::string_view text, const ColorContext& context,
+                                                 int depth) {
     if (const auto arguments = call_arguments(text, "light-dark")) {
-        return evaluate_light_dark(*arguments, context);
+        return evaluate_light_dark(*arguments, context, depth);
     }
     if (const auto arguments = call_arguments(text, "color-mix")) {
-        return evaluate_color_mix(*arguments, context);
+        return evaluate_color_mix(*arguments, context, depth);
     }
     return std::nullopt;
 }

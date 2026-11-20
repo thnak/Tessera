@@ -260,7 +260,7 @@ This page is the map and reading order for the framework.
 - [`design/dirty-rendering.md`](design/dirty-rendering.md) — invalidation, caches, damage,
   multi-frame execution, render-side damage present-loop evidence (`damage_min`/`damage_present`)
 - [`design/performance.md`](design/performance.md) — power-aware defaults, budgets, adaptive
-  quality, hardware utilization
+  quality, hardware utilization; [`cache-lines.md`](design/cache-lines.md) covers false sharing
 - [`design/window-resize.md`](design/window-resize.md) — resize/DPI/lifecycle, declarative vs
   infrastructure, OS compliance, present-path hardening (`--msaa 4`, `--simulate-loss`)
 - [`design/hal.md`](design/hal.md) — window/display/input/power/lifecycle abstraction

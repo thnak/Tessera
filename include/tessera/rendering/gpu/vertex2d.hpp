@@ -10,7 +10,12 @@
 
 namespace tessera::rendering::gpu {
 
-struct Vertex2D {
+// `alignas(64)` so a vertex never straddles a cache line (security review finding C7). The struct
+// is exactly 64 bytes, but its natural alignment is 4, so a `std::vector<Vertex2D>` base is only
+// 16-byte aligned and three of four vertices span two lines. The vertex stream is the hottest
+// per-frame buffer in the renderer, so that doubles its store traffic. The alignment changes no
+// offset, so the attribute table and the stride below are unaffected.
+struct alignas(64) Vertex2D {
     float x = 0;
     float y = 0;
     float u = 0;
@@ -47,6 +52,7 @@ struct Vertex2D {
 // and the 112-byte block has no room left inside Vulkan's 128-byte minimum. See
 // docs/design/gpu/box-shadow-clipping.md.
 static_assert(sizeof(Vertex2D) == 64, "Vertex2D layout must stay stable");
+static_assert(alignof(Vertex2D) == 64, "a vertex must not straddle a cache line");
 
 // `Vertex2D::mode`: 0 solid, 1 rounded rect, 2 textured, and 3 + w for a rounded-rect outline of
 // stroke width w (the shaders read the width back as mode - 3).

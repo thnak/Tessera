@@ -100,8 +100,8 @@ constexpr PropertyDef kProperties[] = {
     {"justify-items", "legacy", false},
     {"row-gap", "normal", false},
     {"column-gap", "normal", false},
-    // CSS Grid (issue #249, docs/specs/grid-v1.md). `grid-column`/`grid-row` are registered as
-    // longhands holding the whole `<start> / <end>` value: V1 has no `-start`/`-end` longhands.
+    // CSS Grid (issue #249, docs/specs/grid-v1.md): `grid-column`/`grid-row` hold the whole
+    // `<start> / <end>` value; V1 has no `-start`/`-end` longhands.
     {"grid-template-columns", "none", false},
     {"grid-template-rows", "none", false},
     {"grid-column", "auto", false},
@@ -112,8 +112,7 @@ constexpr PropertyDef kProperties[] = {
     {"overflow-y", "visible", false},
     // Scroll runtime/style inputs (stylesheet-v1 section 11, scroll-and-gestures-v1 section 4).
     // None is inherited: scroll policy belongs to the container that owns the scrollport.
-    // `overscroll-effect` uses the animation-v1 section 7 names and has no `auto` keyword; the
-    // initial request is `platform`, resolved by the HAL profile.
+    // `overscroll-effect` has no `auto` keyword; the initial request is `platform`.
     {"scroll-behavior", "auto", false},
     {"overscroll-behavior", "auto", false},
     {"overscroll-effect", "platform", false},
@@ -393,9 +392,10 @@ ComputedStyle PropertyRegistry::initial_style() const {
 }
 
 void PropertyRegistry::apply_initial_values(ComputedStyle& style) const {
+    // Normalized accessors skip the per-lookup `std::string` (security review finding P1).
     for (const auto& [name, info] : properties_) {
-        if (!info.initial.empty() && !style.contains(name)) {
-            style.set(name, info.initial);
+        if (!info.initial.empty() && !style.contains_normalized(name)) {
+            style.set_normalized(name, info.initial);
         }
     }
 }

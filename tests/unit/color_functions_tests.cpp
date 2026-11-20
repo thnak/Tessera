@@ -268,6 +268,50 @@ bool color_scheme_is_registered_and_inherited() {
     return good;
 }
 
+// Security review finding S11: `light-dark()` and `color-mix()` take colours as arguments, so they
+// recurse through `parse_color`. Before the depth budget, a stylesheet could nest them until the
+// stack overflowed and killed `tessera_codegen` - the same defect class as S1/S2 on a grammar those
+// fixes did not reach. A value nested past `kMaxColorFunctionDepth` must be an invalid colour, not
+// a crash, and a value inside the budget must still parse.
+bool nested_color_functions_are_bounded() {
+    bool good = true;
+
+    // Inside the budget: still a colour, and still the right one.
+    std::string shallow = "red";
+    for (int i = 0; i < tessera::ui::style::kMaxColorFunctionDepth; ++i) {
+        shallow = "light-dark(" + shallow + ", blue)";
+    }
+    const auto shallow_result = parse_color(shallow, ColorContext{});
+    good = expect(shallow_result.ok, "a colour function nested to the budget still parses") && good;
+    good = expect(color_is(shallow_result.color, 1.0f, 0.0f, 0.0f),
+                  "the nested function still picks the light branch") &&
+           good;
+
+    // Past the budget: rejected, and - the point of the finding - without overflowing the stack.
+    // 20000 levels is far past any real sheet and is what the probe used to crash the process.
+    for (const int depth : {tessera::ui::style::kMaxColorFunctionDepth + 1, 2000, 20000}) {
+        std::string deep = "red";
+        for (int i = 0; i < depth; ++i) {
+            deep = "light-dark(" + deep + ", blue)";
+        }
+        const auto deep_result = parse_color(deep, ColorContext{});
+        good = expect(!deep_result.ok,
+                      "a colour function nested past the budget is an invalid colour") &&
+               good;
+    }
+
+    // The same through `color-mix()`, which reaches `parse_color` through `parse_operand`.
+    std::string mixed = "red";
+    for (int i = 0; i < 2000; ++i) {
+        mixed = "color-mix(in srgb, " + mixed + ", blue)";
+    }
+    good = expect(!parse_color(mixed, ColorContext{}).ok,
+                  "a nested color-mix() past the budget is an invalid colour") &&
+           good;
+
+    return good;
+}
+
 } // namespace
 
 int main() {
@@ -281,6 +325,7 @@ int main() {
     good = substitution_inside_a_larger_value() && good;
     good = color_scheme_selects_the_branch() && good;
     good = color_scheme_is_registered_and_inherited() && good;
+    good = nested_color_functions_are_bounded() && good;
     if (!good) {
         std::cerr << "color_functions: FAILED\n";
         return 1;

@@ -60,7 +60,15 @@ public:
     void add(const SelectorList& selectors, std::size_t value);
     void clear();
 
+    // Matches one node. The result is written into `out`, which the caller owns and reuses, so a
+    // style pass over a whole tree allocates nothing per node (security review finding P3). The
+    // scratch buffers below are reused the same way; the index is immutable while matching, so a
+    // single-threaded caller can share one `SelectorIndex` across a pass.
+    void match(const StyleNode& node, std::vector<SelectorMatch>& out) const;
+
+    // Convenience overload for a one-off match; allocates the result vector.
     [[nodiscard]] std::vector<SelectorMatch> match(const StyleNode& node) const;
+
     [[nodiscard]] std::size_t size() const {
         return entries_.size();
     }
@@ -81,6 +89,13 @@ private:
     // the compound's tag/class/id belong to the host and can never be read off the part element.
     std::unordered_map<std::string, std::vector<std::size_t>> part_index_;
     std::vector<std::size_t> universal_index_;
+
+    // Reused across `match` calls so a per-node match does not allocate. `seen_` is stamped with
+    // `stamp_` rather than cleared, so its cost is proportional to the candidates examined instead
+    // of to the number of indexed selectors.
+    mutable std::vector<std::size_t> candidates_;
+    mutable std::vector<std::size_t> seen_;
+    mutable std::size_t stamp_ = 0;
 };
 
 } // namespace tessera::ui::style

@@ -19,6 +19,10 @@ namespace {
 
 // A hard cap keeps a pathological custom-property chain bounded; the dependency graph walk above
 // already rejects cycles, so this only guards malformed token streams.
+//
+// Every recursive path here carries the same budget (security review finding S12): before, only
+// `substitute` was bounded, while `collect_references` (per nested fallback), `detect_cycle` (per
+// dependency link) and `resolve_custom` (which restarted `substitute` at depth 0) were not.
 constexpr int kMaxVarDepth = 32;
 
 char ascii_lower(char c) {
@@ -130,7 +134,10 @@ std::string trim(std::string_view text) {
     return std::string(text.substr(first, last - first));
 }
 
-void collect_references(std::string_view value, std::vector<std::string>& out) {
+void collect_references(std::string_view value, std::vector<std::string>& out, int depth = 0) {
+    if (depth > kMaxVarDepth) {
+        return;
+    }
     for (std::size_t i = 0; i < value.size();) {
         if (value[i] == '"' || value[i] == '\'') {
             i = skip_string(value, i);
@@ -152,7 +159,7 @@ void collect_references(std::string_view value, std::vector<std::string>& out) {
         }
         if (comma != std::string_view::npos) {
             // A fallback is part of the value: it may reference more custom properties.
-            collect_references(inner.substr(comma + 1), out);
+            collect_references(inner.substr(comma + 1), out, depth + 1);
         }
         i = close + 1;
     }
@@ -166,7 +173,12 @@ struct CustomProperties {
     std::map<std::string, std::uint8_t> visit; // 0 = unvisited, 1 = on stack, 2 = done
 };
 
-void detect_cycle(CustomProperties& state, const std::string& name) {
+void detect_cycle(CustomProperties& state, const std::string& name, int depth = 0) {
+    if (depth > kMaxVarDepth) {
+        // Too deep to be a real dependency graph: mark it invalid rather than recursing further.
+        state.invalid.insert(name);
+        return;
+    }
     std::uint8_t& mark = state.visit[name];
     if (mark == 2) {
         return;
@@ -185,7 +197,7 @@ void detect_cycle(CustomProperties& state, const std::string& name) {
     collect_references(state.raw.at(name), references);
     for (const std::string& reference : references) {
         if (state.raw.count(reference) != 0) {
-            detect_cycle(state, reference);
+            detect_cycle(state, reference, depth + 1);
         }
     }
     state.stack.pop_back();
@@ -273,7 +285,8 @@ void resolve_color_functions(ComputedStyle& style, const ComputedStyle* parent,
     }
 }
 
-std::optional<std::string> resolve_custom(CustomProperties& state, const std::string& name);
+std::optional<std::string> resolve_custom(CustomProperties& state, const std::string& name,
+                                          int depth);
 
 std::optional<std::string> substitute(CustomProperties& state, std::string_view value, int depth) {
     if (depth > kMaxVarDepth) {
@@ -302,7 +315,7 @@ std::optional<std::string> substitute(CustomProperties& state, std::string_view 
         const std::string name = trim(inner.substr(0, comma));
         std::optional<std::string> replacement;
         if (is_custom_property_name(name)) {
-            replacement = resolve_custom(state, name);
+            replacement = resolve_custom(state, name, depth + 1);
             if (!replacement && comma != std::string_view::npos) {
                 replacement = substitute(state, inner.substr(comma + 1), depth + 1);
             }
@@ -316,7 +329,11 @@ std::optional<std::string> substitute(CustomProperties& state, std::string_view 
     return out;
 }
 
-std::optional<std::string> resolve_custom(CustomProperties& state, const std::string& name) {
+std::optional<std::string> resolve_custom(CustomProperties& state, const std::string& name,
+                                          int depth) {
+    if (depth > kMaxVarDepth) {
+        return std::nullopt;
+    }
     if (state.invalid.count(name) != 0) {
         return std::nullopt;
     }
@@ -331,7 +348,9 @@ std::optional<std::string> resolve_custom(CustomProperties& state, const std::st
     // Cycle members were rejected above, so a self-insert here cannot recurse; the entry still
     // guards against a malformed stream that slips past the dependency walk.
     state.resolved[name] = std::nullopt;
-    std::optional<std::string> value = substitute(state, raw->second, 0);
+    // The depth is carried through, not restarted: a long acyclic chain is bounded by the same
+    // budget as a nested fallback.
+    std::optional<std::string> value = substitute(state, raw->second, depth);
     if (value) {
         // A substituted value is a token stream; store it in the canonical trimmed form so a
         // consumer never sees the padding around a fallback (or the whole property would be
@@ -392,7 +411,7 @@ void resolve_variables(ComputedStyle& style, const ComputedStyle* parent,
         }
         for (const auto& [name, value] : state.raw) {
             (void)value;
-            resolve_custom(state, name);
+            resolve_custom(state, name, 0);
         }
         if (diagnostics != nullptr) {
             for (const auto& [name, value] : state.raw) {

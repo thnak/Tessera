@@ -48,7 +48,14 @@ std::unexpected<harness::ProtocolError> unexpected(harness::ProtocolError value)
     return std::unexpected(std::move(value));
 }
 
-ui::Node* find_visible(ui::Node& node, harness::UiId ui_id) {
+// Depth-capped like the snapshot and accessibility walks (security review finding S14). A manifest
+// bounds the node *count* (`kMaxManifestNodes`) but not the tree *depth*, so a single long parent
+// chain reaches this recursion before any snapshot runs. Stopping at the snapshot depth returns
+// nullptr, which surfaces the existing `UiIdNotFound` error instead of exhausting the stack.
+ui::Node* find_visible(ui::Node& node, harness::UiId ui_id, std::size_t depth = 0) {
+    if (depth > ui::automation::kMaxSnapshotDepth) {
+        return nullptr;
+    }
     if (!node.rendered()) {
         return nullptr;
     }
@@ -56,7 +63,7 @@ ui::Node* find_visible(ui::Node& node, harness::UiId ui_id) {
         return &node;
     }
     for (const auto& child : node.children()) {
-        if (ui::Node* found = find_visible(*child, ui_id); found != nullptr) {
+        if (ui::Node* found = find_visible(*child, ui_id, depth + 1); found != nullptr) {
             return found;
         }
     }

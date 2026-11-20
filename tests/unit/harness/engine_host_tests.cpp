@@ -135,6 +135,47 @@ std::string_view field_of(const harness::JsonValue& node, std::string_view key) 
 
 } // namespace
 
+// Security review finding S14: `find_visible` and `find_visible_item` recursed over the scene with
+// no depth cap, unlike the snapshot walk (64) and the accessibility walk (128). A manifest bounds
+// the node *count* but not the tree *depth*, so a single long parent chain reached this recursion
+// before any snapshot ran. The finders now stop at `kMaxSnapshotDepth` and return nullptr, which
+// surfaces the existing `UiIdNotFound` error instead of exhausting the stack.
+//
+// The observable behavior is what this pins: an action targeting a node deeper than the cap reports
+// `UiIdNotFound` rather than crashing, and a target inside the cap still resolves.
+void deep_tree_is_bounded() {
+    testing::HostFixture scene;
+    // An id the fixture scene does not use, so only the deep node can satisfy the action.
+    constexpr std::uint64_t kDeepId = 777001;
+    // A chain deeper than the cap, hung off the fixture root. The deepest node carries the id the
+    // action asks for, so only the depth bound can stop the walk from reaching it.
+    ui::Node* current = &scene.root;
+    constexpr std::size_t kDepth = tessera::ui::automation::kMaxSnapshotDepth + 200;
+    for (std::size_t i = 0; i < kDepth; ++i) {
+        auto child = std::make_unique<ui::Node>(static_cast<ui::NodeId>(100000 + i));
+        current = &current->add_child(std::move(child));
+    }
+    current->set_automation_id(kDeepId);
+    // One frame so the new subtree has bounds and a rendered state.
+    (void)scene.host.begin_frame(0.0);
+    scene.host.end_frame();
+
+    harness::ActionCommand deep;
+    deep.kind = harness::ActionKind::Click;
+    deep.ui_id = kDeepId;
+    const auto deep_result = scene.automation.dispatch_action(deep);
+    expect(!deep_result.has_value() &&
+               deep_result.error().code == harness::ProtocolErrorCode::UiIdNotFound,
+           "a target past the depth cap is uiIdNotFound, not a stack overflow");
+
+    // A target inside the cap still resolves, so the bound is not refusing everything.
+    harness::ActionCommand shallow;
+    shallow.kind = harness::ActionKind::Click;
+    shallow.ui_id = automation::kFixtureButtonId;
+    const auto shallow_result = scene.automation.dispatch_action(shallow);
+    expect(shallow_result.has_value(), "a target inside the depth cap still resolves");
+}
+
 int main() {
     testing::HostFixture first;
     Run first_run;
@@ -239,6 +280,8 @@ int main() {
     expect(second_run.report_json == first_run.report_json,
            "the same script produces byte-identical reports");
     expect(second.fixture.count() == first.fixture.count(), "side effects are identical");
+
+    deep_tree_is_bounded();
 
     if (failures != 0) {
         std::cerr << "engine_host: " << failures << " failure(s)\n";

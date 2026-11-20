@@ -106,6 +106,10 @@ _OPERATOR_WORDS = {
 
 _NAMESPACE_RE = re.compile(r"^namespace\s+((?:[A-Za-z_]\w*\s*::\s*)*[A-Za-z_]\w*)\s*$")
 _NAMESPACE_ALIAS_RE = re.compile(r"^namespace\s+([A-Za-z_]\w*)\s*=")
+# An alignment specifier may sit between the type keyword and the name
+# (`struct alignas(64) Vertex2D`). It names nothing, so it is skipped rather than read as the
+# declaration's name - the same rule `NOT_A_NAME` already applies to a bare `alignas`.
+_ALIGNAS_SPECIFIER_RE = re.compile(r"alignas\s*\([^)]*\)\s*")
 _TYPE_RE = re.compile(r"^(class|struct|union|enum)\s+(?:(class|struct)\s+)?([A-Za-z_]\w*)")
 _USING_ALIAS_RE = re.compile(r"^using\s+([A-Za-z_]\w*)\s*=")
 _USING_DECL_RE = re.compile(r"^using\s+([A-Za-z_]\w*(?:\s*::\s*[A-Za-z_]\w*)+)\s*$")
@@ -295,6 +299,14 @@ def classify_brace(header: str) -> Tuple[str, str]:
         found = _NAMESPACE_RE.match(header)
         return ("namespace", found.group(1) if found else "")
     stripped = strip_prefixes(header)
+    # `struct alignas(64) Vertex2D {` names `Vertex2D`, not `alignas`. The specifier is dropped
+    # before matching so the recorded declaration is the type, not the alignment. A type may carry
+    # more than one (`alignas(16) alignas(32)`), so every leading specifier is removed.
+    while True:
+        without = _ALIGNAS_SPECIFIER_RE.sub("", stripped, count=1)
+        if without == stripped:
+            break
+        stripped = without
     found = _TYPE_RE.match(stripped)
     if found is not None:
         keyword, inner, name = found.group(1), found.group(2), found.group(3)

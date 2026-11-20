@@ -2,10 +2,38 @@
 
 #include "tessera/ui/style/selector_match.hpp"
 
+#include <cstddef>
+#include <cstdlib>
 #include <iostream>
+#include <new>
 #include <string>
 #include <string_view>
 #include <vector>
+
+// Allocation accounting for the reuse assertion below (security review finding P3). A replaced
+// global `operator new` is the accepted deterministic pattern in this repo - see
+// tests/unit/node_size_tests.cpp - because it needs no wall clock and no profiler.
+namespace {
+
+std::size_t g_allocations = 0;
+
+} // namespace
+
+void* operator new(std::size_t size) {
+    ++g_allocations;
+    if (void* pointer = std::malloc(size)) {
+        return pointer;
+    }
+    throw std::bad_alloc();
+}
+
+void operator delete(void* pointer) noexcept {
+    std::free(pointer);
+}
+
+void operator delete(void* pointer, std::size_t) noexcept {
+    std::free(pointer);
+}
 
 namespace {
 
@@ -231,6 +259,45 @@ int main() {
     list_index.clear();
     if (!expect(list_index.size() == 0 && list_index.match(card).empty(), "index clear")) {
         return 16;
+    }
+
+    // Security review finding P3: `match` used to allocate a `candidates` vector, a `seen`
+    // `vector<bool>` sized to the whole index, and a result vector on every call, and it deduped
+    // with a linear scan. A style pass calls it once per node, so a 12 000-node tree paid tens of
+    // thousands of allocations per pass. The buffer-taking overload must reuse its scratch: after
+    // one warm-up call, matching the same node again allocates nothing.
+    {
+        SelectorIndex reuse_index;
+        for (int i = 0; i < 200; ++i) {
+            reuse_index.add(parse_selector_list(".card").list, static_cast<std::size_t>(i));
+        }
+        reuse_index.add(parse_selector_list("#save").list, 500);
+        reuse_index.add(parse_selector_list("button").list, 501);
+
+        std::vector<SelectorMatch> out;
+        // Warm up: the first call sizes the scratch buffers.
+        reuse_index.match(card, out);
+        const std::size_t warm_size = out.size();
+        const std::size_t warm_capacity = out.capacity();
+
+        const std::size_t allocations_before = g_allocations;
+        for (int i = 0; i < 100; ++i) {
+            reuse_index.match(card, out);
+        }
+        const std::size_t allocations_after = g_allocations;
+        if (!expect(allocations_after == allocations_before,
+                    "a repeated match into a caller buffer allocates nothing")) {
+            return 17;
+        }
+        if (!expect(out.size() == warm_size && out.capacity() == warm_capacity,
+                    "the reused buffer keeps its size and capacity")) {
+            return 18;
+        }
+        // The result is still correct: 200 `.card` rules collapse to one entry per rule handle,
+        // and the id rule does not match a node without an id.
+        if (!expect(out.size() == 200, "every .card rule handle is reported once")) {
+            return 19;
+        }
     }
 
     std::cout << "selector_match: ok\n";

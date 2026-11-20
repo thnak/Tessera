@@ -106,6 +106,15 @@ public:
         return properties_;
     }
 
+    // The same two operations for a caller that already holds a *normalized* name (lower case, the
+    // form `normalize_property` produces). The registry's own longhand names are normalized by
+    // construction, so the initial-value pass can skip the per-lookup `std::string` that
+    // `normalize_property` would otherwise build (security review finding P1). A name that is not
+    // normalized is simply not found, so this is only for names the registry owns.
+    [[nodiscard]] const std::string* find_normalized(std::string_view normalized) const;
+    [[nodiscard]] bool contains_normalized(std::string_view normalized) const;
+    void set_normalized(std::string_view normalized, std::string value);
+
 private:
     std::map<std::string, std::string> properties_;
 };

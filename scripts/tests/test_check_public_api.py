@@ -83,6 +83,28 @@ class ClassifyTests(unittest.TestCase):
             },
         )
 
+    def test_an_alignment_specifier_is_not_the_type_name(self) -> None:
+        # `struct alignas(64) Vertex2D {` names `Vertex2D`. Reading `alignas` as the name recorded
+        # a phantom type and dropped the real one, which the baseline gate then reported as a
+        # removed declaration (a breaking change) rather than as the parser bug it was.
+        found = self.declarations(
+            """
+            namespace tessera::rendering::gpu {
+
+            struct alignas(64) Vertex2D { float x; };
+            struct alignas(16) alignas(32) OverAligned { float x; };
+
+            } // namespace tessera::rendering::gpu
+            """
+        )
+        self.assertEqual(
+            found,
+            {
+                ("struct", "tessera::rendering::gpu::Vertex2D"),
+                ("struct", "tessera::rendering::gpu::OverAligned"),
+            },
+        )
+
     def test_free_functions_and_constants_are_recorded(self) -> None:
         found = self.declarations(
             """

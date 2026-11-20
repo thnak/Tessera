@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <iterator>
 #include <utility>
 
 namespace tessera::ui::style {
@@ -147,40 +148,86 @@ bool is_inherited_property(std::string_view property) {
     if (property.size() >= 2 && property[0] == '-' && property[1] == '-') {
         return true;
     }
+    // Sorted by byte value so the lookup is a binary search rather than a linear scan: this runs
+    // once per property of every parent style, i.e. ~120 times per node per style pass (security
+    // review finding P1). `static_assert` below keeps the order honest.
     constexpr std::string_view kInherited[] = {
         "color",
+        "color-scheme",
+        "cursor",
+        "direction",
         "font",
         "font-family",
         "font-size",
-        "font-style",
-        "font-weight",
-        "font-variant",
         "font-stretch",
-        "line-height",
+        "font-style",
+        "font-variant",
+        "font-weight",
         "letter-spacing",
-        "word-spacing",
+        "line-height",
+        "pointer-events",
         "text-align",
-        "text-transform",
-        "white-space",
-        "visibility",
-        "cursor",
-        "direction",
+        "text-decoration-color",
         "text-decoration-line",
         "text-decoration-style",
-        "text-decoration-color",
         "text-decoration-thickness",
-        "writing-mode",
-        "pointer-events",
+        "text-transform",
         "user-select",
-        "color-scheme",
+        "visibility",
+        "white-space",
+        "word-spacing",
+        "writing-mode",
     };
-    for (const std::string_view inherited : kInherited) {
-        if (property == inherited) {
-            return true;
-        }
+    const auto found = std::lower_bound(std::begin(kInherited), std::end(kInherited), property);
+    if (found != std::end(kInherited) && *found == property) {
+        return true;
     }
     return property.starts_with("font-");
 }
+
+namespace {
+
+// `kInherited` must stay sorted for the binary search above. A new inherited property inserted in
+// the wrong place would silently stop inheriting, so the order is a compile-time invariant.
+constexpr bool inherited_list_is_sorted() {
+    constexpr std::string_view kList[] = {
+        "color",
+        "color-scheme",
+        "cursor",
+        "direction",
+        "font",
+        "font-family",
+        "font-size",
+        "font-stretch",
+        "font-style",
+        "font-variant",
+        "font-weight",
+        "letter-spacing",
+        "line-height",
+        "pointer-events",
+        "text-align",
+        "text-decoration-color",
+        "text-decoration-line",
+        "text-decoration-style",
+        "text-decoration-thickness",
+        "text-transform",
+        "user-select",
+        "visibility",
+        "white-space",
+        "word-spacing",
+        "writing-mode",
+    };
+    for (std::size_t i = 1; i < std::size(kList); ++i) {
+        if (!(kList[i - 1] < kList[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static_assert(inherited_list_is_sorted(), "kInherited must stay sorted for binary search");
+
+} // namespace
 
 void CascadeTable::add(CascadeDeclaration declaration) {
     const std::string property = normalize_property(declaration.property);
@@ -237,6 +284,28 @@ const std::string* ComputedStyle::find(std::string_view property) const {
 
 bool ComputedStyle::contains(std::string_view property) const {
     return find(property) != nullptr;
+}
+
+const std::string* ComputedStyle::find_normalized(std::string_view normalized) const {
+    // `std::map<std::string, std::string>` has no transparent comparator, so a `string_view` key
+    // cannot be looked up without materializing a `std::string`. The saving over `find` is the
+    // lower-casing pass, not the key copy; the registry's names are short enough to stay in SSO for
+    // the common longhands, and the insert path below avoids the second copy.
+    const auto found = properties_.find(std::string(normalized));
+    return found == properties_.end() ? nullptr : &found->second;
+}
+
+bool ComputedStyle::contains_normalized(std::string_view normalized) const {
+    return find_normalized(normalized) != nullptr;
+}
+
+void ComputedStyle::set_normalized(std::string_view normalized, std::string value) {
+    const auto found = properties_.find(std::string(normalized));
+    if (found != properties_.end()) {
+        found->second = std::move(value);
+        return;
+    }
+    properties_.emplace(std::string(normalized), std::move(value));
 }
 
 ComputedStyle compute_style(const ComputedStyle* parent, const CascadeTable& cascade,

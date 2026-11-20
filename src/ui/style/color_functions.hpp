@@ -22,8 +22,12 @@ namespace tessera::ui::style::detail {
 // Evaluates one colour function. Returns nullopt when the text is not one of the two, or when it is
 // malformed (wrong arity, an unknown interpolation space, an unparseable operand). A malformed
 // function is an invalid colour, exactly like a malformed `rgb()`.
-[[nodiscard]] std::optional<ColorRgba> evaluate_color_function(std::string_view text,
-                                                               const ColorContext& context);
+//
+// `depth` is the number of enclosing colour functions, forwarded to the nested `parse_color` calls
+// so a value nested past `kMaxColorFunctionDepth` is rejected instead of overflowing the stack
+// (security review finding S11).
+[[nodiscard]] std::optional<ColorRgba>
+evaluate_color_function(std::string_view text, const ColorContext& context, int depth = 0);
 
 // Replaces every `light-dark()` and `color-mix()` call inside `value` with the colour it evaluates
 // to, so a function nested in a larger value (`box-shadow: 0 0 4px light-dark(#000, #fff)`, a

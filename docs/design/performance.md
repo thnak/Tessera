@@ -63,11 +63,11 @@ behavior**, not a utilization percentage. Platform GPU-load queries are diagnost
 
 ### 2.1 What does *not* determine utilization
 
-- `fixedTimestepHz` — simulation only; a 60 Hz tick with a static screen renders nothing.
-- `maxFps=0` — "no cap", not "render as much as possible". On-demand still idles.
-- `powerPolicy=performance` — explicit continuous mode, not the default.
-- A GPU utilization percentage — not a control signal; frame budgets are.
-- A dirty flag alone — work still stops at the next clean frame; damage/caches bound the cost.
+- `fixedTimestepHz` â€” simulation only; a 60 Hz tick with a static screen renders nothing.
+- `maxFps=0` â€” "no cap", not "render as much as possible". On-demand still idles.
+- `powerPolicy=performance` â€” explicit continuous mode, not the default.
+- A GPU utilization percentage â€” not a control signal; frame budgets are.
+- A dirty flag alone â€” work still stops at the next clean frame; damage/caches bound the cost.
 
 ## 3. Budgets
 
@@ -92,12 +92,12 @@ Frame budgets say nothing about resident memory, which regresses late and on mob
 
 | Item | Cost | Enforced by |
 |---|---|---|
-| `ui::Node` (plain View) | 312 bytes (Release; 320 in MSVC Debug), budget `kNodeSizeBudget` = 320 (336 for a while after the `::part()` metadata pointer, issue #235; the booleans were packed into one flags word in #285) | `static_assert` in `node.hpp`, `node_size` test, `sizeof_node` row |
+| `ui::Node` (plain View) | 304 bytes (Release; 312 in MSVC Debug), budget `kNodeSizeBudget` = 312 (336 for a while after the `::part()` metadata pointer, issue #235; the booleans were packed into one flags word in #285; the members were grouped by alignment in the security review, finding C4, which removed 8 bytes of internal padding) | `static_assert` in `node.hpp`, `node_size` test, `sizeof_node` row |
 | ARIA table (first `aria-*`) | 520 bytes, once per node | lazy; `node_size` test counts allocations; `aria_table_bytes` row |
 | Inline-style table (first declaration) | 520 bytes, once per node | lazy; `node_size` test; `inline_style_table_bytes` row |
 | Event-binding table (first binding) | 200 bytes, once per node | lazy; `node_size` test; `event_binding_table_bytes` row |
 | Paint payload (text/image node) | 512 bytes plus its string; 520 allocated on first use | lazy; `node_size` test; `sizeof_paint_data` and `paint_slot_bytes` rows |
-| `InputEvent` | 344 bytes (the 256-event queue is about 86 KiB) | `sizeof_input_event` row (was measured but unasserted) |
+| `InputEvent` | 320 bytes (the 256-event queue is about 80 KiB; the members were grouped by alignment in the security review, finding C5, which removed 24 bytes of internal padding) | `sizeof_input_event` row (was measured but unasserted) |
 | `ComputedStyle` (first property) | 96 bytes per styled node (208 in MSVC Debug); the handle itself is 16 bytes on MSVC, 48 on libstdc++ | `computed_style_one_property_bytes` row |
 | `NodeId` | 8 bytes, and it is repeated in every side table (paint cache, resolved styles, dirty list, damage) | `sizeof_node_id` row |
 | Resident bytes per plain node (20k-node tree) | 364 on Windows x64, 327 on Linux x64, budget 1024 | `memory_steady_state` test, `tests/golden/memory/steady_state.txt`, `resident_bytes_per_node` row (warn) |
@@ -125,16 +125,16 @@ trustworthy:
   invariant rather than noise cover. These are the rows a regression arrives through: a node that
   grows 16 bytes costs 160 KB on a 10k-node screen and shows up nowhere else. Two qualifications,
   both recorded rather than papered over. The budget pins one **build configuration** (Release), and
-  the gate refuses to compare a measurement from another one: MSVC Debug measures `sizeof(Node)` 320,
+  the gate refuses to compare a measurement from another one: MSVC Debug measures `sizeof(Node)` 312,
   `sizeof(PaintData)` 536, `paint_slot_bytes` 624 and two allocations for a plain node against
-  Release's 312/512/520/1, so a Debug number is a different claim, not a regression. And
+  Release's 304/512/520/1, so a Debug number is a different claim, not a regression. And
   `sizeof(ComputedStyle)` is deliberately *not* pinned: it is a `std::map` handle, 16 bytes on MSVC
   and 48 on libstdc++, so pinning it would record a standard-library difference as a memory budget.
   The portable per-node style cost is the recorded first-insert size (96 bytes on both lanes, 208 in
   MSVC Debug to match the configuration rule).
 - **`warn` -- resident memory.** RSS is an OS reading of a heap: it moves with page granularity,
   allocator behaviour, ASLR and machine load, and the two lanes disagree by 11% (364 vs 327 bytes per
-  node) with an identical `sizeof(Node)` of 312. A gate that fails at random gets deleted, and
+  node) with an identical `sizeof(Node)` of 304. A gate that fails at random gets deleted, and
   deleting it is worse than the trend line, so those rows are measured and reported on every run
   inside a wide band and never block. The generous bound that *does* block a leak is in the CTest
   tests above (`memory_steady_state`, `generated_ui_memory`).
@@ -185,6 +185,9 @@ the cheap `memory_sizes` CTest; `memory_budget` runs the checker against it in a
 build tree. `scripts/gates.py` runs `--no-build`, which validates the budget file's shape in the
 aggregator job, where there is no build directory -- the same split as the preview budget, which
 runs in its lane rather than in the aggregator.
+
+Cache-line layout - false sharing between counters that different threads write, and hot structs
+that straddle a line - is its own note: [`cache-lines.md`](cache-lines.md).
 
 ## 4. Power policies
 
@@ -242,7 +245,7 @@ Actions, in order:
 
 Step 2 moves the adaptive `renderScale`; the monitor-derived device scale is a separate value that
 quantizes onto a fixed ladder and keys text/glyph rasterization ([`window-resize.md`](window-resize.md)
-§2.3). Adaptive quality never changes the device scale, so a quality adjustment does not
+Â§2.3). Adaptive quality never changes the device scale, so a quality adjustment does not
 re-rasterize glyphs or resize the text atlas.
 
 Never:
@@ -265,8 +268,8 @@ and step 4 (pause non-essential animations) are implemented as the two ends of t
 
 `src/runtime/adaptive_quality.hpp` is a pure state machine fed one frame observation at a time
 (frame time in ms plus the `adaptiveQuality`, `powerPolicy`, `renderScale`, `minRenderScale`,
-`frameBudgetMs`, `maxFps` and display-refresh fields). It is deterministic — no clock, no RNG, no
-locale, no allocation, not even at construction (the type is trivially copyable) — so an observation
+`frameBudgetMs`, `maxFps` and display-refresh fields). It is deterministic â€” no clock, no RNG, no
+locale, no allocation, not even at construction (the type is trivially copyable) â€” so an observation
 sequence always yields the same decision sequence. It stays the **only** hysteresis authority: the
 consumers read `AdaptiveQualitySample::render_scale` and `AdaptiveQualitySample::present_cap_hz` and
 never re-implement a threshold, a step or a cooldown.
@@ -276,7 +279,7 @@ never re-implement a threshold, a step or a cooldown.
 | Downgrade run | 4 consecutive missed budgets | one slow frame is noise; four at 60 Hz is ~66 ms of sustained overrun |
 | Upgrade run | 12 consecutive met budgets | recovery is deliberately slower than the downgrade, so a borderline machine does not ping-pong |
 | Cooldown | 8 observed frames after a change | no two changes within it: at most one step per ~133 ms at 60 Hz |
-| Ladder | 6 positions: 1 reduces optional effects, 2-5 walk `renderScale` to `minRenderScale` (4 evenly spaced steps) and the present divisor, 6 pauses non-essential animations | ADR-019 §8 order; bounded, no fractional creep; `AdaptiveQualitySample::quality_step` is the position |
+| Ladder | 6 positions: 1 reduces optional effects, 2-5 walk `renderScale` to `minRenderScale` (4 evenly spaced steps) and the present divisor, 6 pauses non-essential animations | ADR-019 Â§8 order; bounded, no fractional creep; `AdaptiveQualitySample::quality_step` is the position |
 | Present-cap floor | 10 Hz | below it an interactive UI stops being interactive; step 4 is the right lever there |
 
 Each change moves exactly one ladder step, clamped to `[minRenderScale, renderScale]`;
@@ -290,7 +293,7 @@ by `WindowHost`. The sample's source is the device's GPU timestamp probe: when
 `rhi::Device::timestamp_capability()` reports timestamps usable on the frame-submission queue
 family, the controller sees the GPU interval of a completed submission; otherwise (the null
 backend, a device without timestamp queries, a zero or non-finite period) it sees the frame's CPU
-cost through present. The probe is the only authority — no layer above the RHI infers the answer
+cost through present. The probe is the only authority â€” no layer above the RHI infers the answer
 from a backend name. A change is recorded in `runtime::FrameDiagnostics` (`adaptive_quality()`,
 `adaptive_quality_changes()`, `adaptive_quality_downgrades()`, `adaptive_present_cap_changes()`), so
 a downgrade is visible without sampling frame time, and it survives `AppHost::resize()`, which only
@@ -304,15 +307,15 @@ Vulkan device owns one bounded ring of timestamp pairs (`kGpuTimestampSlots = 8`
 with the device; a submission uses `slot % 8`, and `WindowHost` reuses a frame slot only after the
 previous submission on it reported completion through the existing non-blocking
 `CommandList::is_complete()` poll. The pair is therefore read only for a completed submission,
-with `vkGetQueryPoolResults` and no `WAIT_BIT` — a host query, never a fence wait or
+with `vkGetQueryPoolResults` and no `WAIT_BIT` â€” a host query, never a fence wait or
 `vkDeviceWaitIdle` (ADR-021). A value is unreadable until its submission completes, so the sample
 lags at most two frames; `CommandList::gpu_frame_time_ms()` converts it with the device's
 `timestampPeriod` and rejects a zero, a 64-bit wrap and an absurd (> 10 s) delta. The selection
 rule is pure and tested with a fake capability (`tessera/runtime/frame_time_source.hpp`): a
 present and plausible GPU interval wins, anything else keeps the CPU time.
 
-`FrameDiagnostics` records the source of every observation — `frame_time_source()`,
-`gpu_frame_time_samples()`, `cpu_frame_time_samples()` — and `WindowFrameStats` reports
+`FrameDiagnostics` records the source of every observation â€” `frame_time_source()`,
+`gpu_frame_time_samples()`, `cpu_frame_time_samples()` â€” and `WindowFrameStats` reports
 `frame_time_source`, `gpu_frame_time_samples` and `gpu_frame_time_fallbacks`, so the first frames
 after startup and any skipped or stale read are visible as fallbacks instead of being silently
 reported as GPU numbers. The controller's thresholds, ladder and actions are unchanged; only the
@@ -336,11 +339,11 @@ A cap that is already a divisor moves to the *next* one (`refresh/2` -> `refresh
 itself. On a 60 Hz display with no cap the sequence is 60, 30, 20, 15, 12 Hz; on 144 Hz it is 144,
 72, 48, 36, 28.8 Hz. The floor stops the walk rather than clamping to a rate the display cannot hit,
 so every value after a downgrade is a real `refresh/k`. An upgrade restores the previous step's cap
-because the cap is the same pure function of the step — there is no separate "previous divisor"
+because the cap is the same pure function of the step â€” there is no separate "previous divisor"
 state that could drift from the ladder.
 
 **How it is applied.** `WindowHost` calls `apply_present_cap()` after each frame observation, which
-feeds the decided cap to `FramePacer::update()` — the pacer's existing rate-change path, the same
+feeds the decided cap to `FramePacer::update()` â€” the pacer's existing rate-change path, the same
 mechanism a scripted refresh change uses. `update()` resyncs the next deadline to one new interval
 after the change instant, so the cap takes effect at the next frame boundary with no burst of
 catch-up frames, no stall at the old cadence, no blocking wait and no swapchain recreation. A cap
@@ -349,7 +352,7 @@ the HAL query (`hal::Window::display_refresh_hz()`, resolved once into
 `WindowOptions::refresh_hz`; an explicit non-zero option wins, 0 = unknown), as specified in
 [`runtime-config-v1.md`](../specs/runtime-config-v1.md) section 6.2. With no refresh there is
 no divisor, so the cap stays at `maxFps` and the pacer keeps its documented deadline pacing
-([`runtime-config-v1.md`](../specs/runtime-config-v1.md) section 5.2) — the fallback is the existing
+([`runtime-config-v1.md`](../specs/runtime-config-v1.md) section 5.2) â€” the fallback is the existing
 behaviour, not a new one. Diagnostics: `WindowFrameStats::present_cap_hz`,
 `present_interval_seconds` and `present_cap_changes`.
 
@@ -363,17 +366,17 @@ target = max(1, floor(P * s)) per axis
 and the present resamples that target up to `P` with a filtered blit. `P` is the window's logical
 extent times the device scale, rounded up to whole pixels, so the adaptive multiplier is a resample
 of exactly what the window already presented. The base is the *presented* extent rather than the
-unrounded logical × device product on purpose: the physical grid is a whole number of pixels, and
+unrounded logical Ã— device product on purpose: the physical grid is a whole number of pixels, and
 using it makes `s = 1.0` exactly identity on every DPI, including fractional ones. The two axes are
 computed (and can round) independently, and the content transform the paint uses is the exact
 extent ratio `target / P`, so the resample always covers the whole image.
 
 **What it never touches.** The device scale (the monitor-derived value quantized onto the render-scale
-ladder, [`window-resize.md`](window-resize.md) §2.3), and therefore everything keyed by it: glyph
-rasterization, the text atlas, and caret/metrics values. Layout does not change either — the scene is
+ladder, [`window-resize.md`](window-resize.md) Â§2.3), and therefore everything keyed by it: glyph
+rasterization, the text atlas, and caret/metrics values. Layout does not change either â€” the scene is
 laid out, style-resolved and painted in CSS pixels exactly as before; only the mapping from those
 coordinates to the smaller target changes. The frame's content scale composes this adaptive ratio
-with the window's device scale (`ui::scale::content_scale_for`, `display-aware-rendering.md` §6), so
+with the window's device scale (`ui::scale::content_scale_for`, `display-aware-rendering.md` Â§6), so
 a downgrade only multiplies the device factor by the quality factor. The window and its swapchain
 keep the physical size, so a quality change never resizes the OS window or recreates the swapchain.
 
@@ -383,7 +386,7 @@ resample is recorded in the same submission as the paint. There is no mid-frame 
 allocation in the steady state, and no GPU wait.
 
 **The bit-identical guarantee at scale 1.0.** When `s = 1.0` the target extent equals `P`, so the
-frame takes the existing direct path — no offscreen target is created and no resample runs — and the
+frame takes the existing direct path â€” no offscreen target is created and no resample runs â€” and the
 presented image is byte-for-byte the full-quality frame the tree produced before this consumer
 existed. The committed goldens and the frame-pipeline/app-window-capture tests therefore pass
 unchanged, and they are the acceptance for this slice.
@@ -450,6 +453,25 @@ reference median, which keeps roughly a factor of two on top of a presumed 3x-sl
 gating runner. It catches order-of-magnitude regressions and does not rank machines. Every run
 prints the full table (times, damage count, draw calls, primitive count) into the CTest log, so CI
 history shows the trend.
+
+**The style pass after the security review (findings P1 and P3).** Two allocation defects dominated
+the style stage, and both are now fixed:
+
+- `PropertyRegistry::apply_initial_values` materialized every initial longhand through
+  `ComputedStyle::set`/`contains`, each of which built a fresh `std::string` via
+  `normalize_property`. One node's style cost roughly 250 heap operations before any cascade work,
+  times every node on every style pass. The registry's own names are already normalized, so the
+  pass now uses `set_normalized`/`contains_normalized` and skips the lower-casing copy (P1).
+- `SelectorIndex::match` allocated a candidates vector, a `seen` `vector<bool>` sized to the whole
+  index, and a result vector on every call, then deduped with a linear scan. It now writes into a
+  caller-owned buffer and reuses a stamp array, so a repeated match allocates nothing (P3);
+  `tests/unit/selector_match_tests.cpp` pins that with a replaced global `operator new`.
+
+Measured on the reference machine above, same scene and preset: first style + layout went from
+**449 ms to 384 ms** (a 14.5 % reduction), and the damaged-frame paint from 3.50 ms to 3.31 ms. The
+remaining cost is the ~120 `std::map` inserts per node that `apply_initial_values` still performs;
+replacing `ComputedStyle`'s `std::map` with a flat sorted vector is the next step and is recorded as
+an open question in section 10.
 
 **Glass scenario (issue #244, [`glass-v1.md`](../specs/glass-v1.md) section 9).** The same full
 paint with the reference dashboard's fixed top bar blurred (`backdrop-filter: blur(16px)` through an
@@ -561,7 +583,18 @@ parallelism without a measured gain on this benchmark.
 - Thermal/power-source signals and whether to use them at all (no decision yet; HAL `PowerState` in [`hal.md`](hal.md) exposes them).
 - ~~Per-monitor render scale and mixed-DPI multi-window.~~ Decided: one render scale per window in
   V1, derived from that window's `WindowMetrics` and recomputed only on a DPI or monitor change
-  ([`window-resize.md`](window-resize.md) §2.3). Per-monitor scale is deferred until multi-window
+  ([`window-resize.md`](window-resize.md) Â§2.3). Per-monitor scale is deferred until multi-window
   or per-display rendering is scheduled or a mixed-DPI app needs it.
 - How much adaptive quality is acceptable without visual regression.
 - Benchmark harness and baseline budgets per scene class.
+- **Should `ComputedStyle` stay a `std::map<std::string, std::string>`?** After the P1 fix the
+  remaining cost of a style pass is the ~120 map inserts `apply_initial_values` performs per node,
+  plus a `std::string` key copy per lookup (the map has no transparent comparator). A flat
+  `std::vector<std::pair<std::string, std::string>>` kept sorted by name would make a lookup a
+  binary search over contiguous memory, make `winners()` a view instead of a copy, and preserve the
+  sorted iteration order `layout_signature.cpp` relies on. It is a wide change - every
+  `properties()` consumer and the `set`/`erase`/`find` seam - so it needs its own landing.
+- **Should `SceneStyleTree::compute` memoize per style generation?** It re-cascades the whole
+  ancestor chain per node, and one frame resolves each node's style up to five times (layout input,
+  scene-style sync, interaction style, animation style bridge, paint). A per-generation table would
+  make that one cascade per node; the invalidation condition is `PaintCache::invalidate`'s.
