@@ -1,0 +1,44 @@
+/* SPDX-License-Identifier: MIT */
+
+/* Meter: two 10px LED columns in a well. The lit part is a hard-stop gradient (signal below --hot,
+   warning above), cut into segments by a repeating mask. */
+.tmeter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.tmeter-well {
+  display: flex;
+  gap: 4px;
+  height: 76px;
+  padding: 5px;
+  border-radius: 6px;
+}
+
+.tmeter-col {
+  position: relative;
+  width: 10px;
+  background-color: var(--mat-arc-track-inverse);
+  /* tessera-gap: mask, repeating-linear-gradient */
+  mask: repeating-linear-gradient(0deg, #000 0px 4px, transparent 4px 6px);
+}
+
+.tmeter-fill {
+  position: absolute;
+  left: 0px;
+  right: 0px;
+  bottom: 0px;
+  height: var(--level);
+  /* the hot zone is fixed to the column, not to the fill, so the gradient is sized to the column */
+  background: linear-gradient(0deg, var(--mat-signal) 0px, var(--mat-signal) var(--hot), var(--mat-signal-warn) var(--hot));
+  background-size: 100% 66px;
+  background-position: bottom;
+  box-shadow: 0px 0px 6px var(--mat-signal-glow);
+}
+
+.tmeter-labels {
+  display: flex;
+  gap: 10px;
+}

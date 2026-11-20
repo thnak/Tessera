@@ -1,0 +1,116 @@
+/* SPDX-License-Identifier: MIT */
+
+/* BarChart on an LCD (the reference's histogram well). A series is the signal colour; the only second
+   colour is the warning signal for "over limit". Instrument has no data palette (see README). */
+.tchart {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  min-width: 0;
+}
+
+.tchart-screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-4) var(--space-2);
+  border-radius: var(--radius-lg);
+}
+
+.tchart-body {
+  display: flex;
+  gap: var(--space-2);
+  height: 200px;
+}
+
+.tchart-axis-y {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-end;
+  width: 4ch;
+  margin: -8px 0px;
+  font-size: var(--font-size-label);
+  line-height: var(--line-height-label);
+  color: var(--mat-on-well-muted);
+}
+
+.tchart-plot {
+  position: relative;
+  flex-grow: 1;
+  min-width: 0;
+}
+
+.tchart-grid {
+  position: absolute;
+  left: 0px;
+  right: 0px;
+  height: 0px;
+  border-top: 1px dotted var(--mat-inverse-line);
+}
+
+.tchart-limit {
+  position: absolute;
+  left: 0px;
+  right: 0px;
+  height: 0px;
+  border-top: 1px dashed var(--mat-signal-warn);
+  z-index: 1;
+}
+
+.tchart-limit-text {
+  position: absolute;
+  right: 0px;
+  bottom: 3px;
+  padding: 0px var(--space-1);
+  font-size: var(--font-size-label);
+  line-height: var(--line-height-label);
+  background-color: var(--mat-well-a);
+}
+
+.tchart-bars {
+  position: absolute;
+  inset: 0px;
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+}
+
+.tchart-bar {
+  flex-grow: 1;
+  flex-basis: 0px;
+  min-width: 2px;
+  border-radius: 1px 1px 0px 0px;
+  background-color: var(--mat-signal);
+  opacity: 0.8;
+  transition: height var(--motion-normal) ease-out;
+}
+
+/* Over the limit: warning colour, a bright cap and a diagonal stripe, so the state survives a theme
+   (high contrast) where signal and warning are both yellows. */
+.tchart-bar-over {
+  /* tessera-gap: repeating-linear-gradient */
+  background: repeating-linear-gradient(135deg, var(--mat-signal-warn) 0px 5px, var(--mat-well-b) 5px 7px);
+  border-top: 2px solid var(--mat-on-well);
+  opacity: 1;
+  box-shadow: 0px 0px 8px var(--mat-signal-warn-glow);
+}
+
+.tchart-axis-x {
+  display: flex;
+  justify-content: space-between;
+  padding-left: calc(4ch + var(--space-2));
+}
+
+.tchart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.tchart-key {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}

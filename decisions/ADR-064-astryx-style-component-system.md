@@ -191,6 +191,10 @@ the design work, the part that takes longest.
 - **Make data fetching part of the table.** Rejected: server shapes differ; a controlled plugin with
   a request token covers cursor and total-count APIs without an adapter zoo.
 
+## Evidence required before Accepted
+
+This ADR stays Proposed until measured evidence exists. Spike [#658](https://github.com/thnak/Tessera/issues/658) builds the behavior hook path end to end with one behavior (`press_feedback`), off by default, and records the stages' findings, allocation behavior, golden stability and preview support. Spike [#662](https://github.com/thnak/Tessera/issues/662) builds a role-token theme to plain CSS custom properties and renders Button in three modes, recording missing engine features, measured contrast and the cost of the token vocabulary. Items 3 to 5 and 8 (catalogue, anatomy, plugins) have no spike yet; they are specifications that the first components (#636 Button) will test. The implementing issues wait for Acceptance.
+
 ## Follow-up
 
 - Spec template `docs/specs/components/_template.md`; first specs: Button, Field, TextInput, Dialog,

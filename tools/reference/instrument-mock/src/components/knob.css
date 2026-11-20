@@ -1,0 +1,225 @@
+/* SPDX-License-Identifier: MIT */
+
+/* Knob, after the reference's dials. Layers (back to front) for `lg`: a ring of ticks over the 270
+   degree travel, the same ticks lit up to the value, a glowing value arc, a knurled skirt that turns
+   with the value, a domed cap, and the pointer. `sm` (inverse band): a segmented glowing arc, a dark
+   cap with a turning knurl, a centre LED and a light pointer. --deg and --rot come from Knob.tsx. */
+.tknob {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.tknob-dial {
+  position: relative;
+  flex-shrink: 0;
+  border-radius: 50%;
+  cursor: ns-resize;
+  touch-action: none;
+}
+
+.tknob-dial > span {
+  position: absolute;
+  pointer-events: none;
+}
+
+.tknob-lg .tknob-dial {
+  width: 124px;
+  height: 124px;
+}
+
+.tknob-sm .tknob-dial {
+  width: 62px;
+  height: 62px;
+}
+
+/* Tick ring: thin radial ticks every 27 degrees, kept to an outer 5px band and to the travel. */
+.tknob-ticks,
+.tknob-ticks-on {
+  inset: 0px;
+  /* tessera-gap: repeating-conic-gradient */
+  background: repeating-conic-gradient(from 225deg, var(--tick, var(--mat-screw-c)) 0deg 1.4deg, transparent 1.4deg 27deg);
+  /* tessera-gap: mask-composite, mask, radial-gradient, conic-gradient */
+  mask:
+    radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4.5px)),
+    conic-gradient(from 225deg, #000 0deg var(--reach, 271.5deg), transparent var(--reach, 271.5deg));
+  mask-composite: intersect;
+  opacity: var(--mat-decor-opacity);
+}
+
+.tknob-ticks-on {
+  --tick: var(--accent);
+  --reach: calc(var(--deg) + 1.5deg);
+  opacity: 1;
+}
+
+/* Value arc: a conic sweep masked to a 5px ring, glowing through a drop-shadow filter. */
+.tknob-arc-glow {
+  /* tessera-gap: filter */
+  filter: drop-shadow(0px 0px 6px var(--mat-signal-glow));
+}
+
+.tknob-lg .tknob-arc-glow {
+  inset: 9px;
+}
+
+.tknob-sm .tknob-arc-glow {
+  inset: 0px;
+}
+
+.tknob-arc {
+  position: absolute;
+  inset: 0px;
+  border-radius: 50%;
+  /* tessera-gap: conic-gradient */
+  background: conic-gradient(from 225deg, var(--accent) 0deg var(--deg), var(--mat-arc-track) var(--deg) 270deg, transparent 270deg);
+  /* tessera-gap: mask, radial-gradient */
+  mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4.5px));
+}
+
+/* Knurled skirt: alternating 2.5 degree facets, turning with the value. */
+.tknob-knurl {
+  border-radius: 50%;
+  transform: rotate(var(--rot));
+  /* tessera-gap: repeating-conic-gradient */
+  background: repeating-conic-gradient(var(--mat-knurl-a) 0deg 2.5deg, var(--mat-knurl-b) 2.5deg 5deg);
+  box-shadow: var(--mat-knob-shadow);
+  border: var(--mat-edge-width) solid var(--mat-edge);
+}
+
+.tknob-lg .tknob-knurl {
+  inset: 17px;
+}
+
+/* Domed cap: radial highlight top-left, faint machined rings. */
+.tknob-lg .tknob-cap {
+  inset: 23px;
+  border-radius: 50%;
+  /* tessera-gap: multiple-backgrounds, repeating-radial-gradient */
+  background:
+    repeating-radial-gradient(circle at 50% 50%, rgba(20, 25, 40, 0.018) 0px 1px, transparent 1px 3px),
+    radial-gradient(circle at 35% 28%, var(--mat-knob-cap-a) 0%, var(--mat-knob-cap-b) 45%, var(--mat-knob-cap-c) 100%);
+  /* tessera-gap: inset-shadow */
+  box-shadow: inset 0px 2px 1px var(--mat-lip), inset 0px -4px 8px rgba(20, 25, 40, 0.08), 0px 1px 2px rgba(20, 25, 40, 0.2);
+}
+
+.tknob-pointer {
+  left: 50%;
+  top: 50%;
+  width: 3px;
+  margin-left: -1.5px;
+  border-radius: 2px;
+  background-color: var(--mat-knob-pointer);
+  transform-origin: 50% 100%;
+  transform: rotate(var(--rot));
+}
+
+.tknob-lg .tknob-pointer {
+  height: 33px;
+  margin-top: -33px;
+  /* only the outer half of the radius is drawn */
+  background: linear-gradient(180deg, var(--mat-knob-pointer) 0px 16px, transparent 16px);
+}
+
+.tknob-min,
+.tknob-max {
+  bottom: -6px;
+  font-family: var(--mat-font-micro);
+  font-size: var(--font-size-label);
+  letter-spacing: 0.08em;
+  color: var(--on-surface-muted);
+}
+
+.tknob-min {
+  left: -8px;
+}
+
+.tknob-max {
+  right: -8px;
+}
+
+/* Small inverse knob */
+.tknob-sm .tknob-arc {
+  background: conic-gradient(from 225deg, var(--mat-signal) 0deg var(--deg), var(--mat-arc-track-inverse) var(--deg) 270deg, transparent 270deg);
+  /* tessera-gap: mask-composite, mask, radial-gradient, repeating-conic-gradient */
+  mask:
+    radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5.5px)),
+    repeating-conic-gradient(from 225deg, #000 0deg 11deg, transparent 11deg 13.5deg);
+  mask-composite: intersect;
+}
+
+.tknob-sm .tknob-cap {
+  inset: 10px;
+  border-radius: 50%;
+  /* tessera-gap: radial-gradient */
+  background: radial-gradient(circle at 40% 30%, var(--mat-dark-knob-a), var(--mat-dark-knob-b));
+  box-shadow: 0px 5px 10px rgba(0, 0, 0, 0.55), inset 0px 1px 0px rgba(255, 255, 255, 0.12); /* tessera-gap: inset-shadow */
+  border: var(--mat-edge-width) solid var(--mat-on-inverse);
+}
+
+.tknob-sm .tknob-knurl {
+  inset: 10px;
+  background: repeating-conic-gradient(rgba(255, 255, 255, 0.06) 0deg 3deg, transparent 3deg 6deg);
+  box-shadow: none;
+  border: 0;
+}
+
+.tknob-led {
+  left: 50%;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin: -4px 0px 0px -4px;
+  border-radius: 50%;
+  background-color: var(--mat-signal);
+  box-shadow: 0px 0px 8px var(--mat-signal-glow);
+}
+
+.tknob-sm .tknob-pointer {
+  height: 21px;
+  margin-top: -21px;
+  width: 2px;
+  margin-left: -1px;
+  background: linear-gradient(180deg, var(--mat-on-inverse) 0px 7px, transparent 7px);
+}
+
+/* Caption: label plus a value chip (lg: a tiny LCD; sm: muted mono under the label). */
+.tknob-caption {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.tknob-lg .tknob-label {
+  color: var(--on-surface);
+}
+
+.tknob-lg .tknob-value {
+  padding: 2px 7px;
+  border-radius: 5px;
+  font-size: var(--font-size-label);
+  line-height: var(--line-height-label);
+}
+
+.tknob-sm .tknob-caption {
+  flex-direction: column;
+  gap: 0px;
+  margin-top: var(--space-1);
+}
+
+.tknob-sm .tknob-label {
+  color: var(--mat-on-inverse);
+}
+
+.tknob-sm .tknob-value {
+  font-size: var(--font-size-label);
+  line-height: var(--line-height-label);
+  color: var(--mat-on-inverse-muted);
+}
+
+.tknob-dial:focus-visible {
+  outline-offset: 4px;
+}

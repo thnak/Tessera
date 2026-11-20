@@ -1,0 +1,91 @@
+/* SPDX-License-Identifier: MIT */
+
+/* DataTable: rows separated by engraved lines (dark line + white lip, drawn as inset shadows on the
+   cells), a recessed header band with micro labels, numbers in the mono face. */
+.ttable-scroll {
+  overflow-x: auto;
+  min-width: 0;
+  scrollbar-width: thin;
+}
+
+.ttable-scroll:focus-visible {
+  outline-offset: -2px;
+}
+
+.ttable {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.ttable-th {
+  padding: 0px;
+  height: 32px;
+  background: linear-gradient(180deg, var(--mat-recess-a), var(--mat-recess-b));
+  box-shadow: var(--mat-recess-shadow); /* tessera-gap: inset-shadow */
+  text-align: start;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.ttable-sort {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  width: 100%;
+  height: 32px;
+  margin: 0;
+  padding: 0px var(--space-3);
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.ttable-num .ttable-sort {
+  justify-content: flex-end;
+}
+
+.ttable-sort:hover {
+  color: var(--on-surface);
+}
+
+.ttable-sort:focus-visible {
+  outline-offset: -2px;
+}
+
+.ttable-arrow {
+  font-size: 8px;
+  opacity: 0;
+}
+
+.ttable-arrow-on {
+  opacity: 1;
+  color: var(--accent);
+}
+
+.ttable-row:hover .ttable-cell {
+  background-color: var(--mat-level-0);
+}
+
+.ttable-cell {
+  height: 36px;
+  padding: 0px var(--space-3);
+  /* engraved row rule: dark line with the white lip under it */
+  box-shadow: inset 0px -1px 0px var(--mat-lip), inset 0px -2px 0px var(--mat-engrave); /* tessera-gap: inset-shadow */
+  white-space: nowrap;
+  color: var(--on-surface);
+}
+
+.ttable-row:last-child .ttable-cell {
+  box-shadow: none;
+}
+
+.ttable-num {
+  text-align: end;
+}
+
+@media (max-width: 599px) {
+  .ttable-wide {
+    display: none;
+  }
+}

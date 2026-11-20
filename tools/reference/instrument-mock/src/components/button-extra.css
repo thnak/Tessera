@@ -1,0 +1,102 @@
+/* SPDX-License-Identifier: MIT */
+
+/* The tactile key on top of packages/tessera-ui/button.css (kept for structure: flex row, centring,
+   sizes). Each variant sets a gradient pair and a shadow recipe; hover lifts the key (bigger drop),
+   press sinks it (pressed recipe + 1px travel), disabled flattens it to a solid tray with muted text.
+   No state uses opacity, which was the old finding. Doubled class selectors beat button.css. */
+.tbtn.tbtn {
+  --btn-a: var(--mat-raised-a);
+  --btn-b: var(--mat-raised-b);
+  --btn-shadow: var(--mat-raised-shadow);
+  --btn-shadow-hover: var(--mat-raised-shadow-hover);
+  margin: 0;
+  flex-shrink: 0;
+  gap: var(--space-2);
+  white-space: nowrap;
+  min-height: 36px;
+  padding: 0px var(--space-4);
+  border: var(--mat-edge-width) solid var(--mat-edge);
+  border-radius: var(--mat-radius-key);
+  background: linear-gradient(180deg, var(--btn-a), var(--btn-b));
+  box-shadow: var(--btn-shadow); /* tessera-gap: inset-shadow */
+  color: var(--on-surface);
+  opacity: 1;
+  font-weight: var(--mat-display-weight);
+  transition:
+    box-shadow var(--motion-fast) ease-out,
+    transform var(--motion-fast) ease-out;
+}
+
+.tbtn.tbtn-sm {
+  min-height: 28px;
+  padding: 0px var(--space-3);
+  border-radius: var(--radius-lg);
+}
+
+.tbtn.tbtn-primary {
+  --btn-a: var(--mat-accent-a);
+  --btn-b: var(--mat-accent-b);
+  color: var(--on-accent);
+}
+
+.tbtn.tbtn-danger {
+  --btn-a: var(--mat-danger-a);
+  --btn-b: var(--mat-danger-b);
+  color: var(--on-danger);
+}
+
+/* The dark pill of the reference ("snapshot" key). */
+.tbtn.tbtn-dark {
+  --btn-a: var(--mat-dark-key-a);
+  --btn-b: var(--mat-dark-key-b);
+  color: var(--mat-on-inverse);
+  border-radius: var(--mat-radius-pill);
+}
+
+/* Ghost: flush with the surface until touched. */
+.tbtn.tbtn-ghost {
+  --btn-a: transparent;
+  --btn-b: transparent;
+  --btn-shadow: none;
+}
+
+.tbtn.tbtn:hover,
+.tbtn.tbtn.is-hover {
+  box-shadow: var(--btn-shadow-hover); /* tessera-gap: inset-shadow */
+  opacity: 1;
+}
+
+.tbtn.tbtn-ghost:hover,
+.tbtn.tbtn-ghost.is-hover {
+  --btn-a: var(--mat-raised-a);
+  --btn-b: var(--mat-raised-b);
+}
+
+.tbtn.tbtn:active,
+.tbtn.tbtn.is-active {
+  box-shadow: var(--mat-pressed-shadow); /* tessera-gap: inset-shadow */
+  transform: translateY(var(--mat-press-depth));
+  opacity: 1;
+}
+
+/* Focus: button.css's touching ring is replaced by the global offset ring (base.css). */
+.tbtn.tbtn:focus-visible {
+  border-color: var(--mat-edge);
+}
+
+.tbtn.tbtn.is-focus {
+  outline: 2px solid var(--ring, var(--mat-focus-ring));
+  outline-offset: 2px;
+}
+
+.tbtn.tbtn-disabled {
+  --btn-a: var(--mat-level-3);
+  --btn-b: var(--mat-level-3);
+  --btn-shadow: none;
+  color: var(--on-surface-muted);
+  opacity: 1;
+  pointer-events: none;
+  /* a dashed edge marks the key as unavailable even where the flat fill is close to a key's tone
+     (dark theme) or cannot change (high contrast) */
+  border: max(1px, var(--mat-edge-width)) dashed var(--border-strong);
+}
