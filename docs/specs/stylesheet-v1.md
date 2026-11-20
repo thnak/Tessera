@@ -413,13 +413,13 @@ Legend: **V1** = implemented semantics; **Parse** = parsed/preserved, no semanti
   frames and are dropped under other rotations or skews. The damage-clipping wrapper forwards the
   matrix and replays commands under each device-space region. The CPU sink paints the
   axis-aligned bounding box instead.
-- `box-shadow` takes up to 4 comma-separated shadows (offset, blur, spread, color). Blur is a
-  3-8 layer Gaussian-matched stack drawn beneath the node; `inset` parses but is not painted, and
-  the shadow is not cut out beneath a translucent background (that needs an inverse clip the
-  `PaintSink` does not have). Revisit `inset` and the cut-out when the component library needs
-  them or an inverse clip exists.
-- Value forms V1 ignores on a recognised property (`box-shadow: inset`, 3D `transform`, any
-  `backdrop-filter` function other than `blur`/`saturate`/`brightness`/`contrast`) produce a
+- `box-shadow` takes up to 4 comma-separated shadows (offset, blur, spread, color), outer or
+  `inset`. Blur is a 3-8 layer Gaussian-matched stack drawn beneath the node; an outer shadow is
+  clipped to the rounded border box and an inset one (issue #612) is painted inside it, above the
+  background and below the content, filling the ring between the border box and the inner box (the
+  border box moved by the offset and shrunk by the spread).
+- Value forms V1 ignores on a recognised property (3D `transform`, any `backdrop-filter` function
+  other than `blur`/`saturate`/`brightness`/`contrast`) produce a
   `StyleDiagnosticKind::UnsupportedValue` diagnostic per declaration and stay in the AST, like
   other unsupported declarations (below).
 - `FramePipeline::sync_style` (between layout and `finish_frame`) copies these values onto the

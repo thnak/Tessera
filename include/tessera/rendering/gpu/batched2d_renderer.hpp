@@ -220,6 +220,14 @@ public:
     // the same quad and carve, with a coverage step instead of the Gaussian.
     void push_soft_shadow(const rhi::Rect& box, const rhi::Rect& carve, rhi::Color color,
                           float radius, float sigma);
+    // An inset box shadow (issue #612): the same Gaussian edge, painted *inside* `box` instead of
+    // outside `carve`. `box` is the element's border box (the quad the shadow is clipped to) and
+    // `carve` is the inner box - the border box moved by the shadow's offset and shrunk by its
+    // spread - so the shadow fills the ring between them and fades inward. The inner corner radius
+    // is `radius` minus the spread, derived from the two boxes because an engine `border-radius` is
+    // one length. `sigma` 0 is the hard-edged inset shadow.
+    void push_inset_shadow(const rhi::Rect& box, const rhi::Rect& carve, rhi::Color color,
+                           float radius, float sigma);
     // `coverage_boost` (1 to 2) scales the sampled alpha before blending; glyph runs use it.
     void push_texture(const rhi::Rect& rect, rhi::Texture& texture, const rhi::Rect& uv,
                       rhi::Color color, float coverage_boost = 1.0f);

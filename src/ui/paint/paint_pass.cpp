@@ -154,19 +154,25 @@ void paint_backdrop(const style::ComputedStyle& style, const rhi::Rect& rect, fl
     ++stats.backdrops;
 }
 
-// The node's own box visuals in paint order: background, gradient, border.
+// The node's own box visuals in paint order: background, gradient, border, then the inset shadows.
+// CSS paints an inset shadow above the background and below the content (CSS Backgrounds 3 section
+// 7.1.1), which is why the outer shadows are emitted before this call and the inset ones inside it.
 void paint_box_and_border(const Node& node, const style::ComputedStyle& style,
                           const rhi::Rect& rect, float opacity, const rhi::Color& current,
-                          float device_scale, PaintSink& sink, PaintStats& stats) {
+                          float device_scale, PaintSink& sink, PaintStats& stats,
+                          bool reduce_effects) {
     paint_background(style, rect, opacity, current, sink, stats);
     detail::paint_linear_gradient(node, style, rect, opacity, sink, stats);
     if (const std::optional<RingBorder> ring =
             rounded_ring(style, rect, opacity, current, device_scale)) {
         sink.fill_rounded_ring(rect, ring->color, ring->radius, ring->width);
         ++stats.borders;
-        return;
+    } else {
+        paint_borders(style, rect, opacity, current, device_scale, sink, stats);
     }
-    paint_borders(style, rect, opacity, current, device_scale, sink, stats);
+    // The inset shadows sit above the background and border, below the content.
+    detail::paint_box_shadows(style, rect, detail::uniform_radius(style).value_or(0.0f), opacity,
+                              current, sink, stats, detail::ShadowLayer::Inset, reduce_effects);
 }
 
 // Painted state inherited from the parent: the painted world matrix of the parent's content space
@@ -356,12 +362,13 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
         const rhi::Color current = detail::current_color(style);
         // The backdrop sits beneath everything the node paints, including its box shadow.
         paint_backdrop(style, rect, effective_opacity, context, *own, stats);
-        // The shadow sits beneath the node's own background, borders and content.
+        // The outer shadow sits beneath the node's own background, borders and content.
         const std::optional<float> shadow_radius = detail::uniform_radius(style);
         detail::paint_box_shadows(style, rect, shadow_radius.value_or(0.0f), effective_opacity,
-                                  current, *own, stats, context.reduce_effects);
+                                  current, *own, stats, detail::ShadowLayer::Outer,
+                                  context.reduce_effects);
         paint_box_and_border(node, style, rect, effective_opacity, current, context.device_scale,
-                             *own, stats);
+                             *own, stats, context.reduce_effects);
     }
 
     // `overflow` clipping applies to the children (the element's own background/border are painted

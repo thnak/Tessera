@@ -186,14 +186,12 @@ bool invalid_none_and_inset() {
     const Painted bad_color = paint(styled({{"box-shadow", "1px 2px notacolor"}}));
     const Painted negative_blur = paint(styled({{"box-shadow", "1px 2px -3px #000"}}));
     const Painted partly_bad = paint(styled({{"box-shadow", "1px 1px #000, nonsense"}}));
-    const Painted inset = paint(styled({{"box-shadow", "inset 0 0 5px #000"}}));
     const Painted unitless = paint(styled({{"box-shadow", "3 4 #000"}}));
     return expect(none.ops.empty() && missing.ops.empty(), "none and a missing property") &&
            expect(too_short.ops.empty(), "fewer than two lengths is invalid") &&
            expect(bad_color.ops.empty(), "an unparseable color is invalid") &&
            expect(negative_blur.ops.empty(), "a negative blur is invalid") &&
            expect(partly_bad.ops.empty(), "one invalid entry invalidates the list") &&
-           expect(inset.ops.empty(), "inset shadows are parsed but not painted yet") &&
            expect(unitless.ops.empty(), "unit-less non-zero lengths are invalid");
 }
 
@@ -345,6 +343,115 @@ bool one_shape_shadow_is_one_call() {
     return ok;
 }
 
+// Issue #612: an inset shadow is painted inside the border box, filling the ring between the border
+// box and the inner box (the border box moved by the offset and shrunk by the spread).
+bool inset_shadow_fills_the_ring() {
+    // A sharp inset shadow with no offset and no spread is the whole box: the inner box equals the
+    // border box, so the ring is empty and nothing paints.
+    const Painted degenerate = paint(styled({{"box-shadow", "inset 0 0 0 #000000"}}));
+    bool ok = expect(degenerate.ops.empty(), "a zero inset shadow paints nothing");
+
+    // A spread shrinks the inner box, so the ring is the four bands around it.
+    const Painted spread = paint(styled({{"box-shadow", "inset 0 0 0 5px #000000"}}));
+    ok = expect(spread.ops.size() == 4 && spread.stats.shadows == 1,
+                "a sharp inset shadow with a spread is four bands") &&
+         ok;
+    if (spread.ops.size() == 4) {
+        // The node is {10, 10, 50, 40}; a 5 px spread leaves the inner box {15, 15, 40, 30}.
+        ok = expect(same_rect(spread.ops[0].rect, 10, 10, 50, 5) &&
+                        same_rect(spread.ops[1].rect, 10, 45, 50, 5) &&
+                        same_rect(spread.ops[2].rect, 10, 15, 5, 30) &&
+                        same_rect(spread.ops[3].rect, 55, 15, 5, 30),
+                    "the bands wrap the inner box") &&
+             ok;
+    }
+    // Every band is inside the border box: an inset shadow never paints outside it.
+    ok = expect(std::all_of(spread.ops.begin(), spread.ops.end(),
+                            [](const Op& op) {
+                                return op.rect.x >= kNode.x && op.rect.y >= kNode.y &&
+                                       op.rect.x + op.rect.width <= kNode.x + kNode.width &&
+                                       op.rect.y + op.rect.height <= kNode.y + kNode.height;
+                            }),
+                "no inset band leaves the border box") &&
+         ok;
+
+    // An offset moves the inner box, so the ring is a single band on the side the offset uncovers.
+    // The inner box is the border box shifted right by 4, so it overhangs the right edge and the
+    // shadow is clipped to the border box: only the left band paints.
+    const Painted offset = paint(styled({{"box-shadow", "inset 4px 0 0 0 #000000"}}));
+    ok = expect(offset.ops.size() == 1, "an offset inset shadow is one band") && ok;
+    if (offset.ops.size() == 1) {
+        ok = expect(same_rect(offset.ops[0].rect, 10, 10, 4, 40),
+                    "the band is on the side the offset leaves uncovered") &&
+             ok;
+    }
+
+    // A blurred inset shadow is a stack of rings, and the innermost band is the full colour.
+    const Painted blurred = paint(styled({{"box-shadow", "inset 0 0 12px #000000"}}));
+    ok = expect(blurred.stats.shadows >= 3, "a blurred inset shadow is a stack of rings") && ok;
+    ok = expect(std::all_of(blurred.ops.begin(), blurred.ops.end(),
+                            [](const Op& op) {
+                                return op.rect.x >= kNode.x && op.rect.y >= kNode.y &&
+                                       op.rect.x + op.rect.width <= kNode.x + kNode.width &&
+                                       op.rect.y + op.rect.height <= kNode.y + kNode.height;
+                            }),
+                "no blurred inset band leaves the border box") &&
+         ok;
+    return ok;
+}
+
+// The one-shape sink gets a single call per inset shadow, with the border box as the quad and the
+// inner box in the carve slot, flagged `inset` so the shader inverts the coverage.
+bool inset_shadow_is_one_call() {
+    Node node(1);
+    node.set_bounds(kNode);
+    StubStyles styles;
+    styles.set(1, styled({{"box-shadow", "inset 2px 3px 8px 4px rgba(0,0,0,0.5)"},
+                          {"border-top-left-radius", "6px"},
+                          {"border-top-right-radius", "6px"},
+                          {"border-bottom-right-radius", "6px"},
+                          {"border-bottom-left-radius", "6px"}}));
+    OneShapeSink sink;
+    const PaintStats stats = paint_scene(node, styles, sink);
+    bool ok = expect(sink.draws.size() == 1 && sink.fills == 0 && stats.shadows == 1,
+                     "one inset box-shadow call and no strips");
+    if (!ok) {
+        return false;
+    }
+    const auto& draw = sink.draws[0];
+    ok = expect(draw.inset, "the draw is flagged inset") && ok;
+    ok = expect(same_rect(draw.box, kNode.x, kNode.y, kNode.width, kNode.height),
+                "the quad is the border box, so the shadow never leaves it") &&
+         ok;
+    // The inner box: the border box moved by the offset and shrunk by the spread.
+    ok = expect(same_rect(draw.carve.rect, 16, 17, 42, 32), "the carve box is the inner box") && ok;
+    ok = expect(near(draw.sigma, 4.0f) && near(draw.radius, 6.0f),
+                "sigma is half the blur and the radius is the border radius") &&
+         ok;
+    ok = expect(near(draw.color.a, 0.5f), "the colour keeps the shadow alpha") && ok;
+
+    // A sharp inset shadow goes through the same call with sigma 0.
+    styles.set(1, styled({{"box-shadow", "inset 0 0 0 3px #000000"}}));
+    OneShapeSink sharp;
+    paint_scene(node, styles, sharp);
+    ok = expect(sharp.draws.size() == 1 && sharp.draws[0].inset && near(sharp.draws[0].sigma, 0.0f),
+                "a sharp inset shadow is one call with sigma 0") &&
+         ok;
+    return ok;
+}
+
+// An inset and an outer shadow in one list paint in the documented order: the first listed is on
+// top, so it is emitted last.
+bool inset_and_outer_mix() {
+    const Painted mixed =
+        paint(styled({{"box-shadow", "inset 0 0 0 2px #ff0000, 0 0 0 2px #0000ff"}}));
+    bool ok = expect(mixed.stats.shadows == 2, "both shadows paint");
+    ok = expect(!mixed.ops.empty() && mixed.ops.back().color.r > 0.9f,
+                "the first listed (inset) paints last, on top") &&
+         ok;
+    return ok;
+}
+
 int main() {
     bool ok = true;
     ok = one_shape_shadow_is_one_call() && ok;
@@ -356,6 +463,9 @@ int main() {
     ok = reduced_effects_keep_the_reach_with_fewer_layers() && ok;
     ok = outsets_reach() && ok;
     ok = list_is_bounded() && ok;
+    ok = inset_shadow_fills_the_ring() && ok;
+    ok = inset_shadow_is_one_call() && ok;
+    ok = inset_and_outer_mix() && ok;
     if (!ok) {
         std::cerr << "paint_shadow: FAILED\n";
         return 1;

@@ -178,6 +178,34 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             }
         }
         color.a = color.a * cover;
+    } else if (in.mode > 2000.0) {
+        // Inset box shadow (issue #612): mode is 2048 + sigma (see batched2d.frag). The quad is the
+        // border box and `carve` is the inner box, so the shadow fills the ring between them.
+        let sigma = in.mode - 2048.0;
+        var inner_half = in.half_size;
+        var inner_centre = vec2<f32>(0.0, 0.0);
+        if (in.carve.z > 0.0 && in.carve.w > 0.0) {
+            inner_half = in.carve.zw;
+            inner_centre = in.carve.xy;
+        }
+        let inset = in.half_size.x - inner_half.x;
+        let inner_radius = clamp(in.radius - inset, 0.0, min(inner_half.x, inner_half.y));
+        let d = sd_round_box(in.local - inner_centre, inner_half, inner_radius);
+        var cover = 0.0;
+        if (sigma > 0.0) {
+            cover = 0.5 * (1.0 + erf_approx(-d / (sigma * 1.41421356)));
+        } else if (pc.aa_radius <= 0.0) {
+            cover = select(0.0, 1.0, d <= 0.0);
+        } else {
+            cover = 1.0 - smoothstep(-pc.aa_radius, pc.aa_radius, d);
+        }
+        let outer = sd_round_box(in.local, in.half_size, in.radius);
+        if (pc.aa_radius <= 0.0) {
+            cover = select(0.0, cover, outer <= 0.0);
+        } else {
+            cover = cover * (1.0 - smoothstep(-pc.aa_radius, pc.aa_radius, outer));
+        }
+        color.a = color.a * cover;
     } else if (in.mode > 2.5) {
         // Rounded-rect outline: mode is 3 + the stroke width (see batched2d.frag).
         let w = in.mode - 3.0;

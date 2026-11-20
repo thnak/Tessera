@@ -63,6 +63,11 @@ inline constexpr float kCoverageBoostScale = 4.0f;
 // coverage step instead of the Gaussian.
 inline constexpr float kSoftShadowModeBase = 1024.0f;
 inline constexpr float kSoftShadowReach = 2.0f;
+// An inset shadow (issue #612) is the same quad and the same Gaussian, with the coverage inverted:
+// the shadow fills the ring between the border box and the inner box and fades inward, instead of
+// painting outside the border box. The mode is kInsetShadowModeBase + sigma, so the two shadow
+// kinds share one vertex layout and one fragment branch.
+inline constexpr float kInsetShadowModeBase = 2048.0f;
 
 inline constexpr rhi::VertexAttribute kVertex2DAttributes[] = {
     {0, static_cast<std::uint32_t>(offsetof(Vertex2D, x)), rhi::VertexFormat::Float2},

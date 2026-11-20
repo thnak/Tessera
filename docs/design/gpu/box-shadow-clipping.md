@@ -1,4 +1,4 @@
-# Outer `box-shadow` clipping (issue #461)
+# `box-shadow` clipping (issues #461, #612)
 
 Status: implemented (`src/ui/paint/paint_shadow.cpp`, `batched2d.frag` / `batched2d.wgsl`,
 `src/rendering/gpu/batched2d_renderer.cpp`). Paint-pass context: [paint-pass.md](../paint-pass.md)
@@ -9,7 +9,9 @@ layout: [pipelines.md](pipelines.md) sections 4 and 6.
 
 CSS paints an **outer** shadow only outside the border box: the shadow is clipped inside the
 border box, which for a rounded element is the *rounded* border box (CSS Backgrounds 3 section
-7.1.1). An `inset` shadow is painted inside by definition and is not part of this rule.
+7.1.1). An **inset** shadow is the mirror image: it is painted only inside the border box, above the
+background and below the content, filling the ring between the border box and the inner box (the
+border box moved by the offset and shrunk by the spread) and fading inward across the blur.
 
 Two consequences the engine had wrong:
 
@@ -44,7 +46,25 @@ location 7: centre offset in quad-local px and half size), not as push constants
 - the cost is 16 bytes per vertex, 44 -> 60 bytes, on every primitive. That growth is deliberate
   and is why `Vertex2D` still has one stable prefix: it was 44 bytes for nine slices.
 
-## 3. Flattening sinks (the CPU reference and anything without the quad)
+## 3. Inset shadows (issue #612)
+
+An inset shadow reuses the same quad, the same vertex attribute and the same Gaussian, with the
+coverage inverted. `paint_box_shadows` takes a `ShadowLayer` (outer or inset) and the paint pass
+calls it twice: outer shadows before the background, inset shadows after the background and border
+and before the content, which is the CSS paint order.
+
+For an inset shadow the draw's `box` is the element's **border box** (the quad, so the shadow can
+never paint outside it) and `carve` is the **inner box**. The fragment stage evaluates the inner
+box's signed distance and takes `0.5 * (1 + erf(-d / (sigma * sqrt 2)))`, so coverage is 1 at the
+inner box and falls off outward toward the border box; the border box's own rounded distance then
+clips the result to the silhouette. The mode is `kInsetShadowModeBase + sigma` (2048 + sigma), so
+the two shadow kinds share one vertex layout and one fragment branch.
+
+The flattening sinks get the inverse of the outer strips: `fill_inside` emits up to four bands
+between the border box and the inner box, and a blurred inset shadow is a stack of those bands whose
+inner box grows outward, so the cumulative alpha follows the Gaussian edge inward.
+
+## 4. Flattening sinks (the CPU reference and anything without the quad)
 
 `CpuPaintSink` and every other sink that does not report `supports_box_shadow()` gets the
 deterministic stack of concentric fills for a blurred shadow (unchanged falloff maths), but each
@@ -59,12 +79,12 @@ approximation the CPU canvas already makes for a rounded fill
 ([antialiasing.md](../antialiasing.md) section 2.2). The CPU golden therefore pins "nothing inside
 the border box" more strongly than the GPU path, and the GPU path pins the corner triangle.
 
-## 4. Tests and baselines
+## 5. Tests and baselines
 
 | Test | What it proves |
 |---|---|
-| `paint_shadow` | unit: every layer is carved (no emitted rect touches the border box), the one-shape draw carries the carve box, the radius and `sigma`; the blurred stack keeps its Gaussian profile and its reduced-effects cap |
-| `paint_shadow_cpu` | pixels on the deterministic CPU canvas: the centre and the inside edges of a transparent box are the page colour, the shadow below and beside it is not, round or square |
+| `paint_shadow` | unit: every outer layer is carved (no emitted rect touches the border box), the one-shape draw carries the carve box, the radius and `sigma`; the blurred stack keeps its Gaussian profile and its reduced-effects cap; an inset shadow fills the ring inside the border box and never leaves it, and the one-shape draw is flagged `inset` with the inner box in the carve slot |
+| `paint_shadow_cpu` | pixels on the deterministic CPU canvas: the centre and the inside edges of a transparent box are the page colour, the shadow below and beside it is not, round or square; an inset shadow paints the ring and nothing outside the border box |
 | `shadow_clip_gpu` | real Vulkan/lavapipe readback through the renderer *and* the paint pass: transparent centres are page colour, the corner triangle keeps a light shadow, the shadow band still paints (skips without a device) |
 | `cpu_wide_golden` `shadows` | the committed CPU baseline `tests/golden/baseline/cpu_wide/shadows.png`: transparent square, transparent rounded, opaque card |
 | `batched2d_shadow_golden` | the lavapipe baseline `tests/golden/baseline/batched2d/shadow_clip.png` for `batched2d_poc --shadow-clip --width 320 --height 200` |

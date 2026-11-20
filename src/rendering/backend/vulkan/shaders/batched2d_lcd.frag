@@ -193,6 +193,31 @@ void main() {
             }
         }
         color.a *= cover;
+    } else if (v_mode > 2000.0) {
+        // Inset box shadow (issue #612): mode is 2048 + sigma. The quad is the element's border box
+        // and `v_carve` is the inner box, so the shadow fills the ring between them and fades
+        // inward. See batched2d.frag for the derivation.
+        float sigma = v_mode - 2048.0;
+        vec2 inner_half = v_carve.z > 0.0 && v_carve.w > 0.0 ? v_carve.zw : v_half_size;
+        vec2 inner_centre = v_carve.z > 0.0 && v_carve.w > 0.0 ? v_carve.xy : vec2(0.0);
+        float inset = v_half_size.x - inner_half.x;
+        float inner_radius = clamp(v_radius - inset, 0.0, min(inner_half.x, inner_half.y));
+        float d = sd_round_box(v_local - inner_centre, inner_half, inner_radius);
+        float cover;
+        if (sigma > 0.0) {
+            cover = 0.5 * (1.0 + erf_approx(-d / (sigma * 1.41421356)));
+        } else if (pc.aa_radius <= 0.0) {
+            cover = d <= 0.0 ? 1.0 : 0.0;
+        } else {
+            cover = 1.0 - smoothstep(-pc.aa_radius, pc.aa_radius, d);
+        }
+        float outer = sd_round_box(v_local, v_half_size, v_radius);
+        if (pc.aa_radius <= 0.0) {
+            cover = outer <= 0.0 ? cover : 0.0;
+        } else {
+            cover *= 1.0 - smoothstep(-pc.aa_radius, pc.aa_radius, outer);
+        }
+        channel_coverage = vec3(cover) * v_color.a;
     } else if (v_mode > 2.5) {
         // Rounded-rect outline: mode is 3 + the stroke width. The ring is the outer box minus the
         // same box inset by the width, so its distance is max(outer, -inner).
