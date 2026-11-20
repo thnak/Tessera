@@ -596,8 +596,9 @@ Acceptance: a `useState`/`useEffect`/`useRef` screen regenerates without losing 
       evidence in its ADR): #658 behavior hook vertical slice, #659 custom hook expansion on a
       fixture corpus, #660 React port corpus measurement, #661 Suspense and transition on a fake
       resource. #658 in progress: the engine seam, the registry, `press_feedback` and the built-in
-      hook manifest reader have landed (PR #678); the analyzer, IR `behaviors`, generated base and
-      preview session are the remaining stages.
+      hook manifest reader have landed (PR #678); the analyzer, IR `behaviors` and the generated
+      base's behavior surface have landed (PR #679). The preview session and the ADR evidence report
+      are the remaining stages.
 - [ ] Behavior hooks in the front end (ADR-064, waits for Acceptance): spec #638, analyzer and lowering
       #639, code generation #641.
 - [ ] Custom hooks by inlining (ADR-065, waits for Acceptance): #645 expansion pass, #646
