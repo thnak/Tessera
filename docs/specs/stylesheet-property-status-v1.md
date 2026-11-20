@@ -108,8 +108,7 @@ property that is *documented* as applied and is not, which is what the cross-che
 | Property | Status | Consumer / evidence |
 |---|---|---|
 | `background-color` | applied | `paint_pass.cpp` `paint_background`; `paint_pass` |
-| `background-image` | applied | one `linear-gradient()` (2-8 stops, `deg`/`turn`/`rad`/`grad` or `to <side\|corner>`); `paint_gradient.cpp`, `style/gradient.cpp` (#457) |
-| `background` | partial | shorthand for a colour and one `linear-gradient()`; other layers rejected with a diagnostic; `property_background.cpp` |
+| `background-image` | applied | a comma-separated list of `linear-gradient()` (2-8 stops, `deg`/`turn`/`rad`/`grad` or `to <side\|corner>`) and `none`, painted bottom to top (#614); the `background` shorthand expands to this and `background-color`, putting the colour on the final layer only and rejecting `url()`/position/repeat/size/attachment/box with a diagnostic; `paint_gradient.cpp`, `style/background_layers.cpp`, `property_background.cpp` (#457) |
 | `color` | applied | `paint_pass.cpp` `current_color` (also the `currentColor` base); `paint_text` |
 | `color-scheme` | applied | inherited; `var_resolve.cpp` `color_context_for` reads it to pick the `light-dark()` branch (issue #620); `color_functions` |
 | `opacity` | applied | `paint_pass.cpp` effective-opacity product; `paint_opacity` |

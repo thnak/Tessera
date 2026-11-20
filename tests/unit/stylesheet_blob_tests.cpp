@@ -45,6 +45,10 @@ constexpr std::string_view kCorpus[] = {
     // bound the feature byte below it, so this sheet's blob failed to load at all (issue #274).
     "@media (window-backdrop: mica) { .w { color: red } }\n"
     "@media (window-backdrop: none) and (min-width: 100px) { .w2 { color: blue } }\n",
+    // `@scope` (issue #622): the region is part of the rule, so it must survive the round trip.
+    "@scope (.card) { .title { color: red } }\n"
+    "@scope (.card) to (.stop) { .body { color: blue } }\n"
+    "@scope (.a) { @scope (.b) { .nested { color: green } } }\n",
     "",
 };
 
@@ -67,8 +71,15 @@ bool same_rules(const CompiledStyleSheet& lhs, const CompiledStyleSheet& rhs) {
         const CompiledRule& b = rhs.rules()[i];
         if (a.source_order != b.source_order || a.layer != b.layer ||
             a.declarations.size() != b.declarations.size() ||
-            a.containers.size() != b.containers.size()) {
+            a.containers.size() != b.containers.size() || a.scopes.size() != b.scopes.size()) {
             return false;
+        }
+        for (std::size_t s = 0; s < a.scopes.size(); ++s) {
+            if (a.scopes[s].has_end != b.scopes[s].has_end ||
+                a.scopes[s].start.selectors.size() != b.scopes[s].start.selectors.size() ||
+                a.scopes[s].end.selectors.size() != b.scopes[s].end.selectors.size()) {
+                return false;
+            }
         }
         for (std::size_t d = 0; d < a.declarations.size(); ++d) {
             if (a.declarations[d].property != b.declarations[d].property ||
@@ -110,9 +121,11 @@ void output_is_deterministic() {
     for (const std::string_view css : kCorpus) {
         expect(blob_of(css) == blob_of(css), "two serializations are identical");
     }
-    // Byte-level regression guard for the v1 layout of a small sheet.
+    // Byte-level regression guard for the v2 layout of a small sheet. Format 2 added the enclosing
+    // `@scope` regions to the rule body (issue #622), so the reference sheet grew by the four bytes
+    // of an empty scope count.
     const std::vector<std::uint8_t> bytes = blob_of(".a { color: red }");
-    expect(bytes.size() == 135, "v1 layout size of the reference sheet is 135 bytes, got " +
+    expect(bytes.size() == 139, "v2 layout size of the reference sheet is 139 bytes, got " +
                                     std::to_string(bytes.size()));
     expect(std::string_view(reinterpret_cast<const char*>(bytes.data()), 4) == "TSSB",
            "blob starts with the magic");
@@ -158,7 +171,8 @@ void header_errors_are_reported() {
     expect(code_of(bad_magic, std::nullopt) == BlobErrorCode::BadMagic, "bad magic");
 
     std::vector<std::uint8_t> bad_format = good;
-    bad_format[4] = 2;
+    // Any version other than the one this build writes is rejected; 1 is the pre-`@scope` layout.
+    bad_format[4] = 1;
     expect(code_of(bad_format, std::nullopt) == BlobErrorCode::UnsupportedFormatVersion,
            "format version");
 

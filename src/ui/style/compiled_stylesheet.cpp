@@ -20,6 +20,34 @@ bool has_keyframes_named(const std::vector<KeyframeBlock>& blocks, std::string_v
                        [name](const KeyframeBlock& block) { return block.name == name; });
 }
 
+// Whether `node` sits inside `region` (issue #622): some ancestor (or the node itself) matches
+// `start`, and no ancestor between that one and the node matches `end`. The nearest matching start
+// wins, which is what makes a nested `@scope` a region rather than a union of every ancestor.
+bool in_scope(const ScopeRegion& region, const StyleNode& node) {
+    const StyleNode* start = nullptr;
+    for (const StyleNode* current = &node; current != nullptr; current = current->parent) {
+        if (matches(region.start, *current)) {
+            start = current;
+            break;
+        }
+    }
+    if (start == nullptr) {
+        return false;
+    }
+    if (!region.has_end) {
+        return true;
+    }
+    // Walk from the node up to (but not including) the start element: an `end` in between closes
+    // the region before the node.
+    for (const StyleNode* current = &node; current != nullptr && current != start;
+         current = current->parent) {
+        if (matches(region.end, *current)) {
+            return false;
+        }
+    }
+    return true;
+}
+
 } // namespace
 
 CompiledStyleSheet::CompiledStyleSheet(StyleSheet sheet, Origin origin, PropertyRegistry registry,
@@ -122,6 +150,7 @@ void CompiledStyleSheet::resolve(const PreparedStyleSheet& prepared) {
                                           .source_order = next_source_order_,
                                           .layer = layer,
                                           .containers = item.containers,
+                                          .scopes = item.scopes,
                                           .origin = origin_,
                                           .selector = std::move(selector),
                                           .offset = item.offset,
@@ -209,6 +238,7 @@ void CompiledStyleSheet::append_sheet(const CompiledStyleSheet& sheet, bool libr
                                       .source_order = order_base + rule.source_order,
                                       .layer = layer,
                                       .containers = rule.containers,
+                                      .scopes = rule.scopes,
                                       .origin = rule.origin,
                                       .selector = rule.selector,
                                       .offset = rule.offset,
@@ -258,6 +288,13 @@ CompiledStyleSheet::matched_rules(const StyleNode& node,
             if (!applies) {
                 continue;
             }
+        }
+        // `@scope` is a filter on top of the selector (issue #622): the rule applies only when the
+        // node is inside every enclosing region. It adds no cascade key component, so a scoped rule
+        // still resolves by specificity and then source order like an unscoped one.
+        if (!std::all_of(rule.scopes.begin(), rule.scopes.end(),
+                         [&](const ScopeRegion& region) { return in_scope(region, node); })) {
+            continue;
         }
         matched.push_back(MatchedRule{&rule, match.specificity});
     }

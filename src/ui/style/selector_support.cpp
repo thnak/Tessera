@@ -18,7 +18,9 @@ bool is_supported_pseudo_class(std::string_view name) {
            name == "optional" || name == "visited" || name == "root" || name == "empty" ||
            name == "first-child" || name == "last-child" || name == "only-child" ||
            name == "first-of-type" || name == "last-of-type" || name == "nth-child" ||
-           name == "nth-last-child" || name == "not" || name == "is" || name == "where";
+           name == "nth-last-child" || name == "not" || name == "is" || name == "where" ||
+           // `:has()` is matched (issue #622), so `@supports selector(:has(a))` answers true.
+           name == "has";
 }
 
 // `::part()` is the only pseudo-element whose matching is implemented (V1); the parse-only

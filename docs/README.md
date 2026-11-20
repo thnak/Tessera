@@ -210,13 +210,13 @@ This page is the map and reading order for the framework.
 ## 4. Design
 
 - [`design/renderer.md`](design/renderer.md) — B1 renderer summary, batched 2D, Vulkan backend
-- [`design/paint-pass.md`](design/paint-pass.md) — computed-style box paint: background/border
-  quads, rounded overflow clips, `PaintData` text runs, source coordinates, sink seam, limits
+- [`design/paint-pass.md`](design/paint-pass.md) — computed-style box paint: background/border quads, rounded overflow clips, `PaintData` text runs, source coordinates, sink seam, limits
+- [`design/background-layers.md`](design/background-layers.md) — `background-image` layer list: parse, bottom-to-top order, interpolation, baselines (#614)
+- [`design/theme-scoping.md`](design/theme-scoping.md) — nested theme regions: the `:has()`/`@scope` decision, matching cost, `@layer`/source-order interaction (#622)
 - [`design/rendering-production-plan.md`](design/rendering-production-plan.md) — production plan:
   static-linking and license gates, rendering workstreams, dependency matrix
 - [`design/thorvg-spike/README.md`](design/thorvg-spike/README.md) — ThorVG P1 spike and the path
-  pipeline: pinned bring-up, `PathRasterizer`, texture cache, SVG decode/document cache,
-  measurements, Go decision
+  pipeline: pinned bring-up, `PathRasterizer`, texture cache, SVG decode/document cache, measurements, Go decision
 - [`design/gpu/README.md`](design/gpu/README.md) — GPU docs index: RHI, frames/sync, resources,
   pipelines, backends, tests
 - [`design/gpu/rhi.md`](design/gpu/rhi.md) — device/resource/command contract, lifetime, errors

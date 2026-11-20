@@ -239,6 +239,56 @@ int main() {
         expect(channel_delta(cpu_mid, gpu_mid) <= 6, "CPU/GPU gradient interior parity (<=2/ch)") &&
         ok;
 
+    // Several background layers (issue #614): the stylesheet's `background-image` list paints
+    // bottom to top, and the two sinks must agree on the composited result. The top layer is a flat
+    // translucent red, so the bottom green-to-amber ramp showing through it is the proof the order
+    // is right - a reversed order would composite the opaque ramp over the translucent one and the
+    // box would be uniform. A payload gradient wins over the stylesheet, so this scene uses its own
+    // node without one.
+    Node layered_root(1);
+    layered_root.set_bounds(
+        {0, 0, static_cast<float>(kExtent.width), static_cast<float>(kExtent.height)});
+    Node& layered_node = layered_root.add_child(std::make_unique<Node>(2));
+    layered_node.set_bounds({static_cast<float>(kNodeX), static_cast<float>(kNodeY),
+                             static_cast<float>(kNodeW), static_cast<float>(kNodeH)});
+    StubStyles layered_styles;
+    {
+        ComputedStyle style = gradient_style(0.0f);
+        style.set("background-image", "linear-gradient(180deg, rgba(239, 68, 68, 0.5) 0%, "
+                                      "rgba(239, 68, 68, 0.5) 100%), "
+                                      "linear-gradient(90deg, #22C55E 0%, #FACC15 100%)");
+        layered_styles.set(std::move(style));
+    }
+    std::vector<std::uint8_t> layered_gpu;
+    {
+        auto target = device->create_render_target(target_desc());
+        auto commands = device->create_command_list();
+        renderer.begin(*commands, *target, target_desc());
+        paint_scene(layered_root, layered_styles, sink);
+        renderer.end();
+        commands->submit();
+        device->wait_idle();
+        layered_gpu = read_target(*device, *target);
+    }
+    CpuCanvas layered_canvas(kExtent.width, kExtent.height);
+    layered_canvas.clear(rgba8(0, 0, 0));
+    CpuPaintSink layered_cpu_sink(layered_canvas);
+    paint_scene(layered_root, layered_styles, layered_cpu_sink);
+    const std::vector<std::uint8_t> layered_cpu(layered_canvas.pixels().begin(),
+                                                layered_canvas.pixels().end());
+
+    const auto layered_left = pixel(layered_gpu, kNodeX + 8, kNodeY + kNodeH / 2);
+    const auto layered_right = pixel(layered_gpu, kNodeX + kNodeW - 8, kNodeY + kNodeH / 2);
+    ok = expect(layered_left[1] > layered_left[2] && layered_right[0] > layered_right[1],
+                "the bottom ramp shows through the translucent top layer") &&
+         ok;
+    ok = expect(channel_delta(layered_left, pixel(layered_cpu, kNodeX + 8, kNodeY + kNodeH / 2)) <=
+                        6 &&
+                    channel_delta(layered_right, pixel(layered_cpu, kNodeX + kNodeW - 8,
+                                                       kNodeY + kNodeH / 2)) <= 6,
+                "CPU/GPU layered background parity (<=2/ch)") &&
+         ok;
+
     if (!ok) {
         std::cerr << "paint_gradient_gpu: failed\n";
         return 1;

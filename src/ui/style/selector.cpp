@@ -172,6 +172,22 @@ private:
     }
 
     bool parse_complex(ComplexSelector& complex) {
+        // A relative selector (the argument of `:has()`, issue #622) may start with a combinator:
+        // `:has(> .icon)` is a child and `:has(+ .a)` an adjacent sibling. The leading combinator
+        // is recorded against an implicit universal compound, so the matcher sees the same shape a
+        // written-out `* > .icon` would have.
+        if (!at_end() &&
+            (is_delim(peek(), '>') || is_delim(peek(), '+') || is_delim(peek(), '~'))) {
+            const char value = peek().text.front();
+            const Combinator combinator = value == '>'   ? Combinator::Child
+                                          : value == '+' ? Combinator::AdjacentSibling
+                                                         : Combinator::GeneralSibling;
+            take();
+            skip_trivia(nullptr);
+            complex.compounds.push_back(CompoundSelector{});
+            complex.combinators.push_back(combinator);
+        }
+
         CompoundSelector first;
         if (!parse_compound(first)) {
             return false;
@@ -435,54 +451,6 @@ SelectorParseResult parse_selector_list_at(std::string_view text, int depth) {
 
 SelectorParseResult parse_selector_list(std::string_view text) {
     return parse_selector_list_at(text, 0);
-}
-
-Specificity specificity(const CompoundSelector& selector) {
-    Specificity result;
-    if (!selector.tag.empty()) {
-        ++result.types;
-    }
-    if (!selector.id.empty()) {
-        ++result.ids;
-    }
-    result.classes += static_cast<std::uint32_t>(selector.classes.size());
-    result.classes += static_cast<std::uint32_t>(selector.attributes.size());
-
-    for (const PseudoClass& pseudo : selector.pseudos) {
-        if (pseudo.pseudo_element) {
-            ++result.types;
-            continue;
-        }
-        if (pseudo.name == "where") {
-            continue;
-        }
-        if ((pseudo.name == "is" || pseudo.name == "not" || pseudo.name == "has") &&
-            pseudo.nested != nullptr) {
-            result += specificity(*pseudo.nested);
-            continue;
-        }
-        ++result.classes;
-    }
-    return result;
-}
-
-Specificity specificity(const ComplexSelector& selector) {
-    Specificity result;
-    for (const CompoundSelector& compound : selector.compounds) {
-        result += specificity(compound);
-    }
-    return result;
-}
-
-Specificity specificity(const SelectorList& selectors) {
-    Specificity result;
-    for (const ComplexSelector& selector : selectors.selectors) {
-        const Specificity current = specificity(selector);
-        if (current > result) {
-            result = current;
-        }
-    }
-    return result;
 }
 
 } // namespace tessera::ui::style

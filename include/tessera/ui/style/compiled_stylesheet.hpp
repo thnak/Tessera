@@ -27,6 +27,9 @@ struct CompiledRule {
     std::uint32_t layer = kUnlayeredLayer;
     // Enclosing `@container` queries, all of which must hold (nesting is a conjunction).
     std::vector<ContainerQuery> containers;
+    // Enclosing `@scope` regions, outermost first (issue #622). All of them must hold: the node
+    // must be inside every one of them. Empty for an unscoped rule.
+    std::vector<ScopeRegion> scopes;
     // Cascade origin of this rule. A single-source sheet has one origin for all its rules; a
     // combination carries the origin of the sheet each rule came from.
     Origin origin = Origin::Author;

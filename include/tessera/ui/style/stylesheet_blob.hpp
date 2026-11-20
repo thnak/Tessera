@@ -25,14 +25,17 @@ struct EmbeddedStylesheet {
 
 // Serialized prepared stylesheet (ADR-048, docs/specs/compiled-stylesheet-v1.md). The bytes are
 // deterministic: identical prepared data always serializes to identical bytes.
-inline constexpr std::uint32_t kStylesheetBlobFormatVersion = 1;
+// 2: a rule carries its enclosing `@scope` regions (issue #622), so the item body gained a field.
+inline constexpr std::uint32_t kStylesheetBlobFormatVersion = 2;
 // Bumped whenever a change to the engine alters what prepared data means (selector forms, property
 // expansion, supported at-rules) without changing the layout of the blob. 2: `::part()` selectors
 // now match a part element across the component boundary (issue #235), so a blob that carries one
 // means something different to the engine that wrote it under 1. 3: the CSS Grid longhands are
 // accepted and `display: grid` lays out as a grid rather than a flex container (issue #249), so the
-// same declarations mean something different to an engine that wrote them under 2.
-inline constexpr std::uint32_t kStylesheetEngineSchemaVersion = 3;
+// same declarations mean something different to an engine that wrote them under 2. 4: `:has()` is
+// matched and `@scope` is evaluated (issue #622), so a selector or at-rule a blob carries now has a
+// meaning it did not have under 3.
+inline constexpr std::uint32_t kStylesheetEngineSchemaVersion = 4;
 
 enum class BlobErrorCode : std::uint8_t {
     Truncated,

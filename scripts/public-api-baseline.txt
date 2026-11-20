@@ -2364,6 +2364,15 @@ struct include/tessera/ui/style/backdrop_filter.hpp tessera::ui::style::Backdrop
 function include/tessera/ui/style/backdrop_filter.hpp tessera::ui::style::parse_backdrop_filter
 constant include/tessera/ui/style/backdrop_filter.hpp tessera::ui::style::kMaxBackdropFilterFunctions
 
+header include/tessera/ui/style/background_layers.hpp
+struct include/tessera/ui/style/background_layers.hpp tessera::ui::style::BackgroundLayer
+struct include/tessera/ui/style/background_layers.hpp tessera::ui::style::BackgroundLayerList
+enum include/tessera/ui/style/background_layers.hpp tessera::ui::style::BackgroundLayerKind
+function include/tessera/ui/style/background_layers.hpp tessera::ui::style::format_background_layers
+function include/tessera/ui/style/background_layers.hpp tessera::ui::style::interpolate_background_layers
+function include/tessera/ui/style/background_layers.hpp tessera::ui::style::parse_background_layers
+constant include/tessera/ui/style/background_layers.hpp tessera::ui::style::kMaxBackgroundLayers
+
 header include/tessera/ui/style/cascade.hpp
 class include/tessera/ui/style/cascade.hpp tessera::ui::style::CascadeTable
 class include/tessera/ui/style/cascade.hpp tessera::ui::style::ComputedStyle
@@ -2504,6 +2513,7 @@ function include/tessera/ui/style/parser.hpp tessera::ui::style::parse_styleshee
 header include/tessera/ui/style/prepared_stylesheet.hpp
 struct include/tessera/ui/style/prepared_stylesheet.hpp tessera::ui::style::PreparedItem
 struct include/tessera/ui/style/prepared_stylesheet.hpp tessera::ui::style::PreparedStyleSheet
+struct include/tessera/ui/style/prepared_stylesheet.hpp tessera::ui::style::ScopeRegion
 enum include/tessera/ui/style/prepared_stylesheet.hpp tessera::ui::style::PreparedItemKind
 function include/tessera/ui/style/prepared_stylesheet.hpp tessera::ui::style::fnv1a64
 function include/tessera/ui/style/prepared_stylesheet.hpp tessera::ui::style::prepare_stylesheet
@@ -2567,6 +2577,7 @@ struct include/tessera/ui/style/selector_match.hpp tessera::ui::style::Attribute
 struct include/tessera/ui/style/selector_match.hpp tessera::ui::style::SelectorMatch
 struct include/tessera/ui/style/selector_match.hpp tessera::ui::style::StyleNode
 function include/tessera/ui/style/selector_match.hpp tessera::ui::style::matches
+function include/tessera/ui/style/selector_match.hpp tessera::ui::style::matches_has
 
 header include/tessera/ui/style/stylesheet_blob.hpp
 struct include/tessera/ui/style/stylesheet_blob.hpp tessera::ui::style::BlobError

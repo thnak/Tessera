@@ -310,6 +310,75 @@ bool check_shadows(const PaintStats& stats, const CpuCanvas& canvas) {
     return ok;
 }
 
+// -------------------------------------------------------------------------------------------------
+// layers (issue #614): a two-layer stack whose top layer is a translucent ramp, so the bottom layer
+// shows through it, and a three-layer stack with a `none` in the middle. CSS paints the LAST layer
+// first and the FIRST layer on top, so the topmost ramp must be the one the eye sees at the top of
+// the box and the bottom ramp must show through where the top one is translucent.
+// -------------------------------------------------------------------------------------------------
+void build_layers_scene(Node& root, StubStyles& styles) {
+    root.set_bounds({0, 0, static_cast<float>(kWidth), static_cast<float>(kHeight)});
+    styles.set(1, styled({{"background-color", "#0B1120"}}));
+
+    // Two layers: the top one is a translucent vertical ramp, the bottom one an opaque horizontal
+    // ramp. Where the top is opaque the bottom is hidden; where it is translucent the bottom shows.
+    add_node(root, 2, {16, 16, 140, 168});
+    styles.set(2,
+               styled({{"background-image", "linear-gradient(180deg, rgba(239, 68, 68, 0.5) 0%, "
+                                            "rgba(239, 68, 68, 0.5) 100%), "
+                                            "linear-gradient(90deg, #22C55E 0%, #FACC15 100%)"}}));
+
+    // Three layers with a `none` in the middle: the `none` paints nothing, so the bottom ramp shows
+    // through the translucent top one exactly as in the two-layer case.
+    add_node(root, 3, {172, 16, 132, 80});
+    styles.set(3,
+               styled({{"background-image", "linear-gradient(180deg, rgba(56, 189, 248, 0.5) 0%, "
+                                            "rgba(56, 189, 248, 0.5) 100%), none, "
+                                            "linear-gradient(90deg, #F472B6 0%, #A78BFA 100%)"}}));
+
+    // A single layer keeps the pre-#614 output: one opaque ramp, nothing behind it.
+    add_node(root, 4, {172, 112, 132, 72});
+    styles.set(4,
+               styled({{"background-image", "linear-gradient(180deg, #1E293B 0%, #E2E8F0 100%)"}}));
+}
+
+bool check_layers(const PaintStats& stats, const CpuCanvas& canvas) {
+    // Two layers on node 2, two on node 3 (the `none` emits nothing), one on node 4.
+    bool ok = expect(stats.nodes == 4, "layers: four nodes painted") &&
+              expect(stats.gradients == 5, "layers: five gradient fills emitted");
+
+    // The top layer is a flat translucent red, so on its own it would be uniform. The bottom layer
+    // is a horizontal green-to-amber ramp, so the proof it shows through is that the composited box
+    // still varies left to right: green-dominant at the left edge, red-dominant at the right.
+    ok = expect(channel(canvas, 20, 100, 1) > channel(canvas, 20, 100, 2),
+                "layers: the bottom ramp shows green through the translucent top") &&
+         ok;
+    ok = expect(channel(canvas, 150, 100, 0) > channel(canvas, 150, 100, 1),
+                "layers: the bottom ramp shows amber through the translucent top") &&
+         ok;
+    // The bottom ramp is horizontal, so its colour changes left to right under the flat top layer.
+    ok = expect(channel(canvas, 20, 100, 2) > channel(canvas, 150, 100, 2),
+                "layers: the bottom ramp runs left to right") &&
+         ok;
+
+    // The `none` layer paints nothing: the same two-layer result, blue over pink-to-violet. The
+    // bottom ramp's red channel falls and its blue rises from the left edge to the right.
+    ok = expect(channel(canvas, 180, 56, 0) > channel(canvas, 295, 56, 0),
+                "layers: the bottom ramp shows pink through the translucent top") &&
+         ok;
+    ok = expect(channel(canvas, 295, 56, 2) > channel(canvas, 180, 56, 2),
+                "layers: the bottom ramp runs left to right under the none layer") &&
+         ok;
+
+    // The single layer is opaque, so it is exactly its own ramp: dark at the top, light at the
+    // bottom, and nothing of the page colour inside it.
+    ok = expect(channel(canvas, 238, 116, 0) < channel(canvas, 238, 180, 0),
+                "layers: a single opaque layer is its own ramp") &&
+         ok;
+    ok = expect(is_pixel(canvas, 310, 10, kRoot), "layers: nothing paints outside the boxes") && ok;
+    return ok;
+}
+
 using BuildFn = void (*)(Node&, StubStyles&);
 using CheckFn = bool (*)(const PaintStats&, const CpuCanvas&);
 
@@ -391,6 +460,7 @@ int main(int argc, char** argv) {
     bool ok = run_case("borders", build_borders_scene, check_borders);
     ok = run_case("clips", build_clips_scene, check_clips) && ok;
     ok = run_case("gradients", build_gradients_scene, check_gradients) && ok;
+    ok = run_case("layers", build_layers_scene, check_layers) && ok;
     ok = run_case("shadows", build_shadows_scene, check_shadows) && ok;
     if (!ok) {
         std::cerr << "cpu-wide-golden: FAILED\n";

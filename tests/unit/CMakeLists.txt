@@ -998,6 +998,15 @@ target_link_libraries(selector_match_tests PRIVATE tessera_style)
 
 add_test(NAME selector_match COMMAND selector_match_tests)
 
+# `:has()` and `@scope` (issue #622): the selector half (parse, match, specificity, `@supports`) and
+# the at-rule half (a rule applies only inside the region), plus their composition with `@layer`.
+add_executable(theme_scoping_tests
+    theme_scoping_tests.cpp)
+
+target_link_libraries(theme_scoping_tests PRIVATE tessera_style)
+
+add_test(NAME theme_scoping COMMAND theme_scoping_tests)
+
 add_executable(cascade_tests
     cascade_tests.cpp)
 
@@ -1622,6 +1631,15 @@ add_executable(background_image_tests
 target_link_libraries(background_image_tests PRIVATE tessera_paint tessera_text tessera_style)
 
 add_test(NAME background_image COMMAND background_image_tests)
+
+# Several background layers (issue #614): the `background-image` layer list, the `background`
+# shorthand that produces it, the CSS bottom-to-top paint order, and the layer-wise interpolation.
+add_executable(background_layers_tests
+    background_layers_tests.cpp)
+
+target_link_libraries(background_layers_tests PRIVATE tessera_paint tessera_text tessera_style)
+
+add_test(NAME background_layers COMMAND background_layers_tests)
 
 add_executable(text_edit_tests
     text_edit_tests.cpp)

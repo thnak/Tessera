@@ -29,6 +29,16 @@ enum class PreparedItemKind : std::uint8_t {
     Keyframes,
 };
 
+// One `@scope (<start>) [to (<end>)]` block a rule sits inside (issue #622). A rule applies only
+// when the node is inside the scope: some ancestor (or the node itself) matches `start`, and no
+// ancestor between that one and the node matches `end`. An empty `end` runs to the end of the tree.
+// The scope is a filter on top of the rule's own selector, not a replacement for it.
+struct ScopeRegion {
+    SelectorList start;
+    SelectorList end;
+    bool has_end = false;
+};
+
 // One entry in source order. Only the fields of `kind` are meaningful.
 struct PreparedItem {
     PreparedItemKind kind = PreparedItemKind::Rule;
@@ -51,6 +61,9 @@ struct PreparedItem {
     std::vector<Declaration> declarations; // shorthands already expanded
     std::uint32_t layer = kUnlayeredLayer; // index into PreparedStyleSheet::layers
     std::vector<ContainerQuery> containers;
+    // Enclosing `@scope` regions, outermost first. All of them must hold (nesting is a
+    // conjunction).
+    std::vector<ScopeRegion> scopes;
 
     // Layer: every layer the at-rule names or creates, in order of first appearance.
     std::vector<std::uint32_t> layer_refs;
