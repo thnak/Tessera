@@ -2319,11 +2319,12 @@ struct include/tessera/ui/scene/paint_data.hpp tessera::ui::PaintImageStyle
 struct include/tessera/ui/scene/paint_data.hpp tessera::ui::PaintSpan
 struct include/tessera/ui/scene/paint_data.hpp tessera::ui::PaintTextStyle
 struct include/tessera/ui/scene/paint_data.hpp tessera::ui::PaintVectorStyle
-struct include/tessera/ui/scene/paint_data.hpp tessera::ui::RadialGradient
 struct include/tessera/ui/scene/paint_data.hpp tessera::ui::TextDecoration
+enum include/tessera/ui/scene/paint_data.hpp tessera::ui::GradientShape
 enum include/tessera/ui/scene/paint_data.hpp tessera::ui::PaintKind
 enum include/tessera/ui/scene/paint_data.hpp tessera::ui::PaintTextAlign
 enum include/tessera/ui/scene/paint_data.hpp tessera::ui::PaintWrap
+alias include/tessera/ui/scene/paint_data.hpp tessera::ui::RadialGradient
 constant include/tessera/ui/scene/paint_data.hpp tessera::ui::kMaxPaintSpans
 
 header include/tessera/ui/scene/scroll.hpp
