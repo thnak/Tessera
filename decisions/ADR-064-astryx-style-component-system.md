@@ -107,7 +107,10 @@ the design work, the part that takes longest.
      fallback (two token sets, plain mixes) and tests mark the gap by id.
 7. **A behavior-hook layer (ADR-047 "primitives", now a catalogue).** Hooks are a contract, not a
    port. Each has a spec (name, arguments, the behavior it guarantees, accessibility) and is
-   implemented once in the engine, with a thin TSX binding. Astryx's React implementations are not
+   implemented once in the engine as a behavior class and reached from TSX through a compiler-level
+   `behavior` hook kind (manifest, IR `behaviors`, generated wiring), designed in
+   [`behavior-hooks.md`](../docs/design/behavior-hooks.md). Wrapper components are not an interim
+   form: the existing primitives move onto the hooks. Astryx's React implementations are not
    reused. Staged as:
    - **Core (before the 28 components):** `useFocusTrap`, `useListFocus` (roving, one tab stop),
      `useTypeahead`, `useHotkeys`, `usePressFeedback`, `useAnnounce`, `useMergedRefs`,
@@ -193,8 +196,9 @@ the design work, the part that takes longest.
   TabList, Table.
 - Token spec v1 (role tokens, `light-dark()` pairs, `extends`, adaptations) and a token-build tool;
   update `component-library.md` and `stylesheet-v1.md`.
-- Hook contracts in `docs/specs/` and one issue per core hook (milestone V1-M4), then the stage-2
-  hooks as their engine features land.
+- The `behavior` hook kind first (design in `behavior-hooks.md`, then a spec, analyzer and lowering,
+  engine interface and registry, code generation, preview wiring), then one issue per core hook
+  (milestone V1-M4) and the stage-2 hooks as their engine features land.
 - Table plugin contract with the request-token hook; revise the DataGrid scope in
   `component-library.md`.
 - Move the tactile mock under `samples/` as a demo ("Device" theme candidate) and update its README.

@@ -272,7 +272,7 @@ This page is the map and reading order for the framework.
   crash, capture
 - [`design/error-boundaries.md`](design/error-boundaries.md) — routing classes, RTTI-free catch
   order, retry state machine, cleanup seam, not-caught list, test map
-- [`design/compiler.md`](design/compiler.md) — JSX/TSX -> IR -> C++ pipeline
+- [`design/compiler.md`](design/compiler.md) — JSX/TSX -> IR -> C++ pipeline; hooks as engine behaviors: [`design/behavior-hooks.md`](design/behavior-hooks.md)
 - [`design/compiler-wasm.md`](design/compiler-wasm.md) — the compiler built to Wasm for the
   design-time preview (Emscripten target, `NODERAWFS`, the native-versus-Wasm IR parity gate)
 - [`design/studio-page.md`](design/studio-page.md) — the hosted studio `index.html` (#392, #422, #431):
