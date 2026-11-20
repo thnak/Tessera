@@ -100,6 +100,8 @@ constexpr StyleProperty kStyleProperties[] = {
     {"cursor", StyleKind::Keyword, ""},
     {"pointer-events", StyleKind::Keyword, ""},
     {"user-select", StyleKind::Keyword, ""},
+    // `color-scheme` (issue #620) is what `light-dark()` resolves against: a closed keyword set.
+    {"color-scheme", StyleKind::Keyword, ""},
     {"direction", StyleKind::Keyword, ""},
     {"writing-mode", StyleKind::Keyword, ""},
 
@@ -188,9 +190,9 @@ constexpr bool style_rows_are_valid(std::span<const StyleProperty> list) {
 }
 
 // The registry of src/ui/style/property_registry.cpp (the physical table, `logical_properties.cpp`
-// and `property_registry_extra.cpp`) lists 125 longhands; the `schema_style_registry` test in that
+// and `property_registry_extra.cpp`) lists 126 longhands; the `schema_style_registry` test in that
 // module checks that this table and the registry agree name for name and kind for grammar.
-static_assert(std::size(kStyleProperties) == 125, "the style table has one row per longhand");
+static_assert(std::size(kStyleProperties) == 126, "the style table has one row per longhand");
 static_assert(style_rows_are_valid(kStyleProperties), "style rows are unique and named");
 
 } // namespace
