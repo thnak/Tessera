@@ -333,7 +333,7 @@
   max-width: 100%;
   border: 1px solid var(--border);
   border-radius: 4px;
-  background: #0b1220;
+  background: #ffffff; /* the engine's canvas colour, so the first paint does not flash a dark frame */
   /* A preview is a picture of a UI, not a UI: not selectable, and no text caret on a click. */
   user-select: none;
   /* Pointer events drive the engine's hover and press (#388); a touch on the canvas must not also scroll. */
