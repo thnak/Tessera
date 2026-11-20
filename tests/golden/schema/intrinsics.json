@@ -2724,6 +2724,10 @@
     },
     {
       "kind": "keyword",
+      "name": "color-scheme"
+    },
+    {
+      "kind": "keyword",
       "name": "direction"
     },
     {
