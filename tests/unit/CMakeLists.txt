@@ -2276,6 +2276,13 @@ target_link_libraries(layout_block_fill_tests PRIVATE tessera_layout)
 
 add_test(NAME layout_block_fill COMMAND layout_block_fill_tests)
 
+add_executable(paint_wrap_policy_tests
+    paint_wrap_policy_tests.cpp)
+
+target_link_libraries(paint_wrap_policy_tests PRIVATE tessera_scene)
+
+add_test(NAME paint_wrap_policy COMMAND paint_wrap_policy_tests)
+
 add_executable(swapchain_tests
     swapchain_tests.cpp)
 
