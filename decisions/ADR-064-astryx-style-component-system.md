@@ -126,9 +126,10 @@ the design work, the part that takes longest.
      below), not a hook that returns an opaque value. Package-declared hooks are not part of V1; a
      third-party package that needs its own behavior hooks is a later decision.
 8. **Data components use a plugin model with caller-owned data.** `Table` (and later `DataGrid`)
-   takes named plugins, each a typed prop group (`sorting`, `selection`, `pagination`, ...): sorting, selection, pagination, infinite scroll,
-   filtering, grouping, tree, row expansion, column resize, sticky columns, virtualization. Plugins
-   run in a fixed canonical order so their results do not depend on the order they are written in.
+   takes named plugins, each a typed prop group: `sorting`, `selection`, `pagination`, `infiniteScroll`,
+   `filtering`, `grouping`, `tree`, `rowExpansion`, `columnResize`, `stickyColumns`, `virtualization`.
+   Plugins run in a fixed canonical order, so their results do not depend on the order they are
+   written in.
    - **Server data and lazy loading are plugins, and the application owns the data.** The component
      does not fetch. Infinite scroll takes `hasMore`, `isLoading` and `onLoadMore` (a function that
      returns when the batch is appended); pagination takes `page`, `onPageChange` and either
