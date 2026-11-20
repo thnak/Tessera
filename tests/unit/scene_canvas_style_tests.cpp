@@ -346,8 +346,8 @@ export function Empty(): Node {
     for (const cli::StyleMatchedRule& rule : info.matched) {
         authored += rule.origin == "ua" ? 0 : 1;
     }
-    expect(authored == 1, "only the rule that sets a property is listed, got " +
-                              std::to_string(authored));
+    expect(authored == 1,
+           "only the rule that sets a property is listed, got " + std::to_string(authored));
     for (const cli::StyleMatchedRule& rule : info.matched) {
         expect(!rule.declarations.empty(), "a listed rule has at least one declaration");
         for (const cli::StyleDeclarationInfo& declaration : rule.declarations) {
