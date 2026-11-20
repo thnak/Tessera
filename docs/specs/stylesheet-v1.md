@@ -220,7 +220,8 @@ The property registry expands shorthands into longhands before the cascade:
 - logical: `margin-inline`, `padding-inline`, `inset-inline`, `border-inline-width/style/color`,
   `border-inline-start`, `border-inline-end` (section 11.1)
 - `transition`/`animation` are registered for the cascade and `@supports` only; the animation
-  module parses them (section 11). `background` and `font` are not V1.
+  module parses them (section 11). `background` expands to `background-color` and the
+  `background-image` layer list (section 11, #614); `font` is not V1.
 
 If a shorthand contains an unsupported component, keep the supported longhands and emit one
 diagnostic.
@@ -359,7 +360,7 @@ Legend: **V1** = implemented semantics; **Parse** = parsed/preserved, no semanti
 | Flex | direction, wrap, grow/shrink/basis, justify/align, gap, order | baseline edge cases |
 | Grid | `display: grid`, `grid-template-columns/rows` (lengths, percentages, `fr`, `auto`, `min-content`/`max-content`, `minmax()`, `repeat(<integer>, ...)`), item `grid-column`/`grid-row` (line numbers and `span n`), `gap`, `justify-items`/`justify-self`, `align-items`/`align-self`, `justify-content`/`align-content`, `grid-auto-flow` (`row`, `column`); full value list in [`grid-v1.md`](grid-v1.md) | subgrid, masonry, dense auto-placement, named lines/areas, `grid-auto-columns`/`grid-auto-rows`, `fit-content()` |
 | Positioning | `static`, `relative`, `absolute`, `fixed`, `sticky` | anchor positioning |
-| Paint | `background-color`, `border-radius`, `border-color/width/style`, `box-shadow`, `text-shadow`, `opacity`, `color`, `background-image: linear-gradient()` and the `background` shorthand, `backdrop-filter` (`blur`, `saturate`, `brightness`, `contrast`; [`glass-v1.md`](glass-v1.md)) | radial/conic/repeating gradients, `url()` images, `filter`, general `clip-path`, lens/refraction |
+| Paint | `background-color`, `border-radius`, `border-color/width/style`, `box-shadow`, `text-shadow`, `opacity`, `color`, `background-image` as a list of `linear-gradient()` layers and the `background` shorthand, `backdrop-filter` (`blur`, `saturate`, `brightness`, `contrast`; [`glass-v1.md`](glass-v1.md)) | radial/conic/repeating gradients, `url()` images, `filter`, general `clip-path`, lens/refraction |
 | View transitions | `::view-transition-*(root)`, `circle()/inset()/ellipse()` `clip-path` on those pseudos only, `--vt-*` | other names, filters/masks; see [`view-transitions-v1.md`](view-transitions-v1.md) |
 | Typography | `font-family/size/weight/style`, `line-height`, `letter-spacing`, `word-spacing` (additive per painted ASCII space U+0020 on both measure paths; [`text.md`](../design/text.md) section 6.4), `text-align`, `text-transform` (`none`, `uppercase`, `lowercase`, `capitalize`; ASCII 1:1 mapping in [`text.md`](../design/text.md) section 6.5), `white-space` (`normal`, `nowrap`, `pre`, `pre-wrap`, `break-spaces`; mode semantics in [`text.md`](../design/text.md) section 6.1), `text-decoration` and its longhands, `vertical-align` (`baseline`, `sub`, `super`, length; [`text-decoration.md`](../design/text-decoration.md)), `text-overflow` (`clip`, `ellipsis`; one value only, paint-side truncation in [`text.md`](../design/text.md) section 6.3) | full OpenType features, justification |
 | Transforms | `transform` functions `translate`, `scale`, `rotate`, `skew`, `matrix` (2D affine) and `transform-origin` | the individual `translate`/`rotate`/`scale` properties, 3D, perspective |
@@ -375,26 +376,22 @@ Legend: **V1** = implemented semantics; **Parse** = parsed/preserved, no semanti
 **V1 decisions for the Scrolling row (decided 2026-11-13 with issue #248; the code matches):**
 
 - `scroll-behavior: auto | smooth` is a non-inherited runtime input for the scroll controller.
-  Programmatic scroll (`scroll_to_programmatic`/`scroll_by_programmatic`) jumps for `auto` and starts
-  a fixed-step exponential approach for `smooth` (time constant 0.1 s, 0.5 px settle; reduced motion
-  clamps every smooth request to a jump) — [`scroll-and-gestures-v1.md`](scroll-and-gestures-v1.md)
-  section 2.
-- `overscroll-behavior: auto | contain | none` is non-inherited and derives the controller's
+  Programmatic scroll (`scroll_to_programmatic`/`scroll_by_programmatic`) jumps for `auto` and
+  starts a fixed-step exponential approach for `smooth` (time constant 0.1 s, 0.5 px settle;
+  reduced motion clamps every smooth request to a jump) — [`scroll-and-gestures-v1.md`](scroll-and-gestures-v1.md) section 2.
   `allow_chain`: at a clamped edge a container passes the leftover wheel delta to its nearest
   scrollable ancestor only for `auto`; `contain` and `none` drop it (there is no CSS `scroll-chain`
   property) and do not animate past the edge (animation-v1 section 7).
 - `overscroll-effect: none | glow | stretch | bounce | platform` is non-inherited, uses the
   `OverscrollEffect` names of [`animation-v1.md`](animation-v1.md) section 7, and has no `auto`
   keyword: the initial request is `platform`, which the HAL profile resolves. `none`, or a
-  non-`auto` `overscroll-behavior`, suppresses the effect; the stretch/bounce visual state itself is
-  that spec's animation slice.
+  non-`auto` `overscroll-behavior`, suppresses the effect; the stretch/bounce state is that spec slice.
 - `scrollbar-gutter: auto | stable` is non-inherited and the one scroll property that is layout
   input: `stable` reserves the 8 px overlay scrollbar width on the inline-end edge inside the
-  container's content box, so its children narrow by that width even while no scrollbar is painted.
-- An invalid value of any of the four is one `StyleDiagnosticKind::UnsupportedValue` diagnostic per
+  content box, so its children narrow by that width even while no scrollbar is painted.
+- An invalid value of any of the four is one `StyleDiagnosticKind::UnsupportedValue` per
   declaration and the declaration is dropped, so the computed value stays at its initial; a `var()`
-  reference survives parsing and is judged after substitution. `@supports` shares the same grammar,
-  so `@supports (overscroll-behavior: contain)` evaluates true.
+  reference survives parsing and is judged after substitution. `@supports` shares the grammar.
 
 **V1 decisions for the Paint/Transforms rows (decided 2026-11-10; the code matches):**
 
@@ -410,16 +407,20 @@ Legend: **V1** = implemented semantics; **Parse** = parsed/preserved, no semanti
 - A sink that reports `PaintSink::supports_transform()` (the Batched2D GPU sink) paints transformed
   subtrees under the real matrix; overflow clips inside them map through scale/translate/quarter-turn
   frames and are dropped under other rotations or skews. The damage-clipping wrapper forwards the
-  matrix and replays commands under each device-space region. The CPU sink paints the
-  axis-aligned bounding box instead.
+  matrix and replays commands under each device-space region; the CPU sink paints the AABB.
 - `box-shadow` takes up to 4 comma-separated shadows (offset, blur, spread, color), outer or
   `inset`. Blur is a 3-8 layer Gaussian-matched stack; an outer shadow is clipped to the rounded
   border box and an inset one paints inside it, above the background and below the content
   ([`box-shadow-clipping.md`](../design/gpu/box-shadow-clipping.md)). `text-shadow` takes up to 4
   `[<color>? <x> <y> <blur>?]` layers (no spread, no `inset`), each painted behind every run's
   glyphs without changing layout or the ink box ([`text-shadow.md`](../design/text-shadow.md)).
-- Value forms V1 ignores on a recognised property (3D `transform`, any `backdrop-filter` function
-  other than `blur`/`saturate`/`brightness`/`contrast`) produce a
+- `background-image` is a comma-separated **layer list** (CSS Backgrounds 3 section 2.1, #614):
+  each layer is a `linear-gradient()` or `none`, painted bottom to top (the last layer first, the
+  first layer on top); the `background` shorthand puts the colour on the final layer only, and a
+  `url()` layer is out of scope and is rejected with a diagnostic. See
+  [`background-layers.md`](../design/background-layers.md).
+- Value forms V1 ignores on a recognised property (3D `transform`, any
+  `backdrop-filter` function other than `blur`/`saturate`/`brightness`/`contrast`) produce a
   `StyleDiagnosticKind::UnsupportedValue` diagnostic per declaration and stay in the AST, like
   other unsupported declarations (below).
 - `FramePipeline::sync_style` (between layout and `finish_frame`) copies these values onto the

@@ -25,7 +25,6 @@ damage-clipped overload clips the sink to the `RedrawPlan` scissor regions.
 ## 2. Why a sink seam
 
 [`PaintSink`](../../include/tessera/ui/paint/paint_sink.hpp) has two operations, both axis-aligned:
-
 | Operation | Meaning |
 |---|---|
 | `fill_rect(rect, color)` | solid rectangle |
@@ -72,6 +71,7 @@ until layout supplies padding-box scrollport insets; scrollbars and physics are 
 | Property | Use |
 |---|---|
 | `background-color` | fills the node's paint rect |
+| `background-image` | the layer list, painted bottom to top (§13.1) |
 | `border-{top,right,bottom,left}-width` | edge thickness in px |
 | `border-{top,right,bottom,left}-style` | `none`/`hidden` (or missing) skips the edge; any other keyword paints solid |
 | `border-{top,right,bottom,left}-color` | edge color; `currentColor` uses `color` |
@@ -116,19 +116,18 @@ ring support, keep the square strips.
 - No text, glyphs, or inline content in the box pass; text runs are painted from
   optional `ui::PaintData` payloads (§10).
 - Overflow clipping is rounded-rect only ([§9](#9-rounded-overflow-clips)); no `clip-path`, masks,
-  filters, gradients, shadows, or images.
+  filters, or images.
 - Scroll containers clip and offset children ([§3.1](#31-scroll-containers)); scroll physics,
   inertia/spring-back, scrollbars, snap/sticky, and nested scroll chaining are later slices.
 - No damage/redraw plan inside `paint_scene`: every call repaints the visible subtree it is given.
   The frame pipeline clips around it with a sink decorator ([§8.1](#81-damage-clipped-painting)).
 - No isolated-layer group opacity; effective opacity is multiplied per primitive (§14.1), so
   overlapping siblings composite separately and a group cannot fade as one layer.
-- No percentage/`em`/`rem`/viewport units and no non-pixel radii.
-- Border styles other than `none`/`hidden` are painted solid (no dashed/dotted patterns).
+- No percentage/`em`/`rem`/viewport units and no non-pixel radii; border styles other than
+  `none`/`hidden` are painted solid (no dashed/dotted patterns).
 - Transform composition beyond the `world_bounds()` AABB is out of scope.
 - `SceneStyleProvider` computes a `ComputedStyle` (a `std::map`) per visible node; retained style
   caching and allocation-free hot paths are a later slice.
-
 ## 7. Testing
 
 [`tests/unit/paint_pass_tests.cpp`](../../tests/unit/paint_pass_tests.cpp) registers `paint_pass`
@@ -560,12 +559,13 @@ caret/selection use `bidi_offset_x` (`text.md`); RTL click-to-position is deferr
 
 ### 13. Linear gradients (task-76)
 
-`PaintData::gradient`, or else the stylesheet's `background-image: linear-gradient()` (#457, grammar in `style/gradient.hpp`, corner directions use square-box angles) (1-8 stops; offsets clamped/sorted, later duplicate wins; CSS angle 0=top,
+`PaintData::gradient`, or else the stylesheet's `background-image` (#457, grammar in `style/gradient.hpp`, corner directions use square-box angles) (1-8 stops; offsets clamped/sorted, later duplicate wins; CSS angle 0=top,
 90=right, 180=bottom) paints after `background-color`, before borders/content, inside border radius;
 opacity folds into stop alphas. Interpolation is encoded-space sRGB (V1); emission is 64 dominant-axis
 solid bands (exact on axes, banded otherwise; LUT/dithering follow-up), shared by CPU/GPU within
 2/255 per channel. CPU rounds corners by bounds, GPU uses the rounded clip, damage replay is
-band-identical. Deferrals: radial/conic, dithering, text/clip gradients, LUT.
+band-identical. Deferrals: radial/conic, dithering, text/clip gradients, LUT. `background-image` is a
+comma-separated **layer list** painted bottom to top (#614): [background-layers.md](background-layers.md).
 
 ## 14. Isolated-layer seam (issue #242)
 

@@ -1623,6 +1623,15 @@ target_link_libraries(background_image_tests PRIVATE tessera_paint tessera_text 
 
 add_test(NAME background_image COMMAND background_image_tests)
 
+# Several background layers (issue #614): the `background-image` layer list, the `background`
+# shorthand that produces it, the CSS bottom-to-top paint order, and the layer-wise interpolation.
+add_executable(background_layers_tests
+    background_layers_tests.cpp)
+
+target_link_libraries(background_layers_tests PRIVATE tessera_paint tessera_text tessera_style)
+
+add_test(NAME background_layers COMMAND background_layers_tests)
+
 add_executable(text_edit_tests
     text_edit_tests.cpp)
 

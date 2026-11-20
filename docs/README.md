@@ -212,9 +212,9 @@ This page is the map and reading order for the framework.
 - [`design/renderer.md`](design/renderer.md) — B1 renderer summary, batched 2D, Vulkan backend
 - [`design/paint-pass.md`](design/paint-pass.md) — computed-style box paint: background/border
   quads, rounded overflow clips, `PaintData` text runs, source coordinates, sink seam, limits
-- [`design/rendering-production-plan.md`](design/rendering-production-plan.md) — production plan:
-  static-linking and license gates, rendering workstreams, dependency matrix
-- [`design/thorvg-spike/README.md`](design/thorvg-spike/README.md) — ThorVG P1 spike and the path
+- [`design/background-layers.md`](design/background-layers.md) — `background-image` layer list:
+  parse, bottom-to-top order, interpolation, baselines (#614)- [`design/rendering-production-plan.md`](design/rendering-production-plan.md) — production plan:
+  static-linking and license gates, rendering workstreams, dependency matrix- [`design/thorvg-spike/README.md`](design/thorvg-spike/README.md) — ThorVG P1 spike and the path
   pipeline: pinned bring-up, `PathRasterizer`, texture cache, SVG decode/document cache,
   measurements, Go decision
 - [`design/gpu/README.md`](design/gpu/README.md) — GPU docs index: RHI, frames/sync, resources,

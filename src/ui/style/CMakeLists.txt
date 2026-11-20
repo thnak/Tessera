@@ -15,6 +15,7 @@ add_library(tessera_style STATIC
     color.cpp
     color_functions.cpp
     gradient.cpp
+    background_layers.cpp
     property_background.cpp
     property_text_decoration.cpp
     text_decoration.cpp
