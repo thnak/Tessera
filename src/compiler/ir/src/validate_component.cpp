@@ -96,6 +96,44 @@ void ComponentChecker::check_declarations() {
                            env.source);
         }
     }
+    // ADR-064 item 7: a behavior is a `beh::<name>` id with at least one target ref, a registry
+    // name, and one arg per manifest field. The registry name itself is checked at generation time
+    // (`TESSERA_BEHAVIOR_UNKNOWN`), because the IR validator has no registry.
+    for (const auto& behavior : component.behaviors) {
+        declare(behavior.id, "beh::", behavior.source);
+        validate_span(context, behavior.source, "behavior `" + behavior.id + "`");
+        if (behavior.behavior.empty()) {
+            context.report("TESSERA_IR_MALFORMED",
+                           "behavior `" + behavior.id + "` names no engine behavior",
+                           behavior.source);
+        }
+        if (behavior.targets.empty()) {
+            context.report("TESSERA_IR_MALFORMED",
+                           "behavior `" + behavior.id + "` has no target ref", behavior.source);
+        }
+        for (const auto& target : behavior.targets) {
+            if (target.rfind("ref::", 0) != 0) {
+                context.report("TESSERA_IR_MALFORMED",
+                               "behavior `" + behavior.id + "` target `" + target +
+                                   "` is not a ref",
+                               behavior.source);
+            }
+        }
+        for (std::size_t index = 0; index < behavior.args.size(); ++index) {
+            for (std::size_t other = index + 1; other < behavior.args.size(); ++other) {
+                if (behavior.args[index].name == behavior.args[other].name) {
+                    context.report("TESSERA_IR_MALFORMED",
+                                   "behavior `" + behavior.id + "` declares arg `" +
+                                       behavior.args[index].name + "` twice",
+                                   behavior.source);
+                }
+            }
+        }
+        for (const auto& output : behavior.outputs) {
+            validate_type(context, output.type, behavior.source);
+            scope.declared_types.emplace(behavior.id + "." + output.name, output.type);
+        }
+    }
     // ADR-050 section 3.1 (AF5): a service requirement is an `svc::<name>` id with the C++ spelling
     // of its interface. The type and header are the project manifest's data, so they are required
     // here: without them codegen would have to guess a C++ name.

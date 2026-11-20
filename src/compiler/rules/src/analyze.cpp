@@ -31,8 +31,22 @@ const ComponentAnalysis* AnalyzedModule::find_component(std::size_t item_index) 
     return found == components.end() ? nullptr : &*found;
 }
 
+const jsx::HookManifest& builtin_hook_manifest() {
+    // Parsed once, on first use. The manifest is embedded at build time, so this is a pure function
+    // of the build; a failure yields an empty manifest rather than a half-read one.
+    static const jsx::HookManifest manifest = [] {
+        const std::string_view text =
+#include "hooks_manifest_text.inc"
+            ;
+        const std::optional<jsx::HookManifest> parsed = jsx::parse_hook_manifest(text);
+        return parsed.value_or(jsx::HookManifest{});
+    }();
+    return manifest;
+}
+
 AnalyzedModule analyze_module(const jsx::Module& module, const jsx::SourceMap& map,
-                              const jsx::Limits& limits) {
+                              const jsx::Limits& limits, const jsx::HookManifest* manifest) {
+    const jsx::HookManifest& hooks = manifest != nullptr ? *manifest : builtin_hook_manifest();
     jsx::DiagnosticSink sink(map, limits);
     AnalyzedModule result;
     for (std::size_t index = 0; index < module.items.size(); ++index) {
@@ -48,7 +62,7 @@ AnalyzedModule analyze_module(const jsx::Module& module, const jsx::SourceMap& m
             result.components.push_back(std::move(analysis));
             continue;
         }
-        Context ctx{item, analysis, sink};
+        Context ctx{item, analysis, sink, hooks};
         check_hooks(ctx);
         classify_arrows(ctx);
         check_effect_deps(ctx);

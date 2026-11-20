@@ -166,4 +166,43 @@ void lower_declared_arrow_hook(HookState& state, std::size_t index, LoweredHooks
     }
 }
 
+// One behavior hook call (ADR-064 item 7; docs/specs/behavior-hooks-v1.md section 6). The analyzer
+// already checked the form against the manifest, so this only turns the recorded call into IR: the
+// id, the targets, one arg per manifest field in manifest order, and the outputs.
+void lower_behavior_hook(HookState& state, std::size_t index, LoweredHooks& out) {
+    const HookLoweringContext& context = state.context;
+    const jsx::Statement& statement = context.component.body[index];
+    const rules::BehaviorInfo* info = nullptr;
+    for (const rules::BehaviorInfo& candidate : context.analysis.behaviors) {
+        if (candidate.statement == index) {
+            info = &candidate;
+            break;
+        }
+    }
+    if (info == nullptr) {
+        fail_hook(state, "TESSERA_IR_MALFORMED", "the analysis did not classify this behavior call",
+                  statement.span);
+        return;
+    }
+    ir::Behavior behavior;
+    // A bare statement has no local name, so it is numbered from 1 in declaration order, which is
+    // the rule the spec states for `beh::<hook>_<n>`.
+    std::string name = info->name;
+    if (name.empty()) {
+        name = info->hook + "_" + std::to_string(out.behaviors.size() + 1);
+    }
+    behavior.id = prefixed("beh::", name);
+    behavior.hook = info->hook;
+    behavior.behavior = info->behavior;
+    behavior.exclusive = info->exclusive;
+    behavior.source = to_source_span(context.source_map, statement.span, context.file);
+    for (const std::string& target : info->targets) {
+        behavior.targets.push_back(prefixed("ref::", target));
+    }
+    for (const std::string& output : info->outputs) {
+        behavior.outputs.push_back(ir::BehaviorOutput{output, "bool"});
+    }
+    out.behaviors.push_back(std::move(behavior));
+}
+
 } // namespace tessera::compiler::lowering::internal

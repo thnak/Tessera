@@ -1879,6 +1879,13 @@ target_link_libraries(lowering_hooks_tests PRIVATE tessera_lowering)
 
 add_test(NAME lowering_hooks COMMAND lowering_hooks_tests)
 
+add_executable(lowering_behaviors_tests
+    lowering_behaviors_tests.cpp)
+
+target_link_libraries(lowering_behaviors_tests PRIVATE tessera_lowering)
+
+add_test(NAME lowering_behaviors COMMAND lowering_behaviors_tests)
+
 add_executable(lowering_hooks_reject_tests
     lowering_hooks_reject_tests.cpp)
 

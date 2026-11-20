@@ -124,6 +124,47 @@ JsonValue to_json(const Component& component) {
     }
     add_if_not_empty(json, "environment", std::move(environment));
 
+    // ADR-064 item 7: omitted when the component declares no behavior, so a component without one
+    // writes byte-identical JSON to the IR before this field existed.
+    JsonValue behaviors = JsonValue::array();
+    for (const auto& behavior : component.behaviors) {
+        JsonValue entry = JsonValue::object();
+        entry.set("id", JsonValue::string(behavior.id));
+        entry.set("hook", JsonValue::string(behavior.hook));
+        entry.set("behavior", JsonValue::string(behavior.behavior));
+        if (behavior.exclusive) {
+            entry.set("exclusive", JsonValue::boolean(true));
+        }
+        JsonValue targets = JsonValue::array();
+        for (const auto& target : behavior.targets) {
+            targets.push(JsonValue::string(target));
+        }
+        entry.set("targets", std::move(targets));
+        JsonValue args = JsonValue::array();
+        for (const auto& arg : behavior.args) {
+            JsonValue arg_entry = JsonValue::object();
+            arg_entry.set("name", JsonValue::string(arg.name));
+            if (!arg.handler.empty()) {
+                arg_entry.set("handler", JsonValue::string(arg.handler));
+            } else {
+                arg_entry.set("expr", expr_to_json(&arg.expr));
+            }
+            args.push(std::move(arg_entry));
+        }
+        entry.set("args", std::move(args));
+        JsonValue outputs = JsonValue::array();
+        for (const auto& output : behavior.outputs) {
+            JsonValue output_entry = JsonValue::object();
+            output_entry.set("name", JsonValue::string(output.name));
+            output_entry.set("type", JsonValue::string(output.type));
+            outputs.push(std::move(output_entry));
+        }
+        entry.set("outputs", std::move(outputs));
+        entry.set("source", to_json(behavior.source));
+        behaviors.push(std::move(entry));
+    }
+    add_if_not_empty(json, "behaviors", std::move(behaviors));
+
     // ADR-050 section 3.1 (AF5): omitted when the component declares no service, so a module
     // without `useService` writes byte-identical JSON to the IR before this field existed.
     JsonValue services = JsonValue::array();
