@@ -34,5 +34,6 @@
 
 .welcome-sample:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 10%, transparent); }
 .welcome-sample code { color: var(--text-dim); font-family: var(--mono); font-size: 12px; }
-.welcome-note { margin: 12px 0 0; font-size: 12px; color: var(--warning); }
+.welcome-help { margin: 8px 0; font-size: 12px; color: var(--text-dim); }
+.welcome-help a { color: var(--accent); overflow-wrap: anywhere; }
 

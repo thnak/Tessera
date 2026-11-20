@@ -12,7 +12,8 @@
 //
 //   ssr-chrome   the components, rendered to markup (`preview_page_checks.mjs`, `preview_studio_smoke.mjs`)
 //   preferences  the stored toolbar (`preview_studio_smoke.mjs`)
-//   gallery      the lazy manifest and the sample fetch (`preview_studio_smoke.mjs`)
+//   sample-folder  a picked folder's sample entries and companion files (`preview_studio_smoke.mjs`,
+//                `preview_sample_projects.mjs`)
 //   skins        the skin manifest's validator and its geometry (`preview_skins.mjs`, issue #171)
 //
 // `react`/`react-dom` stay external so the gate resolves them from `designer/web/node_modules` rather than
@@ -34,7 +35,7 @@ export default defineConfig({
       input: {
         "ssr-chrome": "src/ssr-chrome.tsx",
         preferences: "src/lib/preferences.ts",
-        gallery: "src/lib/gallery.ts",
+        "sample-folder": "src/lib/sample-folder.ts",
         // The Problems model (severity counts, filter, store), so `scripts/ci/preview_problems.mjs` tests what ships.
         problems: "src/lib/problems.ts",
         // The skin manifest's rules, so `scripts/ci/preview_skins.mjs` tests the validator the page

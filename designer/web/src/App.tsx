@@ -12,8 +12,8 @@
 // and an animation-frame callback. None of that may be created by a render or destroyed by a re-render, so each
 // is created once against the committed DOM nodes (`page-sessions.ts`). The page's React state is exactly what a
 // visitor changes by hand: the workspace (`page-workspace.ts`), the toolbar and the build id.
-// Startup, the toolbar handlers and the sample action are hooks of their own (`page-startup.ts`,
-// `page-toolbar.ts`, `page-sample.ts`) to keep this file under the size limit.
+// Startup and the toolbar handlers are hooks of their own (`page-startup.ts`, `page-toolbar.ts`) to keep
+// this file under the size limit; opening a sample from a picked folder is `page-project-io.ts`.
 //
 // **Laziness** survives verbatim: the Diagnostics module is the only one on the first-paint path; Scene's is
 // imported the first time that pane is shown; Canvas' is imported on its first open and its WebGPU device is
@@ -34,7 +34,6 @@ import { createLiveEdit, type LiveEdit } from "./page-live";
 import { usePageState, usePaneRefs } from "./page-state";
 import { useStartup } from "./page-startup";
 import { useToolbarControls } from "./page-toolbar";
-import { useSample } from "./page-sample";
 import { useSessions } from "./page-sessions";
 import { useProjectIo } from "./page-project-io";
 import { useViewOnlyLoader } from "./page-view-only";
@@ -360,9 +359,6 @@ export function App() {
     restart: restartActiveView,
   });
 
-
-  const { onSample } = useSample({ workspace, projectIo, setRevision, sessions });
-
   // The sandbox worker starts only while a panel that shows its output is visible *and* the project has a mock
   // file (spec section 2.4), so a project without mocks, or a collapsed panel area, pays nothing.
   const mocks = useMockConsole(
@@ -401,7 +397,7 @@ export function App() {
     profileId: state.controls.profile,
     components: componentList,
     runEnabled: state.runEnabled,
-    pickSample: onSample,
+    pickSample: projectIo.openChoice,
     restart: restartActiveView,
     applyNow: onEditorApplyNow,
     setControl: onControlChange,
@@ -412,6 +408,14 @@ export function App() {
     buildId: state.buildId,
     refs,
   });
+
+  // A picked folder with several samples (the repository root, `samples/gallery`) offers them in the quick pick.
+  useEffect(() => {
+    if (projectIo.state.choices.length > 0) {
+      void commandHost.run("file.samples");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectIo.state.choices]);
 
   return (
     <>
@@ -471,7 +475,11 @@ export function App() {
           onReloadPanel={onReloadPanel}
           welcome={
             workspace.state.files.length === 0 ? (
-              <WelcomeView onPick={onSample} run={(id) => void commandHost.run(id)} />
+              <WelcomeView
+                choices={projectIo.state.choices}
+                onChoose={projectIo.openChoice}
+                run={(id) => void commandHost.run(id)}
+              />
             ) : null
           }
         />
