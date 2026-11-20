@@ -6,13 +6,17 @@
 #include <string>
 #include <string_view>
 
-// `box-shadow` interpolation (CSS Values 4, "Interpolation of shadow lists"; issue #462).
+// `box-shadow` and `text-shadow` interpolation (CSS Values 4, "Interpolation of shadow lists";
+// issues #462 and #616).
 //
 // A shadow list animates layer by layer: offsets, blur and spread interpolate as lengths and the
 // colour as a premultiplied colour. The shorter list is padded with transparent zero shadows that
 // take the `inset` flag of the layer they pair with, so `none` fades a shadow in or out instead of
 // snapping. A pair whose `inset` flags differ cannot interpolate, and neither can a value this
 // parser does not understand; the caller keeps its discrete 50 % switch for those.
+//
+// `text-shadow` shares the grammar minus the spread and the `inset` keyword (CSS Text Decoration 3
+// section 3), so it goes through the same layer walk with those two fields pinned at zero/false.
 namespace tessera::ui::animation {
 
 // The interpolated list at progress `t` as a `box-shadow` value, or nullopt when `from` and `to`
@@ -20,5 +24,11 @@ namespace tessera::ui::animation {
 // interpolated property.
 [[nodiscard]] std::optional<std::string> interpolate_box_shadow(std::string_view from,
                                                                 std::string_view to, double t);
+
+// The interpolated list at progress `t` as a `text-shadow` value. Same rules as
+// `interpolate_box_shadow`; a layer carrying `inset` or a fourth length is not a `text-shadow` and
+// makes the whole value non-interpolable.
+[[nodiscard]] std::optional<std::string> interpolate_text_shadow(std::string_view from,
+                                                                 std::string_view to, double t);
 
 } // namespace tessera::ui::animation

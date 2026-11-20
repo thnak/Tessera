@@ -114,6 +114,7 @@ property that is *documented* as applied and is not, which is what the cross-che
 | `color-scheme` | applied | inherited; `var_resolve.cpp` `color_context_for` reads it to pick the `light-dark()` branch (issue #620); `color_functions` |
 | `opacity` | applied | `paint_pass.cpp` effective-opacity product; `paint_opacity` |
 | `box-shadow` | applied | `paint_pass.cpp` `paint_box_shadows` and `scene_style_sync.cpp` outsets; `paint_shadow`; outer shadows are carved to the rounded border box (#461) and `inset` shadows paint inside it above the background (#612); transitions and keyframes interpolate the list (`shadow_interpolation.cpp`, #462) |
+| `text-shadow` | applied | `paint_text.cpp` installs `TextShadowSink` (`paint_text_shadow.cpp`) around the payload emission, so every run - wrapped lines, span slices, the ellipsized line, the preedit - gets its shadows behind its glyphs; `scene_style_sync.cpp` folds the reach into the paint outsets; transitions and keyframes interpolate the list (`interpolate_text_shadow`, #616); `paint_text_shadow`, `text_shadow_interpolation` |
 | `z-index` | applied | `scene_style_sync.cpp` → `Node::set_z_index`, read by `for_each_by_z`; `z_order` |
 | `transform` | applied | `scene_style_sync.cpp` → `Node::set_transform`; `transform` |
 | `transform-origin` | applied | `scene_style_sync.cpp` resolves the matrix around the origin; `scene_style_sync` |

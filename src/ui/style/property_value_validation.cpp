@@ -204,6 +204,14 @@ bool validate_property_value(const Declaration& declaration, std::string_view pr
         }
         return true;
     }
+    if (property == "text-shadow" && has_keyword(value, "inset")) {
+        // `text-shadow` has no inset form at all (CSS Text Decoration 3 section 3), so this is a
+        // grammar error rather than an unimplemented V1 form; the declaration is dropped.
+        out.push_back(StyleDiagnostic{StyleDiagnosticKind::UnsupportedValue, declaration.offset,
+                                      std::string(property),
+                                      "text-shadow has no inset form; the declaration is ignored"});
+        return false;
+    }
     if (property == "transform" &&
         (value.find("3d(") != std::string::npos || has_keyword(value, "perspective") ||
          value.find("perspective(") != std::string::npos)) {

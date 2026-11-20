@@ -51,8 +51,11 @@ struct PaintStats {
     std::size_t images = 0;          // raster-image draws emitted (PaintKind::Image)
     std::size_t gradients = 0;       // linear-gradient fills emitted
     std::size_t shadows = 0;         // box-shadow primitives emitted (one per shadow layer)
-    std::size_t transforms = 0;      // nodes painted in their own transformed frame
-    std::size_t backdrops = 0;       // glass backdrop draws emitted
+    // text-shadow primitives emitted (one per offset copy of a run, issue #616). A blurred shadow
+    // is a bounded stack of copies, so this counts copies, not declarations.
+    std::size_t text_shadows = 0;
+    std::size_t transforms = 0; // nodes painted in their own transformed frame
+    std::size_t backdrops = 0;  // glass backdrop draws emitted
     // Paint-pass culling (issue #487): nodes whose own emission could not reach the cull rect and
     // was skipped, and of those, how many were clipping parents whose whole subtree was skipped.
     // Both are zero for an unculled paint.

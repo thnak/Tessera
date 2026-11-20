@@ -93,7 +93,7 @@ bool parse_px(std::string_view text, float& value) {
     return true;
 }
 
-bool parse_layer(std::string_view text, Layer& out) {
+bool parse_layer(std::string_view text, Layer& out, bool text_shadow) {
     float lengths[4] = {};
     int length_count = 0;
     bool have_color = false;
@@ -101,6 +101,10 @@ bool parse_layer(std::string_view text, Layer& out) {
     for (const std::string_view token : split_top_level(text, ' ')) {
         const std::string word = lower(token);
         if (word == "inset") {
+            // `text-shadow` has no inset form, so the token makes the value a `box-shadow` one.
+            if (text_shadow) {
+                return false;
+            }
             out.inset = true;
         } else if (is_length_token(token)) {
             if (length_count == 4 || !parse_px(token, lengths[length_count])) {
@@ -121,6 +125,11 @@ bool parse_layer(std::string_view text, Layer& out) {
     if (length_count < 2 || !have_color) {
         return false;
     }
+    // `text-shadow` is `[<color>? <x> <y> <blur>?]`: a fourth length is a spread, which it has no
+    // grammar for.
+    if (text_shadow && length_count > 3) {
+        return false;
+    }
     out.offset_x = lengths[0];
     out.offset_y = lengths[1];
     out.blur = length_count >= 3 ? lengths[2] : 0.0f;
@@ -128,7 +137,7 @@ bool parse_layer(std::string_view text, Layer& out) {
     return out.blur >= 0.0f;
 }
 
-bool parse_list(std::string_view text, std::vector<Layer>& out) {
+bool parse_list(std::string_view text, std::vector<Layer>& out, bool text_shadow) {
     out.clear();
     const std::string_view value = trim(text);
     if (value.empty()) {
@@ -139,7 +148,7 @@ bool parse_list(std::string_view text, std::vector<Layer>& out) {
     }
     for (const std::string_view part : split_top_level(value, ',')) {
         Layer layer;
-        if (out.size() == kMaxLayers || !parse_layer(trim(part), layer)) {
+        if (out.size() == kMaxLayers || !parse_layer(trim(part), layer, text_shadow)) {
             return false;
         }
         out.push_back(layer);
@@ -167,21 +176,26 @@ std::string format_length(float value) {
     return (result.empty() ? "0" : result) + "px";
 }
 
-std::string format_layer(const Layer& layer) {
+std::string format_layer(const Layer& layer, bool text_shadow) {
     std::string text = layer.inset ? "inset " : "";
     text += format_length(layer.offset_x) + " " + format_length(layer.offset_y) + " " +
-            format_length(layer.blur) + " " + format_length(layer.spread) + " " +
-            style::format_color(layer.color);
+            format_length(layer.blur);
+    // `text-shadow` has no spread, so emitting one would produce a value its own parser rejects.
+    if (!text_shadow) {
+        text += " " + format_length(layer.spread);
+    }
+    text += " " + style::format_color(layer.color);
     return text;
 }
 
-} // namespace
-
-std::optional<std::string> interpolate_box_shadow(std::string_view from, std::string_view to,
-                                                  double t) {
+// The shared layer walk. `text_shadow` pins the two fields its grammar lacks (spread, inset) and
+// formats without them, so one implementation serves both properties.
+std::optional<std::string> interpolate_shadow_list(std::string_view from, std::string_view to,
+                                                   double t, bool text_shadow) {
     std::vector<Layer> lhs;
     std::vector<Layer> rhs;
-    if (!parse_list(from, lhs) || !parse_list(to, rhs) || !std::isfinite(t)) {
+    if (!parse_list(from, lhs, text_shadow) || !parse_list(to, rhs, text_shadow) ||
+        !std::isfinite(t)) {
         return std::nullopt;
     }
     const std::size_t count = std::max(lhs.size(), rhs.size());
@@ -211,14 +225,26 @@ std::optional<std::string> interpolate_box_shadow(std::string_view from, std::st
         layer.offset_x = lerp(a.offset_x, b.offset_x, t);
         layer.offset_y = lerp(a.offset_y, b.offset_y, t);
         layer.blur = std::max(0.0f, lerp(a.blur, b.blur, t));
-        layer.spread = lerp(a.spread, b.spread, t);
+        layer.spread = text_shadow ? 0.0f : lerp(a.spread, b.spread, t);
         layer.color = style::interpolate_color(a.color, b.color, static_cast<float>(t));
         if (!result.empty()) {
             result += ", ";
         }
-        result += format_layer(layer);
+        result += format_layer(layer, text_shadow);
     }
     return result;
+}
+
+} // namespace
+
+std::optional<std::string> interpolate_box_shadow(std::string_view from, std::string_view to,
+                                                  double t) {
+    return interpolate_shadow_list(from, to, t, false);
+}
+
+std::optional<std::string> interpolate_text_shadow(std::string_view from, std::string_view to,
+                                                   double t) {
+    return interpolate_shadow_list(from, to, t, true);
 }
 
 } // namespace tessera::ui::animation

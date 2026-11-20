@@ -96,6 +96,7 @@ inline PaintCounts paint_counts_since(const PaintStats& current, const PaintStat
     counts.images = current.images - before.images;
     counts.gradients = current.gradients - before.gradients;
     counts.shadows = current.shadows - before.shadows;
+    counts.text_shadows = current.text_shadows - before.text_shadows;
     counts.transforms = current.transforms - before.transforms;
     counts.backdrops = current.backdrops - before.backdrops;
     return counts;
@@ -112,6 +113,7 @@ inline void add_paint_counts(PaintStats& stats, const PaintCounts& counts) {
     stats.images += counts.images;
     stats.gradients += counts.gradients;
     stats.shadows += counts.shadows;
+    stats.text_shadows += counts.text_shadows;
     stats.transforms += counts.transforms;
     stats.backdrops += counts.backdrops;
 }

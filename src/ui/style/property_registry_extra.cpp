@@ -67,6 +67,10 @@ void PropertyRegistry::register_extension_properties() {
     properties_["text-decoration-color"] = PropertyInfo{"currentColor", true};
     properties_["text-decoration-thickness"] = PropertyInfo{"auto", true};
     properties_["vertical-align"] = PropertyInfo{"baseline", false};
+    // `text-shadow` (issue #616): a paint-only list painted behind a text node's glyphs. Not
+    // inherited, like `box-shadow`; the initial `none` paints nothing. Registered here rather than
+    // in the physical-longhand table because that table is at its source-size baseline.
+    properties_["text-shadow"] = PropertyInfo{"none", false};
     shorthands_["text-decoration"] =
         ShorthandInfo{{"text-decoration-line", "text-decoration-style", "text-decoration-color",
                        "text-decoration-thickness"},

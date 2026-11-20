@@ -359,7 +359,7 @@ Legend: **V1** = implemented semantics; **Parse** = parsed/preserved, no semanti
 | Flex | direction, wrap, grow/shrink/basis, justify/align, gap, order | baseline edge cases |
 | Grid | `display: grid`, `grid-template-columns/rows` (lengths, percentages, `fr`, `auto`, `min-content`/`max-content`, `minmax()`, `repeat(<integer>, ...)`), item `grid-column`/`grid-row` (line numbers and `span n`), `gap`, `justify-items`/`justify-self`, `align-items`/`align-self`, `justify-content`/`align-content`, `grid-auto-flow` (`row`, `column`); full value list in [`grid-v1.md`](grid-v1.md) | subgrid, masonry, dense auto-placement, named lines/areas, `grid-auto-columns`/`grid-auto-rows`, `fit-content()` |
 | Positioning | `static`, `relative`, `absolute`, `fixed`, `sticky` | anchor positioning |
-| Paint | `background-color`, `border-radius`, `border-color/width/style`, `box-shadow`, `opacity`, `color`, `background-image: linear-gradient()` and the `background` shorthand, `backdrop-filter` (`blur`, `saturate`, `brightness`, `contrast`; [`glass-v1.md`](glass-v1.md)) | radial/conic/repeating gradients, `url()` images, `filter`, general `clip-path`, lens/refraction |
+| Paint | `background-color`, `border-radius`, `border-color/width/style`, `box-shadow`, `text-shadow`, `opacity`, `color`, `background-image: linear-gradient()` and the `background` shorthand, `backdrop-filter` (`blur`, `saturate`, `brightness`, `contrast`; [`glass-v1.md`](glass-v1.md)) | radial/conic/repeating gradients, `url()` images, `filter`, general `clip-path`, lens/refraction |
 | View transitions | `::view-transition-*(root)`, `circle()/inset()/ellipse()` `clip-path` on those pseudos only, `--vt-*` | other names, filters/masks; see [`view-transitions-v1.md`](view-transitions-v1.md) |
 | Typography | `font-family/size/weight/style`, `line-height`, `letter-spacing`, `word-spacing` (additive per painted ASCII space U+0020 on both measure paths; [`text.md`](../design/text.md) section 6.4), `text-align`, `text-transform` (`none`, `uppercase`, `lowercase`, `capitalize`; ASCII 1:1 mapping in [`text.md`](../design/text.md) section 6.5), `white-space` (`normal`, `nowrap`, `pre`, `pre-wrap`, `break-spaces`; mode semantics in [`text.md`](../design/text.md) section 6.1), `text-decoration` and its longhands, `vertical-align` (`baseline`, `sub`, `super`, length; [`text-decoration.md`](../design/text-decoration.md)), `text-overflow` (`clip`, `ellipsis`; one value only, paint-side truncation in [`text.md`](../design/text.md) section 6.3) | full OpenType features, justification |
 | Transforms | `transform` functions `translate`, `scale`, `rotate`, `skew`, `matrix` (2D affine) and `transform-origin` | the individual `translate`/`rotate`/`scale` properties, 3D, perspective |
@@ -400,24 +400,24 @@ Legend: **V1** = implemented semantics; **Parse** = parsed/preserved, no semanti
 
 - `z-index` orders painting (ascending) and hit testing (descending); ties keep child order;
   `auto`/invalid is 0. Stacking is per parent (siblings only); V1 has no stacking contexts, because
-  isolating opacity/transform needs offscreen layers the batched renderer does not have. Revisit
-  when layer isolation lands.
+  isolating opacity/transform needs offscreen layers the batched renderer does not have.
 - `transform` and `transform-origin` (default `50% 50%`) resolve to a node matrix
   (`translate`, `scale`, `rotate`, `skew`, `matrix` and the axis variants, left to right as in
-  CSS); an invalid value means no transform. Hit testing and node boxes follow the matrix. Only the
-  `transform` functions exist in V1: the compiler and React-style sources never emit the individual
-  `translate`/`rotate`/`scale` properties, and adding them changes only the cascade, not what can
-  be drawn. 3D functions (`*3d`, `perspective`) are unsupported and reported.
+  CSS); an invalid value means no transform. Hit testing and node boxes follow the matrix. Only
+  these functions exist in V1: sources never emit the individual `translate`/`rotate`/`scale`
+  properties, and adding them changes only the cascade, not what can be drawn. 3D functions
+  (`*3d`, `perspective`) are unsupported and reported.
 - A sink that reports `PaintSink::supports_transform()` (the Batched2D GPU sink) paints transformed
   subtrees under the real matrix; overflow clips inside them map through scale/translate/quarter-turn
   frames and are dropped under other rotations or skews. The damage-clipping wrapper forwards the
   matrix and replays commands under each device-space region. The CPU sink paints the
   axis-aligned bounding box instead.
 - `box-shadow` takes up to 4 comma-separated shadows (offset, blur, spread, color), outer or
-  `inset`. Blur is a 3-8 layer Gaussian-matched stack drawn beneath the node; an outer shadow is
-  clipped to the rounded border box and an inset one (issue #612) is painted inside it, above the
-  background and below the content, filling the ring between the border box and the inner box (the
-  border box moved by the offset and shrunk by the spread).
+  `inset`. Blur is a 3-8 layer Gaussian-matched stack; an outer shadow is clipped to the rounded
+  border box and an inset one paints inside it, above the background and below the content
+  ([`box-shadow-clipping.md`](../design/gpu/box-shadow-clipping.md)). `text-shadow` takes up to 4
+  `[<color>? <x> <y> <blur>?]` layers (no spread, no `inset`), each painted behind every run's
+  glyphs without changing layout or the ink box ([`text-shadow.md`](../design/text-shadow.md)).
 - Value forms V1 ignores on a recognised property (3D `transform`, any `backdrop-filter` function
   other than `blur`/`saturate`/`brightness`/`contrast`) produce a
   `StyleDiagnosticKind::UnsupportedValue` diagnostic per declaration and stay in the AST, like

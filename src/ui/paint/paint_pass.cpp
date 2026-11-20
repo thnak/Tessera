@@ -9,6 +9,7 @@
 #include "paint_properties.hpp"
 #include "paint_shadow.hpp"
 #include "paint_text.hpp"
+#include "paint_text_shadow.hpp"
 #include "paint_vector.hpp"
 #include "tessera/ui/paint/paint_cache.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
@@ -396,10 +397,28 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
     }
     // Content runs (one active payload per node): after the element's own background/borders and
     // inside its own overflow/scroll clip, before the children (paint order).
-    detail::paint_text_lines(node, style, rect, effective_opacity, *own, stats, context,
-                             detail::lcd_text_eligible(context, effective_opacity,
-                                                       painted_frame.active, interpolated,
-                                                       painted_world));
+    //
+    // `text-shadow` (issue #616) wraps the payload emission: the wrapper buffers every run the
+    // payload produces - wrapped lines, span slices, the ellipsized line, the preedit - and emits
+    // their shadows first, so every shadow of the block sits behind every glyph of it. Installing
+    // it here rather than inside `paint_text_lines` keeps that file inside its source-size limit
+    // and puts the wrapper outside the LCD tagger, so a shadow copy is never LCD-eligible.
+    const detail::TextShadowList text_shadows =
+        detail::parse_text_shadows(style, detail::current_color(style));
+    if (text_shadows.empty()) {
+        detail::paint_text_lines(node, style, rect, effective_opacity, *own, stats, context,
+                                 detail::lcd_text_eligible(context, effective_opacity,
+                                                           painted_frame.active, interpolated,
+                                                           painted_world));
+    } else {
+        detail::TextShadowSink shadowed(*own, text_shadows, effective_opacity,
+                                        context.reduce_effects, stats);
+        detail::paint_text_lines(node, style, rect, effective_opacity, shadowed, stats, context,
+                                 detail::lcd_text_eligible(context, effective_opacity,
+                                                           painted_frame.active, interpolated,
+                                                           painted_world));
+        shadowed.flush();
+    }
     detail::paint_vector_content(node, style, rect, effective_opacity, *own, stats);
     detail::paint_image_content(node, style, rect, effective_opacity, *own, stats);
 
