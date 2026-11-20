@@ -487,8 +487,10 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
       fragment shader and no CPU/GPU-agreed golden is reachable. `ellipse()` and `inset()` with
       elliptical radii do not fit the existing circular-corner SDF either, so none of the shapes
       lands before the refactor. ADR-068 moves clip state into a per-frame storage buffer (RHI 1.9);
-      slices 1 to 3 are a no-pixel-change refactor, then `circle()`/`ellipse()`/`inset()`, then
-      `polygon()`. `path()` stays out of V1 (fill-rule evaluation, no layer budget).
+      slices 1 to 3 are a no-pixel-change refactor (#669 RHI 1.9 null + Vulkan, #670 Metal +
+      WebGPU, #671 `ClipStateTable` and shader on the buffer), then #672 `circle()`/`ellipse()`/
+      `inset()`, #673 `polygon()`, #674 shape interpolation. `path()` stays out of V1 (fill-rule
+      evaluation, no layer budget).
 - [ ] Behavior hook engine and core hooks (ADR-064 item 7; waits for ADR-064 Accepted, after spikes
       #658 and #662): engine interface, registry and `press_feedback` #640, then #624 to #635.
 
