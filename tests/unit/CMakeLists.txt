@@ -1140,6 +1140,16 @@ target_link_libraries(color_tests PRIVATE tessera_style)
 
 add_test(NAME color COMMAND color_tests)
 
+# `light-dark()` and `color-mix()` (issues #620, #621): the two colour functions that take other
+# colours as arguments, plus the computed-value-time substitution that resolves them inside a larger
+# value and the `color-scheme` property they read.
+add_executable(color_functions_tests
+    color_functions_tests.cpp)
+
+target_link_libraries(color_functions_tests PRIVATE tessera_style)
+
+add_test(NAME color_functions COMMAND color_functions_tests)
+
 add_executable(animation_tests
     animation_tests.cpp)
 

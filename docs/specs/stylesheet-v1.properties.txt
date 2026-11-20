@@ -166,6 +166,9 @@ external animation animations
 
 # Interaction: the three inherited input properties.
 longhand cursor interaction
+# `color-scheme` (issue #620) is what `light-dark()` resolves against: inherited, `normal` follows
+# the media context, `light`/`dark` pin the branch for a nested region.
+longhand color-scheme paint
 longhand pointer-events interaction
 longhand user-select interaction
 

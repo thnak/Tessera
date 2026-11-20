@@ -466,8 +466,11 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
       each (Chromium-measured, golden on lavapipe, property-status doc updated): #612 inset
       `box-shadow`, #613 radial and repeating gradients, #614 several background layers, #615
       `clip-path` basic shapes, #616 `text-shadow`, #617 conic gradient, `mask`, `filter` or the
-      `Path` route (decide first), #620 `light-dark()`, #621 `color-mix()`, #622 `:has()` and
-      `@scope`. Umbrella #618.
+      `Path` route (decide first), #622 `:has()` and `@scope`. Umbrella #618.
+- [x] #620 `light-dark()` and #621 `color-mix()` — computed-value-time colour functions that resolve
+      inside any value, `color-scheme` as the inherited branch selector, four interpolation spaces
+      with premultiplied alpha — `src/ui/style/color_functions.cpp`, `tests/unit/color_functions_tests.cpp`
+      (PR #665).
 - [ ] Behavior hook engine and core hooks (ADR-064 item 7; waits for ADR-064 Accepted, after spikes
       #658 and #662): engine interface, registry and `press_feedback` #640, then #624 to #635.
 

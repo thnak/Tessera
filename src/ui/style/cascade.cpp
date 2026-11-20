@@ -172,6 +172,7 @@ bool is_inherited_property(std::string_view property) {
         "writing-mode",
         "pointer-events",
         "user-select",
+        "color-scheme",
     };
     for (const std::string_view inherited : kInherited) {
         if (property == inherited) {

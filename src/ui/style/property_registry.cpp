@@ -82,6 +82,7 @@ constexpr PropertyDef kProperties[] = {
     {"white-space", "normal", true},
     {"visibility", "visible", true},
     {"cursor", "auto", true},
+    {"color-scheme", "normal", true},
     // Interaction (issue #247): inherited; the scene reads both through sync_interaction_style.
     {"pointer-events", "auto", true},
     {"user-select", "auto", true},
