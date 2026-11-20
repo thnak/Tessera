@@ -12,6 +12,7 @@
 #include "emit_layout_observe.hpp"
 #include "emit_props.hpp"
 #include "emit_schedule.hpp"
+#include "emit_behaviors.hpp"
 #include "emit_services.hpp"
 #include "emit_snapshot.hpp"
 #include "emit_types_header.hpp"
@@ -284,6 +285,9 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
     }
     // ADR-050 section 3.1 (AF5): the private typed slot of a component that declares a
     // `useService` requirement. Emitted with the other fields so `apply_access` keeps it private.
+    if (!emit_behavior_fields(writer, component, error)) {
+        return false;
+    }
     if (!emit_service_fields(writer, component, error)) {
         return false;
     }
