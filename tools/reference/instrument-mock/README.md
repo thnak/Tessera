@@ -1,11 +1,18 @@
-# Instrument reference mock
+# Instrument mock (demo and candidate "Device" theme)
 
-A small desktop-tool UI in **plain React + Vite** that shows the Instrument design language
-([ADR-047](../../../decisions/ADR-047-component-library-layers-and-design-language.md)) on real screens,
-pushed toward a **tactile hardware-instrument look** (raised keys, recessed wells, LCDs, knobs, a dark
-band between light regions). It does **not** use Tessera (no runtime, no compiler); it runs in any
-browser. It is the visual target for later Tessera ports, and its CSS is tagged so the engine features it
-needs can be audited (see [tessera-gap tags](#tessera-gap-tags)).
+A small desktop-tool UI in **plain React + Vite** that demonstrates a **tactile hardware-instrument look**
+(raised keys, recessed wells, LCDs, knobs, a dark band between light regions) on real screens. It is a
+**demo** of what a Tessera app can look like and a **candidate "Device" theme**. It is **not** the
+library's default look or the first-party design language: that direction is
+[ADR-064](../../../decisions/ADR-064-astryx-style-component-system.md), and the Instrument language it
+mimics is [ADR-047](../../../decisions/ADR-047-component-library-layers-and-design-language.md). It does
+**not** use Tessera (no runtime, no compiler); it runs in any browser, and a Tessera port would be a
+theme on top of the component system, not a replacement for it. Its CSS is tagged so the engine features
+it needs can be audited (see [tessera-gap tags](#tessera-gap-tags)); those findings feed #618 and
+#612-#617.
+
+It lives under `tools/reference/` rather than `samples/` because `samples/` holds Tessera projects, and
+`scripts/ci/gen_sample_manifest.py` publishes every `.tsx` under it to the studio gallery.
 
 Node.js is design-time tooling only ([dependencies](../../../docs/specs/dependencies.md)). The mock is
 not part of the Pages build or CI and adds no package beyond the `tools/wiki` pins.

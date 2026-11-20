@@ -170,7 +170,7 @@ of [ADR-045](../../decisions/ADR-045-browser-hosted-studio.md) without supersedi
 `package-lock.json`, and both build with the same pins: `react`/`react-dom` `^19.0.0`, `vite`
 `^7.0.0`, `typescript` `^5.9.0`, `@vitejs/plugin-react` `^5.0.0`. `tools/wiki` is the in-repo
 precedent the studio mirrors, so the two cannot drift into different React or Vite majors by accident;
-a bump is a one-line change in both manifests and a re-record of the studio's download budget. `tools/reference/instrument-mock` (a plain React mock of the Instrument design language, never deployed) uses the same pins and adds no other package.
+a bump is a one-line change in both manifests and a re-record of the studio's download budget. `tools/reference/instrument-mock` (a plain React demo and candidate "Device" theme, never deployed) uses the same pins and adds no other package.
 
 **React is design-time only, and that is a recorded status, not an implication.** It is bundled into the
 static studio page and is never linked into an app binary or into the Wasm engine:
