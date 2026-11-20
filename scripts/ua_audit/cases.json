@@ -96,12 +96,14 @@
     {
       "id": "input",
       "html": "<input />",
-      "tsx": "<input />"
+      "tsx": "<input />",
+      "ignore": ["width"]
     },
     {
       "id": "textarea",
       "html": "<textarea></textarea>",
-      "tsx": "<textarea />"
+      "tsx": "<textarea />",
+      "ignore": ["width"]
     },
     {
       "id": "section",

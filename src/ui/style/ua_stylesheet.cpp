@@ -18,9 +18,9 @@ std::string_view ua_stylesheet_text() noexcept {
     // container with stretch, the same placement.
     //
     // `h1`-`h6` (issue #606): bold, and the size and margins of Chrome's UA sheet per level
-    // (`2em`/`0.67em` for h1 down to `0.67em`/`2.33em` for h6). They are written in px at the 16px
-    // root size because the layout adapter fixes `em` at 16px instead of the element's own font
-    // size (#608). The level is the `aria-level` the alias injects, which the style tree exposes
+    // (`2em`/`0.67em` for h1 down to `0.67em`/`2.33em` for h6), written as Chrome writes them: `em`
+    // is the element's own font size, which the cascade resolves first (issue #608). The level is
+    // the `aria-level` the alias injects, which the style tree exposes
     // as an attribute. A browser collapses the margin
     // between two stacked blocks; a flex column does not, so two adjacent headings sit further
     // apart than in a browser (a named exception, docs/reference/ua-audit.md).
@@ -29,27 +29,27 @@ std::string_view ua_stylesheet_text() noexcept {
     // is not drawn (a named exception).
     return "View { display: block; }\n"
            "Text[role=\"heading\"] { display: block; font-weight: 700; }\n"
-           "Text[aria-level=\"1\"] { font-size: 32px; margin: 21.44px 0; }\n"
-           "Text[aria-level=\"2\"] { font-size: 24px; margin: 19.92px 0; }\n"
-           "Text[aria-level=\"3\"] { font-size: 18.72px; margin: 18.72px 0; }\n"
-           "Text[aria-level=\"4\"] { font-size: 16px; margin: 21.28px 0; }\n"
-           "Text[aria-level=\"5\"] { font-size: 13.28px; margin: 22.18px 0; }\n"
-           "Text[aria-level=\"6\"] { font-size: 10.72px; margin: 24.98px 0; }\n"
-           "Text[role=\"paragraph\"] { display: block; margin: 16px 0; }\n"
+           "Text[aria-level=\"1\"] { font-size: 2em; margin: 0.67em 0; }\n"
+           "Text[aria-level=\"2\"] { font-size: 1.5em; margin: 0.83em 0; }\n"
+           "Text[aria-level=\"3\"] { font-size: 1.17em; margin: 1em 0; }\n"
+           "Text[aria-level=\"4\"] { font-size: 1em; margin: 1.33em 0; }\n"
+           "Text[aria-level=\"5\"] { font-size: 0.83em; margin: 1.67em 0; }\n"
+           "Text[aria-level=\"6\"] { font-size: 0.67em; margin: 2.33em 0; }\n"
+           "Text[role=\"paragraph\"] { display: block; margin: 1em 0; }\n"
            "Text[role=\"link\"] { color: #0000ee; text-decoration: underline; }\n"
-           "View[role=\"list\"] { margin: 16px 0; padding-left: 40px; }\n"
+           "View[role=\"list\"] { margin: 1em 0; padding-left: 40px; }\n"
            "Button { display: flex; flex-direction: row; align-items: center; "
            "justify-content: center; text-align: center; padding: 2px 7px; "
            "box-sizing: border-box; align-self: flex-start; font-size: 13.3333px; color: #000000; "
            "background-color: #efefef; border: 1px solid #767676; border-radius: 2px; }\n"
            "Button:hover { background-color: #e5e5e5; border-color: #4f4f4f; }\n"
            "Button:active { background-color: #f5f5f5; border-color: #767676; }\n"
-           "TextInput { box-sizing: border-box; align-self: flex-start; width: 176px; "
-           "height: 22px; padding: 2px 3px; font-size: 13.3333px; color: #000000; "
+           "TextInput { box-sizing: border-box; min-width: 176px; "
+           "min-height: 22px; padding: 2px 3px; font-size: 13.3333px; color: #000000; "
            "background-color: #ffffff; "
            "border: 1px solid #767676; border-radius: 2px; }\n"
-           "TextArea { box-sizing: border-box; align-self: flex-start; width: 161px; "
-           "height: 38px; padding: 2px 3px; font-size: 13.3333px; color: #000000; "
+           "TextArea { box-sizing: border-box; min-width: 161px; "
+           "min-height: 38px; padding: 2px 3px; font-size: 13.3333px; color: #000000; "
            "background-color: #ffffff; "
            "border: 1px solid #767676; border-radius: 2px; }\n";
 }

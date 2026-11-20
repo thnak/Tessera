@@ -255,6 +255,7 @@ ComputedStyle compute_style(const ComputedStyle* parent, const CascadeTable& cas
     // var() is resolved at computed-value time (stylesheet-v1 section 9), after inheritance and
     // the cascade so custom properties from both are visible to every dependent declaration.
     resolve_variables(style, parent, diagnostics);
+    resolve_font_size(style, parent);
     return style;
 }
 

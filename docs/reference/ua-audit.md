@@ -41,13 +41,13 @@ Box size at a 400px viewport, 16px root, before and after this change.
 - `h1`-`h6`: bold, size and margin per level. The level reaches the style engine as `aria-level`, which the alias now injects ([`html-aliases.md`](../specs/jsx-intrinsics-v1/html-aliases.md)), and the style tree exposes `role` and `aria-*` as attributes, so `[role="list"]` and `[aria-level="2"]` select as in a browser.
 - `p`: the alias injects `role="paragraph"` (a new role token, a11y role and AT-SPI/UIA mapping), so `p` is told apart from `span` and gets the 16px margin.
 - `ul`/`ol` margin and indent, links blue and underlined.
-- `Button`, `TextInput`, `TextArea`: a size, a 1px border, radius 2px, the 13.33px control font, black on a light face, and the Chrome hover and active colours for `Button`. They are `align-self: flex-start`, so an inline-block control in a block parent takes its own width instead of the full row.
+- `Button`, `TextInput`, `TextArea`: a size, a 1px border, radius 2px, the 13.33px control font, black on a light face, and the Chrome hover and active colours for `Button`. `Button` is `align-self: flex-start`, so an inline-block button in a block parent takes its own width instead of the full row. `TextInput`/`TextArea` use `min-width`/`min-height` (176x22, 161x38) and stay stretchable, so a field in a flex column fills it as in a browser; the one difference is that a bare input in a block parent fills the row instead of 176px (a named exception below).
 
 ## Open (not fixed, with a reason)
 
 | Gap | Why it is open |
 |---|---|
-| `em` is 16px, not the element's font size | An engine bug, not a default: #608. The heading margins are written in px until it lands. |
+
 | `:focus-visible` ring, `:disabled` look, placeholder and selection colours | Not measured yet; needs the per-state pixel method. |
 
 ## Exceptions (impossible or deliberately different)
@@ -60,6 +60,7 @@ Box size at a 400px viewport, 16px root, before and after this change.
 | `code` is not monospace | The V1 font stack has one face; a monospace face is a font-bundling decision. |
 | Two inline-block controls side by side stack | Same inline-flow limit: a column cannot place them on one line. |
 | Colour scheme | The UA colours are Chrome's light-scheme values (black on light, link `#0000ee`); a dark scheme needs `color-scheme` support. |
+| A bare `input`/`textarea` in a block parent fills the row | A browser sizes an inline-block input to 176px; here a block is a stretching column, and a fixed width would stop fields stretching in flex layouts (the gallery's form). The audit ignores `width` for these two. |
 | Text width of controls | The width of a button follows the text measurer; the harness uses the test font, so widths differ by font and are not compared. |
 
 ## Adding a rule

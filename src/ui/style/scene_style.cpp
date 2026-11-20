@@ -197,6 +197,7 @@ ComputedStyle SceneStyleTree::compute(const CompiledStyleSheet& sheet, const Nod
         // substitution runs again with the parent style as the inheritance fallback.
         const ComputedStyle* parent = styles.size() > 1 ? &styles[styles.size() - 2] : nullptr;
         resolve_variables(result, parent);
+        resolve_font_size(result, parent);
     }
     return result;
 }

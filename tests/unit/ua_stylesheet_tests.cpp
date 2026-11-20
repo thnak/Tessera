@@ -39,7 +39,8 @@ bool value_is(const style::ComputedStyle& computed, const char* property,
 // UA first, then the author sheet (if any), the way the preview and the app host build their
 // cascade.
 style::ComputedStyle compute_for(std::string_view tag, std::string_view author,
-                                 std::vector<style::AttributeView> attributes = {}) {
+                                 std::vector<style::AttributeView> attributes = {},
+                                 bool component_host = false) {
     const style::PreparedStyleSheet authored = style::prepare_stylesheet(author);
     std::array<style::StylesheetSource, 2> sources{
         style::StylesheetSource{"user-agent", &style::ua_prepared_stylesheet(),
@@ -51,6 +52,7 @@ style::ComputedStyle compute_for(std::string_view tag, std::string_view author,
     root.tag = "Root";
     style::StyleNode node;
     node.tag = tag; // a view: the callers pass string literals
+    node.component_host = component_host;
     node.attributes = std::move(attributes);
     node.parent = &root;
     root.children.push_back(&node);
@@ -89,7 +91,7 @@ int main() {
         compute_for("Text", "", {{"role", "heading"}, {"aria-level", "1"}});
     ok &= value_is(h1, "font-weight", "700");
     ok &= value_is(h1, "font-size", "32px");
-    ok &= value_is(h1, "margin-top", "21.44px");
+    ok &= value_is(h1, "margin-top", "0.67em");
     const style::ComputedStyle h6 =
         compute_for("Text", "", {{"role", "heading"}, {"aria-level", "6"}});
     ok &= value_is(h6, "font-size", "10.72px");
@@ -100,9 +102,15 @@ int main() {
     ok &= expect(text.find("margin-top") == nullptr || *text.find("margin-top") == "0",
                  "a plain Text must have no margin");
 
+    // A component that is named like a built-in is the author's element: no UA default on its host.
+    const style::ComputedStyle host = compute_for("Button", "", {}, true);
+    ok &= expect(host.find("background-color") == nullptr ||
+                     *host.find("background-color") != "#efefef",
+                 "the user-agent sheet must not style a component host named Button");
+
     // A paragraph has Chrome's 1em margin; a span (plain Text) does not (issue #606).
     const style::ComputedStyle paragraph = compute_for("Text", "", {{"role", "paragraph"}});
-    ok &= value_is(paragraph, "margin-top", "16px");
+    ok &= value_is(paragraph, "margin-top", "1em");
 
     // A link is blue and underlined; a list has Chrome's margin and start padding.
     const style::ComputedStyle link = compute_for("Text", "", {{"role", "link"}});
@@ -110,16 +118,16 @@ int main() {
     ok &= value_is(link, "text-decoration-line", "underline");
     const style::ComputedStyle list = compute_for("View", "", {{"role", "list"}});
     ok &= value_is(list, "padding-left", "40px");
-    ok &= value_is(list, "margin-top", "16px");
+    ok &= value_is(list, "margin-top", "1em");
 
     // Controls have a size, a border and the browser's control font; without it a bare TextInput
     // is zero wide (the audit's finding).
     const style::ComputedStyle input = compute_for("TextInput", "");
-    ok &= value_is(input, "width", "176px");
-    ok &= value_is(input, "height", "22px");
+    ok &= value_is(input, "min-width", "176px");
+    ok &= value_is(input, "min-height", "22px");
     ok &= value_is(input, "border-top-width", "1px");
     ok &= value_is(input, "font-size", "13.3333px");
-    ok &= value_is(compute_for("TextArea", ""), "width", "161px");
+    ok &= value_is(compute_for("TextArea", ""), "min-width", "161px");
 
     // Every author declaration wins over the user-agent one, with the weakest possible selector,
     // and the user-agent defaults the author did not touch stay.
