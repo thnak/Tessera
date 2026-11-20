@@ -128,10 +128,11 @@ inline PaintData radial_payload(float center_x, float center_y, float radius_x, 
                                 std::initializer_list<LinearGradientStop> stops,
                                 bool repeating = false) {
     RadialGradient gradient;
-    gradient.center_x = center_x;
-    gradient.center_y = center_y;
-    gradient.radius_x = radius_x;
-    gradient.radius_y = radius_y;
+    gradient.shape = ui::GradientShape::Radial;
+    gradient.radial.center_x = center_x;
+    gradient.radial.center_y = center_y;
+    gradient.radial.radius_x = radius_x;
+    gradient.radial.radius_y = radius_y;
     gradient.repeating = repeating;
     gradient.stop_count = stops.size();
     std::size_t index = 0;
@@ -139,7 +140,7 @@ inline PaintData radial_payload(float center_x, float center_y, float radius_x, 
         gradient.stops[index++] = stop;
     }
     PaintData data;
-    data.radial_gradient = gradient;
+    data.gradient = gradient;
     return data;
 }
 
