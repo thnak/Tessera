@@ -149,18 +149,25 @@ struct BackdropDraw {
     return draw.stops[draw.stop_count - 1].color;
 }
 
-// One resolved outer `box-shadow` layer (issue #461). `box` is the shadow's own rounded box, with
-// the offset, the spread and - for a blurred shadow - the Gaussian reach already applied by the
-// sink. `carve` is the node's border box: CSS paints an outer shadow only outside it (CSS
-// Backgrounds 3 section 7.1.1), corner radius included, so a sink that draws the whole layer must
-// not paint it inside that box. `sigma` 0 is a hard-edged shadow (a `0` blur), which goes through
-// the same shape rather than a plain fill so the carve applies to it too.
+// One resolved `box-shadow` layer (issue #461), outer or inset (issue #612). `box` is the shadow's
+// own rounded box, with the offset, the spread and - for a blurred shadow - the Gaussian reach
+// already applied by the sink. `carve` is the node's border box: CSS paints an outer shadow only
+// outside it (CSS Backgrounds 3 section 7.1.1), corner radius included, so a sink that draws the
+// whole layer must not paint it inside that box. `sigma` 0 is a hard-edged shadow (a `0` blur),
+// which goes through the same shape rather than a plain fill so the carve applies to it too.
+//
+// An `inset` shadow is the same draw with the roles swapped: `box` is the node's border box (the
+// quad the sink clips to) and `carve` is the *inner* box - the border box moved by the offset and
+// shrunk by the spread - so the shadow fills the ring between them and fades inward. The inner
+// corner radius is the border radius minus the spread, which the sink derives from the two boxes
+// because an engine `border-radius` is one length.
 struct BoxShadowDraw {
     rhi::Rect box;
     RoundedClip carve;                        // the node's border box shaped by its border-radius
     rhi::Color color{0.0f, 0.0f, 0.0f, 1.0f}; // alpha already folded with node opacity
     float radius = 0.0f; // box corner radius, grown by the spread like CSS does
     float sigma = 0.0f;  // Gaussian standard deviation (blur / 2); 0 = hard edge
+    bool inset = false;  // paint inside `box` rather than outside `carve`
 };
 
 // Receives the flat, axis-aligned paint commands produced by paint_scene(). The pass owns no

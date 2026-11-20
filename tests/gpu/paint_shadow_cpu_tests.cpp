@@ -128,10 +128,40 @@ bool nothing_inside_transparent_box() {
     return ok;
 }
 
+// Issue #612: an inset shadow is painted inside the border box and never outside it. A sharp inset
+// shadow with a spread is the ring between the border box and the inner box; a blurred one fades
+// inward from the inner box toward the border box.
+bool inset_shadow_paints_inside_only() {
+    // A 10 px spread on an 80x60 box leaves a 60x40 inner box: the ring is the 10 px border band.
+    const auto sharp = render("inset 0 0 0 10px #000000", "#ff0000");
+    bool ok = expect(red_at(sharp, 45, 35) == 0, "the ring is the shadow colour") &&
+              expect(red_at(sharp, 80, 60) == 255, "the inner box is the box's own fill") &&
+              expect(red_at(sharp, 30, 60) == 255 && red_at(sharp, 130, 60) == 255,
+                     "outside the border box is the page background") &&
+              expect(red_at(sharp, 80, 20) == 255 && red_at(sharp, 80, 100) == 255,
+                     "above and below the border box is the page background");
+    // A blurred inset shadow fades inward: the pixel just inside the border box is darker than the
+    // pixel near the inner box, and nothing paints outside the border box.
+    const auto blurred = render("inset 0 0 16px #000000", "#ff0000");
+    ok = expect(red_at(blurred, 41, 60) < red_at(blurred, 60, 60),
+                "the blurred inset shadow is darker at the border box than near the inner box") &&
+         ok;
+    ok = expect(red_at(blurred, 30, 60) == 255 && red_at(blurred, 130, 60) == 255 &&
+                    red_at(blurred, 80, 20) == 255 && red_at(blurred, 80, 100) == 255,
+                "a blurred inset shadow never paints outside the border box") &&
+         ok;
+    // The centre of a large box is untouched by a small blur, which is the "recessed well" look.
+    ok = expect(red_at(blurred, 80, 60) == 255, "the centre of the box is untouched") && ok;
+    return ok;
+}
+
 bool deterministic() {
     return expect(render("0 0 12px rgba(0, 0, 0, 0.6)", "#336699") ==
                       render("0 0 12px rgba(0, 0, 0, 0.6)", "#336699"),
-                  "two renders are byte-identical");
+                  "two renders are byte-identical") &&
+           expect(render("inset 0 0 12px rgba(0, 0, 0, 0.6)", "#336699") ==
+                      render("inset 0 0 12px rgba(0, 0, 0, 0.6)", "#336699"),
+                  "two inset renders are byte-identical");
 }
 
 } // namespace
@@ -141,6 +171,7 @@ int main() {
     ok = blur_fades_with_distance() && ok;
     ok = sharp_offset_is_exact() && ok;
     ok = nothing_inside_transparent_box() && ok;
+    ok = inset_shadow_paints_inside_only() && ok;
     ok = deterministic() && ok;
     if (!ok) {
         std::cerr << "paint_shadow_cpu: FAILED\n";

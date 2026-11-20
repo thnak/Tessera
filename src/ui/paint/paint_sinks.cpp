@@ -57,6 +57,11 @@ void Batched2DSink::fill_rounded_ring(const rhi::Rect& rect, const rhi::Color& c
 }
 
 void Batched2DSink::fill_box_shadow(const BoxShadowDraw& draw) {
+    if (draw.inset) {
+        renderer_->push_inset_shadow(draw.box, draw.carve.rect, draw.color, draw.radius,
+                                     draw.sigma);
+        return;
+    }
     renderer_->push_soft_shadow(draw.box, draw.carve.rect, draw.color, draw.radius, draw.sigma);
 }
 

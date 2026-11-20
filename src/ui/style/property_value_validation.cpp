@@ -204,13 +204,9 @@ bool validate_property_value(const Declaration& declaration, std::string_view pr
         }
         return true;
     }
-    if (property == "box-shadow" && has_keyword(value, "inset")) {
-        out.push_back(StyleDiagnostic{StyleDiagnosticKind::UnsupportedValue, declaration.offset,
-                                      std::string(property),
-                                      "inset shadows are not supported in V1 and are not painted"});
-    } else if (property == "transform" &&
-               (value.find("3d(") != std::string::npos || has_keyword(value, "perspective") ||
-                value.find("perspective(") != std::string::npos)) {
+    if (property == "transform" &&
+        (value.find("3d(") != std::string::npos || has_keyword(value, "perspective") ||
+         value.find("perspective(") != std::string::npos)) {
         out.push_back(StyleDiagnostic{StyleDiagnosticKind::UnsupportedValue, declaration.offset,
                                       std::string(property),
                                       "3D transform functions are not supported in V1"});

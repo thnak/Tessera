@@ -23,7 +23,7 @@ struct BoxShadow {
     float blur = 0.0f; // CSS blur radius in px (Gaussian sigma = blur / 2)
     float spread = 0.0f;
     rhi::Color color;
-    bool inset = false; // parsed but not painted yet
+    bool inset = false; // painted inside the border box (issue #612)
 };
 
 struct BoxShadowList {
@@ -48,20 +48,33 @@ struct ShadowOutsets {
 };
 ShadowOutsets shadow_outsets(const style::ComputedStyle& style);
 
-// Paints the outer shadows of `rect` beneath the node's own background, and never inside `rect`'s
+// Which shadows of the list to paint. An outer shadow is painted beneath the node's own background;
+// an inset shadow is painted above it (CSS Backgrounds 3 section 7.1.1: the background is painted
+// first, then the inset shadow, then the content), so the paint pass calls this twice.
+enum class ShadowLayer : std::uint8_t {
+    Outer,
+    Inset,
+};
+
+// Paints the shadows of `rect` of one layer. An outer shadow is never painted inside `rect`'s
 // rounded border box: CSS clips an outer shadow inside the border box (CSS Backgrounds 3 section
-// 7.1.1), so a transparent node shows nothing where its own box covers the shadow (issue #461). A
-// sink that supports the one-shape box shadow gets one `fill_box_shadow` call per shadow, sharp or
-// blurred (the batched 2D shader subtracts the rounded border box per pixel and evaluates the
-// Gaussian edge); the others get the layer's area minus `rect` as four strips, a deterministic
-// stack of concentric fills whose cumulative alpha follows the Gaussian edge profile for a blurred
-// shadow. `radius` is the node's uniform corner radius.
+// 7.1.1), so a transparent node shows nothing where its own box covers the shadow (issue #461). An
+// inset shadow (issue #612) is the mirror image: it is painted only inside the rounded border box,
+// filling the ring between the border box and the inner box (the border box moved by the offset and
+// shrunk by the spread) and fading inward across the blur.
+//
+// A sink that supports the one-shape box shadow gets one `fill_box_shadow` call per shadow, sharp
+// or blurred (the batched 2D shader subtracts the rounded border box per pixel and evaluates the
+// Gaussian edge); the others get the layer's area minus `rect` as four strips for an outer shadow
+// and the ring between `rect` and the inner box as four strips for an inset one, a deterministic
+// stack of concentric fills whose cumulative alpha follows the Gaussian edge profile. `radius` is
+// the node's uniform corner radius.
 //
 // `reduce_effects` caps a blurred shadow at kReducedBlurLayers layers: same box, reach and colour,
 // a coarser edge, fewer fills. Sharp shadows are a single layer already and do not change.
 void paint_box_shadows(const style::ComputedStyle& style, const rhi::Rect& rect, float radius,
                        float opacity, const rhi::Color& current_color, PaintSink& sink,
-                       PaintStats& stats, bool reduce_effects = false);
+                       PaintStats& stats, ShadowLayer layer, bool reduce_effects = false);
 
 inline constexpr int kReducedBlurLayers = 2;
 

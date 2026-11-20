@@ -166,6 +166,95 @@ void fill_outside(PaintSink& sink, const rhi::Rect& box, const rhi::Rect& carve,
     strip(carve_right, middle_top, box_right - carve_right, middle_bottom - middle_top);
 }
 
+// Paints `carve` inside `box` as up to four axis-aligned strips: the inverse of `fill_outside`.
+// Used by the flattening sinks for an inset shadow, which fills the ring between the border box and
+// the inner box. The strips share edges with the carve box exactly, so a translucent layer is never
+// composited twice, and a rounded layer's corner triangles are left unpainted - the conservative
+// direction, the same bounds approximation those sinks already make for a rounded fill.
+void fill_inside(PaintSink& sink, const rhi::Rect& box, const rhi::Rect& carve,
+                 const rhi::Color& color) {
+    const float box_right = box.x + box.width;
+    const float box_bottom = box.y + box.height;
+    const float carve_right = carve.x + carve.width;
+    const float carve_bottom = carve.y + carve.height;
+    const auto strip = [&](float x, float y, float width, float height) {
+        if (width > 0.0f && height > 0.0f) {
+            sink.fill_rect({x, y, width, height}, color);
+        }
+    };
+    // The top and bottom bands span the whole box; the left and right bands fill the middle rows
+    // between them, so no pixel is covered twice.
+    strip(box.x, box.y, box.width, carve.y - box.y);
+    strip(box.x, carve_bottom, box.width, box_bottom - carve_bottom);
+    const float middle_top = std::max(box.y, carve.y);
+    const float middle_bottom = std::min(box_bottom, carve_bottom);
+    strip(box.x, middle_top, carve.x - box.x, middle_bottom - middle_top);
+    strip(carve_right, middle_top, box_right - carve_right, middle_bottom - middle_top);
+}
+
+// One inset shadow layer (issue #612). CSS paints an inset shadow inside the border box, clipped to
+// its rounded silhouette, below the content: the shadow's own box is the border box moved by the
+// offset and shrunk by the spread, and the shadow fills the ring between the border box and that
+// inner box, fading inward across the blur.
+void paint_inset_shadow(const BoxShadow& shadow, const rhi::Rect& rect, float radius,
+                        const rhi::Color& color, PaintSink& sink, PaintStats& stats,
+                        bool one_shape) {
+    // The inner box: the border box moved by the offset and shrunk by the spread. A spread that
+    // consumes the box leaves nothing to paint.
+    const rhi::Rect inner{rect.x + shadow.offset_x + shadow.spread,
+                          rect.y + shadow.offset_y + shadow.spread,
+                          rect.width - 2.0f * shadow.spread, rect.height - 2.0f * shadow.spread};
+    if (inner.width <= 0.0f || inner.height <= 0.0f) {
+        return;
+    }
+    if (one_shape) {
+        // The quad is the border box; the inner box rides in the carve attribute, and the shader
+        // fades the coverage inward from it. The inner radius is the border radius minus the
+        // spread, which the shader derives from the two boxes.
+        sink.fill_box_shadow(BoxShadowDraw{rect, RoundedClip{inner, 0.0f, 0.0f, 0.0f, 0.0f}, color,
+                                           radius, shadow.blur > 0.0f ? shadow.blur * 0.5f : 0.0f,
+                                           true});
+        ++stats.shadows;
+        return;
+    }
+    // The flattening path: a sharp inset shadow is the ring itself; a blurred one is a stack of
+    // rings whose inner box grows outward, so the cumulative alpha follows the Gaussian edge
+    // inward from the inner box toward the border box.
+    if (shadow.blur <= 0.0f) {
+        fill_inside(sink, rect, inner, color);
+        ++stats.shadows;
+        return;
+    }
+    const float sigma = shadow.blur * 0.5f;
+    const int layers =
+        std::clamp(static_cast<int>(std::ceil(shadow.blur * 0.5f)), kMinBlurLayers, kMaxBlurLayers);
+    const float step = 2.0f * shadow.blur / static_cast<float>(layers);
+    float previous = 0.0f;
+    for (int j = 0; j < layers; ++j) {
+        // Layer j's inner box is inset by the band's outer distance, so the innermost band is the
+        // full colour and the outermost is the faint tail at the border box.
+        const float x_outer = shadow.blur - static_cast<float>(j) * step;
+        const float x_inner = x_outer - step;
+        const float target =
+            j == layers - 1 ? color.a : color.a * normal_cdf(-0.5f * (x_outer + x_inner) / sigma);
+        const float layer_alpha =
+            previous >= 1.0f ? 0.0f : 1.0f - (1.0f - target) / (1.0f - previous);
+        previous = target;
+        if (layer_alpha <= 0.0f) {
+            continue;
+        }
+        const rhi::Rect band{inner.x - x_outer, inner.y - x_outer, inner.width + 2.0f * x_outer,
+                             inner.height + 2.0f * x_outer};
+        if (band.width <= 0.0f || band.height <= 0.0f) {
+            continue;
+        }
+        rhi::Color layer_color = shadow.color;
+        layer_color.a = layer_alpha;
+        fill_inside(sink, rect, band, layer_color);
+        ++stats.shadows;
+    }
+}
+
 } // namespace
 
 BoxShadowList parse_box_shadows(const style::ComputedStyle& style,
@@ -212,7 +301,7 @@ ShadowOutsets shadow_outsets(const style::ComputedStyle& style) {
 
 void paint_box_shadows(const style::ComputedStyle& style, const rhi::Rect& rect, float radius,
                        float opacity, const rhi::Color& current_color, PaintSink& sink,
-                       PaintStats& stats, bool reduce_effects) {
+                       PaintStats& stats, ShadowLayer layer, bool reduce_effects) {
     if (opacity <= 0.0f) {
         return;
     }
@@ -225,15 +314,23 @@ void paint_box_shadows(const style::ComputedStyle& style, const rhi::Rect& rect,
     // (the batched 2D shader does it per pixel, rounded); the others get the concentric stack
     // below.
     const bool one_shape = sink.supports_box_shadow();
+    const bool want_inset = layer == ShadowLayer::Inset;
     // CSS paints the first shadow on top, so emit the list back to front.
     for (std::size_t index = list.count; index-- > 0;) {
         const BoxShadow& shadow = list.items[index];
+        if (shadow.inset != want_inset) {
+            continue;
+        }
         const float alpha = shadow.color.a * opacity;
-        if (shadow.inset || alpha <= 0.0f) {
+        if (alpha <= 0.0f) {
             continue;
         }
         rhi::Color color = shadow.color;
         color.a = alpha;
+        if (shadow.inset) {
+            paint_inset_shadow(shadow, rect, radius, color, sink, stats, one_shape);
+            continue;
+        }
         // The shadow box: the node box moved by the offset and grown by the spread.
         const rhi::Rect box{rect.x + shadow.offset_x - shadow.spread,
                             rect.y + shadow.offset_y - shadow.spread,
@@ -281,15 +378,15 @@ void paint_box_shadows(const style::ComputedStyle& style, const rhi::Rect& rect,
                 continue;
             }
             const float expansion = shadow.spread + x_outer;
-            const rhi::Rect layer{rect.x + shadow.offset_x - expansion,
-                                  rect.y + shadow.offset_y - expansion,
-                                  rect.width + 2.0f * expansion, rect.height + 2.0f * expansion};
-            if (layer.width <= 0.0f || layer.height <= 0.0f) {
+            const rhi::Rect band{rect.x + shadow.offset_x - expansion,
+                                 rect.y + shadow.offset_y - expansion,
+                                 rect.width + 2.0f * expansion, rect.height + 2.0f * expansion};
+            if (band.width <= 0.0f || band.height <= 0.0f) {
                 continue;
             }
             rhi::Color layer_color = shadow.color;
             layer_color.a = layer_alpha;
-            fill_outside(sink, layer, rect, layer_color);
+            fill_outside(sink, band, rect, layer_color);
             ++stats.shadows;
         }
     }

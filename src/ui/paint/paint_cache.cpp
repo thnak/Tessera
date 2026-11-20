@@ -111,6 +111,7 @@ void replay_paint_ops(const std::vector<PaintOp>& ops, PaintSink& sink) {
             draw.color = op.color;
             draw.radius = op.radius;
             draw.sigma = op.ring_width;
+            draw.inset = op.inset;
             sink.fill_box_shadow(draw);
             break;
         }
@@ -218,6 +219,7 @@ void PaintCache::Recorder::fill_box_shadow(const BoxShadowDraw& draw) {
     op.color = draw.color;
     op.radius = draw.radius;
     op.ring_width = draw.sigma;
+    op.inset = draw.inset;
     record(std::move(op));
     target_.fill_box_shadow(draw);
 }

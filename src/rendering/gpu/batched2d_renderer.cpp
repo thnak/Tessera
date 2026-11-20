@@ -286,31 +286,6 @@ void Batched2DRenderer::push_rounded_ring(const rhi::Rect& rect, rhi::Color colo
               white_texture_);
 }
 
-void Batched2DRenderer::push_soft_shadow(const rhi::Rect& box, const rhi::Rect& carve,
-                                         rhi::Color color, float radius, float sigma) {
-    if (box.width <= 0.0f || box.height <= 0.0f) {
-        return;
-    }
-    // sigma 0 is the hard-edged shadow: the same quad and carve test, with a coverage step in the
-    // shader instead of the Gaussian (one path for every outer shadow, issue #461).
-    const float clamped_sigma = std::max(sigma, 0.0f);
-    const float reach = kSoftShadowReach * clamped_sigma;
-    const float clamped_radius = std::clamp(radius, 0.0f, std::min(box.width, box.height) * 0.5f);
-    const rhi::Rect quad{box.x - reach, box.y - reach, box.width + 2.0f * reach,
-                         box.height + 2.0f * reach};
-    // The carve box in the quad's local frame. The shader subtracts it (rounded) so the shadow is
-    // painted only outside the element's border box; an empty carve subtracts nothing.
-    ShadowCarveBox carved;
-    if (carve.width > 0.0f && carve.height > 0.0f) {
-        carved.x = (carve.x + carve.width * 0.5f) - (quad.x + quad.width * 0.5f);
-        carved.y = (carve.y + carve.height * 0.5f) - (quad.y + quad.height * 0.5f);
-        carved.half_width = carve.width * 0.5f;
-        carved.half_height = carve.height * 0.5f;
-    }
-    emit_quad(quad, rhi::Rect{}, color, clamped_radius, kSoftShadowModeBase + clamped_sigma,
-              white_texture_, carved);
-}
-
 void Batched2DRenderer::push_texture(const rhi::Rect& rect, rhi::Texture& texture,
                                      const rhi::Rect& uv, rhi::Color color, float coverage_boost) {
     const float boost = std::clamp(coverage_boost, 1.0f, 2.0f);

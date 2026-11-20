@@ -129,7 +129,8 @@ struct PaintOp {
     std::uint32_t raster_height = 0;
     float scale = 0.0f;
     bool decode_original = false;
-    bool lcd = false; // DrawText
+    bool lcd = false;   // DrawText
+    bool inset = false; // FillBoxShadow: an inset shadow (issue #612)
 };
 
 // The replayed value of one node: everything the node emitted before its children, plus the
