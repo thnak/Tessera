@@ -22,6 +22,7 @@ import {
 } from "./lib/device-profile";
 import { loadBundledProfiles, type ProfileLoadRejection } from "./lib/device-profile-load";
 import type { ControlValues } from "./regions/StudioChrome";
+import { viewerOf } from "./views/skin-geometry";
 import type { Skin } from "./views/skins";
 
 /** What the page needs from the profiles slice, as one object. */
@@ -101,7 +102,7 @@ export function deviceSwitch(
   keepState: boolean,
 ): DeviceSwitch {
   const skin = next.skin === null ? null : (skins.find((candidate) => candidate.id === next.skin) ?? null);
-  const size = skin !== null ? skin.viewer : next.size;
+  const size = skin !== null ? viewerOf(skin) : next.size;
   return {
     controls: {
       ...controls,
@@ -113,5 +114,45 @@ export function deviceSwitch(
       foldPosture: next.category === "foldable" ? "flat" : "",
     },
     restart: !(keepState && mayKeepState(previous, next)),
+  };
+}
+
+/** The controls a skin change writes, and whether the app restarts. */
+export interface SkinSwitch {
+  controls: ControlValues;
+  /** Always false: a skin is a layout input, not a different platform (see `skinSwitch`). */
+  restart: boolean;
+}
+
+/**
+ * What picking a skin writes: the skin's viewer rectangle as the viewport, and nothing else.
+ *
+ * **Why the viewport moves.** Section 5.1: "the size in `viewport.set` is the size the preview renders
+ * at", and `viewerOf` is the one derivation of it. Picking a skin on its own (Device > Skin, not a
+ * profile) used to write only `skin`, so the frame grew to the skin's screen while the engine kept
+ * laying out the old size: a small picture in a large black field. `deviceSwitch` above already did
+ * this for the profile path; this is the same rule for the skin-only path.
+ *
+ * **What does not move.** "None" has no skin to take a size from, and an id that does not resolve to a
+ * loaded skin (the manifests load asynchronously) has none either: both keep the current viewport
+ * rather than inventing a fallback. The insets are not written here at all -- `useSkins().safeArea`
+ * hands them to the viewer, and `safeAreasOf`/`cutoutRectOf` are the one derivation of those.
+ *
+ * **No restart.** `ControlValues.skin` is documented as a layout input "like the viewport": the engine
+ * re-lays the running evaluation out in place (`_tessera_canvas_set_viewport`, then the safe area, in
+ * one `onEnvironmentChange`), which is what `device.setViewport`, `device.setDpr`, `device.setFold`
+ * and the custom-size entry already do. Only a profile switch restarts, because only it changes the
+ * platform, the available controls and the initial environment (section 3).
+ */
+export function skinSwitch(controls: ControlValues, skinId: string, skins: readonly Skin[]): SkinSwitch {
+  const skin = skinId === "" ? null : (skins.find((candidate) => candidate.id === skinId) ?? null);
+  if (skin === null) {
+    // "None", or a skin this build does not have: the picker's value still moves, the size does not.
+    return { controls: { ...controls, skin: skinId }, restart: false };
+  }
+  const size = viewerOf(skin);
+  return {
+    controls: { ...controls, skin: skin.id, viewport: `${size.width}x${size.height}` },
+    restart: false,
   };
 }

@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useRef, type MutableRefObject } from "react";
 import { customProfile, mayKeepState, type DeviceProfile } from "./lib/device-profile";
 import { DPRS, VIEWPORTS, rememberLocally } from "./lib/preferences";
-import { deviceSwitch } from "./page-profiles";
+import { deviceSwitch, skinSwitch } from "./page-profiles";
 import type { PageStateSetters } from "./page-state";
 import type { ControlValues } from "./regions/StudioChrome";
 import type { Skin } from "./views/skins";
@@ -63,6 +63,17 @@ export function useToolbarControls({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Picking a skin (Device > Skin) is a layout input, not a device switch: the skin's viewer rectangle
+  // becomes the viewport and the running evaluation is re-laid out in place, with no restart. The rule
+  // itself is `skinSwitch` in `page-profiles.ts`, next to `deviceSwitch`, because the two must agree on
+  // what a skin means for the size. "None" and an id that has not loaded keep the current size.
+  const switchSkin = useCallback((id: string) => {
+    const result = skinSwitch(controlsRef.current, id, skinsRef.current);
+    rememberLocally(result.controls);
+    state_.setControls(result.controls);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // A size typed into the custom entry makes the ad hoc profile and resizes in place: no restart, the same
   // as moving the preset list always did.
   const onCustomSize = useCallback((width: number, height: number) => {
@@ -85,6 +96,10 @@ export function useToolbarControls({
         switchDevice(value);
         return;
       }
+      if (name === "skin") {
+        switchSkin(value);
+        return;
+      }
       state_.setControls((previous) => {
         const next = { ...previous, [name]: value };
         rememberLocally(next);
@@ -92,7 +107,7 @@ export function useToolbarControls({
       });
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [switchDevice],
+    [switchDevice, switchSkin],
   );
 
   // Every mounted view hears about a toolbar move, not only the visible one: a Scene pane that is hidden
@@ -115,5 +130,5 @@ export function useToolbarControls({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [controls]);
 
-  return { switchDevice, onCustomSize, onControlChange };
+  return { switchDevice, switchSkin, onCustomSize, onControlChange };
 }

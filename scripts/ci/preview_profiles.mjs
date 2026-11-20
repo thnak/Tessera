@@ -20,7 +20,11 @@
 //  4. The loader turns a missing and a broken manifest into rejections and keeps the rest.
 //  5. Switching device (section 3): the default restarts; keep-state applies in place only inside one `os`;
 //     a change of `os` always restarts, whatever the setting says.
-//  6. The stored toolbar: a profile id survives `localStorage` and a stray value never widens the size.
+//  6. Picking a skin on its own (Device > Skin) sets `viewport` to that skin's viewer rectangle, leaves
+//     every other control alone, does not restart, and leaves the viewport unchanged for "none" or an id
+//     that has not loaded. This is the regression the skin-only path shipped with: it wrote `skin` and
+//     not `viewport`, so the frame grew while the engine kept laying out the old size.
+//  7. The stored toolbar: a profile id survives `localStorage` and a stray value never widens the size.
 
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -53,7 +57,7 @@ async function check(name, body) {
   }
 }
 
-for (const file of ["device-profile.js", "device-profile-load.js", "profiles-switch.js"]) {
+for (const file of ["device-profile.js", "device-profile-load.js", "profiles-switch.js", "skins.js", "skin-geometry.js"]) {
   try {
     readFileSync(resolve(DIST_SSR, file));
   } catch {
@@ -68,7 +72,9 @@ for (const file of ["device-profile.js", "device-profile-load.js", "profiles-swi
 const load = (file) => import(pathToFileURL(resolve(DIST_SSR, file)).href);
 const { parseProfile, customProfile, mayKeepState } = await load("device-profile.js");
 const { loadBundledProfiles, BUNDLED_PROFILE_IDS } = await load("device-profile-load.js");
-const { deviceSwitch } = await load("profiles-switch.js");
+const { deviceSwitch, skinSwitch } = await load("profiles-switch.js");
+const { parseSkin } = await load("skins.js");
+const { viewerOf } = await load("skin-geometry.js");
 const state = await import(pathToFileURL(resolve(WEB, "src", "lib", "preview-state.js")).href);
 const preferences = await load("preferences.js");
 
@@ -194,6 +200,68 @@ await check("switching device restarts by default and applies size, DPR, skin an
   assert(deviceSwitch(null, profileOf("ios-phone"), { ...controls, foldPosture: "book" }, [], false).controls.foldPosture === "", "an iPhone kept a hinge");
   const skinned = deviceSwitch(null, next, controls, [{ id: "generic-phone-android", viewer: { width: 396, height: 891 } }], false);
   assert(skinned.controls.viewport === "396x891", "a loaded skin's viewer rectangle is not the size applied");
+});
+
+// The skin-only path (Device > Skin). The bug this catches: picking a skin wrote only `skin`, so the
+// frame grew to the skin's screen while the engine kept laying out the old viewport -- a small picture
+// in a large black field. Section 5.1: "the size in `viewport.set` is the size the preview renders at",
+// and `viewerOf` is the one derivation of it, so the expected number is read from the manifest.
+const skinOf = (id) => {
+  const result = parseSkin(id, skinManifest(id));
+  assert(result.ok, `${id}: ${result.ok ? "" : result.reason}`);
+  return result.skin;
+};
+
+await check("picking a skin sets the viewport to that skin's viewer rectangle", () => {
+  for (const id of ["generic-phone-android", "generic-tablet", "generic-desktop-windows", "generic-foldable"]) {
+    const skin = skinOf(id);
+    const viewer = viewerOf(skin);
+    const result = skinSwitch(controls, id, [skin]);
+    assert(
+      result.controls.viewport === `${viewer.width}x${viewer.height}`,
+      `${id}: the viewport is ${result.controls.viewport}, its viewer is ${viewer.width}x${viewer.height}`,
+    );
+    assert(result.controls.skin === id, `${id}: the skin was not applied (${result.controls.skin})`);
+  }
+  // The measured case from the bug report: the Android phone's 412x915 device box minus its 8 px side
+  // and 12 px top/bottom bezel is the 396x891 the frame shows.
+  const phone = skinOf("generic-phone-android");
+  assert(
+    skinSwitch(controls, "generic-phone-android", [phone]).controls.viewport === "396x891",
+    "the Android phone's viewer rectangle is not 396x891",
+  );
+});
+
+await check("picking a skin leaves every other control alone and does not restart", () => {
+  const skin = skinOf("generic-phone-android");
+  const before = { ...controls, viewport: "320x240", dpr: "1.5", theme: "dark", foldPosture: "book", profile: "android-phone" };
+  const result = skinSwitch(before, "generic-phone-android", [skin]);
+  for (const field of ["dpr", "theme", "foldPosture", "profile"]) {
+    assert(result.controls[field] === before[field], `${field} moved: ${result.controls[field]}`);
+  }
+  // A skin is a layout input like the viewport (the custom-size entry and `device.setViewport` do not
+  // restart either); only a profile switch does, because only it changes the platform.
+  assert(result.restart === false, "a skin change restarted the app");
+});
+
+await check("picking \"none\" or an unloaded skin leaves the viewport unchanged", () => {
+  const skin = skinOf("generic-phone-android");
+  const before = { ...controls, viewport: "320x240" };
+  for (const [label, id, skins] of [
+    ["none", "", [skin]],
+    ["an id this build does not have", "generic-watch", [skin]],
+    ["an id before the manifests load", "generic-phone-android", []],
+  ]) {
+    const result = skinSwitch(before, id, skins);
+    assert(
+      result.controls.viewport === "320x240",
+      `${label}: the viewport moved to ${result.controls.viewport}`,
+    );
+    assert(result.restart === false, `${label}: the app restarted`);
+  }
+  // "None" still clears the picker's value; an unknown id is kept as the picker's value, which is what
+  // `useSkins` resolves to `null` and renders as the bare canvas.
+  assert(skinSwitch(before, "", [skin]).controls.skin === "", "\"none\" did not clear the skin");
 });
 
 await check("keep-state applies in place only inside one os; a different os always restarts", () => {
