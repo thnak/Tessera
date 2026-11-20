@@ -144,6 +144,26 @@ inline PaintData radial_payload(float center_x, float center_y, float radius_x, 
     return data;
 }
 
+// A conic payload (issue #617): the sweep starts at `from_angle_degrees` and runs clockwise around
+// the centre, both as fractions of the box like the radial one.
+inline PaintData conic_payload(float center_x, float center_y, float from_angle_degrees,
+                               std::initializer_list<LinearGradientStop> stops,
+                               bool repeating = false) {
+    LinearGradient gradient;
+    gradient.shape = ui::GradientShape::Conic;
+    gradient.radial.center_x = center_x;
+    gradient.radial.center_y = center_y;
+    gradient.from_angle_degrees = from_angle_degrees;
+    gradient.repeating = repeating;
+    gradient.stop_count = stops.size();
+    std::size_t index = 0;
+    for (const LinearGradientStop& stop : stops) {
+        gradient.stops[index++] = stop;
+    }
+    PaintData data;
+    data.gradient = gradient;
+    return data;
+}
 // Scene colours. Opaque fills round-trip every byte exactly through `CpuCanvas::blend`.
 inline constexpr Pixel kRoot{11, 17, 32, 255};             // #0B1120
 inline constexpr Pixel kCard{30, 41, 59, 255};             // #1E293B
