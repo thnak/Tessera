@@ -179,10 +179,11 @@ enum class GradientShape : std::uint8_t {
     Radial,
 };
 
-// The radial geometry of a gradient payload (issue #613): `center_x`/`center_y` are fractions of the
-// node's border box (0.5, 0.5 is the CSS default centre) and `radius_x`/`radius_y` are fractions of
-// the box's width/height, so a payload set in code scales with the node instead of freezing a pixel
-// size. The paint pass resolves both against the box it paints. A circle has `radius_x == radius_y`.
+// The radial geometry of a gradient payload (issue #613): `center_x`/`center_y` are fractions of
+// the node's border box (0.5, 0.5 is the CSS default centre) and `radius_x`/`radius_y` are
+// fractions of the box's width/height, so a payload set in code scales with the node instead of
+// freezing a pixel size. The paint pass resolves both against the box it paints. A circle has
+// `radius_x == radius_y`.
 struct RadialGradientGeometry {
     float center_x = 0.5f;
     float center_y = 0.5f;
@@ -195,8 +196,8 @@ struct RadialGradientGeometry {
 struct LinearGradient {
     static constexpr std::size_t kMaxStops = 8;
     std::array<LinearGradientStop, kMaxStops> stops{};
-    // A payload is one shape, so the linear angle and the radial geometry share one slot rather than
-    // sitting side by side. That keeps `PaintData` inside its recorded budget
+    // A payload is one shape, so the linear angle and the radial geometry share one slot rather
+    // than sitting side by side. That keeps `PaintData` inside its recorded budget
     // (tests/golden/perf/memory_budget.json `paint_slot_bytes`). `angle_degrees` uses the CSS
     // convention: 0 = to top, 90 = to right, 180 = to bottom.
     union {
@@ -233,8 +234,8 @@ struct LinearGradient {
     }
 };
 
-// The radial payload is the same struct with `shape == Radial`; this alias keeps the call sites that
-// name the shape readable without a second stop array.
+// The radial payload is the same struct with `shape == Radial`; this alias keeps the call sites
+// that name the shape readable without a second stop array.
 using RadialGradient = LinearGradient;
 
 // One inline span of a `Text` node (issue #229; elements-basic.md section 2.1, ir-v1 section 3.6).
