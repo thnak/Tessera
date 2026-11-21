@@ -31,7 +31,8 @@ bool test_registry_is_the_closed_set() {
     bool ok = expect(!registry().empty(), "the registry is not empty");
     ok = expect(is_registered("press_feedback"), "press_feedback is registered") && ok;
     ok = expect(is_registered("focus_trap"), "focus_trap is registered") && ok;
-    ok = expect(!is_registered("roving_focus"),
+    ok = expect(is_registered("roving_focus"), "roving_focus is registered") && ok;
+    ok = expect(!is_registered("typeahead"),
                 "a behavior with no implementation is not registered") &&
          ok;
     ok = expect(!is_registered(""), "the empty name is not registered") && ok;
