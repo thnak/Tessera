@@ -100,12 +100,10 @@ Frame budgets say nothing about resident memory, which regresses late and on mob
 | `InputEvent` | 320 bytes (the 256-event queue is about 80 KiB; the members were grouped by alignment in the security review, finding C5, which removed 24 bytes of internal padding) | `sizeof_input_event` row (was measured but unasserted) |
 | `ComputedStyle` (first property) | 96 bytes per styled node (208 in MSVC Debug); the handle itself is 16 bytes on MSVC, 48 on libstdc++ | `computed_style_one_property_bytes` row |
 | `NodeId` | 8 bytes, and it is repeated in every side table (paint cache, resolved styles, dirty list, damage) | `sizeof_node_id` row |
+| Internal padding (issue #731) | `PaceDecision` 24→16, `AdaptiveQualitySample` 32→24, `OverlayPlacement` 48→40 and `PaintData` 536→528 by ordering members widest-first. The other padding rows are **accepted**: `KeyframeTiming` (64), `AnimationEntry` (216), `BidiVisualRun` (24), `PaintImageStyle`/`PaintVectorStyle` (56), `PaintOutsets` (20) and `TextConstraints` (8) carry only *tail* padding, which no reorder can remove | `padding_size` test (`static_assert`), `sizeof_pace_decision`, `sizeof_adaptive_quality_sample`, `sizeof_overlay_placement` and `sizeof_paint_data` rows |
 | Resident bytes per plain node (20k-node tree) | 364 on Windows x64, 327 on Linux x64, budget 1024 | `memory_steady_state` test, `tests/golden/memory/steady_state.txt`, `resident_bytes_per_node` row (warn) |
 | Idle cycles after warm-up | 0 bytes of RSS growth measured, budget 2 MiB | `memory_steady_state` test, `node_dirty_scratch_bytes` row (warn) |
-| Headless generated-UI sample: build and layout | about 0.6 MB measured, budget 8 MiB | `generated_ui_memory` test, `tests/golden/memory/generated_ui.txt` |
-| Same sample: first paint | about 0.9 MB measured, budget 8 MiB | `generated_ui_memory` |
-| Same sample: 300 click + repaint cycles after warm-up | 0 to 45 KB measured, budget 1 MiB | `generated_ui_memory` |
-| Same sample: process peak resident | about 8.7 MB measured, budget 64 MiB | `generated_ui_memory` |
+| Headless generated-UI sample | build and layout about 0.6 MB, first paint about 0.9 MB, 300 click + repaint cycles 0 to 45 KB, process peak about 8.7 MB (budgets 8 MiB, 8 MiB, 1 MiB and 64 MiB) | `generated_ui_memory` test, `tests/golden/memory/generated_ui.txt` |
 
 #### The memory ratchet
 

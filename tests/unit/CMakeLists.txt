@@ -528,6 +528,15 @@ target_link_libraries(background_layer_size_tests PRIVATE tessera_style)
 
 add_test(NAME background_layer_size COMMAND background_layer_size_tests)
 
+# The internal-padding budget of issue #731: the assertions are compile-time, so this target exists
+# to compile them on every lane.
+add_executable(padding_size_tests
+    padding_size_tests.cpp)
+
+target_link_libraries(padding_size_tests PRIVATE tessera_runtime tessera_scene)
+
+add_test(NAME padding_size COMMAND padding_size_tests)
+
 # Cache-line layout invariants (security review findings C1, C2, C3, C7): the assertions are
 # compile-time, so this target exists to compile them on every lane.
 add_executable(cache_line_tests

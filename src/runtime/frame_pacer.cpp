@@ -79,15 +79,16 @@ PaceDecision FramePacer::ready(double now_seconds) {
         throw std::invalid_argument("pacer time must be finite and non-negative");
     }
     if (interval_seconds_ <= 0.0 || !started_) {
-        return PaceDecision{true, 0.0, false};
+        return PaceDecision{.wait_seconds = 0.0, .render_now = true, .late = false};
     }
 
     const bool late = now_seconds > next_deadline_ + kEpsilon;
     if (now_seconds + kEpsilon >= next_deadline_) {
-        return PaceDecision{true, 0.0, late};
+        return PaceDecision{.wait_seconds = 0.0, .render_now = true, .late = late};
     }
 
-    return PaceDecision{false, next_deadline_ - now_seconds, false};
+    return PaceDecision{
+        .wait_seconds = next_deadline_ - now_seconds, .render_now = false, .late = false};
 }
 
 void FramePacer::present(double now_seconds) {

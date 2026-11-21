@@ -46,12 +46,15 @@ struct OverlayAnchor {
     }
 };
 
+// Members are ordered by alignment, widest first (issue #731): the two enums used to sit between
+// the anchor and `gap`, which cost 6 bytes of padding before the float and 6 more at the tail (48
+// bytes for 34 of data). This order is 40.
 struct OverlayPlacement {
     OverlayAnchor anchor;
-    OverlaySide side = OverlaySide::Bottom;
-    OverlayAlign align = OverlayAlign::Center;
     // Distance from the anchor (or inward from the window edge for a window anchor).
     float gap = 0.0f;
+    OverlaySide side = OverlaySide::Bottom;
+    OverlayAlign align = OverlayAlign::Center;
     // Take the opposite side when the chosen one does not fit and the other has more room.
     bool flip = true;
     // Slide along each axis to stay inside the viewport.
