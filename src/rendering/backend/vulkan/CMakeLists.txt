@@ -33,10 +33,10 @@ function(tessera_add_spv_c shader out_var)
     # The manifest is a dependency so editing it reruns glslc and the check, not just the check.
     add_custom_command(
         OUTPUT ${output}
-        COMMAND tessera_shader_manifest_check ${TESSERA_SHADER_MANIFEST}
+        COMMAND ${TESSERA_SHADER_MANIFEST_CHECK} ${TESSERA_SHADER_MANIFEST}
         COMMAND ${TESSERA_GLSLC} -mfmt=c --target-env=vulkan1.3
                 ${TESSERA_SHADER_DIR}/${shader} -o ${output}
-        DEPENDS ${TESSERA_SHADER_DIR}/${shader} ${TESSERA_SHADER_MANIFEST}
+        DEPENDS ${TESSERA_SHADER_DIR}/${shader} ${TESSERA_SHADER_MANIFEST} ${TESSERA_SHADER_MANIFEST_CHECK_DEP}
         COMMENT "validate shader manifest; glslc ${shader} -> ${output}"
         VERBATIM)
     set(${out_var} ${output} PARENT_SCOPE)
@@ -59,10 +59,10 @@ set(TESSERA_BATCHED2D_LCD_VERT_SPV
     ${TESSERA_SHADER_GEN_DIR}/batched2d_lcd_vert_spv.h)
 add_custom_command(
     OUTPUT ${TESSERA_BATCHED2D_LCD_VERT_SPV}
-    COMMAND tessera_shader_manifest_check ${TESSERA_SHADER_MANIFEST}
+    COMMAND ${TESSERA_SHADER_MANIFEST_CHECK} ${TESSERA_SHADER_MANIFEST}
     COMMAND ${TESSERA_GLSLC} -mfmt=c --target-env=vulkan1.3 -DTESSERA_NO_TEXTURE_ARRAY=1
             ${TESSERA_SHADER_DIR}/batched2d.vert -o ${TESSERA_BATCHED2D_LCD_VERT_SPV}
-    DEPENDS ${TESSERA_SHADER_DIR}/batched2d.vert ${TESSERA_SHADER_MANIFEST}
+    DEPENDS ${TESSERA_SHADER_DIR}/batched2d.vert ${TESSERA_SHADER_MANIFEST} ${TESSERA_SHADER_MANIFEST_CHECK_DEP}
     COMMENT "validate shader manifest; glslc batched2d.vert (LCD variant) -> ${TESSERA_BATCHED2D_LCD_VERT_SPV}"
     VERBATIM)
 
@@ -73,10 +73,10 @@ set(TESSERA_BATCHED2D_ARRAY_FRAG_SPV
     ${TESSERA_SHADER_GEN_DIR}/batched2d_array_frag_spv.h)
 add_custom_command(
     OUTPUT ${TESSERA_BATCHED2D_ARRAY_FRAG_SPV}
-    COMMAND tessera_shader_manifest_check ${TESSERA_SHADER_MANIFEST}
+    COMMAND ${TESSERA_SHADER_MANIFEST_CHECK} ${TESSERA_SHADER_MANIFEST}
     COMMAND ${TESSERA_GLSLC} -mfmt=c --target-env=vulkan1.3 -DTESSERA_TEXTURE_ARRAY=1
             ${TESSERA_SHADER_DIR}/batched2d.frag -o ${TESSERA_BATCHED2D_ARRAY_FRAG_SPV}
-    DEPENDS ${TESSERA_SHADER_DIR}/batched2d.frag ${TESSERA_SHADER_MANIFEST}
+    DEPENDS ${TESSERA_SHADER_DIR}/batched2d.frag ${TESSERA_SHADER_MANIFEST} ${TESSERA_SHADER_MANIFEST_CHECK_DEP}
     COMMENT "validate shader manifest; glslc batched2d.frag (texture array) -> ${TESSERA_BATCHED2D_ARRAY_FRAG_SPV}"
     VERBATIM)
 # Glass two-pass Gaussian (issue #244, docs/specs/glass-v1.md section 5): the fragment pass pairs
@@ -144,11 +144,12 @@ set(TESSERA_VULKAN_RHI_SOURCES
 list(APPEND TESSERA_VULKAN_RHI_SOURCES
     src/vulkan_present_platform.cpp)
 
-if (WIN32 OR TESSERA_X11_FOUND OR TESSERA_WAYLAND_FOUND)
+if (WIN32 OR ANDROID OR TESSERA_X11_FOUND OR TESSERA_WAYLAND_FOUND)
     # The presentation surface itself, plus the bounded acquire/present state machine. These need a
     # real window system; the family resolution above does not.
     list(APPEND TESSERA_VULKAN_RHI_SOURCES
         src/vulkan_swapchain.cpp
+        src/vulkan_swapchain_surface.cpp
         src/vulkan_swapchain_present.cpp)
 endif()
 
@@ -169,6 +170,11 @@ if (WIN32)
     # vkCreateWin32SurfaceKHR / vkGetPhysicalDeviceWin32PresentationSupportKHR.
     target_compile_definitions(tessera_rhi_vulkan PRIVATE VK_USE_PLATFORM_WIN32_KHR)
     target_link_libraries(tessera_rhi_vulkan PRIVATE user32)
+elseif (ANDROID)
+    # vkCreateAndroidSurfaceKHR (VK_KHR_android_surface). There is no presentation-support query for
+    # this family, and no extra library: libvulkan.so is already the Vulkan::Vulkan target, and the
+    # ANativeWindow* comes from the HAL window's native handle.
+    target_compile_definitions(tessera_rhi_vulkan PRIVATE VK_USE_PLATFORM_ANDROID_KHR)
 else()
     # A Linux build may carry both WSI families: both macros are defined only when both dev packages
     # are truly usable, so the instance can enable both surface extensions (an unused one is

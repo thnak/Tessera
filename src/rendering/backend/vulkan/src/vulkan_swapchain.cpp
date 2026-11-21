@@ -18,17 +18,8 @@
 #include <limits>
 #include <vector>
 
-// Independent blocks, not #elif: a Linux build can carry both the Xlib and the Wayland WSI, and
-// both headers are needed then (see create_surface()).
-#if defined(VK_USE_PLATFORM_WIN32_KHR)
-#include <windows.h>
-#endif
-#if defined(VK_USE_PLATFORM_XLIB_KHR)
-#include <X11/Xlib.h>
-#endif
-#if defined(VK_USE_PLATFORM_WAYLAND_KHR)
-#include <wayland-client.h>
-#endif
+// The WSI headers live in vulkan_swapchain_surface.cpp, which owns create_surface(): this file only
+// drives the swapchain state machine and never names a platform surface type.
 
 namespace tessera::rendering::vulkan {
 namespace {
@@ -203,66 +194,6 @@ VulkanSwapchain::create(VkInstance instance, VkPhysicalDevice physical_device, V
         return std::unexpected(created.error());
     }
     return swapchain;
-}
-
-std::expected<void, rhi::SwapchainError>
-VulkanSwapchain::create_surface(const rhi::SwapchainDesc& desc) {
-    // The family is fixed at device creation (issue #155). A build can carry Xlib and Wayland at
-    // once, so the dispatch is on the resolved family, not on the preprocessor: a chain of
-    // `#if/#elif` would make the first compiled-in arm unreachable for the other family.
-    VkResult result = VK_ERROR_INITIALIZATION_FAILED;
-    switch (platform_) {
-#if defined(VK_USE_PLATFORM_WIN32_KHR)
-    case PresentPlatform::Win32: {
-        VkWin32SurfaceCreateInfoKHR create_info{};
-        create_info.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
-        create_info.hinstance = GetModuleHandleW(nullptr);
-        create_info.hwnd = static_cast<HWND>(desc.native_window);
-        result = vkCreateWin32SurfaceKHR(instance_, &create_info, nullptr, &surface_);
-        break;
-    }
-#endif
-#if defined(VK_USE_PLATFORM_XLIB_KHR)
-    case PresentPlatform::Xlib: {
-        if (desc.native_display == nullptr || desc.native_window == nullptr ||
-            vkCreateXlibSurfaceKHR == nullptr) {
-            return std::unexpected(rhi::SwapchainError::NotSupported);
-        }
-        VkXlibSurfaceCreateInfoKHR create_info{};
-        create_info.sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR;
-        create_info.dpy = static_cast<Display*>(desc.native_display);
-        create_info.window =
-            static_cast<::Window>(reinterpret_cast<std::uintptr_t>(desc.native_window));
-        result = vkCreateXlibSurfaceKHR(instance_, &create_info, nullptr, &surface_);
-        break;
-    }
-#endif
-#if defined(VK_USE_PLATFORM_WAYLAND_KHR)
-    case PresentPlatform::Wayland: {
-        if (desc.native_display == nullptr || desc.native_window == nullptr ||
-            vkCreateWaylandSurfaceKHR == nullptr) {
-            return std::unexpected(rhi::SwapchainError::NotSupported);
-        }
-        // For Wayland the two opaque HAL handles are the compositor connection and the surface the
-        // window owns: exactly what VkWaylandSurfaceCreateInfoKHR wants.
-        VkWaylandSurfaceCreateInfoKHR create_info{};
-        create_info.sType = VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR;
-        create_info.display = static_cast<wl_display*>(desc.native_display);
-        create_info.surface = static_cast<wl_surface*>(desc.native_window);
-        result = vkCreateWaylandSurfaceKHR(instance_, &create_info, nullptr, &surface_);
-        break;
-    }
-#endif
-    case PresentPlatform::NoPlatform:
-        return std::unexpected(rhi::SwapchainError::NotSupported);
-    default:
-        return std::unexpected(rhi::SwapchainError::NotSupported);
-    }
-    if (result != VK_SUCCESS) {
-        surface_ = VK_NULL_HANDLE;
-        return std::unexpected(rhi::SwapchainError::SurfaceLost);
-    }
-    return {};
 }
 
 std::expected<void, rhi::SwapchainError> VulkanSwapchain::create_swapchain(bool recreate,

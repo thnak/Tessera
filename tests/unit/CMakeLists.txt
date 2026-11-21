@@ -809,6 +809,16 @@ target_link_libraries(clip_math_tests PRIVATE tessera_rhi)
 
 add_test(NAME clip_math COMMAND clip_math_tests)
 
+# Android presentation family (VK_KHR_android_surface): the enumerator is additive, distinct from
+# every desktop family, and `DeviceDesc` still defaults to Auto. Links only the RHI seam, so it runs
+# on every lane including a null-backend build with no Vulkan SDK.
+add_executable(android_surface_platform_tests
+    android_surface_platform_tests.cpp)
+
+target_link_libraries(android_surface_platform_tests PRIVATE tessera_rhi)
+
+add_test(NAME android_surface_platform COMMAND android_surface_platform_tests)
+
 add_executable(diagnostics_crash_tests
     diagnostics_crash_tests.cpp)
 

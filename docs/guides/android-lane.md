@@ -52,17 +52,40 @@ which owns the skip list.
 rather than a real assertion. `corpus_measure_tests` is the current example; the other host-path
 readers (`ir_json_tests`, `lowering_golden_tests`, `schema_golden_tests`) were already listed.
 
-## 3. Vulkan does not cross-compile yet
+## 3. Vulkan cross-compiles, but there is no window yet
 
-`-DTESSERA_BUILD_VULKAN=ON` configures — it finds the NDK's `libvulkan.so` — but the build fails:
-the shader rules run `tessera_shader_manifest_check` as a build-time command, and that executable is
-built for the **target**, so the host cannot execute it (`'tessera_shader_manifest_check' is not
-recognized`). A Vulkan Android build needs that tool built for the host first, the same
-host-tools pattern the codegen fixtures use. Until then the null backend is the supported Android
-configuration.
+`-DTESSERA_BUILD_VULKAN=ON` now cross-compiles for Android. Two things had to change for that:
 
-The emulator does expose Vulkan (`android.hardware.vulkan.version` reports 1.3.0), so once the
-host-tool gap is closed the surface path is testable there.
+- **The shader manifest checker is built for the host.** The shader rules run
+  `tessera_shader_manifest_check` at build time, and a cross-compiling build used to produce a
+  *target* binary the host cannot execute, so every rule failed with
+  `'tessera_shader_manifest_check' is not recognized`. The top-level `CMakeLists.txt` now builds it
+  in a separate project (`tools/shaders/host`) through `ExternalProject_Add` and points
+  `TESSERA_SHADER_MANIFEST_CHECK` at the host binary. The host generator is chosen from
+  `CMAKE_HOST_WIN32`, not `WIN32`: in an Android configure `WIN32` is false because it describes the
+  target.
+- **`SurfacePlatform::Android` exists** (RHI 1.10). `vulkan_present_platform.cpp` resolves it, and
+  `vulkan_swapchain_surface.cpp` creates the surface with `vkCreateAndroidSurfaceKHR`. There is no
+  `vkGetPhysicalDeviceAndroidPresentationSupportKHR` for this family: the platform guarantees that a
+  graphics-capable queue family can present to an `ANativeWindow`, so the probe is the queue family
+  itself.
+
+What is still missing is the **window**: `src/platform/android/` holds only `.gitkeep`, so
+`hal::create_window()` returns `nullptr` and nothing produces an `ANativeWindow*` to hand to the
+surface. `tessera_app_window` is also gated on `NOT CMAKE_CROSSCOMPILING`, so the window driver does
+not exist in an Android build even once a window backend lands. Until both are addressed the Vulkan
+backend is buildable and testable offscreen, not presentable.
+
+The emulator does expose Vulkan, and the version matters:
+
+| Emulator GPU mode | Device | API version | Tessera accepts? |
+|---|---|---|---|
+| `-gpu swiftshader_indirect` (the CI default) | SwiftShader | 1.2.0 | **No** — `choose_device` requires 1.3 |
+| `-gpu host` | the host GPU (passthrough) | 1.3.0+ | Yes |
+
+So a lane that wants to exercise the real renderer must boot with `-gpu host`; the default software
+renderer is below the minimum the device-selection policy enforces
+(`src/rendering/backend/vulkan/src/vulkan_device_selection.hpp`).
 
 ## 4. Related
 

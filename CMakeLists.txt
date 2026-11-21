@@ -219,6 +219,60 @@ add_subdirectory(tools/mcp)
 set(TESSERA_SHADER_MANIFEST "${PROJECT_SOURCE_DIR}/tools/shaders/manifest.json")
 if (TESSERA_BUILD_VULKAN OR TESSERA_SHADER_CROSS)
     add_subdirectory(tools/shaders)
+
+    # The checker runs at BUILD time, so it must be a host executable. A cross-compiling build
+    # (Android, iOS) would otherwise produce a target binary the host cannot execute, and every
+    # shader rule would fail with "'tessera_shader_manifest_check' is not recognized" - which is
+    # exactly how the Android Vulkan build failed before this. Build it for the host in a separate
+    # project (tools/shaders/host) and point the rules at that binary.
+    if (CMAKE_CROSSCOMPILING)
+        include(ExternalProject)
+        # A relative BINARY_DIR keeps the pins gate able to resolve this declaration: it expands
+        # ${PROJECT_SOURCE_DIR} but not ${CMAKE_BINARY_DIR}, so an absolute build path would read as
+        # an unresolvable pin expression. Relative paths are resolved against the current binary dir.
+        set(TESSERA_SHADER_MANIFEST_CHECK_HOST_DIR
+            "host-tools/shader-manifest-check")
+        # The host tool must be built with the HOST toolchain, so it cannot inherit this project's
+        # generator or compiler: a cross-compiling configure sets CMAKE_CXX_COMPILER to the NDK's
+        # clang, and passing that through would build a target binary again. The generator is
+        # therefore chosen from the HOST platform (CMAKE_HOST_WIN32, not WIN32 - in an Android
+        # configure WIN32 is false because it describes the target), and the toolchain file is
+        # cleared so no target sysroot leaks in.
+        if (CMAKE_HOST_WIN32)
+            set(TESSERA_HOST_GENERATOR "Visual Studio 18 2026")
+            set(TESSERA_HOST_GENERATOR_PLATFORM x64)
+        else()
+            set(TESSERA_HOST_GENERATOR "Unix Makefiles")
+            set(TESSERA_HOST_GENERATOR_PLATFORM "")
+        endif()
+        ExternalProject_Add(tessera_shader_manifest_check_host
+            SOURCE_DIR "${PROJECT_SOURCE_DIR}/tools/shaders/host"
+            BINARY_DIR "${TESSERA_SHADER_MANIFEST_CHECK_HOST_DIR}"
+            CMAKE_GENERATOR "${TESSERA_HOST_GENERATOR}"
+            CMAKE_GENERATOR_PLATFORM "${TESSERA_HOST_GENERATOR_PLATFORM}"
+            CMAKE_ARGS
+                "-DCMAKE_BUILD_TYPE=Release"
+                "-DTESSERA_HOST_SOURCE_DIR=${PROJECT_SOURCE_DIR}"
+                "-DCMAKE_TOOLCHAIN_FILE="
+            # A multi-config host generator (Visual Studio) puts the binary in a per-config
+            # subdirectory and defaults to Debug, so the config is pinned here. The path below
+            # matches it.
+            BUILD_COMMAND "${CMAKE_COMMAND}" --build <BINARY_DIR> --config Release
+            BUILD_ALWAYS OFF
+            INSTALL_COMMAND ""
+            COMMENT "Building the host shader manifest checker")
+        # The rules run the host binary and depend on the ExternalProject target that produces it.
+        # `TESSERA_SHADER_MANIFEST_CHECK` is the command, `..._DEP` the build-order dependency: an
+        # imported target carries no rule of its own, so naming it in DEPENDS would leave ninja with
+        # "no known rule to make it". The command is absolute because a custom command runs in its
+        # own working directory, where a relative path would not resolve.
+        set(TESSERA_SHADER_MANIFEST_CHECK
+            "${CMAKE_BINARY_DIR}/${TESSERA_SHADER_MANIFEST_CHECK_HOST_DIR}/Release/tessera_shader_manifest_check${CMAKE_EXECUTABLE_SUFFIX}")
+        set(TESSERA_SHADER_MANIFEST_CHECK_DEP tessera_shader_manifest_check_host)
+    else()
+        set(TESSERA_SHADER_MANIFEST_CHECK tessera_shader_manifest_check)
+        set(TESSERA_SHADER_MANIFEST_CHECK_DEP tessera_shader_manifest_check)
+    endif()
 endif()
 
 # ADR-050 service-resolve microbenchmark: Release-only measurement tool, never in ctest.

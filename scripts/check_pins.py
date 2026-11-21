@@ -162,6 +162,12 @@ class PinChecker:
             "CMAKE_CURRENT_LIST_DIR": str(source_path.parent),
             "CMAKE_SOURCE_DIR": str(self.repo_root),
             "PROJECT_SOURCE_DIR": str(self.repo_root),
+            # The build tree and the cmake executable are CMake-provided, not project variables, so
+            # a declaration that names them (an ExternalProject BUILD_COMMAND, a generated path) is
+            # still resolvable. Without these, a legitimate local build step reads as an unresolvable
+            # pin expression and the gate fails on a declaration that fetches nothing.
+            "CMAKE_BINARY_DIR": str(self.repo_root / "build"),
+            "CMAKE_COMMAND": "cmake",
         }
         for name, value in builtins.items():
             resolved = resolved.replace("${" + name + "}", value)
