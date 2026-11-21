@@ -24,7 +24,6 @@
 
 #include <android/log.h>
 #include <android_native_app_glue.h>
-
 #include <cstdint>
 #include <memory>
 
@@ -96,9 +95,9 @@ void on_app_cmd(android_app* app, int32_t command) {
 }
 
 int32_t on_input(android_app* /*app*/, AInputEvent* /*event*/) {
-    // Input translation is the next slice (docs/design/mobile-integration.md section 3.2). Returning
-    // 0 means "not handled", which lets the platform fall back to its own behaviour instead of
-    // swallowing an event the engine cannot use yet.
+    // Input translation is the next slice (docs/design/mobile-integration.md section 3.2).
+    // Returning 0 means "not handled", which lets the platform fall back to its own behaviour
+    // instead of swallowing an event the engine cannot use yet.
     return 0;
 }
 
@@ -120,7 +119,8 @@ void android_main(android_app* app) {
         // While the app has focus, poll without blocking so input stays responsive; otherwise block
         // until an event arrives, which is what keeps a backgrounded app at zero CPU.
         const int timeout = state.has_focus ? 0 : -1;
-        const int result = ALooper_pollOnce(timeout, nullptr, &events, reinterpret_cast<void**>(&source));
+        const int result =
+            ALooper_pollOnce(timeout, nullptr, &events, reinterpret_cast<void**>(&source));
         if (result == ALOOPER_POLL_ERROR) {
             log_info("looper error; exiting");
             break;
