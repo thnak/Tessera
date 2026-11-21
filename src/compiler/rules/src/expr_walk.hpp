@@ -3,6 +3,7 @@
 #pragma once
 
 #include "tessera/compiler/jsx/ast.hpp"
+#include "tessera/compiler/jsx/hook_manifest.hpp"
 
 #include <string>
 #include <string_view>
@@ -41,8 +42,13 @@ template<typename F> void for_each_child(const jsx::Expr& expr, F& visit) {
     }
 }
 
+// A hook name is `use` plus an uppercase letter (docs/specs/jsx-subset-v1.md section 7,
+// docs/specs/custom-hooks-v1.md section 2). This is only the *shape* test; whether a call is a hook
+// is decided against the core set and the manifest (`is_known_hook`), because the custom-hook
+// expansion names every name it introduces `<hook>_<n>__<name>` (spec section 4 step 3) and such a
+// name — `usePagination_1__setPage` — has the shape of a hook name without being one.
 inline bool is_hook_name(std::string_view name) {
-    return name.starts_with("use");
+    return name.size() > 3 && name.starts_with("use") && name[3] >= 'A' && name[3] <= 'Z';
 }
 
 // The hooks of docs/specs/jsx-subset-v1.md section 7. Library hooks need the hook manifest,
@@ -50,6 +56,34 @@ inline bool is_hook_name(std::string_view name) {
 inline bool is_core_hook(std::string_view name) {
     return name == "useState" || name == "useEffect" || name == "useRef" ||
            name == "useAnimatedValue";
+}
+
+// True for a name that is a hook call: a core hook, or a hook the manifest declares. The expansion
+// of a custom hook introduces names of the shape `useX_1__y` (docs/specs/custom-hooks-v1.md
+// section 4 step 3), which `is_hook_name` accepts but which are ordinary names, so a check that
+// would report an unknown hook must ask this rather than the shape test.
+inline bool is_known_hook(std::string_view name, const jsx::HookManifest& manifest) {
+    return is_core_hook(name) || manifest.find(name) != nullptr;
+}
+
+// True for a name the custom-hook expansion introduced: `<hook>_<n>__<name>` (spec section 4 step
+// 3). Such a name is never a hook call, whatever its shape.
+inline bool is_expansion_name(std::string_view name) {
+    const std::size_t marker = name.find("__");
+    if (marker == std::string_view::npos || marker < 3) {
+        return false;
+    }
+    const std::string_view head = name.substr(0, marker);
+    const std::size_t underscore = head.rfind('_');
+    if (underscore == std::string_view::npos || underscore + 1 >= head.size()) {
+        return false;
+    }
+    for (std::size_t i = underscore + 1; i < head.size(); ++i) {
+        if (head[i] < '0' || head[i] > '9') {
+            return false;
+        }
+    }
+    return is_hook_name(head.substr(0, underscore));
 }
 
 // The callee name when `expr` is a call of a plain identifier, else empty.

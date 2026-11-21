@@ -4,6 +4,7 @@
 
 #include "tessera/compiler/jsx/ast.hpp"
 #include "tessera/compiler/jsx/diagnostic.hpp"
+#include "tessera/compiler/jsx/front_end_options.hpp"
 #include "tessera/compiler/jsx/limits.hpp"
 #include "tessera/compiler/jsx/module_ast.hpp"
 #include "tessera/compiler/jsx/token.hpp"
@@ -47,7 +48,11 @@ using ModuleParseResult = ParseResult<Module>;
 // to 7). Recovery is per top-level item (section 14): an error inside one item marks that item
 // invalid, the parser skips to the next item start, and the other items are still parsed.
 // `root` is null only when the file cannot be read at all (file size limit).
-ModuleParseResult parse_module(std::string_view source, const Limits& limits = {});
+//
+// With `FrontEndOptions::custom_hooks` on, a project-declared `use...` function is parsed as an
+// `ItemKind::Hook` instead of being rejected (spike #659, docs/specs/custom-hooks-v1.md).
+ModuleParseResult parse_module(std::string_view source, const Limits& limits = {},
+                               const FrontEndOptions& options = {});
 
 // Type expression (spec section 5), used by the type tests.
 using TypeParseResult = ParseResult<TypeNode>;

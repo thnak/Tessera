@@ -36,7 +36,8 @@ public:
           top_(top) {}
 
     void scan(const Expr& expr, Where where) {
-        if (&expr != top_ && is_hook_name(callee_name(expr))) {
+        if (&expr != top_ && is_hook_name(callee_name(expr)) &&
+            !is_expansion_name(callee_name(expr))) {
             report(expr, where);
         }
         switch (expr.kind) {
@@ -98,8 +99,10 @@ void check_nesting(Context& ctx) {
         if (!statement.init) {
             continue;
         }
-        const Expr* top =
-            is_hook_name(callee_name(*statement.init)) ? statement.init.get() : nullptr;
+        const Expr* top = is_hook_name(callee_name(*statement.init)) &&
+                                  !is_expansion_name(callee_name(*statement.init))
+                              ? statement.init.get()
+                              : nullptr;
         NestedHookScanner scanner(ctx, top);
         if (top != nullptr) {
             // The call itself is fine; its arguments are not allowed to hold hooks.

@@ -49,8 +49,14 @@ TESSERA_REACT_BIND_POSITION	react-bind-position	`bind::` annotations go before a
 TESSERA_REACT_CUSTOM_HOOK	react-custom-hook	custom hook `useThing` is not supported
 TESSERA_REACT_EFFECT_DEPS	react-effect-deps	`useEffect` needs a dependency array (V1 dependencies are exact)
 TESSERA_REACT_EFFECT_RETURN	react-effect-return	the final `return` of an effect must return a cleanup arrow function
+TESSERA_REACT_HOOK_ARG	react-hook-arg	`useThing` takes 1 to 1 argument(s), but the call passes 0
+TESSERA_REACT_HOOK_CYCLE	react-hook-cycle	hook `useA` calls itself, directly or through another hook
+TESSERA_REACT_HOOK_DEP	react-hook-dep	`limit` of `useWatch` is an effect dependency, so it must be passed a plain name
+TESSERA_REACT_HOOK_DEPTH	react-hook-depth	expanding `useH9` is deeper than 8 levels
 TESSERA_REACT_HOOK_FORM	react-hook-form	`useState` is not written in its accepted form
 TESSERA_REACT_HOOK_ORDER	react-hook-order	`count` is used before the hook that declares it
+TESSERA_REACT_HOOK_RETURN	react-hook-return	a whole-value binding of an object return has no run-time record
+TESSERA_REACT_HOOK_SIZE	react-hook-size	expanding the hooks of `A` adds 401 statements, more than 400
 TESSERA_REACT_LIST_KEY	react-list-key	the element returned by `.map` needs a `key` attribute
 TESSERA_REACT_NO_PREVIEW_BODY	react-no-preview-body	native handler `go` has an empty body, so the designer does nothing for its event
 TESSERA_REACT_PREVIEW_BODY	react-preview-body	the body of native handler `go` is not a preview body, so the designer does nothing for its event

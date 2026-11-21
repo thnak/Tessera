@@ -74,6 +74,8 @@ const char* kind_name(ItemKind kind) {
         return "component";
     case ItemKind::Helper:
         return "helper";
+    case ItemKind::Hook:
+        return "hook";
     case ItemKind::Unknown:
         break;
     }
@@ -178,6 +180,29 @@ void dump_item(std::string& out, const ModuleItem& item) {
             dump_statement(out, statement);
         }
         out += ") (return " + dump(*item.returned) + "))";
+        return;
+    case ItemKind::Hook:
+        // Spike #659: a custom hook declaration. It has no JSX return, so `returned` is null and
+        // the value is `hook_return` (docs/specs/custom-hooks-v1.md section 2).
+        out += (item.exported ? "(export-hook " : "(hook ") + item.name;
+        out += " (params";
+        for (const auto& param : item.hook_params) {
+            out += " (" + param.name + " : " + type_text(*param.type);
+            if (param.default_value) {
+                out += " = " + dump(*param.default_value);
+            }
+            out += ")";
+        }
+        out += ")";
+        if (item.type) {
+            out += " (returns " + type_text(*item.type) + ")";
+        }
+        out += " (body";
+        for (const auto& statement : item.body) {
+            dump_statement(out, statement);
+        }
+        out += ") (return " + (item.hook_return ? dump(*item.hook_return) : std::string("<none>")) +
+               "))";
         return;
     case ItemKind::Unknown:
         out += "(unknown)";

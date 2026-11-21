@@ -26,7 +26,10 @@ namespace jsx_registry {
 // diagnostic inside a larger parse would come with the parser's follow-up error. kExpression,
 // kJsx, kType and kModule stop after parsing; kRules then runs the Tier-1 rules pass over the
 // parsed module, so a rules code is reported by the stage that owns it.
-enum class Entry { kLex, kExpression, kJsx, kType, kModule, kRules };
+// `kExpansion` runs the custom-hook expansion (spike #659, ADR-065) with the experimental switch
+// on: the codes it reports are not reachable from the default pipeline, so a fixture that parses
+// without the switch cannot cover them.
+enum class Entry { kLex, kExpression, kJsx, kType, kModule, kRules, kExpansion };
 
 struct Case {
     std::string_view code;
@@ -81,6 +84,43 @@ inline Case fixture(std::string_view code, std::string_view name, Entry entry, s
                     std::uint32_t offset, std::uint32_t length, std::uint32_t line = 1,
                     std::size_t report_size = 1, tessera::compiler::jsx::Limits limits = {}) {
     return Case{code, name, entry, std::move(source), limits, offset, length, line, report_size};
+}
+
+// A hook body with `count` statements, for the size limit (spec section 7: 400 statements hard).
+inline std::string big_hook_source(std::size_t count) {
+    std::string source = "function useBig() {\n";
+    for (std::size_t i = 0; i < count; ++i) {
+        source += "  const v" + std::to_string(i) + " = " + std::to_string(i) + ";\n";
+    }
+    source += "  const [n, setN] = useState<int>(0);\n";
+    source += "  return { n, setN };\n";
+    source += "}\n";
+    source += "function A() {\n";
+    source += "  const t = useBig();\n";
+    source += "  return <View style={{ width: t.n }}/>;\n";
+    source += "}\n";
+    return source;
+}
+
+// A chain of `count` hooks, each calling the next, for the depth limit (spec section 7: depth 8).
+inline std::string deep_hook_source(std::size_t count) {
+    std::string source;
+    for (std::size_t i = 1; i <= count; ++i) {
+        source += "function useH" + std::to_string(i) + "() {\n";
+        if (i == count) {
+            source += "  const [n, setN] = useState<int>(0);\n";
+            source += "  return { n, setN };\n";
+        } else {
+            source += "  const a = useH" + std::to_string(i + 1) + "();\n";
+            source += "  return { a };\n";
+        }
+        source += "}\n";
+    }
+    source += "function C() {\n";
+    source += "  const x = useH1();\n";
+    source += "  return <View style={{ width: 1 }}/>;\n";
+    source += "}\n";
+    return source;
 }
 
 // Sorted by code, mirroring the registry, so a reviewer can diff the two lists by eye.
@@ -191,6 +231,56 @@ inline const std::vector<Case> kCases = {
             "  return <View/>;\n"
             "}\n",
             17, 27, 2),
+    fixture("TESSERA_REACT_HOOK_ARG", "react-hook-arg", Entry::kExpansion,
+            "function useThing(a: int) {\n"
+            "  const [n, setN] = useState<int>(a);\n"
+            "  return { n, setN };\n"
+            "}\n"
+            "function A() {\n"
+            "  const t = useThing();\n"
+            "  return <View style={{ width: t.n }}/>;\n"
+            "}\n",
+            117, 10, 6),
+    fixture("TESSERA_REACT_HOOK_CYCLE", "react-hook-cycle", Entry::kExpansion,
+            "function useA() {\n"
+            "  const b = useB();\n"
+            "  return { b };\n"
+            "}\n"
+            "function useB() {\n"
+            "  const a = useA();\n"
+            "  return { a };\n"
+            "}\n"
+            "function C() {\n"
+            "  const x = useA();\n"
+            "  return <View style={{ width: 1 }}/>;\n"
+            "}\n",
+            76, 17, 6),
+    fixture("TESSERA_REACT_HOOK_DEP", "react-hook-dep", Entry::kExpansion,
+            "function useWatch(limit: int) {\n"
+            "  const [seen, setSeen] = useState<int>(0);\n"
+            "  // Note: bind::watch\n"
+            "  useEffect(() => { log(limit); }, [limit]);\n"
+            "  return { seen, setSeen };\n"
+            "}\n"
+            "function Feed(props: P) {\n"
+            "  const w = useWatch(props.limit + 1);\n"
+            "  return <View style={{ width: w.seen }}/>;\n"
+            "}\n",
+            221, 15, 8),
+    fixture("TESSERA_REACT_HOOK_DEPTH", "react-hook-depth", Entry::kExpansion, deep_hook_source(9),
+            427, 18, 30),
+    fixture("TESSERA_REACT_HOOK_RETURN", "react-hook-return", Entry::kExpansion,
+            "function useThing() {\n"
+            "  const [n, setN] = useState<int>(0);\n"
+            "  return { n, setN };\n"
+            "}\n"
+            "function A() {\n"
+            "  const t = useThing();\n"
+            "  return <View style={{ width: t }}/>;\n"
+            "}\n",
+            154, 1, 7),
+    fixture("TESSERA_REACT_HOOK_SIZE", "react-hook-size", Entry::kExpansion, big_hook_source(401),
+            7891, 1, 406),
     fixture("TESSERA_REACT_HOOK_ORDER", "react-hook-order", Entry::kRules,
             "function A() {\n"
             "  const a = count + 1;\n"

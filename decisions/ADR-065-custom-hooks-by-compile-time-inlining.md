@@ -96,6 +96,109 @@ decision and its limits explicit, and promotes it to V1.
 
 This ADR stays Proposed until measured evidence exists. Spike [#659](https://github.com/thnak/Tessera/issues/659) implements the expansion pass off by default and runs it on at least eight fixtures, comparing each with the hand-expanded component (same IR after id mapping), recording generated size and member names, the related-span diagnostics, and the spec rules that were wrong or missing (including `useService` inside a hook). The implementing issues #645 to #648 wait for Acceptance.
 
+### Spike #659 evidence (recorded 2026-11-21)
+
+Built off by default: `FrontEndOptions::custom_hooks` (default `false`) in
+`src/compiler/analyzer/include/tessera/compiler/jsx/front_end_options.hpp`; the parser hook
+declaration in `src/compiler/analyzer/src/parser_hook.cpp`; the expansion in
+`src/compiler/analyzer/src/hook_expansion{,_clone,_substitute}.cpp` behind
+`hook_expansion.hpp`. Tests `hook_expansion` and `hook_expansion_differential`. Normative rules:
+[`custom-hooks-v1.md`](../docs/specs/custom-hooks-v1.md). With the switch off the pipeline is
+unchanged: `parse_component` still reports `TESSERA_REACT_CUSTOM_HOOK`, and the differential test
+asserts that rejection.
+
+**The model holds.** The expansion is a parse-tree-to-parse-tree rewrite before the rules, so a
+custom hook has no IR form, no generated class and no run-time cost. All eight fixtures lower to the
+same IR as the hand-expanded component once the `<hook>_<n>__` prefix is mapped away. Four of the
+eight reach that comparison through the full pipeline; the other four stop at the same pre-existing
+engine gap on both sides, which is the same evidence in a weaker form (the expansion put the
+component in exactly the state the author's hand-written version is in). The differential test
+compares the diagnostic text with the prefix and the `line:col` removed, so a difference in *which*
+construct is rejected still fails.
+
+| Fixture | Hook source | Hand source | Hook IR | Hand IR | Members produced |
+|---|---|---|---|---|---|
+| `usePagination` (object return, defaulted parameter omitted) | 347 B | 207 B | 938 B | 853 B | `state::usePagination_1__page` |
+| `useToggle` (tuple return) | 296 B | 185 B | 884 B | 819 B | `state::useToggle_1__open` |
+| form field with an effect | 315 B | 211 B | 1060 B | 976 B | `state::useField_1__value` |
+| a hook calling a hook | 420 B | 218 B | — | — | `state::useDoubled_1__count` (blocked, see below) |
+| two calls of one hook | 317 B | 278 B | 1422 B | 1327 B | `state::useFlag_1__on`, `state::useFlag_2__on` |
+| a hook returning a ref for a behavior target | 265 B | 171 B | — | — | `ref::usePressable_1__r` (blocked, see below) |
+| a hook with a callback parameter | 335 B | 235 B | — | — | `state::useAction_1__busy` (blocked, see below) |
+| a hook with an expression argument in an effect dependency | 308 B | 215 B | — | — | `state::useWatch_1__seen` (blocked, see below) |
+
+The IR column is the canonical `ir::to_text(ir::to_json(component))` with the `source` members
+removed, because a hook's statements live in the declaration and the hand-written ones live in the
+component, so those byte offsets differ by construction. Every other field is compared.
+
+**Generated size.** The hook form is 1.2× to 1.9× the hand-written source (the declaration is
+written once and the call site is short; the hand-written form repeats the body). The IR is 1.07× to
+1.10× the hand-written IR, and the whole difference is the longer member names: the expansion adds no
+node, no handler and no state entry the hand-written component does not have. Two calls of one hook
+produce two states and two handlers in both forms, which is the property the fixed-slot model needs.
+
+**What the engine was missing.** Four gaps, all pre-existing and none caused by the expansion; each
+one blocks a fixture on *both* sides, so the spike records it rather than working around it:
+
+1. **A `const` local is never inlined.** `docs/design/jsx-ir-lowering.md` decision 8 says
+   "`local::x` is always inlined, so no `local::` ref is emitted", and
+   `ComponentNames::resolve` returns nullopt for a local on purpose ("that pass is not part of slice
+   6"). No test anywhere lowers a plain `const x = pure_expr`, so the inlining is unimplemented, not
+   merely untested. This is what blocks fixtures 4 and 6: `const doubled = c.count * 2` and
+   `const press = usePressFeedback(r, ...)` are locals. It also means an expression argument to a
+   hook (spec section 4 step 4, which creates a `const <prefix><param>` prologue local) cannot lower
+   yet, which is why fixture 8 passes a plain name.
+2. **A behavior hook's result is not a resolvable name.** `usePressFeedback` returns a record whose
+   fields the analysis does not enter into the symbol table, so `press.pressed` is
+   `TESSERA_IR_UNRESOLVED` on both sides. This is the same slice-4 gap, seen through a library hook.
+3. **A native handler body must be a preview body.** `TESSERA_REACT_PREVIEW_BODY` rejects
+   `const go = (): void => { log(1); }` on both sides, so fixture 7 cannot reach lowering. The
+   expansion is not involved: the same statement is rejected when written by hand.
+4. **A local cannot be an effect dependency.** `TESSERA_REACT_EFFECT_DEPS` rejects `[limit]` when
+   `limit` is a `const` local, on both sides. This is the rule that makes spec section 4's
+   "Effect dependencies" paragraph necessary, and it is why the expansion must reject an expression
+   argument to a parameter that appears in a dependency list.
+
+**Spec rules that were wrong or missing.** Four, all found by building it:
+
+1. **The rename scheme collides with the hook-name rule.** Spec section 4 step 3 names every
+   introduced name `<hook>_<n>__<name>`, so `useToggle`'s setter becomes `useToggle_1__setOpen`. The
+   rules' `is_hook_name` was `name.starts_with("use")`, which classifies that as a hook call and
+   reports `TESSERA_REACT_UNKNOWN_HOOK` on the *expanded* component. The spec must say that an
+   expansion name is never a hook call, and the rules now exclude it explicitly
+   (`is_expansion_name` in `src/compiler/rules/src/expr_walk.hpp`). This is a real defect in the
+   spec's own naming rule, not an implementation slip.
+2. **A parameter used as an effect dependency cannot take an expression argument.** Section 4 says an
+   expression argument becomes a `const` prologue local, and section 4's "Effect dependencies"
+   paragraph says a dependency must be a prop, state variable or animated value. The two rules
+   contradict each other for a parameter that appears in a dependency list. The spike adds
+   `TESSERA_REACT_HOOK_DEP` and rejects the call site with a hint to bind the expression in the
+   component; the spec needs that rule written down.
+3. **A defaulted parameter may be omitted, and section 2 does not say so.** The spike accepts a
+   trailing parameter with a literal default and substitutes the default (fixture 1 omits
+   `pageSize`). Section 2 declares defaults but section 4 step 4 says "pass every declared
+   parameter", which would make a default useless. The spec should say the default is substituted.
+4. **`useService` inside a hook is still undecided.** Nothing in `src/compiler` handles `useService`
+   at all (only `emit_services.cpp`/`emit_header.cpp` in codegen consume `ir::Service`), so the
+   expansion has nothing to deduplicate and the spike leaves the open item open. The decision the
+   spec needs is whether two hooks that each call `useService(IFoo)` produce one service entry or
+   two; the fixed-slot model argues for one per interface, keyed by the interface type, because a
+   service is a singleton by definition and a per-call entry would allocate twice for one service.
+
+**Related spans.** The expansion records a `CallSiteMap` of `{spliced span, call span, hook}` per
+call site, and `Expander::related_for` turns a span inside a hook into
+`RelatedSpan{call site, "expanded here, from <hook>_<n>"}`. The expansion's own diagnostics are
+reported at the call site already, so they carry no related span; the map exists for the rules, which
+are not yet wired to it. That wiring is the one piece of spec section 8 the spike does not finish:
+the map is built and tested (`test_the_call_site_map_names_the_expansion`), the rules do not consume
+it yet.
+
+**What this does not settle.** Import-following for hooks (a hook declared in another file) is not
+implemented: `collect_hook_declarations` reads the module it is given. The size limits (depth 8, 400
+statements) are enforced and tested, but the 200-statement warning is not emitted as a warning
+because the diagnostic sink has no warning path for this stage. `useService` is undecided (above).
+The four engine gaps are slice-4 work, not expansion work, and the spike does not touch them.
+
 ## Follow-up
 
 - `docs/specs/custom-hooks-v1.md` accepted; update the sentences that say custom hooks are rejected
