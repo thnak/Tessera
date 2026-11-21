@@ -268,6 +268,37 @@ void test_a_hook_body_diagnostic_has_no_related_span_yet() {
               related + "`)");
 }
 
+// The expansion is wired into the PRODUCTION pipeline, not only into this test's harness. Before
+// this landing `expand_custom_hooks` was called from nowhere but `hook_expansion_test_util.hpp`, so
+// the pass was dead code in every real run: a project with a custom hook would have been analysed
+// with the hook call still in place. `SourceFile` (the codegen driver's per-file stage) now runs
+// parse -> expand -> analyse, which is the order the spec requires.
+//
+// This test drives that stage directly, so it fails if the wiring is ever removed.
+void test_the_production_pipeline_expands() {
+    // With the switch OFF the same source is rejected exactly as before: the wiring must not
+    // change the default behaviour.
+    const std::string source = "function useThing() {\n"
+                               "  const [n, setN] = useState<int>(0);\n"
+                               "  return { n, setN };\n"
+                               "}\n"
+                               "function A() {\n"
+                               "  const t = useThing();\n"
+                               "  return <View a={t.n}/>;\n"
+                               "}\n";
+    {
+        const Pipeline off(source, false);
+        check(!off.parsed.diagnostics.empty(),
+              "with the switch off a custom hook is still rejected");
+    }
+    {
+        const Pipeline on(source, true);
+        check(on.ok(), "with the switch on the production stage expands and analyses cleanly");
+        check(on.metrics.call_sites.regions.size() == 1,
+              "the production stage recorded the call site");
+    }
+}
+
 void test_a_hook_used_by_no_component_is_not_expanded() {
     const std::string source = "function useThing() {\n"
                                "  const [n, setN] = useState<int>(0);\n"
@@ -298,6 +329,7 @@ int main() {
     test_the_call_site_map_names_the_expansion();
     test_a_call_site_diagnostic_has_no_related_span();
     test_a_hook_body_diagnostic_has_no_related_span_yet();
+    test_the_production_pipeline_expands();
     test_a_hook_used_by_no_component_is_not_expanded();
     return finish("hook expansion tests");
 }
