@@ -87,6 +87,9 @@ PreviewSession::PreviewSession(const ir::IrModule& module, const ir::Component& 
     // out. The preview's "re-evaluate" is `rebuild()`, which is also what a dispatch does after a
     // handler ran.
     settle_.set_relayout(&PreviewSession::settle_relayout, this);
+    // The size class the first frame starts at (issue #692): a component that reads
+    // `useBreakpoint()` renders the class the viewport actually has, not the field's initial value.
+    pushed_size_class_ = ui::responsive::size_class_for(media_);
     if (options_.carried != nullptr) {
         const std::vector<std::string> only_this{component.component_id};
         carry_report_ = apply_state(
@@ -132,6 +135,15 @@ void PreviewSession::rebuild() {
 
     const SceneBuildResult built = build_scene(component_, *root_, scope_);
     built_ = built.error.empty();
+    // The environment values the build seeded with their initial are overwritten with the live
+    // viewport's, so a component that reads `useBreakpoint()` renders the class the canvas actually
+    // has rather than the field's initial value (issue #692).
+    for (const ir::Environment& env : component_.environment) {
+        if (env.provider == "breakpoint") {
+            scope_[env.id] = eval::Value::of_string(std::string(
+                ui::responsive::size_class_name(ui::responsive::size_class_for(media_))));
+        }
+    }
     build_error_ = built.error;
     // The spans belong to the tree that was just built, so they are replaced with it - including
     // with an empty list when the build failed, because a span for a node that is not on screen
@@ -206,6 +218,18 @@ bool PreviewSession::relayout() {
     return true;
 }
 
+void PreviewSession::push_size_class() {
+    // The class comes from the media context, not from `layout_metrics_.width` directly: the
+    // context is what the stylesheet's `@media` rules resolve against, so the hook and a breakpoint
+    // rule cannot disagree about which side of 600 px the viewport is on (issue #692).
+    const ui::responsive::SizeClass next = ui::responsive::size_class_for(media_);
+    if (next == pushed_size_class_) {
+        return; // a resize inside one class costs nothing: no walk, no setter, no re-render
+    }
+    pushed_size_class_ = next;
+    (void)environment_.push("breakpoint", ui::responsive::size_class_name(next));
+}
+
 bool PreviewSession::set_posture(hal::FoldPosture posture) {
     return relayout_at(layout_metrics_.width, layout_metrics_.height, layout_metrics_.dpi_scale,
                        posture, layout_metrics_.insets, layout_metrics_.cutouts);
@@ -255,6 +279,10 @@ bool PreviewSession::relayout_at(float width, float height, float dpi_scale,
         sheet_ = options_.prepared->resolve(media);
     }
     media_ = media;
+    // `useBreakpoint()` reads the same media context the `@media` rules do (issue #692), so the
+    // class is pushed here, before the pass that will paint it. A resize inside one class pushes
+    // nothing, exactly as in `AppHost`.
+    push_size_class();
     if (!relayout()) {
         // The tree is left describing the boxes it actually has, so a caller cannot report a
         // viewport that was never applied. The re-resolve is undone with it.

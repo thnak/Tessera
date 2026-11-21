@@ -12,6 +12,8 @@
 #include "tessera/hal/fold_posture.hpp"
 #include "tessera/ui/behavior/instance.hpp"
 #include "tessera/ui/layout/layout_settle.hpp"
+#include "tessera/ui/responsive/environment_set.hpp"
+#include "tessera/ui/responsive/size_class.hpp"
 #include "tessera/ui/scene/input_dispatch.hpp"
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/scene/state_snapshot.hpp"
@@ -228,6 +230,18 @@ public:
         return settle_.totals();
     }
 
+    // The `useBreakpoint()` consumers of this session (issue #692). The canvas pushes the class
+    // from `set_viewport`, exactly as `AppHost` does from `apply_viewport`, so the preview and the
+    // runtime cannot disagree about which class a width is in.
+    [[nodiscard]] ui::responsive::EnvironmentSet& environment_values() noexcept {
+        return environment_;
+    }
+    // The size class in force, computed from the same media context the `@media` rules resolve
+    // against.
+    [[nodiscard]] ui::responsive::SizeClass size_class() const noexcept {
+        return ui::responsive::size_class_for(media_);
+    }
+
     // The `WindowMetrics` the current tree was laid out against, fold included. A caller reports or
     // compares what the tree was actually sized to rather than rebuilding the snapshot.
     [[nodiscard]] const tessera::hal::WindowMetrics& metrics() const noexcept {
@@ -372,6 +386,13 @@ private:
     // The ADR-041 settle loop (issue #693): the read model, the container-query tracker and the
     // app observations, shared with `AppHost` so the preview and the runtime cannot disagree.
     ui::layout::LayoutSettle settle_;
+    // The `useBreakpoint()` consumers (issue #692), and the class last pushed so a resize inside
+    // one class walks nothing.
+    ui::responsive::EnvironmentSet environment_;
+    ui::responsive::SizeClass pushed_size_class_ = ui::responsive::SizeClass::Compact;
+    // Pushes the current size class to every `useBreakpoint()` consumer (a no-op when it did not
+    // move).
+    void push_size_class();
     // The media context `sheet_` was resolved against (issue #436), so a viewport change can ask
     // whether a `@media` answer moves before resolving anything.
     ui::style::MediaContext media_;

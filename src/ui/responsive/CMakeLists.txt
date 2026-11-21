@@ -1,20 +1,22 @@
 # SPDX-License-Identifier: MIT
 
-# Window size classes (issue #692): the coarse compact/medium/expanded buckets `useBreakpoint()`
-# returns and the stylesheet's breakpoint tokens are written against. It depends only on the media
-# context, so the hook, the preview's `viewport.set` report and an app's own `@media` rules all read
-# one answer.
-add_library(tessera_responsive STATIC
-    environment_set.cpp
-    size_class.cpp)
+# Window size classes and the environment consumer set (issue #692): the coarse
+# compact/medium/expanded buckets `useBreakpoint()` returns and the stylesheet's breakpoint tokens
+# are written against.
+#
+# **Header-only.** The preview's session and every canvas test target compile the session sources
+# directly rather than linking a library, so an out-of-line definition would need this target on a
+# dozen link lines. The whole computation is two comparisons and the set is a vector of three-word
+# records, so inlining costs nothing and keeps the dependency graph honest.
+add_library(tessera_responsive INTERFACE)
 
-target_include_directories(tessera_responsive PUBLIC
+target_include_directories(tessera_responsive INTERFACE
     ${PROJECT_SOURCE_DIR}/include)
 
-target_link_libraries(tessera_responsive PUBLIC
+target_link_libraries(tessera_responsive INTERFACE
     tessera_style)
 
-target_compile_features(tessera_responsive PUBLIC cxx_std_23)
+target_compile_features(tessera_responsive INTERFACE cxx_std_23)
 
 # Registered here rather than in the shared tests/unit registry, so a lane adding tests never edits a
 # file another lane is working in.

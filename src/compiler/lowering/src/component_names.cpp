@@ -46,6 +46,12 @@ ComponentNames::ComponentNames(const rules::ComponentAnalysis& analysis) {
         case rules::SymbolKind::AnimatedValue:
             entries_.push_back({symbol.name, "anim::" + symbol.name});
             break;
+        case rules::SymbolKind::Environment:
+            // `const bp = useBreakpoint();` reads `env::bp` (docs/specs/jsx-subset-v1.md section
+            // 7.1, issue #692). Without this the reference pass reported the value as an unresolved
+            // name, so no component could read an environment hook.
+            entries_.push_back({symbol.name, "env::" + symbol.name});
+            break;
         case rules::SymbolKind::PropsParam:
             if (props_param_.empty()) {
                 props_param_ = symbol.name;

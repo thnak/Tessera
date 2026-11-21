@@ -83,6 +83,17 @@ SceneBuildResult build_scene(const ir::Component& component, ui::Node& root, eva
             return result;
         }
     }
+    // An `environment` hook value (docs/specs/jsx-subset-v1.md section 7.1, issue #692) is
+    // engine-owned, so the preview seeds it with the same initial the generated base's field starts
+    // at. The session overwrites it from the live viewport after the build, exactly as it does for
+    // a behavior output.
+    for (const ir::Environment& env : component.environment) {
+        if (scope.find(env.id) != scope.end()) {
+            continue;
+        }
+        scope[env.id] =
+            eval::Value::of_string(env.provider == "breakpoint" ? "compact" : "default");
+    }
     // A behavior output is readable in any pure expression (behavior-hooks-v1.md section 6), and
     // before the first attach it holds its manifest default (section 8). The preview seeds each one
     // with that default here, so the first build reads a value instead of failing on an unknown

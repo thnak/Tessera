@@ -1,0 +1,26 @@
+preview: useBreakpoint in the Studio canvas, closing #692
+
+The canvas half of the hook, and the parity the issue asks for.
+
+- PreviewSession pushes the class from set_viewport, from the same media
+  context the @media rules resolve against, and returns immediately when the
+  class did not move. CanvasSceneSession::size_class()/environment_values()
+  expose it, so the page and a test read one answer.
+- scene_build seeds an environment value with the same initial the generated
+  base's field starts at, and the session overwrites it from the live viewport
+  after the build, so a previewed component renders the class the canvas
+  actually has.
+- component_names resolves env::<name>, without which the reference pass
+  reported every environment read as an unresolved name.
+- scene_evaluate now carries the lowering's own diagnostic instead of dropping
+  it: "the project does not lower" alone gave a page no way to find the line.
+
+Evidence: breakpoint_parity (tests/unit/breakpoint_parity_tests.cpp) asserts the
+canvas and AppHost give the same class at 320/599/600/700/839/840/1200 px, and
+that a crossing moves it in the same call. lowering_environment covers the IR
+entry and the writable form. Full ctest: 710/710; all 12 gates pass.
+
+tessera_responsive is an INTERFACE library: the preview session and every canvas
+test target compile the session sources directly, so an out-of-line definition
+would need the target on a dozen link lines. The whole computation is two
+comparisons and the consumer set is a vector of three-word records.
