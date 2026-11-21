@@ -594,13 +594,19 @@ Acceptance: a `useState`/`useEffect`/`useRef` screen regenerates without losing 
       tests `codegen_instances` + `codegen_instances_runtime` (state survives reorder, key removal
       unmounts, per-item presence, list-typed prop); open decision on conditional-instance
       destroy-vs-keep-alive recorded in #283.
-- [ ] Spikes that decide the Proposed ADRs 064 to 067 (each lands off by default and records
+- [x] Spikes that decide the Proposed ADRs 064 to 067 (each lands off by default and records
       evidence in its ADR): #658 behavior hook vertical slice, #659 custom hook expansion on a
       fixture corpus, #660 React port corpus measurement, #661 Suspense and transition on a fake
-      resource. #658 in progress: the engine seam, the registry, `press_feedback` and the built-in
-      hook manifest reader have landed (PR #678); the analyzer, IR `behaviors` and the generated
-      base's behavior surface have landed (PR #679). The preview session and the ADR evidence report
-      are the remaining stages. #662 done: a role-token theme source builds to plain CSS custom
+      resource. #658 done: the engine seam, the registry, `press_feedback`, the built-in hook
+      manifest reader, the analyzer, IR `behaviors`, the generated base's behavior surface, the
+      shared `behavior::Instance` and the preview wiring all land off by default (PRs #678, #679 and
+      the #658 landing). The spike found three defects that made the path unreachable — the lowering
+      dropped `component.behaviors`, a behavior output had no `beh::<name>.<field>` reference form,
+      and the evaluator's scope had no `beh::` entries — and one spec rule that was wrong: a
+      hash-only `update` never fires for a behavior with no options, so the seam has a second
+      scene-driven `refresh` trigger. Evidence in
+      [ADR-064](decisions/ADR-064-astryx-style-component-system.md) and
+      [`behavior-hooks-v1.md`](docs/specs/behavior-hooks-v1.md) sections 8 and 10. #662 done: a role-token theme source builds to plain CSS custom
       properties in `@layer` and the engine's own cascade resolves it in light, dark and high
       contrast (`theme_source`, `docs/specs/theme-source-v1.md`); the evidence and the three engine
       gaps are recorded in ADR-064 item 6.

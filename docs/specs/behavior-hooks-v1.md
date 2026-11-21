@@ -152,8 +152,17 @@ A behavior implements the engine interface of `include/tessera/ui/behavior/behav
 |---|---|
 | `attach(Targets, Args)` | Called when **every** target ref holds a node (one node per target, in manifest order). May allocate. Registers listeners with the focus, input and accessibility services. May not invoke a callback. |
 | `update(Args)` | Called when the hash of the evaluated value options changed (section 9). No allocation. May not invoke a callback. |
+| `refresh(Args)` | Called after an input dispatch that changed the scene but not the component's options. Recomputes the outputs from the interaction state; does not change the options hash. No allocation. May not invoke a callback. |
 | `detach()` | Called before the target node is destroyed, when the ref becomes empty, and at unmount. Removes every registration. Idempotent. |
 | `outputs()` | Returns the current outputs; read by the component after each dispatch and update. |
+
+**Why `refresh` is a second trigger, not a convenience.** `update` fires on an options change, which
+is the right rule for a behavior whose outputs are a function of its options. It is the wrong rule
+for one whose outputs are a function of *interaction state*: `press_feedback` has no options at all,
+so its hash never changes and a hash-only update would skip it forever, leaving a Button that never
+reports itself pressed. `refresh` is the scene-driven trigger. It deliberately does not touch the
+stored hash, so a scene-driven refresh cannot defeat the option-driven skip. A behavior with no
+interaction-state outputs simply recomputes the same values.
 
 Lifecycle rules:
 
@@ -193,12 +202,18 @@ behaviors stays byte-identical. For a component with behaviors the generated bas
 ## 10. Preview
 
 The design-time preview builds scenes from IR with a seeded scope (`tools/codegen/scene_build.cpp`) and
-dispatches handlers into it (`scene_session.cpp`); today it holds no live component instance. For a
-behavior to run there, the preview session must create the same registry `Instance` from the IR entry
-and drive it with the session's normalized input, in the native preview and in the Wasm canvas, with the
-same lifecycle rules (section 8). Until then the preview shows the component's static result: outputs
-at their defaults and no behavior running. This is stated in the preview's capabilities so a user is not
-misled.
+dispatches handlers into it (`scene_session.cpp`). It drives the **same** `behavior::Instance` the
+generated base does (`tools/codegen/scene_session_behavior.cpp`): one instance per IR `behaviors`
+entry, built from the same registry, attached to the node each target `ref` resolved to, and
+refreshed after a dispatch, in the native preview and in the Wasm canvas, with the same lifecycle
+rules (section 8). A behavior whose targets are not all present attaches nothing, exactly as in a
+generated base. `scene_behavior` proves a pointer press reaches the behavior through the session's
+own dispatch.
+
+Two gaps the preview still has, stated so a user is not misled: a callback arg is recorded by handler
+id and passed as 0, so a behavior that invokes a callback is wired but inert there; and a behavior
+the registry lacks is reported in the session's error list rather than failing the build, because the
+manifest test is what catches that before a user runs anything.
 
 ## 11. Versioning
 
@@ -222,7 +237,7 @@ the component spec template, sections 4, 5 and 8, in [`components/_template.md`]
 | Analyzer | Accept and reject tables for each section 7 code | next to `lowering_hooks_*` |
 | IR | Lowering output and the JSON writer, with `tests/golden/ir/` | next to the IR goldens |
 | Codegen | The generated base for a component with behaviors (new golden), and byte identity for one without | `tests/golden/codegen/` |
-| Preview | The session drives the instance and outputs update (once section 10 is implemented) | `tests/unit/` scene session tests |
+| Preview | The session drives the instance and outputs update | `tests/unit/scene_behavior_tests.cpp` |
 
 ## 13. Open items
 
