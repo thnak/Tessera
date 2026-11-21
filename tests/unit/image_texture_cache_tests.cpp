@@ -189,6 +189,55 @@ bool resamples_to_requested_extent() {
     return ok;
 }
 
+// The CPU resample is the measured cost (about 50 ms for a 4K image), so the counter that makes it
+// observable is part of the contract: an extent equal to the decoded extent never resamples, a
+// different extent resamples once per upload and a cache hit never resamples at all.
+bool resample_is_skipped_when_the_extent_matches() {
+    FakeDevice device;
+    image::ImageTextureCache cache(device);
+    image::DecodedImage decoded = solid_image(6, 4, 1, 2, 3, 255);
+    // Distinct neighbors, so a wrong mapping at an equal extent would change the bytes.
+    for (std::size_t i = 0; i < decoded.rgba.size(); ++i) {
+        decoded.rgba[i] = static_cast<std::uint8_t>(i * 7U + 3U);
+    }
+    const image::ImageTextureKey same{decoded.content_hash, 6, 4,
+                                      rhi::TextureFormat::R8G8B8A8Unorm};
+    const auto identity = cache.acquire(decoded, same);
+    bool ok = expect(identity.has_value() && cache.stats().resamples == 0,
+                     "an equal extent uploads without a CPU resample");
+    if (identity.has_value()) {
+        const FakeTexture* texture = as_fake(*identity);
+        ok = expect(texture != nullptr && texture->bytes() == decoded.rgba,
+                    "the equal-extent upload is byte-identical to the decode") &&
+             ok;
+    }
+
+    // A mip chain at the equal extent still skips the resample (the device builds the levels).
+    image::ImageTextureKey chain = same;
+    chain.levels = 3;
+    const auto chained = cache.acquire(decoded, chain);
+    ok = expect(chained.has_value() && cache.stats().resamples == 0,
+                "a mip chain at the equal extent does not resample either") &&
+         ok;
+
+    image::ImageTextureKey smaller{decoded.content_hash, 3, 2, rhi::TextureFormat::R8G8B8A8Unorm};
+    const auto scaled = cache.acquire(decoded, smaller);
+    ok = expect(scaled.has_value() && cache.stats().resamples == 1,
+                "a different extent resamples once") &&
+         ok;
+    static_cast<void>(cache.acquire(decoded, smaller));
+    static_cast<void>(cache.acquire(decoded, same));
+    ok = expect(cache.stats().resamples == 1, "cache hits never resample") && ok;
+
+    // One axis different is still a resample: the shortcut needs both extents equal.
+    image::ImageTextureKey taller{decoded.content_hash, 6, 8, rhi::TextureFormat::R8G8B8A8Unorm};
+    const auto stretched = cache.acquire(decoded, taller);
+    ok = expect(stretched.has_value() && cache.stats().resamples == 2,
+                "a single differing axis still resamples") &&
+         ok;
+    return ok;
+}
+
 bool eviction_and_entry_guard() {
     FakeDevice device;
     image::ImageTextureCacheConfig config;
@@ -306,6 +355,7 @@ int main() {
     ok = filter_is_part_of_the_identity() && ok;
     ok = levels_are_part_of_the_identity() && ok;
     ok = resamples_to_requested_extent() && ok;
+    ok = resample_is_skipped_when_the_extent_matches() && ok;
     ok = eviction_and_entry_guard() && ok;
     ok = upload_failure_and_device_loss() && ok;
     ok = evicted_texture_outlives_the_frame() && ok;

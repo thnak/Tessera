@@ -77,6 +77,7 @@ public:
         std::uint64_t misses = 0;
         std::uint64_t evictions = 0;
         std::uint64_t uploads = 0;         // rhi::Texture creations
+        std::uint64_t resamples = 0;       // CPU resample passes (raster extent != decoded extent)
         std::uint64_t invalidations = 0;   // loss/notify/invalidate_all events
         std::uint64_t forced_releases = 0; // parked textures destroyed early to stay bounded
         std::uint32_t entries = 0;

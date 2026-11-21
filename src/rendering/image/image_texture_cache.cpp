@@ -197,11 +197,20 @@ ImageTextureCache::acquire(const DecodedImage& image, const ImageTextureKey& key
     }
 
     ++impl_->stats.misses;
-    std::vector<std::uint8_t> pixels = resample_nearest(image, key.width, key.height);
+    // A raster extent equal to the decoded extent needs no resample: the nearest rule maps pixel x
+    // to floor((2x + 1) * w / (2w)) = x, so the decoded bytes already are the raster. Skipping the
+    // per-pixel pass (about 50 ms for a 4K image) and its copy is exact, not an approximation.
+    std::vector<std::uint8_t> resampled;
+    const std::uint8_t* pixels = image.rgba.data();
+    if (image.width != key.width || image.height != key.height) {
+        resampled = resample_nearest(image, key.width, key.height);
+        pixels = resampled.data();
+        ++impl_->stats.resamples;
+    }
     rhi::TextureDesc desc;
     desc.extent = rhi::Extent2D{key.width, key.height};
     desc.format = key.format;
-    desc.pixels = pixels.data();
+    desc.pixels = pixels;
     desc.row_pitch = static_cast<std::size_t>(row_bytes);
     // Sampler state is fixed at creation, so the key's filter is the texture's filter: a second
     // variant of the same image at a different filter is a separate entry.
