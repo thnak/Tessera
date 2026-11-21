@@ -31,12 +31,15 @@ enum class FrameTimeSource { Cpu, Gpu };
 // also what an unknown display refresh leaves in place (no divisor exists, so the pacer keeps its
 // deadline pacing). `changed` is true only on the observation that produced a change; `downgrade`
 // gives that change's direction.
+// Members are ordered by alignment, widest first (issue #731): the `double` used to sit after two
+// bools, which cost 6 bytes of padding before it and 6 more at the tail (32 bytes for 20 of data).
+// This order is 24.
 struct AdaptiveQualitySample {
+    double present_cap_hz = 0.0;
     float render_scale = 1.0f;
     std::uint32_t quality_step = 0;
     bool changed = false;
     bool downgrade = false;
-    double present_cap_hz = 0.0;
     bool effects_reduced = false;
     bool animations_paused = false;
 

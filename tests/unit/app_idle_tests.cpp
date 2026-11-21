@@ -150,8 +150,11 @@ int main() {
             !expect(idle_wait_seconds(decision, 0.0) == 0.0, "a zero clamp degrades to zero")) {
             return 7;
         }
-        const PaceDecision nan_wait{false, std::nan(""), false};
-        const PaceDecision infinite_wait{false, HUGE_VAL, false};
+        const PaceDecision nan_wait{
+            .wait_seconds = std::nan(""), .render_now = false, .late = false};
+        const PaceDecision infinite_wait{
+            .wait_seconds = HUGE_VAL, .render_now = false, .late = false};
+
         if (!expect(pacer_wait_seconds(nan_wait) == 0.0, "a non-finite wait is dropped") ||
             !expect(near(pacer_wait_seconds(infinite_wait), kMaxIdleWaitSeconds),
                     "an infinite wait is clamped")) {

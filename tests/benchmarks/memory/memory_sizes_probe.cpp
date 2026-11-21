@@ -27,7 +27,10 @@
 // Exit codes: 0 measured, 2 usage error or the platform reports no resident memory.
 
 #include "tessera/diagnostics/memory.hpp"
+#include "tessera/runtime/frame_counters.hpp"
+#include "tessera/runtime/frame_pacer.hpp"
 #include "tessera/ui/input.hpp"
+#include "tessera/ui/overlay/placement.hpp"
 #include "tessera/ui/paint/paint_cache.hpp"
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/scene/paint_data.hpp"
@@ -53,6 +56,7 @@ namespace diag = tessera::diagnostics;
 namespace ui = tessera::ui;
 namespace style = tessera::ui::style;
 namespace paint = tessera::ui::paint;
+namespace runtime = tessera::runtime;
 
 // Allocation accounting. Global replacement so every allocation in the process is counted,
 // including the ones the standard library makes on behalf of the types under test.
@@ -142,6 +146,11 @@ void sizes() {
     // The resolved `background-image` value (issue #731). `resolve_layers` returns one by value per
     // painted node, so this number multiplies by the node count on a gradient-heavy screen.
     row("sizeof_background_layer_list", sizeof(style::BackgroundLayerList));
+    // The internal-padding rows of issue #731: each was reordered widest-member-first, which is
+    // what removed the padding these numbers used to carry.
+    row("sizeof_pace_decision", sizeof(runtime::PaceDecision));
+    row("sizeof_adaptive_quality_sample", sizeof(runtime::AdaptiveQualitySample));
+    row("sizeof_overlay_placement", sizeof(ui::OverlayPlacement));
 
     // `ComputedStyle` is a `std::map` handle, so its sizeof is the handle and not the per-node
     // style cost: the cost is the first insert's map node plus its two strings. Both are

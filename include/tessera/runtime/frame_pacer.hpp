@@ -15,9 +15,12 @@ struct FramePacerConfig {
     bool vrr_active = false;
 };
 
+// Members are ordered by alignment, widest first (issue #731): `bool, double, bool` put 7 bytes of
+// padding after the first bool and 7 more at the tail, so the struct was 24 bytes for 10 bytes of
+// data. This order is 16.
 struct PaceDecision {
-    bool render_now = false;
     double wait_seconds = 0.0;
+    bool render_now = false;
     bool late = false;
 };
 
