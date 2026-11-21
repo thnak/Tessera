@@ -3,11 +3,11 @@
 // Android presentation family (VK_KHR_android_surface). The interesting rules are the ones that are
 // easy to get wrong and impossible to see on a desktop lane:
 //
-//   1. `SurfacePlatform::Android` is a distinct enumerator, so a caller that knows it presents to an
-//      ANativeWindow never falls back to a desktop family.
-//   2. Android has no `vkGetPhysicalDeviceAndroidPresentationSupportKHR`, so presentation support is
-//      the queue family's graphics capability rather than a driver query. A build that assumed the
-//      desktop probe shape would report "no presentation" on every Android device.
+//   1. `SurfacePlatform::Android` is a distinct enumerator, so a caller that knows it presents to
+//      an ANativeWindow never falls back to a desktop family.
+//   2. Android has no `vkGetPhysicalDeviceAndroidPresentationSupportKHR`, so presentation support
+//      is the queue family's graphics capability rather than a driver query. A build that assumed
+//      the desktop probe shape would report "no presentation" on every Android device.
 //   3. The enumerator is additive: the desktop values keep their numbers, because they are part of
 //      the RHI 1.4 surface contract (docs/specs/versioning-v1.md).
 //
