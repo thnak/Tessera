@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "tessera/detail/cache_line.hpp"
 #include "tessera/hal/window.hpp"
 #include "tessera/ui/accessibility/uia_bridge.hpp"
 #include "tessera/ui/accessibility/uia_events.hpp"
@@ -179,13 +180,28 @@ private:
     UiaHostConfig config_;
     std::unique_ptr<UiaPlatform> platform_;
     UiaBridge bridge_;
-    // Published by the bridge thread once the root exists and cleared before it is released.
-    std::atomic<void*> root_{nullptr};
-    std::atomic<bool> dirty_{false};
-    // Exactly one flush job may be in flight; a tick never queues a second one.
-    std::atomic<bool> flush_posted_{false};
-    std::atomic<std::uint64_t> raised_batches_{0};
-    std::atomic<std::uint64_t> failed_raises_{0};
+    // The five atomics are grouped by the thread that writes them (issue #732). They used to sit
+    // side by side in one 64-byte line, so the UI thread's `mark_dirty`/`tick` and the bridge
+    // thread's `flush_events` invalidated each other's copy on every publish and every flush --
+    // the exact false sharing `detail::CacheLine` exists for. The two groups are separate lines.
+    struct UiThreadState {
+        std::atomic<bool> dirty{false};
+        // Exactly one flush job may be in flight; a tick never queues a second one.
+        std::atomic<bool> flush_posted{false};
+    };
+    struct BridgeThreadState {
+        // Published by the bridge thread once the root exists and cleared before it is released.
+        std::atomic<void*> root{nullptr};
+        std::atomic<std::uint64_t> raised_batches{0};
+        std::atomic<std::uint64_t> failed_raises{0};
+    };
+    // The two groups are cache-line aligned, so `UiaHost` itself is padded to a line boundary; that
+    // padding is the point (see tessera/detail/cache_line.hpp), which is what the macro pair
+    // suppresses on MSVC.
+    TESSERA_CACHE_LINE_BEGIN
+    detail::CacheLine<UiThreadState> ui_state_;
+    detail::CacheLine<BridgeThreadState> bridge_state_;
+    TESSERA_CACHE_LINE_END
     UiaEventQueue events_;
     // Reused build/retain buffers so a steady-state publish allocates nothing after the first.
     A11ySnapshot next_;

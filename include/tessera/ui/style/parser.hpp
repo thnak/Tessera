@@ -16,7 +16,10 @@ struct Declaration {
     std::size_t offset = 0;
 };
 
-struct Rule {
+// `alignas(64)` (issue #732): `std::string` (32) + `std::vector` (24) + `std::size_t` (8) is
+// exactly 64, so with the natural 8-byte alignment seven of eight rules straddle a line and a walk
+// over `std::vector<Rule>` touches both. The alignment changes no offset.
+struct alignas(64) Rule {
     std::string selector;
     std::vector<Declaration> declarations;
     std::size_t offset = 0;

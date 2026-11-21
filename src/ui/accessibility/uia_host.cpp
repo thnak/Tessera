@@ -52,13 +52,13 @@ void UiaHost::stop() {
     // `stop` joins the bridge worker, so no hook can run after it returns. The root pointer is
     // cleared before the pointer is released (the stop hook does that on the bridge thread).
     bridge_.stop();
-    root_.store(nullptr, std::memory_order_release);
+    bridge_state_.root.store(nullptr, std::memory_order_release);
     // A flush job that was queued when the worker stopped never ran; let the next start queue one.
-    flush_posted_.store(false, std::memory_order_release);
+    ui_state_.flush_posted.store(false, std::memory_order_release);
 }
 
 bool UiaHost::ready() const {
-    return root_.load(std::memory_order_acquire) != nullptr;
+    return bridge_state_.root.load(std::memory_order_acquire) != nullptr;
 }
 
 bool UiaHost::answer_get_object(std::intptr_t object_id, void*& raw_provider) const {
@@ -67,7 +67,7 @@ bool UiaHost::answer_get_object(std::intptr_t object_id, void*& raw_provider) co
     if (object_id != kUiaRootObjectId) {
         return false;
     }
-    void* root = root_.load(std::memory_order_acquire);
+    void* root = bridge_state_.root.load(std::memory_order_acquire);
     if (root == nullptr) {
         return false;
     }
@@ -88,16 +88,16 @@ UiaHostElementStatus UiaHost::host_element_status() const {
 }
 
 void UiaHost::mark_dirty() {
-    dirty_.store(true, std::memory_order_release);
+    ui_state_.dirty.store(true, std::memory_order_release);
 }
 
 bool UiaHost::dirty() const {
-    return dirty_.load(std::memory_order_acquire);
+    return ui_state_.dirty.load(std::memory_order_acquire);
 }
 
 UiaHostTickStats UiaHost::tick(const SnapshotSource& source, const ActionHandler& handler) {
     UiaHostTickStats stats;
-    if (dirty_.load(std::memory_order_acquire)) {
+    if (ui_state_.dirty.load(std::memory_order_acquire)) {
         // Build on the UI thread; the bridge only ever sees the immutable copy. A throwing source
         // keeps the previous tree published (and the host dirty) instead of shipping a half-built
         // snapshot, and the failure is reported as a value.
@@ -120,7 +120,7 @@ UiaHostTickStats UiaHost::tick(const SnapshotSource& source, const ActionHandler
             bridge_.publish(next_);
             // Retain the published tree for the next diff, reusing the buffers both ways.
             previous_.nodes.swap(next_.nodes);
-            dirty_.store(false, std::memory_order_release);
+            ui_state_.dirty.store(false, std::memory_order_release);
             stats.published = true;
         } else {
             stats.build_failed = true;
@@ -132,10 +132,11 @@ UiaHostTickStats UiaHost::tick(const SnapshotSource& source, const ActionHandler
     // ring defers the flush to a later tick instead of waiting for it here.
     if (events_.size() > 0) {
         bool expected = false;
-        if (flush_posted_.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
+        if (ui_state_.flush_posted.compare_exchange_strong(expected, true,
+                                                           std::memory_order_acq_rel)) {
             const auto posted = bridge_.post([this](UiaProvider&) { flush_events(); });
             if (!posted) {
-                flush_posted_.store(false, std::memory_order_release);
+                ui_state_.flush_posted.store(false, std::memory_order_release);
             }
         }
     }
@@ -178,11 +179,11 @@ UiaError UiaHost::error() const {
 }
 
 std::uint64_t UiaHost::raised_batches() const {
-    return raised_batches_.load(std::memory_order_acquire);
+    return bridge_state_.raised_batches.load(std::memory_order_acquire);
 }
 
 std::uint64_t UiaHost::failed_raises() const {
-    return failed_raises_.load(std::memory_order_acquire);
+    return bridge_state_.failed_raises.load(std::memory_order_acquire);
 }
 
 std::size_t UiaHost::pending_events() const {
@@ -192,7 +193,7 @@ std::size_t UiaHost::pending_events() const {
 void UiaHost::flush_events() {
     // Bridge thread: one bounded batch per posted job, so a burst of changes cannot hold the
     // bridge for longer than one provider call per event.
-    flush_posted_.store(false, std::memory_order_release);
+    ui_state_.flush_posted.store(false, std::memory_order_release);
     std::array<UiaEvent, kMaxQueuedUiaEvents> batch{};
     const std::size_t taken = events_.take(batch);
     if (taken == 0 || platform_ == nullptr) {
@@ -201,13 +202,13 @@ void UiaHost::flush_events() {
     try {
         const UiaError raised = platform_->raise(std::span(batch.data(), taken));
         if (raised == UiaError::None) {
-            raised_batches_.fetch_add(1, std::memory_order_relaxed);
+            bridge_state_.raised_batches.fetch_add(1, std::memory_order_relaxed);
         } else {
-            failed_raises_.fetch_add(1, std::memory_order_relaxed);
+            bridge_state_.failed_raises.fetch_add(1, std::memory_order_relaxed);
         }
     } catch (...) {
         // Boundary: a platform raiser must not unwind into the bridge loop.
-        failed_raises_.fetch_add(1, std::memory_order_relaxed);
+        bridge_state_.failed_raises.fetch_add(1, std::memory_order_relaxed);
     }
 }
 
@@ -215,13 +216,13 @@ void UiaHost::on_bridge_start(UiaProvider&) {
     // Bridge thread, after `CoInitializeEx`. Creating the provider here is what makes the object
     // bridge-thread-owned: its COM methods marshal to this same thread and run inline.
     void* root = platform_->create_root(bridge_);
-    root_.store(root, std::memory_order_release);
+    bridge_state_.root.store(root, std::memory_order_release);
 }
 
 void UiaHost::on_bridge_stop(UiaProvider&) {
     // Stop answering before releasing: a WM_GETOBJECT racing shutdown must see "not ready" rather
     // than a dangling provider.
-    root_.store(nullptr, std::memory_order_release);
+    bridge_state_.root.store(nullptr, std::memory_order_release);
     platform_->destroy_root();
 }
 

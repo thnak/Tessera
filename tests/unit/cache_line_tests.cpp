@@ -24,7 +24,11 @@
 #include "tessera/rendering/gpu/vertex2d.hpp"
 #include "tessera/runtime/io_executor.hpp"
 #include "tessera/runtime/worker_io_executor.hpp"
+#include "tessera/ui/accessibility/uia_host.hpp"
 #include "tessera/ui/input.hpp"
+#include "tessera/ui/style/media_query.hpp"
+#include "tessera/ui/style/parser.hpp"
+#include "tessera/ui/style/theme_asset.hpp"
 
 #include <atomic>
 #include <cstddef>
@@ -38,6 +42,8 @@ namespace diagnostics = tessera::diagnostics;
 namespace gpu = tessera::rendering::gpu;
 namespace runtime = tessera::runtime;
 namespace ui = tessera::ui;
+namespace a11y = tessera::ui::a11y;
+namespace style = tessera::ui::style;
 
 // A group must fill exactly one line, and a group that is too large must be a compile error rather
 // than a silent straddle. Both halves are asserted here on a representative type.
@@ -81,6 +87,41 @@ static_assert(sizeof(runtime::IoExecutor) >= 3 * detail::kCacheLine,
               "the I/O executor must hold three separate cache-line groups");
 static_assert(sizeof(runtime::WorkerIoExecutor) >= 3 * detail::kCacheLine,
               "the worker I/O executor must hold three separate cache-line groups");
+
+// Issue #732: the straddling types. Each has a size that is a multiple of 64, so with the natural
+// 8-byte alignment seven of eight instances span two lines and a sequential walk touches both. The
+// rule is `cache-lines.md` section 4: "a new hot struct whose size is a multiple of 64 needs
+// `alignas(64)`". These are the ones that landed before the rule was enforced.
+static_assert(sizeof(ui::InputEvent) % detail::kCacheLine == 0,
+              "InputEvent is a whole number of cache lines");
+static_assert(alignof(ui::InputEvent) == detail::kCacheLine,
+              "InputEvent must start on a cache line (issue #732)");
+
+static_assert(sizeof(style::Rule) % detail::kCacheLine == 0, "Rule is a whole number of lines");
+static_assert(alignof(style::Rule) == detail::kCacheLine,
+              "Rule must start on a cache line (issue #732)");
+
+static_assert(sizeof(style::MediaQuery) % detail::kCacheLine == 0,
+              "MediaQuery is a whole number of lines");
+static_assert(alignof(style::MediaQuery) == detail::kCacheLine,
+              "MediaQuery must start on a cache line (issue #732)");
+
+static_assert(sizeof(style::ThemeToken) % detail::kCacheLine == 0,
+              "ThemeToken is a whole number of lines");
+static_assert(alignof(style::ThemeToken) == detail::kCacheLine,
+              "ThemeToken must start on a cache line (issue #732)");
+
+static_assert(sizeof(style::ThemePin) % detail::kCacheLine == 0,
+              "ThemePin is a whole number of lines");
+static_assert(alignof(style::ThemePin) == detail::kCacheLine,
+              "ThemePin must start on a cache line (issue #732)");
+
+// Issue #732 section 2: `UiaHost`'s atomics are grouped by the thread that writes them, so the UI
+// thread's `mark_dirty`/`tick` and the bridge thread's `flush_events` no longer invalidate each
+// other's line. The groups are private, so the assertion is on the object: two separate
+// `CacheLine` groups plus the rest of the host means at least two lines of separation.
+static_assert(sizeof(a11y::UiaHost) >= 2 * detail::kCacheLine,
+              "UiaHost must hold two separate cache-line groups (issue #732)");
 
 } // namespace
 

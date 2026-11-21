@@ -27,7 +27,10 @@ inline constexpr std::string_view kChromeBackgroundValue = "#ffffff";
 inline constexpr std::string_view kChromeForegroundValue = "#111111";
 
 // One custom-property declaration a theme defines, in asset order.
-struct ThemeToken {
+//
+// `alignas(64)` (issue #732): two `std::string`s are exactly 64, so with the natural 8-byte
+// alignment seven of eight tokens straddle a line. The alignment changes no offset.
+struct alignas(64) ThemeToken {
     std::string name;
     std::string value;
 
@@ -111,7 +114,10 @@ struct ThemeError {
 [[nodiscard]] bool theme_version_satisfies_pin(std::string_view version, std::string_view pin);
 
 // One `assets.themePins` entry (project-config-v1.md): the theme id and the pin it must satisfy.
-struct ThemePin {
+//
+// `alignas(64)` (issue #732): two `std::string`s are exactly 64, so with the natural 8-byte
+// alignment seven of eight pins straddle a line. The alignment changes no offset.
+struct alignas(64) ThemePin {
     std::string theme;
     std::string pin;
 };
