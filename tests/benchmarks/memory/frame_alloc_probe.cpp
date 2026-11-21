@@ -23,7 +23,9 @@
 #include "tessera/ui/paint/paint_sink.hpp"
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/scene/paint_data.hpp"
+#include "tessera/ui/style/cascade.hpp"
 #include "tessera/ui/style/compiled_stylesheet.hpp"
+#include "tessera/ui/style/scene_style.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -261,6 +263,46 @@ int main(int argc, char** argv) {
         }
     }
     std::printf("# frame_alloc_probe: %d warm-up, %d measured frames per row\n", warmup, frames);
+    if (argc > 1 && std::strcmp(argv[1], "--computecheck") == 0) {
+        // Where do the allocations of one computed style go? Each row is the allocation count of
+        // one call after a warm-up call, so a one-time cache fill is not counted.
+        const auto sheet = tessera::ui::style::compile_stylesheet(kSheet);
+        const auto count_of = [](const char* label, auto&& fn) {
+            fn();
+            g_allocations = 0;
+            g_bytes = 0;
+            g_counting = true;
+            fn();
+            g_counting = false;
+            std::printf("%-46s %8zu allocs %9zu bytes\n", label, g_allocations, g_bytes);
+        };
+        Scene scene(3);
+        tessera::ui::style::SceneStyleTree tree(*scene.root);
+        const Node& root_node = *scene.root;
+        const Node& card_node = *scene.cards[0];
+        const Node& label_node = *scene.labels[0];
+        count_of("tree.compute(root)   depth 1", [&] { (void)tree.compute(sheet, root_node); });
+        count_of("tree.compute(card)   depth 2", [&] { (void)tree.compute(sheet, card_node); });
+        count_of("tree.compute(label)  depth 3", [&] { (void)tree.compute(sheet, label_node); });
+        count_of("registry.initial_style()", [&] { (void)sheet.registry().initial_style(); });
+        const tessera::ui::style::CascadeTable empty;
+        count_of("compute_style(nullptr, empty cascade)",
+                 [&] { (void)tessera::ui::style::compute_style(nullptr, empty); });
+        tessera::ui::style::ComputedStyle filled = sheet.registry().initial_style();
+        count_of("compute_style(parent=filled, empty cascade)",
+                 [&] { (void)tessera::ui::style::compute_style(&filled, empty); });
+        count_of("copy of a filled ComputedStyle", [&] {
+            tessera::ui::style::ComputedStyle copy = filled;
+            (void)copy;
+        });
+        std::printf("entries in a computed style: %zu\n", filled.properties().size());
+        std::size_t long_values = 0;
+        for (const auto& [k, v] : filled.properties()) {
+            long_values += v.size() > 15 ? 1 : 0;
+        }
+        std::printf("values longer than the SSO limit (15): %zu\n", long_values);
+        return 0;
+    }
     if (argc > 1 && std::strcmp(argv[1], "--classcheck") == 0) {
         struct ColorSink final : tessera::ui::paint::PaintSink {
             void fill_rect(const Rect&, const Color& c) override {

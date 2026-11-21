@@ -454,15 +454,6 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
 
 } // namespace
 
-SceneStyleProvider::SceneStyleProvider(const style::CompiledStyleSheet& sheet,
-                                       style::SceneStyleTree& tree)
-    : sheet_(&sheet),
-      tree_(&tree) {}
-
-style::ComputedStyle SceneStyleProvider::compute(const Node& node) {
-    return tree_->compute(*sheet_, node);
-}
-
 PaintStats paint_scene(const Node& root, StyleProvider& styles, PaintSink& sink,
                        const PaintContext& context) {
     PaintStats stats;

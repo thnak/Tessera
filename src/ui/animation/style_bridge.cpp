@@ -56,7 +56,7 @@ void StyleBridge::sync_node(AnimationRuntime& runtime, const Node& node, StyleBr
         return;
     }
 
-    style::ComputedStyle current = compute(context, node);
+    const style::ComputedStyle& current = compute(context, node);
     ++result.nodes;
 
     const TransitionParseResult parsed = parse_style_transitions(current);
@@ -68,7 +68,7 @@ void StyleBridge::sync_node(AnimationRuntime& runtime, const Node& node, StyleBr
         // the initial style never transitions. A snapshot is retained only for a node that declares
         // a transition, so a large static tree does not pay a full `ComputedStyle` per node.
         if (transitions) {
-            previous_.emplace(node.id(), TrackedStyle{std::move(current), generation});
+            previous_.emplace(node.id(), TrackedStyle{current, generation});
         }
     } else {
         if (transitions) {
@@ -100,7 +100,7 @@ void StyleBridge::sync_node(AnimationRuntime& runtime, const Node& node, StyleBr
             result.ids.insert(result.ids.end(), ids.begin(), ids.end());
         }
         if (transitions) {
-            found->second.style = std::move(current);
+            found->second.style = current;
             found->second.generation = generation;
         } else {
             // The transition declaration went away; drop the snapshot so the node stops being

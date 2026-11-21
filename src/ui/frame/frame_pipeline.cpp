@@ -34,8 +34,8 @@ void index_nodes(Node& node, std::unordered_map<NodeId, Node*>& index) {
 // Adapts the paint provider (compiled stylesheet, animation overlay or a test stub) to the
 // interaction sync so the scene gets `pointer-events`/`user-select` from the same computed style
 // paint and layout see.
-style::ComputedStyle interaction_style_thunk(void* context, const Node& node) {
-    return static_cast<paint::StyleProvider*>(context)->compute(node);
+const style::ComputedStyle& interaction_style_thunk(void* context, const Node& node) {
+    return static_cast<paint::StyleProvider*>(context)->resolve(node);
 }
 
 // An empty `@keyframes` table for a sheet without animations or a pipeline with no keyframes

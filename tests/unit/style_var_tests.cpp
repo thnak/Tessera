@@ -125,12 +125,48 @@ void test_inline_cycle() {
     check_value(computed, "background-color", "blue", "inline cycle consumer uses the fallback");
 }
 
+// The restyle memo (issue #711) computes each node from its parent's memoised cascade style instead
+// of re-walking the ancestor chain; it must produce exactly what the walk produces, including for a
+// node with inline declarations and for a child of a node with inline declarations (a parent's
+// inline style does not feed the child's inheritance, as in the walk).
+void test_memo_matches_walk() {
+    ui::Node root(10);
+    root.set_element_kind("View");
+    root.set_element_id("app");
+    ui::Node& mid = root.add_child(std::make_unique<ui::Node>(11));
+    mid.set_element_kind("View");
+    mid.set_class_name("card");
+    check(mid.set_inline_style("color", "blue"), "inline color on the middle node is accepted");
+    check(mid.set_inline_style("--gap", "4px"), "inline custom property is accepted");
+    ui::Node& leaf = mid.add_child(std::make_unique<ui::Node>(12));
+    leaf.set_element_kind("Text");
+    check(leaf.set_inline_style("padding-left", "var(--gap)"),
+          "inline var on the leaf is accepted");
+
+    const style::CompiledStyleSheet sheet = style::compile_stylesheet(
+        "#app { color: red; --accent: purple; }\n.card { background-color: var(--accent); }\n");
+
+    style::SceneStyleTree walked(root);
+    style::SceneStyleTree memoised(root);
+    memoised.begin_memo();
+    for (const ui::Node* node : {&root, &mid, &leaf}) {
+        const style::ComputedStyle expected = walked.compute(sheet, *node);
+        const style::ComputedStyle& actual = memoised.resolve(sheet, *node);
+        check(actual.properties() == expected.properties(),
+              "memoised style equals the walked style");
+        check(memoised.compute(sheet, *node).properties() == expected.properties(),
+              "compute under a memo equals the walked style");
+    }
+    memoised.end_memo();
+}
+
 } // namespace
 
 int main() {
     test_cascade_and_inheritance();
     test_inline_declarations();
     test_inline_cycle();
+    test_memo_matches_walk();
     if (failures != 0) {
         std::cerr << "style_var: " << failures << " failure(s)\n";
         return 1;

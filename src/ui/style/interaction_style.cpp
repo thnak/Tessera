@@ -79,7 +79,7 @@ void sync_node(Node& node, InteractionStyleFn compute, void* context,
         // walking them would only cost style computations.
         return;
     }
-    const ComputedStyle style = compute(context, node);
+    const ComputedStyle& style = compute(context, node);
     ++result.nodes;
 
     const bool pointer_events = pointer_events_enabled(style.find("pointer-events"));

@@ -56,11 +56,13 @@ struct StubStyles {
              const char* cursor = nullptr) {
         nodes[&node] = Values{pointer_events, user_select, cursor};
     }
+    ComputedStyle scratch;
 };
 
-ComputedStyle stub_compute(void* context, const Node& node) {
+const ComputedStyle& stub_compute(void* context, const Node& node) {
     StubStyles& styles = *static_cast<StubStyles*>(context);
-    ComputedStyle style;
+    ComputedStyle& style = styles.scratch;
+    style = ComputedStyle{};
     const auto found = styles.nodes.find(&node);
     if (found == styles.nodes.end()) {
         return style;

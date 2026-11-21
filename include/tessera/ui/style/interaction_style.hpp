@@ -11,7 +11,9 @@ namespace tessera::ui::style {
 
 // Computes one node's style for the sync below. The frame pipeline binds its
 // `paint::StyleProvider`; tests pass a stub. Never null.
-using InteractionStyleFn = ComputedStyle (*)(void* context, const Node& node);
+// Returns a reference so a provider that memoises (issue #711) is read without copying the map. It
+// must stay valid until the next call.
+using InteractionStyleFn = const ComputedStyle& (*)(void* context, const Node& node);
 
 struct InteractionStyleSyncResult {
     std::size_t nodes = 0;                  // visible nodes whose style was inspected
