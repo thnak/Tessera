@@ -217,7 +217,11 @@ elseif (ANDROID)
         # android_input_translation.cpp, which includes no NDK header and is unit-tested on every
         # lane; android_input.cpp is the NDK-facing half.
         ${PROJECT_SOURCE_DIR}/src/platform/android/android_input.cpp
-        ${PROJECT_SOURCE_DIR}/src/platform/android/android_input_translation.cpp)
+        ${PROJECT_SOURCE_DIR}/src/platform/android/android_input_translation.cpp
+        # Window-metrics decode (issue #189, mobile-integration.md sections 3.5/3.6). The pure rules
+        # are in android_metrics_translation.cpp, which includes no Android header and is
+        # unit-tested on every lane.
+        ${PROJECT_SOURCE_DIR}/src/platform/android/android_metrics_translation.cpp)
     target_include_directories(tessera_hal_window PRIVATE
         ${PROJECT_SOURCE_DIR}/src/platform/android)
     # libandroid provides ANativeWindow_acquire/release, the extent queries and AInputEvent.

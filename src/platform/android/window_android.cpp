@@ -28,6 +28,7 @@
 // the surface is gone, so a renderer can never present into a dead window.
 
 #include "android_input.hpp"
+#include "android_metrics_translation.hpp"
 #include "tessera/hal/surface.hpp"
 #include "tessera/hal/timer/steady_time.hpp"
 #include "tessera/hal/window.hpp"
@@ -37,6 +38,7 @@
 #include <cmath>
 #include <cstdint>
 #include <memory>
+#include <span>
 
 namespace tessera::hal {
 namespace {
@@ -93,20 +95,30 @@ public:
     }
 
     std::size_t poll_events(std::span<WindowEvent> events) override {
-        // No event source is wired yet (see the file comment). The one event this backend can
-        // produce on its own is a resize the host reported through `set_surface_extent`, which is
-        // queued here and coalesced like every other geometry event.
-        if (pending_resize_ && !events.empty()) {
-            pending_resize_ = false;
+        // The events this backend produces are the ones the host reported through its setters. They
+        // are queued here and coalesced like every other geometry event: a resize, a safe-area
+        // change (insets or cutouts) and a fold change are each at most one pending event, so a
+        // burst of platform callbacks between two ticks costs one event per kind.
+        if (events.empty()) {
+            return 0;
+        }
+        std::size_t written = 0;
+        auto emit = [&](WindowEventType type, bool& pending) {
+            if (!pending || written == events.size()) {
+                return;
+            }
+            pending = false;
             WindowEvent event;
-            event.type = WindowEventType::Resize;
+            event.type = type;
             event.metrics = metrics_;
             event.reason = EventReason::Unspecified;
             event.sequence = ++sequence_;
-            events[0] = event;
-            return 1;
-        }
-        return 0;
+            events[written++] = event;
+        };
+        emit(WindowEventType::Resize, pending_resize_);
+        emit(WindowEventType::SafeAreaChanged, pending_safe_area_);
+        emit(WindowEventType::FoldChanged, pending_fold_);
+        return written;
     }
 
     bool wait_for_events(double timeout_seconds) override {
@@ -116,7 +128,7 @@ public:
         if (std::isfinite(timeout_seconds) && timeout_seconds > 0.0) {
             wait_until_seconds(steady_now_seconds() + timeout_seconds);
         }
-        return pending_resize_;
+        return pending_resize_ || pending_safe_area_ || pending_fold_;
     }
 
     void set_input_queue(ui::InputQueue* queue) override {
@@ -196,6 +208,32 @@ public:
         pending_resize_ = true;
     }
 
+    // The platform reported new window insets (a bar visibility change, a rotation, a fold). The
+    // values are physical pixels; the decode divides by the display scale.
+    void set_insets(const android::PhysicalInsets& system_bars, const android::PhysicalInsets& ime,
+                    const android::PhysicalInsets& gestures) {
+        metrics_.insets = android::system_bar_insets(system_bars, dpi_scale_);
+        metrics_.ime_insets = android::ime_insets(ime, dpi_scale_);
+        metrics_.gesture_insets = android::gesture_insets(gestures, dpi_scale_);
+        // The insets are now measured, so the "assumed" bits for them are cleared. The refresh and
+        // work-area bits stay set: this backend still has no source for those.
+        metrics_.assumed.work_area = 1;
+        pending_safe_area_ = true;
+    }
+
+    // The platform reported the display cutouts (`DisplayCutout.getBoundingRects()`).
+    void set_cutouts(std::span<const android::PhysicalRect> rects) {
+        metrics_.cutouts = android::cutout_info(rects, dpi_scale_);
+        pending_safe_area_ = true;
+    }
+
+    // The platform reported a fold posture (`FoldingFeature`).
+    void set_fold(android::FoldPosture posture, android::FoldAxis axis,
+                  const android::PhysicalRect& hinge) {
+        metrics_.fold = android::fold_info(posture, axis, hinge, dpi_scale_);
+        pending_fold_ = true;
+    }
+
     // The surface the renderer borrows. Invalid once the window is closed or replaced.
     [[nodiscard]] NativeSurface surface() const {
         SurfaceDesc desc;
@@ -244,6 +282,8 @@ private:
     bool visible_ = true;
     bool closed_ = false;
     bool pending_resize_ = false;
+    bool pending_safe_area_ = false;
+    bool pending_fold_ = false;
 };
 
 } // namespace
