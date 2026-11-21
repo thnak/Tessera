@@ -218,6 +218,9 @@ enum class WindowSystem : std::uint8_t {
     Win32,
     Xlib,
     Wayland,
+    // Android: `native_handle().window` is an `ANativeWindow*` and `display` is unused. The surface
+    // is created with `vkCreateAndroidSurfaceKHR` (see rhi::SurfacePlatform::Android).
+    Android,
 };
 
 // The number of `WindowEventType` enumerators. The rules table is indexed by the enumerator value

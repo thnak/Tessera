@@ -125,6 +125,8 @@ tessera::rendering::rhi::SurfacePlatform surface_platform_for(const tessera::hal
         return tessera::rendering::rhi::SurfacePlatform::Xlib;
     case tessera::hal::WindowSystem::Wayland:
         return tessera::rendering::rhi::SurfacePlatform::Wayland;
+    case tessera::hal::WindowSystem::Android:
+        return tessera::rendering::rhi::SurfacePlatform::Android;
     case tessera::hal::WindowSystem::NoWindow:
         break;
     }
