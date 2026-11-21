@@ -2114,6 +2114,10 @@ struct include/tessera/ui/layout/layout_read_model.hpp tessera::ui::layout::Layo
 header include/tessera/ui/layout/layout_scheduler.hpp
 class include/tessera/ui/layout/layout_scheduler.hpp tessera::ui::layout::LayoutScheduler
 
+header include/tessera/ui/layout/layout_settle.hpp
+class include/tessera/ui/layout/layout_settle.hpp tessera::ui::layout::LayoutSettle
+struct include/tessera/ui/layout/layout_settle.hpp tessera::ui::layout::LayoutSettleResult
+
 header include/tessera/ui/layout/layout_signature.hpp
 function include/tessera/ui/layout/layout_signature.hpp tessera::ui::layout::layout_signature
 

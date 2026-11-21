@@ -11,6 +11,7 @@
 #include "tessera/compiler/ir/module.hpp"
 #include "tessera/hal/fold_posture.hpp"
 #include "tessera/ui/behavior/instance.hpp"
+#include "tessera/ui/layout/layout_settle.hpp"
 #include "tessera/ui/scene/input_dispatch.hpp"
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/scene/state_snapshot.hpp"
@@ -213,6 +214,20 @@ public:
         return sheet_;
     }
 
+    // The ADR-041 settle loop of this session (issue #693): the same shared component `AppHost`
+    // runs, so the preview cannot drift from the runtime. It is driven from `rebuild()` and
+    // `relayout()`, which publish the layout and then run the loop, so a `@container` rule that
+    // crossed a condition has re-styled before the caller paints. The canvas has no
+    // `UpdateScheduler`, which the loop accepts as "no app callbacks to flush".
+    [[nodiscard]] const ui::layout::LayoutSettle& settle() const noexcept {
+        return settle_;
+    }
+    // The settle counters, for a report or a test: rounds, engine rounds, deferred observations and
+    // round-limit hits.
+    [[nodiscard]] const ui::layout::SettleTotals& settle_totals() const noexcept {
+        return settle_.totals();
+    }
+
     // The `WindowMetrics` the current tree was laid out against, fold included. A caller reports or
     // compares what the tree was actually sized to rather than rebuilding the snapshot.
     [[nodiscard]] const tessera::hal::WindowMetrics& metrics() const noexcept {
@@ -339,6 +354,9 @@ private:
     const ir::Component& component_;
     ui::style::CompiledStyleSheet sheet_;
     Options options_;
+    // The ADR-041 settle loop (issue #693): the read model, the container-query tracker and the
+    // app observations, shared with `AppHost` so the preview and the runtime cannot disagree.
+    ui::layout::LayoutSettle settle_;
     // The media context `sheet_` was resolved against (issue #436), so a viewport change can ask
     // whether a `@media` answer moves before resolving anything.
     ui::style::MediaContext media_;

@@ -66,8 +66,19 @@ breakpoint leaves the counter alone while the boxes move. A design-time viewport
 `@supports` and `@container` are unaffected: neither is a function of the window rectangle
 (container queries are relative to an ancestor's box, section 10).
 
-`@container` size queries are evaluated by the style engine (ADR-041 slice 8; the settle-loop observer that re-resolves on a crossed condition exists, the app host that wires it does not yet). Until a host wires it, use size classes derived
-from metrics or explicit props.
+`@container` size queries are evaluated by the style engine and wired into the runtime (ADR-041
+slice 8, issue #693). The shared `ui::layout::LayoutSettle` component owns the layout read model, the
+`ContainerQueryTracker` and the bounded settle loop; `AppHost` and the Studio canvas session both
+call it, so the preview cannot drift from the runtime. After every layout pass the host publishes the
+committed boxes, the tracker compares each query container's content box with the size it was last
+styled at, and a container whose `@container` answer changed marks its descendants `Dirty::Style`.
+The settle round then re-runs style and layout **in the same tick**, so the frame that paints a
+resize already paints the responsive result: there is no frame with the stale layout. A resize that
+crosses no condition costs one layout pass and no style work, and a stylesheet without `@container`
+pays one boolean test per frame. The round budget is `layoutObservationMaxRounds` (default 4, range
+1..16); a rule that flips its own container's size terminates at the limit with
+`TESSERA_LAYOUT_OBSERVER_LOOP` and never hangs the frame. Evidence: `layout_settle_host`
+(`tests/unit/layout_settle_host_tests.cpp`).
 
 ## 3. Size classes
 
@@ -142,8 +153,10 @@ Rules:
 
 ## 10. Open questions
 
-- Container queries and their invalidation model. Proposed: evaluated after layout inside the
-  settle rounds of [`layout-observation.md`](layout-observation.md) section 5.4 (ADR-041, Proposed).
+- Container queries and their invalidation model. **Resolved** (ADR-041, Accepted 2026-11-11;
+  implemented by issue #693): evaluated after layout inside the settle rounds of
+  [`layout-observation.md`](layout-observation.md) section 5.4, wired into `AppHost` and the Studio
+  canvas session through the shared `ui::layout::LayoutSettle` component (section 2.2).
 - Breakpoint tokens in the theme vs app-authored CSS.
 - Safe-area behavior for background layers vs content.
 - Fold continuity across Android process restart.

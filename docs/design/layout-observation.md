@@ -1,8 +1,7 @@
 # Layout observation: size changes, layout reads, and container queries
 
-Status: design only (accepted in [ADR-041](../../decisions/ADR-041-layout-observation.md)).
-Nothing here is implemented. Written 2026-11-11 in answer to "is there a component listener for
-size changes, like the DOM `ResizeObserver`?". Builds on
+Status: implemented for container queries and the settle loop (ADR-041, issue #693); the
+`onSizeChange` TSX surface is implemented end to end (issue #694). Builds on
 [ADR-020](../../decisions/ADR-020-window-resize-and-lifecycle.md) (window resize and lifecycle),
 the update scheduler of issue #5 (`include/tessera/ui/scene/update_scheduler.hpp`), the frame
 order of [`app-host.md`](app-host.md) and the tick of [`game-loop.md`](game-loop.md) section 3.
@@ -437,6 +436,10 @@ Each slice is behavior + tests + docs and leaves `main` green. Dependency order:
    `TESSERA_LAYOUT_OBSERVER_LOOP` warning is per window, once after `kLoopReportTicks` backlog ticks
    (observations do not carry a `uiId` yet, so it does not name a node). Reading the config key
    waits for the runtime-config loader.
+   **Wired (issue #693):** `ui::layout::LayoutSettle` is the shared host component (see slice 8c);
+   `AppHost::layout_settle_totals()` exposes the counters, and `HostConfig::layout_observation_max_rounds`
+   carries the `layoutObservationMaxRounds` key from `RuntimeConfig` (`src/app/window.cpp`). The
+   scheduler argument is nullable, which is what lets the Studio canvas session run the same loop.
 4. **Equality-gated setters** in codegen (independent; can land any time). Tests
    `setter_equality`, golden updates.
 5. **`onSizeChange` front end + IR validator + typings**, then **codegen** (two commits).
@@ -465,9 +468,28 @@ Each slice is behavior + tests + docs and leaves `main` green. Dependency order:
    container was styled at and marks its descendants style-dirty only when a query result
    changed; `SettleHooks::engine_observe` runs it at the start of every round of
    `observe_and_settle`, before app observations, sharing the round budget
-   (`SettleStats::engine_rounds`; test `container_query_settle`). Not yet: the host that
-   registers containers from computed `container-type` and wires the hook (the app host is
-   design-only), the `container` shorthand, container style queries.
+   (`SettleStats::engine_rounds`; test `container_query_settle`).
+   Done (8c, issue #693): the host that registers containers from computed `container-type` and
+   wires the hook. `ui::layout::LayoutSettle` (`include/tessera/ui/layout/layout_settle.hpp`) is the
+   one shared component: it owns the `LayoutReadModel`, the `ContainerQueryTracker`, the
+   `LayoutObserverSet` and the `LayoutSettleState`, and `run()` is the single entry point called
+   right after a tick's first layout was applied. `AppHost` calls it from `begin_frame` (through
+   `settle_layout()`, whose relayout hook is the frame's own `restyle_and_layout` sequence, so a
+   settle round cannot paint a stale style generation or replay a stale paint cache) and the Studio
+   canvas session calls it from `rebuild()` and `relayout()`, so the first frame after a viewport
+   change is already settled. The gate is `CompiledStyleSheet::has_container_queries()` plus a
+   non-empty tracker, re-evaluated on every style pass: an app with no `@container` pays one boolean
+   test per frame. `SceneStyleTree` memoises `@container` resolution too (each memo entry carries the
+   query-container chain it was computed under), so a container query costs no ancestor walk per
+   node. The tracker survives a restyle in place and prunes only the entries a rebuilt tree no
+   longer contains (`begin_pass`/`end_pass`), so a container keeps the size it was last styled at and
+   a resize inside one condition costs no engine round. `observe_and_settle` takes a nullable
+   scheduler: the canvas has no `UpdateScheduler`, and a null one means "no app callbacks to flush"
+   rather than a dummy. Evidence: `layout_settle_host` (`tests/unit/layout_settle_host_tests.cpp`).
+   Not yet: the `container` shorthand, container style queries, and real size containment
+   (`container-type` is only used to register containers, so a content-sized container whose own
+   `@container` rule changes its content can oscillate; the round budget stops it, and real
+   containment is issue #691's follow-up).
 
 ## 10. Owner decisions
 

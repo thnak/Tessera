@@ -166,8 +166,13 @@ void PreviewSession::rebuild() {
     apply_overrides();
     ui::layout::LayoutEngine engine(options_.measurer);
     const SceneLayoutResult laid_out =
-        layout_scene(*root_, sheet_, engine, layout_metrics_, options_.measurer);
+        layout_scene(*root_, sheet_, engine, layout_metrics_, options_.measurer, &settle_);
     metrics_ = laid_out.metrics;
+    // ADR-041 steps 4a/4b (issue #693): the pass published its layout and registered the query
+    // containers, so the settle loop can deliver the observations and re-style a container whose
+    // condition crossed. The canvas has no `UpdateScheduler`, which the loop accepts as "no app
+    // callbacks to flush".
+    (void)settle_.run();
     // After layout, so a behavior that reads a node's box sees the final one. A behavior attaches
     // only when every target ref resolved to a built node.
     attach_behaviors(built);
@@ -185,11 +190,15 @@ void PreviewSession::rebuild() {
 bool PreviewSession::relayout() {
     ui::layout::LayoutEngine engine(options_.measurer);
     const SceneLayoutResult laid_out =
-        layout_scene(*root_, sheet_, engine, layout_metrics_, options_.measurer);
+        layout_scene(*root_, sheet_, engine, layout_metrics_, options_.measurer, &settle_);
     if (!laid_out.error.empty()) {
         return false;
     }
     metrics_ = laid_out.metrics;
+    // The settle loop runs in the same call, so the first frame after a resize is already settled:
+    // a container query that crossed a condition has re-styled and re-laid out before this returns
+    // (issue #693's "no frame with the stale layout" criterion).
+    (void)settle_.run();
     // A frame is owed even in the case where every box happens to land where it already was: the
     // viewport the picture is painted into changed, and `needs_frame()` is the caller's only
     // signal.

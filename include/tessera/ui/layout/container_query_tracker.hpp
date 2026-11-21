@@ -31,6 +31,14 @@ public:
     void remove(const Node& container);
     void clear();
 
+    // One style pass over a REBUILT selector tree (issue #693 decision 2). `begin_pass` marks every
+    // entry unseen, `add` marks the containers the pass found, and `end_pass` drops the entries no
+    // pass touched: their `Node*` may already be dangling. A container that survived the rebuild
+    // keeps the size it was last styled at, which is what makes a resize inside one condition cost
+    // no engine round even though the tree was rebuilt.
+    void begin_pass();
+    void end_pass();
+
     // Compares each container's published content box with the size it was last styled at.
     // Returns the number of containers whose query results changed; their descendants are marked
     // Dirty::Style. A container with no published layout is skipped and stays unstyled. A container
@@ -53,6 +61,8 @@ private:
         std::string names;
         bool styled = false;
         style::ContainerSize last;
+        // Set by `add` during a pass; `end_pass` drops the entries it did not touch.
+        bool seen = false;
     };
 
     std::vector<Entry> entries_;

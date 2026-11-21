@@ -68,8 +68,11 @@ struct SettleHooks {
 
 class LayoutSettleState;
 
+// `scheduler` may be null: a host with no `UpdateScheduler` (the Studio canvas session) has no app
+// callbacks to flush, so a round that delivered observations simply ends the loop instead of
+// flushing a dummy scheduler (issue #693 decision 3).
 SettleStats observe_and_settle(LayoutObserverSet& observers, const LayoutReadModel& model,
-                               UpdateScheduler& scheduler, const SettleHooks& hooks,
+                               UpdateScheduler* scheduler, const SettleHooks& hooks,
                                LayoutSettleState& state);
 
 // Persistent per-window state of the settle loop: the totals and the consecutive-tick counter that
@@ -85,7 +88,7 @@ public:
 
 private:
     friend SettleStats observe_and_settle(LayoutObserverSet&, const LayoutReadModel&,
-                                          UpdateScheduler&, const SettleHooks&, LayoutSettleState&);
+                                          UpdateScheduler*, const SettleHooks&, LayoutSettleState&);
     SettleTotals totals_;
     std::uint32_t backlog_ticks_ = 0;
 };
@@ -100,7 +103,7 @@ private:
 //
 // With nothing attached this costs one size check. UI thread only.
 SettleStats observe_and_settle(LayoutObserverSet& observers, const LayoutReadModel& model,
-                               UpdateScheduler& scheduler, const SettleHooks& hooks,
+                               UpdateScheduler* scheduler, const SettleHooks& hooks,
                                LayoutSettleState& state);
 
 } // namespace tessera::ui::layout

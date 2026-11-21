@@ -319,6 +319,17 @@ target_link_libraries(app_host_tests PRIVATE tessera_app tessera_runtime)
 
 add_test(NAME app_host COMMAND app_host_tests)
 
+# The ADR-041 settle loop wired into a real AppHost (issue #693): a `@container` rule that crosses a
+# condition re-styles in the same tick as the resize, a resize inside one condition costs no engine
+# round, a stylesheet without `@container` pays nothing, and the round budget terminates a
+# self-sizing rule instead of hanging the frame. Headless: ManualClock, null paint sink.
+add_executable(layout_settle_host_tests
+    layout_settle_host_tests.cpp)
+
+target_link_libraries(layout_settle_host_tests PRIVATE tessera_app tessera_runtime)
+
+add_test(NAME layout_settle_host COMMAND layout_settle_host_tests)
+
 # The host half of issue #187's acceptance: "the host updates reducedMotion and the media queries".
 # It drives the real AppHost with a media-independent prepared sheet (ADR-048's resolve step) and
 # asserts both `reducedMotion` reaching the animation/spring runtimes and the

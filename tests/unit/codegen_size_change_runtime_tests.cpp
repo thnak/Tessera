@@ -54,18 +54,18 @@ void test_delivery_and_detach() {
     layout::LayoutReadModel model;
     layout::LayoutSettleState settle;
     publish(model, 700.0f, page.child_2().node_id_base_);
-    layout::observe_and_settle(observers, model, scheduler, layout::SettleHooks{}, settle);
+    layout::observe_and_settle(observers, model, &scheduler, layout::SettleHooks{}, settle);
     check(page.child_2().wide(), "the inline handler saw width 700 and set wide");
     check(page.child_2().resized() == 1, "the parameterless handler ran");
 
     publish(model, 500.0f, page.child_2().node_id_base_);
-    layout::observe_and_settle(observers, model, scheduler, layout::SettleHooks{}, settle);
+    layout::observe_and_settle(observers, model, &scheduler, layout::SettleHooks{}, settle);
     check(!page.child_2().wide(), "a later, narrower size clears wide");
 
     page.detach_layout_observers(observers);
     check(observers.size() == 0, "detach removes every observation, instance included");
     publish(model, 900.0f, page.child_2().node_id_base_);
-    layout::observe_and_settle(observers, model, scheduler, layout::SettleHooks{}, settle);
+    layout::observe_and_settle(observers, model, &scheduler, layout::SettleHooks{}, settle);
     check(!page.child_2().wide(), "a detached component receives nothing");
     page.detach_scheduler(scheduler);
 }

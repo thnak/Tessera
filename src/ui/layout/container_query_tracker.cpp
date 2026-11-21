@@ -34,10 +34,11 @@ void ContainerQueryTracker::add(Node& container, bool block_axis, std::string_vi
         if (entry.node == &container) {
             entry.block_axis = block_axis;
             entry.names = std::string(names);
+            entry.seen = true;
             return;
         }
     }
-    entries_.push_back(Entry{&container, block_axis, std::string(names), false, {}});
+    entries_.push_back(Entry{&container, block_axis, std::string(names), false, {}, true});
 }
 
 void ContainerQueryTracker::remove(const Node& container) {
@@ -48,6 +49,20 @@ void ContainerQueryTracker::remove(const Node& container) {
 
 void ContainerQueryTracker::clear() {
     entries_.clear();
+}
+
+void ContainerQueryTracker::begin_pass() {
+    for (Entry& entry : entries_) {
+        entry.seen = false;
+    }
+}
+
+void ContainerQueryTracker::end_pass() {
+    // A container the pass did not find is gone from the tree, so its `Node*` may already be
+    // dangling: dropping it is the only safe answer.
+    entries_.erase(
+        std::remove_if(entries_.begin(), entries_.end(), [](const Entry& e) { return !e.seen; }),
+        entries_.end());
 }
 
 std::size_t ContainerQueryTracker::update(const LayoutReadModel& model,

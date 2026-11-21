@@ -112,13 +112,22 @@ hal::WindowMetrics simulated_metrics(const SceneMetrics& metrics) noexcept {
 
 SceneLayoutResult layout_scene(ui::Node& root, const ui::style::CompiledStyleSheet& sheet,
                                ui::layout::LayoutEngine& engine, const SceneMetrics& metrics,
-                               std::shared_ptr<const text::TextMeasurer> measurer) {
+                               std::shared_ptr<const text::TextMeasurer> measurer,
+                               ui::layout::LayoutSettle* settle) {
     SceneLayoutResult result;
     result.metrics = simulated_metrics(metrics);
     // The window rectangle is applied to the layout input rather than to the node's inline style:
     // an inline declaration borrows its text from the caller, and a layout pass must not leave the
     // tree pointing at storage that dies with the call.
     ui::style::SceneStyleTree tree(root);
+    // The settle loop's container source is installed on the tree BEFORE the style pass, so a
+    // `@container` rule resolves against the layout published by the previous pass (issue #693).
+    // The first pass of a session therefore resolves every container rule as unapplied, which is
+    // the documented first-frame cost: the engine observer counts the container as changed and the
+    // settle round re-styles it in the same tick.
+    if (settle != nullptr) {
+        settle->install_container_source(tree);
+    }
     ui::layout::LayoutInput input = build_layout_input(root, tree, sheet, result.metrics);
     input.style.set("width", pixels(metrics.width));
     input.style.set("height", pixels(metrics.height));
@@ -145,6 +154,13 @@ SceneLayoutResult layout_scene(ui::Node& root, const ui::style::CompiledStyleShe
     const ui::layout::LayoutApplyResult applied = ui::layout::apply_layout(laid_out, root);
     result.applied = applied.applied;
     result.nodes = laid_out.boxes.size();
+    if (settle != nullptr) {
+        // Publish the committed layout and re-register the containers this style pass found, so the
+        // caller's `run()` sees the boxes it just wrote (ADR-041 steps 4a and 4b). The style tree
+        // is built fresh for every pass here, so the tracker is always re-registered from scratch.
+        settle->publish(laid_out, result.metrics.dpi_scale);
+        settle->register_containers(root, tree, sheet, true);
+    }
     return result;
 }
 
