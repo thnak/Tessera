@@ -121,6 +121,9 @@ void replay_paint_ops(const std::vector<PaintOp>& ops, PaintSink& sink) {
         case PaintOp::Kind::FillRadialGradient:
             sink.fill_radial_gradient(op.radial_gradient);
             break;
+        case PaintOp::Kind::FillConicGradient:
+            sink.fill_conic_gradient(op.conic_gradient);
+            break;
         case PaintOp::Kind::PushClip:
             sink.push_clip(op.clip);
             break;
