@@ -28,6 +28,7 @@
 
 #include "tessera/diagnostics/memory.hpp"
 #include "tessera/ui/input.hpp"
+#include "tessera/ui/paint/paint_cache.hpp"
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/scene/paint_data.hpp"
 #include "tessera/ui/style/cascade.hpp"
@@ -50,6 +51,7 @@ namespace {
 namespace diag = tessera::diagnostics;
 namespace ui = tessera::ui;
 namespace style = tessera::ui::style;
+namespace paint = tessera::ui::paint;
 
 // Allocation accounting. Global replacement so every allocation in the process is counted,
 // including the ones the standard library makes on behalf of the types under test.
@@ -131,6 +133,11 @@ void sizes() {
     row("sizeof_paint_data", sizeof(ui::PaintData));
     row("sizeof_computed_style", sizeof(style::ComputedStyle));
     row("sizeof_node_id", sizeof(ui::NodeId));
+    // The paint cache's recorded op (issue #731). It was 2376 bytes while every payload sat inline;
+    // the cache charges `ops.capacity() * sizeof(PaintOp)` against a 2 MiB budget, so this number
+    // decides how many nodes the cache can hold.
+    row("sizeof_paint_op", sizeof(paint::PaintOp));
+    row("sizeof_paint_record", sizeof(paint::PaintRecord));
 
     // `ComputedStyle` is a `std::map` handle, so its sizeof is the handle and not the per-node
     // style cost: the cost is the first insert's map node plus its two strings. Both are

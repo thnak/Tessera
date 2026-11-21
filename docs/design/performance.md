@@ -96,7 +96,7 @@ Frame budgets say nothing about resident memory, which regresses late and on mob
 | ARIA table (first `aria-*`) | 520 bytes, once per node | lazy; `node_size` test counts allocations; `aria_table_bytes` row |
 | Inline-style table (first declaration) | 520 bytes, once per node | lazy; `node_size` test; `inline_style_table_bytes` row |
 | Event-binding table (first binding) | 200 bytes, once per node | lazy; `node_size` test; `event_binding_table_bytes` row |
-| Paint payload (text/image node) | 512 bytes plus its string; 520 allocated on first use | lazy; `node_size` test; `sizeof_paint_data` and `paint_slot_bytes` rows |
+| Paint payload (text/image node) | 512 bytes plus its string; 520 allocated on first use. The paint cache's recorded op is 104 bytes, down from 2376 while every draw payload sat inline (issue #731 made the payload a `std::variant` and moved the gradient shapes to `PaintRecord::gradients`, so the 2 MiB budget holds 1159 entries instead of 104) | lazy; `node_size` test; `sizeof_paint_data`, `paint_slot_bytes` and `sizeof_paint_op` rows; `paint_op_size` test |
 | `InputEvent` | 320 bytes (the 256-event queue is about 80 KiB; the members were grouped by alignment in the security review, finding C5, which removed 24 bytes of internal padding) | `sizeof_input_event` row (was measured but unasserted) |
 | `ComputedStyle` (first property) | 96 bytes per styled node (208 in MSVC Debug); the handle itself is 16 bytes on MSVC, 48 on libstdc++ | `computed_style_one_property_bytes` row |
 | `NodeId` | 8 bytes, and it is repeated in every side table (paint cache, resolved styles, dirty list, damage) | `sizeof_node_id` row |
