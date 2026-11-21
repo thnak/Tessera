@@ -2121,6 +2121,7 @@ class include/tessera/ui/layout/layout_scheduler.hpp tessera::ui::layout::Layout
 
 header include/tessera/ui/layout/layout_signature.hpp
 function include/tessera/ui/layout/layout_signature.hpp tessera::ui::layout::layout_signature
+function include/tessera/ui/layout/layout_signature.hpp tessera::ui::layout::style_layout_digest
 
 header include/tessera/ui/layout/pixel_snap.hpp
 function include/tessera/ui/layout/pixel_snap.hpp tessera::ui::layout::round_half_up
@@ -2224,6 +2225,7 @@ constant include/tessera/ui/paint/paint_text_metrics.hpp tessera::ui::paint::kSt
 header include/tessera/ui/paint/scene_style_sync.hpp
 struct include/tessera/ui/paint/scene_style_sync.hpp tessera::ui::paint::SceneStyleSyncResult
 function include/tessera/ui/paint/scene_style_sync.hpp tessera::ui::paint::sync_scene_style
+function include/tessera/ui/paint/scene_style_sync.hpp tessera::ui::paint::sync_scene_style_scoped
 
 header include/tessera/ui/paint/text_layout_cache.hpp
 class include/tessera/ui/paint/text_layout_cache.hpp tessera::ui::paint::TextLayoutCache
@@ -2576,6 +2578,10 @@ struct include/tessera/ui/style/keyframes.hpp tessera::ui::style::KeyframeBlock
 struct include/tessera/ui/style/keyframes.hpp tessera::ui::style::KeyframeStep
 struct include/tessera/ui/style/keyframes.hpp tessera::ui::style::KeyframesParseResult
 function include/tessera/ui/style/keyframes.hpp tessera::ui::style::parse_keyframes
+
+header include/tessera/ui/style/layout_digest.hpp
+function include/tessera/ui/style/layout_digest.hpp tessera::ui::style::is_layout_property
+function include/tessera/ui/style/layout_digest.hpp tessera::ui::style::layout_digest
 
 header include/tessera/ui/style/media_query.hpp
 struct include/tessera/ui/style/media_query.hpp tessera::ui::style::MediaCondition

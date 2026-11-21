@@ -17,9 +17,19 @@
 #include <cstdlib>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace tessera::ui::paint {
 namespace {
+
+// How far `node` is from the root, for ordering the scoped sync's ancestor refold.
+std::size_t depth_of(const Node& node) {
+    std::size_t depth = 0;
+    for (const Node* parent = node.parent(); parent != nullptr; parent = parent->parent()) {
+        ++depth;
+    }
+    return depth;
+}
 
 std::string_view trim(std::string_view text) {
     const auto first = text.find_first_not_of(" \t\r\n\f");
@@ -141,6 +151,50 @@ SceneStyleSyncResult sync_scene_style(Node& root, StyleProvider& styles,
         memo->begin();
     }
     sync_node(root, styles, glass, memo, result);
+    if (memo != nullptr) {
+        memo->sweep();
+    }
+    return result;
+}
+
+SceneStyleSyncResult sync_scene_style_scoped(StyleProvider& styles,
+                                             std::span<const Node* const> roots,
+                                             const rendering::gpu::GlassLimits& glass,
+                                             style::SyncMemo* memo) {
+    SceneStyleSyncResult result;
+    if (roots.empty()) {
+        return result;
+    }
+    if (memo != nullptr) {
+        memo->begin();
+    }
+    // The ancestors of every root, nearest-last, so `glass_subtree` refolds bottom-up. A root's
+    // ancestors did not restyle, but their `glass_subtree` fact depends on their descendants, so
+    // they must be revisited after the roots below them.
+    std::vector<Node*> ancestors;
+    for (const Node* root_node : roots) {
+        for (Node* parent = root_node->parent(); parent != nullptr; parent = parent->parent()) {
+            if (std::find(ancestors.begin(), ancestors.end(), parent) == ancestors.end()) {
+                ancestors.push_back(parent);
+            }
+        }
+    }
+    // Deepest first, so a parent's refold sees its children's final value.
+    std::sort(ancestors.begin(), ancestors.end(),
+              [](const Node* a, const Node* b) { return depth_of(*a) > depth_of(*b); });
+    for (const Node* root_node : roots) {
+        sync_node(const_cast<Node&>(*root_node), styles, glass, memo, result);
+    }
+    for (Node* ancestor : ancestors) {
+        // Only the glass refold is owed here: the ancestor's own style and box are unchanged, so
+        // its z-index/transform/outsets are already applied. Re-running the full sync would be
+        // correct but would re-derive what the memo already proves.
+        bool subtree_has_glass = ancestor->glass_blur_sigma() > 0.0f;
+        for (const auto& child : ancestor->children()) {
+            subtree_has_glass = child->glass_subtree() || subtree_has_glass;
+        }
+        ancestor->set_glass_subtree(subtree_has_glass);
+    }
     if (memo != nullptr) {
         memo->sweep();
     }

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "tessera/ui/style/layout_digest.hpp"
 #include "tessera/ui/style/scene_style.hpp"
 
 #include <algorithm>
@@ -76,12 +77,24 @@ void SceneStyleTree::fill_view(Entry& entry, const Node& node, StyleNode* parent
 }
 
 void SceneStyleTree::build(const Node& node, StyleNode* parent) {
+    build_node(node, parent);
+    // The memo is a dense array parallel to `entries_` (issue #735, slice G), and `resolve` hands
+    // out references into it. Sizing it here, once, is what keeps those references valid for the
+    // tree's lifetime: a `std::vector` that grew later would move every element it already holds.
+    // `build_node` has just filled `entries_`, so this is the one moment the node count is known.
+    // Nothing resolves during the build, so growing the arrays while it ran would have been safe
+    // too - but reserving once is what makes the "reference stays valid" contract provable.
+    memo_.resize(entries_.size());
+    memoised_.assign(entries_.size(), std::uint8_t{0});
+}
+
+void SceneStyleTree::build_node(const Node& node, StyleNode* parent) {
     entries_.emplace_back();
     Entry& stored = entries_.back();
     index_.emplace(&node, entries_.size() - 1);
     fill_view(stored, node, parent);
     for (const auto& child : node.children()) {
-        build(*child, &stored.view);
+        build_node(*child, &stored.view);
     }
 }
 
@@ -90,6 +103,9 @@ void SceneStyleTree::restyle_subtree(const Node& node) {
     if (found == index_.end()) {
         return;
     }
+    // The topmost restyled node: a node's style depends only on itself and its ancestors, so
+    // everything below this one is recomputed and everything outside it kept its style.
+    restyled_roots_.push_back(&node);
     const auto parent = node.parent() == nullptr ? index_.end() : index_.find(node.parent());
     refresh(node, parent == index_.end() ? nullptr : &entries_[parent->second].view);
 }
@@ -99,9 +115,19 @@ void SceneStyleTree::refresh(const Node& node, StyleNode* parent) {
     if (found == index_.end()) {
         return;
     }
-    Entry& entry = entries_[found->second];
+    const std::size_t slot = found->second;
+    Entry& entry = entries_[slot];
     fill_view(entry, node, parent);
-    memo_.erase(&node);
+    // Remember the layout digest this node's style had before the restyle, so the caller can ask
+    // whether the restyle moved a box (issue #735, slice A). A node with no memoised style has no
+    // "before" to compare against, so it is recorded as changed.
+    const bool had_style = memoised_[slot] != 0;
+    restyled_.push_back(
+        RestyledEntry{&node, had_style ? memo_[slot].cached_digest() : std::uint64_t{0}});
+    // Drop the style itself, not just the flag: `memo_.erase` used to release the entry, and a
+    // dropped generation should not keep its shared entries alive through a restyle.
+    memo_[slot] = ComputedStyle{};
+    memoised_[slot] = 0;
     for (const auto& child : node.children()) {
         refresh(*child, &entry.view);
     }
@@ -212,7 +238,13 @@ void apply_inline_declarations(const CompiledStyleSheet& sheet, const Node& node
 void SceneStyleTree::begin_memo(bool keep_entries) {
     memo_active_ = true;
     if (!keep_entries) {
-        memo_.clear();
+        // Every slot is dropped at once: the flag array is the whole "has a memoised style" state,
+        // so clearing it is one fill instead of a walk over the styles. The styles themselves are
+        // released too, so a dropped generation does not keep its shared entries alive; that is a
+        // per-generation cost, not a per-frame one (a new generation rebuilds the tree anyway).
+        memoised_.assign(memoised_.size(), std::uint8_t{0});
+        std::fill(memo_.begin(), memo_.end(), ComputedStyle{});
+        outside_style_.reset();
     }
 }
 
@@ -221,22 +253,57 @@ void SceneStyleTree::end_memo() {
 }
 
 const ComputedStyle& SceneStyleTree::resolve(const CompiledStyleSheet& sheet, const Node& node) {
-    if (const auto found = memo_.find(&node); found != memo_.end()) {
-        return found->second;
+    const auto found = index_.find(&node);
+    if (found == index_.end()) {
+        // Outside the captured tree: the registry's initial style, computed once per generation.
+        if (!outside_style_.has_value()) {
+            outside_style_.emplace(sheet.registry().initial_style());
+        }
+        return *outside_style_;
     }
-    StyleNode* view = mutable_view(node);
-    if (view == nullptr) {
-        return memo_.emplace(&node, sheet.registry().initial_style()).first->second;
+    const std::size_t slot = found->second;
+    if (memoised_[slot] != 0) {
+        return memo_[slot];
     }
+    // The scene stays the source of truth for interaction state, so the view is refreshed from the
+    // node before it is matched (what `mutable_view` does; the index lookup is already done here).
+    entries_[slot].view.state = node.pseudo_state();
     // The chain stops at the first ancestor outside the captured tree, as the un-memoised walk
     // does.
     const Node* parent_node = node.parent();
     const ComputedStyle* parent = parent_node != nullptr && index_.contains(parent_node)
                                       ? &resolve(sheet, *parent_node)
                                       : nullptr;
-    ComputedStyle computed = sheet.compute(*view, parent, nullptr);
+    ComputedStyle computed = sheet.compute(entries_[slot].view, parent, nullptr);
     apply_inline_declarations(sheet, node, computed, parent);
-    return memo_.emplace(&node, std::move(computed)).first->second;
+    // The slot already exists (the array was sized at the end of `build`), so this assignment never
+    // reallocates and the reference below stays valid for the generation.
+    memo_[slot] = std::move(computed);
+    memoised_[slot] = 1;
+    return memo_[slot];
+}
+
+bool SceneStyleTree::restyled_layout_changed(const CompiledStyleSheet& sheet) {
+    // One answer per restyle round: the record is consumed here, so a frame that declines cannot
+    // leave its entries behind for the next frame to re-detect (which would make every frame after
+    // a real layout change decline too, and the gate would never accept again).
+    std::vector<RestyledEntry> restyled;
+    restyled.swap(restyled_);
+    for (const RestyledEntry& entry : restyled) {
+        // No "before" digest: the node had no memoised style, so nothing proves the restyle kept
+        // its layout inputs. Treat it as changed rather than guess.
+        if (entry.digest == 0) {
+            return true;
+        }
+        // Resolving recomputes exactly the nodes `restyle_subtree` dropped, from their parent's
+        // memoised style, so this is the same work the layout input would have done - but only for
+        // the restyled subtree, not the whole tree.
+        const ComputedStyle& after = resolve(sheet, *entry.node);
+        if (layout_digest(after) != entry.digest) {
+            return true;
+        }
+    }
+    return false;
 }
 
 ComputedStyle SceneStyleTree::compute(const CompiledStyleSheet& sheet, const Node& node,

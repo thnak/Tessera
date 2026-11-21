@@ -156,17 +156,24 @@ Text { font-size: 16px; color: #e2e8f0; }
         return 5;
     }
 
-    // --- 3. A paint-only inline style edit hits the layout signature guard ----------------
+    // --- 3. A paint-only inline style edit is caught before the layout pass ---------------
+    // Since issue #735 (slice A) the layout-unchanged gate answers this one frame earlier than the
+    // signature cache did: the restyle's layout digests are identical, so no layout input is built
+    // and no signature is hashed. The scheduler therefore sees no pass at all, which is why the
+    // gate counter moves and the cache-hit counter does not.
     label.set_inline_style("background", "#ff0000");
     const std::size_t style_runs = host.layout_runs();
     const std::size_t style_hits = host.layout_cache_hits();
+    const std::size_t style_gate = host.layout_gate_hits();
     const tessera::app::HostFrame restyled = host.begin_frame(1.0 / 60.0);
     if (!expect(restyled.tick.needs_style, "a style-only edit reports style work") ||
         !expect(!restyled.tick.needs_layout, "a paint-only edit reports no layout dirt") ||
         !expect(host.layout_runs() == style_runs,
                 "a paint-only inline style edit must not run a layout pass") ||
-        !expect(host.layout_cache_hits() == style_hits + 1,
-                "a paint-only inline style edit is a layout cache hit")) {
+        !expect(host.layout_gate_hits() == style_gate + 1,
+                "a paint-only inline style edit is skipped by the layout-unchanged gate") ||
+        !expect(host.layout_cache_hits() == style_hits,
+                "a skipped layout pass never reaches the signature cache")) {
         return 20;
     }
     host.end_frame();

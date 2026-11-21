@@ -110,6 +110,35 @@ int main() {
         return 5;
     }
 
+    // The result's boxes are in layout order, which a CSS `order` permutation can make differ from
+    // the scene's tree order (issue #735, slice H). The lookup must not depend on that order: the
+    // same boxes in reverse still resolve every node, and the counts stay the same.
+    const LayoutResult reversed{{LayoutBox{3, {15.0f, 27.0f, 50.0f, 10.0f}},
+                                 LayoutBox{2, {10.0f, 20.0f, 200.0f, 100.0f}},
+                                 LayoutBox{1, {0.0f, 0.0f, 400.0f, 300.0f}}}};
+    const LayoutApplyResult reordered = tessera::ui::layout::apply_layout(reversed, root);
+    if (!expect(reordered.applied == 3, "reordered applied") ||
+        !expect(reordered.missing == 0, "reordered missing") ||
+        !expect(reordered.extra == 0, "reordered extra") ||
+        !expect(rect_is(root, 0, 0, 400, 300), "reordered root bounds") ||
+        !expect(rect_is(panel_ref, 10, 20, 200, 100), "reordered child local bounds") ||
+        !expect(rect_is(label_ref, 5, 7, 50, 10), "reordered grandchild local bounds")) {
+        return 7;
+    }
+
+    // A duplicate id keeps the last box, like the map this replaced, and counts as one matched id:
+    // the second box is `extra`, not a second application.
+    const LayoutResult duplicated{
+        {LayoutBox{1, {0.0f, 0.0f, 400.0f, 300.0f}}, LayoutBox{2, {10.0f, 20.0f, 200.0f, 100.0f}},
+         LayoutBox{2, {30.0f, 40.0f, 60.0f, 70.0f}}, LayoutBox{3, {15.0f, 27.0f, 50.0f, 10.0f}}}};
+    const LayoutApplyResult twice = tessera::ui::layout::apply_layout(duplicated, root);
+    if (!expect(twice.applied == 3, "duplicate id applies the node once") ||
+        !expect(twice.missing == 0, "duplicate id leaves nothing missing") ||
+        !expect(twice.extra == 1, "duplicate id counts the second box extra") ||
+        !expect(rect_is(panel_ref, 30, 40, 60, 70), "duplicate id keeps the last box")) {
+        return 8;
+    }
+
     std::cout << "layout_apply: ok\n";
     return 0;
 }

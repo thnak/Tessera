@@ -2,6 +2,10 @@
 
 add_library(tessera_frame STATIC
     frame_pipeline.cpp
+    # The style-to-scene sync half of FramePipeline (issue #735, slice B): the whole-tree walk and
+    # the scoped walk that visits only the restyled subtrees. Split out of frame_pipeline.cpp,
+    # which is at its size limit.
+    frame_style_sync.cpp
     interpolation.cpp
     paint_view.cpp)
 

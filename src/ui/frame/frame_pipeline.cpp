@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "node_lookup.hpp"
 #include "redraw_cull.hpp"
 #include "style_diff.hpp"
 #include "tessera/runtime/runtime_loop.hpp"
@@ -16,7 +17,6 @@
 #include <limits>
 #include <optional>
 #include <stdexcept>
-#include <unordered_map>
 #include <vector>
 
 namespace tessera::ui::frame {
@@ -24,24 +24,9 @@ namespace {
 
 namespace rhi = tessera::rendering::rhi;
 
-void index_nodes(Node& node, std::unordered_map<NodeId, Node*>& index) {
-    index[node.id()] = &node;
-    for (const auto& child : node.children()) {
-        index_nodes(*child, index);
-    }
-}
-
-// Adapts the paint provider (compiled stylesheet, animation overlay or a test stub) to the
-// interaction sync so the scene gets `pointer-events`/`user-select` from the same computed style
-// paint and layout see.
-const style::ComputedStyle& interaction_style_thunk(void* context, const Node& node) {
-    return static_cast<paint::StyleProvider*>(context)->resolve(node);
-}
-
-// An empty `@keyframes` table for a sheet without animations or a pipeline with no keyframes
-// installed. A namespace-scope object rather than a function-local static, so the style stage does
-// not pay a thread-safe-init guard per frame.
-const std::vector<style::KeyframeBlock> kNoKeyframes;
+// `interaction_style_thunk` and `kNoKeyframes` moved to frame_style_sync.cpp with the sync half of
+// the pipeline (issue #735, slice B). They are not needed here, and GCC rejects an unused
+// file-local function under -Werror.
 
 rendering::RedrawPlan normalized_plan(rendering::RedrawPlan plan, rendering::rhi::Extent2D target,
                                       const rendering::RedrawPolicy& policy) {
@@ -180,26 +165,26 @@ FrameTick FramePipeline::tick_impl(Node& root, double dt, double alpha, bool int
     FrameTick result;
     result.animation = animation::tick_animations(*animations_, *loop_, dt);
 
-    std::unordered_map<NodeId, Node*> index;
-    tick_springs(root, dt, result.animation, index);
+    tick_springs(root, dt, result.animation);
+    // One lookup answers both halves of the animation stage (the dirty marks and the paint
+    // samples), so a tick resolves its targets once, not once per half.
+    detail::NodeLookup lookup(node_lookup_buffer_);
     if (!result.animation.samples.empty()) {
-        if (index.empty()) {
-            index_nodes(root, index);
-        }
+        detail::resolve_samples(root, lookup, result.animation.samples);
         for (const animation::AnimationSample& sample : result.animation.samples) {
-            const auto found = index.find(sample.target);
-            if (found == index.end()) {
+            Node* const target = lookup.find(sample.target);
+            if (target == nullptr) {
                 continue;
             }
             const Dirty dirty = animation::dirty_for_declarations(sample.declarations);
             if (dirty != Dirty::Clean) {
-                found->second->mark_dirty(dirty);
+                target->mark_dirty(dirty);
             }
             // `opacity` composites the whole subtree (paint-pass.md section 14.1): a faded parent
             // changes its children's pixels, so they must repaint and their damage must be
             // reported, not just the animated node's own box.
             if (animation::declarations_dirty_paint_subtree(sample.declarations)) {
-                found->second->mark_subtree_dirty(Dirty::Paint | Dirty::Render);
+                target->mark_subtree_dirty(Dirty::Paint | Dirty::Render);
             }
         }
     }
@@ -211,11 +196,11 @@ FrameTick FramePipeline::tick_impl(Node& root, double dt, double alpha, bool int
     current_samples_.clear();
     if (interpolate_) {
         for (const animation::AnimationSample& sample : result.animation.samples) {
-            const auto found = index.find(sample.target);
-            if (found == index.end()) {
+            Node* const target = lookup.find(sample.target);
+            if (target == nullptr) {
                 continue;
             }
-            capture_paint_sample(current_samples_, *found->second, sample.declarations);
+            capture_paint_sample(current_samples_, *target, sample.declarations);
         }
     }
 
@@ -237,15 +222,16 @@ FrameTick FramePipeline::tick_impl(Node& root, double dt, double alpha, bool int
     return result;
 }
 
-void FramePipeline::tick_springs(Node& root, double dt, animation::AnimationTickResult& into,
-                                 std::unordered_map<NodeId, Node*>& index) {
+void FramePipeline::tick_springs(Node& root, double dt, animation::AnimationTickResult& into) {
     springs_.set_reduced_motion(animations_->reduced_motion());
     if (springs_.empty()) {
         return;
     }
-    index_nodes(root, index);
-    for (const std::uint64_t target : springs_.targets()) {
-        if (index.find(target) == index.end()) {
+    const std::vector<std::uint64_t> targets = springs_.targets();
+    detail::NodeLookup lookup(node_lookup_buffer_);
+    detail::resolve_ids(root, lookup, targets, [](std::uint64_t target) { return target; });
+    for (const std::uint64_t target : targets) {
+        if (lookup.find(target) == nullptr) {
             springs_.stop_target(target);
         }
     }
@@ -282,72 +268,6 @@ const paint::PaintCacheStats& FramePipeline::paint_cache_stats() const {
     return paint_cache_stats_snapshot_;
 }
 
-paint::SceneStyleSyncResult FramePipeline::sync_style(Node& root, paint::StyleProvider& styles,
-                                                      const FrameTick& tick, bool force) const {
-    if (!force && !tick.needs_style && !tick.needs_layout) {
-        style_bridge_snapshot_ = {};
-        return {};
-    }
-    DiffingStyleProvider diffing(styles, previous_styles_);
-    paint::SceneStyleSyncResult result =
-        paint::sync_scene_style(root, diffing, config_.glass, &scene_sync_memo_);
-    diffing.prune();
-    if (!diffing.changed().empty()) {
-        std::unordered_map<NodeId, Node*> index;
-        index_nodes(root, index);
-        for (const auto& [id, opacity_changed] : diffing.changed()) {
-            if (const auto found = index.find(id); found != index.end()) {
-                if (opacity_changed) {
-                    found->second->mark_subtree_dirty(Dirty::Paint | Dirty::Render);
-                } else {
-                    found->second->mark_dirty(Dirty::Paint | Dirty::Render);
-                }
-            }
-        }
-    }
-    // Interaction state the scene consumes (`pointer-events`, `user-select`; stylesheet-v1 section
-    // 11, issue #247), same seam and frame so the halves never disagree about a restyled node.
-    sync_interaction_style(root, &interaction_style_thunk, &styles, &interaction_sync_memo_);
-    // Transition and animation declarations become real here (issue #271): the diff against the
-    // previous style starts the transitions the new style declares, and the animation sync
-    // reconciles the running set against `animation-*`. Both feed the runtime the next tick
-    // samples.
-    style_bridge_snapshot_ =
-        style_bridge_state_.sync(*animations_, root, &interaction_style_thunk, &styles,
-                                 style_keyframes_ != nullptr ? *style_keyframes_ : kNoKeyframes);
-    if (!style_bridge_snapshot_.ids.empty()) {
-        // The transition or animation starts now, after this tick already decided whether the loop
-        // may idle: ask for the next frame so the first sample is rendered.
-        loop_->request_frame();
-    }
-    return result;
-}
-
-void FramePipeline::sample_started_animations(Node& root) {
-    if (!interpolate_ || style_bridge_snapshot_.ids.empty()) {
-        return;
-    }
-    const animation::AnimationTickResult first =
-        animation::tick_animations(*animations_, *loop_, 0.0);
-    std::unordered_map<NodeId, Node*> index;
-    index_nodes(root, index);
-    for (const animation::AnimationSample& sample : first.samples) {
-        const auto found = index.find(sample.target);
-        if (found == index.end()) {
-            continue;
-        }
-        capture_paint_sample(current_samples_, *found->second, sample.declarations);
-        if (const auto captured = current_samples_.find(sample.target);
-            captured != current_samples_.end() && !previous_samples_.contains(sample.target)) {
-            previous_samples_[sample.target] = captured->second;
-        }
-        const Dirty dirty = animation::dirty_for_declarations(sample.declarations);
-        if (dirty != Dirty::Clean) {
-            found->second->mark_dirty(dirty);
-        }
-    }
-}
-
 FrameRender FramePipeline::finish_frame(Node& root) {
     FrameRender result;
     dirty_->collect(root, Dirty::Paint | Dirty::Render);
@@ -361,17 +281,18 @@ FrameRender FramePipeline::finish_frame(Node& root) {
     if (view.empty()) {
         last_damaged_corners_.clear();
     } else {
-        std::unordered_map<NodeId, Node*> index;
-        index_nodes(root, index);
+        detail::NodeLookup lookup(node_lookup_buffer_);
+        detail::resolve_ids(root, lookup, view.samples(),
+                            [](const auto& entry) { return entry.first; });
         for (const auto& [node_id, sample] : view.samples()) {
             if (!sample.transform) {
                 continue;
             }
-            const auto found = index.find(node_id);
-            if (found == index.end()) {
+            Node* const found = lookup.find(node_id);
+            if (found == nullptr) {
                 continue;
             }
-            const Node& node = *found->second;
+            const Node& node = *found;
             if (!node.rendered()) {
                 continue;
             }

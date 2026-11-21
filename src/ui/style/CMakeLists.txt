@@ -48,6 +48,10 @@ add_library(tessera_style STATIC
     # It lives here so the two layout consumers share one implementation instead of a preview-only
     # copy, which is the "no parallel layout path" rule in issue #408.
     safe_area_style.cpp
+    # The layout half of a computed style, as a digest (issue #735, slice A). It lives here rather
+    # than in `tessera_layout` because layout depends on style, not the other way round; the layout
+    # signature folds it in and the layout-unchanged gate compares it across a restyle.
+    layout_digest.cpp
     scene_style.cpp
     scroll_style_sync.cpp
     supports.cpp

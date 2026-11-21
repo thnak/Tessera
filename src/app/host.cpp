@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+﻿// SPDX-License-Identifier: MIT
 
 #include "host_impl.hpp"
 #include "tessera/app/host.hpp"
@@ -60,39 +60,8 @@ void mark_safe_area_nodes(ui::Node& node) {
 }
 
 // `mark_subtree()` lives in host_viewport.cpp beside `extent_for()`: both are shared with the
-// viewport half of a resize, and this file is over its size budget.
-
-// One layout tree of computed styles (the paint pass resolves the same provider, so both agree).
-ui::layout::LayoutInput build_layout_input(const ui::Node& node, ui::paint::StyleProvider& styles,
-                                           const SafeAreaState& safe_area) {
-    ui::layout::LayoutInput input;
-    input.id = node.id();
-    input.style = styles.resolve(node);
-    // A SafeArea node's padding or margin is host-owned, and the resolution is the SAME function
-    // the design-time preview calls (issue #408): the app's metrics come from the OS and the
-    // preview's from a simulated posture, but the token parsing and the padding writer are one
-    // implementation.
-    (void)ui::style::apply_safe_area_style(input.style, node, safe_area.metrics_or_null());
-    const auto& paint = node.paint_data();
-    const bool text_payload = paint && paint->kind == ui::PaintKind::Text;
-    if (text_payload) {
-        input.text = paint->text;
-        // Layout's text-fit fact must use paint's own wrap decision (issue #490).
-        input.text_wrap = ui::paint_wraps(node.element_kind(), *paint);
-    }
-    // Growing the vector would move each LayoutInput, and the MSVC `std::map` move constructor is
-    // not `noexcept`: the vector then copies every element, subtree and 101-entry style included.
-    // Measured at ~330 allocations per node (issue #711).
-    input.children.reserve(node.children().size());
-    for (const auto& child : node.children()) {
-        // Inline spans are runs of this text, not boxes (issue #229, elements-basic.md 2.1).
-        if (text_payload && paint->has_span(child->id())) {
-            continue;
-        }
-        input.children.push_back(build_layout_input(*child, styles, safe_area));
-    }
-    return input;
-}
+// viewport half of a resize, and this file is over its size budget. `build_layout_input()` and
+// `run_layout_pass()` live in host_layout_gate.cpp for the same reason.
 
 bool has_inline_style(const ui::Node& node, std::string_view name) {
     for (const ui::Node::InlineStyleDeclaration& declaration : node.inline_style()) {
@@ -101,31 +70,6 @@ bool has_inline_style(const ui::Node& node, std::string_view name) {
         }
     }
     return false;
-}
-
-const char* blob_error_name(ui::style::BlobErrorCode code) {
-    switch (code) {
-    case ui::style::BlobErrorCode::Truncated:
-        return "Truncated";
-    case ui::style::BlobErrorCode::BadMagic:
-        return "BadMagic";
-    case ui::style::BlobErrorCode::UnsupportedFormatVersion:
-        return "UnsupportedFormatVersion";
-    case ui::style::BlobErrorCode::EngineSchemaMismatch:
-        return "EngineSchemaMismatch";
-    case ui::style::BlobErrorCode::HashMismatch:
-        return "HashMismatch";
-    case ui::style::BlobErrorCode::Corrupt:
-        return "Corrupt";
-    }
-    return "Corrupt";
-}
-
-// A skipped embedded sheet is reported, never silently swallowed (ADR-048: an embedded blob is
-// build output, so a load failure is a build/runtime version mismatch, not a CSS error).
-void report_blob_failure(std::string_view path, const ui::style::BlobError& error) {
-    std::fprintf(stderr, "TESSERA_CSS_BLOB_INVALID: %.*s: %s: %s\n", static_cast<int>(path.size()),
-                 path.data(), blob_error_name(error.code), error.message.c_str());
 }
 
 // The public policy struct and the runtime's private controller config carry the same six fields;
@@ -346,41 +290,6 @@ bool AppHost::handle_overlay_input(const ui::InputEvent& event) {
     }
 }
 
-void AppHost::Impl::run_layout_pass(ui::paint::StyleProvider& styles) {
-    const ui::layout::LayoutInput input = build_layout_input(root, styles, safe_area);
-    const ui::layout::LayoutViewport viewport{config.width, config.height, config.dpi_scale};
-    // The scheduler reuses the cached result when the layout input signature (tree shape,
-    // layout-affecting longhands, text, viewport) is unchanged, so a style-only change that
-    // cannot move boxes skips Yoga and only re-syncs the scene style.
-    last_layout = layout_scheduler.update(input, viewport, true);
-    last_applied = ui::layout::apply_layout(last_layout, root);
-}
-
-void AppHost::Impl::register_embedded_stylesheets(
-    std::span<const ui::style::EmbeddedStylesheet> sheets) {
-    // Registration is a startup-time operation: every blob is loaded here, once, and resolved
-    // into the cascade; no frame ever parses CSS. The constructor sheet is kept as the base of
-    // every rebuild, so a later call replaces the previous registration rather than stacking.
-    embedded_sheets.clear();
-    rejected_stylesheet_count = 0;
-    for (const ui::style::EmbeddedStylesheet& embedded : sheets) {
-        auto prepared = ui::style::load_stylesheet_blob(embedded.bytes);
-        if (!prepared) {
-            report_blob_failure(embedded.path, prepared.error());
-            ++rejected_stylesheet_count;
-            continue;
-        }
-        embedded_sheets.push_back(std::move(*prepared));
-    }
-    // The provider borrows the active sheet and the tree captures the scene, so both are rebuilt
-    // now (a direct paint before the next begin_frame() stays consistent). The style generation
-    // changed: mark every node so the next begin_frame() re-resolves and rebuilds the selector
-    // tree, and drop the per-node paint cache because a node can stay Clean while its computed
-    // style changes (inheritance, ancestor/sibling selectors, a new sheet).
-    apply_style_generation(ui::Dirty::Style | ui::Dirty::Layout | ui::Dirty::Paint |
-                           ui::Dirty::Render);
-}
-
 AppHost::AppHost(ui::Node& root, ui::style::CompiledStyleSheet sheet, runtime::RuntimeLoop& loop,
                  HostConfig config)
     : impl_(nullptr) {
@@ -461,9 +370,28 @@ HostFrame AppHost::begin_frame(double dt, double alpha) {
         state.pipeline->invalidate_paint_cache();
         frame.style_rebuilt = true;
         state.restyle_memo.begin(*state.provider, incremental);
-        state.run_layout_pass(state.restyle_memo);
-        frame.layout = state.last_applied;
-        frame.sync = state.pipeline->sync_style(state.root, state.restyle_memo, frame.tick, true);
+        // The layout-unchanged gate (issue #735, slice A): when the restyle provably kept every
+        // layout input, reuse the previous result instead of rebuilding the layout input and
+        // hashing the tree. `restyled_layout_changed` recomputes only the restyled nodes, which is
+        // the work the sync below would do anyway, so a declined gate costs nothing extra.
+        const bool layout_unchanged = state.layout_unchanged(incremental);
+        if (layout_unchanged) {
+            frame.layout = state.last_applied;
+            ++state.layout_gate_hits;
+        } else {
+            state.run_layout_pass(state.restyle_memo);
+            frame.layout = state.last_applied;
+        }
+        // Scoped sync (issue #735, slice B). The gate just proved that no box moved and that only
+        // the restyled subtrees changed style, so a node outside them has nothing to re-apply.
+        // Without that proof the whole tree is synced, which is the pre-slice-B behaviour.
+        if (layout_unchanged && state.tree != nullptr) {
+            frame.sync = state.pipeline->sync_style_scoped(
+                state.root, state.restyle_memo, state.tree->restyled_roots(), frame.tick, true);
+        } else {
+            frame.sync =
+                state.pipeline->sync_style(state.root, state.restyle_memo, frame.tick, true);
+        }
         state.restyle_memo.end();
         state.style_tree_populated = true;
         state.pipeline->sample_started_animations(state.root);
@@ -655,6 +583,34 @@ std::size_t AppHost::layout_runs() const {
 
 std::size_t AppHost::layout_cache_hits() const {
     return impl_->layout_scheduler.cache_hits();
+}
+
+std::size_t AppHost::layout_gate_hits() const {
+    return impl_->layout_gate_hits;
+}
+
+const char* AppHost::layout_gate_reason() const {
+    switch (impl_->layout_gate) {
+    case Impl::LayoutGate::None:
+        return "None";
+    case Impl::LayoutGate::NoPreviousLayout:
+        return "NoPreviousLayout";
+    case Impl::LayoutGate::LayoutDirt:
+        return "LayoutDirt";
+    case Impl::LayoutGate::ShapeChanged:
+        return "ShapeChanged";
+    case Impl::LayoutGate::ViewportChanged:
+        return "ViewportChanged";
+    case Impl::LayoutGate::SafeAreaChanged:
+        return "SafeAreaChanged";
+    case Impl::LayoutGate::StyleMoved:
+        return "StyleMoved";
+    case Impl::LayoutGate::NotSubtreeLocal:
+        return "NotSubtreeLocal";
+    case Impl::LayoutGate::TreeRebuilt:
+        return "TreeRebuilt";
+    }
+    return "?";
 }
 
 ui::animation::AnimationRuntime& AppHost::animations() {

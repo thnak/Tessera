@@ -71,6 +71,36 @@ struct AppHost::Impl {
     // Rebuilds the cascade and style tree, drops the paint cache and marks `dirty` on the subtree.
     void apply_style_generation(ui::Dirty dirty_mask);
     void run_layout_pass(ui::paint::StyleProvider& styles);
+    // The layout-unchanged gate (issue #735, slice A). True when this frame's restyle provably kept
+    // every layout input, so the layout pass can reuse the previous result instead of rebuilding
+    // the layout input and hashing the tree. See `layout_gate` for why it declined.
+    //
+    // `incremental` is `prepare_style_tree()`'s answer: false means the selector tree was rebuilt
+    // from scratch, so there is no record of which nodes were restyled and the gate cannot prove
+    // anything. It declines in that case rather than treating "no restyled nodes" as "no change".
+    [[nodiscard]] bool layout_unchanged(bool incremental);
+    // Why the last `layout_unchanged()` declined, for the probe and for tests. `None` means it
+    // accepted.
+    enum class LayoutGate : std::uint8_t {
+        None,
+        NoPreviousLayout, // nothing to reuse yet
+        LayoutDirt,       // a node carries Dirty::Layout
+        ShapeChanged,     // the scene's structure epoch moved
+        ViewportChanged,  // window rectangle or DPI scale moved
+        SafeAreaChanged,  // the resolved insets moved
+        StyleMoved,       // the restyle changed a layout-affecting longhand
+        NotSubtreeLocal,  // the sheet has selectors that read outside the subtree
+        TreeRebuilt,      // the selector tree was rebuilt, so no restyle record exists
+    };
+    LayoutGate layout_gate = LayoutGate::NoPreviousLayout;
+    // Frames whose layout pass the gate skipped (issue #735, slice A). `layout_runs()` counts real
+    // passes, so this is the difference between "style work happened" and "Yoga ran".
+    std::size_t layout_gate_hits = 0;
+    // The layout inputs the gate compares against: the viewport the last pass used and the
+    // safe-area snapshot it resolved. Both are layout inputs no computed style carries.
+    ui::layout::LayoutViewport gated_viewport;
+    hal::WindowMetrics gated_metrics;
+    bool gated_metrics_valid = false;
     // The window minus the safe-area insets, and the root's text direction, for overlay placement.
     [[nodiscard]] rendering::rhi::Rect overlay_viewport() const;
     [[nodiscard]] bool root_is_rtl() const;

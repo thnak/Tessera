@@ -319,6 +319,27 @@ target_link_libraries(app_host_tests PRIVATE tessera_app tessera_runtime)
 
 add_test(NAME app_host COMMAND app_host_tests)
 
+# The layout-unchanged gate's acceptance (issue #735, slice A): a frame whose layout pass the gate
+# skipped must be byte-identical to a cold layout of the same inputs, over a randomized edit
+# sequence that covers every layout input source (longhands, text, shape, viewport).
+add_executable(layout_gate_tests
+    layout_gate_tests.cpp
+    layout_gate_scene.cpp)
+
+target_link_libraries(layout_gate_tests PRIVATE tessera_app tessera_runtime)
+
+add_test(NAME layout_gate COMMAND layout_gate_tests)
+
+# The scoped scene sync (issue #735, slice B): a walk that visits only the restyled subtrees must
+# leave the scene in exactly the state the full walk does, including the `glass_subtree` refold on
+# every ancestor.
+add_executable(scoped_sync_tests
+    scoped_sync_tests.cpp)
+
+target_link_libraries(scoped_sync_tests PRIVATE tessera_paint tessera_style)
+
+add_test(NAME scoped_sync COMMAND scoped_sync_tests)
+
 # The host half of issue #187's acceptance: "the host updates reducedMotion and the media queries".
 # It drives the real AppHost with a media-independent prepared sheet (ADR-048's resolve step) and
 # asserts both `reducedMotion` reaching the animation/spring runtimes and the
@@ -2799,3 +2820,11 @@ add_executable(text_decoration_tests
     text_decoration_tests.cpp)
 target_link_libraries(text_decoration_tests PRIVATE tessera_paint tessera_text tessera_style)
 add_test(NAME text_decoration COMMAND text_decoration_tests)
+
+# The dense per-generation style memo (issue #735, slice G): reference stability across resolves,
+# `keep_entries`, the restyle digest record, the outside-the-tree answer and the container-source
+# bypass. Registered here, appended, so no existing entry moves.
+add_executable(scene_style_memo_tests
+    scene_style_memo_tests.cpp)
+target_link_libraries(scene_style_memo_tests PRIVATE tessera_style)
+add_test(NAME scene_style_memo COMMAND scene_style_memo_tests)
