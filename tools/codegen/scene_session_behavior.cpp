@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 
 // The preview session's behavior wiring (ADR-064 item 7, spike #658; behavior-hooks-v1.md section
-// 10), split out of `scene_session.cpp` when the wiring pushed that file past the source-size limit.
+// 10), split out of `scene_session.cpp` when the wiring pushed that file past the source-size
+// limit.
 //
-// **Why it is its own unit.** Everything here is the one thing the preview does that the rest of the
-// session does not: it builds the SAME `behavior::Instance` the generated base builds, from the same
-// IR entry and the same registry, and drives it with the session's own normalized input. Keeping it
-// together makes "the preview and the generated base agree about what a behavior is" a property of
-// one file rather than a coincidence across two.
+// **Why it is its own unit.** Everything here is the one thing the preview does that the rest of
+// the session does not: it builds the SAME `behavior::Instance` the generated base builds, from the
+// same IR entry and the same registry, and drives it with the session's own normalized input.
+// Keeping it together makes "the preview and the generated base agree about what a behavior is" a
+// property of one file rather than a coincidence across two.
 
 #include "scene_build.hpp"
 #include "scene_session.hpp"
@@ -23,8 +24,8 @@ namespace {
 namespace ui = tessera::ui;
 
 // One evaluated option value, from the evaluator's own `Value`. A callback arg is handled by the
-// caller (the preview does not resolve handler ids to thunks yet); this covers the three value kinds
-// the manifest declares.
+// caller (the preview does not resolve handler ids to thunks yet); this covers the three value
+// kinds the manifest declares.
 ui::behavior::ArgValue to_arg_value(const eval::Value& resolved) {
     ui::behavior::ArgValue value;
     if (const bool* boolean = resolved.as_bool()) {
@@ -40,8 +41,8 @@ ui::behavior::ArgValue to_arg_value(const eval::Value& resolved) {
         value.number = static_cast<double>(*integer);
     } else if (const std::string* text = resolved.as_string()) {
         value.kind = ui::behavior::ArgValue::Kind::String;
-        // The string lives in the evaluator's own storage for a literal, or in the scope for a state
-        // cell; either way it outlives this call, so the view is safe to keep.
+        // The string lives in the evaluator's own storage for a literal, or in the scope for a
+        // state cell; either way it outlives this call, so the view is safe to keep.
         value.text = *text;
     }
     return value;
@@ -126,8 +127,8 @@ void PreviewSession::detach_behaviors() {
     }
 }
 
-std::span<const ui::behavior::OutputValue> PreviewSession::behavior_outputs(
-    std::size_t index) const {
+std::span<const ui::behavior::OutputValue>
+PreviewSession::behavior_outputs(std::size_t index) const {
     if (index >= behaviors_.size()) {
         return {};
     }

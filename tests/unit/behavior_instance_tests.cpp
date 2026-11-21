@@ -26,8 +26,8 @@ namespace {
 
 using tessera::ui::InputRouter;
 using tessera::ui::Node;
-using tessera::ui::behavior::ArgValue;
 using tessera::ui::behavior::ArgsView;
+using tessera::ui::behavior::ArgValue;
 using tessera::ui::behavior::hash_args;
 using tessera::ui::behavior::Instance;
 using tessera::ui::behavior::OutputValue;
@@ -125,11 +125,12 @@ bool test_partial_targets_do_not_attach() {
     bool ok = expect(!attached, "a null target does not attach");
     ok = expect(!instance.attached(), "the instance reports not attached") && ok;
 
-    // The same instance attaches once the missing target appears, which is what a rebuild relies on.
+    // The same instance attaches once the missing target appears, which is what a rebuild relies
+    // on.
     nodes[1] = scene.button;
-    ok = expect(instance.attach("press_feedback", Targets{nodes}, Services{&scene.router},
-                                ArgsView{}),
-                "a complete target set attaches") &&
+    ok = expect(
+             instance.attach("press_feedback", Targets{nodes}, Services{&scene.router}, ArgsView{}),
+             "a complete target set attaches") &&
          ok;
     return ok;
 }
@@ -173,8 +174,8 @@ bool test_unchanged_update_is_skipped() {
     }
     const std::uint64_t after_attach = instance.args_hash();
     instance.update(ArgsView{});
-    bool ok = expect(instance.args_hash() == after_attach,
-                     "an unchanged update leaves the hash alone");
+    bool ok =
+        expect(instance.args_hash() == after_attach, "an unchanged update leaves the hash alone");
 
     // A changed option set does move the hash, so the skip is not "never update".
     const std::array<ArgValue, 1> changed{bool_arg(true)};

@@ -25,13 +25,13 @@
 //
 // **Why the hash lives here and not in each consumer.** The spec's rule is "call `update` only when
 // the hash of the evaluated value options changed" (section 9). A generated base and a preview
-// session that each hashed their own way would drift, and the drift would show up as a behavior that
-// updates in one consumer and not the other. Hashing once, here, makes that impossible.
+// session that each hashed their own way would drift, and the drift would show up as a behavior
+// that updates in one consumer and not the other. Hashing once, here, makes that impossible.
 //
 // **Allocation.** `attach` allocates the engine behavior through the registry factory (one
-// allocation, the slot the generated base owns). `update` and `detach` allocate nothing: the hash is
-// a value, and the args are a borrowed view. This is the contract `behavior_allocation_tests.cpp`
-// pins.
+// allocation, the slot the generated base owns). `update` and `detach` allocate nothing: the hash
+// is a value, and the args are a borrowed view. This is the contract
+// `behavior_allocation_tests.cpp` pins.
 namespace tessera::ui::behavior {
 
 // A stable hash of the evaluated value options, in manifest order. Two calls with the same values
@@ -69,10 +69,10 @@ public:
     //   `refresh` the SCENE moved on (a pointer moved, a press began, focus moved) while the
     //             component's options did not change at all.
     //
-    // A behavior whose outputs are a function of interaction state — `press_feedback` is the first —
-    // has no options, so its hash never changes and `update` would skip it forever. The caller
-    // therefore calls `refresh` after a dispatch, which is what makes the outputs track the pointer.
-    // A behavior with no interaction-state outputs simply recomputes the same values.
+    // A behavior whose outputs are a function of interaction state — `press_feedback` is the first
+    // — has no options, so its hash never changes and `update` would skip it forever. The caller
+    // therefore calls `refresh` after a dispatch, which is what makes the outputs track the
+    // pointer. A behavior with no interaction-state outputs simply recomputes the same values.
     void refresh(const ArgsView& args);
 
     // Detaches the engine behavior and releases it. Idempotent, and safe before the first attach.

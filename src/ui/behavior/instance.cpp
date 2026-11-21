@@ -9,8 +9,8 @@ namespace tessera::ui::behavior {
 namespace {
 
 // FNV-1a over the evaluated values. Chosen over `std::hash` because the result must be identical on
-// every platform and in every build: a preview session and a native build hash the same options, and
-// a test that pins a hash would otherwise be a test of the standard library.
+// every platform and in every build: a preview session and a native build hash the same options,
+// and a test that pins a hash would otherwise be a test of the standard library.
 constexpr std::uint64_t kFnvOffset = 1469598103934665603ULL;
 constexpr std::uint64_t kFnvPrime = 1099511628211ULL;
 
@@ -86,8 +86,8 @@ void Instance::update(const ArgsView& args) {
     }
     const std::uint64_t hash = hash_args(args.values);
     if (has_hash_ && hash == args_hash_) {
-        // The options did not change, so the behavior has nothing to recompute. This is the rule the
-        // spec states and the reason an update pass over an unchanged component is free.
+        // The options did not change, so the behavior has nothing to recompute. This is the rule
+        // the spec states and the reason an update pass over an unchanged component is free.
         return;
     }
     args_hash_ = hash;
@@ -99,8 +99,8 @@ void Instance::refresh(const ArgsView& args) {
     if (!behavior_) {
         return;
     }
-    // Deliberately does NOT touch `args_hash_`: the options did not change, so a later `update` with
-    // the same options must still be skipped. Only the outputs are recomputed.
+    // Deliberately does NOT touch `args_hash_`: the options did not change, so a later `update`
+    // with the same options must still be skipped. Only the outputs are recomputed.
     behavior_->update(args);
 }
 

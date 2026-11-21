@@ -1,18 +1,21 @@
 // SPDX-License-Identifier: MIT
 //
-// Behaviors in the design-time preview (ADR-064 item 7, spike #658; behavior-hooks-v1.md section 10).
+// Behaviors in the design-time preview (ADR-064 item 7, spike #658; behavior-hooks-v1.md section
+// 10).
 //
-// The spec's section 10 says the preview "must create the same registry `Instance` from the IR entry
-// and drive it with the session's normalized input". This test proves exactly that, and it is the
-// evidence the ADR asks for ("the preview session drives the same Instance, or the spike states why
-// it cannot"):
+// The spec's section 10 says the preview "must create the same registry `Instance` from the IR
+// entry and drive it with the session's normalized input". This test proves exactly that, and it is
+// the evidence the ADR asks for ("the preview session drives the same Instance, or the spike states
+// why it cannot"):
 //
-//   * a component that calls `usePressFeedback` produces one behavior in the session, named from the
+//   * a component that calls `usePressFeedback` produces one behavior in the session, named from
+//   the
 //     registry, attached to the node its `ref` resolved to;
 //   * a pointer press reaches the behavior through the session's own `dispatch()`, so the outputs
 //     track the scene -- this is what makes a Button look pressed in Studio;
 //   * the outputs are the manifest's three, in manifest order, and they default to false;
-//   * a component that calls no behavior hook produces no behavior at all, which is what keeps every
+//   * a component that calls no behavior hook produces no behavior at all, which is what keeps
+//   every
 //     existing preview unchanged.
 //
 // Deterministic: no device, no clock, no filesystem.
@@ -77,8 +80,8 @@ inline constexpr std::string_view kNoBehavior = R"(export function Plain(): Node
 }
 )";
 
-// The session for `source`, or nullptr with the reason printed. The `PreparedScene` must outlive the
-// session (the session borrows the IR's strings), so the caller owns it.
+// The session for `source`, or nullptr with the reason printed. The `PreparedScene` must outlive
+// the session (the session borrows the IR's strings), so the caller owns it.
 std::unique_ptr<cli::PreviewSession> session_for(const cli::PreparedScene& scene) {
     if (scene.root == nullptr || !scene.sheet.has_value() || scene.module.components.empty()) {
         std::cerr << "scene_behavior: prepare produced no usable tree\n";
@@ -95,7 +98,8 @@ std::unique_ptr<cli::PreviewSession> session_for(const cli::PreparedScene& scene
 
 // The behavior exists, is named from the registry, and is attached to the ref's node.
 void test_behavior_attaches() {
-    const cli::PreparedScene scene = cli::prepare_scene(kPressFeedback, options_for("ui/Press.tsx"));
+    const cli::PreparedScene scene =
+        cli::prepare_scene(kPressFeedback, options_for("ui/Press.tsx"));
     expect(scene.error.empty(), "the press-feedback component prepares: " + scene.error);
     if (!scene.error.empty()) {
         return;
@@ -105,8 +109,8 @@ void test_behavior_attaches() {
         return;
     }
     expect(session->built(), "the press-feedback component builds: " + session->build_error());
-    expect(session->behavior_count() == 1,
-           "one behavior for one hook call (saw " + std::to_string(session->behavior_count()) + ")");
+    expect(session->behavior_count() == 1, "one behavior for one hook call (saw " +
+                                               std::to_string(session->behavior_count()) + ")");
     if (session->behavior_count() != 1) {
         return;
     }
@@ -115,8 +119,8 @@ void test_behavior_attaches() {
     expect(session->behavior_attached(0), "the behavior attached to its ref's node");
     // The manifest's three outputs, in manifest order.
     const std::span<const ui::behavior::OutputValue> outputs = session->behavior_outputs(0);
-    expect(outputs.size() == 3, "press_feedback reports three outputs (saw " +
-                                    std::to_string(outputs.size()) + ")");
+    expect(outputs.size() == 3,
+           "press_feedback reports three outputs (saw " + std::to_string(outputs.size()) + ")");
     if (outputs.size() == 3) {
         expect(!outputs[0].boolean, "pressed defaults to false");
         expect(!outputs[1].boolean, "hovered defaults to false");
@@ -124,10 +128,11 @@ void test_behavior_attaches() {
     }
 }
 
-// A pointer press reaches the behavior through the session's own dispatch, so the outputs follow the
-// scene. This is the claim that makes a Button look pressed in Studio.
+// A pointer press reaches the behavior through the session's own dispatch, so the outputs follow
+// the scene. This is the claim that makes a Button look pressed in Studio.
 void test_press_reaches_the_behavior() {
-    const cli::PreparedScene scene = cli::prepare_scene(kPressFeedback, options_for("ui/Press.tsx"));
+    const cli::PreparedScene scene =
+        cli::prepare_scene(kPressFeedback, options_for("ui/Press.tsx"));
     if (!scene.error.empty()) {
         return;
     }
@@ -176,8 +181,8 @@ void test_press_reaches_the_behavior() {
     }
 }
 
-// A component with no behavior hook produces no behavior, which is what keeps every existing preview
-// unchanged.
+// A component with no behavior hook produces no behavior, which is what keeps every existing
+// preview unchanged.
 void test_no_behavior_means_no_instance() {
     const cli::PreparedScene scene = cli::prepare_scene(kNoBehavior, options_for("ui/Plain.tsx"));
     expect(scene.error.empty(), "the plain component prepares: " + scene.error);

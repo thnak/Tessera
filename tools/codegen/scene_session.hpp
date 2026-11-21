@@ -274,10 +274,10 @@ public:
     [[nodiscard]] std::size_t behavior_count() const noexcept {
         return behaviors_.size();
     }
-    // The current outputs of behavior `index`, or an empty span when there is no such behavior or it
-    // is not attached. A caller reads its manifest defaults in that case.
-    [[nodiscard]] std::span<const ui::behavior::OutputValue> behavior_outputs(
-        std::size_t index) const;
+    // The current outputs of behavior `index`, or an empty span when there is no such behavior or
+    // it is not attached. A caller reads its manifest defaults in that case.
+    [[nodiscard]] std::span<const ui::behavior::OutputValue>
+    behavior_outputs(std::size_t index) const;
     // The engine registry name of behavior `index` (`press_feedback`), or empty.
     [[nodiscard]] std::string_view behavior_name(std::size_t index) const;
     // True when behavior `index` is attached to every target its refs resolved to.

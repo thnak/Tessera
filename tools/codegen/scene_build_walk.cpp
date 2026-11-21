@@ -187,8 +187,8 @@ bool Builder::build_node(const ir::Node& node, ui::Node& parent, std::size_t dep
 
     // The `ref` this node carries, if any (behavior-hooks-v1.md section 8): a behavior's target is
     // the node a `ref` resolved to, so the session needs the mapping from `ref::` id to scene node.
-    // Recorded here because this is the last point that holds the `ir::Node`; the scene node carries
-    // no ref id of its own.
+    // Recorded here because this is the last point that holds the `ir::Node`; the scene node
+    // carries no ref id of its own.
     if (component_refs_ != nullptr) {
         for (const ir::Ref& ref : *component_refs_) {
             if (ref.target == node.id) {

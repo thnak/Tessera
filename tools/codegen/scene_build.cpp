@@ -85,8 +85,8 @@ SceneBuildResult build_scene(const ir::Component& component, ui::Node& root, eva
     }
     // A behavior output is readable in any pure expression (behavior-hooks-v1.md section 6), and
     // before the first attach it holds its manifest default (section 8). The preview seeds each one
-    // with that default here, so the first build reads a value instead of failing on an unknown ref;
-    // the session overwrites them from the live instance after it attaches.
+    // with that default here, so the first build reads a value instead of failing on an unknown
+    // ref; the session overwrites them from the live instance after it attaches.
     for (const ir::Behavior& behavior : component.behaviors) {
         for (const ir::BehaviorOutput& output : behavior.outputs) {
             const std::string id = behavior.id + "." + output.name;
