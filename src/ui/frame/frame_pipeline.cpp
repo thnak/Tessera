@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "redraw_cull.hpp"
+#include "style_diff.hpp"
 #include "tessera/runtime/runtime_loop.hpp"
 #include "tessera/ui/animation/loop_bridge.hpp"
 #include "tessera/ui/animation/property_dirty.hpp"
@@ -287,17 +288,32 @@ paint::SceneStyleSyncResult FramePipeline::sync_style(Node& root, paint::StylePr
         style_bridge_snapshot_ = {};
         return {};
     }
-    paint::SceneStyleSyncResult result = paint::sync_scene_style(root, styles, config_.glass);
+    DiffingStyleProvider diffing(styles, previous_styles_);
+    paint::SceneStyleSyncResult result = paint::sync_scene_style(root, diffing, config_.glass);
+    diffing.prune();
+    if (!diffing.changed().empty()) {
+        std::unordered_map<NodeId, Node*> index;
+        index_nodes(root, index);
+        for (const auto& [id, opacity_changed] : diffing.changed()) {
+            if (const auto found = index.find(id); found != index.end()) {
+                if (opacity_changed) {
+                    found->second->mark_subtree_dirty(Dirty::Paint | Dirty::Render);
+                } else {
+                    found->second->mark_dirty(Dirty::Paint | Dirty::Render);
+                }
+            }
+        }
+    }
     // Interaction state the scene itself consumes: hit testing (`pointer-events`) and the text
     // selection gate (`user-select`), stylesheet-v1 section 11 / issue #247. Same seam, same
     // frame, so the two halves never disagree about a restyled node.
-    sync_interaction_style(root, &interaction_style_thunk, &styles);
+    sync_interaction_style(root, &interaction_style_thunk, &diffing);
     // Transition and animation declarations become real here (issue #271): the diff against the
     // previous style starts the transitions the new style declares, and the animation sync
     // reconciles the running set against `animation-*`. Both feed the runtime the next tick
     // samples.
     style_bridge_snapshot_ =
-        style_bridge_state_.sync(*animations_, root, &interaction_style_thunk, &styles,
+        style_bridge_state_.sync(*animations_, root, &interaction_style_thunk, &diffing,
                                  style_keyframes_ != nullptr ? *style_keyframes_ : kNoKeyframes);
     if (!style_bridge_snapshot_.ids.empty()) {
         // The transition or animation starts now, after this tick already decided whether the loop

@@ -281,6 +281,9 @@ private:
     // Computed-style -> transitions/animations (issue #271). Mutable because `sync_style` is const
     // by contract (it resolves style, it does not change the frame decision) but the bridge has to
     // retain a per-node style snapshot between style stages.
+    // Last computed style per node, the baseline `sync_style` diffs against so a restyle that
+    // changes only paint properties still plans a redraw (dirty-rendering.md section 4.1).
+    mutable std::unordered_map<NodeId, style::ComputedStyle> previous_styles_;
     mutable animation::StyleBridge style_bridge_state_;
     mutable animation::StyleBridgeResult style_bridge_snapshot_;
     const std::vector<style::KeyframeBlock>* style_keyframes_ = nullptr;

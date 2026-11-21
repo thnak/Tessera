@@ -337,6 +337,77 @@ Text { font-size: 16px; color: #e2e8f0; }
         }
     }
 
+    // --- 13. A restyle that changes only a paint property still plans a redraw (#710) -----
+    {
+        Node paint_root(1);
+        Node& a = paint_root.add_child(std::make_unique<Node>(2));
+        a.set_element_kind("View");
+        a.set_class_name("card");
+        Node& b = paint_root.add_child(std::make_unique<Node>(3));
+        b.set_element_kind("View");
+        b.set_class_name("card");
+        tessera::runtime::ManualClock paint_clock;
+        tessera::runtime::RuntimeLoop paint_loop(paint_clock);
+        tessera::app::AppHost paint_host(paint_root, compile_stylesheet(R"(
+.card { width: 100px; height: 40px; background-color: #1e293b; }
+.card.hot { background-color: #334155; }
+.card.dim { opacity: 0.5; }
+)"),
+                                         paint_loop, config);
+        const auto settle = [&] {
+            RecordingSink sink;
+            (void)paint_host.begin_frame(1.0 / 60.0);
+            (void)paint_host.paint(sink);
+            paint_host.end_frame();
+        };
+        settle();
+        settle();
+
+        // A class that matches no rule recomputes to the same style: nothing may be dirtied.
+        a.set_class_name("card unused");
+        const auto unchanged = paint_host.begin_frame(1.0 / 60.0);
+        RecordingSink unchanged_sink;
+        const auto unchanged_paint = paint_host.paint(unchanged_sink);
+        paint_host.end_frame();
+        if (!expect(unchanged.tick.needs_style, "the class change restyles") ||
+            !expect(!unchanged.render.should_render && !unchanged_paint.painted,
+                    "a restyle with an identical computed style plans no redraw")) {
+            return 13;
+        }
+
+        // The class that only recolors must repaint, with the new color.
+        a.set_class_name("card hot");
+        const auto recolored = paint_host.begin_frame(1.0 / 60.0);
+        RecordingSink recolor_sink;
+        const auto recolor_paint = paint_host.paint(recolor_sink);
+        paint_host.end_frame();
+        const Color hot{51.0f / 255.0f, 65.0f / 255.0f, 85.0f / 255.0f, 1.0f};
+        bool drew_hot = false;
+        for (const RecordingSink::Fill& fill : recolor_sink.fills) {
+            drew_hot = drew_hot || same_color(fill.color, hot);
+        }
+        if (!expect(recolored.render.should_render, "a paint-only class change plans a redraw") ||
+            !expect(recolor_paint.painted && drew_hot, "the redraw draws the new color")) {
+            return 14;
+        }
+
+        // An opacity-only change (it composites the subtree) repaints too.
+        b.set_class_name("card dim");
+        const auto faded = paint_host.begin_frame(1.0 / 60.0);
+        RecordingSink fade_sink;
+        const auto fade_paint = paint_host.paint(fade_sink);
+        paint_host.end_frame();
+        if (!expect(faded.render.should_render && fade_paint.painted,
+                    "an opacity-only class change plans a redraw")) {
+            return 15;
+        }
+        const auto idle_again = paint_host.begin_frame(1.0 / 60.0);
+        paint_host.end_frame();
+        if (!expect(!idle_again.render.should_render, "the scene is idle again afterwards")) {
+            return 16;
+        }
+    }
+
     std::cout << "app_host: ok\n";
     return 0;
 }
