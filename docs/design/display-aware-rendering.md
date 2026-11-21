@@ -339,7 +339,7 @@ The same facts apply to the rest of the renderer; each row is independent of tex
 | Hairlines / 1 CSS px borders | width follows scale, not snapped | snap to whole device px, minimum 1; reuse `pixel_snap` (`src/ui/layout/pixel_snap.cpp`) at paint time | S3 |
 | Rounded clip edge | hard pixel-center mask | coverage from the clip's SDF with the same `fwidth` width; clip stack multiplies coverage | S4 |
 | Axis-aligned quads, fractional edges | can alias | snap at paint (S3); only transformed quads stay soft | S3 |
-| Images / textured quads | nearest or linear by flag | filter by scale: nearest at aligned 1:1, linear otherwise, mips when downscaling; decode at display size x DPR (#14) | S8 (filter; mips #491) |
+| Images / textured quads | nearest or linear by flag | filter by scale: nearest at aligned 1:1, linear otherwise, mips when downscaling; decode at display size x DPR (#14). A nearest draw uploads the decoded extent once (no CPU resample, #682) and maps to the raster on the GPU by integer `texelFetch`/`textureLoad` with the CPU rule `min(floor((2p+1)*src/(2*dst)), src-1)` (`Batched2DRenderer::push_texture_exact`); the hardware nearest sampler is not bit-exact at texel boundaries (every sample of a 2:1 downscale), so it is not used | S8 (filter; mips #491) |
 | Vector paths | no rasterizer yet | rasterize at device scale, cache per ladder step; strokes clamp to 1 device px minimum | with ThorVG (D1) |
 | Offscreen layers / glass | layer at 1x unless told | layer targets allocated at the window's render scale and keyed by it | with layers |
 | MSAA 4x | per-target opt-in | policy picks it only for non-SDF, non-text geometry and scale < 2.0; never default | S8 (rule and presentation hook) |

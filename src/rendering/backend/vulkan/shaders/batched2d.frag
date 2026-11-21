@@ -23,14 +23,22 @@ layout(location = 7) flat in uint v_texture_index;
 layout(set = 0, binding = 1) uniform texture2D u_texture;
 layout(set = 0, binding = 2) uniform sampler u_sampler;
 #define TESSERA_SAMPLE(uv) texture(sampler2D(u_texture, u_sampler), (uv))
+// Integer reads go through a combined sampler too: `textureSize`/`texelFetch` on the bare texture
+// would need GL_EXT_samplerless_texture_functions.
+#define TESSERA_TEXTURE_SIZE textureSize(sampler2D(u_texture, u_sampler), 0)
+#define TESSERA_FETCH(p) texelFetch(sampler2D(u_texture, u_sampler), (p), 0)
 #elif defined(TESSERA_TEXTURE_ARRAY)
 // The index is per-vertex data, so the array access is non-uniform and needs the extension.
 #extension GL_EXT_nonuniform_qualifier : require
 layout(set = 0, binding = 0) uniform sampler2D u_textures[32];
 #define TESSERA_SAMPLE(uv) texture(u_textures[nonuniformEXT(v_texture_index)], (uv))
+#define TESSERA_TEXTURE_SIZE textureSize(u_textures[nonuniformEXT(v_texture_index)], 0)
+#define TESSERA_FETCH(p) texelFetch(u_textures[nonuniformEXT(v_texture_index)], (p), 0)
 #else
 layout(set = 0, binding = 0) uniform sampler2D u_texture;
 #define TESSERA_SAMPLE(uv) texture(u_texture, (uv))
+#define TESSERA_TEXTURE_SIZE textureSize(u_texture, 0)
+#define TESSERA_FETCH(p) texelFetch(u_texture, (p), 0)
 #endif
 
 struct ClipUniform {
@@ -152,7 +160,22 @@ void main() {
 #define TESSERA_TEXEL TESSERA_SAMPLE(v_uv)
 #endif
 
-    if (v_mode > 0.5 && v_mode < 1.5) {
+    if (v_mode > 4000.0) {
+        // Exact nearest texture (#682, kExactNearestMode): the texel comes from integer math on the
+        // fragment's device pixel, so every GPU agrees with the CPU rule
+        // `min(floor((2p + 1) * src / (2 * dst)), src - 1)`. The hardware nearest sampler is not
+        // exact when a sample lands on a texel boundary (a 2:1 downscale picks the wrong neighbor on
+        // every pixel). `v_carve` carries the integer device rectangle: xy origin, zw size. It is
+        // rounded because interpolating a constant can leave a ulp of error. A texel fetch has no
+        // derivative, so this branch is legal in non-uniform control flow for the portable variant.
+        uvec2 src_size = uvec2(TESSERA_TEXTURE_SIZE);
+        vec4 box = round(v_carve);
+        uvec2 dst_size = uvec2(max(box.zw, vec2(1.0)));
+        ivec2 offset = ivec2(floor(gl_FragCoord.xy)) - ivec2(box.xy);
+        uvec2 p = uvec2(clamp(offset, ivec2(0), ivec2(dst_size) - ivec2(1)));
+        uvec2 s = min(((2u * p + uvec2(1u)) * src_size) / (2u * dst_size), src_size - uvec2(1u));
+        color *= TESSERA_FETCH(ivec2(s));
+    } else if (v_mode > 0.5 && v_mode < 1.5) {
         float d = sd_round_box(v_local, v_half_size, v_radius);
         float alpha;
         if (pc.aa_radius <= 0.0) {

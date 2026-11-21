@@ -309,36 +309,54 @@ void Batched2DSink::draw_image(const ImageDraw& draw) {
         return;
     }
 
-    // One texture per (content hash, raster extent, format, filter). The extent resample is
-    // deterministic (nearest), so the uploaded bytes are a function of the decode and the key; the
-    // filter is part of the key because sampler state is fixed at creation. S8 rule: nearest only
-    // when this draw is aligned 1:1 with the uploaded raster in device space, linear otherwise.
-    // `device_scale` is the same factor that chose the raster extent, so the comparison is against
-    // the pixels the draw actually covers (the frame's adaptive render-scale factor is not visible
-    // to the sink, exactly as it is not visible to the raster size rule).
+    // The texture holds the decoded pixels at their own extent (#682): one upload per (content
+    // hash, decoded extent, format, filter, levels), whatever raster extent a draw wants, so a
+    // resize or a zoom inside a decode bucket re-uploads nothing and the CPU never resamples. The
+    // draw maps the decoded pixels to the raster on the GPU.
+    //
+    // S8 rule, unchanged: a draw aligned 1:1 with the raster extent in device space is the
+    // deterministic reference and samples nearest; every other draw samples linear. The aligned
+    // draw goes through `push_texture_exact`, which applies the CPU resample rule in the shader, so
+    // its pixels equal the old "resample on the CPU, then draw 1:1" bytes at every ratio (the
+    // hardware nearest sampler would not: it picks the wrong neighbor on every pixel of a 2:1
+    // downscale). A non-aligned draw samples the decoded texture linearly, with a mip chain when it
+    // minifies (RHI 1.6); the key carries the level count because the sampler's LOD range is fixed
+    // at creation. `device_scale` is the factor that chose the raster extent, so the comparison is
+    // against the pixels the draw actually covers (the frame's adaptive render-scale factor is not
+    // visible to the sink, exactly as it is not visible to the raster size rule).
     const float device_scale = image_.device_scale;
     const rhi::Rect device_rect{draw.rect.x * device_scale, draw.rect.y * device_scale,
                                 draw.rect.width * device_scale, draw.rect.height * device_scale};
-    const rhi::Filter filter = image_filter_for_draw(
-        device_rect, rhi::Extent2D{request->raster_width, request->raster_height}, device_rect.x,
-        device_rect.y);
-    // Minification asks for a mip chain when the device can build one (RHI 1.6); the key carries
-    // the level count because the sampler's LOD range is fixed at creation, like the filter.
-    const std::uint32_t levels = image_levels_for_draw(
-        device_rect, rhi::Extent2D{request->raster_width, request->raster_height},
-        image_.textures->supports_mipmaps());
-    const rendering::image::ImageTextureKey texture_key{(*decoded)->content_hash,
-                                                        request->raster_width,
-                                                        request->raster_height,
-                                                        image_.texture_format,
-                                                        filter,
-                                                        levels};
-    const auto texture = image_.textures->acquire(**decoded, texture_key);
+    const rhi::Extent2D raster{request->raster_width, request->raster_height};
+    const rhi::Filter filter =
+        image_filter_for_draw(device_rect, raster, device_rect.x, device_rect.y);
+    const bool exact = filter == rhi::Filter::Nearest;
+    const bool mips = image_.textures->supports_mipmaps();
+    const rhi::Extent2D source{(*decoded)->width, (*decoded)->height};
+    const std::uint32_t levels = exact ? 1U : image_levels_for_draw(device_rect, source, mips);
+    auto texture = image_.textures->acquire(
+        **decoded,
+        rendering::image::ImageTextureKey{(*decoded)->content_hash, source.width, source.height,
+                                          image_.texture_format, filter, levels});
+    if (!texture.has_value() &&
+        texture.error() == rendering::image::ImageTextureError::entry_too_large) {
+        // A decode too big to keep (a huge original drawn small) falls back to the old route: a
+        // raster-sized texture, resampled once on the CPU, which fits where the original does not.
+        texture = image_.textures->acquire(
+            **decoded,
+            rendering::image::ImageTextureKey{
+                (*decoded)->content_hash, raster.width, raster.height, image_.texture_format,
+                filter, exact ? 1U : image_levels_for_draw(device_rect, raster, mips)});
+    }
     if (!texture.has_value()) {
         ++image_stats_.texture_failures;
         return;
     }
-    renderer_->push_texture(draw.rect, *texture->texture, {0.0f, 0.0f, 1.0f, 1.0f}, tint);
+    if (exact) {
+        renderer_->push_texture_exact(draw.rect, *texture->texture, tint);
+    } else {
+        renderer_->push_texture(draw.rect, *texture->texture, {0.0f, 0.0f, 1.0f, 1.0f}, tint);
+    }
     ++image_stats_.draws;
 }
 

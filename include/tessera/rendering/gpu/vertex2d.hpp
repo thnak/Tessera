@@ -74,6 +74,14 @@ inline constexpr float kSoftShadowReach = 2.0f;
 // painting outside the border box. The mode is kInsetShadowModeBase + sigma, so the two shadow
 // kinds share one vertex layout and one fragment branch.
 inline constexpr float kInsetShadowModeBase = 2048.0f;
+// An exact-nearest textured quad (#682) is mode kExactNearestMode. The fragment shader maps its
+// device pixel to a texel with integer math, `src = min(((2 * p + 1) * src_size) / (2 * dst_size),
+// src_size - 1)`, and fetches it without a sampler. The hardware nearest sampler is not exact: at a
+// 2:1 downscale every sample lands on a texel boundary and the interpolated UV picks the wrong
+// neighbor (measured on Vulkan and WebGPU, tests/gpu/batched2d/cpu_to_gpu_4k_measure.cpp). The
+// quad's integer device rectangle rides in the carve fields: x, y = origin and z, w = size in
+// target pixels. The texture must be sampled whole (uv 0..1).
+inline constexpr float kExactNearestMode = 4096.0f;
 
 inline constexpr rhi::VertexAttribute kVertex2DAttributes[] = {
     {0, static_cast<std::uint32_t>(offsetof(Vertex2D, x)), rhi::VertexFormat::Float2},

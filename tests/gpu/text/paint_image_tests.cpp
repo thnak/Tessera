@@ -271,14 +271,16 @@ bool vulkan_image_readback() {
     ok = expect(stats.draws == 3, "three valid nodes emit three image draws") &&
          expect(stats.missing_assets == 1, "the missing asset is a counted no-op") &&
          expect(harness.decoded.stats().decodes == 1, "all nodes share one decode") &&
-         expect(harness.textures->stats().uploads == 2,
-                "one upload per (content, extent): 64px and 32px variants") &&
+         expect(harness.textures->stats().uploads == 1,
+                "one upload per (content, decoded extent): the 64px and 32px draws share it") &&
+         expect(harness.textures->stats().resamples == 0,
+                "the GPU maps the decode to each raster extent; the CPU never resamples") &&
          ok;
 
     const std::vector<std::uint8_t> repeat =
         harness.render(scene.root, scene.styles, TextureFormat::R8G8B8A8Unorm, *harness.sink);
     ok = expect(first == repeat, "image paint is byte-identical on repeat") &&
-         expect(harness.textures->stats().uploads == 2, "the repeat frame is a cache hit") && ok;
+         expect(harness.textures->stats().uploads == 1, "the repeat frame is a cache hit") && ok;
 
     RenderHarness srgb;
     if (srgb.init(TextureFormat::R8G8B8A8Srgb)) {

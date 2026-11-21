@@ -141,7 +141,19 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     var color = in.color;
     // textureSample needs uniform control flow, so sample unconditionally and select.
     let sampled = textureSample(u_texture, u_sampler, in.uv);
-    if (in.mode > 0.5 && in.mode < 1.5) {
+    if (in.mode > 4000.0) {
+        // Exact nearest texture (#682, kExactNearestMode; see batched2d.frag): integer math on the
+        // fragment's device pixel, so every GPU agrees with the CPU rule. `carve` is the integer
+        // device rectangle (xy origin, zw size). textureLoad has no derivative, so it may sit here.
+        let src_size = textureDimensions(u_texture);
+        let box = round(in.carve);
+        let dst_size = vec2<u32>(max(box.zw, vec2<f32>(1.0, 1.0)));
+        let offset = vec2<i32>(floor(in.position.xy)) - vec2<i32>(box.xy);
+        let p = vec2<u32>(clamp(offset, vec2<i32>(0, 0), vec2<i32>(dst_size) - vec2<i32>(1, 1)));
+        let s = min(((2u * p + vec2<u32>(1u, 1u)) * src_size) / (2u * dst_size),
+                    src_size - vec2<u32>(1u, 1u));
+        color = color * textureLoad(u_texture, vec2<i32>(s), 0);
+    } else if (in.mode > 0.5 && in.mode < 1.5) {
         let d = sd_round_box(in.local, in.half_size, in.radius);
         var alpha = 0.0;
         if (pc.aa_radius <= 0.0) {
