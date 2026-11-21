@@ -40,6 +40,32 @@
       "lowering": { "kind": "behavior", "behavior": "focus_trap", "exclusive": true }
     },
     {
+      "name": "useListFocus",
+      "params": [
+        { "name": "target", "kind": "ref", "element": "any" },
+        {
+          "name": "options",
+          "kind": "options",
+          "ts": "ListFocusOptions",
+          "ir": "record",
+          "fields": [
+            {
+              "name": "orientation",
+              "ts": "\"horizontal\" | \"vertical\" | \"both\"",
+              "ir": "string",
+              "default": "vertical"
+            },
+            { "name": "wrap", "ts": "boolean", "ir": "bool", "default": true },
+            { "name": "typeahead", "ts": "boolean", "ir": "bool", "default": false }
+          ]
+        }
+      ],
+      "returns": {
+        "fields": [{ "name": "activeIndex", "ts": "number", "ir": "number", "default": -1 }]
+      },
+      "lowering": { "kind": "behavior", "behavior": "roving_focus", "exclusive": true }
+    },
+    {
       "name": "usePressFeedback",
       "params": [
         { "name": "target", "kind": "ref", "ts": "Element", "ir": "ref" },

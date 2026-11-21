@@ -47,11 +47,12 @@ bool test_committed_manifest_parses() {
     if (!expect(manifest.has_value(), "the committed manifest parses: " + error.detail)) {
         return false;
     }
-    bool ok = expect(manifest->hooks.size() == 5, "the manifest declares five hooks");
+    bool ok = expect(manifest->hooks.size() == 6, "the manifest declares six hooks");
     ok = expect(manifest->find("useTheme") != nullptr, "useTheme is declared") && ok;
     ok = expect(manifest->find("useThemeState") != nullptr, "useThemeState is declared") && ok;
     ok = expect(manifest->find("useBreakpoint") != nullptr, "useBreakpoint is declared") && ok;
     ok = expect(manifest->find("useFocusTrap") != nullptr, "useFocusTrap is declared") && ok;
+    ok = expect(manifest->find("useListFocus") != nullptr, "useListFocus is declared") && ok;
     ok =
         expect(manifest->find("usePressFeedback") != nullptr, "usePressFeedback is declared") && ok;
     return ok;
@@ -114,6 +115,19 @@ bool test_behavior_lowering() {
          ok;
     ok = expect(trap != nullptr && trap->outputs.size() == 1, "useFocusTrap returns one output") &&
          ok;
+    // `useListFocus` (issue #625): one target, three options, one numeric output, exclusive.
+    const auto* list = manifest->find("useListFocus");
+    ok = expect(list != nullptr && list->lowering == HookLoweringKind::Behavior,
+                "useListFocus is a behavior hook") &&
+         ok;
+    ok = expect(list != nullptr && list->provider == "roving_focus",
+                "useListFocus names the roving_focus behavior") &&
+         ok;
+    ok = expect(list != nullptr && list->exclusive, "useListFocus is exclusive") && ok;
+    ok =
+        expect(list != nullptr && list->outputs.size() == 1 && list->outputs.front().ir == "number",
+               "useListFocus returns one numeric output") &&
+        ok;
     return ok;
 }
 
