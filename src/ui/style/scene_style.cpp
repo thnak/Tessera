@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
 
-#include "tessera/ui/style/scene_style.hpp"
-
 #include "tessera/ui/style/layout_digest.hpp"
+#include "tessera/ui/style/scene_style.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -107,8 +106,8 @@ void SceneStyleTree::refresh(const Node& node, StyleNode* parent) {
     // whether the restyle moved a box (issue #735, slice A). A node with no memoised style has no
     // "before" to compare against, so it is recorded as changed.
     const auto memoised = memo_.find(&node);
-    restyled_.push_back(RestyledEntry{
-        &node, memoised == memo_.end() ? 0 : memoised->second.cached_digest()});
+    restyled_.push_back(
+        RestyledEntry{&node, memoised == memo_.end() ? 0 : memoised->second.cached_digest()});
     memo_.erase(&node);
     for (const auto& child : node.children()) {
         refresh(*child, &entry.view);
@@ -271,7 +270,8 @@ bool SceneStyleTree::restyled_layout_changed(const CompiledStyleSheet& sheet) {
 }
 
 ComputedStyle SceneStyleTree::compute(const CompiledStyleSheet& sheet, const Node& node,
-                                      ContainerSizeFn container_size, void* container_context) {    if (memo_active_ && container_size == nullptr) {
+                                      ContainerSizeFn container_size, void* container_context) {
+    if (memo_active_ && container_size == nullptr) {
         return resolve(sheet, node);
     }
     std::vector<const StyleNode*> chain;

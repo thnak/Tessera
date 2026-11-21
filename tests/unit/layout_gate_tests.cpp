@@ -77,7 +77,8 @@ private:
 // never take out a node the other edits hold a pointer to.
 constexpr std::uint64_t kExtraIdBase = 900000;
 
-constexpr const char* kSheet = R"(.card { width: 120px; height: 40px; padding: 4px; margin: 2px; background-color: #1e293b; }
+constexpr const char* kSheet =
+    R"(.card { width: 120px; height: 40px; padding: 4px; margin: 2px; background-color: #1e293b; }
 .card.hot { background-color: #334155; }
 .card.wide { width: 180px; }
 .card.tall { height: 60px; }
@@ -182,24 +183,24 @@ enum class Edit {
 
 const char* name_of(Edit edit) {
     switch (edit) {
-        case Edit::ClassPaint:
-            return "class-paint";
-        case Edit::ClassLayout:
-            return "class-layout";
-        case Edit::ClassDisplay:
-            return "class-display";
-        case Edit::InlinePaint:
-            return "inline-paint";
-        case Edit::InlineLayout:
-            return "inline-layout";
-        case Edit::Text:
-            return "text";
-        case Edit::FontSize:
-            return "font-size";
-        case Edit::Shape:
-            return "shape";
-        case Edit::Viewport:
-            return "viewport";
+    case Edit::ClassPaint:
+        return "class-paint";
+    case Edit::ClassLayout:
+        return "class-layout";
+    case Edit::ClassDisplay:
+        return "class-display";
+    case Edit::InlinePaint:
+        return "inline-paint";
+    case Edit::InlineLayout:
+        return "inline-layout";
+    case Edit::Text:
+        return "text";
+    case Edit::FontSize:
+        return "font-size";
+    case Edit::Shape:
+        return "shape";
+    case Edit::Viewport:
+        return "viewport";
     }
     return "?";
 }
@@ -224,74 +225,74 @@ void apply_edit(Edit edit, Scene& scene, Lcg& rng, int frame, float& width, floa
         return *scene.cards[first + rng.below(static_cast<std::uint32_t>(last - first + 1))];
     };
     switch (edit) {
-        case Edit::ClassPaint:
-            // Only the paint-only token changes; the layout tokens are left exactly as they were.
-            pick(0, 0).set_class_name((frame % 2) == 0 ? "card hot" : "card");
-            break;
-        case Edit::ClassLayout: {
-            // Three distinct box-changing tokens, chosen by the serial so a repeat pick still
-            // changes the class (and therefore the box) rather than being a no-op.
-            const std::uint32_t which = (++scene.edit_serial) % 3;
-            pick(1, 1).set_class_name(which == 0 ? "card wide"
-                                                 : (which == 1 ? "card tall" : "card padded"));
-            break;
+    case Edit::ClassPaint:
+        // Only the paint-only token changes; the layout tokens are left exactly as they were.
+        pick(0, 0).set_class_name((frame % 2) == 0 ? "card hot" : "card");
+        break;
+    case Edit::ClassLayout: {
+        // Three distinct box-changing tokens, chosen by the serial so a repeat pick still
+        // changes the class (and therefore the box) rather than being a no-op.
+        const std::uint32_t which = (++scene.edit_serial) % 3;
+        pick(1, 1).set_class_name(which == 0 ? "card wide"
+                                             : (which == 1 ? "card tall" : "card padded"));
+        break;
+    }
+    case Edit::ClassDisplay:
+        pick(2, 2).set_class_name((frame % 2) == 0 ? "card hidden" : "card");
+        break;
+    case Edit::InlinePaint: {
+        Node& card = pick(3, 3);
+        card.set_inline_style("background-color", (frame % 2) == 0 ? "#ff0000" : "#00ff00");
+        card.set_inline_style("border-radius", (frame % 2) == 0 ? "4px" : "0px");
+        break;
+    }
+    case Edit::InlineLayout: {
+        // Always a real change: the serial makes every write differ from the previous one, so
+        // this case cannot degenerate into a no-op the gate would correctly accept.
+        Node& card = pick(4, 5);
+        const std::uint32_t serial = ++scene.edit_serial;
+        card.set_inline_style("width", std::to_string(120 + (serial % 7)) + "px");
+        card.set_inline_style("margin-top", std::to_string(2 + (serial % 5)) + "px");
+        break;
+    }
+    case Edit::Text: {
+        // `set_paint_data` marks Paint|Render only: a text payload change is paint-only until
+        // the caller says the new text must be re-measured. A real caller that changes text
+        // marks Layout (see app_host_tests), so this case does the same - otherwise the warm
+        // host would correctly skip layout while the cold reference measures the new text, and
+        // the two would differ for a reason that has nothing to do with the gate.
+        Node& label = *scene.labels[rng.below(static_cast<std::uint32_t>(scene.labels.size()))];
+        label.set_paint_data(text_payload("Tick " + std::to_string(frame)));
+        label.mark_dirty(tessera::ui::Dirty::Layout);
+        break;
+    }
+    case Edit::FontSize: {
+        Node& label = *scene.labels[rng.below(static_cast<std::uint32_t>(scene.labels.size()))];
+        label.set_class_name((frame % 2) == 0 ? "big" : "");
+        break;
+    }
+    case Edit::Shape: {
+        // Add a child to a card, or remove the last one it has. Both move boxes. Only the
+        // extra children this case adds are ever removed, so the `cards`/`labels` pointers the
+        // other cases use stay valid.
+        Node& host = pick(6, scene.cards.size() - 1);
+        if (!host.children().empty() && host.children().back()->id() >= kExtraIdBase) {
+            (void)host.remove_child(*host.children().back());
+        } else {
+            // A `View`, not a `Text`: `build_layout_input` skips a Text child of a Text parent
+            // (inline spans are runs of the parent's text, not boxes), so a Text child added to
+            // a card's Text label would never reach layout and the shape edit would be a no-op.
+            auto extra = std::make_unique<Node>(kExtraIdBase + static_cast<std::uint64_t>(frame));
+            extra->set_element_kind("View");
+            extra->set_class_name("card");
+            host.add_child(std::move(extra));
         }
-        case Edit::ClassDisplay:
-            pick(2, 2).set_class_name((frame % 2) == 0 ? "card hidden" : "card");
-            break;
-        case Edit::InlinePaint: {
-            Node& card = pick(3, 3);
-            card.set_inline_style("background-color", (frame % 2) == 0 ? "#ff0000" : "#00ff00");
-            card.set_inline_style("border-radius", (frame % 2) == 0 ? "4px" : "0px");
-            break;
-        }
-        case Edit::InlineLayout: {
-            // Always a real change: the serial makes every write differ from the previous one, so
-            // this case cannot degenerate into a no-op the gate would correctly accept.
-            Node& card = pick(4, 5);
-            const std::uint32_t serial = ++scene.edit_serial;
-            card.set_inline_style("width", std::to_string(120 + (serial % 7)) + "px");
-            card.set_inline_style("margin-top", std::to_string(2 + (serial % 5)) + "px");
-            break;
-        }        case Edit::Text: {
-            // `set_paint_data` marks Paint|Render only: a text payload change is paint-only until
-            // the caller says the new text must be re-measured. A real caller that changes text
-            // marks Layout (see app_host_tests), so this case does the same - otherwise the warm
-            // host would correctly skip layout while the cold reference measures the new text, and
-            // the two would differ for a reason that has nothing to do with the gate.
-            Node& label = *scene.labels[rng.below(static_cast<std::uint32_t>(scene.labels.size()))];
-            label.set_paint_data(text_payload("Tick " + std::to_string(frame)));
-            label.mark_dirty(tessera::ui::Dirty::Layout);
-            break;
-        }
-        case Edit::FontSize: {
-            Node& label = *scene.labels[rng.below(static_cast<std::uint32_t>(scene.labels.size()))];
-            label.set_class_name((frame % 2) == 0 ? "big" : "");
-            break;
-        }
-        case Edit::Shape: {
-            // Add a child to a card, or remove the last one it has. Both move boxes. Only the
-            // extra children this case adds are ever removed, so the `cards`/`labels` pointers the
-            // other cases use stay valid.
-            Node& host = pick(6, scene.cards.size() - 1);
-            if (!host.children().empty() && host.children().back()->id() >= kExtraIdBase) {
-                (void)host.remove_child(*host.children().back());
-            } else {
-                // A `View`, not a `Text`: `build_layout_input` skips a Text child of a Text parent
-                // (inline spans are runs of the parent's text, not boxes), so a Text child added to
-                // a card's Text label would never reach layout and the shape edit would be a no-op.
-                auto extra = std::make_unique<Node>(kExtraIdBase +
-                                                    static_cast<std::uint64_t>(frame));
-                extra->set_element_kind("View");
-                extra->set_class_name("card");
-                host.add_child(std::move(extra));
-            }
-            break;
-        }
-        case Edit::Viewport:
-            width = (frame % 2) == 0 ? 640.0f : 800.0f;
-            height = (frame % 2) == 0 ? 480.0f : 600.0f;
-            break;
+        break;
+    }
+    case Edit::Viewport:
+        width = (frame % 2) == 0 ? 640.0f : 800.0f;
+        height = (frame % 2) == 0 ? 480.0f : 600.0f;
+        break;
     }
 }
 
@@ -299,17 +300,17 @@ void apply_edit(Edit edit, Scene& scene, Lcg& rng, int frame, float& width, floa
 // paint-only edit must be accepted (no layout pass), a layout edit must be declined.
 bool moves_a_box(Edit edit) {
     switch (edit) {
-        case Edit::ClassPaint:
-        case Edit::InlinePaint:
-            return false;
-        case Edit::ClassLayout:
-        case Edit::ClassDisplay:
-        case Edit::InlineLayout:
-        case Edit::Text:
-        case Edit::FontSize:
-        case Edit::Shape:
-        case Edit::Viewport:
-            return true;
+    case Edit::ClassPaint:
+    case Edit::InlinePaint:
+        return false;
+    case Edit::ClassLayout:
+    case Edit::ClassDisplay:
+    case Edit::InlineLayout:
+    case Edit::Text:
+    case Edit::FontSize:
+    case Edit::Shape:
+    case Edit::Viewport:
+        return true;
     }
     return true;
 }
@@ -448,8 +449,8 @@ int main() {
             for (std::size_t i = 0; i < warm.size(); ++i) {
                 if (warm[i].first != cold_boxes[i].first) {
                     std::cerr << "layout_gate: frame " << frame << " (" << name_of(edit)
-                              << ") node order differs at " << i << ": " << warm[i].first
-                              << " vs " << cold_boxes[i].first << "\n";
+                              << ") node order differs at " << i << ": " << warm[i].first << " vs "
+                              << cold_boxes[i].first << "\n";
                     return 1;
                 }
                 for (std::size_t c = 0; c < 4; ++c) {
@@ -457,7 +458,7 @@ int main() {
                         std::cerr << "layout_gate: frame " << frame << " (" << name_of(edit)
                                   << ", gate "
                                   << (gate_accepted[static_cast<std::size_t>(frame)] ? "accepted"
-                                                                                    : "declined")
+                                                                                     : "declined")
                                   << ") node " << warm[i].first << " box component " << c << " is "
                                   << warm[i].second[c] << " but a cold layout gives "
                                   << cold_boxes[i].second[c] << "\n";
@@ -477,7 +478,6 @@ int main() {
     }
     std::cout << "layout_gate: " << kFrames << " frames, gate accepted " << gate_hits << " ("
               << accepted_paint_edits << " paint-only edits) and declined " << gate_declines << " ("
-              << declined_layout_edits
-              << " layout edits), every box matched a cold layout\n";
+              << declined_layout_edits << " layout edits), every box matched a cold layout\n";
     return 0;
 }

@@ -68,8 +68,7 @@ void mark_safe_area_nodes(ui::Node& node) {
 // carries (issue #735, slice A). Only the fields the inset arithmetic reads are compared: the
 // window extent is already covered by the viewport check, and the flags (focused, occluded,
 // minimized) never reach layout.
-bool same_safe_area(const hal::WindowMetrics& before, bool before_valid,
-                    const SafeAreaState& now) {
+bool same_safe_area(const hal::WindowMetrics& before, bool before_valid, const SafeAreaState& now) {
     if (before_valid != now.has_metrics()) {
         return false;
     }
@@ -80,7 +79,8 @@ bool same_safe_area(const hal::WindowMetrics& before, bool before_valid,
     const auto same_insets = [](const hal::WindowInsets& a, const hal::WindowInsets& b) {
         return a.left == b.left && a.top == b.top && a.right == b.right && a.bottom == b.bottom;
     };
-    if (!same_insets(before.insets, after.insets) || !same_insets(before.ime_insets, after.ime_insets) ||
+    if (!same_insets(before.insets, after.insets) ||
+        !same_insets(before.ime_insets, after.ime_insets) ||
         !same_insets(before.gesture_insets, after.gesture_insets)) {
         return false;
     }
