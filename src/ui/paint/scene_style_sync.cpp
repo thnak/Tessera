@@ -55,7 +55,7 @@ bool sync_node(Node& node, StyleProvider& styles, const rendering::gpu::GlassLim
     if (!node.rendered()) {
         return false;
     }
-    const style::ComputedStyle style = styles.compute(node);
+    const style::ComputedStyle& style = styles.resolve(node);
     ++result.nodes;
 
     const int z_index = z_index_value(style);

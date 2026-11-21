@@ -25,7 +25,13 @@ public:
           previous_(previous) {}
 
     [[nodiscard]] style::ComputedStyle compute(const Node& node) override {
-        style::ComputedStyle next = inner_.compute(node);
+        return resolve(node);
+    }
+
+    // Steady state costs one map comparison and no copy; a copy is stored only for a first
+    // sighting or a change.
+    [[nodiscard]] const style::ComputedStyle& resolve(const Node& node) override {
+        const style::ComputedStyle& next = inner_.resolve(node);
         seen_.insert(node.id());
         const auto found = previous_.find(node.id());
         if (found == previous_.end()) {

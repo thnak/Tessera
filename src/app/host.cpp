@@ -67,7 +67,7 @@ ui::layout::LayoutInput build_layout_input(const ui::Node& node, ui::paint::Styl
                                            const SafeAreaState& safe_area) {
     ui::layout::LayoutInput input;
     input.id = node.id();
-    input.style = styles.compute(node);
+    input.style = styles.resolve(node);
     // A SafeArea node's padding or margin is host-owned, and the resolution is the SAME function
     // the design-time preview calls (issue #408): the app's metrics come from the OS and the
     // preview's from a simulated posture, but the token parsing and the padding writer are one
@@ -338,8 +338,8 @@ bool AppHost::handle_overlay_input(const ui::InputEvent& event) {
     }
 }
 
-void AppHost::Impl::run_layout_pass() {
-    const ui::layout::LayoutInput input = build_layout_input(root, *provider, safe_area);
+void AppHost::Impl::run_layout_pass(ui::paint::StyleProvider& styles) {
+    const ui::layout::LayoutInput input = build_layout_input(root, styles, safe_area);
     const ui::layout::LayoutViewport viewport{config.width, config.height, config.dpi_scale};
     // The scheduler reuses the cached result when the layout input signature (tree shape,
     // layout-affecting longhands, text, viewport) is unchanged, so a style-only change that
@@ -452,9 +452,11 @@ HostFrame AppHost::begin_frame(double dt, double alpha) {
         // the previous generation and differ from a cold full paint.
         state.pipeline->invalidate_paint_cache();
         frame.style_rebuilt = true;
-        state.run_layout_pass();
+        state.restyle_memo.begin(*state.provider);
+        state.run_layout_pass(state.restyle_memo);
         frame.layout = state.last_applied;
-        frame.sync = state.pipeline->sync_style(state.root, *state.provider, frame.tick, true);
+        frame.sync = state.pipeline->sync_style(state.root, state.restyle_memo, frame.tick, true);
+        state.restyle_memo.end();
         state.pipeline->sample_started_animations(state.root);
     };
     const bool geometry_work = frame.tick.needs_style || frame.tick.needs_layout;

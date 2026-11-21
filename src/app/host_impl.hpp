@@ -7,6 +7,7 @@
 // includes it.
 
 #include "adaptive_quality.hpp"
+#include "memo_style_provider.hpp"
 #include "quality_stage.hpp"
 #include "safe_area_state.hpp"
 #include "tessera/app/host.hpp"
@@ -63,7 +64,7 @@ struct AppHost::Impl {
     void rebuild_cascade();
     // Rebuilds the cascade and style tree, drops the paint cache and marks `dirty` on the subtree.
     void apply_style_generation(ui::Dirty dirty_mask);
-    void run_layout_pass();
+    void run_layout_pass(ui::paint::StyleProvider& styles);
     // The window minus the safe-area insets, and the root's text direction, for overlay placement.
     [[nodiscard]] rendering::rhi::Rect overlay_viewport() const;
     [[nodiscard]] bool root_is_rtl() const;
@@ -116,6 +117,8 @@ struct AppHost::Impl {
 
     std::unique_ptr<ui::style::SceneStyleTree> tree;
     std::unique_ptr<ui::paint::SceneStyleProvider> provider;
+    // One resolve per node per restyle, shared by layout input and the style sync (#711).
+    MemoStyleProvider restyle_memo;
     ui::layout::LayoutEngine engine;
     ui::layout::LayoutScheduler layout_scheduler{engine};
     ui::DirtyPass dirty;
