@@ -103,6 +103,14 @@ struct WindowOptions {
     // the run is not golden. Anything else presents a single sample, which is the byte-identical
     // default path. Any value other than 4 is treated as 1.
     std::uint32_t msaa_samples = 1;
+    // The native surface the caller already owns, for a platform that cannot create a window on its
+    // own (Android). Null on every platform that creates its own window, which is the default and
+    // what every existing caller keeps. The token is opaque: only the platform backend interprets
+    // it, so this header stays OS-free (ADR-020 rule 1). On Android it is the `ANativeWindow*` from
+    // the `SurfaceView`/`TextureView` holder or `NativeActivity`, and `dpi_scale` is the density
+    // the platform reported.
+    hal::NativeSurfaceToken surface;
+    float dpi_scale = 1.0f;
 };
 
 // Device health when run() returned. A caller distinguishes a clean exit (Ready, or Unavailable for

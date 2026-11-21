@@ -248,4 +248,29 @@ std::unique_ptr<Window> create_android_window(ANativeWindow* window, const Windo
     return std::make_unique<AndroidWindow>(window, desc, dpi_scale);
 }
 
+// The HAL entry point every platform implements. On Android the caller must hand over the surface
+// it already owns (`WindowDesc::surface`), because the OS owns the window and no descriptor can
+// produce one; a null token is the documented "no surface yet" answer, which is what a host sees
+// before its `SurfaceView` holder has a surface.
+std::unique_ptr<Window> create_window(const WindowDesc& desc) {
+    if (!desc.surface.valid()) {
+        return nullptr;
+    }
+    return create_android_window(static_cast<ANativeWindow*>(desc.surface.token), desc,
+                                 desc.dpi_scale);
+}
+
+// The base-class default for a platform with no event source of its own. It lives here rather than
+// only in window_stub.cpp because `Window::wait_for_events` is the class's key function: the
+// translation unit that defines it is the one that emits `typeinfo for tessera::hal::Window`, and
+// without it a shared library that links this backend fails with
+// "undefined symbol: typeinfo for tessera::hal::Window". Android does not compile window_stub.cpp
+// (it has a real backend), so the definition has to be here too.
+bool Window::wait_for_events(double timeout_seconds) {
+    if (std::isfinite(timeout_seconds) && timeout_seconds > 0.0) {
+        wait_until_seconds(steady_now_seconds() + timeout_seconds);
+    }
+    return false;
+}
+
 } // namespace tessera::hal

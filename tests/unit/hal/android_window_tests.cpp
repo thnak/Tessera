@@ -82,6 +82,27 @@ int main() {
     check(metrics.ime_insets.top == 0 && metrics.ime_insets.bottom == 0,
           "no IME insets by default");
 
+    // 6. The surface-token seam (issue #737, option B). `WindowDesc::surface` is the opaque handle
+    // a
+    //    platform that cannot create a window on its own receives. It must default to null, so
+    //    every existing caller keeps the "create your own window" path, and it must stay opaque:
+    //    the header carries a `void*`, never an `ANativeWindow*`.
+    const tessera::hal::WindowDesc desc{};
+    check(!desc.surface.valid(), "no surface token by default");
+    check(desc.surface.token == nullptr, "the default token is null");
+    check(desc.dpi_scale == 1.0f, "the default density scale is 1.0");
+
+    // A token is valid exactly when it is non-null, and the type is a plain value: it is copied
+    // into every `WindowDesc` and must not own anything.
+    tessera::hal::NativeSurfaceToken token;
+    check(!token.valid(), "a default token is invalid");
+    token.token = reinterpret_cast<void*>(static_cast<std::uintptr_t>(0x1234));
+    check(token.valid(), "a non-null token is valid");
+    static_assert(std::is_trivially_copyable_v<tessera::hal::NativeSurfaceToken>,
+                  "NativeSurfaceToken must be a plain value type");
+    static_assert(sizeof(tessera::hal::NativeSurfaceToken) == sizeof(void*),
+                  "NativeSurfaceToken must carry exactly one pointer");
+
     if (failures != 0) {
         std::cerr << "android_window: " << failures << " failure(s)\n";
         return 1;

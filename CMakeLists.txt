@@ -310,6 +310,11 @@ if (TESSERA_BUILD_VULKAN)
             add_subdirectory(samples/gallery)
         endif()
     endif()
+    # The Android app shell (issue #189): the native library Gradle packages into an APK. It is
+    # built only for Android, and only when the window driver exists, because it links it.
+    if (ANDROID AND TARGET tessera_app_window)
+        add_subdirectory(android/app/src/main/cpp)
+    endif()
 endif()
 
 if (TESSERA_BUILD_TESTS)

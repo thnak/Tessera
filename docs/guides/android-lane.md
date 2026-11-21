@@ -94,15 +94,61 @@ insets, cutouts or fold state (those need `WindowInsets`/`WindowMetricsCalculato
 metrics carry the documented zero-inset fallback with the "assumed" bits set, so a consumer cannot
 mistake an unwired source for a measurement.
 
-### 3.2 What is still missing
+### 3.2 The window driver builds for Android
 
-- **`tessera_app_window` is gated on `NOT CMAKE_CROSSCOMPILING`**, so the window driver does not
-  exist in an Android build even now that a window backend does. Lifting that gate is the next
-  blocker.
-- No `AndroidManifest.xml`, Gradle project or `NativeActivity` glue, so there is no APK to install.
-- No `MotionEvent`→`InputEvent` translation, `InputConnection` (IME) or `AccessibilityNodeProvider`.
+`tessera_app_window` used to be gated on `NOT CMAKE_CROSSCOMPILING`, so it did not exist in an
+Android build. The gate now admits Android (`NOT CMAKE_CROSSCOMPILING OR ANDROID`), and the driver
+reaches the surface through an opaque token rather than an Android type:
 
-### 3.3 Emulator GPU mode matters
+```cpp
+// include/tessera/hal/native_surface_token.hpp
+struct NativeSurfaceToken { void* token = nullptr; };
+
+// include/tessera/app/window.hpp
+struct WindowOptions {
+    hal::NativeSurfaceToken surface;  // null on every platform that creates its own window
+    float dpi_scale = 1.0f;
+};
+```
+
+The token is opaque for the same reason `AccessibilityHostHandle` is: only a platform translation
+unit may interpret it, so `include/tessera/app/window.hpp` stays OS-free (ADR-020 rule 1). On
+Android it is the `ANativeWindow*` from the `SurfaceView`/`TextureView` holder or `NativeActivity`,
+and `hal::create_window` returns `nullptr` when it is null — the documented "no surface yet" answer.
+
+### 3.3 The app shell
+
+`android/` holds the Gradle project and the native entry point:
+
+| Path | What it is |
+|---|---|
+| `android/app/src/main/AndroidManifest.xml` | `NativeActivity`, the Vulkan feature requirements, and the `configChanges` contract |
+| `android/app/src/main/cpp/android_main.cpp` | `android_main`: waits for the OS to hand over an `ANativeWindow`, then creates the host |
+| `android/app/src/main/cpp/CMakeLists.txt` | the `tessera_android_app` shared library, linking `tessera_app_window` |
+| `android/app/build.gradle.kts` | compiles the engine through the same CMake project and packages the APK |
+
+The manifest declares only what the engine can honour. `localeConfig`, `networkSecurityConfig`,
+`enableOnBackInvokedCallback` and `POST_NOTIFICATIONS` are deliberately absent: declaring a
+capability the app cannot honour routes platform events to a handler that does not exist.
+
+`android_main` creates the host on `APP_CMD_INIT_WINDOW` and destroys it on `APP_CMD_TERM_WINDOW`,
+so the host is gone before the window can be reused — the surface-lifecycle rule from
+`docs/design/mobile-integration.md` section 3.1. It does not run the frame loop on the glue thread:
+`WindowHost` is single-threaded and must be created, run and destroyed on the thread that owns the
+window.
+
+### 3.4 What is still missing
+
+- **Input.** `AInputEvent` arrives in `android_main` and is dropped (`onInputEvent` returns 0, so the
+  platform falls back to its own behaviour). Translating `MotionEvent`/`KeyEvent` into
+  `ui::InputEvent` is `docs/design/mobile-integration.md` section 3.2.
+- **Insets, cutouts, fold.** These need `WindowInsets`/`WindowMetricsCalculator` over JNI
+  (sections 3.5 and 3.6); the metrics carry the documented zero-inset fallback.
+- **IME and accessibility** (sections 3.3 and 3.4).
+- **A scene.** `android_main` creates the host with no scene or stylesheet, so it reports
+  unavailable. A real app supplies them where the shell has the comment.
+
+### 3.5 Emulator GPU mode matters
 
 | Emulator GPU mode | Device | API version | Tessera accepts? |
 |---|---|---|---|
