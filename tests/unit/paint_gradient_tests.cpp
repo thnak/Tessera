@@ -84,17 +84,17 @@ struct Event {
 class RecordingSink final : public PaintSink {
 public:
     void fill_rect(const Rect& rect, const Color&) override {
-        events.push_back({Event::Kind::Fill, rect, {}, {}});
+        events.push_back({Event::Kind::Fill, rect, {}, {}, {}});
     }
     void fill_rounded_rect(const Rect& rect, const Color&, float) override {
-        events.push_back({Event::Kind::Rounded, rect, {}, {}});
+        events.push_back({Event::Kind::Rounded, rect, {}, {}, {}});
     }
     void fill_linear_gradient(const GradientDraw& draw) override {
-        Event event{Event::Kind::Gradient, draw.rect, draw, {}};
+        Event event{Event::Kind::Gradient, draw.rect, draw, {}, {}};
         events.push_back(event);
     }
     void fill_radial_gradient(const RadialGradientDraw& draw) override {
-        Event event{Event::Kind::Radial, draw.rect, {}, draw};
+        Event event{Event::Kind::Radial, draw.rect, {}, draw, {}};
         events.push_back(event);
     }
     void fill_conic_gradient(const ConicGradientDraw& draw) override {
@@ -105,7 +105,7 @@ public:
         events.push_back(event);
     }
     void draw_text(const TextDraw& run) override {
-        events.push_back({Event::Kind::Text, run.rect, {}, {}});
+        events.push_back({Event::Kind::Text, run.rect, {}, {}, {}});
     }
     std::vector<Event> events;
 };
