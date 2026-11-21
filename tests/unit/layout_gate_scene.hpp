@@ -115,8 +115,8 @@ const char* name_of(Edit edit);
 
 // Applies one edit. Each kind owns a disjoint slice of the scene, so a later edit of a different
 // kind cannot silently undo an earlier one. That matters for the gate's contract: a `ClassPaint`
-// that wrote `"card hot"` over a `ClassLayout`'s `"card wide"` would move a box while claiming to be
-// paint-only, which is a bug in the test rather than in the gate.
+// that wrote `"card hot"` over a `ClassLayout`'s `"card wide"` would move a box while claiming to
+// be paint-only, which is a bug in the test rather than in the gate.
 //
 //   cards[0]      class-paint edits (paint-only)
 //   cards[1]      class-layout edits (a box change)

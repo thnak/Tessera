@@ -171,8 +171,7 @@ void apply_edit(Edit edit, Scene& scene, Lcg& rng, int frame, float& width, floa
             // A `View`, not a `Text`: `build_layout_input` skips a Text child of a Text parent
             // (inline spans are runs of the parent's text, not boxes), so a Text child added to a
             // card's Text label would never reach layout and the shape edit would be a no-op.
-            auto extra =
-                std::make_unique<Node>(kExtraIdBase + static_cast<std::uint64_t>(frame));
+            auto extra = std::make_unique<Node>(kExtraIdBase + static_cast<std::uint64_t>(frame));
             extra->set_element_kind("View");
             extra->set_class_name("card");
             host.add_child(std::move(extra));
