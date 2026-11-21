@@ -86,6 +86,9 @@ private:
     void register_extension_properties();
 
     std::map<std::string, PropertyInfo> properties_;
+    // Every longhand with a non-empty initial value, sorted by name: what `apply_initial_values`
+    // merges into a style in one pass. Built once at the end of the constructor.
+    ComputedStyle::Entries initial_entries_;
     std::map<std::string, ShorthandInfo> shorthands_;
 };
 
