@@ -28,6 +28,8 @@ constexpr FunctionName kFunctionNames[] = {
     {"repeating-radial-gradient(", GradientValue::Kind::Radial, true},
     {"linear-gradient(", GradientValue::Kind::Linear, false},
     {"radial-gradient(", GradientValue::Kind::Radial, false},
+    {"repeating-conic-gradient(", GradientValue::Kind::Conic, true},
+    {"conic-gradient(", GradientValue::Kind::Conic, false},
 };
 
 // Matches `text` against one function name and returns the text between its parentheses. The value
@@ -105,8 +107,12 @@ std::optional<GradientValue> parse_gradient(std::string_view text) {
             if (!detail::parse_linear_body(*body, gradient.linear)) {
                 return std::nullopt;
             }
-        } else {
+        } else if (name.kind == GradientValue::Kind::Radial) {
             if (!detail::parse_radial_body(*body, gradient.radial)) {
+                return std::nullopt;
+            }
+        } else {
+            if (!detail::parse_conic_body(*body, gradient.conic)) {
                 return std::nullopt;
             }
         }

@@ -177,6 +177,9 @@ struct LinearGradientStop {
 enum class GradientShape : std::uint8_t {
     Linear,
     Radial,
+    // `conic-gradient()` (issue #617): the sweep starts at `from_angle_degrees` and runs clockwise
+    // around the payload's centre.
+    Conic,
 };
 
 // The radial geometry of a gradient payload (issue #613): `center_x`/`center_y` are fractions of
@@ -206,6 +209,8 @@ struct LinearGradient {
     };
     std::size_t stop_count = 0;
     GradientShape shape = GradientShape::Linear;
+    // Conic only: the sweep's start angle, measured from 12 o'clock clockwise.
+    float from_angle_degrees = 0.0f;
     // `repeating-linear-gradient()` / `repeating-radial-gradient()` (issue #613): the authored ramp
     // repeats over the gradient line or radius. The paint pass expands it, so a sink still sees one
     // ordinary stop list.

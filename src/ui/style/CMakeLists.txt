@@ -19,6 +19,7 @@ add_library(tessera_style STATIC
     gradient_internal.cpp
     gradient_linear.cpp
     gradient_radial.cpp
+    gradient_conic.cpp
     property_background.cpp
     property_text_decoration.cpp
     text_decoration.cpp

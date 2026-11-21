@@ -106,6 +106,7 @@ struct PaintOp {
         FillBoxShadow,
         FillLinearGradient,
         FillRadialGradient,
+        FillConicGradient,
         PushClip,
         PushTransform,
         DrawText,
@@ -123,6 +124,7 @@ struct PaintOp {
     rhi::Mat3 transform;     // PushTransform
     GradientDraw gradient;   // FillLinearGradient (its own rect/clip/stops are authoritative)
     RadialGradientDraw radial_gradient; // FillRadialGradient (same rule)
+    ConicGradientDraw conic_gradient;   // FillConicGradient (same rule)
     BackdropDraw backdrop;              // DrawBackdrop (its own rect/clip/filter are authoritative)
     std::string text; // DrawText text bytes, or the borrowed asset name of DrawVector/Image
     float font_size = 0.0f;
@@ -266,6 +268,7 @@ public:
         void fill_box_shadow(const BoxShadowDraw& draw) override;
         void fill_linear_gradient(const GradientDraw& draw) override;
         void fill_radial_gradient(const RadialGradientDraw& draw) override;
+        void fill_conic_gradient(const ConicGradientDraw& draw) override;
         void push_clip(const RoundedClip& clip) override;
         void pop_clip() override;
         [[nodiscard]] bool supports_transform() const override;

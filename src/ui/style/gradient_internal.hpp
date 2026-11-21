@@ -27,6 +27,10 @@ std::vector<std::string_view> split_spaces(std::string_view text);
 // `strtof` plus the trailing unit text. False when there is no leading number or it is not finite.
 bool parse_number(const std::string& text, float& value, std::string& unit);
 
+// An `<angle>` token in degrees: `deg`, `grad`, `rad`, `turn`, or a bare `0`. False for any
+// other unit. Shared by the linear and conic halves, which both measure from 12 o'clock.
+std::optional<float> parse_angle(std::string_view text);
+
 // A `<percentage>` token as a 0..1 fraction. False for any other unit.
 std::optional<float> parse_percentage(std::string_view text);
 

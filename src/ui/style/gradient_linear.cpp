@@ -11,28 +11,6 @@
 namespace tessera::ui::style::detail {
 namespace {
 
-std::optional<float> parse_angle(std::string_view text) {
-    const std::string token = lower(trim(text));
-    float value = 0.0f;
-    std::string unit;
-    if (!parse_number(token, value, unit)) {
-        return std::nullopt;
-    }
-    if (unit == "deg") {
-        return value;
-    }
-    if (unit == "grad") {
-        return value * 0.9f;
-    }
-    if (unit == "rad") {
-        return value * 180.0f / 3.14159265358979f;
-    }
-    if (unit == "turn") {
-        return value * 360.0f;
-    }
-    return value == 0.0f && unit.empty() ? std::optional<float>(0.0f) : std::nullopt;
-}
-
 std::optional<float> parse_direction(std::string_view text) {
     const std::string token = lower(trim(text));
     if (token.rfind("to ", 0) != 0) {

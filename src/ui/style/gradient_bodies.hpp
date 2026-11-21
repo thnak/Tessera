@@ -17,4 +17,8 @@ bool parse_linear_body(std::string_view inner, LinearGradientValue& out);
 // Parses the inside of `radial-gradient(...)`. False when the value is outside the grammar.
 bool parse_radial_body(std::string_view inner, RadialGradientValue& out);
 
+// Parses the inside of `conic-gradient(...)` (issue #617). False when the value is outside the
+// grammar.
+bool parse_conic_body(std::string_view inner, ConicGradientValue& out);
+
 } // namespace tessera::ui::style::detail

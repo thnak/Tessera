@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -77,19 +78,39 @@ float wrap_degrees(float degrees) {
 // A `none` layer is the transparent image: the same gradient with every stop's alpha at 0. Pairing
 // a gradient with it is what makes a layer fade in or out, and it keeps the stop count and the
 // geometry of the layer it pairs with so the ramp does not slide while it fades.
+// The stop list of a gradient value, whichever shape it carries. A conic gradient has the same
+// stop contract as the other two, so the layer code reads it the same way.
+std::span<const GradientStopValue> stops_of(const GradientValue& gradient) {
+    switch (gradient.kind) {
+    case GradientValue::Kind::Linear:
+        return {gradient.linear.stops.data(), gradient.linear.stop_count};
+    case GradientValue::Kind::Radial:
+        return {gradient.radial.stops.data(), gradient.radial.stop_count};
+    case GradientValue::Kind::Conic:
+        return {gradient.conic.stops.data(), gradient.conic.stop_count};
+    }
+    return {};
+}
+
+// The mutable form, for the opacity fold.
+std::span<GradientStopValue> mutable_stops_of(GradientValue& gradient) {
+    switch (gradient.kind) {
+    case GradientValue::Kind::Linear:
+        return {gradient.linear.stops.data(), gradient.linear.stop_count};
+    case GradientValue::Kind::Radial:
+        return {gradient.radial.stops.data(), gradient.radial.stop_count};
+    case GradientValue::Kind::Conic:
+        return {gradient.conic.stops.data(), gradient.conic.stop_count};
+    }
+    return {};
+}
+
 BackgroundLayer transparent_like(const BackgroundLayer& layer) {
     BackgroundLayer result = layer;
     if (result.kind == BackgroundLayerKind::None) {
         return result;
     }
-    GradientValue& gradient = result.gradient;
-    const std::size_t count = gradient.kind == GradientValue::Kind::Linear
-                                  ? gradient.linear.stop_count
-                                  : gradient.radial.stop_count;
-    for (std::size_t index = 0; index < count; ++index) {
-        GradientStopValue& stop = gradient.kind == GradientValue::Kind::Linear
-                                      ? gradient.linear.stops[index]
-                                      : gradient.radial.stops[index];
+    for (GradientStopValue& stop : mutable_stops_of(result.gradient)) {
         stop.color.a = 0.0f;
     }
     return result;
@@ -121,6 +142,31 @@ GradientValue blend_gradients(const GradientValue& from, const GradientValue& to
             const GradientStopValue& rhs = b.stops[std::min(index, b.stop_count - 1)];
             result.linear.stops[index].offset = lhs.offset + (rhs.offset - lhs.offset) * t;
             result.linear.stops[index].color = interpolate_color(lhs.color, rhs.color, t);
+        }
+        return result;
+    }
+    if (from.kind == GradientValue::Kind::Conic) {
+        const ConicGradientValue& a = from.conic;
+        const ConicGradientValue& b = to.conic;
+        if (a.stop_count == 0 || b.stop_count == 0) {
+            return a.stop_count == 0 ? to : from;
+        }
+        // The sweep is periodic, so the start angle interpolates along the shorter arc exactly as a
+        // linear gradient's angle does.
+        result.conic.from_angle_degrees =
+            std::fmod(std::fmod(a.from_angle_degrees +
+                                    wrap_degrees(b.from_angle_degrees - a.from_angle_degrees) * t,
+                                360.0f) +
+                          360.0f,
+                      360.0f);
+        result.conic.position.x = a.position.x + (b.position.x - a.position.x) * t;
+        result.conic.position.y = a.position.y + (b.position.y - a.position.y) * t;
+        result.conic.stop_count = std::max(a.stop_count, b.stop_count);
+        for (std::size_t index = 0; index < result.conic.stop_count; ++index) {
+            const GradientStopValue& lhs = a.stops[std::min(index, a.stop_count - 1)];
+            const GradientStopValue& rhs = b.stops[std::min(index, b.stop_count - 1)];
+            result.conic.stops[index].offset = lhs.offset + (rhs.offset - lhs.offset) * t;
+            result.conic.stops[index].color = interpolate_color(lhs.color, rhs.color, t);
         }
         return result;
     }
@@ -185,13 +231,21 @@ std::optional<BackgroundLayerList> parse_background_layers(std::string_view text
         if (lower(part) == "none") {
             layer.kind = BackgroundLayerKind::None;
         } else if (const std::optional<GradientValue> gradient = parse_gradient(part)) {
-            layer.kind = gradient->kind == GradientValue::Kind::Linear
-                             ? BackgroundLayerKind::LinearGradient
-                             : BackgroundLayerKind::RadialGradient;
+            switch (gradient->kind) {
+            case GradientValue::Kind::Linear:
+                layer.kind = BackgroundLayerKind::LinearGradient;
+                break;
+            case GradientValue::Kind::Radial:
+                layer.kind = BackgroundLayerKind::RadialGradient;
+                break;
+            case GradientValue::Kind::Conic:
+                layer.kind = BackgroundLayerKind::ConicGradient;
+                break;
+            }
             layer.gradient = *gradient;
         } else {
-            // `url()`, a conic gradient or a malformed stop list: outside this grammar, so the
-            // whole value is rejected rather than painted as a guess.
+            // `url()` or a malformed stop list: outside this grammar, so the whole value is
+            // rejected rather than painted as a guess.
             return std::nullopt;
         }
         list.layers[list.count++] = layer;
@@ -212,11 +266,22 @@ std::string format_background_layers(const BackgroundLayerList& list) {
         }
         const GradientValue& gradient = layer.gradient;
         const bool linear = gradient.kind == GradientValue::Kind::Linear;
+        const bool conic = gradient.kind == GradientValue::Kind::Conic;
         out += gradient.repeating ? "repeating-" : "";
-        out += linear ? "linear-gradient(" : "radial-gradient(";
+        out += linear ? "linear-gradient(" : conic ? "conic-gradient(" : "radial-gradient(";
         if (linear) {
             out += format_number(gradient.linear.angle_degrees);
             out += "deg";
+        } else if (conic) {
+            // The prelude is printed in full so a round trip is exact, including the default angle
+            // and centre, which the parser accepts and the formatter therefore always writes.
+            out += "from ";
+            out += format_number(gradient.conic.from_angle_degrees);
+            out += "deg at ";
+            out += format_number(gradient.conic.position.x * 100.0f);
+            out += "% ";
+            out += format_number(gradient.conic.position.y * 100.0f);
+            out += '%';
         } else {
             // The geometry is printed in the explicit form so a round trip is exact; a keyword form
             // would have to be re-resolved against a box the formatter does not have.
@@ -229,10 +294,9 @@ std::string format_background_layers(const BackgroundLayerList& list) {
             out += format_number(gradient.radial.position.y * 100.0f);
             out += '%';
         }
-        const std::size_t count = linear ? gradient.linear.stop_count : gradient.radial.stop_count;
-        for (std::size_t stop = 0; stop < count; ++stop) {
-            const GradientStopValue& value =
-                linear ? gradient.linear.stops[stop] : gradient.radial.stops[stop];
+        const std::span<const GradientStopValue> stops = stops_of(gradient);
+        for (std::size_t stop = 0; stop < stops.size(); ++stop) {
+            const GradientStopValue& value = stops[stop];
             out += ", ";
             out += format_color(value.color);
             out.push_back(' ');

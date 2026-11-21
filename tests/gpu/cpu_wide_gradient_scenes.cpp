@@ -235,6 +235,61 @@ bool check_radials(const PaintStats& stats, const CpuCanvas& canvas) {
 }
 } // namespace
 
+// -------------------------------------------------------------------------------------------------
+// conics (issue #617): a centred sweep, an off-centre sweep with a start angle, and a repeating
+// sweep. The tessellation is the shared one both sinks call, so this baseline pins the geometry the
+// GPU path emits as well.
+// -------------------------------------------------------------------------------------------------
+void build_conics_scene(Node& root, StubStyles& styles) {
+    root.set_bounds({0, 0, static_cast<float>(kWidth), static_cast<float>(kHeight)});
+    styles.set(1, styled({{"background-color", "#0B1120"}}));
+
+    // A centred sweep from 12 o'clock: the first stop is at the top, the last back at the top.
+    Node& centred = add_node(root, 2, {16, 16, 120, 120});
+    centred.set_paint_data(conic_payload(0.5f, 0.5f, 0.0f,
+                                         {LinearGradientStop{0.0f, rgba8(250, 204, 21)},
+                                          LinearGradientStop{0.5f, rgba8(219, 39, 119)},
+                                          LinearGradientStop{1.0f, rgba8(250, 204, 21)}}));
+
+    // An off-centre sweep that starts at 90deg, so the first stop sits at 3 o'clock.
+    Node& offset = add_node(root, 3, {152, 16, 148, 70});
+    offset.set_paint_data(conic_payload(0.25f, 0.5f, 90.0f,
+                                        {LinearGradientStop{0.0f, rgba8(16, 185, 129)},
+                                         LinearGradientStop{1.0f, rgba8(245, 158, 11)}}));
+
+    // A repeating sweep: the authored cycle is short, so it repeats several times around the turn.
+    Node& repeating = add_node(root, 4, {152, 100, 148, 76});
+    repeating.set_paint_data(conic_payload(0.5f, 0.5f, 0.0f,
+                                           {LinearGradientStop{0.0f, rgba8(14, 165, 233)},
+                                            LinearGradientStop{0.25f, rgba8(244, 63, 94)}},
+                                           /*repeating=*/true));
+}
+
+bool check_conics(const PaintStats& stats, const CpuCanvas& canvas) {
+    bool ok = expect(stats.nodes == 4, "conics: four nodes painted (root plus three)") &&
+              expect(stats.gradients == 3, "conics: three conic fills emitted");
+    // The centred sweep's first stop is amber at 12 o'clock and the last is amber again, so the top
+    // and the bottom of the box agree while the sides differ.
+    ok = expect(channel(canvas, 76, 20, 0) > channel(canvas, 76, 20, 2),
+                "conics: the sweep starts at 12 o'clock") &&
+         ok;
+    // 9 o'clock is three quarters of the turn, which is between the pink middle stop and the amber
+    // last one, so it is neither the first stop nor the last.
+    ok = expect(channel(canvas, 20, 76, 0) > channel(canvas, 76, 20, 0) ||
+                    channel(canvas, 20, 76, 2) > channel(canvas, 76, 20, 2),
+                "conics: 9 o'clock is a different point on the ramp than 12 o'clock") &&
+         ok;
+    // The off-centre sweep starts at 90deg, so its first stop (green) is at 3 o'clock.
+    ok = expect(channel(canvas, 290, 51, 1) > channel(canvas, 290, 51, 0),
+                "conics: `from 90deg` puts the first stop at 3 o'clock") &&
+         ok;
+    // The repeating sweep alternates, so two points a quarter turn apart differ.
+    ok = expect(channel(canvas, 226, 138, 2) != channel(canvas, 226, 100, 2),
+                "conics: the repeating sweep alternates around the turn") &&
+         ok;
+    ok = expect(is_pixel(canvas, 310, 10, kRoot), "conics: nothing paints outside the boxes") && ok;
+    return ok;
+}
 namespace tessera::poc::batched2d::cpu_wide_support {
 
 const std::vector<Case>& gradient_cases() {
@@ -242,6 +297,7 @@ const std::vector<Case>& gradient_cases() {
         {"gradients", build_gradients_scene, check_gradients},
         {"layers", build_layers_scene, check_layers},
         {"radials", build_radials_scene, check_radials},
+        {"conics", build_conics_scene, check_conics},
     };
     return cases;
 }

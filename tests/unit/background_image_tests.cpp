@@ -238,9 +238,12 @@ bool shorthand() {
          ok;
     const auto longhand = registry.expand(Declaration{"background-image", "none", false, 0});
     ok = expect(longhand.declarations.size() == 1, "background-image is a known property") && ok;
-    const auto invalid =
-        registry.expand(Declaration{"background-image", "conic-gradient(red, blue)", false, 0});
+    // `conic-gradient()` is supported since #617, so the unsupported case is a `url()` layer.
+    const auto invalid = registry.expand(Declaration{"background-image", "url(a.png)", false, 0});
     ok = expect(!invalid.diagnostics.empty(), "an unsupported image value is reported") && ok;
+    const auto conic =
+        registry.expand(Declaration{"background-image", "conic-gradient(red, blue)", false, 0});
+    ok = expect(conic.diagnostics.empty(), "a conic gradient is accepted") && ok;
     const auto accepted =
         registry.expand(Declaration{"background-image", "radial-gradient(red, blue)", false, 0});
     ok = expect(accepted.diagnostics.empty(), "a radial gradient is accepted") && ok;
@@ -364,9 +367,51 @@ bool paints_radial_from_style() {
 
 } // namespace
 
+// `conic-gradient()` (issue #617): the prelude is `[from <angle>]? [at <position>]?`, both
+// optional, and the stop list is the one the other two shapes share.
+bool conic_grammar() {
+    const auto plain = parse_gradient("conic-gradient(red, blue)");
+    bool ok = expect(plain && plain->kind == GradientValue::Kind::Conic && !plain->repeating &&
+                         near(plain->conic.from_angle_degrees, 0.0F) &&
+                         near(plain->conic.position.x, 0.5F) &&
+                         near(plain->conic.position.y, 0.5F) && plain->conic.stop_count == 2,
+                     "a bare conic gradient takes the CSS defaults");
+
+    const auto from = parse_gradient("conic-gradient(from 90deg, red, blue)");
+    ok = expect(from && near(from->conic.from_angle_degrees, 90.0F), "the `from` angle is read") &&
+         ok;
+
+    const auto turn = parse_gradient("conic-gradient(from 0.25turn, red, blue)");
+    ok = expect(turn && near(turn->conic.from_angle_degrees, 90.0F), "`turn` is a unit") && ok;
+
+    const auto at = parse_gradient("conic-gradient(at 25% 75%, red, blue)");
+    ok = expect(at && near(at->conic.position.x, 0.25F) && near(at->conic.position.y, 0.75F),
+                "the `at` position is read") &&
+         ok;
+
+    const auto both = parse_gradient("conic-gradient(from 45deg at 10% 20%, red, blue)");
+    ok = expect(both && near(both->conic.from_angle_degrees, 45.0F) &&
+                    near(both->conic.position.x, 0.1F) && near(both->conic.position.y, 0.2F),
+                "`from` and `at` combine") &&
+         ok;
+
+    const auto repeating = parse_gradient("repeating-conic-gradient(red, blue)");
+    ok = expect(repeating && repeating->kind == GradientValue::Kind::Conic && repeating->repeating,
+                "the repeating form is recognised") &&
+         ok;
+
+    // Out of grammar: a stop list of one, and a prelude token that is not `from`/`at`.
+    ok = expect(!parse_gradient("conic-gradient(red)"), "a one-stop conic gradient is rejected") &&
+         ok;
+    ok = expect(!parse_gradient("conic-gradient(to right, red, blue)"),
+                "a linear direction is not a conic prelude") &&
+         ok;
+    return ok;
+}
 int main() {
     bool ok = grammar();
     ok = radial_grammar() && ok;
+    ok = conic_grammar() && ok;
     ok = repeating_grammar() && ok;
     ok = shorthand() && ok;
     ok = paints_from_style() && ok;

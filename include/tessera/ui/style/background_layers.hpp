@@ -40,6 +40,9 @@ enum class BackgroundLayerKind : unsigned char {
     // `radial-gradient()` (issue #613). The layer carries the whole `GradientValue`, so the shape
     // tag inside it is authoritative and this enumerator only says "a gradient is present".
     RadialGradient,
+    // `conic-gradient()` (issue #617). Like `RadialGradient`, the value's own shape tag is
+    // authoritative.
+    ConicGradient,
 };
 
 struct BackgroundLayer {

@@ -43,10 +43,10 @@
       "measures": "sizeof(ui::InputEvent): the element type of the 256-event input queue (about 80 KiB). Deterministic; was 'measured, not yet asserted' in performance.md section 3.1, and this row is the assertion. Identical on both lanes. Was 344 before the member reorder of security review finding C5 removed 24 bytes of internal padding"
     },
     "sizeof_paint_data": {
-      "budget": 528,
+      "budget": 536,
       "status": "enforce",
       "unit": "bytes",
-      "measures": "sizeof(ui::PaintData): the lazily allocated paint payload a text or image node carries. Identical on both lanes. 536 since issue #613 added the radial shape to the gradient payload (one stop array, the four radial fractions sharing a union with the linear angle, plus the shape tag). See paint_slot_bytes for what a text node actually allocates"
+      "measures": "sizeof(ui::PaintData): the lazily allocated paint payload a text or image node carries. Identical on both lanes. 536 since issue #617 added the conic shape to the gradient payload (one stop array, the sweep's start angle sharing the union with the linear angle and the radial geometry, plus the shape tag). See paint_slot_bytes for what a text node actually allocates"
     },
     "sizeof_node_id": {
       "budget": 8,
@@ -85,10 +85,10 @@
       "measures": "bytes the first bind_event allocates (one allocation). 200 on both lanes"
     },
     "paint_slot_bytes": {
-      "budget": 536,
+      "budget": 544,
       "status": "enforce",
       "unit": "bytes",
-      "measures": "bytes a text node's first set_paint_data allocates (the PaintData copy into the node's optional slot). 544 on both lanes: 520 was the linear-only payload, and issue #613 added the radial shape to the same struct (one stop array, the four radial fractions sharing a union with the linear angle) so a node still paints one background image. The 24-byte growth is the shape tag plus the union's alignment, not a second stop array."
+      "measures": "bytes a text node's first set_paint_data allocates (the PaintData copy into the node's optional slot). 544 on both lanes: 536 was the two-shape payload, and issue #617 added the conic shape to the same struct (one stop array, the sweep's start angle sharing the union with the linear angle and the radial geometry) so a node still paints one background image. The 8-byte growth is the start angle plus the shape tag's alignment, not a second stop array."
     },
     "cleared_table_reallocations": {
       "budget": 0,
