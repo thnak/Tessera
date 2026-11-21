@@ -230,12 +230,25 @@ void check_environment(Context& ctx, std::size_t index, const Statement& stateme
         form_error(ctx, hook.name, statement, "const value = " + hook.name + "();");
         return;
     }
-    const bool shape = statement.kind == StatementKind::Const && call.operands.size() == 1;
+    // A parameterized environment hook (`useMediaQuery("(min-width: 600px)")`) takes exactly one
+    // argument, which the manifest declares as a `value` parameter. A hook with no such parameter
+    // takes none, so the arity is the manifest's answer rather than a name check.
+    std::size_t expected_args = 1; // operand 0 is the callee
+    for (const jsx::HookParam& param : hook.params) {
+        if (param.kind == "value") {
+            ++expected_args;
+        }
+    }
+    const bool shape =
+        statement.kind == StatementKind::Const && call.operands.size() == expected_args;
     if (!shape) {
         form_error(ctx, hook.name, statement,
                    hook.writable ? "const [value, setValue] = " + hook.name + "();"
                                  : "const value = " + hook.name + "();");
         return;
+    }
+    if (expected_args > 1) {
+        info.argument = call.operands[1].get();
     }
     if (hook.writable) {
         if (!statement.array_pattern || statement.names.size() != 2) {

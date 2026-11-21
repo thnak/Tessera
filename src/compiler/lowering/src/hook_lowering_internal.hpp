@@ -78,7 +78,8 @@ void lower_behavior_hook(HookState& state, std::size_t index, LoweredHooks& out,
                          const NameResolver& names);
 // One `environment` hook call (docs/specs/jsx-subset-v1.md section 7.1): the analyzer already
 // checked the form, so this turns the recorded call into an IR `environment[]` entry.
-void lower_environment_hook(HookState& state, std::size_t index, LoweredHooks& out);
+void lower_environment_hook(HookState& state, std::size_t index, LoweredHooks& out,
+                            const NameResolver& names);
 void lower_declared_arrow_hook(HookState& state, std::size_t index, LoweredHooks& out);
 
 } // namespace tessera::compiler::lowering::internal

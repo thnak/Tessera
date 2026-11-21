@@ -272,7 +272,8 @@ void lower_behavior_hook(HookState& state, std::size_t index, LoweredHooks& out,
 // One `environment` hook call (docs/specs/jsx-subset-v1.md section 7.1). The analyzer already
 // checked the form against the manifest, so this only turns the recorded call into IR: the id, the
 // provider, the type and whether the value is writable.
-void lower_environment_hook(HookState& state, std::size_t index, LoweredHooks& out) {
+void lower_environment_hook(HookState& state, std::size_t index, LoweredHooks& out,
+                            const NameResolver& names) {
     const HookLoweringContext& context = state.context;
     const jsx::Statement& statement = context.component.body[index];
     const rules::EnvironmentInfo* info = nullptr;
@@ -294,6 +295,15 @@ void lower_environment_hook(HookState& state, std::size_t index, LoweredHooks& o
     env.type = info->type;
     env.writable = info->writable;
     env.source = to_source_span(context.source_map, statement.span, context.file);
+    // A parameterized environment hook (`useMediaQuery`) carries its one argument, so the generated
+    // base can evaluate it without the manifest.
+    if (info->argument != nullptr) {
+        ir::ExprPtr lowered = lower_component_expression(state, *info->argument, names);
+        if (!lowered) {
+            return;
+        }
+        env.argument = std::move(*lowered);
+    }
     out.environment.push_back(std::move(env));
 }
 

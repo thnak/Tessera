@@ -2271,6 +2271,9 @@ header include/tessera/ui/responsive/environment_set.hpp
 class include/tessera/ui/responsive/environment_set.hpp tessera::ui::responsive::EnvironmentSet
 struct include/tessera/ui/responsive/environment_set.hpp tessera::ui::responsive::EnvironmentConsumer
 
+header include/tessera/ui/responsive/media_query_match.hpp
+class include/tessera/ui/responsive/media_query_match.hpp tessera::ui::responsive::MediaQueryMatcher
+
 header include/tessera/ui/responsive/size_class.hpp
 enum include/tessera/ui/responsive/size_class.hpp tessera::ui::responsive::SizeClass
 function include/tessera/ui/responsive/size_class.hpp tessera::ui::responsive::parse_size_class

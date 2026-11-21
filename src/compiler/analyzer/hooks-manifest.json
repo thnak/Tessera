@@ -20,6 +20,12 @@
       "lowering": { "kind": "environment", "provider": "breakpoint" }
     },
     {
+      "name": "useMediaQuery",
+      "params": [{ "name": "query", "kind": "value", "ts": "string", "ir": "string" }],
+      "returns": { "ts": "boolean", "ir": "bool" },
+      "lowering": { "kind": "environment", "provider": "media_query" }
+    },
+    {
       "name": "useFocusTrap",
       "params": [
         { "name": "target", "kind": "ref", "element": "any" },
