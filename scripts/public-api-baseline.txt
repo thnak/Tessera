@@ -1246,6 +1246,10 @@ struct include/tessera/rendering/rhi/swapchain.hpp tessera::rendering::rhi::Swap
 enum include/tessera/rendering/rhi/swapchain.hpp tessera::rendering::rhi::SwapchainAlphaMode
 enum include/tessera/rendering/rhi/swapchain.hpp tessera::rendering::rhi::SwapchainError
 
+header include/tessera/rendering/rhi/texture_region.hpp
+struct include/tessera/rendering/rhi/texture_region.hpp tessera::rendering::rhi::TextureRegion
+function include/tessera/rendering/rhi/texture_region.hpp tessera::rendering::rhi::checked_region_pitch
+
 header include/tessera/rendering/rhi/timestamp.hpp
 struct include/tessera/rendering/rhi/timestamp.hpp tessera::rendering::rhi::GpuTimestampCapability
 function include/tessera/rendering/rhi/timestamp.hpp tessera::rendering::rhi::timestamp_delta_ticks
@@ -2801,6 +2805,7 @@ header include/tessera/ui/text/glyph_atlas.hpp
 class include/tessera/ui/text/glyph_atlas.hpp tessera::ui::text::GlyphAtlas
 struct include/tessera/ui/text/glyph_atlas.hpp tessera::ui::text::GlyphAtlasConfig
 struct include/tessera/ui/text/glyph_atlas.hpp tessera::ui::text::GlyphAtlasEntry
+struct include/tessera/ui/text/glyph_atlas.hpp tessera::ui::text::GlyphAtlasRect
 struct include/tessera/ui/text/glyph_atlas.hpp tessera::ui::text::GlyphAtlasStats
 
 header include/tessera/ui/text/glyph_raster.hpp

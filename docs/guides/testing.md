@@ -455,9 +455,9 @@ Each check is `{name, capability, run(Device&)}` (`conformance_check.hpp`). The 
 by name and applies the capability gate: when a backend lacks a capability, the check is skipped
 with `missing capability: <capability>` instead of failing. Checks cover device creation and the
 reported backend, buffer round-trip, buffer out-of-range rejection, render-target/texture/pipeline
-creation, command-list record and submit, `DeviceStatus::Ready`, and the GPU-timestamp probe
-(`timestamp_capability_honest`, plus `timestamp_query_roundtrip`, which skips when
-`GpuTimestampCapability::usable()` is false). Resource sizes stay at or below 64x64.
+creation, `Texture::write_region` acceptance and refusal (RHI 1.9), command-list record and
+submit, `DeviceStatus::Ready`, and the GPU-timestamp probe (`timestamp_capability_honest`, plus
+`timestamp_query_roundtrip`, which skips when `GpuTimestampCapability::usable()` is false). Resource sizes stay at or below 64x64.
 
 **Summary.** Byte-identical for two runs on the same backend: check names sorted, fixed key order,
 LF newlines, and no timestamps, pointers or absolute paths. Schema 1:
