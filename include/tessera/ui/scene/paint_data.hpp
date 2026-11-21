@@ -199,6 +199,7 @@ struct RadialGradientGeometry {
 struct LinearGradient {
     static constexpr std::size_t kMaxStops = 8;
     std::array<LinearGradientStop, kMaxStops> stops{};
+    std::size_t stop_count = 0;
     // A payload is one shape, so the linear angle and the radial geometry share one slot rather
     // than sitting side by side. That keeps `PaintData` inside its recorded budget
     // (tests/golden/perf/memory_budget.json `paint_slot_bytes`). `angle_degrees` uses the CSS
@@ -207,10 +208,9 @@ struct LinearGradient {
         float angle_degrees;
         RadialGradientGeometry radial;
     };
-    std::size_t stop_count = 0;
-    GradientShape shape = GradientShape::Linear;
     // Conic only: the sweep's start angle, measured from 12 o'clock clockwise.
     float from_angle_degrees = 0.0f;
+    GradientShape shape = GradientShape::Linear;
     // `repeating-linear-gradient()` / `repeating-radial-gradient()` (issue #613): the authored ramp
     // repeats over the gradient line or radius. The paint pass expands it, so a sink still sees one
     // ordinary stop list.

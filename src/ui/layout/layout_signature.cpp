@@ -5,9 +5,8 @@
 // inclusion list directly.
 
 #include "tessera/ui/layout/layout_signature.hpp"
+#include "tessera/ui/style/layout_digest.hpp"
 
-#include <algorithm>
-#include <array>
 #include <bit>
 #include <cstddef>
 #include <cstdint>
@@ -19,102 +18,9 @@ namespace {
 constexpr std::uint64_t kFnvOffset = 14695981039346656037ULL;
 constexpr std::uint64_t kFnvPrime = 1099511628211ULL;
 
-// Exactly the computed properties read by `detail::apply_style` (src/ui/layout/layout_style.cpp),
-// `child_layout_order` (src/ui/layout/layout_engine.cpp) and `text::text_style_from`
-// (src/ui/text/text_measure.cpp), except the paint-only `text-overflow`. Sorted by byte value so
-// binary search and a compile-time order check apply.
-// `scrollbar-gutter` is layout input (it reserves the overlay scrollbar width); the other scroll
-// style properties (`scroll-behavior`, `overscroll-behavior`, `overscroll-effect`) are runtime
-// inputs for the scroll controller and are deliberately absent so changing one never reflows.
-constexpr std::array<std::string_view, 71> kLayoutProperties = {{
-    "align-content",
-    "align-items",
-    "align-self",
-    "aspect-ratio",
-    "border-bottom-style",
-    "border-bottom-width",
-    "border-inline-end-style",
-    "border-inline-end-width",
-    "border-inline-start-style",
-    "border-inline-start-width",
-    "border-left-style",
-    "border-left-width",
-    "border-right-style",
-    "border-right-width",
-    "border-top-style",
-    "border-top-width",
-    "box-sizing",
-    "column-gap",
-    "direction",
-    "display",
-    "field-sizing",
-    "flex-basis",
-    "flex-direction",
-    "flex-grow",
-    "flex-shrink",
-    "flex-wrap",
-    "font-size",
-    "font-style",
-    "font-weight",
-    "grid-auto-flow",
-    "grid-column",
-    "grid-row",
-    "grid-template-columns",
-    "grid-template-rows",
-    "height",
-    "inset-inline-end",
-    "inset-inline-start",
-    "justify-content",
-    "justify-items",
-    "justify-self",
-    "left",
-    "letter-spacing",
-    "line-height",
-    "margin-bottom",
-    "margin-inline-end",
-    "margin-inline-start",
-    "margin-left",
-    "margin-right",
-    "margin-top",
-    "max-height",
-    "max-width",
-    "min-height",
-    "min-width",
-    "order",
-    "overflow-x",
-    "overflow-y",
-    "padding-bottom",
-    "padding-inline-end",
-    "padding-inline-start",
-    "padding-left",
-    "padding-right",
-    "padding-top",
-    "position",
-    "right",
-    "row-gap",
-    "scrollbar-gutter",
-    "text-transform",
-    "top",
-    "white-space",
-    "width",
-    "word-spacing",
-}};
-
-constexpr bool properties_are_sorted() {
-    for (std::size_t i = 1; i < kLayoutProperties.size(); ++i) {
-        if (!(kLayoutProperties[i - 1] < kLayoutProperties[i])) {
-            return false;
-        }
-    }
-    return true;
-}
-
-static_assert(properties_are_sorted(), "kLayoutProperties must stay sorted for binary search");
-
 // Framing bytes keep the hash unambiguous: ids, property values and text are all length-prefixed
 // and every node is delimited, so shifting bytes between fields changes the signature.
 constexpr std::uint8_t kNodeBegin = 0x4E;
-constexpr std::uint8_t kProperty = 0x50;
 constexpr std::uint8_t kText = 0x54;
 constexpr std::uint8_t kTextWrap = 0x57;
 constexpr std::uint8_t kNodeEnd = 0x45;
@@ -156,16 +62,6 @@ private:
     std::uint64_t state_ = kFnvOffset;
 };
 
-// Returns the index of `name` in the layout property set, or kLayoutProperties.size() when the
-// property is paint-only/unknown and must not invalidate a layout.
-std::size_t layout_property_index(std::string_view name) noexcept {
-    const auto found = std::lower_bound(kLayoutProperties.begin(), kLayoutProperties.end(), name);
-    if (found == kLayoutProperties.end() || *found != name) {
-        return kLayoutProperties.size();
-    }
-    return static_cast<std::size_t>(found - kLayoutProperties.begin());
-}
-
 void hash_node(const LayoutInput& input, Hasher& hasher) noexcept {
     hasher.u8(kNodeBegin);
     hasher.u64(input.id);
@@ -175,25 +71,10 @@ void hash_node(const LayoutInput& input, Hasher& hasher) noexcept {
     // order. Only the layout set is folded in; a paint-only change leaves the signature intact.
     // The layout part of the style is hashed on its own and cached with the style's shared
     // entries, so a node whose style did not change costs one load instead of a pass over ~100
-    // names (issue #711).
-    std::uint64_t style_digest = input.style.cached_digest();
-    if (style_digest == 0) {
-        Hasher style_hasher;
-        for (const auto& [name, value] : input.style.properties()) {
-            const std::string_view name_view = name;
-            const std::size_t index = layout_property_index(name_view);
-            if (index == kLayoutProperties.size()) {
-                continue;
-            }
-            style_hasher.u8(kProperty);
-            style_hasher.u32(static_cast<std::uint32_t>(index));
-            style_hasher.bytes(value);
-        }
-        style_digest = style_hasher.value();
-        input.style.cache_digest(style_digest);
-        style_digest = input.style.cached_digest();
-    }
-    hasher.u64(style_digest);
+    // names (issue #711). The property set and the hash live in the style module
+    // (`style::layout_digest`), because `tessera_layout` depends on `tessera_style` and not the
+    // other way round; the layout-unchanged gate reads the same digest (issue #735).
+    hasher.u64(style::layout_digest(input.style));
 
     // Text drives Yoga's measure callback, so it is a layout input even when the surrounding box
     // has fixed dimensions. Including it can only cost a redundant reflow, never a wrong reuse.

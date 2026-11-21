@@ -10,6 +10,7 @@
 #include "tessera/hal/geometry.hpp"
 #include "tessera/hal/refresh_rate.hpp"
 #include "tessera/hal/window_backdrop.hpp"
+#include "tessera/hal/window_desc.hpp"
 
 #include <array>
 #include <cstddef>
@@ -218,6 +219,9 @@ enum class WindowSystem : std::uint8_t {
     Win32,
     Xlib,
     Wayland,
+    // Android: `native_handle().window` is an `ANativeWindow*` and `display` is unused. The surface
+    // is created with `vkCreateAndroidSurfaceKHR` (see rhi::SurfacePlatform::Android).
+    Android,
 };
 
 // The number of `WindowEventType` enumerators. The rules table is indexed by the enumerator value
@@ -250,27 +254,6 @@ enum class WindowEventCategory : std::uint8_t {
 // True when consecutive events of `type` coalesce into the newest (section 3: resize, move, DPI,
 // scale, refresh, insets). Lifecycle transitions never coalesce and return false.
 [[nodiscard]] bool window_event_coalesces(WindowEventType type) noexcept;
-// Opaque native handles for renderer integration; UI/components must keep using WindowMetrics.
-// Win32: `window` is the HWND, `display` is unused. X11: `display` is the Display* and `window` the
-// Window id. Wayland: `display` is the wl_display* and `window` the wl_surface*.
-struct NativeWindowHandle {
-    void* display = nullptr;
-    void* window = nullptr;
-};
-
-// Opaque identity of the window's native host element for the platform accessibility root
-// (Windows: the HWND that `UiaHostProviderFromHwnd` consumes). UI and accessibility code pass it by
-// value and never inspect, cast, or dereference `token`: only a platform/UIA translation unit may
-// interpret it, so no OS handle type leaks into a UI-layer type (ADR-020). A null token means the
-// backend has no native host element (offscreen/null window or no accessibility platform).
-struct AccessibilityHostHandle {
-    void* token = nullptr;
-
-    [[nodiscard]] bool valid() const noexcept {
-        return token != nullptr;
-    }
-};
-
 struct WindowEvent {
     WindowEventType type = WindowEventType::Resize;
     WindowMetrics metrics;
@@ -296,19 +279,10 @@ struct AccessibilityRoot {
 
 // Client-area size is logical pixels; the platform converts it to physical pixels with the
 // per-monitor DPI scale. A zero width or height is invalid.
-struct WindowDesc {
-    std::string title = "Tessera";
-    std::uint32_t width = 1280;
-    std::uint32_t height = 720;
-    bool visible = true;
-    // The requested OS backdrop (the resolved root `window-backdrop`, glass-v1.md section 6). A
-    // non-`Disabled` request implies a translucent client area; `transparent` also asks for one
-    // without a named material. `win10_acrylic` opts into the undocumented Windows 10 accent policy
-    // that only `win10Acrylic: true` may enable.
-    WindowBackdrop backdrop = WindowBackdrop::Disabled;
-    bool transparent = false;
-    bool win10_acrylic = false;
-};
+// Opaque identity of a native presentation surface the CALLER owns, for platforms where the OS
+// hands the app a surface instead of letting it create a window (Android's `ANativeWindow*`).
+// Defined in its own header so this one stays inside its size budget; see
+// `tessera/hal/native_surface_token.hpp` for the ownership rule.
 
 // Platform window seam. Implementations live under src/platform/<os>/ and own every OS handle;
 // this header stays OS-free so UI and rendering code can depend on it.

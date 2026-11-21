@@ -5,7 +5,6 @@ for the project overview. Contribution workflow: [`../CONTRIBUTING.md`](../CONTR
 This page is the map and reading order for the framework.
 
 ## 0. Documentation rules
-
 - One topic per file; target 400 lines, hard limit 600 lines.
 - A topic over 600 lines becomes a folder with a `README.md` index and linked parts.
 - New/edited docs follow this rule; an existing oversized document is split when next edited.
@@ -132,8 +131,8 @@ This page is the map and reading order for the framework.
   RHI (render hardware interface)/shader API, 3D composition, element input, reuse, headless tests
 - [`specs/element-transitions-v1.md`](specs/element-transitions-v1.md) — AnimatePresence and
   SharedElement: presence state machine, named shared groups, budgets, tests (proposed, stage 2)
-- [`specs/size-change-events-v1.md`](specs/size-change-events-v1.md) — `onSizeChange` (ADR-041)
-- [`specs/glass-v1.md`](specs/glass-v1.md) — backdrop-filter glass and translucent windows: grammar,
+- [`specs/size-change-events-v1.md`](specs/size-change-events-v1.md) — `onSizeChange` (ADR-041);
+  [`specs/glass-v1.md`](specs/glass-v1.md) — backdrop-filter glass and translucent windows: grammar,
   two-pass Gaussian, OS backdrop table, damage rules, always-on decision (proposed, V1)
 - [`specs/safe-area-v1.md`](specs/safe-area-v1.md) — SafeArea: insets, cutouts, keyboard, hinge,
   edges/sources/minimum (proposed, stage 1)
@@ -258,14 +257,15 @@ This page is the map and reading order for the framework.
 - [`design/game-loop.md`](design/game-loop.md) — fixed timestep, frame cap, vsync, VRR (variable refresh rate)
 - [`design/app-host.md`](design/app-host.md) — the production frame loop that wires style, layout, sync, damage, paint and present (steps 3-8 implemented by `tessera_app`; input/present are the driver)
 - [`design/shell-design-preview.md`](design/shell-design-preview.md) — mock captures of the startup P0/P2/P4 frames and the system vs framework window chrome, rendered through the real style/layout/paint path
-- [`design/dirty-rendering.md`](design/dirty-rendering.md) — invalidation, caches, damage,
-  multi-frame execution, render-side damage present-loop evidence (`damage_min`/`damage_present`)
+- [`design/dirty-rendering.md`](design/dirty-rendering.md) — invalidation, caches, damage, multi-frame execution, render-side damage present-loop evidence (`damage_min`/`damage_present`)
 - [`design/performance.md`](design/performance.md) — power-aware defaults, budgets, adaptive
-  quality, hardware utilization; [`cache-lines.md`](design/cache-lines.md) covers false sharing
+  quality, hardware utilization; [`cache-lines.md`](design/cache-lines.md) covers false sharing;
+  [`perf-735-baseline.md`](design/perf-735-baseline.md) has the measured probe rows
 - [`design/window-resize.md`](design/window-resize.md) — resize/DPI/lifecycle, declarative vs
-  infrastructure, OS compliance, present-path hardening (`--msaa 4`, `--simulate-loss`)
-- [`design/hal.md`](design/hal.md) — window/display/input/power/lifecycle abstraction
-- [`design/mobile-integration.md`](design/mobile-integration.md) — Android/iOS surface, input, IME, accessibility, lifecycle, manifest declarations
+  infrastructure, OS compliance, present-path hardening (`--msaa 4`, `--simulate-loss`);
+  [`design/hal.md`](design/hal.md) — window/display/input/power/lifecycle abstraction;
+  [`design/mobile-integration.md`](design/mobile-integration.md) — Android/iOS surface, input,
+  IME, accessibility, lifecycle, and manifest/Info.plist declarations
 - [`design/bridges.md`](design/bridges.md) — native-first bridge policy (JNI (Java Native Interface)/ObjC/Wasm/IPC)
 - [`design/async.md`](design/async.md) — C++20 coroutines, executors, cancellation, no blocking
 - [`design/diagnostics.md`](design/diagnostics.md) — logging, tracing, metrics, profiling,
@@ -362,7 +362,7 @@ This page is the map and reading order for the framework.
   class, `bind::` members, regeneration
 - [`guides/real-gpu-ci.md`](guides/real-gpu-ci.md) — the real-GPU lane: a local script (not a GitHub workflow) that runs the window and Vulkan tests hosted CI skips
 - [`guides/code-style.md`](guides/code-style.md) — style, file size, build-cache rules
-- [`guides/testing.md`](guides/testing.md) — run/add tests, sanitizers, CI, triage
+- [`guides/testing.md`](guides/testing.md) — run/add tests, sanitizers, CI, triage; [`guides/android-lane.md`](guides/android-lane.md) — NDK cross-compile and emulator tests
 - [`guides/chrome-parity.md`](guides/chrome-parity.md) — compare what the engine paints with Chrome for the same markup and stylesheet
 - [`guides/packaging.md`](guides/packaging.md) — release checklist: gates, per-OS install/package,
   artifact names, manual signing/notarization

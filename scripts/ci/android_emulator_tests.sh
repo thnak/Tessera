@@ -118,7 +118,12 @@ adb_run shell chmod +x "$test_dir/*_tests"
 # Host-only tests: font fixtures, repo-file/golden readers (IR, lowering, schema, rules layering,
 # the CPU golden image readers, theme/status docs, argument-taking font and archive tests) and GPU fixture comparisons need files that only exist in the
 # checkout; the device sandbox has none of them and the host platforms cover these cases.
-if ! timeout "$TEST_TIMEOUT" adb shell 'cd /data/local/tmp/tessera && fail=0; for t in *_tests; do case "$t" in font_face_tests|freetype_metrics_tests|glyph_raster_tests|glyph_atlas_tests|harfbuzz_shaper_tests|fallback_shaper_tests|glyph_atlas_faces_tests|glyph_color_tests|emoji_font_tests|tofu_placeholder_tests|text_render_faces_tests|text_render_tests|ir_json_tests|ir_layering_tests|rules_layering_tests|lowering_golden_tests|lowering_layering_tests|library_tsx_parity_tests|schema_golden_tests|schema_layering_tests|cpu_wide_golden_tests|path_texture_draw_tests|generated_ui_memory_tests|ir_ids_stability_tests|instrument_theme_tests|library_button_lowering_tests|library_button_style_tests|library_safe_area_lowering_tests|lowering_callback_forward_tests|property_status_tests|text_measure_paint_tests|tracing_strip_tests) continue;; esac; echo "== $t"; ./$t; code=$?; if [ $code -ne 0 ]; then echo "FAILED $t exit=$code"; fail=1; fi; done; exit $fail'; then
+#
+# corpus_measure_tests is host-only for the same reason: the build bakes the absolute
+# TESSERA_CORPUS_DIR/TESSERA_CORPUS_GOLDEN paths into the binary, so on the device it fails with
+# "the corpus directory is readable" instead of measuring anything. It is a golden reader, so the
+# host lanes cover it.
+if ! timeout "$TEST_TIMEOUT" adb shell 'cd /data/local/tmp/tessera && fail=0; for t in *_tests; do case "$t" in font_face_tests|freetype_metrics_tests|glyph_raster_tests|glyph_atlas_tests|harfbuzz_shaper_tests|fallback_shaper_tests|glyph_atlas_faces_tests|glyph_color_tests|emoji_font_tests|tofu_placeholder_tests|text_render_faces_tests|text_render_tests|ir_json_tests|ir_layering_tests|rules_layering_tests|lowering_golden_tests|lowering_layering_tests|library_tsx_parity_tests|schema_golden_tests|schema_layering_tests|cpu_wide_golden_tests|path_texture_draw_tests|generated_ui_memory_tests|ir_ids_stability_tests|instrument_theme_tests|library_button_lowering_tests|library_button_style_tests|library_safe_area_lowering_tests|lowering_callback_forward_tests|property_status_tests|text_measure_paint_tests|tracing_strip_tests|corpus_measure_tests) continue;; esac; echo "== $t"; ./$t; code=$?; if [ $code -ne 0 ]; then echo "FAILED $t exit=$code"; fail=1; fi; done; exit $fail'; then
     dump_diagnostics
     exit 1
 fi

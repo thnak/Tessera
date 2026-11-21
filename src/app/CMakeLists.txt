@@ -30,6 +30,13 @@ add_library(tessera_app STATIC
     # The `useBreakpoint()` half of issue #692: the size class from the media context, pushed to the
     # registered consumers after a size change.
     host_environment.cpp
+    # Embedded stylesheet registration (ADR-048). Split out of host.cpp, which is at its size
+    # budget.
+    host_stylesheets.cpp
+    # The layout-unchanged gate (issue #735, slice A): when a restyle provably kept every layout
+    # input, reuse the previous result instead of rebuilding the layout input and hashing it.
+    # Split out of host.cpp, which is at its size budget.
+    host_layout_gate.cpp
     safe_area_state.cpp
     safe_area_state.hpp
     system_motion.cpp
@@ -86,9 +93,12 @@ endif ()
 
 # The window driver: owns the platform window, Vulkan device/swapchain, Batched2D renderer and the
 # font/text stack, and runs the AppHost loop against real input and presentation. Vulkan is the
-# native backend (WebGPU is the Wasm/design-time one), and window presentation is host-only, so the
-# target exists only for host builds with the Vulkan backend.
-if (TESSERA_BUILD_VULKAN AND NOT CMAKE_CROSSCOMPILING)
+# native backend (WebGPU is the Wasm/design-time one).
+#
+# Android is cross-compiled but DOES have a window backend now (src/platform/android adopts the
+# ANativeWindow the host owns), so the gate admits it. Every other cross-compiling target (iOS,
+# Wasm) still has no window backend and is excluded.
+if (TESSERA_BUILD_VULKAN AND (NOT CMAKE_CROSSCOMPILING OR ANDROID))
     add_library(tessera_app_window STATIC
         frame_capture.cpp
         window.cpp

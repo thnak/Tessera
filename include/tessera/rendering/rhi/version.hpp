@@ -39,8 +39,12 @@ namespace tessera::rendering::rhi {
 // 1.9 (2026-11-21): additive `Texture::write_region` and `TextureRegion` (one rectangle of an
 // existing texture), so an atlas page whose glyph changed a few texels uploads those and not the
 // whole page (issue #681). Pure virtual so every backend answers.
+// 1.10 (2026-11-21): additive `SurfacePlatform::Android`, the presentation family for
+// `VK_KHR_android_surface`. No existing enumerator changes value and no interface member changes,
+// so a backend that never presents to an ANativeWindow is unaffected; the enumerator exists so an
+// Android build can name its family instead of resolving to `NoPlatform` (issue #189).
 inline constexpr std::uint32_t kRhiVersionMajor = 1;
-inline constexpr std::uint32_t kRhiVersionMinor = 9;
+inline constexpr std::uint32_t kRhiVersionMinor = 10;
 inline constexpr std::uint32_t kRhiVersion = (kRhiVersionMajor << 16) | kRhiVersionMinor;
 
 } // namespace tessera::rendering::rhi

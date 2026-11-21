@@ -222,6 +222,11 @@ enum class SurfacePlatform : std::uint8_t {
     Win32,
     Xlib,
     Wayland,
+    // Android: the HAL window's `native_handle().window` is an `ANativeWindow*`, and the surface is
+    // created with `vkCreateAndroidSurfaceKHR` (VK_KHR_android_surface). There is no
+    // `vkGetPhysicalDevice*PresentationSupportKHR` for this family: a queue family that supports
+    // graphics on an Android device is assumed presentable, which is what the platform guarantees.
+    Android,
 };
 
 struct DeviceDesc {

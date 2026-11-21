@@ -272,6 +272,9 @@ private:
     bool win32_present_supported_ = false;
     bool xlib_present_supported_ = false;
     bool wayland_present_supported_ = false;
+    // Android has no per-family probe (VK_KHR_android_surface defines none), so this records the
+    // queue-family answer the probe settled on rather than a driver query.
+    bool android_present_supported_ = false;
 #endif
 
     rhi::DeviceStatus status_ = rhi::DeviceStatus::Ready;

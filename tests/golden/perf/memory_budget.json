@@ -43,16 +43,52 @@
       "measures": "sizeof(ui::InputEvent): the element type of the 256-event input queue (about 80 KiB). Deterministic; was 'measured, not yet asserted' in performance.md section 3.1, and this row is the assertion. Identical on both lanes. Was 344 before the member reorder of security review finding C5 removed 24 bytes of internal padding"
     },
     "sizeof_paint_data": {
-      "budget": 536,
+      "budget": 528,
       "status": "enforce",
       "unit": "bytes",
-      "measures": "sizeof(ui::PaintData): the lazily allocated paint payload a text or image node carries. Identical on both lanes. 536 since issue #617 added the conic shape to the gradient payload (one stop array, the sweep's start angle sharing the union with the linear angle and the radial geometry, plus the shape tag). See paint_slot_bytes for what a text node actually allocates"
+      "measures": "sizeof(ui::PaintData): the lazily allocated paint payload a text or image node carries. Identical on both lanes. 536 since issue #617 added the conic shape to the gradient payload (one stop array, the sweep's start angle sharing the union with the linear angle and the radial geometry, plus the shape tag); 528 since issue #731 reordered LinearGradient by alignment, which removed 8 bytes of internal padding. See paint_slot_bytes for what a text node actually allocates"
+    },
+    "sizeof_pace_decision": {
+      "budget": 16,
+      "status": "enforce",
+      "unit": "bytes",
+      "measures": "sizeof(runtime::PaceDecision): returned by FramePacer::ready() on every tick. Was 24 with `bool, double, bool`, which put 7 bytes of padding after the first bool and 7 more at the tail; issue #731 ordered the members widest-first. Identical on both lanes"
+    },
+    "sizeof_adaptive_quality_sample": {
+      "budget": 24,
+      "status": "enforce",
+      "unit": "bytes",
+      "measures": "sizeof(runtime::AdaptiveQualitySample): the adaptive-quality observation the frame loop compares each tick. Was 32 with the `double` after two bools (6 bytes of padding before it, 6 at the tail); issue #731 ordered the members widest-first. Identical on both lanes"
+    },
+    "sizeof_overlay_placement": {
+      "budget": 40,
+      "status": "enforce",
+      "unit": "bytes",
+      "measures": "sizeof(ui::OverlayPlacement): one placed overlay, held per overlay node. Was 48 with the two enums between the anchor and `gap` (6 bytes of padding before the float, 6 at the tail); issue #731 ordered the members widest-first. Identical on both lanes"
     },
     "sizeof_node_id": {
       "budget": 8,
       "status": "enforce",
       "unit": "bytes",
       "measures": "sizeof(ui::NodeId): the id stored in every side table (paint cache, resolved-style table, dirty list, damage rects). A wider id multiplies every one of them. Identical on both lanes"
+    },
+    "sizeof_paint_op": {
+      "budget": 104,
+      "status": "enforce",
+      "unit": "bytes",
+      "measures": "sizeof(ui::paint::PaintOp): one recorded sink call in the per-node paint cache. The cache charges ops.capacity() * sizeof(PaintOp) against its 2 MiB budget, so this number decides how many nodes it can hold. Was 2376 while every payload sat inline (GradientDraw 704 + RadialGradientDraw 712 + ConicGradientDraw 712 + BackdropDraw 68); issue #731 made the payload a std::variant and moved the three gradient shapes to PaintRecord::gradients, which is what makes the common op small. Identical on both lanes"
+    },
+    "sizeof_paint_record": {
+      "budget": 184,
+      "status": "enforce",
+      "unit": "bytes",
+      "measures": "sizeof(ui::paint::PaintRecord): the replayed value of one node, held per cache entry. Grew from 160 when issue #731 added the gradient side-table vector, which is the trade that shrank PaintOp by 2272 bytes. Identical on both lanes"
+    },
+    "sizeof_background_layer_list": {
+      "budget": 1672,
+      "status": "enforce",
+      "unit": "bytes",
+      "measures": "sizeof(ui::style::BackgroundLayerList): the resolved `background-image` value, returned by value from resolve_layers once per painted node. Was 4552 because GradientValue carried all three shapes side by side (24 stops where a gradient can use 8); issue #731 made the three shapes a union, so GradientValue is 200 and the list 1672. Identical on both lanes"
     },
     "computed_style_one_property_bytes": {
       "budget": 112,
@@ -85,10 +121,10 @@
       "measures": "bytes the first bind_event allocates (one allocation). 200 on both lanes"
     },
     "paint_slot_bytes": {
-      "budget": 544,
+      "budget": 536,
       "status": "enforce",
       "unit": "bytes",
-      "measures": "bytes a text node's first set_paint_data allocates (the PaintData copy into the node's optional slot). 544 on both lanes: 536 was the two-shape payload, and issue #617 added the conic shape to the same struct (one stop array, the sweep's start angle sharing the union with the linear angle and the radial geometry) so a node still paints one background image. The 8-byte growth is the start angle plus the shape tag's alignment, not a second stop array."
+      "measures": "bytes a text node's first set_paint_data allocates (the PaintData copy into the node's optional slot). 536 on both lanes: 536 was the two-shape payload, and issue #617 added the conic shape to the same struct (one stop array, the sweep's start angle sharing the union with the linear angle and the radial geometry) so a node still paints one background image. The 8-byte growth was the start angle plus the shape tag's alignment, not a second stop array; issue #731 then reordered LinearGradient by alignment, which removed those 8 bytes of padding again"
     },
     "cleared_table_reallocations": {
       "budget": 0,

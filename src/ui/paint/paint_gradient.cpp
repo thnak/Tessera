@@ -146,8 +146,11 @@ style::BackgroundLayerList resolve_layers(const Node& node, const style::Compute
                               : data->gradient->is_radial() ? GradientValue::Kind::Radial
                                                             : GradientValue::Kind::Linear;
         layer.gradient.repeating = data->gradient->repeating;
+        // The three shapes share one union slot (issue #731), so each branch constructs the member
+        // it writes: a union member's default member initializers do not run when it is not the one
+        // the constructor activated.
         if (conic) {
-            style::ConicGradientValue& value = layer.gradient.conic;
+            style::ConicGradientValue value{};
             value.from_angle_degrees = data->gradient->from_angle_degrees;
             value.position.x = data->gradient->radial.center_x;
             value.position.y = data->gradient->radial.center_y;
@@ -158,8 +161,9 @@ style::BackgroundLayerList resolve_layers(const Node& node, const style::Compute
                 value.stops[index].color =
                     style::ColorRgba{stop.color.r, stop.color.g, stop.color.b, stop.color.a};
             }
+            layer.gradient.conic = value;
         } else if (data->gradient->is_radial()) {
-            style::RadialGradientValue& radial = layer.gradient.radial;
+            style::RadialGradientValue radial{};
             radial.size = style::RadialSize::Explicit;
             radial.shape = style::RadialShape::Ellipse;
             // The payload's geometry is a fraction of the box, so it is resolved here; the
@@ -175,8 +179,9 @@ style::BackgroundLayerList resolve_layers(const Node& node, const style::Compute
                 radial.stops[index].color =
                     style::ColorRgba{stop.color.r, stop.color.g, stop.color.b, stop.color.a};
             }
+            layer.gradient.radial = radial;
         } else {
-            style::LinearGradientValue& linear = layer.gradient.linear;
+            style::LinearGradientValue linear{};
             linear.angle_degrees = data->gradient->angle_degrees;
             linear.stop_count = stops;
             for (std::size_t index = 0; index < stops; ++index) {
@@ -185,6 +190,7 @@ style::BackgroundLayerList resolve_layers(const Node& node, const style::Compute
                 linear.stops[index].color =
                     style::ColorRgba{stop.color.r, stop.color.g, stop.color.b, stop.color.a};
             }
+            layer.gradient.linear = linear;
         }
         list.count = 1;
         return list;

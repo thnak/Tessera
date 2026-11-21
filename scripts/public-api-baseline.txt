@@ -670,6 +670,9 @@ header include/tessera/hal/geometry.hpp
 struct include/tessera/hal/geometry.hpp tessera::hal::WindowInsets
 struct include/tessera/hal/geometry.hpp tessera::hal::WindowRect
 
+header include/tessera/hal/native_surface_token.hpp
+struct include/tessera/hal/native_surface_token.hpp tessera::hal::NativeSurfaceToken
+
 header include/tessera/hal/os_event.hpp
 struct include/tessera/hal/os_event.hpp tessera::hal::OsEvent
 struct include/tessera/hal/os_event.hpp tessera::hal::OsEventSequence
@@ -757,12 +760,9 @@ function include/tessera/hal/timer/steady_time.hpp tessera::hal::wait_until_seco
 header include/tessera/hal/window.hpp
 class include/tessera/hal/window.hpp tessera::hal::Window
 class include/tessera/hal/window.hpp tessera::ui::InputQueue
-struct include/tessera/hal/window.hpp tessera::hal::AccessibilityHostHandle
 struct include/tessera/hal/window.hpp tessera::hal::AccessibilityRoot
 struct include/tessera/hal/window.hpp tessera::hal::CutoutInfo
 struct include/tessera/hal/window.hpp tessera::hal::FoldInfo
-struct include/tessera/hal/window.hpp tessera::hal::NativeWindowHandle
-struct include/tessera/hal/window.hpp tessera::hal::WindowDesc
 struct include/tessera/hal/window.hpp tessera::hal::WindowEvent
 struct include/tessera/hal/window.hpp tessera::hal::WindowMetrics
 enum include/tessera/hal/window.hpp tessera::hal::FoldOcclusion
@@ -790,6 +790,11 @@ function include/tessera/hal/window_backdrop.hpp tessera::hal::backdrop_material
 function include/tessera/hal/window_backdrop.hpp tessera::hal::resolve_window_backdrop
 function include/tessera/hal/window_backdrop.hpp tessera::hal::window_backdrop_from_name
 function include/tessera/hal/window_backdrop.hpp tessera::hal::window_backdrop_name
+
+header include/tessera/hal/window_desc.hpp
+struct include/tessera/hal/window_desc.hpp tessera::hal::AccessibilityHostHandle
+struct include/tessera/hal/window_desc.hpp tessera::hal::NativeWindowHandle
+struct include/tessera/hal/window_desc.hpp tessera::hal::WindowDesc
 
 header include/tessera/hal/window_wait.hpp
 enum include/tessera/hal/window_wait.hpp tessera::hal::WaitOutcome
@@ -2120,6 +2125,7 @@ struct include/tessera/ui/layout/layout_settle.hpp tessera::ui::layout::LayoutSe
 
 header include/tessera/ui/layout/layout_signature.hpp
 function include/tessera/ui/layout/layout_signature.hpp tessera::ui::layout::layout_signature
+function include/tessera/ui/layout/layout_signature.hpp tessera::ui::layout::style_layout_digest
 
 header include/tessera/ui/layout/pixel_snap.hpp
 function include/tessera/ui/layout/pixel_snap.hpp tessera::ui::layout::round_half_up
@@ -2164,12 +2170,23 @@ function include/tessera/ui/paint/clipped_paint_sink.hpp tessera::ui::paint::det
 
 header include/tessera/ui/paint/paint_cache.hpp
 class include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::PaintCache
+struct include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::DrawAssetOp
+struct include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::DrawBackdropOp
+struct include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::DrawTextOp
+struct include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::FillBoxShadowOp
+struct include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::FillRectOp
+struct include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::FillRoundedRectOp
+struct include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::FillRoundedRingOp
+struct include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::GradientRefOp
 struct include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::PaintCacheConfig
 struct include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::PaintCacheSignature
 struct include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::PaintCacheStats
 struct include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::PaintCounts
 struct include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::PaintOp
 struct include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::PaintRecord
+struct include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::PushClipOp
+struct include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::PushTransformOp
+alias include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::GradientPayload
 function include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::extend_paint_clip_hash
 function include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::replay_paint_ops
 constant include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::kPaintClipHashSeed
@@ -2212,6 +2229,7 @@ constant include/tessera/ui/paint/paint_text_metrics.hpp tessera::ui::paint::kSt
 header include/tessera/ui/paint/scene_style_sync.hpp
 struct include/tessera/ui/paint/scene_style_sync.hpp tessera::ui::paint::SceneStyleSyncResult
 function include/tessera/ui/paint/scene_style_sync.hpp tessera::ui::paint::sync_scene_style
+function include/tessera/ui/paint/scene_style_sync.hpp tessera::ui::paint::sync_scene_style_scoped
 
 header include/tessera/ui/paint/text_layout_cache.hpp
 class include/tessera/ui/paint/text_layout_cache.hpp tessera::ui::paint::TextLayoutCache
@@ -2576,6 +2594,10 @@ struct include/tessera/ui/style/keyframes.hpp tessera::ui::style::KeyframeBlock
 struct include/tessera/ui/style/keyframes.hpp tessera::ui::style::KeyframeStep
 struct include/tessera/ui/style/keyframes.hpp tessera::ui::style::KeyframesParseResult
 function include/tessera/ui/style/keyframes.hpp tessera::ui::style::parse_keyframes
+
+header include/tessera/ui/style/layout_digest.hpp
+function include/tessera/ui/style/layout_digest.hpp tessera::ui::style::is_layout_property
+function include/tessera/ui/style/layout_digest.hpp tessera::ui::style::layout_digest
 
 header include/tessera/ui/style/media_query.hpp
 struct include/tessera/ui/style/media_query.hpp tessera::ui::style::MediaCondition

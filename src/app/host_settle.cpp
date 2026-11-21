@@ -32,8 +32,24 @@ void AppHost::Impl::restyle_and_layout(ui::frame::FrameTick& tick,
     pipeline->invalidate_paint_cache();
     style_rebuilt = true;
     restyle_memo.begin(*provider, incremental);
-    run_layout_pass(restyle_memo);
-    sync = pipeline->sync_style(root, restyle_memo, tick, true);
+    // The layout-unchanged gate (issue #735, slice A): when the restyle provably kept every layout
+    // input, reuse the previous result instead of rebuilding the layout input and hashing the tree.
+    // `restyled_layout_changed` recomputes only the restyled nodes, which is the work the sync below
+    // would do anyway, so a declined gate costs nothing extra.
+    const bool layout_unchanged = this->layout_unchanged(incremental);
+    if (layout_unchanged) {
+        ++layout_gate_hits;
+    } else {
+        run_layout_pass(restyle_memo);
+    }
+    // Scoped sync (issue #735, slice B). The gate just proved that no box moved and that only the
+    // restyled subtrees changed style, so a node outside them has nothing to re-apply. Without that
+    // proof the whole tree is synced, which is the pre-slice-B behaviour.
+    if (layout_unchanged && tree != nullptr) {
+        sync = pipeline->sync_style_scoped(root, restyle_memo, tree->restyled_roots(), tick, true);
+    } else {
+        sync = pipeline->sync_style(root, restyle_memo, tick, true);
+    }
     restyle_memo.end();
     style_tree_populated = true;
     pipeline->sample_started_animations(root);

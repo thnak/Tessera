@@ -12,6 +12,7 @@
 #include <map>
 #include <optional>
 #include <string>
+#include <variant>
 #include <vector>
 
 namespace tessera::ui::paint {
@@ -97,7 +98,92 @@ struct PaintCounts {
     std::size_t backdrops = 0;
 };
 
-// One recorded sink call. Fields are meaningful per kind (see Kind); the unused ones stay default.
+// The payload of one recorded sink call, one alternative per kind (issue #731).
+//
+// Why a variant and not the flat struct this used to be: the payloads are mutually exclusive by
+// kind, so a flat struct paid for all of them at once. `GradientDraw` alone is 704 bytes and the
+// radial/conic forms 712 each, which made every op 2376 bytes -- a `FillRect` carried 33 useful
+// bytes in 2376. The paint cache charges `ops.capacity() * sizeof(PaintOp)` against a 2 MiB budget
+// (paint_cache.cpp `entry_bytes`), so the flat shape held only 104 entries of the configured 256.
+//
+// The three gradient payloads stay OUT of the variant, referenced by index into
+// `PaintRecord::gradients`. A variant holds its largest alternative inline, so putting them in
+// would only shrink the op to 864 bytes; the side table is what makes the common op small. A
+// gradient is also the rarest kind, so the indirection costs nothing on the hot path.
+struct FillRectOp {
+    rhi::Rect rect;
+    rhi::Color color;
+};
+
+struct FillRoundedRectOp {
+    rhi::Rect rect;
+    rhi::Color color;
+    float radius = 0.0f;
+};
+
+struct FillRoundedRingOp {
+    rhi::Rect rect;
+    rhi::Color color;
+    float radius = 0.0f;
+    float width = 0.0f;
+};
+
+struct FillBoxShadowOp {
+    rhi::Rect box;
+    RoundedClip carve; // the node's border box shaped by its border-radius
+    rhi::Color color;
+    float radius = 0.0f;
+    float sigma = 0.0f;
+    bool inset = false; // an inset shadow (issue #612)
+};
+
+// A gradient payload, held in `PaintRecord::gradients` rather than inline. The draw's own rect and
+// clip are authoritative, exactly as the sink's `GradientDraw` documents.
+struct GradientRefOp {
+    std::uint32_t index = 0;
+};
+
+// The three gradient shapes, one alternative each. They are 704-712 bytes apiece, which is why they
+// live in a side table instead of inside `PaintOp`.
+using GradientPayload = std::variant<GradientDraw, RadialGradientDraw, ConicGradientDraw>;
+
+struct PushClipOp {
+    RoundedClip clip;
+};
+
+struct PushTransformOp {
+    rhi::Mat3 transform;
+};
+
+struct DrawTextOp {
+    rhi::Rect rect;
+    rhi::Color color;
+    float font_size = 0.0f;
+    int font_weight = 400;
+    std::optional<float> baseline;
+    bool lcd = false;
+    std::string text; // the run's UTF-8 bytes
+};
+
+// DrawVector and DrawImage share one shape: both carry a borrowed asset name, an optional raster
+// size, a scale hint and a tint. `decode_original` is meaningful for an image only.
+struct DrawAssetOp {
+    rhi::Rect rect;
+    rhi::Color tint;
+    std::uint32_t raster_width = 0;
+    std::uint32_t raster_height = 0;
+    float scale = 0.0f;
+    bool decode_original = false;
+    std::string asset;
+};
+
+struct DrawBackdropOp {
+    BackdropDraw draw;
+};
+
+// One recorded sink call: the kind tag plus the payload that kind owns. `kind` is kept beside the
+// variant rather than derived from the active alternative because the three gradient kinds share
+// one alternative and the two asset kinds share another.
 struct PaintOp {
     enum class Kind : std::uint8_t {
         FillRect,
@@ -115,27 +201,12 @@ struct PaintOp {
         DrawBackdrop,
     };
 
+    using Payload = std::variant<FillRectOp, FillRoundedRectOp, FillRoundedRingOp, FillBoxShadowOp,
+                                 GradientRefOp, PushClipOp, PushTransformOp, DrawTextOp,
+                                 DrawAssetOp, DrawBackdropOp>;
+
     Kind kind = Kind::FillRect;
-    rhi::Rect rect;          // FillRect, FillRoundedRect, DrawText, DrawVector, DrawImage
-    rhi::Color color;        // FillRect, FillRoundedRect, DrawText, tint of DrawVector/DrawImage
-    float radius = 0.0f;     // FillRoundedRect, FillRoundedRing
-    float ring_width = 0.0f; // FillRoundedRing; the sigma of FillBoxShadow
-    RoundedClip clip;        // PushClip; the carved border box of FillBoxShadow
-    rhi::Mat3 transform;     // PushTransform
-    GradientDraw gradient;   // FillLinearGradient (its own rect/clip/stops are authoritative)
-    RadialGradientDraw radial_gradient; // FillRadialGradient (same rule)
-    ConicGradientDraw conic_gradient;   // FillConicGradient (same rule)
-    BackdropDraw backdrop;              // DrawBackdrop (its own rect/clip/filter are authoritative)
-    std::string text; // DrawText text bytes, or the borrowed asset name of DrawVector/Image
-    float font_size = 0.0f;
-    int font_weight = 400;
-    std::optional<float> baseline;
-    std::uint32_t raster_width = 0;
-    std::uint32_t raster_height = 0;
-    float scale = 0.0f;
-    bool decode_original = false;
-    bool lcd = false;   // DrawText
-    bool inset = false; // FillBoxShadow: an inset shadow (issue #612)
+    Payload payload = FillRectOp{};
 };
 
 // The replayed value of one node: everything the node emitted before its children, plus the
@@ -144,6 +215,10 @@ struct PaintOp {
 // holding a pointer into the cache.
 struct PaintRecord {
     std::vector<PaintOp> ops; // emitted before the children, in exact sink order
+    // The gradient payloads the ops reference by index (issue #731). Kept out of `PaintOp` so a
+    // `FillRect` does not pay for a 704-byte gradient it never carries; a record with no gradient
+    // op leaves this empty and allocates nothing.
+    std::vector<GradientPayload> gradients;
     bool pushed_transform = false;
     bool pushed_clip = false;
     RoundedClip clip; // valid when pushed_clip; also feeds the children's clip fingerprint
@@ -212,8 +287,10 @@ inline constexpr std::uint64_t kPaintClipHashSeed = 1469598103934665603ull;
 [[nodiscard]] std::uint64_t extend_paint_clip_hash(std::uint64_t seed, const RoundedClip& clip);
 
 // Emits recorded ops into `sink` in order. Text/vector/image ops rebuild their draw structs from
-// the record's owned strings, so the replay is independent of the scene's lifetime.
-void replay_paint_ops(const std::vector<PaintOp>& ops, PaintSink& sink);
+// the record's owned strings, so the replay is independent of the scene's lifetime. `gradients` is
+// the record's side table, which the gradient ops index into.
+void replay_paint_ops(const std::vector<PaintOp>& ops,
+                      const std::vector<GradientPayload>& gradients, PaintSink& sink);
 
 class PaintCache {
 public:
@@ -288,6 +365,9 @@ public:
 
         PaintSink& target_;
         std::vector<PaintOp> ops_;
+        // The gradient payloads the recorded ops reference by index (issue #731). Empty for a node
+        // that paints no gradient, so the common record allocates nothing for it.
+        std::vector<GradientPayload> gradients_;
         RoundedClip clip_;
         bool pushed_clip_ = false;
         bool pushed_transform_ = false;

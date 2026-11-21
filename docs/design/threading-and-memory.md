@@ -112,3 +112,25 @@ begin frame -> acquire snapshot/commands -> record -> submit
 - Deterministic executor tests: same task order across runs.
 - Allocation counters: steady-state frame does not allocate after warm-up.
 - Resource retirement tests: in-flight frames keep resources alive; retirement releases them.
+
+## 11. Large types accepted as they are (issue #731)
+
+Issue #731 swept the tree for large structs. The ones that were fixed are pinned by
+`padding_size_tests`, `paint_op_size_tests`, `background_layer_size_tests` and the `enforce` rows of
+[`tests/golden/perf/memory_budget.json`](../../tests/golden/perf/memory_budget.json). The rest are
+**accepted**, and this is the record of why. Each reason is the measured composition, not a guess.
+
+| Type | sizeof | Why it stays |
+|---|---|---|
+| `hal::SyntheticEventInjector` | 33728 | Two fixed rings: `array<OsEvent, 64>` is 28160 and `array<InputEvent, 16>` is 5120. It is a **test and codegen-tool fixture only** — no `src/` translation unit references it, so it is never on a frame path. The audit's "33 KB move" framing is also wrong: the `make_*_script()` factories return by value and the return is elided (measured 0 moves, 0 copies). The real cost is default construction, 2.1 µs zeroing 33 KB, once per script. Shrinking it would mean `std::vector` rings, which buys nothing for a fixture and costs an allocation per script. |
+| `ui::a11y::UiaHost` | 10408 | Holds two `A11ySnapshot`s (24 each) plus a `UiaEventQueue` (4688) and the bridge state. It is ticked only when dirty — `tick()` returns immediately unless `dirty_` is set — so a static window does no work. The buffers are reused across publishes precisely so a steady-state publish allocates nothing; making them smaller would trade a one-time 10 KB for per-frame allocation. |
+| `ui::a11y::AtspiBridge` | 10200 | Same shape and same argument as `UiaHost`: dirty-gated, buffers reused, off the frame path when accessibility is idle. |
+| `ui::a11y::EventQueue` | 9032 | `array<A11yEvent, 64>` at 140 bytes each. The bound is the coalescing contract (a bounded queue that never grows), so the size *is* the policy. |
+| `ui::a11y::AtspiSession` | 4736 | Carries a 4096-byte `read_buffer_` inline, which is what keeps the D-Bus read path allocation-free. Moving it to the heap would allocate on every session, which is the opposite of the goal. |
+| `ui::InputPump` | 6208 | Owns the input queues; the size is the queue bound, not padding. |
+| `ui::InputRouter` | 3320 | `KeyBindingRegistry` (2576) inline. One router per window, not per node. |
+
+The rule that follows: a large type is a problem when it is **per node** or **per frame**. Every row
+above is per window, per session, or per test script, so the node count and the frame count do not
+multiply it. The types that were fixed (`PaintOp`, `BackgroundLayerList`, `PaintData`, `Node`) are
+exactly the ones that are per node or per painted node.

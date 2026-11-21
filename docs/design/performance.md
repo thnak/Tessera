@@ -95,17 +95,15 @@ Frame budgets say nothing about resident memory, which regresses late and on mob
 | `ui::Node` (plain View) | 304 bytes (Release; 312 in MSVC Debug), budget `kNodeSizeBudget` = 312 (336 for a while after the `::part()` metadata pointer, issue #235; the booleans were packed into one flags word in #285; the members were grouped by alignment in the security review, finding C4, which removed 8 bytes of internal padding) | `static_assert` in `node.hpp`, `node_size` test, `sizeof_node` row |
 | ARIA table (first `aria-*`) | 520 bytes, once per node | lazy; `node_size` test counts allocations; `aria_table_bytes` row |
 | Inline-style table (first declaration) | 520 bytes, once per node | lazy; `node_size` test; `inline_style_table_bytes` row |
-| Event-binding table (first binding) | 200 bytes, once per node | lazy; `node_size` test; `event_binding_table_bytes` row |
-| Paint payload (text/image node) | 512 bytes plus its string; 520 allocated on first use | lazy; `node_size` test; `sizeof_paint_data` and `paint_slot_bytes` rows |
+| Event-binding table (first binding) | 200 bytes, once per node | lazy; `node_size` test; `event_binding_table_bytes` row || Paint payload (text/image node) | 512 bytes plus its string; 520 allocated on first use. The paint cache's recorded op is 104 bytes, down from 2376 while every draw payload sat inline (issue #731 made the payload a `std::variant` and moved the gradient shapes to `PaintRecord::gradients`, so the 2 MiB budget holds 1159 entries instead of 104) | lazy; `node_size` test; `sizeof_paint_data`, `paint_slot_bytes` and `sizeof_paint_op` rows; `paint_op_size` test |
+| Resolved `background-image` | `BackgroundLayerList` 1672 bytes, down from 4552 because `GradientValue` carried all three gradient shapes side by side (24 stops where a gradient can use 8); issue #731 made the three shapes a union, so `GradientValue` is 200. `resolve_layers` returns one by value per painted node | `background_layer_size` test (`static_assert`), `sizeof_background_layer_list` row |
 | `InputEvent` | 320 bytes (the 256-event queue is about 80 KiB; the members were grouped by alignment in the security review, finding C5, which removed 24 bytes of internal padding) | `sizeof_input_event` row (was measured but unasserted) |
 | `ComputedStyle` (first property) | 96 bytes per styled node (208 in MSVC Debug); the handle itself is 16 bytes on MSVC, 48 on libstdc++ | `computed_style_one_property_bytes` row |
 | `NodeId` | 8 bytes, and it is repeated in every side table (paint cache, resolved styles, dirty list, damage) | `sizeof_node_id` row |
+| Internal padding (issue #731) | `PaceDecision` 24→16, `AdaptiveQualitySample` 32→24, `OverlayPlacement` 48→40 and `PaintData` 536→528 by ordering members widest-first. The other padding rows are **accepted**: `KeyframeTiming` (64), `AnimationEntry` (216), `BidiVisualRun` (24), `PaintImageStyle`/`PaintVectorStyle` (56), `PaintOutsets` (20) and `TextConstraints` (8) carry only *tail* padding, which no reorder can remove | `padding_size` test (`static_assert`), `sizeof_pace_decision`, `sizeof_adaptive_quality_sample`, `sizeof_overlay_placement` and `sizeof_paint_data` rows |
 | Resident bytes per plain node (20k-node tree) | 364 on Windows x64, 327 on Linux x64, budget 1024 | `memory_steady_state` test, `tests/golden/memory/steady_state.txt`, `resident_bytes_per_node` row (warn) |
 | Idle cycles after warm-up | 0 bytes of RSS growth measured, budget 2 MiB | `memory_steady_state` test, `node_dirty_scratch_bytes` row (warn) |
-| Headless generated-UI sample: build and layout | about 0.6 MB measured, budget 8 MiB | `generated_ui_memory` test, `tests/golden/memory/generated_ui.txt` |
-| Same sample: first paint | about 0.9 MB measured, budget 8 MiB | `generated_ui_memory` |
-| Same sample: 300 click + repaint cycles after warm-up | 0 to 45 KB measured, budget 1 MiB | `generated_ui_memory` |
-| Same sample: process peak resident | about 8.7 MB measured, budget 64 MiB | `generated_ui_memory` |
+| Headless generated-UI sample | build and layout about 0.6 MB, first paint about 0.9 MB, 300 click + repaint cycles 0 to 45 KB, process peak about 8.7 MB (budgets 8 MiB, 8 MiB, 1 MiB and 64 MiB) | `generated_ui_memory` test, `tests/golden/memory/generated_ui.txt` |
 
 #### The memory ratchet
 

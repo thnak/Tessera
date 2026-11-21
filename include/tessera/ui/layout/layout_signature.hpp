@@ -29,4 +29,13 @@ namespace tessera::ui::layout {
 [[nodiscard]] std::uint64_t layout_signature(const LayoutInput& root,
                                              const LayoutViewport& viewport) noexcept;
 
+// The layout half of one computed style, as a digest: exactly the `kLayoutProperties` entries
+// `layout_signature` folds in, and nothing else. Computed once and cached on the style's shared
+// entries (`ComputedStyle::cached_digest`), so a second call for an unchanged style is one load.
+//
+// This is what makes the layout-unchanged gate cheap (issue #735, slice A): comparing a node's
+// digest before and after a restyle answers "did this restyle move a box?" without building a
+// `LayoutInput` or hashing the tree. A paint-only change leaves the digest identical.
+[[nodiscard]] std::uint64_t style_layout_digest(const style::ComputedStyle& style) noexcept;
+
 } // namespace tessera::ui::layout

@@ -54,6 +54,10 @@ WindowHost::Impl::Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet,
     desc.backdrop = backdrop_request;
     desc.transparent = options.transparent;
     desc.win10_acrylic = options.win10_acrylic;
+    // A platform that cannot create a window on its own (Android) needs the surface the caller
+    // already owns. Null everywhere else, which is what every existing caller keeps.
+    desc.surface = options.surface;
+    desc.dpi_scale = options.dpi_scale;
     window = hal::create_window(desc);
     if (window == nullptr) {
         return;

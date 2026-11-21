@@ -330,6 +330,27 @@ target_link_libraries(layout_settle_host_tests PRIVATE tessera_app tessera_runti
 
 add_test(NAME layout_settle_host COMMAND layout_settle_host_tests)
 
+# The layout-unchanged gate's acceptance (issue #735, slice A): a frame whose layout pass the gate
+# skipped must be byte-identical to a cold layout of the same inputs, over a randomized edit
+# sequence that covers every layout input source (longhands, text, shape, viewport).
+add_executable(layout_gate_tests
+    layout_gate_tests.cpp
+    layout_gate_scene.cpp)
+
+target_link_libraries(layout_gate_tests PRIVATE tessera_app tessera_runtime)
+
+add_test(NAME layout_gate COMMAND layout_gate_tests)
+
+# The scoped scene sync (issue #735, slice B): a walk that visits only the restyled subtrees must
+# leave the scene in exactly the state the full walk does, including the `glass_subtree` refold on
+# every ancestor.
+add_executable(scoped_sync_tests
+    scoped_sync_tests.cpp)
+
+target_link_libraries(scoped_sync_tests PRIVATE tessera_paint tessera_style)
+
+add_test(NAME scoped_sync COMMAND scoped_sync_tests)
+
 # The host half of issue #187's acceptance: "the host updates reducedMotion and the media queries".
 # It drives the real AppHost with a media-independent prepared sheet (ADR-048's resolve step) and
 # asserts both `reducedMotion` reaching the animation/spring runtimes and the
@@ -520,6 +541,33 @@ add_executable(node_size_tests
 target_link_libraries(node_size_tests PRIVATE tessera_scene)
 
 add_test(NAME node_size COMMAND node_size_tests)
+
+# The paint cache's per-op size budget (issue #731): the assertions are compile-time, so this target
+# exists to compile them on every lane.
+add_executable(paint_op_size_tests
+    paint_op_size_tests.cpp)
+
+target_link_libraries(paint_op_size_tests PRIVATE tessera_paint)
+
+add_test(NAME paint_op_size COMMAND paint_op_size_tests)
+
+# The resolved background-image value's size budget (issue #731): the assertions are compile-time, so
+# this target exists to compile them on every lane.
+add_executable(background_layer_size_tests
+    background_layer_size_tests.cpp)
+
+target_link_libraries(background_layer_size_tests PRIVATE tessera_style)
+
+add_test(NAME background_layer_size COMMAND background_layer_size_tests)
+
+# The internal-padding budget of issue #731: the assertions are compile-time, so this target exists
+# to compile them on every lane.
+add_executable(padding_size_tests
+    padding_size_tests.cpp)
+
+target_link_libraries(padding_size_tests PRIVATE tessera_runtime tessera_scene)
+
+add_test(NAME padding_size COMMAND padding_size_tests)
 
 # Cache-line layout invariants (security review findings C1, C2, C3, C7): the assertions are
 # compile-time, so this target exists to compile them on every lane.
@@ -819,6 +867,26 @@ add_executable(clip_math_tests
 target_link_libraries(clip_math_tests PRIVATE tessera_rhi)
 
 add_test(NAME clip_math COMMAND clip_math_tests)
+
+# Android presentation family (VK_KHR_android_surface): the enumerator is additive, distinct from
+# every desktop family, and `DeviceDesc` still defaults to Auto. Links only the RHI seam, so it runs
+# on every lane including a null-backend build with no Vulkan SDK.
+add_executable(android_surface_platform_tests
+    android_surface_platform_tests.cpp)
+
+target_link_libraries(android_surface_platform_tests PRIVATE tessera_rhi)
+
+add_test(NAME android_surface_platform COMMAND android_surface_platform_tests)
+
+# Android window backend (issue #189): the density arithmetic and the family enumerator. Links only
+# the HAL window seam, so it runs on every lane; the extent/scale setters need a real ANativeWindow
+# and are covered by the emulator lane.
+add_executable(android_window_tests
+    hal/android_window_tests.cpp)
+
+target_link_libraries(android_window_tests PRIVATE tessera_hal_window)
+
+add_test(NAME android_window COMMAND android_window_tests)
 
 add_executable(diagnostics_crash_tests
     diagnostics_crash_tests.cpp)
@@ -2773,3 +2841,11 @@ add_executable(text_decoration_tests
     text_decoration_tests.cpp)
 target_link_libraries(text_decoration_tests PRIVATE tessera_paint tessera_text tessera_style)
 add_test(NAME text_decoration COMMAND text_decoration_tests)
+
+# The dense per-generation style memo (issue #735, slice G): reference stability across resolves,
+# `keep_entries`, the restyle digest record, the outside-the-tree answer and the container-source
+# bypass. Registered here, appended, so no existing entry moves.
+add_executable(scene_style_memo_tests
+    scene_style_memo_tests.cpp)
+target_link_libraries(scene_style_memo_tests PRIVATE tessera_style)
+add_test(NAME scene_style_memo COMMAND scene_style_memo_tests)

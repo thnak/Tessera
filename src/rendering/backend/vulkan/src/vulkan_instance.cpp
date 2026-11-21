@@ -131,6 +131,14 @@ void VulkanDevice::create_instance() {
         surface_extensions_enabled_ = true;
     }
 #endif
+#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+    if (has_instance_extension(VK_KHR_SURFACE_EXTENSION_NAME) &&
+        has_instance_extension(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME)) {
+        extensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
+        extensions.push_back(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME);
+        surface_extensions_enabled_ = true;
+    }
+#endif
 
     std::vector<const char*> layers;
     const bool validation_available = has_layer("VK_LAYER_KHRONOS_validation");
