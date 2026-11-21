@@ -2,7 +2,7 @@
 
 #include "tessera/ui/style/scene_style.hpp"
 
-#include "tessera/ui/layout/layout_signature.hpp"
+#include "tessera/ui/style/layout_digest.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -263,7 +263,7 @@ bool SceneStyleTree::restyled_layout_changed(const CompiledStyleSheet& sheet) {
         // memoised style, so this is the same work the layout input would have done - but only for
         // the restyled subtree, not the whole tree.
         const ComputedStyle& after = resolve(sheet, *entry.node);
-        if (layout::style_layout_digest(after) != entry.digest) {
+        if (layout_digest(after) != entry.digest) {
             return true;
         }
     }
