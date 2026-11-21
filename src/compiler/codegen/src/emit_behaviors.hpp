@@ -19,6 +19,7 @@
 
 #include <set>
 #include <string>
+#include <vector>
 
 namespace tessera::compiler::codegen::internal {
 
@@ -45,5 +46,16 @@ namespace tessera::compiler::codegen::internal {
 // a component without behaviors.
 [[nodiscard]] bool emit_behavior_accessors(CppWriter& writer, const ir::Component& component,
                                            std::string& error);
+
+// Emits the public `attach_behaviors(tessera::ui::InputRouter&)` / `detach_behaviors()` pair the
+// owner calls once the tree is built, plus the `refresh_behaviors()` the owner calls after an input
+// dispatch. This is the seam that makes a behavior reachable at all: without it the generated base
+// owns slots that nothing ever attaches (the defect #641 fixes).
+//
+// The router is the one service a behavior needs: it owns the scene's `FocusManager` and its
+// `KeyBindingRegistry`, so a focus, keyboard or press behavior reads everything through it and
+// never sees a window handle (ADR-020).
+[[nodiscard]] bool emit_behavior_wiring(CppWriter& writer, const ir::Component& component,
+                                        std::string& error);
 
 } // namespace tessera::compiler::codegen::internal

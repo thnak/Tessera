@@ -41,6 +41,10 @@ struct HookParam {
     // The default the manifest declares, as the text the IR would carry. Empty when the field has
     // no default.
     std::string default_text;
+    // An `options` parameter's fields, in manifest order. Empty for every other kind. The analyzer
+    // checks a written key against this list and requires every field without a default, so a typo
+    // is a diagnostic rather than a silently ignored option.
+    std::vector<HookParam> fields;
 };
 
 // One output a hook returns, when it returns a record.

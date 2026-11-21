@@ -56,6 +56,11 @@ struct Environment {
     std::string provider;
     std::string type;
     bool writable = false;
+    // The one argument a parameterized environment hook takes (`useMediaQuery("(min-width:
+    // 600px)")`), or an empty expression when the hook takes none. The generated base evaluates it
+    // once and re-evaluates only when the component updates, so a query built from state follows
+    // the state.
+    Expr argument;
     SourceSpan source;
 };
 

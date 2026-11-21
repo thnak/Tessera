@@ -256,11 +256,11 @@ HookLoweringResult lower_hooks(const HookLoweringContext& context) {
             internal::lower_effect_hook(state, index, out);
         } else if (const jsx::HookEntry* behavior = rules::builtin_hook_manifest().find(hook);
                    behavior != nullptr && behavior->lowering == jsx::HookLoweringKind::Behavior) {
-            internal::lower_behavior_hook(state, index, out);
+            internal::lower_behavior_hook(state, index, out, names);
         } else if (const jsx::HookEntry* environment = rules::builtin_hook_manifest().find(hook);
                    environment != nullptr &&
                    environment->lowering == jsx::HookLoweringKind::Environment) {
-            internal::lower_environment_hook(state, index, out);
+            internal::lower_environment_hook(state, index, out, names);
         } else if (statement.init->kind == jsx::ExprKind::Arrow) {
             internal::lower_declared_arrow_hook(state, index, out);
         }

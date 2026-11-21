@@ -86,6 +86,24 @@ std::optional<HookParam> parse_param(const Value& value, std::string_view hook,
     param.ir = string_or_empty(value.find("ir"));
     param.kind = string_or_empty(value.find("kind"));
     param.default_text = default_text(value.find("default"));
+    // An `options` parameter declares its fields, which is what lets the analyzer reject an unknown
+    // key and require a field with no default. A field is parsed by the same function, so a nested
+    // field cannot have a shape a top-level parameter could not.
+    if (const Value* fields = value.find("fields"); fields != nullptr) {
+        const Value::Array* entries = fields->as_array();
+        if (entries == nullptr) {
+            fail(error, ManifestError::Code::MissingParamName, std::string(hook),
+                 "`" + param.name + "` has a `fields` that is not an array");
+            return std::nullopt;
+        }
+        for (const Value& entry : *entries) {
+            std::optional<HookParam> field = parse_param(entry, hook, error);
+            if (!field) {
+                return std::nullopt;
+            }
+            param.fields.push_back(std::move(*field));
+        }
+    }
     return param;
 }
 

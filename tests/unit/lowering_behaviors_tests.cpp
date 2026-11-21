@@ -56,6 +56,40 @@ void test_press_feedback_lowers() {
     check(behavior.outputs.size() == 3, "the three outputs are carried");
 }
 
+// A component that calls `useFocusTrap` lowers to one exclusive `behaviors` entry with the two
+// options written out (including the defaulted one), so a consumer needs no manifest to evaluate
+// it.
+void test_focus_trap_lowers() {
+    const auto fixture = parse(component(
+        "  const box = useRef<View>(null);\n  const [open, setOpen] = useState<boolean>(false);\n"
+        "  const trap = useFocusTrap(box, { active: open });\n"));
+    const auto lowered = lower(*fixture);
+    if (!lowered) {
+        check(false, "the focus-trap fixture lowers: " + lowering_hooks_test::first_code(lowered));
+        return;
+    }
+    check(lowered->behaviors.size() == 1, "one behavior is lowered");
+    if (lowered->behaviors.empty()) {
+        return;
+    }
+    const ir::Behavior& behavior = lowered->behaviors.front();
+    check(behavior.id == "beh::trap", "the id is `beh::<name>`");
+    check(behavior.behavior == "focus_trap", "the registry name is carried");
+    check(behavior.exclusive, "the manifest's exclusivity is copied into the IR");
+    check(behavior.targets.size() == 1 && behavior.targets.front() == "ref::box",
+          "the target is the `ref::` id");
+    check(behavior.outputs.size() == 1 && behavior.outputs.front().name == "active",
+          "the `active` output is carried");
+    check(behavior.args.size() == 2, "both options are written out, the defaulted one included");
+    if (behavior.args.size() == 2) {
+        check(behavior.args[0].name == "active" && behavior.args[0].expr.kind == ir::ExprKind::Ref,
+              "the reactive option keeps its expression");
+        check(behavior.args[1].name == "restoreFocus" &&
+                  behavior.args[1].expr.kind == ir::ExprKind::Literal,
+              "the defaulted option is written as a literal");
+    }
+}
+
 // A component without a behavior call writes no `behaviors` field, so every committed IR golden of
 // such a component is byte-identical.
 void test_no_behavior_writes_no_field() {
@@ -86,7 +120,7 @@ void test_bare_statement_is_numbered() {
 // rather than a second list in the analyzer.
 void test_unknown_hook_is_rejected() {
     const auto fixture = parse_raw(component(
-        "  const button = useRef<View>(null);\n  const trap = useFocusTrap(button, {});\n"));
+        "  const button = useRef<View>(null);\n  const trap = useNothing(button, {});\n"));
     check(fixture->analyzed.has_errors(), "an undeclared hook is rejected by the analysis");
 }
 
@@ -102,6 +136,7 @@ void test_options_must_be_an_object() {
 
 int main() {
     test_press_feedback_lowers();
+    test_focus_trap_lowers();
     test_no_behavior_writes_no_field();
     test_bare_statement_is_numbered();
     test_unknown_hook_is_rejected();

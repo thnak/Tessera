@@ -46,6 +46,10 @@ private:
     Node* target_ = nullptr;
     // The scene's interaction state, handed in at attach; null when the build has no scene.
     InputRouter* router_ = nullptr;
+    // The `disabled` option: when true the target never reports `pressed`, but still reports
+    // `hovered` and `focused` (ADR-064 item 9: a disabled control stays focusable and explains
+    // why).
+    bool disabled_ = false;
     std::array<OutputValue, kOutputCount> outputs_{};
 };
 

@@ -1,9 +1,12 @@
 # SPDX-License-Identifier: MIT
 
 add_library(tessera_behavior STATIC
+    focus_trap.cpp
     instance.cpp
     press_feedback.cpp
-    registry.cpp)
+    registry.cpp
+    roving_focus.cpp
+    scroll_lock.cpp)
 
 target_include_directories(tessera_behavior PUBLIC
     ${PROJECT_SOURCE_DIR}/include)
@@ -26,6 +29,21 @@ if (TESSERA_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/unit/press_feedback_tests.cpp)
     target_link_libraries(press_feedback_tests PRIVATE tessera_behavior)
     add_test(NAME press_feedback COMMAND press_feedback_tests)
+
+    add_executable(focus_trap_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/focus_trap_tests.cpp)
+    target_link_libraries(focus_trap_tests PRIVATE tessera_behavior)
+    add_test(NAME focus_trap COMMAND focus_trap_tests)
+
+    add_executable(roving_focus_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/roving_focus_tests.cpp)
+    target_link_libraries(roving_focus_tests PRIVATE tessera_behavior)
+    add_test(NAME roving_focus COMMAND roving_focus_tests)
+
+    add_executable(scroll_lock_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/scroll_lock_tests.cpp)
+    target_link_libraries(scroll_lock_tests PRIVATE tessera_behavior)
+    add_test(NAME scroll_lock COMMAND scroll_lock_tests)
 
     add_executable(behavior_allocation_tests
         ${PROJECT_SOURCE_DIR}/tests/unit/behavior_allocation_tests.cpp)

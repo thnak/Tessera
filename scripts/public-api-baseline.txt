@@ -1845,6 +1845,11 @@ struct include/tessera/ui/behavior/behavior.hpp tessera::ui::behavior::ArgsView
 struct include/tessera/ui/behavior/behavior.hpp tessera::ui::behavior::OutputValue
 struct include/tessera/ui/behavior/behavior.hpp tessera::ui::behavior::Services
 struct include/tessera/ui/behavior/behavior.hpp tessera::ui::behavior::Targets
+function include/tessera/ui/behavior/behavior.hpp tessera::ui::behavior::make_arg
+function include/tessera/ui/behavior/behavior.hpp tessera::ui::behavior::make_handler_arg
+
+header include/tessera/ui/behavior/focus_trap.hpp
+class include/tessera/ui/behavior/focus_trap.hpp tessera::ui::behavior::FocusTrap
 
 header include/tessera/ui/behavior/instance.hpp
 class include/tessera/ui/behavior/instance.hpp tessera::ui::behavior::Instance
@@ -1858,6 +1863,12 @@ struct include/tessera/ui/behavior/registry.hpp tessera::ui::behavior::Registrat
 function include/tessera/ui/behavior/registry.hpp tessera::ui::behavior::create_behavior
 function include/tessera/ui/behavior/registry.hpp tessera::ui::behavior::is_registered
 function include/tessera/ui/behavior/registry.hpp tessera::ui::behavior::registry
+
+header include/tessera/ui/behavior/roving_focus.hpp
+class include/tessera/ui/behavior/roving_focus.hpp tessera::ui::behavior::RovingFocus
+
+header include/tessera/ui/behavior/scroll_lock.hpp
+class include/tessera/ui/behavior/scroll_lock.hpp tessera::ui::behavior::ScrollLock
 
 header include/tessera/ui/boundary/boundary.hpp
 class include/tessera/ui/boundary/boundary.hpp tessera::ui::boundary::BoundaryTable
@@ -2262,6 +2273,9 @@ class include/tessera/ui/pending/transition.hpp tessera::ui::pending::Transition
 header include/tessera/ui/responsive/environment_set.hpp
 class include/tessera/ui/responsive/environment_set.hpp tessera::ui::responsive::EnvironmentSet
 struct include/tessera/ui/responsive/environment_set.hpp tessera::ui::responsive::EnvironmentConsumer
+
+header include/tessera/ui/responsive/media_query_match.hpp
+class include/tessera/ui/responsive/media_query_match.hpp tessera::ui::responsive::MediaQueryMatcher
 
 header include/tessera/ui/responsive/size_class.hpp
 enum include/tessera/ui/responsive/size_class.hpp tessera::ui::responsive::SizeClass

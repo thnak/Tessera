@@ -20,6 +20,75 @@
       "lowering": { "kind": "environment", "provider": "breakpoint" }
     },
     {
+      "name": "useMediaQuery",
+      "params": [{ "name": "query", "kind": "value", "ts": "string", "ir": "string" }],
+      "returns": { "ts": "boolean", "ir": "bool" },
+      "lowering": { "kind": "environment", "provider": "media_query" }
+    },
+    {
+      "name": "useFocusTrap",
+      "params": [
+        { "name": "target", "kind": "ref", "element": "any" },
+        {
+          "name": "options",
+          "kind": "options",
+          "ts": "FocusTrapOptions",
+          "ir": "record",
+          "fields": [
+            { "name": "active", "ts": "boolean", "ir": "bool", "default": true },
+            { "name": "restoreFocus", "ts": "boolean", "ir": "bool", "default": true }
+          ]
+        }
+      ],
+      "returns": {
+        "fields": [{ "name": "active", "ts": "boolean", "ir": "bool", "default": true }]
+      },
+      "lowering": { "kind": "behavior", "behavior": "focus_trap", "exclusive": true }
+    },
+    {
+      "name": "useListFocus",
+      "params": [
+        { "name": "target", "kind": "ref", "element": "any" },
+        {
+          "name": "options",
+          "kind": "options",
+          "ts": "ListFocusOptions",
+          "ir": "record",
+          "fields": [
+            {
+              "name": "orientation",
+              "ts": "\"horizontal\" | \"vertical\" | \"both\"",
+              "ir": "string",
+              "default": "vertical"
+            },
+            { "name": "wrap", "ts": "boolean", "ir": "bool", "default": true },
+            { "name": "typeahead", "ts": "boolean", "ir": "bool", "default": false }
+          ]
+        }
+      ],
+      "returns": {
+        "fields": [{ "name": "activeIndex", "ts": "number", "ir": "number", "default": -1 }]
+      },
+      "lowering": { "kind": "behavior", "behavior": "roving_focus", "exclusive": true }
+    },
+    {
+      "name": "useScrollLock",
+      "params": [
+        { "name": "target", "kind": "ref", "element": "any" },
+        {
+          "name": "options",
+          "kind": "options",
+          "ts": "ScrollLockOptions",
+          "ir": "record",
+          "fields": [{ "name": "active", "ts": "boolean", "ir": "bool", "default": true }]
+        }
+      ],
+      "returns": {
+        "fields": [{ "name": "locked", "ts": "boolean", "ir": "bool", "default": false }]
+      },
+      "lowering": { "kind": "behavior", "behavior": "scroll_lock", "exclusive": true }
+    },
+    {
       "name": "usePressFeedback",
       "params": [
         { "name": "target", "kind": "ref", "ts": "Element", "ir": "ref" },
