@@ -323,7 +323,8 @@ add_test(NAME app_host COMMAND app_host_tests)
 # skipped must be byte-identical to a cold layout of the same inputs, over a randomized edit
 # sequence that covers every layout input source (longhands, text, shape, viewport).
 add_executable(layout_gate_tests
-    layout_gate_tests.cpp)
+    layout_gate_tests.cpp
+    layout_gate_scene.cpp)
 
 target_link_libraries(layout_gate_tests PRIVATE tessera_app tessera_runtime)
 
