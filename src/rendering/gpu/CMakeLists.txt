@@ -3,6 +3,8 @@
 add_library(tessera_gpu STATIC
     batched2d_renderer.cpp
     batched2d_shadow.cpp
+    # The exact-nearest textured quad (issue #682): integer texel math in the shader, no sampler.
+    batched2d_texture_exact.cpp
     # The 4x presentation seam (S8): a sampled-quad pass that presents a multisampled frame through
     # its resolved image. Split out so the renderer core stays inside its size budget.
     batched2d_present.cpp

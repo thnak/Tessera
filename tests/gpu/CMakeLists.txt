@@ -173,6 +173,16 @@ endif()
 add_test(NAME path_texture_draw COMMAND path_texture_draw_tests)
 set_tests_properties(path_texture_draw PROPERTIES FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
 
+# Integer-exact nearest sampling (issue #682): push_texture_exact must equal the CPU rule byte for
+# byte where the hardware nearest sampler is not exact (2:1 and fractional ratios). Vulkan only; the
+# test skips when no device is available.
+if (TARGET tessera_rhi_vulkan)
+    add_executable(texture_exact_tests
+        batched2d/texture_exact_tests.cpp)
+    target_link_libraries(texture_exact_tests PRIVATE tessera_gpu tessera_rhi_vulkan)
+    add_test(NAME texture_exact COMMAND texture_exact_tests)
+endif()
+
 # Manual measurement tool (not a CTest): path upload / cache-hit / SVG decode cost on a real device.
 if (TARGET tessera_rhi_vulkan)
     add_executable(path_texture_measure

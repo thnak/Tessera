@@ -231,6 +231,14 @@ public:
     // `coverage_boost` (1 to 2) scales the sampled alpha before blending; glyph runs use it.
     void push_texture(const rhi::Rect& rect, rhi::Texture& texture, const rhi::Rect& uv,
                       rhi::Color color, float coverage_boost = 1.0f);
+    // Draws the whole texture into `rect` with integer-exact nearest sampling (#682): each device
+    // pixel maps to texel `min(((2 * p + 1) * src) / (2 * dst), src - 1)` per axis, computed in the
+    // fragment shader, so the result is bit-identical on every GPU and to the CPU rule
+    // (`CpuCanvas::blit_texture`). The hardware nearest sampler is not: it picks the wrong neighbor
+    // on every pixel of a 2:1 downscale. `rect` must be axis-aligned and land on whole device
+    // pixels under the active transform and content scale (a fractional edge is rounded); use
+    // `push_texture` for anything else. The texture's own sampler state is ignored.
+    void push_texture_exact(const rhi::Rect& rect, rhi::Texture& texture, rhi::Color color);
 
     // --- LCD text (docs/design/display-aware-rendering.md section 3.4.1, step 3) ----------------
     // Supplies the dual-source pipeline LCD glyph quads are drawn with. It must be created from
