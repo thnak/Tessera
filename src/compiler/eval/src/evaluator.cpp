@@ -93,9 +93,9 @@ std::expected<Value, EvalError> Evaluator::eval(const ir::Expr& expr, const Scop
                     if (const Value* member = record->find(path)) {
                         return *member;
                     }
-                    return fail("TESSERA_IR_EVAL_UNKNOWN_REF",
-                                "`" + expr.id + "` names no member of record `" + record->type +
-                                    "`");
+                    return fail("TESSERA_IR_EVAL_UNKNOWN_REF", "`" + expr.id +
+                                                                   "` names no member of record `" +
+                                                                   record->type + "`");
                 }
             }
         }

@@ -477,8 +477,8 @@ bool records() {
     std::vector<ir::RecordField> other_fields;
     other_fields.push_back(std::move(other_w));
     other_fields.push_back(std::move(other_h));
-    const auto different = evaluator.evaluate(*ir::make_record("Size", std::move(other_fields)),
-                                              empty);
+    const auto different =
+        evaluator.evaluate(*ir::make_record("Size", std::move(other_fields)), empty);
     ok = expect(different.has_value() && !eval::identical(*value, *different),
                 "a different field value is not identical") &&
          ok;
