@@ -207,6 +207,25 @@ void MetalTexture::write(const void* data, std::size_t size) {
                 bytesPerRow:static_cast<NSUInteger>(extent_.width) * bytes_per_pixel(format_)];
 }
 
+void MetalTexture::write_region(const rhi::TextureRegion& region, const void* data,
+                                std::size_t row_pitch) {
+    if (levels_ > 1) {
+        throw std::logic_error("metal: a mipmapped texture cannot be rewritten");
+    }
+    const std::size_t pitch =
+        rhi::checked_region_pitch(extent_, bytes_per_pixel(format_), region, row_pitch);
+    if (region.empty()) {
+        return;
+    }
+    if (data == nullptr) {
+        throw std::invalid_argument("metal: region upload without data");
+    }
+    [texture_ replaceRegion:MTLRegionMake2D(region.x, region.y, region.width, region.height)
+                mipmapLevel:0
+                  withBytes:data
+                bytesPerRow:static_cast<NSUInteger>(pitch)];
+}
+
 // --- render targets ----------------------------------------------------------------------------
 
 MetalRenderTarget::MetalRenderTarget(id<MTLTexture> color, id<MTLTexture> resolve,

@@ -99,6 +99,8 @@ public:
         return desc_.levels;
     }
     void write(const void* data, std::size_t size) override;
+    void write_region(const rhi::TextureRegion& region, const void* data,
+                      std::size_t row_pitch) override;
 
     [[nodiscard]] WGPUTextureView view() const {
         return view_;

@@ -260,6 +260,8 @@ public:
         return levels_;
     }
     void write(const void* data, std::size_t size) override;
+    void write_region(const rhi::TextureRegion& region, const void* data,
+                      std::size_t row_pitch) override;
 
     [[nodiscard]] VkImage image() const {
         return image_;

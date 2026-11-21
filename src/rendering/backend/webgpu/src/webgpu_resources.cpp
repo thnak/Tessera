@@ -156,6 +156,37 @@ void WebGpuTexture::write(const void* data, std::size_t size) {
     wgpuQueueWriteTexture(context_->queue, &dst, data, size, &layout, &extent);
 }
 
+void WebGpuTexture::write_region(const rhi::TextureRegion& region, const void* data,
+                                 std::size_t row_pitch) {
+    if (desc_.levels > 1) {
+        throw std::invalid_argument("WebGpuTexture: mipmapped textures are immutable");
+    }
+    if (desc_.sample_count > 1) {
+        throw std::logic_error("WebGpuTexture: cannot upload to a multisampled texture");
+    }
+    const std::size_t pitch =
+        rhi::checked_region_pitch(desc_.extent, bytes_per_pixel(desc_.format), region, row_pitch);
+    if (region.empty()) {
+        return;
+    }
+    if (data == nullptr) {
+        throw std::invalid_argument("WebGpuTexture: region upload without data");
+    }
+    WGPUTexelCopyTextureInfo dst = WGPU_TEXEL_COPY_TEXTURE_INFO_INIT;
+    dst.texture = texture_;
+    dst.origin = {region.x, region.y, 0};
+    WGPUTexelCopyBufferLayout layout = WGPU_TEXEL_COPY_BUFFER_LAYOUT_INIT;
+    layout.bytesPerRow = static_cast<std::uint32_t>(pitch);
+    layout.rowsPerImage = region.height;
+    const WGPUExtent3D extent{region.width, region.height, 1};
+    // The data size WebGPU validates is the last row's bytes plus the rows before it at the pitch,
+    // so a pitched source is not required to carry the padding after its last row.
+    const std::size_t row_bytes =
+        static_cast<std::size_t>(region.width) * bytes_per_pixel(desc_.format);
+    const std::size_t size = pitch * (region.height - 1) + row_bytes;
+    wgpuQueueWriteTexture(context_->queue, &dst, data, size, &layout, &extent);
+}
+
 WebGpuRenderTarget::WebGpuRenderTarget(std::shared_ptr<WebGpuContext> context,
                                        const rhi::RenderTargetDesc& desc)
     : context_(std::move(context)),

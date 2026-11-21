@@ -3,6 +3,7 @@
 #pragma once
 
 #include "tessera/rendering/rhi/swapchain.hpp"
+#include "tessera/rendering/rhi/texture_region.hpp"
 #include "tessera/rendering/rhi/timestamp.hpp"
 #include "tessera/rendering/rhi/types.hpp"
 #include "tessera/rendering/rhi/version.hpp"
@@ -47,6 +48,17 @@ public:
     // Dynamic atlas updates use this instead of recreating the GPU resource. Only valid for
     // sample_count == 1.
     virtual void write(const void* data, std::size_t size) = 0;
+
+    // Uploads one rectangle (RHI 1.9). `data` points at the region's first texel; `row_pitch` is
+    // the byte distance between two source rows (0 = tightly packed). Validation is
+    // `checked_region_pitch` (texture_region.hpp): a region outside the extent throws
+    // std::out_of_range, a short pitch or a null `data` std::invalid_argument, an empty region
+    // writes nothing. Only valid for sample_count == 1 and levels == 1, like `write`. It exists so
+    // a producer that changed a few texels (one glyph in an atlas page) uploads those and not the
+    // whole image. Pure virtual because a backend that cannot honour it would silently re-upload
+    // everything and hide the cost the call exists to remove.
+    virtual void write_region(const TextureRegion& region, const void* data,
+                              std::size_t row_pitch) = 0;
 };
 
 class Pipeline {

@@ -134,6 +134,23 @@ public:
             std::memcpy(bytes_.data(), data, size);
         }
     }
+    void write_region(const rhi::TextureRegion& region, const void* data,
+                      std::size_t row_pitch) override {
+        const std::size_t pixel_bytes = format_ == rhi::TextureFormat::R8Unorm ? 1U : 4U;
+        const std::size_t pitch =
+            rhi::checked_region_pitch(extent_, pixel_bytes, region, row_pitch);
+        if (region.empty() || data == nullptr) {
+            return;
+        }
+        for (std::uint32_t row = 0; row < region.height; ++row) {
+            std::memcpy(bytes_.data() +
+                            (static_cast<std::size_t>(region.y + row) * extent_.width + region.x) *
+                                pixel_bytes,
+                        static_cast<const std::uint8_t*>(data) +
+                            static_cast<std::size_t>(row) * pitch,
+                        static_cast<std::size_t>(region.width) * pixel_bytes);
+        }
+    }
 
     [[nodiscard]] const std::vector<std::uint8_t>& bytes() const {
         return bytes_;

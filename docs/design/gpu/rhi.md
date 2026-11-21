@@ -51,7 +51,8 @@ RHI versioning and capabilities (ADR-049):
   below); 1.8 adds `Backend::Metal`, the native macOS/iOS backend
   ([ADR-053](../../../decisions/ADR-053-native-metal-backend.md),
   [`metal-backend.md`](metal-backend.md)). No enumerator changes value and no interface member
-  changes, so a backend that does not implement Metal is unaffected.
+  changes, so a backend that does not implement Metal is unaffected; 1.9 adds
+  `Texture::write_region` and `TextureRegion` (issue #681, section 5.4 below).
   All later versions are additive compatible changes.
 - `RhiCapabilities { Backend backend; std::uint32_t rhi_version; GpuTimestampCapability timestamps; }`
   is reported by `Device::capabilities()` (default: current backend, `kRhiVersion`,
@@ -290,6 +291,33 @@ textures (issue #480 part 2; the measured win is in
   is a no-op on every backend; a longer one than the capacity throws `std::invalid_argument`.
 - The set is read when the GPU executes the draw, not when it is recorded, so a caller must not
   rewrite one set between draws that are still in flight.
+
+### 5.4 Texture region writes (RHI 1.9)
+
+`Texture::write_region(region, data, row_pitch)` uploads one rectangle of an existing texture. It
+exists because `Texture::write` is whole-image: a glyph that adds a few KB to a 2048x2048 atlas page
+re-uploaded the 16 MiB page, and an upload scales with area, not with what changed (measured in
+issue #681: a 2048 page write is 3.8-5.9 ms, a 512 page 0.2-0.4 ms).
+
+- `region` is in whole texels from the top left. `data` points at the region's first texel and
+  `row_pitch` is the byte distance between two source rows (0 = tightly packed), so a caller can
+  pass a pointer into its own wider CPU copy (an atlas page) without repacking.
+- One validation for every backend (`checked_region_pitch`, `texture_region.hpp`): a region outside
+  the extent throws `std::out_of_range`; a pitch shorter than one region row or a null `data` for a
+  non-empty region throws `std::invalid_argument`; an empty region is valid and writes nothing, so a
+  caller that tracks a dirty rectangle does not special-case "nothing changed".
+- Same restrictions as `write`: not valid for multisampled textures, and a mipmapped texture is
+  immutable (section 5.2).
+- Vulkan stages only the region's bytes (rows repacked into mapped staging memory when the source is
+  pitched) and copies with an image offset, so staging and the transfer scale with the rectangle.
+  WebGPU passes the origin and the pitch to `writeTexture`; Metal uses `replaceRegion`.
+- The pure-virtual declaration is deliberate: a default that re-uploaded everything would hide the
+  cost the call exists to remove.
+- Consumer: `GlyphAtlas::take_dirty(page)` returns the union of the texels written since the last
+  take (a new or reset page reports its whole extent), and `TextRenderer` uploads just that
+  rectangle. Tests: `texture_write_region` (Vulkan pixel readback), the conformance check
+  `texture_write_region` (every backend), `text_renderer_dirty_upload` (byte count equals the
+  glyph's rectangle and the GPU copy equals the CPU page).
 
 ## 6. Lifetime and threading
 

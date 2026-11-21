@@ -15,6 +15,7 @@ using tessera::ui::text::FontFace;
 using tessera::ui::text::GlyphAtlas;
 using tessera::ui::text::GlyphAtlasConfig;
 using tessera::ui::text::GlyphAtlasEntry;
+using tessera::ui::text::GlyphAtlasRect;
 using tessera::ui::text::GlyphRasterizer;
 
 bool expect(bool condition, const char* message) {
@@ -168,6 +169,65 @@ int main(int argc, char** argv) {
     if (!expect(evicting.stats().evictions > evictions, "next frame evicts LRU page") ||
         !expect(z.has_bitmap, "evicted page accepts the new glyph")) {
         return 14;
+    }
+
+    // Dirty rectangles (issue #681): what the GPU copy of a page lacks, so a renderer uploads that
+    // and not the page. A new page reports its whole extent once; afterwards a glyph reports
+    // exactly its own rectangle, two glyphs report their union, and taking clears.
+    GlyphAtlas dirty_atlas(rasterizer, config);
+    dirty_atlas.begin_frame();
+    const GlyphAtlasEntry first = dirty_atlas.get(U'A', 16);
+    const GlyphAtlasRect fresh = dirty_atlas.take_dirty(first.page);
+    if (!expect(fresh.x == 0 && fresh.y == 0 && fresh.width == config.page_width &&
+                    fresh.height == config.page_height,
+                "a new page is dirty over its whole extent") ||
+        !expect(dirty_atlas.take_dirty(first.page).empty(), "taking clears the dirty rectangle") ||
+        !expect(dirty_atlas.take_dirty(60000).empty(), "an unknown page has nothing dirty")) {
+        return 15;
+    }
+    const GlyphAtlasEntry second = dirty_atlas.get(U'B', 16);
+    const GlyphAtlasRect one = dirty_atlas.take_dirty(second.page);
+    if (!expect(second.page == first.page, "B lands on the same page") ||
+        !expect(one.x == second.x && one.y == second.y && one.width == second.width &&
+                    one.height == second.height,
+                "one new glyph reports exactly its rectangle")) {
+        return 16;
+    }
+    const GlyphAtlasEntry third = dirty_atlas.get(U'C', 16);
+    const GlyphAtlasEntry fourth = dirty_atlas.get(U'D', 16);
+    const GlyphAtlasRect both = dirty_atlas.take_dirty(third.page);
+    const std::uint32_t left = std::min(third.x, fourth.x);
+    const std::uint32_t top = std::min(third.y, fourth.y);
+    const std::uint32_t right = std::max(third.x + third.width, fourth.x + fourth.width);
+    const std::uint32_t bottom = std::max(third.y + third.height, fourth.y + fourth.height);
+    if (!expect(third.page == fourth.page && third.page == first.page, "C and D share the page") ||
+        !expect(both.x == left && both.y == top && both.width == right - left &&
+                    both.height == bottom - top,
+                "two new glyphs report the union of their rectangles")) {
+        return 17;
+    }
+    // A cached glyph writes nothing, so nothing is dirty.
+    static_cast<void>(dirty_atlas.get(U'A', 16));
+    if (!expect(dirty_atlas.take_dirty(first.page).empty(), "a cache hit dirties nothing")) {
+        return 18;
+    }
+    // An evicted page is rewritten from scratch: the whole page is dirty again.
+    GlyphAtlas evicting_dirty(rasterizer, tight);
+    evicting_dirty.begin_frame();
+    for (char32_t codepoint = U'A'; codepoint <= U'Z'; ++codepoint) {
+        static_cast<void>(evicting_dirty.get(codepoint, 20));
+    }
+    for (std::uint16_t page = 0; page < evicting_dirty.page_count(); ++page) {
+        static_cast<void>(evicting_dirty.take_dirty(page));
+    }
+    evicting_dirty.begin_frame();
+    const GlyphAtlasEntry reused = evicting_dirty.get(U'z', 20);
+    const GlyphAtlasRect after_eviction = evicting_dirty.take_dirty(reused.page);
+    if (!expect(after_eviction.x == 0 && after_eviction.y == 0 &&
+                    after_eviction.width == tight.page_width &&
+                    after_eviction.height == tight.page_height,
+                "a reset page is dirty over its whole extent")) {
+        return 19;
     }
 
     std::cout << "glyph_atlas: ok\n";

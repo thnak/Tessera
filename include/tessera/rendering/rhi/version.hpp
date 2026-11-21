@@ -36,8 +36,11 @@ namespace tessera::rendering::rhi {
 // enumerator changes value and no interface member changes, so a backend that does not implement
 // Metal is unaffected; the enumerator exists so a Metal device can report itself honestly instead
 // of borrowing another backend's name.
+// 1.9 (2026-11-21): additive `Texture::write_region` and `TextureRegion` (one rectangle of an
+// existing texture), so an atlas page whose glyph changed a few texels uploads those and not the
+// whole page (issue #681). Pure virtual so every backend answers.
 inline constexpr std::uint32_t kRhiVersionMajor = 1;
-inline constexpr std::uint32_t kRhiVersionMinor = 8;
+inline constexpr std::uint32_t kRhiVersionMinor = 9;
 inline constexpr std::uint32_t kRhiVersion = (kRhiVersionMajor << 16) | kRhiVersionMinor;
 
 } // namespace tessera::rendering::rhi

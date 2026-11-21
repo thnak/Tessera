@@ -21,8 +21,8 @@ int main() {
     // `CommandList::bind_texture_array` and `Device::texture_array_capacity()` (issue #480);
     // 1.8 added `Backend::Metal`, the native macOS/iOS backend (ADR-053). All are additive
     // compatible changes.
-    if (rhi::kRhiVersionMajor != 1 || rhi::kRhiVersionMinor != 8 ||
-        rhi::kRhiVersion != ((1u << 16) | 8u)) {
+    if (rhi::kRhiVersionMajor != 1 || rhi::kRhiVersionMinor != 9 ||
+        rhi::kRhiVersion != ((1u << 16) | 9u)) {
         std::cerr << "unexpected RHI version constants\n";
         return 1;
     }

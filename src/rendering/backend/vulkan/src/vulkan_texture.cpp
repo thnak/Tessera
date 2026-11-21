@@ -193,7 +193,26 @@ void VulkanTexture::write(const void* data, std::size_t size) {
     owner_->upload_texture(*this, data, size);
 }
 
+void VulkanTexture::write_region(const rhi::TextureRegion& region, const void* data,
+                                 std::size_t row_pitch) {
+    if (owner_ == nullptr) {
+        throw std::runtime_error("VulkanTexture::write_region: missing device owner");
+    }
+    owner_->upload_texture_region(*this, region, data, row_pitch);
+}
+
 void VulkanDevice::upload_texture(VulkanTexture& texture, const void* data, std::size_t size) {
+    const rhi::Extent2D extent = texture.extent();
+    const std::size_t expected =
+        static_cast<std::size_t>(extent.width) * extent.height * bytes_per_pixel(texture.format());
+    if (data == nullptr || size != expected) {
+        throw std::invalid_argument("texture upload must cover the whole tightly packed image");
+    }
+    upload_texture_region(texture, rhi::TextureRegion{0, 0, extent.width, extent.height}, data, 0);
+}
+
+void VulkanDevice::upload_texture_region(VulkanTexture& texture, const rhi::TextureRegion& region,
+                                         const void* data, std::size_t row_pitch) {
     if (!usable_epoch(texture.epoch())) {
         throw std::runtime_error("upload_texture: texture belongs to a lost device generation");
     }
@@ -203,18 +222,31 @@ void VulkanDevice::upload_texture(VulkanTexture& texture, const void* data, std:
     if (texture.levels() != 1) {
         throw std::invalid_argument("upload_texture: mipmapped textures are immutable");
     }
-    const rhi::Extent2D extent = texture.extent();
-    const std::size_t expected =
-        static_cast<std::size_t>(extent.width) * extent.height * bytes_per_pixel(texture.format());
-    if (data == nullptr || size != expected) {
-        throw std::invalid_argument("texture upload must cover the whole tightly packed image");
-    }
-    if (size == 0) {
+    const std::size_t pixel_bytes = bytes_per_pixel(texture.format());
+    const std::size_t pitch =
+        rhi::checked_region_pitch(texture.extent(), pixel_bytes, region, row_pitch);
+    if (region.empty()) {
         return;
     }
+    if (data == nullptr) {
+        throw std::invalid_argument("upload_texture: region upload without data");
+    }
 
+    // Stage only the region, tightly packed: the copy then needs no row length, and a pitched
+    // source (an atlas page) is repacked row by row into mapped memory instead of staging the rows
+    // around the rectangle.
+    const std::size_t row_bytes = static_cast<std::size_t>(region.width) * pixel_bytes;
+    const std::size_t size = row_bytes * region.height;
     auto staging = create_buffer({size, rhi::BufferUsage::Staging});
-    staging->write(data, size);
+    if (pitch == row_bytes) {
+        staging->write(data, size);
+    } else {
+        for (std::uint32_t row = 0; row < region.height; ++row) {
+            staging->write(static_cast<const std::uint8_t*>(data) +
+                               static_cast<std::size_t>(row) * pitch,
+                           row_bytes, static_cast<std::size_t>(row) * row_bytes);
+        }
+    }
     auto* staging_buffer = &vulkan_cast<VulkanBuffer>(*staging);
 
     submit_upload(
@@ -233,7 +265,9 @@ void VulkanDevice::upload_texture(VulkanTexture& texture, const void* data, std:
             copy.imageSubresource.mipLevel = 0;
             copy.imageSubresource.baseArrayLayer = 0;
             copy.imageSubresource.layerCount = 1;
-            copy.imageExtent = {extent.width, extent.height, 1};
+            copy.imageOffset = {static_cast<std::int32_t>(region.x),
+                                static_cast<std::int32_t>(region.y), 0};
+            copy.imageExtent = {region.width, region.height, 1};
             vkCmdCopyBufferToImage(command_buffer, staging_buffer->handle(), texture.image(),
                                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
 

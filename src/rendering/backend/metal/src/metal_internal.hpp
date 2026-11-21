@@ -117,6 +117,8 @@ public:
     [[nodiscard]] rhi::TextureFormat format() const override;
     [[nodiscard]] std::uint32_t levels() const override;
     void write(const void* data, std::size_t size) override;
+    void write_region(const rhi::TextureRegion& region, const void* data,
+                      std::size_t row_pitch) override;
 
     [[nodiscard]] id<MTLTexture> handle() const {
         return texture_;
