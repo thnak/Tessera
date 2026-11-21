@@ -501,6 +501,7 @@ else ()
         PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
     target_link_libraries(tessera_canvas_wasm PRIVATE
         tessera_automation_scene
+        tessera_behavior
         tessera_css_module
         tessera_gpu
         tessera_ir_eval
