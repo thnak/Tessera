@@ -10,6 +10,7 @@
 #include "tessera/compiler/eval/evaluator.hpp"
 #include "tessera/compiler/ir/module.hpp"
 #include "tessera/hal/fold_posture.hpp"
+#include "tessera/ui/behavior/instance.hpp"
 #include "tessera/ui/scene/input_dispatch.hpp"
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/scene/state_snapshot.hpp"
@@ -260,6 +261,28 @@ public:
         return unrun_;
     }
 
+    // The behavior instances this session drives (ADR-064 item 7; behavior-hooks-v1.md section 10).
+    // One per IR `behaviors` entry, in declaration order, attached after the tree is built and
+    // detached before it is replaced. Empty for a component that calls no behavior hook, which is
+    // every component today unless the experimental front end produced one.
+    //
+    // **Why the session drives them at all.** The preview is an IR evaluator: it does not run the
+    // developer's C++. A behavior is engine code, so the session can and must run it -- otherwise
+    // Studio would show a component's static result and a person would see a Button that never
+    // looks pressed. The session builds the same `behavior::Instance` the generated base does, from
+    // the same IR entry and the same registry, so the two cannot disagree about what a behavior is.
+    [[nodiscard]] std::size_t behavior_count() const noexcept {
+        return behaviors_.size();
+    }
+    // The current outputs of behavior `index`, or an empty span when there is no such behavior or it
+    // is not attached. A caller reads its manifest defaults in that case.
+    [[nodiscard]] std::span<const ui::behavior::OutputValue> behavior_outputs(
+        std::size_t index) const;
+    // The engine registry name of behavior `index` (`press_feedback`), or empty.
+    [[nodiscard]] std::string_view behavior_name(std::size_t index) const;
+    // True when behavior `index` is attached to every target its refs resolved to.
+    [[nodiscard]] bool behavior_attached(std::size_t index) const;
+
     // The IR source span of every node in the live tree, keyed by scene node id (issue #171's
     // `source.patch` slice). Filled by the build walk, which is the last code that holds the
     // `ir::Node`; a rebuild replaces it, so a span always describes the tree on screen. Empty for a
@@ -293,9 +316,23 @@ private:
     [[nodiscard]] bool relayout();
     void bind_handler(std::uint64_t automation_id, const std::string& event,
                       const std::string& handler_id);
+    // Attaches every IR behavior to the nodes its target refs resolved to, after the tree exists.
+    // A behavior whose targets are not all present attaches nothing (the spec's rule), and a
+    // behavior the registry lacks is reported in `behavior_errors_` rather than silently skipped.
+    void attach_behaviors(const SceneBuildResult& built);
+    // Recomputes every attached behavior's outputs from the scene's current interaction state. This
+    // is the scene-driven trigger: a pointer moved or a press began while the component's own
+    // options did not change, so the option hash would skip the update forever.
+    void refresh_behaviors();
+    // Detaches every behavior before the tree it targets is destroyed.
+    void detach_behaviors();
     static void on_scene_event(void* context, const ui::Event& event);
     void run_handler(const std::string& handler_id, const std::vector<ir::Action>* actions);
     [[nodiscard]] ui::Node* node_by_automation_id(std::uint64_t automation_id);
+    // The node with this SCENE id (the identity a `ref` resolved to), or null. Distinct from
+    // `node_by_automation_id`: a scene id is assigned by the build walk in preorder, an automation
+    // id comes from the IR's `automationId`/`uiId`. A behavior targets the former.
+    [[nodiscard]] ui::Node* node_by_id(std::uint64_t node_id);
     void append_cell(ui::StateSnapshot& out, const std::string& id, const std::string& type) const;
 
     const ir::IrModule& module_;
@@ -317,6 +354,22 @@ private:
     SceneMetrics layout_metrics_;
     hal::WindowMetrics metrics_;
     std::vector<std::unique_ptr<HandlerSlot>> slots_;
+    // One behavior instance per IR `behaviors` entry, in declaration order (ADR-064 item 7). The
+    // evaluated args are kept alongside because `refresh` re-passes them: a behavior reads its
+    // options on every recompute, and re-evaluating them per pointer move would be work for a value
+    // that did not change.
+    struct BehaviorSlot {
+        std::string name; // the engine registry name
+        ui::behavior::Instance instance;
+        std::vector<ui::behavior::ArgValue> args;
+        // The `ref::` ids this behavior targets, in manifest order, and the scene node each one
+        // resolved to. A node id of 0 means the ref did not resolve (a branch that did not take).
+        std::vector<std::uint64_t> target_nodes;
+    };
+    std::vector<BehaviorSlot> behaviors_;
+    // Why a behavior could not attach, in declaration order. Reported rather than swallowed: a
+    // manifest entry the registry lacks is a build-tool error a person should see.
+    std::vector<std::string> behavior_errors_;
     std::vector<std::string> ran_;
     std::vector<std::string> unrun_;
     // The IR spans of the live tree, keyed by scene node id (issue #171's `source.patch` slice).

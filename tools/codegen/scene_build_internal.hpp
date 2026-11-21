@@ -60,6 +60,12 @@ public:
         loop_depth_ = depth;
     }
 
+    // The component's `ref` declarations, so the walk can record which scene node each one resolved
+    // to (a behavior's target). Set once by `build()`.
+    void set_component_refs(const std::vector<ir::Ref>* refs) noexcept {
+        component_refs_ = refs;
+    }
+
 private:
     bool build_conditional_child(const ir::Node& child, ui::Node& parent, std::size_t depth);
     bool build_repeated_child(const ir::Node& child, ui::Node& parent, std::size_t depth);
@@ -70,6 +76,8 @@ private:
     eval::Evaluator evaluator_;
     std::uint64_t next_node_id_ = 2; // 1 is the window content root the caller owns
     int loop_depth_ = 0;
+    // The component's `ref` declarations, borrowed from the IR for the duration of one build.
+    const std::vector<ir::Ref>* component_refs_ = nullptr;
 };
 
 } // namespace tessera::compiler::codegen::cli::internal

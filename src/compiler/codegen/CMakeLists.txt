@@ -210,6 +210,9 @@ set(_tessera_scene_preview_sources
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_state.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_session.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_session_lookup.cpp
+    # The session's behavior wiring (ADR-064 item 7, spike #658), split out when it pushed
+    # `scene_session.cpp` past the source-size limit.
+    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_session_behavior.cpp
     # The designer's override layer (issue #536): its data and history, and how it reaches the tree.
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_override.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_session_override.cpp
@@ -923,6 +926,27 @@ if (TESSERA_BUILD_TESTS)
         tessera_scene
         tessera_style)
     add_test(NAME scene_dynamic COMMAND scene_dynamic_tests)
+
+    # Behaviors in the preview (ADR-064 item 7, spike #658; behavior-hooks-v1.md section 10): the
+    # session builds the same registry `Instance` the generated base does, attaches it to the node
+    # the hook's `ref` resolved to, and drives it with the session's own normalized input. Registered
+    # here rather than in tests/unit/CMakeLists.txt for the same reason `scene_dynamic` is.
+    add_executable(scene_behavior_tests
+        ${CMAKE_SOURCE_DIR}/tests/unit/scene_behavior_tests.cpp
+        ${_tessera_scene_preview_sources})
+    target_include_directories(scene_behavior_tests
+        PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
+    target_link_libraries(scene_behavior_tests PRIVATE
+        tessera_automation_scene
+        tessera_behavior
+        tessera_css_module
+        tessera_ir_eval
+        tessera_ir_ids
+        tessera_layout
+        tessera_lowering
+        tessera_scene
+        tessera_style)
+    add_test(NAME scene_behavior COMMAND scene_behavior_tests)
 
     # The studio's foldable preview (issue #408): a simulated `FoldInfo` reaches the same metrics and
     # safe-area path the app runs, a posture change is one layout pass, and the preview's SafeArea

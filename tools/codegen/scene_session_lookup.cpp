@@ -69,4 +69,28 @@ ui::Node* PreviewSession::node_by_automation_id(std::uint64_t automation_id) {
     return Walk::find(*root_, automation_id);
 }
 
+ui::Node* PreviewSession::node_by_id(std::uint64_t node_id) {
+    if (node_id == 0 || root_ == nullptr) {
+        return nullptr;
+    }
+    // A scene node id, not an automation id: the build walk assigns ids in preorder, so this is the
+    // identity a `ref` resolved to. Hidden subtrees are NOT skipped here, unlike the automation-id
+    // walk: a behavior attaches to the node its ref names whether or not that node is currently
+    // rendered, because a hidden node can become visible again without a rebuild.
+    struct Walk {
+        static ui::Node* find(ui::Node& node, std::uint64_t id) {
+            if (node.id() == id) {
+                return &node;
+            }
+            for (const auto& child : node.children()) {
+                if (ui::Node* found = find(*child, id)) {
+                    return found;
+                }
+            }
+            return nullptr;
+        }
+    };
+    return Walk::find(*root_, node_id);
+}
+
 } // namespace tessera::compiler::codegen::cli

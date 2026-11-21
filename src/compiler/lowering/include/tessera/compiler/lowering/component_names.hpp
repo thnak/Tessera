@@ -20,7 +20,8 @@ namespace tessera::compiler::lowering {
 //
 // Resolved: a destructured prop (`prop::<name>`), a state variable (`state::<name>`), a ref
 // (`ref::<name>`), an animated value (`anim::<name>`), a member of a non-destructured props
-// parameter (`props.x` gives `prop::x`, decision 8), and names added with `add_local` (handler
+// parameter (`props.x` gives `prop::x`, decision 8), a behavior output (`press.pressed` gives
+// `beh::press.pressed`, behavior-hooks-v1.md section 6), and names added with `add_local` (handler
 // parameters are IR locals, docs/specs/ir-v1.md section 2.1).
 //
 // Not resolved, deliberately:
@@ -55,6 +56,15 @@ private:
     std::vector<Entry> entries_;      // declarations, in analysis order
     std::vector<std::string> locals_; // checked first
     std::string props_param_;         // the non-destructured parameter, or empty
+    // One entry per behavior hook call that returns outputs: the local name the call was bound to
+    // (`press`) and the output names it returns, in manifest order. A reference `press.pressed`
+    // resolves to `beh::press.pressed` (behavior-hooks-v1.md section 6). A bare-statement call has
+    // no local name, so nothing can reference its outputs and it is not recorded here.
+    struct BehaviorOutputs {
+        std::string name;
+        std::vector<std::string> outputs;
+    };
+    std::vector<BehaviorOutputs> behavior_outputs_;
 };
 
 } // namespace tessera::compiler::lowering

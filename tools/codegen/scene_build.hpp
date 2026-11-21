@@ -60,6 +60,17 @@ struct SceneBuildResult {
         ir::SourceSpan span;
     };
     std::vector<SceneNodeSource> sources;
+    // One entry per IR `ref` that resolved to a built scene node, in build order: the `ref::` id and
+    // the scene node it names. A behavior attaches to the nodes its target refs resolved to
+    // (behavior-hooks-v1.md section 8), so this is the table the preview session needs to build the
+    // same `Targets` a generated base would. A ref whose target node was not built (a conditional
+    // branch that did not take, a list that is empty) records nothing, and a behavior whose targets
+    // are not all present attaches nothing -- the same rule the generated base follows.
+    struct SceneRefTarget {
+        std::string ref;  // the IR `ref::` id
+        std::uint64_t node_id = 0;
+    };
+    std::vector<SceneRefTarget> ref_targets;
 };
 
 // Builds the tree of `component` under `root`. `root` is the window content node: it is given the

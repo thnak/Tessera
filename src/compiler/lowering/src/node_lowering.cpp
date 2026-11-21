@@ -188,6 +188,10 @@ LoweredComponentResult lower_component(const HookLoweringContext& base_context) 
     component.effects = std::move(hooks->effects);
     component.refs = std::move(hooks->refs);
     component.animated_values = std::move(hooks->animated_values);
+    // ADR-064 item 7: the behavior hook calls. Without this the lowering produced `behaviors` and
+    // dropped them on the floor, so no component ever carried one and the whole behavior path --
+    // code generation, the preview, the generated accessors -- was unreachable.
+    component.behaviors = std::move(hooks->behaviors);
     component.root = std::move(*root);
     lowered.bindings = std::move(hooks->bindings);
     // Issue #463: the CSS module reads belong to the module pass, which compares them against every
