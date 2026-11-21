@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "node_lookup.hpp"
 #include "redraw_cull.hpp"
 #include "style_diff.hpp"
 #include "tessera/runtime/runtime_loop.hpp"
@@ -16,20 +17,12 @@
 #include <limits>
 #include <optional>
 #include <stdexcept>
-#include <unordered_map>
 #include <vector>
 
 namespace tessera::ui::frame {
 namespace {
 
 namespace rhi = tessera::rendering::rhi;
-
-void index_nodes(Node& node, std::unordered_map<NodeId, Node*>& index) {
-    index[node.id()] = &node;
-    for (const auto& child : node.children()) {
-        index_nodes(*child, index);
-    }
-}
 
 // Adapts the paint provider (compiled stylesheet, animation overlay or a test stub) to the
 // interaction sync so the scene gets `pointer-events`/`user-select` from the same computed style
@@ -180,26 +173,26 @@ FrameTick FramePipeline::tick_impl(Node& root, double dt, double alpha, bool int
     FrameTick result;
     result.animation = animation::tick_animations(*animations_, *loop_, dt);
 
-    std::unordered_map<NodeId, Node*> index;
-    tick_springs(root, dt, result.animation, index);
+    tick_springs(root, dt, result.animation);
+    // One lookup answers both halves of the animation stage (the dirty marks and the paint
+    // samples), so a tick resolves its targets once, not once per half.
+    detail::NodeLookup lookup(node_lookup_buffer_);
     if (!result.animation.samples.empty()) {
-        if (index.empty()) {
-            index_nodes(root, index);
-        }
+        detail::resolve_samples(root, lookup, result.animation.samples);
         for (const animation::AnimationSample& sample : result.animation.samples) {
-            const auto found = index.find(sample.target);
-            if (found == index.end()) {
+            Node* const target = lookup.find(sample.target);
+            if (target == nullptr) {
                 continue;
             }
             const Dirty dirty = animation::dirty_for_declarations(sample.declarations);
             if (dirty != Dirty::Clean) {
-                found->second->mark_dirty(dirty);
+                target->mark_dirty(dirty);
             }
             // `opacity` composites the whole subtree (paint-pass.md section 14.1): a faded parent
             // changes its children's pixels, so they must repaint and their damage must be
             // reported, not just the animated node's own box.
             if (animation::declarations_dirty_paint_subtree(sample.declarations)) {
-                found->second->mark_subtree_dirty(Dirty::Paint | Dirty::Render);
+                target->mark_subtree_dirty(Dirty::Paint | Dirty::Render);
             }
         }
     }
@@ -211,11 +204,11 @@ FrameTick FramePipeline::tick_impl(Node& root, double dt, double alpha, bool int
     current_samples_.clear();
     if (interpolate_) {
         for (const animation::AnimationSample& sample : result.animation.samples) {
-            const auto found = index.find(sample.target);
-            if (found == index.end()) {
+            Node* const target = lookup.find(sample.target);
+            if (target == nullptr) {
                 continue;
             }
-            capture_paint_sample(current_samples_, *found->second, sample.declarations);
+            capture_paint_sample(current_samples_, *target, sample.declarations);
         }
     }
 
@@ -237,15 +230,16 @@ FrameTick FramePipeline::tick_impl(Node& root, double dt, double alpha, bool int
     return result;
 }
 
-void FramePipeline::tick_springs(Node& root, double dt, animation::AnimationTickResult& into,
-                                 std::unordered_map<NodeId, Node*>& index) {
+void FramePipeline::tick_springs(Node& root, double dt, animation::AnimationTickResult& into) {
     springs_.set_reduced_motion(animations_->reduced_motion());
     if (springs_.empty()) {
         return;
     }
-    index_nodes(root, index);
-    for (const std::uint64_t target : springs_.targets()) {
-        if (index.find(target) == index.end()) {
+    const std::vector<std::uint64_t> targets = springs_.targets();
+    detail::NodeLookup lookup(node_lookup_buffer_);
+    detail::resolve_ids(root, lookup, targets, [](std::uint64_t target) { return target; });
+    for (const std::uint64_t target : targets) {
+        if (lookup.find(target) == nullptr) {
             springs_.stop_target(target);
         }
     }
@@ -293,15 +287,18 @@ paint::SceneStyleSyncResult FramePipeline::sync_style(Node& root, paint::StylePr
         paint::sync_scene_style(root, diffing, config_.glass, &scene_sync_memo_);
     diffing.prune();
     if (!diffing.changed().empty()) {
-        std::unordered_map<NodeId, Node*> index;
-        index_nodes(root, index);
+        detail::NodeLookup lookup(node_lookup_buffer_);
+        detail::resolve_ids(root, lookup, diffing.changed(),
+                            [](const auto& entry) { return entry.first; });
         for (const auto& [id, opacity_changed] : diffing.changed()) {
-            if (const auto found = index.find(id); found != index.end()) {
-                if (opacity_changed) {
-                    found->second->mark_subtree_dirty(Dirty::Paint | Dirty::Render);
-                } else {
-                    found->second->mark_dirty(Dirty::Paint | Dirty::Render);
-                }
+            Node* const target = lookup.find(id);
+            if (target == nullptr) {
+                continue;
+            }
+            if (opacity_changed) {
+                target->mark_subtree_dirty(Dirty::Paint | Dirty::Render);
+            } else {
+                target->mark_dirty(Dirty::Paint | Dirty::Render);
             }
         }
     }
@@ -329,21 +326,21 @@ void FramePipeline::sample_started_animations(Node& root) {
     }
     const animation::AnimationTickResult first =
         animation::tick_animations(*animations_, *loop_, 0.0);
-    std::unordered_map<NodeId, Node*> index;
-    index_nodes(root, index);
+    detail::NodeLookup lookup(node_lookup_buffer_);
+    detail::resolve_samples(root, lookup, first.samples);
     for (const animation::AnimationSample& sample : first.samples) {
-        const auto found = index.find(sample.target);
-        if (found == index.end()) {
+        Node* const target = lookup.find(sample.target);
+        if (target == nullptr) {
             continue;
         }
-        capture_paint_sample(current_samples_, *found->second, sample.declarations);
+        capture_paint_sample(current_samples_, *target, sample.declarations);
         if (const auto captured = current_samples_.find(sample.target);
             captured != current_samples_.end() && !previous_samples_.contains(sample.target)) {
             previous_samples_[sample.target] = captured->second;
         }
         const Dirty dirty = animation::dirty_for_declarations(sample.declarations);
         if (dirty != Dirty::Clean) {
-            found->second->mark_dirty(dirty);
+            target->mark_dirty(dirty);
         }
     }
 }
@@ -361,17 +358,18 @@ FrameRender FramePipeline::finish_frame(Node& root) {
     if (view.empty()) {
         last_damaged_corners_.clear();
     } else {
-        std::unordered_map<NodeId, Node*> index;
-        index_nodes(root, index);
+        detail::NodeLookup lookup(node_lookup_buffer_);
+        detail::resolve_ids(root, lookup, view.samples(),
+                            [](const auto& entry) { return entry.first; });
         for (const auto& [node_id, sample] : view.samples()) {
             if (!sample.transform) {
                 continue;
             }
-            const auto found = index.find(node_id);
-            if (found == index.end()) {
+            Node* const found = lookup.find(node_id);
+            if (found == nullptr) {
                 continue;
             }
-            const Node& node = *found->second;
+            const Node& node = *found;
             if (!node.rendered()) {
                 continue;
             }
