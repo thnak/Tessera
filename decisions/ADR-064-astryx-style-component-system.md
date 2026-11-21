@@ -195,6 +195,57 @@ the design work, the part that takes longest.
 
 This ADR stays Proposed until measured evidence exists. Spike [#658](https://github.com/thnak/Tessera/issues/658) builds the behavior hook path end to end with one behavior (`press_feedback`), off by default, and records the stages' findings, allocation behavior, golden stability and preview support. Spike [#662](https://github.com/thnak/Tessera/issues/662) builds a role-token theme to plain CSS custom properties and renders Button in three modes, recording missing engine features, measured contrast and the cost of the token vocabulary. Items 3 to 5 and 8 (catalogue, anatomy, plugins) have no spike yet; they are specifications that the first components (#636 Button) will test. The implementing issues wait for Acceptance.
 
+### Spike #662 evidence (item 6, recorded 2026-11-21)
+
+Built off by default: `include/tessera/ui/style/theme_source.hpp`,
+`src/ui/style/theme_source_{parse,build}.cpp`, test `theme_source`, fixture
+`tests/fixtures/themes/spike-instrument.theme.json`. Normative rules:
+[`theme-source-v1.md`](../docs/specs/theme-source-v1.md). Nothing runs in a shipped app; the build is
+an authoring-time library call.
+
+**The model holds.** A role token is one name whose value is a `light-dark()` pair, and the engine's
+own cascade resolves it: the same built CSS, compiled by `prepare_stylesheet` and resolved through
+`SceneStyleTree::compute`, gives the Button its accent fill in the light scheme and the dark fill in
+the dark scheme from the same token name. There are no separate light and dark names anywhere in the
+output. Everything lands in one `@layer tessera-ui.theme` block, so unlayered app CSS outranks it.
+
+**What the engine was missing, and how the fallback looked.** Three gaps, none of them blocking:
+
+1. **`prefers-contrast` is not a media feature.** The engine has `prefers-color-scheme`,
+   `prefers-reduced-motion`, the viewport features and `window-backdrop`, but no contrast query, so a
+   high-contrast variant is a second theme id today (the shipped `instrument-high-contrast`) rather
+   than a media query over the same token names. The spike measures high contrast by resolving the
+   same token set with the stricter floors; the fallback is a theme switch, which is what ships.
+2. **`light-dark()` is a colour function only.** A length, a font stack or a number cannot take a
+   pair, so the build emits those tokens once. That is correct CSS, but it means a theme source has
+   two token shapes (a string and a `[light, dark]` pair) rather than one, and the build decides
+   which by parsing the value with the engine's own `parse_color` so the two cannot disagree.
+3. **`adaptations` has no source syntax.** The engine's media evaluation can express the four
+   conditions ADR-064 item 6 names; what is missing is the source-side syntax and the ordering rule
+   ("later rules win"). The spike accepts the member and ignores it, and records the gap here rather
+   than inventing a syntax the token spec has not decided.
+
+**Measured contrast.** The fixture's Button ink on its fill clears the normal-text floor in all three
+modes (4.5:1 light and dark, 7:1 high contrast), measured with `contrast_ratio` over the resolved
+colours rather than over the authored token values. The secondary variant's fill is the raised
+surface, a subtle panel and not the control's boundary, so the 3:1 non-text floor applies to
+`--color-border-control` instead; the spike records that distinction rather than asserting a floor
+the variant does not claim.
+
+**The cost of the token vocabulary.** The fixture defines 20 tokens; Button reads 15 of them. The
+five it does not read are the page surface, the muted text role, the compact spacing, the compact
+control height and the focus ring's own value — they belong to other components or to app CSS. The
+build reports both directions (`TESSERA_THEME_SOURCE_UNUSED_TOKEN`,
+`TESSERA_THEME_SOURCE_UNKNOWN_TOKEN`) as warnings, so the ratio is a number a token spec can keep in
+view rather than a guess. A per-role vocabulary is the right shape; a per-component one would define
+the same colour four times.
+
+**What this does not settle.** Items 3 to 5 and 8 of this ADR (catalogue, anatomy, plugins) are
+untouched, and the token spec itself is still a follow-up: the spike fixes the *build*, not the
+vocabulary. The `adaptations` syntax and a `tessera theme build` subcommand are the two concrete
+next steps if item 6 is Accepted.
+
+
 ## Follow-up
 
 - Spec template `docs/specs/components/_template.md`; first specs: Button, Field, TextInput, Dialog,

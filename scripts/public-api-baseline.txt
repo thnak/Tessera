@@ -2697,6 +2697,20 @@ function include/tessera/ui/style/theme_generate.hpp tessera::ui::style::instrum
 function include/tessera/ui/style/theme_generate.hpp tessera::ui::style::instrument_variant_specs
 function include/tessera/ui/style/theme_generate.hpp tessera::ui::style::theme_generate_error_code_name
 
+header include/tessera/ui/style/theme_source.hpp
+struct include/tessera/ui/style/theme_source.hpp tessera::ui::style::ThemeBuild
+struct include/tessera/ui/style/theme_source.hpp tessera::ui::style::ThemeBuildOptions
+struct include/tessera/ui/style/theme_source.hpp tessera::ui::style::ThemeSource
+struct include/tessera/ui/style/theme_source.hpp tessera::ui::style::ThemeSourceComponent
+struct include/tessera/ui/style/theme_source.hpp tessera::ui::style::ThemeSourceError
+struct include/tessera/ui/style/theme_source.hpp tessera::ui::style::ThemeSourceKey
+struct include/tessera/ui/style/theme_source.hpp tessera::ui::style::ThemeSourceToken
+enum include/tessera/ui/style/theme_source.hpp tessera::ui::style::ThemeSourceErrorCode
+function include/tessera/ui/style/theme_source.hpp tessera::ui::style::build_theme_source
+function include/tessera/ui/style/theme_source.hpp tessera::ui::style::parse_theme_source
+function include/tessera/ui/style/theme_source.hpp tessera::ui::style::theme_key_selector
+function include/tessera/ui/style/theme_source.hpp tessera::ui::style::theme_source_error_code_name
+
 header include/tessera/ui/style/token.hpp
 struct include/tessera/ui/style/token.hpp tessera::ui::style::Token
 enum include/tessera/ui/style/token.hpp tessera::ui::style::TokenType

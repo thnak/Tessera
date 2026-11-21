@@ -1,0 +1,74 @@
+{
+  "name": "spike-instrument",
+  "tokens": {
+    "--color-background-surface": ["#ffffff", "#101418"],
+    "--color-background-raised": ["#f4f6f8", "#1a2027"],
+    "--color-background-sunken": ["#eceef0", "#0b0f13"],
+    "--color-text-primary": ["#14171a", "#f2f4f6"],
+    "--color-text-muted": ["#4a5159", "#a8b2bd"],
+    "--color-border-control": ["#6b747d", "#8b949e"],
+    "--color-accent-fill": ["#0b5cad", "#4c9be8"],
+    "--color-accent-ink": ["#ffffff", "#0b1220"],
+    "--color-danger-fill": ["#b3261e", "#f2b8b5"],
+    "--color-danger-ink": ["#ffffff", "#3b0907"],
+    "--color-focus-ring": ["#0b5cad", "#7cc0ff"],
+    "--space-control-x": "12px",
+    "--space-control-x-compact": "8px",
+    "--radius-control": "4px",
+    "--border-control-width": "1px",
+    "--font-control": "\"IBM Plex Sans\", sans-serif",
+    "--font-size-control": "14px",
+    "--line-height-control": "20px",
+    "--control-height": "32px",
+    "--control-height-compact": "24px"
+  },
+  "components": {
+    "Button": {
+      "class": "tbtn",
+      "keys": {
+        "base": {
+          "display": "flex",
+          "flex-direction": "row",
+          "align-items": "center",
+          "justify-content": "center",
+          "min-height": "var(--control-height)",
+          "padding": "0px var(--space-control-x)",
+          "border-width": "var(--border-control-width)",
+          "border-style": "solid",
+          "border-radius": "var(--radius-control)",
+          "font-family": "var(--font-control)",
+          "font-size": "var(--font-size-control)",
+          "line-height": "var(--line-height-control)",
+          "background-color": "var(--color-accent-fill)",
+          "border-color": "var(--color-accent-fill)",
+          "color": "var(--color-accent-ink)"
+        },
+        "size:sm": {
+          "min-height": "var(--control-height-compact)",
+          "padding": "0px var(--space-control-x-compact)"
+        },
+        "variant:secondary": {
+          "background-color": "var(--color-background-raised)",
+          "border-color": "var(--color-border-control)",
+          "color": "var(--color-text-primary)"
+        },
+        "variant:ghost": {
+          "background-color": "var(--color-background-surface)",
+          "border-color": "var(--color-background-surface)",
+          "color": "var(--color-text-primary)"
+        },
+        "variant:danger": {
+          "background-color": "var(--color-danger-fill)",
+          "border-color": "var(--color-danger-fill)",
+          "color": "var(--color-danger-ink)"
+        },
+        "state:hover": {
+          "background-color": "var(--color-background-sunken)"
+        },
+        "state:focus-visible": {
+          "border-color": "var(--color-focus-ring)"
+        }
+      }
+    }
+  }
+}
