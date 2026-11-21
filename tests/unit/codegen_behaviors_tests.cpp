@@ -188,7 +188,8 @@ void test_no_surface_without_a_hook() {
     check(!header.empty(), "the plain base header is generated");
     check(!contains(header, "attach_behaviors"),
           "a component that calls no behavior hook gets no behavior surface");
-    check(!contains(header, "behavior::"), "a component with no behavior includes no behavior code");
+    check(!contains(header, "behavior::"),
+          "a component with no behavior includes no behavior code");
 }
 
 std::string read_file(const std::string& path) {

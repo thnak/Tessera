@@ -118,17 +118,15 @@ bool emit_behavior_accessors(CppWriter& writer, const ir::Component& component,
     return true;
 }
 
-bool emit_behavior_wiring(CppWriter& writer, const ir::Component& component,
-                          std::string& error) {
+bool emit_behavior_wiring(CppWriter& writer, const ir::Component& component, std::string& error) {
     if (!uses_behaviors(component)) {
         return true;
     }
     // The attach pass. Every target ref must hold a node before the behavior attaches, which is the
-    // spec's rule (section 8, "conditional target"): a behavior is never half-attached, and a target
-    // that did not resolve (a conditional branch that did not take, an empty list) leaves the
-    // behavior detached rather than attached to nothing.
-    writer.open("void " + component.name +
-                "::attach_behaviors(tessera::ui::InputRouter& router)");
+    // spec's rule (section 8, "conditional target"): a behavior is never half-attached, and a
+    // target that did not resolve (a conditional branch that did not take, an empty list) leaves
+    // the behavior detached rather than attached to nothing.
+    writer.open("void " + component.name + "::attach_behaviors(tessera::ui::InputRouter& router)");
     writer.line("const tessera::ui::behavior::Services services{&router};");
     for (const ir::Behavior& behavior : component.behaviors) {
         const std::string member = behavior_member(behavior);
