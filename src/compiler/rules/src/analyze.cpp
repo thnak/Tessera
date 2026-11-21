@@ -45,7 +45,8 @@ const jsx::HookManifest& builtin_hook_manifest() {
 }
 
 AnalyzedModule analyze_module(const jsx::Module& module, const jsx::SourceMap& map,
-                              const jsx::Limits& limits, const jsx::HookManifest* manifest) {
+                              const jsx::Limits& limits, const jsx::HookManifest* manifest,
+                              const jsx::CallSiteMap* call_sites) {
     const jsx::HookManifest& hooks = manifest != nullptr ? *manifest : builtin_hook_manifest();
     jsx::DiagnosticSink sink(map, limits);
     AnalyzedModule result;
@@ -62,7 +63,7 @@ AnalyzedModule analyze_module(const jsx::Module& module, const jsx::SourceMap& m
             result.components.push_back(std::move(analysis));
             continue;
         }
-        Context ctx{item, analysis, sink, hooks};
+        Context ctx{item, analysis, sink, hooks, call_sites};
         check_hooks(ctx);
         classify_arrows(ctx);
         check_effect_deps(ctx);

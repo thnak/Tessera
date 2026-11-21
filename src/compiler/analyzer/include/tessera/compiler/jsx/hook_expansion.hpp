@@ -51,6 +51,11 @@ struct CallSiteMap {
 
     // The innermost region containing `span`, or null. Innermost wins so a nested hook's diagnostic
     // names the call site of the nested call rather than the outer one.
+    //
+    // The spliced statements keep the position they had in the hook's own file (spec section 8), so
+    // two calls of one hook produce two regions with the same `span`. A span can therefore name
+    // only the first of them; a diagnostic that must distinguish the calls has to carry the call
+    // site itself, which is what the expansion's own diagnostics do.
     [[nodiscard]] const ExpandedRegion* find(Span span) const;
 };
 

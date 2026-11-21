@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "tessera/compiler/jsx/hook_expansion.hpp"
 #include "tessera/compiler/jsx/hook_manifest.hpp"
 #include "tessera/compiler/jsx/limits.hpp"
 #include "tessera/compiler/jsx/module_ast.hpp"
@@ -21,8 +22,13 @@ namespace tessera::compiler::rules {
 // than silently accepting it.
 [[nodiscard]] const jsx::HookManifest& builtin_hook_manifest();
 
+// `call_sites` is the custom-hook expansion's map (spike #659, ADR-065;
+// docs/specs/custom-hooks-v1.md section 8), or null when the expansion did not run. When it is
+// given, a diagnostic whose span falls inside an expanded region carries that region's call site as
+// its related span, so a diagnostic raised inside a hook body points at the line the author wrote.
 AnalyzedModule analyze_module(const jsx::Module& module, const jsx::SourceMap& map,
                               const jsx::Limits& limits = {},
-                              const jsx::HookManifest* manifest = nullptr);
+                              const jsx::HookManifest* manifest = nullptr,
+                              const jsx::CallSiteMap* call_sites = nullptr);
 
 } // namespace tessera::compiler::rules
