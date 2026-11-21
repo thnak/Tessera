@@ -80,16 +80,20 @@ constexpr std::uint64_t kExtraIdBase = 900000;
 // Every box this sheet produces is fixed by a length, never by measured text. That matters for the
 // cold-layout comparison: the ICU lane swaps in a real text measurer, and a card whose height came
 // from its text would then depend on which measurer the host happened to use rather than on the
-// gate. `Text` still carries a font size (so a font-size edit is a real layout change), but the
-// card's own height is explicit.
+// gate.
+//
+// `flex-shrink: 0` is the other half of that. The cards are flex items in the root's column, so
+// with the default `flex-shrink: 1` they shrink proportionally once the content overflows the
+// window - and the amount depends on the measured text height, which is exactly the dependency this
+// test must not have. Pinning the shrink makes each card's box a function of the sheet alone.
 constexpr const char* kSheet =
-    R"(.card { width: 120px; height: 40px; padding: 4px; margin: 2px; background-color: #1e293b; }
+    R"(.card { width: 120px; height: 40px; padding: 4px; margin: 2px; flex-shrink: 0; background-color: #1e293b; }
 .card.hot { background-color: #334155; }
 .card.wide { width: 180px; }
 .card.tall { height: 60px; }
 .card.hidden { display: none; }
 .card.padded { padding: 12px; }
-Text { font-size: 14px; color: #e2e8f0; height: 16px; }
+Text { font-size: 14px; color: #e2e8f0; height: 16px; flex-shrink: 0; }
 Text.big { font-size: 20px; height: 24px; }
 )";
 
