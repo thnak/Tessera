@@ -12,7 +12,7 @@
 // internal to the front end; the IR never includes it.
 namespace tessera::compiler::jsx {
 
-enum class ItemKind { Unknown, Import, ReExport, TypeAlias, Const, Component };
+enum class ItemKind { Unknown, Import, ReExport, TypeAlias, Const, Component, Helper };
 
 enum class StatementKind {
     Const,      // `const x = e;`, `const [a, b] = e;`: names, optional type, init
@@ -26,6 +26,12 @@ struct Statement {
     Span span;
     std::vector<std::string> names;
     bool array_pattern = false;
+    // `const { state } = io;` (issue #660's corpus): an object pattern binds each listed field of
+    // the initializer to a local of the same name. The lowering rewrites it to one `const <field> =
+    // <init>.<field>;` per name, so the IR never sees a pattern. A renamed binding
+    // (`{ state: s }`) is not accepted: the subset has no rename form, and inventing one would put
+    // a second naming rule in the language.
+    bool object_pattern = false;
     TypePtr type;
     ExprPtr init;
     // Set by `// Note: bind::<id>` on the line before a handler declaration or a `useEffect`

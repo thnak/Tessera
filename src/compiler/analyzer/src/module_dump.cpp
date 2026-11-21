@@ -72,6 +72,8 @@ const char* kind_name(ItemKind kind) {
         return "const";
     case ItemKind::Component:
         return "component";
+    case ItemKind::Helper:
+        return "helper";
     case ItemKind::Unknown:
         break;
     }
@@ -143,6 +145,11 @@ void dump_item(std::string& out, const ModuleItem& item) {
             out += " : " + type_text(*item.type);
         }
         out += " " + dump(*item.init) + ")";
+        return;
+    case ItemKind::Helper:
+        // A module-scope helper is recognised so the component beside it compiles, but it is not
+        // lowered, so the dump reports only its name.
+        out += "(helper " + item.name + ")";
         return;
     case ItemKind::Component:
         out += (item.exported ? "(export-component " : "(component ") + item.name;
