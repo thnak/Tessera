@@ -47,7 +47,7 @@ public:
                                         ContainerSizeFn container_size = nullptr,
                                         void* container_context = nullptr);
 
-    // A restyle-scoped memo (issue #711). Between `begin_memo` and `end_memo` each node's cascade
+    // A restyle-scoped memo (issue #711). Between `begin_memo` and `end_memo` each node's computed
     // style is computed once from its parent's memoised style (instead of recomputing the whole
     // ancestor chain per node, which made a node's cost proportional to its depth), and `resolve`
     // hands out references into it. Only valid while the scene and stylesheet do not change; the
@@ -71,14 +71,10 @@ private:
     void build(const Node& node, StyleNode* parent);
     [[nodiscard]] StyleNode* mutable_view(const Node& node);
 
-    [[nodiscard]] const ComputedStyle& chain_style(const CompiledStyleSheet& sheet,
-                                                   const Node& node);
-
     bool memo_active_ = false;
-    // Cascade-only styles (what a child inherits from) and final styles of nodes with inline
-    // declarations. Node based, so references stay valid while the memo grows.
-    std::unordered_map<const Node*, ComputedStyle> chain_memo_;
-    std::unordered_map<const Node*, ComputedStyle> final_memo_;
+    // Computed styles (inline declarations included) by node. Node based, so references stay valid
+    // while the memo grows.
+    std::unordered_map<const Node*, ComputedStyle> memo_;
     std::deque<Entry> entries_;
     std::unordered_map<const Node*, std::size_t> index_;
     // Stable storage for the whitespace-split class-name tokens the views point at. A deque keeps

@@ -127,8 +127,8 @@ void test_inline_cycle() {
 
 // The restyle memo (issue #711) computes each node from its parent's memoised cascade style instead
 // of re-walking the ancestor chain; it must produce exactly what the walk produces, including for a
-// node with inline declarations and for a child of a node with inline declarations (a parent's
-// inline style does not feed the child's inheritance, as in the walk).
+// node with inline declarations and for a child of one (the child inherits the parent's computed
+// value, inline declarations included: issue #719).
 void test_memo_matches_walk() {
     ui::Node root(10);
     root.set_element_kind("View");
@@ -158,6 +158,12 @@ void test_memo_matches_walk() {
               "compute under a memo equals the walked style");
     }
     memoised.end_memo();
+
+    // The child inherits the inline `color`, and the inline custom property is visible to it.
+    const style::ComputedStyle leaf_style = walked.compute(sheet, leaf);
+    check_value(leaf_style, "color", "blue", "a child inherits its parent's inline color");
+    check_value(leaf_style, "--gap", "4px", "a child inherits its parent's inline custom property");
+    check_value(leaf_style, "padding-left", "4px", "inline var sees the parent's inline property");
 }
 
 } // namespace

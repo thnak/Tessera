@@ -155,8 +155,8 @@ namespace {
 
 // Inline declarations win over the cascade (Origin::Inline). They are already bounded and borrowed
 // on the node; the registry expands shorthands into longhands. They may define or override custom
-// properties on this node, so substitution runs again with the parent's cascade style as the
-// inheritance fallback.
+// properties on this node, so substitution runs again with the parent's computed style as the
+// inheritance fallback. Call it before a node's style becomes its children's parent.
 void apply_inline_declarations(const CompiledStyleSheet& sheet, const Node& node,
                                ComputedStyle& result, const ComputedStyle* parent) {
     if (node.inline_style().empty()) {
@@ -177,48 +177,31 @@ void apply_inline_declarations(const CompiledStyleSheet& sheet, const Node& node
 
 void SceneStyleTree::begin_memo() {
     memo_active_ = true;
-    chain_memo_.clear();
-    final_memo_.clear();
+    memo_.clear();
 }
 
 void SceneStyleTree::end_memo() {
     memo_active_ = false;
-    chain_memo_.clear();
-    final_memo_.clear();
+    memo_.clear();
 }
 
-const ComputedStyle& SceneStyleTree::chain_style(const CompiledStyleSheet& sheet,
-                                                 const Node& node) {
-    if (const auto found = chain_memo_.find(&node); found != chain_memo_.end()) {
+const ComputedStyle& SceneStyleTree::resolve(const CompiledStyleSheet& sheet, const Node& node) {
+    if (const auto found = memo_.find(&node); found != memo_.end()) {
         return found->second;
     }
     StyleNode* view = mutable_view(node);
     if (view == nullptr) {
-        return chain_memo_.emplace(&node, sheet.registry().initial_style()).first->second;
+        return memo_.emplace(&node, sheet.registry().initial_style()).first->second;
     }
     // The chain stops at the first ancestor outside the captured tree, as the un-memoised walk
     // does.
     const Node* parent_node = node.parent();
     const ComputedStyle* parent = parent_node != nullptr && index_.contains(parent_node)
-                                      ? &chain_style(sheet, *parent_node)
+                                      ? &resolve(sheet, *parent_node)
                                       : nullptr;
-    return chain_memo_.emplace(&node, sheet.compute(*view, parent, nullptr)).first->second;
-}
-
-const ComputedStyle& SceneStyleTree::resolve(const CompiledStyleSheet& sheet, const Node& node) {
-    if (node.inline_style().empty() || !index_.contains(&node)) {
-        return chain_style(sheet, node);
-    }
-    if (const auto found = final_memo_.find(&node); found != final_memo_.end()) {
-        return found->second;
-    }
-    ComputedStyle result = chain_style(sheet, node);
-    const Node* parent_node = node.parent();
-    const ComputedStyle* parent = parent_node != nullptr && index_.contains(parent_node)
-                                      ? &chain_style(sheet, *parent_node)
-                                      : nullptr;
-    apply_inline_declarations(sheet, node, result, parent);
-    return final_memo_.emplace(&node, std::move(result)).first->second;
+    ComputedStyle computed = sheet.compute(*view, parent, nullptr);
+    apply_inline_declarations(sheet, node, computed, parent);
+    return memo_.emplace(&node, std::move(computed)).first->second;
 }
 
 ComputedStyle SceneStyleTree::compute(const CompiledStyleSheet& sheet, const Node& node,
@@ -244,21 +227,20 @@ ComputedStyle SceneStyleTree::compute(const CompiledStyleSheet& sheet, const Nod
 
     AncestorContainers containers(container_size, container_context);
     const bool use_containers = container_size != nullptr && sheet.has_container_queries();
-    // Keep every computed style of the chain: the node's parent value is needed to resolve a
-    // `var()` in an inline declaration that ends up invalid at computed-value time.
+    // Keep every computed style of the chain, inline declarations included: a child inherits its
+    // parent's *computed* value (issue #719), and the parent value is also what resolves a `var()`
+    // in an inline declaration that ends up invalid at computed-value time.
     std::vector<ComputedStyle> styles;
     styles.reserve(chain.size());
     for (std::size_t i = 0; i < chain.size(); ++i) {
         const ComputedStyle* parent = i == 0 ? nullptr : &styles.back();
         styles.push_back(sheet.compute(*chain[i], parent, use_containers ? &containers : nullptr));
+        apply_inline_declarations(sheet, *nodes[i], styles.back(), parent);
         if (use_containers && i + 1 < chain.size()) {
             containers.push(*nodes[i], styles.back());
         }
     }
-    ComputedStyle result = std::move(styles.back());
-    apply_inline_declarations(sheet, node, result,
-                              styles.size() > 1 ? &styles[styles.size() - 2] : nullptr);
-    return result;
+    return std::move(styles.back());
 }
 
 } // namespace tessera::ui::style
