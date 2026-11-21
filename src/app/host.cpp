@@ -80,6 +80,10 @@ ui::layout::LayoutInput build_layout_input(const ui::Node& node, ui::paint::Styl
         // Layout's text-fit fact must use paint's own wrap decision (issue #490).
         input.text_wrap = ui::paint_wraps(node.element_kind(), *paint);
     }
+    // Growing the vector would move each LayoutInput, and the MSVC `std::map` move constructor is
+    // not `noexcept`: the vector then copies every element, subtree and 101-entry style included.
+    // Measured at ~330 allocations per node (issue #711).
+    input.children.reserve(node.children().size());
     for (const auto& child : node.children()) {
         // Inline spans are runs of this text, not boxes (issue #229, elements-basic.md 2.1).
         if (text_payload && paint->has_span(child->id())) {
