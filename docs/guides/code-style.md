@@ -105,6 +105,7 @@ The build must be fast to rerun after a small edit.
 | CMake presets | `CMakePresets.json` | Reproducible `dev`, `release`, `ci`, VS presets |
 | Compiler cache | `cmake/CompilerCache.cmake` | Auto-detect `sccache`/`ccache` |
 | Warning policy | `CMakeLists.txt` (`TESSERA_WARNINGS_AS_ERRORS`) | `-Werror`/`/WX` on by default; CI keeps it on |
+| Padding audit | `CMakeLists.txt` (`TESSERA_WARN_PADDING`) | `-Wpadded`/`/w14242`, off by default; see below |
 | Format script | `scripts/format.ps1`, `scripts/format.sh` | Format or check the tree |
 | Lint script | `scripts/lint.ps1`, `scripts/lint.sh` | Run clang-tidy over the tree |
 
@@ -145,6 +146,12 @@ This list is the style-related subset of the full definition of done in [AGENTS.
 
 - `scripts/format.* --check` passes.
 - Build with `TESSERA_WARNINGS_AS_ERRORS=ON`; fix warnings instead of adding blanket suppressions.
+- Run the padding audit when you add a hot struct: `cmake --preset dev -DTESSERA_WARN_PADDING=ON
+  -DTESSERA_WARNINGS_AS_ERRORS=OFF` and read the `-Wpadded` hits. It is off by default because the
+  tree has 236 of them across 105 headers (issue #731), so it cannot be a gate; the types that were
+  fixed are pinned by `padding_size_tests` and the memory budget instead. Order members
+  widest-first: that removed 8 bytes each from `PaceDecision`, `AdaptiveQualitySample`,
+  `OverlayPlacement` and `PaintData`. Tail padding is not removable by reordering.
 - `clang-tidy` reports no new warnings in changed files.
 - Files stay under the soft limit unless there is a documented reason (the hard limit of 500 lines
   has no exceptions except the Phase 0 PoC targets listed in AGENTS.md).
