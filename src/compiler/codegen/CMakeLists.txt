@@ -25,6 +25,9 @@ add_library(tessera_codegen STATIC
     src/emit_expr_actions.cpp
     src/emit_expr_names.cpp
     src/emit_forms.cpp
+    # `environment` hook values (docs/specs/jsx-subset-v1.md section 7.1, issue #692): the fields,
+    # the host-facing setters and the accessors for `useBreakpoint`/`useTheme`.
+    src/emit_environment.cpp
     src/emit_layout_observe.cpp
     src/emit_schedule.cpp
     src/emit_services.cpp
@@ -1470,6 +1473,17 @@ if (TESSERA_BUILD_TESTS)
         TESSERA_CODEGEN_GOLDEN_DIR="${_tessera_codegen_golden_dir}")
 
     add_test(NAME codegen_size_change COMMAND codegen_size_change_tests)
+
+    # `environment` hook codegen (docs/specs/jsx-subset-v1.md section 7.1, issue #692): a component
+    # that reads `useBreakpoint()` gets the field, the equality-gated host setter and the accessor;
+    # a component that reads none gets no surface, so every existing golden stays byte-identical.
+    add_executable(codegen_environment_tests
+        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_environment_tests.cpp)
+
+    target_link_libraries(codegen_environment_tests PRIVATE
+        tessera_codegen)
+
+    add_test(NAME codegen_environment COMMAND codegen_environment_tests)
 
     # ADR-040 (#218): the developer classes in tests/unit/codegen_base/fixtures over the committed
     # bases, generated from the hand-built IR in codegen_size_change_tests.

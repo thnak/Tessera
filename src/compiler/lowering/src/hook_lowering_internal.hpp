@@ -72,8 +72,11 @@ std::string callee_name(const jsx::Expr& call);
 void lower_effect_hook(HookState& state, std::size_t index, LoweredHooks& out);
 
 // One behavior hook call (ADR-064 item 7): the analyzer already checked the form against the
-// manifest, so this turns the recorded call into an IR ehaviors entry.
+// manifest, so this turns the recorded call into an IR behaviors entry.
 void lower_behavior_hook(HookState& state, std::size_t index, LoweredHooks& out);
+// One `environment` hook call (docs/specs/jsx-subset-v1.md section 7.1): the analyzer already
+// checked the form, so this turns the recorded call into an IR `environment[]` entry.
+void lower_environment_hook(HookState& state, std::size_t index, LoweredHooks& out);
 void lower_declared_arrow_hook(HookState& state, std::size_t index, LoweredHooks& out);
 
 } // namespace tessera::compiler::lowering::internal

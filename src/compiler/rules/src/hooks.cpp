@@ -153,6 +153,58 @@ void check_behavior(Context& ctx, std::size_t index, const Statement& statement,
     ctx.out.behaviors.push_back(std::move(info));
 }
 
+// An `environment` hook call (docs/specs/jsx-subset-v1.md section 7.1): an engine-owned value the
+// component reads, never a state cell it owns.
+//
+//   const bp = useBreakpoint();
+//   const theme = useTheme();
+//   const [theme, setTheme] = useThemeState();
+//
+// The manifest is the authority on the return type and the provider, so the check compares against
+// it. A read-only hook takes no arguments and binds one name; a writable one binds the
+// `[value, setter]` pair. A bare statement is a form error: an environment value nobody reads is
+// dead code, and the IR has no id for it.
+void check_environment(Context& ctx, std::size_t index, const Statement& statement,
+                       const Expr& call, const jsx::HookEntry& hook) {
+    EnvironmentInfo info;
+    info.statement = index;
+    info.hook = hook.name;
+    info.provider = hook.provider;
+    info.type = hook.returns_ir;
+    info.writable = hook.writable;
+    if (info.type.empty()) {
+        // The manifest declares a record return, which no environment hook has today. Rejecting it
+        // here keeps the IR's `environment[]` a list of scalar values.
+        form_error(ctx, hook.name, statement, "const value = " + hook.name + "();");
+        return;
+    }
+    const bool shape = statement.kind == StatementKind::Const && call.operands.size() == 1;
+    if (!shape) {
+        form_error(ctx, hook.name, statement,
+                   hook.writable ? "const [value, setValue] = " + hook.name + "();"
+                                 : "const value = " + hook.name + "();");
+        return;
+    }
+    if (hook.writable) {
+        if (!statement.array_pattern || statement.names.size() != 2) {
+            form_error(ctx, hook.name, statement, "const [value, setValue] = " + hook.name + "();");
+            return;
+        }
+        info.name = statement.names[0];
+        info.setter = statement.names[1];
+        add_symbol(ctx, info.name, SymbolKind::Environment, statement.span, index);
+        add_symbol(ctx, info.setter, SymbolKind::StateSetter, statement.span, index);
+    } else {
+        if (statement.array_pattern || statement.names.size() != 1) {
+            form_error(ctx, hook.name, statement, "const value = " + hook.name + "();");
+            return;
+        }
+        info.name = statement.names[0];
+        add_symbol(ctx, info.name, SymbolKind::Environment, statement.span, index);
+    }
+    ctx.out.environment.push_back(std::move(info));
+}
+
 void check_hook_statement(Context& ctx, std::size_t index, const Statement& statement) {
     const Expr& call = *statement.init;
     const std::string_view name = callee_name(call);
@@ -164,9 +216,13 @@ void check_hook_statement(Context& ctx, std::size_t index, const Statement& stat
         check_animated(ctx, index, statement, call);
     } else if (name == "useEffect") {
         check_effect(ctx, index, statement, call);
-    } else if (const jsx::HookEntry* hook = ctx.manifest.find(name);
-               hook != nullptr && hook->lowering == jsx::HookLoweringKind::Behavior) {
-        check_behavior(ctx, index, statement, call, *hook);
+    } else if (const jsx::HookEntry* behavior = ctx.manifest.find(name);
+               behavior != nullptr && behavior->lowering == jsx::HookLoweringKind::Behavior) {
+        check_behavior(ctx, index, statement, call, *behavior);
+    } else if (const jsx::HookEntry* environment = ctx.manifest.find(name);
+               environment != nullptr &&
+               environment->lowering == jsx::HookLoweringKind::Environment) {
+        check_environment(ctx, index, statement, call, *environment);
     } else {
         report_unknown_hook(ctx, name, call.operands[0]->span);
     }

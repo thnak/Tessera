@@ -121,6 +121,9 @@ struct LoweredHooks {
     std::vector<ir::Effect> effects;
     // ADR-064 item 7: behavior calls, in declaration order. Empty for a component that calls none.
     std::vector<ir::Behavior> behaviors;
+    // `environment` hook values (docs/specs/jsx-subset-v1.md section 7.1), in declaration order.
+    // Empty for a component that reads none.
+    std::vector<ir::Environment> environment;
     std::vector<ir::Ref> refs; // `target` stays empty until the node lowering of slice 7
     std::vector<ir::AnimatedValue> animated_values;
     std::vector<ir::Binding> bindings; // event, effect and `_cleanup` bindings, sorted by id

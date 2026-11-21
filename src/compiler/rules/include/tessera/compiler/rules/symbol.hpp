@@ -16,6 +16,7 @@ enum class SymbolKind {
     StateSetter,   // `setX` of the same statement
     Ref,           // `const r = useRef<E>(null)`
     AnimatedValue, // `const v = useAnimatedValue(init)`
+    Environment,   // `const bp = useBreakpoint()` (an `environment` hook value)
     Local,         // `const x = <pure expression>`
     Handler,       // `const f = (...) => ...`
 };

@@ -280,6 +280,17 @@ bool emit_base_members(CppWriter& writer, const ir::IrModule& module,
         writer.line("[[nodiscard]] " + *type + " " + value.name + "() const { return " +
                     member_name(value.id) + "; }");
     }
+    // `environment` hook values (docs/specs/jsx-subset-v1.md section 7.1, issue #692): the
+    // developer class reads the class or theme id the host pushed, through the same accessor shape
+    // as a state cell. The value is engine-owned, so there is no setter here: only the host writes
+    // it.
+    for (const ir::Environment& env : component.environment) {
+        if (!claim(env.name)) {
+            return false;
+        }
+        writer.line("[[nodiscard]] const std::string& " + env.name + "() const { return " +
+                    member_name(env.id) + "; }");
+    }
     // A component instance the caller owns is a generated member the caller's developer code has to
     // reach to write the child's props (ADR-040 decision item 2 keeps the props public on the
     // child, so the only missing door is the instance itself). A per-item instance is owned by the

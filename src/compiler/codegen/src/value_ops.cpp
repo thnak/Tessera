@@ -153,6 +153,13 @@ std::optional<TextValueType> declared_text_type(const ir::Component& component,
             return text_value_type(value.type);
         }
     }
+    // An `environment` hook value (issue #692): `useBreakpoint()` returns a string, so a Text that
+    // renders it is printable like any other string cell.
+    for (const ir::Environment& env : component.environment) {
+        if (env.id == id) {
+            return text_value_type(env.type);
+        }
+    }
     return std::nullopt;
 }
 
