@@ -1864,6 +1864,9 @@ header include/tessera/ui/behavior/instance.hpp
 class include/tessera/ui/behavior/instance.hpp tessera::ui::behavior::Instance
 function include/tessera/ui/behavior/instance.hpp tessera::ui::behavior::hash_args
 
+header include/tessera/ui/behavior/interactive_role.hpp
+class include/tessera/ui/behavior/interactive_role.hpp tessera::ui::behavior::InteractiveRole
+
 header include/tessera/ui/behavior/overflow.hpp
 class include/tessera/ui/behavior/overflow.hpp tessera::ui::behavior::Overflow
 class include/tessera/ui/behavior/overflow.hpp tessera::ui::layout::LayoutReadModel

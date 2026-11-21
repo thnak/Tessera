@@ -1,34 +1,29 @@
-hook: useOverflow, the cut index from the last layout pass (#634)
+hook: useInteractiveRole, so a nested control knows it is nested (#635)
 
-`useOverflow(target, { reserved, gap })` reports how many leading children
-of a row fit, and whether any do not. The engine owns the measurement:
-`layout::LayoutReadModel` holds every node's box from the last pass, so the
-behavior reads sizes rather than polling or forcing a layout.
+`useInteractiveRole(target, { interactive })` marks an element as the
+interactive surface of a composite and reports whether that surface is
+itself nested inside another one. It exists for one WCAG defect: a control
+inside a control. A screen reader announces both, and a pointer press on
+the inner one also triggers the outer one because the click bubbles.
 
-That is the rule the issue asks for ("recomputes on size or content change
-without a layout loop"): the behavior never asks for a layout, so a
-component that renders `count` children settles in one pass, because the
-widths it measures are the widths the previous pass already committed.
+The flag lives on the node (`Node::set_interactive_parent`), not in the
+behavior, because the descendant that needs the answer is a different
+component, possibly in a different module. The scene is the only thing they
+share, so a descendant reads the flag by walking its ancestors
+(`InteractiveRole::has_interactive_ancestor`). A behavior that kept the
+flag privately could not answer the question the hook exists to answer.
 
-Two details that make the count usable:
+The hook does not set `role`, `tabIndex` or an accessible name, and it does
+not stop a click from bubbling: it reports the situation so a component can
+avoid the nesting in the first place, which is the only fix that works for
+assistive technology too.
 
-- **The reserved slot is subtracted first.** An overflow list usually ends
-  with a "more" button, which takes width the items cannot use, so the
-  count is the number that fit *alongside* the button.
-- **An unmeasured child stops the walk.** A child the last pass did not
-  measure (added since) cannot be counted, because counting it would claim
-  a width nobody measured.
+`node.hpp` is a grandfathered over-limit header (652 lines against a 500
+hard limit), and the source-size gate only lowers a baseline, never raises
+one. The flag and its accessor are 10 lines, so the same change condenses
+ten lines of older comment in that file to stay at the baseline rather than
+grow it. That is the gate working as intended: the file cannot get worse.
 
-With no read model at all the behavior reports `count = 0` and
-`overflowing = true`: a component renders its narrow layout for the first
-frame rather than claiming everything fits, the same rule
-`size_class_for` applies to an unmeasured width.
-
-`Services` gains the layout read model, which is the second time a behavior
-has needed more than the router. The clipboard and overflow tests now use
-designated initializers, so adding a service does not silently shift a
-positional one.
-
-Evidence: `overflow` (11 rules, including the reserved slot, the gap, and
-the unmeasured-child stop), `hook_manifest` and `behavior_registry`. Spec:
-`docs/specs/use-overflow-v1.md`.
+Evidence: `interactive_role` (9 rules, including the descendant walk and
+the nested-surface output), `hook_manifest` and `behavior_registry`. Spec:
+`docs/specs/use-interactive-role-v1.md`.

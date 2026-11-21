@@ -151,6 +151,23 @@
       "lowering": { "kind": "behavior", "behavior": "overflow" }
     },
     {
+      "name": "useInteractiveRole",
+      "params": [
+        { "name": "target", "kind": "ref", "element": "any" },
+        {
+          "name": "options",
+          "kind": "options",
+          "ts": "InteractiveRoleOptions",
+          "ir": "record",
+          "fields": [{ "name": "interactive", "ts": "boolean", "ir": "bool", "default": true }]
+        }
+      ],
+      "returns": {
+        "fields": [{ "name": "nested", "ts": "boolean", "ir": "bool", "default": false }]
+      },
+      "lowering": { "kind": "behavior", "behavior": "interactive_role", "exclusive": true }
+    },
+    {
       "name": "usePressFeedback",
       "params": [
         { "name": "target", "kind": "ref", "ts": "Element", "ir": "ref" },

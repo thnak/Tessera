@@ -5,6 +5,7 @@ add_library(tessera_behavior STATIC
     focus_trap.cpp
     hotkeys.cpp
     instance.cpp
+    interactive_role.cpp
     overflow.cpp
     press_feedback.cpp
     registry.cpp
@@ -62,6 +63,11 @@ if (TESSERA_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/unit/overflow_tests.cpp)
     target_link_libraries(overflow_tests PRIVATE tessera_behavior tessera_layout)
     add_test(NAME overflow COMMAND overflow_tests)
+
+    add_executable(interactive_role_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/interactive_role_tests.cpp)
+    target_link_libraries(interactive_role_tests PRIVATE tessera_behavior)
+    add_test(NAME interactive_role COMMAND interactive_role_tests)
 
     add_executable(behavior_allocation_tests
         ${PROJECT_SOURCE_DIR}/tests/unit/behavior_allocation_tests.cpp)

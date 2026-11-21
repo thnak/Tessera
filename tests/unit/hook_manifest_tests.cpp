@@ -47,7 +47,7 @@ bool test_committed_manifest_parses() {
     if (!expect(manifest.has_value(), "the committed manifest parses: " + error.detail)) {
         return false;
     }
-    bool ok = expect(manifest->hooks.size() == 11, "the manifest declares eleven hooks");
+    bool ok = expect(manifest->hooks.size() == 12, "the manifest declares twelve hooks");
     ok = expect(manifest->find("useTheme") != nullptr, "useTheme is declared") && ok;
     ok = expect(manifest->find("useThemeState") != nullptr, "useThemeState is declared") && ok;
     ok = expect(manifest->find("useBreakpoint") != nullptr, "useBreakpoint is declared") && ok;
@@ -58,6 +58,9 @@ bool test_committed_manifest_parses() {
     ok = expect(manifest->find("useHotkeys") != nullptr, "useHotkeys is declared") && ok;
     ok = expect(manifest->find("useClipboard") != nullptr, "useClipboard is declared") && ok;
     ok = expect(manifest->find("useOverflow") != nullptr, "useOverflow is declared") && ok;
+    ok =
+        expect(manifest->find("useInteractiveRole") != nullptr, "useInteractiveRole is declared") &&
+        ok;
     ok =
         expect(manifest->find("usePressFeedback") != nullptr, "usePressFeedback is declared") && ok;
     return ok;
@@ -195,6 +198,15 @@ bool test_behavior_lowering() {
          ok;
     ok = expect(flow != nullptr && flow->outputs.size() == 2, "useOverflow returns two outputs") &&
          ok;
+    // `useInteractiveRole` (issue #635): one target, one option, one output, exclusive.
+    const auto* role = manifest->find("useInteractiveRole");
+    ok = expect(role != nullptr && role->lowering == HookLoweringKind::Behavior,
+                "useInteractiveRole is a behavior hook") &&
+         ok;
+    ok = expect(role != nullptr && role->provider == "interactive_role",
+                "useInteractiveRole names the interactive_role behavior") &&
+         ok;
+    ok = expect(role != nullptr && role->exclusive, "useInteractiveRole is exclusive") && ok;
     return ok;
 }
 
