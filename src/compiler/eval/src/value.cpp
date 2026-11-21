@@ -28,6 +28,9 @@ Value Value::of_string(std::string value) {
 Value Value::of_list(List value) {
     return Value{std::move(value)};
 }
+Value Value::of_record(Record value) {
+    return Value{std::make_shared<Record>(std::move(value))};
+}
 
 double Value::number() const noexcept {
     if (const std::int32_t* integer = as_int()) {
@@ -62,6 +65,21 @@ bool identical(const Value& a, const Value& b) {
         }
         return true;
     }
+    if (const Record* left = a.as_record()) {
+        const Record& right = *b.as_record();
+        // The declared type is part of the value: two records with the same fields but different
+        // types are different values, as they are in generated C++.
+        if (left->type != right.type || left->fields.size() != right.fields.size()) {
+            return false;
+        }
+        for (std::size_t i = 0; i < left->fields.size(); ++i) {
+            if (left->fields[i].name != right.fields[i].name ||
+                !identical(left->fields[i].value, right.fields[i].value)) {
+                return false;
+            }
+        }
+        return true;
+    }
     if (const std::int32_t* left = a.as_int()) {
         return *left == *b.as_int();
     }
@@ -90,6 +108,9 @@ std::string_view type_name(const Value& value) {
     if (value.as_list() != nullptr) {
         return "list";
     }
+    if (value.as_record() != nullptr) {
+        return "record";
+    }
     return "null";
 }
 
@@ -113,6 +134,16 @@ std::string describe(const Value& value) {
             out += describe((*list)[i]);
         }
         return out + "]";
+    }
+    if (const Record* record = value.as_record()) {
+        // `Size{w = 1, h = 2}`, the same shape the generated aggregate uses, so a diagnostic that
+        // prints a record reads like the C++ it will become.
+        std::string out = record->type + "{";
+        for (std::size_t i = 0; i < record->fields.size(); ++i) {
+            out += i == 0 ? "" : ", ";
+            out += record->fields[i].name + " = " + describe(record->fields[i].value);
+        }
+        return out + "}";
     }
     return "null";
 }
