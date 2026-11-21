@@ -76,6 +76,10 @@ void on_app_cmd(android_app* app, int32_t command) {
             // The opaque token seam: the backend interprets this as an ANativeWindow*.
             options.surface.token = app->window;
             options.dpi_scale = display_scale(app);
+            // The text stack requires a font: `TextStack` throws when the path is empty, which
+            // aborts the process. Android ships Roboto at a stable path, so the shell uses it rather
+            // than bundling a copy. A real app would ship its own face in assets/ and pass that.
+            options.font_path = "/system/fonts/Roboto-Regular.ttf";
             log_info("surface acquired; starting the window host");
             // The scene is created once and reused across surface loss: a backgrounded app keeps
             // its state, which is what a user expects when they come back to it.
