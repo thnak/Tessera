@@ -223,8 +223,8 @@ const char* name_of(Edit edit) {
 //   cards[1]      class-layout edits (a box change)
 //   cards[2]      class-display edits (display:none)
 //   cards[3]      inline-paint edits (paint-only)
-//   cards[4..5]   inline-layout edits (a box change)
-//   cards[6..]    shape edits (children added and removed)
+//   cards[4]      inline-layout edits (a box change)
+//   cards[5]      shape edits (children added and removed)
 //   labels[0..]   text and font-size edits
 //
 // Each kind owns its own nodes: two kinds sharing a node would let one undo the other's state, and
@@ -258,7 +258,7 @@ void apply_edit(Edit edit, Scene& scene, Lcg& rng, int frame, float& width, floa
     case Edit::InlineLayout: {
         // Always a real change: the serial makes every write differ from the previous one, so
         // this case cannot degenerate into a no-op the gate would correctly accept.
-        Node& card = pick(4, 5);
+        Node& card = pick(4, 4);
         const std::uint32_t serial = ++scene.edit_serial;
         card.set_inline_style("width", std::to_string(120 + (serial % 7)) + "px");
         card.set_inline_style("margin-top", std::to_string(2 + (serial % 5)) + "px");
@@ -284,7 +284,7 @@ void apply_edit(Edit edit, Scene& scene, Lcg& rng, int frame, float& width, floa
         // Add a child to a card, or remove the last one it has. Both move boxes. Only the
         // extra children this case adds are ever removed, so the `cards`/`labels` pointers the
         // other cases use stay valid.
-        Node& host = pick(6, scene.cards.size() - 1);
+        Node& host = pick(5, scene.cards.size() - 1);
         if (!host.children().empty() && host.children().back()->id() >= kExtraIdBase) {
             (void)host.remove_child(*host.children().back());
         } else {
@@ -327,7 +327,12 @@ bool moves_a_box(Edit edit) {
 } // namespace
 
 int main() {
-    constexpr int kCards = 12;
+    // Six cards, not twelve: at 52 logical px each (40 content + 8 padding + 4 margin) that is 312
+    // px, which fits inside the smaller of the two viewports (480 px). Nothing overflows, so no
+    // flex item is ever shrunk and every box is a pure function of the sheet. A scene that
+    // overflowed would make the boxes depend on how much content there is, which is exactly the
+    // text-measurer dependency this test must not have (the ICU lane uses a real measurer).
+    constexpr int kCards = 6;
     constexpr int kFrames = 240;
 
     // Two passes, because the cold reference cannot share a frame with the warm host: building a
