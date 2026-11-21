@@ -15,10 +15,19 @@ void Batched2DRenderer::push_texture_exact(const rhi::Rect& rect, rhi::Texture& 
     if (rect.width <= 0.0f || rect.height <= 0.0f) {
         return;
     }
+    // The exact mapping is defined for an axis-aligned, unflipped quad: the shader works from an
+    // integer device rectangle. A rotated, skewed or mirrored transform has no such rectangle, so
+    // the quad falls back to the texture's own sampler (an image under a rotation is resampled
+    // anyway, so there is no CPU rule left to match).
+    const float* m = transform_.m;
+    constexpr float kAxisEpsilon = 1.0e-6f;
+    if (std::abs(m[1]) > kAxisEpsilon || std::abs(m[3]) > kAxisEpsilon || !(m[0] > 0.0f) ||
+        !(m[4] > 0.0f)) {
+        push_texture(rect, texture, rhi::Rect{0.0f, 0.0f, 1.0f, 1.0f}, color);
+        return;
+    }
     // The fragment shader needs the quad's integer rectangle in target pixels, measured the way
-    // `emit_quad` places its vertices: transform first, then the content scale. Two opposite
-    // corners bound an axis-aligned quad, which is the only kind this primitive supports; a rotated
-    // or skewed transform gets its bounding box, which is not a defined result.
+    // `emit_quad` places its vertices: transform first, then the content scale.
     float x0 = 0.0f;
     float y0 = 0.0f;
     float x1 = 0.0f;
