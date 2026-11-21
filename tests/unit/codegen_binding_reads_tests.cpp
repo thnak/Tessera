@@ -82,7 +82,7 @@ ir::Component component_with(ir::Node root) {
     component.state.push_back({"state::items", "items", "list<string>", ir::make_array({})});
     component.state.push_back({"state::name", "name", "string", ir::make_literal(std::string())});
     component.animated_values.push_back({"anim::fade", "fade", "float", ir::make_literal(1.0)});
-    component.environment.push_back({"env::theme", "theme", "theme", "string", false, {}});
+    component.environment.push_back({"env::theme", "theme", "theme", "string", false, {}, {}});
     component.root = std::move(root);
     return component;
 }
