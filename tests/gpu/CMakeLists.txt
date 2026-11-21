@@ -181,6 +181,15 @@ if (TARGET tessera_rhi_vulkan)
         tessera_gpu tessera_path tessera_rhi_null tessera_rhi_vulkan)
     target_compile_definitions(path_texture_measure PRIVATE
         TESSERA_SVG_FIXTURE_DIR="${PROJECT_SOURCE_DIR}/tests/fixtures/svg")
+
+    # Manual measurement tool (not a CTest): CPU raster + upload cost at 4K, the numbers behind the
+    # decision to move vector paths and other CPU-produced pixels onto the GPU.
+    add_executable(cpu_to_gpu_4k_measure
+        batched2d/cpu_to_gpu_4k_measure.cpp
+        batched2d/cpu_to_gpu_4k_hypotheses.cpp
+        batched2d/cpu_to_gpu_4k_create_texture.cpp)
+    target_link_libraries(cpu_to_gpu_4k_measure PRIVATE
+        tessera_gpu tessera_path tessera_image tessera_rhi_vulkan)
 endif()
 
 # Manual measurement tool (not a CTest): the number issue #480 part 2 is gated on. It paints an
