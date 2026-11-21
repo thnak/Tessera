@@ -452,5 +452,4 @@ SelectorParseResult parse_selector_list_at(std::string_view text, int depth) {
 SelectorParseResult parse_selector_list(std::string_view text) {
     return parse_selector_list_at(text, 0);
 }
-
 } // namespace tessera::ui::style

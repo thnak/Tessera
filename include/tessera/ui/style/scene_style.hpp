@@ -3,9 +3,11 @@
 #pragma once
 
 #include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/scene/structure_epoch.hpp"
 #include "tessera/ui/style/compiled_stylesheet.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <deque>
 #include <string>
 #include <unordered_map>
@@ -56,7 +58,9 @@ public:
     // `Dirty::Style`, which makes the host rebuild the tree and restyle, so a stale entry never
     // outlives the edit that changed it. Container queries are not memoised (`compute` with a
     // container source keeps the chain walk).
-    void begin_memo();
+    // `keep_entries` continues the previous generation: only the subtrees `restyle_subtree` erased
+    // are recomputed.
+    void begin_memo(bool keep_entries = false);
     void end_memo();
     [[nodiscard]] bool memo_active() const {
         return memo_active_;
@@ -65,13 +69,26 @@ public:
     // `begin_memo` or the tree's destruction. Requires an active memo.
     [[nodiscard]] const ComputedStyle& resolve(const CompiledStyleSheet& sheet, const Node& node);
 
+    // Re-reads the selector views of `node` and its descendants from the scene and drops their
+    // memoised styles, so the next `resolve` recomputes exactly that subtree (a node's computed
+    // style depends only on itself and its ancestors; see `CompiledStyleSheet::subtree_local`).
+    // Valid only while the scene's shape is unchanged (`built_for_structure_epoch`).
+    void restyle_subtree(const Node& node);
+    [[nodiscard]] std::uint64_t built_for_structure_epoch() const {
+        return structure_epoch_;
+    }
+
 private:
     struct Entry {
         const Node* node = nullptr;
         StyleNode view;
+        // Backing storage of the class names `view.classes` points at.
+        std::vector<std::string> class_tokens;
     };
 
     void build(const Node& node, StyleNode* parent);
+    void fill_view(Entry& entry, const Node& node, StyleNode* parent);
+    void refresh(const Node& node, StyleNode* parent);
     [[nodiscard]] StyleNode* mutable_view(const Node& node);
 
     bool memo_active_ = false;
@@ -80,9 +97,7 @@ private:
     std::unordered_map<const Node*, ComputedStyle> memo_;
     std::deque<Entry> entries_;
     std::unordered_map<const Node*, std::size_t> index_;
-    // Stable storage for the whitespace-split class-name tokens the views point at. A deque keeps
-    // references valid while the tree is built, so a view never points at a reallocated buffer.
-    std::deque<std::string> class_storage_;
+    std::uint64_t structure_epoch_ = 0;
 };
 
 } // namespace tessera::ui::style

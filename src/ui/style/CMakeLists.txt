@@ -52,6 +52,7 @@ add_library(tessera_style STATIC
     scroll_style_sync.cpp
     supports.cpp
     selector.cpp
+    selector_locality.cpp
     selector_specificity.cpp
     selector_index.cpp
     selector_match.cpp

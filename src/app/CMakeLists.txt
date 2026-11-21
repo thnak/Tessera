@@ -22,6 +22,8 @@ add_library(tessera_app STATIC
     # The viewport rule of issue #436 (`resize` / `set_window_metrics`): the window IS the media
     # context, and the cascade is re-resolved only when a `@media` answer can actually change.
     host_viewport.cpp
+    # Whether the selector tree and its memo survive a restyle, and which subtrees recompute.
+    host_style_tree.cpp
     safe_area_state.cpp
     safe_area_state.hpp
     system_motion.cpp

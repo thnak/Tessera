@@ -17,8 +17,8 @@ const style::ComputedStyle& SceneStyleProvider::resolve(const Node& node) {
     return tree_->memo_active() ? tree_->resolve(*sheet_, node) : StyleProvider::resolve(node);
 }
 
-void SceneStyleProvider::begin_restyle() {
-    tree_->begin_memo();
+void SceneStyleProvider::begin_restyle(bool keep_entries) {
+    tree_->begin_memo(keep_entries);
 }
 
 void SceneStyleProvider::end_restyle() {

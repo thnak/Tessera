@@ -11,40 +11,46 @@
 
 namespace tessera::ui::style {
 
-SceneStyleTree::SceneStyleTree(const Node& root) {
+SceneStyleTree::SceneStyleTree(const Node& root)
+    : structure_epoch_(scene_structure_epoch()) {
     build(root, nullptr);
 }
 
-void SceneStyleTree::build(const Node& node, StyleNode* parent) {
-    Entry entry;
+// Fills `entry`'s selector view from the scene node. Run again on a node whose style inputs changed
+// (`restyle_subtree`), so it must leave nothing from the previous contents behind.
+void SceneStyleTree::fill_view(Entry& entry, const Node& node, StyleNode* parent) {
     entry.node = &node;
+    StyleNode& view = entry.view;
     // A component instance host is typed by its component name, so the host side of `::part()`
     // can name it (`Button::part(label)`, stylesheet-v1 section 6.3).
     const std::string_view component = node.component_name();
-    entry.view.component_host = !component.empty();
-    entry.view.tag = entry.view.component_host ? component : node.element_kind();
-    entry.view.alias_tag = node.element_tag();
-    entry.view.id = node.element_id();
-    entry.view.part = node.part();
-    entry.view.state = node.pseudo_state();
+    view.component_host = !component.empty();
+    view.tag = view.component_host ? component : node.element_kind();
+    view.alias_tag = node.element_tag();
+    view.id = node.element_id();
+    view.part = node.part();
+    view.state = node.pseudo_state();
     // The `::part()` boundary is the nearest ancestor component instance; precomputed so matching
     // never walks ancestors for it.
-    entry.view.host =
-        parent == nullptr ? nullptr : (parent->component_host ? parent : parent->host);
+    view.host = parent == nullptr ? nullptr : (parent->component_host ? parent : parent->host);
     const auto& paint = node.paint_data();
-    entry.view.has_text = paint.has_value() && paint->kind == tessera::ui::PaintKind::Text;
+    view.has_text = paint.has_value() && paint->kind == tessera::ui::PaintKind::Text;
 
     // `role` and `aria-*` are the attributes a selector can name, as in a browser (`[role="list"]`,
     // `[aria-level="2"]`). The user-agent sheet needs them: `h1`-`h6` are all `Text` and differ
     // only by `aria-level` (issue #606). The views point at node-owned storage, which outlives this
     // tree.
+    view.attributes.clear();
     if (!node.role().empty()) {
-        entry.view.attributes.push_back(AttributeView{"role", node.role()});
+        view.attributes.push_back(AttributeView{"role", node.role()});
     }
     for (const Node::AriaAttribute& aria : node.aria_attributes()) {
-        entry.view.attributes.push_back(AttributeView{aria.name, aria.value});
+        view.attributes.push_back(AttributeView{aria.name, aria.value});
     }
 
+    // The class views point into this entry's own token storage. The storage is filled completely
+    // before any view is taken, and a vector move keeps its element addresses.
+    std::vector<std::string> tokens;
     const std::string_view class_name = node.class_name();
     std::size_t position = 0;
     while (position < class_name.size()) {
@@ -58,18 +64,46 @@ void SceneStyleTree::build(const Node& node, StyleNode* parent) {
             ++position;
         }
         if (position > end) {
-            class_storage_.emplace_back(class_name.substr(end, position - end));
-            entry.view.classes.push_back(class_storage_.back());
+            tokens.emplace_back(class_name.substr(end, position - end));
         }
     }
+    entry.class_tokens = std::move(tokens);
+    view.classes.clear();
+    for (const std::string& token : entry.class_tokens) {
+        view.classes.push_back(token);
+    }
+    view.parent = parent;
+}
 
-    entry.view.parent = parent;
-    entries_.push_back(std::move(entry));
-
+void SceneStyleTree::build(const Node& node, StyleNode* parent) {
+    entries_.emplace_back();
     Entry& stored = entries_.back();
     index_.emplace(&node, entries_.size() - 1);
+    fill_view(stored, node, parent);
     for (const auto& child : node.children()) {
         build(*child, &stored.view);
+    }
+}
+
+void SceneStyleTree::restyle_subtree(const Node& node) {
+    const auto found = index_.find(&node);
+    if (found == index_.end()) {
+        return;
+    }
+    const auto parent = node.parent() == nullptr ? index_.end() : index_.find(node.parent());
+    refresh(node, parent == index_.end() ? nullptr : &entries_[parent->second].view);
+}
+
+void SceneStyleTree::refresh(const Node& node, StyleNode* parent) {
+    const auto found = index_.find(&node);
+    if (found == index_.end()) {
+        return;
+    }
+    Entry& entry = entries_[found->second];
+    fill_view(entry, node, parent);
+    memo_.erase(&node);
+    for (const auto& child : node.children()) {
+        refresh(*child, &entry.view);
     }
 }
 
@@ -175,9 +209,11 @@ void apply_inline_declarations(const CompiledStyleSheet& sheet, const Node& node
 
 } // namespace
 
-void SceneStyleTree::begin_memo() {
+void SceneStyleTree::begin_memo(bool keep_entries) {
     memo_active_ = true;
-    memo_.clear();
+    if (!keep_entries) {
+        memo_.clear();
+    }
 }
 
 void SceneStyleTree::end_memo() {
