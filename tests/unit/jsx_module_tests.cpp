@@ -226,7 +226,10 @@ void test_component_rejections() {
         const char* codes;
     };
     const Case cases[] = {
-        {"function a() { return <B/>; }", "TESSERA_JSX_SUBSET_COMPONENT_NAME;"},
+        // A lowercase `function` is a module-scope helper, not a badly named component (issue
+        // #660's
+        // corpus): it is accepted and skipped, so the component beside it still compiles. Asserted
+        // separately below, because this table is the REJECTION table.
         {"function useThing() { return <B/>; }", "TESSERA_REACT_CUSTOM_HOOK;"},
         {"function A() { const a = 1; }", "TESSERA_JSX_PARSE_MISSING_RETURN;"},
         {
@@ -246,9 +249,11 @@ void test_component_rejections() {
             "function A() { function f() {} return <B/>; }",
             "TESSERA_JSX_SUBSET_FUNCTION_VALUE;",
         },
+        // An object pattern is accepted (issue #660's corpus); a RENAME inside one is refused,
+        // because the subset has no rename form.
         {
-            "function A() { const {a} = b; return <B/>; }",
-            "TESSERA_JSX_PARSE_UNEXPECTED_TOKEN;",
+            "function A() { const {a: c} = b; return <B/>; }",
+            "TESSERA_JSX_SUBSET_STATEMENT;",
         },
         {"function A() { x = 1; return <B/>; }", "TESSERA_JSX_SUBSET_MUTATION;"},
         {"function A() { return <B/> }", "TESSERA_JSX_PARSE_MISSING_SEMICOLON;"},
@@ -371,6 +376,31 @@ void test_determinism() {
 
 } // namespace
 
+// The two forms issue #660's corpus measured as wrongly rejected: a module-scope helper and an
+// object destructuring pattern. Both are accepted now, and the component beside them still parses.
+void test_corpus_gaps_are_accepted() {
+    const auto helper = parse_module("function formatLabel(v: string): string { return v; }\n"
+                                     "function Label() { return <B/>; }");
+    check_eq(codes(helper), "", "a lowercase helper is accepted");
+    // `validity` reports one character per item, and this module has two.
+    check_eq(validity(helper), "VV", "the module with a helper is valid");
+    check(helper.root->items.size() == 2, "the helper and the component are both items");
+    if (helper.root->items.size() == 2) {
+        check(helper.root->items[0].kind == ItemKind::Helper, "the lowercase function is a helper");
+        check(helper.root->items[1].kind == ItemKind::Component,
+              "the uppercase one is a component");
+    }
+
+    const auto pattern = parse_module("function A() { const {a} = b; return <B/>; }");
+    check_eq(codes(pattern), "", "an object destructuring pattern is accepted");
+    check_eq(validity(pattern), "V", "the module with a pattern is valid");
+
+    // `readonly` is dropped, not rejected: it changes nothing the IR can express.
+    const auto readonly = parse_module("function A(p: { xs: readonly string[] }) { return <B/>; }");
+    check_eq(codes(readonly), "", "a `readonly` modifier is accepted");
+    check_eq(validity(readonly), "V", "the module with `readonly` is valid");
+}
+
 int main() {
     test_imports();
     test_import_rejections();
@@ -381,6 +411,7 @@ int main() {
     test_item_and_statement_spans();
     test_comments_keep_their_position();
     test_component_rejections();
+    test_corpus_gaps_are_accepted();
     test_recovery_keeps_other_items();
     test_recovery_rules();
     test_limits_and_edge_files();

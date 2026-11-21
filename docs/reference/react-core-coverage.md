@@ -66,10 +66,10 @@ list at all.
 | Portals | rejected | no | | The Layer host (ADR-064 tier 0) and `Overlay` cover it |
 | Class components, `async` components | rejected | no | | By design (ADR-036) |
 | Error boundaries | `ErrorBoundary` intrinsic with `fallback` | keep | | Not the class lifecycle API |
-| Module-scope helper functions | rejected (`TESSERA_JSX_SUBSET_COMPONENT_NAME`, measured) | add | S | Not a React form: every `function` declaration is parsed as a component, so a lowercase helper is a badly named component. 13 of this repository's own React files declare one. The fix is to tell a helper from a component |
-| Destructured local `const { a } = b` | rejected (`TESSERA_JSX_PARSE_UNEXPECTED_TOKEN`, measured) | add | S | Not a React form: the parser accepts only a name or `[` after `const`. The port writes `const a = b.a;` |
-| `readonly` type modifier | rejected (`TESSERA_JSX_PARSE_UNEXPECTED_TOKEN`, measured) | add | S | Not a React form: the type grammar has no `readonly`. The port writes `string[]` |
-| JSDoc comment inside a props type | rejected (`TESSERA_JSX_PARSE_UNEXPECTED_TOKEN`, measured) | add | S | Not a React form: the type grammar has no comment form inside an object type. The port moves the comment above the alias |
+| Module-scope helper functions | accepted (a lowercase `function` is a helper, not a component) | keep | | Not a React form: the parser used to treat every `function` declaration as a component, so a lowercase helper was a badly named component. A lowercase name now makes it a helper, whose body is skipped rather than lowered |
+| Destructured local `const { a } = b` | accepted (a rename inside the pattern is refused) | keep | | Not a React form: the parser accepted only a name or `[` after `const`. Each listed field binds the field of the same name; `{ a: c }` is `TESSERA_JSX_SUBSET_STATEMENT` because the subset has no rename form |
+| `readonly` type modifier | accepted and dropped | keep | | Not a React form: the type grammar had no `readonly`. It changes nothing the IR can express, so it is accepted rather than rejected |
+| JSDoc comment inside a props type | accepted | keep | | The lexer already skips comments as trivia, so a documented prop parses; the corpus measurement's claim that it did not was wrong |
 
 
 ## 3. Events, forms, refs

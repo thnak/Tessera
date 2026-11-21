@@ -48,16 +48,19 @@ bool Parser::parse_component(ModuleItem& item) {
     }
     item.name = std::string(cur_.text);
     item.name_span = cur_.span;
+    // A lowercase `function` is a module-scope helper, not a badly named component (issue #660's
+    // corpus: 16 files were rejected for this, including 13 of the repository's own React sources).
+    // The distinction is the name, not the body: the subset's rule is that a component name starts
+    // uppercase, so a lowercase declaration is simply not a component and is parsed as a helper.
+    // A helper is not lowered -- the port moves it into a native handler or a `const` arrow -- but
+    // it must not stop the component beside it from being compiled.
+    const bool lowercase = !item.name.empty() && (item.name[0] < 'A' || item.name[0] > 'Z');
     if (item.name.starts_with("use")) {
         report("TESSERA_REACT_CUSTOM_HOOK",
                "custom hook `" + excerpt(item.name) + "` is not supported", cur_.span,
                "inline the hook or write a native handler");
-    } else if (item.name[0] < 'A' || item.name[0] > 'Z') {
-        std::string example = excerpt(item.name);
-        example[0] = static_cast<char>(example[0] & ~0x20);
-        report("TESSERA_JSX_SUBSET_COMPONENT_NAME",
-               "component name `" + excerpt(item.name) + "` must start with an uppercase letter",
-               cur_.span, "rename it, for example `" + example + "`");
+    } else if (lowercase) {
+        item.kind = ItemKind::Helper;
     }
     advance(LexMode::Code);
     if (!expect_punct("(", LexMode::Code)) {
@@ -136,6 +139,25 @@ bool Parser::parse_component_body(ModuleItem& item) {
     if (!expect_punct("{", LexMode::Code)) {
         return false;
     }
+    // A helper's body is not lowered, so it is skipped rather than parsed: it may return a value,
+    // call anything, and use forms the subset does not have. Skipping keeps the component beside it
+    // compilable, which is the whole point of recognising the helper (issue #660's corpus).
+    if (item.kind == ItemKind::Helper) {
+        int depth = 1;
+        while (!fatal_ && depth > 0) {
+            if (cur_.kind == TokenKind::Eof) {
+                fail_unexpected("`}`");
+                return false;
+            }
+            if (at_punct("{")) {
+                ++depth;
+            } else if (at_punct("}")) {
+                --depth;
+            }
+            advance(LexMode::Code);
+        }
+        return !fatal_;
+    }
     while (!fatal_) {
         if (cur_.is_keyword("return")) {
             if (!parse_returned_element(item)) {
@@ -203,6 +225,37 @@ bool Parser::parse_const_statement(Statement& statement) {
             return false;
         }
         if (!expect_punct("]", LexMode::Code)) {
+            return false;
+        }
+    } else if (at_punct("{")) {
+        // `const { state } = io;` (issue #660's corpus). Each listed name binds the field of the
+        // same name; a rename (`{ state: s }`) is refused rather than guessed at, because the
+        // subset has no rename form and a silent rename would be a second naming rule.
+        statement.object_pattern = true;
+        advance(LexMode::Code);
+        while (!fatal_ && !at_punct("}")) {
+            if (cur_.kind != TokenKind::Identifier && cur_.kind != TokenKind::Keyword) {
+                fail_unexpected("a field name in the pattern");
+                return false;
+            }
+            statement.names.emplace_back(cur_.text);
+            advance(LexMode::Code);
+            if (at_punct(":")) {
+                fail("TESSERA_JSX_SUBSET_STATEMENT",
+                     "a renamed destructured binding is not supported", cur_.span,
+                     "write `const <field> = <init>.<field>;` for each field");
+                return false;
+            }
+            if (!at_punct(",")) {
+                break;
+            }
+            advance(LexMode::Code);
+        }
+        if (statement.names.empty()) {
+            fail_unexpected("a field name in the pattern");
+            return false;
+        }
+        if (!expect_punct("}", LexMode::Code)) {
             return false;
         }
     } else if (cur_.kind == TokenKind::Identifier) {

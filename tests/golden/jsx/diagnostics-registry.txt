@@ -28,7 +28,6 @@ TESSERA_JSX_SUBSET_ARRAY_METHOD	subset-array-method	array method `.filter` is no
 TESSERA_JSX_SUBSET_ASYNC	subset-async	`await` is not supported
 TESSERA_JSX_SUBSET_CALL	subset-call	`.map` callback body must be a single JSX element, not a block or another value
 TESSERA_JSX_SUBSET_CLASS	subset-class	`new` is not supported
-TESSERA_JSX_SUBSET_COMPONENT_NAME	subset-component-name	component name `a` must start with an uppercase letter
 TESSERA_JSX_SUBSET_DOM	subset-dom	`dangerouslySetInnerHTML` is not supported
 TESSERA_JSX_SUBSET_DYNAMIC_TAG	subset-dynamic-tag	member and namespace tags (`<A.B>`) are not supported
 TESSERA_JSX_SUBSET_FUNCTION_VALUE	subset-function-value	`function` is not supported

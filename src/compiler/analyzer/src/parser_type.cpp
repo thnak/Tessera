@@ -62,6 +62,21 @@ TypePtr Parser::parse_type_expr() {
 
 TypePtr Parser::parse_type_primary() {
     const std::uint32_t begin = cur_.span.offset;
+    // `readonly string[]` (issue #660's corpus): TypeScript's immutability modifier has no meaning
+    // in the subset, because a value the IR produces is never mutated in place. It is accepted and
+    // dropped rather than rejected, so a ported component does not have to delete a keyword that
+    // changes nothing. `readonly` is only a modifier when a type follows it; on its own it is a
+    // name, which the branch below handles.
+    if (cur_.is_keyword("readonly") ||
+        (cur_.kind == TokenKind::Identifier && cur_.text == "readonly")) {
+        Checkpoint saved = checkpoint();
+        advance(LexMode::Code);
+        if (cur_.kind == TokenKind::Identifier || at_punct("{") || at_punct("(") || at_punct("[")) {
+            return parse_type_primary();
+        }
+        // Not a modifier after all: rewind and parse it as a name.
+        restore(std::move(saved));
+    }
     TypePtr type;
     if (cur_.kind == TokenKind::Identifier) {
         const std::string name(cur_.text);

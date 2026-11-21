@@ -134,8 +134,6 @@ inline const std::vector<Case> kCases = {
     fixture("TESSERA_JSX_SUBSET_CALL", "subset-call", Entry::kExpression, "rows.map(r => r)", 0,
             16),
     fixture("TESSERA_JSX_SUBSET_CLASS", "subset-class", Entry::kExpression, "new", 0, 3),
-    fixture("TESSERA_JSX_SUBSET_COMPONENT_NAME", "subset-component-name", Entry::kModule,
-            "function a() { return <A/>; }", 9, 1),
     fixture("TESSERA_JSX_SUBSET_DOM", "subset-dom", Entry::kJsx, "<A dangerouslySetInnerHTML={x}/>",
             3, 23),
     fixture("TESSERA_JSX_SUBSET_DYNAMIC_TAG", "subset-dynamic-tag", Entry::kJsx, "<A.B/>", 1, 3),
@@ -231,6 +229,12 @@ inline const std::vector<Case> kCases = {
 };
 
 inline const std::vector<Skip> kSkips = {
+    // Issue #660's corpus: a lowercase `function` is a module-scope helper, not a badly named
+    // component, so the parser no longer reports this code. It stays in the registry because a
+    // future rule may want to warn about a component-shaped helper; nothing emits it today.
+    {"TESSERA_JSX_SUBSET_COMPONENT_NAME", "parser (retired)",
+     "a lowercase `function` is a module-scope helper, not a component (issue #660); no pass "
+     "reports this code today"},
     {"TESSERA_JSX_CHILDREN_NOT_ALLOWED", "schema",
      "declared as a constraint code in src/schema, but no pass evaluates element constraints yet"},
     {"TESSERA_JSX_SUBSET_ANIMATED_READ", "analyzer (later slice)",
