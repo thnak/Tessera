@@ -113,6 +113,16 @@ target_link_libraries(text_renderer_lcd_tests PRIVATE tessera_text_render tesser
 
 add_test(NAME text_renderer_lcd COMMAND text_renderer_lcd_tests "${TESSERA_FONT_FIXTURE}")
 
+# One glyph added to an atlas page uploads that glyph's rectangle, not the page, and the GPU copy
+# still equals the atlas page (issue #681). The null device's textures count and mirror every write.
+add_executable(text_renderer_dirty_upload_tests
+    text_renderer_dirty_upload_tests.cpp)
+
+target_link_libraries(text_renderer_dirty_upload_tests PRIVATE tessera_text_render tessera_rhi_null)
+
+add_test(NAME text_renderer_dirty_upload
+    COMMAND text_renderer_dirty_upload_tests "${TESSERA_FONT_FIXTURE}")
+
 # The logical-to-device frame transform (display-aware-rendering.md section 6): the composition of
 # the device scale with the adaptive factor, and the proof that the CPU clip scissor follows it into
 # target pixels. The null device records the scissor each draw ran with, so no GPU is needed.

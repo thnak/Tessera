@@ -213,8 +213,24 @@ float TextRenderer::draw(rendering::gpu::Batched2DRenderer& renderer, const Shap
             slot.texture = impl_->device->create_texture(desc);
             slot.generation = generation;
             slot.created = true;
+            // The texture was created from the whole page, so whatever the atlas had marked dirty
+            // is already on the GPU.
+            static_cast<void>(atlas.take_dirty(page));
         } else if (slot.generation != generation) {
-            slot.texture->write(pixels.data(), pixels.size());
+            // Only the texels written since the last upload: a glyph that adds a few KB to a
+            // 2048x2048 page uploads those KB, not 16 MiB (issue #681). An empty rectangle with a
+            // changed generation is not expected; the whole page is the safe answer if it happens.
+            const GlyphAtlasRect dirty = atlas.take_dirty(page);
+            if (dirty.empty()) {
+                slot.texture->write(pixels.data(), pixels.size());
+            } else {
+                const std::size_t page_pitch = static_cast<std::size_t>(atlas.page_width()) * 4;
+                slot.texture->write_region(
+                    rendering::rhi::TextureRegion{dirty.x, dirty.y, dirty.width, dirty.height},
+                    pixels.data() + static_cast<std::size_t>(dirty.y) * page_pitch +
+                        static_cast<std::size_t>(dirty.x) * 4,
+                    page_pitch);
+            }
             slot.generation = generation;
         }
     }

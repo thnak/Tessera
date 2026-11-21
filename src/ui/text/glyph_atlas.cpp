@@ -103,6 +103,7 @@ const GlyphAtlasEntry& GlyphAtlas::get_glyph(std::uint32_t glyph_index, std::uin
             Page page;
             page.pixels =
                 make_page_pixels(config_.page_width, config_.page_height, config_.aa_mode);
+            page.dirty = {0, 0, config_.page_width, config_.page_height};
             pages_.push_back(std::move(page));
             Page& candidate = pages_.back();
             std::uint32_t x = 0;
@@ -229,6 +230,7 @@ void GlyphAtlas::reset_page(Page& page) {
     page.shelf_height = 0;
     page.shelf_x = 0;
     ++page.generation;
+    page.dirty = {0, 0, config_.page_width, config_.page_height};
 }
 
 std::int32_t GlyphAtlas::evict_page() {
@@ -262,7 +264,33 @@ std::int32_t GlyphAtlas::evict_page() {
     return victim;
 }
 
+void GlyphAtlas::mark_dirty(Page& page, std::uint32_t x, std::uint32_t y, std::uint32_t width,
+                            std::uint32_t height) {
+    if (width == 0 || height == 0) {
+        return;
+    }
+    if (page.dirty.empty()) {
+        page.dirty = {x, y, width, height};
+        return;
+    }
+    const std::uint32_t left = std::min(page.dirty.x, x);
+    const std::uint32_t top = std::min(page.dirty.y, y);
+    const std::uint32_t right = std::max(page.dirty.x + page.dirty.width, x + width);
+    const std::uint32_t bottom = std::max(page.dirty.y + page.dirty.height, y + height);
+    page.dirty = {left, top, right - left, bottom - top};
+}
+
+GlyphAtlasRect GlyphAtlas::take_dirty(std::uint16_t page) {
+    if (page >= pages_.size()) {
+        return {};
+    }
+    const GlyphAtlasRect dirty = pages_[page].dirty;
+    pages_[page].dirty = {};
+    return dirty;
+}
+
 void GlyphAtlas::upload(Page& page, const GlyphBitmap& bitmap, std::uint32_t x, std::uint32_t y) {
+    mark_dirty(page, x, y, bitmap.width, bitmap.height);
     if (bitmap.color) {
         for (std::uint32_t row = 0; row < bitmap.height; ++row) {
             std::copy_n(bitmap.rgba.data() + static_cast<std::size_t>(row) * bitmap.width * 4,

@@ -34,6 +34,18 @@ struct GlyphAtlasConfig {
 // atlas could not place this frame; such entries still carry the advance. `advance` is in the
 // bitmap's device pixels - the `pixel_size` key, not the CSS size a caller passed to
 // `TextRenderer::draw`.
+// A rectangle of page texels (`GlyphAtlas::take_dirty`). Zero width or height means "nothing".
+struct GlyphAtlasRect {
+    std::uint32_t x = 0;
+    std::uint32_t y = 0;
+    std::uint32_t width = 0;
+    std::uint32_t height = 0;
+
+    [[nodiscard]] bool empty() const noexcept {
+        return width == 0 || height == 0;
+    }
+};
+
 struct GlyphAtlasEntry {
     std::uint32_t x = 0;
     std::uint32_t y = 0;
@@ -102,6 +114,14 @@ public:
 
     [[nodiscard]] std::span<const std::uint8_t> page_pixels(std::uint16_t page) const;
     [[nodiscard]] std::uint32_t page_generation(std::uint16_t page) const;
+
+    // The union of the texels written to `page` since the last `take_dirty` of that page, in page
+    // texels (an LCD entry counts its physical, three-samples-per-pixel width). Empty when nothing
+    // was written. Taking clears it, so the consumer owns "what the GPU copy lacks": the renderer
+    // takes it when it creates or refreshes the page texture and uploads just that rectangle
+    // (RHI 1.9 `Texture::write_region`) instead of the whole page (issue #681). A reset page or a
+    // new page reports its whole extent.
+    [[nodiscard]] GlyphAtlasRect take_dirty(std::uint16_t page);
     [[nodiscard]] std::uint32_t page_count() const {
         return static_cast<std::uint32_t>(pages_.size());
     }
@@ -143,6 +163,7 @@ private:
 
     struct Page {
         std::vector<std::uint8_t> pixels;
+        GlyphAtlasRect dirty;
         std::uint32_t shelf_y = 0;
         std::uint32_t shelf_height = 0;
         std::uint32_t shelf_x = 0;
@@ -155,6 +176,8 @@ private:
     void reset_page(Page& page);
     [[nodiscard]] std::int32_t evict_page();
     void upload(Page& page, const GlyphBitmap& bitmap, std::uint32_t x, std::uint32_t y);
+    static void mark_dirty(Page& page, std::uint32_t x, std::uint32_t y, std::uint32_t width,
+                           std::uint32_t height);
 
     std::vector<GlyphRasterizer*> rasterizers_;
     GlyphAtlasConfig config_;
