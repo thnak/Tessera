@@ -182,7 +182,7 @@ void test_generated_surface() {
 // ref names, so the generated base writes the pointer into each of them.
 void test_merged_ref_assignment() {
     ir::IrModule module = make_module();
-    ir::Ref merged{"ref::target", "target", "node::1"};
+    ir::Ref merged{"ref::target", "target", "node::1", {}};
     merged.aliases.push_back("ref::forwarded");
     module.components[0].refs.clear();
     module.components[0].refs.push_back(std::move(merged));
