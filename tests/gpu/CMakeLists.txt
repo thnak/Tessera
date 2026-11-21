@@ -185,7 +185,9 @@ if (TARGET tessera_rhi_vulkan)
     # Manual measurement tool (not a CTest): CPU raster + upload cost at 4K, the numbers behind the
     # decision to move vector paths and other CPU-produced pixels onto the GPU.
     add_executable(cpu_to_gpu_4k_measure
-        batched2d/cpu_to_gpu_4k_measure.cpp)
+        batched2d/cpu_to_gpu_4k_measure.cpp
+        batched2d/cpu_to_gpu_4k_hypotheses.cpp
+        batched2d/cpu_to_gpu_4k_create_texture.cpp)
     target_link_libraries(cpu_to_gpu_4k_measure PRIVATE
         tessera_gpu tessera_path tessera_image tessera_rhi_vulkan)
 endif()
