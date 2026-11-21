@@ -794,6 +794,8 @@ function include/tessera/hal/window_backdrop.hpp tessera::hal::window_backdrop_n
 header include/tessera/hal/window_desc.hpp
 struct include/tessera/hal/window_desc.hpp tessera::hal::AccessibilityHostHandle
 struct include/tessera/hal/window_desc.hpp tessera::hal::NativeWindowHandle
+struct include/tessera/hal/window_desc.hpp tessera::hal::PhysicalInsets
+struct include/tessera/hal/window_desc.hpp tessera::hal::PhysicalRect
 struct include/tessera/hal/window_desc.hpp tessera::hal::WindowDesc
 
 header include/tessera/hal/window_wait.hpp
