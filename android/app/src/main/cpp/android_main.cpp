@@ -19,6 +19,7 @@
 //     (sections 3.5 and 3.6), so the metrics carry the documented zero-inset fallback.
 //   - IME and accessibility (sections 3.3 and 3.4).
 
+#include "scene.hpp"
 #include "tessera/app/window.hpp"
 #include "tessera/hal/window.hpp"
 
@@ -53,7 +54,15 @@ float display_scale(android_app* app) {
 // One app instance: the scene and stylesheet the host runs, plus the host itself, which only exists
 // while the OS has given us a surface.
 struct AppState {
+    // The scene outlives the host: the host borrows the root and owns the compiled stylesheet, so
+    // the scene is created once and the host is created and destroyed around it as surfaces come
+    // and go.
+    std::unique_ptr<tessera::android_shell::ShellScene> scene;
     std::unique_ptr<tessera::app::WindowHost> host;
+    // The HAL window the host owns, kept so the input callback can reach the translator. It is the
+    // same object the host created from `WindowDesc::surface`; the host owns it, this is a borrow
+    // that is cleared in the same command that destroys the host.
+    tessera::hal::Window* window = nullptr;
     bool has_focus = false;
 };
 
@@ -71,16 +80,34 @@ void on_app_cmd(android_app* app, int32_t command) {
             // The opaque token seam: the backend interprets this as an ANativeWindow*.
             options.surface.token = app->window;
             options.dpi_scale = display_scale(app);
+            // The text stack requires a font: `TextStack` throws when the path is empty, which
+            // aborts the process. Android ships Roboto at a stable path, so the shell uses it
+            // rather than bundling a copy. A real app would ship its own face in assets/ and pass
+            // that.
+            options.font_path = "/system/fonts/Roboto-Regular.ttf";
             log_info("surface acquired; starting the window host");
-            // The scene and stylesheet are the app's own; this shell has none yet, so the host is
-            // created empty and reports unavailable. A real app supplies them here.
-            state->host = nullptr;
+            // The scene is created once and reused across surface loss: a backgrounded app keeps
+            // its state, which is what a user expects when they come back to it.
+            if (state->scene == nullptr) {
+                state->scene = std::make_unique<tessera::android_shell::ShellScene>();
+            }
+            state->host = std::make_unique<tessera::app::WindowHost>(
+                state->scene->root, tessera::android_shell::shell_stylesheet(), options,
+                &state->scene->scheduler);
+            if (!state->host->available()) {
+                log_info("the window host is unavailable; no frame will be presented");
+            }
+            // The host owns the window; the input callback borrows it. Null while the host is
+            // unavailable, which is what makes `on_input` a no-op instead of a crash.
+            state->window = state->host->window();
         }
         break;
     case APP_CMD_TERM_WINDOW:
         // The surface is going away. Destroy the host BEFORE the window can be reused, so no
-        // renderer holds a borrowed surface that outlives it.
+        // renderer holds a borrowed surface that outlives it. The scene survives, so the app keeps
+        // its state across a background/foreground cycle.
         log_info("surface lost; stopping the window host");
+        state->window = nullptr;
         state->host.reset();
         break;
     case APP_CMD_GAINED_FOCUS:
@@ -94,11 +121,17 @@ void on_app_cmd(android_app* app, int32_t command) {
     }
 }
 
-int32_t on_input(android_app* /*app*/, AInputEvent* /*event*/) {
-    // Input translation is the next slice (docs/design/mobile-integration.md section 3.2).
-    // Returning 0 means "not handled", which lets the platform fall back to its own behaviour
-    // instead of swallowing an event the engine cannot use yet.
-    return 0;
+int32_t on_input(android_app* app, AInputEvent* event) {
+    // Input translation (issue #189, docs/design/mobile-integration.md section 3.2). The window
+    // backend owns the translator, so the shell only forwards: it never interprets an AInputEvent
+    // itself, which keeps the platform types out of the app layer.
+    auto* state = static_cast<AppState*>(app->userData);
+    if (state->window == nullptr) {
+        return 0;
+    }
+    // Returning 1 means "handled", which stops the platform from also acting on the event (a Back
+    // press would otherwise close the activity). Returning 0 lets it fall back.
+    return state->window->translate_input(event) ? 1 : 0;
 }
 
 } // namespace
@@ -127,6 +160,12 @@ void android_main(android_app* app) {
         }
         if (source != nullptr) {
             source->process(app, source);
+        }
+        // Render one bounded iteration. `pump_once` paints and presents at most one frame and never
+        // parks, which is what lets the glue loop stay in charge of the platform queue: `run()`
+        // would block inside the frame loop and stop delivering `onInputEvent`/`onAppCmd`.
+        if (state.host != nullptr && state.host->available()) {
+            (void)state.host->pump_once();
         }
         if (app->destroyRequested != 0) {
             log_info("destroy requested; exiting");
