@@ -135,6 +135,16 @@ void test_generated_surface() {
     check(contains(header, "schedule_update();"), "a changed class schedules an update");
     // The text binding reads the field, so the value reaches the pixels.
     check(contains(header, "env_bp_"), "the binding reads the environment field");
+    // The host-facing registration, mirroring attach_scheduler.
+    check(contains(header, "#include \"tessera/ui/responsive/environment_set.hpp\""),
+          "the base includes the consumer set");
+    check(contains(header, "void attach_environment(tessera::ui::responsive::EnvironmentSet& "
+                           "values);") &&
+              contains(header, "void detach_environment(tessera::ui::responsive::EnvironmentSet& "
+                               "values);"),
+          "attach and detach mirror attach_scheduler");
+    check(contains(header, "EnvironmentConsumer{\"breakpoint\""),
+          "the consumer names the provider it reads");
 }
 
 void test_no_surface_without_a_hook() {

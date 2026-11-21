@@ -18,6 +18,8 @@
 #include "tessera/ui/paint/paint_cache.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
 #include "tessera/ui/paint/scene_style_sync.hpp"
+#include "tessera/ui/responsive/environment_set.hpp"
+#include "tessera/ui/responsive/size_class.hpp"
 #include "tessera/ui/scene/dirty_pass.hpp"
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/style/compiled_stylesheet.hpp"
@@ -316,6 +318,17 @@ public:
     // damage and paint. Empty by default, and a host whose sheet has no `@container` and whose
     // scene attaches nothing pays one boolean test per frame.
     [[nodiscard]] ui::layout::LayoutObserverSet& layout_observers();
+
+    // The window's environment-value set (docs/specs/jsx-subset-v1.md section 7.1, issue #692).
+    // Generated components register their `set_environment_<name>()` here at mount; the host pushes
+    // the current size class after every size change, so `useBreakpoint()` and the stylesheet's own
+    // `@media` answer come from the same `MediaContext` and cannot disagree. Empty by default, and
+    // a component that reads no environment value registers nothing.
+    [[nodiscard]] ui::responsive::EnvironmentSet& environment_values();
+
+    // The size class in force (the same answer `useBreakpoint()` returns). Read from the host's
+    // media context, so a test can assert the hook and the stylesheet agree.
+    [[nodiscard]] ui::responsive::SizeClass size_class() const;
 
     // The settle loop's counters (ADR-041 section 5.3): deliveries, rounds, engine rounds, deferred
     // observations and round-limit hits. They are how "a resize inside one condition costs a layout

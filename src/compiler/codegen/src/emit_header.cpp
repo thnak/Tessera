@@ -133,6 +133,10 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
     if (observes) {
         writer.line("#include \"tessera/ui/layout/layout_observer.hpp\"");
     }
+    // `environment` hook values (issue #692): the consumer set the host pushes a new class through.
+    if (has_environment(component)) {
+        writer.line("#include \"tessera/ui/responsive/environment_set.hpp\"");
+    }
     writer.line("");
     writer.line("#include <cstdint>");
     if (plan.has_lists) {

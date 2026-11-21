@@ -49,7 +49,16 @@ void emit_environment_declarations(CppWriter& writer, const ir::Component& compo
     for (const ir::Environment& env : component.environment) {
         writer.line("void set_environment_" + env.name + "(" + environment_cpp_type(env) +
                     " value);");
+        // The `EnvironmentConsumer::Fn` thunk: a plain function pointer plus the component, so the
+        // set needs no `std::function` and no RTTI (ADR-024).
+        writer.line("static void set_environment_" + env.name +
+                    "_thunk(void* context, std::string_view value);");
     }
+    // The host-facing registration, mirroring `attach_scheduler`/`attach_layout_observers`: the
+    // component joins the window's set at mount and leaves it at unmount, so a resize reaches it
+    // without the host knowing what a component is.
+    writer.line("void attach_environment(tessera::ui::responsive::EnvironmentSet& values);");
+    writer.line("void detach_environment(tessera::ui::responsive::EnvironmentSet& values);");
 }
 
 void emit_environment_definitions(CppWriter& writer, const ir::Component& component,
@@ -73,6 +82,32 @@ void emit_environment_definitions(CppWriter& writer, const ir::Component& compon
         writer.close("");
         writer.line("");
     }
+    // One consumer per value, each with its own thunk so the provider and the field are fixed at
+    // compile time (no map lookup, no string compare on the frame path).
+    for (const ir::Environment& env : component.environment) {
+        writer.open("void " + component.name + "::set_environment_" + env.name +
+                    "_thunk(void* context, std::string_view value)");
+        writer.line("static_cast<" + component.name + "*>(context)->set_environment_" + env.name +
+                    "(std::string(value));");
+        writer.close("");
+        writer.line("");
+    }
+    writer.open("void " + component.name +
+                "::attach_environment(tessera::ui::responsive::EnvironmentSet& values)");
+    for (const ir::Environment& env : component.environment) {
+        writer.line("values.attach(tessera::ui::responsive::EnvironmentConsumer{\"" + env.provider +
+                    "\", &" + component.name + "::set_environment_" + env.name + "_thunk, this});");
+    }
+    writer.close("");
+    writer.line("");
+    writer.open("void " + component.name +
+                "::detach_environment(tessera::ui::responsive::EnvironmentSet& values)");
+    for (const ir::Environment& env : component.environment) {
+        writer.line("values.detach(tessera::ui::responsive::EnvironmentConsumer{\"" + env.provider +
+                    "\", &" + component.name + "::set_environment_" + env.name + "_thunk, this});");
+    }
+    writer.close("");
+    writer.line("");
 }
 
 } // namespace tessera::compiler::codegen::internal

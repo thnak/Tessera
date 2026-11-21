@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT
 
 #include "host_impl.hpp"
 #include "tessera/app/host.hpp"
@@ -200,6 +200,9 @@ AppHost::Impl::Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet, runtime
     quality.publish();
     // The ADR-041 settle loop (issue #693): its hooks and round budget live in host_settle.cpp.
     init_settle();
+    // The size class the first frame starts at (issue #692): a component that reads
+    // `useBreakpoint()` renders the class the window actually has, not the field's initial value.
+    pushed_size_class = ui::responsive::size_class_for(media_context);
 }
 
 void AppHost::Impl::apply_root_size() {

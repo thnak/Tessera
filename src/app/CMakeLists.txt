@@ -27,6 +27,9 @@ add_library(tessera_app STATIC
     # The ADR-041 settle loop's host half (issue #693): the shared restyle-and-layout sequence, the
     # publish-and-run step and the loop's two hooks. Split out of host.cpp, which is at its budget.
     host_settle.cpp
+    # The `useBreakpoint()` half of issue #692: the size class from the media context, pushed to the
+    # registered consumers after a size change.
+    host_environment.cpp
     safe_area_state.cpp
     safe_area_state.hpp
     system_motion.cpp
@@ -71,6 +74,8 @@ target_link_libraries(tessera_app PUBLIC
     tessera_scale
     tessera_style
     tessera_scene
+    # The window size classes and the environment consumer set (issue #692).
+    tessera_responsive
     tessera_runtime)
 
 target_compile_features(tessera_app PUBLIC cxx_std_23)

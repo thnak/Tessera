@@ -5,6 +5,7 @@
 # context, so the hook, the preview's `viewport.set` report and an app's own `@media` rules all read
 # one answer.
 add_library(tessera_responsive STATIC
+    environment_set.cpp
     size_class.cpp)
 
 target_include_directories(tessera_responsive PUBLIC
@@ -24,4 +25,12 @@ if (TESSERA_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/unit/size_class_tests.cpp)
     target_link_libraries(size_class_tests PRIVATE tessera_responsive)
     add_test(NAME size_class COMMAND size_class_tests)
+
+    # The host half of `useBreakpoint()` (issue #692): the class from the media context, pushed to
+    # the registered consumers after a size change, and nothing pushed inside one class.
+    add_executable(breakpoint_host_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/breakpoint_host_tests.cpp)
+    target_link_libraries(breakpoint_host_tests PRIVATE tessera_app tessera_responsive
+        tessera_runtime)
+    add_test(NAME breakpoint_host COMMAND breakpoint_host_tests)
 endif ()

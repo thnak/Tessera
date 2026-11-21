@@ -168,6 +168,14 @@ struct AppHost::Impl {
     // the app observations, in one shared component the Studio canvas session also uses. It costs
     // one boolean test per frame when the sheet has no `@container` and nothing observes.
     ui::layout::LayoutSettle settle;
+    // The `useBreakpoint()`/`useTheme()` consumers (issue #692). The host pushes the current class
+    // after every size change; a component that reads no environment value registers nothing, so
+    // the set stays empty and a push is one loop over zero entries.
+    ui::responsive::EnvironmentSet environment;
+    // The class last pushed, so a resize inside one class does not walk the set at all.
+    ui::responsive::SizeClass pushed_size_class = ui::responsive::SizeClass::Compact;
+    // Pushes the current size class to every `useBreakpoint()` consumer (host_environment.cpp).
+    void push_size_class();
     ui::frame::FrameRender last_render;
     // Adaptive quality (docs/design/performance.md section 6): the deterministic controller is fed
     // one measured frame time per presented frame by observe_frame_time_ms(); the diagnostics

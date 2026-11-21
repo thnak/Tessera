@@ -100,6 +100,17 @@ component that branches on the class renders its narrow layout rather than its w
 first frame. Evidence: `size_class` (`tests/unit/size_class_tests.cpp`) asserts both sides of each
 boundary, the degenerate widths, and that the media context is the input.
 
+**How the value reaches a component.** `ui::responsive::EnvironmentSet` is the per-window side table
+of consumers (a plain function pointer plus a context, so no `std::function` and no RTTI). A
+generated component registers its `set_environment_<name>()` at mount and unregisters at unmount,
+mirroring `attach_scheduler`. `AppHost::apply_viewport` pushes the class after every size change,
+from the same `MediaContext` the `@media` rules resolve against, and returns immediately when the
+class did not move: a resize inside one class walks nothing and schedules nothing. The generated
+setter is equality-gated, so even a push that reaches a consumer with the value it already holds is
+a no-op. Evidence: `breakpoint_host` (`tests/unit/breakpoint_host_tests.cpp`) drives a real
+`AppHost` across 600 and 840 in both directions and asserts the pushed sequence, the no-push case,
+and that the hook and the stylesheet read the same context.
+
 ## 4. Safe areas
 
 - Layout uses safe-area insets for top/bottom/left/right; content never sits under a notch,
