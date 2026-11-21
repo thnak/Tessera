@@ -142,6 +142,12 @@ void android_main(android_app* app) {
         if (source != nullptr) {
             source->process(app, source);
         }
+        // Render one bounded iteration. `pump_once` paints and presents at most one frame and never
+        // parks, which is what lets the glue loop stay in charge of the platform queue: `run()`
+        // would block inside the frame loop and stop delivering `onInputEvent`/`onAppCmd`.
+        if (state.host != nullptr && state.host->available()) {
+            (void)state.host->pump_once();
+        }
         if (app->destroyRequested != 0) {
             log_info("destroy requested; exiting");
             break;
