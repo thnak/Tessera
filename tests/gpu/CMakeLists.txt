@@ -485,6 +485,17 @@ if (TARGET tessera_rhi_vulkan)
         SKIP_REGULAR_EXPRESSION "skipped"
         FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
 
+    # RHI 1.9 `Texture::write_region` (#681) pixel test: a rectangle written from a pitched and from a
+    # tightly packed source lands exactly, nothing outside it moves, a texture filled by bands equals
+    # one created whole. Skips without a Vulkan device.
+    add_executable(texture_write_region_tests
+        batched2d/texture_write_region_tests.cpp)
+    target_link_libraries(texture_write_region_tests PRIVATE tessera_gpu tessera_rhi_vulkan)
+    add_test(NAME texture_write_region COMMAND texture_write_region_tests)
+    set_tests_properties(texture_write_region PROPERTIES
+        SKIP_REGULAR_EXPRESSION "skipped"
+        FAIL_REGULAR_EXPRESSION "\\[vulkan\\]")
+
     # RHI 1.3 sampled render target (#254) pixel test: draw a backdrop, break, copy it into a pooled
     # target, blur it horizontally into a second pooled target that samples the copy, then resume
     # and composite the blurred result. Expected pixels come from the CPU glass kernel.

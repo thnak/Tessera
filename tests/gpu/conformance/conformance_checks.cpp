@@ -170,6 +170,63 @@ CheckResult texture_create(rhi::Device& device) {
     return CheckResult::pass();
 }
 
+// RHI 1.9 `Texture::write_region`: every backend accepts the same regions and refuses the same
+// ones. Pixel content is checked by the backends' own readback tests (texture_write_region on
+// Vulkan, the unit test on the null device); here the contract is acceptance and refusal.
+CheckResult texture_write_region(rhi::Device& device) {
+    constexpr std::uint32_t kExtent = 8;
+    std::array<std::uint8_t, kExtent * kExtent * 4> pixels{};
+    for (std::size_t index = 0; index < pixels.size(); ++index) {
+        pixels[index] = static_cast<std::uint8_t>(index * 7U + 3U);
+    }
+    rhi::TextureDesc desc;
+    desc.extent = {kExtent, kExtent};
+    desc.format = rhi::TextureFormat::R8G8B8A8Unorm;
+    desc.pixels = pixels.data();
+    desc.row_pitch = kExtent * 4;
+    const auto texture = device.create_texture(desc);
+    if (texture == nullptr) {
+        return CheckResult::fail("create_texture returned null");
+    }
+    std::array<std::uint8_t, kExtent * kExtent * 4> source{};
+    const auto throws = [](auto&& body, bool out_of_range) {
+        try {
+            body();
+        } catch (const std::out_of_range&) {
+            return out_of_range;
+        } catch (const std::invalid_argument&) {
+            return !out_of_range;
+        }
+        return false;
+    };
+
+    // Tightly packed, pitched (rows inside a wider source) and flush with the far corner.
+    texture->write_region({1, 2, 3, 4}, source.data(), 0);
+    texture->write_region({1, 2, 3, 4}, source.data(), kExtent * 4);
+    texture->write_region({kExtent - 2, kExtent - 3, 2, 3}, source.data(), kExtent * 4);
+    texture->write_region({0, 0, kExtent, kExtent}, source.data(), 0);
+    // An empty region is valid and writes nothing, even with no data.
+    texture->write_region({3, 3, 0, 5}, nullptr, 0);
+    texture->write_region({3, 3, 5, 0}, nullptr, 0);
+
+    if (!throws([&] { texture->write_region({kExtent - 1, 0, 2, 1}, source.data(), 0); }, true)) {
+        return CheckResult::fail("a region past the right edge is not refused");
+    }
+    if (!throws([&] { texture->write_region({0, kExtent - 1, 1, 2}, source.data(), 0); }, true)) {
+        return CheckResult::fail("a region past the bottom edge is not refused");
+    }
+    if (!throws([&] { texture->write_region({kExtent + 1, 0, 1, 1}, source.data(), 0); }, true)) {
+        return CheckResult::fail("a region starting outside the texture is not refused");
+    }
+    if (!throws([&] { texture->write_region({0, 0, 3, 1}, source.data(), 3 * 4 - 1); }, false)) {
+        return CheckResult::fail("a row pitch shorter than one region row is not refused");
+    }
+    if (!throws([&] { texture->write_region({0, 0, 1, 1}, nullptr, 0); }, false)) {
+        return CheckResult::fail("a non-empty region without data is not refused");
+    }
+    return CheckResult::pass();
+}
+
 CheckResult pipeline_create(rhi::Device& device) {
     const rhi::PipelineDesc desc = pipeline_template(device.backend());
     const auto pipeline = device.create_pipeline(desc);
@@ -271,7 +328,7 @@ CheckResult timestamp_query_roundtrip(rhi::Device& device) {
     return CheckResult::pass();
 }
 
-constexpr std::array<Check, 10> kChecks = {{
+constexpr std::array<Check, 11> kChecks = {{
     {"buffer_out_of_range", Capability::BufferBounds, &buffer_out_of_range},
     {"buffer_roundtrip", Capability::BufferReadback, &buffer_roundtrip},
     {"command_list_record_submit", Capability::CommandList, &command_list_record_submit},
@@ -280,6 +337,7 @@ constexpr std::array<Check, 10> kChecks = {{
     {"pipeline_create", Capability::Pipeline, &pipeline_create},
     {"render_target_create", Capability::RenderTarget, &render_target_create},
     {"texture_create", Capability::Texture, &texture_create},
+    {"texture_write_region", Capability::Texture, &texture_write_region},
     {"timestamp_capability_honest", Capability::Device, &timestamp_capability_honest},
     {"timestamp_query_roundtrip", Capability::GpuTimestamps, &timestamp_query_roundtrip},
 }};

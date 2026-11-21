@@ -115,6 +115,32 @@ public:
         }
         std::memcpy(data_.data(), data, size);
     }
+    void write_region(const rhi::TextureRegion& region, const void* data,
+                      std::size_t row_pitch) override {
+        if (desc_.levels > 1) {
+            throw std::invalid_argument("NullTexture: mipmapped textures are immutable");
+        }
+        if (desc_.sample_count > 1) {
+            throw std::invalid_argument("NullTexture: multisampled textures cannot be uploaded");
+        }
+        const std::size_t bytes = bytes_per_pixel(desc_.format);
+        const std::size_t pitch = rhi::checked_region_pitch(desc_.extent, bytes, region, row_pitch);
+        if (region.empty()) {
+            return;
+        }
+        if (data == nullptr) {
+            throw std::invalid_argument("NullTexture: region upload without data");
+        }
+        const std::size_t row_bytes = static_cast<std::size_t>(region.width) * bytes;
+        for (std::uint32_t row = 0; row < region.height; ++row) {
+            std::memcpy(
+                data_.data() +
+                    (static_cast<std::size_t>(region.y + row) * desc_.extent.width + region.x) *
+                        bytes,
+                static_cast<const std::uint8_t*>(data) + static_cast<std::size_t>(row) * pitch,
+                row_bytes);
+        }
+    }
 
 private:
     static std::size_t bytes_per_pixel(rhi::TextureFormat format) {

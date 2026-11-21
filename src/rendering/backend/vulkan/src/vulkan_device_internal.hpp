@@ -142,6 +142,10 @@ public:
 
     // Full-image upload used by Texture::write (dynamic atlases).
     void upload_texture(VulkanTexture& texture, const void* data, std::size_t size);
+    // One rectangle of the image (Texture::write_region); the full-image upload is this with the
+    // whole extent. Only the region's bytes are staged and copied.
+    void upload_texture_region(VulkanTexture& texture, const rhi::TextureRegion& region,
+                               const void* data, std::size_t row_pitch);
 
     // RHI 1.3: the descriptor set that binds `target`'s sampled view with the target's sampler
     // state. Created on the target's first bind_sampled_target and cached on the target (so a
