@@ -20,6 +20,7 @@
 #include "emit_props.hpp"
 #include "emit_schedule.hpp"
 #include "emit_snapshot.hpp"
+#include "emit_suspense.hpp"
 #include "emit_virtual.hpp"
 #include "form_binding.hpp"
 #include "interpolation.hpp"
@@ -188,6 +189,10 @@ bool emit_source(const ir::Component& component, const ir::IrModule& module,
     }
     if (!emit_dynamic_sources(writer, component, module, plan, adapters, dynamic_text,
                               dynamic_metadata, controlled_inputs, instances, error)) {
+        return false;
+    }
+    // ADR-067 spike #661: the boundary swap and the fake-resource seams.
+    if (!emit_pending_sources(writer, component, plan, error)) {
         return false;
     }
     if (!emit_lifecycle(component, module, bindings, instances, plan, writer, error)) {

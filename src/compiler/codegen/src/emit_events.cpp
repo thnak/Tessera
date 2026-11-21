@@ -256,6 +256,14 @@ bool collect_event_adapters(const ir::Node& node, const ir::Component& component
                                 ordinal, adapters, error, true)) {
         return false;
     }
+    // ADR-067 item 2: a boundary's fallback subtree is walked right after its content subtree, the
+    // same order the plan and emit_node use, so every later ordinal stays aligned. A fallback may
+    // bind events like any other subtree.
+    if (node.fallback &&
+        !collect_event_adapters(*node.fallback, component, bindings, controlled_inputs, ordinal,
+                                adapters, error, in_item_template)) {
+        return false;
+    }
     return true;
 }
 

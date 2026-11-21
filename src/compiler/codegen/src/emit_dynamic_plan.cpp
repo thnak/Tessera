@@ -311,6 +311,19 @@ bool PlanWalk::walk(const ir::Node& node, unsigned parent_ordinal, bool is_root,
     if (node.loop && !is_virtual_template_root && !collect_template(node, self, parent_ordinal)) {
         return false;
     }
+    // ADR-067 item 2: a Suspense boundary is a static node, so it is not a dynamic child of its own
+    // parent; its *own* child set is the one that swaps. The fallback subtree is walked right after
+    // the content subtree, which is the order emit_node emits them in, so every later ordinal stays
+    // aligned with the other collectors.
+    std::size_t suspense_index = 0;
+    const bool suspense = node.kind == ir::NodeKind::Suspense;
+    if (suspense) {
+        SuspenseSite site;
+        site.ordinal = self;
+        site.read_count = 1; // the spike's one suspending read of the fake resource
+        suspense_index = plan.suspenses.size();
+        plan.suspenses.push_back(site);
+    }
     if (node.condition) {
         // A condition inside a template reads the loop item/index (docs/design/compiler-node-state
         // .md section 4), so the check sees the enclosing template's locals.
@@ -397,6 +410,17 @@ bool PlanWalk::walk(const ir::Node& node, unsigned parent_ordinal, bool is_root,
         in_template = template_before;
         template_ordinal = template_ordinal_before;
         current_list = list_before;
+    }
+    if (suspense && node.fallback != nullptr) {
+        // ADR-067 item 2: the fallback subtree is walked right after the content subtree, which is
+        // the order emit_node emits them in, so every later ordinal stays aligned. The site is
+        // addressed by the index captured at push time, not by reference: the recursive walk may
+        // grow `plan.suspenses` (a nested boundary) and reallocate the vector.
+        plan.suspenses[suspense_index].fallback_ordinal = ordinal + 1;
+        if (!walk(*node.fallback, self, false)) {
+            return false;
+        }
+        plan.suspenses[suspense_index].fallback_end = ordinal + 1;
     }
     if (node.loop) {
         plan.lists[current_list].subtree_end = ordinal + 1;

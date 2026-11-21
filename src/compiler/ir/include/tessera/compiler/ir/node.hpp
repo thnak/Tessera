@@ -28,6 +28,10 @@ enum class NodeKind {
     VirtualList,
     VirtualGrid,
     ErrorBoundary,
+    // ADR-067 item 2: a static boundary node of the same shape as ErrorBoundary. It shows its
+    // `fallback` subtree while a suspending read it covers has no data, and its one child subtree
+    // otherwise; it owns no scene node and no layout box.
+    Suspense,
     CustomElement,
     Component,
     Slot, // a component's `{children}` position (section 3.4); replaced by the instance's children
@@ -58,7 +62,7 @@ struct Node {
     std::vector<Node> children;
     ExprPtr condition;
     std::optional<Loop> loop;
-    std::unique_ptr<Node> fallback; // ErrorBoundary
+    std::unique_ptr<Node> fallback; // ErrorBoundary, Suspense
     // VirtualList/VirtualGrid: the static item template. It carries the `loop` (item/index names
     // and the data source) and the item `key`, but is realized lazily, not repeated eagerly
     // (section 3.5).

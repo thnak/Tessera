@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "tessera/compiler/eval/pending.hpp"
 #include "tessera/compiler/eval/value.hpp"
 #include "tessera/compiler/ir/action.hpp"
 #include "tessera/compiler/ir/expr.hpp"
@@ -62,6 +63,17 @@ public:
         return diagnostics_;
     }
 
+    // ADR-067 spike #661, off by default: the pending-UI session a transition-marked action runs
+    // against. Null (the default) means a transition mark is inert, which is what keeps every
+    // existing evaluation byte-identical. The session is the evaluator's half of the differential
+    // test: it runs the same `tessera::ui::pending` state machine generated C++ runs.
+    void set_pending_session(PendingSession* session) noexcept {
+        pending_ = session;
+    }
+    [[nodiscard]] PendingSession* pending_session() const noexcept {
+        return pending_;
+    }
+
 private:
     [[nodiscard]] std::expected<Value, EvalError> eval(const ir::Expr& expr, const Scope& scope,
                                                        std::size_t depth);
@@ -75,6 +87,7 @@ private:
 
     std::vector<Diagnostic> diagnostics_;
     std::unordered_set<const ir::Expr*> reported_;
+    PendingSession* pending_ = nullptr;
 };
 
 } // namespace tessera::compiler::eval

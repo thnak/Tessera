@@ -30,6 +30,7 @@
 #include "emit_dynamic.hpp"
 #include "emit_node.hpp"
 #include "emit_node_groups.hpp"
+#include "emit_suspense.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -77,6 +78,19 @@ bool emit_node(CppWriter& writer, const ir::Node& node, NodeEmitState& state, st
         return false;
     }
     emit_dynamic_group_parent(context);
+    // ADR-067 item 2: a Suspense boundary is a static node whose own child set swaps between two
+    // subtrees, so it emits both into their ownership slots instead of the normal child loop.
+    if (node.kind == ir::NodeKind::Suspense) {
+        if (!emit_suspense_children(context)) {
+            return false;
+        }
+        emit_span_paint_data(context);
+        emit_virtual_item_template_skip(context);
+        return true;
+    }
+    // The child loop's own node is the parent a static boundary attaches to.
+    const std::string outer_parent = state.parent_variable;
+    state.parent_variable = variable;
     for (std::size_t child_index = 0; child_index < node.children.size(); ++child_index) {
         const ir::Node& child = node.children[child_index];
         const unsigned child_ordinal = state.next_id;
@@ -127,6 +141,10 @@ bool emit_node(CppWriter& writer, const ir::Node& node, NodeEmitState& state, st
                 writer.line(state.item_out + ".branch_" + std::to_string(child_ordinal) +
                             "_owned = std::move(" + child_variable + ");");
             }
+        } else if (child.kind == ir::NodeKind::Suspense) {
+            // ADR-067 item 2: a static boundary attaches its own live subtree at this position, so
+            // the parent must not attach anything for it.
+            writer.line("// " + child.id + " (a Suspense boundary attaches its live subtree)");
         } else {
             writer.line(variable + "->add_child(std::move(" + child_variable + "));");
         }
@@ -140,6 +158,7 @@ bool emit_node(CppWriter& writer, const ir::Node& node, NodeEmitState& state, st
     }
     emit_span_paint_data(context);
     emit_virtual_item_template_skip(context);
+    state.parent_variable = outer_parent;
     return true;
 }
 

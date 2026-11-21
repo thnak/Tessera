@@ -103,6 +103,73 @@ Selector with a search, dialogs with a lazy body) be written against one rule.
 
 This ADR stays Proposed until measured evidence exists. Spike [#661](https://github.com/thnak/Tessera/issues/661) implements a Suspense boundary and a transition mark on a fake resource, off by default, and records: fallback, restore, keep-on-refresh, pending flag and stale-epoch behavior; agreement between the evaluator and generated code; allocation-free updates; and what the data store lacks. The implementing issues #655 to #657 wait for Acceptance.
 
+### Spike #661 evidence (items 1-4, recorded 2026-11-21)
+
+Built off by default: `include/tessera/ui/pending/{suspense,transition,fake_resource}.hpp`,
+`src/compiler/eval/{include/tessera/compiler/eval/pending.hpp,src/pending.cpp}`,
+`src/compiler/codegen/src/emit_suspense.{hpp,cpp}`, tests `pending_model`, `codegen_pending`,
+`codegen_pending_runtime`, `codegen_pending_parity`, fixture
+`tests/unit/codegen_pending_module.hpp` + `tests/unit/codegen_base/pending/Feed.{hpp,cpp}`, golden
+`tests/golden/codegen/pending/Feed.g.hpp`. Nothing runs in a shipped app: a component with neither a
+`Suspense` node nor a transition-marked action emits no pending code at all, which is why every
+committed `.g.hpp` golden is byte-identical.
+
+**The model holds.** The boundary is a static node of the `ErrorBoundary` shape: one `fallback`, one
+child subtree, no scene node and no layout box. It shows the fallback while a read it covers is
+`Loading` with no data, restores the subtree when the data arrives, and keeps the old subtree while
+the read is `Refreshing` — so a key change never blanks the screen. `isPending` is true from the
+moment a marked setter is applied until the change's fetch settles, and a completion for a superseded
+epoch is dropped rather than applied. All five behaviours are asserted on the model
+(`pending_model`), on the generated component (`codegen_pending_runtime`) and across both
+(`codegen_pending_parity`).
+
+**The evaluator and the generated code agree.** `codegen_pending_parity` plays one fixed 20-step
+script — idle, fetch-with-no-data, restore, refresh, two fetches where the first is superseded, a
+marked setter, the settle, a failed refresh — on `eval::PendingSession` and on the compiled
+`pending::Feed`, and compares the whole observable state (phase, live subtree, `isPending`, epoch,
+value, loading, has-data) after every step. The two sides are not two implementations of the rule:
+`tessera::ui::pending` is header-only precisely so the evaluator, which links only `tessera_ir`, and
+generated C++, which links `tessera_scene`, run the same state machine. The differential test
+therefore proves the *wiring* — that both are driven by the same operations in the same order — not
+that two copies of the arithmetic happen to match.
+
+**The update stays allocation-free.** `codegen_pending_runtime` replaces global `operator new` and
+counts, the same gate the virtual pool uses. After a three-cycle warm-up, 64 full transition cycles
+(fetch, sync, resolve, sync, plus both accessors) perform **zero** allocations. The boundary, the
+mark and the fake resource are fixed-size members; the swap moves `unique_ptr`s between ownership
+slots and calls `insert_child`/`remove_child`, which reuse the scene's existing child storage. The
+warm-up is honest about the one exception: the first swap may grow a child vector.
+
+**What the data store was missing, and what `useResource` needs from it.** The store
+(`docs/specs/async-data-v1.md`) already has the two facts the boundary needs per key — "a fetch is in
+flight" and "the epoch a completion must still match" — and `DataStoreCore::complete_fetch` already
+drops a stale epoch. Four gaps, none of them blocking, all recorded rather than papered over:
+
+1. **`DataStatus::Stale` is declared and never produced.** The enum has six members; nothing in
+   `src/runtime/data_store*` ever assigns `Stale`. The spike's staleness is the per-key `epoch`
+   counter, which is what actually works, so `useResource` should read `epoch` and not `Stale` — or
+   the status should be removed. This is the one item that needs a decision before the spec is
+   written.
+2. **No "suspends" predicate.** `Loading` and `Refreshing` are both "a fetch is in flight"; only
+   `Loading` with no previous value suspends. The store exposes the status but not the pair, so every
+   consumer re-derives `status == Loading && !has_value`. `useResource` should expose
+   `suspends()`/`refreshing()` as the boundary's `SuspenseRead` does.
+3. **No synchronous read for a render.** The store notifies through `CompletionQueue` at a tick
+   boundary and hands out `FetchHandle`s; there is no allocation-free "what is published right now"
+   accessor. The spike's `sync_read` is exactly that call, and `useResource` needs it: a boundary
+   must never fetch in render, only subscribe and read.
+4. **The store is not reachable from generated components.** It is a service, and `useService` is not
+   lowered by the front end yet (this ADR's own risk note). The spike therefore drives a fake
+   resource with the store's contract in miniature rather than the store itself.
+
+**What this does not settle.** The front end is untouched: neither `useResource` nor `useTransition`
+is lowered from TSX, so the fixture is hand-built IR, exactly as the ADR's risk note predicts. The
+`Suspense` node is in the IR and the validator, but no `.tsx` syntax produces it and
+`docs/specs/pending-ui-v1.md` does not exist yet. `useDeferredValue` and `lazy` (items 5 and 6) have
+no spike. The preview does not show the fallback or the pending state. And the GCC `-Werror` lane was
+**not run** for this spike: the remote Linux box was unreachable, so the evidence above is the
+Windows `dev` preset only (MSVC `/W4 /permissive- /WX`). The GCC lane must be run before Acceptance.
+
 ## Follow-up
 
 - `docs/specs/pending-ui-v1.md`: the manifest entries, the `Suspense` IR node, the transition mark on

@@ -170,6 +170,11 @@ JsonValue actions_to_json(const std::vector<Action>& actions) {
         if (action.kind == ActionKind::AnimSet && !action.on_complete.empty()) {
             json.set("onComplete", JsonValue::string(action.on_complete));
         }
+        // ADR-067 item 4: written only when set, so every action without a transition mark keeps
+        // the bytes it wrote before.
+        if (action.transition) {
+            json.set("transition", JsonValue::boolean(true));
+        }
         list.push(std::move(json));
     }
     return list;

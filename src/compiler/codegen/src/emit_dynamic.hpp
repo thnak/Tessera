@@ -131,10 +131,22 @@ struct ListTemplate {
     VirtualGeometrySpec geometry; // resolved geometry inputs (virtual collections only)
 };
 
+// One `Suspense` boundary of the component (ADR-067 item 2, spike #661). The boundary is a static
+// node: it owns no scene node, and the generated component owns both subtrees. `fallback_ordinal`
+// is the pre-order ordinal of the fallback subtree's root, which the plan walk visits right after
+// the boundary's children so every later ordinal stays aligned with the other collectors.
+struct SuspenseSite {
+    unsigned ordinal = 0;          // the Suspense node's pre-order ordinal
+    unsigned fallback_ordinal = 0; // the fallback subtree root's ordinal
+    unsigned fallback_end = 0;     // one past the last ordinal of the fallback subtree
+    unsigned read_count = 0;       // suspending reads the boundary covers
+};
+
 struct DynamicPlan {
-    std::vector<DynamicGroup> groups; // ascending parent ordinal (IR walk order)
-    std::vector<ListTemplate> lists;  // ascending template ordinal
-    unsigned max_ordinal = 0;         // last pre-order ordinal (item ids use max_ordinal + 1)
+    std::vector<DynamicGroup> groups;    // ascending parent ordinal (IR walk order)
+    std::vector<ListTemplate> lists;     // ascending template ordinal
+    std::vector<SuspenseSite> suspenses; // ascending boundary ordinal
+    unsigned max_ordinal = 0;            // last pre-order ordinal (item ids use max_ordinal + 1)
     bool has_conditionals = false;
     bool has_lists = false;
     bool has_virtual = false; // at least one VirtualList/VirtualGrid item template

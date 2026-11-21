@@ -2225,6 +2225,18 @@ constant include/tessera/ui/paint/vector_raster.hpp tessera::ui::paint::kMaxCont
 constant include/tessera/ui/paint/vector_raster.hpp tessera::ui::paint::kMaxContentScale
 constant include/tessera/ui/paint/vector_raster.hpp tessera::ui::paint::kMinContentScale
 
+header include/tessera/ui/pending/fake_resource.hpp
+class include/tessera/ui/pending/fake_resource.hpp tessera::ui::pending::FakeResource
+
+header include/tessera/ui/pending/suspense.hpp
+class include/tessera/ui/pending/suspense.hpp tessera::ui::pending::SuspenseBoundary
+struct include/tessera/ui/pending/suspense.hpp tessera::ui::pending::PendingError
+struct include/tessera/ui/pending/suspense.hpp tessera::ui::pending::SuspenseRead
+enum include/tessera/ui/pending/suspense.hpp tessera::ui::pending::SuspensePhase
+
+header include/tessera/ui/pending/transition.hpp
+class include/tessera/ui/pending/transition.hpp tessera::ui::pending::TransitionMark
+
 header include/tessera/ui/scale/aa_policy.hpp
 struct include/tessera/ui/scale/aa_policy.hpp tessera::ui::scale::AaConfig
 struct include/tessera/ui/scale/aa_policy.hpp tessera::ui::scale::AaFacts

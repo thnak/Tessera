@@ -53,6 +53,11 @@ struct Action {
     // bool expression: the action runs only when it holds (`e.key === "Escape" &&
     // setOpen(false)`, issue #236). Null means unconditional.
     ExprPtr guard{};
+    // ADR-067 item 4: `startTransition(() => setQuery(q))` lowers to the same actions plus this
+    // mark. The generated handler starts a transition under the resource's current epoch before it
+    // assigns, so `isPending` is true while the change's fetch is in flight. Off by default: an
+    // action without the mark is byte-identical to the IR before it.
+    bool transition = false;
 };
 
 } // namespace tessera::compiler::ir

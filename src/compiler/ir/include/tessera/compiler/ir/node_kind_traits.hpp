@@ -33,7 +33,7 @@ struct NodeKindTraits {
     bool has_text : 1 = false;
     // The kind may carry `item_template` (virtual collections only).
     bool has_item_template : 1 = false;
-    // The kind may carry `fallback` (ErrorBoundary only).
+    // The kind may carry `fallback` (ErrorBoundary, Suspense).
     bool has_fallback : 1 = false;
     // The kind may carry `style` (every kind except Component and Slot).
     bool has_style : 1 = true;
@@ -67,6 +67,7 @@ inline constexpr NodeKindTraits kNodeKindTraits[] = {
     {"VirtualList", false, false, false, true, false, true, false, true, false, false, false},
     {"VirtualGrid", false, false, false, true, false, true, false, true, false, false, false},
     {"ErrorBoundary", false, false, false, false, true, true, false, false, false, false, false},
+    {"Suspense", false, false, false, false, true, true, false, false, false, false, false},
     {"CustomElement", true, false, false, false, false, true, true, false, false, false, false},
     {"Component", false, true, false, false, false, false, false, false, true, false, false},
     {"Slot", false, false, false, false, false, false, true, false, false, false, false},
