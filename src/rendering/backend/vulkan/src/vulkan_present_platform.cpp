@@ -38,7 +38,12 @@
 namespace tessera::rendering::vulkan {
 namespace {
 
-#if defined(TESSERA_VULKAN_HAS_PRESENT_SURFACE)
+// Only the desktop families resolve from a session variable; Android's answer is the build target,
+// so an Android-only build would leave this helper unused (-Werror,-Wunused-function). Guard it
+// with the same macros as its callers.
+#if defined(TESSERA_VULKAN_HAS_PRESENT_SURFACE) &&                                                 \
+    (defined(VK_USE_PLATFORM_WIN32_KHR) || defined(VK_USE_PLATFORM_XLIB_KHR) ||                    \
+     defined(VK_USE_PLATFORM_WAYLAND_KHR))
 // MSVC deprecates std::getenv in favour of the bounds-checked _dupenv_s variant (C4996 is fatal
 // here), so the Windows arm reads and frees an owned copy; the answer is only "set and non-empty".
 bool session_env_set(const char* name) {
@@ -56,7 +61,7 @@ bool session_env_set(const char* name) {
     return value != nullptr && value[0] != '\0';
 #endif
 }
-#endif // TESSERA_VULKAN_HAS_PRESENT_SURFACE
+#endif
 
 } // namespace
 
@@ -84,6 +89,12 @@ PresentPlatform VulkanDevice::resolve_present_platform() const {
 #else
             return PresentPlatform::NoPlatform;
 #endif
+        case rhi::SurfacePlatform::Android:
+#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+            return PresentPlatform::Android;
+#else
+            return PresentPlatform::NoPlatform;
+#endif
         case rhi::SurfacePlatform::Auto:
         case rhi::SurfacePlatform::NoPlatform:
             return PresentPlatform::NoPlatform;
@@ -92,6 +103,12 @@ PresentPlatform VulkanDevice::resolve_present_platform() const {
     }
 
     // Auto: the session decides, in the same order the HAL picks a window backend.
+#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+    // Android has no session variable to read: the build target IS the answer, and there is exactly
+    // one window system. It is checked first because an Android process never sets DISPLAY or
+    // WAYLAND_DISPLAY, so the desktop probes below would all fail and fall through to it anyway.
+    return PresentPlatform::Android;
+#endif
 #if defined(VK_USE_PLATFORM_WAYLAND_KHR)
     if (session_env_set("WAYLAND_DISPLAY")) {
         return PresentPlatform::Wayland;
@@ -131,6 +148,10 @@ bool VulkanDevice::has_present_support() const noexcept {
         return xlib_present_supported_;
     case PresentPlatform::Wayland:
         return wayland_present_supported_;
+    case PresentPlatform::Android:
+        // No per-family probe exists: Android guarantees that a graphics-capable queue family can
+        // present to an ANativeWindow, so the answer is whatever the device reported at creation.
+        return android_present_supported_;
     case PresentPlatform::NoPlatform:
         break;
     }
@@ -142,6 +163,12 @@ void VulkanDevice::probe_present_support(std::uint32_t queue_family) {
 #if !defined(TESSERA_VULKAN_HAS_PRESENT_SURFACE)
     (void)queue_family;
 #else
+    // Android is the one family whose probe reads no queue family (see its case below), so an
+    // Android-only build would otherwise warn about an unused parameter under -Werror.
+#if defined(VK_USE_PLATFORM_ANDROID_KHR) && !defined(VK_USE_PLATFORM_WIN32_KHR) &&                 \
+    !defined(VK_USE_PLATFORM_XLIB_KHR) && !defined(VK_USE_PLATFORM_WAYLAND_KHR)
+    (void)queue_family;
+#endif
     // Only the resolved family is probed: the other compiled-in families exist for other sessions.
     switch (present_platform_) {
 #if defined(VK_USE_PLATFORM_WIN32_KHR)
@@ -191,6 +218,16 @@ void VulkanDevice::probe_present_support(std::uint32_t queue_family) {
         wl_display_disconnect(probe_display);
         return;
     }
+#endif
+#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+    case PresentPlatform::Android:
+        // VK_KHR_android_surface defines no vkGetPhysicalDeviceAndroidPresentationSupportKHR: the
+        // platform guarantees that a queue family with graphics support can present to an
+        // ANativeWindow. So the probe is the queue family itself, and the extension being enabled
+        // is the other half of the answer. `queue_family` is deliberately unread here, which is why
+        // the parameter is marked used above when this is the only compiled-in family.
+        android_present_supported_ = true;
+        return;
 #endif
     case PresentPlatform::NoPlatform:
         return;

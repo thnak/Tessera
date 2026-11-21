@@ -19,10 +19,12 @@ int main() {
     // `BlendMode::DualSource` and `Device::supports_dual_source_blend()` (issue #471); 1.6 added
     // `TextureDesc::levels` and `Device::supports_texture_mipmaps()` (issue #491); 1.7 added
     // `CommandList::bind_texture_array` and `Device::texture_array_capacity()` (issue #480);
-    // 1.8 added `Backend::Metal`, the native macOS/iOS backend (ADR-053). All are additive
-    // compatible changes.
-    if (rhi::kRhiVersionMajor != 1 || rhi::kRhiVersionMinor != 9 ||
-        rhi::kRhiVersion != ((1u << 16) | 9u)) {
+    // 1.8 added `Backend::Metal`, the native macOS/iOS backend (ADR-053); 1.9 added
+    // `Texture::write_region`/`TextureRegion` (issue #681); 1.10 added `SurfacePlatform::Android`,
+    // the `VK_KHR_android_surface` presentation family (issue #189). All are additive compatible
+    // changes.
+    if (rhi::kRhiVersionMajor != 1 || rhi::kRhiVersionMinor != 10 ||
+        rhi::kRhiVersion != ((1u << 16) | 10u)) {
         std::cerr << "unexpected RHI version constants\n";
         return 1;
     }

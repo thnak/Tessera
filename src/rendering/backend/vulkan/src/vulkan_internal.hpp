@@ -31,7 +31,7 @@
 // Presentation surfaces exist only on platforms whose WSI extension is compiled in. Everything
 // else keeps the offscreen device and reports SwapchainError::NotSupported.
 #if defined(VK_USE_PLATFORM_WIN32_KHR) || defined(VK_USE_PLATFORM_XLIB_KHR) ||                     \
-    defined(VK_USE_PLATFORM_WAYLAND_KHR)
+    defined(VK_USE_PLATFORM_WAYLAND_KHR) || defined(VK_USE_PLATFORM_ANDROID_KHR)
 #define TESSERA_VULKAN_HAS_PRESENT_SURFACE 1
 #endif
 
@@ -44,7 +44,7 @@ class VulkanDevice;
 // A build may carry both Xlib and Wayland support; only the selected family is accepted by
 // create_swapchain(), so a Wayland device never tries to build an Xlib surface from wl_surface*.
 // `NoPlatform` rather than `None` because <X11/Xlib.h> defines `None` as a macro.
-enum class PresentPlatform : std::uint8_t { NoPlatform, Win32, Xlib, Wayland };
+enum class PresentPlatform : std::uint8_t { NoPlatform, Win32, Xlib, Wayland, Android };
 
 // Validation message counter plumbing (vulkan_validation.cpp; public accessors in
 // tessera/rendering/vulkan/vulkan_validation.hpp). Only the debug callback writes it.
