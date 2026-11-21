@@ -73,7 +73,30 @@ public:
     // memoised styles, so the next `resolve` recomputes exactly that subtree (a node's computed
     // style depends only on itself and its ancestors; see `CompiledStyleSheet::subtree_local`).
     // Valid only while the scene's shape is unchanged (`built_for_structure_epoch`).
+    //
+    // Each dropped entry's layout digest is remembered first (see `restyled_layout_changed`), so a
+    // caller can ask whether the restyle moved any box without rebuilding the layout input.
     void restyle_subtree(const Node& node);
+
+    // Forgets the restyled nodes recorded so far. Call it before a restyle round, so the answer
+    // below describes that round only.
+    void clear_restyled() {
+        restyled_.clear();
+    }
+
+    // True when the restyle since `clear_restyled` changed a layout-affecting property on any node
+    // it touched, or when that cannot be proven (a node with no digest yet, or no memoised style).
+    //
+    // This is the layout-unchanged gate (issue #735, slice A). `ComputedStyle::cached_digest` is a
+    // digest of exactly the layout longhands `layout_signature` folds in, cached with the shared
+    // entries, so after the first layout pass every unchanged node answers from one load. Comparing
+    // it before and after a restyle therefore costs one resolve per *restyled* node instead of a
+    // `build_layout_input` walk plus a signature hash over the whole tree.
+    //
+    // Requires an active memo (the restyled nodes are recomputed here). A `false` answer is only
+    // sound together with the caller's own checks that the tree shape, the viewport and the
+    // safe-area insets did not move: those are layout inputs that no computed style carries.
+    [[nodiscard]] bool restyled_layout_changed(const CompiledStyleSheet& sheet);
     [[nodiscard]] std::uint64_t built_for_structure_epoch() const {
         return structure_epoch_;
     }
@@ -95,6 +118,14 @@ private:
     // Computed styles (inline declarations included) by node. Node based, so references stay valid
     // while the memo grows.
     std::unordered_map<const Node*, ComputedStyle> memo_;
+    // Nodes whose memoised style `restyle_subtree` dropped in this round, with the layout digest
+    // their style had before the drop. `restyled_layout_changed` compares each against the style
+    // the restyle produced.
+    struct RestyledEntry {
+        const Node* node = nullptr;
+        std::uint64_t digest = 0;
+    };
+    std::vector<RestyledEntry> restyled_;
     std::deque<Entry> entries_;
     std::unordered_map<const Node*, std::size_t> index_;
     std::uint64_t structure_epoch_ = 0;

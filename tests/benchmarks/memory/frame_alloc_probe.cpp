@@ -202,9 +202,11 @@ void measure(int card_count, Action action, int warmup, int frames) {
     int style_rebuilds = 0;
     int should_render = 0;
     int needs_layout = 0;
+    int layout_gate_hits = 0;
     double total_ms = 0.0;
     std::size_t painted_nodes = 0;
     std::size_t culled_nodes = 0;
+    std::size_t gate_before = host.layout_gate_hits();
     for (int frame = 0; frame < warmup + frames; ++frame) {
         apply(action, scene, frame);
         const bool measured = frame >= warmup;
@@ -229,6 +231,8 @@ void measure(int card_count, Action action, int warmup, int frames) {
             style_rebuilds += hf.style_rebuilt ? 1 : 0;
             should_render += hf.render.should_render ? 1 : 0;
             needs_layout += hf.tick.needs_layout ? 1 : 0;
+            layout_gate_hits += host.layout_gate_hits() > gate_before ? 1 : 0;
+            gate_before = host.layout_gate_hits();
             g_counting = false;
             min_allocs = std::min(min_allocs, g_allocations);
             max_allocs = std::max(max_allocs, g_allocations);
@@ -243,10 +247,10 @@ void measure(int card_count, Action action, int warmup, int frames) {
         static_cast<double>(total_allocs) / frames, max_allocs,
         static_cast<double>(total_bytes) / frames);
     std::printf("              begin_frame=%.1f paint=%.1f  style_rebuilt=%d/%d needs_layout=%d/%d "
-                "should_render=%d/%d\n",
+                "should_render=%d/%d layout_gate=%d/%d\n",
                 static_cast<double>(begin_total) / frames,
                 static_cast<double>(total_allocs - begin_total) / frames, style_rebuilds, frames,
-                needs_layout, frames, should_render, frames);
+                needs_layout, frames, should_render, frames, layout_gate_hits, frames);
     const auto& cache = host.paint_cache_stats();
     std::printf("              ms/frame=%.3f painted_nodes/frame=%.1f culled=%.1f  cache hits=%llu "
                 "misses=%llu\n",

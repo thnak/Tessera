@@ -176,24 +176,7 @@ void hash_node(const LayoutInput& input, Hasher& hasher) noexcept {
     // The layout part of the style is hashed on its own and cached with the style's shared
     // entries, so a node whose style did not change costs one load instead of a pass over ~100
     // names (issue #711).
-    std::uint64_t style_digest = input.style.cached_digest();
-    if (style_digest == 0) {
-        Hasher style_hasher;
-        for (const auto& [name, value] : input.style.properties()) {
-            const std::string_view name_view = name;
-            const std::size_t index = layout_property_index(name_view);
-            if (index == kLayoutProperties.size()) {
-                continue;
-            }
-            style_hasher.u8(kProperty);
-            style_hasher.u32(static_cast<std::uint32_t>(index));
-            style_hasher.bytes(value);
-        }
-        style_digest = style_hasher.value();
-        input.style.cache_digest(style_digest);
-        style_digest = input.style.cached_digest();
-    }
-    hasher.u64(style_digest);
+    hasher.u64(style_layout_digest(input.style));
 
     // Text drives Yoga's measure callback, so it is a layout input even when the surrounding box
     // has fixed dimensions. Including it can only cost a redundant reflow, never a wrong reuse.
@@ -213,6 +196,28 @@ void hash_node(const LayoutInput& input, Hasher& hasher) noexcept {
 }
 
 } // namespace
+
+std::uint64_t style_layout_digest(const style::ComputedStyle& style) noexcept {
+    const std::uint64_t cached = style.cached_digest();
+    if (cached != 0) {
+        return cached;
+    }
+    Hasher style_hasher;
+    for (const auto& [name, value] : style.properties()) {
+        const std::string_view name_view = name;
+        const std::size_t index = layout_property_index(name_view);
+        if (index == kLayoutProperties.size()) {
+            continue;
+        }
+        style_hasher.u8(kProperty);
+        style_hasher.u32(static_cast<std::uint32_t>(index));
+        style_hasher.bytes(value);
+    }
+    style.cache_digest(style_hasher.value());
+    // `cache_digest` maps a zero digest to one, so read it back rather than returning the raw
+    // value: the two callers must agree on the stored form.
+    return style.cached_digest();
+}
 
 std::uint64_t layout_signature(const LayoutInput& root, const LayoutViewport& viewport) noexcept {
     Hasher hasher;

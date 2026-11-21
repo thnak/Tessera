@@ -319,6 +319,16 @@ target_link_libraries(app_host_tests PRIVATE tessera_app tessera_runtime)
 
 add_test(NAME app_host COMMAND app_host_tests)
 
+# The layout-unchanged gate's acceptance (issue #735, slice A): a frame whose layout pass the gate
+# skipped must be byte-identical to a cold layout of the same inputs, over a randomized edit
+# sequence that covers every layout input source (longhands, text, shape, viewport).
+add_executable(layout_gate_tests
+    layout_gate_tests.cpp)
+
+target_link_libraries(layout_gate_tests PRIVATE tessera_app tessera_runtime)
+
+add_test(NAME layout_gate COMMAND layout_gate_tests)
+
 # The host half of issue #187's acceptance: "the host updates reducedMotion and the media queries".
 # It drives the real AppHost with a media-independent prepared sheet (ADR-048's resolve step) and
 # asserts both `reducedMotion` reaching the animation/spring runtimes and the

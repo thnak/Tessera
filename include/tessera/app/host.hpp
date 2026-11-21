@@ -331,6 +331,15 @@ public:
     // (tree shape, layout-affecting longhands, text, viewport) did not change.
     [[nodiscard]] std::size_t layout_runs() const;
     [[nodiscard]] std::size_t layout_cache_hits() const;
+    // Frames whose layout pass the layout-unchanged gate skipped entirely (issue #735, slice A):
+    // the restyle provably kept every layout input, so the previous result was reused without
+    // building a layout input or hashing the tree. A subset of `layout_cache_hits()`'s story told
+    // from the other side: those are passes that ran and hit the signature cache, these are passes
+    // that never started.
+    [[nodiscard]] std::size_t layout_gate_hits() const;
+    // Why the layout-unchanged gate declined the most recent frame, as a stable name ("None" when
+    // it accepted). Diagnostics and tests only; the frame path never reads it.
+    [[nodiscard]] const char* layout_gate_reason() const;
     [[nodiscard]] ui::animation::AnimationRuntime& animations();
     // The one full-scene paint every driver uses (the window driver and the frame capture): it
     // paints the scene through the host's style provider and sets the tick's sampled transition

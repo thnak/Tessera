@@ -34,6 +34,9 @@ bool AppHost::Impl::prepare_style_tree() {
         rebuild_style_tree();
         return false;
     }
+    // The gate's "did this restyle move a box?" answer describes one round, so the record starts
+    // empty here (issue #735, slice A).
+    tree->clear_restyled();
     if (ui::has_flag(root.subtree_dirty(), ui::Dirty::Style)) {
         restyle_dirty_subtrees(root, *tree);
     }

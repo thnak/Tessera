@@ -2,6 +2,8 @@
 
 #include "tessera/ui/style/scene_style.hpp"
 
+#include "tessera/ui/layout/layout_signature.hpp"
+
 #include <algorithm>
 #include <cctype>
 #include <string>
@@ -101,6 +103,12 @@ void SceneStyleTree::refresh(const Node& node, StyleNode* parent) {
     }
     Entry& entry = entries_[found->second];
     fill_view(entry, node, parent);
+    // Remember the layout digest this node's style had before the restyle, so the caller can ask
+    // whether the restyle moved a box (issue #735, slice A). A node with no memoised style has no
+    // "before" to compare against, so it is recorded as changed.
+    const auto memoised = memo_.find(&node);
+    restyled_.push_back(RestyledEntry{
+        &node, memoised == memo_.end() ? 0 : memoised->second.cached_digest()});
     memo_.erase(&node);
     for (const auto& child : node.children()) {
         refresh(*child, &entry.view);
@@ -239,9 +247,31 @@ const ComputedStyle& SceneStyleTree::resolve(const CompiledStyleSheet& sheet, co
     return memo_.emplace(&node, std::move(computed)).first->second;
 }
 
+bool SceneStyleTree::restyled_layout_changed(const CompiledStyleSheet& sheet) {
+    // One answer per restyle round: the record is consumed here, so a frame that declines cannot
+    // leave its entries behind for the next frame to re-detect (which would make every frame after
+    // a real layout change decline too, and the gate would never accept again).
+    std::vector<RestyledEntry> restyled;
+    restyled.swap(restyled_);
+    for (const RestyledEntry& entry : restyled) {
+        // No "before" digest: the node had no memoised style, so nothing proves the restyle kept
+        // its layout inputs. Treat it as changed rather than guess.
+        if (entry.digest == 0) {
+            return true;
+        }
+        // Resolving recomputes exactly the nodes `restyle_subtree` dropped, from their parent's
+        // memoised style, so this is the same work the layout input would have done - but only for
+        // the restyled subtree, not the whole tree.
+        const ComputedStyle& after = resolve(sheet, *entry.node);
+        if (layout::style_layout_digest(after) != entry.digest) {
+            return true;
+        }
+    }
+    return false;
+}
+
 ComputedStyle SceneStyleTree::compute(const CompiledStyleSheet& sheet, const Node& node,
-                                      ContainerSizeFn container_size, void* container_context) {
-    if (memo_active_ && container_size == nullptr) {
+                                      ContainerSizeFn container_size, void* container_context) {    if (memo_active_ && container_size == nullptr) {
         return resolve(sheet, node);
     }
     std::vector<const StyleNode*> chain;
