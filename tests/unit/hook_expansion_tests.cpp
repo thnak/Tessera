@@ -241,6 +241,33 @@ void test_a_call_site_diagnostic_has_no_related_span() {
              "7:19", "the primary span is the whole-value use");
 }
 
+// A diagnostic raised INSIDE the hook body should point at the hook and carry the call site as its
+// related span (docs/specs/custom-hooks-v1.md section 8). The expansion builds that map
+// (`Expander::related_for`, `metrics_.call_sites`) and `test_the_call_site_map_names_the_expansion`
+// pins it, but `src/compiler/rules` does not consume it yet, so a diagnostic the RULES raise inside
+// an expanded body still arrives without one. This test records the gap rather than asserting the
+// finished behaviour: it fails the day the wiring lands, which is the point.
+void test_a_hook_body_diagnostic_has_no_related_span_yet() {
+    // A cycle is detected while expanding, so it is a diagnostic raised inside the hook body.
+    const std::string source = "function useA() {\n"
+                               "  const a = useB();\n"
+                               "  return { a };\n"
+                               "}\n"
+                               "function useB() {\n"
+                               "  const b = useA();\n"
+                               "  return { b };\n"
+                               "}\n"
+                               "function A() {\n"
+                               "  const v = useA();\n"
+                               "  return <View a={v.a}/>;\n"
+                               "}\n";
+    const std::string related = related_of(source);
+    check(related == "<none>",
+          "the rules do not attach the call site yet; when they do, this test must flip to "
+          "expecting the call site on line 10 (saw `" +
+              related + "`)");
+}
+
 void test_a_hook_used_by_no_component_is_not_expanded() {
     const std::string source = "function useThing() {\n"
                                "  const [n, setN] = useState<int>(0);\n"
@@ -270,6 +297,7 @@ int main() {
     test_depth_is_limited();
     test_the_call_site_map_names_the_expansion();
     test_a_call_site_diagnostic_has_no_related_span();
+    test_a_hook_body_diagnostic_has_no_related_span_yet();
     test_a_hook_used_by_no_component_is_not_expanded();
     return finish("hook expansion tests");
 }
