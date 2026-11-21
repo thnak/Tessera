@@ -40,6 +40,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(TESSERA_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" ON)
+# Internal-padding sweep (issue #731). `-Wpadded` is not part of the default warning set because the
+# tree has 236 hits across 105 headers, and turning it on unconditionally would make every lane red.
+# It is an opt-in audit instead: configure with -DTESSERA_WARN_PADDING=ON and read the warnings, or
+# add -DTESSERA_WARNINGS_AS_ERRORS=OFF to keep them from failing the build. The types that were
+# fixed are pinned by `padding_size_tests` and the memory budget, so this flag is for finding the
+# next one, not for gating.
+option(TESSERA_WARN_PADDING "Warn on internal struct padding (-Wpadded / /w14242)" OFF)
 
 if (MSVC)
     # /utf-8: source files are UTF-8 without a BOM (test fixtures carry non-ASCII literals like
@@ -53,10 +60,17 @@ if (MSVC)
     if (TESSERA_WARNINGS_AS_ERRORS)
         add_compile_options(/WX)
     endif()
+    if (TESSERA_WARN_PADDING)
+        # C4820 is "padding added after member"; it is off by default at /W4.
+        add_compile_options(/w14242)
+    endif()
 else()
     add_compile_options(-Wall -Wextra -Wpedantic)
     if (TESSERA_WARNINGS_AS_ERRORS)
         add_compile_options(-Werror)
+    endif()
+    if (TESSERA_WARN_PADDING)
+        add_compile_options(-Wpadded)
     endif()
 endif()
 
