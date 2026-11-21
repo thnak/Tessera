@@ -1,0 +1,319 @@
+# SPDX-License-Identifier: MIT
+
+# Sanitizer lanes (issue #702, docs/specs/memory-model-v1.md section 10).
+#
+# Owner decision of 2026-11-21: nightly, not per PR. These lanes are advisory in the AGENTS.md sense
+# ("V1 platform scope and CI policy"): a red run opens or updates ONE tracking issue instead of
+# blocking a merge, because a sanitizer finding is a report to triage, not a gate on unrelated work.
+#
+# Two jobs, two build trees and two ccache keys, so the gating Linux lane (`linux.yml`, `ci` preset)
+# is untouched:
+#   asan  `asan` preset: -fsanitize=address,undefined, plus LSan at exit (ASAN_OPTIONS detect_leaks=1)
+#   tsan  `tsan` preset: -fsanitize=thread
+# ASan and TSan cannot share a process, which is why they are separate jobs and separate presets
+# (cmake/Sanitizers.cmake rejects the combination at configure time).
+#
+# The runtime options are set here, never baked into the binary, so the same build tree can be
+# re-run locally with or without leak detection (docs/guides/testing.md section 6).
+
+name: Sanitizers
+
+on:
+  # Advisory lane (AGENTS.md, V1 platform scope and CI policy): nightly and on demand, not per push.
+  schedule:
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  # The `report` job opens or updates the single tracking issue.
+  issues: write
+
+jobs:
+  asan:
+    runs-on: ubuntu-latest
+    # A sanitizer build is the same tree as `ci` with instrumentation on top, and the instrumented
+    # suites run several times slower; the gating Linux lane's 30 minutes is not a useful bound.
+    timeout-minutes: 90
+    env:
+      # detect_leaks=1 is what makes LSan run at exit for every test process, so a leak fails the
+      # lane (issue #702 item 3). abort_on_error=1 turns a report into a non-zero exit instead of a
+      # diagnostic that a test could swallow. The suppressions file is in-repo and every entry in it
+      # carries its reason; it is empty today (see tests/sanitizers/asan.supp).
+      ASAN_OPTIONS: detect_leaks=1:abort_on_error=1:suppressions=${{ github.workspace }}/tests/sanitizers/asan.supp
+      LSAN_OPTIONS: suppressions=${{ github.workspace }}/tests/sanitizers/asan.supp
+      UBSAN_OPTIONS: print_stacktrace=1
+    outputs:
+      excerpt: ${{ steps.excerpt.outputs.excerpt }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # The same dependency set as linux.yml, plus clang: the sanitizer presets pin
+      # CMAKE_CXX_COMPILER=clang++, and Ubuntu's clang package pulls the matching
+      # libclang-rt-*-dev runtime that -fsanitize needs at link time.
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            clang cmake ninja-build libvulkan-dev vulkan-tools \
+            mesa-vulkan-drivers vulkan-validationlayers \
+            glslc glslang-tools libx11-dev xvfb xauth x11-utils
+          # The sanitizer runtime is a separate package on Ubuntu and its name carries the clang
+          # major version, so it is derived rather than hard-coded. A missing package is not fatal
+          # here: the probe below is the real check, and it fails with a readable message.
+          clang_major="$(clang --version | sed -n 's/.*version \([0-9][0-9]*\).*/\1/p' | head -n1)"
+          sudo apt-get install -y "libclang-rt-${clang_major}-dev" \
+            || echo "::warning::libclang-rt-${clang_major}-dev not available; the runtime probe decides"
+          python3 -m pip install --user "clang-format==$(cat tools/format-version.txt)"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      # Fail fast and unambiguously: a clang without its sanitizer runtime fails at link time with a
+      # wall of undefined `__asan_*` symbols, which reads like a Tessera bug. This proves the
+      # runtime is installed before the 40-minute build starts.
+      - name: Verify the ASan/UBSan runtime is installed
+        run: |
+          set -euo pipefail
+          printf 'int main() { return 0; }\n' > "$RUNNER_TEMP/probe.cpp"
+          clang++ -fsanitize=address,undefined -fno-omit-frame-pointer -g \
+            "$RUNNER_TEMP/probe.cpp" -o "$RUNNER_TEMP/probe"
+          "$RUNNER_TEMP/probe"
+          echo "ok: $(clang++ --version | head -n1) links and runs -fsanitize=address,undefined"
+
+      - name: Select lavapipe ICD
+        run: |
+          icd="$(ls /usr/share/vulkan/icd.d/lvp_icd*.json | head -n1)"
+          echo "VK_DRIVER_FILES=$icd" >> "$GITHUB_ENV"
+          echo "VK_ICD_FILENAMES=$icd" >> "$GITHUB_ENV"
+
+      # A distinct cache name keeps this lane's objects out of the gating Linux lane's cache: the
+      # instrumentation changes every compile command, so sharing a key would only evict its entries.
+      - uses: ./.github/actions/ccache
+        with:
+          name: sanitizers-asan
+
+      - name: Configure (asan preset)
+        run: cmake --preset asan -DTESSERA_WARNINGS_AS_ERRORS=ON
+
+      - name: Build
+        run: cmake --build --preset asan
+
+      - name: ccache statistics
+        run: ccache --show-stats
+
+      # Unit, integration, parity, benchmark and lavapipe GPU suites: the whole ctest set, because
+      # the point of the lane is to find what the default lanes cannot see. Xvfb is what the
+      # windowed and lavapipe suites need, exactly as in linux.yml.
+      - name: Tests (unit + integration + lavapipe) under ASan+UBSan+LSan
+        id: tests
+        run: |
+          # pipefail, because the `| tee` below would otherwise report tee's exit code and a red
+          # suite would look green.
+          set -o pipefail
+          Xvfb :99 -screen 0 1280x1024x24 -ac &
+          sleep 1
+          # --output-junit gets an ABSOLUTE path: `ctest --preset` resolves a relative path against
+          # the preset's test directory.
+          junit="$PWD/build/asan/sanitizers-junit.xml"
+          DISPLAY=:99 ctest --preset asan --output-on-failure \
+            --output-junit "$junit" 2>&1 | tee "$RUNNER_TEMP/asan-tests.log"
+
+      # The tracking issue has to be useful without a click, so the failing tail travels to the
+      # `report` job as a job output. Empty when the failure happened before ctest wrote a log.
+      - name: Record failure excerpt
+        id: excerpt
+        if: failure()
+        run: |
+          {
+            echo "excerpt<<SANITIZER_EXCERPT_EOF"
+            tail -n 60 "$RUNNER_TEMP/asan-tests.log" 2>/dev/null || true
+            echo "SANITIZER_EXCERPT_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Upload ASan test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sanitizers-asan-log
+          path: |
+            ${{ runner.temp }}/asan-tests.log
+            build/asan/sanitizers-junit.xml
+          if-no-files-found: warn
+          retention-days: 14
+
+  tsan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      # halt_on_error=1 makes the first race report fail the test process instead of being printed
+      # and stepped over. The suppressions file is in-repo and every entry carries its reason; it is
+      # empty today (see tests/sanitizers/tsan.supp).
+      TSAN_OPTIONS: halt_on_error=1:suppressions=${{ github.workspace }}/tests/sanitizers/tsan.supp
+    outputs:
+      excerpt: ${{ steps.excerpt.outputs.excerpt }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            clang cmake ninja-build libvulkan-dev vulkan-tools \
+            mesa-vulkan-drivers vulkan-validationlayers \
+            glslc glslang-tools libx11-dev xvfb xauth x11-utils
+          clang_major="$(clang --version | sed -n 's/.*version \([0-9][0-9]*\).*/\1/p' | head -n1)"
+          sudo apt-get install -y "libclang-rt-${clang_major}-dev" \
+            || echo "::warning::libclang-rt-${clang_major}-dev not available; the runtime probe decides"
+          python3 -m pip install --user "clang-format==$(cat tools/format-version.txt)"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Verify the TSan runtime is installed
+        run: |
+          set -euo pipefail
+          printf 'int main() { return 0; }\n' > "$RUNNER_TEMP/probe.cpp"
+          clang++ -fsanitize=thread -fno-omit-frame-pointer -g \
+            "$RUNNER_TEMP/probe.cpp" -o "$RUNNER_TEMP/probe"
+          "$RUNNER_TEMP/probe"
+          echo "ok: $(clang++ --version | head -n1) links and runs -fsanitize=thread"
+
+      - name: Select lavapipe ICD
+        run: |
+          icd="$(ls /usr/share/vulkan/icd.d/lvp_icd*.json | head -n1)"
+          echo "VK_DRIVER_FILES=$icd" >> "$GITHUB_ENV"
+          echo "VK_ICD_FILENAMES=$icd" >> "$GITHUB_ENV"
+
+      - uses: ./.github/actions/ccache
+        with:
+          name: sanitizers-tsan
+
+      - name: Configure (tsan preset)
+        run: cmake --preset tsan -DTESSERA_WARNINGS_AS_ERRORS=ON
+
+      - name: Build
+        run: cmake --build --preset tsan
+
+      - name: ccache statistics
+        run: ccache --show-stats
+
+      - name: Tests (unit + integration + lavapipe) under TSan
+        id: tests
+        run: |
+          set -o pipefail
+          Xvfb :99 -screen 0 1280x1024x24 -ac &
+          sleep 1
+          junit="$PWD/build/tsan/sanitizers-junit.xml"
+          DISPLAY=:99 ctest --preset tsan --output-on-failure \
+            --output-junit "$junit" 2>&1 | tee "$RUNNER_TEMP/tsan-tests.log"
+
+      - name: Record failure excerpt
+        id: excerpt
+        if: failure()
+        run: |
+          {
+            echo "excerpt<<SANITIZER_EXCERPT_EOF"
+            tail -n 60 "$RUNNER_TEMP/tsan-tests.log" 2>/dev/null || true
+            echo "SANITIZER_EXCERPT_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Upload TSan test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sanitizers-tsan-log
+          path: |
+            ${{ runner.temp }}/tsan-tests.log
+            build/tsan/sanitizers-junit.xml
+          if-no-files-found: warn
+          retention-days: 14
+
+  # One tracking issue, not one per night: the owner decision says a failure "opens or updates one
+  # tracking issue instead of blocking merges". The guard against spam is the marker comment below -
+  # a nightly run that fails the same way as the last reported run posts nothing, and the issue is
+  # closed with a comment as soon as both jobs are green again.
+  report:
+    needs: [asan, tsan]
+    if: always() && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TRACKING_TITLE: Nightly sanitizers lane is failing
+      ASAN_RESULT: ${{ needs.asan.result }}
+      TSAN_RESULT: ${{ needs.tsan.result }}
+      ASAN_EXCERPT: ${{ needs.asan.outputs.excerpt }}
+      TSAN_EXCERPT: ${{ needs.tsan.outputs.excerpt }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      COMMIT_SHA: ${{ github.sha }}
+
+    steps:
+      - name: Open, update or close the tracking issue
+        run: |
+          set -uo pipefail
+
+          failed=""
+          [ "$ASAN_RESULT" = "failure" ] && failed="${failed}asan "
+          [ "$TSAN_RESULT" = "failure" ] && failed="${failed}tsan "
+          failed="${failed% }"
+          failed_csv="${failed// /,}"
+
+          # At most one issue carries this exact title; keep the first number if a duplicate exists.
+          number="$(gh issue list --state open --limit 100 --json number,title \
+            --jq ".[] | select(.title == \"$TRACKING_TITLE\") | .number" | head -n1)"
+
+          if [ -z "$failed" ]; then
+            if [ -z "$number" ]; then
+              echo "both sanitizer jobs are green and no tracking issue is open; nothing to do"
+              exit 0
+            fi
+            gh issue comment "$number" --body "Both sanitizer jobs are green again in ${RUN_URL} (commit \`${COMMIT_SHA}\`). Closing this tracking issue; it reopens on the next red nightly run."
+            gh issue close "$number" --reason completed
+            echo "closed #$number: the lane recovered"
+            exit 0
+          fi
+
+          # The body is assembled with printf, not a heredoc: a heredoc inside a YAML block scalar
+          # has to be indented, and an indented terminator is not a terminator.
+          body="$RUNNER_TEMP/sanitizers-issue.md"
+          {
+            printf 'The nightly sanitizer lane failed.\n\n'
+            printf -- '- Run: %s\n' "$RUN_URL"
+            printf -- '- Commit: `%s`\n' "$COMMIT_SHA"
+            printf -- '- Failing job(s): %s\n\n' "$failed_csv"
+            printf 'This is the single tracking issue for the `Sanitizers` workflow (issue #702,\n'
+            printf '`docs/specs/memory-model-v1.md` section 10). It is advisory: it never blocks a\n'
+            printf "merge. A sanitizer finding in Tessera's own code is a bug to fix, not something\n"
+            printf 'to suppress - only third-party libraries may be listed in `tests/sanitizers/*.supp`,\n'
+            printf 'each with its reason.\n\n'
+            if [ -n "$ASAN_EXCERPT" ]; then
+              printf '### asan (ASan+UBSan+LSan)\n\n```\n%s\n```\n\n' "$ASAN_EXCERPT"
+            fi
+            if [ -n "$TSAN_EXCERPT" ]; then
+              printf '### tsan (TSan)\n\n```\n%s\n```\n\n' "$TSAN_EXCERPT"
+            fi
+            printf 'Full logs: the `sanitizers-asan-log` / `sanitizers-tsan-log` artifacts of the\n'
+            printf 'run above.\n'
+          } > "$body"
+
+          if [ -z "$number" ]; then
+            gh issue create --title "$TRACKING_TITLE" --body-file "$body"
+            echo "opened the tracking issue"
+            exit 0
+          fi
+
+          # The spam guard: the marker names the exact failing set, so a nightly run that fails the
+          # same way as the last reported one posts nothing, while a new or changed failure does.
+          marker="<!-- sanitizers-lane:${failed_csv} -->"
+          last="$(gh issue view "$number" --json comments --jq '.comments[-1].body // ""')"
+          if printf '%s' "$last" | grep -qF "$marker"; then
+            echo "#$number already reports ${failed_csv}; not commenting again"
+            exit 0
+          fi
+          printf '\n%s\n' "$marker" >> "$body"
+          gh issue comment "$number" --body-file "$body"
+          echo "updated #$number with the ${failed_csv} failure"
