@@ -317,7 +317,7 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
             // The record carries the effective opacity its ops were folded with, so the child walk
             // composites at the same product without resolving this node's style again.
             child_scope.opacity = record->effective_opacity;
-            replay_paint_ops(record->ops, sink);
+            replay_paint_ops(record->ops, record->gradients, sink);
             const detail::ClipScope child_clip =
                 pushed_clip ? detail::pushed_clip_scope(clip_scope, clip) : clip_scope;
             for_each_by_z(node.children(), false, [&](const Node& child) {

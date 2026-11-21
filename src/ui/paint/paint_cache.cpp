@@ -75,7 +75,13 @@ std::size_t owned_string_bytes(const std::optional<PaintData>& payload) {
 }
 
 std::size_t op_bytes(const PaintOp& op) {
-    return op.text.capacity();
+    if (const auto* text = std::get_if<DrawTextOp>(&op.payload)) {
+        return text->text.capacity();
+    }
+    if (const auto* asset = std::get_if<DrawAssetOp>(&op.payload)) {
+        return asset->asset.capacity();
+    }
+    return 0;
 }
 
 } // namespace
@@ -92,81 +98,98 @@ std::uint64_t extend_paint_clip_hash(std::uint64_t seed, const RoundedClip& clip
     return seed;
 }
 
-void replay_paint_ops(const std::vector<PaintOp>& ops, PaintSink& sink) {
+void replay_paint_ops(const std::vector<PaintOp>& ops,
+                      const std::vector<GradientPayload>& gradients, PaintSink& sink) {
     for (const PaintOp& op : ops) {
         switch (op.kind) {
-        case PaintOp::Kind::FillRect:
-            sink.fill_rect(op.rect, op.color);
-            break;
-        case PaintOp::Kind::FillRoundedRect:
-            sink.fill_rounded_rect(op.rect, op.color, op.radius);
-            break;
-        case PaintOp::Kind::FillRoundedRing:
-            sink.fill_rounded_ring(op.rect, op.color, op.radius, op.ring_width);
-            break;
-        case PaintOp::Kind::FillBoxShadow: {
-            BoxShadowDraw draw;
-            draw.box = op.rect;
-            draw.carve = op.clip;
-            draw.color = op.color;
-            draw.radius = op.radius;
-            draw.sigma = op.ring_width;
-            draw.inset = op.inset;
-            sink.fill_box_shadow(draw);
+        case PaintOp::Kind::FillRect: {
+            const auto& draw = std::get<FillRectOp>(op.payload);
+            sink.fill_rect(draw.rect, draw.color);
             break;
         }
-        case PaintOp::Kind::FillLinearGradient:
-            sink.fill_linear_gradient(op.gradient);
+        case PaintOp::Kind::FillRoundedRect: {
+            const auto& draw = std::get<FillRoundedRectOp>(op.payload);
+            sink.fill_rounded_rect(draw.rect, draw.color, draw.radius);
             break;
-        case PaintOp::Kind::FillRadialGradient:
-            sink.fill_radial_gradient(op.radial_gradient);
+        }
+        case PaintOp::Kind::FillRoundedRing: {
+            const auto& draw = std::get<FillRoundedRingOp>(op.payload);
+            sink.fill_rounded_ring(draw.rect, draw.color, draw.radius, draw.width);
             break;
-        case PaintOp::Kind::FillConicGradient:
-            sink.fill_conic_gradient(op.conic_gradient);
+        }
+        case PaintOp::Kind::FillBoxShadow: {
+            const auto& draw = std::get<FillBoxShadowOp>(op.payload);
+            BoxShadowDraw shadow;
+            shadow.box = draw.box;
+            shadow.carve = draw.carve;
+            shadow.color = draw.color;
+            shadow.radius = draw.radius;
+            shadow.sigma = draw.sigma;
+            shadow.inset = draw.inset;
+            sink.fill_box_shadow(shadow);
             break;
+        }
+        case PaintOp::Kind::FillLinearGradient: {
+            const auto& ref = std::get<GradientRefOp>(op.payload);
+            sink.fill_linear_gradient(std::get<GradientDraw>(gradients[ref.index]));
+            break;
+        }
+        case PaintOp::Kind::FillRadialGradient: {
+            const auto& ref = std::get<GradientRefOp>(op.payload);
+            sink.fill_radial_gradient(std::get<RadialGradientDraw>(gradients[ref.index]));
+            break;
+        }
+        case PaintOp::Kind::FillConicGradient: {
+            const auto& ref = std::get<GradientRefOp>(op.payload);
+            sink.fill_conic_gradient(std::get<ConicGradientDraw>(gradients[ref.index]));
+            break;
+        }
         case PaintOp::Kind::PushClip:
-            sink.push_clip(op.clip);
+            sink.push_clip(std::get<PushClipOp>(op.payload).clip);
             break;
         case PaintOp::Kind::PushTransform:
-            sink.push_transform(op.transform);
+            sink.push_transform(std::get<PushTransformOp>(op.payload).transform);
             break;
         case PaintOp::Kind::DrawText: {
+            const auto& draw = std::get<DrawTextOp>(op.payload);
             TextDraw run;
-            run.rect = op.rect;
-            run.text = op.text;
-            run.font_size = op.font_size;
-            run.font_weight = op.font_weight;
-            run.color = op.color;
-            run.baseline = op.baseline;
-            run.lcd = op.lcd;
+            run.rect = draw.rect;
+            run.text = draw.text;
+            run.font_size = draw.font_size;
+            run.font_weight = draw.font_weight;
+            run.color = draw.color;
+            run.baseline = draw.baseline;
+            run.lcd = draw.lcd;
             sink.draw_text(run);
             break;
         }
         case PaintOp::Kind::DrawVector: {
-            VectorDraw draw;
-            draw.rect = op.rect;
-            draw.asset = op.text;
-            draw.raster_width = op.raster_width;
-            draw.raster_height = op.raster_height;
-            draw.scale = op.scale;
-            draw.tint = op.color;
-            sink.draw_vector(draw);
+            const auto& draw = std::get<DrawAssetOp>(op.payload);
+            VectorDraw vector;
+            vector.rect = draw.rect;
+            vector.asset = draw.asset;
+            vector.raster_width = draw.raster_width;
+            vector.raster_height = draw.raster_height;
+            vector.scale = draw.scale;
+            vector.tint = draw.tint;
+            sink.draw_vector(vector);
             break;
         }
         case PaintOp::Kind::DrawImage: {
-            ImageDraw draw;
-            draw.rect = op.rect;
-            draw.asset = op.text;
-            draw.raster_width = op.raster_width;
-            draw.raster_height = op.raster_height;
-            draw.scale = op.scale;
-            draw.tint = op.color;
-            draw.decode_original = op.decode_original;
-            sink.draw_image(draw);
+            const auto& draw = std::get<DrawAssetOp>(op.payload);
+            ImageDraw image;
+            image.rect = draw.rect;
+            image.asset = draw.asset;
+            image.raster_width = draw.raster_width;
+            image.raster_height = draw.raster_height;
+            image.scale = draw.scale;
+            image.tint = draw.tint;
+            image.decode_original = draw.decode_original;
+            sink.draw_image(image);
             break;
         }
         case PaintOp::Kind::DrawBackdrop:
-            sink.draw_backdrop(op.backdrop);
+            sink.draw_backdrop(std::get<DrawBackdropOp>(op.payload).draw);
             break;
         }
     }
@@ -180,34 +203,19 @@ void PaintCache::Recorder::record(PaintOp op) {
 }
 
 void PaintCache::Recorder::fill_rect(const rhi::Rect& rect, const rhi::Color& color) {
-    PaintOp op;
-    op.kind = PaintOp::Kind::FillRect;
-    op.rect = rect;
-    op.color = color;
-    record(std::move(op));
+    record(PaintOp{PaintOp::Kind::FillRect, FillRectOp{rect, color}});
     target_.fill_rect(rect, color);
 }
 
 void PaintCache::Recorder::fill_rounded_rect(const rhi::Rect& rect, const rhi::Color& color,
                                              float radius) {
-    PaintOp op;
-    op.kind = PaintOp::Kind::FillRoundedRect;
-    op.rect = rect;
-    op.color = color;
-    op.radius = radius;
-    record(std::move(op));
+    record(PaintOp{PaintOp::Kind::FillRoundedRect, FillRoundedRectOp{rect, color, radius}});
     target_.fill_rounded_rect(rect, color, radius);
 }
 
 void PaintCache::Recorder::fill_rounded_ring(const rhi::Rect& rect, const rhi::Color& color,
                                              float radius, float width) {
-    PaintOp op;
-    op.kind = PaintOp::Kind::FillRoundedRing;
-    op.rect = rect;
-    op.color = color;
-    op.radius = radius;
-    op.ring_width = width;
-    record(std::move(op));
+    record(PaintOp{PaintOp::Kind::FillRoundedRing, FillRoundedRingOp{rect, color, radius, width}});
     target_.fill_rounded_ring(rect, color, radius, width);
 }
 
@@ -216,49 +224,37 @@ bool PaintCache::Recorder::supports_box_shadow() const {
 }
 
 void PaintCache::Recorder::fill_box_shadow(const BoxShadowDraw& draw) {
-    PaintOp op;
-    op.kind = PaintOp::Kind::FillBoxShadow;
-    op.rect = draw.box;
-    // The carve box rides in clip, whose radii already carry the border radius, so the record
-    // needs no second rect and PaintOp keeps its size (the paint-cache byte budget).
-    op.clip = draw.carve;
-    op.color = draw.color;
-    op.radius = draw.radius;
-    op.ring_width = draw.sigma;
-    op.inset = draw.inset;
-    record(std::move(op));
+    // The carve box rides in `carve`, whose radii already carry the border radius, so the record
+    // needs no second rect.
+    record(PaintOp{
+        PaintOp::Kind::FillBoxShadow,
+        FillBoxShadowOp{draw.box, draw.carve, draw.color, draw.radius, draw.sigma, draw.inset}});
     target_.fill_box_shadow(draw);
 }
 
 void PaintCache::Recorder::fill_linear_gradient(const GradientDraw& draw) {
-    PaintOp op;
-    op.kind = PaintOp::Kind::FillLinearGradient;
-    op.gradient = draw;
-    record(std::move(op));
+    gradients_.emplace_back(draw);
+    record(PaintOp{PaintOp::Kind::FillLinearGradient,
+                   GradientRefOp{static_cast<std::uint32_t>(gradients_.size() - 1)}});
     target_.fill_linear_gradient(draw);
 }
 
 void PaintCache::Recorder::fill_conic_gradient(const ConicGradientDraw& draw) {
-    PaintOp op;
-    op.kind = PaintOp::Kind::FillConicGradient;
-    op.conic_gradient = draw;
-    record(std::move(op));
+    gradients_.emplace_back(draw);
+    record(PaintOp{PaintOp::Kind::FillConicGradient,
+                   GradientRefOp{static_cast<std::uint32_t>(gradients_.size() - 1)}});
     target_.fill_conic_gradient(draw);
 }
 
 void PaintCache::Recorder::fill_radial_gradient(const RadialGradientDraw& draw) {
-    PaintOp op;
-    op.kind = PaintOp::Kind::FillRadialGradient;
-    op.radial_gradient = draw;
-    record(std::move(op));
+    gradients_.emplace_back(draw);
+    record(PaintOp{PaintOp::Kind::FillRadialGradient,
+                   GradientRefOp{static_cast<std::uint32_t>(gradients_.size() - 1)}});
     target_.fill_radial_gradient(draw);
 }
 
 void PaintCache::Recorder::push_clip(const RoundedClip& clip) {
-    PaintOp op;
-    op.kind = PaintOp::Kind::PushClip;
-    op.clip = clip;
-    record(std::move(op));
+    record(PaintOp{PaintOp::Kind::PushClip, PushClipOp{clip}});
     clip_ = clip;
     pushed_clip_ = true;
     target_.push_clip(clip);
@@ -277,10 +273,7 @@ bool PaintCache::Recorder::supports_backdrop() const {
 }
 
 void PaintCache::Recorder::push_transform(const rhi::Mat3& transform) {
-    PaintOp op;
-    op.kind = PaintOp::Kind::PushTransform;
-    op.transform = transform;
-    record(std::move(op));
+    record(PaintOp{PaintOp::Kind::PushTransform, PushTransformOp{transform}});
     pushed_transform_ = true;
     target_.push_transform(transform);
 }
@@ -290,63 +283,58 @@ void PaintCache::Recorder::pop_transform() {
 }
 
 void PaintCache::Recorder::draw_text(const TextDraw& run) {
-    PaintOp op;
-    op.kind = PaintOp::Kind::DrawText;
-    op.rect = run.rect;
+    DrawTextOp draw;
+    draw.rect = run.rect;
     if (!run.text.empty()) {
-        op.text.assign(run.text.data(), run.text.size());
+        draw.text.assign(run.text.data(), run.text.size());
     }
-    op.font_size = run.font_size;
-    op.font_weight = run.font_weight;
-    op.color = run.color;
-    op.baseline = run.baseline;
-    op.lcd = run.lcd;
-    record(std::move(op));
+    draw.font_size = run.font_size;
+    draw.font_weight = run.font_weight;
+    draw.color = run.color;
+    draw.baseline = run.baseline;
+    draw.lcd = run.lcd;
+    record(PaintOp{PaintOp::Kind::DrawText, std::move(draw)});
     target_.draw_text(run);
 }
 
 void PaintCache::Recorder::draw_vector(const VectorDraw& draw) {
-    PaintOp op;
-    op.kind = PaintOp::Kind::DrawVector;
-    op.rect = draw.rect;
+    DrawAssetOp asset;
+    asset.rect = draw.rect;
     if (!draw.asset.empty()) {
-        op.text.assign(draw.asset.data(), draw.asset.size());
+        asset.asset.assign(draw.asset.data(), draw.asset.size());
     }
-    op.raster_width = draw.raster_width;
-    op.raster_height = draw.raster_height;
-    op.scale = draw.scale;
-    op.color = draw.tint;
-    record(std::move(op));
+    asset.raster_width = draw.raster_width;
+    asset.raster_height = draw.raster_height;
+    asset.scale = draw.scale;
+    asset.tint = draw.tint;
+    record(PaintOp{PaintOp::Kind::DrawVector, std::move(asset)});
     target_.draw_vector(draw);
 }
 
 void PaintCache::Recorder::draw_image(const ImageDraw& draw) {
-    PaintOp op;
-    op.kind = PaintOp::Kind::DrawImage;
-    op.rect = draw.rect;
+    DrawAssetOp asset;
+    asset.rect = draw.rect;
     if (!draw.asset.empty()) {
-        op.text.assign(draw.asset.data(), draw.asset.size());
+        asset.asset.assign(draw.asset.data(), draw.asset.size());
     }
-    op.raster_width = draw.raster_width;
-    op.raster_height = draw.raster_height;
-    op.scale = draw.scale;
-    op.color = draw.tint;
-    op.decode_original = draw.decode_original;
-    record(std::move(op));
+    asset.raster_width = draw.raster_width;
+    asset.raster_height = draw.raster_height;
+    asset.scale = draw.scale;
+    asset.tint = draw.tint;
+    asset.decode_original = draw.decode_original;
+    record(PaintOp{PaintOp::Kind::DrawImage, std::move(asset)});
     target_.draw_image(draw);
 }
 
 void PaintCache::Recorder::draw_backdrop(const BackdropDraw& draw) {
-    PaintOp op;
-    op.kind = PaintOp::Kind::DrawBackdrop;
-    op.backdrop = draw;
-    record(std::move(op));
+    record(PaintOp{PaintOp::Kind::DrawBackdrop, DrawBackdropOp{draw}});
     target_.draw_backdrop(draw);
 }
 
 PaintRecord PaintCache::Recorder::finish() {
     PaintRecord record;
     record.ops = std::move(ops_);
+    record.gradients = std::move(gradients_);
     record.pushed_transform = pushed_transform_;
     record.pushed_clip = pushed_clip_;
     record.clip = clip_;
@@ -470,6 +458,9 @@ std::size_t PaintCache::entry_bytes(const PaintCacheSignature& /*signature*/,
                                     const PaintRecord& record) {
     std::size_t bytes = sizeof(Entry) + sizeof(NodeId) + 2 * sizeof(void*);
     bytes += record.ops.capacity() * sizeof(PaintOp);
+    // The gradient side table (issue #731): charged at its own element size, which is what keeps
+    // the budget honest now that a gradient no longer inflates every op.
+    bytes += record.gradients.capacity() * sizeof(GradientPayload);
     bytes += owned_string_bytes(payload);
     for (const PaintOp& op : record.ops) {
         bytes += op_bytes(op);

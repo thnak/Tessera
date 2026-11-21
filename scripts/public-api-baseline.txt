@@ -2165,12 +2165,23 @@ function include/tessera/ui/paint/clipped_paint_sink.hpp tessera::ui::paint::det
 
 header include/tessera/ui/paint/paint_cache.hpp
 class include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::PaintCache
+struct include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::DrawAssetOp
+struct include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::DrawBackdropOp
+struct include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::DrawTextOp
+struct include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::FillBoxShadowOp
+struct include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::FillRectOp
+struct include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::FillRoundedRectOp
+struct include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::FillRoundedRingOp
+struct include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::GradientRefOp
 struct include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::PaintCacheConfig
 struct include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::PaintCacheSignature
 struct include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::PaintCacheStats
 struct include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::PaintCounts
 struct include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::PaintOp
 struct include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::PaintRecord
+struct include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::PushClipOp
+struct include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::PushTransformOp
+alias include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::GradientPayload
 function include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::extend_paint_clip_hash
 function include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::replay_paint_ops
 constant include/tessera/ui/paint/paint_cache.hpp tessera::ui::paint::kPaintClipHashSeed

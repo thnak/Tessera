@@ -54,6 +54,18 @@
       "unit": "bytes",
       "measures": "sizeof(ui::NodeId): the id stored in every side table (paint cache, resolved-style table, dirty list, damage rects). A wider id multiplies every one of them. Identical on both lanes"
     },
+    "sizeof_paint_op": {
+      "budget": 104,
+      "status": "enforce",
+      "unit": "bytes",
+      "measures": "sizeof(ui::paint::PaintOp): one recorded sink call in the per-node paint cache. The cache charges ops.capacity() * sizeof(PaintOp) against its 2 MiB budget, so this number decides how many nodes it can hold. Was 2376 while every payload sat inline (GradientDraw 704 + RadialGradientDraw 712 + ConicGradientDraw 712 + BackdropDraw 68); issue #731 made the payload a std::variant and moved the three gradient shapes to PaintRecord::gradients, which is what makes the common op small. Identical on both lanes"
+    },
+    "sizeof_paint_record": {
+      "budget": 184,
+      "status": "enforce",
+      "unit": "bytes",
+      "measures": "sizeof(ui::paint::PaintRecord): the replayed value of one node, held per cache entry. Grew from 160 when issue #731 added the gradient side-table vector, which is the trade that shrank PaintOp by 2272 bytes. Identical on both lanes"
+    },
     "computed_style_one_property_bytes": {
       "budget": 112,
       "status": "enforce",
