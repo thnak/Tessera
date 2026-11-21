@@ -10,6 +10,7 @@
 #include <map>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace tessera::ui::style {
@@ -102,9 +103,17 @@ public:
 
     [[nodiscard]] const std::string* find(std::string_view property) const;
     [[nodiscard]] bool contains(std::string_view property) const;
-    [[nodiscard]] const std::map<std::string, std::string>& properties() const {
+    // Property/value pairs sorted by property name (byte order), the iteration order the former
+    // `std::map` gave. A flat vector: a copy is one allocation instead of one per property, and a
+    // lookup is a binary search with no key materialised (issue #711).
+    using Entries = std::vector<std::pair<std::string, std::string>>;
+    [[nodiscard]] const Entries& properties() const {
         return properties_;
     }
+
+    // Adds every `defaults` entry whose name this style does not already hold. `defaults` must be
+    // sorted by name; one merge pass instead of a lookup and an insert per entry.
+    void merge_missing(const Entries& defaults);
 
     // The same two operations for a caller that already holds a *normalized* name (lower case, the
     // form `normalize_property` produces). The registry's own longhand names are normalized by
@@ -116,7 +125,9 @@ public:
     void set_normalized(std::string_view normalized, std::string value);
 
 private:
-    std::map<std::string, std::string> properties_;
+    [[nodiscard]] Entries::const_iterator lower_bound(std::string_view normalized) const;
+
+    Entries properties_;
 };
 
 // Computed-value time resolution of `var()` (stylesheet-v1 section 9): custom properties are

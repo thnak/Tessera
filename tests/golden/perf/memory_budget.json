@@ -55,7 +55,7 @@
       "measures": "sizeof(ui::NodeId): the id stored in every side table (paint cache, resolved-style table, dirty list, damage rects). A wider id multiplies every one of them. Identical on both lanes"
     },
     "computed_style_one_property_bytes": {
-      "budget": 96,
+      "budget": 64,
       "status": "enforce",
       "unit": "bytes",
       "measures": "bytes the first property insert into a ComputedStyle allocates: the map node plus its two strings, which is the real per-styled-node style cost. This is the portable row; sizeof(ComputedStyle) itself is not pinned because it is a std::map handle whose size the standard library decides (16 on MSVC, 48 on libstdc++) and pinning it would record a libstdc++/MSVC difference as a memory budget. 96 on both lanes"

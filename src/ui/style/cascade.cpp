@@ -269,17 +269,33 @@ std::vector<CascadeDeclaration> CascadeTable::winners() const {
 }
 
 void ComputedStyle::set(std::string property, std::string value) {
-    properties_[normalize_property(property)] = std::move(value);
+    set_normalized(normalize_property(property), std::move(value));
 }
 
 void ComputedStyle::erase(std::string_view property) {
-    properties_.erase(normalize_property(property));
+    const std::string normalized = normalize_property(property);
+    const auto found = lower_bound(normalized);
+    if (found != properties_.end() && found->first == normalized) {
+        properties_.erase(properties_.begin() + (found - properties_.cbegin()));
+    }
+}
+
+ComputedStyle::Entries::const_iterator
+ComputedStyle::lower_bound(std::string_view normalized) const {
+    return std::lower_bound(properties_.begin(), properties_.end(), normalized,
+                            [](const auto& entry, std::string_view key) {
+                                return std::string_view(entry.first) < key;
+                            });
 }
 
 const std::string* ComputedStyle::find(std::string_view property) const {
-    const std::string normalized = normalize_property(property);
-    const auto found = properties_.find(normalized);
-    return found == properties_.end() ? nullptr : &found->second;
+    // Property names are almost always already lower case; only materialise a copy when not.
+    const bool lower = std::none_of(property.begin(), property.end(),
+                                    [](unsigned char c) { return std::isupper(c) != 0; });
+    if (lower) {
+        return find_normalized(property);
+    }
+    return find_normalized(normalize_property(property));
 }
 
 bool ComputedStyle::contains(std::string_view property) const {
@@ -287,12 +303,8 @@ bool ComputedStyle::contains(std::string_view property) const {
 }
 
 const std::string* ComputedStyle::find_normalized(std::string_view normalized) const {
-    // `std::map<std::string, std::string>` has no transparent comparator, so a `string_view` key
-    // cannot be looked up without materializing a `std::string`. The saving over `find` is the
-    // lower-casing pass, not the key copy; the registry's names are short enough to stay in SSO for
-    // the common longhands, and the insert path below avoids the second copy.
-    const auto found = properties_.find(std::string(normalized));
-    return found == properties_.end() ? nullptr : &found->second;
+    const auto found = lower_bound(normalized);
+    return found != properties_.end() && found->first == normalized ? &found->second : nullptr;
 }
 
 bool ComputedStyle::contains_normalized(std::string_view normalized) const {
@@ -300,12 +312,39 @@ bool ComputedStyle::contains_normalized(std::string_view normalized) const {
 }
 
 void ComputedStyle::set_normalized(std::string_view normalized, std::string value) {
-    const auto found = properties_.find(std::string(normalized));
-    if (found != properties_.end()) {
-        found->second = std::move(value);
+    // Computed styles are mostly built in name order (inherited properties, then the initial
+    // values), so appending is the common case.
+    if (properties_.empty() || std::string_view(properties_.back().first) < normalized) {
+        properties_.emplace_back(std::string(normalized), std::move(value));
         return;
     }
-    properties_.emplace(std::string(normalized), std::move(value));
+    const auto found = lower_bound(normalized);
+    const auto index = found - properties_.cbegin();
+    if (found != properties_.end() && found->first == normalized) {
+        properties_[static_cast<std::size_t>(index)].second = std::move(value);
+        return;
+    }
+    properties_.emplace(properties_.begin() + index, std::string(normalized), std::move(value));
+}
+
+void ComputedStyle::merge_missing(const Entries& defaults) {
+    Entries merged;
+    merged.reserve(properties_.size() + defaults.size());
+    auto mine = properties_.begin();
+    for (const auto& entry : defaults) {
+        while (mine != properties_.end() && mine->first < entry.first) {
+            merged.push_back(std::move(*mine++));
+        }
+        if (mine != properties_.end() && mine->first == entry.first) {
+            merged.push_back(std::move(*mine++));
+        } else {
+            merged.push_back(entry);
+        }
+    }
+    for (; mine != properties_.end(); ++mine) {
+        merged.push_back(std::move(*mine));
+    }
+    properties_ = std::move(merged);
 }
 
 ComputedStyle compute_style(const ComputedStyle* parent, const CascadeTable& cascade,
@@ -314,7 +353,7 @@ ComputedStyle compute_style(const ComputedStyle* parent, const CascadeTable& cas
     if (parent != nullptr) {
         for (const auto& [property, value] : parent->properties()) {
             if (is_inherited_property(property)) {
-                style.set(property, value);
+                style.set_normalized(property, value);
             }
         }
     }

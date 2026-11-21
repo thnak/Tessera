@@ -250,6 +250,11 @@ PropertyRegistry::PropertyRegistry() {
         ShorthandInfo{{"flex-grow", "flex-shrink", "flex-basis"}, ShorthandKind::Flex};
     register_logical_properties();
     register_extension_properties();
+    for (const auto& [name, info] : properties_) {
+        if (!info.initial.empty()) {
+            initial_entries_.emplace_back(name, info.initial);
+        }
+    }
 }
 
 const PropertyInfo* PropertyRegistry::find(std::string_view property) const {
@@ -392,12 +397,7 @@ ComputedStyle PropertyRegistry::initial_style() const {
 }
 
 void PropertyRegistry::apply_initial_values(ComputedStyle& style) const {
-    // Normalized accessors skip the per-lookup `std::string` (security review finding P1).
-    for (const auto& [name, info] : properties_) {
-        if (!info.initial.empty() && !style.contains_normalized(name)) {
-            style.set_normalized(name, info.initial);
-        }
-    }
+    style.merge_missing(initial_entries_);
 }
 
 ComputedStyle PropertyRegistry::compute_with_initial(const ComputedStyle* parent,
