@@ -77,6 +77,7 @@ DETERMINISTIC_ROWS = (
     "sizeof_node_id",
     "sizeof_paint_op",
     "sizeof_paint_record",
+    "sizeof_background_layer_list",
     "computed_style_one_property_bytes",
     "computed_style_one_property_allocations",
     "plain_node_allocations",

@@ -66,6 +66,12 @@
       "unit": "bytes",
       "measures": "sizeof(ui::paint::PaintRecord): the replayed value of one node, held per cache entry. Grew from 160 when issue #731 added the gradient side-table vector, which is the trade that shrank PaintOp by 2272 bytes. Identical on both lanes"
     },
+    "sizeof_background_layer_list": {
+      "budget": 1672,
+      "status": "enforce",
+      "unit": "bytes",
+      "measures": "sizeof(ui::style::BackgroundLayerList): the resolved `background-image` value, returned by value from resolve_layers once per painted node. Was 4552 because GradientValue carried all three shapes side by side (24 stops where a gradient can use 8); issue #731 made the three shapes a union, so GradientValue is 200 and the list 1672. Identical on both lanes"
+    },
     "computed_style_one_property_bytes": {
       "budget": 112,
       "status": "enforce",

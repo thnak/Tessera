@@ -31,6 +31,7 @@
 #include "tessera/ui/paint/paint_cache.hpp"
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/scene/paint_data.hpp"
+#include "tessera/ui/style/background_layers.hpp"
 #include "tessera/ui/style/cascade.hpp"
 
 #include <cstddef>
@@ -138,6 +139,9 @@ void sizes() {
     // decides how many nodes the cache can hold.
     row("sizeof_paint_op", sizeof(paint::PaintOp));
     row("sizeof_paint_record", sizeof(paint::PaintRecord));
+    // The resolved `background-image` value (issue #731). `resolve_layers` returns one by value per
+    // painted node, so this number multiplies by the node count on a gradient-heavy screen.
+    row("sizeof_background_layer_list", sizeof(style::BackgroundLayerList));
 
     // `ComputedStyle` is a `std::map` handle, so its sizeof is the handle and not the per-node
     // style cost: the cost is the first insert's map node plus its two strings. Both are

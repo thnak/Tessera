@@ -103,15 +103,21 @@ std::optional<GradientValue> parse_gradient(std::string_view text) {
         GradientValue gradient;
         gradient.kind = name.kind;
         gradient.repeating = name.repeating;
+        // The three shapes share one union slot (issue #731), so the active member must be
+        // constructed before the body parser writes into it: a union member's default member
+        // initializers do not run when it is not the one the constructor activated.
         if (name.kind == GradientValue::Kind::Linear) {
+            gradient.linear = LinearGradientValue{};
             if (!detail::parse_linear_body(*body, gradient.linear)) {
                 return std::nullopt;
             }
         } else if (name.kind == GradientValue::Kind::Radial) {
+            gradient.radial = RadialGradientValue{};
             if (!detail::parse_radial_body(*body, gradient.radial)) {
                 return std::nullopt;
             }
         } else {
+            gradient.conic = ConicGradientValue{};
             if (!detail::parse_conic_body(*body, gradient.conic)) {
                 return std::nullopt;
             }
