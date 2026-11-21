@@ -1,40 +1,38 @@
-hook: useAnnounce, a bounded de-duplicating live-region queue (#629)
+hook: useMergedRefs, one ref attribute that fills every owner (#630)
 
-`useAnnounce({ message, channel })` announces a message to assistive
-technology. The engine had no live-region support at all — no `aria-live`
-on `Node`, no channel in the accessibility tree — so this lands the
-mechanism as well as the hook.
+`useMergedRefs(inner, forwarded)` produces a ref whose assignment also
+fills the refs it names. It is not a behavior hook: it is a compiler-level
+ref-combining feature with no engine behavior, no runtime state and no
+outputs, because the thing it produces is an assignment the generated base
+already writes.
 
-The mechanism is `accessibility::AnnouncementQueue`: a bounded,
-de-duplicating list the accessibility bridge drains. It is its own
-structure rather than a node because an announcement has no box, is never
-painted, and must survive the component that produced it: a toast that
-announces "Saved" and then unmounts still has to be announced. Putting it
-on a node would tie the read to whether the node was still attached.
+The problem it solves is structural: a component that both forwards a ref
+to its parent and keeps an internal one has two owners for one node, and a
+node has one `ref` attribute. Without this hook the component must either
+drop one owner or write an effect that copies the pointer after the fact,
+which runs a frame late and misses the first layout.
 
-Three rules make it safe to call from a render:
+The merged ref IS the primary ref, so the lowering records aliases on it
+rather than creating a second entry. A second entry would give the node two
+`ref` attributes and the second assignment would overwrite the first. The
+generated base then writes `this-><primary> = node;` followed by
+`this-><alias> = node;` for each alias, from the same pointer, during the
+build walk.
 
-- **De-duplication.** The same text on the same channel as the last
-  announcement is suppressed, both by the behavior and by the queue. A
-  form that re-renders on every keystroke would otherwise announce the same
-  validation message dozens of times.
-- **Assertive interrupts.** An assertive announcement is delivered before
-  any queued polite one, and is never dropped when the queue is full; the
-  oldest polite one is dropped instead.
-- **Bounded text and bounded queue.** 512 bytes and 16 entries, so a
-  runaway component cannot grow memory without limit.
+Every operand must be a `useRef` binding. A forwarded ref that never fills
+is a bug the developer cannot see, so the analyzer reports it at the call
+site rather than letting the lowering silently skip it.
 
-`Services` gains the queue, which is the third service a behavior has
-needed beyond the router. The behavior writes into the window's queue
-rather than owning one, which is what lets an announcement outlive its
-component.
+Two things this cost, both worth recording:
 
-The hook does not deliver to the platform: the accessibility bridge maps a
-queued announcement to UIA's `RaiseAutomationEvent`, AT-SPI's
-`Announcement` and NSAccessibility's `announcementRequested`. That mapping
-is the bridge's contract, and it is the next slice.
+- The analyzer's operand count for a call is `callee + arguments`, so a
+  two-argument call has three operands. My first version checked `== 2` and
+  rejected every valid call.
+- The reject test used the `parse` helper, which asserts a clean analysis.
+  A test that expects the analysis to fail must use `parse_raw`, or the
+  helper's own assertion is what fails.
 
-Evidence: `announcement_queue` (10 rules: ordering, de-duplication, the
-caps, scoping) and `announce` (7 rules: the channel, the repeat guard, the
-no-queue path, and that a queued message survives a detach). Spec:
-`docs/specs/use-announce-v1.md`.
+Evidence: `lowering_hooks` (the alias is recorded on the primary ref, and a
+non-ref operand is refused) and `codegen_behaviors` (the generated base
+assigns both owners from one node). Spec:
+`docs/specs/use-merged-refs-v1.md`.

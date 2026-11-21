@@ -84,8 +84,14 @@ void emit_controlled_input_wiring(NodeEmitContext& context) {
 
 void emit_ref_assignments(NodeEmitContext& context) {
     for (const ir::Ref& ref : context.state.component.refs) {
-        if (ref.target == context.node.id) {
-            context.writer.line("this->" + member_name(ref.id) + " = " + context.variable +
+        if (ref.target != context.node.id) {
+            continue;
+        }
+        context.writer.line("this->" + member_name(ref.id) + " = " + context.variable + ".get();");
+        // `useMergedRefs` (issue #630): one assignment fills every owner the merged ref names, so a
+        // component that both forwards a ref and keeps an internal one needs one `ref` attribute.
+        for (const std::string& alias : ref.aliases) {
+            context.writer.line("this->" + member_name(alias) + " = " + context.variable +
                                 ".get();");
         }
     }

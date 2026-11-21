@@ -81,6 +81,35 @@ void check_ref(Context& ctx, std::size_t index, const Statement& statement, cons
     }
 }
 
+// `useMergedRefs` (ADR-064 item 7, issue #630): one ref that fills several owners. The binding is a
+// ref, so it is declared as one; the operands must all be refs, which is checked here rather than
+// in the lowering so the developer sees the error at the call site.
+void check_merged_refs(Context& ctx, std::size_t index, const Statement& statement,
+                       const Expr& call) {
+    if (!statement.names.empty()) {
+        add_symbol(ctx, statement.names[0], SymbolKind::Ref, statement.span, index);
+    }
+    const bool ok = statement.kind == StatementKind::Const && !statement.array_pattern &&
+                    statement.names.size() == 1 && call.operands.size() >= 3;
+    if (!ok) {
+        form_error(ctx, "useMergedRefs", statement, "const r = useMergedRefs(a, b);");
+        return;
+    }
+    for (std::size_t operand = 1; operand < call.operands.size(); ++operand) {
+        const Expr* ref = call.operands[operand].get();
+        if (ref == nullptr || ref->kind != ExprKind::Identifier) {
+            form_error(ctx, "useMergedRefs", statement, "const r = useMergedRefs(a, b);");
+            return;
+        }
+        const Symbol* symbol = ctx.out.find(ref->text);
+        if (symbol == nullptr || symbol->kind != SymbolKind::Ref) {
+            form_error(ctx, "useMergedRefs", statement,
+                       "`useMergedRefs` takes refs declared by `useRef`");
+            return;
+        }
+    }
+}
+
 void check_animated(Context& ctx, std::size_t index, const Statement& statement, const Expr& call) {
     if (!statement.names.empty()) {
         add_symbol(ctx, statement.names[0], SymbolKind::AnimatedValue, statement.span, index);
@@ -277,6 +306,8 @@ void check_hook_statement(Context& ctx, std::size_t index, const Statement& stat
         check_state(ctx, index, statement, call);
     } else if (name == "useRef") {
         check_ref(ctx, index, statement, call);
+    } else if (name == "useMergedRefs") {
+        check_merged_refs(ctx, index, statement, call);
     } else if (name == "useAnimatedValue") {
         check_animated(ctx, index, statement, call);
     } else if (name == "useEffect") {

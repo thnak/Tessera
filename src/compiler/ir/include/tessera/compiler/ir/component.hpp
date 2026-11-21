@@ -41,6 +41,11 @@ struct Ref {
     std::string id;
     std::string name;
     std::string target; // node id
+    // `useMergedRefs` (ADR-064 item 7, issue #630): the `ref::` ids this ref also assigns when its
+    // target resolves. A merged ref is one assignment that fills several owners, so a component
+    // that both forwards a ref and keeps an internal one does not need two `ref` attributes on one
+    // node. Empty for an ordinary `useRef`.
+    std::vector<std::string> aliases;
 };
 
 struct AnimatedValue {

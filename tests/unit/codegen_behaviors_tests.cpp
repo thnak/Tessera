@@ -178,6 +178,25 @@ void test_generated_surface() {
           "the base includes the router it attaches through");
 }
 
+// `useMergedRefs` (ADR-064 item 7, issue #630): one `ref` attribute fills every owner the merged
+// ref names, so the generated base writes the pointer into each of them.
+void test_merged_ref_assignment() {
+    ir::IrModule module = make_module();
+    ir::Ref merged{"ref::target", "target", "node::1"};
+    merged.aliases.push_back("ref::forwarded");
+    module.components[0].refs.clear();
+    module.components[0].refs.push_back(std::move(merged));
+    const auto result = codegen::generate(module);
+    check(result.has_value(), "the merged-ref fixture generates: " + first_error(result));
+    if (!result) {
+        return;
+    }
+    const std::string header = file_text(*result, "Pressable.g.hpp");
+    check(contains(header, "this->ref_target_ = "), "the primary ref is assigned");
+    check(contains(header, "this->ref_forwarded_ = "),
+          "the alias is assigned from the same node, so one ref attribute fills both owners");
+}
+
 void test_no_surface_without_a_hook() {
     const auto result = codegen::generate(make_plain_module());
     check(result.has_value(), "the plain fixture generates: " + first_error(result));
@@ -253,6 +272,7 @@ int main(int argc, char** argv) {
     const bool update = argc > 1 && std::string_view(argv[1]) == "--write";
     test_fixture_is_valid();
     test_generated_surface();
+    test_merged_ref_assignment();
     test_no_surface_without_a_hook();
     test_golden(update);
     test_determinism();
