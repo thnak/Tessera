@@ -67,6 +67,8 @@ add_library(tessera_style STATIC
     theme_generate_json.cpp
     theme_generate_tokens.cpp
     theme_solve.cpp
+    theme_source_build.cpp
+    theme_source_parse.cpp
     theme_stylesheet.cpp
     transform.cpp
     ua_stylesheet.cpp
@@ -188,6 +190,16 @@ if (TESSERA_BUILD_TESTS)
     target_compile_definitions(theme_golden_tests PRIVATE
         TESSERA_THEME_GOLDEN_DIR="${PROJECT_SOURCE_DIR}/tests/golden/theme")
     add_test(NAME theme_golden COMMAND theme_golden_tests)
+
+    # The theme source build (spike #662, ADR-064 item 6): a role-token source compiles to plain
+    # CSS custom properties inside `@layer`, and the engine's own cascade resolves the result in
+    # both schemes. Registered here for the same reason as the lanes above.
+    add_executable(theme_source_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/theme_source_tests.cpp)
+    target_link_libraries(theme_source_tests PRIVATE tessera_style)
+    target_compile_definitions(theme_source_tests PRIVATE
+        TESSERA_THEME_SOURCE_FIXTURE="${PROJECT_SOURCE_DIR}/tests/fixtures/themes/spike-instrument.theme.json")
+    add_test(NAME theme_source COMMAND theme_source_tests)
 
     # CLI contract: --seed writes the asset and is byte-deterministic, --check accepts it and
     # rejects a doctored copy, an invalid seed and an invalid id prefix exit non-zero, and the

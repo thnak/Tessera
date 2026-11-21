@@ -600,7 +600,10 @@ Acceptance: a `useState`/`useEffect`/`useRef` screen regenerates without losing 
       resource. #658 in progress: the engine seam, the registry, `press_feedback` and the built-in
       hook manifest reader have landed (PR #678); the analyzer, IR `behaviors` and the generated
       base's behavior surface have landed (PR #679). The preview session and the ADR evidence report
-      are the remaining stages.
+      are the remaining stages. #662 done: a role-token theme source builds to plain CSS custom
+      properties in `@layer` and the engine's own cascade resolves it in light, dark and high
+      contrast (`theme_source`, `docs/specs/theme-source-v1.md`); the evidence and the three engine
+      gaps are recorded in ADR-064 item 6.
 - [ ] Behavior hooks in the front end (ADR-064, waits for Acceptance): spec #638, analyzer and lowering
       #639, code generation #641.
 - [ ] Custom hooks by inlining (ADR-065, waits for Acceptance): #645 expansion pass, #646
