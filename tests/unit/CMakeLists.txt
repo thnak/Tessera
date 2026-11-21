@@ -2504,6 +2504,15 @@ target_link_libraries(ir_eval_tests PRIVATE tessera_ir_eval)
 
 add_test(NAME ir_eval COMMAND ir_eval_tests)
 
+# ADR-051 slice 5: record values in the evaluator. Split out of ir_eval_tests.cpp when that file
+# crossed the 500-line hard limit.
+add_executable(ir_eval_record_tests
+    ir_eval_record_tests.cpp)
+
+target_link_libraries(ir_eval_record_tests PRIVATE tessera_ir_eval)
+
+add_test(NAME ir_eval_record COMMAND ir_eval_record_tests)
+
 # ADR-067 spike #661: the pending-UI model on its own (Suspense fallback/restore/keep-on-refresh,
 # the transition mark's isPending, the stale-epoch drop). Header-only, so it links nothing.
 add_executable(pending_model_tests

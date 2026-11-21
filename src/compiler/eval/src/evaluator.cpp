@@ -77,10 +77,29 @@ std::expected<Value, EvalError> Evaluator::eval(const ir::Expr& expr, const Scop
         return literal_value(expr.literal);
     case ir::ExprKind::Ref: {
         const auto found = scope.find(expr.id);
-        if (found == scope.end()) {
-            return fail("TESSERA_IR_EVAL_UNKNOWN_REF", "`" + expr.id + "` is not in scope");
+        if (found != scope.end()) {
+            return found->second;
         }
-        return found->second;
+        // A dotted read into a record (ADR-051 slice 5): `state.count` is one ref id, so the
+        // longest scope prefix that names a record wins and the rest is a member path. Without
+        // this a record would be unusable -- the IR has no separate member-access expression, so
+        // the dot is part of the id (ir-v1-expr.md section 4.3, "dotted members").
+        const std::size_t dot = expr.id.rfind('.');
+        if (dot != std::string::npos) {
+            const auto base = scope.find(expr.id.substr(0, dot));
+            if (base != scope.end()) {
+                if (const Record* record = base->second.as_record()) {
+                    const std::string_view path = std::string_view(expr.id).substr(dot + 1);
+                    if (const Value* member = record->find(path)) {
+                        return *member;
+                    }
+                    return fail("TESSERA_IR_EVAL_UNKNOWN_REF", "`" + expr.id +
+                                                                   "` names no member of record `" +
+                                                                   record->type + "`");
+                }
+            }
+        }
+        return fail("TESSERA_IR_EVAL_UNKNOWN_REF", "`" + expr.id + "` is not in scope");
     }
     case ir::ExprKind::Binary:
         return eval_binary(expr, scope, depth);
@@ -129,12 +148,27 @@ std::expected<Value, EvalError> Evaluator::eval(const ir::Expr& expr, const Scop
         }
         return Value::of_list(std::move(items));
     }
-    case ir::ExprKind::Record:
-        // ADR-051 slice 5 is evaluator parity: the value model here has no record, so a record
-        // value is rejected loudly until that slice lands. The validator is what accepts one in the
-        // IR.
-        return fail("TESSERA_IR_EVAL_UNSUPPORTED",
-                    "a record value is not evaluated yet (ADR-051 slice 5)");
+    case ir::ExprKind::Record: {
+        // ADR-051 slice 5: a record value evaluates to a `Record` whose fields are in the IR's
+        // member order. The evaluator has no type table, so it does not re-check the field set --
+        // the IR validator already did that against `types` (ir-v1-expr.md section 4.3) -- and it
+        // keeps the declared type name so a dotted read and a diagnostic can both name it.
+        Record record;
+        record.type = expr.type;
+        record.fields.reserve(expr.fields.size());
+        for (const ir::RecordField& field : expr.fields) {
+            if (!field.value) {
+                return malformed("record `" + expr.type + "` field `" + field.name +
+                                 "` has no value");
+            }
+            auto value = eval(*field.value, scope, depth + 1);
+            if (!value) {
+                return value;
+            }
+            record.fields.push_back(RecordField{field.name, std::move(*value)});
+        }
+        return Value::of_record(std::move(record));
+    }
     }
     return malformed("unknown expression kind");
 }
