@@ -23,8 +23,10 @@ layout(location = 7) flat in uint v_texture_index;
 layout(set = 0, binding = 1) uniform texture2D u_texture;
 layout(set = 0, binding = 2) uniform sampler u_sampler;
 #define TESSERA_SAMPLE(uv) texture(sampler2D(u_texture, u_sampler), (uv))
-#define TESSERA_TEXTURE_SIZE textureSize(u_texture, 0)
-#define TESSERA_FETCH(p) texelFetch(u_texture, (p), 0)
+// Integer reads go through a combined sampler too: `textureSize`/`texelFetch` on the bare texture
+// would need GL_EXT_samplerless_texture_functions.
+#define TESSERA_TEXTURE_SIZE textureSize(sampler2D(u_texture, u_sampler), 0)
+#define TESSERA_FETCH(p) texelFetch(sampler2D(u_texture, u_sampler), (p), 0)
 #elif defined(TESSERA_TEXTURE_ARRAY)
 // The index is per-vertex data, so the array access is non-uniform and needs the extension.
 #extension GL_EXT_nonuniform_qualifier : require
