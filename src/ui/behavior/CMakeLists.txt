@@ -1,14 +1,22 @@
 # SPDX-License-Identifier: MIT
 
 add_library(tessera_behavior STATIC
+    announce.cpp
+    clipboard_copy.cpp
+    focus_trap.cpp
+    hotkeys.cpp
     instance.cpp
+    interactive_role.cpp
+    overflow.cpp
     press_feedback.cpp
-    registry.cpp)
+    registry.cpp
+    roving_focus.cpp
+    scroll_lock.cpp)
 
 target_include_directories(tessera_behavior PUBLIC
     ${PROJECT_SOURCE_DIR}/include)
 
-target_link_libraries(tessera_behavior PUBLIC tessera_scene)
+target_link_libraries(tessera_behavior PUBLIC tessera_scene tessera_layout tessera_accessibility)
 
 target_compile_features(tessera_behavior PUBLIC cxx_std_23)
 
@@ -26,6 +34,46 @@ if (TESSERA_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/unit/press_feedback_tests.cpp)
     target_link_libraries(press_feedback_tests PRIVATE tessera_behavior)
     add_test(NAME press_feedback COMMAND press_feedback_tests)
+
+    add_executable(focus_trap_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/focus_trap_tests.cpp)
+    target_link_libraries(focus_trap_tests PRIVATE tessera_behavior)
+    add_test(NAME focus_trap COMMAND focus_trap_tests)
+
+    add_executable(roving_focus_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/roving_focus_tests.cpp)
+    target_link_libraries(roving_focus_tests PRIVATE tessera_behavior)
+    add_test(NAME roving_focus COMMAND roving_focus_tests)
+
+    add_executable(scroll_lock_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/scroll_lock_tests.cpp)
+    target_link_libraries(scroll_lock_tests PRIVATE tessera_behavior)
+    add_test(NAME scroll_lock COMMAND scroll_lock_tests)
+
+    add_executable(hotkeys_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/hotkeys_tests.cpp)
+    target_link_libraries(hotkeys_tests PRIVATE tessera_behavior)
+    add_test(NAME hotkeys COMMAND hotkeys_tests)
+
+    add_executable(clipboard_copy_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/clipboard_copy_tests.cpp)
+    target_link_libraries(clipboard_copy_tests PRIVATE tessera_behavior tessera_hal_clipboard)
+    add_test(NAME clipboard_copy COMMAND clipboard_copy_tests)
+
+    add_executable(overflow_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/overflow_tests.cpp)
+    target_link_libraries(overflow_tests PRIVATE tessera_behavior tessera_layout)
+    add_test(NAME overflow COMMAND overflow_tests)
+
+    add_executable(interactive_role_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/interactive_role_tests.cpp)
+    target_link_libraries(interactive_role_tests PRIVATE tessera_behavior)
+    add_test(NAME interactive_role COMMAND interactive_role_tests)
+
+    add_executable(announce_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/announce_tests.cpp)
+    target_link_libraries(announce_tests PRIVATE tessera_behavior tessera_accessibility)
+    add_test(NAME announce COMMAND announce_tests)
 
     add_executable(behavior_allocation_tests
         ${PROJECT_SOURCE_DIR}/tests/unit/behavior_allocation_tests.cpp)

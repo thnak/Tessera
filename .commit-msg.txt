@@ -1,0 +1,38 @@
+hook: useMergedRefs, one ref attribute that fills every owner (#630)
+
+`useMergedRefs(inner, forwarded)` produces a ref whose assignment also
+fills the refs it names. It is not a behavior hook: it is a compiler-level
+ref-combining feature with no engine behavior, no runtime state and no
+outputs, because the thing it produces is an assignment the generated base
+already writes.
+
+The problem it solves is structural: a component that both forwards a ref
+to its parent and keeps an internal one has two owners for one node, and a
+node has one `ref` attribute. Without this hook the component must either
+drop one owner or write an effect that copies the pointer after the fact,
+which runs a frame late and misses the first layout.
+
+The merged ref IS the primary ref, so the lowering records aliases on it
+rather than creating a second entry. A second entry would give the node two
+`ref` attributes and the second assignment would overwrite the first. The
+generated base then writes `this-><primary> = node;` followed by
+`this-><alias> = node;` for each alias, from the same pointer, during the
+build walk.
+
+Every operand must be a `useRef` binding. A forwarded ref that never fills
+is a bug the developer cannot see, so the analyzer reports it at the call
+site rather than letting the lowering silently skip it.
+
+Two things this cost, both worth recording:
+
+- The analyzer's operand count for a call is `callee + arguments`, so a
+  two-argument call has three operands. My first version checked `== 2` and
+  rejected every valid call.
+- The reject test used the `parse` helper, which asserts a clean analysis.
+  A test that expects the analysis to fail must use `parse_raw`, or the
+  helper's own assertion is what fails.
+
+Evidence: `lowering_hooks` (the alias is recorded on the primary ref, and a
+non-ref operand is refused) and `codegen_behaviors` (the generated base
+assigns both owners from one node). Spec:
+`docs/specs/use-merged-refs-v1.md`.

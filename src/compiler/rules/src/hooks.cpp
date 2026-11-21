@@ -19,6 +19,27 @@ void add_symbol(Context& ctx, std::string name, SymbolKind kind, jsx::Span span,
     ctx.out.symbols.push_back({std::move(name), kind, span, statement});
 }
 
+// The `options` parameter of a behavior hook, or nullptr when the hook takes none. The manifest is
+// the authority on the option list, so the analyzer asks it rather than keeping a second copy.
+const jsx::HookParam* find_options_param(const jsx::HookEntry& hook) {
+    for (const jsx::HookParam& param : hook.params) {
+        if (param.kind == "options") {
+            return &param;
+        }
+    }
+    return nullptr;
+}
+
+// One declared option field by name, or nullptr when the manifest does not declare it.
+const jsx::HookParam* find_option_field(const jsx::HookParam& options, std::string_view name) {
+    for (const jsx::HookParam& field : options.fields) {
+        if (field.name == name) {
+            return &field;
+        }
+    }
+    return nullptr;
+}
+
 void register_props(Context& ctx) {
     const jsx::ModuleItem& item = ctx.item;
     if (item.has_props && !item.props_destructured && !item.props_name.empty()) {
@@ -57,6 +78,35 @@ void check_ref(Context& ctx, std::size_t index, const Statement& statement, cons
                     call.operands[1]->kind == ExprKind::Null;
     if (!ok) {
         form_error(ctx, "useRef", statement, "const r = useRef<Element>(null);");
+    }
+}
+
+// `useMergedRefs` (ADR-064 item 7, issue #630): one ref that fills several owners. The binding is a
+// ref, so it is declared as one; the operands must all be refs, which is checked here rather than
+// in the lowering so the developer sees the error at the call site.
+void check_merged_refs(Context& ctx, std::size_t index, const Statement& statement,
+                       const Expr& call) {
+    if (!statement.names.empty()) {
+        add_symbol(ctx, statement.names[0], SymbolKind::Ref, statement.span, index);
+    }
+    const bool ok = statement.kind == StatementKind::Const && !statement.array_pattern &&
+                    statement.names.size() == 1 && call.operands.size() >= 3;
+    if (!ok) {
+        form_error(ctx, "useMergedRefs", statement, "const r = useMergedRefs(a, b);");
+        return;
+    }
+    for (std::size_t operand = 1; operand < call.operands.size(); ++operand) {
+        const Expr* ref = call.operands[operand].get();
+        if (ref == nullptr || ref->kind != ExprKind::Identifier) {
+            form_error(ctx, "useMergedRefs", statement, "const r = useMergedRefs(a, b);");
+            return;
+        }
+        const Symbol* symbol = ctx.out.find(ref->text);
+        if (symbol == nullptr || symbol->kind != SymbolKind::Ref) {
+            form_error(ctx, "useMergedRefs", statement,
+                       "`useMergedRefs` takes refs declared by `useRef`");
+            return;
+        }
     }
 }
 
@@ -147,8 +197,39 @@ void check_behavior(Context& ctx, std::size_t index, const Statement& statement,
         form_error(ctx, hook.name, statement, "the call takes a target and one options object");
         return;
     }
+    // Every written option must be one the manifest declares, and every option the manifest
+    // declares without a default must be written. An unknown key is a typo the user would otherwise
+    // never see: the behavior would silently read its default.
+    if (const jsx::HookParam* options_param = find_options_param(hook); options_param != nullptr) {
+        if (info.options != nullptr) {
+            for (const jsx::ObjectProperty& property : info.options->properties) {
+                if (find_option_field(*options_param, property.key) == nullptr) {
+                    form_error(ctx, hook.name, statement,
+                               "`" + property.key + "` is not an option of " + hook.name);
+                    return;
+                }
+            }
+        }
+        for (const jsx::HookParam& field : options_param->fields) {
+            if (!field.default_text.empty()) {
+                continue;
+            }
+            bool written = false;
+            if (info.options != nullptr) {
+                for (const jsx::ObjectProperty& property : info.options->properties) {
+                    written = written || property.key == field.name;
+                }
+            }
+            if (!written) {
+                form_error(ctx, hook.name, statement,
+                           "`" + field.name + "` is required by " + hook.name);
+                return;
+            }
+        }
+    }
     for (const jsx::HookOutput& output : hook.outputs) {
         info.outputs.push_back(output.name);
+        info.output_types.push_back(output.ir);
     }
     ctx.out.behaviors.push_back(std::move(info));
 }
@@ -178,12 +259,25 @@ void check_environment(Context& ctx, std::size_t index, const Statement& stateme
         form_error(ctx, hook.name, statement, "const value = " + hook.name + "();");
         return;
     }
-    const bool shape = statement.kind == StatementKind::Const && call.operands.size() == 1;
+    // A parameterized environment hook (`useMediaQuery("(min-width: 600px)")`) takes exactly one
+    // argument, which the manifest declares as a `value` parameter. A hook with no such parameter
+    // takes none, so the arity is the manifest's answer rather than a name check.
+    std::size_t expected_args = 1; // operand 0 is the callee
+    for (const jsx::HookParam& param : hook.params) {
+        if (param.kind == "value") {
+            ++expected_args;
+        }
+    }
+    const bool shape =
+        statement.kind == StatementKind::Const && call.operands.size() == expected_args;
     if (!shape) {
         form_error(ctx, hook.name, statement,
                    hook.writable ? "const [value, setValue] = " + hook.name + "();"
                                  : "const value = " + hook.name + "();");
         return;
+    }
+    if (expected_args > 1) {
+        info.argument = call.operands[1].get();
     }
     if (hook.writable) {
         if (!statement.array_pattern || statement.names.size() != 2) {
@@ -212,6 +306,8 @@ void check_hook_statement(Context& ctx, std::size_t index, const Statement& stat
         check_state(ctx, index, statement, call);
     } else if (name == "useRef") {
         check_ref(ctx, index, statement, call);
+    } else if (name == "useMergedRefs") {
+        check_merged_refs(ctx, index, statement, call);
     } else if (name == "useAnimatedValue") {
         check_animated(ctx, index, statement, call);
     } else if (name == "useEffect") {

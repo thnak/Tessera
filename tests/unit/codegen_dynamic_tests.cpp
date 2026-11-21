@@ -315,7 +315,7 @@ void test_rejections() {
     }
     {
         ir::IrModule module = make_dynamic_module();
-        module.components[0].refs.push_back({"ref::row", "row", "node::5"});
+        module.components[0].refs.push_back({"ref::row", "row", "node::5", {}});
         expect_error(module, "a useRef targeting a node inside a list template is rejected");
     }
     {

@@ -118,6 +118,52 @@ void test_refs_and_animated_values() {
     check(!hooks.set_ref_target("missing", "node::1"), "an unknown ref is rejected");
 }
 
+// `useMergedRefs` (ADR-064 item 7, issue #630): one ref that fills several owners. The merged ref
+// IS the primary ref, so the lowering records aliases on it rather than creating a second entry: a
+// node has one `ref` attribute, and a second entry would overwrite the first assignment.
+void test_merged_refs() {
+    const auto fixture = parse(component("  const inner = useRef<View>(null);\n"
+                                         "  const forwarded = useRef<View>(null);\n"
+                                         "  const merged = useMergedRefs(inner, forwarded);\n"));
+    auto result = lower(*fixture);
+    check(result.has_value(), "the merged ref lowers");
+    if (!result) {
+        return;
+    }
+    lowering::LoweredHooks& hooks = *result;
+    // The merged ref IS the primary ref, so it adds no entry: a node has one `ref` attribute, and a
+    // second entry would overwrite the first assignment.
+    check(hooks.refs.size() == 2, "the merged ref adds no entry of its own");
+    const ir::Ref* inner = nullptr;
+    for (const ir::Ref& ref : hooks.refs) {
+        if (ref.name == "inner") {
+            inner = &ref;
+            break;
+        }
+    }
+    check(inner != nullptr, "the primary ref is present");
+    if (inner == nullptr) {
+        return;
+    }
+    check(inner->aliases.size() == 1, "the primary ref carries one alias");
+    if (inner->aliases.size() == 1) {
+        check_eq(inner->aliases[0], "ref::forwarded", "the alias is the forwarded ref");
+    }
+}
+
+// A merged ref that names something which is not a ref is refused, because a forwarded ref that
+// never fills is a bug the developer cannot see.
+void test_merged_refs_rejects_a_non_ref() {
+    // `parse_raw`: the analysis is expected to reject this, so the fixture must not assert a clean
+    // analysis the way `parse` does.
+    const auto fixture = parse_raw(component("  const [count, setCount] = useState(0);\n"
+                                             "  const inner = useRef<View>(null);\n"
+                                             "  const merged = useMergedRefs(inner, count);\n"));
+    check(fixture->analyzed.has_errors(), "a non-ref operand is refused by the analysis");
+    auto result = lower(*fixture);
+    check(!result.has_value(), "and the lowering refuses it too");
+}
+
 void test_effects_cleanup_and_native_bindings() {
     const auto fixture = parse(component(
         "  const [count, setCount] = useState<int>(0);\n"
@@ -395,6 +441,8 @@ int main() {
     test_state_forms();
     test_array_list_initials();
     test_refs_and_animated_values();
+    test_merged_refs();
+    test_merged_refs_rejects_a_non_ref();
     test_effects_cleanup_and_native_bindings();
     test_inline_setter_handlers();
     test_lower_handler_actions_for_event_arrows();

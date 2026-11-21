@@ -104,6 +104,13 @@ void Instance::refresh(const ArgsView& args) {
     behavior_->update(args);
 }
 
+void Instance::tick(double now_s) {
+    if (!behavior_) {
+        return;
+    }
+    behavior_->tick(now_s);
+}
+
 void Instance::detach() {
     if (!behavior_) {
         return;

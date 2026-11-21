@@ -30,7 +30,15 @@ bool expect(bool condition, const std::string& message) {
 bool test_registry_is_the_closed_set() {
     bool ok = expect(!registry().empty(), "the registry is not empty");
     ok = expect(is_registered("press_feedback"), "press_feedback is registered") && ok;
-    ok = expect(!is_registered("focus_trap"),
+    ok = expect(is_registered("focus_trap"), "focus_trap is registered") && ok;
+    ok = expect(is_registered("roving_focus"), "roving_focus is registered") && ok;
+    ok = expect(is_registered("scroll_lock"), "scroll_lock is registered") && ok;
+    ok = expect(is_registered("hotkeys"), "hotkeys is registered") && ok;
+    ok = expect(is_registered("clipboard_copy"), "clipboard_copy is registered") && ok;
+    ok = expect(is_registered("overflow"), "overflow is registered") && ok;
+    ok = expect(is_registered("interactive_role"), "interactive_role is registered") && ok;
+    ok = expect(is_registered("announce"), "announce is registered") && ok;
+    ok = expect(!is_registered("typeahead"),
                 "a behavior with no implementation is not registered") &&
          ok;
     ok = expect(!is_registered(""), "the empty name is not registered") && ok;

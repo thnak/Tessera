@@ -199,8 +199,8 @@ public:
     // `style::sync_interaction_style`. The scene stores the resolved enum, never the CSS text, so
     // hit testing, input and the platform seam read it without parsing. The property is inherited,
     // so the computed value already carries the ancestor resolution: a `pointer` parent with an
-    // explicit `auto` child yields `Auto` on the child. The setter is a no-op when the value is
-    // unchanged, so a steady scene stays clean; it marks no dirty domain (no pixels change).
+    // explicit `auto` child yields `Auto` on the child. The setter is a no-op when unchanged, so a
+    // steady scene stays clean; it marks no dirty domain (no pixels change).
     void set_cursor(style::CursorKind value);
     [[nodiscard]] style::CursorKind cursor() const {
         return cursor_;
@@ -217,8 +217,6 @@ public:
         return tab_index_;
     }
 
-    // JSX `autoFocus` (issue #226): the node asks to hold focus when its tree is first shown. It is
-    // only a request; `FocusManager::apply_auto_focus` honours the first eligible node.
     void set_auto_focus(bool auto_focus) {
         set_flag(kAutoFocus, auto_focus);
     }
@@ -226,11 +224,9 @@ public:
         return flag(kAutoFocus);
     }
 
-    // JSX `focusTrap` and `focusGroup` (issue #236). A visible node with `focus_trap` confines Tab
-    // traversal to its subtree and restores the previous focus when it goes away
-    // (`FocusManager::sync_focus_trap`). A node with a `focus_group` is a roving-focus group: its
-    // focusable descendants form one Tab stop and the arrow keys of its axis move among them
-    // (`FocusManager::move_in_focus_group`); the manager remembers which item holds the stop.
+    // JSX `focusTrap` and `focusGroup` (issue #236): a `focus_trap` node confines Tab traversal to
+    // its subtree and restores the previous focus when it goes away; a `focus_group` node is a
+    // roving-focus group whose focusable descendants form one Tab stop.
     enum class FocusGroup : std::uint8_t { None, Horizontal, Vertical, Both };
     void set_focus_trap(bool trap) {
         set_flag(kFocusTrap, trap);
@@ -238,13 +234,17 @@ public:
     [[nodiscard]] bool focus_trap() const {
         return flag(kFocusTrap);
     }
-    // JSX `typeahead` on a focus group: typing characters moves focus to the next item whose
-    // `aria-label` starts with them (`FocusManager::typeahead`).
     void set_typeahead(bool typeahead) {
         set_flag(kTypeahead, typeahead);
     }
     [[nodiscard]] bool typeahead() const {
         return flag(kTypeahead);
+    }
+    void set_interactive_parent(bool interactive) {
+        set_flag(kInteractiveParent, interactive);
+    }
+    [[nodiscard]] bool interactive_parent() const {
+        return flag(kInteractiveParent);
     }
     void set_focus_group(FocusGroup group) {
         focus_group_ = group;
@@ -252,7 +252,6 @@ public:
     [[nodiscard]] FocusGroup focus_group() const {
         return focus_group_;
     }
-
     // Scroll state (additive; docs/specs/scroll-and-gestures-v1.md section 1). The scrollport used
     // for clamping is the node's border box; `content_width/height` are supplied explicitly by
     // layout or the caller. Children are positioned in content space, so painting, hit testing and
@@ -285,7 +284,7 @@ public:
     // the paint pass clips a scroll container to it when any inset is non-zero (otherwise it falls
     // back to the style-derived padding box). A caller that owns the computed style sets these to
     // the painted border widths so clamping, painting and hit testing agree on a bordered
-    // container. All zero by default (the border box). Negative/non-finite values sanitize to 0 and
+    // container. All zero by default (the border box); negative/non-finite values sanitize to 0 and
     // each axis pair is clamped to the box extent; a change marks Dirty::Paint | Dirty::Render.
     void set_scrollport_insets(float left, float top, float right, float bottom);
     [[nodiscard]] float scrollport_left() const {
@@ -543,9 +542,10 @@ private:
         kGlassSubtree = 1u << 5,
         kHasItemKey = 1u << 6,
         kScrollAnimationActive = 1u << 7,
-        kPointerEvents = 1u << 8, // CSS `pointer-events: auto`
-        kStyleHidden = 1u << 9,   // resolved `visibility: hidden|collapse`
-        kTextFitsBox = 1u << 10,  // layout's text-fit fact (issue #490)
+        kPointerEvents = 1u << 8,      // CSS `pointer-events: auto`
+        kStyleHidden = 1u << 9,        // resolved `visibility: hidden|collapse`
+        kTextFitsBox = 1u << 10,       // layout's text-fit fact (issue #490)
+        kInteractiveParent = 1u << 11, // `useInteractiveRole` (issue #635); see the accessor
     };
     [[nodiscard]] bool flag(Flag bit) const noexcept {
         return (flags_ & bit) != 0;

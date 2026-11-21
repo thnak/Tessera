@@ -47,10 +47,21 @@ bool test_committed_manifest_parses() {
     if (!expect(manifest.has_value(), "the committed manifest parses: " + error.detail)) {
         return false;
     }
-    bool ok = expect(manifest->hooks.size() == 4, "the manifest declares four hooks");
+    bool ok = expect(manifest->hooks.size() == 13, "the manifest declares thirteen hooks");
     ok = expect(manifest->find("useTheme") != nullptr, "useTheme is declared") && ok;
     ok = expect(manifest->find("useThemeState") != nullptr, "useThemeState is declared") && ok;
     ok = expect(manifest->find("useBreakpoint") != nullptr, "useBreakpoint is declared") && ok;
+    ok = expect(manifest->find("useMediaQuery") != nullptr, "useMediaQuery is declared") && ok;
+    ok = expect(manifest->find("useFocusTrap") != nullptr, "useFocusTrap is declared") && ok;
+    ok = expect(manifest->find("useListFocus") != nullptr, "useListFocus is declared") && ok;
+    ok = expect(manifest->find("useScrollLock") != nullptr, "useScrollLock is declared") && ok;
+    ok = expect(manifest->find("useHotkeys") != nullptr, "useHotkeys is declared") && ok;
+    ok = expect(manifest->find("useClipboard") != nullptr, "useClipboard is declared") && ok;
+    ok = expect(manifest->find("useOverflow") != nullptr, "useOverflow is declared") && ok;
+    ok =
+        expect(manifest->find("useInteractiveRole") != nullptr, "useInteractiveRole is declared") &&
+        ok;
+    ok = expect(manifest->find("useAnnounce") != nullptr, "useAnnounce is declared") && ok;
     ok =
         expect(manifest->find("usePressFeedback") != nullptr, "usePressFeedback is declared") && ok;
     return ok;
@@ -97,6 +108,116 @@ bool test_behavior_lowering() {
          ok;
     ok = expect(press != nullptr && press->params[0].kind == "ref",
                 "the first parameter is a target ref") &&
+         ok;
+    // `useFocusTrap` (issue #624): one target, two options, one output, and exclusive, because two
+    // traps on one subtree have no defined precedence.
+    const auto* trap = manifest->find("useFocusTrap");
+    ok = expect(trap != nullptr && trap->lowering == HookLoweringKind::Behavior,
+                "useFocusTrap is a behavior hook") &&
+         ok;
+    ok = expect(trap != nullptr && trap->provider == "focus_trap",
+                "useFocusTrap names the focus_trap behavior") &&
+         ok;
+    ok = expect(trap != nullptr && trap->exclusive, "useFocusTrap is exclusive") && ok;
+    ok = expect(trap != nullptr && trap->params.size() == 2,
+                "useFocusTrap takes a target and options") &&
+         ok;
+    ok = expect(trap != nullptr && trap->outputs.size() == 1, "useFocusTrap returns one output") &&
+         ok;
+    // `useListFocus` (issue #625): one target, three options, one numeric output, exclusive.
+    const auto* list = manifest->find("useListFocus");
+    ok = expect(list != nullptr && list->lowering == HookLoweringKind::Behavior,
+                "useListFocus is a behavior hook") &&
+         ok;
+    ok = expect(list != nullptr && list->provider == "roving_focus",
+                "useListFocus names the roving_focus behavior") &&
+         ok;
+    ok = expect(list != nullptr && list->exclusive, "useListFocus is exclusive") && ok;
+    ok =
+        expect(list != nullptr && list->outputs.size() == 1 && list->outputs.front().ir == "number",
+               "useListFocus returns one numeric output") &&
+        ok;
+    // `useMediaQuery` (issue #631): an environment hook with one string parameter and a boolean
+    // return, so the analyzer's arity check is the manifest's answer rather than a name check.
+    const auto* media = manifest->find("useMediaQuery");
+    ok = expect(media != nullptr && media->lowering == HookLoweringKind::Environment,
+                "useMediaQuery is an environment hook") &&
+         ok;
+    ok = expect(media != nullptr && media->provider == "media_query",
+                "useMediaQuery names the media_query provider") &&
+         ok;
+    ok = expect(media != nullptr && media->params.size() == 1 &&
+                    media->params.front().kind == "value",
+                "useMediaQuery takes one value parameter") &&
+         ok;
+    ok = expect(media != nullptr && media->returns_ir == "bool",
+                "useMediaQuery returns a boolean") &&
+         ok;
+    // `useScrollLock` (issue #633): one target, one option, one output, exclusive.
+    const auto* lock = manifest->find("useScrollLock");
+    ok = expect(lock != nullptr && lock->lowering == HookLoweringKind::Behavior,
+                "useScrollLock is a behavior hook") &&
+         ok;
+    ok = expect(lock != nullptr && lock->provider == "scroll_lock",
+                "useScrollLock names the scroll_lock behavior") &&
+         ok;
+    ok = expect(lock != nullptr && lock->exclusive, "useScrollLock is exclusive") && ok;
+    ok = expect(lock != nullptr && lock->outputs.size() == 1, "useScrollLock returns one output") &&
+         ok;
+    // `useHotkeys` (issue #627): no target ref (a shortcut belongs to the window), one options
+    // object, one output.
+    const auto* keys = manifest->find("useHotkeys");
+    ok = expect(keys != nullptr && keys->lowering == HookLoweringKind::Behavior,
+                "useHotkeys is a behavior hook") &&
+         ok;
+    ok = expect(keys != nullptr && keys->provider == "hotkeys",
+                "useHotkeys names the hotkeys behavior") &&
+         ok;
+    ok = expect(keys != nullptr && keys->params.size() == 1 &&
+                    keys->params.front().kind == "options",
+                "useHotkeys takes only an options object") &&
+         ok;
+    ok =
+        expect(keys != nullptr && keys->outputs.size() == 1, "useHotkeys returns one output") && ok;
+    // `useClipboard` (issue #632): no target ref, one options object, two outputs.
+    const auto* clip = manifest->find("useClipboard");
+    ok = expect(clip != nullptr && clip->lowering == HookLoweringKind::Behavior,
+                "useClipboard is a behavior hook") &&
+         ok;
+    ok = expect(clip != nullptr && clip->provider == "clipboard_copy",
+                "useClipboard names the clipboard_copy behavior") &&
+         ok;
+    ok = expect(clip != nullptr && clip->outputs.size() == 2, "useClipboard returns two outputs") &&
+         ok;
+    // `useOverflow` (issue #634): one target, two numeric options, two outputs.
+    const auto* flow = manifest->find("useOverflow");
+    ok = expect(flow != nullptr && flow->lowering == HookLoweringKind::Behavior,
+                "useOverflow is a behavior hook") &&
+         ok;
+    ok = expect(flow != nullptr && flow->provider == "overflow",
+                "useOverflow names the overflow behavior") &&
+         ok;
+    ok = expect(flow != nullptr && flow->outputs.size() == 2, "useOverflow returns two outputs") &&
+         ok;
+    // `useInteractiveRole` (issue #635): one target, one option, one output, exclusive.
+    const auto* role = manifest->find("useInteractiveRole");
+    ok = expect(role != nullptr && role->lowering == HookLoweringKind::Behavior,
+                "useInteractiveRole is a behavior hook") &&
+         ok;
+    ok = expect(role != nullptr && role->provider == "interactive_role",
+                "useInteractiveRole names the interactive_role behavior") &&
+         ok;
+    ok = expect(role != nullptr && role->exclusive, "useInteractiveRole is exclusive") && ok;
+    // `useAnnounce` (issue #629): no target ref, one options object, one output.
+    const auto* announce = manifest->find("useAnnounce");
+    ok = expect(announce != nullptr && announce->lowering == HookLoweringKind::Behavior,
+                "useAnnounce is a behavior hook") &&
+         ok;
+    ok = expect(announce != nullptr && announce->provider == "announce",
+                "useAnnounce names the announce behavior") &&
+         ok;
+    ok = expect(announce != nullptr && announce->outputs.size() == 1,
+                "useAnnounce returns one output") &&
          ok;
     return ok;
 }

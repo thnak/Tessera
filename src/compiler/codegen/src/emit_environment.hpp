@@ -24,14 +24,16 @@ void emit_environment_declarations(CppWriter& writer, const ir::Component& compo
                                    const ir::IrModule& module);
 
 // The setter and accessor definitions.
-void emit_environment_definitions(CppWriter& writer, const ir::Component& component,
-                                  const ir::IrModule& module);
+[[nodiscard]] bool emit_environment_definitions(CppWriter& writer, const ir::Component& component,
+                                                const ir::IrModule& module, std::string& error);
 
-// The C++ type of one environment value (`std::string` for every provider today).
+// The C++ type of one environment value (`std::string` for the size class and the theme, `bool` for
+// a media query).
 [[nodiscard]] std::string environment_cpp_type(const ir::Environment& env);
 
 // The initial value the field starts at, before the host pushes the real one. `compact` for the
-// breakpoint (the narrow layout, the safe first frame), the built-in theme id for the theme.
+// breakpoint (the narrow layout, the safe first frame), the built-in theme id for the theme, and
+// `false` for a media query (an unevaluated query does not match).
 [[nodiscard]] std::string environment_initial_value(const ir::Environment& env);
 
 } // namespace tessera::compiler::codegen::internal

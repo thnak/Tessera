@@ -15,6 +15,7 @@ find_package(Threads REQUIRED)
 set(TESSERA_A11Y_SOURCES
     a11y_roles.cpp
     a11y_tree.cpp
+    announcement_queue.cpp
     atspi_mapping.cpp
     atspi_events.cpp
     atspi_bridge.cpp
@@ -70,6 +71,18 @@ if (WIN32)
 endif()
 
 target_compile_features(tessera_accessibility PUBLIC cxx_std_23)
+
+# The announcement queue behind `useAnnounce` (ADR-064 item 7, issue #629): the bounded,
+# de-duplicating list the accessibility bridge drains. Registered here rather than in the shared
+# tests/unit registry, so a lane adding tests never edits a file another lane is working in.
+if (TESSERA_BUILD_TESTS)
+    enable_testing()
+
+    add_executable(announcement_queue_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/announcement_queue_tests.cpp)
+    target_link_libraries(announcement_queue_tests PRIVATE tessera_accessibility)
+    add_test(NAME announcement_queue COMMAND announcement_queue_tests)
+endif ()
 
 
 

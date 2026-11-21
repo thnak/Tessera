@@ -27,8 +27,11 @@ struct BehaviorInfo {
     std::vector<std::string> targets;
     // The options object literal, or null when the hook takes none.
     const jsx::Expr* options = nullptr;
-    // The output names the hook returns, in manifest order. Empty when it returns nothing.
+    // The output names and IR types the hook returns, in manifest order. Empty when it returns
+    // nothing. The type is carried rather than assumed: a behavior may report a number or a string,
+    // and lowering must not guess `bool`.
     std::vector<std::string> outputs;
+    std::vector<std::string> output_types;
     bool exclusive = false;
 };
 

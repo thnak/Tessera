@@ -7,11 +7,22 @@
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#include <string>
 #include <string_view>
+
+namespace tessera::hal {
+class Clipboard;
+}
 
 namespace tessera::ui {
 class InputRouter;
+namespace layout {
+class LayoutReadModel;
 }
+namespace accessibility {
+class AnnouncementQueue;
+}
+} // namespace tessera::ui
 
 // The behavior seam (ADR-064 item 7; docs/design/behavior-hooks.md section 5,
 // docs/specs/behavior-hooks-v1.md section 8).
@@ -57,6 +68,19 @@ struct Services {
     // The scene's normalized interaction state (`hovered()`, `active()`, keyboard focus). Null in a
     // build that has no scene, which a behavior must treat as "nothing is pressed".
     InputRouter* router = nullptr;
+    // The platform clipboard seam (`hal::Clipboard`). Null in a build that has none, which a
+    // behavior must treat as "the clipboard is unavailable" rather than crashing.
+    hal::Clipboard* clipboard = nullptr;
+    // The last layout pass's boxes (`layout::LayoutReadModel`). Null in a build that has no layout,
+    // which a measuring behavior must treat as "nothing is measured yet".
+    layout::LayoutReadModel* layout = nullptr;
+    // The window's announcement queue (`accessibility::AnnouncementQueue`). Null in a build with no
+    // accessibility bridge, which a behavior must treat as "nothing can be announced".
+    accessibility::AnnouncementQueue* announcements = nullptr;
+    // The current time in seconds, from the runtime clock interface. A behavior that needs a
+    // deadline reads it here rather than calling a wall clock, so a `ManualClock` test is
+    // deterministic (behavior-hooks-v1.md section 8 rule 4).
+    double now_s = 0.0;
 };
 
 // One evaluated option value. The manifest declares each field's type, so a behavior reads the
@@ -93,6 +117,55 @@ struct ArgsView {
     }
 };
 
+// Builds one evaluated option value from a C++ value.
+//
+// The IR carries an option's *expression* but not its type, and the generated base evaluates that
+// expression to a C++ type the manifest chose. These overloads are therefore where the type
+// information lives: codegen writes `make_arg(<expr>)` and the overload picks the kind, so a
+// behavior never has to guess and a wrong manifest type is a compile error rather than a silently
+// misread option.
+[[nodiscard]] inline ArgValue make_arg(bool value) {
+    ArgValue arg;
+    arg.kind = ArgValue::Kind::Bool;
+    arg.boolean = value;
+    return arg;
+}
+
+[[nodiscard]] inline ArgValue make_arg(double value) {
+    ArgValue arg;
+    arg.kind = ArgValue::Kind::Number;
+    arg.number = value;
+    return arg;
+}
+
+[[nodiscard]] inline ArgValue make_arg(int value) {
+    return make_arg(static_cast<double>(value));
+}
+
+[[nodiscard]] inline ArgValue make_arg(std::string_view value) {
+    ArgValue arg;
+    arg.kind = ArgValue::Kind::String;
+    arg.text = value;
+    return arg;
+}
+
+[[nodiscard]] inline ArgValue make_arg(const std::string& value) {
+    return make_arg(std::string_view(value));
+}
+
+[[nodiscard]] inline ArgValue make_arg(const char* value) {
+    return make_arg(std::string_view(value));
+}
+
+// A callback option: the handler id the generated base resolves to a thunk. A behavior only
+// forwards it to the dispatch that invokes it, so it never calls one itself.
+[[nodiscard]] inline ArgValue make_handler_arg(std::uint32_t handler) {
+    ArgValue arg;
+    arg.kind = ArgValue::Kind::Handler;
+    arg.handler = handler;
+    return arg;
+}
+
 // One output value. The manifest declares the type, so the generated base reads the field it
 // expects; before the first attach and after detach an output holds its manifest default.
 struct OutputValue {
@@ -123,6 +196,10 @@ public:
     // Called when the hash of the evaluated value options changed. No allocation; may not invoke a
     // callback.
     virtual void update(const ArgsView& args) = 0;
+    // Called once per frame with the current time, for a behavior whose outputs expire (a "Copied"
+    // label that clears itself). A behavior with no deadline ignores it. No allocation; may not
+    // invoke a callback.
+    virtual void tick(double /*now_s*/) {}
     // Called before the target node is destroyed, when a ref becomes empty, and at unmount. Removes
     // every registration. Idempotent.
     virtual void detach() = 0;

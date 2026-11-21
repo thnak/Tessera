@@ -29,6 +29,10 @@ struct EnvironmentInfo {
     bool writable = false;
     // The setter's local name for a writable hook (`setTheme`), empty otherwise.
     std::string setter;
+    // The one argument a parameterized environment hook takes (`useMediaQuery("(min-width:
+    // 600px)")`), or null when the hook takes none. The manifest declares the parameter, so the
+    // analyzer checks the form against it rather than special-casing the hook by name.
+    const jsx::Expr* argument = nullptr;
 };
 
 } // namespace tessera::compiler::rules

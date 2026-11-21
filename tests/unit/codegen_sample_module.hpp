@@ -53,7 +53,7 @@ inline ir::IrModule make_sample_module() {
     sample.props.push_back({"title", "string", nullptr});
     sample.state.push_back({"state::count", "count", "int", integer(0)});
     sample.state.push_back({"state::name", "name", "string", ir::make_literal(std::string(""))});
-    sample.refs.push_back({"ref::box", "box", "node::2"});
+    sample.refs.push_back({"ref::box", "box", "node::2", {}});
     sample.animated_values.push_back({"anim::opacity", "opacity", "float", ir::make_literal(1.0)});
 
     ir::Handler handler;

@@ -1485,6 +1485,40 @@ if (TESSERA_BUILD_TESTS)
 
     add_test(NAME codegen_environment COMMAND codegen_environment_tests)
 
+    # Behavior hook codegen (docs/specs/behavior-hooks-v1.md section 9, issue #641): a component
+    # that calls a behavior hook gets one `Instance` slot, the public attach/refresh/detach triple
+    # the owner calls, and one read accessor per output; a component that calls none gets no
+    # surface, so every existing golden stays byte-identical.
+    add_executable(codegen_behaviors_tests
+        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_behaviors_tests.cpp)
+
+    target_link_libraries(codegen_behaviors_tests PRIVATE
+        tessera_codegen)
+
+    target_compile_definitions(codegen_behaviors_tests PRIVATE
+        TESSERA_CODEGEN_GOLDEN_DIR="${_tessera_codegen_golden_dir}")
+
+    add_test(NAME codegen_behaviors COMMAND codegen_behaviors_tests)
+
+    # The compiled generated base over the committed behavior golden: the component attaches a real
+    # `behavior::Instance` through the scene's own router, reads the outputs through the generated
+    # accessors, and detaches again. This is the test that proves the wiring is real code and not
+    # merely a string the golden test greps.
+    if (EXISTS ${_tessera_codegen_golden_dir}/Pressable.g.hpp)
+        add_executable(codegen_behaviors_runtime_tests
+            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_behaviors_runtime_tests.cpp)
+
+        target_include_directories(codegen_behaviors_runtime_tests PRIVATE
+            ${_tessera_codegen_golden_dir}
+            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures/pressable)
+        target_link_libraries(codegen_behaviors_runtime_tests PRIVATE
+            tessera_scene
+            tessera_behavior)
+        target_compile_features(codegen_behaviors_runtime_tests PRIVATE cxx_std_23)
+
+        add_test(NAME codegen_behaviors_runtime COMMAND codegen_behaviors_runtime_tests)
+    endif ()
+
     # ADR-040 (#218): the developer classes in tests/unit/codegen_base/fixtures over the committed
     # bases, generated from the hand-built IR in codegen_size_change_tests.
     if (EXISTS ${_tessera_codegen_golden_dir}/Watcher.g.hpp AND EXISTS

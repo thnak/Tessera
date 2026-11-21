@@ -41,6 +41,11 @@ struct Ref {
     std::string id;
     std::string name;
     std::string target; // node id
+    // `useMergedRefs` (ADR-064 item 7, issue #630): the `ref::` ids this ref also assigns when its
+    // target resolves. A merged ref is one assignment that fills several owners, so a component
+    // that both forwards a ref and keeps an internal one does not need two `ref` attributes on one
+    // node. Empty for an ordinary `useRef`.
+    std::vector<std::string> aliases;
 };
 
 struct AnimatedValue {
@@ -56,6 +61,11 @@ struct Environment {
     std::string provider;
     std::string type;
     bool writable = false;
+    // The one argument a parameterized environment hook takes (`useMediaQuery("(min-width:
+    // 600px)")`), or an empty expression when the hook takes none. The generated base evaluates it
+    // once and re-evaluates only when the component updates, so a query built from state follows
+    // the state.
+    Expr argument;
     SourceSpan source;
 };
 

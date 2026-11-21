@@ -186,12 +186,80 @@ void lower_ref(HookState& state, std::size_t index, LoweredHooks& out) {
     const jsx::Statement& statement = state.context.component.body[index];
     const jsx::Expr& call = *statement.init;
     if (!statement.array_pattern && statement.names.size() == 1 && call.operands.size() == 2) {
-        out.refs.push_back(ir::Ref{prefixed("ref::", statement.names[0]), statement.names[0], {}});
+        out.refs.push_back(
+            ir::Ref{prefixed("ref::", statement.names[0]), statement.names[0], {}, {}});
         out.ref_index.push_back({statement.names[0], out.refs.back().id});
         return;
     }
     internal::fail_hook(state, "TESSERA_IR_MALFORMED",
                         "`useRef` must be `const r = useRef<Element>(null);`", statement.span);
+}
+
+// `useMergedRefs` (ADR-064 item 7, issue #630): one ref that fills several owners.
+//
+// A component that both forwards a ref to its parent and keeps an internal one has two owners for
+// one node, and a node has one `ref` attribute. The hook is the answer: it declares a ref whose
+// assignment also fills the refs it names, so the generated base writes one pointer into every
+// owner.
+//
+// The lowering does not create a second ref: it records the aliases on the ref the component
+// already has, because the merged ref IS that ref. Creating another would give the node two `ref`
+// attributes and the second assignment would overwrite the first.
+void lower_merged_refs(HookState& state, std::size_t index, LoweredHooks& out) {
+    const jsx::Statement& statement = state.context.component.body[index];
+    const jsx::Expr& call = *statement.init;
+    if (statement.array_pattern || statement.names.size() != 1 || call.operands.size() < 3 ||
+        !call.operands[1]) {
+        internal::fail_hook(state, "TESSERA_IR_MALFORMED",
+                            "`useMergedRefs` must be `const r = useMergedRefs(a, b);`",
+                            statement.span);
+        return;
+    }
+    // The first operand is the ref the merged ref stands for; the rest are the owners it also
+    // fills.
+    const jsx::Expr& primary = *call.operands[1];
+    if (primary.kind != jsx::ExprKind::Identifier) {
+        internal::fail_hook(state, "TESSERA_IR_MALFORMED", "`useMergedRefs` takes ref identifiers",
+                            statement.span);
+        return;
+    }
+    const std::string primary_id = prefixed("ref::", primary.text);
+    ir::Ref* target = nullptr;
+    for (ir::Ref& ref : out.refs) {
+        if (ref.id == primary_id) {
+            target = &ref;
+            break;
+        }
+    }
+    if (target == nullptr) {
+        internal::fail_hook(state, "TESSERA_IR_UNRESOLVED",
+                            "`useMergedRefs` names a ref that is not declared", statement.span);
+        return;
+    }
+    // The remaining operands are the aliases. A ref that is not declared is an error rather than a
+    // silent no-op: a forwarded ref that never fills is a bug the developer cannot see.
+    for (std::size_t operand = 2; operand < call.operands.size(); ++operand) {
+        const jsx::Expr* alias = call.operands[operand].get();
+        if (alias == nullptr || alias->kind != jsx::ExprKind::Identifier) {
+            internal::fail_hook(state, "TESSERA_IR_MALFORMED",
+                                "`useMergedRefs` takes ref identifiers", statement.span);
+            return;
+        }
+        const std::string alias_id = prefixed("ref::", alias->text);
+        bool declared = false;
+        for (const ir::Ref& ref : out.refs) {
+            if (ref.id == alias_id) {
+                declared = true;
+                break;
+            }
+        }
+        if (!declared) {
+            internal::fail_hook(state, "TESSERA_IR_UNRESOLVED",
+                                "`useMergedRefs` names a ref that is not declared", statement.span);
+            return;
+        }
+        target->aliases.push_back(alias_id);
+    }
 }
 
 void lower_animated(HookState& state, std::size_t index, LoweredHooks& out,
@@ -250,17 +318,19 @@ HookLoweringResult lower_hooks(const HookLoweringContext& context) {
             lower_state(state, index, out, names);
         } else if (hook == "useRef") {
             lower_ref(state, index, out);
+        } else if (hook == "useMergedRefs") {
+            lower_merged_refs(state, index, out);
         } else if (hook == "useAnimatedValue") {
             lower_animated(state, index, out, names);
         } else if (hook == "useEffect") {
             internal::lower_effect_hook(state, index, out);
         } else if (const jsx::HookEntry* behavior = rules::builtin_hook_manifest().find(hook);
                    behavior != nullptr && behavior->lowering == jsx::HookLoweringKind::Behavior) {
-            internal::lower_behavior_hook(state, index, out);
+            internal::lower_behavior_hook(state, index, out, names);
         } else if (const jsx::HookEntry* environment = rules::builtin_hook_manifest().find(hook);
                    environment != nullptr &&
                    environment->lowering == jsx::HookLoweringKind::Environment) {
-            internal::lower_environment_hook(state, index, out);
+            internal::lower_environment_hook(state, index, out, names);
         } else if (statement.init->kind == jsx::ExprKind::Arrow) {
             internal::lower_declared_arrow_hook(state, index, out);
         }
