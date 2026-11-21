@@ -72,6 +72,23 @@
       "lowering": { "kind": "behavior", "behavior": "roving_focus", "exclusive": true }
     },
     {
+      "name": "useScrollLock",
+      "params": [
+        { "name": "target", "kind": "ref", "element": "any" },
+        {
+          "name": "options",
+          "kind": "options",
+          "ts": "ScrollLockOptions",
+          "ir": "record",
+          "fields": [{ "name": "active", "ts": "boolean", "ir": "bool", "default": true }]
+        }
+      ],
+      "returns": {
+        "fields": [{ "name": "locked", "ts": "boolean", "ir": "bool", "default": false }]
+      },
+      "lowering": { "kind": "behavior", "behavior": "scroll_lock", "exclusive": true }
+    },
+    {
       "name": "usePressFeedback",
       "params": [
         { "name": "target", "kind": "ref", "ts": "Element", "ir": "ref" },

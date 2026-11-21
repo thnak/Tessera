@@ -4,6 +4,7 @@
 #include "tessera/ui/behavior/press_feedback.hpp"
 #include "tessera/ui/behavior/registry.hpp"
 #include "tessera/ui/behavior/roving_focus.hpp"
+#include "tessera/ui/behavior/scroll_lock.hpp"
 
 #include <array>
 
@@ -22,13 +23,18 @@ std::unique_ptr<Behavior> make_roving_focus() {
     return std::make_unique<RovingFocus>();
 }
 
+std::unique_ptr<Behavior> make_scroll_lock() {
+    return std::make_unique<ScrollLock>();
+}
+
 // The registry is a fixed array rather than a map: the set is closed (the library hook manifest is
 // the only place that may declare a behavior hook), so a lookup is a linear scan over a handful of
 // entries and the build allocates nothing to answer it.
-constexpr std::array<Registration, 3> kRegistry{{
+constexpr std::array<Registration, 4> kRegistry{{
     {"press_feedback", &make_press_feedback},
     {"focus_trap", &make_focus_trap},
     {"roving_focus", &make_roving_focus},
+    {"scroll_lock", &make_scroll_lock},
 }};
 
 } // namespace

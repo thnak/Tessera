@@ -47,13 +47,14 @@ bool test_committed_manifest_parses() {
     if (!expect(manifest.has_value(), "the committed manifest parses: " + error.detail)) {
         return false;
     }
-    bool ok = expect(manifest->hooks.size() == 7, "the manifest declares seven hooks");
+    bool ok = expect(manifest->hooks.size() == 8, "the manifest declares eight hooks");
     ok = expect(manifest->find("useTheme") != nullptr, "useTheme is declared") && ok;
     ok = expect(manifest->find("useThemeState") != nullptr, "useThemeState is declared") && ok;
     ok = expect(manifest->find("useBreakpoint") != nullptr, "useBreakpoint is declared") && ok;
     ok = expect(manifest->find("useMediaQuery") != nullptr, "useMediaQuery is declared") && ok;
     ok = expect(manifest->find("useFocusTrap") != nullptr, "useFocusTrap is declared") && ok;
     ok = expect(manifest->find("useListFocus") != nullptr, "useListFocus is declared") && ok;
+    ok = expect(manifest->find("useScrollLock") != nullptr, "useScrollLock is declared") && ok;
     ok =
         expect(manifest->find("usePressFeedback") != nullptr, "usePressFeedback is declared") && ok;
     return ok;
@@ -144,6 +145,17 @@ bool test_behavior_lowering() {
          ok;
     ok = expect(media != nullptr && media->returns_ir == "bool",
                 "useMediaQuery returns a boolean") &&
+         ok;
+    // `useScrollLock` (issue #633): one target, one option, one output, exclusive.
+    const auto* lock = manifest->find("useScrollLock");
+    ok = expect(lock != nullptr && lock->lowering == HookLoweringKind::Behavior,
+                "useScrollLock is a behavior hook") &&
+         ok;
+    ok = expect(lock != nullptr && lock->provider == "scroll_lock",
+                "useScrollLock names the scroll_lock behavior") &&
+         ok;
+    ok = expect(lock != nullptr && lock->exclusive, "useScrollLock is exclusive") && ok;
+    ok = expect(lock != nullptr && lock->outputs.size() == 1, "useScrollLock returns one output") &&
          ok;
     return ok;
 }
