@@ -39,8 +39,7 @@
 // ordinary cascade; nothing here parses a selector.
 //
 // **`changed`, not "always redraw"**: a static UI presents nothing
-// (docs/design/dirty-rendering.md), so "is a frame owed" is read from the scene's own dirty
-// domains.
+// (docs/design/dirty-rendering.md), so "is a frame owed" is read from the scene's dirty domains.
 namespace tessera::compiler::codegen::cli {
 
 // The text module this session's font parameter names lives one namespace up.
