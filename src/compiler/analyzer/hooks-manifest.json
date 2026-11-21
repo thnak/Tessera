@@ -20,6 +20,26 @@
       "lowering": { "kind": "environment", "provider": "breakpoint" }
     },
     {
+      "name": "useFocusTrap",
+      "params": [
+        { "name": "target", "kind": "ref", "element": "any" },
+        {
+          "name": "options",
+          "kind": "options",
+          "ts": "FocusTrapOptions",
+          "ir": "record",
+          "fields": [
+            { "name": "active", "ts": "boolean", "ir": "bool", "default": true },
+            { "name": "restoreFocus", "ts": "boolean", "ir": "bool", "default": true }
+          ]
+        }
+      ],
+      "returns": {
+        "fields": [{ "name": "active", "ts": "boolean", "ir": "bool", "default": true }]
+      },
+      "lowering": { "kind": "behavior", "behavior": "focus_trap", "exclusive": true }
+    },
+    {
       "name": "usePressFeedback",
       "params": [
         { "name": "target", "kind": "ref", "ts": "Element", "ir": "ref" },

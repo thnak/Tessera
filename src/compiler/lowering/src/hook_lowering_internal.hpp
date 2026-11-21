@@ -72,8 +72,10 @@ std::string callee_name(const jsx::Expr& call);
 void lower_effect_hook(HookState& state, std::size_t index, LoweredHooks& out);
 
 // One behavior hook call (ADR-064 item 7): the analyzer already checked the form against the
-// manifest, so this turns the recorded call into an IR behaviors entry.
-void lower_behavior_hook(HookState& state, std::size_t index, LoweredHooks& out);
+// manifest, so this turns the recorded call into an IR behaviors entry. `names` resolves the option
+// expressions, which may read props, state and earlier hooks.
+void lower_behavior_hook(HookState& state, std::size_t index, LoweredHooks& out,
+                         const NameResolver& names);
 // One `environment` hook call (docs/specs/jsx-subset-v1.md section 7.1): the analyzer already
 // checked the form, so this turns the recorded call into an IR `environment[]` entry.
 void lower_environment_hook(HookState& state, std::size_t index, LoweredHooks& out);

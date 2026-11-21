@@ -126,6 +126,13 @@ unchanged; additive, `irVersion` stays `1`):
 - Determinism ([`ir-v1-expr.md`](ir-v1-expr.md) section 11): arrays keep declaration order; `exclusive`
   is copied from the manifest so the validator needs no manifest either.
 
+**How the full arg list is produced.** The source writes only the options it sets, so lowering walks
+the manifest's `options` fields in manifest order and, for each one, takes the written expression when
+the source wrote it and the manifest's `default` as a literal when it did not. A field with neither is
+`TESSERA_REACT_HOOK_ARG` at analysis time, before lowering runs. The analyzer also rejects a written
+key the manifest does not declare: without that check a typo (`{ actve: open }`) would silently read
+the default and the trap would never turn on.
+
 Validation (section 9 of `ir-v1-expr.md` gains these hard errors): a `beh::` id that is duplicated; a
 `targets` entry that is not a `ref::` of the component; an arg name that is duplicated; an expression that
 does not type-check against its field type; a `handler` that does not resolve; a `behavior` name unknown

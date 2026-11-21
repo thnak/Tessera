@@ -19,6 +19,27 @@ void add_symbol(Context& ctx, std::string name, SymbolKind kind, jsx::Span span,
     ctx.out.symbols.push_back({std::move(name), kind, span, statement});
 }
 
+// The `options` parameter of a behavior hook, or nullptr when the hook takes none. The manifest is
+// the authority on the option list, so the analyzer asks it rather than keeping a second copy.
+const jsx::HookParam* find_options_param(const jsx::HookEntry& hook) {
+    for (const jsx::HookParam& param : hook.params) {
+        if (param.kind == "options") {
+            return &param;
+        }
+    }
+    return nullptr;
+}
+
+// One declared option field by name, or nullptr when the manifest does not declare it.
+const jsx::HookParam* find_option_field(const jsx::HookParam& options, std::string_view name) {
+    for (const jsx::HookParam& field : options.fields) {
+        if (field.name == name) {
+            return &field;
+        }
+    }
+    return nullptr;
+}
+
 void register_props(Context& ctx) {
     const jsx::ModuleItem& item = ctx.item;
     if (item.has_props && !item.props_destructured && !item.props_name.empty()) {
@@ -147,8 +168,39 @@ void check_behavior(Context& ctx, std::size_t index, const Statement& statement,
         form_error(ctx, hook.name, statement, "the call takes a target and one options object");
         return;
     }
+    // Every written option must be one the manifest declares, and every option the manifest
+    // declares without a default must be written. An unknown key is a typo the user would otherwise
+    // never see: the behavior would silently read its default.
+    if (const jsx::HookParam* options_param = find_options_param(hook); options_param != nullptr) {
+        if (info.options != nullptr) {
+            for (const jsx::ObjectProperty& property : info.options->properties) {
+                if (find_option_field(*options_param, property.key) == nullptr) {
+                    form_error(ctx, hook.name, statement,
+                               "`" + property.key + "` is not an option of " + hook.name);
+                    return;
+                }
+            }
+        }
+        for (const jsx::HookParam& field : options_param->fields) {
+            if (!field.default_text.empty()) {
+                continue;
+            }
+            bool written = false;
+            if (info.options != nullptr) {
+                for (const jsx::ObjectProperty& property : info.options->properties) {
+                    written = written || property.key == field.name;
+                }
+            }
+            if (!written) {
+                form_error(ctx, hook.name, statement,
+                           "`" + field.name + "` is required by " + hook.name);
+                return;
+            }
+        }
+    }
     for (const jsx::HookOutput& output : hook.outputs) {
         info.outputs.push_back(output.name);
+        info.output_types.push_back(output.ir);
     }
     ctx.out.behaviors.push_back(std::move(info));
 }
