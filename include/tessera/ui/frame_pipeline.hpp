@@ -17,6 +17,7 @@
 
 #include <array>
 #include <cstddef>
+#include <span>
 #include <unordered_map>
 #include <vector>
 
@@ -122,6 +123,19 @@ public:
     // vector for a sheet without animations and the animation half becomes a no-op.
     paint::SceneStyleSyncResult sync_style(Node& root, paint::StyleProvider& styles,
                                            const FrameTick& tick, bool force = false) const;
+
+    // Scoped variant (issue #735, slice B): the same sync, but it visits only `roots` and their
+    // subtrees plus the ancestors that refold `glass_subtree`, instead of the whole tree. The
+    // caller must be able to prove every node outside `roots` kept its style AND its box - which is
+    // exactly what the layout-unchanged gate proves, so the host calls this only on a frame the
+    // gate accepted. An empty `roots` is a no-op.
+    //
+    // The transition/animation bridge still walks the whole tree: it diffs every node's style
+    // against its previous snapshot, and a scoped walk there would need the same "unchanged"
+    // proof per node. That is a separate slice.
+    paint::SceneStyleSyncResult sync_style_scoped(Node& root, paint::StyleProvider& styles,
+                                                  std::span<const Node* const> roots,
+                                                  const FrameTick& tick, bool force = false) const;
 
     // The compiled sheet's `@keyframes`, for the animation half of `sync_style`. A pointer, not a
     // copy: the sheet outlives the pipeline (the host rebuilds the pipeline when it swaps sheets).

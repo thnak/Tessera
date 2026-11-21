@@ -7,6 +7,7 @@
 #include "tessera/ui/style/sync_memo.hpp"
 
 #include <cstddef>
+#include <span>
 
 namespace tessera::ui::paint {
 
@@ -43,5 +44,23 @@ sync_scene_style(Node& root, StyleProvider& styles,
                  style::SyncMemo* memo = nullptr);
 // With a `memo` the walk skips a node whose style and box are unchanged since the last call (the
 // glass limits must stay the same between calls that share one memo).
+
+// Scoped variant (issue #735, slice B): visits only `roots` and their subtrees, plus the ancestors
+// of each root (which refold `glass_subtree`). A node outside every root kept its computed style,
+// so re-deriving what it already applied is pure waste - that walk is ~25% of a class-change frame
+// at 6k nodes.
+//
+// Sound only when the caller can prove every node outside `roots` kept its style AND its box. The
+// layout-unchanged gate is exactly that proof: it declines unless the restyle changed no layout
+// input, so no box moved. A caller that cannot prove it must use the unscoped overload.
+//
+// `roots` must be the topmost restyled nodes (a root's ancestors are visited for the glass refold,
+// not for their own style). An empty `roots` visits nothing and returns a zero result, which is the
+// right answer for a restyle that touched no node. The scene root is not a parameter: every node
+// this walk needs is reachable from `roots` and their ancestors.
+SceneStyleSyncResult
+sync_scene_style_scoped(StyleProvider& styles, std::span<const Node* const> roots,
+                        const rendering::gpu::GlassLimits& glass = rendering::gpu::GlassLimits{},
+                        style::SyncMemo* memo = nullptr);
 
 } // namespace tessera::ui::paint

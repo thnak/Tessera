@@ -64,8 +64,7 @@ ui::layout::LayoutInput build_layout_input(const ui::Node& node, ui::paint::Styl
 // margin from the metrics without any style edit, so they are a layout input no computed style
 // carries. Only the fields the inset arithmetic reads are compared: the window extent is already
 // covered by the viewport check, and the flags (focused, occluded, minimized) never reach layout.
-bool same_safe_area(const hal::WindowMetrics& before, bool before_valid,
-                    const SafeAreaState& now) {
+bool same_safe_area(const hal::WindowMetrics& before, bool before_valid, const SafeAreaState& now) {
     if (before_valid != now.has_metrics()) {
         return false;
     }

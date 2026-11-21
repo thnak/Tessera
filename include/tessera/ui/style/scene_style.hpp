@@ -82,6 +82,7 @@ public:
     // below describes that round only.
     void clear_restyled() {
         restyled_.clear();
+        restyled_roots_.clear();
     }
 
     // True when the restyle since `clear_restyled` changed a layout-affecting property on any node
@@ -97,6 +98,17 @@ public:
     // sound together with the caller's own checks that the tree shape, the viewport and the
     // safe-area insets did not move: those are layout inputs that no computed style carries.
     [[nodiscard]] bool restyled_layout_changed(const CompiledStyleSheet& sheet);
+
+    // The topmost nodes whose subtree this round restyled, in the order `restyle_subtree` was
+    // called. A node's computed style depends only on itself and its ancestors, so a node outside
+    // every one of these subtrees kept its style - which is what lets the scene sync visit only
+    // these subtrees and their ancestors (issue #735, slice B).
+    //
+    // Empty when the tree was rebuilt rather than patched: a rebuild recomputes every node, so
+    // there is no "unchanged" set to skip.
+    [[nodiscard]] const std::vector<const Node*>& restyled_roots() const {
+        return restyled_roots_;
+    }
     [[nodiscard]] std::uint64_t built_for_structure_epoch() const {
         return structure_epoch_;
     }
@@ -126,6 +138,8 @@ private:
         std::uint64_t digest = 0;
     };
     std::vector<RestyledEntry> restyled_;
+    // The topmost nodes `restyle_subtree` was called on this round (see `restyled_roots`).
+    std::vector<const Node*> restyled_roots_;
     std::deque<Entry> entries_;
     std::unordered_map<const Node*, std::size_t> index_;
     std::uint64_t structure_epoch_ = 0;

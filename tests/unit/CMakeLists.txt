@@ -329,6 +329,16 @@ target_link_libraries(layout_gate_tests PRIVATE tessera_app tessera_runtime)
 
 add_test(NAME layout_gate COMMAND layout_gate_tests)
 
+# The scoped scene sync (issue #735, slice B): a walk that visits only the restyled subtrees must
+# leave the scene in exactly the state the full walk does, including the `glass_subtree` refold on
+# every ancestor.
+add_executable(scoped_sync_tests
+    scoped_sync_tests.cpp)
+
+target_link_libraries(scoped_sync_tests PRIVATE tessera_paint tessera_style)
+
+add_test(NAME scoped_sync COMMAND scoped_sync_tests)
+
 # The host half of issue #187's acceptance: "the host updates reducedMotion and the media queries".
 # It drives the real AppHost with a media-independent prepared sheet (ADR-048's resolve step) and
 # asserts both `reducedMotion` reaching the animation/spring runtimes and the
