@@ -38,7 +38,8 @@
 // `style::SceneStyleTree` reads them as it computes, so `:hover`/`:active` match through the
 // ordinary cascade; nothing here parses a selector.
 //
-// **`changed`, not "always redraw"**: a static UI presents nothing// (docs/design/dirty-rendering.md), so "is a frame owed" is read from the scene's own dirty
+// **`changed`, not "always redraw"**: a static UI presents nothing
+// (docs/design/dirty-rendering.md), so "is a frame owed" is read from the scene's own dirty
 // domains.
 namespace tessera::compiler::codegen::cli {
 
