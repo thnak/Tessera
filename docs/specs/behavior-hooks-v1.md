@@ -271,7 +271,38 @@ the component spec template, sections 4, 5 and 8, in [`components/_template.md`]
 | Codegen | The generated base for a component with behaviors (new golden), and byte identity for one without | `tests/golden/codegen/` |
 | Preview | The session drives the instance and outputs update | `tests/unit/scene_behavior_tests.cpp` |
 
-## 13. Open items
+## 13. Verification map
+
+Every normative rule in this spec has a test. The per-hook specs carry their own maps; this table is
+the machinery's.
+
+| Section | Rule | Test |
+|---|---|---|
+| 3 | the manifest parses a `behavior` entry with its provider, options and outputs | `hook_manifest` |
+| 3 | the manifest and the engine registry agree on every provider name | `behavior_registry` |
+| 4 | a `ref` argument must name a `useRef` binding | `lowering_behaviors` |
+| 4 | an `options` argument must be one object literal | `lowering_behaviors` |
+| 4 | an unknown option key is `TESSERA_REACT_HOOK_ARG` | `lowering_behaviors` |
+| 4 | a field with no default is required | `lowering_behaviors` |
+| 4 | the lowering emits `args` in manifest order, with the manifest default when the source omits one | `lowering_behaviors` |
+| 5 | an output's IR type comes from the manifest, not a hardcoded `bool` | `lowering_behaviors` |
+| 6 | a behavior hook lowers to one `behaviors[]` entry | `lowering_behaviors` |
+| 6 | an output read lowers to a `beh::` reference | `lowering_behaviors` |
+| 6 | `beh::` resolves in the validator | `ir_validate` |
+| 7 | a duplicate behavior on one target is `TESSERA_BEHAVIOR_DUPLICATE` | `lowering_behaviors` |
+| 7 | an exclusive hook on one target is refused twice | `lowering_behaviors` |
+| 8 | attach/update/detach are the only calls the base makes | `codegen_behaviors` |
+| 8 | `refresh` recomputes without the options hash | `codegen_behaviors` |
+| 8 | a behavior may not invoke a callback | `codegen_behaviors_runtime` |
+| 9 | the generated base declares `attach_behaviors`/`refresh_behaviors`/`detach_behaviors` | `codegen_behaviors` |
+| 9 | attach is a separate call, not part of `build()` | `codegen_behaviors` |
+| 9 | the attach call names the registry entry and the target nodes | `codegen_behaviors` |
+| 9 | an output has a read accessor | `codegen_behaviors` |
+| 9 | the generated base compiles and runs against the real engine | `codegen_behaviors_runtime` |
+| 10 | the preview session drives a behavior the same way the base does | `codegen_behaviors_runtime` |
+| 12 | every hook has a spec with a verification map | the `docs` gate (link and index check) |
+
+## 14. Open items
 
 - Opaque handle outputs and package-declared hooks are not part of V1: the Table plugins of ADR-064
   item 8 are typed props, not hooks that return a handle ([`behavior-hooks.md`](../design/behavior-hooks.md)
