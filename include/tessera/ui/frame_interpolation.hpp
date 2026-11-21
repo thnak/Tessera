@@ -81,6 +81,9 @@ public:
 
     [[nodiscard]] std::optional<rendering::rhi::Mat3> local_transform(NodeId node) const override;
     void overlay_style(NodeId node, style::ComputedStyle& style) const override;
+    [[nodiscard]] bool overlays(NodeId node) const override {
+        return samples_.contains(node);
+    }
 
 private:
     PaintSamples samples_;

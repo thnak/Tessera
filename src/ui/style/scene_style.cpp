@@ -181,8 +181,7 @@ void SceneStyleTree::begin_memo() {
 }
 
 void SceneStyleTree::end_memo() {
-    memo_active_ = false;
-    memo_.clear();
+    // The entries are the tree's computed styles for this generation; keep them for the paint pass.
 }
 
 const ComputedStyle& SceneStyleTree::resolve(const CompiledStyleSheet& sheet, const Node& node) {

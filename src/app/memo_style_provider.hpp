@@ -10,8 +10,8 @@ namespace tessera::app {
 // interaction sync and the transition/animation bridge all read the same computed style of the
 // same node in one frame. Between `begin` and `end` the scene style tree memoises each node's
 // cascade style from its parent's, so a node costs one compute (not one per ancestor) and every
-// reader gets a reference instead of a copy. The memo lives only for one restyle, so a style input
-// edited between frames can never be served stale.
+// reader gets a reference instead of a copy. The entries outlive `end` so the paint pass reads
+// them; every style input marks `Dirty::Style`, which rebuilds the tree, so none is served stale.
 class MemoStyleProvider final : public ui::paint::StyleProvider {
 public:
     void begin(ui::paint::SceneStyleProvider& inner) {

@@ -157,6 +157,16 @@ void test_memo_matches_walk() {
         check(memoised.compute(sheet, *node).properties() == expected.properties(),
               "compute under a memo equals the walked style");
     }
+    // The entries outlive the bracket (the paint pass reads them), and a new generation starts
+    // clean.
+    const ui::Node* const probe_node = &leaf;
+    const style::ComputedStyle* const kept = &memoised.resolve(sheet, *probe_node);
+    memoised.end_memo();
+    check(&memoised.resolve(sheet, *probe_node) == kept, "a resolved style is kept after end_memo");
+    memoised.begin_memo();
+    check(memoised.resolve(sheet, *probe_node).properties() ==
+              walked.compute(sheet, leaf).properties(),
+          "a new generation recomputes the same style");
     memoised.end_memo();
 
     // The child inherits the inline `color`, and the inline custom property is visible to it.
