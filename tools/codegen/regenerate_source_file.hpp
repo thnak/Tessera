@@ -8,10 +8,12 @@
 
 #pragma once
 
+#include "tessera/compiler/jsx/hook_expansion.hpp"
 #include "tessera/compiler/jsx/parser.hpp"
 #include "tessera/compiler/lowering/node_lowering.hpp"
 #include "tessera/compiler/rules/analyze.hpp"
 
+#include <memory>
 #include <string>
 #include <utility>
 
@@ -22,7 +24,8 @@ namespace tessera::compiler::codegen::cli::detail {
 // Defined in `regenerate_source_file.cpp`: the constructor parses and analyses the text, so
 // inlining it here would put the front end in every translation unit that reads a file.
 struct SourceFile {
-    SourceFile(std::string file_path, std::string file_text, const jsx::Limits& limits = {});
+    SourceFile(std::string file_path, std::string file_text, const jsx::Limits& limits = {},
+               const jsx::FrontEndOptions& options = {});
 
     SourceFile(const SourceFile&) = delete;
     SourceFile& operator=(const SourceFile&) = delete;
@@ -34,6 +37,12 @@ struct SourceFile {
     std::string text;
     jsx::ModuleParseResult parsed;
     jsx::SourceMap map;
+    // The custom-hook expansion's diagnostics and its call-site map (spike #659). Declared before
+    // `analyzed` so it outlives the analysis, which borrows nothing from it but is reported after
+    // it: a diagnostic the rules raise inside an expanded hook body needs the map to name the call
+    // site (docs/specs/custom-hooks-v1.md section 8).
+    std::unique_ptr<jsx::DiagnosticSink> expansion_sink;
+    jsx::ExpansionMetrics expansion;
     rules::AnalyzedModule analyzed;
 };
 
