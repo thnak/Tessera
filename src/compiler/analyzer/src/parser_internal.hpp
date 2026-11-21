@@ -4,6 +4,7 @@
 
 #include "tessera/compiler/jsx/ast.hpp"
 #include "tessera/compiler/jsx/diagnostic.hpp"
+#include "tessera/compiler/jsx/front_end_options.hpp"
 #include "tessera/compiler/jsx/lexer.hpp"
 #include "tessera/compiler/jsx/parser.hpp"
 
@@ -14,6 +15,11 @@
 
 namespace tessera::compiler::jsx {
 
+// True for a custom hook's name: `use` plus an uppercase letter (docs/specs/custom-hooks-v1.md
+// section 2). `useState` and friends are core hooks, not declarations, so they are excluded by the
+// uppercase rule only in the sense that a core hook is never declared in a project file.
+[[nodiscard]] bool is_hook_declaration_name(std::string_view name);
+
 // Recursive-descent parser over the parser-driven Lexer. It holds one token of lookahead (`cur_`)
 // that was lexed in the mode the previous advance() asked for, so every consumption site states
 // the mode of the token that follows (see LexMode).
@@ -23,7 +29,7 @@ namespace tessera::compiler::jsx {
 // subset violation and parsing continues.
 class Parser {
 public:
-    Parser(std::string_view source, const Limits& limits);
+    Parser(std::string_view source, const Limits& limits, const FrontEndOptions& options = {});
 
     JsxPtr parse_jsx_root();
     ExprPtr parse_expression_root();
@@ -150,6 +156,12 @@ private:
     bool parse_const_statement(Statement& statement);
     bool parse_returned_element(ModuleItem& item);
 
+    // parser_hook.cpp (spike #659, ADR-065): a project-declared `use...` function.
+    bool parse_hook(ModuleItem& item);
+    bool parse_hook_params(ModuleItem& item);
+    bool parse_hook_body(ModuleItem& item);
+    bool parse_hook_return(ModuleItem& item);
+
     // bind_pairing.cpp
     void check_item_comments(ModuleItem& item, bool pair_inside);
     void check_remaining_comments();
@@ -185,6 +197,9 @@ private:
     std::string props_name_;         // name of the props parameter, empty when destructured
     std::set<std::string> bind_ids_; // every bind id (and reserved cleanup id) seen in the file
     std::size_t comment_cursor_ = 0; // comments before this index were already checked
+    // Spike #659: the experimental custom-hook switch. Off means a `use...` function keeps the
+    // `TESSERA_REACT_CUSTOM_HOOK` rejection and is parsed as a component, as before.
+    bool custom_hooks_ = false;
     bool fatal_ = false;
 };
 

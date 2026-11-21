@@ -6,11 +6,12 @@
 
 namespace tessera::compiler::jsx {
 
-Parser::Parser(std::string_view source, const Limits& limits)
+Parser::Parser(std::string_view source, const Limits& limits, const FrontEndOptions& options)
     : limits_(limits),
       map_(source),
       sink_(map_, limits_),
-      lexer_(source, sink_, limits_) {}
+      lexer_(source, sink_, limits_),
+      custom_hooks_(options.custom_hooks) {}
 
 void Parser::advance(LexMode mode) {
     if (cur_.kind == TokenKind::Punct) {
@@ -80,8 +81,9 @@ TypePtr Parser::parse_type_root() {
     return fatal_ ? nullptr : std::move(root);
 }
 
-ModuleParseResult parse_module(std::string_view source, const Limits& limits) {
-    Parser parser(source, limits);
+ModuleParseResult parse_module(std::string_view source, const Limits& limits,
+                               const FrontEndOptions& options) {
+    Parser parser(source, limits, options);
     auto root = parser.parse_module_root();
     return parser.finish(std::move(root));
 }

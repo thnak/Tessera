@@ -18,6 +18,7 @@
 #include "jsx_diagnostics_cases.hpp"
 #include "jsx_test_util.hpp"
 #include "tessera/compiler/jsx/diagnostic_registry.hpp"
+#include "tessera/compiler/jsx/hook_expansion.hpp"
 #include "tessera/compiler/jsx/lexer.hpp"
 #include "tessera/compiler/jsx/source_map.hpp"
 #include "tessera/compiler/rules/analyze.hpp"
@@ -109,6 +110,22 @@ std::vector<Diagnostic> run_case(const jsx_registry::Case& test, const std::stri
         }
         const SourceMap map(test.source);
         return rules::analyze_module(*parsed.root, map, test.limits).diagnostics;
+    }
+    case jsx_registry::Entry::kExpansion: {
+        // The custom-hook expansion (spike #659, ADR-065) only runs with the experimental switch
+        // on, so its codes need their own entry kind: the default pipeline never reports them.
+        FrontEndOptions options;
+        options.custom_hooks = true;
+        const ModuleParseResult parsed = parse_module(test.source, test.limits, options);
+        check(parsed.ok(), "expansion fixture parses cleanly: " + where);
+        if (!parsed.root) {
+            return {};
+        }
+        const SourceMap map(test.source);
+        DiagnosticSink sink(map, test.limits);
+        const ExpansionMetrics metrics = expand_custom_hooks(*parsed.root, map, options, sink);
+        static_cast<void>(metrics);
+        return sink.take();
     }
     case jsx_registry::Entry::kLex:
         break;

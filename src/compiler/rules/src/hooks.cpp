@@ -194,7 +194,8 @@ void check_hooks(Context& ctx) {
     const auto& body = ctx.item.body;
     for (std::size_t i = 0; i < body.size(); ++i) {
         const Statement& statement = body[i];
-        if (statement.init && is_hook_name(callee_name(*statement.init))) {
+        if (statement.init && is_hook_name(callee_name(*statement.init)) &&
+            !is_expansion_name(callee_name(*statement.init))) {
             check_hook_statement(ctx, i, statement);
             continue;
         }

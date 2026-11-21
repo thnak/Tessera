@@ -122,6 +122,19 @@ bool Parser::parse_item(ModuleItem& item) {
         return parse_type_alias(item);
     }
     if (cur_.is_keyword("function")) {
+        // Spike #659: with the experimental switch on, a `use...` function is a hook declaration
+        // rather than the `TESSERA_REACT_CUSTOM_HOOK` rejection. The name is one token ahead of
+        // `function`, so the decision needs a lookahead rather than a second parse.
+        if (custom_hooks_) {
+            const Checkpoint saved = checkpoint();
+            advance(LexMode::Code);
+            const bool hook =
+                cur_.kind == TokenKind::Identifier && is_hook_declaration_name(cur_.text);
+            restore(saved);
+            if (hook) {
+                return parse_hook(item);
+            }
+        }
         return parse_component(item);
     }
     if (cur_.is_keyword("const")) {

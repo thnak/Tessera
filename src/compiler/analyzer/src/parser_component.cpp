@@ -54,6 +54,10 @@ bool Parser::parse_component(ModuleItem& item) {
     // uppercase, so a lowercase declaration is simply not a component and is parsed as a helper.
     // A helper is not lowered -- the port moves it into a native handler or a `const` arrow -- but
     // it must not stop the component beside it from being compiled.
+    //
+    // Spike #659: with the experimental switch on, a `use...` function never reaches this function
+    // (parse_item dispatches it to parse_hook), so the branch below stays the rejection of spec
+    // section 7.
     const bool lowercase = !item.name.empty() && (item.name[0] < 'A' || item.name[0] > 'Z');
     if (item.name.starts_with("use")) {
         report("TESSERA_REACT_CUSTOM_HOOK",
@@ -228,30 +232,49 @@ bool Parser::parse_const_statement(Statement& statement) {
             return false;
         }
     } else if (at_punct("{")) {
-        // `const { state } = io;` (issue #660's corpus). Each listed name binds the field of the
-        // same name; a rename (`{ state: s }`) is refused rather than guessed at, because the
-        // subset has no rename form and a silent rename would be a second naming rule.
-        statement.object_pattern = true;
+        // An object pattern. Two cases share one parse:
+        //
+        //   * `const { state } = io;` (issue #660's corpus) binds each listed field of the
+        //     initializer to a local of the same name. A rename (`{ state: s }`) is refused rather
+        //     than guessed at, because the subset has no rename form and a silent rename would be a
+        //     second naming rule.
+        //   * with the experimental custom-hook switch on, `const { page, next: goNext } =
+        //     usePagination(...)` (spike #659) DOES allow a rename, because the expansion pass is
+        //     the only consumer and it never reaches the rules or lowering.
         advance(LexMode::Code);
         while (!fatal_ && !at_punct("}")) {
             if (cur_.kind != TokenKind::Identifier && cur_.kind != TokenKind::Keyword) {
                 fail_unexpected("a field name in the pattern");
                 return false;
             }
-            statement.names.emplace_back(cur_.text);
+            PatternBinding binding;
+            binding.key = std::string(cur_.text);
+            binding.local = binding.key;
+            binding.span = cur_.span;
             advance(LexMode::Code);
             if (at_punct(":")) {
-                fail("TESSERA_JSX_SUBSET_STATEMENT",
-                     "a renamed destructured binding is not supported", cur_.span,
-                     "write `const <field> = <init>.<field>;` for each field");
-                return false;
+                if (!custom_hooks_) {
+                    fail("TESSERA_JSX_SUBSET_STATEMENT",
+                         "a renamed destructured binding is not supported", cur_.span,
+                         "write `const <field> = <init>.<field>;` for each field");
+                    return false;
+                }
+                advance(LexMode::Code);
+                if (cur_.kind != TokenKind::Identifier) {
+                    fail_unexpected("a local name after `:`");
+                    return false;
+                }
+                binding.local = std::string(cur_.text);
+                advance(LexMode::Code);
             }
+            statement.names.push_back(binding.local);
+            statement.object_pattern.push_back(std::move(binding));
             if (!at_punct(",")) {
                 break;
             }
             advance(LexMode::Code);
         }
-        if (statement.names.empty()) {
+        if (statement.object_pattern.empty()) {
             fail_unexpected("a field name in the pattern");
             return false;
         }

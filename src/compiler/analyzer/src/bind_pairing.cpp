@@ -97,7 +97,8 @@ void Parser::check_item_comments(ModuleItem& item, bool pair_inside) {
         if (inside && !pair_inside) {
             continue; // the item is already invalid
         }
-        const bool in_component = inside && item.kind == ItemKind::Component;
+        const bool in_component =
+            inside && (item.kind == ItemKind::Component || item.kind == ItemKind::Hook);
         if (!in_component) {
             report("TESSERA_REACT_BIND_POSITION",
                    "`bind::` annotations go before a handler declaration or a `useEffect` "

@@ -1893,6 +1893,22 @@ target_link_libraries(lowering_hooks_tests PRIVATE tessera_lowering)
 
 add_test(NAME lowering_hooks COMMAND lowering_hooks_tests)
 
+# Spike #659 (ADR-065): the custom-hook expansion pass, off by default. The differential test needs
+# the whole front end plus lowering, because it compares two components' IR.
+add_executable(hook_expansion_differential_tests
+    hook_expansion_differential_tests.cpp)
+
+target_link_libraries(hook_expansion_differential_tests PRIVATE tessera_lowering)
+
+add_test(NAME hook_expansion_differential COMMAND hook_expansion_differential_tests)
+
+add_executable(hook_expansion_tests
+    hook_expansion_tests.cpp)
+
+target_link_libraries(hook_expansion_tests PRIVATE tessera_lowering)
+
+add_test(NAME hook_expansion COMMAND hook_expansion_tests)
+
 add_executable(lowering_behaviors_tests
     lowering_behaviors_tests.cpp)
 

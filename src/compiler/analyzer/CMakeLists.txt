@@ -18,6 +18,11 @@ add_library(tessera_jsx_frontend STATIC
     src/parser_type.cpp
     src/parser_module.cpp
     src/parser_component.cpp
+    src/parser_hook.cpp
+    src/hook_expansion.cpp
+    src/hook_expansion_bind.cpp
+    src/hook_expansion_clone.cpp
+    src/hook_expansion_substitute.cpp
     src/module_dump.cpp
     src/parser_rules.cpp
     src/bind_pairing.cpp
