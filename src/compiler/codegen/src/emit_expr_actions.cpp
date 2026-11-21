@@ -85,6 +85,12 @@ bool emit_one_action(const ir::Action& action, const ir::Component& component,
     }
     const std::string_view target = action.target;
     if (action.kind == ir::ActionKind::Set && target.rfind(kStatePrefix, 0) == 0) {
+        // ADR-067 item 4: a transition-marked setter starts the transition under the resource's
+        // current epoch *before* it assigns, so `isPending` is true from the moment the change is
+        // applied. The mark is inert without a `Suspense`/transition surface, which is the default.
+        if (action.transition) {
+            body += "pending_transition_.begin(pending_resource_.epoch());\n";
+        }
         body += member_name(target) + " = " + value.text + ";\n";
         // ADR-056: a handler's write marks the cell dirty even when the value is unchanged, so the
         // apply_state() it ends with re-evaluates (a controlled input snaps back this way).

@@ -8,11 +8,16 @@ add_library(tessera_ir_eval STATIC
     src/evaluator.cpp
     src/number_text.cpp
     src/operators.cpp
+    src/pending.cpp
     src/value.cpp)
 
 target_include_directories(tessera_ir_eval
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        # ADR-067 spike #661: the pending-UI model (`tessera/ui/pending/`) is header-only and
+        # shared with generated C++, so the evaluator includes it from the project include root
+        # rather than growing a link edge to the scene.
+        $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src)
 

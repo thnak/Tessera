@@ -31,7 +31,7 @@ static_assert(kNodeKindTraits[static_cast<std::size_t>(NodeKind::VirtualList)].n
               "row 9 is VirtualList");
 static_assert(kNodeKindTraits[static_cast<std::size_t>(NodeKind::CustomElement)].name ==
                   std::string_view("CustomElement"),
-              "row 12 is CustomElement");
+              "row 13 is CustomElement");
 static_assert(kNodeKindTraits[static_cast<std::size_t>(NodeKind::Slot)].name ==
                   std::string_view("Slot"),
               "the last row is Slot");
@@ -55,6 +55,7 @@ static_assert(node_kind_traits(NodeKind::VirtualList).has_item_template,
               "a virtual collection has an itemTemplate");
 static_assert(node_kind_traits(NodeKind::ErrorBoundary).has_fallback,
               "an ErrorBoundary has a fallback");
+static_assert(node_kind_traits(NodeKind::Suspense).has_fallback, "a Suspense has a fallback");
 static_assert(node_kind_traits(NodeKind::Slot).is_leaf, "a Slot is a leaf");
 static_assert(!node_kind_traits(NodeKind::Slot).has_style, "a Slot carries no style");
 static_assert(node_kind_traits(NodeKind::TextInput).is_text_input, "a TextInput is a text input");
@@ -91,7 +92,7 @@ static_assert(count_flag(kIsCollection) == 2, "two virtual collections");
 static_assert(count_flag(kIsTextInput) == 2, "two text inputs");
 static_assert(count_flag(kHasComponent) == 1, "one component kind");
 static_assert(count_flag(kHasElement) == 1, "one custom-element kind");
-static_assert(count_flag(kHasFallback) == 1, "one error-boundary kind");
+static_assert(count_flag(kHasFallback) == 2, "two boundary kinds (ErrorBoundary, Suspense)");
 static_assert(count_flag(kHasItemTemplate) == 2, "one template per collection");
 static_assert(count_flag(kIsInlineSpan) == 1, "one inline-span kind");
 static_assert(count_flag(kTakesSlotChildren) == 1, "one slot-content kind");

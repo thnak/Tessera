@@ -174,22 +174,27 @@ void NodeWalker::check_shape(const Node& node) {
                        std::string(node_kind_name(node.kind)) + " must not have children",
                        node.source);
     }
-    if (node.kind == NodeKind::ErrorBoundary) {
+    if (node.kind == NodeKind::ErrorBoundary || node.kind == NodeKind::Suspense) {
+        // ADR-067 item 2: a Suspense boundary has the ErrorBoundary shape (one fallback, one child
+        // subtree), so the two share one rule instead of drifting apart.
+        const std::string kind = std::string(node_kind_name(node.kind));
         if (!node.fallback) {
-            context.report("TESSERA_IR_ERROR_BOUNDARY", "an ErrorBoundary needs a fallback",
+            context.report("TESSERA_IR_ERROR_BOUNDARY", "an " + kind + " needs a fallback",
                            node.source);
         } else if (node.fallback->condition || node.fallback->loop) {
             context.report("TESSERA_IR_ERROR_BOUNDARY",
-                           "an ErrorBoundary fallback is a static element, not conditional or "
-                           "looped (section 5.1)",
+                           "an " + kind +
+                               " fallback is a static element, not conditional or "
+                               "looped (section 5.1)",
                            node.fallback->source);
         }
         if (node.children.size() != 1) {
             context.report("TESSERA_IR_ERROR_BOUNDARY",
-                           "an ErrorBoundary needs exactly one child subtree", node.source);
+                           "an " + kind + " needs exactly one child subtree", node.source);
         }
     } else if (node.fallback) {
-        context.report("TESSERA_IR_MALFORMED", "only an ErrorBoundary has a fallback", node.source);
+        context.report("TESSERA_IR_MALFORMED", "only an ErrorBoundary or a Suspense has a fallback",
+                       node.source);
     }
     const bool collection = traits.is_collection;
     if (collection) {

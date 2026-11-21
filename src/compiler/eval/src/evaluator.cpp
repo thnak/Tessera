@@ -260,6 +260,12 @@ std::expected<void, EvalError> Evaluator::run(std::span<const ir::Action> action
         if (!value) {
             return std::unexpected(std::move(value.error()));
         }
+        // ADR-067 item 4: a transition-marked setter starts a transition before it assigns, so
+        // `isPending` is true from the moment the change is applied. Inert without a session,
+        // which is the default.
+        if (action.transition && pending_ != nullptr) {
+            pending_->begin_transition();
+        }
         // The target keeps its type; an int widens into a float as C++ converts it.
         if (target->second.as_float() != nullptr && value->as_int() != nullptr) {
             *value = Value::of_float(value->number());

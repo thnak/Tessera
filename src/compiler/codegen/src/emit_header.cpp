@@ -15,6 +15,7 @@
 #include "emit_schedule.hpp"
 #include "emit_services.hpp"
 #include "emit_snapshot.hpp"
+#include "emit_suspense.hpp"
 #include "emit_types_header.hpp"
 #include "form_binding.hpp"
 #include "interpolation.hpp"
@@ -119,6 +120,11 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
         }
     }
     emit_form_includes(writer, forms);
+    // ADR-067 spike #661 (off by default): the pending-UI model, emitted only for a component that
+    // has a `Suspense` node or a transition-marked action.
+    for (const std::string& header : pending_headers(component, plan)) {
+        writer.line("#include \"" + header + "\"");
+    }
     if (uses_focus_actions(component)) {
         writer.line("#include \"tessera/ui/scene/focus.hpp\"");
     }
@@ -293,6 +299,7 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
     }
     writer.line("");
     emit_dynamic_fields(writer, plan);
+    emit_pending_fields(writer, component, plan);
     emit_form_declarations(writer, forms);
     if (uses_focus_actions(component)) {
         writer.line(
@@ -346,6 +353,7 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
     if (!plan.groups.empty() || !plan.lists.empty()) {
         emit_dynamic_declarations(writer, plan);
     }
+    emit_pending_declarations(writer, component, plan);
     for (const ir::Handler& handler : component.handlers) {
         bool typed = false;
         std::string param_name;

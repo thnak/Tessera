@@ -33,6 +33,8 @@ std::string_view node_kind_name(NodeKind kind) {
         return "VirtualGrid";
     case NodeKind::ErrorBoundary:
         return "ErrorBoundary";
+    case NodeKind::Suspense:
+        return "Suspense";
     case NodeKind::CustomElement:
         return "CustomElement";
     case NodeKind::Component:

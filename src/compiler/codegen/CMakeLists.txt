@@ -30,6 +30,7 @@ add_library(tessera_codegen STATIC
     src/emit_services.cpp
     src/emit_behaviors.cpp
     src/emit_snapshot.cpp
+    src/emit_suspense.cpp
     src/emit_stylesheet_embed.cpp
     src/emit_theme_embed.cpp
     src/emit_types_header.cpp
@@ -1218,6 +1219,51 @@ if (TESSERA_BUILD_TESTS)
         TESSERA_CODEGEN_GOLDEN_DIR="${_tessera_codegen_golden_dir}")
 
     add_test(NAME codegen_dynamic COMMAND codegen_dynamic_tests)
+
+    # ADR-067 spike #661 (off by default): a `Suspense` boundary and a transition-marked setter.
+    # Goldens from hand-built IR (the `.tsx` front end cannot author either yet), plus a runtime test
+    # over the compiled generated component and the differential test against the IR evaluator.
+    add_executable(codegen_pending_tests
+        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_pending_tests.cpp)
+
+    target_link_libraries(codegen_pending_tests PRIVATE tessera_codegen)
+
+    target_compile_definitions(codegen_pending_tests PRIVATE
+        TESSERA_CODEGEN_GOLDEN_DIR="${_tessera_codegen_golden_dir}")
+
+    add_test(NAME codegen_pending COMMAND codegen_pending_tests)
+
+    # The developer class over the committed pending base: the boundary really swaps scene subtrees,
+    # the old subtree survives a refresh, and a full transition cycle allocates nothing.
+    if (EXISTS ${_tessera_codegen_golden_dir}/pending/Feed.g.hpp)
+        add_executable(codegen_pending_runtime_tests
+            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_pending_runtime_tests.cpp
+            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/pending/Feed.cpp)
+
+        target_include_directories(codegen_pending_runtime_tests PRIVATE
+            ${_tessera_codegen_golden_dir}/pending
+            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/pending)
+        target_link_libraries(codegen_pending_runtime_tests PRIVATE tessera_scene)
+        target_compile_features(codegen_pending_runtime_tests PRIVATE cxx_std_23)
+
+        add_test(NAME codegen_pending_runtime COMMAND codegen_pending_runtime_tests)
+
+        # The differential test: the IR evaluator and the generated component run one script of
+        # pending-UI operations and must agree after every step (ADR-067 spike #661).
+        add_executable(codegen_pending_parity_tests
+            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_pending_parity_tests.cpp
+            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/pending/Feed.cpp)
+
+        target_include_directories(codegen_pending_parity_tests PRIVATE
+            ${_tessera_codegen_golden_dir}/pending
+            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/pending
+            ${CMAKE_SOURCE_DIR}/tests/unit)
+        target_link_libraries(codegen_pending_parity_tests PRIVATE
+            tessera_scene tessera_ir_eval)
+        target_compile_features(codegen_pending_parity_tests PRIVATE cxx_std_23)
+
+        add_test(NAME codegen_pending_parity COMMAND codegen_pending_parity_tests)
+    endif ()
 
     # The developer class (tests/unit/codegen_base/fixtures/Dynamic.hpp) over the committed base.
     if (EXISTS ${_tessera_codegen_golden_dir}/Dynamic.g.hpp)

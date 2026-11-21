@@ -66,6 +66,10 @@ struct NodeEmitState {
 
     unsigned next_id = 1;
     unsigned next_var = 1;
+    // The generated variable of the node whose child loop is running (ADR-067 spike #661). A
+    // `Suspense` boundary is a static node: it attaches its live subtree to *this* node, at the
+    // source position the boundary occupies, so it needs the parent's name and not its own.
+    std::string parent_variable;
 };
 
 // Emits `node` and its subtree; `variable` receives the generated variable name of the created

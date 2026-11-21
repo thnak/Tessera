@@ -356,6 +356,12 @@ void validate_actions(ValidationContext& context, const ComponentScope& scope,
         require_expr(context, scope, locals, action.value.get(), where, "an action value");
         validate_animation_options(context, action, where);
         validate_on_complete(context, scope, action, where);
+        // ADR-067 item 4: only a state setter can be a transition. A transition mark on an
+        // animated set would promise a pending UI for a change that never fetches.
+        if (action.transition && action.kind != ActionKind::Set) {
+            context.report("TESSERA_IR_TRANSITION",
+                           "a transition mark is only valid on a state setter", where);
+        }
     }
 }
 

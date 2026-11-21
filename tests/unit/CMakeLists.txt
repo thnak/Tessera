@@ -2470,6 +2470,15 @@ target_link_libraries(ir_eval_tests PRIVATE tessera_ir_eval)
 
 add_test(NAME ir_eval COMMAND ir_eval_tests)
 
+# ADR-067 spike #661: the pending-UI model on its own (Suspense fallback/restore/keep-on-refresh,
+# the transition mark's isPending, the stale-epoch drop). Header-only, so it links nothing.
+add_executable(pending_model_tests
+    pending_model_tests.cpp)
+
+target_include_directories(pending_model_tests PRIVATE ${PROJECT_SOURCE_DIR}/include)
+
+add_test(NAME pending_model COMMAND pending_model_tests)
+
 # StateCell helpers behind generated snapshot_state() (issue #7).
 add_executable(state_snapshot_tests
     state_snapshot_tests.cpp)
