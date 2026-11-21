@@ -18,9 +18,10 @@ void ComponentNames::record_const_local(const jsx::Statement& statement, std::st
     if (statement.init == nullptr) {
         return;
     }
-    if (statement.object_pattern) {
-        // The parser records the field names in `names` and refuses a rename, so the local name is
-        // the field name.
+    if (!statement.object_pattern.empty()) {
+        // An object pattern binds each listed field of the initializer to a local of the same name
+        // (the parser refuses a rename outside the experimental custom-hook path), so the local
+        // name is the field name and the inlined reference appends it to the initializer's id.
         const_locals_.push_back({std::string(name), statement.init.get(), std::string(name)});
         return;
     }
