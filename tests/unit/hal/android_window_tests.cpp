@@ -61,8 +61,7 @@ int main() {
     check(static_cast<std::uint8_t>(WindowSystem::Android) == 4, "android is appended as 4");
 
     // 3. The enum stays a byte: it is copied into every `SurfaceDesc` and `WindowMetrics` consumer.
-    static_assert(sizeof(WindowSystem) == sizeof(std::uint8_t),
-                  "WindowSystem must stay a byte");
+    static_assert(sizeof(WindowSystem) == sizeof(std::uint8_t), "WindowSystem must stay a byte");
 
     // 4. The density arithmetic. A 1080x2400 phone at 2.75x is 393x873 logical pixels; truncating
     //    instead of rounding would report 872 and shift every row by one.

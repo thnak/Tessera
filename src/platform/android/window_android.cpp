@@ -32,7 +32,6 @@
 #include "tessera/hal/window.hpp"
 
 #include <android/native_window.h>
-
 #include <cmath>
 #include <cstdint>
 #include <memory>
@@ -55,7 +54,9 @@ std::uint32_t logical_from_physical(std::uint32_t physical, float scale) {
 class AndroidWindow final : public Window {
 public:
     AndroidWindow(ANativeWindow* window, const WindowDesc& desc, float dpi_scale)
-        : window_(window), desc_(desc), dpi_scale_(dpi_scale > 0.0f ? dpi_scale : 1.0f) {
+        : window_(window),
+          desc_(desc),
+          dpi_scale_(dpi_scale > 0.0f ? dpi_scale : 1.0f) {
         // One reference for this object's lifetime. The host keeps its own; releasing ours in the
         // destructor is what makes the window collectable when the app is done with it.
         ANativeWindow_acquire(window_);
