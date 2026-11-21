@@ -1,27 +1,22 @@
-hook: useListFocus, roving focus for lists and menus (#625)
+hook: usePressFeedback spec, and make `disabled` real (#628)
 
-`useListFocus(target, { orientation, typeahead })` gives a group of items
-one Tab stop and moves focus among them with the arrow keys. The engine
-already owned the mechanism (`Node::set_focus_group` plus
-`FocusManager::move_in_focus_group`, which wraps and honours Home/End);
-this lands the hook's half.
+`usePressFeedback` had an implementation and tests but no contract, and its
+one declared option was never read: `disabled` was in the manifest, the
+analyzer accepted it, and the behavior ignored it, so a disabled button
+reported itself pressed.
 
-The behavior sets the group's axis from `orientation`, sets the
-`typeahead` flag the manager reads, and reports `activeIndex`: the index
-of the item that holds the Tab stop, or -1 when focus is outside the
-group. That output is what a component needs to render
-`aria-activedescendant` or a highlight without keeping a second copy of
-the focus state. The index is computed by walking the group's subtree
-rather than read from the manager, because the manager stores the Tab
-stop as a `NodeId` in a private map and a "which index" query would put a
-component concern in the scene layer.
+The spec (`docs/specs/use-press-feedback-v1.md`) states ten rules with an
+evidence row each. Writing it is what surfaced the gap: rule 5 says a
+disabled target never reports `pressed` while still reporting `hovered` and
+`focused` (ADR-064 item 9: a disabled control stays focusable and explains
+why), and nothing implemented it.
 
-`typeahead` is a flag on this group rather than a separate `useTypeahead`
-hook: the engine's typeahead already reads the group it belongs to, so a
-second hook would have to find the same group again.
+The behavior now reads `disabled` at attach and on update, and suppresses
+`pressed` only. `test_disabled_suppresses_pressed_only` pins both
+directions, including that clearing the option lets the press through
+again.
 
-Evidence: `roving_focus` (10 rules, including the arrows wrapping, Home
-and End, the axis being respected, and `activeIndex` tracking focus),
-`hook_manifest` (the entry's shape and its numeric output) and
-`behavior_registry` (the name is registered). Spec:
-`docs/specs/use-list-focus-v1.md`.
+The spec also records what the hook deliberately does not do: it does not
+set `aria-pressed` from `press.pressed`, because `aria-pressed` is a toggle
+state and `press.pressed` is a transient interaction; a component that
+conflated them would announce a toggle that flips on every click.

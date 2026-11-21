@@ -122,6 +122,41 @@ bool test_pointer_press_reports_pressed_and_hovered() {
     return ok;
 }
 
+// A disabled target never reports `pressed`, but still reports `hovered` and `focused`: a disabled
+// control that is focusable must still show where focus is (ADR-064 item 9).
+bool test_disabled_suppresses_pressed_only() {
+    Scene scene;
+    PressFeedback behavior;
+    std::array<Node*, 1> nodes{scene.button};
+    ArgValue disabled;
+    disabled.kind = ArgValue::Kind::Bool;
+    disabled.boolean = true;
+    std::array<ArgValue, 1> args{disabled};
+    behavior.attach(Targets{nodes}, Services{&scene.router}, ArgsView{args});
+
+    scene.move(20, 20);
+    scene.down(20, 20);
+    behavior.update(ArgsView{args});
+    Outputs out = read(behavior);
+    bool ok = expect(!out.pressed, "a disabled target never reports pressed");
+    ok = expect(out.hovered, "a disabled target still reports hovered") && ok;
+
+    scene.router.focus_manager().request_focus(scene.button);
+    behavior.update(ArgsView{args});
+    out = read(behavior);
+    ok = expect(out.focused, "a disabled target still reports focused") && ok;
+    ok = expect(!out.pressed, "focus does not make a disabled target pressed") && ok;
+
+    // Clearing the option lets the press through again.
+    ArgValue enabled;
+    enabled.kind = ArgValue::Kind::Bool;
+    enabled.boolean = false;
+    std::array<ArgValue, 1> on{enabled};
+    behavior.update(ArgsView{on});
+    ok = expect(read(behavior).pressed, "clearing disabled lets the press through") && ok;
+    return ok;
+}
+
 // Moving the pointer off the button clears `hovered` without touching `pressed`.
 bool test_pointer_leave_clears_hovered() {
     Scene scene;
@@ -222,6 +257,7 @@ bool test_update_with_no_options_keeps_the_state() {
 int main() {
     bool ok = test_defaults_before_attach();
     ok = test_pointer_press_reports_pressed_and_hovered() && ok;
+    ok = test_disabled_suppresses_pressed_only() && ok;
     ok = test_pointer_leave_clears_hovered() && ok;
     ok = test_keyboard_focus_is_independent() && ok;
     ok = test_detach_is_idempotent_and_resets() && ok;
