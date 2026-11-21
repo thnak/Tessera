@@ -58,3 +58,30 @@ regression is a build failure rather than a slow test. The rules for new code:
 - A new hot struct whose size is a multiple of 64 needs `alignas(64)`.
 - A struct that grows past its budget needs a recorded decision, the same rule as
   [`performance.md`](performance.md) section 3.1.
+
+## 5. The types that landed before the rule (issue #732)
+
+The rule above was written after five types had already landed without it. Each has a size that is
+a multiple of 64, so with the natural 8-byte alignment seven of eight instances straddle a line and
+a sequential walk touches both. They now carry `alignas(64)`, and `cache_line_tests.cpp` asserts
+both halves (size is a multiple, alignment is the line) for each:
+
+| Type | sizeof | held in |
+|---|---|---|
+| `ui::InputEvent` | 320 (5 lines) | the 256-event ring, copied on every push and pop |
+| `ui::style::Rule` | 64 | `std::vector<Rule>`, every parsed rule |
+| `ui::style::MediaQuery` | 64 | `std::vector<MediaQuery>` |
+| `ui::style::ThemeToken` | 64 | theme token and declaration lists |
+| `ui::style::ThemePin` | 64 | the theme pin list |
+
+`alignas` changes no offset, so the `sizeof_input_event` budget row and `kInputEventSizeBudget` are
+unaffected: the cost is the tail padding a vector's allocator rounds up to, not a wider element.
+
+**False sharing in `UiaHost`.** Its five atomics used to sit in one 64-byte line, so the UI thread's
+`mark_dirty`/`tick` and the bridge thread's `flush_events` invalidated each other's copy on every
+publish and every flush. They are now two `detail::CacheLine` groups, split by writer: `dirty` and
+`flush_posted` for the UI thread, `root`, `raised_batches` and `failed_raises` for the bridge thread.
+`cache_line_tests.cpp` asserts the host holds at least two separate groups.
+
+`AtspiSession`'s `phase_`/`error_`/`running_` share a line, but a start/stop is a once-per-session
+event rather than a per-frame one, so that is recorded as accepted rather than fixed.

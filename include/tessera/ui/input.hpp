@@ -96,7 +96,12 @@ constexpr bool has_modifier(Modifier value, Modifier flag) {
 // Grouping takes it to 320, which is 6 KiB off the queue. `InputEvent` is only ever built as
 // `InputEvent{}` and assigned field by field, so the order carries no meaning and the reorder is
 // behavior-preserving.
-struct InputEvent {
+//
+// `alignas(64)` (issue #732): 320 is five cache lines, so with the natural 8-byte alignment seven
+// of eight instances straddle a line boundary and a sequential walk over the queue touches both.
+// The alignment changes no offset, so `kInputEventSizeBudget` and the `sizeof_input_event` row are
+// unaffected.
+struct alignas(64) InputEvent {
     // 8-byte group.
     double timestamp_s = 0.0;
     // 4-byte group.

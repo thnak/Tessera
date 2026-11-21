@@ -53,7 +53,10 @@ struct MediaCondition {
     std::string value;
 };
 
-struct MediaQuery {
+// `alignas(64)` (issue #732): `bool` + `std::string` (32) + `std::vector` (24) is exactly 64, so
+// with the natural 8-byte alignment seven of eight queries straddle a line. The alignment changes
+// no offset.
+struct alignas(64) MediaQuery {
     bool negated = false;
     std::string type;
     std::vector<MediaCondition> conditions;
