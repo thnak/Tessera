@@ -187,7 +187,7 @@ if (TARGET tessera_rhi_vulkan)
     add_executable(cpu_to_gpu_4k_measure
         batched2d/cpu_to_gpu_4k_measure.cpp)
     target_link_libraries(cpu_to_gpu_4k_measure PRIVATE
-        tessera_path tessera_image tessera_rhi_vulkan)
+        tessera_gpu tessera_path tessera_image tessera_rhi_vulkan)
 endif()
 
 # Manual measurement tool (not a CTest): the number issue #480 part 2 is gated on. It paints an

@@ -514,9 +514,12 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
       ThorVG raster 14.9 to 30.9 ms, upload 4 to 6 ms CPU side, image resample 50 to 57 ms per
       miss; budget is 16.7 ms at 60 Hz, 4.2 ms at 240 Hz). Hypotheses are checked before an
       issue is `ready`: the per-call staging allocation was refuted as the upload cost (reuse
-      saves under 2 ms; the memcpy is the cost), so #681 is rescoped to `write_region`, dirty-rect
-      atlas uploads and attributing the `create_texture` tail; #682 (no CPU image resample) waits
-      for a test that GPU nearest sampling matches `CpuCanvas`. Vector paths go to a GPU compute
+      saves under 2 ms; the memcpy is the cost), the `create_texture` tail is VMA block growth
+      (60 ms per added block on the dGPU, a fresh block per 4K image on the iGPU), so #681 is
+      rescoped to `write_region`, dirty-rect atlas uploads and a device-memory pool/pre-warm;
+      hardware nearest sampling is not bit-exact with the CPU rule (wrong neighbor on every pixel
+      at 2:1), so #682 (no CPU image resample) uses integer `texelFetch` nearest. Both GPUs
+      measured are AMD; other vendors are untested. Vector paths go to a GPU compute
       tile rasterizer, owner direction "best performance, cost is not a criterion": #683 ADR + 4K
       spike (`spike`, amends ADR-057; full re-encode crosses 0.5 ms at about 28k segments, so
       GPU path generation is justified above roughly 30k segments), then #684 RHI 1.10 compute

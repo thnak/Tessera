@@ -13,15 +13,19 @@
 //
 // Every row prints min/median/max over the iterations, then a budget table against 60/120/240 Hz.
 
+#include "tessera/rendering/gpu/batched2d_renderer.hpp"
 #include "tessera/rendering/image/image_texture_cache.hpp"
 #include "tessera/rendering/path/path_model.hpp"
 #include "tessera/rendering/path/path_rasterizer.hpp"
 #include "tessera/rendering/rhi/device.hpp"
+#include "tessera/rendering/vulkan/batched2d_pipeline.hpp"
 #include "tessera/rendering/vulkan/vulkan_device.hpp"
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <exception>
 #include <functional>
@@ -393,6 +397,225 @@ void measure_encode_hypothesis() {
     }
 }
 
+// H2b (#682): does the GPU's nearest sampling reproduce the CPU resample rule bit-exactly? The
+// source is random noise so any off-by-one neighbor shows. Ratios of exactly 2:1 and 3:1 put the
+// sample position exactly on a texel boundary, which is where float interpolation decides a tie.
+[[nodiscard]] std::vector<std::uint8_t> gpu_draw_nearest(rhi::Device& device, rhi::Texture& texture,
+                                                         std::uint32_t w, std::uint32_t h) {
+    rhi::RenderTargetDesc target_desc;
+    target_desc.extent = {w, h};
+    target_desc.format = rhi::TextureFormat::R8G8B8A8Unorm;
+    target_desc.clear_color = {0.0f, 0.0f, 0.0f, 1.0f};
+    auto target = device.create_render_target(target_desc);
+    auto pipeline_desc = tessera::rendering::vulkan::batched2d_pipeline_desc();
+    pipeline_desc.color_format = target_desc.format;
+    auto pipeline = device.create_pipeline(pipeline_desc);
+
+    const std::array<std::uint8_t, 4> white_pixel = {255, 255, 255, 255};
+    rhi::TextureDesc white_desc;
+    white_desc.extent = {1, 1};
+    white_desc.pixels = white_pixel.data();
+    white_desc.row_pitch = 4;
+    auto white = device.create_texture(white_desc);
+
+    tessera::rendering::gpu::Batched2DRenderer renderer(device, *pipeline, *white);
+    auto commands = device.create_command_list();
+    renderer.begin(*commands, *target, target_desc);
+    renderer.push_texture({0.0f, 0.0f, static_cast<float>(w), static_cast<float>(h)}, texture,
+                          {0.0f, 0.0f, 1.0f, 1.0f}, rhi::rgba8(255, 255, 255));
+    renderer.end();
+    commands->submit();
+    device.wait_idle();
+
+    const std::size_t bytes = static_cast<std::size_t>(w) * h * 4U;
+    auto readback = device.create_buffer({bytes, rhi::BufferUsage::Readback});
+    auto copy = device.create_command_list();
+    copy->copy_target_to_buffer(*target, *readback);
+    copy->submit();
+    device.wait_idle();
+    std::vector<std::uint8_t> pixels(bytes);
+    readback->read(pixels.data(), pixels.size());
+    return pixels;
+}
+
+void measure_nearest_exactness(rhi::Device& device) {
+    std::cout << "\n[H2b. GPU nearest vs CPU resample rule: byte-exact?]\n";
+    constexpr std::uint32_t kSrcW = 240;
+    constexpr std::uint32_t kSrcH = 144;
+    std::vector<std::uint8_t> source(static_cast<std::size_t>(kSrcW) * kSrcH * 4U);
+    std::uint32_t seed = 987654321U;
+    for (std::size_t i = 0; i < source.size(); ++i) {
+        seed = seed * 1664525U + 1013904223U;
+        source[i] = (i % 4U == 3U) ? std::uint8_t{255} : static_cast<std::uint8_t>(seed >> 24);
+    }
+    rhi::TextureDesc desc;
+    desc.extent = {kSrcW, kSrcH};
+    desc.pixels = source.data();
+    desc.row_pitch = static_cast<std::size_t>(kSrcW) * 4U;
+    desc.filter = rhi::Filter::Nearest;
+    auto texture = device.create_texture(desc);
+    device.wait_idle();
+
+    struct Case {
+        const char* name;
+        std::uint32_t w;
+        std::uint32_t h;
+    };
+    const Case cases[] = {
+        {"1:1", 240, 144},
+        {"2:1 (tie on boundary)", 120, 72},
+        {"3:1 (no tie)", 80, 48},
+        {"3:2", 160, 96},
+        {"1:2 upscale", 480, 288},
+        {"fractional 240->173, 144->97", 173, 97},
+        {"fractional 240->199, 144->131", 199, 131},
+    };
+    for (const Case& c : cases) {
+        const auto cpu = resample_like_cache(source, kSrcW, kSrcH, c.w, c.h);
+        const auto gpu = gpu_draw_nearest(device, *texture, c.w, c.h);
+        std::size_t different = 0;
+        int max_diff = 0;
+        for (std::size_t i = 0; i < cpu.size(); ++i) {
+            if (cpu[i] != gpu[i]) {
+                ++different;
+                max_diff = std::max(max_diff, std::abs(static_cast<int>(cpu[i]) - gpu[i]));
+            }
+        }
+        const std::size_t pixels = static_cast<std::size_t>(c.w) * c.h;
+        std::cout << std::left << std::setw(34) << c.name << std::right << " " << std::setw(4)
+                  << c.w << "x" << std::setw(4) << std::left << c.h << std::right
+                  << " differing bytes=" << std::setw(7) << different << " of " << cpu.size()
+                  << "  max channel diff=" << max_diff
+                  << (different == 0 ? "  EXACT" : "  MISMATCH") << " (" << pixels << " px)\n";
+    }
+}
+
+[[nodiscard]] std::uint32_t blocks_of(rhi::Device& device) {
+    return device.memory_statistics().block_count;
+}
+
+struct TimedCreate {
+    double ms = 0.0;
+    std::uint32_t blocks_before = 0;
+    std::uint32_t blocks_after = 0;
+};
+
+[[nodiscard]] TimedCreate timed_create(rhi::Device& device, const rhi::TextureDesc& desc,
+                                       std::unique_ptr<rhi::Texture>& out) {
+    TimedCreate result;
+    result.blocks_before = blocks_of(device);
+    const auto start = Clock::now();
+    out = device.create_texture(desc);
+    result.ms = ms_since(start);
+    result.blocks_after = blocks_of(device);
+    return result;
+}
+
+void print_block_events(const std::string& name, const std::vector<TimedCreate>& calls) {
+    std::vector<double> values;
+    double with_alloc = 0.0;
+    double without_alloc = 0.0;
+    std::size_t with_count = 0;
+    std::size_t without_count = 0;
+    for (const TimedCreate& c : calls) {
+        values.push_back(c.ms);
+        if (c.blocks_after > c.blocks_before) {
+            with_alloc += c.ms;
+            ++with_count;
+        } else {
+            without_alloc += c.ms;
+            ++without_count;
+        }
+    }
+    print_tail(name, tail_of(values), calls.size());
+    std::cout << "    calls that added a VMA block: " << with_count << " (avg " << std::fixed
+              << std::setprecision(2) << (with_count != 0 ? with_alloc / with_count : 0.0)
+              << " ms); calls that did not: " << without_count << " (avg "
+              << (without_count != 0 ? without_alloc / without_count : 0.0) << " ms)\n";
+}
+
+// H1b: attribute the create_texture tail. Hypothesis: the tail is vkAllocateMemory for a new VMA
+// block (memory freed and re-committed as textures churn), not image/view/sampler/descriptor
+// creation and not the upload. Each experiment records VMA block_count around every call.
+void measure_create_texture_tail(rhi::Device& device, const std::vector<std::uint8_t>& frame) {
+    std::cout << "\n[H1b. What is in the create_texture tail? block_count read around each call]\n";
+    rhi::TextureDesc with_pixels;
+    with_pixels.extent = {k4kWidth, k4kHeight};
+    with_pixels.pixels = frame.data();
+    with_pixels.row_pitch = static_cast<std::size_t>(k4kWidth) * 4U;
+    with_pixels.filter = rhi::Filter::Linear;
+    rhi::TextureDesc no_pixels = with_pixels;
+    no_pixels.pixels = nullptr;
+
+    // A: one live texture at a time, so the allocator reuses the same block every call.
+    std::vector<TimedCreate> steady;
+    for (int i = 0; i < 60; ++i) {
+        std::unique_ptr<rhi::Texture> texture;
+        steady.push_back(timed_create(device, with_pixels, texture));
+        device.wait_idle();
+    }
+    print_block_events("A. steady: 1 live, 4K with pixels", steady);
+
+    // B: growth, every texture stays alive. New blocks must be allocated as memory fills.
+    std::vector<std::unique_ptr<rhi::Texture>> live;
+    std::vector<TimedCreate> growth;
+    for (int i = 0; i < 12; ++i) {
+        live.emplace_back();
+        growth.push_back(timed_create(device, with_pixels, live.back()));
+    }
+    device.wait_idle();
+    print_block_events("B. growth: 12 live 4K textures", growth);
+    live.clear();
+    device.wait_idle();
+
+    // C: churn, 5 live then free all, repeated: is a freed block released and re-allocated?
+    std::vector<TimedCreate> churn;
+    for (int cycle = 0; cycle < 8; ++cycle) {
+        std::vector<std::unique_ptr<rhi::Texture>> cycle_textures(5);
+        for (auto& texture : cycle_textures) {
+            churn.push_back(timed_create(device, with_pixels, texture));
+        }
+        device.wait_idle();
+        cycle_textures.clear();
+        device.wait_idle();
+    }
+    print_block_events("C. churn: 5 live, free all, x8 cycles", churn);
+    std::cout << "    VMA blocks now: " << blocks_of(device) << "\n";
+
+    // D: image creation alone (no staging, no copy) and a small image, to separate the stages.
+    std::vector<TimedCreate> bare;
+    for (int i = 0; i < 60; ++i) {
+        std::unique_ptr<rhi::Texture> texture;
+        bare.push_back(timed_create(device, no_pixels, texture));
+        device.wait_idle();
+    }
+    print_block_events("D. 4K, NO pixels (image+view+sampler+set)", bare);
+    rhi::TextureDesc small = with_pixels;
+    small.extent = {64, 64};
+    std::vector<std::uint8_t> small_pixels(64U * 64U * 4U, 0x11);
+    small.pixels = small_pixels.data();
+    small.row_pitch = 64U * 4U;
+    std::vector<TimedCreate> tiny;
+    for (int i = 0; i < 60; ++i) {
+        std::unique_ptr<rhi::Texture> texture;
+        tiny.push_back(timed_create(device, small, texture));
+        device.wait_idle();
+    }
+    print_block_events("D. 64x64 with pixels", tiny);
+
+    // E: destruction.
+    std::vector<double> destroy;
+    for (int i = 0; i < 40; ++i) {
+        std::unique_ptr<rhi::Texture> texture;
+        static_cast<void>(timed_create(device, with_pixels, texture));
+        device.wait_idle();
+        const auto start = Clock::now();
+        texture.reset();
+        destroy.push_back(ms_since(start));
+    }
+    print_tail("E. destroy 4K texture (after wait_idle)", tail_of(destroy), destroy.size());
+}
+
 } // namespace
 
 int main() {
@@ -556,7 +779,9 @@ int main() {
 
         // Hypothesis checks behind the issue plan (#681, #682, #683).
         measure_staging_hypothesis(*device, frame);
+        measure_create_texture_tail(*device, frame);
         measure_resample_hypothesis(frame);
+        measure_nearest_exactness(*device);
         measure_encode_hypothesis();
 
         // 6. Per-frame budget summary.
