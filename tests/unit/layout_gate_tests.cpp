@@ -77,6 +77,11 @@ private:
 // never take out a node the other edits hold a pointer to.
 constexpr std::uint64_t kExtraIdBase = 900000;
 
+// Every box this sheet produces is fixed by a length, never by measured text. That matters for the
+// cold-layout comparison: the ICU lane swaps in a real text measurer, and a card whose height came
+// from its text would then depend on which measurer the host happened to use rather than on the
+// gate. `Text` still carries a font size (so a font-size edit is a real layout change), but the
+// card's own height is explicit.
 constexpr const char* kSheet =
     R"(.card { width: 120px; height: 40px; padding: 4px; margin: 2px; background-color: #1e293b; }
 .card.hot { background-color: #334155; }
@@ -84,8 +89,8 @@ constexpr const char* kSheet =
 .card.tall { height: 60px; }
 .card.hidden { display: none; }
 .card.padded { padding: 12px; }
-Text { font-size: 14px; color: #e2e8f0; }
-Text.big { font-size: 20px; }
+Text { font-size: 14px; color: #e2e8f0; height: 16px; }
+Text.big { font-size: 20px; height: 24px; }
 )";
 
 // One node's box, keyed by node id. A `display: none` subtree emits zero boxes for every
