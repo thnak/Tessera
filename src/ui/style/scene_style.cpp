@@ -12,7 +12,7 @@
 namespace tessera::ui::style {
 
 SceneStyleTree::SceneStyleTree(const Node& root)
-    : structure_epoch_(Node::structure_epoch()) {
+    : structure_epoch_(scene_structure_epoch()) {
     build(root, nullptr);
 }
 

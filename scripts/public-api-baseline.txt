@@ -2404,6 +2404,9 @@ alias include/tessera/ui/scene/state_snapshot.hpp tessera::ui::StateScalar
 alias include/tessera/ui/scene/state_snapshot.hpp tessera::ui::StateSnapshot
 function include/tessera/ui/scene/state_snapshot.hpp tessera::ui::state_cell
 
+header include/tessera/ui/scene/structure_epoch.hpp
+function include/tessera/ui/scene/structure_epoch.hpp tessera::ui::scene_structure_epoch
+
 header include/tessera/ui/scene/text_wrap.hpp
 function include/tessera/ui/scene/text_wrap.hpp tessera::ui::paint_wraps
 

@@ -354,11 +354,6 @@ public:
         return pseudo_state_;
     }
 
-    // Bumped whenever any node gains or loses a child. A cache keyed on the shape of the scene
-    // (the selector tree) compares it to rebuild instead of patching. Process-wide on purpose: it
-    // is a conservative "something changed shape" signal, never a per-scene identity.
-    [[nodiscard]] static std::uint64_t structure_epoch() noexcept;
-
     void mark_dirty(Dirty flags);
     void clear_dirty(Dirty flags);
     // Marks `flags` on this node and every descendant (pre-order, allocation-free). Needed when an

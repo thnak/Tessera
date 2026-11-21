@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "selector_locality.hpp"
 #include "selector_text.hpp"
 #include "tessera/ui/style/compiled_stylesheet.hpp"
 

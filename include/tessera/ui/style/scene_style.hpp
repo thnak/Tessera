@@ -3,6 +3,7 @@
 #pragma once
 
 #include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/scene/structure_epoch.hpp"
 #include "tessera/ui/style/compiled_stylesheet.hpp"
 
 #include <cstddef>

@@ -8,6 +8,7 @@
 // one of those features no longer edits the TU every other feature includes.
 
 #include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/scene/structure_epoch.hpp"
 
 #include <atomic>
 #include <cstddef>
@@ -22,7 +23,7 @@ std::atomic<std::uint64_t> g_structure_epoch{0};
 
 } // namespace
 
-std::uint64_t Node::structure_epoch() noexcept {
+std::uint64_t scene_structure_epoch() noexcept {
     return g_structure_epoch.load(std::memory_order_relaxed);
 }
 

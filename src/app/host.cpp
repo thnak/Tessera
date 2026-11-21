@@ -231,38 +231,6 @@ void AppHost::Impl::rebuild_style_tree() {
     style_tree_populated = false;
 }
 
-namespace {
-
-// The topmost Style-dirty nodes: a dirty node restyles its whole subtree, so what lies below it is
-// not visited again.
-void restyle_dirty_subtrees(const ui::Node& node, ui::style::SceneStyleTree& tree) {
-    if (ui::has_flag(node.dirty(), ui::Dirty::Style)) {
-        tree.restyle_subtree(node);
-        return;
-    }
-    for (const auto& child : node.children()) {
-        if (ui::has_flag(child->subtree_dirty(), ui::Dirty::Style)) {
-            restyle_dirty_subtrees(*child, tree);
-        }
-    }
-}
-
-} // namespace
-
-bool AppHost::Impl::prepare_style_tree() {
-    const bool reusable = style_tree_populated && tree != nullptr &&
-                          tree->built_for_structure_epoch() == ui::Node::structure_epoch() &&
-                          sheet.subtree_local();
-    if (!reusable) {
-        rebuild_style_tree();
-        return false;
-    }
-    if (ui::has_flag(root.subtree_dirty(), ui::Dirty::Style)) {
-        restyle_dirty_subtrees(root, *tree);
-    }
-    return true;
-}
-
 // One cascade: the constructor sheet (lowest source order), the embedded sheets in table order,
 // and the active theme's generated `:root` rule last with `Origin::Theme` (stylesheet-v1.md
 // section 9.1). The theme rule cannot win an author declaration of the same token because the
