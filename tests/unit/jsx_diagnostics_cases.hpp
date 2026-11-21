@@ -306,10 +306,10 @@ inline const std::vector<Case> kCases = {
             37, 35, 3),
     fixture("TESSERA_REACT_UNKNOWN_HOOK", "react-unknown-hook", Entry::kRules,
             "function A() {\n"
-            "  const t = useTheme();\n"
+            "  const t = useNothing();\n"
             "  return <View/>;\n"
             "}\n",
-            27, 8, 2),
+            27, 10, 2),
     fixture("TESSERA_REACT_UNSUPPORTED_API", "react-unsupported-api", Entry::kRules,
             "function A() {\n"
             "  const m = useMemo(1);\n"

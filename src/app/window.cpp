@@ -124,6 +124,10 @@ WindowHost::Impl::Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet,
     config.reduced_motion = appearance.reduced_motion || system_prefers_reduced_motion();
     config.pipeline = window_pipeline_config(options.runtime);
     config.adaptive_quality = window_adaptive_quality_policy(options.runtime, options.refresh_hz);
+    // ADR-041's round budget (`layoutObservationMaxRounds`): the config loader already clamped it
+    // into 1..16, and the settle component clamps again so a hand-built HostConfig is safe too.
+    config.layout_observation_max_rounds =
+        static_cast<std::uint32_t>(options.runtime.layout_observation_max_rounds);
     // The startup preference is recorded once so a later broadcast only moves the host when the
     // value actually changed (Win32 broadcasts settings for unrelated changes too).
     motion = MotionPreference(config.reduced_motion);

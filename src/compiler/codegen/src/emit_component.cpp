@@ -13,6 +13,7 @@
 #include "emit_controlled.hpp"
 #include "emit_dirty.hpp"
 #include "emit_dynamic.hpp"
+#include "emit_environment.hpp"
 #include "emit_events.hpp"
 #include "emit_forms.hpp"
 #include "emit_layout_observe.hpp"
@@ -202,6 +203,8 @@ bool emit_source(const ir::Component& component, const ir::IrModule& module,
     if (!emit_schedule_definitions(writer, module, component, instances, plan, error)) {
         return false;
     }
+    // `environment` hook values (issue #692): the equality-gated setters the host calls.
+    emit_environment_definitions(writer, component, module);
     emit_snapshot_definition(writer, component);
     emit_size_observation_definitions(writer, component, module, adapters, instances);
     emit_controlled_accessors(writer, component, controlled_inputs);
@@ -256,10 +259,6 @@ bool emit_component(const ir::Component& component, const ir::IrModule& module,
                     std::vector<GeneratedFile>& files, std::string& error, CodegenOptions options) {
     if (component.name.empty()) {
         return fail(error, "a component has no name");
-    }
-    if (component.environment.size() != 0) {
-        return fail(error, "component `" + component.name +
-                               "` uses library hooks (`environment`), which are a later slice");
     }
     const std::vector<const ir::Binding*> owned = component_bindings(component, module.bindings);
     // Component composition first: it validates the instance forms and is needed by both files.

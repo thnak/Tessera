@@ -117,6 +117,9 @@ public:
     [[nodiscard]] std::uint32_t max_rounds() const {
         return max_rounds_;
     }
+    // The settle loop's round budget, clamped into 1..16. Changing it mid-session is allowed: the
+    // next `observe_and_settle` call reads it.
+    void set_max_rounds(std::uint32_t rounds);
 
 private:
     friend class LayoutObservation;

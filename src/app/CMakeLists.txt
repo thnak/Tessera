@@ -24,6 +24,12 @@ add_library(tessera_app STATIC
     host_viewport.cpp
     # Whether the selector tree and its memo survive a restyle, and which subtrees recompute.
     host_style_tree.cpp
+    # The ADR-041 settle loop's host half (issue #693): the shared restyle-and-layout sequence, the
+    # publish-and-run step and the loop's two hooks. Split out of host.cpp, which is at its budget.
+    host_settle.cpp
+    # The `useBreakpoint()` half of issue #692: the size class from the media context, pushed to the
+    # registered consumers after a size change.
+    host_environment.cpp
     # Embedded stylesheet registration (ADR-048). Split out of host.cpp, which is at its size
     # budget.
     host_stylesheets.cpp
@@ -75,6 +81,8 @@ target_link_libraries(tessera_app PUBLIC
     tessera_scale
     tessera_style
     tessera_scene
+    # The window size classes and the environment consumer set (issue #692).
+    tessera_responsive
     tessera_runtime)
 
 target_compile_features(tessera_app PUBLIC cxx_std_23)

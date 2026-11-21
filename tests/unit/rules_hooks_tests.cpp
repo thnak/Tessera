@@ -135,14 +135,16 @@ void test_use_before_declaration_is_rejected() {
 }
 
 void test_unknown_hooks_are_rejected() {
-    const auto top = analyze(component("  const t = useTheme();\n"));
+    // `useTheme` and `useBreakpoint` are manifest `environment` hooks (issue #692), so the unknown
+    // case uses a name the manifest does not declare.
+    const auto top = analyze(component("  const t = useNothing();\n"));
     check_eq(describe_all(*top),
-             "TESSERA_REACT_UNKNOWN_HOOK | 2:13 | useTheme | unknown hook `useTheme`: only "
+             "TESSERA_REACT_UNKNOWN_HOOK | 2:13 | useNothing | unknown hook `useNothing`: only "
              "useState, useEffect, useRef and useAnimatedValue are available\n",
              "an unknown hook at the top level");
-    const auto nested = analyze(component("", "<View a={useTheme()}/>"));
+    const auto nested = analyze(component("", "<View a={useNothing()}/>"));
     check_eq(describe_all(*nested),
-             "TESSERA_REACT_UNKNOWN_HOOK | 2:19 | useTheme | unknown hook `useTheme`: only "
+             "TESSERA_REACT_UNKNOWN_HOOK | 2:19 | useNothing | unknown hook `useNothing`: only "
              "useState, useEffect, useRef and useAnimatedValue are available\n",
              "an unknown hook nested in JSX is unknown first, misplaced second");
     const auto memo = analyze(component("  const m = useMemo(1);\n"));
@@ -207,9 +209,10 @@ void test_malformed_hook_forms_are_rejected() {
 }
 
 void test_an_error_flags_only_its_component() {
-    const auto fixture = analyze("function Bad() {\n  const t = useTheme();\n  return <View/>;\n}\n"
-                                 "function Good() {\n  const [n, setN] = useState<int>(0);\n"
-                                 "  return <View/>;\n}\n");
+    const auto fixture =
+        analyze("function Bad() {\n  const t = useNothing();\n  return <View/>;\n}\n"
+                "function Good() {\n  const [n, setN] = useState<int>(0);\n"
+                "  return <View/>;\n}\n");
     check(fixture->analyzed.components.size() == 2, "two components analysed");
     check(!fixture->analyzed.components[0].ok, "the broken component is flagged");
     check(fixture->analyzed.components[1].ok, "the other component is unaffected");

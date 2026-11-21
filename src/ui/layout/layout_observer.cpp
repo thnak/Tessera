@@ -82,6 +82,10 @@ LayoutObservation& LayoutObservation::operator=(LayoutObservation&& other) noexc
 LayoutObserverSet::LayoutObserverSet(std::uint32_t max_rounds)
     : max_rounds_(std::clamp<std::uint32_t>(max_rounds, 1, 16)) {}
 
+void LayoutObserverSet::set_max_rounds(std::uint32_t rounds) {
+    max_rounds_ = std::clamp<std::uint32_t>(rounds, 1, 16);
+}
+
 LayoutObserverSet::~LayoutObserverSet() {
     // An observation must not outlive its set with a dangling back pointer.
     for (LayoutObservation* observation : observations_) {

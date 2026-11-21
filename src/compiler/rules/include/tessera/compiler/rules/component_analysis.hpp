@@ -6,6 +6,7 @@
 #include "tessera/compiler/rules/arrow_role.hpp"
 #include "tessera/compiler/rules/behavior_info.hpp"
 #include "tessera/compiler/rules/effect_info.hpp"
+#include "tessera/compiler/rules/environment_info.hpp"
 #include "tessera/compiler/rules/symbol.hpp"
 
 #include <cstddef>
@@ -24,7 +25,8 @@ struct ComponentAnalysis {
     std::vector<Symbol> symbols;         // declaration order: props first, then body statements
     std::vector<EffectInfo> effects;     // body order
     std::vector<BehaviorInfo> behaviors; // body order
-    std::vector<ArrowInfo> arrows;       // source order of first occurrence
+    std::vector<EnvironmentInfo> environment; // body order
+    std::vector<ArrowInfo> arrows;            // source order of first occurrence
 
     // First declaration of `name`, or null.
     [[nodiscard]] const Symbol* find(std::string_view name) const;

@@ -38,7 +38,21 @@ public:
     // Writes the content-box width and height of `container`; returns false when it has none.
     using ContainerSizeFn = bool (*)(void* context, const Node& container, ContainerSize& out);
 
+    // One query container in an ancestor chain, nearest last. The memo keeps the chain per slot so
+    // a `@container` rule resolves without walking the ancestors again (issue #693).
+    struct ContainerRef {
+        const Node* node = nullptr;
+        bool block_axis = false;
+        std::string names; // whitespace-separated `container-name` list
+    };
+
     explicit SceneStyleTree(const Node& root);
+
+    // The tree-level container size source (ADR-041 slice 8b). When set, `@container` rules resolve
+    // against the nearest ancestor query container's size; null (the default) leaves every
+    // `@container` rule unapplied, which is what a host without the settle loop wants. The memo
+    // stays in force either way: each entry carries the container chain it was computed under.
+    void set_container_source(ContainerSizeFn size, void* context);
 
     // Returns the selector view for `node`, refreshing its pseudo-state from the scene node.
     // Returns nullptr when `node` is not part of the captured tree.
@@ -57,8 +71,12 @@ public:
     // reads them instead of re-cascading every culled node. A generation is one selector tree:
     // every style input (class, id, attribute, pseudo-state, inline style, theme, media) marks
     // `Dirty::Style`, which makes the host rebuild the tree and restyle, so a stale entry never
-    // outlives the edit that changed it. Container queries are not memoised (`compute` with a
-    // container source keeps the chain walk).
+    // outlives the edit that changed it.
+    //
+    // `@container` rules are memoised too, since issue #693: an entry records the query-container
+    // chain it was computed under, so a child resolves its nearest container without walking the
+    // ancestors. A container whose size crossed a condition marks its descendants `Dirty::Style`
+    // (`ContainerQueryTracker`), which erases exactly those entries.
     // `keep_entries` continues the previous generation: only the subtrees `restyle_subtree` erased
     // are recomputed.
     void begin_memo(bool keep_entries = false);
@@ -127,6 +145,9 @@ private:
     void fill_view(Entry& entry, const Node& node, StyleNode* parent);
     void refresh(const Node& node, StyleNode* parent);
     [[nodiscard]] StyleNode* mutable_view(const Node& node);
+    // Appends `node` to `chain` when its computed style makes it a query container.
+    static void append_container(std::vector<ContainerRef>& chain, const Node& node,
+                                 const ComputedStyle& computed);
 
     bool memo_active_ = false;
     // Computed styles (inline declarations included), one slot per `entries_` element: a dense
@@ -137,6 +158,11 @@ private:
     // Whether `memo_[i]` holds a style for `entries_[i]`. A separate byte array, so the hit path
     // reads one byte per node instead of the entry's view.
     std::vector<std::uint8_t> memoised_;
+    // The query-container chain of each slot, nearest last, so a `@container` rule resolves without
+    // walking the ancestors again (issue #693). Sized lazily, on the first `resolve` of a sheet
+    // that actually has container queries: a sheet without them pays nothing, which is the common
+    // case.
+    std::vector<std::vector<ContainerRef>> containers_;
     // The registry's initial style for a node outside the captured tree. Every such node resolves
     // to the same value, so one slot serves them all; `begin_memo(false)` drops it with the rest.
     std::optional<ComputedStyle> outside_style_;
@@ -153,6 +179,8 @@ private:
     std::deque<Entry> entries_;
     std::unordered_map<const Node*, std::size_t> index_;
     std::uint64_t structure_epoch_ = 0;
+    ContainerSizeFn container_size_ = nullptr;
+    void* container_context_ = nullptr;
 };
 
 } // namespace tessera::ui::style

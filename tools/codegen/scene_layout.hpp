@@ -5,6 +5,7 @@
 #include "tessera/hal/fold_posture.hpp"
 #include "tessera/hal/window.hpp"
 #include "tessera/ui/layout/layout_engine.hpp"
+#include "tessera/ui/layout/layout_settle.hpp"
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/style/compiled_stylesheet.hpp"
 #include "tessera/ui/text/text_measure.hpp"
@@ -86,9 +87,16 @@ struct SceneLayoutResult {
     hal::WindowMetrics metrics;
 };
 
+// Lays `root` out against `metrics`. When `settle` is non-null the pass also feeds the ADR-041
+// settle loop (issue #693): the style tree resolves `@container` against the loop's published
+// layout, the finished result is published, and the query containers are re-registered from this
+// style pass. The caller then runs `settle->run()` to deliver the observations. A null `settle`
+// keeps the pre-#693 behavior exactly (no read model, no container source), which is what the
+// stateless snapshot driver wants.
 [[nodiscard]] SceneLayoutResult
 layout_scene(ui::Node& root, const ui::style::CompiledStyleSheet& sheet,
              ui::layout::LayoutEngine& engine, const SceneMetrics& metrics,
-             std::shared_ptr<const text::TextMeasurer> measurer = nullptr);
+             std::shared_ptr<const text::TextMeasurer> measurer = nullptr,
+             ui::layout::LayoutSettle* settle = nullptr);
 
 } // namespace tessera::compiler::codegen::cli

@@ -66,14 +66,50 @@ breakpoint leaves the counter alone while the boxes move. A design-time viewport
 `@supports` and `@container` are unaffected: neither is a function of the window rectangle
 (container queries are relative to an ancestor's box, section 10).
 
-`@container` size queries are evaluated by the style engine (ADR-041 slice 8; the settle-loop observer that re-resolves on a crossed condition exists, the app host that wires it does not yet). Until a host wires it, use size classes derived
-from metrics or explicit props.
+`@container` size queries are evaluated by the style engine and wired into the runtime (ADR-041
+slice 8, issue #693). The shared `ui::layout::LayoutSettle` component owns the layout read model, the
+`ContainerQueryTracker` and the bounded settle loop; `AppHost` and the Studio canvas session both
+call it, so the preview cannot drift from the runtime. After every layout pass the host publishes the
+committed boxes, the tracker compares each query container's content box with the size it was last
+styled at, and a container whose `@container` answer changed marks its descendants `Dirty::Style`.
+The settle round then re-runs style and layout **in the same tick**, so the frame that paints a
+resize already paints the responsive result: there is no frame with the stale layout. A resize that
+crosses no condition costs one layout pass and no style work, and a stylesheet without `@container`
+pays one boolean test per frame. The round budget is `layoutObservationMaxRounds` (default 4, range
+1..16); a rule that flips its own container's size terminates at the limit with
+`TESSERA_LAYOUT_OBSERVER_LOOP` and never hangs the frame. Evidence: `layout_settle_host`
+(`tests/unit/layout_settle_host_tests.cpp`).
 
 ## 3. Size classes
 
-The runtime may expose derived size classes (compact/medium/expanded) as custom properties or
-media-query-like inputs. They are computed from the **window** (not the display) and update on
-resize/fold/multi-window. Container size classes have no release assigned (see section 10).
+The runtime exposes derived size classes (compact/medium/expanded) as the `useBreakpoint()` hook
+value. They are computed from the **window** (not the display) and update on resize/fold/multi-window.
+Container size classes have no release assigned (see section 10).
+
+**The thresholds are fixed in V1** (issue #692 decision): `compact` below 600 dp, `medium` from 600
+to 839, `expanded` from 840 upward. They are named constants in
+`include/tessera/ui/responsive/size_class.hpp` (`kCompactMaxWidth`, `kMediumMaxWidth`), not magic
+numbers, because three consumers must agree on them: the hook, the preview's `viewport.set` report,
+and any app-authored CSS that writes the same numbers. An app that wants different breakpoints
+writes its own `@media` rules; it does not reconfigure the hook. That keeps one answer per question:
+a stylesheet breakpoint and the hook can never disagree about where a class starts, because both
+read `MediaContext::viewport_width`.
+
+A window that has not been measured yet (a non-finite or negative width) is `compact`, so a
+component that branches on the class renders its narrow layout rather than its widest one on the
+first frame. Evidence: `size_class` (`tests/unit/size_class_tests.cpp`) asserts both sides of each
+boundary, the degenerate widths, and that the media context is the input.
+
+**How the value reaches a component.** `ui::responsive::EnvironmentSet` is the per-window side table
+of consumers (a plain function pointer plus a context, so no `std::function` and no RTTI). A
+generated component registers its `set_environment_<name>()` at mount and unregisters at unmount,
+mirroring `attach_scheduler`. `AppHost::apply_viewport` pushes the class after every size change,
+from the same `MediaContext` the `@media` rules resolve against, and returns immediately when the
+class did not move: a resize inside one class walks nothing and schedules nothing. The generated
+setter is equality-gated, so even a push that reaches a consumer with the value it already holds is
+a no-op. Evidence: `breakpoint_host` (`tests/unit/breakpoint_host_tests.cpp`) drives a real
+`AppHost` across 600 and 840 in both directions and asserts the pushed sequence, the no-push case,
+and that the hook and the stylesheet read the same context.
 
 ## 4. Safe areas
 
@@ -142,8 +178,10 @@ Rules:
 
 ## 10. Open questions
 
-- Container queries and their invalidation model. Proposed: evaluated after layout inside the
-  settle rounds of [`layout-observation.md`](layout-observation.md) section 5.4 (ADR-041, Proposed).
+- Container queries and their invalidation model. **Resolved** (ADR-041, Accepted 2026-11-11;
+  implemented by issue #693): evaluated after layout inside the settle rounds of
+  [`layout-observation.md`](layout-observation.md) section 5.4, wired into `AppHost` and the Studio
+  canvas session through the shared `ui::layout::LayoutSettle` component (section 2.2).
 - Breakpoint tokens in the theme vs app-authored CSS.
 - Safe-area behavior for background layers vs content.
 - Fold continuity across Android process restart.

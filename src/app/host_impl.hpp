@@ -13,6 +13,7 @@
 #include "tessera/app/host.hpp"
 #include "tessera/rendering/damage.hpp"
 #include "tessera/ui/layout/layout_scheduler.hpp"
+#include "tessera/ui/layout/layout_settle.hpp"
 
 #include <array>
 #include <cstddef>
@@ -71,6 +72,20 @@ struct AppHost::Impl {
     // Rebuilds the cascade and style tree, drops the paint cache and marks `dirty` on the subtree.
     void apply_style_generation(ui::Dirty dirty_mask);
     void run_layout_pass(ui::paint::StyleProvider& styles);
+    // The one restyle-and-layout sequence a frame and the settle loop share (issue #693 decision
+    // 1): rebuild the selector tree, drop the paint cache, run style and layout, sync the scene
+    // style and sample the animations that started. A settle round that only re-laid-out would
+    // paint a stale style generation or replay a stale paint cache.
+    void restyle_and_layout(ui::frame::FrameTick& tick, ui::paint::SceneStyleSyncResult& sync,
+                            bool& style_rebuilt);
+    // Publishes the layout the pass just applied and runs the settle loop (ADR-041, issue #693).
+    // Called right after `run_layout_pass` in every path that lays out.
+    void settle_layout();
+    // Wires the settle loop's hooks and round budget (host_settle.cpp).
+    void init_settle();
+    // The settle loop's relayout hook: everything `restyle_and_layout` does, plus the publish.
+    static void settle_relayout(void* context);
+    static void settle_wake(void* context);
     // The layout-unchanged gate (issue #735, slice A). True when this frame's restyle provably kept
     // every layout input, so the layout pass can reuse the previous result instead of rebuilding
     // the layout input and hashing the tree. See `layout_gate` for why it declined.
@@ -179,6 +194,18 @@ struct AppHost::Impl {
 
     ui::layout::LayoutResult last_layout;
     ui::layout::LayoutApplyResult last_applied;
+    // The ADR-041 settle loop (issue #693): the layout read model, the container-query tracker and
+    // the app observations, in one shared component the Studio canvas session also uses. It costs
+    // one boolean test per frame when the sheet has no `@container` and nothing observes.
+    ui::layout::LayoutSettle settle;
+    // The `useBreakpoint()`/`useTheme()` consumers (issue #692). The host pushes the current class
+    // after every size change; a component that reads no environment value registers nothing, so
+    // the set stays empty and a push is one loop over zero entries.
+    ui::responsive::EnvironmentSet environment;
+    // The class last pushed, so a resize inside one class does not walk the set at all.
+    ui::responsive::SizeClass pushed_size_class = ui::responsive::SizeClass::Compact;
+    // Pushes the current size class to every `useBreakpoint()` consumer (host_environment.cpp).
+    void push_size_class();
     ui::frame::FrameRender last_render;
     // Adaptive quality (docs/design/performance.md section 6): the deterministic controller is fed
     // one measured frame time per presented frame by observe_frame_time_ms(); the diagnostics

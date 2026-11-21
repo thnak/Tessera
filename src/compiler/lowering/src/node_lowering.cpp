@@ -192,6 +192,10 @@ LoweredComponentResult lower_component(const HookLoweringContext& base_context) 
     // dropped them on the floor, so no component ever carried one and the whole behavior path --
     // code generation, the preview, the generated accessors -- was unreachable.
     component.behaviors = std::move(hooks->behaviors);
+    // `environment` hook values (docs/specs/jsx-subset-v1.md section 7.1): the same rule as
+    // `behaviors` above. Without this the lowering produced them and dropped them, so no component
+    // ever carried one and `useBreakpoint`/`useTheme` were unreachable.
+    component.environment = std::move(hooks->environment);
     component.root = std::move(*root);
     lowered.bindings = std::move(hooks->bindings);
     // Issue #463: the CSS module reads belong to the module pass, which compares them against every

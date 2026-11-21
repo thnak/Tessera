@@ -118,6 +118,10 @@ void AppHost::Impl::apply_viewport(ui::Dirty dirty_mask) {
     }
     const bool cascade_moves = media_answer_can_change(media_context, next);
     media_context = next;
+    // `useBreakpoint()` reads the same context the `@media` rules do, so the class is pushed here,
+    // before the style pass that will paint it (issue #692). A resize inside one class returns
+    // immediately, so it costs no walk of the consumer set.
+    push_size_class();
     if (!cascade_moves) {
         // No breakpoint was crossed: every rule that applied still applies, so the boxes re-lay out
         // against the new viewport and the cascade is left alone (a layout pass, not a re-resolve).

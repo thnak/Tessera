@@ -209,6 +209,54 @@ private:
     std::vector<Container> containers_;
 };
 
+// The memoised container chain of one node, presented as a `ContainerSizeSource` so a `@container`
+// rule resolves without walking the ancestors again (issue #693). The chain is nearest last, the
+// same order `AncestorContainers` builds, so both paths answer identically.
+class ChainContainers final : public ContainerSizeSource {
+public:
+    ChainContainers(const std::vector<SceneStyleTree::ContainerRef>& chain,
+                    SceneStyleTree::ContainerSizeFn size, void* context)
+        : chain_(chain),
+          size_(size),
+          context_(context) {}
+
+    bool find(const StyleNode&, std::string_view name, ContainerSize& out) const override {
+        if (size_ == nullptr) {
+            return false;
+        }
+        for (std::size_t i = chain_.size(); i-- > 0;) {
+            const SceneStyleTree::ContainerRef& container = chain_[i];
+            if (!name.empty() && !has_name(container.names, name)) {
+                continue;
+            }
+            if (!size_(context_, *container.node, out)) {
+                return false;
+            }
+            out.height_queryable = container.block_axis;
+            return true;
+        }
+        return false;
+    }
+
+private:
+    static bool has_name(const std::string& names, std::string_view wanted) {
+        std::size_t pos = 0;
+        while (pos < names.size()) {
+            const std::size_t end = names.find(' ', pos);
+            const std::size_t stop = end == std::string::npos ? names.size() : end;
+            if (std::string_view(names).substr(pos, stop - pos) == wanted) {
+                return true;
+            }
+            pos = stop + 1;
+        }
+        return false;
+    }
+
+    const std::vector<SceneStyleTree::ContainerRef>& chain_;
+    SceneStyleTree::ContainerSizeFn size_;
+    void* context_;
+};
+
 } // namespace
 
 namespace {
@@ -244,12 +292,43 @@ void SceneStyleTree::begin_memo(bool keep_entries) {
         // per-generation cost, not a per-frame one (a new generation rebuilds the tree anyway).
         memoised_.assign(memoised_.size(), std::uint8_t{0});
         std::fill(memo_.begin(), memo_.end(), ComputedStyle{});
+        // The chains are dropped with the styles they belong to; a chain is only meaningful for the
+        // style generation that produced it.
+        containers_.clear();
         outside_style_.reset();
     }
 }
 
 void SceneStyleTree::end_memo() {
     // The entries are the tree's computed styles for this generation; keep them for the paint pass.
+}
+
+void SceneStyleTree::set_container_source(ContainerSizeFn size, void* context) {
+    // A host calls this every frame (the settle loop installs or clears the source as the sheet
+    // gains or loses `@container` rules), so an unchanged source must not drop the memo: doing so
+    // would make every frame a cold style generation and defeat the layout-unchanged gate.
+    if (size == container_size_ && context == container_context_) {
+        return;
+    }
+    container_size_ = size;
+    container_context_ = context;
+    // The chain a memoised style was computed under is only valid for the source that produced it,
+    // so a new source starts a new generation.
+    memoised_.assign(memoised_.size(), std::uint8_t{0});
+    std::fill(memo_.begin(), memo_.end(), ComputedStyle{});
+    containers_.clear();
+    outside_style_.reset();
+}
+
+void SceneStyleTree::append_container(std::vector<ContainerRef>& chain, const Node& node,
+                                      const ComputedStyle& computed) {
+    const std::string* type = computed.find("container-type");
+    if (type == nullptr || (*type != "size" && *type != "inline-size")) {
+        return;
+    }
+    const std::string* name = computed.find("container-name");
+    chain.push_back(ContainerRef{&node, *type == "size",
+                                 name != nullptr && *name != "none" ? *name : std::string{}});
 }
 
 const ComputedStyle& SceneStyleTree::resolve(const CompiledStyleSheet& sheet, const Node& node) {
@@ -271,15 +350,41 @@ const ComputedStyle& SceneStyleTree::resolve(const CompiledStyleSheet& sheet, co
     // The chain stops at the first ancestor outside the captured tree, as the un-memoised walk
     // does.
     const Node* parent_node = node.parent();
-    const ComputedStyle* parent = parent_node != nullptr && index_.contains(parent_node)
-                                      ? &resolve(sheet, *parent_node)
-                                      : nullptr;
-    ComputedStyle computed = sheet.compute(entries_[slot].view, parent, nullptr);
+    const bool has_parent = parent_node != nullptr && index_.contains(parent_node);
+    const ComputedStyle* parent = has_parent ? &resolve(sheet, *parent_node) : nullptr;
+    // A `@container` rule resolves against the nearest ancestor container, never the node itself,
+    // so the chain handed to the cascade is the parent's (issue #693). The chain is only built for
+    // a sheet that actually has container queries, so a sheet without them pays nothing.
+    const bool use_containers = container_size_ != nullptr && sheet.has_container_queries();
+    const std::vector<ContainerRef>* parent_chain = nullptr;
+    if (use_containers) {
+        if (containers_.size() < memo_.size()) {
+            containers_.resize(memo_.size());
+        }
+        if (has_parent) {
+            parent_chain = &containers_[index_.find(parent_node)->second];
+        }
+    }
+    const std::vector<ContainerRef> empty;
+    ChainContainers containers(parent_chain != nullptr ? *parent_chain : empty, container_size_,
+                               container_context_);
+    ComputedStyle computed =
+        sheet.compute(entries_[slot].view, parent, use_containers ? &containers : nullptr);
     apply_inline_declarations(sheet, node, computed, parent);
     // The slot already exists (the array was sized at the end of `build`), so this assignment never
     // reallocates and the reference below stays valid for the generation.
     memo_[slot] = std::move(computed);
     memoised_[slot] = 1;
+    if (use_containers) {
+        // This node's chain is its parent's plus this node when this node is a query container, so
+        // a child's `@container` lookup is a scan of a short vector instead of an ancestor walk.
+        std::vector<ContainerRef>& chain = containers_[slot];
+        chain.clear();
+        if (parent_chain != nullptr) {
+            chain = *parent_chain;
+        }
+        append_container(chain, node, memo_[slot]);
+    }
     return memo_[slot];
 }
 
