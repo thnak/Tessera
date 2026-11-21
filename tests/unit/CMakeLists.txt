@@ -838,6 +838,20 @@ target_link_libraries(android_window_tests PRIVATE tessera_hal_window)
 
 add_test(NAME android_window COMMAND android_window_tests)
 
+# Android window-metrics decode (issue #189): pure over plain numbers, so it runs on every lane
+# without an NDK or a device. The source lives under src/platform/android but includes no Android
+# header.
+add_executable(android_metrics_tests
+    hal/android_metrics_tests.cpp
+    ${PROJECT_SOURCE_DIR}/src/platform/android/android_metrics_translation.cpp)
+
+target_include_directories(android_metrics_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src/platform/android)
+
+target_link_libraries(android_metrics_tests PRIVATE tessera_hal_metrics)
+
+add_test(NAME android_metrics COMMAND android_metrics_tests)
+
 add_executable(diagnostics_crash_tests
     diagnostics_crash_tests.cpp)
 

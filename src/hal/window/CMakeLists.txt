@@ -212,7 +212,11 @@ elseif (ANDROID)
     # creating it (issue #189), and `create_window()` keeps the documented "no backend" answer
     # because there is no descriptor that could produce a surface on its own.
     target_sources(tessera_hal_window PRIVATE
-        ${PROJECT_SOURCE_DIR}/src/platform/android/window_android.cpp)
+        ${PROJECT_SOURCE_DIR}/src/platform/android/window_android.cpp
+        # Window-metrics decode (issue #189, mobile-integration.md sections 3.5/3.6). The pure rules
+        # are in android_metrics_translation.cpp, which includes no Android header and is
+        # unit-tested on every lane.
+        ${PROJECT_SOURCE_DIR}/src/platform/android/android_metrics_translation.cpp)
     target_include_directories(tessera_hal_window PRIVATE
         ${PROJECT_SOURCE_DIR}/src/platform/android)
     # libandroid provides ANativeWindow_acquire/release and the extent queries.
