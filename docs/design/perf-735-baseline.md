@@ -7,6 +7,28 @@
 still miss on a typical device. The 6k-node and 1.5k size-change targets are gates on the slowest
 supported hardware, not on this box.
 
+## The size-change row was measured wrong until `3f040b47`
+
+The row alternated `width: 121px` / `120px`, but `120px` is the sheet's own value. The "restore"
+frame therefore resolved the same computed style as the sheet, the layout-unchanged gate correctly
+accepted it, and **half the row was a no-op**. Every size-change number recorded before `3f040b47`
+is half the real cost. Both values now differ from the sheet (`121px` / `123px`), and
+`layout_gate` reads 0/200 on that row, which is the correct answer for a frame that always moves a
+box.
+
+| scenario | nodes | Win before fix | Win after fix | Linux before fix | Linux after fix |
+|---|---|---|---|---|---|
+| size-change | 1,501 | 4.72 | **9.45** | 9.70 | **18.0** |
+| size-change | 6,001 | 32.19 | **59.93** | 52.5 | **92.9** |
+
+Allocations per frame, size-change: 3,981 → 6,290 (1,501 nodes) and 114,813 → 223,453 (6,001) on
+Windows. The Linux allocation counts differ slightly (6,252 / 192,138) because `std::string` and
+`shared_ptr` sizes differ between the standard libraries.
+
+**The V1 gate is therefore further away than the issue assumed.** A one-frame size change at 1,501
+nodes is 9.45 ms on this box and 18.0 ms on the Linux lane, not the 4.79 ms recorded earlier. Slice
+D has to remove most of that, not a third of it.
+
 ## Baseline at `9febdf3c` (before slice A)
 
 | scenario | nodes | Win ms/frame | Linux ms/frame |
@@ -58,10 +80,11 @@ The class-change row is the headline: **24× faster at 6k nodes** and 139× fewe
 A (no layout pass), B (sync visits only the restyled subtrees), G (dense memo) and H (no map build)
 compounding — each removes a whole-tree walk from a frame that changed three nodes.
 
-**size-change regressed slightly** (4.79 → 6.77 ms at 1.5k, 30.4 → 36.0 at 6k). It is the one row
-where the gate always declines, so it pays the new digest comparison on top of a full reflow and gets
-none of the savings. That is the honest cost of A on the path A cannot help, and it is why slice D
-(retained Yoga tree) is the fix for this row rather than a further gate.
+**size-change regressed slightly** (4.79 → 6.77 ms at 1.5k, 30.4 → 36.0 at 6k, both measured with
+the old harness). It is the one row where the gate always declines, so it pays the new digest
+comparison on top of a full reflow and gets none of the savings. That is the honest cost of A on the
+path A cannot help, and it is why slice D (retained Yoga tree) is the fix for this row rather than a
+further gate. Re-measured with the corrected harness, the row is 9.45 ms at 1.5k.
 
 ## What slice A does not fix
 
