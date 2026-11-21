@@ -519,6 +519,15 @@ target_link_libraries(paint_op_size_tests PRIVATE tessera_paint)
 
 add_test(NAME paint_op_size COMMAND paint_op_size_tests)
 
+# The resolved background-image value's size budget (issue #731): the assertions are compile-time, so
+# this target exists to compile them on every lane.
+add_executable(background_layer_size_tests
+    background_layer_size_tests.cpp)
+
+target_link_libraries(background_layer_size_tests PRIVATE tessera_style)
+
+add_test(NAME background_layer_size COMMAND background_layer_size_tests)
+
 # Cache-line layout invariants (security review findings C1, C2, C3, C7): the assertions are
 # compile-time, so this target exists to compile them on every lane.
 add_executable(cache_line_tests

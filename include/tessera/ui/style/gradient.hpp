@@ -6,6 +6,7 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <string_view>
 
@@ -80,12 +81,23 @@ struct ConicGradientValue {
 // baked into the stops so a caller can tell the two forms apart (diagnostics, tests, a future
 // per-pixel path); the stops are the authored ramp either way, and `expand_repeating_stops` is what
 // turns a repeating one into a paintable list.
+//
+// The three shapes share one slot (issue #731). A value is exactly one shape, so carrying all three
+// side by side paid for 24 stops where a gradient can use 8: `GradientValue` was 560 bytes and
+// `BackgroundLayerList` (8 layers) 4552, which is what `resolve_layers` returned by value once per
+// painted node. The union is 200 bytes and the list 1672. `kind` says which member is live, and
+// every reader already switches on it.
 struct GradientValue {
-    enum class Kind { Linear, Radial, Conic } kind = Kind::Linear;
+    enum class Kind : std::uint8_t { Linear, Radial, Conic } kind = Kind::Linear;
     bool repeating = false;
-    LinearGradientValue linear;
-    RadialGradientValue radial;
-    ConicGradientValue conic;
+    union {
+        LinearGradientValue linear;
+        RadialGradientValue radial;
+        ConicGradientValue conic;
+    };
+
+    GradientValue()
+        : linear{} {}
 };
 
 // Offsets follow CSS Images 3 section 3.4.3: a missing first/last position is 0/100 %, a missing
