@@ -1867,6 +1867,17 @@ target_link_libraries(lowering_props_tests PRIVATE tessera_lowering)
 
 add_test(NAME lowering_props COMMAND lowering_props_tests)
 
+# ADR-051 slice 3: an object literal in a declared record's position becomes an `ir::Record`
+# (docs/specs/ir-v1-expr.md section 4.3). The implementation landed with PR #339 but had no test of
+# its own -- the IR-level tests prove the format and `lowering_props` proves the prop table, so
+# nothing proved that a TSX object literal actually reaches the IR as a record value.
+add_executable(lowering_record_value_tests
+    lowering_record_value_tests.cpp)
+
+target_link_libraries(lowering_record_value_tests PRIVATE tessera_lowering)
+
+add_test(NAME lowering_record_value COMMAND lowering_record_value_tests)
+
 # Issue #70 cross-file props aliases: the same alias imported from another file must lower to the
 # same records (and the same generated C++) as the inline alias.
 add_executable(lowering_props_alias_tests
