@@ -28,6 +28,7 @@
 
 #include <cmath>
 #include <cstdint>
+#include <deque>
 #include <iostream>
 #include <memory>
 #include <string>
@@ -160,6 +161,11 @@ struct Scene {
     // two frames of the same parity, which would make the second edit a no-op that the gate
     // correctly accepts.
     std::uint32_t edit_serial = 0;
+    // `Node::set_inline_style` keeps a `string_view`, so the text must outlive the node's
+    // declaration. Passing a temporary `std::string` leaves the node reading freed memory, which
+    // makes the computed style - and so the layout - depend on whatever the allocator did next.
+    // The host documents the same rule for its root size buffers (see `write_pixels`).
+    std::deque<std::string> inline_text;
 
     explicit Scene(int card_count) {
         std::uint64_t id = 2;
@@ -259,11 +265,15 @@ void apply_edit(Edit edit, Scene& scene, Lcg& rng, int frame, float& width, floa
     }
     case Edit::InlineLayout: {
         // Always a real change: the serial makes every write differ from the previous one, so
-        // this case cannot degenerate into a no-op the gate would correctly accept.
+        // this case cannot degenerate into a no-op the gate would correctly accept. The text is
+        // owned by the scene, because the node borrows it (`set_inline_style` keeps a
+        // `string_view`); a temporary here would leave the node reading freed memory.
         Node& card = pick(4, 4);
         const std::uint32_t serial = ++scene.edit_serial;
-        card.set_inline_style("width", std::to_string(120 + (serial % 7)) + "px");
-        card.set_inline_style("margin-top", std::to_string(2 + (serial % 5)) + "px");
+        scene.inline_text.push_back(std::to_string(120 + (serial % 7)) + "px");
+        card.set_inline_style("width", scene.inline_text.back());
+        scene.inline_text.push_back(std::to_string(2 + (serial % 5)) + "px");
+        card.set_inline_style("margin-top", scene.inline_text.back());
         break;
     }
     case Edit::Text: {
