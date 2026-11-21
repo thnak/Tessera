@@ -267,6 +267,9 @@ if (NOT EMSCRIPTEN)
     target_include_directories(tessera_scene_preview PUBLIC ${CMAKE_SOURCE_DIR}/tools/codegen)
     target_link_libraries(tessera_scene_preview PUBLIC
         tessera_automation_scene
+        # The preview drives the same `behavior::Instance` the generated base does (ADR-064 item 7),
+        # so the engine behavior library is a real dependency, not an optional one.
+        tessera_behavior
         tessera_css_module
         tessera_ir_eval
         tessera_ir_ids
@@ -296,6 +299,7 @@ if (NOT EMSCRIPTEN)
     target_include_directories(tessera_scene_frame_entry
         PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
     target_link_libraries(tessera_scene_frame_entry PRIVATE
+        tessera_behavior
         tessera_automation_scene
         tessera_css_module
         tessera_gpu
@@ -379,6 +383,7 @@ if (NOT EMSCRIPTEN)
     target_include_directories(tessera_scene_frame_cli
         PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
     target_link_libraries(tessera_scene_frame_cli PRIVATE
+        tessera_behavior
         tessera_automation_scene
         tessera_css_module
         tessera_gpu
@@ -429,6 +434,7 @@ else ()
     target_include_directories(tessera_scene_preview_wasm
         PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
     target_link_libraries(tessera_scene_preview_wasm PRIVATE
+        tessera_behavior
         tessera_automation_scene
         tessera_css_module
         tessera_ir_eval
@@ -826,6 +832,7 @@ if (TESSERA_BUILD_TESTS)
     target_compile_definitions(scene_frame_tests PRIVATE
         TESSERA_PREVIEW_FONT_PATH="${CMAKE_SOURCE_DIR}/designer/web/public/fonts/IBMPlexSans-Latin.ttf")
     target_link_libraries(scene_frame_tests PRIVATE
+        tessera_behavior
         tessera_automation_scene
         tessera_css_module
         tessera_golden
@@ -858,6 +865,7 @@ if (TESSERA_BUILD_TESTS)
     target_include_directories(scene_stylesheet_tests
         PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
     target_link_libraries(scene_stylesheet_tests PRIVATE
+        tessera_behavior
         tessera_automation_scene
         tessera_css_module
         tessera_ir_eval
@@ -917,6 +925,7 @@ if (TESSERA_BUILD_TESTS)
     target_include_directories(scene_dynamic_tests
         PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
     target_link_libraries(scene_dynamic_tests PRIVATE
+        tessera_behavior
         tessera_automation_scene
         tessera_css_module
         tessera_ir_eval
@@ -958,6 +967,7 @@ if (TESSERA_BUILD_TESTS)
     target_include_directories(scene_fold_tests
         PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
     target_link_libraries(scene_fold_tests PRIVATE
+        tessera_behavior
         tessera_app
         tessera_automation_scene
         tessera_css_module
@@ -1015,6 +1025,7 @@ if (TESSERA_BUILD_TESTS)
             PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
         target_link_libraries(${_canvas_test}_tests PRIVATE
             tessera_automation_scene
+            tessera_behavior
             tessera_css_module
             tessera_gpu
             tessera_ir_eval
@@ -1047,6 +1058,7 @@ if (TESSERA_BUILD_TESTS)
         PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen
                 ${CMAKE_SOURCE_DIR}/tests/unit)
     target_link_libraries(scene_viewport_tests PRIVATE
+        tessera_behavior
         tessera_app
         tessera_automation_scene
         tessera_css_module
@@ -1083,6 +1095,7 @@ if (TESSERA_BUILD_TESTS)
     target_include_directories(scene_skin_geometry_tests
         PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
     target_link_libraries(scene_skin_geometry_tests PRIVATE
+        tessera_behavior
         tessera_automation_scene
         tessera_css_module
         tessera_gpu
