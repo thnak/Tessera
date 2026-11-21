@@ -103,6 +103,9 @@ void SceneStyleTree::restyle_subtree(const Node& node) {
     if (found == index_.end()) {
         return;
     }
+    // The topmost restyled node: a node's style depends only on itself and its ancestors, so
+    // everything below this one is recomputed and everything outside it kept its style.
+    restyled_roots_.push_back(&node);
     const auto parent = node.parent() == nullptr ? index_.end() : index_.find(node.parent());
     refresh(node, parent == index_.end() ? nullptr : &entries_[parent->second].view);
 }

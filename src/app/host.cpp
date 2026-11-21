@@ -424,14 +424,24 @@ HostFrame AppHost::begin_frame(double dt, double alpha) {
         // layout input, reuse the previous result instead of rebuilding the layout input and
         // hashing the tree. `restyled_layout_changed` recomputes only the restyled nodes, which is
         // the work the sync below would do anyway, so a declined gate costs nothing extra.
-        if (state.layout_unchanged(incremental)) {
+        const bool layout_unchanged = state.layout_unchanged(incremental);
+        if (layout_unchanged) {
             frame.layout = state.last_applied;
             ++state.layout_gate_hits;
         } else {
             state.run_layout_pass(state.restyle_memo);
             frame.layout = state.last_applied;
         }
-        frame.sync = state.pipeline->sync_style(state.root, state.restyle_memo, frame.tick, true);
+        // Scoped sync (issue #735, slice B). The gate just proved that no box moved and that only
+        // the restyled subtrees changed style, so a node outside them has nothing to re-apply.
+        // Without that proof the whole tree is synced, which is the pre-slice-B behaviour.
+        if (layout_unchanged && state.tree != nullptr) {
+            frame.sync = state.pipeline->sync_style_scoped(
+                state.root, state.restyle_memo, state.tree->restyled_roots(), frame.tick, true);
+        } else {
+            frame.sync =
+                state.pipeline->sync_style(state.root, state.restyle_memo, frame.tick, true);
+        }
         state.restyle_memo.end();
         state.style_tree_populated = true;
         state.pipeline->sample_started_animations(state.root);

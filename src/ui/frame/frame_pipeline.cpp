@@ -276,6 +276,52 @@ const paint::PaintCacheStats& FramePipeline::paint_cache_stats() const {
     return paint_cache_stats_snapshot_;
 }
 
+paint::SceneStyleSyncResult FramePipeline::sync_style_scoped(Node& root,
+                                                             paint::StyleProvider& styles,
+                                                             std::span<const Node* const> roots,
+                                                             const FrameTick& tick,
+                                                             bool force) const {
+    if (!force && !tick.needs_style && !tick.needs_layout) {
+        style_bridge_snapshot_ = {};
+        return {};
+    }
+    DiffingStyleProvider diffing(styles, previous_styles_);
+    paint::SceneStyleSyncResult result =
+        paint::sync_scene_style_scoped(diffing, roots, config_.glass, &scene_sync_memo_);
+    // No `prune()` here, deliberately. `prune()` drops every node this pass did not visit, and a
+    // scoped pass visits only the restyled subtrees - so pruning would erase the diff baseline for
+    // every unchanged node. The next change to one of those nodes would then read as a first
+    // sighting, which `DiffingStyleProvider` correctly treats as "not a change", and the frame
+    // would plan no redraw (a stale frame). The baseline for an unvisited node is still accurate
+    // because the gate proved its style did not change; a node that left the tree keeps a stale
+    // entry until the next unscoped sync prunes it, which is a bounded, harmless leak (a reused id
+    // can only cause a spurious repaint, never a missed one).
+    if (!diffing.changed().empty()) {
+        std::unordered_map<NodeId, Node*> index;
+        index_nodes(root, index);
+        for (const auto& [id, opacity_changed] : diffing.changed()) {
+            if (const auto found = index.find(id); found != index.end()) {
+                if (opacity_changed) {
+                    found->second->mark_subtree_dirty(Dirty::Paint | Dirty::Render);
+                } else {
+                    found->second->mark_dirty(Dirty::Paint | Dirty::Render);
+                }
+            }
+        }
+    }
+    // Interaction state and the transition/animation bridge still walk the whole tree: both diff
+    // against a per-node snapshot, so scoping them needs the same "unchanged" proof per node that
+    // the scene sync gets from the gate. Kept whole here so this slice changes one walk, not three.
+    sync_interaction_style(root, &interaction_style_thunk, &styles, &interaction_sync_memo_);
+    style_bridge_snapshot_ =
+        style_bridge_state_.sync(*animations_, root, &interaction_style_thunk, &styles,
+                                 style_keyframes_ != nullptr ? *style_keyframes_ : kNoKeyframes);
+    if (!style_bridge_snapshot_.ids.empty()) {
+        loop_->request_frame();
+    }
+    return result;
+}
+
 paint::SceneStyleSyncResult FramePipeline::sync_style(Node& root, paint::StyleProvider& styles,
                                                       const FrameTick& tick, bool force) const {
     if (!force && !tick.needs_style && !tick.needs_layout) {
