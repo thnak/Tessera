@@ -53,6 +53,7 @@ implemented feature. In the Status columns, B1, B2, and B3 are the phases of [Bi
 | `tests/benchmarks/` | performance budgets (GPU under `gpu/`) | planned |
 | `samples/hello`, `samples/dashboard` | sample projects | placeholder |
 | `tools/poc/` | Phase 0/B1 proofs | B1 |
+| `tools/corpus/` | front-end corpus measurement (spike #660, ADR-066) | measurement tool |
 | `tools/shaders/`, `tools/font/` | shader/font tooling | planned |
 | `third_party/` | vendored dependencies (stb, volk, vma) | B1 |
 | `decisions/` | ADRs | 37 ([ADR-001](../../decisions/ADR-001-vulkan-1-3-baseline.md) (Vulkan 1.3 baseline) through [ADR-037](../../decisions/ADR-037-self-contained-wasm-designer.md) (self-contained WebAssembly designer)) |

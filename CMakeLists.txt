@@ -202,6 +202,10 @@ add_subdirectory(src/compiler/codegen)
 # links the scene-free tokenizer only, so it sits beside codegen rather than under `src/ui`.
 add_subdirectory(src/compiler/css_module)
 add_subdirectory(tools/schema_dump)
+# Front-end corpus measurement (spike #660, ADR-066): runs the parser and the Tier-1 rules over a
+# corpus of React/TSX files and reports the frequency of each rejection. A measurement tool, not a
+# shipped artifact; it links the front end and the rules only.
+add_subdirectory(tools/corpus)
 # `tessera icons add` (ADR-047 item 8): build-time Iconify import with the license gate.
 add_subdirectory(tools/icons)
 # `tessera-mcp` (issue #172): the stdio adapter a design-time client drives. It links the harness and

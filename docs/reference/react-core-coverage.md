@@ -15,6 +15,18 @@ V1, `later` = proposed after V1 with a stated blocker, `no` = stays rejected, wi
 write instead. **Cost**: S = a parser or rule change; M = a new lowering or IR addition; L = a design
 that changes the model.
 
+**Measured, not assumed.** Spike #660 ran the front end and the whole single-file pipeline over a
+50-file corpus of React spellings (`tests/fixtures/corpus/react/`, golden
+`tests/golden/corpus/react-front-end.txt`) and over this repository's own React sources. The
+frequency tables and the corrections they force are in
+[ADR-066](../../decisions/ADR-066-react-core-additions-for-v1.md#spike-660-evidence-recorded-2026-11-21).
+Three corrections apply to the tables below and are marked **measured** where they occur: several
+rows marked `rejected` are accepted by the *front end* and rejected later by the schema or the
+lowering, so the work belongs to a different stage; `memo` already compiles; and the largest single
+rejection reason is a parser gap (`TESSERA_JSX_PARSE_UNEXPECTED_TOKEN`) that this table does not
+list at all.
+
+
 ## 1. Hooks
 
 | React feature | Today | V1 | Cost | Notes |
@@ -46,28 +58,33 @@ that changes the model.
 | `key` on list items | accepted | keep | | `key` to force a remount: no, use `resetKey` of `ErrorBoundary` |
 | Fragment as a child | accepted | keep | | |
 | Fragment as the returned root, keyed Fragment | rejected (Q18) | no | | Wrap in `View`; an implicit box changes layout |
-| `memo(Component)` | rejected | add as identity | S | Updates already follow dependencies; `memo` is accepted so ports compile, with no effect |
-| `StrictMode`, `Profiler` | rejected | add as pass-through | S | No development double-render in this model |
+| `memo(Component)` | accepted (measured: it is a call whose result is a `const`) | keep | S | Updates already follow dependencies; `memo` is accepted so ports compile, with no effect |
+| `StrictMode`, `Profiler` | rejected (`TESSERA_IR_UNSUPPORTED`, measured: the front end accepts the tag) | add as pass-through | S | No development double-render in this model |
 | Spread props `{...props}` | rejected | no | | Keys must be known at compile time; pass named props |
-| Render props, function as a child | rejected | no | | Function values; use `children` slots or named element props (later, ADR-064) |
+| Render props, function as a child | rejected (`TESSERA_IR_UNSUPPORTED`, measured: the front end accepts the call) | no | | Function values; use `children` slots or named element props (later, ADR-064) |
 | `lazy`, `Suspense` | rejected | later | L | Needs code splitting and an async data model; there are no JS bundles |
 | Portals | rejected | no | | The Layer host (ADR-064 tier 0) and `Overlay` cover it |
 | Class components, `async` components | rejected | no | | By design (ADR-036) |
 | Error boundaries | `ErrorBoundary` intrinsic with `fallback` | keep | | Not the class lifecycle API |
+| Module-scope helper functions | rejected (`TESSERA_JSX_SUBSET_COMPONENT_NAME`, measured) | add | S | Not a React form: every `function` declaration is parsed as a component, so a lowercase helper is a badly named component. 13 of this repository's own React files declare one. The fix is to tell a helper from a component |
+| Destructured local `const { a } = b` | rejected (`TESSERA_JSX_PARSE_UNEXPECTED_TOKEN`, measured) | add | S | Not a React form: the parser accepts only a name or `[` after `const`. The port writes `const a = b.a;` |
+| `readonly` type modifier | rejected (`TESSERA_JSX_PARSE_UNEXPECTED_TOKEN`, measured) | add | S | Not a React form: the type grammar has no `readonly`. The port writes `string[]` |
+| JSDoc comment inside a props type | rejected (`TESSERA_JSX_PARSE_UNEXPECTED_TOKEN`, measured) | add | S | Not a React form: the type grammar has no comment form inside an object type. The port moves the comment above the alias |
+
 
 ## 3. Events, forms, refs
 
 | React feature | Today | V1 | Cost | Notes |
 |---|---|---|---|---|
 | `onClick`, `onChange`, `onFocus`, `onBlur`, `onKeyDown`, `onKeyUp`, `onSubmit` (inputs) | accepted | keep | | `onChange` payload is a record (Q1, option C) |
-| `onMouse*` | rejected (Q21) | no | | Fires for mouse only; use the pointer events |
-| `onDoubleClick`, `onContextMenu`, `onWheel`, `onDrag*`, `onTouch*` | rejected | later | M | Through the behavior hooks (long press, pan, context menu) of ADR-064, not as raw aliases |
-| `e.preventDefault()`, `e.stopPropagation()` | native handlers only (Q3) | keep | | |
+| `onMouse*` | rejected (`TESSERA_IR_UNKNOWN_PROP`, measured: the front end accepts the attribute) | no | | Fires for mouse only; use the pointer events. A schema row, not a parser row |
+| `onDoubleClick`, `onContextMenu`, `onWheel`, `onDrag*`, `onTouch*` | rejected (`TESSERA_IR_UNKNOWN_PROP`, measured: same) | later | M | Through the behavior hooks (long press, pan, context menu) of ADR-064, not as raw aliases |
+| `e.preventDefault()`, `e.stopPropagation()` | native handlers only (Q3); a native body is `TESSERA_IR_UNSUPPORTED` (measured) | keep | | |
 | Controlled inputs, `value`, `defaultValue`, `placeholder`, `disabled`, `readOnly` | accepted | keep | | `value` without `onChange` is a warning |
-| `checked`, `type="checkbox" / "radio" / "range"`, `select` | rejected | later | M | Provided by the library components Checkbox, RadioList, Switch, Selector (ADR-064 tiers 3 to 5), not as intrinsics |
-| `label htmlFor` | rejected (Q11) | later | M | Becomes the association of `FieldLabel` and its control in the Field stack |
+| `checked`, `type="checkbox" / "radio" / "range"`, `select` | rejected (`TESSERA_IR_UNKNOWN_PROP`, measured: the front end accepts the attributes) | later | M | Provided by the library components Checkbox, RadioList, Switch, Selector (ADR-064 tiers 3 to 5), not as intrinsics. A schema row |
+| `label htmlFor` | rejected (`TESSERA_IR_UNKNOWN_PROP`, measured: the front end accepts the attribute) | later | M | Becomes the association of `FieldLabel` and its control in the Field stack. A schema row |
 | Callback refs | rejected | no | | Function values |
-| `autoFocus` | rejected on inputs | add | S | A focus request at mount; the behavior is defined with `useFocusTrap` and focus management |
+| `autoFocus` | rejected (`TESSERA_IR_UNKNOWN_PROP` on `<TextInput>`, measured; `<View>` already declares it) | add | S | A focus request at mount; the behavior is defined with `useFocusTrap` and focus management. A schema row: the prop exists on `View` and not on the input elements |
 
 ## 4. Rendering expressions
 
@@ -75,12 +92,12 @@ that changes the model.
 |---|---|---|---|---|
 | `cond && <X />`, `cond ? <A /> : <B />` | accepted; `cond` must be `bool` | keep | | No truthiness; the diagnostic names the fix |
 | `.map(item => <X key=... />)`, single expression body | accepted | keep | | `VirtualList` for large lists |
-| `.filter(...).map(...)`, `.slice()`, `.sort()` in JSX | rejected (subset 10.5); `length(list)` exists as a function | add `filter` and `slice`, and `.length` as `length(list)`; `sort` later | M | A pure list expression with a pure arrow predicate in the IR allowlist; the largest gap by frequency in real code |
+| `.filter(...).map(...)`, `.slice()`, `.sort()` in JSX | rejected (`TESSERA_JSX_SUBSET_ARRAY_METHOD`, measured: the first rejection of 3 of 50 corpus files) | add `filter` and `slice`, and `.length` as `length(list)`; `sort` later | M | A pure list expression with a pure arrow predicate in the IR allowlist. Real, but not the largest gap: the parser gaps below outrank it |
 | Block-body `.map`, `if` in render | rejected | no | | Render stays an expression; compute into `const` locals |
 | Template strings | accepted | keep | | |
-| `??`, `?.` | rejected | add | S | They map onto `optional<T>`: `a ?? b` and `a?.b` as IR expressions with a type rule |
-| String and number methods (`trim`, `toFixed`, `parseInt`) | rejected; `parseIntOr`, `parseFloatOr` decided (Q26) | add a small allowlist | M | Total functions only (`trim`, `toUpperCase`, `toLowerCase`, `startsWith`, `slice`, `toFixed`, `parseIntOr`, `parseFloatOr`) |
-| Object spread `{...state, x}` | rejected | add for records | M | Record update with known fields; needed by `useReducer` |
+| `??`, `?.` | rejected (`TESSERA_JSX_SUBSET_OPERATOR`, measured) | add | S | They map onto `optional<T>`: `a ?? b` and `a?.b` as IR expressions with a type rule |
+| String and number methods (`trim`, `toFixed`, `parseInt`) | rejected (`TESSERA_IR_UNSUPPORTED`, measured: the front end accepts the call) | add a small allowlist | M | Total functions only (`trim`, `toUpperCase`, `toLowerCase`, `startsWith`, `slice`, `toFixed`, `parseIntOr`, `parseFloatOr`). A lowering row, not a parser row |
+| Object spread `{...state, x}` | rejected (`TESSERA_JSX_SUBSET_LITERAL`, measured) | add for records | M | Record update with known fields; needed by `useReducer` |
 | `style={{...}}` literal | accepted | keep | | A computed or spread style: no (keys must be static) |
 | `dangerouslySetInnerHTML`, `title`, `data-*` | rejected | no | | No V1 meaning |
 
@@ -98,19 +115,43 @@ that changes the model.
 ## 6. Order of work
 
 The rows marked `add` have dependencies. This is the order that opens the most React code per unit of
-work:
+work, **as measured by spike #660** rather than assumed: the frequency tables are in
+[ADR-066](../../decisions/ADR-066-react-core-additions-for-v1.md#spike-660-evidence-recorded-2026-11-21).
+The measurement changed the order: the parser gaps that this table did not list are now step 1,
+because they are the first rejection of more files than any single React row.
 
-1. **Cheap acceptances (S):** arrow components and `export default`, `import React`, `memo`, `StrictMode`,
-   `useId`, `useLayoutEffect`, `autoFocus`, `??` and `?.`, `useMemo` and `useCallback` safe forms.
-2. **Custom hooks (ADR-065, M).**
-3. **Handler control flow (M):** `if`, `const` and early return as IR actions. It unblocks `useReducer`
+1. **Parser and type-grammar gaps (S), measured first.** `TESSERA_JSX_PARSE_UNEXPECTED_TOKEN` is the
+   largest single rejection reason (11 occurrences, the first rejection of 6 of 50 corpus files and
+   of 34 of 58 rejected files in this repository's own React sources). Its causes are not React
+   forms: a destructured local, a `readonly` modifier, a JSDoc comment inside a props type, and a
+   module-scope helper function. The helper is the largest of the four: every `function` declaration
+   is parsed as a component, so 13 of this repository's React files are rejected as badly named
+   components. Fixing these unblocks more files than any item-1 row and is a prerequisite for
+   measuring anything else in real code.
+2. **Cheap acceptances (S):** arrow components and `export default`, `import React`, `StrictMode`,
+   `useId`, `useLayoutEffect`, `??` and `?.`, `useMemo` and `useCallback` safe forms. `memo` is
+   already accepted and drops off this list. `autoFocus` moves to the schema: the prop exists on
+   `View` and not on the input elements, so the port's error is `TESSERA_IR_UNKNOWN_PROP`, not a
+   parser rejection.
+3. **Custom hooks (ADR-065, M).**
+4. **Handler control flow (M):** `if`, `const` and early return as IR actions. It unblocks `useReducer`
    and removes the most common reason a port needs a native handler.
-4. **List and string expressions (M):** `filter`, `slice`, `length`, the string allowlist, object spread.
-5. **`useReducer` limited, `useContext` static (M).**
-6. **Later (L):** `useTransition`, `Suspense` and `lazy`, raw gesture events.
+5. **List and string expressions (M):** `filter`, `slice`, `length`, the string allowlist, object spread.
+   Real (the first rejection of 3 of 50 files) but not dominant, so it follows the parser gaps.
+6. **`useReducer` limited, `useContext` static (M).**
+7. **Later (L):** `useTransition`, `Suspense` and `lazy`, raw gesture events.
 
-Items 3 and 4 change the IR allowlist and the handler IR, so each needs a short ADR or a spec change
-before code; items 1, 2 and 5 do not change the IR except `Environment` for context.
+Items 4 and 5 change the IR allowlist and the handler IR, so each needs a short ADR or a spec change
+before code; items 1, 2, 3 and 6 do not change the IR except `Environment` for context.
+
+**What the measurement also showed.** 12 of the 21 files the front end accepts fail later, and the
+reasons are schema and lowering rows (`TESSERA_IR_UNKNOWN_PROP`, `TESSERA_IR_UNSUPPORTED`,
+`TESSERA_IR_UNRESOLVED`), not React forms. The pipeline accepts 9 of 50 files (18.0%) against the
+front end's 21 (42.0%), so a port's first error for `onMouse*`, `checked`/`type`, `label htmlFor`,
+`autoFocus`, string methods and render props is not the one this table's `Today` column names. Those
+rows are marked **measured** above and belong to the schema and lowering work, not to this ADR's
+items.
+
 
 ## 7. What this inventory does not cover
 

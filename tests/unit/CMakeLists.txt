@@ -65,6 +65,20 @@ target_link_libraries(jsx_adversarial_tests PRIVATE tessera_jsx_frontend)
 
 add_test(NAME jsx_adversarial COMMAND jsx_adversarial_tests)
 
+# The corpus measurement golden (spike #660, ADR-066): the front end and the pipeline over the
+# in-repo React fixtures, compared byte for byte with tests/golden/corpus/react-front-end.txt. The
+# corpus is written in this repository, so the measurement needs no network and no downloaded code.
+add_executable(corpus_measure_tests
+    corpus_measure_tests.cpp)
+
+target_link_libraries(corpus_measure_tests PRIVATE tessera_corpus_measure_core)
+
+target_compile_definitions(corpus_measure_tests PRIVATE
+    TESSERA_CORPUS_DIR="${CMAKE_SOURCE_DIR}/tests/fixtures/corpus/react"
+    TESSERA_CORPUS_GOLDEN="${CMAKE_SOURCE_DIR}/tests/golden/corpus/react-front-end.txt")
+
+add_test(NAME corpus_measure COMMAND corpus_measure_tests)
+
 add_executable(ir_authored_class_tests
     ir_authored_class_tests.cpp)
 

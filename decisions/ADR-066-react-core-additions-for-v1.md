@@ -52,10 +52,15 @@ growing the codebase around the gaps, which makes each later change more expensi
    `Environment` with a typed default and a compile-time provider tree: the provider's value is a pure
    expression of its component's props and state, and a consumer resolves the nearest provider
    statically. A provider that cannot be resolved at compile time is `TESSERA_REACT_CONTEXT_DYNAMIC`.
-6. **Order.** (1) cheap acceptances; (2) custom hooks (ADR-065); (3) handler control flow; (4) list and
-   string expressions and record spread; (5) `useReducer` and `useContext`; the L rows of ADR-067 run in
-   parallel with (3) to (5) because they touch different stages. Each step lands as one PR that closes
-   its issues, with its spec text, tests and diagnostics (`AGENTS.md`, landing size).
+6. **Order.** (1) the parser and type-grammar gaps the spike measured — a module-scope helper
+   function, a destructured local, `readonly`, a JSDoc comment inside a props type; (2) cheap
+   acceptances; (3) custom hooks (ADR-065); (4) handler control flow; (5) list and string
+   expressions and record spread; (6) `useReducer` and `useContext`; the L rows of ADR-067 run in
+   parallel with (4) to (6) because they touch different stages. Each step lands as one PR that
+   closes its issues, with its spec text, tests and diagnostics (`AGENTS.md`, landing size). The
+   order is the one the spike's frequency table chose, not the one this ADR first proposed: see
+   "Spike #660 evidence" below, which also moves `memo` off the list (already accepted) and
+   `autoFocus` to the schema (the prop exists on `View`, not on the input elements).
 7. **IR compatibility.** Items 2, 3 and 5 add optional IR kinds (an `if` action, list and string calls,
    record update, context environments); `irVersion` stays `1` under the additive rule of `ir-v1-expr.md`
    section 12. The compiler, evaluator and generator ship together.
@@ -95,6 +100,113 @@ growing the codebase around the gaps, which makes each later change more expensi
 ## Evidence required before Accepted
 
 This ADR stays Proposed until measured evidence exists, so a wrong choice is amended before it is locked. Spike [#660](https://github.com/thnak/Tessera/issues/660) measures what the front end accepts on a corpus of real components and reports the frequency of each rejection. The order of item 6 is chosen by that table and may change; the implementing issues #651 to #654 wait for Acceptance.
+
+### Spike #660 evidence (recorded 2026-11-21)
+
+Tool: `tools/corpus/` (`tessera_corpus_measure`), test `corpus_measure`, golden
+`tests/golden/corpus/react-front-end.txt`. Corpus: `tests/fixtures/corpus/react/`, 50 files written
+in this repository (MIT) to mirror the common React spellings, so the measurement needs no network
+and no downloaded code. A second, independent corpus is the repository's own React sources
+(`designer/web/src`, `tools/wiki/src`, `tools/reference/instrument-mock/src`, 60 files); it is
+measured but not committed as a golden, because it changes with every UI commit.
+
+Two stages are measured, because a port needs both. **Front end** = parse plus the Tier-1 rules.
+**Pipeline** = the whole single-file path the CLI and the preview run (parse, analyse, lower,
+validate), reporting the first blocking diagnostic. The front-end table ranks the React forms; the
+pipeline number is the honest "does it compile" share.
+
+**The model holds.** The front end accepts 21 of 50 files (42.0%) and the pipeline accepts 9
+(18.0%). Every accepted file declares a component. The accepted set is the one the coverage table
+calls `keep`: a function component with destructured props and literal defaults, `useState` with a
+typed call, a setter-only arrow handler, `useRef` with a `focus()` statement, `.map` with `key`,
+`cond && <X/>` and `cond ? <A/> : <B/>`, a template string, an inline `style` object literal,
+`useEffect` with an exact dependency list and a `bind::` annotation, and `memo(Component)` — which
+the coverage table lists as `add`, but which already compiles because `memo` is only a call whose
+result is a `const`, and the component it wraps is an ordinary declaration.
+
+**Front-end rejection frequency** (code, occurrences, files; 50 files, 29 rejected):
+
+| Code | Occ. | Files |
+|---|---|---|
+| `TESSERA_JSX_PARSE_UNEXPECTED_TOKEN` | 11 | 11 |
+| `TESSERA_JSX_SUBSET_IMPORT` | 4 | 4 |
+| `TESSERA_REACT_UNKNOWN_HOOK` | 4 | 4 |
+| `TESSERA_JSX_SUBSET_ARRAY_METHOD` | 3 | 3 |
+| `TESSERA_REACT_UNSUPPORTED_API` | 3 | 3 |
+| `TESSERA_JSX_SUBSET_COMPONENT_NAME` | 2 | 2 |
+| `TESSERA_JSX_PARSE_MISSING_SEMICOLON` | 1 | 1 |
+| `TESSERA_JSX_SUBSET_DOM` | 1 | 1 |
+| `TESSERA_JSX_SUBSET_DYNAMIC_TAG` | 1 | 1 |
+| `TESSERA_JSX_SUBSET_LITERAL` | 1 | 1 |
+| `TESSERA_JSX_SUBSET_MUTATION` | 1 | 1 |
+| `TESSERA_JSX_SUBSET_OPERATOR` | 1 | 1 |
+| `TESSERA_JSX_SUBSET_STATEMENT` | 1 | 1 |
+| `TESSERA_REACT_CUSTOM_HOOK` | 1 | 1 |
+| `TESSERA_REACT_EFFECT_DEPS` | 1 | 1 |
+| `TESSERA_REACT_HOOK_ORDER` | 1 | 1 |
+
+**First rejection per file** — the table the order of work is actually read from, because a file
+blocked by an earlier form cannot show what else it would need: `PARSE_UNEXPECTED_TOKEN` 6,
+`SUBSET_IMPORT` 4, `SUBSET_ARRAY_METHOD` 3, `REACT_UNKNOWN_HOOK` 3, `SUBSET_COMPONENT_NAME` 2, and
+one each for `PARSE_MISSING_SEMICOLON`, `SUBSET_DOM`, `SUBSET_DYNAMIC_TAG`, `SUBSET_LITERAL`,
+`SUBSET_MUTATION`, `SUBSET_OPERATOR`, `SUBSET_STATEMENT`, `REACT_CUSTOM_HOOK`,
+`REACT_EFFECT_DEPS`, `REACT_HOOK_ORDER`, `REACT_UNSUPPORTED_API`.
+
+**Pipeline rejection frequency** (first blocking code, files): `PARSE_UNEXPECTED_TOKEN` 6,
+`IR_UNSUPPORTED` 5, `IR_UNKNOWN_PROP` 4, `SUBSET_IMPORT` 4, `IR_UNRESOLVED` 3,
+`SUBSET_ARRAY_METHOD` 3, `REACT_UNKNOWN_HOOK` 3, `SUBSET_COMPONENT_NAME` 2, then one each for
+`PARSE_MISSING_SEMICOLON`, `SUBSET_DOM`, `SUBSET_DYNAMIC_TAG`, `SUBSET_LITERAL`, `SUBSET_MUTATION`,
+`SUBSET_OPERATOR`, `SUBSET_STATEMENT`, `REACT_CUSTOM_HOOK`, `REACT_EFFECT_DEPS`,
+`REACT_HOOK_ORDER`, `REACT_UNSUPPORTED_API`.
+
+**The order of item 6 changes, and item 1 is not first.** The measurement contradicts the assumed
+order in three ways:
+
+1. **`TESSERA_JSX_PARSE_UNEXPECTED_TOKEN` is the largest single reason a file is rejected, and it is
+   not a React form at all.** It is the parser's generic "unexpected token", and the fixtures show
+   four distinct causes that the coverage table does not list: a destructured local
+   (`const { state } = io;`), a `readonly` type modifier, a JSDoc comment inside a props type, and a
+   module-scope helper function. The first three are cheap parser/type-grammar acceptances of the
+   same size as item 1's rows, and they unblock more files than any single item-1 row. On the
+   repository's own React sources the same code is the first rejection of 34 of 58 rejected files.
+2. **`TESSERA_JSX_SUBSET_COMPONENT_NAME` is a false positive, not a missing feature.** Every
+   `function` declaration is parsed as a component, so a lowercase module-scope helper
+   (`function position(...)`, `function argsLabel(...)`) is rejected as a badly named component. On
+   the repository's own sources 13 files declare such a helper and 16 files are rejected for this
+   code. The fix is to distinguish a helper from a component, which is a parser change, not a React
+   addition — and it is a prerequisite for measuring anything else in real code.
+3. **`TESSERA_JSX_SUBSET_ARRAY_METHOD` (item 3) is real but not dominant.** It is the first
+   rejection of 3 of 50 files here and 1 of 58 in the repository's sources. Item 3 stays, but it
+   does not lead.
+
+Item 2 (handler control flow) and item 4 (`useReducer`/`useContext`) are confirmed as real: the
+`if`/early-`return` handler and the `switch` reducer are each rejected by exactly one code, and
+`useReducer`/`useContext`/`useMemo`/`useCallback` all report `TESSERA_REACT_UNSUPPORTED_API` as the
+coverage table says. `useId` and `useLayoutEffect` report `TESSERA_REACT_UNKNOWN_HOOK`, not
+`UNSUPPORTED_API`: the message names only the four core hooks, so the diagnostic a port sees for
+item 1's rows is the generic one.
+
+**What the front end accepts that the pipeline rejects.** 12 of the 21 front-end-accepted files fail
+later, and the reasons are not React forms: `TESSERA_IR_UNKNOWN_PROP` (4 — `autoFocus` on
+`<TextInput>`, `onMouseEnter`/`onDoubleClick`, `type="checkbox"`, `htmlFor`), `TESSERA_IR_UNSUPPORTED`
+(5 — a Fragment root, `StrictMode`, a native handler body, a string method call, a render prop),
+`TESSERA_IR_UNRESOLVED` (3 — `.length`, a browser API read, a helper call). This is the most
+important correction to the coverage table: several rows it marks `rejected` are **accepted by the
+front end** and rejected by the schema or the lowering. `onMouse*`, `checked`/`type`, `label htmlFor`
+and `autoFocus` are schema rows, not parser rows, so a port's first error for them is
+`TESSERA_IR_UNKNOWN_PROP` and the work belongs to the schema, not to ADR-066 item 1. Conversely
+`useId`/`useLayoutEffect` are genuinely parser-level.
+
+**What this does not settle.** The corpus is 50 hand-written files, not a sample of published
+projects: it measures the forms the coverage table names, not their real-world frequency, and a
+frequency table over a corpus written from the same table is circular by construction. The
+repository's own React sources are the independent check, and they are a different kind of code (a
+designer UI, not a component library), so they bound the answer without settling it. Lowering and IR
+validation are measured only as a first blocking code, not as a full frequency table. The
+`TESSERA_JSX_PARSE_UNEXPECTED_TOKEN` causes are counted by hand from the fixtures, not by the tool,
+because the code is generic and the tool cannot split it. A corpus of permissively licensed
+third-party components, kept out of the repository and recorded only as measurements, is the next
+step if the frequency table is to drive the order rather than confirm it.
 
 ## Follow-up
 
