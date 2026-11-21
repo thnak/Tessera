@@ -168,6 +168,30 @@
       "lowering": { "kind": "behavior", "behavior": "interactive_role", "exclusive": true }
     },
     {
+      "name": "useAnnounce",
+      "params": [
+        {
+          "name": "options",
+          "kind": "options",
+          "ts": "AnnounceOptions",
+          "ir": "record",
+          "fields": [
+            { "name": "message", "ts": "string", "ir": "string" },
+            {
+              "name": "channel",
+              "ts": "\"polite\" | \"assertive\" | \"off\"",
+              "ir": "string",
+              "default": "polite"
+            }
+          ]
+        }
+      ],
+      "returns": {
+        "fields": [{ "name": "announced", "ts": "boolean", "ir": "bool", "default": false }]
+      },
+      "lowering": { "kind": "behavior", "behavior": "announce" }
+    },
+    {
       "name": "usePressFeedback",
       "params": [
         { "name": "target", "kind": "ref", "ts": "Element", "ir": "ref" },

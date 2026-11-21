@@ -19,6 +19,9 @@ class InputRouter;
 namespace layout {
 class LayoutReadModel;
 }
+namespace accessibility {
+class AnnouncementQueue;
+}
 } // namespace tessera::ui
 
 // The behavior seam (ADR-064 item 7; docs/design/behavior-hooks.md section 5,
@@ -71,6 +74,9 @@ struct Services {
     // The last layout pass's boxes (`layout::LayoutReadModel`). Null in a build that has no layout,
     // which a measuring behavior must treat as "nothing is measured yet".
     layout::LayoutReadModel* layout = nullptr;
+    // The window's announcement queue (`accessibility::AnnouncementQueue`). Null in a build with no
+    // accessibility bridge, which a behavior must treat as "nothing can be announced".
+    accessibility::AnnouncementQueue* announcements = nullptr;
     // The current time in seconds, from the runtime clock interface. A behavior that needs a
     // deadline reads it here rather than calling a wall clock, so a `ManualClock` test is
     // deterministic (behavior-hooks-v1.md section 8 rule 4).

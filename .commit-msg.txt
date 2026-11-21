@@ -1,29 +1,40 @@
-hook: useInteractiveRole, so a nested control knows it is nested (#635)
+hook: useAnnounce, a bounded de-duplicating live-region queue (#629)
 
-`useInteractiveRole(target, { interactive })` marks an element as the
-interactive surface of a composite and reports whether that surface is
-itself nested inside another one. It exists for one WCAG defect: a control
-inside a control. A screen reader announces both, and a pointer press on
-the inner one also triggers the outer one because the click bubbles.
+`useAnnounce({ message, channel })` announces a message to assistive
+technology. The engine had no live-region support at all — no `aria-live`
+on `Node`, no channel in the accessibility tree — so this lands the
+mechanism as well as the hook.
 
-The flag lives on the node (`Node::set_interactive_parent`), not in the
-behavior, because the descendant that needs the answer is a different
-component, possibly in a different module. The scene is the only thing they
-share, so a descendant reads the flag by walking its ancestors
-(`InteractiveRole::has_interactive_ancestor`). A behavior that kept the
-flag privately could not answer the question the hook exists to answer.
+The mechanism is `accessibility::AnnouncementQueue`: a bounded,
+de-duplicating list the accessibility bridge drains. It is its own
+structure rather than a node because an announcement has no box, is never
+painted, and must survive the component that produced it: a toast that
+announces "Saved" and then unmounts still has to be announced. Putting it
+on a node would tie the read to whether the node was still attached.
 
-The hook does not set `role`, `tabIndex` or an accessible name, and it does
-not stop a click from bubbling: it reports the situation so a component can
-avoid the nesting in the first place, which is the only fix that works for
-assistive technology too.
+Three rules make it safe to call from a render:
 
-`node.hpp` is a grandfathered over-limit header (652 lines against a 500
-hard limit), and the source-size gate only lowers a baseline, never raises
-one. The flag and its accessor are 10 lines, so the same change condenses
-ten lines of older comment in that file to stay at the baseline rather than
-grow it. That is the gate working as intended: the file cannot get worse.
+- **De-duplication.** The same text on the same channel as the last
+  announcement is suppressed, both by the behavior and by the queue. A
+  form that re-renders on every keystroke would otherwise announce the same
+  validation message dozens of times.
+- **Assertive interrupts.** An assertive announcement is delivered before
+  any queued polite one, and is never dropped when the queue is full; the
+  oldest polite one is dropped instead.
+- **Bounded text and bounded queue.** 512 bytes and 16 entries, so a
+  runaway component cannot grow memory without limit.
 
-Evidence: `interactive_role` (9 rules, including the descendant walk and
-the nested-surface output), `hook_manifest` and `behavior_registry`. Spec:
-`docs/specs/use-interactive-role-v1.md`.
+`Services` gains the queue, which is the third service a behavior has
+needed beyond the router. The behavior writes into the window's queue
+rather than owning one, which is what lets an announcement outlive its
+component.
+
+The hook does not deliver to the platform: the accessibility bridge maps a
+queued announcement to UIA's `RaiseAutomationEvent`, AT-SPI's
+`Announcement` and NSAccessibility's `announcementRequested`. That mapping
+is the bridge's contract, and it is the next slice.
+
+Evidence: `announcement_queue` (10 rules: ordering, de-duplication, the
+caps, scoping) and `announce` (7 rules: the channel, the repeat guard, the
+no-queue path, and that a queued message survives a detach). Spec:
+`docs/specs/use-announce-v1.md`.

@@ -37,6 +37,7 @@ bool test_registry_is_the_closed_set() {
     ok = expect(is_registered("clipboard_copy"), "clipboard_copy is registered") && ok;
     ok = expect(is_registered("overflow"), "overflow is registered") && ok;
     ok = expect(is_registered("interactive_role"), "interactive_role is registered") && ok;
+    ok = expect(is_registered("announce"), "announce is registered") && ok;
     ok = expect(!is_registered("typeahead"),
                 "a behavior with no implementation is not registered") &&
          ok;

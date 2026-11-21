@@ -1469,6 +1469,11 @@ constant include/tessera/ui/accessibility/a11y_tree.hpp tessera::ui::a11y::kMaxC
 constant include/tessera/ui/accessibility/a11y_tree.hpp tessera::ui::a11y::kMaxNodes
 constant include/tessera/ui/accessibility/a11y_tree.hpp tessera::ui::a11y::kMaxTextBytes
 
+header include/tessera/ui/accessibility/announcement_queue.hpp
+class include/tessera/ui/accessibility/announcement_queue.hpp tessera::ui::accessibility::AnnouncementQueue
+struct include/tessera/ui/accessibility/announcement_queue.hpp tessera::ui::accessibility::Announcement
+enum include/tessera/ui/accessibility/announcement_queue.hpp tessera::ui::accessibility::LiveChannel
+
 header include/tessera/ui/accessibility/atspi_bridge.hpp
 class include/tessera/ui/accessibility/atspi_bridge.hpp tessera::ui::a11y::AtspiBridge
 struct include/tessera/ui/accessibility/atspi_bridge.hpp tessera::ui::a11y::ActionRequest
@@ -1837,9 +1842,13 @@ constant include/tessera/ui/automation/snapshot.hpp tessera::ui::automation::kSn
 header include/tessera/ui/automation/snapshot_json.hpp
 function include/tessera/ui/automation/snapshot_json.hpp tessera::ui::automation::snapshot_to_json
 
+header include/tessera/ui/behavior/announce.hpp
+class include/tessera/ui/behavior/announce.hpp tessera::ui::behavior::Announce
+
 header include/tessera/ui/behavior/behavior.hpp
 class include/tessera/ui/behavior/behavior.hpp tessera::hal::Clipboard
 class include/tessera/ui/behavior/behavior.hpp tessera::ui::InputRouter
+class include/tessera/ui/behavior/behavior.hpp tessera::ui::accessibility::AnnouncementQueue
 class include/tessera/ui/behavior/behavior.hpp tessera::ui::behavior::Behavior
 class include/tessera/ui/behavior/behavior.hpp tessera::ui::layout::LayoutReadModel
 struct include/tessera/ui/behavior/behavior.hpp tessera::ui::behavior::ArgValue

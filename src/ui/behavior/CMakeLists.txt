@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: MIT
 
 add_library(tessera_behavior STATIC
+    announce.cpp
     clipboard_copy.cpp
     focus_trap.cpp
     hotkeys.cpp
@@ -15,7 +16,7 @@ add_library(tessera_behavior STATIC
 target_include_directories(tessera_behavior PUBLIC
     ${PROJECT_SOURCE_DIR}/include)
 
-target_link_libraries(tessera_behavior PUBLIC tessera_scene tessera_layout)
+target_link_libraries(tessera_behavior PUBLIC tessera_scene tessera_layout tessera_accessibility)
 
 target_compile_features(tessera_behavior PUBLIC cxx_std_23)
 
@@ -68,6 +69,11 @@ if (TESSERA_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/unit/interactive_role_tests.cpp)
     target_link_libraries(interactive_role_tests PRIVATE tessera_behavior)
     add_test(NAME interactive_role COMMAND interactive_role_tests)
+
+    add_executable(announce_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/announce_tests.cpp)
+    target_link_libraries(announce_tests PRIVATE tessera_behavior tessera_accessibility)
+    add_test(NAME announce COMMAND announce_tests)
 
     add_executable(behavior_allocation_tests
         ${PROJECT_SOURCE_DIR}/tests/unit/behavior_allocation_tests.cpp)

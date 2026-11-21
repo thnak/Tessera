@@ -47,7 +47,7 @@ bool test_committed_manifest_parses() {
     if (!expect(manifest.has_value(), "the committed manifest parses: " + error.detail)) {
         return false;
     }
-    bool ok = expect(manifest->hooks.size() == 12, "the manifest declares twelve hooks");
+    bool ok = expect(manifest->hooks.size() == 13, "the manifest declares thirteen hooks");
     ok = expect(manifest->find("useTheme") != nullptr, "useTheme is declared") && ok;
     ok = expect(manifest->find("useThemeState") != nullptr, "useThemeState is declared") && ok;
     ok = expect(manifest->find("useBreakpoint") != nullptr, "useBreakpoint is declared") && ok;
@@ -61,6 +61,7 @@ bool test_committed_manifest_parses() {
     ok =
         expect(manifest->find("useInteractiveRole") != nullptr, "useInteractiveRole is declared") &&
         ok;
+    ok = expect(manifest->find("useAnnounce") != nullptr, "useAnnounce is declared") && ok;
     ok =
         expect(manifest->find("usePressFeedback") != nullptr, "usePressFeedback is declared") && ok;
     return ok;
@@ -207,6 +208,17 @@ bool test_behavior_lowering() {
                 "useInteractiveRole names the interactive_role behavior") &&
          ok;
     ok = expect(role != nullptr && role->exclusive, "useInteractiveRole is exclusive") && ok;
+    // `useAnnounce` (issue #629): no target ref, one options object, one output.
+    const auto* announce = manifest->find("useAnnounce");
+    ok = expect(announce != nullptr && announce->lowering == HookLoweringKind::Behavior,
+                "useAnnounce is a behavior hook") &&
+         ok;
+    ok = expect(announce != nullptr && announce->provider == "announce",
+                "useAnnounce names the announce behavior") &&
+         ok;
+    ok = expect(announce != nullptr && announce->outputs.size() == 1,
+                "useAnnounce returns one output") &&
+         ok;
     return ok;
 }
 

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "tessera/ui/behavior/announce.hpp"
 #include "tessera/ui/behavior/clipboard_copy.hpp"
 #include "tessera/ui/behavior/focus_trap.hpp"
 #include "tessera/ui/behavior/hotkeys.hpp"
@@ -47,10 +48,14 @@ std::unique_ptr<Behavior> make_interactive_role() {
     return std::make_unique<InteractiveRole>();
 }
 
+std::unique_ptr<Behavior> make_announce() {
+    return std::make_unique<Announce>();
+}
+
 // The registry is a fixed array rather than a map: the set is closed (the library hook manifest is
 // the only place that may declare a behavior hook), so a lookup is a linear scan over a handful of
 // entries and the build allocates nothing to answer it.
-constexpr std::array<Registration, 8> kRegistry{{
+constexpr std::array<Registration, 9> kRegistry{{
     {"press_feedback", &make_press_feedback},
     {"focus_trap", &make_focus_trap},
     {"roving_focus", &make_roving_focus},
@@ -59,6 +64,7 @@ constexpr std::array<Registration, 8> kRegistry{{
     {"clipboard_copy", &make_clipboard_copy},
     {"overflow", &make_overflow},
     {"interactive_role", &make_interactive_role},
+    {"announce", &make_announce},
 }};
 
 } // namespace
