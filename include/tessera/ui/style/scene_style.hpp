@@ -159,8 +159,9 @@ private:
     // reads one byte per node instead of the entry's view.
     std::vector<std::uint8_t> memoised_;
     // The query-container chain of each slot, nearest last, so a `@container` rule resolves without
-    // walking the ancestors again (issue #693). Sized lazily, on the first `resolve` of a sheet that
-    // actually has container queries: a sheet without them pays nothing, which is the common case.
+    // walking the ancestors again (issue #693). Sized lazily, on the first `resolve` of a sheet
+    // that actually has container queries: a sheet without them pays nothing, which is the common
+    // case.
     std::vector<std::vector<ContainerRef>> containers_;
     // The registry's initial style for a node outside the captured tree. Every such node resolves
     // to the same value, so one slot serves them all; `begin_memo(false)` drops it with the rest.

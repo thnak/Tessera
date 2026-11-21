@@ -34,8 +34,8 @@ void AppHost::Impl::restyle_and_layout(ui::frame::FrameTick& tick,
     restyle_memo.begin(*provider, incremental);
     // The layout-unchanged gate (issue #735, slice A): when the restyle provably kept every layout
     // input, reuse the previous result instead of rebuilding the layout input and hashing the tree.
-    // `restyled_layout_changed` recomputes only the restyled nodes, which is the work the sync below
-    // would do anyway, so a declined gate costs nothing extra.
+    // `restyled_layout_changed` recomputes only the restyled nodes, which is the work the sync
+    // below would do anyway, so a declined gate costs nothing extra.
     const bool layout_unchanged = this->layout_unchanged(incremental);
     if (layout_unchanged) {
         ++layout_gate_hits;

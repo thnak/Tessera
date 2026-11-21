@@ -353,8 +353,8 @@ const ComputedStyle& SceneStyleTree::resolve(const CompiledStyleSheet& sheet, co
     const bool has_parent = parent_node != nullptr && index_.contains(parent_node);
     const ComputedStyle* parent = has_parent ? &resolve(sheet, *parent_node) : nullptr;
     // A `@container` rule resolves against the nearest ancestor container, never the node itself,
-    // so the chain handed to the cascade is the parent's (issue #693). The chain is only built for a
-    // sheet that actually has container queries, so a sheet without them pays nothing.
+    // so the chain handed to the cascade is the parent's (issue #693). The chain is only built for
+    // a sheet that actually has container queries, so a sheet without them pays nothing.
     const bool use_containers = container_size_ != nullptr && sheet.has_container_queries();
     const std::vector<ContainerRef>* parent_chain = nullptr;
     if (use_containers) {
@@ -368,16 +368,16 @@ const ComputedStyle& SceneStyleTree::resolve(const CompiledStyleSheet& sheet, co
     const std::vector<ContainerRef> empty;
     ChainContainers containers(parent_chain != nullptr ? *parent_chain : empty, container_size_,
                                container_context_);
-    ComputedStyle computed = sheet.compute(entries_[slot].view, parent,
-                                           use_containers ? &containers : nullptr);
+    ComputedStyle computed =
+        sheet.compute(entries_[slot].view, parent, use_containers ? &containers : nullptr);
     apply_inline_declarations(sheet, node, computed, parent);
     // The slot already exists (the array was sized at the end of `build`), so this assignment never
     // reallocates and the reference below stays valid for the generation.
     memo_[slot] = std::move(computed);
     memoised_[slot] = 1;
     if (use_containers) {
-        // This node's chain is its parent's plus this node when this node is a query container, so a
-        // child's `@container` lookup is a scan of a short vector instead of an ancestor walk.
+        // This node's chain is its parent's plus this node when this node is a query container, so
+        // a child's `@container` lookup is a scan of a short vector instead of an ancestor walk.
         std::vector<ContainerRef>& chain = containers_[slot];
         chain.clear();
         if (parent_chain != nullptr) {
