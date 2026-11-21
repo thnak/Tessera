@@ -186,7 +186,7 @@ void lower_ref(HookState& state, std::size_t index, LoweredHooks& out) {
     const jsx::Statement& statement = state.context.component.body[index];
     const jsx::Expr& call = *statement.init;
     if (!statement.array_pattern && statement.names.size() == 1 && call.operands.size() == 2) {
-        out.refs.push_back(ir::Ref{prefixed("ref::", statement.names[0]), statement.names[0], {}});
+        out.refs.push_back(ir::Ref{prefixed("ref::", statement.names[0]), statement.names[0], {}, {}});
         out.ref_index.push_back({statement.names[0], out.refs.back().id});
         return;
     }

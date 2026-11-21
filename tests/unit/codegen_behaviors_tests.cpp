@@ -78,7 +78,7 @@ ir::IrModule make_module() {
     component.component_id = "81";
     component.name = "Pressable";
     component.source = span(0, 1);
-    component.refs.push_back(ir::Ref{"ref::target", "target", "node::1"});
+    component.refs.push_back(ir::Ref{"ref::target", "target", "node::1", {}});
     ir::Behavior behavior;
     behavior.id = "beh::press";
     behavior.hook = "usePressFeedback";
