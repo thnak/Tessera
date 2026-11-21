@@ -12,6 +12,7 @@
 #include "tessera/ui/scene/paint_data.hpp"
 #include "tessera/ui/style/scene_style.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <iostream>
@@ -406,6 +407,79 @@ Text { font-size: 16px; color: #e2e8f0; }
         paint_host.end_frame();
         if (!expect(!idle_again.render.should_render, "the scene is idle again afterwards")) {
             return 16;
+        }
+    }
+
+    // --- 15. The scene sync follows style and box changes through its memo (#711) ----------
+    {
+        Node sync_root(1);
+        Node& box = sync_root.add_child(std::make_unique<Node>(2));
+        box.set_element_kind("View");
+        box.set_class_name("box");
+        Node& other = sync_root.add_child(std::make_unique<Node>(3));
+        other.set_element_kind("View");
+        other.set_class_name("box");
+        tessera::runtime::ManualClock sync_clock;
+        tessera::runtime::RuntimeLoop sync_loop(sync_clock);
+        tessera::app::AppHost sync_host(sync_root, compile_stylesheet(R"(
+.box { width: 100px; height: 40px; transform: rotate(90deg); }
+.box.z { z-index: 5; }
+.box.wide { width: 200px; }
+.box.none { pointer-events: none; }
+.box.pct { width: 50%; }
+)"),
+                                        sync_loop, config);
+        const auto frame = [&] {
+            RecordingSink sink;
+            (void)sync_host.begin_frame(1.0 / 60.0);
+            (void)sync_host.paint(sink);
+            sync_host.end_frame();
+        };
+        frame();
+        frame();
+        if (!expect(box.z_index() == 0, "no z-index to start with")) {
+            return 24;
+        }
+        box.set_class_name("box z");
+        frame();
+        if (!expect(box.z_index() == 5 && other.z_index() == 0,
+                    "a class that sets z-index reaches the scene through the memo")) {
+            return 25;
+        }
+        // The rotation origin is the box centre, so a width change moves the matrix even though
+        // the node's computed transform did not change; the memo keys on the box as well.
+        const tessera::rendering::rhi::Mat3 before = box.transform();
+        box.set_class_name("box z wide");
+        frame();
+        if (!expect(!std::equal(before.m, before.m + 9, box.transform().m),
+                    "a width change re-derives the transform around the new centre")) {
+            return 26;
+        }
+        box.set_class_name("box");
+        frame();
+        if (!expect(box.z_index() == 0, "removing the class resets the z-index")) {
+            return 27;
+        }
+        other.set_class_name("box none");
+        frame();
+        if (!expect(!other.pointer_events() && box.pointer_events(),
+                    "the interaction sync follows a class change through its memo")) {
+            return 28;
+        }
+        other.set_class_name("box");
+        frame();
+        if (!expect(other.pointer_events(), "and follows it back")) {
+            return 29;
+        }
+        // A resize moves the box without touching the style: only the box key can tell.
+        other.set_class_name("box pct");
+        frame();
+        const tessera::rendering::rhi::Mat3 narrow = other.transform();
+        sync_host.resize(config.width * 2.0f, config.height, 1.0f);
+        frame();
+        if (!expect(!std::equal(narrow.m, narrow.m + 9, other.transform().m),
+                    "a resize re-derives the transform although the style is identical")) {
+            return 30;
         }
     }
 

@@ -36,7 +36,7 @@ public:
         const auto found = previous_.find(node.id());
         if (found == previous_.end()) {
             previous_.emplace(node.id(), next);
-        } else if (found->second.properties() != next.properties()) {
+        } else if (!found->second.equals(next)) {
             // `opacity` composites the whole subtree (paint-pass.md section 14.1).
             const auto* before = found->second.find("opacity");
             const auto* after = next.find("opacity");

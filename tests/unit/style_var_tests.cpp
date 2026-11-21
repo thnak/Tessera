@@ -176,6 +176,40 @@ void test_memo_matches_walk() {
     check_value(leaf_style, "padding-left", "4px", "inline var sees the parent's inline property");
 }
 
+// A style copy shares its entries; the first write to either side clones them, so the other side
+// (and a digest cached with the shared entries) is untouched.
+void test_copy_on_write() {
+    style::ComputedStyle original;
+    original.set("color", "red");
+    original.set("width", "10px");
+    style::ComputedStyle copy = original;
+    check(copy.same_entries(original), "a copy shares the entries");
+    original.cache_digest(42);
+    check(copy.cached_digest() == 42, "the digest lives with the shared entries");
+
+    copy.set("color", "blue");
+    check(!copy.same_entries(original), "a write clones the shared entries");
+    check_value(original, "color", "red", "the original keeps its value after the copy wrote");
+    check_value(copy, "color", "blue", "the copy holds the new value");
+    check(original.cached_digest() == 42, "the original keeps its digest");
+    check(copy.cached_digest() == 0, "a clone has no cached digest");
+
+    style::ComputedStyle unique;
+    unique.set("a", "1");
+    unique.cache_digest(7);
+    unique.set("a", "2");
+    check(unique.cached_digest() == 0, "a write drops the digest of an unshared style");
+
+    style::ComputedStyle shared = original;
+    style::ComputedStyle::Entries defaults{{"height", "5px"}, {"width", "99px"}};
+    shared.merge_missing(defaults);
+    check_value(shared, "height", "5px", "merge_missing adds the missing default");
+    check_value(shared, "width", "10px", "merge_missing keeps the existing value");
+    check(original.find("height") == nullptr, "merge_missing on a shared style leaves the other");
+    check_value(original, "width", "10px", "the other holder keeps every entry");
+    check(shared.equals(shared) && !shared.equals(original), "equals compares the entries");
+}
+
 } // namespace
 
 int main() {
@@ -183,6 +217,7 @@ int main() {
     test_inline_declarations();
     test_inline_cycle();
     test_memo_matches_walk();
+    test_copy_on_write();
     if (failures != 0) {
         std::cerr << "style_var: " << failures << " failure(s)\n";
         return 1;

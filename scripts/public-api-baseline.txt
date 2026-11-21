@@ -2666,6 +2666,9 @@ enum include/tessera/ui/style/supports.hpp tessera::ui::style::SupportsKind
 function include/tessera/ui/style/supports.hpp tessera::ui::style::evaluate_supports
 function include/tessera/ui/style/supports.hpp tessera::ui::style::parse_supports_condition
 
+header include/tessera/ui/style/sync_memo.hpp
+class include/tessera/ui/style/sync_memo.hpp tessera::ui::style::SyncMemo
+
 header include/tessera/ui/style/text_decoration.hpp
 function include/tessera/ui/style/text_decoration.hpp tessera::ui::style::is_supported_text_decoration_style
 function include/tessera/ui/style/text_decoration.hpp tessera::ui::style::is_supported_text_decoration_thickness

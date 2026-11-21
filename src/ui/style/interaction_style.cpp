@@ -72,7 +72,7 @@ bool style_hidden_value(const std::string* value) {
     return equals_lower(normalized, "hidden") || equals_lower(normalized, "collapse");
 }
 
-void sync_node(Node& node, InteractionStyleFn compute, void* context,
+void sync_node(Node& node, InteractionStyleFn compute, void* context, SyncMemo* memo,
                InteractionStyleSyncResult& result) {
     if (!node.visible()) {
         // Invisible subtrees are neither painted nor hit tested, so their policy is irrelevant and
@@ -81,6 +81,14 @@ void sync_node(Node& node, InteractionStyleFn compute, void* context,
     }
     const ComputedStyle& style = compute(context, node);
     ++result.nodes;
+    if (memo != nullptr && memo->hit(node.id(), style)) {
+        if (!node.style_hidden()) {
+            for (const auto& child : node.children()) {
+                sync_node(*child, compute, context, memo, result);
+            }
+        }
+        return;
+    }
 
     const bool pointer_events = pointer_events_enabled(style.find("pointer-events"));
     if (pointer_events != node.pointer_events()) {
@@ -111,24 +119,33 @@ void sync_node(Node& node, InteractionStyleFn compute, void* context,
         node.set_style_hidden(style_hidden);
         ++result.changed_visibility;
     }
+    if (memo != nullptr) {
+        memo->put(node.id(), style);
+    }
     if (style_hidden) {
         return;
     }
 
     for (const auto& child : node.children()) {
-        sync_node(*child, compute, context, result);
+        sync_node(*child, compute, context, memo, result);
     }
 }
 
 } // namespace
 
 InteractionStyleSyncResult sync_interaction_style(Node& root, InteractionStyleFn compute,
-                                                  void* context) {
+                                                  void* context, SyncMemo* memo) {
     InteractionStyleSyncResult result;
     if (compute == nullptr) {
         return result;
     }
-    sync_node(root, compute, context, result);
+    if (memo != nullptr) {
+        memo->begin();
+    }
+    sync_node(root, compute, context, memo, result);
+    if (memo != nullptr) {
+        memo->sweep();
+    }
     return result;
 }
 

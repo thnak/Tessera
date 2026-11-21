@@ -285,6 +285,9 @@ private:
     // changes only paint properties still plans a redraw (dirty-rendering.md section 4.1).
     mutable std::unordered_map<NodeId, style::ComputedStyle> previous_styles_;
     mutable animation::StyleBridge style_bridge_state_;
+    // What the scene and interaction syncs applied last, so an unchanged node is not redone.
+    mutable style::SyncMemo scene_sync_memo_;
+    mutable style::SyncMemo interaction_sync_memo_;
     mutable animation::StyleBridgeResult style_bridge_snapshot_;
     const std::vector<style::KeyframeBlock>* style_keyframes_ = nullptr;
     // Painted corners (x0,y0..x3,y3, device px) of each transform-sampled node at the last frame

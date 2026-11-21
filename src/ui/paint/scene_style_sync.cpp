@@ -51,12 +51,25 @@ int z_index_value(const style::ComputedStyle& style) {
 
 // Returns whether this node's subtree contains a glass node (itself included).
 bool sync_node(Node& node, StyleProvider& styles, const rendering::gpu::GlassLimits& glass,
-               SceneStyleSyncResult& result) {
+               style::SyncMemo* memo, SceneStyleSyncResult& result) {
     if (!node.rendered()) {
         return false;
     }
     const style::ComputedStyle& style = styles.resolve(node);
     ++result.nodes;
+    if (memo != nullptr && memo->hit(node.id(), style, node.bounds().width, node.bounds().height)) {
+        // Applied already with this exact style and box: only the subtree walk is left.
+        const float applied = node.glass_blur_sigma();
+        if (applied > 0.0f) {
+            ++result.glass_nodes;
+        }
+        bool subtree_has_glass = applied > 0.0f;
+        for (const auto& child : node.children()) {
+            subtree_has_glass = sync_node(*child, styles, glass, memo, result) || subtree_has_glass;
+        }
+        node.set_glass_subtree(subtree_has_glass);
+        return subtree_has_glass;
+    }
 
     const int z_index = z_index_value(style);
     if (z_index != node.z_index()) {
@@ -107,9 +120,12 @@ bool sync_node(Node& node, StyleProvider& styles, const rendering::gpu::GlassLim
         ++result.glass_nodes;
     }
 
+    if (memo != nullptr) {
+        memo->put(node.id(), style, node.bounds().width, node.bounds().height);
+    }
     bool subtree_has_glass = sigma > 0.0f;
     for (const auto& child : node.children()) {
-        subtree_has_glass = sync_node(*child, styles, glass, result) || subtree_has_glass;
+        subtree_has_glass = sync_node(*child, styles, glass, memo, result) || subtree_has_glass;
     }
     node.set_glass_subtree(subtree_has_glass);
     return subtree_has_glass;
@@ -118,9 +134,16 @@ bool sync_node(Node& node, StyleProvider& styles, const rendering::gpu::GlassLim
 } // namespace
 
 SceneStyleSyncResult sync_scene_style(Node& root, StyleProvider& styles,
-                                      const rendering::gpu::GlassLimits& glass) {
+                                      const rendering::gpu::GlassLimits& glass,
+                                      style::SyncMemo* memo) {
     SceneStyleSyncResult result;
-    sync_node(root, styles, glass, result);
+    if (memo != nullptr) {
+        memo->begin();
+    }
+    sync_node(root, styles, glass, memo, result);
+    if (memo != nullptr) {
+        memo->sweep();
+    }
     return result;
 }
 

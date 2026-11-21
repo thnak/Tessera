@@ -4,6 +4,7 @@
 
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/style/cascade.hpp"
+#include "tessera/ui/style/sync_memo.hpp"
 
 #include <cstddef>
 
@@ -47,6 +48,8 @@ struct InteractionStyleSyncResult {
 // unrecognised keyword or an unsupported `url()` list to `auto`, so V1 never hands the platform a
 // shape it did not implement.
 InteractionStyleSyncResult sync_interaction_style(Node& root, InteractionStyleFn compute,
-                                                  void* context);
+                                                  void* context, SyncMemo* memo = nullptr);
+// With a `memo` a node whose style is unchanged since the last call is not re-read; its hidden
+// state decides whether the walk goes on below it.
 
 } // namespace tessera::ui::style

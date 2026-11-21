@@ -5,9 +5,11 @@
 #include "tessera/ui/style/parser.hpp"
 #include "tessera/ui/style/selector.hpp"
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <map>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -108,7 +110,33 @@ public:
     // lookup is a binary search with no key materialised (issue #711).
     using Entries = std::vector<std::pair<std::string, std::string>>;
     [[nodiscard]] const Entries& properties() const {
+        return properties_ != nullptr ? properties_->entries : empty_entries();
+    }
+
+    // Two styles that share their entries are equal without comparing them; `equals` takes that
+    // shortcut first. `identity` keeps the entries alive, so a holder can recognise "the very same
+    // style as last time" without the address being reused by a different one.
+    [[nodiscard]] bool same_entries(const ComputedStyle& other) const noexcept {
+        return properties_ == other.properties_;
+    }
+    [[nodiscard]] bool equals(const ComputedStyle& other) const {
+        return same_entries(other) || properties() == other.properties();
+    }
+    [[nodiscard]] std::shared_ptr<const void> identity() const {
         return properties_;
+    }
+
+    // One cached 64-bit digest of these entries, for a reader that folds the style into a hash
+    // (the layout signature). It lives with the shared entries, so every copy of an unchanged style
+    // - the memo entry, the layout input - computes it once across frames; a mutation drops it.
+    // Zero means "not computed" (a digest of zero is stored as one).
+    [[nodiscard]] std::uint64_t cached_digest() const {
+        return properties_ != nullptr ? properties_->digest.load(std::memory_order_relaxed) : 0;
+    }
+    void cache_digest(std::uint64_t digest) const {
+        if (properties_ != nullptr) {
+            properties_->digest.store(digest == 0 ? 1 : digest, std::memory_order_relaxed);
+        }
     }
 
     // Adds every `defaults` entry whose name this style does not already hold. `defaults` must be
@@ -126,8 +154,21 @@ public:
 
 private:
     [[nodiscard]] Entries::const_iterator lower_bound(std::string_view normalized) const;
+    [[nodiscard]] static const Entries& empty_entries();
+    // Copy-on-write: copying a style shares the entries (the layout input, the diff baseline and
+    // every reader's copy used to deep-copy ~100 strings each, issue #711), and the first mutation
+    // of a shared style clones them. A pointer `find` returned stays valid while any holder lives.
+    [[nodiscard]] Entries& mutable_entries();
 
-    Entries properties_;
+    struct Storage {
+        Entries entries;
+        mutable std::atomic<std::uint64_t> digest{0};
+
+        Storage() = default;
+        explicit Storage(Entries values)
+            : entries(std::move(values)) {}
+    };
+    std::shared_ptr<Storage> properties_;
 };
 
 // Computed-value time resolution of `var()` (stylesheet-v1 section 9): custom properties are
