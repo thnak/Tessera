@@ -137,18 +137,44 @@ so the host is gone before the window can be reused — the surface-lifecycle ru
 `WindowHost` is single-threaded and must be created, run and destroyed on the thread that owns the
 window.
 
-### 3.4 What is still missing
+### 3.4 Input translation
 
-- **Input.** `AInputEvent` arrives in `android_main` and is dropped (`onInputEvent` returns 0, so the
-  platform falls back to its own behaviour). Translating `MotionEvent`/`KeyEvent` into
-  `ui::InputEvent` is `docs/design/mobile-integration.md` section 3.2.
+`src/platform/android/android_input.cpp` translates `AInputEvent`s into `ui::InputEvent` and pushes
+them into the queue `set_input_queue` installed. The shell forwards from `onInputEvent` through
+`hal::Window::translate_input`, which takes an opaque `const void*` so no platform type reaches a
+public header.
+
+The mapping rules live in `android_input_translation.cpp`, which **includes no NDK header**: the
+action, tool-type, source and keycode constants are stable ABI values, so the rules are unit-tested
+on every lane (`android_input`). That is where the defects that a device lane cannot see cheaply are
+caught — the scroll sign, the pointer-index packing, the cancel semantics.
+
+Three rules worth knowing:
+
+- **Scroll sign.** Android's `AXIS_VSCROLL` is positive when the content should move *up*; the engine
+  uses the web sign, where positive `dy` scrolls content *down*. The vertical axis is negated.
+- **Pointer identity.** Android reports a pointer *index* per event, and the index is renumbered as
+  fingers lift. The translator fixes the id at `ACTION_DOWN` and reuses it for the gesture.
+- **Cancel.** `ACTION_CANCEL` and `ACTION_OUTSIDE` both end the gesture, so the engine releases its
+  capture instead of keeping a stale active state.
+
+The NDK exposes **no `AKeyEvent_getUnicodeChar`** (only the Java `KeyEvent` has one), so typed text
+is derived from the keycode: letters (with shift for case), unshifted digits and space. Punctuation,
+non-ASCII and composed text come from the IME bridge, not from a keycode guess — guessing would be
+wrong for every non-US layout.
+
+Not carried yet: historical/coalesced samples (`AMotionEvent_getHistorical*`), pressure tilt and
+orientation. The newest sample is used, which loses sub-frame motion but never loses an event.
+
+### 3.5 What is still missing
+
 - **Insets, cutouts, fold.** These need `WindowInsets`/`WindowMetricsCalculator` over JNI
   (sections 3.5 and 3.6); the metrics carry the documented zero-inset fallback.
 - **IME and accessibility** (sections 3.3 and 3.4).
 - **A scene.** `android_main` creates the host with no scene or stylesheet, so it reports
   unavailable. A real app supplies them where the shell has the comment.
 
-### 3.5 Emulator GPU mode matters
+### 3.6 Emulator GPU mode matters
 
 | Emulator GPU mode | Device | API version | Tessera accepts? |
 |---|---|---|---|

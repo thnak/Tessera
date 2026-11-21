@@ -877,6 +877,19 @@ target_link_libraries(android_window_tests PRIVATE tessera_hal_window)
 
 add_test(NAME android_window COMMAND android_window_tests)
 
+# Android input mapping rules (issue #189): pure over stable ABI constants, so it runs on every lane
+# without an NDK or a device. The source lives under src/platform/android but includes no NDK header.
+add_executable(android_input_tests
+    hal/android_input_tests.cpp
+    ${PROJECT_SOURCE_DIR}/src/platform/android/android_input_translation.cpp)
+
+target_include_directories(android_input_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src/platform/android)
+
+target_link_libraries(android_input_tests PRIVATE tessera_input)
+
+add_test(NAME android_input COMMAND android_input_tests)
+
 add_executable(diagnostics_crash_tests
     diagnostics_crash_tests.cpp)
 
