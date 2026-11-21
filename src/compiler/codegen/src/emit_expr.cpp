@@ -46,6 +46,20 @@ ExprEmission emit_expr(const ir::Expr& expr, const ir::Component& component,
         if (const LocalBinding* local = find_local(locals, expr.id)) {
             return ExprEmission{local->cpp, {}};
         }
+        // A behavior output (ADR-064 item 7, behavior-hooks-v1.md section 5): `beh::<name>.<field>`
+        // reads the generated accessor `<member><field>()`, which returns the manifest default
+        // before the first attach and after detach. The dotted form is the only valid shape, so a
+        // bare `beh::<name>` is an error rather than a member read.
+        if (expr.id.rfind("beh::", 0) == 0) {
+            const std::size_t dot = expr.id.find('.');
+            if (dot == std::string::npos) {
+                return fail("behavior `" + expr.id +
+                            "` is a record; read one of its outputs (`" + expr.id + ".<field>`)");
+            }
+            const std::string base = expr.id.substr(0, dot);
+            const std::string field = expr.id.substr(dot + 1);
+            return ExprEmission{member_name(base) + field + "()", {}};
+        }
         if (const std::size_t dot = expr.id.find('.'); dot != std::string::npos) {
             if (find_local(locals, std::string_view(expr.id).substr(0, dot)) != nullptr) {
                 return fail("`" + expr.id +

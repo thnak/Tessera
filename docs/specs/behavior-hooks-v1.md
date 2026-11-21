@@ -190,14 +190,39 @@ Code generation follows the `useService` precedent (`emit_services.cpp`): emissi
 `component.behaviors` being non-empty, so every committed `.g.hpp` golden of a component without
 behaviors stays byte-identical. For a component with behaviors the generated base has:
 
-- one private member per behavior of type `tessera::ui::behavior::Instance`, named from its id;
-- in `build()`: attach after the target node exists, in declaration order; in the update pass: evaluate
-  the value options, hash them as effect dependencies are hashed, and call `update` only on change;
-- callback options as the thunks `bind::` handlers use, so a callback needs no new mechanism;
-- in `unmount()`: detach in reverse order;
+- one private member per behavior of type `tessera::ui::behavior::Instance`, named from its id, plus
+  the evaluated options the refresh pass reuses;
+- a public `attach_behaviors(tessera::ui::InputRouter&)`, `refresh_behaviors()` and
+  `detach_behaviors()` triple the owner calls;
 - one read accessor per output, used by the expressions that reference it. No accessor for an instance
   is public: the developer class derived from the base sees none of it (ADR-040 item 6). A TSX
   binding that collides with a generated behavior member is the usual `TESSERA_CODEGEN_UNSUPPORTED`.
+
+**Why attach is a separate call and not part of `build()`.** A target is a `useRef`, and a ref is
+assigned *during* `build()` as the walk reaches its node. A behavior whose target is a later sibling
+therefore has no node yet when `build()` starts, and one inside a conditional branch or a list item
+has no node at all until that branch or item is realized. Attaching inside `build()` would either
+attach to a null target or force the generator to reorder the walk around the behavior list. The
+owner instead calls `attach_behaviors()` once the tree is built, which is the same point at which it
+calls `attach_scheduler()` and `attach_layout_observers()`, and the rule "attach only when every
+target holds a node" then falls out of `Instance::attach` rather than being re-implemented per
+component.
+
+The three calls are:
+
+| Call | When | What it does |
+|---|---|---|
+| `attach_behaviors(router)` | once, after `build()` | evaluates each value option, then attaches each behavior in declaration order through the router |
+| `refresh_behaviors()` | after an input dispatch | recomputes every attached behavior's outputs from the interaction state, without consulting the options hash |
+| `detach_behaviors()` | before the tree goes away | detaches in reverse declaration order; idempotent |
+
+The router is the only service a behavior needs: it owns the scene's `FocusManager` and its
+`KeyBindingRegistry`, so a focus, keyboard or press behavior reads everything through it and never
+sees a window handle (ADR-020).
+
+Callback options are emitted as the thunks `bind::` handlers use, so a callback needs no new
+mechanism. A value option is evaluated once at attach, not per pointer move: a behavior's options are
+component state, and the scene-driven `refresh` trigger is what covers interaction state.
 
 ## 10. Preview
 

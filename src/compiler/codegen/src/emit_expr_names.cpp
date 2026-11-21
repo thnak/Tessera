@@ -27,6 +27,9 @@ constexpr std::string_view kProp = "prop::";
 constexpr std::string_view kRef = "ref::";
 constexpr std::string_view kAnim = kAnimPrefix;
 constexpr std::string_view kEnv = "env::";
+// A behavior output (ADR-064 item 7, behavior-hooks-v1.md section 5): `beh::<name>.<field>` reads
+// the generated accessor `<member><field>()`, so the dotted form is the only valid shape.
+constexpr std::string_view kBeh = "beh::";
 
 // Locale-independent number text. `std::to_chars` never consults the locale, so a generated `0.5`
 // cannot become `0,5` on a host with a comma decimal separator.
@@ -92,6 +95,9 @@ std::optional<std::string> member_prefix(std::string_view prefix) {
     }
     if (prefix == kEnv) {
         return std::string("env_");
+    }
+    if (prefix == kBeh) {
+        return std::string("beh_");
     }
     return std::nullopt;
 }

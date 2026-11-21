@@ -10,6 +10,7 @@
 
 #include "codegen_internal.hpp"
 #include "emit_base.hpp"
+#include "emit_behaviors.hpp"
 #include "emit_controlled.hpp"
 #include "emit_dirty.hpp"
 #include "emit_dynamic.hpp"
@@ -208,6 +209,9 @@ bool emit_source(const ir::Component& component, const ir::IrModule& module,
     emit_snapshot_definition(writer, component);
     emit_size_observation_definitions(writer, component, module, adapters, instances);
     emit_controlled_accessors(writer, component, controlled_inputs);
+    if (!emit_behavior_wiring(writer, component, error)) {
+        return false;
+    }
     for (const ir::Handler& handler : component.handlers) {
         bool typed = false;
         std::string param_name;

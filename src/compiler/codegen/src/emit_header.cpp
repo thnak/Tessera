@@ -129,6 +129,13 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
     if (uses_focus_actions(component)) {
         writer.line("#include \"tessera/ui/scene/focus.hpp\"");
     }
+    // ADR-064 item 7: the behavior seam. A component with behaviors needs the instance, the
+    // registry and the router it attaches through; a component without them includes nothing.
+    if (uses_behaviors(component)) {
+        writer.line("#include \"tessera/ui/behavior/instance.hpp\"");
+        writer.line("#include \"tessera/ui/behavior/registry.hpp\"");
+        writer.line("#include \"tessera/ui/scene/input_dispatch.hpp\"");
+    }
     const bool observes = observes_size(component, module);
     if (observes) {
         writer.line("#include \"tessera/ui/layout/layout_observer.hpp\"");
@@ -327,6 +334,20 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
     writer.line("void mount();");
     writer.line("void update_effects();");
     writer.line("void unmount();");
+    if (uses_behaviors(component)) {
+        // The behavior seam (ADR-064 item 7, behavior-hooks-v1.md section 9). The owner calls
+        // attach_behaviors() once the tree is built, refresh_behaviors() after an input dispatch,
+        // and detach_behaviors() before the tree goes away. Without these the slots would never be
+        // attached, which is the defect #641 fixes.
+        writer.line("// ADR-064 item 7: attach every behavior hook of this component. Call once");
+        writer.line("// after build(), when every target ref holds its node.");
+        writer.line("void attach_behaviors(tessera::ui::InputRouter& router);");
+        writer.line("// Recompute the behavior outputs from the scene's interaction state. Call");
+        writer.line("// after an input dispatch; it does not consult the options hash.");
+        writer.line("void refresh_behaviors();");
+        writer.line("// Detach every behavior in reverse declaration order. Idempotent.");
+        writer.line("void detach_behaviors();");
+    }
     writer.line("");
     writer.line("// Recompute interpolated values; marks Paint|Render only when a value changed.");
     writer.line("void apply_state();");

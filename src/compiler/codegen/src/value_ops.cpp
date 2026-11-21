@@ -160,6 +160,15 @@ std::optional<TextValueType> declared_text_type(const ir::Component& component,
             return text_value_type(env.type);
         }
     }
+    // A behavior output (ADR-064 item 7): `beh::<name>.<field>` is printable when the manifest
+    // declares the field's type, which is what makes `<Text>{press.pressed}</Text>` work.
+    for (const ir::Behavior& behavior : component.behaviors) {
+        for (const ir::BehaviorOutput& output : behavior.outputs) {
+            if (behavior.id + "." + output.name == id) {
+                return text_value_type(output.type);
+            }
+        }
+    }
     return std::nullopt;
 }
 
