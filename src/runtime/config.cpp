@@ -332,13 +332,13 @@ private:
 // error, in document order.
 std::optional<RuntimeConfigError> find_unknown_key(const json::JsonValue& runtime) {
     for (const auto& member : runtime.object) {
-        if (std::find(kKnownKeys.begin(), kKnownKeys.end(), std::string_view(member.first)) !=
+        if (std::find(kKnownKeys.begin(), kKnownKeys.end(), std::string_view(member.key)) !=
             kKnownKeys.end()) {
             continue;
         }
-        return RuntimeConfigError{RuntimeConfigErrorCode::UnknownField, member.first,
-                                  quote(member.first) + " is not a runtime-config field",
-                                  member.second.offset};
+        return RuntimeConfigError{RuntimeConfigErrorCode::UnknownField, member.key,
+                                  quote(member.key) + " is not a runtime-config field",
+                                  member.value.offset};
     }
     return std::nullopt;
 }
