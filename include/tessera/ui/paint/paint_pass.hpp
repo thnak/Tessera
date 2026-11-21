@@ -23,6 +23,18 @@ public:
     virtual ~StyleProvider() = default;
 
     [[nodiscard]] virtual style::ComputedStyle compute(const Node& node) = 0;
+
+    // Read-only access that a caching provider serves without copying the ~100-entry map. The
+    // reference is valid until the next `resolve` or `compute` on this provider that is not
+    // answered from a cache the provider documents as stable; read it before resolving another
+    // node unless the provider says otherwise (`MemoStyleProvider` does).
+    [[nodiscard]] virtual const style::ComputedStyle& resolve(const Node& node) {
+        scratch_ = compute(node);
+        return scratch_;
+    }
+
+private:
+    style::ComputedStyle scratch_;
 };
 
 // The default provider over a compiled stylesheet and a SceneStyleTree captured from the same
