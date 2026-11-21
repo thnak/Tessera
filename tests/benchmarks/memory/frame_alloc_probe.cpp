@@ -177,8 +177,11 @@ void apply(Action action, Scene& scene, int frame) {
         card.mark_dirty(Dirty::Layout);
         break;
     case Action::SizeChange:
-        // A real box change: the layout signature differs, so the engine runs.
-        card.set_inline_style("width", (frame % 2) == 0 ? "121px" : "120px");
+        // A real box change on EVERY frame: the layout signature differs, so the engine runs.
+        // Both values must differ from the sheet's `120px`, or the "restore" frame resolves the
+        // same computed style as the sheet and the layout-unchanged gate correctly accepts it -
+        // which made half of this row a no-op and halved the reported per-frame cost (issue #735).
+        card.set_inline_style("width", (frame % 2) == 0 ? "121px" : "123px");
         break;
     }
 }
