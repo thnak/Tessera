@@ -53,8 +53,8 @@ ExprEmission emit_expr(const ir::Expr& expr, const ir::Component& component,
         if (expr.id.rfind("beh::", 0) == 0) {
             const std::size_t dot = expr.id.find('.');
             if (dot == std::string::npos) {
-                return fail("behavior `" + expr.id +
-                            "` is a record; read one of its outputs (`" + expr.id + ".<field>`)");
+                return fail("behavior `" + expr.id + "` is a record; read one of its outputs (`" +
+                            expr.id + ".<field>`)");
             }
             const std::string base = expr.id.substr(0, dot);
             const std::string field = expr.id.substr(dot + 1);
