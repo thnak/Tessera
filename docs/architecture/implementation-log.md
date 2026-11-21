@@ -496,3 +496,46 @@ repo-file reader that needs the library `.tsx` files from the checkout, which th
 does not have — the same reason a dozen other binaries were already skipped. Fixed in #150 by adding
 it to that list; the check that would have caught it earlier is reading the ledger of completed runs
 per workflow, not the newest row.
+
+## 2026-11-21: decision 8, local `const` inlining in the lowering
+
+`docs/design/jsx-ir-lowering.md` decision 8 says a `const x = PureExpr` local is inlined, so the IR
+never carries a `local::x` reference. The lowering had recorded the decision but not implemented it:
+`ComponentNames::resolve` returned nullopt for a local on purpose, so any component that read one
+failed with `TESSERA_IR_UNRESOLVED`. That was the last blocker on the corpus fixture
+`react/expressions/object-destructure-local.tsx`.
+
+The seam is a new virtual on the slice 5 resolver, `NameResolver::local_binding`, which returns the
+initializer to lower in place plus the field an object pattern selected. It is a defaulted virtual
+returning nullopt, so the test `MapNames` resolver and every other implementation are unchanged.
+`ComponentNames` fills the table from the analysis symbol table: `SymbolKind::Local` already carries
+the declaring statement index, so the initializer is `body[statement].init` and no second walk of
+the body is needed. An object pattern (`const { state } = io;`) records the field the pattern
+selected and lowering appends it to the reference the initializer lowers to (`io.state` becomes
+`prop::io.state`); a field of a local (`row.title` for `const row = props.row;`) appends the rest of
+the chain the same way. An array pattern has no single initializer per name, so it gets no entry and
+stays unresolved rather than inlining half of the pattern.
+
+`resolve_name` asks `resolve` first, so a handler parameter or a loop variable still shadows a local
+of the same name. Only a name `resolve` rejects is tried as a local, and a name that is neither
+keeps the existing `TESSERA_IR_UNRESOLVED`.
+
+Two guards keep the recursion bounded. `LoweringState::inlining` is the stack of initializers being
+lowered, so a local that reaches itself (`const a = a;`, or `const a = b; const b = a;`) is reported
+as the new `TESSERA_IR_LOCAL_CYCLE` instead of overflowing the stack. A local whose initializer the
+subset rejects reports that rejection (for example `TESSERA_IR_UNSUPPORTED` for an object literal),
+not `TESSERA_IR_UNRESOLVED`, so the diagnostic names the real problem. The rules pass already
+follows locals transitively for effect dependencies (`effect_deps.cpp`), so a local read in an
+effect dependency keeps working; a local read in a handler body inlines there too, because
+`lower_component_expression` goes through the same resolver.
+
+`TESSERA_IR_LOCAL_CYCLE` is registered in `diagnostic_registry.hpp` with an explicit skip entry
+(lowering is outside that registry's source scan, like `TESSERA_JSX_SUBSET_HTML_TAG`), and the
+golden was regenerated. Tests are `lowering_local_inline`: a plain local, a local used twice, a
+self-referential local, an indirect cycle, a rejected initializer, an object pattern, a handler
+body, and an unknown name.
+
+Corpus effect: `react/expressions/object-destructure-local.tsx` moved from
+`pipeline=TESSERA_IR_UNRESOLVED` to `pipeline=ok`, so `tests/golden/corpus/react-front-end.txt`
+moved from 10 to 11 pipeline-accepted files (20.0% to 22.0%) and `TESSERA_IR_UNRESOLVED` dropped
+from 4 to 3. The front-end numbers are unchanged.

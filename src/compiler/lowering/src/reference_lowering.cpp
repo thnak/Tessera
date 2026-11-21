@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 
 // Reference lowering: identifiers and member chains become IR ref ids through NameResolver
-// (docs/design/jsx-ir-lowering.md section 9, slice 5; docs/specs/ir-v1.md section 4).
+// (docs/design/jsx-ir-lowering.md section 9, slice 5; docs/specs/ir-v1.md section 4). A `const`
+// local is inlined instead (decision 8).
 
 #include "expression_lowering_internal.hpp"
 
@@ -16,6 +17,7 @@ namespace {
 constexpr std::string_view kUnsupported = "TESSERA_IR_UNSUPPORTED";
 constexpr std::string_view kUnresolved = "TESSERA_IR_UNRESOLVED";
 constexpr std::string_view kMalformed = "TESSERA_IR_MALFORMED";
+constexpr std::string_view kLocalCycle = "TESSERA_IR_LOCAL_CYCLE";
 
 enum class ChainStatus {
     Ok,
@@ -56,6 +58,53 @@ ChainStatus append_chain(const jsx::Expr& expr, std::string& out) {
     }
 }
 
+// Appends `.field` to a lowered reference. A local's initializer must lower to a ref for a field to
+// be readable from it (`const { state } = io;` reads `io.state`); anything else has no dotted IR
+// form, so it is reported rather than silently dropped.
+ir::ExprPtr append_field(LoweringState& state, ir::ExprPtr base, std::string_view field,
+                         std::string_view name, jsx::Span span) {
+    if (field.empty()) {
+        return base;
+    }
+    if (base->kind != ir::ExprKind::Ref) {
+        fail(state, kUnsupported,
+             "`" + std::string(name) +
+                 "` reads a field of a local whose initializer is not a reference, so it has no "
+                 "dotted IR form (jsx-subset-v1.md section 8.2)",
+             span, "write the field access on the initializer instead");
+        return nullptr;
+    }
+    base->id += '.';
+    base->id += field;
+    return base;
+}
+
+// Decision 8: a `const` local is inlined at each use, so the initializer is lowered in place. The
+// visiting stack catches `const a = a;` and a longer cycle (`const a = b; const b = a;`) before the
+// recursion runs out of stack, and reports a named code instead of crashing.
+ir::ExprPtr inline_local(LoweringState& state, std::string_view name, jsx::Span span) {
+    const std::optional<LocalBinding> binding = state.context.names->local_binding(name);
+    if (!binding || binding->initializer == nullptr) {
+        return nullptr;
+    }
+    for (const jsx::Expr* active : state.inlining) {
+        if (active == binding->initializer) {
+            fail(state, kLocalCycle,
+                 "local `" + std::string(name) +
+                     "` is defined in terms of itself, so it cannot be inlined (decision 8)",
+                 span, "write the value directly instead of a self-referential `const`");
+            return nullptr;
+        }
+    }
+    state.inlining.push_back(binding->initializer);
+    ir::ExprPtr lowered = lower_expr(state, *binding->initializer);
+    state.inlining.pop_back();
+    if (!lowered) {
+        return nullptr;
+    }
+    return append_field(state, std::move(lowered), binding->field, name, span);
+}
+
 ir::ExprPtr resolve_name(LoweringState& state, std::string_view name, jsx::Span span) {
     if (state.context.names == nullptr) {
         fail(state, kUnresolved,
@@ -66,6 +115,14 @@ ir::ExprPtr resolve_name(LoweringState& state, std::string_view name, jsx::Span 
     }
     std::optional<std::string> id = state.context.names->resolve(name);
     if (!id || id->empty()) {
+        // Not a prop, state, ref or animated value: it may still be a `const` local, which the IR
+        // inlines instead of referencing (decision 8).
+        if (ir::ExprPtr inlined = inline_local(state, name, span)) {
+            return inlined;
+        }
+        if (state.error) {
+            return nullptr; // the initializer reported its own diagnostic
+        }
         fail(state, kUnresolved,
              "`" + std::string(name) +
                  "` is not a prop, state, ref, animated value or local; the type and hook passes "

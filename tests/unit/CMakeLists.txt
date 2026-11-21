@@ -1980,6 +1980,13 @@ target_link_libraries(lowering_control_reject_tests PRIVATE tessera_lowering)
 
 add_test(NAME lowering_control_reject COMMAND lowering_control_reject_tests)
 
+add_executable(lowering_local_inline_tests
+    lowering_local_inline_tests.cpp)
+
+target_link_libraries(lowering_local_inline_tests PRIVATE tessera_lowering)
+
+add_test(NAME lowering_local_inline COMMAND lowering_local_inline_tests)
+
 add_executable(lowering_control_determinism_tests
     lowering_control_determinism_tests.cpp)
 

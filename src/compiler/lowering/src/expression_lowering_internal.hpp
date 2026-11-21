@@ -8,6 +8,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 // Internal seam between the expression lowerer and its parts (literal, reference, call,
 // template). Not installed: only src/compiler/lowering includes it.
@@ -16,6 +17,9 @@ namespace tessera::compiler::lowering::internal {
 struct LoweringState {
     const ExpressionLoweringContext& context;
     std::optional<jsx::Diagnostic> error; // the first error; later calls are ignored
+    // Decision 8: the initializers currently being inlined, outermost first. A local that reaches
+    // itself (`const a = a;`, or a longer cycle) is reported instead of recursing forever.
+    std::vector<const jsx::Expr*> inlining;
 };
 
 [[nodiscard]] ir::ExprPtr lower_expr(LoweringState& state, const jsx::Expr& expr);

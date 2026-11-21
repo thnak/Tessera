@@ -21,6 +21,7 @@ namespace tessera::compiler::jsx {
 // drifts. Adding or renaming a code therefore requires updating this list, the fixture or skip
 // entry, and the golden.
 inline constexpr std::string_view kDiagnosticCodes[] = {
+    "TESSERA_IR_LOCAL_CYCLE",
     "TESSERA_JSX_CHILDREN_NOT_ALLOWED",
     "TESSERA_JSX_LEX_INVALID_CHARACTER",
     "TESSERA_JSX_LEX_INVALID_ESCAPE",
