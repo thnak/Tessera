@@ -1,0 +1,114 @@
+corpus: 50 file(s)
+front end accepted: 21 (42.0%), 29 rejected
+front end accepted with a component declaration: 21 (42.0%)
+pipeline accepted: 9 (18.0%)
+warnings: 0
+
+front-end rejections (code, occurrences, files):
+  TESSERA_JSX_PARSE_UNEXPECTED_TOKEN 11 11
+  TESSERA_JSX_SUBSET_IMPORT 4 4
+  TESSERA_REACT_UNKNOWN_HOOK 4 4
+  TESSERA_JSX_SUBSET_ARRAY_METHOD 3 3
+  TESSERA_REACT_UNSUPPORTED_API 3 3
+  TESSERA_JSX_SUBSET_COMPONENT_NAME 2 2
+  TESSERA_JSX_PARSE_MISSING_SEMICOLON 1 1
+  TESSERA_JSX_SUBSET_DOM 1 1
+  TESSERA_JSX_SUBSET_DYNAMIC_TAG 1 1
+  TESSERA_JSX_SUBSET_LITERAL 1 1
+  TESSERA_JSX_SUBSET_MUTATION 1 1
+  TESSERA_JSX_SUBSET_OPERATOR 1 1
+  TESSERA_JSX_SUBSET_STATEMENT 1 1
+  TESSERA_REACT_CUSTOM_HOOK 1 1
+  TESSERA_REACT_EFFECT_DEPS 1 1
+  TESSERA_REACT_HOOK_ORDER 1 1
+
+front-end first rejections (code, files):
+  TESSERA_JSX_PARSE_UNEXPECTED_TOKEN 6
+  TESSERA_JSX_SUBSET_IMPORT 4
+  TESSERA_JSX_SUBSET_ARRAY_METHOD 3
+  TESSERA_REACT_UNKNOWN_HOOK 3
+  TESSERA_JSX_SUBSET_COMPONENT_NAME 2
+  TESSERA_JSX_PARSE_MISSING_SEMICOLON 1
+  TESSERA_JSX_SUBSET_DOM 1
+  TESSERA_JSX_SUBSET_DYNAMIC_TAG 1
+  TESSERA_JSX_SUBSET_LITERAL 1
+  TESSERA_JSX_SUBSET_MUTATION 1
+  TESSERA_JSX_SUBSET_OPERATOR 1
+  TESSERA_JSX_SUBSET_STATEMENT 1
+  TESSERA_REACT_CUSTOM_HOOK 1
+  TESSERA_REACT_EFFECT_DEPS 1
+  TESSERA_REACT_HOOK_ORDER 1
+  TESSERA_REACT_UNSUPPORTED_API 1
+
+pipeline rejections (first blocking code, files):
+  TESSERA_JSX_PARSE_UNEXPECTED_TOKEN 6
+  TESSERA_IR_UNSUPPORTED 5
+  TESSERA_IR_UNKNOWN_PROP 4
+  TESSERA_JSX_SUBSET_IMPORT 4
+  TESSERA_IR_UNRESOLVED 3
+  TESSERA_JSX_SUBSET_ARRAY_METHOD 3
+  TESSERA_REACT_UNKNOWN_HOOK 3
+  TESSERA_JSX_SUBSET_COMPONENT_NAME 2
+  TESSERA_JSX_PARSE_MISSING_SEMICOLON 1
+  TESSERA_JSX_SUBSET_DOM 1
+  TESSERA_JSX_SUBSET_DYNAMIC_TAG 1
+  TESSERA_JSX_SUBSET_LITERAL 1
+  TESSERA_JSX_SUBSET_MUTATION 1
+  TESSERA_JSX_SUBSET_OPERATOR 1
+  TESSERA_JSX_SUBSET_STATEMENT 1
+  TESSERA_REACT_CUSTOM_HOOK 1
+  TESSERA_REACT_EFFECT_DEPS 1
+  TESSERA_REACT_HOOK_ORDER 1
+  TESSERA_REACT_UNSUPPORTED_API 1
+
+files:
+  rejected react/components/arrow-component.tsx components=0: TESSERA_JSX_PARSE_UNEXPECTED_TOKEN pipeline=TESSERA_JSX_PARSE_UNEXPECTED_TOKEN
+  rejected react/components/async-component.tsx components=0: TESSERA_JSX_PARSE_UNEXPECTED_TOKEN pipeline=TESSERA_JSX_PARSE_UNEXPECTED_TOKEN
+  rejected react/components/class-component.tsx components=0: TESSERA_JSX_SUBSET_IMPORT TESSERA_JSX_PARSE_UNEXPECTED_TOKEN pipeline=TESSERA_JSX_SUBSET_IMPORT
+  rejected react/components/export-default.tsx components=0: TESSERA_JSX_SUBSET_IMPORT pipeline=TESSERA_JSX_SUBSET_IMPORT
+  accepted react/components/fragment-root.tsx components=1 pipeline=TESSERA_IR_UNSUPPORTED
+  accepted react/components/function-component.tsx components=1 pipeline=ok
+  rejected react/components/helper-function.tsx components=2: TESSERA_JSX_SUBSET_COMPONENT_NAME TESSERA_JSX_PARSE_UNEXPECTED_TOKEN pipeline=TESSERA_JSX_SUBSET_COMPONENT_NAME
+  accepted react/components/jsdoc-in-props-type.tsx components=1 pipeline=TESSERA_IR_UNRESOLVED
+  accepted react/components/memo-component.tsx components=1 pipeline=ok
+  rejected react/components/react-default-import.tsx components=1: TESSERA_JSX_SUBSET_IMPORT pipeline=TESSERA_JSX_SUBSET_IMPORT
+  rejected react/components/react-namespace-import.tsx components=1: TESSERA_JSX_SUBSET_IMPORT pipeline=TESSERA_JSX_SUBSET_IMPORT
+  accepted react/components/strict-mode.tsx components=1 pipeline=TESSERA_IR_UNSUPPORTED
+  accepted react/events/mouse-events.tsx components=1 pipeline=TESSERA_IR_UNKNOWN_PROP
+  accepted react/events/prevent-default.tsx components=1 pipeline=TESSERA_IR_UNSUPPORTED
+  accepted react/expressions/conditional-render.tsx components=1 pipeline=ok
+  rejected react/expressions/filter-map.tsx components=1: TESSERA_JSX_SUBSET_ARRAY_METHOD pipeline=TESSERA_JSX_SUBSET_ARRAY_METHOD
+  accepted react/expressions/list-length.tsx components=1 pipeline=TESSERA_IR_UNRESOLVED
+  accepted react/expressions/list-map-key.tsx components=1 pipeline=ok
+  rejected react/expressions/nullish-coalescing.tsx components=1: TESSERA_JSX_SUBSET_OPERATOR pipeline=TESSERA_JSX_SUBSET_OPERATOR
+  rejected react/expressions/object-destructure-local.tsx components=1: TESSERA_JSX_PARSE_UNEXPECTED_TOKEN pipeline=TESSERA_JSX_PARSE_UNEXPECTED_TOKEN
+  rejected react/expressions/object-spread.tsx components=1: TESSERA_JSX_SUBSET_LITERAL pipeline=TESSERA_JSX_SUBSET_LITERAL
+  rejected react/expressions/readonly-array-type.tsx components=1: TESSERA_JSX_PARSE_UNEXPECTED_TOKEN pipeline=TESSERA_JSX_PARSE_UNEXPECTED_TOKEN
+  rejected react/expressions/slice-map.tsx components=1: TESSERA_JSX_SUBSET_ARRAY_METHOD pipeline=TESSERA_JSX_SUBSET_ARRAY_METHOD
+  accepted react/expressions/string-methods.tsx components=1 pipeline=TESSERA_IR_UNSUPPORTED
+  accepted react/expressions/style-literal.tsx components=1 pipeline=ok
+  accepted react/expressions/template-string.tsx components=1 pipeline=ok
+  accepted react/forms/checkbox-input.tsx components=1 pipeline=TESSERA_IR_UNKNOWN_PROP
+  accepted react/forms/controlled-input.tsx components=1 pipeline=TESSERA_IR_UNKNOWN_PROP
+  accepted react/forms/label-html-for.tsx components=1 pipeline=TESSERA_IR_UNKNOWN_PROP
+  rejected react/handlers/handler-control-flow.tsx components=1: TESSERA_JSX_SUBSET_STATEMENT pipeline=TESSERA_JSX_SUBSET_STATEMENT
+  rejected react/handlers/handler-loop.tsx components=1: TESSERA_JSX_SUBSET_MUTATION pipeline=TESSERA_JSX_SUBSET_MUTATION
+  rejected react/hooks/hook-order.tsx components=1: TESSERA_REACT_HOOK_ORDER pipeline=TESSERA_REACT_HOOK_ORDER
+  rejected react/hooks/use-callback.tsx components=1: TESSERA_REACT_UNSUPPORTED_API pipeline=TESSERA_REACT_UNSUPPORTED_API
+  rejected react/hooks/use-context.tsx components=2: TESSERA_JSX_SUBSET_DYNAMIC_TAG TESSERA_REACT_UNSUPPORTED_API pipeline=TESSERA_JSX_SUBSET_DYNAMIC_TAG
+  accepted react/hooks/use-effect-cleanup.tsx components=1 pipeline=ok
+  rejected react/hooks/use-effect-no-deps.tsx components=1: TESSERA_REACT_EFFECT_DEPS pipeline=TESSERA_REACT_EFFECT_DEPS
+  rejected react/hooks/use-id.tsx components=1: TESSERA_REACT_UNKNOWN_HOOK pipeline=TESSERA_REACT_UNKNOWN_HOOK
+  rejected react/hooks/use-layout-effect.tsx components=1: TESSERA_REACT_UNKNOWN_HOOK pipeline=TESSERA_REACT_UNKNOWN_HOOK
+  rejected react/hooks/use-memo.tsx components=1: TESSERA_JSX_SUBSET_ARRAY_METHOD pipeline=TESSERA_JSX_SUBSET_ARRAY_METHOD
+  rejected react/hooks/use-reducer.tsx components=2: TESSERA_JSX_SUBSET_COMPONENT_NAME TESSERA_JSX_PARSE_UNEXPECTED_TOKEN TESSERA_REACT_UNSUPPORTED_API pipeline=TESSERA_JSX_SUBSET_COMPONENT_NAME
+  accepted react/hooks/use-ref-focus.tsx components=1 pipeline=ok
+  accepted react/hooks/use-state-typed.tsx components=1 pipeline=ok
+  accepted react/rejected/browser-api.tsx components=1 pipeline=TESSERA_IR_UNRESOLVED
+  rejected react/rejected/custom-hook.tsx components=2: TESSERA_REACT_CUSTOM_HOOK TESSERA_JSX_PARSE_UNEXPECTED_TOKEN TESSERA_REACT_UNKNOWN_HOOK pipeline=TESSERA_REACT_CUSTOM_HOOK
+  rejected react/rejected/dangerous-html.tsx components=1: TESSERA_JSX_SUBSET_DOM pipeline=TESSERA_JSX_SUBSET_DOM
+  rejected react/rejected/forward-ref.tsx components=0: TESSERA_JSX_PARSE_MISSING_SEMICOLON TESSERA_JSX_PARSE_UNEXPECTED_TOKEN pipeline=TESSERA_JSX_PARSE_MISSING_SEMICOLON
+  rejected react/rejected/portal.tsx components=1: TESSERA_JSX_PARSE_UNEXPECTED_TOKEN pipeline=TESSERA_JSX_PARSE_UNEXPECTED_TOKEN
+  accepted react/rejected/render-prop.tsx components=1 pipeline=TESSERA_IR_UNSUPPORTED
+  rejected react/rejected/spread-props.tsx components=1: TESSERA_JSX_PARSE_UNEXPECTED_TOKEN pipeline=TESSERA_JSX_PARSE_UNEXPECTED_TOKEN
+  rejected react/rejected/use-sync-external-store.tsx components=1: TESSERA_REACT_UNKNOWN_HOOK pipeline=TESSERA_REACT_UNKNOWN_HOOK
