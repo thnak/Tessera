@@ -24,6 +24,10 @@ add_library(tessera_app STATIC
     host_viewport.cpp
     # Whether the selector tree and its memo survive a restyle, and which subtrees recompute.
     host_style_tree.cpp
+    # The layout-unchanged gate (issue #735, slice A): when a restyle provably kept every layout
+    # input, reuse the previous result instead of rebuilding the layout input and hashing it.
+    # Split out of host.cpp, which is at its size budget.
+    host_layout_gate.cpp
     safe_area_state.cpp
     safe_area_state.hpp
     system_motion.cpp
