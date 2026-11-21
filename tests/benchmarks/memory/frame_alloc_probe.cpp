@@ -365,8 +365,7 @@ int main(int argc, char** argv) {
     for (int cards : sizes) {
         for (Action action : {Action::Idle, Action::PaintDirty, Action::TextChange,
                               Action::ClassToggle, Action::LayoutDirty}) {
-            if (only != nullptr &&
-                std::strcmp(only, name_of(action)) != 0) {
+            if (only != nullptr && std::strcmp(only, name_of(action)) != 0) {
                 continue;
             }
             measure(cards, action, warmup, frames);
