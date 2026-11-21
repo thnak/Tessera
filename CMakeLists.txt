@@ -74,6 +74,12 @@ else()
     endif()
 endif()
 
+# Sanitizer lanes (issue #702, docs/specs/memory-model-v1.md section 10). Included after the warning
+# policy so a sanitizer build keeps TESSERA_WARNINGS_AS_ERRORS behaviour, and before any target is
+# defined so the flags reach Tessera and the third-party libraries alike. Defaults to OFF, which adds
+# no flag at all.
+include(cmake/Sanitizers.cmake)
+
 # Emscripten disables exception catching by default (a throw aborts). Tessera throws at boundaries
 # and catches there, so every translation unit and the link use native Wasm exceptions.
 if (EMSCRIPTEN)

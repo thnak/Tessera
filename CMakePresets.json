@@ -66,6 +66,34 @@
       }
     },
     {
+      "name": "asan",
+      "inherits": "base",
+      "displayName": "Ninja RelWithDebInfo, clang ASan+UBSan+LSan",
+      "description": "AddressSanitizer + UndefinedBehaviorSanitizer + LeakSanitizer (issue #702, memory-model-v1 section 10). Linux/clang only; the nightly sanitizers lane runs it. Runtime options come from ASAN_OPTIONS/LSAN_OPTIONS/UBSAN_OPTIONS, never from the binary.",
+      "generator": "Ninja",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++",
+        "TESSERA_BUILD_TESTS": "ON",
+        "TESSERA_SANITIZERS": "address,undefined"
+      }
+    },
+    {
+      "name": "tsan",
+      "inherits": "base",
+      "displayName": "Ninja RelWithDebInfo, clang TSan",
+      "description": "ThreadSanitizer (issue #702, memory-model-v1 section 10). Linux/clang only; the nightly sanitizers lane runs it. Cannot be combined with the asan preset: ASan and TSan do not share a process. Runtime options come from TSAN_OPTIONS.",
+      "generator": "Ninja",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++",
+        "TESSERA_BUILD_TESTS": "ON",
+        "TESSERA_SANITIZERS": "thread"
+      }
+    },
+    {
       "name": "wasm-webgpu",
       "displayName": "Emscripten WebGPU (Wasm, needs EMSDK)",
       "description": "Builds the WebGPU device backend with the emdawnwebgpu port; emsdk version pinned in tools/emsdk-version.txt",
@@ -107,6 +135,14 @@
       "name": "vs2022-release",
       "configurePreset": "vs2022",
       "configuration": "Release"
+    },
+    {
+      "name": "asan",
+      "configurePreset": "asan"
+    },
+    {
+      "name": "tsan",
+      "configurePreset": "tsan"
     },
     {
       "name": "wasm-webgpu",
@@ -160,6 +196,20 @@
       "name": "vs2022-release",
       "configurePreset": "vs2022",
       "configuration": "Release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "asan",
+      "configurePreset": "asan",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "tsan",
+      "configurePreset": "tsan",
       "output": {
         "outputOnFailure": true
       }

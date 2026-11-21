@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: MIT
+#
+# ASan/UBSan/LSan suppressions for the nightly `asan` lane (issue #702,
+# docs/specs/memory-model-v1.md section 10).
+#
+# Format: one entry per line, `interceptor:pattern`, preceded by a `#` comment line that gives the
+# reason. The sanitizer runtime ignores blank lines and `#` comments.
+#
+# POLICY - read before adding a line:
+#   * Tessera's own code is NEVER suppressed here. If our code trips ASan, UBSan or LSan, that is a
+#     finding to report and fix, not to silence. The lane exists to surface it.
+#   * Only a third-party library may be listed, and only with a reason that names the library, the
+#     report it emits and why the report is not ours to fix.
+#
+# CURRENT STATE: empty. The measured baseline (issue #702) is 12 representative suites passing under
+# ASan+UBSan+LSan with GCC 15 and no suppressions at all, so nothing is known to need one. The full
+# ctest set and the lavapipe GPU suites have not been measured under ASan yet; if they turn up
+# third-party noise, the entry goes here with its reason rather than in the workflow.

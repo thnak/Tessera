@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: MIT
+#
+# TSan suppressions for the nightly `tsan` lane (issue #702, docs/specs/memory-model-v1.md
+# section 10).
+#
+# Format: one entry per line, `interceptor:pattern` (or `race:pattern` for a reported race),
+# preceded by a `#` comment line that gives the reason. The sanitizer runtime ignores blank lines and
+# `#` comments.
+#
+# POLICY - read before adding a line:
+#   * Tessera's own code is NEVER suppressed here. A race in our code is a bug to fix; the lane
+#     exists to surface it.
+#   * Only a third-party library may be listed, and only with a reason that names the library, the
+#     report it emits and why the report is not ours to fix.
+#
+# CURRENT STATE: empty. TSan has not been run against this tree yet (issue #702 lists it as still to
+# measure), so no suppression is known to be needed. If the first runs report third-party noise, the
+# entry goes here with its reason rather than in the workflow.

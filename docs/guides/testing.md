@@ -200,8 +200,7 @@ VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json ctest --preset ci
 | `a11y_uia_com_nav` | Windows-only: navigation/hit-test/focus/shutdown on the COM provider (Windows only) |
 | `a11y_uia_compile_check` | Windows-only: ids static_asserted against the SDK headers and the static link resolves (Windows only) |
 | `compiler_limits` | deterministic resource-limit stress corpus: file/token/depth/diagnostic/component bounds, excerpt caps, determinism |
-| `jsx_diagnostics_registry` | every stable `TESSERA_JSX_*`/`TESSERA_REACT_*` code pinned by a fixture or explicit skip (59 codes / 53 fixtures / 6 skips) and frozen in `tests/golden/jsx/diagnostics-registry.txt` |
-| `jsx_diagnostics_registry` | diagnostic-code registry: one minimal fixture per analyzer code (code, byte span, line:column, bounded message), source-emission drift check, explicit skip list, byte-compared golden |
+| `jsx_diagnostics_registry` | diagnostic-code registry: one minimal fixture per analyzer code (code, byte span, line:column, bounded message), source-emission drift check, explicit skip list, byte-compared golden; every stable `TESSERA_JSX_*`/`TESSERA_REACT_*` code pinned by a fixture or explicit skip (59 codes / 53 fixtures / 6 skips) and frozen in `tests/golden/jsx/diagnostics-registry.txt` |
 | `icu_locale_pack` | reduced data blob installs via `udata_setCommonData`; pinned version, root bundle, no shared ICU loaded in-process |
 | `text_breaks_parity` | UAX #29 word / UAX #14 line breaks vs the builtin reduced-rules backend over the wrap fixture corpus |
 | `locale_resolver` | manifest-validated BCP-47 negotiation, ancestor fallback, direction, `icu.locale.*` diagnostics |
@@ -538,11 +537,18 @@ until the executables accept a CLI override.
 
 ## 6. Sanitizers and validation
 
-- ASan/UBSan (address and undefined-behavior sanitizers): unit/integration tests on toolchains that support them (not yet wired into CI, see section 9).
-- TSan (thread sanitizer): async/threading paths.
-- Vulkan validation layers: mandatory in debug builds; CI may disable them only if lavapipe cannot provide
-  the layer.
-- clang-tidy/format: CI gates.
+Two presets, Ninja + RelWithDebInfo + clang + `TESSERA_BUILD_TESTS=ON`, driven by
+`TESSERA_SANITIZERS` (`cmake/Sanitizers.cmake`; `OFF` by default, so no other lane changes):
+`asan` = `-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all` plus LSan
+at exit (a leak fails the lane); `tsan` = `-fsanitize=thread -fno-omit-frame-pointer`, never
+combined with `asan`. Runtime options come from the caller, not the binary. Locally:
+`cmake --preset asan && cmake --build --preset asan`, then `ASAN_OPTIONS=detect_leaks=1:abort_on_error=1
+UBSAN_OPTIONS=print_stacktrace=1 ctest --preset asan --output-on-failure` (`tsan` with
+`TSAN_OPTIONS=halt_on_error=1`). Both run nightly and on demand in `.github/workflows/sanitizers.yml`
+(advisory: a failure opens one tracking issue, never blocks a merge). Third-party suppressions live
+in `tests/sanitizers/{asan,tsan}.supp`, one comment line per entry with its reason; both are empty
+today, and Tessera's own code is never suppressed. Vulkan validation layers are mandatory in debug
+builds (CI may disable them only if lavapipe cannot provide the layer); clang-tidy/format are gates.
 
 ## 7. Benchmarks
 
@@ -576,20 +582,14 @@ until the executables accept a CLI override.
 
 - CSS tokenizer/parser, JSX/TSX parser, IR validation, manifest/IPC parsers, asset decoders.
 - Bounded inputs/timeouts; crashes are failures.
-- Run on a schedule, not on every PR (schedule not specified; no fuzz job exists in `.github/workflows/ci.yml`).
+- Run on a schedule, not on every PR (no fuzz job exists in `.github/workflows/`).
 
 ## 9. CI
 
-Current Linux workflow:
-
-1. install toolchain + lavapipe + `clang-format==22.1.3`
-2. format check
-3. configure/build (`ci` preset)
-4. static C++ runtime check
-5. ctest with lavapipe
-6. Vulkan offscreen smoke + artifact
-
-A Windows CI job does not exist yet (`.github/workflows/ci.yml` has only the Ubuntu job); it should mirror these steps with the VS preset.
+Gating lanes: `linux.yml` (install toolchain + lavapipe + `clang-format`, format check,
+configure/build `ci` preset, static C++ runtime check, ctest with lavapipe, Vulkan offscreen smoke +
+artifact) and `windows.yml`; `webgpu.yml` is the third (ADR-049). Advisory lanes run nightly and on
+demand: `macos.yml`, `android.yml`, `ios.yml` and `sanitizers.yml` (section 6).
 
 ## 10. Failure triage
 
