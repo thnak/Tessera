@@ -204,4 +204,24 @@ void collect_dependency_arrays(const Expr& expr, std::vector<const Expr*>& out) 
     collect_from(expr, out);
 }
 
+void substitute_results(Substitutions& results, const Substitutions& subs) {
+    if (subs.empty()) {
+        return;
+    }
+    for (auto& entry : results.values) {
+        if (entry.second) {
+            std::vector<Span> uses;
+            substitute(entry.second, subs, uses);
+        }
+    }
+    for (auto& entry : results.objects) {
+        for (auto& field : entry.second) {
+            if (field.second) {
+                std::vector<Span> uses;
+                substitute(field.second, subs, uses);
+            }
+        }
+    }
+}
+
 } // namespace tessera::compiler::jsx::internal
