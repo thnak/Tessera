@@ -625,7 +625,21 @@ Acceptance: a `useState`/`useEffect`/`useRef` screen regenerates without losing 
       [`behavior-hooks-v1.md`](docs/specs/behavior-hooks-v1.md) sections 8 and 10. #662 done: a role-token theme source builds to plain CSS custom
       properties in `@layer` and the engine's own cascade resolves it in light, dark and high
       contrast (`theme_source`, `docs/specs/theme-source-v1.md`); the evidence and the three engine
-      gaps are recorded in ADR-064 item 6.
+      gaps are recorded in ADR-064 item 6. #659 done: the custom-hook expansion pass, off by default
+      behind `FrontEndOptions::custom_hooks`, runs on 8 fixtures and lowers each to the same IR as the
+      hand-expanded component after id mapping; IR is 1.07–1.10× hand-written (longer member names
+      only, no extra node). It found the rename scheme colliding with the hook-name rule, an
+      expression argument that cannot be an effect dependency, and an undecided `useService`-in-hook
+      case — all recorded in ADR-065. #660 done: 50 in-repo fixtures measured two ways, front end
+      24/50 accepted (48%) and full pipeline 10/50 (20%), with the rejection table reordering
+      ADR-066 item 6 — the largest rejection reason is not a React form but a parser gap, and
+      `TESSERA_JSX_SUBSET_COMPONENT_NAME` turned out to be a false positive on lowercase helpers.
+      #661 done: `Suspense` and a transition mark, in the evaluator and in generated C++, off by
+      default; the differential test agrees on all 20 steps and 64 transition cycles allocate
+      nothing. It found `DataStatus::Stale` declared but never produced, and a latent
+      `ErrorBoundary` bug (`collect_event_adapters` did not walk `node.fallback`, so ordinals drifted
+      after a boundary). Evidence in ADR-065, ADR-066 and ADR-067. **All four spikes are done;
+      ADR-064, ADR-065, ADR-066 and ADR-067 are now ready for the owner to Accept or amend.**
 - [ ] Behavior hooks in the front end (ADR-064, waits for Acceptance): spec #638, analyzer and lowering
       #639, code generation #641.
 - [ ] Custom hooks by inlining (ADR-065, waits for Acceptance): #645 expansion pass, #646
