@@ -136,6 +136,11 @@ void PreviewSession::rebuild() {
     // tree dies (input_dispatch.hpp documents the same ordering for every caller).
     router_.reset();
     slots_.clear();
+    // The behaviors target nodes in the tree about to be replaced, so they are detached before it
+    // dies (the same ordering the router needs, and for the same reason).
+    detach_behaviors();
+    behaviors_.clear();
+    behavior_errors_.clear();
     root_ = std::make_unique<ui::Node>(1);
     // The old tree is gone, so what was applied to it is gone too; the layer is re-applied below.
     applied_overrides_.clear();
@@ -163,6 +168,9 @@ void PreviewSession::rebuild() {
     const SceneLayoutResult laid_out =
         layout_scene(*root_, sheet_, engine, layout_metrics_, options_.measurer);
     metrics_ = laid_out.metrics;
+    // After layout, so a behavior that reads a node's box sees the final one. A behavior attaches
+    // only when every target ref resolved to a built node.
+    attach_behaviors(built);
     if (kept_focus != 0) {
         if (ui::Node* node = node_by_automation_id(kept_focus)) {
             ui::FocusManager& focus = router_.focus_manager();
@@ -354,7 +362,14 @@ bool PreviewSession::dispatch(const PreviewInput& input) {
     if (dirty_) {
         // The scope changed, so the tree's text and boxes are stale. Rebuilding is the preview's
         // `apply_state`: the scope is the source of truth and the scene is derived from it.
+        // `rebuild()` re-attaches the behaviors to the new tree.
         rebuild();
+    } else {
+        // The component's own options did not change, but the SCENE did: a pointer moved, a press
+        // began, focus moved. A behavior whose outputs are a function of interaction state has no
+        // options, so the option hash would skip it forever; this is the trigger that makes a
+        // Button look pressed in the preview.
+        refresh_behaviors();
     }
     return result.dispatched;
 }

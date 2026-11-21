@@ -246,6 +246,81 @@ vocabulary. The `adaptations` syntax and a `tessera theme build` subcommand are 
 next steps if item 6 is Accepted.
 
 
+### Spike #658 evidence (item 7, recorded 2026-11-21)
+
+Built off by default: the engine seam (`include/tessera/ui/behavior/behavior.hpp`), the registry
+(`src/ui/behavior/registry.cpp`), `press_feedback` (`src/ui/behavior/press_feedback.cpp`), the
+shared wiring class (`include/tessera/ui/behavior/instance.hpp`), the analyzer and lowering
+(`src/compiler/rules/src/hooks.cpp`, `src/compiler/lowering/src/binding_lowering.cpp`), the IR
+`behaviors` list, the generated base's behavior surface (`src/compiler/codegen/src/emit_behaviors.cpp`)
+and the preview wiring (`tools/codegen/scene_session_behavior.cpp`). Normative rules:
+[`behavior-hooks-v1.md`](../docs/specs/behavior-hooks-v1.md). Nothing runs in a shipped app unless a
+component calls a behavior hook, and no committed `.g.hpp` golden moved: a component without
+behaviors generates the bytes it generated before.
+
+**The model holds, and the seam is the right one.** A behavior is engine code, not generated code:
+the generated base and the preview session each own one `behavior::Instance` and call the same four
+methods, so neither implements a behavior twice. `press_feedback` reads the scene's own
+`InputRouter` state rather than registering listeners, which is what makes it a pure function of the
+interaction state and a `ManualClock` test deterministic.
+
+**Three defects the spike found, all of which made the path unreachable.** These are the reason the
+spike was worth building: each looked like a different bug, and none was visible from a green build.
+
+1. **The lowering dropped the behaviors.** `node_lowering.cpp` assigned `state`, `handlers`,
+   `effects`, `refs` and `animated_values` onto the IR component and never assigned `behaviors`. The
+   analyzer classified the call and the lowering built the entry, and then it was discarded — so no
+   component ever carried a behavior and every downstream consumer was dead code no test could
+   reach. The existing `lowering_behaviors` test passed because it asserted on the *lowering result*
+   rather than on the component the lowering produced.
+2. **A behavior output had no reference form.** `ComponentNames` resolved props, state, refs and
+   animated values but not an output, so `press.pressed` failed with `TESSERA_IR_UNRESOLVED`. The
+   spec already stated the rule (section 6: `beh::<name>.<field>`); the resolver simply did not
+   implement it. Only a field the hook actually returns resolves, so `press.nope` still reports
+   rather than the generator inventing an accessor.
+3. **The evaluator's scope had no `beh::` entries.** The first build failed on an unknown ref. The
+   spec's section 8 rule — "before the first attach an output holds its manifest default" — is what
+   fixes it: `build_scene` seeds each output with that default and the session overwrites it from the
+   live instance after it attaches.
+
+**What the spec got wrong, and how it was amended.** The spec's section 9 rule "call `update` only
+when the hash of the evaluated value options changed" is correct for a behavior whose outputs are a
+function of its options, and **wrong for one whose outputs are a function of interaction state**.
+`press_feedback` has no options at all, so its hash never changes and a hash-only update would skip
+it forever: the Button would report "not pressed" through an entire press. The seam therefore has
+two triggers, and the distinction is now in the spec:
+
+- `update(args)` — the component's own state changed, so the evaluated options may have changed.
+- `refresh(args)` — the scene moved on (a pointer moved, a press began, focus moved) while the
+  component's options did not change at all.
+
+`refresh` deliberately does not touch the stored hash, so a scene-driven refresh cannot defeat the
+option-driven skip. Both directions are pinned by `behavior_instance`.
+
+**Allocation.** `attach` allocates the engine behavior through the registry factory — one allocation,
+the slot the generated base owns. `update`, `refresh` and `detach` allocate nothing: the hash is a
+value and the args are a borrowed view. `behavior_allocation` pins this by counting global
+`operator new`, and `behavior_instance` pins that the factory allocates exactly once.
+
+**Golden stability.** No committed `.g.hpp` golden moved. Emission is conditional on
+`component.behaviors` being non-empty, so a component that calls no behavior hook generates no
+behavior code at all — which is every component in the repository today.
+
+**The preview drives the same instance.** `scene_behavior` proves it: a component calling
+`usePressFeedback` produces one behavior in the session, named from the registry, attached to the
+node its `ref` resolved to, and a pointer press dispatched through the session's own `dispatch()`
+moves the outputs. This is the evidence section 10 asked for, and it is the same `Instance` the
+generated base uses rather than a second implementation.
+
+**What this does not settle.** Items 3 to 5 and 8 of this ADR (catalogue, anatomy, plugins) are
+untouched. The remaining core behaviors (`focus_trap`, `roving_focus`, `typeahead`, `hotkeys`,
+`scroll_lock`, `overflow`, `announce`, `clipboard`, `interactive_role`) are one issue each and are
+not part of this spike; `focus_trap` is the next one, because Dialog needs it. The preview does not
+yet resolve a callback arg to a thunk (it records the handler id and passes 0), so a behavior that
+invokes a callback is wired but inert in the preview — a gap to close with the first behavior that
+needs one.
+
+
 ## Follow-up
 
 - Spec template `docs/specs/components/_template.md`; first specs: Button, Field, TextInput, Dialog,

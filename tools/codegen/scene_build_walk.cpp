@@ -118,6 +118,9 @@ bool Builder::build(const ir::Component& component) {
     // The window content node is a plain `View`, the shape `AppHost` gives a scene root; the
     // component's own root is its child, exactly as a generated base attaches its tree.
     root_.set_element_kind("View");
+    // The refs are borrowed for this build only, so the walk can record which scene node each one
+    // resolved to (a behavior's target).
+    set_component_refs(&component.refs);
     return build_node(component.root, root_, 0);
 }
 
@@ -179,6 +182,18 @@ bool Builder::build_node(const ir::Node& node, ui::Node& parent, std::size_t dep
         }
         for (const auto& [event, handler] : node.events) {
             result_.handlers.push_back({id, event, handler});
+        }
+    }
+
+    // The `ref` this node carries, if any (behavior-hooks-v1.md section 8): a behavior's target is
+    // the node a `ref` resolved to, so the session needs the mapping from `ref::` id to scene node.
+    // Recorded here because this is the last point that holds the `ir::Node`; the scene node
+    // carries no ref id of its own.
+    if (component_refs_ != nullptr) {
+        for (const ir::Ref& ref : *component_refs_) {
+            if (ref.target == node.id) {
+                result_.ref_targets.push_back({ref.id, scene.id()});
+            }
         }
     }
 

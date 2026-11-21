@@ -83,6 +83,25 @@ SceneBuildResult build_scene(const ir::Component& component, ui::Node& root, eva
             return result;
         }
     }
+    // A behavior output is readable in any pure expression (behavior-hooks-v1.md section 6), and
+    // before the first attach it holds its manifest default (section 8). The preview seeds each one
+    // with that default here, so the first build reads a value instead of failing on an unknown
+    // ref; the session overwrites them from the live instance after it attaches.
+    for (const ir::Behavior& behavior : component.behaviors) {
+        for (const ir::BehaviorOutput& output : behavior.outputs) {
+            const std::string id = behavior.id + "." + output.name;
+            if (scope.find(id) != scope.end()) {
+                continue;
+            }
+            if (output.type == "bool") {
+                scope[id] = eval::Value::of_bool(false);
+            } else if (output.type == "number") {
+                scope[id] = eval::Value::of_float(0.0);
+            } else {
+                scope[id] = eval::Value::of_string(std::string());
+            }
+        }
+    }
     internal::Builder builder(root, scope, result);
     // A failed build leaves `error` set for the caller; the tree is discarded, because a partially
     // built tree would be a snapshot of a program that does not exist.

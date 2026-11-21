@@ -36,6 +36,16 @@ ComponentNames::ComponentNames(const rules::ComponentAnalysis& analysis) {
             break;
         }
     }
+    // A behavior hook call that returns outputs makes each output readable as `<local>.<field>`
+    // (behavior-hooks-v1.md section 6). Recorded here rather than in `entries_` because the
+    // reference is dotted: the base name alone is not a value, so `press` on its own must stay
+    // unresolved while `press.pressed` resolves.
+    for (const rules::BehaviorInfo& behavior : analysis.behaviors) {
+        if (behavior.name.empty() || behavior.outputs.empty()) {
+            continue;
+        }
+        behavior_outputs_.push_back({behavior.name, behavior.outputs});
+    }
 }
 
 void ComponentNames::add_local(std::string name) {
@@ -68,6 +78,22 @@ std::optional<std::string> ComponentNames::resolve(std::string_view source_name)
     for (const Entry& entry : entries_) {
         if (entry.name == source_name) {
             return entry.id;
+        }
+    }
+    // A behavior output: `<local>.<field>` resolves to `beh::<local>.<field>` (behavior-hooks-v1.md
+    // section 6). Only a field the hook actually returns resolves; `press.nope` stays unresolved so
+    // the IR validator reports it rather than the generator inventing an accessor.
+    for (const BehaviorOutputs& behavior : behavior_outputs_) {
+        if (source_name.size() <= behavior.name.size() + 1 ||
+            source_name.compare(0, behavior.name.size(), behavior.name) != 0 ||
+            source_name[behavior.name.size()] != '.') {
+            continue;
+        }
+        const std::string_view field = source_name.substr(behavior.name.size() + 1);
+        for (const std::string& output : behavior.outputs) {
+            if (output == field) {
+                return "beh::" + behavior.name + "." + std::string(field);
+            }
         }
     }
     // `props.x` of a non-destructured parameter is a prop reference (decision 8). Nested fields

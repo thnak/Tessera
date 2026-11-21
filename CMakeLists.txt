@@ -1,6 +1,16 @@
 # SPDX-License-Identifier: MIT
 
 cmake_minimum_required(VERSION 3.24)
+
+# /Z7 embeds debug info in the object file, which compiler caches (sccache/ccache) can cache; /Zi
+# writes a shared PDB and defeats them. CMP0141 must be set BEFORE project(): that is where CMake
+# initializes the per-config debug-format flags, so setting it afterwards leaves the default `/Zi`
+# in CMAKE_CXX_FLAGS_DEBUG and the cache stays defeated (every compile then contends on one PDB and
+# fails with C1041). Guarded because the policy does not exist before CMake 3.25.
+if (POLICY CMP0141)
+    cmake_policy(SET CMP0141 NEW)
+endif()
+
 project(Tessera VERSION 0.0.1 LANGUAGES C CXX)
 
 # Static linking is a hard requirement (ADR-012).
@@ -12,10 +22,9 @@ if (MSVC AND TESSERA_STATIC_RUNTIME)
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 endif()
 
-# /Z7 embeds debug info in the object file, which compiler caches (sccache/ccache) can cache;
-# /Zi writes a shared PDB and defeats them. Needs CMake 3.25+ (CMP0141); older CMake ignores it.
-if (MSVC AND NOT CMAKE_VERSION VERSION_LESS 3.25)
-    cmake_policy(SET CMP0141 NEW)
+# The debug-info format itself, now that the policy above is in force. Embedded (/Z7) is what makes
+# an object file self-contained, so a cache hit is a real hit rather than a PDB that must be rebuilt.
+if (MSVC)
     set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<$<CONFIG:Debug,RelWithDebInfo>:Embedded>")
 endif()
 

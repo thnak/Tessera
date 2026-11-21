@@ -210,6 +210,9 @@ set(_tessera_scene_preview_sources
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_state.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_session.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_session_lookup.cpp
+    # The session's behavior wiring (ADR-064 item 7, spike #658), split out when it pushed
+    # `scene_session.cpp` past the source-size limit.
+    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_session_behavior.cpp
     # The designer's override layer (issue #536): its data and history, and how it reaches the tree.
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_override.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_session_override.cpp
@@ -264,6 +267,9 @@ if (NOT EMSCRIPTEN)
     target_include_directories(tessera_scene_preview PUBLIC ${CMAKE_SOURCE_DIR}/tools/codegen)
     target_link_libraries(tessera_scene_preview PUBLIC
         tessera_automation_scene
+        # The preview drives the same `behavior::Instance` the generated base does (ADR-064 item 7),
+        # so the engine behavior library is a real dependency, not an optional one.
+        tessera_behavior
         tessera_css_module
         tessera_ir_eval
         tessera_ir_ids
@@ -293,6 +299,7 @@ if (NOT EMSCRIPTEN)
     target_include_directories(tessera_scene_frame_entry
         PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
     target_link_libraries(tessera_scene_frame_entry PRIVATE
+        tessera_behavior
         tessera_automation_scene
         tessera_css_module
         tessera_gpu
@@ -376,6 +383,7 @@ if (NOT EMSCRIPTEN)
     target_include_directories(tessera_scene_frame_cli
         PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
     target_link_libraries(tessera_scene_frame_cli PRIVATE
+        tessera_behavior
         tessera_automation_scene
         tessera_css_module
         tessera_gpu
@@ -426,6 +434,7 @@ else ()
     target_include_directories(tessera_scene_preview_wasm
         PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
     target_link_libraries(tessera_scene_preview_wasm PRIVATE
+        tessera_behavior
         tessera_automation_scene
         tessera_css_module
         tessera_ir_eval
@@ -492,6 +501,7 @@ else ()
         PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
     target_link_libraries(tessera_canvas_wasm PRIVATE
         tessera_automation_scene
+        tessera_behavior
         tessera_css_module
         tessera_gpu
         tessera_ir_eval
@@ -823,6 +833,7 @@ if (TESSERA_BUILD_TESTS)
     target_compile_definitions(scene_frame_tests PRIVATE
         TESSERA_PREVIEW_FONT_PATH="${CMAKE_SOURCE_DIR}/designer/web/public/fonts/IBMPlexSans-Latin.ttf")
     target_link_libraries(scene_frame_tests PRIVATE
+        tessera_behavior
         tessera_automation_scene
         tessera_css_module
         tessera_golden
@@ -855,6 +866,7 @@ if (TESSERA_BUILD_TESTS)
     target_include_directories(scene_stylesheet_tests
         PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
     target_link_libraries(scene_stylesheet_tests PRIVATE
+        tessera_behavior
         tessera_automation_scene
         tessera_css_module
         tessera_ir_eval
@@ -914,6 +926,7 @@ if (TESSERA_BUILD_TESTS)
     target_include_directories(scene_dynamic_tests
         PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
     target_link_libraries(scene_dynamic_tests PRIVATE
+        tessera_behavior
         tessera_automation_scene
         tessera_css_module
         tessera_ir_eval
@@ -923,6 +936,27 @@ if (TESSERA_BUILD_TESTS)
         tessera_scene
         tessera_style)
     add_test(NAME scene_dynamic COMMAND scene_dynamic_tests)
+
+    # Behaviors in the preview (ADR-064 item 7, spike #658; behavior-hooks-v1.md section 10): the
+    # session builds the same registry `Instance` the generated base does, attaches it to the node
+    # the hook's `ref` resolved to, and drives it with the session's own normalized input. Registered
+    # here rather than in tests/unit/CMakeLists.txt for the same reason `scene_dynamic` is.
+    add_executable(scene_behavior_tests
+        ${CMAKE_SOURCE_DIR}/tests/unit/scene_behavior_tests.cpp
+        ${_tessera_scene_preview_sources})
+    target_include_directories(scene_behavior_tests
+        PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
+    target_link_libraries(scene_behavior_tests PRIVATE
+        tessera_automation_scene
+        tessera_behavior
+        tessera_css_module
+        tessera_ir_eval
+        tessera_ir_ids
+        tessera_layout
+        tessera_lowering
+        tessera_scene
+        tessera_style)
+    add_test(NAME scene_behavior COMMAND scene_behavior_tests)
 
     # The studio's foldable preview (issue #408): a simulated `FoldInfo` reaches the same metrics and
     # safe-area path the app runs, a posture change is one layout pass, and the preview's SafeArea
@@ -934,6 +968,7 @@ if (TESSERA_BUILD_TESTS)
     target_include_directories(scene_fold_tests
         PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
     target_link_libraries(scene_fold_tests PRIVATE
+        tessera_behavior
         tessera_app
         tessera_automation_scene
         tessera_css_module
@@ -991,6 +1026,7 @@ if (TESSERA_BUILD_TESTS)
             PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
         target_link_libraries(${_canvas_test}_tests PRIVATE
             tessera_automation_scene
+            tessera_behavior
             tessera_css_module
             tessera_gpu
             tessera_ir_eval
@@ -1023,6 +1059,7 @@ if (TESSERA_BUILD_TESTS)
         PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen
                 ${CMAKE_SOURCE_DIR}/tests/unit)
     target_link_libraries(scene_viewport_tests PRIVATE
+        tessera_behavior
         tessera_app
         tessera_automation_scene
         tessera_css_module
@@ -1059,6 +1096,7 @@ if (TESSERA_BUILD_TESTS)
     target_include_directories(scene_skin_geometry_tests
         PRIVATE ${CMAKE_SOURCE_DIR}/tools/codegen)
     target_link_libraries(scene_skin_geometry_tests PRIVATE
+        tessera_behavior
         tessera_automation_scene
         tessera_css_module
         tessera_gpu
