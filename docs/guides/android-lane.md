@@ -124,8 +124,14 @@ and `hal::create_window` returns `nullptr` when it is null — the documented "n
 |---|---|
 | `android/app/src/main/AndroidManifest.xml` | `NativeActivity`, the Vulkan feature requirements, and the `configChanges` contract |
 | `android/app/src/main/cpp/android_main.cpp` | `android_main`: waits for the OS to hand over an `ANativeWindow`, then creates the host |
+| `android/app/src/main/cpp/scene.hpp` | the shell's scene and stylesheet: a card, a tap counter and a text field |
 | `android/app/src/main/cpp/CMakeLists.txt` | the `tessera_android_app` shared library, linking `tessera_app_window` |
 | `android/app/build.gradle.kts` | compiles the engine through the same CMake project and packages the APK |
+
+The scene outlives the host: `android_main` creates it once and creates/destroys the host around it
+as surfaces come and go, so a backgrounded app keeps its state (the tap counter survives a
+background/foreground cycle). The host borrows the root and owns the compiled stylesheet, which is
+why the scene is a `unique_ptr` the shell holds rather than a local.
 
 The manifest declares only what the engine can honour. `localeConfig`, `networkSecurityConfig`,
 `enableOnBackInvokedCallback` and `POST_NOTIFICATIONS` are deliberately absent: declaring a
@@ -137,18 +143,106 @@ so the host is gone before the window can be reused — the surface-lifecycle ru
 `WindowHost` is single-threaded and must be created, run and destroyed on the thread that owns the
 window.
 
-### 3.4 What is still missing
+### 3.4 Input translation
 
-- **Input.** `AInputEvent` arrives in `android_main` and is dropped (`onInputEvent` returns 0, so the
-  platform falls back to its own behaviour). Translating `MotionEvent`/`KeyEvent` into
-  `ui::InputEvent` is `docs/design/mobile-integration.md` section 3.2.
-- **Insets, cutouts, fold.** These need `WindowInsets`/`WindowMetricsCalculator` over JNI
-  (sections 3.5 and 3.6); the metrics carry the documented zero-inset fallback.
+`src/platform/android/android_input.cpp` translates `AInputEvent`s into `ui::InputEvent` and pushes
+them into the queue `set_input_queue` installed. The shell forwards from `onInputEvent` through
+`hal::Window::translate_input`, which takes an opaque `const void*` so no platform type reaches a
+public header.
+
+The mapping rules live in `android_input_translation.cpp`, which **includes no NDK header**: the
+action, tool-type, source and keycode constants are stable ABI values, so the rules are unit-tested
+on every lane (`android_input`). That is where the defects that a device lane cannot see cheaply are
+caught — the scroll sign, the pointer-index packing, the cancel semantics.
+
+Three rules worth knowing:
+
+- **Scroll sign.** Android's `AXIS_VSCROLL` is positive when the content should move *up*; the engine
+  uses the web sign, where positive `dy` scrolls content *down*. The vertical axis is negated.
+- **Pointer identity.** Android reports a pointer *index* per event, and the index is renumbered as
+  fingers lift. The translator fixes the id at `ACTION_DOWN` and reuses it for the gesture.
+- **Cancel.** `ACTION_CANCEL` and `ACTION_OUTSIDE` both end the gesture, so the engine releases its
+  capture instead of keeping a stale active state.
+
+The NDK exposes **no `AKeyEvent_getUnicodeChar`** (only the Java `KeyEvent` has one), so typed text
+is derived from the keycode: letters (with shift for case), unshifted digits and space. Punctuation,
+non-ASCII and composed text come from the IME bridge, not from a keycode guess — guessing would be
+wrong for every non-US layout.
+
+Not carried yet: historical/coalesced samples (`AMotionEvent_getHistorical*`), pressure tilt and
+orientation. The newest sample is used, which loses sub-frame motion but never loses an event.
+
+### 3.5 Window metrics: insets, cutouts and fold
+
+`src/platform/android/android_metrics_translation.cpp` decodes the platform's window-metrics signals
+into `hal::WindowMetrics`. Like the input rules it **includes no Android header**, so it is
+unit-tested on every lane (`android_metrics`).
+
+The platform reports insets in **physical pixels**; `WindowMetrics` carries logical pixels. That
+conversion is the whole reason this is a separate testable unit: a wrong scale turns a 24 px status
+bar into a 24 dp one, which is a layout bug that only shows on a device with a non-1.0 density. The
+decode **rounds** rather than truncates, so a 2.75× device does not lose a pixel per side.
+
+Three rules worth knowing:
+
+- **Cutout rectangles.** Android reports `right`/`bottom` as exclusive edges; the engine's rectangles
+  are `x`/`y`/`width`/`height`, so the extent is the difference. A zero-area rectangle is dropped
+  rather than reported as a cutout that insets nothing.
+- **A flat fold does not occlude.** A flat fold is a seam, not a barrier: it reports `FoldState::Flat`
+  and its axis, but `FoldOcclusion::None`. Only `HalfOpened` reports an occluding hinge, and only
+  when the platform gives it a non-zero rectangle.
+- **Orientation comes from the extent**, not from Android's rotation, so a device that reports
+  neither still gets the same answer as the desktop lanes.
+
+The window backend exposes `set_insets`, `set_cutouts` and `set_fold` for the host to call from its
+platform callbacks; each queues at most one coalesced `SafeAreaChanged`/`FoldChanged` event, so a
+burst of callbacks between two ticks costs one event per kind.
+
+### 3.6 The JNI bridge
+
+The shell is a **Java activity**, not `android.app.NativeActivity`, because the platform reports
+insets, cutouts and fold posture through Java APIs that have no NDK equivalent. A NativeActivity can
+hand the engine an `ANativeWindow` but cannot read those.
+
+| File | Role |
+|---|---|
+| `android/app/src/main/java/dev/tessera/app/TesseraActivity.java` | the activity: edge-to-edge, hides the system bars, owns the view |
+| `android/app/src/main/java/dev/tessera/app/TesseraView.java` | a `SurfaceView`: surface lifecycle, insets/cutouts, touch |
+| `android/app/src/main/cpp/jni_bridge.cpp` | the only TU that includes `<jni.h>` |
+
+`TesseraView` is a `SurfaceView` because that is the one view whose `Surface` the NDK can turn into
+an `ANativeWindow` (`ANativeWindow_fromSurface`). A `TextureView` would give a `SurfaceTexture`,
+which needs a different Vulkan path.
+
+**The render thread.** `WindowHost` is single-threaded and must be created, run and destroyed on the
+thread that owns the window, so the bridge starts a dedicated render thread that calls
+`host->run(0)`. The Java thread only signals it: `surfaceDestroyed` closes the window, which makes
+`run(0)` return, and then joins. `pump_once` on the Java thread would need a spin, and a spin on a
+phone burns battery for nothing.
+
+**The metrics seam.** `hal::Window` gains `set_physical_insets` and `set_physical_cutouts`, which
+take the platform's **physical** pixels. The backend converts them with the decode rules in
+`android_metrics_translation.cpp`, so the bridge never needs to know the layout rules and the
+conversion stays unit-tested on every lane. The types live in `window_desc.hpp` so `window.hpp`
+stays inside its size budget.
+
+### 3.7 What is still missing
+
+- **Java `MotionEvent` translation.** The native path (`AInputQueue` → `AInputEvent`) is wired, but
+  the shell is now a Java activity, so touch arrives as a `MotionEvent` and `nativeOnTouch` returns
+  false. A Java-event reader is the next slice; the pure rules it needs already exist in
+  `android_input_translation.cpp`.
+- **Fold posture over JNI.** `set_physical_insets` and `set_physical_cutouts` are wired; the fold
+  reader (`FoldingFeature`) is not, so `set_fold` has no caller yet.
 - **IME and accessibility** (sections 3.3 and 3.4).
-- **A scene.** `android_main` creates the host with no scene or stylesheet, so it reports
-  unavailable. A real app supplies them where the shell has the comment.
+- **A generated component.** The shell's scene (`android/app/src/main/cpp/scene.hpp`) is built by
+  hand, because the codegen CLI runs on the host at build time and `tessera_compiler_demo` is gated
+  on `NOT CMAKE_CROSSCOMPILING`. A hand-built tree still exercises the scene graph, the compiled
+  stylesheet, Yoga layout, Batched2D and the input path (a Button that counts taps, a TextInput).
+  Replacing it with the generated `demo::Demo` needs the codegen host tool — the same
+  `ExternalProject` pattern the shader manifest checker uses.
 
-### 3.5 Emulator GPU mode matters
+### 3.8 Emulator GPU mode matters
 
 | Emulator GPU mode | Device | API version | Tessera accepts? |
 |---|---|---|---|

@@ -253,21 +253,79 @@ if (TESSERA_BUILD_VULKAN OR TESSERA_SHADER_CROSS)
         set(TESSERA_SHADER_MANIFEST_CHECK_HOST_DIR
             "host-tools/shader-manifest-check")
         # The host tool must be built with the HOST toolchain, so it cannot inherit this project's
-        # generator or compiler: a cross-compiling configure sets CMAKE_CXX_COMPILER to the NDK's
-        # clang, and passing that through would build a target binary again. The generator is
-        # therefore chosen from the HOST platform (CMAKE_HOST_WIN32, not WIN32 - in an Android
-        # configure WIN32 is false because it describes the target), and the toolchain file is
-        # cleared so no target sysroot leaks in.
+        # compiler: a cross-compiling configure sets CMAKE_CXX_COMPILER to the NDK's clang, and
+        # passing that through would build a target binary again. The toolchain file is cleared so no
+        # target sysroot leaks in.
+        #
+        # The generator is chosen by what THIS CMake can actually run, in this order:
+        #
+        #   1. Visual Studio, when vswhere finds an installation AND this CMake knows that
+        #      generator. The second half matters: the NDK's bundled CMake 3.31.6 knows VS 17 2022
+        #      but NOT VS 18 2026, so a host with only VS 2026 installed fails with "Could not create
+        #      named generator" even though vswhere reports it. A VS generator is also the only one
+        #      that locates MSVC by itself, which matters under Gradle where no compiler is on PATH.
+        #   2. Ninja, when it is on PATH and a compiler is too.
+        #   3. Unix Makefiles, the last resort on a POSIX host.
+        set(TESSERA_HOST_GENERATOR "")
+        set(TESSERA_HOST_GENERATOR_PLATFORM "")
+        # The host configure needs a cmake that knows the host's generator. The NDK bundles 3.31.6,
+        # which predates VS 2026; a system cmake 4.x knows it. Prefer the system one when it exists.
+        set(TESSERA_HOST_CMAKE "${CMAKE_COMMAND}")
         if (CMAKE_HOST_WIN32)
-            set(TESSERA_HOST_GENERATOR "Visual Studio 18 2026")
-            set(TESSERA_HOST_GENERATOR_PLATFORM x64)
-        else()
-            set(TESSERA_HOST_GENERATOR "Unix Makefiles")
-            set(TESSERA_HOST_GENERATOR_PLATFORM "")
+            find_program(TESSERA_SYSTEM_CMAKE
+                NAMES cmake
+                HINTS "$ENV{ProgramFiles}/CMake/bin"
+                NO_DEFAULT_PATH)
+            if (TESSERA_SYSTEM_CMAKE)
+                set(TESSERA_HOST_CMAKE "${TESSERA_SYSTEM_CMAKE}")
+            endif()
+        endif()
+        if (CMAKE_HOST_WIN32)
+            find_program(TESSERA_VSWHERE
+                NAMES vswhere
+                HINTS "$ENV{ProgramFiles}/Microsoft Visual Studio/Installer"
+                      "$ENV{ProgramFiles\(x86\)}/Microsoft Visual Studio/Installer")
+            if (TESSERA_VSWHERE)
+                execute_process(
+                    COMMAND "${TESSERA_VSWHERE}" -latest -property installationVersion
+                    OUTPUT_VARIABLE TESSERA_VS_VERSION
+                    OUTPUT_STRIP_TRAILING_WHITESPACE
+                    ERROR_QUIET)
+                # installationVersion is "18.12.3..." for VS 2026, "17.x" for VS 2022. Only offer a
+                # generator this CMake knows: `cmake --help` lists them, and an unknown name fails
+                # the ExternalProject configure.
+                execute_process(
+                    COMMAND "${TESSERA_HOST_CMAKE}" --help
+                    OUTPUT_VARIABLE TESSERA_CMAKE_GENERATORS
+                    ERROR_QUIET)
+                if (TESSERA_VS_VERSION MATCHES "^18\\." AND
+                    TESSERA_CMAKE_GENERATORS MATCHES "Visual Studio 18 2026")
+                    set(TESSERA_HOST_GENERATOR "Visual Studio 18 2026")
+                elseif (TESSERA_VS_VERSION MATCHES "^17\\." AND
+                        TESSERA_CMAKE_GENERATORS MATCHES "Visual Studio 17 2022")
+                    set(TESSERA_HOST_GENERATOR "Visual Studio 17 2022")
+                endif()
+                if (TESSERA_HOST_GENERATOR)
+                    set(TESSERA_HOST_GENERATOR_PLATFORM x64)
+                endif()
+            endif()
+        endif()
+        if (NOT TESSERA_HOST_GENERATOR)
+            find_program(TESSERA_HOST_NINJA NAMES ninja)
+            if (TESSERA_HOST_NINJA)
+                set(TESSERA_HOST_GENERATOR "Ninja")
+            else()
+                set(TESSERA_HOST_GENERATOR "Unix Makefiles")
+            endif()
         endif()
         ExternalProject_Add(tessera_shader_manifest_check_host
             SOURCE_DIR "${PROJECT_SOURCE_DIR}/tools/shaders/host"
             BINARY_DIR "${TESSERA_SHADER_MANIFEST_CHECK_HOST_DIR}"
+            # The host configure runs with the SYSTEM cmake, not this one. The NDK bundles CMake
+            # 3.31.6, which does not know the "Visual Studio 18 2026" generator that a current VS
+            # install needs; the system cmake (4.x) does. Falling back to ${CMAKE_COMMAND} keeps a
+            # host whose cmake is the only one available working.
+            CMAKE_COMMAND "${TESSERA_HOST_CMAKE}"
             CMAKE_GENERATOR "${TESSERA_HOST_GENERATOR}"
             CMAKE_GENERATOR_PLATFORM "${TESSERA_HOST_GENERATOR_PLATFORM}"
             CMAKE_ARGS
@@ -276,8 +334,9 @@ if (TESSERA_BUILD_VULKAN OR TESSERA_SHADER_CROSS)
                 "-DCMAKE_TOOLCHAIN_FILE="
             # A multi-config host generator (Visual Studio) puts the binary in a per-config
             # subdirectory and defaults to Debug, so the config is pinned here. The path below
-            # matches it.
-            BUILD_COMMAND "${CMAKE_COMMAND}" --build <BINARY_DIR> --config Release
+            # matches it. The build runs with the same cmake as the configure: the NDK's bundled one
+            # does not know the VS 2026 generator.
+            BUILD_COMMAND "${TESSERA_HOST_CMAKE}" --build <BINARY_DIR> --config Release
             BUILD_ALWAYS OFF
             INSTALL_COMMAND ""
             COMMENT "Building the host shader manifest checker")

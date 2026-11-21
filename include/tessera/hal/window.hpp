@@ -364,6 +364,37 @@ public:
         (void)queue;
     }
 
+    // Offers one platform input event to the window's translator and returns true when it produced
+    // at least one queued `ui::InputEvent`. `event` is an opaque platform event (Android:
+    // `AInputEvent*`); only the platform backend interprets it, so no platform type reaches this
+    // header (ADR-020 rule 1).
+    //
+    // It exists for a platform whose input arrives through a callback the host does not own
+    // (Android's `onInputEvent`), so the shell can forward an event without the host exposing the
+    // platform types. Every other platform pumps input from `wait_for_events`/`poll_events`, so the
+    // default returns false and nothing else calls it. Must be called on the window's thread.
+    virtual bool translate_input(const void* event) {
+        (void)event;
+        return false;
+    }
+
+    // The platform's window-metrics signals, for a platform that reports them through a callback
+    // the host does not own (Android's `WindowInsets`/`DisplayCutout` over JNI). The values are
+    // PHYSICAL pixels; the backend converts them to the logical pixels `WindowMetrics` carries,
+    // using the decode rules the unit tests cover. Each call queues at most one coalesced event.
+    // The types live in `window_desc.hpp` so this header stays inside its size budget. The defaults
+    // do nothing. Must be called on the window's thread.
+    virtual void set_physical_insets(const PhysicalInsets& system_bars, const PhysicalInsets& ime,
+                                     const PhysicalInsets& gestures) {
+        (void)system_bars;
+        (void)ime;
+        (void)gestures;
+    }
+    // `rects` is the platform's cutout list; at most `kMaxCutouts` are kept.
+    virtual void set_physical_cutouts(std::span<const PhysicalRect> rects) {
+        (void)rects;
+    }
+
     // Installs the UIA root handshake (see AccessibilityRoot). Must be called on the window's
     // thread; a null `answer` uninstalls it. Platforms without a UIA host ignore the hook. The
     // context must outlive the window or be uninstalled before it is destroyed.

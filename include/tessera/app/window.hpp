@@ -265,6 +265,15 @@ public:
     // returns immediately with stats().available == false.
     [[nodiscard]] bool available() const;
 
+    // The platform window the host owns, or null when it has none. It is a borrow: the host keeps
+    // ownership and the pointer is invalid after the host is destroyed.
+    //
+    // It exists for a platform whose input arrives through a callback the host does not own
+    // (Android's `onInputEvent`), so the shell can forward an event to the window's translator
+    // without the host having to expose the platform types. Every other platform pumps input from
+    // `run()`, so nothing else needs it.
+    [[nodiscard]] hal::Window* window() const;
+
     // Runs until the window closes. With max_frames > 0 it stops after that many presented frames,
     // forcing a frame even when the scene is clean (the bounded CI path). Callable more than once.
     WindowFrameStats run(std::uint32_t max_frames = 0);

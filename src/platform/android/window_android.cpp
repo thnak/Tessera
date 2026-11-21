@@ -13,10 +13,10 @@
 //
 //   - It reports the surface extent, the device scale and the window family, which is what the
 //     renderer needs to size a swapchain and what layout needs to resolve a viewport.
-//   - It does NOT translate input. `MotionEvent`/`KeyEvent` arrive through the Java `View` or the
-//     `AInputQueue` the host owns, and wiring that into `ui::InputQueue` is the next slice
-//     (docs/design/mobile-integration.md section 3.2). `set_input_queue` stores the queue so the
-//     translation can be added without changing this contract.
+//   - It translates input through `AndroidInputTranslator` (android_input.cpp): the host calls
+//     `translate_input` from its `onInputEvent` callback, and the translator pushes normalized
+//     events into the queue `set_input_queue` installed. Historical/coalesced samples, tilt and
+//     orientation are not carried yet (see the translator's header).
 //   - It does NOT report insets, cutouts or fold state. Those come from `WindowInsets` and
 //     `WindowMetricsCalculator` through JNI, which is a separate bridge
 //     (docs/design/mobile-integration.md sections 3.5 and 3.6). The metrics carry the documented
@@ -27,14 +27,20 @@
 // one reference for its own lifetime and revokes the borrowed `NativeSurface` when the host reports
 // the surface is gone, so a renderer can never present into a dead window.
 
+#include "android_input.hpp"
+#include "android_metrics_translation.hpp"
 #include "tessera/hal/surface.hpp"
 #include "tessera/hal/timer/steady_time.hpp"
 #include "tessera/hal/window.hpp"
 
+#include <algorithm>
+#include <android/input.h>
 #include <android/native_window.h>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <memory>
+#include <span>
 
 namespace tessera::hal {
 namespace {
@@ -91,20 +97,30 @@ public:
     }
 
     std::size_t poll_events(std::span<WindowEvent> events) override {
-        // No event source is wired yet (see the file comment). The one event this backend can
-        // produce on its own is a resize the host reported through `set_surface_extent`, which is
-        // queued here and coalesced like every other geometry event.
-        if (pending_resize_ && !events.empty()) {
-            pending_resize_ = false;
+        // The events this backend produces are the ones the host reported through its setters. They
+        // are queued here and coalesced like every other geometry event: a resize, a safe-area
+        // change (insets or cutouts) and a fold change are each at most one pending event, so a
+        // burst of platform callbacks between two ticks costs one event per kind.
+        if (events.empty()) {
+            return 0;
+        }
+        std::size_t written = 0;
+        auto emit = [&](WindowEventType type, bool& pending) {
+            if (!pending || written == events.size()) {
+                return;
+            }
+            pending = false;
             WindowEvent event;
-            event.type = WindowEventType::Resize;
+            event.type = type;
             event.metrics = metrics_;
             event.reason = EventReason::Unspecified;
             event.sequence = ++sequence_;
-            events[0] = event;
-            return 1;
-        }
-        return 0;
+            events[written++] = event;
+        };
+        emit(WindowEventType::Resize, pending_resize_);
+        emit(WindowEventType::SafeAreaChanged, pending_safe_area_);
+        emit(WindowEventType::FoldChanged, pending_fold_);
+        return written;
     }
 
     bool wait_for_events(double timeout_seconds) override {
@@ -114,12 +130,18 @@ public:
         if (std::isfinite(timeout_seconds) && timeout_seconds > 0.0) {
             wait_until_seconds(steady_now_seconds() + timeout_seconds);
         }
-        return pending_resize_;
+        return pending_resize_ || pending_safe_area_ || pending_fold_;
     }
 
     void set_input_queue(ui::InputQueue* queue) override {
-        // Stored for the input-translation slice; nothing produces events yet.
-        input_queue_ = queue;
+        input_.set_queue(queue);
+        input_.set_scale(dpi_scale_);
+    }
+
+    // Translates one platform input event into the queue. Called by the host from its
+    // `onInputEvent` callback, on the thread that owns the window.
+    bool translate_input(const void* event) override {
+        return input_.translate(static_cast<const AInputEvent*>(event));
     }
 
     void show() override {
@@ -188,6 +210,59 @@ public:
         pending_resize_ = true;
     }
 
+    // The platform reported new window insets (a bar visibility change, a rotation, a fold). The
+    // values are physical pixels; the decode divides by the display scale.
+    void set_insets(const android::PhysicalInsets& system_bars, const android::PhysicalInsets& ime,
+                    const android::PhysicalInsets& gestures) {
+        metrics_.insets = android::system_bar_insets(system_bars, dpi_scale_);
+        metrics_.ime_insets = android::ime_insets(ime, dpi_scale_);
+        metrics_.gesture_insets = android::gesture_insets(gestures, dpi_scale_);
+        // The insets are now measured, so the "assumed" bits for them are cleared. The refresh and
+        // work-area bits stay set: this backend still has no source for those.
+        metrics_.assumed.work_area = 1;
+        pending_safe_area_ = true;
+    }
+
+    // The platform reported the display cutouts (`DisplayCutout.getBoundingRects()`).
+    void set_cutouts(std::span<const android::PhysicalRect> rects) {
+        metrics_.cutouts = android::cutout_info(rects, dpi_scale_);
+        pending_safe_area_ = true;
+    }
+
+    // The platform reported a fold posture (`FoldingFeature`).
+    void set_fold(android::FoldPosture posture, android::FoldAxis axis,
+                  const android::PhysicalRect& hinge) {
+        metrics_.fold = android::fold_info(posture, axis, hinge, dpi_scale_);
+        pending_fold_ = true;
+    }
+
+    // The HAL seam the JNI bridge calls (issue #189). It takes the platform's physical values and
+    // forwards them to the decode above, so the bridge never needs to know the layout rules.
+    void set_physical_insets(const Window::PhysicalInsets& system_bars,
+                             const Window::PhysicalInsets& ime,
+                             const Window::PhysicalInsets& gestures) override {
+        android::PhysicalInsets bars{system_bars.left, system_bars.top, system_bars.right,
+                                     system_bars.bottom};
+        android::PhysicalInsets keyboard{ime.left, ime.top, ime.right, ime.bottom};
+        android::PhysicalInsets gesture{gestures.left, gestures.top, gestures.right,
+                                        gestures.bottom};
+        set_insets(bars, keyboard, gesture);
+    }
+
+    void set_physical_cutouts(std::span<const Window::PhysicalRect> rects) override {
+        // The HAL type and the decode type are the same four numbers; the conversion is a copy so
+        // the public header does not have to expose the decode header.
+        std::array<android::PhysicalRect, kMaxCutouts> converted{};
+        const std::size_t count = std::min(rects.size(), converted.size());
+        for (std::size_t i = 0; i < count; ++i) {
+            converted[i].left = rects[i].left;
+            converted[i].top = rects[i].top;
+            converted[i].right = rects[i].right;
+            converted[i].bottom = rects[i].bottom;
+        }
+        set_cutouts(std::span<const android::PhysicalRect>(converted.data(), count));
+    }
+
     // The surface the renderer borrows. Invalid once the window is closed or replaced.
     [[nodiscard]] NativeSurface surface() const {
         SurfaceDesc desc;
@@ -231,11 +306,13 @@ private:
     std::uint32_t physical_height_ = 0;
     WindowMetrics metrics_{};
     SurfaceLifetime lifetime_;
-    ui::InputQueue* input_queue_ = nullptr;
+    AndroidInputTranslator input_;
     std::uint64_t sequence_ = 0;
     bool visible_ = true;
     bool closed_ = false;
     bool pending_resize_ = false;
+    bool pending_safe_area_ = false;
+    bool pending_fold_ = false;
 };
 
 } // namespace

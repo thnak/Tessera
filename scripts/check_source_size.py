@@ -59,6 +59,10 @@ EXEMPT_PARTS: Dict[str, str] = {
     "third_party": "vendored dependency, not ours to restyle",
     "poc": "Phase 0 proof-of-concept target (definition of done exception)",
     "golden": "generated golden (codegen output, never hand-split)",
+    # The Android app shell's Gradle/NDK build tree (issue #189). Gradle writes it under
+    # android/app/.cxx, which is not a `build*` prefix, so the prefix test below does not catch it.
+    ".cxx": "Android NDK build tree, not source",
+    ".gradle": "Gradle cache, not source",
 }
 EXEMPT_PREFIXES = ("build", ".git")
 
