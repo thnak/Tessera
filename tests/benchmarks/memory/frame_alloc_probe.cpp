@@ -14,7 +14,7 @@
 // process counts, including the ones the standard library makes for the code under test. Counting
 // is switched on only around the measured frames. No GPU, no window, no font, no wall clock.
 //
-// Usage: frame_alloc_probe [--frames N] [--warmup N] [--only SCENARIO --cards 10|200] |
+// Usage: frame_alloc_probe [--frames N] [--warmup N] [--only SCENARIO --cards N] |
 // --classcheck | --computecheck Output: one line per scenario, `name allocs/frame(min,mean,max)
 // bytes/frame(mean)`.
 
@@ -358,11 +358,14 @@ int main(int argc, char** argv) {
             only_cards = std::atoi(argv[i + 1]);
         }
     }
-    for (int cards : {10, 200}) {
+    std::vector<int> sizes{10, 200};
+    if (only != nullptr) {
+        sizes = {only_cards};
+    }
+    for (int cards : sizes) {
         for (Action action : {Action::Idle, Action::PaintDirty, Action::TextChange,
                               Action::ClassToggle, Action::LayoutDirty}) {
-            if (only != nullptr &&
-                (std::strcmp(only, name_of(action)) != 0 || cards != only_cards)) {
+            if (only != nullptr && std::strcmp(only, name_of(action)) != 0) {
                 continue;
             }
             measure(cards, action, warmup, frames);

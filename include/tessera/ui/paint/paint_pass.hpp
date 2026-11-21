@@ -101,6 +101,12 @@ public:
     // The paint pass reads colors and opacity from the result; nothing is written back to the
     // scene.
     virtual void overlay_style(NodeId node, style::ComputedStyle& style) const = 0;
+
+    // False when `overlay_style` would leave `node`'s style untouched, so the paint pass can read
+    // a cached style by reference instead of copying it to overlay nothing.
+    [[nodiscard]] virtual bool overlays(NodeId /*node*/) const {
+        return true;
+    }
 };
 
 // Optional per-paint context. Both caches are caller-owned (paint frame/sink) and deliberately not

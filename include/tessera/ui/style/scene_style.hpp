@@ -47,19 +47,22 @@ public:
                                         ContainerSizeFn container_size = nullptr,
                                         void* container_context = nullptr);
 
-    // A restyle-scoped memo (issue #711). Between `begin_memo` and `end_memo` each node's computed
-    // style is computed once from its parent's memoised style (instead of recomputing the whole
-    // ancestor chain per node, which made a node's cost proportional to its depth), and `resolve`
-    // hands out references into it. Only valid while the scene and stylesheet do not change; the
-    // host brackets one restyle with it. Container queries are not memoised (`compute` with a
+    // A per-generation memo (issue #711). Each node's computed style is computed once from its
+    // parent's memoised style (instead of recomputing the whole ancestor chain per node, which made
+    // a node's cost proportional to its depth), and `resolve` hands out references into it.
+    // `begin_memo` starts a generation; the entries stay valid after `end_memo` so the paint pass
+    // reads them instead of re-cascading every culled node. A generation is one selector tree:
+    // every style input (class, id, attribute, pseudo-state, inline style, theme, media) marks
+    // `Dirty::Style`, which makes the host rebuild the tree and restyle, so a stale entry never
+    // outlives the edit that changed it. Container queries are not memoised (`compute` with a
     // container source keeps the chain walk).
     void begin_memo();
     void end_memo();
     [[nodiscard]] bool memo_active() const {
         return memo_active_;
     }
-    // Same value as `compute(sheet, node)`, without a copy; the reference lives until `end_memo`.
-    // Requires an active memo.
+    // Same value as `compute(sheet, node)`, without a copy; the reference lives until the next
+    // `begin_memo` or the tree's destruction. Requires an active memo.
     [[nodiscard]] const ComputedStyle& resolve(const CompiledStyleSheet& sheet, const Node& node);
 
 private:

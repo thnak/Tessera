@@ -247,20 +247,30 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
     // record is painted too, so its record is refreshed rather than going stale for a later clean
     // paint; the pipeline's damage always covers a dirty node, a caller's rect need not.
     const bool records_dirty = pass.cacheable && node.dirty() != Dirty::Clean;
-    std::optional<style::ComputedStyle> culled_style;
+    // Read by reference from the provider's cache; copied only when the view overlays this node.
+    std::optional<style::ComputedStyle> overlaid_style;
+    const style::ComputedStyle* culled_style = nullptr;
     detail::CullVerdict verdict = detail::CullVerdict::Paint;
     if (pass.cull != nullptr && !open_frame && !records_dirty &&
         !detail::reaches_cull(node, painted_world, *pass.cull)) {
         if (!node.children().empty()) {
             // A culled node with children pays the cascade anyway: whether its children can escape
             // its box is a style question (overflow), and so is the opacity they compose with.
-            culled_style.emplace(styles.compute(node));
-            if (context.view != nullptr) {
-                context.view->overlay_style(node.id(), *culled_style);
+            culled_style = &styles.resolve(node);
+            if (context.view != nullptr && context.view->overlays(node.id())) {
+                overlaid_style.emplace(*culled_style);
+                context.view->overlay_style(node.id(), *overlaid_style);
+                culled_style = &*overlaid_style;
             }
         }
-        verdict = detail::cull_verdict(node, rect, painted_frame,
-                                       culled_style.has_value() ? &*culled_style : nullptr);
+        verdict = detail::cull_verdict(node, rect, painted_frame, culled_style);
+        if (verdict == detail::CullVerdict::Paint && culled_style != nullptr &&
+            !overlaid_style.has_value()) {
+            // The node is painted after all: own the style, a provider reference may not outlive
+            // the recursion.
+            overlaid_style.emplace(*culled_style);
+            culled_style = &*overlaid_style;
+        }
     }
     if (verdict != detail::CullVerdict::Paint) {
         ++stats.culled_nodes;
@@ -330,7 +340,7 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
     }
 
     style::ComputedStyle style =
-        culled_style.has_value() ? std::move(*culled_style) : styles.compute(node);
+        overlaid_style.has_value() ? std::move(*overlaid_style) : styles.compute(node);
     if (context.view != nullptr) {
         // Paint-only: the override is applied to this local copy, never to the scene or the
         // caller's style provider.
