@@ -19,6 +19,7 @@
 //     (sections 3.5 and 3.6), so the metrics carry the documented zero-inset fallback.
 //   - IME and accessibility (sections 3.3 and 3.4).
 
+#include "scene.hpp"
 #include "tessera/app/window.hpp"
 #include "tessera/hal/window.hpp"
 
@@ -53,6 +54,10 @@ float display_scale(android_app* app) {
 // One app instance: the scene and stylesheet the host runs, plus the host itself, which only exists
 // while the OS has given us a surface.
 struct AppState {
+    // The scene outlives the host: the host borrows the root and owns the compiled stylesheet, so
+    // the scene is created once and the host is created and destroyed around it as surfaces come
+    // and go.
+    std::unique_ptr<tessera::android_shell::ShellScene> scene;
     std::unique_ptr<tessera::app::WindowHost> host;
     bool has_focus = false;
 };
@@ -72,14 +77,23 @@ void on_app_cmd(android_app* app, int32_t command) {
             options.surface.token = app->window;
             options.dpi_scale = display_scale(app);
             log_info("surface acquired; starting the window host");
-            // The scene and stylesheet are the app's own; this shell has none yet, so the host is
-            // created empty and reports unavailable. A real app supplies them here.
-            state->host = nullptr;
+            // The scene is created once and reused across surface loss: a backgrounded app keeps
+            // its state, which is what a user expects when they come back to it.
+            if (state->scene == nullptr) {
+                state->scene = std::make_unique<tessera::android_shell::ShellScene>();
+            }
+            state->host = std::make_unique<tessera::app::WindowHost>(
+                state->scene->root, tessera::android_shell::shell_stylesheet(), options,
+                &state->scene->scheduler);
+            if (!state->host->available()) {
+                log_info("the window host is unavailable; no frame will be presented");
+            }
         }
         break;
     case APP_CMD_TERM_WINDOW:
         // The surface is going away. Destroy the host BEFORE the window can be reused, so no
-        // renderer holds a borrowed surface that outlives it.
+        // renderer holds a borrowed surface that outlives it. The scene survives, so the app keeps
+        // its state across a background/foreground cycle.
         log_info("surface lost; stopping the window host");
         state->host.reset();
         break;
