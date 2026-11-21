@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: MIT
 
 add_library(tessera_behavior STATIC
+    instance.cpp
     press_feedback.cpp
     registry.cpp)
 
@@ -30,4 +31,9 @@ if (TESSERA_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/unit/behavior_allocation_tests.cpp)
     target_link_libraries(behavior_allocation_tests PRIVATE tessera_behavior)
     add_test(NAME behavior_allocation COMMAND behavior_allocation_tests)
+
+    add_executable(behavior_instance_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/behavior_instance_tests.cpp)
+    target_link_libraries(behavior_instance_tests PRIVATE tessera_behavior)
+    add_test(NAME behavior_instance COMMAND behavior_instance_tests)
 endif()

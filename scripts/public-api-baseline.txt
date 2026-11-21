@@ -1836,6 +1836,10 @@ struct include/tessera/ui/behavior/behavior.hpp tessera::ui::behavior::OutputVal
 struct include/tessera/ui/behavior/behavior.hpp tessera::ui::behavior::Services
 struct include/tessera/ui/behavior/behavior.hpp tessera::ui::behavior::Targets
 
+header include/tessera/ui/behavior/instance.hpp
+class include/tessera/ui/behavior/instance.hpp tessera::ui::behavior::Instance
+function include/tessera/ui/behavior/instance.hpp tessera::ui::behavior::hash_args
+
 header include/tessera/ui/behavior/press_feedback.hpp
 class include/tessera/ui/behavior/press_feedback.hpp tessera::ui::behavior::PressFeedback
 
