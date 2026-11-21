@@ -5,6 +5,13 @@
 /cmake-build-*/
 /artifacts/
 
+# Android app shell (issue #189): Gradle and the NDK's CMake both write into android/.
+/android/.gradle/
+/android/build/
+/android/app/build/
+/android/app/.cxx/
+/android/local.properties
+
 # CMake
 CMakeCache.txt
 CMakeFiles/

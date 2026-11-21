@@ -168,6 +168,11 @@ class PinChecker:
             # pin expression and the gate fails on a declaration that fetches nothing.
             "CMAKE_BINARY_DIR": str(self.repo_root / "build"),
             "CMAKE_COMMAND": "cmake",
+            # A project variable assigned inside an `if` block is invisible to the scan below, which
+            # only records top-level `set()` calls. `TESSERA_HOST_CMAKE` is the cmake used for a
+            # host-tool ExternalProject (the NDK's bundled one may be too old for the host's
+            # generator), so it is a path, not a fetch pin.
+            "TESSERA_HOST_CMAKE": "cmake",
         }
         for name, value in builtins.items():
             resolved = resolved.replace("${" + name + "}", value)
