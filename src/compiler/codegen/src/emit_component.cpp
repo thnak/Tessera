@@ -205,7 +205,9 @@ bool emit_source(const ir::Component& component, const ir::IrModule& module,
         return false;
     }
     // `environment` hook values (issue #692): the equality-gated setters the host calls.
-    emit_environment_definitions(writer, component, module);
+    if (!emit_environment_definitions(writer, component, module, error)) {
+        return false;
+    }
     emit_snapshot_definition(writer, component);
     emit_size_observation_definitions(writer, component, module, adapters, instances);
     emit_controlled_accessors(writer, component, controlled_inputs);

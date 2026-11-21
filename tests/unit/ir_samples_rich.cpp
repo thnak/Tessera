@@ -107,8 +107,14 @@ ir::IrModule make_rich_module() {
                             span(150, 60, 12, 5, 14, 8)});
     list.refs.push_back({"ref::box", "box", "node::1"});
     list.animated_values.push_back({"anim::fade", "fade", "float", ir::make_literal(1.0)});
-    list.environment.push_back(
-        {"env::theme", "theme", "theme", "string", true, span(20, 30, 3, 3, 3, 33)});
+    ir::Environment theme_env;
+    theme_env.id = "env::theme";
+    theme_env.name = "theme";
+    theme_env.provider = "theme";
+    theme_env.type = "string";
+    theme_env.writable = true;
+    theme_env.source = span(20, 30, 3, 3, 3, 33);
+    list.environment.push_back(std::move(theme_env));
     list.root = make_root();
     module.components.push_back(std::move(list));
 

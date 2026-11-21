@@ -1,22 +1,32 @@
-hook: usePressFeedback spec, and make `disabled` real (#628)
+hook: useMediaQuery, one evaluator shared with the cascade (#631)
 
-`usePressFeedback` had an implementation and tests but no contract, and its
-one declared option was never read: `disabled` was in the manifest, the
-analyzer accepted it, and the behavior ignored it, so a disabled button
-reported itself pressed.
+`useMediaQuery("(min-width: 600px)")` returns a reactive boolean for one
+media query. The rule the issue states is "consistent with useBreakpoint
+and the stylesheet's media evaluation (same engine path, no second
+evaluator)", so the hook calls `style::parse_media_query_list` and
+`style::evaluate` — the same two functions the cascade calls — and nothing
+else. `media_query_match` proves the agreement directly: for every query
+and width in its table, the hook's answer equals the cascade's, and a
+query written at a size-class threshold matches exactly when the class is
+on the corresponding side of it.
 
-The spec (`docs/specs/use-press-feedback-v1.md`) states ten rules with an
-evidence row each. Writing it is what surfaced the gap: rule 5 says a
-disabled target never reports `pressed` while still reporting `hovered` and
-`focused` (ADR-064 item 9: a disabled control stays focusable and explains
-why), and nothing implemented it.
+This is the first `environment` hook that takes an argument, which the
+path did not support: it assumed zero parameters and a string return. The
+manifest now declares a `value` parameter, the analyzer derives its arity
+from the manifest rather than a name check, the IR carries the argument,
+and codegen emits a `bool` field, one parsed matcher, and a
+`set_environment_<name>_context(const style::MediaContext&)` the host
+calls with the same context the cascade resolves against. A media query
+registers no string consumer, because it is not pushed as a value: the
+component evaluates its own parsed query.
 
-The behavior now reads `disabled` at attach and on update, and suppresses
-`pressed` only. `test_disabled_suppresses_pressed_only` pins both
-directions, including that clearing the option lets the press through
-again.
+A malformed query is `false` rather than an error: a media query is a
+string a component may build at runtime, and a bad one must not take the
+frame down. An unevaluated query is also `false`, so a component renders
+its non-matching layout for the first frame rather than claiming a match
+it has not checked.
 
-The spec also records what the hook deliberately does not do: it does not
-set `aria-pressed` from `press.pressed`, because `aria-pressed` is a toggle
-state and `press.pressed` is a transient interaction; a component that
-conflated them would announce a toggle that flips on every click.
+Evidence: `media_query_match` (8 rules, including the cascade agreement
+and the size-class agreement), `codegen_environment` (the generated
+surface) and `hook_manifest` (the entry's shape). Spec:
+`docs/specs/use-media-query-v1.md`.

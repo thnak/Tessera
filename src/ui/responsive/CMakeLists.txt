@@ -28,6 +28,13 @@ if (TESSERA_BUILD_TESTS)
     target_link_libraries(size_class_tests PRIVATE tessera_responsive)
     add_test(NAME size_class COMMAND size_class_tests)
 
+    # `useMediaQuery`'s engine half (issue #631): the hook and the cascade must answer the same
+    # question the same way, because both call the stylesheet's own evaluator.
+    add_executable(media_query_match_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/media_query_match_tests.cpp)
+    target_link_libraries(media_query_match_tests PRIVATE tessera_responsive)
+    add_test(NAME media_query_match COMMAND media_query_match_tests)
+
     # The host half of `useBreakpoint()` (issue #692): the class from the media context, pushed to
     # the registered consumers after a size change, and nothing pushed inside one class.
     add_executable(breakpoint_host_tests

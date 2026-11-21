@@ -47,10 +47,11 @@ bool test_committed_manifest_parses() {
     if (!expect(manifest.has_value(), "the committed manifest parses: " + error.detail)) {
         return false;
     }
-    bool ok = expect(manifest->hooks.size() == 6, "the manifest declares six hooks");
+    bool ok = expect(manifest->hooks.size() == 7, "the manifest declares seven hooks");
     ok = expect(manifest->find("useTheme") != nullptr, "useTheme is declared") && ok;
     ok = expect(manifest->find("useThemeState") != nullptr, "useThemeState is declared") && ok;
     ok = expect(manifest->find("useBreakpoint") != nullptr, "useBreakpoint is declared") && ok;
+    ok = expect(manifest->find("useMediaQuery") != nullptr, "useMediaQuery is declared") && ok;
     ok = expect(manifest->find("useFocusTrap") != nullptr, "useFocusTrap is declared") && ok;
     ok = expect(manifest->find("useListFocus") != nullptr, "useListFocus is declared") && ok;
     ok =
@@ -128,6 +129,22 @@ bool test_behavior_lowering() {
         expect(list != nullptr && list->outputs.size() == 1 && list->outputs.front().ir == "number",
                "useListFocus returns one numeric output") &&
         ok;
+    // `useMediaQuery` (issue #631): an environment hook with one string parameter and a boolean
+    // return, so the analyzer's arity check is the manifest's answer rather than a name check.
+    const auto* media = manifest->find("useMediaQuery");
+    ok = expect(media != nullptr && media->lowering == HookLoweringKind::Environment,
+                "useMediaQuery is an environment hook") &&
+         ok;
+    ok = expect(media != nullptr && media->provider == "media_query",
+                "useMediaQuery names the media_query provider") &&
+         ok;
+    ok = expect(media != nullptr && media->params.size() == 1 &&
+                    media->params.front().kind == "value",
+                "useMediaQuery takes one value parameter") &&
+         ok;
+    ok = expect(media != nullptr && media->returns_ir == "bool",
+                "useMediaQuery returns a boolean") &&
+         ok;
     return ok;
 }
 

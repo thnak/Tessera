@@ -66,8 +66,13 @@ ir::IrModule make_module() {
     component.component_id = "71";
     component.name = "Breakpoints";
     component.source = span(0, 1);
-    component.environment.push_back(
-        ir::Environment{"env::bp", "bp", "breakpoint", "string", false, span(10, 20)});
+    ir::Environment env;
+    env.id = "env::bp";
+    env.name = "bp";
+    env.provider = "breakpoint";
+    env.type = "string";
+    env.source = span(10, 20);
+    component.environment.push_back(std::move(env));
     component.root = node_of(ir::NodeKind::View, "node::1", "501", 30);
     ir::Node label = node_of(ir::NodeKind::Text, "node::2", "502", 40);
     label.text = ir::make_ref("env::bp");
@@ -161,12 +166,70 @@ void test_no_surface_without_a_hook() {
           "a component that reads no environment value gets no environment field");
 }
 
+// `useMediaQuery` (issue #631): a boolean field, a matcher parsed once from the IR argument, and a
+// context setter the host calls with the window's media context. The hook evaluates the query with
+// the stylesheet's own evaluator, so it registers no string consumer.
+ir::IrModule make_media_query_module() {
+    ir::IrModule module;
+    module.name = "mediaquery";
+
+    ir::Component component;
+    component.id = "comp::MediaQuery";
+    component.component_id = "73";
+    component.name = "MediaQuery";
+    component.source = span(0, 1);
+    ir::Environment env;
+    env.id = "env::wide";
+    env.name = "wide";
+    env.provider = "media_query";
+    env.type = "bool";
+    ir::ExprPtr query = ir::make_literal(std::string("(min-width: 600px)"));
+    env.argument = std::move(*query);
+    env.source = span(10, 20);
+    component.environment.push_back(std::move(env));
+
+    component.root = node_of(ir::NodeKind::View, "node::1", "701", 30);
+    ir::Node label = node_of(ir::NodeKind::Text, "node::2", "702", 40);
+    label.text = ir::make_ref("env::wide");
+    component.root.children.push_back(std::move(label));
+    module.components.push_back(std::move(component));
+    return module;
+}
+
+void test_media_query_surface() {
+    const auto result = codegen::generate(make_media_query_module());
+    check(result.has_value(), "the media-query fixture generates: " + first_error(result));
+    if (!result) {
+        return;
+    }
+    const std::string header = file_text(*result, "MediaQuery.g.hpp");
+    check(!header.empty(), "the media-query base header is generated");
+    check(contains(header, "bool env_wide_ = false;"),
+          "a media query starts unmatched, the safe first frame");
+    check(contains(header, "tessera::ui::responsive::MediaQueryMatcher env_wide_matcher_;"),
+          "the query is parsed once into a matcher");
+    check(contains(header, "void parse_environment_wide();"),
+          "the query is parsed from the IR argument");
+    check(contains(header, "matcher_.parse(\"(min-width: 600px)\")"),
+          "the parse call carries the IR argument");
+    check(contains(header, "void set_environment_wide_context(const "
+                           "tessera::ui::style::MediaContext& context);"),
+          "the host hands the component the media context");
+    check(contains(header, "matcher_.matches(context)"),
+          "the hook evaluates with the stylesheet's own evaluator");
+    check(contains(header, "#include \"tessera/ui/responsive/media_query_match.hpp\""),
+          "the base includes the matcher");
+    check(!contains(header, "set_environment_wide_thunk"),
+          "a media query registers no string consumer");
+}
+
 } // namespace
 
 int main() {
     test_fixture_is_valid();
     test_generated_surface();
     test_no_surface_without_a_hook();
+    test_media_query_surface();
     if (failures != 0) {
         std::cerr << failures << " check(s) failed\n";
         return 1;

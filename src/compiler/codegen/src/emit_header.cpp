@@ -143,6 +143,14 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
     // `environment` hook values (issue #692): the consumer set the host pushes a new class through.
     if (has_environment(component)) {
         writer.line("#include \"tessera/ui/responsive/environment_set.hpp\"");
+        // A `useMediaQuery` hook parses and evaluates its query with the stylesheet's own evaluator
+        // (issue #631), so the base needs the matcher and the media context.
+        for (const ir::Environment& env : component.environment) {
+            if (env.provider == "media_query") {
+                writer.line("#include \"tessera/ui/responsive/media_query_match.hpp\"");
+                break;
+            }
+        }
     }
     writer.line("");
     writer.line("#include <cstdint>");
