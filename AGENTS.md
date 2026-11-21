@@ -510,6 +510,16 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
       evaluation, no layer budget).
 - [ ] Behavior hook engine and core hooks (ADR-064 item 7; waits for ADR-064 Accepted, after spikes
       #658 and #662): engine interface, registry and `press_feedback` #640, then #624 to #635.
+- [ ] GPU for CPU-produced pixels (measured 2026-11-21 at 4K on the RX 5300M and the iGPU:
+      ThorVG raster 14.9 to 30.9 ms, upload 4 to 6 ms CPU side with 46 to 55 ms spikes, image
+      resample 58 ms per miss; budget is 16.7 ms at 60 Hz, 4.2 ms at 240 Hz). Upload path first,
+      #681 (staging ring, `write_region`, dirty rects) and #682 (no CPU image resample), both
+      `ready` and independent of the path decision. Vector paths go to a GPU compute tile
+      rasterizer, owner direction "best performance, cost is not a criterion": #683 ADR + 4K spike
+      (`spike`, `ready`, amends ADR-057), then #684 RHI 1.10 compute (waits for #683 Accepted and
+      #669), then #685 the GPU path renderer (waits for #683 and #684), then #686 the glyph
+      rasterization measurement. Measurement tool:
+      `tests/gpu/batched2d/cpu_to_gpu_4k_measure.cpp`.
 
 
 ### V1-M2 Compiler and animation ([milestone 2](https://github.com/thnak/Tessera/milestone/2)) — Big Step C
