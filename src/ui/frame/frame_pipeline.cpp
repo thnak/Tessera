@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT
 
 #include "node_lookup.hpp"
 #include "redraw_cull.hpp"
@@ -24,17 +24,9 @@ namespace {
 
 namespace rhi = tessera::rendering::rhi;
 
-// Adapts the paint provider (compiled stylesheet, animation overlay or a test stub) to the
-// interaction sync so the scene gets `pointer-events`/`user-select` from the same computed style
-// paint and layout see.
-const style::ComputedStyle& interaction_style_thunk(void* context, const Node& node) {
-    return static_cast<paint::StyleProvider*>(context)->resolve(node);
-}
-
-// An empty `@keyframes` table for a sheet without animations or a pipeline with no keyframes
-// installed. A namespace-scope object rather than a function-local static, so the style stage does
-// not pay a thread-safe-init guard per frame.
-const std::vector<style::KeyframeBlock> kNoKeyframes;
+// `interaction_style_thunk` and `kNoKeyframes` moved to frame_style_sync.cpp with the sync half of
+// the pipeline (issue #735, slice B). They are not needed here, and GCC rejects an unused
+// file-local function under -Werror.
 
 rendering::RedrawPlan normalized_plan(rendering::RedrawPlan plan, rendering::rhi::Extent2D target,
                                       const rendering::RedrawPolicy& policy) {
