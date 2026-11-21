@@ -91,8 +91,7 @@ target_include_directories(tessera_hal_window PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR})
 
 if (WIN32)
-    target_sources(tessera_hal_window PRIVATE
-        ${PROJECT_SOURCE_DIR}/src/platform/windows/window.cpp
+    target_sources(tessera_hal_window PRIVATE        ${PROJECT_SOURCE_DIR}/src/platform/windows/window.cpp
         ${PROJECT_SOURCE_DIR}/src/platform/windows/window_accessibility.cpp
         ${PROJECT_SOURCE_DIR}/src/platform/windows/window_backdrop.cpp
         # Custom title-bar hit test and full-screen (issue #232), outside window.cpp's size budget.
@@ -207,6 +206,17 @@ elseif (TESSERA_X11_FOUND OR TESSERA_WAYLAND_FOUND)
         target_link_directories(tessera_hal_window PRIVATE ${TESSERA_WAYLAND_CLIENT_LIBRARY_DIRS})
         message(STATUS "Wayland window backend enabled: Linux Wayland windows and xdg-shell")
     endif()
+elseif (ANDROID)
+    # Android has no window manager a native process can create a window in: the OS owns the
+    # surface and hands the app an ANativeWindow*. The backend therefore adopts one instead of
+    # creating it (issue #189), and `create_window()` keeps the documented "no backend" answer
+    # because there is no descriptor that could produce a surface on its own.
+    target_sources(tessera_hal_window PRIVATE
+        ${PROJECT_SOURCE_DIR}/src/platform/android/window_android.cpp)
+    target_include_directories(tessera_hal_window PRIVATE
+        ${PROJECT_SOURCE_DIR}/src/platform/android)
+    # libandroid provides ANativeWindow_acquire/release and the extent queries.
+    target_link_libraries(tessera_hal_window PUBLIC android)
 else()
     target_sources(tessera_hal_window PRIVATE
         window_stub.cpp)

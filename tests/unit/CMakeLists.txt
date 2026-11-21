@@ -819,6 +819,16 @@ target_link_libraries(android_surface_platform_tests PRIVATE tessera_rhi)
 
 add_test(NAME android_surface_platform COMMAND android_surface_platform_tests)
 
+# Android window backend (issue #189): the density arithmetic and the family enumerator. Links only
+# the HAL window seam, so it runs on every lane; the extent/scale setters need a real ANativeWindow
+# and are covered by the emulator lane.
+add_executable(android_window_tests
+    hal/android_window_tests.cpp)
+
+target_link_libraries(android_window_tests PRIVATE tessera_hal_window)
+
+add_test(NAME android_window COMMAND android_window_tests)
+
 add_executable(diagnostics_crash_tests
     diagnostics_crash_tests.cpp)
 

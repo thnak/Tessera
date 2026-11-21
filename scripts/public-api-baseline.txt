@@ -670,6 +670,9 @@ header include/tessera/hal/geometry.hpp
 struct include/tessera/hal/geometry.hpp tessera::hal::WindowInsets
 struct include/tessera/hal/geometry.hpp tessera::hal::WindowRect
 
+header include/tessera/hal/native_surface_token.hpp
+struct include/tessera/hal/native_surface_token.hpp tessera::hal::NativeSurfaceToken
+
 header include/tessera/hal/os_event.hpp
 struct include/tessera/hal/os_event.hpp tessera::hal::OsEvent
 struct include/tessera/hal/os_event.hpp tessera::hal::OsEventSequence
@@ -757,12 +760,9 @@ function include/tessera/hal/timer/steady_time.hpp tessera::hal::wait_until_seco
 header include/tessera/hal/window.hpp
 class include/tessera/hal/window.hpp tessera::hal::Window
 class include/tessera/hal/window.hpp tessera::ui::InputQueue
-struct include/tessera/hal/window.hpp tessera::hal::AccessibilityHostHandle
 struct include/tessera/hal/window.hpp tessera::hal::AccessibilityRoot
 struct include/tessera/hal/window.hpp tessera::hal::CutoutInfo
 struct include/tessera/hal/window.hpp tessera::hal::FoldInfo
-struct include/tessera/hal/window.hpp tessera::hal::NativeWindowHandle
-struct include/tessera/hal/window.hpp tessera::hal::WindowDesc
 struct include/tessera/hal/window.hpp tessera::hal::WindowEvent
 struct include/tessera/hal/window.hpp tessera::hal::WindowMetrics
 enum include/tessera/hal/window.hpp tessera::hal::FoldOcclusion
@@ -790,6 +790,11 @@ function include/tessera/hal/window_backdrop.hpp tessera::hal::backdrop_material
 function include/tessera/hal/window_backdrop.hpp tessera::hal::resolve_window_backdrop
 function include/tessera/hal/window_backdrop.hpp tessera::hal::window_backdrop_from_name
 function include/tessera/hal/window_backdrop.hpp tessera::hal::window_backdrop_name
+
+header include/tessera/hal/window_desc.hpp
+struct include/tessera/hal/window_desc.hpp tessera::hal::AccessibilityHostHandle
+struct include/tessera/hal/window_desc.hpp tessera::hal::NativeWindowHandle
+struct include/tessera/hal/window_desc.hpp tessera::hal::WindowDesc
 
 header include/tessera/hal/window_wait.hpp
 enum include/tessera/hal/window_wait.hpp tessera::hal::WaitOutcome

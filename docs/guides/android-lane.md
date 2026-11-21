@@ -70,20 +70,92 @@ readers (`ir_json_tests`, `lowering_golden_tests`, `schema_golden_tests`) were a
   graphics-capable queue family can present to an `ANativeWindow`, so the probe is the queue family
   itself.
 
-What is still missing is the **window**: `src/platform/android/` holds only `.gitkeep`, so
-`hal::create_window()` returns `nullptr` and nothing produces an `ANativeWindow*` to hand to the
-surface. `tessera_app_window` is also gated on `NOT CMAKE_CROSSCOMPILING`, so the window driver does
-not exist in an Android build even once a window backend lands. Until both are addressed the Vulkan
-backend is buildable and testable offscreen, not presentable.
+### 3.1 The window backend adopts a surface, it does not create one
 
-The emulator does expose Vulkan, and the version matters:
+Android has no window manager a native process can create a window in: the OS owns the surface and
+hands the app an `ANativeWindow*` (from a `SurfaceView`/`TextureView` holder, or `NativeActivity`).
+So `src/platform/android/window_android.cpp` **adopts** the handle the host already owns:
+
+```cpp
+std::unique_ptr<hal::Window> create_android_window(ANativeWindow* window,
+                                                   const WindowDesc& desc, float dpi_scale);
+```
+
+`hal::create_window()` keeps returning `nullptr` on Android, which is the documented "no backend"
+answer: no `WindowDesc` can produce a surface on its own. A host calls `create_android_window`
+instead, and the backend takes its own `ANativeWindow_acquire` reference so the host may release
+its own at any point.
+
+The backend reports the surface extent, the density scale and `WindowSystem::Android`, and revokes
+the borrowed `NativeSurface` when the host replaces or closes the surface — a renderer can never
+present into a dead window. It does **not** translate input (`MotionEvent`/`KeyEvent` arrive through
+the host's own callbacks; `set_input_queue` stores the queue for that slice) and does **not** report
+insets, cutouts or fold state (those need `WindowInsets`/`WindowMetricsCalculator` over JNI). The
+metrics carry the documented zero-inset fallback with the "assumed" bits set, so a consumer cannot
+mistake an unwired source for a measurement.
+
+### 3.2 The window driver builds for Android
+
+`tessera_app_window` used to be gated on `NOT CMAKE_CROSSCOMPILING`, so it did not exist in an
+Android build. The gate now admits Android (`NOT CMAKE_CROSSCOMPILING OR ANDROID`), and the driver
+reaches the surface through an opaque token rather than an Android type:
+
+```cpp
+// include/tessera/hal/native_surface_token.hpp
+struct NativeSurfaceToken { void* token = nullptr; };
+
+// include/tessera/app/window.hpp
+struct WindowOptions {
+    hal::NativeSurfaceToken surface;  // null on every platform that creates its own window
+    float dpi_scale = 1.0f;
+};
+```
+
+The token is opaque for the same reason `AccessibilityHostHandle` is: only a platform translation
+unit may interpret it, so `include/tessera/app/window.hpp` stays OS-free (ADR-020 rule 1). On
+Android it is the `ANativeWindow*` from the `SurfaceView`/`TextureView` holder or `NativeActivity`,
+and `hal::create_window` returns `nullptr` when it is null — the documented "no surface yet" answer.
+
+### 3.3 The app shell
+
+`android/` holds the Gradle project and the native entry point:
+
+| Path | What it is |
+|---|---|
+| `android/app/src/main/AndroidManifest.xml` | `NativeActivity`, the Vulkan feature requirements, and the `configChanges` contract |
+| `android/app/src/main/cpp/android_main.cpp` | `android_main`: waits for the OS to hand over an `ANativeWindow`, then creates the host |
+| `android/app/src/main/cpp/CMakeLists.txt` | the `tessera_android_app` shared library, linking `tessera_app_window` |
+| `android/app/build.gradle.kts` | compiles the engine through the same CMake project and packages the APK |
+
+The manifest declares only what the engine can honour. `localeConfig`, `networkSecurityConfig`,
+`enableOnBackInvokedCallback` and `POST_NOTIFICATIONS` are deliberately absent: declaring a
+capability the app cannot honour routes platform events to a handler that does not exist.
+
+`android_main` creates the host on `APP_CMD_INIT_WINDOW` and destroys it on `APP_CMD_TERM_WINDOW`,
+so the host is gone before the window can be reused — the surface-lifecycle rule from
+`docs/design/mobile-integration.md` section 3.1. It does not run the frame loop on the glue thread:
+`WindowHost` is single-threaded and must be created, run and destroyed on the thread that owns the
+window.
+
+### 3.4 What is still missing
+
+- **Input.** `AInputEvent` arrives in `android_main` and is dropped (`onInputEvent` returns 0, so the
+  platform falls back to its own behaviour). Translating `MotionEvent`/`KeyEvent` into
+  `ui::InputEvent` is `docs/design/mobile-integration.md` section 3.2.
+- **Insets, cutouts, fold.** These need `WindowInsets`/`WindowMetricsCalculator` over JNI
+  (sections 3.5 and 3.6); the metrics carry the documented zero-inset fallback.
+- **IME and accessibility** (sections 3.3 and 3.4).
+- **A scene.** `android_main` creates the host with no scene or stylesheet, so it reports
+  unavailable. A real app supplies them where the shell has the comment.
+
+### 3.5 Emulator GPU mode matters
 
 | Emulator GPU mode | Device | API version | Tessera accepts? |
 |---|---|---|---|
 | `-gpu swiftshader_indirect` (the CI default) | SwiftShader | 1.2.0 | **No** — `choose_device` requires 1.3 |
 | `-gpu host` | the host GPU (passthrough) | 1.3.0+ | Yes |
 
-So a lane that wants to exercise the real renderer must boot with `-gpu host`; the default software
+A lane that wants to exercise the real renderer must boot with `-gpu host`; the default software
 renderer is below the minimum the device-selection policy enforces
 (`src/rendering/backend/vulkan/src/vulkan_device_selection.hpp`).
 

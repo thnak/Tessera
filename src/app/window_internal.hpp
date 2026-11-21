@@ -43,6 +43,8 @@ inline rhi::SurfacePlatform surface_platform_for(hal::WindowSystem window_system
         return rhi::SurfacePlatform::Xlib;
     case hal::WindowSystem::Wayland:
         return rhi::SurfacePlatform::Wayland;
+    case hal::WindowSystem::Android:
+        return rhi::SurfacePlatform::Android;
     case hal::WindowSystem::NoWindow:
         break;
     }
