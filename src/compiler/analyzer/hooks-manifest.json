@@ -89,6 +89,26 @@
       "lowering": { "kind": "behavior", "behavior": "scroll_lock", "exclusive": true }
     },
     {
+      "name": "useHotkeys",
+      "params": [
+        {
+          "name": "options",
+          "kind": "options",
+          "ts": "HotkeysOptions",
+          "ir": "record",
+          "fields": [
+            { "name": "chords", "ts": "string", "ir": "string" },
+            { "name": "allowInTextInput", "ts": "boolean", "ir": "bool", "default": false },
+            { "name": "repeat", "ts": "boolean", "ir": "bool", "default": false }
+          ]
+        }
+      ],
+      "returns": {
+        "fields": [{ "name": "registered", "ts": "boolean", "ir": "bool", "default": false }]
+      },
+      "lowering": { "kind": "behavior", "behavior": "hotkeys" }
+    },
+    {
       "name": "usePressFeedback",
       "params": [
         { "name": "target", "kind": "ref", "ts": "Element", "ir": "ref" },

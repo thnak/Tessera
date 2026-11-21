@@ -47,7 +47,7 @@ bool test_committed_manifest_parses() {
     if (!expect(manifest.has_value(), "the committed manifest parses: " + error.detail)) {
         return false;
     }
-    bool ok = expect(manifest->hooks.size() == 8, "the manifest declares eight hooks");
+    bool ok = expect(manifest->hooks.size() == 9, "the manifest declares nine hooks");
     ok = expect(manifest->find("useTheme") != nullptr, "useTheme is declared") && ok;
     ok = expect(manifest->find("useThemeState") != nullptr, "useThemeState is declared") && ok;
     ok = expect(manifest->find("useBreakpoint") != nullptr, "useBreakpoint is declared") && ok;
@@ -55,6 +55,7 @@ bool test_committed_manifest_parses() {
     ok = expect(manifest->find("useFocusTrap") != nullptr, "useFocusTrap is declared") && ok;
     ok = expect(manifest->find("useListFocus") != nullptr, "useListFocus is declared") && ok;
     ok = expect(manifest->find("useScrollLock") != nullptr, "useScrollLock is declared") && ok;
+    ok = expect(manifest->find("useHotkeys") != nullptr, "useHotkeys is declared") && ok;
     ok =
         expect(manifest->find("usePressFeedback") != nullptr, "usePressFeedback is declared") && ok;
     return ok;
@@ -157,6 +158,21 @@ bool test_behavior_lowering() {
     ok = expect(lock != nullptr && lock->exclusive, "useScrollLock is exclusive") && ok;
     ok = expect(lock != nullptr && lock->outputs.size() == 1, "useScrollLock returns one output") &&
          ok;
+    // `useHotkeys` (issue #627): no target ref (a shortcut belongs to the window), one options
+    // object, one output.
+    const auto* keys = manifest->find("useHotkeys");
+    ok = expect(keys != nullptr && keys->lowering == HookLoweringKind::Behavior,
+                "useHotkeys is a behavior hook") &&
+         ok;
+    ok = expect(keys != nullptr && keys->provider == "hotkeys",
+                "useHotkeys names the hotkeys behavior") &&
+         ok;
+    ok = expect(keys != nullptr && keys->params.size() == 1 &&
+                    keys->params.front().kind == "options",
+                "useHotkeys takes only an options object") &&
+         ok;
+    ok =
+        expect(keys != nullptr && keys->outputs.size() == 1, "useHotkeys returns one output") && ok;
     return ok;
 }
 

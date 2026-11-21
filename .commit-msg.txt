@@ -1,30 +1,33 @@
-hook: useScrollLock, reference-counted so nested layers do not unlock each other (#633)
+hook: useHotkeys, window-scoped chords with a text-field guard (#627)
 
-`useScrollLock(target, { active })` stops the background from scrolling
-while a modal layer is open. The engine owns the mechanism: a node with its
-scroll axes clear is not a scroll container, so `scroll_target` skips it and
-a wheel or gesture chains past it. This lands the hook's half.
+`useHotkeys({ chords: "ctrl+s,escape" })` declares keyboard shortcuts for
+the window. The engine owns the mechanism: `KeyBindingRegistry` is a
+bounded, allocation-free table with a documented matching rule, and
+`InputRouter` already dispatches it after the focused node's handler and
+only when the key event was not consumed. This lands the hook's half.
 
-The interesting part is the reference count. Two dialogs can be open at
-once (a confirmation over a settings sheet), and the inner one closing must
-not unlock the page the outer one still needs locked. A count per behavior
-cannot see the other behavior, so the count lives in one bounded table keyed
-by the node: a fixed array of `{node, count, axes}` records, allocation-free
-on the lock path. A behavior that cannot get a slot leaves the node unlocked
-and reports `locked = false` rather than claiming a lock it does not hold.
+The hook takes no target ref, because a shortcut belongs to the window and
+not to an element. The behavior parses the chord list once, registers each
+chord into the router's one registry, and holds the ids it got, which is
+what makes detach exact: an update removes the old set before registering
+the new one, so a component that re-renders does not accumulate bindings.
 
-The table also records the axes the node had before the first lock, so the
-last release restores exactly what was there. Restoring both axes would make
-a horizontally-clipped page suddenly scroll sideways.
+The behavior registers a marker binding rather than a callback. A behavior
+may not invoke a callback (behavior-hooks-v1.md section 8), so the input
+path reports the fired id through `InputDispatchResult::accelerator_fired`
+and the generated base turns that into the component's handler call.
 
-`locked` reports this behavior's reference, not whether the node is locked
-overall: a nested layer that releases its own lock while an outer one still
-holds one reports `false` and the page stays locked, which is the truth a
-component needs.
+`allowInTextInput` is implemented, not just declared: while the focused
+node is a `TextInput` or `TextArea` the behavior registers nothing, because
+a chord that fires there steals a key the user is typing. The registry has
+no "except when" rule, so the behavior re-evaluates on each update, which a
+field gaining focus already triggers.
 
-The destructor releases the reference, so a behavior destroyed without an
-explicit detach cannot leave a page unscrollable for the session.
+The destructor removes the bindings, so a behavior destroyed without an
+explicit detach cannot leave the window firing a shortcut for a component
+that no longer exists.
 
-Evidence: `scroll_lock` (11 rules, including the nested reference count and
-the axis restore), `hook_manifest` and `behavior_registry`. Spec:
-`docs/specs/use-scroll-lock-v1.md`.
+Evidence: `hotkeys` (12 rules, including the chord parser, the exact
+modifier match, the update replacing the set, and the text-field guard),
+`hook_manifest` and `behavior_registry`. Spec:
+`docs/specs/use-hotkeys-v1.md`.

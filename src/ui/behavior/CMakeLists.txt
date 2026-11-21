@@ -2,6 +2,7 @@
 
 add_library(tessera_behavior STATIC
     focus_trap.cpp
+    hotkeys.cpp
     instance.cpp
     press_feedback.cpp
     registry.cpp
@@ -44,6 +45,11 @@ if (TESSERA_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/unit/scroll_lock_tests.cpp)
     target_link_libraries(scroll_lock_tests PRIVATE tessera_behavior)
     add_test(NAME scroll_lock COMMAND scroll_lock_tests)
+
+    add_executable(hotkeys_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/hotkeys_tests.cpp)
+    target_link_libraries(hotkeys_tests PRIVATE tessera_behavior)
+    add_test(NAME hotkeys COMMAND hotkeys_tests)
 
     add_executable(behavior_allocation_tests
         ${PROJECT_SOURCE_DIR}/tests/unit/behavior_allocation_tests.cpp)

@@ -1851,6 +1851,9 @@ function include/tessera/ui/behavior/behavior.hpp tessera::ui::behavior::make_ha
 header include/tessera/ui/behavior/focus_trap.hpp
 class include/tessera/ui/behavior/focus_trap.hpp tessera::ui::behavior::FocusTrap
 
+header include/tessera/ui/behavior/hotkeys.hpp
+class include/tessera/ui/behavior/hotkeys.hpp tessera::ui::behavior::Hotkeys
+
 header include/tessera/ui/behavior/instance.hpp
 class include/tessera/ui/behavior/instance.hpp tessera::ui::behavior::Instance
 function include/tessera/ui/behavior/instance.hpp tessera::ui::behavior::hash_args
