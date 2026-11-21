@@ -51,7 +51,7 @@ void test_copy_writes_and_reports() {
     MemoryClipboard clipboard;
     ClipboardCopy behavior;
     auto args = options("hello");
-    behavior.attach(Targets{}, Services{nullptr, &clipboard, 0.0}, ArgsView{args});
+    behavior.attach(Targets{}, Services{.clipboard = &clipboard, .now_s = 0.0}, ArgsView{args});
     expect(clipboard.text() == "hello", "the text reached the clipboard");
     const auto outputs = behavior.outputs();
     expect(outputs.size() == 2, "two outputs");
@@ -64,7 +64,7 @@ void test_feedback_clears_after_the_window() {
     MemoryClipboard clipboard;
     ClipboardCopy behavior;
     auto args = options("hello");
-    behavior.attach(Targets{}, Services{nullptr, &clipboard, 0.0}, ArgsView{args});
+    behavior.attach(Targets{}, Services{.clipboard = &clipboard, .now_s = 0.0}, ArgsView{args});
     expect(behavior.outputs()[0].boolean, "the feedback is up right after the copy");
 
     behavior.tick(ClipboardCopy::kFeedbackSeconds - 0.1);
@@ -79,7 +79,7 @@ void test_unsupported_clipboard_reports_failure() {
     UnsupportedClipboard clipboard;
     ClipboardCopy behavior;
     auto args = options("hello");
-    behavior.attach(Targets{}, Services{nullptr, &clipboard, 0.0}, ArgsView{args});
+    behavior.attach(Targets{}, Services{.clipboard = &clipboard, .now_s = 0.0}, ArgsView{args});
     const auto outputs = behavior.outputs();
     expect(!outputs[0].boolean, "`copied` is false when the platform refuses");
     expect(outputs[1].boolean, "`failed` is true when the platform refuses");
@@ -99,7 +99,7 @@ void test_empty_text_copies_nothing() {
     expect(seeded.has_value(), "the fixture seeds the clipboard");
     ClipboardCopy behavior;
     auto args = options("");
-    behavior.attach(Targets{}, Services{nullptr, &clipboard, 0.0}, ArgsView{args});
+    behavior.attach(Targets{}, Services{.clipboard = &clipboard, .now_s = 0.0}, ArgsView{args});
     expect(clipboard.text() == "previous", "an empty text does not overwrite the user's clipboard");
     expect(!behavior.outputs()[0].boolean, "and reports no copy");
 }
@@ -108,7 +108,7 @@ void test_detach_resets() {
     MemoryClipboard clipboard;
     ClipboardCopy behavior;
     auto args = options("hello");
-    behavior.attach(Targets{}, Services{nullptr, &clipboard, 0.0}, ArgsView{args});
+    behavior.attach(Targets{}, Services{.clipboard = &clipboard, .now_s = 0.0}, ArgsView{args});
     behavior.detach();
     expect(!behavior.outputs()[0].boolean, "a detached behavior reports the manifest default");
     expect(!behavior.outputs()[1].boolean, "both outputs are false");
@@ -121,7 +121,7 @@ void test_destructor_resets() {
     {
         ClipboardCopy behavior;
         auto args = options("hello");
-        behavior.attach(Targets{}, Services{nullptr, &clipboard, 0.0}, ArgsView{args});
+        behavior.attach(Targets{}, Services{.clipboard = &clipboard, .now_s = 0.0}, ArgsView{args});
         expect(behavior.clipboard() == &clipboard, "the seam is held inside the scope");
     }
     expect(clipboard.text() == "hello", "the copy already happened");
@@ -132,7 +132,7 @@ void test_failure_feedback_also_expires() {
     UnsupportedClipboard clipboard;
     ClipboardCopy behavior;
     auto args = options("hello");
-    behavior.attach(Targets{}, Services{nullptr, &clipboard, 0.0}, ArgsView{args});
+    behavior.attach(Targets{}, Services{.clipboard = &clipboard, .now_s = 0.0}, ArgsView{args});
     expect(behavior.outputs()[1].boolean, "the failure is reported");
     behavior.tick(ClipboardCopy::kFeedbackSeconds + 0.1);
     expect(!behavior.outputs()[1].boolean, "the failure feedback clears after the window");

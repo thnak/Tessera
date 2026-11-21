@@ -47,7 +47,7 @@ bool test_committed_manifest_parses() {
     if (!expect(manifest.has_value(), "the committed manifest parses: " + error.detail)) {
         return false;
     }
-    bool ok = expect(manifest->hooks.size() == 10, "the manifest declares ten hooks");
+    bool ok = expect(manifest->hooks.size() == 11, "the manifest declares eleven hooks");
     ok = expect(manifest->find("useTheme") != nullptr, "useTheme is declared") && ok;
     ok = expect(manifest->find("useThemeState") != nullptr, "useThemeState is declared") && ok;
     ok = expect(manifest->find("useBreakpoint") != nullptr, "useBreakpoint is declared") && ok;
@@ -57,6 +57,7 @@ bool test_committed_manifest_parses() {
     ok = expect(manifest->find("useScrollLock") != nullptr, "useScrollLock is declared") && ok;
     ok = expect(manifest->find("useHotkeys") != nullptr, "useHotkeys is declared") && ok;
     ok = expect(manifest->find("useClipboard") != nullptr, "useClipboard is declared") && ok;
+    ok = expect(manifest->find("useOverflow") != nullptr, "useOverflow is declared") && ok;
     ok =
         expect(manifest->find("usePressFeedback") != nullptr, "usePressFeedback is declared") && ok;
     return ok;
@@ -183,6 +184,16 @@ bool test_behavior_lowering() {
                 "useClipboard names the clipboard_copy behavior") &&
          ok;
     ok = expect(clip != nullptr && clip->outputs.size() == 2, "useClipboard returns two outputs") &&
+         ok;
+    // `useOverflow` (issue #634): one target, two numeric options, two outputs.
+    const auto* flow = manifest->find("useOverflow");
+    ok = expect(flow != nullptr && flow->lowering == HookLoweringKind::Behavior,
+                "useOverflow is a behavior hook") &&
+         ok;
+    ok = expect(flow != nullptr && flow->provider == "overflow",
+                "useOverflow names the overflow behavior") &&
+         ok;
+    ok = expect(flow != nullptr && flow->outputs.size() == 2, "useOverflow returns two outputs") &&
          ok;
     return ok;
 }

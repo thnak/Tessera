@@ -1841,6 +1841,7 @@ header include/tessera/ui/behavior/behavior.hpp
 class include/tessera/ui/behavior/behavior.hpp tessera::hal::Clipboard
 class include/tessera/ui/behavior/behavior.hpp tessera::ui::InputRouter
 class include/tessera/ui/behavior/behavior.hpp tessera::ui::behavior::Behavior
+class include/tessera/ui/behavior/behavior.hpp tessera::ui::layout::LayoutReadModel
 struct include/tessera/ui/behavior/behavior.hpp tessera::ui::behavior::ArgValue
 struct include/tessera/ui/behavior/behavior.hpp tessera::ui::behavior::ArgsView
 struct include/tessera/ui/behavior/behavior.hpp tessera::ui::behavior::OutputValue
@@ -1862,6 +1863,10 @@ class include/tessera/ui/behavior/hotkeys.hpp tessera::ui::behavior::Hotkeys
 header include/tessera/ui/behavior/instance.hpp
 class include/tessera/ui/behavior/instance.hpp tessera::ui::behavior::Instance
 function include/tessera/ui/behavior/instance.hpp tessera::ui::behavior::hash_args
+
+header include/tessera/ui/behavior/overflow.hpp
+class include/tessera/ui/behavior/overflow.hpp tessera::ui::behavior::Overflow
+class include/tessera/ui/behavior/overflow.hpp tessera::ui::layout::LayoutReadModel
 
 header include/tessera/ui/behavior/press_feedback.hpp
 class include/tessera/ui/behavior/press_feedback.hpp tessera::ui::behavior::PressFeedback

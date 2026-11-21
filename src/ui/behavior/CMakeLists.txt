@@ -5,6 +5,7 @@ add_library(tessera_behavior STATIC
     focus_trap.cpp
     hotkeys.cpp
     instance.cpp
+    overflow.cpp
     press_feedback.cpp
     registry.cpp
     roving_focus.cpp
@@ -13,7 +14,7 @@ add_library(tessera_behavior STATIC
 target_include_directories(tessera_behavior PUBLIC
     ${PROJECT_SOURCE_DIR}/include)
 
-target_link_libraries(tessera_behavior PUBLIC tessera_scene)
+target_link_libraries(tessera_behavior PUBLIC tessera_scene tessera_layout)
 
 target_compile_features(tessera_behavior PUBLIC cxx_std_23)
 
@@ -56,6 +57,11 @@ if (TESSERA_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/unit/clipboard_copy_tests.cpp)
     target_link_libraries(clipboard_copy_tests PRIVATE tessera_behavior tessera_hal_clipboard)
     add_test(NAME clipboard_copy COMMAND clipboard_copy_tests)
+
+    add_executable(overflow_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/overflow_tests.cpp)
+    target_link_libraries(overflow_tests PRIVATE tessera_behavior tessera_layout)
+    add_test(NAME overflow COMMAND overflow_tests)
 
     add_executable(behavior_allocation_tests
         ${PROJECT_SOURCE_DIR}/tests/unit/behavior_allocation_tests.cpp)

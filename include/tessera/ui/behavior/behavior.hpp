@@ -16,7 +16,10 @@ class Clipboard;
 
 namespace tessera::ui {
 class InputRouter;
+namespace layout {
+class LayoutReadModel;
 }
+} // namespace tessera::ui
 
 // The behavior seam (ADR-064 item 7; docs/design/behavior-hooks.md section 5,
 // docs/specs/behavior-hooks-v1.md section 8).
@@ -65,6 +68,9 @@ struct Services {
     // The platform clipboard seam (`hal::Clipboard`). Null in a build that has none, which a
     // behavior must treat as "the clipboard is unavailable" rather than crashing.
     hal::Clipboard* clipboard = nullptr;
+    // The last layout pass's boxes (`layout::LayoutReadModel`). Null in a build that has no layout,
+    // which a measuring behavior must treat as "nothing is measured yet".
+    layout::LayoutReadModel* layout = nullptr;
     // The current time in seconds, from the runtime clock interface. A behavior that needs a
     // deadline reads it here rather than calling a wall clock, so a `ManualClock` test is
     // deterministic (behavior-hooks-v1.md section 8 rule 4).

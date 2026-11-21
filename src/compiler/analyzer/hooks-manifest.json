@@ -128,6 +128,29 @@
       "lowering": { "kind": "behavior", "behavior": "clipboard_copy" }
     },
     {
+      "name": "useOverflow",
+      "params": [
+        { "name": "target", "kind": "ref", "element": "any" },
+        {
+          "name": "options",
+          "kind": "options",
+          "ts": "OverflowOptions",
+          "ir": "record",
+          "fields": [
+            { "name": "reserved", "ts": "number", "ir": "number", "default": 0 },
+            { "name": "gap", "ts": "number", "ir": "number", "default": 0 }
+          ]
+        }
+      ],
+      "returns": {
+        "fields": [
+          { "name": "count", "ts": "number", "ir": "number", "default": 0 },
+          { "name": "overflowing", "ts": "boolean", "ir": "bool", "default": false }
+        ]
+      },
+      "lowering": { "kind": "behavior", "behavior": "overflow" }
+    },
+    {
       "name": "usePressFeedback",
       "params": [
         { "name": "target", "kind": "ref", "ts": "Element", "ir": "ref" },

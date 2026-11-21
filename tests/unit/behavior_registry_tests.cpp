@@ -35,6 +35,7 @@ bool test_registry_is_the_closed_set() {
     ok = expect(is_registered("scroll_lock"), "scroll_lock is registered") && ok;
     ok = expect(is_registered("hotkeys"), "hotkeys is registered") && ok;
     ok = expect(is_registered("clipboard_copy"), "clipboard_copy is registered") && ok;
+    ok = expect(is_registered("overflow"), "overflow is registered") && ok;
     ok = expect(!is_registered("typeahead"),
                 "a behavior with no implementation is not registered") &&
          ok;

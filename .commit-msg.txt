@@ -1,33 +1,34 @@
-hook: useClipboard, copy with a self-clearing feedback window (#632)
+hook: useOverflow, the cut index from the last layout pass (#634)
 
-`useClipboard({ text })` copies text through the platform seam and reports
-`copied`/`failed`. The engine owns the mechanism (`hal::Clipboard`, with
-`MemoryClipboard` as the deterministic test implementation); this lands the
-hook's half.
+`useOverflow(target, { reserved, gap })` reports how many leading children
+of a row fit, and whether any do not. The engine owns the measurement:
+`layout::LayoutReadModel` holds every node's box from the last pass, so the
+behavior reads sizes rather than polling or forcing a layout.
 
-The hook takes no target ref, because the clipboard belongs to the window.
-The behavior holds the seam rather than the component, because a component
-that reached the HAL directly would need a platform handle in generated
-code, which ADR-020 forbids.
+That is the rule the issue asks for ("recomputes on size or content change
+without a layout loop"): the behavior never asks for a layout, so a
+component that renders `count` children settles in one pass, because the
+widths it measures are the widths the previous pass already committed.
 
-The feedback window is a deadline, not a timer: the behavior reads the time
-from `Services::now_s` and compares it in a new `Behavior::tick`, so a
-`ManualClock` test advances it explicitly and no thread or timer exists.
-`tick` is a defaulted virtual on the seam, so the five behaviors that have
-no deadline pay nothing.
+Two details that make the count usable:
 
-Two rules worth naming:
+- **The reserved slot is subtracted first.** An overflow list usually ends
+  with a "more" button, which takes width the items cannot use, so the
+  count is the number that fit *alongside* the button.
+- **An unmeasured child stops the walk.** A child the last pass did not
+  measure (added since) cannot be counted, because counting it would claim
+  a width nobody measured.
 
-- **Empty text copies nothing.** A copy button whose text is empty (a code
-  block that failed to load) must not wipe the clipboard the user was
-  carrying. That is a data-safety rule, not a nicety.
-- **A failure's feedback expires too.** A "Copy failed" label that stayed on
-  screen forever is as wrong as a "Copied" one.
+With no read model at all the behavior reports `count = 0` and
+`overflowing = true`: a component renders its narrow layout for the first
+frame rather than claiming everything fits, the same rule
+`size_class_for` applies to an unmeasured width.
 
-`Services` gains the clipboard and the clock, which is the first time a
-behavior has needed anything beyond the router. Both are nullable, and a
-build with neither reports `failed` rather than crashing.
+`Services` gains the layout read model, which is the second time a behavior
+has needed more than the router. The clipboard and overflow tests now use
+designated initializers, so adding a service does not silently shift a
+positional one.
 
-Evidence: `clipboard_copy` (11 rules, including the expiry, the empty-text
-guard and the no-seam path), `hook_manifest` and `behavior_registry`. Spec:
-`docs/specs/use-clipboard-v1.md`.
+Evidence: `overflow` (11 rules, including the reserved slot, the gap, and
+the unmeasured-child stop), `hook_manifest` and `behavior_registry`. Spec:
+`docs/specs/use-overflow-v1.md`.
