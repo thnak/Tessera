@@ -2241,6 +2241,14 @@ enum include/tessera/ui/pending/suspense.hpp tessera::ui::pending::SuspensePhase
 header include/tessera/ui/pending/transition.hpp
 class include/tessera/ui/pending/transition.hpp tessera::ui::pending::TransitionMark
 
+header include/tessera/ui/responsive/size_class.hpp
+enum include/tessera/ui/responsive/size_class.hpp tessera::ui::responsive::SizeClass
+function include/tessera/ui/responsive/size_class.hpp tessera::ui::responsive::parse_size_class
+function include/tessera/ui/responsive/size_class.hpp tessera::ui::responsive::size_class_for
+function include/tessera/ui/responsive/size_class.hpp tessera::ui::responsive::size_class_name
+constant include/tessera/ui/responsive/size_class.hpp tessera::ui::responsive::kCompactMaxWidth
+constant include/tessera/ui/responsive/size_class.hpp tessera::ui::responsive::kMediumMaxWidth
+
 header include/tessera/ui/scale/aa_policy.hpp
 struct include/tessera/ui/scale/aa_policy.hpp tessera::ui::scale::AaConfig
 struct include/tessera/ui/scale/aa_policy.hpp tessera::ui::scale::AaFacts

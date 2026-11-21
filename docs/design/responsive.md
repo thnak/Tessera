@@ -82,9 +82,23 @@ pays one boolean test per frame. The round budget is `layoutObservationMaxRounds
 
 ## 3. Size classes
 
-The runtime may expose derived size classes (compact/medium/expanded) as custom properties or
-media-query-like inputs. They are computed from the **window** (not the display) and update on
-resize/fold/multi-window. Container size classes have no release assigned (see section 10).
+The runtime exposes derived size classes (compact/medium/expanded) as the `useBreakpoint()` hook
+value. They are computed from the **window** (not the display) and update on resize/fold/multi-window.
+Container size classes have no release assigned (see section 10).
+
+**The thresholds are fixed in V1** (issue #692 decision): `compact` below 600 dp, `medium` from 600
+to 839, `expanded` from 840 upward. They are named constants in
+`include/tessera/ui/responsive/size_class.hpp` (`kCompactMaxWidth`, `kMediumMaxWidth`), not magic
+numbers, because three consumers must agree on them: the hook, the preview's `viewport.set` report,
+and any app-authored CSS that writes the same numbers. An app that wants different breakpoints
+writes its own `@media` rules; it does not reconfigure the hook. That keeps one answer per question:
+a stylesheet breakpoint and the hook can never disagree about where a class starts, because both
+read `MediaContext::viewport_width`.
+
+A window that has not been measured yet (a non-finite or negative width) is `compact`, so a
+component that branches on the class renders its narrow layout rather than its widest one on the
+first frame. Evidence: `size_class` (`tests/unit/size_class_tests.cpp`) asserts both sides of each
+boundary, the degenerate widths, and that the media context is the input.
 
 ## 4. Safe areas
 
