@@ -68,3 +68,14 @@ elseif (NOT APPLE)
     # than a gate that fails.
     message(WARNING "Python3 not found: the `memory_budget` CTest is not registered")
 endif()
+
+# frame_alloc_probe (issue #701, step 1): allocations per steady-state frame. A measurement tool, not a
+# CTest entry: it asserts nothing until the numbers have been read and a bound has been decided.
+add_executable(frame_alloc_probe
+    frame_alloc_probe.cpp)
+
+target_link_libraries(frame_alloc_probe PRIVATE
+    tessera_app
+    tessera_runtime)
+
+target_compile_features(frame_alloc_probe PRIVATE cxx_std_23)
