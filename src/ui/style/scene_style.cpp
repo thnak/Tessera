@@ -151,8 +151,81 @@ private:
 
 } // namespace
 
+namespace {
+
+// Inline declarations win over the cascade (Origin::Inline). They are already bounded and borrowed
+// on the node; the registry expands shorthands into longhands. They may define or override custom
+// properties on this node, so substitution runs again with the parent's cascade style as the
+// inheritance fallback.
+void apply_inline_declarations(const CompiledStyleSheet& sheet, const Node& node,
+                               ComputedStyle& result, const ComputedStyle* parent) {
+    if (node.inline_style().empty()) {
+        return;
+    }
+    for (const Node::InlineStyleDeclaration& declaration : node.inline_style()) {
+        Declaration parsed{std::string(declaration.name), std::string(declaration.value), false};
+        const PropertyExpansionResult expanded = sheet.registry().expand(parsed);
+        for (const Declaration& longhand : expanded.declarations) {
+            result.set(longhand.property, longhand.value);
+        }
+    }
+    resolve_variables(result, parent);
+    resolve_font_size(result, parent);
+}
+
+} // namespace
+
+void SceneStyleTree::begin_memo() {
+    memo_active_ = true;
+    chain_memo_.clear();
+    final_memo_.clear();
+}
+
+void SceneStyleTree::end_memo() {
+    memo_active_ = false;
+    chain_memo_.clear();
+    final_memo_.clear();
+}
+
+const ComputedStyle& SceneStyleTree::chain_style(const CompiledStyleSheet& sheet,
+                                                 const Node& node) {
+    if (const auto found = chain_memo_.find(&node); found != chain_memo_.end()) {
+        return found->second;
+    }
+    StyleNode* view = mutable_view(node);
+    if (view == nullptr) {
+        return chain_memo_.emplace(&node, sheet.registry().initial_style()).first->second;
+    }
+    // The chain stops at the first ancestor outside the captured tree, as the un-memoised walk
+    // does.
+    const Node* parent_node = node.parent();
+    const ComputedStyle* parent = parent_node != nullptr && index_.contains(parent_node)
+                                      ? &chain_style(sheet, *parent_node)
+                                      : nullptr;
+    return chain_memo_.emplace(&node, sheet.compute(*view, parent, nullptr)).first->second;
+}
+
+const ComputedStyle& SceneStyleTree::resolve(const CompiledStyleSheet& sheet, const Node& node) {
+    if (node.inline_style().empty() || !index_.contains(&node)) {
+        return chain_style(sheet, node);
+    }
+    if (const auto found = final_memo_.find(&node); found != final_memo_.end()) {
+        return found->second;
+    }
+    ComputedStyle result = chain_style(sheet, node);
+    const Node* parent_node = node.parent();
+    const ComputedStyle* parent = parent_node != nullptr && index_.contains(parent_node)
+                                      ? &chain_style(sheet, *parent_node)
+                                      : nullptr;
+    apply_inline_declarations(sheet, node, result, parent);
+    return final_memo_.emplace(&node, std::move(result)).first->second;
+}
+
 ComputedStyle SceneStyleTree::compute(const CompiledStyleSheet& sheet, const Node& node,
                                       ContainerSizeFn container_size, void* container_context) {
+    if (memo_active_ && container_size == nullptr) {
+        return resolve(sheet, node);
+    }
     std::vector<const StyleNode*> chain;
     std::vector<const Node*> nodes;
     for (const Node* current = &node; current != nullptr; current = current->parent()) {
@@ -182,24 +255,9 @@ ComputedStyle SceneStyleTree::compute(const CompiledStyleSheet& sheet, const Nod
             containers.push(*nodes[i], styles.back());
         }
     }
-    // Inline declarations win over the cascade (Origin::Inline). They are already bounded and
-    // borrowed on the node; the registry expands shorthands into longhands.
     ComputedStyle result = std::move(styles.back());
-    const bool has_inline = !node.inline_style().empty();
-    for (const Node::InlineStyleDeclaration& declaration : node.inline_style()) {
-        Declaration parsed{std::string(declaration.name), std::string(declaration.value), false};
-        const PropertyExpansionResult expanded = sheet.registry().expand(parsed);
-        for (const Declaration& longhand : expanded.declarations) {
-            result.set(longhand.property, longhand.value);
-        }
-    }
-    if (has_inline) {
-        // Inline declarations may define or override custom properties on this node, so the
-        // substitution runs again with the parent style as the inheritance fallback.
-        const ComputedStyle* parent = styles.size() > 1 ? &styles[styles.size() - 2] : nullptr;
-        resolve_variables(result, parent);
-        resolve_font_size(result, parent);
-    }
+    apply_inline_declarations(sheet, node, result,
+                              styles.size() > 1 ? &styles[styles.size() - 2] : nullptr);
     return result;
 }
 

@@ -14,6 +14,7 @@ add_library(tessera_paint STATIC
     paint_text_runs.cpp
     paint_text_shadow.cpp
     paint_text_spans.cpp
+    scene_style_provider.cpp
     scene_style_sync.cpp
     paint_gradient.cpp
     paint_vector.cpp

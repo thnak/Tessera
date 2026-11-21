@@ -44,6 +44,12 @@ public:
     SceneStyleProvider(const style::CompiledStyleSheet& sheet, style::SceneStyleTree& tree);
 
     [[nodiscard]] style::ComputedStyle compute(const Node& node) override;
+    // Served from the tree's restyle memo while one is open (`begin_restyle`), else a copy.
+    [[nodiscard]] const style::ComputedStyle& resolve(const Node& node) override;
+
+    // Brackets one restyle: every node resolves once, from its parent's memoised style.
+    void begin_restyle();
+    void end_restyle();
 
 private:
     const style::CompiledStyleSheet* sheet_ = nullptr;

@@ -18,7 +18,7 @@ namespace tessera::ui::animation {
 // Computes one node's style for the walk below. The frame pipeline binds its
 // `paint::StyleProvider`; tests pass a stub. Mirrors `style::InteractionStyleFn` so
 // `tessera_animation` stays free of a paint dependency. Never null.
-using StyleBridgeFn = style::ComputedStyle (*)(void* context, const Node& node);
+using StyleBridgeFn = const style::ComputedStyle& (*)(void* context, const Node& node);
 
 struct StyleBridgeResult {
     std::size_t nodes = 0;               // rendered nodes whose style was resolved

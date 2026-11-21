@@ -259,8 +259,8 @@ bool visibility_hides_paint_and_hit_test() {
     SheetStyles styles(sheet, root);
     const auto sync = sync_interaction_style(
         root,
-        [](void* context, const Node& node) {
-            return static_cast<StyleProvider*>(context)->compute(node);
+        [](void* context, const Node& node) -> const ComputedStyle& {
+            return static_cast<StyleProvider*>(context)->resolve(node);
         },
         &styles);
     if (!expect(sync.changed_visibility == 1, "visibility: one node changed hidden state") ||
@@ -338,8 +338,8 @@ bool visibility_hides_from_the_a11y_tree() {
     SheetStyles styles(sheet, root);
     (void)sync_interaction_style(
         root,
-        [](void* context, const Node& node) {
-            return static_cast<StyleProvider*>(context)->compute(node);
+        [](void* context, const Node& node) -> const ComputedStyle& {
+            return static_cast<StyleProvider*>(context)->resolve(node);
         },
         &styles);
 
