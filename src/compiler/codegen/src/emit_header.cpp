@@ -8,6 +8,7 @@
 #include "emit_controlled.hpp"
 #include "emit_dirty.hpp"
 #include "emit_dynamic.hpp"
+#include "emit_environment.hpp"
 #include "emit_events.hpp"
 #include "emit_forms.hpp"
 #include "emit_layout_observe.hpp"
@@ -131,6 +132,10 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
     const bool observes = observes_size(component, module);
     if (observes) {
         writer.line("#include \"tessera/ui/layout/layout_observer.hpp\"");
+    }
+    // `environment` hook values (issue #692): the consumer set the host pushes a new class through.
+    if (has_environment(component)) {
+        writer.line("#include \"tessera/ui/responsive/environment_set.hpp\"");
     }
     writer.line("");
     writer.line("#include <cstdint>");
@@ -340,6 +345,10 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
     if (!emit_schedule_declarations(writer, module, component, error)) {
         return false;
     }
+    // `environment` hook values (docs/specs/jsx-subset-v1.md section 7.1, issue #692): the fields
+    // and the host-facing setters. Emitted only for a component that reads one, so every other
+    // component's base is byte-identical.
+    emit_environment_declarations(writer, component, module);
     emit_snapshot_declaration(writer);
     if (observes) {
         std::vector<EventAdapter> observed;

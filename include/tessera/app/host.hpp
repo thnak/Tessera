@@ -12,10 +12,14 @@
 #include "tessera/ui/layout/apply_layout.hpp"
 #include "tessera/ui/layout/damage_pass.hpp"
 #include "tessera/ui/layout/layout_engine.hpp"
+#include "tessera/ui/layout/layout_observer.hpp"
+#include "tessera/ui/layout/layout_observer_settle.hpp"
 #include "tessera/ui/overlay/overlay.hpp"
 #include "tessera/ui/paint/paint_cache.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
 #include "tessera/ui/paint/scene_style_sync.hpp"
+#include "tessera/ui/responsive/environment_set.hpp"
+#include "tessera/ui/responsive/size_class.hpp"
 #include "tessera/ui/scene/dirty_pass.hpp"
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/style/compiled_stylesheet.hpp"
@@ -89,6 +93,11 @@ struct HostConfig {
     // Adaptive quality (docs/design/performance.md section 6). The defaults match
     // RuntimeConfig{}, so a host that never configures it behaves exactly like one that does.
     AdaptiveQualityPolicy adaptive_quality{};
+    // Same-tick settle rounds for layout observation (ADR-041, `layoutObservationMaxRounds` in
+    // docs/specs/runtime-config-v1.md section 3). 1 means next-tick delivery; the range is 1..16
+    // and an out-of-range value clamps. It only costs anything when the stylesheet has `@container`
+    // rules or a component observes its size.
+    std::uint32_t layout_observation_max_rounds = 4;
 };
 
 // What one begin_frame() decided and did. `frame_due` mirrors FramePipeline: paint only when it is
@@ -302,6 +311,29 @@ public:
     // that asked for them. Pass nullptr to uninstall; the scheduler must outlive the host or be
     // detached first.
     void set_update_scheduler(ui::UpdateScheduler* scheduler);
+
+    // The window's layout-observation set (ADR-041, issue #693). Generated components attach their
+    // `LayoutObservation`s here at mount; the host publishes the committed layout after every
+    // layout pass and delivers the changed sizes once per tick, in bounded settle rounds, before
+    // damage and paint. Empty by default, and a host whose sheet has no `@container` and whose
+    // scene attaches nothing pays one boolean test per frame.
+    [[nodiscard]] ui::layout::LayoutObserverSet& layout_observers();
+
+    // The window's environment-value set (docs/specs/jsx-subset-v1.md section 7.1, issue #692).
+    // Generated components register their `set_environment_<name>()` here at mount; the host pushes
+    // the current size class after every size change, so `useBreakpoint()` and the stylesheet's own
+    // `@media` answer come from the same `MediaContext` and cannot disagree. Empty by default, and
+    // a component that reads no environment value registers nothing.
+    [[nodiscard]] ui::responsive::EnvironmentSet& environment_values();
+
+    // The size class in force (the same answer `useBreakpoint()` returns). Read from the host's
+    // media context, so a test can assert the hook and the stylesheet agree.
+    [[nodiscard]] ui::responsive::SizeClass size_class() const;
+
+    // The settle loop's counters (ADR-041 section 5.3): deliveries, rounds, engine rounds, deferred
+    // observations and round-limit hits. They are how "a resize inside one condition costs a layout
+    // pass and nothing else" is asserted by a counter instead of inferred from a picture.
+    [[nodiscard]] const ui::layout::SettleTotals& layout_settle_totals() const;
 
     // Changes the reduced-motion preference at run time (the OS setting changed). Forwarded to the
     // animation runtime and the installed scheduler; a scheduler installed later inherits it.

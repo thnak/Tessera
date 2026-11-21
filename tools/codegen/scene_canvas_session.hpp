@@ -14,6 +14,8 @@
 #include "tessera/compiler/ir/source_span.hpp"
 #include "tessera/hal/window.hpp"
 #include "tessera/rendering/rhi/types.hpp"
+#include "tessera/ui/responsive/environment_set.hpp"
+#include "tessera/ui/responsive/size_class.hpp"
 #include "tessera/ui/scene/dirty_pass.hpp"
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/style/compiled_stylesheet.hpp"
@@ -37,8 +39,7 @@
 // ordinary cascade; nothing here parses a selector.
 //
 // **`changed`, not "always redraw"**: a static UI presents nothing
-// (docs/design/dirty-rendering.md), so "is a frame owed" is read from the scene's own dirty
-// domains.
+// (docs/design/dirty-rendering.md), so "is a frame owed" is read from the scene's dirty domains.
 namespace tessera::compiler::codegen::cli {
 
 // The text module this session's font parameter names lives one namespace up.
@@ -156,13 +157,10 @@ public:
     // component and the measured face - never the viewport or the posture, which are re-applied to
     // the running tree in place (issue #436).
     //
-    // **A source that does not evaluate leaves the running evaluation untouched** (issue #444). The
-    // new text is parsed before anything is replaced, so a failed edit returns its reason while
-    // `started()`, `root()`, the state cells and `frames_painted()` describe the tree that is still
-    // on screen, and `needs_frame()` keeps whatever it already answered. That is what lets the
-    // browser apply every keystroke without the canvas ever blanking: a half-typed expression costs
-    // a diagnostic, not the picture. A cold start (a `restart`) is `tessera_canvas_reset` followed
-    // by a `start()` - a different operation, and the page's Run button is the only caller.
+    // **A source that does not evaluate leaves the running evaluation untouched** (issue #444): the
+    // new text is parsed before anything is replaced, so a failed edit returns its reason while the
+    // tree on screen, its state cells and `needs_frame()` are unchanged. A cold start (a `restart`)
+    // is `tessera_canvas_reset` followed by a `start()`.
     std::string start(const CanvasSessionSource& source);
     // The same apply for a whole project: the entry's component, the files it imports and the
     // stylesheets those import. "Identical" then means every project file's path and bytes, the
@@ -200,9 +198,7 @@ public:
     // **It reuses the router's hit test rather than writing a second one.** `Node::hit_test_deep`
     // is the function `ui::InputRouter` calls to decide a pointer target, so the node this reports
     // is exactly the node a press at the same point would reach - including `pointer-events: none`,
-    // scrollport clipping, z-order and `visibility: hidden`. A second hit test would be a second
-    // set of those rules to keep in step, and the first time they disagreed the overlay would
-    // outline one node while a click activated another.
+    // scrollport clipping, z-order and `visibility: hidden`.
     //
     // **It is a query, not an event.** Nothing is dispatched, no pseudo-class moves, no dirty
     // domain is set and no frame is owed: arming the picker and moving over the canvas must not
@@ -218,16 +214,13 @@ public:
     //
     // **It is a query, like `pick()`.** Nothing is dispatched, no pseudo-class moves and no frame
     // is owed: opening the inspector on a node must not change the picture. It is a user action
-    // rather than a frame path, so the bounded allocations it makes (the computed map, one entry
-    // per matched rule) are acceptable - the frame path's zero-allocation rule is about `paint()`,
-    // not about a click.
+    // rather than a frame path, so the bounded allocations it makes are acceptable - the frame
+    // path's zero-allocation rule is about `paint()`, not about a click.
     //
     // **Why the engine answers it.** `computed`, `matched` and `overridden` are the cascade's own
     // answers; a page that recomputed them would be a second cascade that could disagree with the
-    // canvas.
-    //
-    // `automation_id` 0 and an id no node carries both answer `found:false`, which the report
-    // spells `no_such_node` (designer-protocol-v1 section 9.1).
+    // canvas. `automation_id` 0 and an id no node carries both answer `found:false`, which the
+    // report spells `no_such_node` (designer-protocol-v1 section 9.1).
     [[nodiscard]] StyleInfoResult inspect(std::uint64_t automation_id);
 
     // The designer's override layer (issue #536, designer-protocol-v1 sections 9.2-9.4): values a
@@ -239,11 +232,10 @@ public:
     // `ok:false` with the `TESSERA_CSS_*` diagnostic and leaves the node's overrides, the history
     // and the tree exactly as they were.
     //
-    // **An override changes only the node it names.** It is applied to that one scene node, so
-    // another instance of the same component, with another automation id, is untouched.
-    // **Overrides belong to the session**: they are lost when it ends, are never written to source
-    // without a commit, and survive a re-evaluation (they are re-applied to each tree built; one
-    // whose node an edit removed stays in the layer, unapplied, until cleared or reverted).
+    // **An override changes only the node it names**, and belongs to the session: it is lost when
+    // the session ends, is never written to source without a commit, and survives a re-evaluation
+    // (re-applied to each tree built; one whose node an edit removed stays unapplied until
+    // cleared).
     [[nodiscard]] OverrideOutcome override_set(std::uint64_t automation_id,
                                                std::string_view property, std::string_view value);
     // Removes one override of a node, or every override of it when `property` is empty.
@@ -276,7 +268,7 @@ public:
     // **One layout pass, no stale frame.** The pass completes inside this call, before any paint
     // can observe the tree, so a page that repaints only when `needs_frame()` says so draws the new
     // posture on its first frame. Returns false when there is no running evaluation or the posture
-    // is already the current one (nothing was laid out again).
+    // is already the current one.
     bool set_posture(tessera::hal::FoldPosture posture);
 
     // Resizes the RUNNING evaluation in place (issue #436): the device preset or an orientation
@@ -290,9 +282,7 @@ public:
     // (`PreparedStyleSheet::media_answer_can_change`); if none can, the sheet and its paint cache
     // are untouched and this is a layout pass. If one can, the SAME prepared data is resolved
     // against the new context (ADR-048's resolve step) before the pass, and
-    // `cascade_generation()` counts it. Safe-area padding is re-applied in the same pass by the
-    // metrics the pass is given, so a resize to a foldable or phone size cannot show a frame with
-    // stale padding.
+    // `cascade_generation()` counts it. Safe-area padding is re-applied in the same pass.
     //
     // Returns false when nothing moved (no pass ran) or there is no running evaluation.
     bool set_viewport(float width, float height, float dpi_scale);
@@ -301,8 +291,7 @@ public:
     // insets and the cutout rectangles all move together, in ONE layout pass. It is a separate
     // spelling rather than more arguments on `set_viewport` because the two callers are different
     // controls - the toolbar's size/DPR selects and the skin picker - and a skin change that kept
-    // the previous insets would pad the content for a device that is no longer on screen. The
-    // posture is unchanged by a skin change, so it is not an argument here.
+    // the previous insets would pad the content for a device that is no longer on screen.
     //
     // Returns false when nothing moved (no pass ran) or there is no running evaluation.
     bool set_safe_area(const tessera::hal::WindowInsets& insets,
@@ -312,15 +301,13 @@ public:
     // `ui::Modifier` mask. Tab and Shift+Tab move focus through the focusable controls in tree
     // order and **release it at either end** instead of wrapping, so a page can let the browser
     // carry on to the next element; Enter and Space activate the focused button (the router's click
-    // synthesis); the
-    // `:focus-visible` ring shows after keyboard traversal.
+    // synthesis); the `:focus-visible` ring shows after keyboard traversal.
     CanvasPointerResult key(PreviewInput::Kind kind, std::uint32_t key, std::uint32_t modifiers,
                             bool repeat);
 
     // The page's element lost the keyboard: drop focus (and the ring) so a canvas that is not
     // focused does not look as if it were. A frame is owed only when something was focused.
     CanvasPointerResult blur();
-
     // `platform.event` (designer-protocol-v1 section 5.1, issue #446): one normalized hardware
     // button or environment event, through `PlatformEventDriver` (`scene_platform.hpp`). A relaunch
     // reply ends this evaluation so the page's next `start()` is a cold start, carrying the cells
@@ -336,6 +323,23 @@ public:
     [[nodiscard]] std::uint64_t cascade_generation() const noexcept {
         return session_ != nullptr ? session_->cascade_generation() : 0;
     }
+    // The ADR-041 settle counters of the running session (issue #693): deliveries, rounds, engine
+    // rounds, deferred observations and round-limit hits. The same numbers `AppHost` reports.
+    [[nodiscard]] const tessera::ui::layout::SettleTotals& settle_totals() const noexcept {
+        static const tessera::ui::layout::SettleTotals kNone{};
+        return session_ != nullptr ? session_->settle_totals() : kNone;
+    }
+
+    // The `useBreakpoint()` class of the running viewport (issue #692), and the consumer set the
+    // page's components register with. The canvas pushes the class from `set_viewport`, exactly as
+    // `AppHost` does from `apply_viewport`, so the preview and the runtime cannot disagree.
+    [[nodiscard]] tessera::ui::responsive::SizeClass size_class() const noexcept {
+        return session_ != nullptr ? session_->size_class()
+                                   : tessera::ui::responsive::SizeClass::Compact;
+    }
+    [[nodiscard]] tessera::ui::responsive::EnvironmentSet& environment_values() noexcept {
+        return environment_;
+    }
 
     // The `WindowMetrics` the live tree was laid out against, fold included; a fresh, fold-free
     // snapshot before `start()`.
@@ -347,15 +351,13 @@ public:
     // dirty domain since the last `paint()`. False for a static scene, which is the
     // render-on-demand contract the page's single-frame rule rests on.
     [[nodiscard]] bool needs_frame() const;
-
     // Paints the current tree into `target` and consumes the dirty domains, so a second `paint()`
     // with no intervening event paints the same pixels and `needs_frame()` stays false. The caller
     // owns `device` and `target`.
     //
     // `text` is the font the session paints with, and it is also the measurer the *layout* used
     // (issue #387): a session started with font bytes lays its text boxes out against that face, so
-    // handing the same stack here keeps a painted line inside the box it was measured for. Null
-    // paints boxes only, which is the state before any font arrived.
+    // handing the same stack here keeps a painted line inside the box it was measured for.
     SceneFrameResult paint(rhi::Device& device, rhi::RenderTarget& target,
                            const rhi::RenderTargetDesc& desc,
                            const rhi::PipelineDesc& pipeline = {},
@@ -367,8 +369,7 @@ public:
     // The split of the cells the last *evaluating* apply carried, so the page can say which state
     // survived an edit and why the rest did not (`scene_state.hpp` is the rule). A non-zero
     // `dropped_component` is the structural change the spec calls a reset: a component the state
-    // lived on is gone. A failed apply changes nothing here, like every other part of the running
-    // evaluation it leaves alone.
+    // lived on is gone. A failed apply changes nothing here.
     [[nodiscard]] const StateCarryReport& carry_report() const noexcept {
         return carry_report_;
     }
@@ -421,8 +422,7 @@ public:
     //
     // **It is a query.** Nothing is written, nothing is dispatched and no frame is owed: a commit
     // produces a value the host applies, and the viewer keeps its overrides until
-    // `source.patch.result` arrives (section 10.3). A page that shows the edits has not changed the
-    // project, and this method is what makes that distinction structural rather than a promise.
+    // `source.patch.result` arrives (section 10.3).
     [[nodiscard]] SourcePatchResult patch(const PatchRequest& request) const;
 
 private:
@@ -457,6 +457,9 @@ private:
     EvaluatedScene evaluated_;
     ui::style::CompiledStyleSheet sheet_;
     std::unique_ptr<PreviewSession> session_;
+    // The `useBreakpoint()` consumers of this page (issue #692). It belongs to the session, not to
+    // an evaluation, so a re-evaluation keeps the registrations a component re-attaches anyway.
+    tessera::ui::responsive::EnvironmentSet environment_;
     // Reused across frames so consuming the dirty domains allocates nothing on the frame path.
     ui::DirtyPass dirty_;
     // What the running evaluation was started from; a later `start()` with the same tuple reuses
@@ -494,5 +497,4 @@ private:
     PlatformEventDriver platform_;
     std::optional<CarriedState> relaunch_carry_;
 };
-
 } // namespace tessera::compiler::codegen::cli

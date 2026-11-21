@@ -104,8 +104,15 @@ evaluate_project(const ProjectInput& input, std::string_view salt, std::string_v
                                 module_name_for(entry), std::span<const lowering::PackageRoot>(),
                                 std::span<const lowering::StylesheetFile>(sheet_files));
     if (!lowered) {
-        return std::unexpected(
-            EvaluateError(EvaluateErrorCode::Lower, "the project does not lower"));
+        // The lowering's own diagnostic is the only thing that says WHY a source does not lower
+        // (an unsupported construct, a malformed record, a missing import). Dropping it left the
+        // page with "the project does not lower" and no way to find the line, so it is carried.
+        std::string detail = "the project does not lower";
+        if (!lowered.error().empty()) {
+            const jsx::Diagnostic& first = lowered.error().front();
+            detail += ": " + std::string(first.code) + ": " + first.message;
+        }
+        return std::unexpected(EvaluateError(EvaluateErrorCode::Lower, std::move(detail)));
     }
     EvaluatedScene evaluated;
     evaluated.module.name = lowered->name;

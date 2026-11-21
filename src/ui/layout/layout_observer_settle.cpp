@@ -17,7 +17,7 @@ std::uint32_t clamp_observation_rounds(std::int64_t configured) {
 }
 
 SettleStats observe_and_settle(LayoutObserverSet& observers, const LayoutReadModel& model,
-                               UpdateScheduler& scheduler, const SettleHooks& hooks,
+                               UpdateScheduler* scheduler, const SettleHooks& hooks,
                                LayoutSettleState& state) {
     SettleStats stats;
     if (observers.size() == 0 && hooks.engine_observe == nullptr) {
@@ -36,7 +36,9 @@ SettleStats observe_and_settle(LayoutObserverSet& observers, const LayoutReadMod
                 stats.round_limit_hit = true; // the styles it dirtied wait for the next tick
                 break;
             }
-            scheduler.flush();
+            if (scheduler != nullptr) {
+                scheduler->flush();
+            }
             if (hooks.relayout != nullptr) {
                 hooks.relayout(hooks.relayout_context);
                 ++stats.relayouts;
@@ -49,14 +51,16 @@ SettleStats observe_and_settle(LayoutObserverSet& observers, const LayoutReadMod
         const LayoutDeliveryStats delivered = observers.deliver();
         ++stats.rounds;
         stats.deliveries += delivered.delivered;
-        if (!scheduler.pending()) {
-            break; // the callbacks changed no state, so there is nothing to lay out again
+        // A host with no scheduler has no app callbacks to flush, so nothing can have changed
+        // state: the round that delivered is the last one (issue #693 decision 3).
+        if (scheduler == nullptr || !scheduler->pending()) {
+            break;
         }
         if (stats.rounds + stats.engine_rounds >= max_rounds) {
             stats.round_limit_hit = true;
             break;
         }
-        scheduler.flush();
+        scheduler->flush();
         if (hooks.relayout != nullptr) {
             hooks.relayout(hooks.relayout_context);
             ++stats.relayouts;

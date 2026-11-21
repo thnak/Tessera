@@ -70,7 +70,7 @@ struct World {
     }
 
     SettleStats tick() {
-        return observe_and_settle(set, model, scheduler, hooks, state);
+        return observe_and_settle(set, model, &scheduler, hooks, state);
     }
 
     static void run_update(void* context) {

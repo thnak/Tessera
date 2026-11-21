@@ -319,6 +319,17 @@ target_link_libraries(app_host_tests PRIVATE tessera_app tessera_runtime)
 
 add_test(NAME app_host COMMAND app_host_tests)
 
+# The ADR-041 settle loop wired into a real AppHost (issue #693): a `@container` rule that crosses a
+# condition re-styles in the same tick as the resize, a resize inside one condition costs no engine
+# round, a stylesheet without `@container` pays nothing, and the round budget terminates a
+# self-sizing rule instead of hanging the frame. Headless: ManualClock, null paint sink.
+add_executable(layout_settle_host_tests
+    layout_settle_host_tests.cpp)
+
+target_link_libraries(layout_settle_host_tests PRIVATE tessera_app tessera_runtime)
+
+add_test(NAME layout_settle_host COMMAND layout_settle_host_tests)
+
 # The layout-unchanged gate's acceptance (issue #735, slice A): a frame whose layout pass the gate
 # skipped must be byte-identical to a cold layout of the same inputs, over a randomized edit
 # sequence that covers every layout input source (longhands, text, shape, viewport).
@@ -1984,6 +1995,16 @@ add_executable(lowering_hooks_tests
 target_link_libraries(lowering_hooks_tests PRIVATE tessera_lowering)
 
 add_test(NAME lowering_hooks COMMAND lowering_hooks_tests)
+
+# `environment` hook lowering (docs/specs/jsx-subset-v1.md section 7.1, issue #692): a TSX
+# `useBreakpoint()`/`useTheme()` call becomes an IR `environment[]` entry with the provider, the type
+# and whether it is writable.
+add_executable(lowering_environment_tests
+    lowering_environment_tests.cpp)
+
+target_link_libraries(lowering_environment_tests PRIVATE tessera_lowering)
+
+add_test(NAME lowering_environment COMMAND lowering_environment_tests)
 
 # Spike #659 (ADR-065): the custom-hook expansion pass, off by default. The differential test needs
 # the whole front end plus lowering, because it compares two components' IR.

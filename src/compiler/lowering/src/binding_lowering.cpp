@@ -205,4 +205,32 @@ void lower_behavior_hook(HookState& state, std::size_t index, LoweredHooks& out)
     out.behaviors.push_back(std::move(behavior));
 }
 
+// One `environment` hook call (docs/specs/jsx-subset-v1.md section 7.1). The analyzer already
+// checked the form against the manifest, so this only turns the recorded call into IR: the id, the
+// provider, the type and whether the value is writable.
+void lower_environment_hook(HookState& state, std::size_t index, LoweredHooks& out) {
+    const HookLoweringContext& context = state.context;
+    const jsx::Statement& statement = context.component.body[index];
+    const rules::EnvironmentInfo* info = nullptr;
+    for (const rules::EnvironmentInfo& candidate : context.analysis.environment) {
+        if (candidate.statement == index) {
+            info = &candidate;
+            break;
+        }
+    }
+    if (info == nullptr) {
+        fail_hook(state, "TESSERA_IR_MALFORMED",
+                  "the analysis did not classify this environment call", statement.span);
+        return;
+    }
+    ir::Environment env;
+    env.id = prefixed("env::", info->name);
+    env.name = info->name;
+    env.provider = info->provider;
+    env.type = info->type;
+    env.writable = info->writable;
+    env.source = to_source_span(context.source_map, statement.span, context.file);
+    out.environment.push_back(std::move(env));
+}
+
 } // namespace tessera::compiler::lowering::internal

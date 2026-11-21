@@ -11,6 +11,9 @@
 #include "tessera/compiler/ir/module.hpp"
 #include "tessera/hal/fold_posture.hpp"
 #include "tessera/ui/behavior/instance.hpp"
+#include "tessera/ui/layout/layout_settle.hpp"
+#include "tessera/ui/responsive/environment_set.hpp"
+#include "tessera/ui/responsive/size_class.hpp"
 #include "tessera/ui/scene/input_dispatch.hpp"
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/scene/state_snapshot.hpp"
@@ -213,6 +216,32 @@ public:
         return sheet_;
     }
 
+    // The ADR-041 settle loop of this session (issue #693): the same shared component `AppHost`
+    // runs, so the preview cannot drift from the runtime. It is driven from `rebuild()` and
+    // `relayout()`, which publish the layout and then run the loop, so a `@container` rule that
+    // crossed a condition has re-styled before the caller paints. The canvas has no
+    // `UpdateScheduler`, which the loop accepts as "no app callbacks to flush".
+    [[nodiscard]] const ui::layout::LayoutSettle& settle() const noexcept {
+        return settle_;
+    }
+    // The settle counters, for a report or a test: rounds, engine rounds, deferred observations and
+    // round-limit hits.
+    [[nodiscard]] const ui::layout::SettleTotals& settle_totals() const noexcept {
+        return settle_.totals();
+    }
+
+    // The `useBreakpoint()` consumers of this session (issue #692). The canvas pushes the class
+    // from `set_viewport`, exactly as `AppHost` does from `apply_viewport`, so the preview and the
+    // runtime cannot disagree about which class a width is in.
+    [[nodiscard]] ui::responsive::EnvironmentSet& environment_values() noexcept {
+        return environment_;
+    }
+    // The size class in force, computed from the same media context the `@media` rules resolve
+    // against.
+    [[nodiscard]] ui::responsive::SizeClass size_class() const noexcept {
+        return ui::responsive::size_class_for(media_);
+    }
+
     // The `WindowMetrics` the current tree was laid out against, fold included. A caller reports or
     // compares what the tree was actually sized to rather than rebuilding the snapshot.
     [[nodiscard]] const tessera::hal::WindowMetrics& metrics() const noexcept {
@@ -305,6 +334,21 @@ private:
     // One installed scene binding: which IR handler a scene node's event must run. Kept in a
     // `unique_ptr` so the `void*` context handed to `Node::bind_event` keeps a stable address.
     struct HandlerSlot;
+    // One installed `onSizeChange` observation (ADR-041 item 3, issue #694). The preview is an IR
+    // evaluator, so it cannot run the developer's C++ thunk; it runs the same IR body the generated
+    // base would, with a `SizeChangeEvent` record bound to the handler's parameter. The slot is
+    // kept in a `unique_ptr` for the same reason `HandlerSlot` is: `LayoutObservation` holds the
+    // context pointer for its whole life.
+    struct SizeSlot;
+    // Attaches one observation per `onSizeChange` node of the tree just built, after layout, so the
+    // first delivery carries the size the tree actually has. Replaced by every `rebuild()`.
+    void attach_size_observations(const SceneBuildResult& built);
+    // Detaches every observation before the tree it targets is destroyed.
+    void detach_size_observations();
+    // The `LayoutObservation` callback: runs the slot's IR body with a `SizeChangeEvent` record.
+    static void on_size_change(void* context, const ui::layout::SizeChange& size);
+    // The settle loop's relayout hook: a round whose callback changed state re-evaluates the tree.
+    static void settle_relayout(void* context);
 
     void rebuild();
     // The override layer's entries put onto the tree `rebuild()` just built; takes nothing off.
@@ -339,6 +383,16 @@ private:
     const ir::Component& component_;
     ui::style::CompiledStyleSheet sheet_;
     Options options_;
+    // The ADR-041 settle loop (issue #693): the read model, the container-query tracker and the
+    // app observations, shared with `AppHost` so the preview and the runtime cannot disagree.
+    ui::layout::LayoutSettle settle_;
+    // The `useBreakpoint()` consumers (issue #692), and the class last pushed so a resize inside
+    // one class walks nothing.
+    ui::responsive::EnvironmentSet environment_;
+    ui::responsive::SizeClass pushed_size_class_ = ui::responsive::SizeClass::Compact;
+    // Pushes the current size class to every `useBreakpoint()` consumer (a no-op when it did not
+    // move).
+    void push_size_class();
     // The media context `sheet_` was resolved against (issue #436), so a viewport change can ask
     // whether a `@media` answer moves before resolving anything.
     ui::style::MediaContext media_;
@@ -354,6 +408,9 @@ private:
     SceneMetrics layout_metrics_;
     hal::WindowMetrics metrics_;
     std::vector<std::unique_ptr<HandlerSlot>> slots_;
+    // One entry per `onSizeChange` node of the live tree (issue #694), in build order. Replaced by
+    // every `rebuild()`, and detached before the tree it observes dies.
+    std::vector<std::unique_ptr<SizeSlot>> size_slots_;
     // One behavior instance per IR `behaviors` entry, in declaration order (ADR-064 item 7). The
     // evaluated args are kept alongside because `refresh` re-passes them: a behavior reads its
     // options on every recompute, and re-evaluating them per pointer move would be work for a value
@@ -392,6 +449,9 @@ private:
     std::string build_error_;
     // Set by a handler that changed state during a dispatch; consumed by the rebuild after it.
     bool dirty_ = false;
+    // True while `settle_.run()` is on the stack. A settle round's relayout calls `rebuild()`,
+    // which must not re-enter the loop: the outer call continues with the next round.
+    bool in_settle_ = false;
 };
 
 } // namespace tessera::compiler::codegen::cli

@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT
 
 #include "host_impl.hpp"
 #include "tessera/app/host.hpp"
@@ -142,6 +142,11 @@ AppHost::Impl::Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet, runtime
     // adaptive_quality() agree from the start instead of reporting a default 1.0 scale for a window
     // configured at another renderScale.
     quality.publish();
+    // The ADR-041 settle loop (issue #693): its hooks and round budget live in host_settle.cpp.
+    init_settle();
+    // The size class the first frame starts at (issue #692): a component that reads
+    // `useBreakpoint()` renders the class the window actually has, not the field's initial value.
+    pushed_size_class = ui::responsive::size_class_for(media_context);
 }
 
 void AppHost::Impl::apply_root_size() {
@@ -359,42 +364,14 @@ HostFrame AppHost::begin_frame(double dt, double alpha) {
 
     // Any style or layout work may have changed the tree's shape (a state change can attach a
     // conditional child), and the damage pass latches a full redraw on overflow. Rebuild the
-    // selector tree and re-run layout for both; a paint-only frame skips all of it.
+    // selector tree and re-run layout for both; a paint-only frame skips all of it. ADR-041 steps
+    // 4a/4b (issue #693) follow every pass: publish the committed layout and run the bounded settle
+    // loop, so a container query or an `onSizeChange` callback that changes layout lands in THIS
+    // frame instead of the next one.
     const auto restyle_and_layout = [&state, &frame] {
-        const bool incremental = state.prepare_style_tree();
-        // A restyled selector tree is a new style generation. The paint cache key holds a node's
-        // own dirty flags, not its computed style, so a node that stayed Clean can still resolve a
-        // different style now (an inherited value, an ancestor/sibling selector, a restyled root or
-        // a new theme). Dropping every record is the only sound answer; replaying one would paint
-        // the previous generation and differ from a cold full paint.
-        state.pipeline->invalidate_paint_cache();
-        frame.style_rebuilt = true;
-        state.restyle_memo.begin(*state.provider, incremental);
-        // The layout-unchanged gate (issue #735, slice A): when the restyle provably kept every
-        // layout input, reuse the previous result instead of rebuilding the layout input and
-        // hashing the tree. `restyled_layout_changed` recomputes only the restyled nodes, which is
-        // the work the sync below would do anyway, so a declined gate costs nothing extra.
-        const bool layout_unchanged = state.layout_unchanged(incremental);
-        if (layout_unchanged) {
-            frame.layout = state.last_applied;
-            ++state.layout_gate_hits;
-        } else {
-            state.run_layout_pass(state.restyle_memo);
-            frame.layout = state.last_applied;
-        }
-        // Scoped sync (issue #735, slice B). The gate just proved that no box moved and that only
-        // the restyled subtrees changed style, so a node outside them has nothing to re-apply.
-        // Without that proof the whole tree is synced, which is the pre-slice-B behaviour.
-        if (layout_unchanged && state.tree != nullptr) {
-            frame.sync = state.pipeline->sync_style_scoped(
-                state.root, state.restyle_memo, state.tree->restyled_roots(), frame.tick, true);
-        } else {
-            frame.sync =
-                state.pipeline->sync_style(state.root, state.restyle_memo, frame.tick, true);
-        }
-        state.restyle_memo.end();
-        state.style_tree_populated = true;
-        state.pipeline->sample_started_animations(state.root);
+        state.restyle_and_layout(frame.tick, frame.sync, frame.style_rebuilt);
+        frame.layout = state.last_applied;
+        state.settle_layout();
     };
     const bool geometry_work = frame.tick.needs_style || frame.tick.needs_layout;
     if (geometry_work) {
@@ -524,6 +501,9 @@ std::size_t AppHost::rejected_stylesheet_count() const {
 void AppHost::set_update_scheduler(ui::UpdateScheduler* scheduler) {
     impl_->scheduler = scheduler;
     impl_->pipeline->set_update_scheduler(scheduler);
+    // The settle loop's app callbacks are flushed through the same scheduler, so a component that
+    // sets state from `onSizeChange` applies in the round that delivered it (issue #693).
+    impl_->settle.set_scheduler(scheduler);
     if (scheduler != nullptr && impl_->reduced_motion) {
         scheduler->set_reduced_motion(true);
     }
@@ -555,6 +535,14 @@ std::uint64_t AppHost::cascade_generation() const {
 
 bool AppHost::frame_due() const {
     return impl_->pipeline->frame_due();
+}
+
+ui::layout::LayoutObserverSet& AppHost::layout_observers() {
+    return impl_->settle.observers();
+}
+
+const ui::layout::SettleTotals& AppHost::layout_settle_totals() const {
+    return impl_->settle.totals();
 }
 
 const ui::frame::FrameRender& AppHost::last_render() const {
