@@ -41,6 +41,13 @@ struct Substitutions {
 void substitute(ExprPtr& slot, const Substitutions& subs, std::vector<Span>& whole_value_uses);
 void substitute(JsxNode& node, const Substitutions& subs, std::vector<Span>& whole_value_uses);
 
+// Applies `subs` to every expression a scope holds, in place. A hook's results are bound from its
+// own source, so a field that reads a nested call's output still names it (`{ bump: c.bump }` where
+// `c` is a hook call); the nested expansion is what knows the rewrite, so the caller applies its
+// scope to the results as well as to the spliced statements. Without this the chain stops after one
+// step and the name reaches lowering unresolved.
+void substitute_results(Substitutions& results, const Substitutions& subs);
+
 // Renames every identifier `names` maps, honouring arrow parameters that shadow an outer name.
 void rename(Expr& expr, const std::map<std::string, std::string>& names);
 void rename(JsxNode& node, const std::map<std::string, std::string>& names);

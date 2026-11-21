@@ -1,7 +1,7 @@
 corpus: 50 file(s)
 front end accepted: 24 (48.0%), 26 rejected
 front end accepted with a component declaration: 24 (48.0%)
-pipeline accepted: 10 (20.0%)
+pipeline accepted: 11 (22.0%)
 warnings: 0
 
 front-end rejections (code, occurrences, files):
@@ -42,8 +42,8 @@ pipeline rejections (first blocking code, files):
   TESSERA_IR_UNSUPPORTED 6
   TESSERA_JSX_PARSE_UNEXPECTED_TOKEN 5
   TESSERA_IR_UNKNOWN_PROP 4
-  TESSERA_IR_UNRESOLVED 4
   TESSERA_JSX_SUBSET_IMPORT 4
+  TESSERA_IR_UNRESOLVED 3
   TESSERA_JSX_SUBSET_ARRAY_METHOD 3
   TESSERA_REACT_UNKNOWN_HOOK 3
   TESSERA_JSX_PARSE_MISSING_SEMICOLON 1
@@ -78,7 +78,7 @@ files:
   accepted react/expressions/list-length.tsx components=1 pipeline=TESSERA_IR_UNRESOLVED
   accepted react/expressions/list-map-key.tsx components=1 pipeline=ok
   rejected react/expressions/nullish-coalescing.tsx components=1: TESSERA_JSX_SUBSET_OPERATOR pipeline=TESSERA_JSX_SUBSET_OPERATOR
-  accepted react/expressions/object-destructure-local.tsx components=1 pipeline=TESSERA_IR_UNRESOLVED
+  accepted react/expressions/object-destructure-local.tsx components=1 pipeline=ok
   rejected react/expressions/object-spread.tsx components=1: TESSERA_JSX_SUBSET_LITERAL pipeline=TESSERA_JSX_SUBSET_LITERAL
   accepted react/expressions/readonly-array-type.tsx components=1 pipeline=ok
   rejected react/expressions/slice-map.tsx components=1: TESSERA_JSX_SUBSET_ARRAY_METHOD pipeline=TESSERA_JSX_SUBSET_ARRAY_METHOD

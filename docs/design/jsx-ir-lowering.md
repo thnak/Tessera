@@ -418,6 +418,8 @@ lower_project(std::span<const ModuleSource>, std::string_view module_name); // i
   references, `style`, props spreads and component values are rejected (`fallback` accepts one).
 
 Tests are `lowering_module`, `lowering_module_reject` and `lowering_module_determinism`.
+
+Decision 8 (local `const` inlining) is implemented; see [`implementation-log.md`](../architecture/implementation-log.md).
 ## 4. Spans and diagnostics
 
 - The AST keeps `Span` (byte offset and length). Lowering needs the file's `SourceMap` and the

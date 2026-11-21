@@ -1,13 +1,35 @@
 // SPDX-License-Identifier: MIT
 
 // Slice 5's NameResolver seam, implemented from the analysis symbol table (docs/design/
-// jsx-ir-lowering.md section 3).
+// jsx-ir-lowering.md section 3), plus decision 8's local table.
 
 #include "tessera/compiler/lowering/component_names.hpp"
 
+#include <cstddef>
 #include <utility>
 
 namespace tessera::compiler::lowering {
+
+// Decision 8: the initializer a `const` local stands for. A plain `const x = e;` inlines `e`; an
+// object pattern `const { state } = io;` inlines `io.state`, so the field is kept beside the
+// initializer. An array pattern (`const [a, b] = e;`) has no single initializer per name, so it
+// gets no entry and stays unresolved rather than inlining half of the pattern.
+void ComponentNames::record_const_local(const jsx::Statement& statement, std::string_view name) {
+    if (statement.init == nullptr) {
+        return;
+    }
+    if (!statement.object_pattern.empty()) {
+        // An object pattern binds each listed field of the initializer to a local of the same name
+        // (the parser refuses a rename outside the experimental custom-hook path), so the local
+        // name is the field name and the inlined reference appends it to the initializer's id.
+        const_locals_.push_back({std::string(name), statement.init.get(), std::string(name)});
+        return;
+    }
+    if (statement.array_pattern) {
+        return;
+    }
+    const_locals_.push_back({std::string(name), statement.init.get(), std::string()});
+}
 
 ComponentNames::ComponentNames(const rules::ComponentAnalysis& analysis) {
     for (const rules::Symbol& symbol : analysis.symbols) {
@@ -29,10 +51,16 @@ ComponentNames::ComponentNames(const rules::ComponentAnalysis& analysis) {
                 props_param_ = symbol.name;
             }
             break;
+        case rules::SymbolKind::Local:
+            // Decision 8: a local is inlined, never referenced, so it is recorded in its own table
+            // instead of `entries_`. The analysis already gives the statement that declares it.
+            if (analysis.item != nullptr && symbol.statement < analysis.item->body.size()) {
+                record_const_local(analysis.item->body[symbol.statement], symbol.name);
+            }
+            break;
         case rules::SymbolKind::StateSetter:
         case rules::SymbolKind::Handler:
-        case rules::SymbolKind::Local:
-            // Function values have no IR expression; locals are inlined later (decision 8).
+            // Function values have no IR expression.
             break;
         }
     }
@@ -102,6 +130,42 @@ std::optional<std::string> ComponentNames::resolve(std::string_view source_name)
         source_name.compare(0, props_param_.size(), props_param_) == 0 &&
         source_name[props_param_.size()] == '.') {
         return "prop::" + std::string(source_name.substr(props_param_.size() + 1));
+    }
+    return std::nullopt;
+}
+
+std::optional<LocalBinding> ComponentNames::local_binding(std::string_view source_name) const {
+    // A handler parameter or a loop variable shadows a local of the same name (decision 8), and
+    // `resolve` answers it as an action local, so it is not inlined here.
+    for (const std::string& local : locals_) {
+        if (local == source_name) {
+            return std::nullopt;
+        }
+    }
+    // `row.title` for `const row = props.row;`: the base is the local, the rest is the field to
+    // append to whatever the initializer lowers to.
+    std::string_view base = source_name;
+    std::string_view field;
+    if (const std::size_t dot = source_name.find('.'); dot != std::string_view::npos) {
+        base = source_name.substr(0, dot);
+        field = source_name.substr(dot + 1);
+    }
+    for (const ConstLocal& local : const_locals_) {
+        if (local.name != base) {
+            continue;
+        }
+        LocalBinding binding;
+        binding.initializer = local.initializer;
+        // The pattern's own field comes first: `const { state } = io;` then `state.x` reads
+        // `io.state.x`.
+        binding.field = local.field;
+        if (!field.empty()) {
+            if (!binding.field.empty()) {
+                binding.field += '.';
+            }
+            binding.field += field;
+        }
+        return binding;
     }
     return std::nullopt;
 }

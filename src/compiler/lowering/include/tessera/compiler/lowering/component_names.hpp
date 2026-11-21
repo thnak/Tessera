@@ -24,11 +24,12 @@ namespace tessera::compiler::lowering {
 // `beh::press.pressed`, behavior-hooks-v1.md section 6), and names added with `add_local` (handler
 // parameters are IR locals, docs/specs/ir-v1.md section 2.1).
 //
-// Not resolved, deliberately:
-// - a local (`const x = pure_expr`): decision 8 inlines it, and that pass is not part of slice 6,
-//   so `resolve` returns nullopt rather than inventing a `local::` reference the IR does not have;
-// - a state setter or a handler name: they are function values, not expressions, and are looked up
-//   through the handler records instead.
+// A `const` local (`const x = pure_expr`) is not a reference: decision 8 inlines it, so `resolve`
+// returns nullopt for it and `local_binding` hands back the initializer to lower in place at each
+// use. That keeps `local::x` out of the IR, which has no such id.
+//
+// Not resolved, deliberately: a state setter or a handler name. They are function values, not
+// expressions, and are looked up through the handler records instead.
 class ComponentNames final : public NameResolver {
 public:
     explicit ComponentNames(const rules::ComponentAnalysis& analysis);
@@ -47,11 +48,31 @@ public:
 
     [[nodiscard]] std::optional<std::string> resolve(std::string_view source_name) const override;
 
+    // Decision 8: the initializer of the `const` local `source_name`, for lowering to inline. A
+    // dotted chain whose base is a local (`row.title` for `const row = props.row;`) returns the
+    // base's initializer with `field` = `title`, so the caller appends it to the lowered ref. A
+    // name shadowed by a handler parameter or a loop variable is not a local here: `resolve`
+    // answers it first.
+    [[nodiscard]] std::optional<LocalBinding>
+    local_binding(std::string_view source_name) const override;
+
 private:
     struct Entry {
         std::string name;
         std::string id;
     };
+
+    // One `const` local of the component body: the name it introduces, the initializer to inline,
+    // and the field an object pattern selected (`const { state } = io;` gives `io` and `state`).
+    struct ConstLocal {
+        std::string name;
+        const jsx::Expr* initializer = nullptr;
+        std::string field;
+    };
+
+    // Records the local `name` of `statement` in `const_locals_`, if the statement gives it an
+    // initializer to inline.
+    void record_const_local(const jsx::Statement& statement, std::string_view name);
 
     std::vector<Entry> entries_;      // declarations, in analysis order
     std::vector<std::string> locals_; // checked first
@@ -65,6 +86,9 @@ private:
         std::vector<std::string> outputs;
     };
     std::vector<BehaviorOutputs> behavior_outputs_;
+    // Decision 8: the `const` locals of the body, in declaration order. A local is inlined, never
+    // referenced, so it is kept apart from `entries_`.
+    std::vector<ConstLocal> const_locals_;
 };
 
 } // namespace tessera::compiler::lowering

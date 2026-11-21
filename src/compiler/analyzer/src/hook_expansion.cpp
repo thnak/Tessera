@@ -380,11 +380,19 @@ std::size_t Expander::expand_call(std::vector<Statement>& body, std::size_t inde
     // expanded where it appears (spec section 4 step 7). Expanding them in a vector of their own
     // keeps the outer body's indices valid: a nested expansion may change the count.
     stack_.push_back(Expansion{hook.name, call_span, site});
-    expand_body(replacement, depth + 1);
+    const Substitutions nested = expand_body(replacement, depth + 1);
     stack_.pop_back();
     if (failed_) {
         return 0;
     }
+
+    // The results were bound from the hook's own source, so a field that reads a nested call's
+    // output still names it (`{ bump: c.bump }` where `c` is a hook call). The nested expansion
+    // just rewrote those names in the spliced statements, and its scope is what knows the rewrite,
+    // so apply it to the results too. Without this the chain stops after one step and the name
+    // reaches lowering unresolved -- which is what made the differential fixture "a hook calling a
+    // hook" fail on the hook side while its hand-written twin compiled.
+    internal::substitute_results(results, nested);
 
     const std::size_t inserted = replacement.size();
     body.erase(body.begin() + static_cast<long>(index));

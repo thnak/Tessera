@@ -339,6 +339,14 @@ inline const std::vector<Skip> kSkips = {
      "lowering is outside this registry's source scan and fixtures"},
     {"TESSERA_JSX_SUBSET_IMPORT_CYCLE", "project resolver",
      "an import cycle spans files; the single-file parser cannot decide it"},
+    // Decision 8 of docs/design/jsx-ir-lowering.md: a `const` local is inlined, so a local defined
+    // in terms of itself is reported by the lowering (src/compiler/lowering/src/
+    // reference_lowering.cpp). Lowering is outside this registry's source scan and fixtures, so the
+    // case is pinned in lowering_local_inline_tests.cpp (`test_self_referential_local_is_rejected`
+    // and `test_indirect_local_cycle_is_rejected`) instead.
+    {"TESSERA_IR_LOCAL_CYCLE", "lowering",
+     "reported by the local inlining of decision 8 for a `const` that reaches itself; lowering is "
+     "outside this registry's source scan and fixtures"},
     {"TESSERA_JSX_TYPE_MISMATCH", "type/lowering",
      "needs declared prop, state and event types; no stage emits it yet"},
     {"TESSERA_REACT_HOOK_NOT_ALLOWED", "hook manifest",
