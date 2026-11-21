@@ -14,8 +14,9 @@
 // process counts, including the ones the standard library makes for the code under test. Counting
 // is switched on only around the measured frames. No GPU, no window, no font, no wall clock.
 //
-// Usage: frame_alloc_probe [--frames N] [--warmup N] | --classcheck
-// Output: one line per scenario, `name allocs/frame(min,mean,max) bytes/frame(mean)`.
+// Usage: frame_alloc_probe [--frames N] [--warmup N] [--only SCENARIO --cards 10|200] |
+// --classcheck | --computecheck Output: one line per scenario, `name allocs/frame(min,mean,max)
+// bytes/frame(mean)`.
 
 #include "tessera/app/host.hpp"
 #include "tessera/runtime/clock.hpp"
@@ -347,9 +348,23 @@ int main(int argc, char** argv) {
                     forced.first_c.r, forced.first_c.g, forced.first_c.b);
         return 0;
     }
+    // `--only <scenario> --cards N`: one row, for running the probe under a sampling profiler.
+    const char* only = nullptr;
+    int only_cards = 200;
+    for (int i = 1; i + 1 < argc; i += 2) {
+        if (std::strcmp(argv[i], "--only") == 0) {
+            only = argv[i + 1];
+        } else if (std::strcmp(argv[i], "--cards") == 0) {
+            only_cards = std::atoi(argv[i + 1]);
+        }
+    }
     for (int cards : {10, 200}) {
         for (Action action : {Action::Idle, Action::PaintDirty, Action::TextChange,
                               Action::ClassToggle, Action::LayoutDirty}) {
+            if (only != nullptr &&
+                (std::strcmp(only, name_of(action)) != 0 || cards != only_cards)) {
+                continue;
+            }
             measure(cards, action, warmup, frames);
         }
     }
