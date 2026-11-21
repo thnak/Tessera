@@ -1,32 +1,30 @@
-hook: useMediaQuery, one evaluator shared with the cascade (#631)
+hook: useScrollLock, reference-counted so nested layers do not unlock each other (#633)
 
-`useMediaQuery("(min-width: 600px)")` returns a reactive boolean for one
-media query. The rule the issue states is "consistent with useBreakpoint
-and the stylesheet's media evaluation (same engine path, no second
-evaluator)", so the hook calls `style::parse_media_query_list` and
-`style::evaluate` — the same two functions the cascade calls — and nothing
-else. `media_query_match` proves the agreement directly: for every query
-and width in its table, the hook's answer equals the cascade's, and a
-query written at a size-class threshold matches exactly when the class is
-on the corresponding side of it.
+`useScrollLock(target, { active })` stops the background from scrolling
+while a modal layer is open. The engine owns the mechanism: a node with its
+scroll axes clear is not a scroll container, so `scroll_target` skips it and
+a wheel or gesture chains past it. This lands the hook's half.
 
-This is the first `environment` hook that takes an argument, which the
-path did not support: it assumed zero parameters and a string return. The
-manifest now declares a `value` parameter, the analyzer derives its arity
-from the manifest rather than a name check, the IR carries the argument,
-and codegen emits a `bool` field, one parsed matcher, and a
-`set_environment_<name>_context(const style::MediaContext&)` the host
-calls with the same context the cascade resolves against. A media query
-registers no string consumer, because it is not pushed as a value: the
-component evaluates its own parsed query.
+The interesting part is the reference count. Two dialogs can be open at
+once (a confirmation over a settings sheet), and the inner one closing must
+not unlock the page the outer one still needs locked. A count per behavior
+cannot see the other behavior, so the count lives in one bounded table keyed
+by the node: a fixed array of `{node, count, axes}` records, allocation-free
+on the lock path. A behavior that cannot get a slot leaves the node unlocked
+and reports `locked = false` rather than claiming a lock it does not hold.
 
-A malformed query is `false` rather than an error: a media query is a
-string a component may build at runtime, and a bad one must not take the
-frame down. An unevaluated query is also `false`, so a component renders
-its non-matching layout for the first frame rather than claiming a match
-it has not checked.
+The table also records the axes the node had before the first lock, so the
+last release restores exactly what was there. Restoring both axes would make
+a horizontally-clipped page suddenly scroll sideways.
 
-Evidence: `media_query_match` (8 rules, including the cascade agreement
-and the size-class agreement), `codegen_environment` (the generated
-surface) and `hook_manifest` (the entry's shape). Spec:
-`docs/specs/use-media-query-v1.md`.
+`locked` reports this behavior's reference, not whether the node is locked
+overall: a nested layer that releases its own lock while an outer one still
+holds one reports `false` and the page stays locked, which is the truth a
+component needs.
+
+The destructor releases the reference, so a behavior destroyed without an
+explicit detach cannot leave a page unscrollable for the session.
+
+Evidence: `scroll_lock` (11 rules, including the nested reference count and
+the axis restore), `hook_manifest` and `behavior_registry`. Spec:
+`docs/specs/use-scroll-lock-v1.md`.

@@ -1867,6 +1867,9 @@ function include/tessera/ui/behavior/registry.hpp tessera::ui::behavior::registr
 header include/tessera/ui/behavior/roving_focus.hpp
 class include/tessera/ui/behavior/roving_focus.hpp tessera::ui::behavior::RovingFocus
 
+header include/tessera/ui/behavior/scroll_lock.hpp
+class include/tessera/ui/behavior/scroll_lock.hpp tessera::ui::behavior::ScrollLock
+
 header include/tessera/ui/boundary/boundary.hpp
 class include/tessera/ui/boundary/boundary.hpp tessera::ui::boundary::BoundaryTable
 class include/tessera/ui/boundary/boundary.hpp tessera::ui::boundary::RootHandler
