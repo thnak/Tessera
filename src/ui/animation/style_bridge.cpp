@@ -59,66 +59,79 @@ void StyleBridge::sync_node(AnimationRuntime& runtime, const Node& node, StyleBr
     const style::ComputedStyle& current = compute(context, node);
     ++result.nodes;
 
-    const TransitionParseResult parsed = parse_style_transitions(current);
-    const bool transitions = parsed.ok && has_duration(parsed.transitions);
+    const bool idle = !previous_.contains(node.id()) && idle_memo_.hit(node.id(), current);
+    if (!idle) {
+        const TransitionParseResult parsed = parse_style_transitions(current);
+        const bool transitions = parsed.ok && has_duration(parsed.transitions);
 
-    const auto found = previous_.find(node.id());
-    if (found == previous_.end()) {
-        // First observed style for this node. It is the baseline, not a change, so nothing starts:
-        // the initial style never transitions. A snapshot is retained only for a node that declares
-        // a transition, so a large static tree does not pay a full `ComputedStyle` per node.
-        if (transitions) {
-            previous_.emplace(node.id(), TrackedStyle{current, generation});
-        }
-    } else {
-        if (transitions) {
-            // The "from" side: a property with a running transition continues from the value it is
-            // displaying; every other property uses its previous computed value. The stored
-            // snapshot stays the computed style, so the next diff still compares computed values.
-            style::ComputedStyle before = found->second.style;
-            for (const TransitionSpec& spec : parsed.transitions) {
-                // Only a property whose computed value changed is retargeted. A running transition
-                // whose target did not move must be left alone: continuing "from what is shown to
-                // the unchanged target" restarts it on every style stage, and a transition then
-                // converges geometrically (about 63 percent of the way after the first 200 ms of a
-                // 200 ms transition, still short of the end after twice that) instead of finishing.
-                const std::string* was = found->second.style.find(spec.property);
-                const std::string* now = current.find(spec.property);
-                const bool changed = (was == nullptr) != (now == nullptr) ||
-                                     (was != nullptr && now != nullptr && *was != *now);
-                if (!changed) {
-                    continue;
-                }
-                const std::string shown = displayed_value(runtime, node.id(), spec.property);
-                if (!shown.empty()) {
-                    before.set(spec.property, shown);
-                }
+        const auto found = previous_.find(node.id());
+        if (found == previous_.end()) {
+            // First observed style for this node. It is the baseline, not a change, so nothing
+            // starts: the initial style never transitions. A snapshot is retained only for a node
+            // that declares a transition, so a large static tree does not pay a full
+            // `ComputedStyle` per node.
+            if (transitions) {
+                previous_.emplace(node.id(), TrackedStyle{current, generation});
             }
-            const std::vector<AnimationId> ids = start_style_transitions(
-                runtime, node.id(), parsed.transitions, before, current, on_complete);
-            result.transitions_started += ids.size();
-            result.ids.insert(result.ids.end(), ids.begin(), ids.end());
-        }
-        if (transitions) {
-            found->second.style = current;
-            found->second.generation = generation;
         } else {
-            // The transition declaration went away; drop the snapshot so the node stops being
-            // tracked until it declares one again.
-            previous_.erase(found);
+            if (transitions) {
+                // The "from" side: a property with a running transition continues from the value it
+                // is displaying; every other property uses its previous computed value. The stored
+                // snapshot stays the computed style, so the next diff still compares computed
+                // values.
+                style::ComputedStyle before = found->second.style;
+                for (const TransitionSpec& spec : parsed.transitions) {
+                    // Only a property whose computed value changed is retargeted. A running
+                    // transition whose target did not move must be left alone: continuing "from
+                    // what is shown to the unchanged target" restarts it on every style stage, and
+                    // a transition then converges geometrically (about 63 percent of the way after
+                    // the first 200 ms of a 200 ms transition, still short of the end after twice
+                    // that) instead of finishing.
+                    const std::string* was = found->second.style.find(spec.property);
+                    const std::string* now = current.find(spec.property);
+                    const bool changed = (was == nullptr) != (now == nullptr) ||
+                                         (was != nullptr && now != nullptr && *was != *now);
+                    if (!changed) {
+                        continue;
+                    }
+                    const std::string shown = displayed_value(runtime, node.id(), spec.property);
+                    if (!shown.empty()) {
+                        before.set(spec.property, shown);
+                    }
+                }
+                const std::vector<AnimationId> ids = start_style_transitions(
+                    runtime, node.id(), parsed.transitions, before, current, on_complete);
+                result.transitions_started += ids.size();
+                result.ids.insert(result.ids.end(), ids.begin(), ids.end());
+            }
+            if (transitions) {
+                found->second.style = current;
+                found->second.generation = generation;
+            } else {
+                // The transition declaration went away; drop the snapshot so the node stops being
+                // tracked until it declares one again.
+                previous_.erase(found);
+            }
         }
-    }
 
-    // The animation half of the bridge. `sync_style_animations` is idempotent, so it runs for every
-    // rendered node on every style stage and stops the names the current style no longer declares.
-    // `animation-name` has an empty registry initial value, so a node without a declaration parses
-    // to an empty desired list and this is a no-op in the common case.
-    if (!keyframes.empty()) {
-        const StyleAnimationSync sync =
-            sync_style_animations(runtime, node.id(), current, keyframes);
-        result.animations_started += sync.started;
-        result.animations_stopped += sync.stopped;
-        result.ids.insert(result.ids.end(), sync.ids.begin(), sync.ids.end());
+        // The animation half of the bridge. `sync_style_animations` is idempotent, so it runs for
+        // every rendered node on every style stage and stops the names the current style no longer
+        // declares. `animation-name` has an empty registry initial value, so a node without a
+        // declaration parses to an empty desired list and this is a no-op in the common case.
+        if (!keyframes.empty()) {
+            const StyleAnimationSync sync =
+                sync_style_animations(runtime, node.id(), current, keyframes);
+            result.animations_started += sync.started;
+            result.animations_stopped += sync.stopped;
+            result.ids.insert(result.ids.end(), sync.ids.begin(), sync.ids.end());
+        }
+
+        if (!transitions && !previous_.contains(node.id())) {
+            const std::string* animation_name = current.find("animation-name");
+            if (animation_name == nullptr || animation_name->empty() || *animation_name == "none") {
+                idle_memo_.put(node.id(), current);
+            }
+        }
     }
 
     for (const auto& child : node.children()) {
@@ -138,7 +151,9 @@ StyleBridgeResult StyleBridge::sync(AnimationRuntime& runtime, const Node& root,
     // the rendered tree (removed, `display: none`, `visibility: hidden`) is dropped afterwards
     // instead of being diffed against a stale style when it comes back.
     const std::uint64_t generation = ++generation_;
+    idle_memo_.begin();
     sync_node(runtime, root, compute, context, keyframes, on_complete, generation, result);
+    idle_memo_.sweep();
     for (auto it = previous_.begin(); it != previous_.end();) {
         if (it->second.generation != generation) {
             it = previous_.erase(it);

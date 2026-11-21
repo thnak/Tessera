@@ -55,10 +55,10 @@
       "measures": "sizeof(ui::NodeId): the id stored in every side table (paint cache, resolved-style table, dirty list, damage rects). A wider id multiplies every one of them. Identical on both lanes"
     },
     "computed_style_one_property_bytes": {
-      "budget": 64,
+      "budget": 112,
       "status": "enforce",
       "unit": "bytes",
-      "measures": "bytes the first property insert into a ComputedStyle allocates: the map node plus its two strings, which is the real per-styled-node style cost. This is the portable row; sizeof(ComputedStyle) itself is not pinned because it is a std::map handle whose size the standard library decides (16 on MSVC, 48 on libstdc++) and pinning it would record a libstdc++/MSVC difference as a memory budget. 96 on both lanes"
+      "measures": "bytes the first property insert into a ComputedStyle allocates (two allocations since the copy-on-write storage of issue #711: the shared block with its control block, digest and vector header, and the vector buffer holding the one pair). A copy of a style allocates nothing, which is what the layout input, the diff baseline and every reader pay now, so the per-node cost that matters fell by about 30x while this one-property floor rose from 64. This is the portable row; sizeof(ComputedStyle) itself is not pinned because it is a std::map handle whose size the standard library decides (16 on MSVC, 48 on libstdc++) and pinning it would record a libstdc++/MSVC difference as a memory budget. 96 on both lanes"
     },
     "plain_node_allocations": {
       "budget": 1,

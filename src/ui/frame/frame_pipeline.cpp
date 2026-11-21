@@ -289,7 +289,8 @@ paint::SceneStyleSyncResult FramePipeline::sync_style(Node& root, paint::StylePr
         return {};
     }
     DiffingStyleProvider diffing(styles, previous_styles_);
-    paint::SceneStyleSyncResult result = paint::sync_scene_style(root, diffing, config_.glass);
+    paint::SceneStyleSyncResult result =
+        paint::sync_scene_style(root, diffing, config_.glass, &scene_sync_memo_);
     diffing.prune();
     if (!diffing.changed().empty()) {
         std::unordered_map<NodeId, Node*> index;
@@ -304,10 +305,9 @@ paint::SceneStyleSyncResult FramePipeline::sync_style(Node& root, paint::StylePr
             }
         }
     }
-    // Interaction state the scene itself consumes: hit testing (`pointer-events`) and the text
-    // selection gate (`user-select`), stylesheet-v1 section 11 / issue #247. Same seam, same
-    // frame, so the two halves never disagree about a restyled node.
-    sync_interaction_style(root, &interaction_style_thunk, &styles);
+    // Interaction state the scene consumes (`pointer-events`, `user-select`; stylesheet-v1 section
+    // 11, issue #247), same seam and frame so the halves never disagree about a restyled node.
+    sync_interaction_style(root, &interaction_style_thunk, &styles, &interaction_sync_memo_);
     // Transition and animation declarations become real here (issue #271): the diff against the
     // previous style starts the transitions the new style declares, and the animation sync
     // reconciles the running set against `animation-*`. Both feed the runtime the next tick

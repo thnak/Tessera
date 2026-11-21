@@ -4,6 +4,7 @@
 
 #include "tessera/ui/paint/paint_pass.hpp"
 #include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/style/sync_memo.hpp"
 
 #include <cstddef>
 
@@ -38,6 +39,9 @@ struct SceneStyleSyncResult {
 // quarter turns of boxes, an approximation otherwise.
 SceneStyleSyncResult
 sync_scene_style(Node& root, StyleProvider& styles,
-                 const rendering::gpu::GlassLimits& glass = rendering::gpu::GlassLimits{});
+                 const rendering::gpu::GlassLimits& glass = rendering::gpu::GlassLimits{},
+                 style::SyncMemo* memo = nullptr);
+// With a `memo` the walk skips a node whose style and box are unchanged since the last call (the
+// glass limits must stay the same between calls that share one memo).
 
 } // namespace tessera::ui::paint

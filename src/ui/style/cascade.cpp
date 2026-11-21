@@ -272,26 +272,62 @@ void ComputedStyle::set(std::string property, std::string value) {
     set_normalized(normalize_property(property), std::move(value));
 }
 
+const ComputedStyle::Entries& ComputedStyle::empty_entries() {
+    static const Entries kEmpty;
+    return kEmpty;
+}
+
+ComputedStyle::Entries& ComputedStyle::mutable_entries() {
+    if (properties_ == nullptr) {
+        properties_ = std::make_shared<Storage>();
+    } else if (properties_.use_count() > 1) {
+        properties_ = std::make_shared<Storage>(properties_->entries);
+    } else {
+        properties_->digest.store(0, std::memory_order_relaxed);
+    }
+    return properties_->entries;
+}
+
 void ComputedStyle::erase(std::string_view property) {
     const std::string normalized = normalize_property(property);
     const auto found = lower_bound(normalized);
-    if (found != properties_.end() && found->first == normalized) {
-        properties_.erase(properties_.begin() + (found - properties_.cbegin()));
+    if (found != properties().end() && found->first == normalized) {
+        const auto index = found - properties().cbegin();
+        Entries& entries = mutable_entries();
+        entries.erase(entries.begin() + index);
     }
 }
 
 ComputedStyle::Entries::const_iterator
 ComputedStyle::lower_bound(std::string_view normalized) const {
-    return std::lower_bound(properties_.begin(), properties_.end(), normalized,
-                            [](const auto& entry, std::string_view key) {
-                                return std::string_view(entry.first) < key;
-                            });
+    const Entries& entries = properties();
+    // Names mostly differ in their first byte, so decide on it before calling into a full compare.
+    const auto less = [](std::string_view left, std::string_view right) {
+        if (!left.empty() && !right.empty() && left.front() != right.front()) {
+            return static_cast<unsigned char>(left.front()) <
+                   static_cast<unsigned char>(right.front());
+        }
+        return left < right;
+    };
+    auto first = entries.begin();
+    auto count = entries.end() - first;
+    while (count > 0) {
+        const auto half = count / 2;
+        const auto middle = first + half;
+        if (less(middle->first, normalized)) {
+            first = middle + 1;
+            count -= half + 1;
+        } else {
+            count = half;
+        }
+    }
+    return first;
 }
 
 const std::string* ComputedStyle::find(std::string_view property) const {
     // Property names are almost always already lower case; only materialise a copy when not.
     const bool lower = std::none_of(property.begin(), property.end(),
-                                    [](unsigned char c) { return std::isupper(c) != 0; });
+                                    [](unsigned char c) { return c >= 'A' && c <= 'Z'; });
     if (lower) {
         return find_normalized(property);
     }
@@ -304,7 +340,7 @@ bool ComputedStyle::contains(std::string_view property) const {
 
 const std::string* ComputedStyle::find_normalized(std::string_view normalized) const {
     const auto found = lower_bound(normalized);
-    return found != properties_.end() && found->first == normalized ? &found->second : nullptr;
+    return found != properties().end() && found->first == normalized ? &found->second : nullptr;
 }
 
 bool ComputedStyle::contains_normalized(std::string_view normalized) const {
@@ -314,37 +350,50 @@ bool ComputedStyle::contains_normalized(std::string_view normalized) const {
 void ComputedStyle::set_normalized(std::string_view normalized, std::string value) {
     // Computed styles are mostly built in name order (inherited properties, then the initial
     // values), so appending is the common case.
-    if (properties_.empty() || std::string_view(properties_.back().first) < normalized) {
-        properties_.emplace_back(std::string(normalized), std::move(value));
+    const Entries& current = properties();
+    if (current.empty() || std::string_view(current.back().first) < normalized) {
+        mutable_entries().emplace_back(std::string(normalized), std::move(value));
         return;
     }
     const auto found = lower_bound(normalized);
-    const auto index = found - properties_.cbegin();
-    if (found != properties_.end() && found->first == normalized) {
-        properties_[static_cast<std::size_t>(index)].second = std::move(value);
+    const auto index = found - current.cbegin();
+    const bool exists = found != current.end() && found->first == normalized;
+    Entries& entries = mutable_entries();
+    if (exists) {
+        entries[static_cast<std::size_t>(index)].second = std::move(value);
         return;
     }
-    properties_.emplace(properties_.begin() + index, std::string(normalized), std::move(value));
+    entries.emplace(entries.begin() + index, std::string(normalized), std::move(value));
 }
 
 void ComputedStyle::merge_missing(const Entries& defaults) {
+    // Entries may be shared with another style: move strings out only when this style owns them.
+    const bool owned = properties_ != nullptr && properties_.use_count() == 1;
+    const Entries& mine_entries = properties();
     Entries merged;
-    merged.reserve(properties_.size() + defaults.size());
-    auto mine = properties_.begin();
-    for (const auto& entry : defaults) {
-        while (mine != properties_.end() && mine->first < entry.first) {
-            merged.push_back(std::move(*mine++));
+    merged.reserve(mine_entries.size() + defaults.size());
+    auto mine = mine_entries.begin();
+    const auto take = [&](const Entries::value_type& entry) {
+        if (owned) {
+            merged.push_back(std::move(const_cast<Entries::value_type&>(entry)));
+        } else {
+            merged.push_back(entry);
         }
-        if (mine != properties_.end() && mine->first == entry.first) {
-            merged.push_back(std::move(*mine++));
+    };
+    for (const auto& entry : defaults) {
+        while (mine != mine_entries.end() && mine->first < entry.first) {
+            take(*mine++);
+        }
+        if (mine != mine_entries.end() && mine->first == entry.first) {
+            take(*mine++);
         } else {
             merged.push_back(entry);
         }
     }
-    for (; mine != properties_.end(); ++mine) {
-        merged.push_back(std::move(*mine));
+    for (; mine != mine_entries.end(); ++mine) {
+        take(*mine);
     }
-    properties_ = std::move(merged);
+    properties_ = std::make_shared<Storage>(std::move(merged));
 }
 
 ComputedStyle compute_style(const ComputedStyle* parent, const CascadeTable& cascade,

@@ -7,6 +7,7 @@
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/style/cascade.hpp"
 #include "tessera/ui/style/keyframes.hpp"
+#include "tessera/ui/style/sync_memo.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -53,6 +54,7 @@ public:
     // Drops every snapshot: the next sync re-establishes the baseline and starts nothing.
     void clear() {
         previous_.clear();
+        idle_memo_.clear();
     }
 
     // Nodes with a retained style snapshot (diagnostics and tests).
@@ -73,6 +75,9 @@ private:
                    StyleBridgeResult& result);
 
     std::unordered_map<NodeId, TrackedStyle> previous_;
+    // Nodes whose style declared no transition and no animation the last time they were seen. The
+    // same style (by identity) declares none now either, so the walk skips parsing it again.
+    style::SyncMemo idle_memo_;
     // Bumped per sync so entries for nodes that left the rendered tree can be erased afterwards
     // without a second lookup.
     std::uint64_t generation_ = 0;
