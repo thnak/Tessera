@@ -108,9 +108,16 @@ private:
     // Replaces `body[index]` by the expansion of its call. Returns the statements inserted.
     std::size_t expand_call(std::vector<Statement>& body, std::size_t index, std::size_t depth,
                             Substitutions& scope);
-    void report(std::string_view code, std::string message, Span span, std::string suggestion = {},
-                std::optional<RelatedSpan> related = std::nullopt);
-    [[nodiscard]] std::optional<RelatedSpan> related_for(Span span) const;
+    void report(std::string_view code, std::string message, Span span, std::string suggestion = {});
+    [[nodiscard]] std::optional<RelatedSpan> related_for() const;
+
+    // One hook currently being expanded: its name for cycle detection, and the call that started
+    // it, so a diagnostic raised inside a spliced body can name the call the author wrote.
+    struct Expansion {
+        std::string hook;
+        Span call_span;
+        std::string site; // `<hook>_<n>`
+    };
 
     const std::vector<HookDeclaration>& declarations_;
     DiagnosticSink& sink_;
@@ -118,7 +125,7 @@ private:
     const SourceMap& map_;
     // Calls of one hook in the component being expanded, for the ordinal of spec section 4 step 2.
     std::map<std::string, std::size_t> ordinals_;
-    std::vector<std::string> stack_; // the hooks currently being expanded, for cycle detection
+    std::vector<Expansion> stack_; // outermost first
     bool failed_ = false;
 };
 
@@ -131,22 +138,27 @@ const HookDeclaration* Expander::resolve(std::string_view name) const {
     return nullptr;
 }
 
-void Expander::report(std::string_view code, std::string message, Span span, std::string suggestion,
-                      std::optional<RelatedSpan> related) {
+void Expander::report(std::string_view code, std::string message, Span span,
+                      std::string suggestion) {
     failed_ = true;
     sink_.report(code, Severity::Error, std::move(message), span, std::move(suggestion),
-                 std::move(related));
+                 related_for());
 }
 
 // Spec section 8: a diagnostic whose primary span is inside a hook carries the call site as its
-// related span, with the text "expanded here, from <hook>_<n>". The expansion's own diagnostics
-// are reported at the call site already, so they need no related span; this is for the rules.
-std::optional<RelatedSpan> Expander::related_for(Span span) const {
-    const ExpandedRegion* region = metrics_.call_sites.find(span);
-    if (region == nullptr) {
+// related span, with the text "expanded here, from <hook>_<n>". The expansion's own diagnostics are
+// reported at the call site already, so they need no related span; this is for the rules.
+//
+// The call site is the one the author wrote, which is the outermost expansion on the stack: a
+// diagnostic raised while expanding a nested hook is inside the outer hook's body, and the outer
+// call is the line the reader can act on. With no expansion in progress the diagnostic is the
+// component's own, so it needs no related span.
+std::optional<RelatedSpan> Expander::related_for() const {
+    if (stack_.empty()) {
         return std::nullopt;
     }
-    return RelatedSpan{map_.resolve(region->call_span), "expanded here, from " + region->hook};
+    const Expansion& outermost = stack_.front();
+    return RelatedSpan{map_.resolve(outermost.call_span), "expanded here, from " + outermost.site};
 }
 
 Substitutions Expander::expand_component(ModuleItem& component) {
@@ -159,8 +171,7 @@ Substitutions Expander::expand_component(ModuleItem& component) {
     for (const Span& span : whole_value_uses) {
         report("TESSERA_REACT_HOOK_RETURN",
                "a whole-value binding of an object return has no run-time record", span,
-               "read a field (`p.page`) or bind the fields with an object pattern",
-               related_for(span));
+               "read a field (`p.page`) or bind the fields with an object pattern");
     }
     return scope;
 }
@@ -180,8 +191,7 @@ Substitutions Expander::expand_body(std::vector<Statement>& body, std::size_t de
         for (const Span& span : whole_value_uses) {
             report("TESSERA_REACT_HOOK_RETURN",
                    "a whole-value binding of an object return has no run-time record", span,
-                   "read a field (`p.page`) or bind the fields with an object pattern",
-                   related_for(span));
+                   "read a field (`p.page`) or bind the fields with an object pattern");
         }
         const std::string_view name = callee_name(*body[index].init);
         if (name.empty() || resolve(name) == nullptr) {
@@ -207,7 +217,8 @@ std::size_t Expander::expand_call(std::vector<Statement>& body, std::size_t inde
     const ModuleItem& hook = *declaration->item;
 
     // Spec section 4 step 1: a cycle is rejected rather than expanded forever.
-    if (std::find(stack_.begin(), stack_.end(), hook.name) != stack_.end()) {
+    if (std::any_of(stack_.begin(), stack_.end(),
+                    [&](const Expansion& open) { return open.hook == hook.name; })) {
         report("TESSERA_REACT_HOOK_CYCLE",
                "hook `" + hook.name + "` calls itself, directly or through another hook",
                statement.span, "break the cycle");
@@ -368,7 +379,7 @@ std::size_t Expander::expand_call(std::vector<Statement>& body, std::size_t inde
     // The spliced statements are expanded before they are written back, so a nested hook is
     // expanded where it appears (spec section 4 step 7). Expanding them in a vector of their own
     // keeps the outer body's indices valid: a nested expansion may change the count.
-    stack_.push_back(hook.name);
+    stack_.push_back(Expansion{hook.name, call_span, site});
     expand_body(replacement, depth + 1);
     stack_.pop_back();
     if (failed_) {

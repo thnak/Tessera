@@ -63,11 +63,11 @@ void check_preview_body(Context& ctx, const jsx::Statement& statement) {
     const Expr& arrow = *statement.init;
     const std::string name = statement.names.empty() ? std::string() : statement.names[0];
     if (arrow.operands.empty()) {
-        ctx.sink.report("TESSERA_REACT_NO_PREVIEW_BODY", jsx::Severity::Warning,
-                        "native handler `" + name +
-                            "` has an empty body, so the designer does nothing for its event",
-                        statement.span,
-                        "write the preview body: setter calls, and optionally a final `return`");
+        ctx.warning("TESSERA_REACT_NO_PREVIEW_BODY",
+                    "native handler `" + name +
+                        "` has an empty body, so the designer does nothing for its event",
+                    statement.span,
+                    "write the preview body: setter calls, and optionally a final `return`");
         return;
     }
     std::size_t count = arrow.operands.size();
@@ -78,12 +78,12 @@ void check_preview_body(Context& ctx, const jsx::Statement& statement) {
         std::all_of(arrow.operands.begin(), arrow.operands.begin() + static_cast<long>(count),
                     [&](const jsx::ExprPtr& body) { return is_setter_call(ctx, *body); });
     if (!in_rules) {
-        ctx.sink.report("TESSERA_REACT_PREVIEW_BODY", jsx::Severity::Warning,
-                        "the body of native handler `" + name +
-                            "` is not a preview body, so the designer does nothing for its event",
-                        statement.span,
-                        "keep only setter calls and a final `return <expression>;`; the C++ in "
-                        "the protected region is the real behavior");
+        ctx.warning("TESSERA_REACT_PREVIEW_BODY",
+                    "the body of native handler `" + name +
+                        "` is not a preview body, so the designer does nothing for its event",
+                    statement.span,
+                    "keep only setter calls and a final `return <expression>;`; the C++ in "
+                    "the protected region is the real behavior");
     }
 }
 

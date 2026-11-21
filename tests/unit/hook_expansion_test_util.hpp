@@ -40,7 +40,8 @@ struct Pipeline {
         if (parsed.root != nullptr) {
             sink = std::make_unique<jsx::DiagnosticSink>(map, jsx::Limits{});
             metrics = jsx::expand_custom_hooks(*parsed.root, map, options, *sink);
-            analyzed = rules::analyze_module(*parsed.root, map);
+            analyzed = rules::analyze_module(*parsed.root, map, jsx::Limits{}, nullptr,
+                                             &metrics.call_sites);
         }
     }
 

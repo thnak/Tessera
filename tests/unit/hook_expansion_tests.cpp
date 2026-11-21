@@ -34,21 +34,6 @@ std::string expansion_diagnostic(const std::string& source) {
            std::to_string(diagnostic.span.start.column) + " | " + diagnostic.message;
 }
 
-// The related span of the first expansion diagnostic, or empty.
-std::string related_of(const std::string& source) {
-    Pipeline pipeline(source, true);
-    if (pipeline.sink == nullptr || pipeline.sink->diagnostics().empty()) {
-        return {};
-    }
-    const jsx::Diagnostic& diagnostic = pipeline.sink->diagnostics().front();
-    if (!diagnostic.related) {
-        return "<none>";
-    }
-    return std::to_string(diagnostic.related->span.start.line) + ":" +
-           std::to_string(diagnostic.related->span.start.column) + " | " +
-           diagnostic.related->message;
-}
-
 void test_renaming_uses_the_call_site_prefix() {
     const std::string source = "function useThing() {\n"
                                "  const [n, setN] = useState<int>(0);\n"
@@ -241,14 +226,12 @@ void test_a_call_site_diagnostic_has_no_related_span() {
              "7:19", "the primary span is the whole-value use");
 }
 
-// A diagnostic raised INSIDE the hook body should point at the hook and carry the call site as its
-// related span (docs/specs/custom-hooks-v1.md section 8). The expansion builds that map
-// (`Expander::related_for`, `metrics_.call_sites`) and `test_the_call_site_map_names_the_expansion`
-// pins it, but `src/compiler/rules` does not consume it yet, so a diagnostic the RULES raise inside
-// an expanded body still arrives without one. This test records the gap rather than asserting the
-// finished behaviour: it fails the day the wiring lands, which is the point.
-void test_a_hook_body_diagnostic_has_no_related_span_yet() {
-    // A cycle is detected while expanding, so it is a diagnostic raised inside the hook body.
+// A diagnostic raised INSIDE the hook body points at the hook and carries the call site as its
+// related span (docs/specs/custom-hooks-v1.md section 8). The cycle is detected while expanding
+// `useB`'s body, so its primary span is the `useA()` statement on line 6 — inside a function the
+// reader did not write at that site — and the related span is the `useA()` call the component makes
+// on line 10, which is the line they can act on.
+void test_a_hook_body_diagnostic_carries_the_call_site() {
     const std::string source = "function useA() {\n"
                                "  const a = useB();\n"
                                "  return { a };\n"
@@ -261,11 +244,96 @@ void test_a_hook_body_diagnostic_has_no_related_span_yet() {
                                "  const v = useA();\n"
                                "  return <View a={v.a}/>;\n"
                                "}\n";
-    const std::string related = related_of(source);
-    check(related == "<none>",
-          "the rules do not attach the call site yet; when they do, this test must flip to "
-          "expecting the call site on line 10 (saw `" +
-              related + "`)");
+    Pipeline pipeline(source, true);
+    check(pipeline.sink != nullptr && !pipeline.sink->diagnostics().empty(),
+          "the cycle is rejected");
+    if (pipeline.sink == nullptr || pipeline.sink->diagnostics().empty()) {
+        return;
+    }
+    const jsx::Diagnostic& diagnostic = pipeline.sink->diagnostics().front();
+    check_eq(std::string(diagnostic.code), "TESSERA_REACT_HOOK_CYCLE", "the code");
+    check_eq(std::to_string(diagnostic.span.start.line) + ":" +
+                 std::to_string(diagnostic.span.start.column),
+             "6:3", "the primary span is the statement inside the hook body");
+    check(diagnostic.related.has_value(), "the diagnostic carries a related span");
+    if (!diagnostic.related) {
+        return;
+    }
+    check_eq(std::to_string(diagnostic.related->span.start.line) + ":" +
+                 std::to_string(diagnostic.related->span.start.column),
+             "10:3", "the related span is the call site in the component");
+    check_eq(diagnostic.related->message, "expanded here, from useA_1",
+             "the related span names the expansion");
+}
+
+// The wiring this slice adds: a diagnostic the RULES raise inside an expanded hook body carries the
+// call site too. The effect in `useWatch` reads the hook's own state but lists no dependency, which
+// is `TESSERA_REACT_EFFECT_DEPS` — reported by the rules pass, at the array inside the hook body.
+void test_a_rules_diagnostic_in_a_hook_body_carries_the_call_site() {
+    const std::string source = "function useWatch() {\n"
+                               "  const [n, setN] = useState<int>(0);\n"
+                               "  useEffect(() => { log(n); }, []);\n"
+                               "  return { n, setN };\n"
+                               "}\n"
+                               "function A() {\n"
+                               "  const w = useWatch();\n"
+                               "  return <View a={w.n}/>;\n"
+                               "}\n";
+    Pipeline pipeline(source, true);
+    check(pipeline.parsed.ok(), "the fixture parses");
+    const jsx::Diagnostic* found = nullptr;
+    for (const jsx::Diagnostic& diagnostic : pipeline.analyzed.diagnostics) {
+        if (diagnostic.code == "TESSERA_REACT_EFFECT_DEPS") {
+            found = &diagnostic;
+            break;
+        }
+    }
+    check(found != nullptr, "the rules report the missing dependency");
+    if (found == nullptr) {
+        return;
+    }
+    check_eq(std::to_string(found->span.start.line), "3",
+             "the primary span is the dependency array inside the hook body");
+    check(found->related.has_value(), "the rules diagnostic carries a related span");
+    if (!found->related) {
+        return;
+    }
+    check_eq(std::to_string(found->related->span.start.line) + ":" +
+                 std::to_string(found->related->span.start.column),
+             "7:3", "the related span is the call site in the component");
+    check_eq(found->related->message, "expanded here, from useWatch_1",
+             "the related span names the expansion");
+}
+
+// A diagnostic in the component's own source is not inside any expanded region, so it gains no
+// related span: the map must not invent one.
+void test_a_component_diagnostic_has_no_related_span() {
+    const std::string source = "function useThing() {\n"
+                               "  const [n, setN] = useState<int>(0);\n"
+                               "  return { n, setN };\n"
+                               "}\n"
+                               "function A() {\n"
+                               "  const w = useThing();\n"
+                               "  useEffect(() => { log(w.n); }, []);\n"
+                               "  return <View a={w.n}/>;\n"
+                               "}\n";
+    Pipeline pipeline(source, true);
+    check(pipeline.parsed.ok(), "the fixture parses");
+    const jsx::Diagnostic* found = nullptr;
+    for (const jsx::Diagnostic& diagnostic : pipeline.analyzed.diagnostics) {
+        if (diagnostic.code == "TESSERA_REACT_EFFECT_DEPS") {
+            found = &diagnostic;
+            break;
+        }
+    }
+    check(found != nullptr, "the rules report the missing dependency");
+    if (found == nullptr) {
+        return;
+    }
+    check_eq(std::to_string(found->span.start.line), "7",
+             "the primary span is the component's own effect");
+    check(!found->related.has_value(),
+          "a diagnostic outside every expanded region has no related span");
 }
 
 // The expansion is wired into the PRODUCTION pipeline, not only into this test's harness. Before
@@ -328,7 +396,9 @@ int main() {
     test_depth_is_limited();
     test_the_call_site_map_names_the_expansion();
     test_a_call_site_diagnostic_has_no_related_span();
-    test_a_hook_body_diagnostic_has_no_related_span_yet();
+    test_a_hook_body_diagnostic_carries_the_call_site();
+    test_a_rules_diagnostic_in_a_hook_body_carries_the_call_site();
+    test_a_component_diagnostic_has_no_related_span();
     test_the_production_pipeline_expands();
     test_a_hook_used_by_no_component_is_not_expanded();
     return finish("hook expansion tests");

@@ -25,7 +25,7 @@ SourceFile::SourceFile(std::string file_path, std::string file_text, const jsx::
     // diagnostic name the call site (section 8).
     expansion_sink = std::make_unique<jsx::DiagnosticSink>(map, limits);
     expansion = jsx::expand_custom_hooks(*parsed.root, map, options, *expansion_sink);
-    analyzed = rules::analyze_module(*parsed.root, map);
+    analyzed = rules::analyze_module(*parsed.root, map, limits, nullptr, &expansion.call_sites);
 }
 
 bool SourceFile::parses() const {
