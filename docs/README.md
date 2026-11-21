@@ -132,6 +132,7 @@ This page is the map and reading order for the framework.
   RHI (render hardware interface)/shader API, 3D composition, element input, reuse, headless tests
 - [`specs/element-transitions-v1.md`](specs/element-transitions-v1.md) — AnimatePresence and
   SharedElement: presence state machine, named shared groups, budgets, tests (proposed, stage 2)
+- [`specs/size-change-events-v1.md`](specs/size-change-events-v1.md) — `onSizeChange` (ADR-041)
 - [`specs/glass-v1.md`](specs/glass-v1.md) — backdrop-filter glass and translucent windows: grammar,
   two-pass Gaussian, OS backdrop table, damage rules, always-on decision (proposed, V1)
 - [`specs/safe-area-v1.md`](specs/safe-area-v1.md) — SafeArea: insets, cutouts, keyboard, hinge,
@@ -241,7 +242,7 @@ This page is the map and reading order for the framework.
 - [`design/click-synthesis.md`](design/click-synthesis.md) — `onClick` as a synthesized `Click` (pointer, keyboard, accessibility)
 - [`design/ui-model.md`](design/ui-model.md) — components, retained scene, reconciliation, frame
 - [`design/layout.md`](design/layout.md) — Yoga Flexbox, Grid subset, text measurement, rounding
-- [`design/layout-observation.md`](design/layout-observation.md) — size observation (`onSizeChange`), layout read model, settle rounds, container queries plan (design only, ADR-041 accepted)
+- [`design/layout-observation.md`](design/layout-observation.md) — size observation, read model, settle rounds, container queries (ADR-041)
 - [`design/text.md`](design/text.md) — shaping, bidi, line breaking, glyph atlas, paint-time runs; [`design/text-decoration.md`](design/text-decoration.md) for `text-decoration` and `vertical-align`; [`design/text-shadow.md`](design/text-shadow.md) for `text-shadow`
 - [`design/icu-data.md`](design/icu-data.md) — ICU reduced static data spike: measured blob,
   locale subset, build cost, go/no-go
@@ -264,8 +265,7 @@ This page is the map and reading order for the framework.
 - [`design/window-resize.md`](design/window-resize.md) — resize/DPI/lifecycle, declarative vs
   infrastructure, OS compliance, present-path hardening (`--msaa 4`, `--simulate-loss`)
 - [`design/hal.md`](design/hal.md) — window/display/input/power/lifecycle abstraction
-- [`design/mobile-integration.md`](design/mobile-integration.md) — Android/iOS surface, input,
-  IME, accessibility, lifecycle, and manifest/Info.plist declarations
+- [`design/mobile-integration.md`](design/mobile-integration.md) — Android/iOS surface, input, IME, accessibility, lifecycle, manifest declarations
 - [`design/bridges.md`](design/bridges.md) — native-first bridge policy (JNI (Java Native Interface)/ObjC/Wasm/IPC)
 - [`design/async.md`](design/async.md) — C++20 coroutines, executors, cancellation, no blocking
 - [`design/diagnostics.md`](design/diagnostics.md) — logging, tracing, metrics, profiling,

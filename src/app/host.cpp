@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+﻿// SPDX-License-Identifier: MIT
 
 #include "host_impl.hpp"
 #include "tessera/app/host.hpp"
@@ -116,7 +116,7 @@ const char* blob_error_name(ui::style::BlobErrorCode code) {
     case ui::style::BlobErrorCode::HashMismatch:
         return "HashMismatch";
     case ui::style::BlobErrorCode::Corrupt:
-        return "Corrupt";
+        break;
     }
     return "Corrupt";
 }
@@ -198,13 +198,8 @@ AppHost::Impl::Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet, runtime
     // adaptive_quality() agree from the start instead of reporting a default 1.0 scale for a window
     // configured at another renderScale.
     quality.publish();
-    // The ADR-041 settle loop (issue #693): the relayout hook is the frame's own restyle-and-layout
-    // sequence, and the wake hook asks the runtime loop for the next tick. The round budget comes
-    // from the runtime config (`layoutObservationMaxRounds`), clamped by the component.
-    settle.set_max_rounds(static_cast<std::uint32_t>(config.layout_observation_max_rounds));
-    settle.set_relayout(&Impl::settle_relayout, this);
-    settle.set_wake(&Impl::settle_wake, this);
-    settle.set_scheduler(scheduler);
+    // The ADR-041 settle loop (issue #693): its hooks and round budget live in host_settle.cpp.
+    init_settle();
 }
 
 void AppHost::Impl::apply_root_size() {
@@ -313,46 +308,6 @@ bool AppHost::Impl::root_is_rtl() const {
     return direction != nullptr && *direction == "rtl";
 }
 
-bool AppHost::handle_overlay_input(const ui::InputEvent& event) {
-    Impl& state = *impl_;
-    if (event.type == ui::InputEventType::BackRequested) {
-        return state.handle_back_request();
-    }
-    if (!state.overlay_host) {
-        return false;
-    }
-    ui::OverlayHost& overlays = *state.overlay_host;
-    switch (event.type) {
-    case ui::InputEventType::KeyDown:
-        if (event.key == ui::key::kEscape && overlays.handle_escape()) {
-            state.escape_swallowed = true;
-            state.loop.mark_render_dirty();
-            return true;
-        }
-        return false;
-    case ui::InputEventType::KeyUp:
-        // The release that belongs to a consumed press must not reach a focused control alone.
-        if (event.key == ui::key::kEscape && state.escape_swallowed) {
-            state.escape_swallowed = false;
-            return true;
-        }
-        return false;
-    case ui::InputEventType::PointerDown:
-        // The press still reaches whatever is under it; only the overlays close.
-        if (overlays.handle_pointer_down(event.x, event.y) > 0) {
-            state.loop.mark_render_dirty();
-        }
-        return false;
-    case ui::InputEventType::Blur:
-        if (overlays.close_transient() > 0) {
-            state.loop.mark_render_dirty();
-        }
-        return false;
-    default:
-        return false;
-    }
-}
-
 void AppHost::Impl::run_layout_pass(ui::paint::StyleProvider& styles) {
     const ui::layout::LayoutInput input = build_layout_input(root, styles, safe_area);
     const ui::layout::LayoutViewport viewport{config.width, config.height, config.dpi_scale};
@@ -361,59 +316,6 @@ void AppHost::Impl::run_layout_pass(ui::paint::StyleProvider& styles) {
     // cannot move boxes skips Yoga and only re-syncs the scene style.
     last_layout = layout_scheduler.update(input, viewport, true);
     last_applied = ui::layout::apply_layout(last_layout, root);
-}
-
-// The one restyle-and-layout sequence (issue #693 decision 1). The frame and the settle loop's
-// relayout hook both call it, so a settle round cannot do less than a frame: a hook that only
-// re-laid-out would paint a stale style generation or replay a stale paint cache.
-void AppHost::Impl::restyle_and_layout(ui::frame::FrameTick& tick,
-                                       ui::paint::SceneStyleSyncResult& sync, bool& style_rebuilt) {
-    const bool incremental = prepare_style_tree();
-    // A restyled selector tree is a new style generation. The paint cache key holds a node's own
-    // dirty flags, not its computed style, so a node that stayed Clean can still resolve a
-    // different style now (an inherited value, an ancestor/sibling selector, a restyled root or a
-    // new theme). Dropping every record is the only sound answer; replaying one would paint the
-    // previous generation and differ from a cold full paint.
-    pipeline->invalidate_paint_cache();
-    style_rebuilt = true;
-    restyle_memo.begin(*provider, incremental);
-    run_layout_pass(restyle_memo);
-    sync = pipeline->sync_style(root, restyle_memo, tick, true);
-    restyle_memo.end();
-    style_tree_populated = true;
-    pipeline->sample_started_animations(root);
-    // The tracker holds `Node*` and a REBUILT selector tree can change the shape, so the containers
-    // are re-registered from this style pass (issue #693 decision 2). A restyle in place keeps the
-    // tracker's entries, so a container remembers the size it was last styled at.
-    settle.register_containers(root, *tree, sheet, !incremental);
-}
-
-void AppHost::Impl::settle_layout() {
-    // Publish the committed layout, then run the bounded settle loop. A stylesheet without
-    // `@container` and a scene without observations return from `run` after one boolean test.
-    settle.publish(last_layout, config.dpi_scale);
-    const ui::layout::LayoutSettleResult result = settle.run();
-    if (result.deferred) {
-        // Correctness wins over idling: a stale size must not stay on screen, so the loop is woken
-        // for the next tick (the helper already asked through its wake hook; this is the host's own
-        // render-dirty mark, which the on-demand loop reads).
-        loop.mark_render_dirty();
-    }
-}
-
-void AppHost::Impl::settle_relayout(void* context) {
-    auto* self = static_cast<Impl*>(context);
-    // The relayout hook runs inside the settle loop, so it must not re-enter the loop: it does the
-    // frame's restyle-and-layout and publishes, and the loop continues with the next round.
-    ui::frame::FrameTick tick;
-    ui::paint::SceneStyleSyncResult sync;
-    bool style_rebuilt = false;
-    self->restyle_and_layout(tick, sync, style_rebuilt);
-    self->settle.publish(self->last_layout, self->config.dpi_scale);
-}
-
-void AppHost::Impl::settle_wake(void* context) {
-    static_cast<Impl*>(context)->loop.request_frame();
 }
 
 void AppHost::Impl::register_embedded_stylesheets(
@@ -510,18 +412,18 @@ HostFrame AppHost::begin_frame(double dt, double alpha) {
 
     // Any style or layout work may have changed the tree's shape (a state change can attach a
     // conditional child), and the damage pass latches a full redraw on overflow. Rebuild the
-    // selector tree and re-run layout for both; a paint-only frame skips all of it.
+    // selector tree and re-run layout for both; a paint-only frame skips all of it. ADR-041 steps
+    // 4a/4b (issue #693) follow every pass: publish the committed layout and run the bounded settle
+    // loop, so a container query or an `onSizeChange` callback that changes layout lands in THIS
+    // frame instead of the next one.
     const auto restyle_and_layout = [&state, &frame] {
         state.restyle_and_layout(frame.tick, frame.sync, frame.style_rebuilt);
         frame.layout = state.last_applied;
+        state.settle_layout();
     };
     const bool geometry_work = frame.tick.needs_style || frame.tick.needs_layout;
     if (geometry_work) {
         restyle_and_layout();
-        // ADR-041 steps 4a/4b (issue #693): publish the committed layout and run the bounded settle
-        // loop, so a container query or an `onSizeChange` callback that changes layout lands in
-        // THIS frame instead of the next one.
-        state.settle_layout();
     }
     // Placed overlays need the content size and the anchor bounds, so they position after layout;
     // only a content box that actually moved costs a second pass.
@@ -533,7 +435,6 @@ HostFrame AppHost::begin_frame(double dt, double alpha) {
         }
         if (placed.moved) {
             restyle_and_layout();
-            state.settle_layout();
         }
     }
 

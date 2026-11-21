@@ -24,6 +24,9 @@ add_library(tessera_app STATIC
     host_viewport.cpp
     # Whether the selector tree and its memo survive a restyle, and which subtrees recompute.
     host_style_tree.cpp
+    # The ADR-041 settle loop's host half (issue #693): the shared restyle-and-layout sequence, the
+    # publish-and-run step and the loop's two hooks. Split out of host.cpp, which is at its budget.
+    host_settle.cpp
     safe_area_state.cpp
     safe_area_state.hpp
     system_motion.cpp

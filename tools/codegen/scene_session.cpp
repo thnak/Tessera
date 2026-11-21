@@ -3,6 +3,7 @@
 #include "scene_build.hpp"
 #include "scene_layout.hpp"
 #include "scene_session.hpp"
+#include "scene_session_slots.hpp"
 #include "scene_stylesheet.hpp"
 #include "tessera/ui/scene/focus.hpp"
 #include "tessera/ui/style/pseudo_state.hpp"
@@ -23,13 +24,6 @@ namespace hal = tessera::hal;
 // The fixed step between events of one gesture. Deterministic on purpose: the preview owns no
 // clock, so one script produces the same timestamps on every run and every platform.
 constexpr double kEventStepSeconds = 1.0 / 60.0;
-
-// The scene event type an IR event name maps to, for the events this slice binds. A click bubbles
-// through bindings (event.cpp), so binding Click is what a scripted click needs.
-constexpr ui::EventType* click_type() {
-    static ui::EventType type = ui::EventType::Click;
-    return &type;
-}
 
 } // namespace
 
@@ -72,24 +66,6 @@ ui::InputEvent to_input_event(const PreviewInput& input, double timestamp_s) {
     return event;
 }
 
-// A native binding with no preview body installs no actions. A static empty vector keeps the slot's
-// "resolved, but nothing to run" state distinct from "not resolved at all", which is what decides
-// whether a dispatch reports the handler as run or as unrun.
-const std::vector<ir::Action> empty_actions{};
-
-// One installed scene binding. `bind_event` takes a function pointer plus a `void*`, so the IR
-// handler identity has to live in the context; this record is that context.
-struct PreviewSession::HandlerSlot {
-    std::string handler_id;
-    const std::vector<ir::Param>* params = nullptr;
-    const std::vector<ir::Action>* actions = nullptr;
-    bool can_run = false;
-    // Set by the scene callback: this dispatch reached the handler. Consumed (and cleared) by
-    // `dispatch()`, which runs the body after the router has finished walking the tree.
-    bool reached = false;
-    std::string reason; // why not, when `can_run` is false
-};
-
 PreviewSession::PreviewSession(const ir::IrModule& module, const ir::Component& component,
                                const ui::style::CompiledStyleSheet& sheet, Options options)
     : module_(module),
@@ -106,6 +82,11 @@ PreviewSession::PreviewSession(const ir::IrModule& module, const ir::Component& 
     layout_metrics_.posture = options_.posture;
     layout_metrics_.insets = options_.insets;
     layout_metrics_.cutouts = options_.cutouts;
+    // The settle loop's relayout hook (issue #693 decision 1): a round that delivered an
+    // `onSizeChange` callback which changed state must re-evaluate the tree, not just re-lay it
+    // out. The preview's "re-evaluate" is `rebuild()`, which is also what a dispatch does after a
+    // handler ran.
+    settle_.set_relayout(&PreviewSession::settle_relayout, this);
     if (options_.carried != nullptr) {
         const std::vector<std::string> only_this{component.component_id};
         carry_report_ = apply_state(
@@ -136,6 +117,9 @@ void PreviewSession::rebuild() {
     // tree dies (input_dispatch.hpp documents the same ordering for every caller).
     router_.reset();
     slots_.clear();
+    // The observations target nodes in the tree about to be replaced, so they are detached before
+    // it dies (issue #694), for the same reason the router and the behaviors are.
+    detach_size_observations();
     // The behaviors target nodes in the tree about to be replaced, so they are detached before it
     // dies (the same ordering the router needs, and for the same reason).
     detach_behaviors();
@@ -168,11 +152,22 @@ void PreviewSession::rebuild() {
     const SceneLayoutResult laid_out =
         layout_scene(*root_, sheet_, engine, layout_metrics_, options_.measurer, &settle_);
     metrics_ = laid_out.metrics;
+    // The `onSizeChange` observations attach AFTER the first layout (issue #694), so their first
+    // delivery carries the size the tree actually has rather than 0x0.
+    attach_size_observations(built);
     // ADR-041 steps 4a/4b (issue #693): the pass published its layout and registered the query
     // containers, so the settle loop can deliver the observations and re-style a container whose
     // condition crossed. The canvas has no `UpdateScheduler`, which the loop accepts as "no app
     // callbacks to flush".
-    (void)settle_.run();
+    //
+    // A relayout round calls back into `rebuild()`, so the loop must not be re-entered from there:
+    // `in_settle_` makes the nested call stop after its own layout, and the OUTER loop continues
+    // with the next round.
+    if (!in_settle_) {
+        in_settle_ = true;
+        (void)settle_.run();
+        in_settle_ = false;
+    }
     // After layout, so a behavior that reads a node's box sees the final one. A behavior attaches
     // only when every target ref resolved to a built node.
     attach_behaviors(built);
@@ -197,8 +192,13 @@ bool PreviewSession::relayout() {
     metrics_ = laid_out.metrics;
     // The settle loop runs in the same call, so the first frame after a resize is already settled:
     // a container query that crossed a condition has re-styled and re-laid out before this returns
-    // (issue #693's "no frame with the stale layout" criterion).
-    (void)settle_.run();
+    // (issue #693's "no frame with the stale layout" criterion). A relayout round calls back into
+    // `rebuild()`, which must not re-enter the loop, so the nested call is skipped.
+    if (!in_settle_) {
+        in_settle_ = true;
+        (void)settle_.run();
+        in_settle_ = false;
+    }
     // A frame is owed even in the case where every box happens to land where it already was: the
     // viewport the picture is painted into changed, and `needs_frame()` is the caller's only
     // signal.
@@ -270,70 +270,6 @@ bool PreviewSession::relayout_at(float width, float height, float dpi_scale,
     }
     return true;
 }
-
-void PreviewSession::bind_handler(std::uint64_t automation_id, const std::string& event,
-                                  const std::string& handler_id) {
-    auto slot = std::make_unique<HandlerSlot>();
-    slot->handler_id = handler_id;
-
-    // Resolve the IR body: a component handler (`handler::N`), or a native binding (`bind::X`)
-    // whose `preview` block is the body. This mirrors `find_body` in
-    // tests/parity/parity_runner.cpp, including the two cases it also refuses to run.
-    for (const ir::Handler& handler : component_.handlers) {
-        if (handler.id == handler_id) {
-            slot->params = &handler.params;
-            slot->actions = &handler.actions;
-            break;
-        }
-    }
-    if (slot->actions == nullptr) {
-        for (const ir::Binding& binding : module_.bindings) {
-            if (binding.id != handler_id ||
-                (binding.component != component_.name && binding.component != component_.id)) {
-                continue;
-            }
-            slot->params = &binding.params;
-            // A native binding with no preview body does nothing in the preview, exactly as in the
-            // parity runner: the developer's C++ is the thing this slice does not run.
-            slot->actions = binding.preview ? &binding.preview->actions : &empty_actions;
-            break;
-        }
-    }
-    if (slot->actions == nullptr) {
-        slot->reason = "no handler or native binding with that id in `" + component_.name + "`";
-    } else if (slot->params != nullptr && !slot->params->empty()) {
-        // A payload-taking handler needs a record value (`ClickEvent`, `KeyEvent`) bound to its
-        // parameter, which the evaluator cannot construct: the preview dispatches the event but
-        // cannot run this body. Reported, never silently treated as "nothing happened".
-        slot->reason = "the handler takes a payload parameter (`" + slot->params->front().name +
-                       "`), which the evaluator has no record value for";
-    } else {
-        slot->can_run = true;
-    }
-
-    HandlerSlot* const raw = slot.get();
-    slots_.push_back(std::move(slot));
-
-    if (event != "onClick") {
-        return; // an IR event with no scene counterpart in this slice
-    }
-    if (ui::Node* node = node_by_automation_id(automation_id)) {
-        (void)node->bind_event(*click_type(), &PreviewSession::on_scene_event, raw);
-    }
-}
-
-void PreviewSession::on_scene_event(void* context, const ui::Event& event) {
-    auto* const slot = static_cast<HandlerSlot*>(context);
-    if (slot == nullptr || event.type != ui::EventType::Click) {
-        return;
-    }
-    // The binding only reaches a handler that exists; the session runs it from the post-dispatch
-    // pass, because a body that mutates state must not rebuild the tree it is being dispatched
-    // through. Marking the slot is enough: the router visits ancestors in order, and `dispatch()`
-    // runs every marked slot in binding order afterwards.
-    slot->reached = true;
-}
-
 void PreviewSession::run_handler(const std::string& handler_id,
                                  const std::vector<ir::Action>* actions) {
     if (actions == nullptr) {

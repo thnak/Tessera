@@ -320,6 +320,21 @@ private:
     // One installed scene binding: which IR handler a scene node's event must run. Kept in a
     // `unique_ptr` so the `void*` context handed to `Node::bind_event` keeps a stable address.
     struct HandlerSlot;
+    // One installed `onSizeChange` observation (ADR-041 item 3, issue #694). The preview is an IR
+    // evaluator, so it cannot run the developer's C++ thunk; it runs the same IR body the generated
+    // base would, with a `SizeChangeEvent` record bound to the handler's parameter. The slot is
+    // kept in a `unique_ptr` for the same reason `HandlerSlot` is: `LayoutObservation` holds the
+    // context pointer for its whole life.
+    struct SizeSlot;
+    // Attaches one observation per `onSizeChange` node of the tree just built, after layout, so the
+    // first delivery carries the size the tree actually has. Replaced by every `rebuild()`.
+    void attach_size_observations(const SceneBuildResult& built);
+    // Detaches every observation before the tree it targets is destroyed.
+    void detach_size_observations();
+    // The `LayoutObservation` callback: runs the slot's IR body with a `SizeChangeEvent` record.
+    static void on_size_change(void* context, const ui::layout::SizeChange& size);
+    // The settle loop's relayout hook: a round whose callback changed state re-evaluates the tree.
+    static void settle_relayout(void* context);
 
     void rebuild();
     // The override layer's entries put onto the tree `rebuild()` just built; takes nothing off.
@@ -372,6 +387,9 @@ private:
     SceneMetrics layout_metrics_;
     hal::WindowMetrics metrics_;
     std::vector<std::unique_ptr<HandlerSlot>> slots_;
+    // One entry per `onSizeChange` node of the live tree (issue #694), in build order. Replaced by
+    // every `rebuild()`, and detached before the tree it observes dies.
+    std::vector<std::unique_ptr<SizeSlot>> size_slots_;
     // One behavior instance per IR `behaviors` entry, in declaration order (ADR-064 item 7). The
     // evaluated args are kept alongside because `refresh` re-passes them: a behavior reads its
     // options on every recompute, and re-evaluating them per pointer move would be work for a value
@@ -410,6 +428,9 @@ private:
     std::string build_error_;
     // Set by a handler that changed state during a dispatch; consumed by the rebuild after it.
     bool dirty_ = false;
+    // True while `settle_.run()` is on the stack. A settle round's relayout calls `rebuild()`,
+    // which must not re-enter the loop: the outer call continues with the next round.
+    bool in_settle_ = false;
 };
 
 } // namespace tessera::compiler::codegen::cli

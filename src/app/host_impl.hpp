@@ -81,6 +81,8 @@ struct AppHost::Impl {
     // Publishes the layout the pass just applied and runs the settle loop (ADR-041, issue #693).
     // Called right after `run_layout_pass` in every path that lays out.
     void settle_layout();
+    // Wires the settle loop's hooks and round budget (host_settle.cpp).
+    void init_settle();
     // The settle loop's relayout hook: everything `restyle_and_layout` does, plus the publish.
     static void settle_relayout(void* context);
     static void settle_wake(void* context);

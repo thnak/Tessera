@@ -200,9 +200,7 @@ public:
     // **It reuses the router's hit test rather than writing a second one.** `Node::hit_test_deep`
     // is the function `ui::InputRouter` calls to decide a pointer target, so the node this reports
     // is exactly the node a press at the same point would reach - including `pointer-events: none`,
-    // scrollport clipping, z-order and `visibility: hidden`. A second hit test would be a second
-    // set of those rules to keep in step, and the first time they disagreed the overlay would
-    // outline one node while a click activated another.
+    // scrollport clipping, z-order and `visibility: hidden`.
     //
     // **It is a query, not an event.** Nothing is dispatched, no pseudo-class moves, no dirty
     // domain is set and no frame is owed: arming the picker and moving over the canvas must not
@@ -301,8 +299,7 @@ public:
     // insets and the cutout rectangles all move together, in ONE layout pass. It is a separate
     // spelling rather than more arguments on `set_viewport` because the two callers are different
     // controls - the toolbar's size/DPR selects and the skin picker - and a skin change that kept
-    // the previous insets would pad the content for a device that is no longer on screen. The
-    // posture is unchanged by a skin change, so it is not an argument here.
+    // the previous insets would pad the content for a device that is no longer on screen.
     //
     // Returns false when nothing moved (no pass ran) or there is no running evaluation.
     bool set_safe_area(const tessera::hal::WindowInsets& insets,
@@ -312,8 +309,7 @@ public:
     // `ui::Modifier` mask. Tab and Shift+Tab move focus through the focusable controls in tree
     // order and **release it at either end** instead of wrapping, so a page can let the browser
     // carry on to the next element; Enter and Space activate the focused button (the router's click
-    // synthesis); the
-    // `:focus-visible` ring shows after keyboard traversal.
+    // synthesis); the `:focus-visible` ring shows after keyboard traversal.
     CanvasPointerResult key(PreviewInput::Kind kind, std::uint32_t key, std::uint32_t modifiers,
                             bool repeat);
 
@@ -335,6 +331,13 @@ public:
     // module's viewport report - use to tell "the cascade was rebuilt" from "the boxes moved".
     [[nodiscard]] std::uint64_t cascade_generation() const noexcept {
         return session_ != nullptr ? session_->cascade_generation() : 0;
+    }
+
+    // The ADR-041 settle counters of the running session (issue #693): deliveries, rounds, engine
+    // rounds, deferred observations and round-limit hits. The same numbers `AppHost` reports.
+    [[nodiscard]] const tessera::ui::layout::SettleTotals& settle_totals() const noexcept {
+        static const tessera::ui::layout::SettleTotals kNone{};
+        return session_ != nullptr ? session_->settle_totals() : kNone;
     }
 
     // The `WindowMetrics` the live tree was laid out against, fold included; a fresh, fold-free
@@ -421,8 +424,7 @@ public:
     //
     // **It is a query.** Nothing is written, nothing is dispatched and no frame is owed: a commit
     // produces a value the host applies, and the viewer keeps its overrides until
-    // `source.patch.result` arrives (section 10.3). A page that shows the edits has not changed the
-    // project, and this method is what makes that distinction structural rather than a promise.
+    // `source.patch.result` arrives (section 10.3).
     [[nodiscard]] SourcePatchResult patch(const PatchRequest& request) const;
 
 private:

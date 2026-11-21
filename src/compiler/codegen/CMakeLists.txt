@@ -211,6 +211,12 @@ set(_tessera_scene_preview_sources
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_state.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_session.cpp
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_session_lookup.cpp
+    # The scene-event bindings (issue #168, P4): which IR handler a node's event runs. Split out of
+    # `scene_session.cpp`, which is at its size budget.
+    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_session_events.cpp
+    # `onSizeChange` in the preview (ADR-041 item 3, issue #694): the observations, the
+    # `SizeChangeEvent` record and the settle loop's relayout hook.
+    ${CMAKE_SOURCE_DIR}/tools/codegen/scene_session_size_change.cpp
     # The session's behavior wiring (ADR-064 item 7, spike #658), split out when it pushed
     # `scene_session.cpp` past the source-size limit.
     ${CMAKE_SOURCE_DIR}/tools/codegen/scene_session_behavior.cpp
@@ -1007,9 +1013,12 @@ if (TESSERA_BUILD_TESTS)
     #   scene_canvas_platform `platform.event` (issue #446): Back, Home, Power, relaunch and the
     #                         environment events through the canvas session, and the same script
     #                         through the scripted run
+    #   scene_canvas_size_change  `onSizeChange` in the preview (issue #694): the callback fires on
+    #                         the first layout and after a viewport change, with the real box in its
+    #                         `SizeChangeEvent` payload
     foreach (_canvas_test IN ITEMS scene_canvas_session scene_canvas_pointer scene_canvas_pick
             scene_canvas_style scene_canvas_patch scene_canvas_patch_session scene_canvas_override
-            scene_canvas_override_commit scene_canvas_platform)
+            scene_canvas_override_commit scene_canvas_platform scene_canvas_size_change)
         add_executable(${_canvas_test}_tests
             ${CMAKE_SOURCE_DIR}/tests/unit/${_canvas_test}_tests.cpp
             ${CMAKE_SOURCE_DIR}/tools/codegen/canvas_report.cpp
