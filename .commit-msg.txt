@@ -1,0 +1,36 @@
+hook: useFocusTrap, the first behavior hook end to end (#624)
+
+`useFocusTrap(target, { active, restoreFocus })` confines keyboard focus to
+a subtree while it is active and gives it back when released. The engine
+already owned the mechanism (`Node::set_focus_trap` plus
+`FocusManager::sync_focus_trap`); this lands the hook's half and the
+compiler path that carries it.
+
+The behavior turns the trap flag on and off with `active`, reports it as
+the `active` output, and clears the flag on detach so no trap outlives its
+component. It deliberately does not call `sync_focus_trap` itself: the host
+already reconciles the tree once per frame and once before each key event,
+and a behavior that also did it would make the cost depend on how many
+traps a component declares.
+
+Three compiler gaps the hook exposed, all of which made a behavior hook
+unusable from real TSX:
+
+1. The lowering never emitted `args` at all, so every option was dropped
+   and a behavior always read its defaults. It now walks the manifest's
+   option fields in manifest order, taking the written expression when the
+   source wrote one and the manifest default as a literal when it did not
+   (the spec's section 6 rule: a consumer needs no manifest).
+2. The lowering hardcoded every output type to `bool`. `BehaviorInfo` now
+   carries the manifest's IR types, so a behavior may report a number or a
+   string.
+3. The analyzer never checked option keys. A typo (`{ actve: open }`) would
+   silently read the default and the trap would never turn on. It now
+   rejects an unknown key and requires a field with no default, which is
+   what `HookParam::fields` exists for.
+
+Evidence: `focus_trap` (12 rules, including Tab traversal staying inside
+and focus returning to the opener), `lowering_behaviors` (the IR entry, the
+exclusive flag and the full arg list), `hook_manifest` (the entry's shape)
+and `behavior_registry` (the name is registered). Spec:
+`docs/specs/use-focus-trap-v1.md`.

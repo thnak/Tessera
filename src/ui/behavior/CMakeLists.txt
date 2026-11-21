@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: MIT
 
 add_library(tessera_behavior STATIC
+    focus_trap.cpp
     instance.cpp
     press_feedback.cpp
     registry.cpp)
@@ -26,6 +27,11 @@ if (TESSERA_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/unit/press_feedback_tests.cpp)
     target_link_libraries(press_feedback_tests PRIVATE tessera_behavior)
     add_test(NAME press_feedback COMMAND press_feedback_tests)
+
+    add_executable(focus_trap_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/focus_trap_tests.cpp)
+    target_link_libraries(focus_trap_tests PRIVATE tessera_behavior)
+    add_test(NAME focus_trap COMMAND focus_trap_tests)
 
     add_executable(behavior_allocation_tests
         ${PROJECT_SOURCE_DIR}/tests/unit/behavior_allocation_tests.cpp)

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "tessera/ui/behavior/focus_trap.hpp"
 #include "tessera/ui/behavior/press_feedback.hpp"
 #include "tessera/ui/behavior/registry.hpp"
 
@@ -12,11 +13,16 @@ std::unique_ptr<Behavior> make_press_feedback() {
     return std::make_unique<PressFeedback>();
 }
 
+std::unique_ptr<Behavior> make_focus_trap() {
+    return std::make_unique<FocusTrap>();
+}
+
 // The registry is a fixed array rather than a map: the set is closed (the library hook manifest is
 // the only place that may declare a behavior hook), so a lookup is a linear scan over a handful of
 // entries and the build allocates nothing to answer it.
-constexpr std::array<Registration, 1> kRegistry{{
+constexpr std::array<Registration, 2> kRegistry{{
     {"press_feedback", &make_press_feedback},
+    {"focus_trap", &make_focus_trap},
 }};
 
 } // namespace

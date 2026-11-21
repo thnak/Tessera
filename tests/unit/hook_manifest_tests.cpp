@@ -47,10 +47,11 @@ bool test_committed_manifest_parses() {
     if (!expect(manifest.has_value(), "the committed manifest parses: " + error.detail)) {
         return false;
     }
-    bool ok = expect(manifest->hooks.size() == 4, "the manifest declares four hooks");
+    bool ok = expect(manifest->hooks.size() == 5, "the manifest declares five hooks");
     ok = expect(manifest->find("useTheme") != nullptr, "useTheme is declared") && ok;
     ok = expect(manifest->find("useThemeState") != nullptr, "useThemeState is declared") && ok;
     ok = expect(manifest->find("useBreakpoint") != nullptr, "useBreakpoint is declared") && ok;
+    ok = expect(manifest->find("useFocusTrap") != nullptr, "useFocusTrap is declared") && ok;
     ok =
         expect(manifest->find("usePressFeedback") != nullptr, "usePressFeedback is declared") && ok;
     return ok;
@@ -97,6 +98,21 @@ bool test_behavior_lowering() {
          ok;
     ok = expect(press != nullptr && press->params[0].kind == "ref",
                 "the first parameter is a target ref") &&
+         ok;
+    // `useFocusTrap` (issue #624): one target, two options, one output, and exclusive, because two
+    // traps on one subtree have no defined precedence.
+    const auto* trap = manifest->find("useFocusTrap");
+    ok = expect(trap != nullptr && trap->lowering == HookLoweringKind::Behavior,
+                "useFocusTrap is a behavior hook") &&
+         ok;
+    ok = expect(trap != nullptr && trap->provider == "focus_trap",
+                "useFocusTrap names the focus_trap behavior") &&
+         ok;
+    ok = expect(trap != nullptr && trap->exclusive, "useFocusTrap is exclusive") && ok;
+    ok = expect(trap != nullptr && trap->params.size() == 2,
+                "useFocusTrap takes a target and options") &&
+         ok;
+    ok = expect(trap != nullptr && trap->outputs.size() == 1, "useFocusTrap returns one output") &&
          ok;
     return ok;
 }
