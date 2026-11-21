@@ -122,6 +122,11 @@ public:
     [[nodiscard]] bool has_container_queries() const {
         return has_container_queries_;
     }
+    // True when no selector reads a sibling, `:has()` or a structural pseudo-class, so a restyle of
+    // one subtree cannot change a node outside it.
+    [[nodiscard]] bool subtree_local() const {
+        return subtree_local_;
+    }
 
     [[nodiscard]] const std::vector<CompiledRule>& rules() const {
         return rules_;
@@ -168,6 +173,7 @@ private:
     std::map<std::string, std::uint32_t> layer_order_;
     std::vector<ContainerQuery> container_queries_;
     bool has_container_queries_ = false;
+    bool subtree_local_ = true;
     // Next free global layer slot and source order, so an appended sheet continues the cascade.
     std::uint32_t next_layer_ = 0;
     std::uint64_t next_source_order_ = 0;

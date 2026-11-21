@@ -10,6 +10,7 @@
 #include "tessera/runtime/clock.hpp"
 #include "tessera/ui/paint/paint_sink.hpp"
 #include "tessera/ui/scene/paint_data.hpp"
+#include "tessera/ui/style/scene_style.hpp"
 
 #include <cmath>
 #include <cstdint>

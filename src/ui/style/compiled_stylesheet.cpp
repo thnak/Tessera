@@ -157,6 +157,7 @@ void CompiledStyleSheet::resolve(const PreparedStyleSheet& prepared) {
                                           .source_path = {}});
             has_container_queries_ = has_container_queries_ || !item.containers.empty();
             next_source_order_ += item.declarations.size();
+            subtree_local_ = subtree_local_ && selector_list_is_subtree_local(item.selectors);
             index_.add(item.selectors, rule_index);
             break;
         }
@@ -246,6 +247,7 @@ void CompiledStyleSheet::append_sheet(const CompiledStyleSheet& sheet, bool libr
     }
     for (const SelectorIndex::Entry& entry : sheet.index_.entries()) {
         if (entry.value < sheet.rules_.size()) {
+            subtree_local_ = subtree_local_ && selector_is_subtree_local(entry.selector);
             index_.add(entry.selector, rule_base + entry.value);
         }
     }

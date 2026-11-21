@@ -14,9 +14,9 @@ namespace tessera::app {
 // them; every style input marks `Dirty::Style`, which rebuilds the tree, so none is served stale.
 class MemoStyleProvider final : public ui::paint::StyleProvider {
 public:
-    void begin(ui::paint::SceneStyleProvider& inner) {
+    void begin(ui::paint::SceneStyleProvider& inner, bool keep_entries = false) {
         inner_ = &inner;
-        inner.begin_restyle();
+        inner.begin_restyle(keep_entries);
     }
     void end() {
         if (inner_ != nullptr) {

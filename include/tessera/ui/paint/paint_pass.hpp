@@ -48,7 +48,7 @@ public:
     [[nodiscard]] const style::ComputedStyle& resolve(const Node& node) override;
 
     // Brackets one restyle: every node resolves once, from its parent's memoised style.
-    void begin_restyle();
+    void begin_restyle(bool keep_entries = false);
     void end_restyle();
 
 private:

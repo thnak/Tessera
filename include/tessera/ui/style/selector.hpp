@@ -115,6 +115,13 @@ SelectorParseResult parse_selector_list(std::string_view text);
 // selector(...)` answers with this.
 [[nodiscard]] bool selector_supported(std::string_view text);
 
+// Whether a node's match depends only on the node itself and its ancestors. A sibling combinator,
+// `:has()` and the structural pseudo-classes read other nodes, so a change to one node can restyle
+// a node outside its subtree; a sheet with none of them can restyle just the changed subtrees
+// (issue #711).
+[[nodiscard]] bool selector_is_subtree_local(const ComplexSelector& selector);
+[[nodiscard]] bool selector_list_is_subtree_local(const SelectorList& list);
+
 Specificity specificity(const CompoundSelector& selector);
 Specificity specificity(const ComplexSelector& selector);
 Specificity specificity(const SelectorList& selectors);

@@ -218,6 +218,9 @@ void AppHost::Impl::apply_root_size() {
     if (!has_inline_style(root, "flex-direction")) {
         root.set_inline_style("flex-direction", "column");
     }
+    // The size text is rewritten in place, so the scene sees no edit and marks nothing Style-dirty:
+    // the memoised root style (and what inherits from it) is stale until the next full restyle.
+    style_tree_populated = false;
 }
 
 void AppHost::Impl::rebuild_style_tree() {
@@ -225,6 +228,39 @@ void AppHost::Impl::rebuild_style_tree() {
     // provider borrows it, so both are recreated together.
     tree = std::make_unique<ui::style::SceneStyleTree>(root);
     provider = std::make_unique<ui::paint::SceneStyleProvider>(sheet, *tree);
+    style_tree_populated = false;
+}
+
+namespace {
+
+// The topmost Style-dirty nodes: a dirty node restyles its whole subtree, so what lies below it is
+// not visited again.
+void restyle_dirty_subtrees(const ui::Node& node, ui::style::SceneStyleTree& tree) {
+    if (ui::has_flag(node.dirty(), ui::Dirty::Style)) {
+        tree.restyle_subtree(node);
+        return;
+    }
+    for (const auto& child : node.children()) {
+        if (ui::has_flag(child->subtree_dirty(), ui::Dirty::Style)) {
+            restyle_dirty_subtrees(*child, tree);
+        }
+    }
+}
+
+} // namespace
+
+bool AppHost::Impl::prepare_style_tree() {
+    const bool reusable = style_tree_populated && tree != nullptr &&
+                          tree->built_for_structure_epoch() == ui::Node::structure_epoch() &&
+                          sheet.subtree_local();
+    if (!reusable) {
+        rebuild_style_tree();
+        return false;
+    }
+    if (ui::has_flag(root.subtree_dirty(), ui::Dirty::Style)) {
+        restyle_dirty_subtrees(root, *tree);
+    }
+    return true;
 }
 
 // One cascade: the constructor sheet (lowest source order), the embedded sheets in table order,
@@ -448,19 +484,20 @@ HostFrame AppHost::begin_frame(double dt, double alpha) {
     // conditional child), and the damage pass latches a full redraw on overflow. Rebuild the
     // selector tree and re-run layout for both; a paint-only frame skips all of it.
     const auto restyle_and_layout = [&state, &frame] {
-        state.rebuild_style_tree();
-        // A rebuilt selector tree is a new style generation. The paint cache key holds a node's own
-        // dirty flags, not its computed style, so a node that stayed Clean can still resolve a
+        const bool incremental = state.prepare_style_tree();
+        // A restyled selector tree is a new style generation. The paint cache key holds a node's
+        // own dirty flags, not its computed style, so a node that stayed Clean can still resolve a
         // different style now (an inherited value, an ancestor/sibling selector, a restyled root or
         // a new theme). Dropping every record is the only sound answer; replaying one would paint
         // the previous generation and differ from a cold full paint.
         state.pipeline->invalidate_paint_cache();
         frame.style_rebuilt = true;
-        state.restyle_memo.begin(*state.provider);
+        state.restyle_memo.begin(*state.provider, incremental);
         state.run_layout_pass(state.restyle_memo);
         frame.layout = state.last_applied;
         frame.sync = state.pipeline->sync_style(state.root, state.restyle_memo, frame.tick, true);
         state.restyle_memo.end();
+        state.style_tree_populated = true;
         state.pipeline->sample_started_animations(state.root);
     };
     const bool geometry_work = frame.tick.needs_style || frame.tick.needs_layout;

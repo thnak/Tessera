@@ -9,15 +9,28 @@
 
 #include "tessera/ui/scene/node.hpp"
 
+#include <atomic>
 #include <cstddef>
+#include <cstdint>
 #include <utility>
 
 namespace tessera::ui {
+
+namespace {
+
+std::atomic<std::uint64_t> g_structure_epoch{0};
+
+} // namespace
+
+std::uint64_t Node::structure_epoch() noexcept {
+    return g_structure_epoch.load(std::memory_order_relaxed);
+}
 
 Node::Node(NodeId id)
     : id_(id) {}
 
 Node& Node::add_child(std::unique_ptr<Node> child) {
+    g_structure_epoch.fetch_add(1, std::memory_order_relaxed);
     child->mark_dirty(Dirty::Style | Dirty::Layout | Dirty::Paint | Dirty::Render);
     child->parent_ = this;
     children_.push_back(std::move(child));
@@ -27,6 +40,7 @@ Node& Node::add_child(std::unique_ptr<Node> child) {
 }
 
 Node& Node::insert_child(std::size_t index, std::unique_ptr<Node> child) {
+    g_structure_epoch.fetch_add(1, std::memory_order_relaxed);
     child->mark_dirty(Dirty::Style | Dirty::Layout | Dirty::Paint | Dirty::Render);
     child->parent_ = this;
     const std::size_t at = std::min(index, children_.size());
@@ -42,6 +56,7 @@ std::unique_ptr<Node> Node::remove_child(const Node& child) {
         if (it->get() != &child) {
             continue;
         }
+        g_structure_epoch.fetch_add(1, std::memory_order_relaxed);
         std::unique_ptr<Node> removed = std::move(*it);
         children_.erase(it);
         removed->parent_ = nullptr;

@@ -61,6 +61,12 @@ struct AppHost::Impl {
     [[nodiscard]] bool media_answer_can_change(const ui::style::MediaContext& before,
                                                const ui::style::MediaContext& after) const;
     void rebuild_style_tree();
+    // Brings the selector tree up to date for one restyle. Returns true when the previous
+    // generation was kept and only the Style-dirty subtrees were invalidated (issue #711): the
+    // shape is unchanged and no selector reads a sibling. Otherwise it rebuilds the tree.
+    [[nodiscard]] bool prepare_style_tree();
+    // True once a restyle has resolved every node of the current tree, so its memo can be reused.
+    bool style_tree_populated = false;
     void rebuild_cascade();
     // Rebuilds the cascade and style tree, drops the paint cache and marks `dirty` on the subtree.
     void apply_style_generation(ui::Dirty dirty_mask);
