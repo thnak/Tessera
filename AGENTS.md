@@ -511,14 +511,17 @@ Acceptance: the static dashboard idles with zero presents; goldens green in CI o
 - [ ] Behavior hook engine and core hooks (ADR-064 item 7; waits for ADR-064 Accepted, after spikes
       #658 and #662): engine interface, registry and `press_feedback` #640, then #624 to #635.
 - [ ] GPU for CPU-produced pixels (measured 2026-11-21 at 4K on the RX 5300M and the iGPU:
-      ThorVG raster 14.9 to 30.9 ms, upload 4 to 6 ms CPU side with 46 to 55 ms spikes, image
-      resample 58 ms per miss; budget is 16.7 ms at 60 Hz, 4.2 ms at 240 Hz). Upload path first,
-      #681 (staging ring, `write_region`, dirty rects) and #682 (no CPU image resample), both
-      `ready` and independent of the path decision. Vector paths go to a GPU compute tile
-      rasterizer, owner direction "best performance, cost is not a criterion": #683 ADR + 4K spike
-      (`spike`, `ready`, amends ADR-057), then #684 RHI 1.10 compute (waits for #683 Accepted and
-      #669), then #685 the GPU path renderer (waits for #683 and #684), then #686 the glyph
-      rasterization measurement. Measurement tool:
+      ThorVG raster 14.9 to 30.9 ms, upload 4 to 6 ms CPU side, image resample 50 to 57 ms per
+      miss; budget is 16.7 ms at 60 Hz, 4.2 ms at 240 Hz). Hypotheses are checked before an
+      issue is `ready`: the per-call staging allocation was refuted as the upload cost (reuse
+      saves under 2 ms; the memcpy is the cost), so #681 is rescoped to `write_region`, dirty-rect
+      atlas uploads and attributing the `create_texture` tail; #682 (no CPU image resample) waits
+      for a test that GPU nearest sampling matches `CpuCanvas`. Vector paths go to a GPU compute
+      tile rasterizer, owner direction "best performance, cost is not a criterion": #683 ADR + 4K
+      spike (`spike`, amends ADR-057; full re-encode crosses 0.5 ms at about 28k segments, so
+      GPU path generation is justified above roughly 30k segments), then #684 RHI 1.10 compute
+      (waits for #683 Accepted and #669), then #685 the GPU path renderer (waits for #683 and
+      #684), then #686 the glyph rasterization measurement. Measurement tool:
       `tests/gpu/batched2d/cpu_to_gpu_4k_measure.cpp`.
 
 
@@ -610,7 +613,10 @@ Acceptance: a `useState`/`useEffect`/`useRef` screen regenerates without losing 
       resource. #658 in progress: the engine seam, the registry, `press_feedback` and the built-in
       hook manifest reader have landed (PR #678); the analyzer, IR `behaviors` and the generated
       base's behavior surface have landed (PR #679). The preview session and the ADR evidence report
-      are the remaining stages.
+      are the remaining stages. #662 done: a role-token theme source builds to plain CSS custom
+      properties in `@layer` and the engine's own cascade resolves it in light, dark and high
+      contrast (`theme_source`, `docs/specs/theme-source-v1.md`); the evidence and the three engine
+      gaps are recorded in ADR-064 item 6.
 - [ ] Behavior hooks in the front end (ADR-064, waits for Acceptance): spec #638, analyzer and lowering
       #639, code generation #641.
 - [ ] Custom hooks by inlining (ADR-065, waits for Acceptance): #645 expansion pass, #646
