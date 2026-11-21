@@ -39,6 +39,30 @@ restyle moved no box.
 and half are the toggle back (also a layout edit). The gate's win on that row is that a *paint-only*
 restyle no longer pays for a layout pass at all.
 
+## Slices A+B+G+H together
+
+Measured on the same box, median of 5 runs, 50 warm-up / 200 measured frames:
+
+| scenario | nodes | before | after | allocations before → after |
+|---|---|---|---|---|
+| class-toggle | 1,501 | 0.340 | **0.070** | 3,426 → 95 |
+| class-toggle | 6,001 | 6.123 | **0.250** | 13,178 → 95 |
+| layout-dirty | 1,501 | 1.699 | **0.399** | 5,015 → 2,010 |
+| layout-dirty | 6,001 | 15.987 | **1.802** | 20,017 → 8,012 |
+| paint-dirty | 1,501 | 0.474 | **0.108** | 65 → 22 |
+| paint-dirty | 6,001 | 3.584 | **0.375** | 65 → 22 |
+| size-change | 1,501 | 4.790 | 6.774 | 8,125 → 3,981 |
+| size-change | 6,001 | 30.42 | 36.028 | 130,960 → 114,813 |
+
+The class-change row is the headline: **24× faster at 6k nodes** and 139× fewer allocations. That is
+A (no layout pass), B (sync visits only the restyled subtrees), G (dense memo) and H (no map build)
+compounding — each removes a whole-tree walk from a frame that changed three nodes.
+
+**size-change regressed slightly** (4.79 → 6.77 ms at 1.5k, 30.4 → 36.0 at 6k). It is the one row
+where the gate always declines, so it pays the new digest comparison on top of a full reflow and gets
+none of the savings. That is the honest cost of A on the path A cannot help, and it is why slice D
+(retained Yoga tree) is the fix for this row rather than a further gate.
+
 ## What slice A does not fix
 
 - **size-change is barely moved.** A real box change must reflow, so the gate correctly declines;

@@ -2209,6 +2209,7 @@ constant include/tessera/ui/paint/paint_text_metrics.hpp tessera::ui::paint::kSt
 header include/tessera/ui/paint/scene_style_sync.hpp
 struct include/tessera/ui/paint/scene_style_sync.hpp tessera::ui::paint::SceneStyleSyncResult
 function include/tessera/ui/paint/scene_style_sync.hpp tessera::ui::paint::sync_scene_style
+function include/tessera/ui/paint/scene_style_sync.hpp tessera::ui::paint::sync_scene_style_scoped
 
 header include/tessera/ui/paint/text_layout_cache.hpp
 class include/tessera/ui/paint/text_layout_cache.hpp tessera::ui::paint::TextLayoutCache

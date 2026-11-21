@@ -24,6 +24,9 @@ add_library(tessera_app STATIC
     host_viewport.cpp
     # Whether the selector tree and its memo survive a restyle, and which subtrees recompute.
     host_style_tree.cpp
+    # Embedded stylesheet registration (ADR-048). Split out of host.cpp, which is at its size
+    # budget.
+    host_stylesheets.cpp
     # The layout-unchanged gate (issue #735, slice A): when a restyle provably kept every layout
     # input, reuse the previous result instead of rebuilding the layout input and hashing it.
     # Split out of host.cpp, which is at its size budget.

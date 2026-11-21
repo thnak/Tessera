@@ -24,8 +24,8 @@ namespace {
 
 using tessera::rendering::gpu::GlassLimits;
 using tessera::ui::Node;
-using tessera::ui::paint::SceneStyleSyncResult;
 using tessera::ui::paint::SceneStyleProvider;
+using tessera::ui::paint::SceneStyleSyncResult;
 using tessera::ui::paint::sync_scene_style;
 using tessera::ui::paint::sync_scene_style_scoped;
 using tessera::ui::style::compile_stylesheet;
@@ -154,11 +154,10 @@ bool compare_walks(const char* label, Scene& full, Scene& scoped,
     }
     for (std::size_t i = 0; i < full_state.size(); ++i) {
         if (!same_state(full_state[i], scoped_state[i])) {
-            std::cerr << "scoped_sync: " << label << ": node " << full_state[i].id
-                      << " differs (z " << full_state[i].z_index << " vs "
-                      << scoped_state[i].z_index << ", glass_subtree "
-                      << full_state[i].glass_subtree << " vs " << scoped_state[i].glass_subtree
-                      << ")\n";
+            std::cerr << "scoped_sync: " << label << ": node " << full_state[i].id << " differs (z "
+                      << full_state[i].z_index << " vs " << scoped_state[i].z_index
+                      << ", glass_subtree " << full_state[i].glass_subtree << " vs "
+                      << scoped_state[i].glass_subtree << ")\n";
             return false;
         }
     }
@@ -255,8 +254,8 @@ int main() {
         scoped.cards[1]->set_class_name("card raised");
         full.cards[6]->set_class_name("card glass");
         scoped.cards[6]->set_class_name("card glass");
-        if (!compare_walks("two restyled subtrees", full, scoped,
-                           {full.cards[1], full.cards[6]}, {scoped.cards[1], scoped.cards[6]})) {
+        if (!compare_walks("two restyled subtrees", full, scoped, {full.cards[1], full.cards[6]},
+                           {scoped.cards[1], scoped.cards[6]})) {
             return 5;
         }
     }
