@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#include <string>
 #include <string_view>
 
 namespace tessera::ui {
@@ -92,6 +93,55 @@ struct ArgsView {
         return nullptr;
     }
 };
+
+// Builds one evaluated option value from a C++ value.
+//
+// The IR carries an option's *expression* but not its type, and the generated base evaluates that
+// expression to a C++ type the manifest chose. These overloads are therefore where the type
+// information lives: codegen writes `make_arg(<expr>)` and the overload picks the kind, so a
+// behavior never has to guess and a wrong manifest type is a compile error rather than a silently
+// misread option.
+[[nodiscard]] inline ArgValue make_arg(bool value) {
+    ArgValue arg;
+    arg.kind = ArgValue::Kind::Bool;
+    arg.boolean = value;
+    return arg;
+}
+
+[[nodiscard]] inline ArgValue make_arg(double value) {
+    ArgValue arg;
+    arg.kind = ArgValue::Kind::Number;
+    arg.number = value;
+    return arg;
+}
+
+[[nodiscard]] inline ArgValue make_arg(int value) {
+    return make_arg(static_cast<double>(value));
+}
+
+[[nodiscard]] inline ArgValue make_arg(std::string_view value) {
+    ArgValue arg;
+    arg.kind = ArgValue::Kind::String;
+    arg.text = value;
+    return arg;
+}
+
+[[nodiscard]] inline ArgValue make_arg(const std::string& value) {
+    return make_arg(std::string_view(value));
+}
+
+[[nodiscard]] inline ArgValue make_arg(const char* value) {
+    return make_arg(std::string_view(value));
+}
+
+// A callback option: the handler id the generated base resolves to a thunk. A behavior only
+// forwards it to the dispatch that invokes it, so it never calls one itself.
+[[nodiscard]] inline ArgValue make_handler_arg(std::uint32_t handler) {
+    ArgValue arg;
+    arg.kind = ArgValue::Kind::Handler;
+    arg.handler = handler;
+    return arg;
+}
 
 // One output value. The manifest declares the type, so the generated base reads the field it
 // expects; before the first attach and after detach an output holds its manifest default.
