@@ -235,7 +235,7 @@ void test_lifted_and_deferred_forms() {
         // A `useRef` target on a per-item instance cannot name one item's instance: the target is
         // rejected before any code is emitted.
         ir::IrModule module = instances_fixture::make_instances_module();
-        module.components[0].refs.push_back({"useRef::row", "row", "node::4"});
+        module.components[0].refs.push_back({"useRef::row", "row", "node::4", {}});
         const auto result = generate(module);
         check(!result.has_value(), "a per-item instance `useRef` target is deferred");
     }

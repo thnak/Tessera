@@ -105,7 +105,7 @@ ir::IrModule make_rich_module() {
                             "bind::on_sync",
                             "bind::on_sync_cleanup",
                             span(150, 60, 12, 5, 14, 8)});
-    list.refs.push_back({"ref::box", "box", "node::1"});
+    list.refs.push_back({"ref::box", "box", "node::1", {}});
     list.animated_values.push_back({"anim::fade", "fade", "float", ir::make_literal(1.0)});
     ir::Environment theme_env;
     theme_env.id = "env::theme";
