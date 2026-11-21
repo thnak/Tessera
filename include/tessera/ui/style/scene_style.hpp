@@ -9,6 +9,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <deque>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -110,14 +111,23 @@ private:
     };
 
     void build(const Node& node, StyleNode* parent);
+    void build_node(const Node& node, StyleNode* parent);
     void fill_view(Entry& entry, const Node& node, StyleNode* parent);
     void refresh(const Node& node, StyleNode* parent);
     [[nodiscard]] StyleNode* mutable_view(const Node& node);
 
     bool memo_active_ = false;
-    // Computed styles (inline declarations included) by node. Node based, so references stay valid
-    // while the memo grows.
-    std::unordered_map<const Node*, ComputedStyle> memo_;
+    // Computed styles (inline declarations included), one slot per `entries_` element: a dense
+    // array in traversal order instead of a node-keyed hash map (issue #735, slice G). `resolve`
+    // hands out references into it, so it is sized exactly once, at the end of `build`, and never
+    // grows again; `entries_` is a deque, so its own references are stable regardless.
+    std::vector<ComputedStyle> memo_;
+    // Whether `memo_[i]` holds a style for `entries_[i]`. A separate byte array, so the hit path
+    // reads one byte per node instead of the entry's view.
+    std::vector<std::uint8_t> memoised_;
+    // The registry's initial style for a node outside the captured tree. Every such node resolves
+    // to the same value, so one slot serves them all; `begin_memo(false)` drops it with the rest.
+    std::optional<ComputedStyle> outside_style_;
     // Nodes whose memoised style `restyle_subtree` dropped in this round, with the layout digest
     // their style had before the drop. `restyled_layout_changed` compares each against the style
     // the restyle produced.

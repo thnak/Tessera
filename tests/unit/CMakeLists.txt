@@ -2763,3 +2763,11 @@ add_executable(text_decoration_tests
     text_decoration_tests.cpp)
 target_link_libraries(text_decoration_tests PRIVATE tessera_paint tessera_text tessera_style)
 add_test(NAME text_decoration COMMAND text_decoration_tests)
+
+# The dense per-generation style memo (issue #735, slice G): reference stability across resolves,
+# `keep_entries`, the restyle digest record, the outside-the-tree answer and the container-source
+# bypass. Registered here, appended, so no existing entry moves.
+add_executable(scene_style_memo_tests
+    scene_style_memo_tests.cpp)
+target_link_libraries(scene_style_memo_tests PRIVATE tessera_style)
+add_test(NAME scene_style_memo COMMAND scene_style_memo_tests)
