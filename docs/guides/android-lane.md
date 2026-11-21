@@ -137,18 +137,46 @@ so the host is gone before the window can be reused — the surface-lifecycle ru
 `WindowHost` is single-threaded and must be created, run and destroyed on the thread that owns the
 window.
 
-### 3.4 What is still missing
+### 3.4 Window metrics: insets, cutouts and fold
+
+`src/platform/android/android_metrics_translation.cpp` decodes the platform's window-metrics signals
+into `hal::WindowMetrics`. Like the input rules it **includes no Android header**, so it is
+unit-tested on every lane (`android_metrics`).
+
+The platform reports insets in **physical pixels**; `WindowMetrics` carries logical pixels. That
+conversion is the whole reason this is a separate testable unit: a wrong scale turns a 24 px status
+bar into a 24 dp one, which is a layout bug that only shows on a device with a non-1.0 density. The
+decode **rounds** rather than truncates, so a 2.75× device does not lose a pixel per side.
+
+Three rules worth knowing:
+
+- **Cutout rectangles.** Android reports `right`/`bottom` as exclusive edges; the engine's rectangles
+  are `x`/`y`/`width`/`height`, so the extent is the difference. A zero-area rectangle is dropped
+  rather than reported as a cutout that insets nothing.
+- **A flat fold does not occlude.** A flat fold is a seam, not a barrier: it reports `FoldState::Flat`
+  and its axis, but `FoldOcclusion::None`. Only `HalfOpened` reports an occluding hinge, and only
+  when the platform gives it a non-zero rectangle.
+- **Orientation comes from the extent**, not from Android's rotation, so a device that reports
+  neither still gets the same answer as the desktop lanes.
+
+The window backend exposes `set_insets`, `set_cutouts` and `set_fold` for the host to call from its
+platform callbacks; each queues at most one coalesced `SafeAreaChanged`/`FoldChanged` event, so a
+burst of callbacks between two ticks costs one event per kind.
+
+### 3.5 What is still missing
 
 - **Input.** `AInputEvent` arrives in `android_main` and is dropped (`onInputEvent` returns 0, so the
   platform falls back to its own behaviour). Translating `MotionEvent`/`KeyEvent` into
   `ui::InputEvent` is `docs/design/mobile-integration.md` section 3.2.
-- **Insets, cutouts, fold.** These need `WindowInsets`/`WindowMetricsCalculator` over JNI
-  (sections 3.5 and 3.6); the metrics carry the documented zero-inset fallback.
+- **The JNI bridge itself.** The decode rules exist and are tested, but nothing calls them yet: the
+  host needs a `WindowInsets`/`DisplayCutout`/`FoldingFeature` reader over JNI to feed
+  `set_insets`/`set_cutouts`/`set_fold`. Until then the metrics carry the documented zero-inset
+  fallback.
 - **IME and accessibility** (sections 3.3 and 3.4).
 - **A scene.** `android_main` creates the host with no scene or stylesheet, so it reports
   unavailable. A real app supplies them where the shell has the comment.
 
-### 3.5 Emulator GPU mode matters
+### 3.6 Emulator GPU mode matters
 
 | Emulator GPU mode | Device | API version | Tessera accepts? |
 |---|---|---|---|
