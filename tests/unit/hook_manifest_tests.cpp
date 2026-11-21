@@ -47,7 +47,7 @@ bool test_committed_manifest_parses() {
     if (!expect(manifest.has_value(), "the committed manifest parses: " + error.detail)) {
         return false;
     }
-    bool ok = expect(manifest->hooks.size() == 9, "the manifest declares nine hooks");
+    bool ok = expect(manifest->hooks.size() == 10, "the manifest declares ten hooks");
     ok = expect(manifest->find("useTheme") != nullptr, "useTheme is declared") && ok;
     ok = expect(manifest->find("useThemeState") != nullptr, "useThemeState is declared") && ok;
     ok = expect(manifest->find("useBreakpoint") != nullptr, "useBreakpoint is declared") && ok;
@@ -56,6 +56,7 @@ bool test_committed_manifest_parses() {
     ok = expect(manifest->find("useListFocus") != nullptr, "useListFocus is declared") && ok;
     ok = expect(manifest->find("useScrollLock") != nullptr, "useScrollLock is declared") && ok;
     ok = expect(manifest->find("useHotkeys") != nullptr, "useHotkeys is declared") && ok;
+    ok = expect(manifest->find("useClipboard") != nullptr, "useClipboard is declared") && ok;
     ok =
         expect(manifest->find("usePressFeedback") != nullptr, "usePressFeedback is declared") && ok;
     return ok;
@@ -173,6 +174,16 @@ bool test_behavior_lowering() {
          ok;
     ok =
         expect(keys != nullptr && keys->outputs.size() == 1, "useHotkeys returns one output") && ok;
+    // `useClipboard` (issue #632): no target ref, one options object, two outputs.
+    const auto* clip = manifest->find("useClipboard");
+    ok = expect(clip != nullptr && clip->lowering == HookLoweringKind::Behavior,
+                "useClipboard is a behavior hook") &&
+         ok;
+    ok = expect(clip != nullptr && clip->provider == "clipboard_copy",
+                "useClipboard names the clipboard_copy behavior") &&
+         ok;
+    ok = expect(clip != nullptr && clip->outputs.size() == 2, "useClipboard returns two outputs") &&
+         ok;
     return ok;
 }
 

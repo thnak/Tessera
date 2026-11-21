@@ -109,6 +109,25 @@
       "lowering": { "kind": "behavior", "behavior": "hotkeys" }
     },
     {
+      "name": "useClipboard",
+      "params": [
+        {
+          "name": "options",
+          "kind": "options",
+          "ts": "ClipboardOptions",
+          "ir": "record",
+          "fields": [{ "name": "text", "ts": "string", "ir": "string" }]
+        }
+      ],
+      "returns": {
+        "fields": [
+          { "name": "copied", "ts": "boolean", "ir": "bool", "default": false },
+          { "name": "failed", "ts": "boolean", "ir": "bool", "default": false }
+        ]
+      },
+      "lowering": { "kind": "behavior", "behavior": "clipboard_copy" }
+    },
+    {
       "name": "usePressFeedback",
       "params": [
         { "name": "target", "kind": "ref", "ts": "Element", "ir": "ref" },

@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: MIT
 
 add_library(tessera_behavior STATIC
+    clipboard_copy.cpp
     focus_trap.cpp
     hotkeys.cpp
     instance.cpp
@@ -50,6 +51,11 @@ if (TESSERA_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/unit/hotkeys_tests.cpp)
     target_link_libraries(hotkeys_tests PRIVATE tessera_behavior)
     add_test(NAME hotkeys COMMAND hotkeys_tests)
+
+    add_executable(clipboard_copy_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/clipboard_copy_tests.cpp)
+    target_link_libraries(clipboard_copy_tests PRIVATE tessera_behavior tessera_hal_clipboard)
+    add_test(NAME clipboard_copy COMMAND clipboard_copy_tests)
 
     add_executable(behavior_allocation_tests
         ${PROJECT_SOURCE_DIR}/tests/unit/behavior_allocation_tests.cpp)

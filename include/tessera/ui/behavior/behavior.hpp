@@ -10,6 +10,10 @@
 #include <string>
 #include <string_view>
 
+namespace tessera::hal {
+class Clipboard;
+}
+
 namespace tessera::ui {
 class InputRouter;
 }
@@ -58,6 +62,13 @@ struct Services {
     // The scene's normalized interaction state (`hovered()`, `active()`, keyboard focus). Null in a
     // build that has no scene, which a behavior must treat as "nothing is pressed".
     InputRouter* router = nullptr;
+    // The platform clipboard seam (`hal::Clipboard`). Null in a build that has none, which a
+    // behavior must treat as "the clipboard is unavailable" rather than crashing.
+    hal::Clipboard* clipboard = nullptr;
+    // The current time in seconds, from the runtime clock interface. A behavior that needs a
+    // deadline reads it here rather than calling a wall clock, so a `ManualClock` test is
+    // deterministic (behavior-hooks-v1.md section 8 rule 4).
+    double now_s = 0.0;
 };
 
 // One evaluated option value. The manifest declares each field's type, so a behavior reads the
@@ -173,6 +184,10 @@ public:
     // Called when the hash of the evaluated value options changed. No allocation; may not invoke a
     // callback.
     virtual void update(const ArgsView& args) = 0;
+    // Called once per frame with the current time, for a behavior whose outputs expire (a "Copied"
+    // label that clears itself). A behavior with no deadline ignores it. No allocation; may not
+    // invoke a callback.
+    virtual void tick(double /*now_s*/) {}
     // Called before the target node is destroyed, when a ref becomes empty, and at unmount. Removes
     // every registration. Idempotent.
     virtual void detach() = 0;

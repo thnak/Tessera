@@ -1838,6 +1838,7 @@ header include/tessera/ui/automation/snapshot_json.hpp
 function include/tessera/ui/automation/snapshot_json.hpp tessera::ui::automation::snapshot_to_json
 
 header include/tessera/ui/behavior/behavior.hpp
+class include/tessera/ui/behavior/behavior.hpp tessera::hal::Clipboard
 class include/tessera/ui/behavior/behavior.hpp tessera::ui::InputRouter
 class include/tessera/ui/behavior/behavior.hpp tessera::ui::behavior::Behavior
 struct include/tessera/ui/behavior/behavior.hpp tessera::ui::behavior::ArgValue
@@ -1847,6 +1848,10 @@ struct include/tessera/ui/behavior/behavior.hpp tessera::ui::behavior::Services
 struct include/tessera/ui/behavior/behavior.hpp tessera::ui::behavior::Targets
 function include/tessera/ui/behavior/behavior.hpp tessera::ui::behavior::make_arg
 function include/tessera/ui/behavior/behavior.hpp tessera::ui::behavior::make_handler_arg
+
+header include/tessera/ui/behavior/clipboard_copy.hpp
+class include/tessera/ui/behavior/clipboard_copy.hpp tessera::hal::Clipboard
+class include/tessera/ui/behavior/clipboard_copy.hpp tessera::ui::behavior::ClipboardCopy
 
 header include/tessera/ui/behavior/focus_trap.hpp
 class include/tessera/ui/behavior/focus_trap.hpp tessera::ui::behavior::FocusTrap

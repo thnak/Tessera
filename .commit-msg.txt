@@ -1,33 +1,33 @@
-hook: useHotkeys, window-scoped chords with a text-field guard (#627)
+hook: useClipboard, copy with a self-clearing feedback window (#632)
 
-`useHotkeys({ chords: "ctrl+s,escape" })` declares keyboard shortcuts for
-the window. The engine owns the mechanism: `KeyBindingRegistry` is a
-bounded, allocation-free table with a documented matching rule, and
-`InputRouter` already dispatches it after the focused node's handler and
-only when the key event was not consumed. This lands the hook's half.
+`useClipboard({ text })` copies text through the platform seam and reports
+`copied`/`failed`. The engine owns the mechanism (`hal::Clipboard`, with
+`MemoryClipboard` as the deterministic test implementation); this lands the
+hook's half.
 
-The hook takes no target ref, because a shortcut belongs to the window and
-not to an element. The behavior parses the chord list once, registers each
-chord into the router's one registry, and holds the ids it got, which is
-what makes detach exact: an update removes the old set before registering
-the new one, so a component that re-renders does not accumulate bindings.
+The hook takes no target ref, because the clipboard belongs to the window.
+The behavior holds the seam rather than the component, because a component
+that reached the HAL directly would need a platform handle in generated
+code, which ADR-020 forbids.
 
-The behavior registers a marker binding rather than a callback. A behavior
-may not invoke a callback (behavior-hooks-v1.md section 8), so the input
-path reports the fired id through `InputDispatchResult::accelerator_fired`
-and the generated base turns that into the component's handler call.
+The feedback window is a deadline, not a timer: the behavior reads the time
+from `Services::now_s` and compares it in a new `Behavior::tick`, so a
+`ManualClock` test advances it explicitly and no thread or timer exists.
+`tick` is a defaulted virtual on the seam, so the five behaviors that have
+no deadline pay nothing.
 
-`allowInTextInput` is implemented, not just declared: while the focused
-node is a `TextInput` or `TextArea` the behavior registers nothing, because
-a chord that fires there steals a key the user is typing. The registry has
-no "except when" rule, so the behavior re-evaluates on each update, which a
-field gaining focus already triggers.
+Two rules worth naming:
 
-The destructor removes the bindings, so a behavior destroyed without an
-explicit detach cannot leave the window firing a shortcut for a component
-that no longer exists.
+- **Empty text copies nothing.** A copy button whose text is empty (a code
+  block that failed to load) must not wipe the clipboard the user was
+  carrying. That is a data-safety rule, not a nicety.
+- **A failure's feedback expires too.** A "Copy failed" label that stayed on
+  screen forever is as wrong as a "Copied" one.
 
-Evidence: `hotkeys` (12 rules, including the chord parser, the exact
-modifier match, the update replacing the set, and the text-field guard),
-`hook_manifest` and `behavior_registry`. Spec:
-`docs/specs/use-hotkeys-v1.md`.
+`Services` gains the clipboard and the clock, which is the first time a
+behavior has needed anything beyond the router. Both are nullable, and a
+build with neither reports `failed` rather than crashing.
+
+Evidence: `clipboard_copy` (11 rules, including the expiry, the empty-text
+guard and the no-seam path), `hook_manifest` and `behavior_registry`. Spec:
+`docs/specs/use-clipboard-v1.md`.

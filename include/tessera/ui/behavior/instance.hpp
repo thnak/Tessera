@@ -75,6 +75,10 @@ public:
     // pointer. A behavior with no interaction-state outputs simply recomputes the same values.
     void refresh(const ArgsView& args);
 
+    // Forwards the frame's time to the engine behavior, for one whose outputs expire. Allocates
+    // nothing and is a no-op when not attached.
+    void tick(double now_s);
+
     // Detaches the engine behavior and releases it. Idempotent, and safe before the first attach.
     void detach();
 
