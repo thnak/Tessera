@@ -54,6 +54,10 @@ float display_scale(android_app* app) {
 // while the OS has given us a surface.
 struct AppState {
     std::unique_ptr<tessera::app::WindowHost> host;
+    // The HAL window the host owns, kept so the input callback can reach the translator. It is the
+    // same object the host created from `WindowDesc::surface`; the host owns it, this is a borrow
+    // that is cleared in the same command that destroys the host.
+    tessera::hal::Window* window = nullptr;
     bool has_focus = false;
 };
 
@@ -75,12 +79,16 @@ void on_app_cmd(android_app* app, int32_t command) {
             // The scene and stylesheet are the app's own; this shell has none yet, so the host is
             // created empty and reports unavailable. A real app supplies them here.
             state->host = nullptr;
+            // The host owns the window; the input callback borrows it. Null while the host is
+            // unavailable, which is what makes `on_input` a no-op instead of a crash.
+            state->window = state->host != nullptr ? state->host->window() : nullptr;
         }
         break;
     case APP_CMD_TERM_WINDOW:
         // The surface is going away. Destroy the host BEFORE the window can be reused, so no
         // renderer holds a borrowed surface that outlives it.
         log_info("surface lost; stopping the window host");
+        state->window = nullptr;
         state->host.reset();
         break;
     case APP_CMD_GAINED_FOCUS:
@@ -94,11 +102,17 @@ void on_app_cmd(android_app* app, int32_t command) {
     }
 }
 
-int32_t on_input(android_app* /*app*/, AInputEvent* /*event*/) {
-    // Input translation is the next slice (docs/design/mobile-integration.md section 3.2).
-    // Returning 0 means "not handled", which lets the platform fall back to its own behaviour
-    // instead of swallowing an event the engine cannot use yet.
-    return 0;
+int32_t on_input(android_app* app, AInputEvent* event) {
+    // Input translation (issue #189, docs/design/mobile-integration.md section 3.2). The window
+    // backend owns the translator, so the shell only forwards: it never interprets an AInputEvent
+    // itself, which keeps the platform types out of the app layer.
+    auto* state = static_cast<AppState*>(app->userData);
+    if (state->window == nullptr) {
+        return 0;
+    }
+    // Returning 1 means "handled", which stops the platform from also acting on the event (a Back
+    // press would otherwise close the activity). Returning 0 lets it fall back.
+    return state->window->translate_input(event) ? 1 : 0;
 }
 
 } // namespace

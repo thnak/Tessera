@@ -13,10 +13,10 @@
 //
 //   - It reports the surface extent, the device scale and the window family, which is what the
 //     renderer needs to size a swapchain and what layout needs to resolve a viewport.
-//   - It does NOT translate input. `MotionEvent`/`KeyEvent` arrive through the Java `View` or the
-//     `AInputQueue` the host owns, and wiring that into `ui::InputQueue` is the next slice
-//     (docs/design/mobile-integration.md section 3.2). `set_input_queue` stores the queue so the
-//     translation can be added without changing this contract.
+//   - It translates input through `AndroidInputTranslator` (android_input.cpp): the host calls
+//     `translate_input` from its `onInputEvent` callback, and the translator pushes normalized
+//     events into the queue `set_input_queue` installed. Historical/coalesced samples, tilt and
+//     orientation are not carried yet (see the translator's header).
 //   - It does NOT report insets, cutouts or fold state. Those come from `WindowInsets` and
 //     `WindowMetricsCalculator` through JNI, which is a separate bridge
 //     (docs/design/mobile-integration.md sections 3.5 and 3.6). The metrics carry the documented
@@ -27,10 +27,12 @@
 // one reference for its own lifetime and revokes the borrowed `NativeSurface` when the host reports
 // the surface is gone, so a renderer can never present into a dead window.
 
+#include "android_input.hpp"
 #include "tessera/hal/surface.hpp"
 #include "tessera/hal/timer/steady_time.hpp"
 #include "tessera/hal/window.hpp"
 
+#include <android/input.h>
 #include <android/native_window.h>
 #include <cmath>
 #include <cstdint>
@@ -118,8 +120,14 @@ public:
     }
 
     void set_input_queue(ui::InputQueue* queue) override {
-        // Stored for the input-translation slice; nothing produces events yet.
-        input_queue_ = queue;
+        input_.set_queue(queue);
+        input_.set_scale(dpi_scale_);
+    }
+
+    // Translates one platform input event into the queue. Called by the host from its
+    // `onInputEvent` callback, on the thread that owns the window.
+    bool translate_input(const void* event) override {
+        return input_.translate(static_cast<const AInputEvent*>(event));
     }
 
     void show() override {
@@ -231,7 +239,7 @@ private:
     std::uint32_t physical_height_ = 0;
     WindowMetrics metrics_{};
     SurfaceLifetime lifetime_;
-    ui::InputQueue* input_queue_ = nullptr;
+    AndroidInputTranslator input_;
     std::uint64_t sequence_ = 0;
     bool visible_ = true;
     bool closed_ = false;

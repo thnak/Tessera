@@ -611,6 +611,10 @@ bool WindowHost::available() const {
     return impl_->available;
 }
 
+hal::Window* WindowHost::window() const {
+    return impl_->window.get();
+}
+
 WindowFrameStats WindowHost::run(std::uint32_t max_frames) {
     return impl_->run(max_frames);
 }
