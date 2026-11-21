@@ -172,10 +172,41 @@ wrong for every non-US layout.
 Not carried yet: historical/coalesced samples (`AMotionEvent_getHistorical*`), pressure tilt and
 orientation. The newest sample is used, which loses sub-frame motion but never loses an event.
 
-### 3.5 What is still missing
+### 3.5 Window metrics: insets, cutouts and fold
 
-- **Insets, cutouts, fold.** These need `WindowInsets`/`WindowMetricsCalculator` over JNI
-  (sections 3.5 and 3.6); the metrics carry the documented zero-inset fallback.
+`src/platform/android/android_metrics_translation.cpp` decodes the platform's window-metrics signals
+into `hal::WindowMetrics`. Like the input rules it **includes no Android header**, so it is
+unit-tested on every lane (`android_metrics`).
+
+The platform reports insets in **physical pixels**; `WindowMetrics` carries logical pixels. That
+conversion is the whole reason this is a separate testable unit: a wrong scale turns a 24 px status
+bar into a 24 dp one, which is a layout bug that only shows on a device with a non-1.0 density. The
+decode **rounds** rather than truncates, so a 2.75× device does not lose a pixel per side.
+
+Three rules worth knowing:
+
+- **Cutout rectangles.** Android reports `right`/`bottom` as exclusive edges; the engine's rectangles
+  are `x`/`y`/`width`/`height`, so the extent is the difference. A zero-area rectangle is dropped
+  rather than reported as a cutout that insets nothing.
+- **A flat fold does not occlude.** A flat fold is a seam, not a barrier: it reports `FoldState::Flat`
+  and its axis, but `FoldOcclusion::None`. Only `HalfOpened` reports an occluding hinge, and only
+  when the platform gives it a non-zero rectangle.
+- **Orientation comes from the extent**, not from Android's rotation, so a device that reports
+  neither still gets the same answer as the desktop lanes.
+
+The window backend exposes `set_insets`, `set_cutouts` and `set_fold` for the host to call from its
+platform callbacks; each queues at most one coalesced `SafeAreaChanged`/`FoldChanged` event, so a
+burst of callbacks between two ticks costs one event per kind.
+
+### 3.6 What is still missing
+
+- **Input.** `AInputEvent` arrives in `android_main` and is dropped (`onInputEvent` returns 0, so the
+  platform falls back to its own behaviour). Translating `MotionEvent`/`KeyEvent` into
+  `ui::InputEvent` is `docs/design/mobile-integration.md` section 3.2.
+- **The JNI bridge itself.** The decode rules exist and are tested, but nothing calls them yet: the
+  host needs a `WindowInsets`/`DisplayCutout`/`FoldingFeature` reader over JNI to feed
+  `set_insets`/`set_cutouts`/`set_fold`. Until then the metrics carry the documented zero-inset
+  fallback.
 - **IME and accessibility** (sections 3.3 and 3.4).
 - **A generated component.** The shell's scene (`android/app/src/main/cpp/scene.hpp`) is built by
   hand, because the codegen CLI runs on the host at build time and `tessera_compiler_demo` is gated
@@ -184,7 +215,7 @@ orientation. The newest sample is used, which loses sub-frame motion but never l
   Replacing it with the generated `demo::Demo` needs the codegen host tool — the same
   `ExternalProject` pattern the shader manifest checker uses.
 
-### 3.6 Emulator GPU mode matters
+### 3.7 Emulator GPU mode matters
 
 | Emulator GPU mode | Device | API version | Tessera accepts? |
 |---|---|---|---|
