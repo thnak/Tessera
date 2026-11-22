@@ -195,7 +195,7 @@ weaker rule; it is one a reviewer has to catch, and saying so is better than imp
 | Avoid `std::function` in hot paths | review; the rule is stated in [`code-style.md`](../guides/code-style.md) and the audit is [`std-function-audit.md`](../design/std-function-audit.md) (#707) |
 | Intern strings/ids; no formatting in the frame loop | review |
 | Frame lifetime: retire after fence, deferred deletion | `tests/gpu/` retirement and in-flight tests |
-| VMA, no raw `vkAllocateMemory` | review; one known violation is #704 |
+| VMA, no raw `vkAllocateMemory` | `grep vkAllocateMemory src/rendering` has no hits; the Phase 0 PoC is exempt by ADR-001 point 4 and lives in `tools/poc/` (#704) |
 | Eviction never touches in-flight data | `ImageTextureCache` and glyph-atlas tests |
 | Bounded caches | `scripts/check_memory_budget.py` cache rows |
 | Recoverable failure as `std::expected` | `src/ui/boundary/guard.cpp` and its tests |
