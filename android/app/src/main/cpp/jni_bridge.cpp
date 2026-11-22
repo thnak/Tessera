@@ -13,13 +13,15 @@
 // The engine never sees a `jobject`, and this file never interprets a scene: it is a thin,
 // value-only bridge, which is what docs/design/bridges.md section 3 asks for.
 
+#include "android_caret_translation.hpp"
 #include "android_input_translation.hpp"
 #include "android_motion_translation.hpp"
+#include "caret_bridge.hpp"
 #include "scene.hpp"
 #include "shell.hpp"
 #include "tessera/app/window.hpp"
 #include "tessera/hal/window.hpp"
-#include "tessera/ui/style/pseudo_state.hpp"
+#include "tessera/ui/text/text_measure.hpp"
 
 #include <android/log.h>
 #include <android/native_window_jni.h>
@@ -88,20 +90,6 @@ float display_scale(JNIEnv* env, jobject view) {
     return density > 0.0f ? density : 1.0f;
 }
 
-// The caret-blink policy the driver asks for every iteration: the field blinks only while it holds
-// scene focus and is editable with a collapsed selection, which is exactly what
-// `EditController::caret_blink_active` decides. Reading the node's pseudo state is a bit test, so
-// asking once per iteration costs nothing.
-bool caret_active_for_shell(void* user) {
-    auto* shell = static_cast<Shell*>(user);
-    if (shell == nullptr || shell->scene == nullptr || shell->scene->input_label == nullptr) {
-        return false;
-    }
-    const bool focused = tessera::ui::style::has_state(shell->scene->input_label->pseudo_state(),
-                                                       tessera::ui::style::PseudoState::Focus);
-    return shell->editor.caret_blink_active(focused);
-}
-
 // Creates the host around the surface and starts the frame loop. Called from `surfaceCreated`,
 // which is the first moment the engine may render.
 void start_host(Shell& shell) {
@@ -118,6 +106,21 @@ void start_host(Shell& shell) {
     // The text stack requires a font: TextStack throws on an empty path, which aborts the process.
     // Android ships Roboto at a stable path, so the shell uses it rather than bundling a copy.
     options.font_path = "/system/fonts/Roboto-Regular.ttf";
+    // The same face, loaded once for the caret hit test: a tap must resolve to the caret under the
+    // finger, so the hit test has to measure the glyphs paint draws. A face that fails to load
+    // leaves the metrics provider null, and `caret_field_for_shell` then declines - a tap that
+    // cannot place the caret leaves it alone instead of jumping it to the start.
+    if (!shell.field_face) {
+        auto loaded = tessera::ui::text::FontFace::load_from_file(options.font_path);
+        if (loaded.has_value()) {
+            shell.field_face = std::move(*loaded);
+            shell.field_metrics =
+                std::make_unique<tessera::ui::text::FreeTypeFontMetricsProvider>(shell.field_face);
+            // The field's authored style: `TextInput { font-size: 16px }` in the shell's sheet.
+            shell.field_text_style.font_size = 16.0f;
+            shell.field_font_metrics = shell.field_metrics->metrics(shell.field_text_style);
+        }
+    }
     // The pull-side accessibility provider. Android's `AccessibilityNodeProvider` asks for one node
     // at a time, so the driver keeps this provider current and the Java provider queries it from
     // the platform's thread. The shell owns it, so it outlives the host.
@@ -138,7 +141,7 @@ void start_host(Shell& shell) {
     // The caret blink. The driver owns the clock, but only the shell knows whether the field is
     // focused, so the policy is a callback and the runtime is where the phase lands: without both
     // the caret would be solid, because nothing would ever flip the decoration's phase.
-    options.caret_active = &caret_active_for_shell;
+    options.caret_active = &tessera::android_shell::caret_active_for_shell;
     options.caret_active_user = &shell;
     options.caret_target = &shell.editor_runtime;
     shell.host = std::make_unique<tessera::app::WindowHost>(
@@ -439,7 +442,14 @@ JNIEXPORT jboolean JNICALL Java_dev_tessera_app_TesseraView_nativeOnTouch(JNIEnv
     }
     // Returns true only when the event actually reached the queue, so the platform keeps sending
     // the rest of the gesture.
-    return shell->window->post_input_event(out.event) ? JNI_TRUE : JNI_FALSE;
+    const bool posted = shell->window->post_input_event(out.event);
+    // A tap on the field also places the caret. The scene's input router focuses the node, but it
+    // has no text knowledge, so the point-to-caret mapping is the shell's: `caret_from_point` is
+    // pure and unit-tested, and this only supplies the field's box and the touch.
+    if (posted && out.event.type == tessera::ui::InputEventType::PointerDown) {
+        tessera::android_shell::place_caret_from_touch(*shell, out.event.x, out.event.y);
+    }
+    return posted ? JNI_TRUE : JNI_FALSE;
 }
 
 } // extern "C"

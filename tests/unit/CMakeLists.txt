@@ -969,6 +969,20 @@ target_link_libraries(android_input_tests PRIVATE tessera_input)
 
 add_test(NAME android_input COMMAND android_input_tests)
 
+# Android point-to-caret translation (issue #189, android-lane.md section 3.13): pure over plain
+# numbers, so it runs on every lane without an NDK or a device. The box arithmetic - physical pixels
+# to the content box, the padding, the density scale - is where a caret lands one character off.
+add_executable(android_caret_tests
+    hal/android_caret_tests.cpp
+    ${PROJECT_SOURCE_DIR}/src/platform/android/android_caret_translation.cpp)
+
+target_include_directories(android_caret_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src/platform/android)
+
+target_link_libraries(android_caret_tests PRIVATE tessera_text)
+
+add_test(NAME android_caret COMMAND android_caret_tests)
+
 # Android window-metrics decode (issue #189): pure over plain numbers, so it runs on every lane
 # without an NDK or a device. The source lives under src/platform/android but includes no Android
 # header.

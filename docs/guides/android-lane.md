@@ -297,11 +297,11 @@ stays inside its size budget.
 - **The IME's long tail:** `requestCursorUpdates` is not forwarded (the engine has no cursor-anchor
   report), and `performEditorAction` reports "not handled" because the edit controller has no
   Done/Search/Go concept. The compose/commit/delete path and the text queries are wired.
-- **Caret movement, selection and the context menu.** `EditController::place_caret_at` and
-  `extend_selection_to` exist and are unit-tested, but no Android shell code calls them: a tap on the
-  field does not move the caret, there is no long-press selection, and there is no context menu or
-  clipboard backend for Android (`src/platform/windows/clipboard_win32.cpp` is the only
-  implementation; `clipboard_unsupported.cpp` is the fallback). See section 3.12 for what *is* wired.
+- **Selection and the context menu.** A tap now places the caret (section 3.13), but a long-press
+  does not start a selection, there is no drag-to-select, and there is no context menu or clipboard
+  backend for Android (`src/platform/windows/clipboard_win32.cpp` is the only implementation;
+  `clipboard_unsupported.cpp` is the fallback). `EditController::extend_selection_to` is the seam a
+  long-press would use; nothing calls it yet.
 - **A generated component.** The shell's scene (`android/app/src/main/cpp/scene.hpp`) is built by
   hand, because the codegen CLI runs on the host at build time and `tessera_compiler_demo` is gated
   on `NOT CMAKE_CROSSCOMPILING`. A hand-built tree still exercises the scene graph, the compiled
@@ -524,6 +524,38 @@ decides reaches `TextDecoration::blink_phase`, so paint draws a solid caret fore
 default, which keeps every desktop caller on the pre-blink behaviour. `caret_blink_target` (a GPU
 test) pins the round trip: focus through the policy alone publishes a visible phase, a half-period
 flip publishes a hidden one, and blurring publishes hidden immediately.
+
+### 3.13 A tap places the caret
+
+A custom-rendered field does not get caret placement for free either. The platform reports a touch
+as a point in view coordinates; the edit controller wants a `TextHit` (a UTF-8 byte offset plus a
+caret affinity). `hit_test_point` already does the hard part — line selection by y, then x inside
+that line's visual runs, bidi-aware and snapped to a grapheme boundary — but it takes a `TextStyle`,
+a `TextConstraints` and a `FontMetrics`, and the bridge has none of those.
+
+`android_caret_translation.cpp` is the adapter, and it is **pure**: no NDK, no JNI, no device. The
+box arithmetic is where a caret lands one character off, so `android_caret` pins it on every lane:
+
+| rule | why it bites |
+|---|---|
+| physical pixels ÷ density, then minus the box origin | the layout is logical; skipping the divide puts every caret at the wrong character on a 2.4x phone |
+| the point is measured from the **content** box | the text starts inside the padding, so a tap in the padding must clamp, not resolve to a negative offset |
+| a point outside the border box is `inside == false` | a tap elsewhere must leave the caret alone, not jump it to the start |
+| a zero density is treated as 1 | the platform can report an unknown density, and dividing by it would make every point NaN |
+
+Two things the bridge must get right, and both are easy to get wrong:
+
+- **The density is already applied.** `translate_motion_sample` divides the platform's physical
+  pixels by the density, so the event the bridge sees is in logical pixels. Passing the density to
+  `caret_from_point` again divides twice — the first version of this slice did exactly that, and the
+  caret did not move at all.
+- **The hit test must measure the glyphs paint draws.** The shell loads the same face paint uses
+  (`/system/fonts/Roboto-Regular.ttf`) and keeps a `FreeTypeFontMetricsProvider`, rather than
+  guessing metrics. A face that fails to load leaves the provider null and the tap declines.
+
+`caret_bridge.cpp` holds the shell half (the field's box, the blink policy, the placement call) so
+`jni_bridge.cpp` stays inside its size budget. What is still missing is the other half of the
+gesture: a long-press does not start a selection and there is no drag-to-select.
 
 ## 4. Related
 

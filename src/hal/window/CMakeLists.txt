@@ -227,6 +227,12 @@ elseif (ANDROID)
         # android_motion_translation.cpp, which includes neither an Android header nor <jni.h> and is
         # unit-tested on every lane.
         ${PROJECT_SOURCE_DIR}/src/platform/android/android_motion_translation.cpp
+        # Point-to-caret translation (issue #189, android-lane.md section 3.13). A tap on a
+        # custom-rendered field has to resolve to a caret, and the box arithmetic (physical pixels
+        # to the content box, the padding, the density scale) is where a caret lands one character
+        # off. The rules are in android_caret_translation.cpp, which includes no Android header and
+        # is unit-tested on every lane.
+        ${PROJECT_SOURCE_DIR}/src/platform/android/android_caret_translation.cpp
         # IME translation (issue #189, mobile-integration.md section 3.3). The InputConnection
         # callbacks arrive as Java strings; the pure rules convert UTF-16 and offsets in
         # android_ime_translation.cpp, which includes no Android header and is unit-tested.

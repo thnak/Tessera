@@ -15,6 +15,8 @@
 #include "tessera/hal/window.hpp"
 #include "tessera/ui/accessibility/snapshot_provider.hpp"
 #include "tessera/ui/text/edit_controller.hpp"
+#include "tessera/ui/text/font_face.hpp"
+#include "tessera/ui/text/freetype_metrics.hpp"
 #include "tessera/ui/text/text_input_runtime.hpp"
 
 #include <android/native_window.h>
@@ -59,6 +61,19 @@ struct Shell {
     // caret/selection into the node's paint data. Attached to the shell's text field once the scene
     // exists.
     tessera::ui::text::TextInputRuntime editor_runtime{editor};
+    // The face the field paints with, and its baseline metrics. A tap has to resolve to the caret
+    // under the finger, which means the hit test must measure the same glyphs paint does - so the
+    // shell loads the face once and keeps the provider, rather than letting the bridge guess.
+    tessera::ui::text::FontFace field_face;
+    std::unique_ptr<tessera::ui::text::FreeTypeFontMetricsProvider> field_metrics;
+    // The field's text style and baseline metrics, resolved once from the stylesheet the shell
+    // installs (`TextInput { font-size: 16px }`) and the face above. The hit test needs both, and
+    // the scene does not expose a node's computed style, so the shell keeps the values it authored.
+    tessera::ui::text::TextStyle field_text_style;
+    tessera::ui::text::FontMetrics field_font_metrics;
+    // The field's padding in logical pixels, from the same stylesheet (`padding: 12px`). The text
+    // starts inside it, so a tap in the padding must clamp to the nearest caret.
+    float field_pad = 12.0f;
 };
 
 // The shell behind a Java `long` handle, or null for a zero handle.
