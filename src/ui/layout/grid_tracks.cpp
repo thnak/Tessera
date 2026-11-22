@@ -9,6 +9,7 @@
 
 #include "grid_engine.hpp"
 #include "layout_style.hpp"
+#include "tessera/ui/style/viewport_units.hpp"
 
 #include <algorithm>
 #include <cstddef>
@@ -69,6 +70,89 @@ void grow_tracks(std::vector<float>& sizes, const std::vector<bool>& growable,
 
 } // namespace
 
+namespace {
+
+// The inverse of `grid_unit_for` in `grid_values.cpp`: a grid unit back to the shared table's
+// size/axis pair (issue #691). False for a unit that is not a viewport unit.
+bool grid_unit_viewport(style::GridLengthUnit unit, style::ViewportSize& size,
+                        style::ViewportAxis& axis) {
+    switch (unit) {
+    case style::GridLengthUnit::Vw:
+        size = style::ViewportSize::Default;
+        axis = style::ViewportAxis::Width;
+        return true;
+    case style::GridLengthUnit::Vh:
+        size = style::ViewportSize::Default;
+        axis = style::ViewportAxis::Height;
+        return true;
+    case style::GridLengthUnit::Vmin:
+        size = style::ViewportSize::Default;
+        axis = style::ViewportAxis::Min;
+        return true;
+    case style::GridLengthUnit::Vmax:
+        size = style::ViewportSize::Default;
+        axis = style::ViewportAxis::Max;
+        return true;
+    case style::GridLengthUnit::Svw:
+        size = style::ViewportSize::Small;
+        axis = style::ViewportAxis::Width;
+        return true;
+    case style::GridLengthUnit::Svh:
+        size = style::ViewportSize::Small;
+        axis = style::ViewportAxis::Height;
+        return true;
+    case style::GridLengthUnit::Svmin:
+        size = style::ViewportSize::Small;
+        axis = style::ViewportAxis::Min;
+        return true;
+    case style::GridLengthUnit::Svmax:
+        size = style::ViewportSize::Small;
+        axis = style::ViewportAxis::Max;
+        return true;
+    case style::GridLengthUnit::Lvw:
+        size = style::ViewportSize::Large;
+        axis = style::ViewportAxis::Width;
+        return true;
+    case style::GridLengthUnit::Lvh:
+        size = style::ViewportSize::Large;
+        axis = style::ViewportAxis::Height;
+        return true;
+    case style::GridLengthUnit::Lvmin:
+        size = style::ViewportSize::Large;
+        axis = style::ViewportAxis::Min;
+        return true;
+    case style::GridLengthUnit::Lvmax:
+        size = style::ViewportSize::Large;
+        axis = style::ViewportAxis::Max;
+        return true;
+    case style::GridLengthUnit::Dvw:
+        size = style::ViewportSize::Dynamic;
+        axis = style::ViewportAxis::Width;
+        return true;
+    case style::GridLengthUnit::Dvh:
+        size = style::ViewportSize::Dynamic;
+        axis = style::ViewportAxis::Height;
+        return true;
+    case style::GridLengthUnit::Dvmin:
+        size = style::ViewportSize::Dynamic;
+        axis = style::ViewportAxis::Min;
+        return true;
+    case style::GridLengthUnit::Dvmax:
+        size = style::ViewportSize::Dynamic;
+        axis = style::ViewportAxis::Max;
+        return true;
+    case style::GridLengthUnit::None:
+    case style::GridLengthUnit::Px:
+    case style::GridLengthUnit::Rem:
+    case style::GridLengthUnit::Em:
+    case style::GridLengthUnit::Pt:
+        break;
+    }
+    return false;
+}
+
+} // namespace
+
 float GridEngine::resolve_length(const style::GridTrackSize& size) const {
     switch (size.unit) {
     case style::GridLengthUnit::Px:
@@ -76,16 +160,25 @@ float GridEngine::resolve_length(const style::GridTrackSize& size) const {
     case style::GridLengthUnit::Rem:
     case style::GridLengthUnit::Em:
         return size.value * 16.0f;
-    case style::GridLengthUnit::Vw:
-        return size.value * viewport_.width / 100.0f;
-    case style::GridLengthUnit::Vh:
-        return size.value * viewport_.height / 100.0f;
     case style::GridLengthUnit::Pt:
         return size.value * 4.0f / 3.0f;
     case style::GridLengthUnit::None:
         return size.value;
+    default:
+        break;
     }
-    return size.value;
+    // Every viewport unit resolves through the one shared table (issue #691), so a track and a
+    // layout length cannot disagree about what `vmin` or `dvh` means.
+    style::ViewportSize viewport_size = style::ViewportSize::Default;
+    style::ViewportAxis axis = style::ViewportAxis::Width;
+    if (!grid_unit_viewport(size.unit, viewport_size, axis)) {
+        return size.value;
+    }
+    style::ViewportUnits units;
+    units.width = viewport_.width;
+    units.height = viewport_.height;
+    return static_cast<float>(style::resolve_viewport_length(
+        style::ViewportLength{viewport_size, axis, size.value}, units));
 }
 
 float GridEngine::resolve_breadth(const style::GridTrackSize& size, float container_size,

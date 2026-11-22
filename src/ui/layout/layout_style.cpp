@@ -5,6 +5,7 @@
 
 #include "layout_style.hpp"
 #include "tessera/ui/scene/scroll.hpp"
+#include "tessera/ui/style/viewport_units.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -77,11 +78,19 @@ Length parse_length(std::string_view text, const LayoutViewport& viewport) {
     if (unit == "rem" || unit == "em") {
         return Length{Length::Kind::Points, value * (unit == "em" ? viewport.font_size : 16.0f)};
     }
-    if (unit == "vw") {
-        return Length{Length::Kind::Points, value * viewport.width / 100.0f};
-    }
-    if (unit == "vh") {
-        return Length{Length::Kind::Points, value * viewport.height / 100.0f};
+    // Every viewport unit comes from the one shared table (issue #691), so layout, grid and
+    // `@media` accept exactly the same set - including `vmin`, `vmax` and the small/large/dynamic
+    // family, which used to fail to parse here even though the spec lists them as V1.
+    style::ViewportSize size = style::ViewportSize::Default;
+    style::ViewportAxis axis = style::ViewportAxis::Width;
+    if (style::parse_viewport_unit(unit, size, axis)) {
+        style::ViewportUnits units;
+        units.width = viewport.width;
+        units.height = viewport.height;
+        units.font_size = viewport.font_size;
+        return Length{Length::Kind::Points,
+                      static_cast<float>(style::resolve_viewport_length(
+                          style::ViewportLength{size, axis, value}, units))};
     }
     if (unit == "pt") {
         return Length{Length::Kind::Points, value * 4.0f / 3.0f};

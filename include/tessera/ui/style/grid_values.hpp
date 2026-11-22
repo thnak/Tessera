@@ -30,6 +30,24 @@ enum class GridLengthUnit : std::uint8_t {
     Vw,
     Vh,
     Pt,
+    // The rest of the viewport family (issue #691). `Vmin`/`Vmax` are the min/max of the two axes;
+    // the `S`/`L`/`D` prefixes are the small/large/dynamic viewport, which a desktop window reports
+    // as equal to the plain one. Kept as distinct enumerators rather than resolved at parse time
+    // because a track size is resolved against the container, not the viewport, at layout time.
+    Vmin,
+    Vmax,
+    Svw,
+    Svh,
+    Svmin,
+    Svmax,
+    Lvw,
+    Lvh,
+    Lvmin,
+    Lvmax,
+    Dvw,
+    Dvh,
+    Dvmin,
+    Dvmax,
 };
 
 struct GridTrackSize {

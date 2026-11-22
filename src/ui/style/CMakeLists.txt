@@ -39,6 +39,7 @@ add_library(tessera_style STATIC
     keyframes.cpp
     logical_properties.cpp
     media_query.cpp
+    viewport_units.cpp
     parser.cpp
     prepared_stylesheet.cpp
     stylesheet_blob_read.cpp
