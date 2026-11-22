@@ -6,6 +6,7 @@
 
 #include "paint_gradient.hpp"
 #include "paint_properties.hpp"
+#include "tessera/ui/paint/background_layer_cache.hpp"
 #include "tessera/ui/style/background_layers.hpp"
 #include "tessera/ui/style/gradient.hpp"
 
@@ -130,7 +131,8 @@ ResolvedGradient resolve_value(const GradientValue& value, const rhi::Rect& rect
 // list. Reading it from the resolved style keeps themes, `var()` and state rules working without
 // the scene holding a second copy. Empty when there is nothing to paint.
 style::BackgroundLayerList resolve_layers(const Node& node, const style::ComputedStyle& style,
-                                          const rhi::Rect& rect) {
+                                          const rhi::Rect& rect,
+                                          BackgroundLayerCache* const cache) {
     style::BackgroundLayerList list;
     const auto& data = node.paint_data();
     if (data && data->gradient) {
@@ -199,6 +201,11 @@ style::BackgroundLayerList resolve_layers(const Node& node, const style::Compute
     if (image == nullptr) {
         return list;
     }
+    // One parse per *style*, not per painted node per frame (issue #733 item 2). A null cache is
+    // the uncached path and parses every call, byte-identical to before the cache existed.
+    if (cache != nullptr) {
+        return cache->get(style, *image).parsed.value_or(list);
+    }
     const std::optional<style::BackgroundLayerList> parsed = style::parse_background_layers(*image);
     return parsed.value_or(list);
 }
@@ -206,11 +213,12 @@ style::BackgroundLayerList resolve_layers(const Node& node, const style::Compute
 } // namespace
 
 void paint_gradient(const Node& node, const style::ComputedStyle& style, const rhi::Rect& rect,
-                    float opacity, PaintSink& sink, PaintStats& stats) {
+                    float opacity, PaintSink& sink, PaintStats& stats,
+                    BackgroundLayerCache* const cache) {
     if (opacity <= 0.0f || rect.width <= 0.0f || rect.height <= 0.0f) {
         return;
     }
-    const style::BackgroundLayerList list = resolve_layers(node, style, rect);
+    const style::BackgroundLayerList list = resolve_layers(node, style, rect, cache);
     if (list.empty()) {
         return;
     }

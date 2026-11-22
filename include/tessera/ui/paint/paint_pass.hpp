@@ -3,6 +3,7 @@
 #pragma once
 
 #include "tessera/rendering/gpu/glass_blur.hpp"
+#include "tessera/ui/paint/background_layer_cache.hpp"
 #include "tessera/ui/paint/paint_cache.hpp"
 #include "tessera/ui/paint/paint_sink.hpp"
 #include "tessera/ui/paint/text_layout_cache.hpp"
@@ -122,6 +123,10 @@ public:
 struct PaintContext {
     TextLayoutCache* text_layout_cache = nullptr;
     PaintCache* paint_cache = nullptr;
+    // Memoises the `background-image` parse per style identity (issue #733 item 2): the value is
+    // re-parsed for every painted node on every frame otherwise. Null parses per call, which is the
+    // uncached path and produces identical output.
+    BackgroundLayerCache* background_layers = nullptr;
     const PaintTextMetricsSource* text_metrics_source = nullptr;
     // Style provider used to resolve the run style of inline-span child nodes (issue #229). Null
     // falls back to the parent's style for every run; `paint_scene` fills it with its own provider,

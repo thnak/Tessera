@@ -261,6 +261,9 @@ void FramePipeline::invalidate_paint_cache() {
     // deliberately cannot see a computed style, so the whole generation goes; re-recording is the
     // only way to guarantee the next frame is byte-identical to an uncached paint.
     paint_cache_.invalidate();
+    // `background_layers_` is deliberately NOT reset here: it is keyed by style identity, and a
+    // restyle hands the node a new entries block, so it can never serve a pre-restyle parse. The
+    // entries it still holds for retired identities are bounded by the cache's own LRU budget.
 }
 
 const paint::PaintCacheStats& FramePipeline::paint_cache_stats() const {
@@ -369,6 +372,10 @@ FramePaint FramePipeline::paint_frame(const Node& root, paint::StyleProvider& st
     context.reduce_effects = reduce_effects_;
     context.high_contrast = high_contrast_;
     context.glass = config_.glass;
+    // The parse cache is cheap and always on: an entry is per style identity, so it is bounded by
+    // the number of distinct `background-image` values in the tree, and turning it off would put
+    // the per-frame re-parse back on the hot path.
+    context.background_layers = &background_layers_;
     if (config_.paint_cache) {
         context.paint_cache = &paint_cache_;
     }
@@ -392,6 +399,7 @@ FramePaint FramePipeline::paint_frame(const Node& root, paint::StyleProvider& st
     context.reduce_effects = reduce_effects_;
     context.high_contrast = high_contrast_;
     context.glass = config_.glass;
+    context.background_layers = &background_layers_;
     if (config_.paint_cache) {
         context.paint_cache = &paint_cache_;
     }

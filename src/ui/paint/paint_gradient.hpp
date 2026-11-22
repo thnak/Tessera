@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "tessera/ui/paint/background_layer_cache.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
 
 namespace tessera::ui::paint::detail {
@@ -16,7 +17,11 @@ namespace tessera::ui::paint::detail {
 // One entry point for both shapes: the resolved value decides whether a `GradientDraw` or a
 // `RadialGradientDraw` reaches the sink, so the paint pass has one call site and the two shapes
 // cannot drift in their normalization, opacity fold or emission order.
+//
+// `cache` memoises the `background-image` parse per style (issue #733 item 2); null parses the
+// authored value on every call, which is the pre-cache behaviour and byte-identical output.
 void paint_gradient(const Node& node, const style::ComputedStyle& style, const rhi::Rect& rect,
-                    float opacity, PaintSink& sink, PaintStats& stats);
+                    float opacity, PaintSink& sink, PaintStats& stats,
+                    BackgroundLayerCache* cache = nullptr);
 
 } // namespace tessera::ui::paint::detail

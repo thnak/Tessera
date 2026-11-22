@@ -2202,6 +2202,11 @@ enum include/tessera/ui/overlay/placement.hpp tessera::ui::OverlayAlign
 enum include/tessera/ui/overlay/placement.hpp tessera::ui::OverlaySide
 function include/tessera/ui/overlay/placement.hpp tessera::ui::compute_placement
 
+header include/tessera/ui/paint/background_layer_cache.hpp
+class include/tessera/ui/paint/background_layer_cache.hpp tessera::ui::paint::BackgroundLayerCache
+struct include/tessera/ui/paint/background_layer_cache.hpp tessera::ui::paint::BackgroundLayerCacheConfig
+struct include/tessera/ui/paint/background_layer_cache.hpp tessera::ui::paint::BackgroundLayerCacheStats
+
 header include/tessera/ui/paint/batched2d_sink.hpp
 class include/tessera/ui/paint/batched2d_sink.hpp tessera::rendering::gpu::Batched2DRenderer
 class include/tessera/ui/paint/batched2d_sink.hpp tessera::ui::paint::Batched2DSink
