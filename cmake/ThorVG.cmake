@@ -57,6 +57,38 @@ function(tessera_add_thorvg)
     file(GLOB_RECURSE _tvg_svg "${thorvg_SOURCE_DIR}/src/loaders/svg/*.cpp")
     file(GLOB_RECURSE _tvg_raw "${thorvg_SOURCE_DIR}/src/loaders/raw/*.cpp")
 
+    # ThorVG replaces the global operator new/delete with tvg::malloc/tvg::free
+    # (src/renderer/tvgInitializer.cpp). That is hostile to the sanitizer lanes in two independent
+    # ways, and neither is a Tessera defect:
+    #   - TSan defines the same four symbols in its runtime, so every target that pulls this archive
+    #     in fails to link with "multiple definition of operator new".
+    #   - ASan pairs the malloc'd block with the *sized* operator delete, which ThorVG does not
+    #     override, and aborts with "alloc-dealloc-mismatch (malloc vs operator delete)".
+    # Neither can be suppressed without hiding real findings, so a sanitizer build compiles a copy of
+    # that one file with the override removed. The declarations in tvgCommon.h stay: with no
+    # definition the standard allocator is used, which is what every other dependency does.
+    if (TESSERA_SANITIZER_LIST)
+        set(_tvg_initializer "${thorvg_SOURCE_DIR}/src/renderer/tvgInitializer.cpp")
+        file(READ "${_tvg_initializer}" _tvg_initializer_text)
+        string(REGEX REPLACE
+            "void\\* operator new\\(std::size_t size\\)[^}]*\\}[ \t\r\n]*void operator delete\\(void\\* ptr\\) noexcept[^}]*\\}[ \t\r\n]*void\\* operator new\\[\\]\\(std::size_t size\\)[^}]*\\}[ \t\r\n]*void operator delete\\[\\]\\(void\\* ptr\\) noexcept[^}]*\\}"
+            "// Global operator new/delete override removed for the sanitizer lanes; see\n// cmake/ThorVG.cmake."
+            _tvg_initializer_patched "${_tvg_initializer_text}")
+        if (_tvg_initializer_patched STREQUAL _tvg_initializer_text)
+            message(FATAL_ERROR
+                "ThorVG v${TESSERA_THORVG_VERSION}: the global operator new/delete override in "
+                "src/renderer/tvgInitializer.cpp was not found, so the sanitizer lanes cannot "
+                "remove it. Re-check the patch in cmake/ThorVG.cmake against the pinned source.")
+        endif()
+        set(_tvg_patched_dir "${CMAKE_CURRENT_BINARY_DIR}/thorvg-sanitizer")
+        file(MAKE_DIRECTORY "${_tvg_patched_dir}")
+        file(WRITE "${_tvg_patched_dir}/tvgInitializer.cpp" "${_tvg_initializer_patched}")
+        list(REMOVE_ITEM _tvg_renderer "${_tvg_initializer}")
+        list(APPEND _tvg_renderer "${_tvg_patched_dir}/tvgInitializer.cpp")
+        message(STATUS
+            "ThorVG: global operator new/delete override removed for the sanitizer build")
+    endif()
+
     add_library(tessera_thorvg STATIC
         ${_tvg_common}
         ${_tvg_renderer}
