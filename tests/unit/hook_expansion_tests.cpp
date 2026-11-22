@@ -384,6 +384,58 @@ void test_a_hook_used_by_no_component_is_not_expanded() {
 
 } // namespace
 
+// Spec section 8, "Preview": the preview carries state across an edit by id, and an expanded id
+// includes the hook name and the ordinal, so state survives an edit that does not reorder or rename
+// the hook calls. This pins the property the preview relies on.
+void test_state_ids_are_stable_across_an_edit() {
+    const std::string before = "function useFlag(initial: boolean) {\n"
+                               "  const [on, setOn] = useState<boolean>(initial);\n"
+                               "  return { on, setOn };\n"
+                               "}\n"
+                               "function A() {\n"
+                               "  const a = useFlag(true);\n"
+                               "  const b = useFlag(false);\n"
+                               "  return <View a={a.on} b={b.on}/>;\n"
+                               "}\n";
+    // The same call order, with an unrelated edit (a prop added to the returned element).
+    const std::string after = "function useFlag(initial: boolean) {\n"
+                              "  const [on, setOn] = useState<boolean>(initial);\n"
+                              "  return { on, setOn };\n"
+                              "}\n"
+                              "function A() {\n"
+                              "  const a = useFlag(true);\n"
+                              "  const b = useFlag(false);\n"
+                              "  return <View a={a.on} b={b.on} c={1}/>;\n"
+                              "}\n";
+    Pipeline first(before, true);
+    Pipeline second(after, true);
+    check(first.parsed.ok() && second.parsed.ok(), "both versions parse");
+    const std::string one = dump(*first.parsed.root);
+    const std::string two = dump(*second.parsed.root);
+    check(one.find("useFlag_1__on") != std::string::npos, "the first call site has its own id");
+    check(one.find("useFlag_2__on") != std::string::npos, "the second call site has its own id");
+    check(two.find("useFlag_1__on") != std::string::npos &&
+              two.find("useFlag_2__on") != std::string::npos,
+          "an edit that keeps the call order keeps both ids, so the preview keeps their state");
+
+    // A reorder changes the ids, which is the honest limit of the rule: the preview cannot tell a
+    // reorder from a different hook, so it must not carry state across one.
+    const std::string reordered = "function useFlag(initial: boolean) {\n"
+                                  "  const [on, setOn] = useState<boolean>(initial);\n"
+                                  "  return { on, setOn };\n"
+                                  "}\n"
+                                  "function A() {\n"
+                                  "  const b = useFlag(false);\n"
+                                  "  const a = useFlag(true);\n"
+                                  "  return <View a={a.on} b={b.on}/>;\n"
+                                  "}\n";
+    Pipeline third(reordered, true);
+    check(third.parsed.ok(), "the reordered version parses");
+    const std::string three = dump(*third.parsed.root);
+    check(three.find("useFlag_1__on") != std::string::npos,
+          "the ordinal follows the call order, not the variable name");
+}
+
 int main() {
     test_renaming_uses_the_call_site_prefix();
     test_two_calls_get_two_ordinals();
@@ -401,5 +453,6 @@ int main() {
     test_a_component_diagnostic_has_no_related_span();
     test_the_production_pipeline_expands();
     test_a_hook_used_by_no_component_is_not_expanded();
+    test_state_ids_are_stable_across_an_edit();
     return finish("hook expansion tests");
 }

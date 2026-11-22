@@ -344,6 +344,11 @@ props, event objects, built-in hooks, and the type aliases `int` and `float`) an
 `ui/elements.json` ([`custom-elements-v1.md`](custom-elements-v1.md)). Editors use them for completion
 and hover; the front end does not read them to decide validity.
 
+An **exported custom hook** gets a typing too: its declared parameters and its return type, so
+completion and signature help work at the call site. The typing is generated from the declaration, not
+from the expansion, because the expansion is per call site and the editor sees one function
+([`custom-hooks-v1.md`](custom-hooks-v1.md) section 5).
+
 ## 17. Tests
 
 - **Corpus**: one passing fixture for every grammar production and every accepted form in sections 4
