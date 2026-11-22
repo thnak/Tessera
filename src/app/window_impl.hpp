@@ -70,11 +70,11 @@ struct WindowHost::Impl {
     // Outcome of one frame attempt; a lost device is state the run services, not a painted frame.
     // `Busy` is a slot whose GPU work has not completed yet: documented backpressure (ADR-021
     // forbids waiting on it), not a failure, so it must not consume the failure budget.
-    enum class FrameResult { Presented, Skipped, Busy, DeviceLost };
+    enum class FrameResult : std::uint8_t { Presented, Skipped, Busy, DeviceLost };
 
     // What the run loop does after a frame attempt that painted nothing. Kept beside the recovery
     // policy because both answer "may this run keep going?" rather than "what is on screen?".
-    enum class FrameRetry { Continue, Stop };
+    enum class FrameRetry : std::uint8_t { Continue, Stop };
 
     // Charges one non-presented attempt to the right budget and decides whether the run continues.
     // A busy slot is backpressure: it is retried against `busy`, never the fault guard. Everything

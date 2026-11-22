@@ -18,7 +18,7 @@
 namespace tessera::schema {
 
 // The kind a listed file gets. `Other` is "not accepted UI code": it is shown, never read.
-enum class ProjectFileKind {
+enum class ProjectFileKind : std::uint8_t {
     Source, // `.tsx` / `.jsx`
     Style,  // `.css`
     Config, // `tessera.json`

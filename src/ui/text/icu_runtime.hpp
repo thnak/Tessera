@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <string>
 #include <string_view>
 
@@ -35,7 +36,7 @@ struct BlobInfo {
     int locales = 0;            // kept locale bundles
 };
 
-enum class InitStatus {
+enum class InitStatus : std::uint8_t {
     Ok,           // blob installed (this call or an earlier one)
     AlreadyReady, // no work needed
     NotLinked,    // build without the ICU slice

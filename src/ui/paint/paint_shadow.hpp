@@ -8,6 +8,7 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 
 // CSS `box-shadow` parsing and emission. Internal to the paint library. Not installed.
 namespace tessera::ui::paint::detail {

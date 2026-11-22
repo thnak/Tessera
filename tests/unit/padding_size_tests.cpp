@@ -27,7 +27,7 @@ namespace {
 constexpr std::size_t kPaceDecisionBytes = 16;
 constexpr std::size_t kAdaptiveQualitySampleBytes = 24;
 constexpr std::size_t kOverlayPlacementBytes = 40;
-constexpr std::size_t kPaintDataBytes = 528;
+constexpr std::size_t kPaintDataBytes = 520;
 
 static_assert(sizeof(runtime::PaceDecision) == kPaceDecisionBytes,
               "sizeof(PaceDecision) regressed (issue #731: order members widest-first)");
@@ -36,7 +36,8 @@ static_assert(sizeof(runtime::AdaptiveQualitySample) == kAdaptiveQualitySampleBy
 static_assert(sizeof(ui::OverlayPlacement) == kOverlayPlacementBytes,
               "sizeof(OverlayPlacement) regressed (issue #731: order members widest-first)");
 static_assert(sizeof(ui::PaintData) == kPaintDataBytes,
-              "sizeof(PaintData) regressed (issue #731: LinearGradient reordered)");
+              "sizeof(PaintData) regressed (issue #731: LinearGradient reordered; 528 -> 520 is "
+              "issue #734, the enum base types)");
 
 } // namespace
 

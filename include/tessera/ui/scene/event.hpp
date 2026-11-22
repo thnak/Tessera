@@ -9,7 +9,7 @@
 
 namespace tessera::ui {
 
-enum class EventType {
+enum class EventType : std::uint8_t {
     PointerDown,
     PointerUp,
     PointerMove,
@@ -65,7 +65,7 @@ enum class EventType {
 
 enum class ClickSource : std::uint8_t { Pointer, Keyboard, Accessibility };
 
-enum class EventPhase { Capture, Target, Bubble };
+enum class EventPhase : std::uint8_t { Capture, Target, Bubble };
 
 // A scene-level event. `handled` and `prevent_default` are advisory flags: `handled` records that
 // a handler consumed the event, `prevent_default` asks the dispatcher to skip its default action

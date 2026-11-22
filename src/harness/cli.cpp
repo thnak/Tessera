@@ -48,7 +48,7 @@ using detail::wants_diagnostics;
 
 namespace {
 
-enum class CliMode {
+enum class CliMode : std::uint8_t {
     Structural,
     Golden,
     GpuSmoke,

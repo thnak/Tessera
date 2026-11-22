@@ -5,6 +5,7 @@
 #include "vulkan_internal.hpp"
 
 #include <array>
+#include <cstdint>
 
 namespace tessera::rendering::vulkan {
 

@@ -100,7 +100,7 @@ BreakBoundaries icu_break_iteration(std::string_view text, UBreakIteratorType ty
     return boundaries;
 }
 
-enum class GraphemeQuery { Following, Preceding, Snap };
+enum class GraphemeQuery : std::uint8_t { Following, Preceding, Snap };
 
 std::optional<EditOffset> icu_grapheme_query(std::string_view text, EditOffset offset,
                                              GraphemeQuery query) {

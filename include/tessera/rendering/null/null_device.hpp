@@ -40,7 +40,7 @@ struct NullSampledTargetBind {
 // Every recorded operation, in command-buffer order. The counters below answer "how many"; this log
 // answers "in what order", which is what the composite seam has to pin (attachment -> copy ->
 // sample -> composite) and what a counter cannot express.
-enum class NullCommandKind {
+enum class NullCommandKind : std::uint8_t {
     BeginRenderPass,
     EndRenderPass,
     BindPipeline,

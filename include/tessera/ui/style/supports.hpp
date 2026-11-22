@@ -5,6 +5,7 @@
 #include "tessera/ui/style/property_registry.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <string>
 #include <string_view>
 #include <vector>

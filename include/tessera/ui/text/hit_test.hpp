@@ -5,6 +5,7 @@
 #include "tessera/ui/text/text_layout.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <string_view>
 
 namespace tessera::ui::text {
@@ -12,7 +13,7 @@ namespace tessera::ui::text {
 // Caret affinity at an ambiguous point: Downstream places the caret before the following cluster
 // (leading half of a glyph / the run that starts at a join), Upstream places it after the preceding
 // cluster. Ties choose Downstream (right-biased), matching the paint join-affinity rule.
-enum class CaretAffinity { Upstream, Downstream };
+enum class CaretAffinity : std::uint8_t { Upstream, Downstream };
 
 struct TextHit {
     std::size_t byte_offset = 0;

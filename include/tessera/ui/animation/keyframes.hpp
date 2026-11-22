@@ -5,18 +5,19 @@
 #include "tessera/ui/animation/easing.hpp"
 #include "tessera/ui/style/keyframes.hpp"
 
+#include <cstdint>
 #include <vector>
 
 namespace tessera::ui::animation {
 
-enum class Direction {
+enum class Direction : std::uint8_t {
     Normal,
     Reverse,
     Alternate,
     AlternateReverse,
 };
 
-enum class FillMode {
+enum class FillMode : std::uint8_t {
     None,
     Forwards,
     Backwards,

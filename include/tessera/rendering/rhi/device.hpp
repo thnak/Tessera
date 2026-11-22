@@ -243,9 +243,9 @@ public:
 // error/false and the caller polls `status()`. After a loss every RHI object created before it is
 // invalid and must be destroyed and recreated (the backend generation-guards destructors so a late
 // destruction is safe); the device itself can be recreated with `recover()`.
-enum class DeviceStatus { Ready, Lost };
+enum class DeviceStatus : std::uint8_t { Ready, Lost };
 
-enum class DeviceRecoveryError {
+enum class DeviceRecoveryError : std::uint8_t {
     // The backend has no recovery path (null/software backends).
     NotSupported,
     // `recover()` was called while the device is healthy.

@@ -5,6 +5,7 @@
 #include "tessera/ui/text/edit_buffer.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <string_view>
 #include <vector>
@@ -19,7 +20,7 @@
 // tests/unit/icu/text_breaks_parity_tests.cpp, and the fixture corpus there is the reference.
 namespace tessera::ui::text {
 
-enum class BreakBackend { Builtin, Icu };
+enum class BreakBackend : std::uint8_t { Builtin, Icu };
 
 // Byte offsets into the source text, ascending, always starting at 0 and ending at text.size()
 // (for non-empty text). Offsets always land on a UTF-8 code point boundary.

@@ -16,7 +16,7 @@ namespace tessera::compiler::jsx {
 struct TypeNode;
 using TypePtr = std::unique_ptr<TypeNode>;
 
-enum class TypeKind {
+enum class TypeKind : std::uint8_t {
     Name,          // text = name (`int`, `Props`, `null`); children = generic arguments
     StringLiteral, // text = decoded contents
     Array,         // children = [element]

@@ -51,7 +51,7 @@ struct SwapchainFrameSync {
     std::uint32_t slots_skipped = 0;
 };
 
-enum class SwapchainError {
+enum class SwapchainError : std::uint8_t {
     OutOfDate,
     Timeout,
     SurfaceLost,

@@ -165,13 +165,13 @@ inline bool Mat3::try_inverse(Mat3& out) const {
 
 // `Metal` is the native macOS/iOS backend (ADR-053), not MoltenVK: it is a distinct API, so it is a
 // distinct enumerator. A build that does not compile it in never reports it.
-enum class Backend { Null, Vulkan, WebGpu, Metal };
+enum class Backend : std::uint8_t { Null, Vulkan, WebGpu, Metal };
 
 // Color-renderable 8-bit formats. The `*Srgb` variants have the same byte layout as their UNORM
 // siblings but store/return sRGB-encoded values: attachment writes are encoded from linear light
 // and texture samples are decoded to linear. Production presentation prefers an sRGB surface format
 // (D2); offscreen golden/deterministic targets stay UNORM unless a caller asks for sRGB.
-enum class TextureFormat {
+enum class TextureFormat : std::uint8_t {
     R8G8B8A8Unorm,
     R8Unorm,
     B8G8R8A8Unorm,
@@ -185,11 +185,11 @@ enum class TextureFormat {
     return format == TextureFormat::R8G8B8A8Srgb || format == TextureFormat::B8G8R8A8Srgb;
 }
 
-enum class BufferUsage { Vertex, Index, Uniform, Staging, Readback };
+enum class BufferUsage : std::uint8_t { Vertex, Index, Uniform, Staging, Readback };
 
-enum class Filter { Nearest, Linear };
+enum class Filter : std::uint8_t { Nearest, Linear };
 
-enum class AddressMode { ClampToEdge, Repeat };
+enum class AddressMode : std::uint8_t { ClampToEdge, Repeat };
 
 // How a pipeline's fragment output is combined with the destination.
 //
@@ -200,15 +200,15 @@ enum class AddressMode { ClampToEdge, Repeat };
 // reports false from `Device::supports_dual_source_blend()` and a pipeline request for it must fail
 // at creation, because the documented fallback is grayscale coverage (one alpha), not a silently
 // different blend. `None` and `Alpha` are unchanged.
-enum class BlendMode { None, Alpha, DualSource };
+enum class BlendMode : std::uint8_t { None, Alpha, DualSource };
 
-enum class LoadOp { Clear, Load, DontCare };
+enum class LoadOp : std::uint8_t { Clear, Load, DontCare };
 
-enum class StoreOp { Store, DontCare };
+enum class StoreOp : std::uint8_t { Store, DontCare };
 
 // Vertex attribute formats. `UInt` is a single unsigned integer (RHI 1.7, issue #480 part 2): the
 // per-vertex texture-array index the batched 2D shader reads to pick its sampled image.
-enum class VertexFormat { Float, Float2, Float3, Float4, UByte4Norm, UInt };
+enum class VertexFormat : std::uint8_t { Float, Float2, Float3, Float4, UByte4Norm, UInt };
 
 // The window-system family a presentation surface belongs to (RHI 1.4, issue #155). `Auto` lets the
 // backend resolve it at instance/device creation from the platform build and the process

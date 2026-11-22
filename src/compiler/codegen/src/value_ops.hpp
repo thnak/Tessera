@@ -4,6 +4,7 @@
 
 #include "codegen_internal.hpp"
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -14,7 +15,7 @@
 namespace tessera::compiler::codegen::internal {
 
 // The C++ type family a text interpolation expression produces.
-enum class TextValueType { Bool, Int, Float, String };
+enum class TextValueType : std::uint8_t { Bool, Int, Float, String };
 
 // The text family of an IR type name, when it has a printable C++ form.
 [[nodiscard]] std::optional<TextValueType> text_value_type(std::string_view ir_type);

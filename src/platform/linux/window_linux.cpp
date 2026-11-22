@@ -31,6 +31,7 @@
 #endif
 
 #include <cmath>
+#include <cstdint>
 #include <cstdlib>
 #include <string_view>
 
@@ -44,7 +45,7 @@ bool env_set(const char* name) {
 }
 #endif
 
-enum class ForcedBackend { Auto, X11, Wayland };
+enum class ForcedBackend : std::uint8_t { Auto, X11, Wayland };
 
 ForcedBackend forced_backend() {
     const char* value = std::getenv("TESSERA_WINDOW_BACKEND");

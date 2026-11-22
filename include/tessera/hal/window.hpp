@@ -160,7 +160,7 @@ static_assert(
     "WindowMetrics is copied per event and per pump; keep it within kWindowMetricsSizeBudget "
     "(or group new fields, or update the budget deliberately)");
 
-enum class WindowEventType {
+enum class WindowEventType : std::uint8_t {
     Resize,
     DpiChange,
     Focus,

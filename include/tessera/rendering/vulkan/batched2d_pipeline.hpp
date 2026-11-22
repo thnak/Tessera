@@ -4,6 +4,8 @@
 
 #include "tessera/rendering/rhi/types.hpp"
 
+#include <cstdint>
+
 namespace tessera::rendering::vulkan {
 
 // Pipeline identity for batched2d: (color format, sample count). Cache callers key on both; the

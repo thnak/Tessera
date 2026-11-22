@@ -6,6 +6,7 @@
 
 #include "expression_lowering_internal.hpp"
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -19,7 +20,7 @@ constexpr std::string_view kUnresolved = "TESSERA_IR_UNRESOLVED";
 constexpr std::string_view kMalformed = "TESSERA_IR_MALFORMED";
 constexpr std::string_view kLocalCycle = "TESSERA_IR_LOCAL_CYCLE";
 
-enum class ChainStatus {
+enum class ChainStatus : std::uint8_t {
     Ok,
     Index,       // `a[i]`: no IR form outside the list loop
     Malformed,   // a missing name or operand

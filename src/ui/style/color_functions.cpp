@@ -13,6 +13,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <cstdlib>
 #include <string>
 #include <string_view>
@@ -158,7 +159,7 @@ std::optional<MixOperand> parse_operand(std::string_view text, const ColorContex
 // linear-light channels; `oklab` and `oklch` go through the OKLab transform of `color_oklch.hpp`.
 // Anything else (`lab`, `lch`, `hsl`, `hwb`, `xyz`) is rejected rather than silently treated as
 // sRGB, so a stylesheet that asks for a space the engine cannot honour gets a diagnostic.
-enum class MixSpace {
+enum class MixSpace : std::uint8_t {
     Srgb,
     SrgbLinear,
     Oklab,

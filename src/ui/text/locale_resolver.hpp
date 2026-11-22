@@ -3,6 +3,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <string>
 #include <string_view>
 
@@ -15,7 +16,7 @@
 // missing pack becomes a diagnostic instead of silently wrong dates and numbers.
 namespace tessera::ui::text {
 
-enum class TextDirection { LeftToRight, RightToLeft };
+enum class TextDirection : std::uint8_t { LeftToRight, RightToLeft };
 
 struct LocaleResolution {
     std::string requested; // normalized request ("pt_BR", not "pt-br")

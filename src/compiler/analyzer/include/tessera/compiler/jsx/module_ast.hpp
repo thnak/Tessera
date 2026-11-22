@@ -5,6 +5,7 @@
 #include "tessera/compiler/jsx/ast.hpp"
 #include "tessera/compiler/jsx/type_ast.hpp"
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -18,9 +19,18 @@ namespace tessera::compiler::jsx {
 //
 // `Helper` is a lowercase `function` at module scope (issue #660's corpus): not a component, and
 // its body is skipped rather than lowered, so the component beside it compiles.
-enum class ItemKind { Unknown, Import, ReExport, TypeAlias, Const, Component, Hook, Helper };
+enum class ItemKind : std::uint8_t {
+    Unknown,
+    Import,
+    ReExport,
+    TypeAlias,
+    Const,
+    Component,
+    Hook,
+    Helper
+};
 
-enum class StatementKind {
+enum class StatementKind : std::uint8_t {
     Const,      // `const x = e;`, `const [a, b] = e;`: names, optional type, init
     Expression, // `useEffect(...);`: init holds the expression
 };

@@ -10,6 +10,7 @@
 #include "tessera/rendering/webgpu/shader_registry.hpp"
 #include "tessera/rendering/webgpu/webgpu_mapping.hpp"
 
+#include <cstdint>
 #include <memory>
 #include <vector>
 #include <webgpu/webgpu.h>

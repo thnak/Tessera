@@ -4,6 +4,8 @@
 
 #include "tessera/rendering/path/svg_loader.hpp"
 
+#include <cstdint>
+
 namespace tessera::rendering::path {
 
 // Real SVG decode implemented by thorvg_svg_loader.cpp. Only that file includes a ThorVG header;

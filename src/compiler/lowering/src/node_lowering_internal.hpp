@@ -129,7 +129,7 @@ struct AttributeInfo {
 // One flattened JSX child of an element: a text node, an expression container, an element, a
 // conditional/loop child or the slot position (node_children_items.cpp).
 struct ChildItem {
-    enum class Kind { Text, Expression, Element, Conditional, Loop, Slot };
+    enum class Kind : std::uint8_t { Text, Expression, Element, Conditional, Loop, Slot };
 
     Kind kind = Kind::Text;
     const jsx::JsxNode* node = nullptr; // Text node, expression container or element

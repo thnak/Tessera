@@ -6,6 +6,7 @@
 
 #include <chrono>
 #include <cstddef>
+#include <cstdint>
 #include <expected>
 #include <string>
 #include <string_view>
@@ -17,7 +18,7 @@ namespace tessera::harness {
 // token, and no auth code here: the protocol is local-only
 // (docs/specs/headless-automation-v1.md sections 6 and 9), and authentication of a peer is a
 // property of how the process was started, not of the codec.
-enum class TransportErrorCode {
+enum class TransportErrorCode : std::uint8_t {
     Closed,             // the stream or the peer is gone
     WouldBlock,         // no complete line yet; the peer is still open, so try again later
     LineTooLong,        // payload exceeds the transport's documented line cap

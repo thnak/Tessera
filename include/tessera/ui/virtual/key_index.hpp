@@ -6,6 +6,7 @@
 #include "tessera/ui/virtual/virtual_item.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <expected>
 #include <optional>
 #include <span>
@@ -16,7 +17,7 @@ namespace tessera::ui::virtualization {
 // Failure of a key-index rebuild. `index` is the offending item index (the first duplicate, or the
 // first item that does not fit the capacity).
 struct KeyIndexError {
-    enum class Kind {
+    enum class Kind : std::uint8_t {
         CapacityExceeded,
         DuplicateKey,
     };

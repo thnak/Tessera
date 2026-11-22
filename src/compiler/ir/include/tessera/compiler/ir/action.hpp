@@ -4,6 +4,7 @@
 
 #include "tessera/compiler/ir/expr.hpp"
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <vector>
@@ -23,7 +24,7 @@ struct Param {
 // through an unset callback is a no-op.
 // `If` (ADR-066 item 2) is the conditional action: `guard` is the pure bool condition and the two
 // lists are the branches. It is how `if`/`else` and an early `return` in a handler body lower.
-enum class ActionKind { Set, AnimSet, Focus, Blur, CallProp, If };
+enum class ActionKind : std::uint8_t { Set, AnimSet, Focus, Blur, CallProp, If };
 
 // The spring driver of `v.set(x, { spring })`: an alternative to `duration`/`easing`. The defaults
 // are the runtime's (`SpringConfig`: stiffness 180, damping 20, mass 1).

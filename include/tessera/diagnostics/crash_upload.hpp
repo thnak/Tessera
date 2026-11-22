@@ -19,6 +19,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -79,7 +80,7 @@ struct CrashUploadConfig {
     std::size_t max_attempts = 3;
 };
 
-enum class CrashUploadStatus {
+enum class CrashUploadStatus : std::uint8_t {
     Disabled,        // not enabled, or no consent: nothing was read, nothing was sent
     NoEndpoint,      // enabled with consent but no endpoint: refuse rather than guess
     RedactionFailed, // the report still carried user data: refuse to transmit

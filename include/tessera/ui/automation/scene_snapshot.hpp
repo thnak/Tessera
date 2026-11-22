@@ -58,7 +58,7 @@ struct SceneSnapshotOptions {
 // Why the walk stopped. A capped tree is a hard failure rather than a truncated snapshot: a partial
 // document would compare equal to a partial document from the other side and pass a parity gate it
 // should fail.
-enum class SceneSnapshotErrorCode {
+enum class SceneSnapshotErrorCode : std::uint8_t {
     TooDeep,      // the tree nests deeper than `max_depth`
     TooManyNodes, // the tree has more nodes than `max_nodes`
 };

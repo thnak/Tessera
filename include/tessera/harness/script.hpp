@@ -36,7 +36,7 @@ inline constexpr std::uint64_t kMaxScriptStepTimeoutMs = 60'000;
 // wait, assert, screenshot, custom-element, navigation and overlay actions; those need host
 // capabilities that AutomationHost does not expose yet, so the parser rejects them explicitly
 // (UnsupportedAction) rather than silently skipping a step.
-enum class ScriptAction {
+enum class ScriptAction : std::uint8_t {
     Click,
     Type, // the section 4 spelling; dispatched as the `setValue` command
     Focus,
@@ -59,7 +59,7 @@ enum class ScriptAction {
 // Stable failures of the script lane. They are disjoint from ProtocolErrorCode: a script can fail
 // before any command is dispatched (MalformedScript, InvalidStep, ...), and a command that failed
 // carries its own protocol code in ScriptError::protocol_code.
-enum class ScriptErrorCode {
+enum class ScriptErrorCode : std::uint8_t {
     MalformedScript,    // not JSON/an object, missing required member, unknown top-level member
     UnsupportedVersion, // scriptVersion is not 1
     UnknownAction,      // action is not in the section 4 list at all

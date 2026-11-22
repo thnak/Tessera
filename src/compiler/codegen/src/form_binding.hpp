@@ -25,7 +25,7 @@ namespace tessera::compiler::codegen::internal {
 // One controller rule distilled from a Field's `required`/`validators` prop data. The forms library
 // evaluates it (docs/specs/forms-and-validation-v1.md section 8.1).
 struct FormRule {
-    enum class Kind { Required, MinLength, MaxLength, Pattern };
+    enum class Kind : std::uint8_t { Required, MinLength, MaxLength, Pattern };
     Kind kind = Kind::Required;
     std::int64_t number = 0; // MinLength/MaxLength bound
     std::string pattern;     // Pattern glob

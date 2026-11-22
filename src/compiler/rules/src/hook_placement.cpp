@@ -7,6 +7,7 @@
 #include "reporter.hpp"
 
 #include <algorithm>
+#include <cstdint>
 
 namespace tessera::compiler::rules {
 namespace {
@@ -14,7 +15,7 @@ namespace {
 using jsx::Expr;
 using jsx::ExprKind;
 
-enum class Where { Expression, Condition, Function };
+enum class Where : std::uint8_t { Expression, Condition, Function };
 
 std::string_view where_text(Where where) {
     switch (where) {

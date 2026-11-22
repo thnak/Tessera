@@ -14,6 +14,7 @@
 #include "tessera/rendering/rhi/types.hpp"
 
 #include <cmath>
+#include <cstdint>
 
 namespace tessera::ui::paint {
 
