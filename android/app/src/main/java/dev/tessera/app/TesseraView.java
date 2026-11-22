@@ -6,12 +6,17 @@ import android.content.Context;
 import android.graphics.Insets;
 import android.graphics.Rect;
 import android.os.Build;
+import android.text.InputType;
 import android.view.DisplayCutout;
 import android.view.MotionEvent;
 import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.WindowInsets;
+import android.view.inputmethod.InputMethodManager;
+import android.view.inputmethod.BaseInputConnection;
+import android.view.inputmethod.EditorInfo;
+import android.view.inputmethod.InputConnection;
 
 import java.util.List;
 
@@ -129,9 +134,63 @@ public final class TesseraView extends SurfaceView implements SurfaceHolder.Call
         if (nativeHandle == 0) {
             return super.onTouchEvent(event);
         }
+        // A tap is also how the platform learns the view wants the keyboard: a custom-rendered text
+        // field cannot focus itself the way an EditText does, so the show request is explicit.
+        if (event.getActionMasked() == MotionEvent.ACTION_UP) {
+            requestFocus();
+            InputMethodManager imm = (InputMethodManager) getContext().getSystemService(
+                    Context.INPUT_METHOD_SERVICE);
+            if (imm != null) {
+                imm.showSoftInput(this, InputMethodManager.SHOW_IMPLICIT);
+            }
+        }
         // The engine's translator owns the normalization; this only forwards. Returning true keeps
         // the gesture stream coming, which a multi-touch sequence needs.
         return nativeOnTouch(nativeHandle, event);
+    }
+
+    // --- IME ---------------------------------------------------------------------------------
+
+    /**
+     * Tells the platform this view can host a text editor, which is what makes the soft keyboard
+     * appear for it at all.
+     *
+     * <p>It returns true unconditionally because the whole window is one surface: the engine draws
+     * its own text field and hit-tests the tap, so the platform cannot know which part of the window
+     * is editable. The cost of the simplification is that the keyboard can be shown while no text
+     * field is focused; the engine's edit controller simply ignores the events, which is the same
+     * thing it does for any event outside a field.
+     *
+     * <p>When the engine grows a "focused text field" signal, this becomes a conditional and the
+     * keyboard stops appearing on a plain scene.
+     */
+    @Override
+    public boolean onCheckIsTextEditor() {
+        return true;
+    }
+
+    /**
+     * Hands the platform an {@link InputConnection} so the soft keyboard can talk to the engine.
+     *
+     * <p>A custom-rendered text field does not get an IME for free: the platform only starts one if
+     * the focused view returns a connection here. The connection forwards each callback to the
+     * engine's edit controller, which owns the text buffer and the undo history — this class never
+     * holds text of its own.
+     *
+     * <p>{@link BaseInputConnection} is used rather than a bare {@link InputConnection} because it
+     * implements the parts a custom view genuinely does not care about (the extracted-text getters,
+     * the batch-edit protocol) while leaving the mutating calls to be overridden here.
+     */
+    @Override
+    public InputConnection onCreateInputConnection(EditorInfo outAttrs) {
+        if (nativeHandle == 0) {
+            return null;
+        }
+        // The engine draws its own text field, so the platform must not draw a second one; it only
+        // needs to know what kind of content this is.
+        outAttrs.inputType = InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE;
+        outAttrs.imeOptions = EditorInfo.IME_FLAG_NO_FULLSCREEN;
+        return new TesseraInputConnection(this, nativeHandle);
     }
 
     // --- Native ------------------------------------------------------------------------------
@@ -154,4 +213,16 @@ public final class TesseraView extends SurfaceView implements SurfaceHolder.Call
     private static native void nativeSetCutouts(long handle, int[] rects);
 
     private static native boolean nativeOnTouch(long handle, MotionEvent event);
+
+    /**
+     * Forwards one IME callback to the engine's edit controller.
+     *
+     * <p>The action is an index into the engine's {@code ImeAction}: 0 compose, 1 commit, 2 finish,
+     * 3 cancel, 4 delete. The text crosses as a Java {@code String} because that is what the platform
+     * hands us; the native side reads it into UTF-16 and converts to the engine's UTF-8 payload.
+     *
+     * @return true when the engine consumed the callback.
+     */
+    static native boolean nativeIme(long handle, int action, String text, int cursorUtf16,
+            int deleteBefore, int deleteAfter);
 }
