@@ -1672,6 +1672,14 @@ constant include/tessera/ui/accessibility/atspi_session.hpp tessera::ui::a11y::k
 constant include/tessera/ui/accessibility/atspi_session.hpp tessera::ui::a11y::kSessionBusName
 constant include/tessera/ui/accessibility/atspi_session.hpp tessera::ui::a11y::kSessionBusPath
 
+header include/tessera/ui/accessibility/snapshot_provider.hpp
+class include/tessera/ui/accessibility/snapshot_provider.hpp tessera::ui::a11y::SnapshotProvider
+struct include/tessera/ui/accessibility/snapshot_provider.hpp tessera::ui::a11y::ProviderAction
+struct include/tessera/ui/accessibility/snapshot_provider.hpp tessera::ui::a11y::ProviderAnswer
+constant include/tessera/ui/accessibility/snapshot_provider.hpp tessera::ui::a11y::kHostVirtualId
+constant include/tessera/ui/accessibility/snapshot_provider.hpp tessera::ui::a11y::kMaxProviderActions
+constant include/tessera/ui/accessibility/snapshot_provider.hpp tessera::ui::a11y::kMaxProviderChildren
+
 header include/tessera/ui/accessibility/uia_apartment.hpp
 class include/tessera/ui/accessibility/uia_apartment.hpp tessera::ui::a11y::UiaApartment
 function include/tessera/ui/accessibility/uia_apartment.hpp tessera::ui::a11y::create_platform_apartment

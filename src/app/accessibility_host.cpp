@@ -40,6 +40,8 @@ std::string_view to_string(AccessibilityBackend backend) {
         return "uia";
     case AccessibilityBackend::Atspi:
         return "atspi";
+    case AccessibilityBackend::Provider:
+        return "provider";
     }
     return "auto";
 }
@@ -73,6 +75,8 @@ bool AccessibilityHost::Impl::start(hal::Window& target_window,
         return start_uia();
     case AccessibilityBackend::Atspi:
         return start_atspi();
+    case AccessibilityBackend::Provider:
+        return start_provider();
     }
     return false;
 }
@@ -172,6 +176,9 @@ void AccessibilityHost::Impl::teardown() {
         session.reset();
     }
     bridge.reset();
+    // The provider is borrowed from the shell, so teardown only forgets it: the shell owns its
+    // lifetime and the Java view keeps querying it until the view is destroyed.
+    provider = nullptr;
     status.enabled = false;
 }
 
@@ -196,6 +203,9 @@ bool AccessibilityHost::Impl::tick() {
     }
     if (status.backend == AccessibilityBackend::Atspi) {
         return tick_atspi();
+    }
+    if (status.backend == AccessibilityBackend::Provider) {
+        return tick_provider();
     }
     return false;
 }

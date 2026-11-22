@@ -83,24 +83,84 @@ const char* class_name_for(Role role) noexcept {
     return "android.view.View";
 }
 
-std::int32_t actions_for(Action actions) noexcept {
-    std::int32_t bits = 0;
-    if (tessera::ui::a11y::has_action(actions, Action::Focus)) {
-        bits |= static_cast<std::int32_t>(A11yAction::Focus);
-    }
+A11yActionList actions_for(Action actions) noexcept {
+    // A list because the platform's ids are not powers of two: see `A11yActionList`. The order is
+    // fixed so a test can assert the sequence, and so the Java side adds them deterministically.
+    A11yActionList out;
+    auto add = [&out](A11yAction action) {
+        if (out.count == out.actions.size()) {
+            out.overflowed = true;
+            return;
+        }
+        out.actions[out.count] = action;
+        ++out.count;
+    };
     if (tessera::ui::a11y::has_action(actions, Action::Press)) {
-        bits |= static_cast<std::int32_t>(A11yAction::Click);
-        bits |= static_cast<std::int32_t>(A11yAction::LongClick);
+        add(A11yAction::Click);
+        add(A11yAction::LongClick);
+    }
+    if (tessera::ui::a11y::has_action(actions, Action::Focus)) {
+        // Only the ids the engine can honour. `ClearFocus` is deliberately NOT offered: the engine
+        // has no "unfocus" that does not leave the focus manager inconsistent, so offering it would
+        // promise a screen reader something that silently does nothing. The round-trip test in
+        // android_a11y_tests enforces that every id offered maps back to an engine action.
+        add(A11yAction::Focus);
     }
     if (tessera::ui::a11y::has_action(actions, Action::SetValue)) {
-        bits |= static_cast<std::int32_t>(A11yAction::SetText);
-        bits |= static_cast<std::int32_t>(A11yAction::SetSelection);
+        add(A11yAction::SetText);
+        add(A11yAction::SetSelection);
     }
     if (tessera::ui::a11y::has_action(actions, Action::Scroll)) {
-        bits |= static_cast<std::int32_t>(A11yAction::ScrollForward);
-        bits |= static_cast<std::int32_t>(A11yAction::ScrollBackward);
+        add(A11yAction::ScrollForward);
+        add(A11yAction::ScrollBackward);
     }
-    return bits;
+    return out;
+}
+
+bool actions_contain(const A11yActionList& list, A11yAction action) noexcept {
+    for (std::size_t i = 0; i < list.count; ++i) {
+        if (list.actions[i] == action) {
+            return true;
+        }
+    }
+    return false;
+}
+
+Action engine_action_for(std::int32_t platform_action) noexcept {
+    // No `default`: a new A11yAction is a compile error here rather than an action a screen reader
+    // offers and the engine silently ignores.
+    switch (static_cast<A11yAction>(platform_action)) {
+    case A11yAction::Click:
+    case A11yAction::LongClick:
+        // A long click is a press in the engine: it has no separate long-press dispatch, and
+        // activating the control is what the screen reader asked for either way.
+        return Action::Press;
+    case A11yAction::Focus:
+    case A11yAction::ClearFocus:
+        // A focus request is a real focus move; clearing it is the platform's own bookkeeping and
+        // the engine has no "unfocus" that makes sense outside its focus manager.
+        return platform_action == static_cast<std::int32_t>(A11yAction::Focus) ? Action::Focus
+                                                                               : Action::None;
+    case A11yAction::AccessibilityFocus:
+    case A11yAction::ClearAccessibilityFocus:
+        // Accessibility focus is a separate concept from engine focus, and the engine has no
+        // second focus ring. Offering it as focus keeps TalkBack's swipe-to-focus working; clearing
+        // it is ignored.
+        return platform_action == static_cast<std::int32_t>(A11yAction::AccessibilityFocus)
+                   ? Action::Focus
+                   : Action::None;
+    case A11yAction::SetText:
+    case A11yAction::SetSelection:
+        return Action::SetValue;
+    case A11yAction::ScrollForward:
+    case A11yAction::ScrollBackward:
+        return Action::Scroll;
+    case A11yAction::None:
+    case A11yAction::Select:
+    case A11yAction::ClearSelection:
+        break;
+    }
+    return Action::None;
 }
 
 bool emits_node(Role role) noexcept {
@@ -127,7 +187,6 @@ A11yNodeInfo describe(const ui::a11y::A11yNode& node) noexcept {
     out.editable = node.role == Role::TextField;
     out.scrollable = tessera::ui::a11y::has_action(node.actions, Action::Scroll);
     out.actions = actions_for(node.actions);
-
     // A text field's content is its VALUE on the platform, and its label is the name. Reporting the
     // text as the name instead makes a screen reader announce the typed content as the control's
     // label, which is the wrong side of the announcement.
@@ -135,6 +194,25 @@ A11yNodeInfo describe(const ui::a11y::A11yNode& node) noexcept {
         out.description = ui::a11y::value_of(node);
         out.text = ui::a11y::name_of(node);
     }
+    return out;
+}
+
+A11yNodeInfo describe_node(const ui::a11y::ProviderAnswer& answer) noexcept {
+    // The provider has already applied the engine's rules (the enabled inversion, the role-derived
+    // checkable, the value/label split), so this only names the role and copies the action list.
+    // Duplicating the rules here would give the push and pull paths two chances to disagree.
+    A11yNodeInfo out;
+    out.class_name = class_name_for(answer.role);
+    out.text = answer.text;
+    out.description = answer.description;
+    out.focusable = answer.focusable;
+    out.enabled = answer.enabled;
+    out.selected = answer.selected;
+    out.checkable = answer.checkable;
+    out.checked = answer.checked;
+    out.editable = answer.editable;
+    out.scrollable = answer.scrollable;
+    out.actions = actions_for(answer.actions);
     return out;
 }
 

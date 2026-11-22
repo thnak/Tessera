@@ -13,6 +13,7 @@ import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.WindowInsets;
+import android.view.accessibility.AccessibilityNodeProvider;
 import android.view.inputmethod.InputMethodManager;
 import android.view.inputmethod.BaseInputConnection;
 import android.view.inputmethod.EditorInfo;
@@ -42,6 +43,12 @@ import java.util.List;
  */
 public final class TesseraView extends SurfaceView implements SurfaceHolder.Callback {
     private long nativeHandle;
+    /**
+     * Null until the surface exists, because the provider needs the native shell to query. The
+     * platform asks for it from the first accessibility traversal, which is after {@code
+     * surfaceCreated}.
+     */
+    private TesseraAccessibilityProvider accessibilityProvider;
 
     public TesseraView(Context context) {
         super(context);
@@ -50,6 +57,9 @@ public final class TesseraView extends SurfaceView implements SurfaceHolder.Call
         setFocusableInTouchMode(true);
         // The engine draws every pixel, so the view must not add its own background.
         setBackground(null);
+        // A view that draws its own controls advertises accessibility while keeping its semantics
+        // out of the view hierarchy. Without this the platform sees one unlabelled rectangle.
+        setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_YES);
     }
 
     /** Called by the activity when it is being destroyed. */
@@ -58,6 +68,7 @@ public final class TesseraView extends SurfaceView implements SurfaceHolder.Call
             nativeDestroy(nativeHandle);
             nativeHandle = 0;
         }
+        accessibilityProvider = null;
     }
 
     // --- Surface lifecycle -------------------------------------------------------------------
@@ -191,6 +202,29 @@ public final class TesseraView extends SurfaceView implements SurfaceHolder.Call
         outAttrs.inputType = InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE;
         outAttrs.imeOptions = EditorInfo.IME_FLAG_NO_FULLSCREEN;
         return new TesseraInputConnection(this, nativeHandle);
+    }
+
+    // --- Accessibility -----------------------------------------------------------------------
+
+    /**
+     * Returns the provider that exposes the engine's semantics tree to a screen reader.
+     *
+     * <p>This is the whole reason a custom-drawn app is not a black box to TalkBack: the platform
+     * only ever looks for virtual children here. It returns null before the surface exists, because
+     * the provider asks the native shell for every answer and there is nothing to ask yet.
+     *
+     * <p>Every {@code AccessibilityNodeInfo} the provider hands out is owned by the caller, which is
+     * the platform's contract.
+     */
+    @Override
+    public AccessibilityNodeProvider getAccessibilityNodeProvider() {
+        if (nativeHandle == 0) {
+            return null;
+        }
+        if (accessibilityProvider == null) {
+            accessibilityProvider = new TesseraAccessibilityProvider(this, nativeHandle);
+        }
+        return accessibilityProvider;
     }
 
     // --- Native ------------------------------------------------------------------------------

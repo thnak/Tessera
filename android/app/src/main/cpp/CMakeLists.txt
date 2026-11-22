@@ -6,19 +6,24 @@
 #
 # The entry point is the JNI bridge, not `android_main`: the shell is a Java activity
 # (TesseraActivity + TesseraView) because the platform reports insets, cutouts and fold posture
-# through Java APIs that have no NDK equivalent. The bridge is the only TU that includes <jni.h>.
+# through Java APIs that have no NDK equivalent. Only these two TUs include <jni.h>: `jni_bridge.cpp`
+# for the surface/metrics/touch/IME seams and `a11y_bridge.cpp` for the accessibility provider's
+# pull-side queries.
 
 add_library(tessera_android_app SHARED
-    ${CMAKE_CURRENT_SOURCE_DIR}/jni_bridge.cpp)
+    ${CMAKE_CURRENT_SOURCE_DIR}/jni_bridge.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/a11y_bridge.cpp)
 
 # The engine. tessera_app_window is the window driver (Vulkan device, swapchain, Batched2D, the
 # AppHost loop); tessera_app is the platform-neutral host it drives.
 target_link_libraries(tessera_android_app PRIVATE
+    tessera_accessibility
     tessera_app_window
     tessera_app
     tessera_hal_window)
 
-# The bridge includes android_motion_translation.hpp, which lives with the other Android pure rules.
+# The bridge includes android_motion_translation.hpp and android_a11y_mapping.hpp, which live with
+# the other Android pure rules.
 target_include_directories(tessera_android_app PRIVATE
     ${PROJECT_SOURCE_DIR}/src/platform/android)
 

@@ -17,6 +17,7 @@
 #include "android_input_translation.hpp"
 #include "android_motion_translation.hpp"
 #include "scene.hpp"
+#include "shell.hpp"
 #include "tessera/app/window.hpp"
 #include "tessera/hal/window.hpp"
 
@@ -37,29 +38,8 @@ void log_info(const char* message) {
     __android_log_write(ANDROID_LOG_INFO, kLogTag, message);
 }
 
-// One shell instance: the scene, the host and the window it owns. It is created when the Java view
-// is created and destroyed when the view is destroyed, so its lifetime is the view's.
-struct Shell {
-    std::unique_ptr<tessera::android_shell::ShellScene> scene;
-    std::unique_ptr<tessera::app::WindowHost> host;
-    tessera::hal::Window* window = nullptr;
-    ANativeWindow* native_window = nullptr;
-    float dpi_scale = 1.0f;
-    // The gesture state the Java motion translation needs: the pointer id is fixed at DOWN because
-    // Android renumbers indices as fingers lift.
-    tessera::hal::android::MotionGesture gesture;
-    // Whether the IME has an active composition, so a composing update becomes Start then Update.
-    bool composing = false;
-    // The frame loop runs on its own thread. `WindowHost` is single-threaded and must be created,
-    // run and destroyed on the thread that owns the window, so the render thread owns the host and
-    // the Java thread only signals it.
-    std::thread render_thread;
-    std::atomic<bool> running{false};
-};
-
-Shell* shell_from(jlong handle) {
-    return reinterpret_cast<Shell*>(static_cast<std::intptr_t>(handle));
-}
+using tessera::android_shell::Shell;
+using tessera::android_shell::shell_from;
 
 // The display density, read from the Java view's resources. 1.0 = mdpi.
 float display_scale(JNIEnv* env, jobject view) {
@@ -124,6 +104,10 @@ void start_host(Shell& shell) {
     // The text stack requires a font: TextStack throws on an empty path, which aborts the process.
     // Android ships Roboto at a stable path, so the shell uses it rather than bundling a copy.
     options.font_path = "/system/fonts/Roboto-Regular.ttf";
+    // The pull-side accessibility provider. Android's `AccessibilityNodeProvider` asks for one node
+    // at a time, so the driver keeps this provider current and the Java provider queries it from
+    // the platform's thread. The shell owns it, so it outlives the host.
+    options.accessibility_provider = shell.a11y.get();
 
     if (shell.scene == nullptr) {
         shell.scene = std::make_unique<tessera::android_shell::ShellScene>();

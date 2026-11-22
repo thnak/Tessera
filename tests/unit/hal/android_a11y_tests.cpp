@@ -46,8 +46,8 @@ void set_text(A11yNode& node, const char* name, const char* value = "") {
     }
 }
 
-bool has(std::int32_t bits, android::A11yAction action) {
-    return (bits & static_cast<std::int32_t>(action)) != 0;
+bool has(const android::A11yActionList& list, android::A11yAction action) {
+    return android::actions_contain(list, action);
 }
 
 } // namespace
@@ -75,27 +75,46 @@ int main() {
     check(!android::emits_node(Role::kCount), "the count sentinel is not emitted");
 
     // --- Actions ------------------------------------------------------------------------------
-    check(android::actions_for(Action::None) == 0, "no actions maps to no bits");
+    // The platform's ids are wire values, not ours: ACTION_FOCUS is 1 and ACTION_CLICK is 16, so a
+    // mapping that numbered them in enum order would turn a click into a focus request. These
+    // assertions pin the real values so a refactor cannot quietly renumber them.
+    check(static_cast<std::int32_t>(android::A11yAction::Focus) == 1, "ACTION_FOCUS is 1");
+    check(static_cast<std::int32_t>(android::A11yAction::Click) == 16, "ACTION_CLICK is 16");
+    check(static_cast<std::int32_t>(android::A11yAction::LongClick) == 32,
+          "ACTION_LONG_CLICK is 32");
+    check(static_cast<std::int32_t>(android::A11yAction::ScrollForward) == 4096,
+          "ACTION_SCROLL_FORWARD is 4096");
+    check(static_cast<std::int32_t>(android::A11yAction::SetText) == 2097152,
+          "ACTION_SET_TEXT is 2097152");
+    check(android::actions_for(Action::None).count == 0, "no actions maps to no ids");
     {
-        const std::int32_t bits = android::actions_for(Action::Press);
-        check(has(bits, android::A11yAction::Click), "press implies click");
-        check(has(bits, android::A11yAction::LongClick), "press implies long click");
-        check(!has(bits, android::A11yAction::SetText), "press does not imply set text");
+        const android::A11yActionList list = android::actions_for(Action::Press);
+        check(has(list, android::A11yAction::Click), "press implies click");
+        check(has(list, android::A11yAction::LongClick), "press implies long click");
+        check(!has(list, android::A11yAction::SetText), "press does not imply set text");
     }
     {
-        const std::int32_t bits = android::actions_for(Action::SetValue);
-        check(has(bits, android::A11yAction::SetText), "set value implies set text");
-        check(has(bits, android::A11yAction::SetSelection), "and set selection");
+        const android::A11yActionList list = android::actions_for(Action::SetValue);
+        check(has(list, android::A11yAction::SetText), "set value implies set text");
+        check(has(list, android::A11yAction::SetSelection), "and set selection");
     }
     {
-        const std::int32_t bits = android::actions_for(Action::Scroll);
-        check(has(bits, android::A11yAction::ScrollForward), "scroll implies scroll forward");
-        check(has(bits, android::A11yAction::ScrollBackward), "and scroll backward");
+        const android::A11yActionList list = android::actions_for(Action::Scroll);
+        check(has(list, android::A11yAction::ScrollForward), "scroll implies scroll forward");
+        check(has(list, android::A11yAction::ScrollBackward), "and scroll backward");
     }
     {
-        const std::int32_t bits = android::actions_for(Action::Press | Action::Scroll);
-        check(has(bits, android::A11yAction::Click), "a combined set keeps click");
-        check(has(bits, android::A11yAction::ScrollForward), "and scroll");
+        const android::A11yActionList list = android::actions_for(Action::Press | Action::Scroll);
+        check(has(list, android::A11yAction::Click), "a combined set keeps click");
+        check(has(list, android::A11yAction::ScrollForward), "and scroll");
+    }
+    // The largest set one node can carry must fit the array, or a control would silently lose an
+    // action and a screen reader would stop offering it.
+    {
+        const android::A11yActionList all =
+            android::actions_for(Action::Press | Action::Focus | Action::SetValue | Action::Scroll);
+        check(!all.overflowed, "the full action set fits the list");
+        check(all.count == 7, "and produces seven ids");
     }
 
     // --- States -------------------------------------------------------------------------------
@@ -165,6 +184,54 @@ int main() {
         check(android::describe(list).scrollable, "a node with a scroll action is scrollable");
         check(!android::describe(node_of(Role::List)).scrollable,
               "a list without the action is not");
+    }
+
+    // --- The reverse direction: what a screen reader sends back -------------------------------
+    // This is the direction that fails silently: the platform echoes the id it was offered, so a
+    // wrong answer here is a control that does nothing when double-tapped.
+    {
+        using android::A11yAction;
+        check(android::engine_action_for(static_cast<std::int32_t>(A11yAction::Click)) ==
+                  Action::Press,
+              "a click is a press");
+        check(android::engine_action_for(static_cast<std::int32_t>(A11yAction::LongClick)) ==
+                  Action::Press,
+              "and so is a long click, which the engine has no separate dispatch for");
+        // Not a power of two, and not adjacent to Click: the id has to be read, not guessed.
+        check(android::engine_action_for(static_cast<std::int32_t>(A11yAction::ScrollForward)) ==
+                  Action::Scroll,
+              "scroll forward is a scroll");
+        check(android::engine_action_for(static_cast<std::int32_t>(A11yAction::SetText)) ==
+                  Action::SetValue,
+              "set text is a value write");
+        check(android::engine_action_for(static_cast<std::int32_t>(A11yAction::Focus)) ==
+                  Action::Focus,
+              "focus is a focus");
+        // The platform's own bookkeeping is not an engine action, and faking one would move focus
+        // the app never asked to move.
+        check(android::engine_action_for(static_cast<std::int32_t>(A11yAction::Select)) ==
+                  Action::None,
+              "select is not an engine action");
+        check(android::engine_action_for(static_cast<std::int32_t>(A11yAction::ClearSelection)) ==
+                  Action::None,
+              "and neither is clear selection");
+        check(android::engine_action_for(0) == Action::None, "no id is no action");
+        // An id the platform does not define must not become an action by accident.
+        check(android::engine_action_for(12345) == Action::None, "an unknown id is no action");
+    }
+
+    // --- The round trip ----------------------------------------------------------------------
+    // Every id the engine offers must map back to an engine action, or a screen reader is offered
+    // something that does nothing when activated.
+    {
+        using android::A11yAction;
+        const Action all = Action::Press | Action::Focus | Action::SetValue | Action::Scroll;
+        const android::A11yActionList offered = android::actions_for(all);
+        for (std::size_t i = 0; i < offered.count; ++i) {
+            const auto id = static_cast<std::int32_t>(offered.actions[i]);
+            check(android::engine_action_for(id) != Action::None,
+                  "every offered action id maps back to an engine action");
+        }
     }
 
     if (failures != 0) {

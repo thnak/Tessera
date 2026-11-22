@@ -32,7 +32,11 @@ set(TESSERA_A11Y_SOURCES
     uia_provider.cpp
     uia_host.cpp
     uia_bridge.cpp
-    uia_bridge_jobs.cpp)
+    uia_bridge_jobs.cpp
+    # The pull-side provider Android's `AccessibilityNodeProvider` queries (issue #189). Android is
+    # the only platform whose accessibility API is synchronous/pull rather than push, so this is a
+    # separate type from the UIA and AT-SPI bridges rather than another branch in one of them.
+    snapshot_provider.cpp)
 
 # The Windows UI Automation bridge is the only code in this layer that touches a platform SDK. It
 # is compiled on Windows only; every other platform builds the same public headers plus a stub
@@ -82,6 +86,13 @@ if (TESSERA_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/unit/announcement_queue_tests.cpp)
     target_link_libraries(announcement_queue_tests PRIVATE tessera_accessibility)
     add_test(NAME announcement_queue COMMAND announcement_queue_tests)
+
+    # The pull-side provider Android queries (issue #189): slot stability across a rebuild, stale
+    # ids, the value-not-label rule, and the bounded action queue.
+    add_executable(snapshot_provider_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/a11y/snapshot_provider_tests.cpp)
+    target_link_libraries(snapshot_provider_tests PRIVATE tessera_accessibility)
+    add_test(NAME snapshot_provider COMMAND snapshot_provider_tests)
 endif ()
 
 

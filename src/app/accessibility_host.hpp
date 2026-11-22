@@ -20,6 +20,7 @@
 
 #include "tessera/hal/window.hpp"
 #include "tessera/ui/accessibility/a11y_tree.hpp"
+#include "tessera/ui/accessibility/snapshot_provider.hpp"
 
 #include <cstdint>
 #include <functional>
@@ -37,11 +38,18 @@ namespace tessera::app {
 
 // Which platform bridge a controller drives. `Auto` is the production choice: UIA on Windows and
 // AT-SPI everywhere else. The explicit values exist for tests and diagnostics.
+//
+// `Provider` is the pull-side backend Android needs (issue #189): `AccessibilityNodeProvider` asks
+// for one node synchronously instead of being pushed a tree, so it is served from a
+// `SnapshotProvider` the shell queries across JNI. It is opt-in rather than part of `Auto` because
+// the shell must install it on the Java view, and a platform that has no such view has nothing to
+// install it on.
 enum class AccessibilityBackend : std::uint8_t {
     Auto = 0,
     None,
     Uia,
     Atspi,
+    Provider,
 };
 
 [[nodiscard]] std::string_view to_string(AccessibilityBackend backend);
@@ -75,6 +83,11 @@ struct AccessibilityHostConfig {
     // returns nullptr models a build with no UIA platform seam (start reports UnsupportedPlatform).
     std::function<std::unique_ptr<ui::a11y::UiaHost>()> create_uia;
     std::function<std::unique_ptr<ui::a11y::AtspiSession>(ui::a11y::AtspiBridge&)> create_atspi;
+    // The pull-side provider for the `Provider` backend. The shell owns it (its Java view queries
+    // it across JNI), so it is borrowed, not created here. A null pointer with the `Provider`
+    // backend reports UnsupportedPlatform, which is the documented "accessibility off" path: a
+    // window with nowhere to publish is not an error.
+    ui::a11y::SnapshotProvider* provider = nullptr;
 };
 
 // Structured state for tests and diagnostics. `error` is the diagnostic's reason text (the error

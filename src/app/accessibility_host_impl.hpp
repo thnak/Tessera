@@ -31,12 +31,15 @@ struct AccessibilityHost::Impl {
     bool tick();
 
     // Starts one backend. Each returns false after reporting its own single diagnostic. The two
-    // AT-SPI functions live in accessibility_host_atspi.cpp.
+    // AT-SPI functions live in accessibility_host_atspi.cpp and the provider half in
+    // accessibility_host_provider.cpp.
     bool start_uia();
     bool start_atspi();
+    bool start_provider();
     // One tick's work for the active backend. Returns true when a snapshot was published.
     bool tick_uia();
     bool tick_atspi();
+    bool tick_provider();
 
     // Builds the semantics snapshot through the installed source and keeps it for the index ->
     // NodeId map an action drain needs. A throwing source is the caller's to catch.
@@ -60,6 +63,9 @@ struct AccessibilityHost::Impl {
     bool root_installed = false;
     std::unique_ptr<ui::a11y::AtspiBridge> bridge;
     std::unique_ptr<ui::a11y::AtspiSession> session;
+    // The pull-side backend's provider. Borrowed from the shell, which owns it: the Java view
+    // queries it across JNI, so its lifetime is the view's, not this controller's.
+    ui::a11y::SnapshotProvider* provider = nullptr;
 
     AccessibilitySnapshotSource source;
     AccessibilityActionHandler handler;

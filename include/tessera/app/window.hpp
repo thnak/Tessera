@@ -9,6 +9,7 @@
 #include "tessera/rendering/rhi/types.hpp"
 #include "tessera/runtime/config.hpp"
 #include "tessera/runtime/diagnostics.hpp"
+#include "tessera/ui/accessibility/snapshot_provider.hpp"
 #include "tessera/ui/scale/aa_policy.hpp"
 
 #include <cstdint>
@@ -89,6 +90,13 @@ struct WindowOptions {
     // Opts into the undocumented Windows 10 acrylic accent policy. Off by default; ignored on
     // Windows 11 and every other platform (glass-v1.md section 6).
     bool win10_acrylic = false;
+    // The pull-side accessibility provider the shell owns (issue #189). Set it on a platform whose
+    // accessibility API asks for one node at a time (Android's `AccessibilityNodeProvider`) rather
+    // than being pushed a tree: the driver then keeps this provider current on the thread that owns
+    // the scene, and the shell queries it from the platform's own thread. Null (the default) leaves
+    // the platform's push bridge in charge, which is every desktop platform. Borrowed: the caller
+    // must outlive the host, normally because it is a member of the caller's own state.
+    ui::a11y::SnapshotProvider* accessibility_provider = nullptr;
     // The deliberate switch for display-aware anti-aliasing (docs/design/display-aware-rendering.md
     // section 6). On (the default) the window resolves a `ui::scale::AaPolicy` from its metrics and
     // applies it to text rasterization and border snapping, re-resolving it between frames on a
