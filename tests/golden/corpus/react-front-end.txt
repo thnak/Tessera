@@ -5,7 +5,7 @@ pipeline accepted: 24 (48.0%)
 warnings: 0
 
 front-end rejections (code, occurrences, files):
-  TESSERA_JSX_PARSE_UNEXPECTED_TOKEN 6 6
+  TESSERA_JSX_PARSE_UNEXPECTED_TOKEN 5 5
   TESSERA_REACT_UNSUPPORTED_API 2 2
   TESSERA_JSX_PARSE_MISSING_SEMICOLON 1 1
   TESSERA_JSX_SUBSET_DOM 1 1
@@ -16,7 +16,7 @@ front-end rejections (code, occurrences, files):
   TESSERA_REACT_UNKNOWN_HOOK 1 1
 
 front-end first rejections (code, files):
-  TESSERA_JSX_PARSE_UNEXPECTED_TOKEN 5
+  TESSERA_JSX_PARSE_UNEXPECTED_TOKEN 4
   TESSERA_JSX_PARSE_MISSING_SEMICOLON 1
   TESSERA_JSX_SUBSET_DOM 1
   TESSERA_JSX_SUBSET_DYNAMIC_TAG 1
@@ -24,11 +24,12 @@ front-end first rejections (code, files):
   TESSERA_REACT_EFFECT_DEPS 1
   TESSERA_REACT_HOOK_ORDER 1
   TESSERA_REACT_UNKNOWN_HOOK 1
+  TESSERA_REACT_UNSUPPORTED_API 1
 
 pipeline rejections (first blocking code, files):
   TESSERA_IR_UNSUPPORTED 7
-  TESSERA_JSX_PARSE_UNEXPECTED_TOKEN 5
   TESSERA_IR_UNKNOWN_PROP 4
+  TESSERA_JSX_PARSE_UNEXPECTED_TOKEN 4
   TESSERA_IR_BINDING 1
   TESSERA_IR_UNKNOWN_TYPE 1
   TESSERA_IR_UNRESOLVED 1
@@ -39,6 +40,7 @@ pipeline rejections (first blocking code, files):
   TESSERA_REACT_EFFECT_DEPS 1
   TESSERA_REACT_HOOK_ORDER 1
   TESSERA_REACT_UNKNOWN_HOOK 1
+  TESSERA_REACT_UNSUPPORTED_API 1
 
 files:
   accepted react/components/arrow-component.tsx components=1 pipeline=ok
@@ -80,7 +82,7 @@ files:
   accepted react/hooks/use-id.tsx components=1 pipeline=ok
   accepted react/hooks/use-layout-effect.tsx components=1 pipeline=TESSERA_IR_BINDING
   accepted react/hooks/use-memo.tsx components=1 pipeline=TESSERA_IR_UNSUPPORTED
-  rejected react/hooks/use-reducer.tsx components=1: TESSERA_JSX_PARSE_UNEXPECTED_TOKEN TESSERA_REACT_UNSUPPORTED_API pipeline=TESSERA_JSX_PARSE_UNEXPECTED_TOKEN
+  rejected react/hooks/use-reducer.tsx components=1: TESSERA_REACT_UNSUPPORTED_API pipeline=TESSERA_REACT_UNSUPPORTED_API
   accepted react/hooks/use-ref-focus.tsx components=1 pipeline=ok
   accepted react/hooks/use-state-typed.tsx components=1 pipeline=ok
   accepted react/rejected/browser-api.tsx components=1 pipeline=TESSERA_IR_UNRESOLVED

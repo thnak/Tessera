@@ -70,8 +70,19 @@ bool Parser::parse_component(ModuleItem& item) {
     if (!expect_punct("(", LexMode::Code)) {
         return false;
     }
-    if (!at_punct(")") && !parse_component_param(item)) {
-        return false;
+    // A component takes one props parameter; a helper may take several (ADR-066 item 4's reducer is
+    // `reduce(state, action)`). The helper's body is not lowered, so its parameters only have to
+    // parse.
+    if (!at_punct(")")) {
+        if (!parse_component_param(item)) {
+            return false;
+        }
+        while (item.kind == ItemKind::Helper && at_punct(",")) {
+            advance(LexMode::Code);
+            if (!parse_component_param(item)) {
+                return false;
+            }
+        }
     }
     if (!expect_punct(")", LexMode::Code)) {
         return false;
@@ -137,6 +148,33 @@ bool Parser::parse_component_param(ModuleItem& item) {
     return item.props_type != nullptr;
 }
 
+// ADR-066 item 4: whether the helper body about to be parsed declares a `switch`. A reducer is the
+// only helper whose body the lowering reads, and it is recognised by that form. The scan is a
+// lookahead: it saves the lexer position, walks the body's braces, and restores, so the body is
+// parsed once either way. The caller has already consumed the body's opening `{`, so the scan
+// starts one level in.
+bool Parser::helper_has_switch() {
+    const Checkpoint saved = checkpoint();
+    bool found = false;
+    int depth = 1;
+    while (!fatal_ && cur_.kind != TokenKind::Eof && depth > 0) {
+        if (at_punct("{")) {
+            ++depth;
+        } else if (at_punct("}")) {
+            --depth;
+            if (depth == 0) {
+                break;
+            }
+        } else if (cur_.text == "switch") {
+            found = true;
+            break;
+        }
+        advance(LexMode::Code);
+    }
+    restore(saved);
+    return found;
+}
+
 bool Parser::parse_component_body(ModuleItem& item) {
     in_component_ = true;
     props_name_ = item.props_name;
@@ -146,7 +184,11 @@ bool Parser::parse_component_body(ModuleItem& item) {
     // A helper's body is not lowered, so it is skipped rather than parsed: it may return a value,
     // call anything, and use forms the subset does not have. Skipping keeps the component beside it
     // compilable, which is the whole point of recognising the helper (issue #660's corpus).
-    if (item.kind == ItemKind::Helper) {
+    //
+    // ADR-066 item 4 is the exception: a reducer is a helper whose `switch` body the lowering
+    // reads, so a helper that declares a `switch` is parsed rather than skipped. The distinction is
+    // made after the body is seen, because the body is what says which kind of helper it is.
+    if (item.kind == ItemKind::Helper && !helper_has_switch()) {
         int depth = 1;
         while (!fatal_ && depth > 0) {
             if (cur_.kind == TokenKind::Eof) {
@@ -161,6 +203,15 @@ bool Parser::parse_component_body(ModuleItem& item) {
             advance(LexMode::Code);
         }
         return !fatal_;
+    }
+    // ADR-066 item 4: a reducer is a helper whose body the lowering reads. It is not a component,
+    // so it has no `return <element>`; its body is one `switch` and is parsed as a statement list.
+    if (item.kind == ItemKind::Helper) {
+        if (!parse_reducer_body(item)) {
+            return false;
+        }
+        advance(LexMode::Code); // past `}`
+        return true;
     }
     while (!fatal_) {
         if (cur_.is_keyword("return")) {
@@ -187,6 +238,33 @@ bool Parser::parse_component_body(ModuleItem& item) {
         return false;
     }
     advance(LexMode::Code);
+    return true;
+}
+
+// ADR-066 item 4: the body of a reducer helper. It is a statement list whose one statement is the
+// `switch`; the statements are recorded on the item so the lowering can read them.
+bool Parser::parse_reducer_body(ModuleItem& item) {
+    while (!fatal_ && !at_punct("}")) {
+        ExprPtr statement = parse_block_statement();
+        if (!statement) {
+            return false;
+        }
+        Statement recorded;
+        recorded.kind = StatementKind::Expression;
+        recorded.span = statement->span;
+        recorded.init = std::move(statement);
+        item.body.push_back(std::move(recorded));
+        if (at_punct(";")) {
+            advance(LexMode::Code);
+        }
+    }
+    if (fatal_) {
+        return false;
+    }
+    if (!at_punct("}")) {
+        fail_unexpected("`}`");
+        return false;
+    }
     return true;
 }
 
