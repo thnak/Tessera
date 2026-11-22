@@ -71,57 +71,6 @@ std::vector<std::string_view> split_tokens(std::string_view text) {
     return tokens;
 }
 
-// `<length-percentage>`: the unit set is the stylesheet engine's (px, rem/em, vw, vh, pt, %).
-bool parse_length_percentage(std::string_view token, GridTrackSize& out) {
-    const std::string_view text = trim(token);
-    if (text.empty()) {
-        return false;
-    }
-    if (text.back() == '%') {
-        float value = 0.0f;
-        if (!parse_float(text.substr(0, text.size() - 1), value) || value < 0.0f) {
-            return false;
-        }
-        out = GridTrackSize{GridTrackKind::Percent, value, GridLengthUnit::None};
-        return true;
-    }
-    std::size_t unit_start = 0;
-    while (unit_start < text.size() &&
-           (std::isdigit(static_cast<unsigned char>(text[unit_start])) != 0 ||
-            text[unit_start] == '.' || text[unit_start] == '+' || text[unit_start] == '-')) {
-        ++unit_start;
-    }
-    const std::string_view unit(text.data() + unit_start, text.size() - unit_start);
-    float value = 0.0f;
-    if (!parse_float(text.substr(0, unit_start), value) || value < 0.0f) {
-        return false;
-    }
-    GridLengthUnit parsed_unit = GridLengthUnit::None;
-    if (unit.empty() || unit == "px") {
-        parsed_unit = GridLengthUnit::Px;
-    } else if (unit == "rem") {
-        parsed_unit = GridLengthUnit::Rem;
-    } else if (unit == "em") {
-        parsed_unit = GridLengthUnit::Em;
-    } else if (unit == "pt") {
-        parsed_unit = GridLengthUnit::Pt;
-    } else {
-        // Every viewport unit comes from the one shared table (issue #691), so a track accepts the
-        // same set layout and `@media` do. The table's size/axis pair maps onto the enumerator.
-        ViewportSize size = ViewportSize::Default;
-        ViewportAxis axis = ViewportAxis::Width;
-        if (!parse_viewport_unit(unit, size, axis)) {
-            return false;
-        }
-        parsed_unit = grid_unit_for(size, axis);
-        if (parsed_unit == GridLengthUnit::None) {
-            return false;
-        }
-    }
-    out = GridTrackSize{GridTrackKind::Fixed, value, parsed_unit};
-    return true;
-}
-
 // The enumerator for a viewport size/axis pair (issue #691). `None` means the pair has no grid unit,
 // which cannot happen for a pair the shared table produced but keeps the mapping total.
 GridLengthUnit grid_unit_for(ViewportSize size, ViewportAxis axis) {
@@ -177,6 +126,58 @@ GridLengthUnit grid_unit_for(ViewportSize size, ViewportAxis axis) {
     }
     return GridLengthUnit::None;
 }
+
+// `<length-percentage>`: the unit set is the stylesheet engine's (px, rem/em, vw, vh, pt, %).
+bool parse_length_percentage(std::string_view token, GridTrackSize& out) {
+    const std::string_view text = trim(token);
+    if (text.empty()) {
+        return false;
+    }
+    if (text.back() == '%') {
+        float value = 0.0f;
+        if (!parse_float(text.substr(0, text.size() - 1), value) || value < 0.0f) {
+            return false;
+        }
+        out = GridTrackSize{GridTrackKind::Percent, value, GridLengthUnit::None};
+        return true;
+    }
+    std::size_t unit_start = 0;
+    while (unit_start < text.size() &&
+           (std::isdigit(static_cast<unsigned char>(text[unit_start])) != 0 ||
+            text[unit_start] == '.' || text[unit_start] == '+' || text[unit_start] == '-')) {
+        ++unit_start;
+    }
+    const std::string_view unit(text.data() + unit_start, text.size() - unit_start);
+    float value = 0.0f;
+    if (!parse_float(text.substr(0, unit_start), value) || value < 0.0f) {
+        return false;
+    }
+    GridLengthUnit parsed_unit = GridLengthUnit::None;
+    if (unit.empty() || unit == "px") {
+        parsed_unit = GridLengthUnit::Px;
+    } else if (unit == "rem") {
+        parsed_unit = GridLengthUnit::Rem;
+    } else if (unit == "em") {
+        parsed_unit = GridLengthUnit::Em;
+    } else if (unit == "pt") {
+        parsed_unit = GridLengthUnit::Pt;
+    } else {
+        // Every viewport unit comes from the one shared table (issue #691), so a track accepts the
+        // same set layout and `@media` do. The table's size/axis pair maps onto the enumerator.
+        ViewportSize size = ViewportSize::Default;
+        ViewportAxis axis = ViewportAxis::Width;
+        if (!parse_viewport_unit(unit, size, axis)) {
+            return false;
+        }
+        parsed_unit = grid_unit_for(size, axis);
+        if (parsed_unit == GridLengthUnit::None) {
+            return false;
+        }
+    }
+    out = GridTrackSize{GridTrackKind::Fixed, value, parsed_unit};
+    return true;
+}
+
 
 bool parse_breadth(std::string_view token, bool allow_flex, GridTrackSize& out) {
     const std::string text = lower(trim(token));
