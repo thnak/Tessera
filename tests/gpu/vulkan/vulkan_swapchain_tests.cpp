@@ -153,9 +153,10 @@ int main() {
         return 5;
     }
 
-    // D2: the surface picks an sRGB format when the platform offers one, otherwise it keeps the
-    // historical UNORM selection. The preference order itself is unit-tested with plain data
-    // (vulkan_surface_format); this checks the real driver result is one of the supported formats.
+    // Presentation is UNORM (issue #791): the paint pipeline's colors are already sRGB-encoded, so
+    // an `*_SRGB` surface would encode them a second time and wash every color out. A surface that
+    // offers no UNORM format at all still gets its sRGB sibling as the documented fallback; this
+    // checks the real driver result is one of the supported formats.
     const TextureFormat chosen_format = swapchain->format();
     if (!expect(chosen_format == TextureFormat::R8G8B8A8Unorm ||
                     chosen_format == TextureFormat::B8G8R8A8Unorm ||
@@ -306,7 +307,7 @@ int main() {
 
     std::cout << "vulkan_swapchain: ok (" << swapchains_created << " swapchains, " << presents
               << " presents, format=" << format_name(chosen_format)
-              << (srgb_swapchain ? " (sRGB)" : " (UNORM fallback)")
+              << (srgb_swapchain ? " (sRGB fallback)" : " (UNORM)")
               << ", alpha=" << (alpha_supported ? "premultiplied" : "opaque") << ")\n";
     return 0;
 }

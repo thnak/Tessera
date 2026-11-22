@@ -2,7 +2,7 @@
 
 Status: plan for the rendering workstream from the current B1/B2/B3 state to the production
 milestone. The project owner approved **D1 (ThorVG first)** and **D2 (sRGB-encoded formats)** on
-2026-11-09; D2 is implemented (RHI sRGB formats, swapchain preference policy, UNORM goldens
+2026-11-09; D2 is implemented (RHI sRGB formats, the presentation color policy, UNORM goldens
 unchanged), plus its text-coverage contrast amendment (section 3), D1's integration spike is next,
 and D3-D8 are engineering defaults enforced by the release gates and remain open to owner review.
 The acceptance gates are normative for the release build. Related:
@@ -51,7 +51,7 @@ the release gates enforce; they can be revisited by the owner without changing t
 | ID | Decision | License/static impact |
 |---|---|---|
 | D1 | **Vector paths: ThorVG first (approved).** Spike ThorVG (MIT) behind a `PathRasterizer` seam; Skia Graphite stays a fallback only if the spike fails the gate. Do not write a rasterizer. | Both permissive and static-linkable; ThorVG is far smaller, so the production static size and build time stay bounded. |
-| D2 | **Color: 8-bit sRGB-encoded formats in V1 (approved).** Prefer `*_SRGB` swapchain/target formats, document that blending happens in the encoded space (approximation), and keep linear-light/HDR out of V1. | No license impact; avoids a large color-management refactor before release. |
+| D2 | **Color: 8-bit sRGB-encoded formats in V1 (approved).** The paint pipeline emits sRGB-encoded values and blends in that encoded space; document that approximation and keep linear-light/HDR out of V1. `*_SRGB` formats exist for paths that hold linear light or authored sRGB bytes, not for presentation - an `*_SRGB` *presentation* surface double-encodes the pipeline's output (issue #791). | No license impact; avoids a large color-management refactor before release. |
 | D3 | **Design-time wall.** Dawn/WebGPU and Emscripten are design-time only; the native production binary links Vulkan (Windows, Linux, Android) and native Metal (macOS, iOS, post-V1, ADR-053) and never Dawn. | Dawn/Emscripten notices apply to design-time artifacts only; production link line stays lean. |
 | D4 | **Present-path damage and VRR are post-production optimizations (refined by the task-50 API check).** Damage is *render-side* work reduction (redraw plan + scissor replay), not partial OS presentation. Win32 DXGI flip-model `IDXGISwapChain1::Present1` accepts dirty rects/scrolled areas but requires per-frame back-buffer coherence bookkeeping (first full Present, intersect dirty regions across N buffers); Vulkan `VK_KHR_incremental_present` regions are presentation-engine hints; X11 partial updates (`XPutImage`/`XShmPutImage`/`XCopyArea`) do not reduce compositor work and XDamage only reports. Keep full-frame present as the correctness baseline; defer VRR/partial present to a platform-capability slice that queries the real APIs. | No license impact; VRR/partial present depend on open platform APIs. |
 | D5 | **MSAA and depth/index/compute follow paths.** 4x MSAA is P1 for geometry quality; depth/index/compute (custom 3D) are P2 and widen the RHI only then. | Vulkan core features; no dependency change. |
@@ -85,10 +85,16 @@ out of the release until decided.
    `--simulate-loss`: 3 frames before, recovered at tick 4/generation 1, 3 frames after, validation
    clean) and by the offscreen `present_hardening` smoke (3 deterministic frames, 4x resolve
    readback, loss cycle). Remaining: platform VRR/partial-present capability slice (D4).
-3. **Color policy (D2) — done**: sRGB texture/render-target/swapchain formats in the RHI, the
-   plain-data swapchain preference policy (sRGB surfaces first, UNORM fallback), documented
+3. **Color policy (D2) — done**: sRGB texture/render-target formats in the RHI, the plain-data
+   swapchain preference policy (UNORM surfaces first, sRGB as the fallback), documented
    encoded-space blending approximation; deterministic golden paths stay UNORM so existing CPU and
-   lavapipe goldens are byte-identical.
+   lavapipe goldens are byte-identical. **Corrected 2026-11-22 (issue #791):** the first
+   implementation preferred `*_SRGB` *presentation* surfaces, which double-encodes the paint
+   pipeline's already sRGB-encoded output (`#2563eb` reached the screen as (106,167,246)). D2's
+   substance is unchanged - 8-bit sRGB-encoded formats, encoded-space blending, no linear-light
+   rendering - and presentation now takes the UNORM surface the encoded output belongs in. The sRGB
+   formats stay in the RHI for the paths that really hold linear light or authored sRGB bytes needing
+   a decode on sample.
 4. **Static/license gates — done**: dependency/notice allowlist checker, per-OS static-link
    allowlist checker, forbidden dynamic C++ runtime rule, fixtures and CI wiring; a Release
    static-runtime proof build is in progress.

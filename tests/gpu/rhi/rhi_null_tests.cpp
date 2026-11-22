@@ -25,9 +25,11 @@ int main() {
     // class` an explicit `std::uint8_t` base type (issue #734), which is an ABI change rather than
     // a source one; 1.12 added `BufferUsage::Storage`, `CommandList::bind_storage_buffer`,
     // `PipelineDesc::storage_buffer` and `Device::supports_storage_buffers()` (ADR-068 slice 1,
-    // issue #669). All are additive compatible changes.
-    if (rhi::kRhiVersionMajor != 1 || rhi::kRhiVersionMinor != 12 ||
-        rhi::kRhiVersion != ((1u << 16) | 12u)) {
+    // issue #669); 1.13 stated the color-space contract and moved presentation to UNORM (issue
+    // #791), changing the surface format a backend chooses but not a single enumerator or member.
+    // All are additive compatible changes.
+    if (rhi::kRhiVersionMajor != 1 || rhi::kRhiVersionMinor != 13 ||
+        rhi::kRhiVersion != ((1u << 16) | 13u)) {
         std::cerr << "unexpected RHI version constants\n";
         return 1;
     }

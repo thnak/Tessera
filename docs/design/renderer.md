@@ -197,7 +197,10 @@ Reference: [`docs/images/batched2d.png`](../images/batched2d.png).
   Platform display-refresh/VRR queries and present-path damage are pending.
 - Yoga layout, FreeType/HarfBuzz shaping and the glyph atlas are implemented in B2.
 - No vector path rasterizer ([ADR-004](../../decisions/ADR-004-buy-vector-path-rasterization.md), buy vector-path rasterization).
-- No sRGB/color-management policy: not scheduled; no decision yet (see [ADR-001](../../decisions/ADR-001-vulkan-1-3-baseline.md)).
+- sRGB formats exist in the RHI and presentation is UNORM (the paint pipeline's output is already
+  sRGB-encoded, so an `*_SRGB` surface would double-encode it - issue #791); there is still no
+  linear-light/HDR color management policy, and none is scheduled
+  (see [ADR-001](../../decisions/ADR-001-vulkan-1-3-baseline.md)).
 - No bindless/descriptor indexing on WebGPU (Vulkan has it since RHI 1.7, issue #480 part 2; see
   "Texture arrays" above). WebGPU keeps one descriptor set per texture.
 - Goldens from lavapipe/software are wired (dashboard, overlay, text, shapes) plus a CPU solid-rect

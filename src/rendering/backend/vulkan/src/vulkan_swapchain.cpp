@@ -91,13 +91,11 @@ bool select_surface_format(const std::vector<VkSurfaceFormatKHR>& formats,
     surface_format = formats[*chosen];
     const SurfaceFormatCandidate& candidate = candidates[*chosen];
     if (candidate.format == SurfaceFormat::Undefined) {
-        // The driver exposes a single "any format" entry. D2 chooses sRGB for an sRGB color space
-        // and the historical UNORM format otherwise.
-        const bool srgb = candidate.color_space == SurfaceColorSpace::SrgbNonlinear;
-        const SurfaceFormat fallback =
-            srgb ? SurfaceFormat::R8G8B8A8Srgb : SurfaceFormat::R8G8B8A8Unorm;
-        surface_format.format = to_vk_surface_format(fallback);
-        rhi_format = to_rhi_format(fallback);
+        // The driver exposes a single "any format" entry. A presentation surface stays UNORM: the
+        // paint pipeline emits sRGB-encoded values, so an `*_SRGB` image would encode them twice
+        // (issue #791, see vulkan_surface_format.hpp).
+        surface_format.format = to_vk_surface_format(SurfaceFormat::R8G8B8A8Unorm);
+        rhi_format = to_rhi_format(SurfaceFormat::R8G8B8A8Unorm);
         return true;
     }
     rhi_format = to_rhi_format(candidate.format);

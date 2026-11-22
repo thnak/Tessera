@@ -54,8 +54,14 @@ namespace tessera::rendering::rhi {
 // `Device::supports_storage_buffers()` (ADR-068 slice 1, issue #669). The enumerator is appended so
 // no existing value changes; the capability is pure virtual so every backend answers. A backend
 // answering false keeps the push-constant clip path and no frame changes.
+// 1.13 (2026-11-22): documented the color-space contract the D2 policy was missing and moved
+// presentation to UNORM (issue #791). No enumerator or member changes and every caller compiles
+// unchanged: `TextureFormat`'s `*Srgb` values keep their meaning, but the header now states which
+// side of the transfer function the pipeline is on, and a backend's surface-format choice changes
+// accordingly. Behaviour-compatible for every caller that reads `Swapchain::format()`; the minor
+// moves because the documented contract changed.
 inline constexpr std::uint32_t kRhiVersionMajor = 1;
-inline constexpr std::uint32_t kRhiVersionMinor = 12;
+inline constexpr std::uint32_t kRhiVersionMinor = 13;
 inline constexpr std::uint32_t kRhiVersion = (kRhiVersionMajor << 16) | kRhiVersionMinor;
 
 } // namespace tessera::rendering::rhi

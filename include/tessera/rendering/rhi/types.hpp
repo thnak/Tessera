@@ -169,8 +169,11 @@ enum class Backend : std::uint8_t { Null, Vulkan, WebGpu, Metal };
 
 // Color-renderable 8-bit formats. The `*Srgb` variants have the same byte layout as their UNORM
 // siblings but store/return sRGB-encoded values: attachment writes are encoded from linear light
-// and texture samples are decoded to linear. Production presentation prefers an sRGB surface format
-// (D2); offscreen golden/deterministic targets stay UNORM unless a caller asks for sRGB.
+// and texture samples are decoded to linear. Offscreen golden/deterministic targets stay UNORM
+// unless a caller asks for sRGB, and so does presentation: the paint pipeline's output is already
+// sRGB-encoded, so an sRGB presentation surface would encode it twice (issue #791). The sRGB
+// formats are for a path that really holds linear light or authored sRGB bytes needing a decode on
+// sample.
 enum class TextureFormat : std::uint8_t {
     R8G8B8A8Unorm,
     R8Unorm,
