@@ -233,7 +233,13 @@ diagnostic.
 
 - absolute: `px`, `cm`, `mm`, `in`, `pt`, `pc`, `q`
 - font-relative: `em`, `rem`, `ex`, `ch`
-- viewport: `vw`, `vh`, `vmin`, `vmax`, `sv*`, `lv*`, `dv*`
+- viewport: `vw`, `vh`, `vmin`, `vmax`, and the small/large/dynamic forms `svw`, `svh`, `svmin`,
+  `svmax`, `lvw`, `lvh`, `lvmin`, `lvmax`, `dvw`, `dvh`, `dvmin`, `dvmax`. All of them resolve
+  through one table (`viewport_units.hpp`), so layout, grid and `@media` accept the same set. On a
+  viewport whose chrome cannot move - a desktop window - the small, large and dynamic forms equal
+  the plain one; that is the correct answer there, not a fallback. The inline/block-axis forms
+  (`vi`, `vb`, `svi`, ...) are **not** in V1: they need the writing mode, which a length resolver
+  does not have.
 - percentage: resolved by the consumer (layout vs paint) with documented rules
 - `calc()` with `+ - * /`, nested `calc()`, and `min()`/`max()`/`clamp()`
 

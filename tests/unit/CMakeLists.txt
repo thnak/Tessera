@@ -1369,6 +1369,13 @@ target_link_libraries(viewport_units_tests PRIVATE tessera_style)
 
 add_test(NAME viewport_units COMMAND viewport_units_tests)
 
+add_executable(spec_units_tests
+    spec_units_tests.cpp)
+
+target_link_libraries(spec_units_tests PRIVATE tessera_style)
+
+add_test(NAME spec_units COMMAND spec_units_tests)
+
 add_executable(keyframes_tests
     keyframes_tests.cpp)
 
