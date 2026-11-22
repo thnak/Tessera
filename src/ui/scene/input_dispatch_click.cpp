@@ -3,6 +3,7 @@
 // Click synthesis wiring of the InputRouter (issue #6); the rules live in ClickSynthesizer.
 
 #include "tessera/ui/scene/input_dispatch.hpp"
+#include "tessera/ui/scene/node.hpp"
 
 namespace tessera::ui {
 namespace {

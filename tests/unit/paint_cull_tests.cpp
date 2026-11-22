@@ -15,6 +15,7 @@
 #include "paint_cache_test_support.hpp"
 #include "tessera/rendering/software/cpu_canvas.hpp"
 #include "tessera/ui/paint/clipped_paint_sink.hpp"
+#include "tessera/ui/scene/node.hpp"
 
 #include <algorithm>
 #include <cstddef>

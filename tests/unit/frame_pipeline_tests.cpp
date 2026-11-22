@@ -3,6 +3,7 @@
 #include "tessera/runtime/runtime_loop.hpp"
 #include "tessera/ui/frame_pipeline.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
+#include "tessera/ui/scene/node.hpp"
 
 #include <algorithm>
 #include <cstdint>

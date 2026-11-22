@@ -10,6 +10,7 @@
 
 #include "tessera/ui/paint/paint_cache.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
+#include "tessera/ui/scene/node.hpp"
 
 #include <iostream>
 #include <map>

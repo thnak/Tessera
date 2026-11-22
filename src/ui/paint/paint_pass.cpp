@@ -14,6 +14,7 @@
 #include "tessera/ui/paint/paint_cache.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
 #include "tessera/ui/paint/paint_text_metrics.hpp"
+#include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/scene/z_order.hpp"
 
 #include <algorithm>

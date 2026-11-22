@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/style/safe_area_style.hpp"
 
 #include <cmath>

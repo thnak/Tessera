@@ -6,6 +6,7 @@
 // section 11.1, issue #230).
 
 #include "tessera/ui/paint/paint_pass.hpp"
+#include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/style/compiled_stylesheet.hpp"
 #include "tessera/ui/style/property_registry.hpp"
 #include "tessera/ui/style/supports.hpp"

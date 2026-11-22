@@ -9,6 +9,7 @@
 #include "paint_text_shadow.hpp"
 #include "tessera/detail/text_util.hpp"
 #include "tessera/ui/paint/scene_style_sync.hpp"
+#include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/style/transform.hpp"
 
 #include <algorithm>

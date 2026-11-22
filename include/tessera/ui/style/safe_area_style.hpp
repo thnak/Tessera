@@ -4,7 +4,7 @@
 
 #include "tessera/hal/safe_area.hpp"
 #include "tessera/hal/window.hpp"
-#include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/scene/node_fwd.hpp"
 #include "tessera/ui/style/cascade.hpp"
 
 #include <cstdint>

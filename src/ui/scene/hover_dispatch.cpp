@@ -2,6 +2,7 @@
 
 #include "hover_dispatch.hpp"
 #include "tessera/ui/scene/event.hpp"
+#include "tessera/ui/scene/node.hpp"
 
 #include <cstddef>
 

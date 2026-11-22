@@ -2,6 +2,7 @@
 
 #include "tessera/rendering/redraw_plan.hpp"
 #include "tessera/ui/layout/damage_pass.hpp"
+#include "tessera/ui/scene/node.hpp"
 
 #include <cmath>
 #include <iostream>

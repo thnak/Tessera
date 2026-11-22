@@ -7,7 +7,7 @@
 #include "tessera/ui/paint/paint_cache.hpp"
 #include "tessera/ui/paint/paint_sink.hpp"
 #include "tessera/ui/paint/text_layout_cache.hpp"
-#include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/scene/node_fwd.hpp"
 #include "tessera/ui/style/scene_style.hpp"
 
 #include <cstddef>

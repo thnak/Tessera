@@ -7,7 +7,7 @@
 #include "tessera/ui/scene/click_synthesis.hpp"
 #include "tessera/ui/scene/event.hpp"
 #include "tessera/ui/scene/focus.hpp"
-#include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/scene/node_fwd.hpp"
 
 #include <array>
 #include <cstddef>

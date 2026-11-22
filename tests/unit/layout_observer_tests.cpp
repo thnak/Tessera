@@ -6,6 +6,7 @@
 // attach-order determinism, the depth floor, RAII lifetime, and zero allocation after reserve.
 
 #include "tessera/ui/layout/layout_observer.hpp"
+#include "tessera/ui/scene/node.hpp"
 
 #include <cstddef>
 #include <cstdlib>

@@ -4,7 +4,7 @@
 
 #include "tessera/app/window.hpp"
 #include "tessera/harness/image_compare.hpp"
-#include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/scene/node_fwd.hpp"
 
 #include <cstdint>
 #include <expected>

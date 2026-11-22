@@ -21,7 +21,7 @@
 #include "tessera/ui/responsive/environment_set.hpp"
 #include "tessera/ui/responsive/size_class.hpp"
 #include "tessera/ui/scene/dirty_pass.hpp"
-#include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/scene/node_fwd.hpp"
 #include "tessera/ui/style/compiled_stylesheet.hpp"
 #include "tessera/ui/style/scene_style.hpp"
 #include "tessera/ui/style/stylesheet_blob.hpp"

@@ -7,6 +7,7 @@
 
 #include "paint_content.hpp"
 #include "paint_image.hpp"
+#include "tessera/ui/scene/node.hpp"
 
 namespace tessera::ui::paint::detail {
 

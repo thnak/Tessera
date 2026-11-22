@@ -6,6 +6,7 @@
 #include "tessera/ui/gesture_recognizers.hpp"
 #include "tessera/ui/input_pump.hpp"
 #include "tessera/ui/scene/input_dispatch.hpp"
+#include "tessera/ui/scene/node.hpp"
 
 #include <cmath>
 #include <cstdint>

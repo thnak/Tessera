@@ -6,6 +6,7 @@
 
 #include "tessera/ui/paint/paint_pass.hpp"
 #include "tessera/ui/scale/render_target_extent.hpp"
+#include "tessera/ui/scene/node.hpp"
 
 #include <cmath>
 #include <initializer_list>

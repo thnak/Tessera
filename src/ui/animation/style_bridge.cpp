@@ -4,6 +4,7 @@
 #include "tessera/ui/animation/keyframes.hpp"
 #include "tessera/ui/animation/style_bridge.hpp"
 #include "tessera/ui/animation/transition_runtime.hpp"
+#include "tessera/ui/scene/node.hpp"
 
 #include <algorithm>
 #include <string>

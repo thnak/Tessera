@@ -10,6 +10,7 @@
 // a paused iteration parks on the same bounded platform wait as an idle one.
 
 #include "tessera/app/idle_policy.hpp"
+#include "tessera/ui/scene/node.hpp"
 #include "window_cursor.hpp"
 #include "window_impl.hpp"
 

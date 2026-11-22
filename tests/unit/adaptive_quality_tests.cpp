@@ -17,6 +17,7 @@
 #include "tessera/runtime/diagnostics.hpp"
 #include "tessera/runtime/runtime_loop.hpp"
 #include "tessera/ui/paint/paint_sink.hpp"
+#include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/style/compiled_stylesheet.hpp"
 
 #include <cstdint>

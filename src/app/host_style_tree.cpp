@@ -4,6 +4,7 @@
 // its size budget.
 
 #include "host_impl.hpp"
+#include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/scene/structure_epoch.hpp"
 
 namespace tessera::app {

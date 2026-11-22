@@ -4,6 +4,7 @@
 #include "tessera/rendering/null/null_device.hpp"
 #include "tessera/ui/paint/batched2d_sink.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
+#include "tessera/ui/scene/node.hpp"
 
 #include <cmath>
 #include <iostream>

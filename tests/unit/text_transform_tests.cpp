@@ -8,6 +8,7 @@
 #include "tessera/ui/paint/paint_pass.hpp"
 #include "tessera/ui/paint/paint_text_metrics.hpp"
 #include "tessera/ui/paint/text_layout_cache.hpp"
+#include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/style/cascade.hpp"
 #include "tessera/ui/text/font_metrics.hpp"
 #include "tessera/ui/text/hit_test.hpp"

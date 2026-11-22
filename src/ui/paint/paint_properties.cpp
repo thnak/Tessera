@@ -2,6 +2,7 @@
 
 #include "paint_properties.hpp"
 #include "tessera/detail/text_util.hpp"
+#include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/style/color.hpp"
 
 #include <algorithm>

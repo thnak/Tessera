@@ -14,7 +14,7 @@
 
 #include "tessera/hal/cursor.hpp"
 #include "tessera/hal/window.hpp"
-#include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/scene/node_fwd.hpp"
 #include "tessera/ui/style/cursor_value.hpp"
 
 namespace tessera::app::detail {

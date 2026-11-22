@@ -6,6 +6,7 @@
 
 #include "tessera/ui/layout/container_query_tracker.hpp"
 #include "tessera/ui/layout/layout_observer_settle.hpp"
+#include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/style/compiled_stylesheet.hpp"
 #include "tessera/ui/style/scene_style.hpp"
 

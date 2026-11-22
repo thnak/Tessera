@@ -14,6 +14,7 @@
 #include "tessera/ui/frame_pipeline.hpp"
 #include "tessera/ui/paint/paint_cache.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
+#include "tessera/ui/scene/node.hpp"
 
 #include <cmath>
 #include <iostream>

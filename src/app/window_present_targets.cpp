@@ -5,6 +5,7 @@
 // scale, glass, and the S8 4x presentation - into one frame branch; they share one policy decision
 // (which target, at what extent, with what sample count), which is what this file owns.
 
+#include "tessera/ui/scene/node.hpp"
 #include "window_impl.hpp"
 
 namespace tessera::app {

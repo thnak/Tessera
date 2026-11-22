@@ -3,6 +3,7 @@
 #include "tessera/ui/input/key_bindings.hpp"
 #include "tessera/ui/key_code.hpp"
 #include "tessera/ui/scene/input_dispatch.hpp"
+#include "tessera/ui/scene/node.hpp"
 
 #include <cstdint>
 #include <iostream>

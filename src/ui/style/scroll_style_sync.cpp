@@ -5,6 +5,7 @@
 // `scrollbar-gutter` stays a layout input and is read directly by layout_style.cpp.
 
 #include "tessera/detail/text_util.hpp"
+#include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/style/compiled_stylesheet.hpp"
 #include "tessera/ui/style/scene_style.hpp"
 #include "tessera/ui/style/scroll_style_sync.hpp"

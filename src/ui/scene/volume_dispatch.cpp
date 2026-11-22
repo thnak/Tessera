@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "tessera/ui/scene/node.hpp"
 #include "volume_dispatch.hpp"
 
 namespace tessera::ui {

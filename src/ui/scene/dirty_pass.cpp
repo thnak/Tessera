@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "tessera/ui/scene/dirty_pass.hpp"
+#include "tessera/ui/scene/node.hpp"
 
 #include <stdexcept>
 

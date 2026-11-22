@@ -5,6 +5,7 @@
 // shared fixtures in paint_cache_test_support.hpp; run by the `paint_cache` test executable.
 
 #include "paint_cache_test_support.hpp"
+#include "tessera/ui/scene/node.hpp"
 
 namespace paint_cache_test {
 

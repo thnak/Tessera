@@ -3,6 +3,7 @@
 #include "tessera/ui/behavior/focus_trap.hpp"
 #include "tessera/ui/scene/focus.hpp"
 #include "tessera/ui/scene/input_dispatch.hpp"
+#include "tessera/ui/scene/node.hpp"
 
 namespace tessera::ui::behavior {
 namespace {
