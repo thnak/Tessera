@@ -188,8 +188,8 @@ enum class WindowEventType : std::uint8_t {
     // The window's display work area changed (a taskbar moved, a dock appeared or hid). The metrics
     // carry the new `work_area`. Coalesces into the newest.
     WorkAreaChanged,
-    // A display was added to or removed from the desktop. The metrics describe the display the    // window is on now, so a window that lost its monitor to a hotplug reports its new one.
-    // `display` on the event names the display that appeared or disappeared.
+    // A display was added to or removed from the desktop. The metrics describe the display the
+    // window is on now, so a window that lost its monitor to a hotplug reports its new one.
     DisplayAdded,
     DisplayRemoved,
     // An existing display changed (its mode, position or scale) without being added or removed.
