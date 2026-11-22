@@ -118,6 +118,7 @@ set(TESSERA_VULKAN_RHI_SOURCES
     src/vulkan_device_recovery.cpp
     src/vulkan_descriptor_pool.cpp
     src/vulkan_instance.cpp
+    src/vulkan_timestamp_probe.cpp
     src/vulkan_resources.cpp
     src/vulkan_command_list.cpp
     src/vulkan_command_list_copy.cpp

@@ -209,6 +209,9 @@ private:
     void create_instance();
     void pick_device();
     void create_device();
+    // The GPU-timestamp probe (docs/design/performance.md section 6.1), in
+    // vulkan_timestamp_probe.cpp so device creation stays one responsibility per file.
+    void probe_timestamp_capability(const VkPhysicalDeviceProperties& properties);
     void create_allocator();
     void create_descriptor_layout();
     // The array layout (RHI 1.7, issue #480 part 2): one COMBINED_IMAGE_SAMPLER binding holding
