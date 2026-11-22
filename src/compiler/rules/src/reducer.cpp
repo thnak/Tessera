@@ -198,12 +198,6 @@ const Expr* reducer_switch(const jsx::ModuleItem& helper) {
     return found;
 }
 
-void fail(Context& ctx, std::string message, jsx::Span span) {
-    ctx.error("TESSERA_REACT_REDUCER_FORM", std::move(message), span,
-              "write `function reduce(state: S, action: A): S { switch (action.type) { case "
-              "\"x\": return {...}; } }`, where `A` is a union of `{ type: \"x\" }` objects");
-}
-
 // The helper `name` names, or null when the module does not declare it.
 const jsx::ModuleItem* find_helper(const jsx::Module& module, std::string_view name) {
     for (const jsx::ModuleItem& item : module.items) {
