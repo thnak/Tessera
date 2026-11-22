@@ -268,6 +268,39 @@ public:
         set_cutouts(std::span<const android::PhysicalRect>(converted.data(), count));
     }
 
+    // The fold posture the platform reported. The HAL enum and the decode enum are deliberately
+    // separate: the HAL one is the platform's vocabulary, the decode one is the engine's, and the
+    // mapping between them is the part worth testing.
+    void set_physical_fold(const PhysicalFold& fold) override {
+        android::FoldPosture posture = android::FoldPosture::None;
+        switch (fold.posture) {
+        case PhysicalFoldPosture::Flat:
+            posture = android::FoldPosture::Flat;
+            break;
+        case PhysicalFoldPosture::HalfOpened:
+            posture = android::FoldPosture::HalfOpened;
+            break;
+        case PhysicalFoldPosture::None:
+            posture = android::FoldPosture::None;
+            break;
+        }
+        android::FoldAxis axis = android::FoldAxis::None;
+        switch (fold.axis) {
+        case PhysicalFoldAxis::Horizontal:
+            axis = android::FoldAxis::Horizontal;
+            break;
+        case PhysicalFoldAxis::Vertical:
+            axis = android::FoldAxis::Vertical;
+            break;
+        case PhysicalFoldAxis::None:
+            axis = android::FoldAxis::None;
+            break;
+        }
+        android::PhysicalRect hinge{fold.hinge.left, fold.hinge.top, fold.hinge.right,
+                                    fold.hinge.bottom};
+        set_fold(posture, axis, hinge);
+    }
+
     // The surface the renderer borrows. Invalid once the window is closed or replaced.
     [[nodiscard]] NativeSurface surface() const {
         SurfaceDesc desc;

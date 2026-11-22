@@ -262,8 +262,12 @@ stays inside its size budget.
 
 ### 3.7 What is still missing
 
-- **Fold posture over JNI.** `set_physical_insets` and `set_physical_cutouts` are wired; the fold
-  reader (`FoldingFeature`) is not, so `set_fold` has no caller yet.
+- **Fold posture over JNI.** The decode, the HAL seam (`set_physical_fold`) and its tests are done,
+  but the Java reader is blocked on a dependency decision: `FoldingFeature`/`WindowInfo` live in
+  **`androidx.window`**, not in the platform SDK (`javap` on `android.jar` finds neither). Reading a
+  fold therefore needs an AndroidX dependency in the shell, which is a decision for whoever owns the
+  dependency policy rather than something to slip into this change. Until then the shell reports no
+  fold, which is the same answer a non-foldable gives.
 - **Accessibility** (section 3.4), and the IME's long tail: `setSelection`/`requestCursorUpdates`
   are not forwarded yet, and `performEditorAction` reports "not handled" because the edit controller
   has no Done/Search/Go concept. The compose/commit/delete path is wired.
