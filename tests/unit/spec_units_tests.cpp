@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 //
-// Issue #691, "Done when": *the `stylesheet-v1.md` unit list and the code agree; a test fails if one
-// is added without the other.*
+// Issue #691, "Done when": *the `stylesheet-v1.md` unit list and the code agree; a test fails if
+// one is added without the other.*
 //
 // This is that test. It reads the spec's section 8.1 viewport line out of the repository and checks
 // every unit named there against the shared table, and every unit in the table against the spec. A
-// unit added to one and not the other fails here rather than shipping as a silently unparsed value -
-// which is exactly how `vmin`, `vmax` and the whole small/large/dynamic family were promised by the
-// spec and missing from the code.
+// unit added to one and not the other fails here rather than shipping as a silently unparsed value
+// - which is exactly how `vmin`, `vmax` and the whole small/large/dynamic family were promised by
+// the spec and missing from the code.
 //
 // The spec path is resolved from the source file's own location, so the test works from any build
 // directory. When the file cannot be found the test fails rather than skipping: a check that cannot
@@ -33,8 +33,8 @@ using tessera::ui::style::ViewportSize;
 // Every unit the shared table must know, written out here so the test does not derive its
 // expectation from the table it is checking.
 constexpr std::array<std::string_view, 16> kExpectedUnits = {
-    "vw",   "vh",   "vmin",  "vmax",  "svw",  "svh",  "svmin", "svmax",
-    "lvw",  "lvh",  "lvmin", "lvmax", "dvw",  "dvh",  "dvmin", "dvmax",
+    "vw",  "vh",  "vmin",  "vmax",  "svw", "svh", "svmin", "svmax",
+    "lvw", "lvh", "lvmin", "lvmax", "dvw", "dvh", "dvmin", "dvmax",
 };
 
 bool expect(bool condition, const std::string& message) {
@@ -135,8 +135,9 @@ int main() {
         // names `viewport_units.hpp` and `@media`, which are not units. The list ends at the first
         // full stop.
         const std::size_t stop = line.find('.');
-        const std::string_view list_part =
-            stop == std::string::npos ? std::string_view(line) : std::string_view(line).substr(0, stop);
+        const std::string_view list_part = stop == std::string::npos
+                                               ? std::string_view(line)
+                                               : std::string_view(line).substr(0, stop);
         const std::vector<std::string> named = backticked(list_part);
         ok = expect(!named.empty(), "the spec's viewport line names no units") && ok;
         for (const std::string& name : named) {

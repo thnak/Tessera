@@ -12,11 +12,9 @@ inheritance/computed-style model in `src/ui/style/cascade.cpp`; the top-level pi
 The property registry (supported properties, initial values, box/pair/flex shorthand expansion,
 and diagnostics) is `src/ui/style/property_registry.cpp`; CSS color parsing/SRGB interpolation is
 `src/ui/style/color.cpp` (named/hex/rgb/rgba/hsl/hsla). At-rule application for `@media`
-(width/height/resolution/orientation/color-scheme/reduced-motion), nested media rules, `@keyframes`
-parsing, and `@layer` precedence (plus the generated `Theme` origin) is in
-`src/ui/style/media_query.cpp`, `src/ui/style/keyframes.cpp`, `src/ui/style/supports.cpp`, and
-`src/ui/style/compiled_stylesheet.cpp`. `@supports` evaluates registry-level declarations with
-`not`/`and`/`or`. The semantic matrix and animation runtime remain proposed.
+(width/height/resolution/orientation/color-scheme/reduced-motion/aspect-ratio/hover/pointer,
+`min-`/`max-` and the range form) is in `media_query.cpp`, `keyframes.cpp`, `supports.cpp` and
+`compiled_stylesheet.cpp`. `@supports` evaluates registry-level declarations with `not`/`and`/`or`.
 Decision: [ADR-016](../../decisions/ADR-016-stylesheet-engine.md) (stylesheet engine).
 
 Terms: **V1** is the first release scope ([`AGENTS.md`](../../AGENTS.md#non-negotiables), item 8);
@@ -234,12 +232,8 @@ diagnostic.
 - absolute: `px`, `cm`, `mm`, `in`, `pt`, `pc`, `q`
 - font-relative: `em`, `rem`, `ex`, `ch`
 - viewport: `vw`, `vh`, `vmin`, `vmax`, and the small/large/dynamic forms `svw`, `svh`, `svmin`,
-  `svmax`, `lvw`, `lvh`, `lvmin`, `lvmax`, `dvw`, `dvh`, `dvmin`, `dvmax`. All of them resolve
-  through one table (`viewport_units.hpp`), so layout, grid and `@media` accept the same set. On a
-  viewport whose chrome cannot move - a desktop window - the small, large and dynamic forms equal
-  the plain one; that is the correct answer there, not a fallback. The inline/block-axis forms
-  (`vi`, `vb`, `svi`, ...) are **not** in V1: they need the writing mode, which a length resolver
-  does not have.
+  `svmax`, `lvw`, `lvh`, `lvmin`, `lvmax`, `dvw`, `dvh`, `dvmin`, `dvmax`, all through one table
+  (`viewport_units.hpp`) so layout, grid and `@media` agree; `vi`/`vb` are not in V1.
 - percentage: resolved by the consumer (layout vs paint) with documented rules
 - `calc()` with `+ - * /`, nested `calc()`, and `min()`/`max()`/`clamp()`
 

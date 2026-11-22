@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: MIT
 //
-// The one viewport-unit table (issue #691). Before this file the engine carried three copies of it -
-// `layout_style.cpp` for Yoga lengths, `grid_values.cpp` for track sizes, `media_query.cpp` for
+// The one viewport-unit table (issue #691). Before this file the engine carried three copies of it
+// - `layout_style.cpp` for Yoga lengths, `grid_values.cpp` for track sizes, `media_query.cpp` for
 // `@media` - and all three resolved only `vw` and `vh`, so `vmin`, `vmax` and the whole
 // small/large/dynamic family silently failed to parse even though `stylesheet-v1.md` section 8.1
 // lists them as V1.
 //
-// The small/large/dynamic variants exist because a mobile browser's viewport changes as its toolbars
-// slide away: `sv*` is the smallest (toolbars shown), `lv*` the largest (toolbars hidden), `dv*` the
-// current one. A desktop window has no such chrome, so all three are equal to the plain `v*` value.
-// That is not a shortcut - it is the correct answer for a viewport whose chrome never moves - and
-// `ViewportUnits::has_dynamic_chrome` records the assumption so a platform that can differ has one
-// place to say so.
+// The small/large/dynamic variants exist because a mobile browser's viewport changes as its
+// toolbars slide away: `sv*` is the smallest (toolbars shown), `lv*` the largest (toolbars hidden),
+// `dv*` the current one. A desktop window has no such chrome, so all three are equal to the plain
+// `v*` value. That is not a shortcut - it is the correct answer for a viewport whose chrome never
+// moves - and `ViewportUnits::has_dynamic_chrome` records the assumption so a platform that can
+// differ has one place to say so.
 
 #pragma once
 

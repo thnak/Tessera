@@ -88,9 +88,8 @@ Length parse_length(std::string_view text, const LayoutViewport& viewport) {
         units.width = viewport.width;
         units.height = viewport.height;
         units.font_size = viewport.font_size;
-        return Length{Length::Kind::Points,
-                      static_cast<float>(style::resolve_viewport_length(
-                          style::ViewportLength{size, axis, value}, units))};
+        return Length{Length::Kind::Points, static_cast<float>(style::resolve_viewport_length(
+                                                style::ViewportLength{size, axis, value}, units))};
     }
     if (unit == "pt") {
         return Length{Length::Kind::Points, value * 4.0f / 3.0f};

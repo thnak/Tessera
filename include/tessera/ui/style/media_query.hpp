@@ -41,8 +41,8 @@ struct MediaContext {
     // default because a headless/null window offers no material, so a stylesheet's opaque fallback
     // inside `@media (window-backdrop: none)` applies where the engine cannot show one.
     hal::BackdropMaterial window_backdrop = hal::BackdropMaterial::NoMaterial;
-    // The primary pointing device's capabilities (issue #691). A desktop window with a mouse answers
-    // `hover: hover` and `pointer: fine`; a touch-only device answers `hover: none` and
+    // The primary pointing device's capabilities (issue #691). A desktop window with a mouse
+    // answers `hover: hover` and `pointer: fine`; a touch-only device answers `hover: none` and
     // `pointer: coarse`. The Studio's device preset supplies these for the simulation, so a
     // stylesheet can be previewed as a phone without a phone.
     MediaHover hover = MediaHover::Hover;
@@ -63,8 +63,8 @@ enum class MediaFeature : std::uint8_t {
     // `@media (window-backdrop: none | mica | acrylic | blur)` on the platform's resolved material
     // (glass-v1.md section 6). It is not a request: `auto` never matches.
     WindowBackdrop,
-    // `@media (aspect-ratio: 16/9)` and its `min-`/`max-` forms (issue #691). Compared as a ratio of
-    // two integers, never as a float, so `16/9` is exact.
+    // `@media (aspect-ratio: 16/9)` and its `min-`/`max-` forms (issue #691). Compared as a ratio
+    // of two integers, never as a float, so `16/9` is exact.
     AspectRatio,
     Hover,
     AnyHover,

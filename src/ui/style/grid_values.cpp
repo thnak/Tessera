@@ -71,8 +71,8 @@ std::vector<std::string_view> split_tokens(std::string_view text) {
     return tokens;
 }
 
-// The enumerator for a viewport size/axis pair (issue #691). `None` means the pair has no grid unit,
-// which cannot happen for a pair the shared table produced but keeps the mapping total.
+// The enumerator for a viewport size/axis pair (issue #691). `None` means the pair has no grid
+// unit, which cannot happen for a pair the shared table produced but keeps the mapping total.
 GridLengthUnit grid_unit_for(ViewportSize size, ViewportAxis axis) {
     switch (size) {
     case ViewportSize::Default:
@@ -177,7 +177,6 @@ bool parse_length_percentage(std::string_view token, GridTrackSize& out) {
     out = GridTrackSize{GridTrackKind::Fixed, value, parsed_unit};
     return true;
 }
-
 
 bool parse_breadth(std::string_view token, bool allow_flex, GridTrackSize& out) {
     const std::string text = lower(trim(token));

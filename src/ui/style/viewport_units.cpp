@@ -19,10 +19,10 @@ struct UnitEntry {
     ViewportAxis axis;
 };
 
-// The unit suffixes. `vmin`/`vmax` are the min/max of the two axes; the `s`/`l`/`d` prefixes are the
-// small/large/dynamic viewport. The `vi`/`vb` inline/block-axis forms are deliberately absent: they
-// need the writing mode, which a length resolver does not have, so a caller that has it maps them
-// before asking here.
+// The unit suffixes. `vmin`/`vmax` are the min/max of the two axes; the `s`/`l`/`d` prefixes are
+// the small/large/dynamic viewport. The `vi`/`vb` inline/block-axis forms are deliberately absent:
+// they need the writing mode, which a length resolver does not have, so a caller that has it maps
+// them before asking here.
 constexpr std::array<UnitEntry, 16> kUnits = {{
     // Plain `v*`.
     {"vw", ViewportSize::Default, ViewportAxis::Width},
@@ -46,8 +46,8 @@ constexpr std::array<UnitEntry, 16> kUnits = {{
     {"dvmax", ViewportSize::Dynamic, ViewportAxis::Max},
 }};
 
-// The extents for one size. A viewport without dynamic chrome reports the same extent for all three,
-// which is the correct answer for a desktop window rather than a fallback.
+// The extents for one size. A viewport without dynamic chrome reports the same extent for all
+// three, which is the correct answer for a desktop window rather than a fallback.
 struct Extents {
     double width = 0.0;
     double height = 0.0;
