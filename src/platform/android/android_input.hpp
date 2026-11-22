@@ -48,6 +48,11 @@ public:
     // action it ignores), and the caller should let the platform handle it.
     bool translate(const AInputEvent* event);
 
+    // Queues an event the HOST already translated, for the Java MotionEvent path: the shell is a
+    // Java activity, so the platform reports touch as a Java object and the host maps it with the
+    // pure rules in android_motion_translation.cpp. Returns false when no queue is installed.
+    bool push(const ui::InputEvent& event);
+
 private:
     bool translate_motion(const AInputEvent* event);
     bool translate_key(const AInputEvent* event);

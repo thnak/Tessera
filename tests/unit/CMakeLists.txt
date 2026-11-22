@@ -542,6 +542,16 @@ target_link_libraries(node_size_tests PRIVATE tessera_scene)
 
 add_test(NAME node_size COMMAND node_size_tests)
 
+# The shared text helpers (issue #733): header-only, so this target exists to compile and exercise
+# them on every lane. It links `tessera_style` only to inherit the public include path; the header
+# itself has no dependency.
+add_executable(text_util_tests
+    text_util_tests.cpp)
+
+target_link_libraries(text_util_tests PRIVATE tessera_style)
+
+add_test(NAME text_util COMMAND text_util_tests)
+
 # The paint cache's per-op size budget (issue #731): the assertions are compile-time, so this target
 # exists to compile them on every lane.
 add_executable(paint_op_size_tests
@@ -914,6 +924,21 @@ target_include_directories(android_metrics_tests PRIVATE
 target_link_libraries(android_metrics_tests PRIVATE tessera_hal_metrics)
 
 add_test(NAME android_metrics COMMAND android_metrics_tests)
+
+# Java-MotionEvent translation (issue #189): the shell is a Java activity, so touch arrives as a
+# MotionEvent rather than an AInputEvent. The mapping is pure over plain numbers, so it runs on
+# every lane with no NDK, no JNI and no device.
+add_executable(android_motion_tests
+    hal/android_motion_tests.cpp
+    ${PROJECT_SOURCE_DIR}/src/platform/android/android_motion_translation.cpp
+    ${PROJECT_SOURCE_DIR}/src/platform/android/android_input_translation.cpp)
+
+target_include_directories(android_motion_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src/platform/android)
+
+target_link_libraries(android_motion_tests PRIVATE tessera_input)
+
+add_test(NAME android_motion COMMAND android_motion_tests)
 
 add_executable(diagnostics_crash_tests
     diagnostics_crash_tests.cpp)

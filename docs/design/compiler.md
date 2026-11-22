@@ -67,7 +67,7 @@ Validate before lowering:
 - allowed hooks: `useState`, `useEffect`, `useRef`, `useAnimatedValue` plus built-in library
   hooks declared in the built-in hook manifest (typed signatures, same ordering rules; ADR-036;
   format in [`jsx-subset-v1.md`](../specs/jsx-subset-v1.md) section 7.1)
-- no user-defined custom hooks, context, suspense, portals, or dynamic component types
+- custom hooks expand per call site and never reach the IR ([`custom-hooks-v1.md`](../specs/custom-hooks-v1.md)); no context, suspense, portals, or dynamic component types
 - error boundaries are supported wrappers; codegen guards boundary entry points
 - state setters are used in event handlers/effects, not during render
 - effects have static dependency arrays; no missing/extra deps (V1: exact matching)

@@ -8,6 +8,7 @@
 // responsibility past the file-size limit.
 
 #include "color_functions.hpp"
+#include "tessera/detail/text_util.hpp"
 #include "tessera/ui/style/color_oklch.hpp"
 
 #include <algorithm>

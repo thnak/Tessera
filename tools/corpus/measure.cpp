@@ -37,7 +37,11 @@ FileMeasurement measure_source(std::string path, std::string_view text) {
     FileMeasurement measurement;
     measurement.path = std::move(path);
 
-    const jsx::ModuleParseResult parsed = jsx::parse_module(text);
+    // The same options the CLI and the preview use, so the measurement answers "does the port
+    // compile" for the pipeline a user actually runs. With `custom_hooks` on (the default since
+    // #645) a project-declared `use...` function is expanded before the rules see it.
+    const jsx::FrontEndOptions options;
+    const jsx::ModuleParseResult parsed = jsx::parse_module(text, jsx::Limits{}, options);
     collect(parsed.diagnostics, measurement.errors, measurement.warnings);
     if (parsed.root == nullptr) {
         return measurement;
@@ -49,9 +53,18 @@ FileMeasurement measure_source(std::string path, std::string_view text) {
     }
     // The rules pass needs the map of the same text; it views `text`, which outlives the call.
     const jsx::SourceMap map(text);
-    const rules::AnalyzedModule analyzed = rules::analyze_module(*parsed.root, map);
+    // The expansion runs before the rules (docs/specs/custom-hooks-v1.md section 4), so the
+    // measurement must run it too: without it a custom hook is measured as an unknown hook, which
+    // is the pipeline the front end no longer has.
+    jsx::DiagnosticSink expansion_sink(map, jsx::Limits{});
+    const jsx::ExpansionMetrics expansion =
+        jsx::expand_custom_hooks(*parsed.root, map, options, expansion_sink);
+    collect(expansion_sink.diagnostics(), measurement.errors, measurement.warnings);
+    const rules::AnalyzedModule analyzed =
+        rules::analyze_module(*parsed.root, map, jsx::Limits{}, nullptr, &expansion.call_sites);
     collect(analyzed.diagnostics, measurement.errors, measurement.warnings);
-    measurement.accepted = !parsed.has_errors() && !analyzed.has_errors();
+    measurement.accepted =
+        !parsed.has_errors() && !analyzed.has_errors() && expansion_sink.diagnostics().empty();
     return measurement;
 }
 

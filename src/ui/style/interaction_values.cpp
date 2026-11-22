@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "tessera/detail/text_util.hpp"
 #include "tessera/ui/style/interaction_values.hpp"
 
 #include <algorithm>
@@ -10,16 +11,9 @@
 #include <utility>
 
 namespace tessera::ui::style {
-namespace {
 
-std::string_view trim(std::string_view text) {
-    const auto first = text.find_first_not_of(" \t\r\n\f");
-    if (first == std::string_view::npos) {
-        return {};
-    }
-    const auto last = text.find_last_not_of(" \t\r\n\f");
-    return text.substr(first, last - first + 1);
-}
+using tessera::detail::trim;
+namespace {
 
 bool equals_lower(std::string_view text, std::string_view keyword) {
     if (text.size() != keyword.size()) {

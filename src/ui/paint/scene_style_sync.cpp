@@ -7,6 +7,7 @@
 #include "paint_properties.hpp"
 #include "paint_shadow.hpp"
 #include "paint_text_shadow.hpp"
+#include "tessera/detail/text_util.hpp"
 #include "tessera/ui/paint/scene_style_sync.hpp"
 #include "tessera/ui/style/transform.hpp"
 
@@ -20,6 +21,8 @@
 #include <vector>
 
 namespace tessera::ui::paint {
+
+using tessera::detail::trim;
 namespace {
 
 // How far `node` is from the root, for ordering the scoped sync's ancestor refold.
@@ -29,15 +32,6 @@ std::size_t depth_of(const Node& node) {
         ++depth;
     }
     return depth;
-}
-
-std::string_view trim(std::string_view text) {
-    const auto first = text.find_first_not_of(" \t\r\n\f");
-    if (first == std::string_view::npos) {
-        return {};
-    }
-    const auto last = text.find_last_not_of(" \t\r\n\f");
-    return text.substr(first, last - first + 1);
 }
 
 // `auto` and anything that is not an integer resolve to 0, the CSS stacking default.

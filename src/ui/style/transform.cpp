@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "tessera/detail/text_util.hpp"
 #include "tessera/ui/style/transform.hpp"
 
 #include <algorithm>
@@ -11,27 +12,14 @@
 #include <vector>
 
 namespace tessera::ui::style {
+
+using tessera::detail::lower;
+using tessera::detail::trim;
 namespace {
 
 using rendering::rhi::Mat3;
 
 constexpr float kPi = 3.14159265358979323846f;
-
-std::string_view trim(std::string_view text) {
-    const auto first = text.find_first_not_of(" \t\r\n\f");
-    if (first == std::string_view::npos) {
-        return {};
-    }
-    const auto last = text.find_last_not_of(" \t\r\n\f");
-    return text.substr(first, last - first + 1);
-}
-
-std::string lower(std::string_view text) {
-    std::string result(text);
-    std::transform(result.begin(), result.end(), result.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return result;
-}
 
 bool parse_float(std::string_view text, float& value) {
     const std::string token(trim(text));

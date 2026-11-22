@@ -45,8 +45,8 @@ Codes implemented so far:
 - parsing, `TESSERA_JSX_PARSE_*`: `UNEXPECTED_TOKEN`, `UNCLOSED_ELEMENT`, `MISMATCHED_TAG`,
   `UNKNOWN_ENTITY`, `EMPTY_EXPRESSION`, `MISSING_SEMICOLON`, `MISSING_RETURN`;
 - `TESSERA_JSX_TYPE_NUMBER` (bare `number` in a type), `TESSERA_REACT_CUSTOM_HOOK` (a function
-  named `use...`), `TESSERA_JSX_SUBSET_COMPONENT_NAME` (component not starting with an uppercase
-  letter; not in the spec table, added here);
+  named `use...`, only with `FrontEndOptions::custom_hooks` off), `TESSERA_JSX_SUBSET_COMPONENT_NAME`
+  (component not starting with an uppercase letter; not in the spec table, added here);
 - subset rejections from spec section 12 that are visible in syntax alone,
   `TESSERA_JSX_SUBSET_*`: `DYNAMIC_TAG` (`HTML_TAG` moves to analysis, ADR-039), `LOOSE_EQUALITY`, `OPERATOR`, `MUTATION`,
   `MEMBER` (indexing), `CLASS`, `STATEMENT`, `ASYNC`, `FUNCTION_VALUE`, `IMPORT`, `TYPES`,

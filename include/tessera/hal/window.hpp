@@ -22,7 +22,8 @@
 
 namespace tessera::ui {
 class InputQueue;
-}
+struct InputEvent; // forward-declared: post_input_event takes only a const reference
+} // namespace tessera::ui
 
 namespace tessera::hal {
 
@@ -356,26 +357,42 @@ public:
 
     // Routes translated pointer, wheel, key and text input into `queue` as ui::InputEvent, in
     // logical pixels with the web sign for wheel deltas (see ui/key_code.hpp for key codes). The
-    // queue is not owned: it must outlive the window or be reset with nullptr first. Events are
-    // produced on the window's thread while it pumps messages, and a wait wakes while the queue
-    // holds unconsumed input. Without a queue input is dropped; the default does nothing, for
-    // platforms that do not translate input yet.
+    // queue is not owned: it must outlive the window or be reset with nullptr first. Without a
+    // queue input is dropped; the default does nothing.
     virtual void set_input_queue(ui::InputQueue* queue) {
         (void)queue;
     }
 
     // Offers one platform input event to the window's translator and returns true when it produced
     // at least one queued `ui::InputEvent`. `event` is an opaque platform event (Android:
-    // `AInputEvent*`); only the platform backend interprets it, so no platform type reaches this
-    // header (ADR-020 rule 1).
-    //
-    // It exists for a platform whose input arrives through a callback the host does not own
-    // (Android's `onInputEvent`), so the shell can forward an event without the host exposing the
-    // platform types. Every other platform pumps input from `wait_for_events`/`poll_events`, so the
-    // default returns false and nothing else calls it. Must be called on the window's thread.
+    // `AInputEvent*`): only the backend interprets it, so no platform type reaches this header
+    // (ADR-020 rule 1). For input that arrives through a callback the host does not own. The
+    // default returns false. Must be called on the window's thread.
     virtual bool translate_input(const void* event) {
         (void)event;
         return false;
+    }
+
+    // Queues one already-normalized event, for a platform whose input the HOST translates because
+    // the platform reports it as an object rather than a native event (Android's Java
+    // `MotionEvent`). Returns false when the window has no queue; call on the window's thread.
+    virtual bool post_input_event(const ui::InputEvent& event) {
+        (void)event;
+        return false;
+    }
+
+    // The platform's window-metrics signals, for a platform that reports them through a callback
+    // the host does not own (Android's `WindowInsets`/`DisplayCutout` over JNI). Values are
+    // PHYSICAL pixels; the backend converts them to logical ones. Cutouts keep at most
+    // `kMaxCutouts`.
+    virtual void set_physical_insets(const PhysicalInsets& system_bars, const PhysicalInsets& ime,
+                                     const PhysicalInsets& gestures) {
+        (void)system_bars;
+        (void)ime;
+        (void)gestures;
+    }
+    virtual void set_physical_cutouts(std::span<const PhysicalRect> rects) {
+        (void)rects;
     }
 
     // Installs the UIA root handshake (see AccessibilityRoot). Must be called on the window's

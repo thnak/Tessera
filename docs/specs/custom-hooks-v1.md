@@ -9,10 +9,10 @@ component after every call is expanded, which is what the rules, lowering and co
 
 ## 1. Scope and state of the code
 
-Today the front end rejects any project-declared `use...` function with `TESSERA_REACT_CUSTOM_HOOK`
-(`jsx-subset-v1.md` section 7, `src/compiler/rules/src/hooks.cpp`). This spec replaces that rejection
-for the forms below; every other form keeps a diagnostic (section 9). Nothing here is implemented.
-The core hooks, the library hook manifest and the behavior hooks
+Implemented. `src/compiler/analyzer/src/hook_expansion.cpp` is the pass, `parser_hook.cpp` parses a
+declaration, and `FrontEndOptions::custom_hooks` (on by default since #645) selects it; with the
+switch off the old `TESSERA_REACT_CUSTOM_HOOK` rejection is what a caller sees. The core hooks, the
+library hook manifest and the behavior hooks
 ([`behavior-hooks-v1.md`](behavior-hooks-v1.md)) are unchanged; a custom hook is built from them.
 
 ## 2. Declaration
@@ -113,7 +113,7 @@ A tuple or object return that mixes types is allowed: each element keeps its own
 | Library `environment` hooks | yes | The environment entry is per call site |
 | Behavior hooks | yes | The behavior and its output ids are per call site |
 | Other custom hooks | yes | Depth 8; cycles are `TESSERA_REACT_HOOK_CYCLE` |
-| `useService<T>()` | not in V1 | `TESSERA_REACT_HOOK_SERVICE`: two expansions would require one interface twice, which the code generator refuses; a service is read in the component and passed as an argument. Open item |
+| `useService<T>()` | not in V1 | `TESSERA_REACT_HOOK_SERVICE`: two expansions would require one interface twice, which the code generator refuses; a service is read in the component and passed as an argument. **Not yet emitted**: `useService` has no front-end form (no manifest entry, no core-hook entry), so the rule guards a form that cannot be written today. The code is reserved, not reachable |
 
 ## 7. Limits
 
@@ -150,7 +150,7 @@ All are errors unless stated; new codes are registered with a fixture in `diagno
 | `TESSERA_REACT_HOOK_CYCLE` | A hook calls itself directly or through other hooks |
 | `TESSERA_REACT_HOOK_DEPTH` | Expansion deeper than 8 |
 | `TESSERA_REACT_HOOK_SIZE` | Expansion adds more than 400 statements (a warning from 200) |
-| `TESSERA_REACT_HOOK_SERVICE` | `useService` inside a custom hook |
+| `TESSERA_REACT_HOOK_SERVICE` | `useService` inside a custom hook (reserved: no front-end form yet, see section 6) |
 | `TESSERA_REACT_HOOK_ORDER` | Unchanged; checked on the expanded component |
 
 ## 10. Versioning

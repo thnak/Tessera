@@ -1,14 +1,14 @@
 corpus: 50 file(s)
-front end accepted: 24 (48.0%), 26 rejected
-front end accepted with a component declaration: 24 (48.0%)
-pipeline accepted: 11 (22.0%)
+front end accepted: 25 (50.0%), 25 rejected
+front end accepted with a component declaration: 25 (50.0%)
+pipeline accepted: 12 (24.0%)
 warnings: 0
 
 front-end rejections (code, occurrences, files):
-  TESSERA_JSX_PARSE_UNEXPECTED_TOKEN 8 8
+  TESSERA_JSX_PARSE_UNEXPECTED_TOKEN 7 7
   TESSERA_JSX_SUBSET_IMPORT 4 4
-  TESSERA_REACT_UNKNOWN_HOOK 4 4
   TESSERA_JSX_SUBSET_ARRAY_METHOD 3 3
+  TESSERA_REACT_UNKNOWN_HOOK 3 3
   TESSERA_REACT_UNSUPPORTED_API 3 3
   TESSERA_JSX_PARSE_MISSING_SEMICOLON 1 1
   TESSERA_JSX_SUBSET_DOM 1 1
@@ -17,7 +17,6 @@ front-end rejections (code, occurrences, files):
   TESSERA_JSX_SUBSET_MUTATION 1 1
   TESSERA_JSX_SUBSET_OPERATOR 1 1
   TESSERA_JSX_SUBSET_STATEMENT 1 1
-  TESSERA_REACT_CUSTOM_HOOK 1 1
   TESSERA_REACT_EFFECT_DEPS 1 1
   TESSERA_REACT_HOOK_ORDER 1 1
 
@@ -33,7 +32,6 @@ front-end first rejections (code, files):
   TESSERA_JSX_SUBSET_MUTATION 1
   TESSERA_JSX_SUBSET_OPERATOR 1
   TESSERA_JSX_SUBSET_STATEMENT 1
-  TESSERA_REACT_CUSTOM_HOOK 1
   TESSERA_REACT_EFFECT_DEPS 1
   TESSERA_REACT_HOOK_ORDER 1
   TESSERA_REACT_UNSUPPORTED_API 1
@@ -53,7 +51,6 @@ pipeline rejections (first blocking code, files):
   TESSERA_JSX_SUBSET_MUTATION 1
   TESSERA_JSX_SUBSET_OPERATOR 1
   TESSERA_JSX_SUBSET_STATEMENT 1
-  TESSERA_REACT_CUSTOM_HOOK 1
   TESSERA_REACT_EFFECT_DEPS 1
   TESSERA_REACT_HOOK_ORDER 1
   TESSERA_REACT_UNSUPPORTED_API 1
@@ -102,7 +99,7 @@ files:
   accepted react/hooks/use-ref-focus.tsx components=1 pipeline=ok
   accepted react/hooks/use-state-typed.tsx components=1 pipeline=ok
   accepted react/rejected/browser-api.tsx components=1 pipeline=TESSERA_IR_UNRESOLVED
-  rejected react/rejected/custom-hook.tsx components=2: TESSERA_REACT_CUSTOM_HOOK TESSERA_JSX_PARSE_UNEXPECTED_TOKEN TESSERA_REACT_UNKNOWN_HOOK pipeline=TESSERA_REACT_CUSTOM_HOOK
+  accepted react/rejected/custom-hook.tsx components=1 pipeline=ok
   rejected react/rejected/dangerous-html.tsx components=1: TESSERA_JSX_SUBSET_DOM pipeline=TESSERA_JSX_SUBSET_DOM
   rejected react/rejected/forward-ref.tsx components=0: TESSERA_JSX_PARSE_MISSING_SEMICOLON TESSERA_JSX_PARSE_UNEXPECTED_TOKEN pipeline=TESSERA_JSX_PARSE_MISSING_SEMICOLON
   rejected react/rejected/portal.tsx components=1: TESSERA_JSX_PARSE_UNEXPECTED_TOKEN pipeline=TESSERA_JSX_PARSE_UNEXPECTED_TOKEN

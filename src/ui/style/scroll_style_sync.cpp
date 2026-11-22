@@ -4,6 +4,7 @@
 // that feed the scroll controller (`src/ui/scene/scroll.cpp`) and never trigger layout.
 // `scrollbar-gutter` stays a layout input and is read directly by layout_style.cpp.
 
+#include "tessera/detail/text_util.hpp"
 #include "tessera/ui/style/compiled_stylesheet.hpp"
 #include "tessera/ui/style/scene_style.hpp"
 #include "tessera/ui/style/scroll_style_sync.hpp"
@@ -14,16 +15,9 @@
 #include <string_view>
 
 namespace tessera::ui::style {
-namespace {
 
-std::string_view trim(std::string_view text) {
-    const auto first = text.find_first_not_of(" \t\r\n\f");
-    if (first == std::string_view::npos) {
-        return {};
-    }
-    const auto last = text.find_last_not_of(" \t\r\n\f");
-    return text.substr(first, last - first + 1);
-}
+using tessera::detail::trim;
+namespace {
 
 std::string keyword(const ComputedStyle& style, const char* property) {
     const std::string* value = style.find(property);

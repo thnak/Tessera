@@ -32,7 +32,8 @@ accepts today (`react-compat.md`, `jsx-subset-v1.md`, `appfw`, ADR-036/039/051):
 | Build | `vite.config.ts`, `index.html`, `public/`, `import.meta.env`, tsconfig `paths`, `?raw`/`?url`/glob imports, HMR | `tessera.json` (entry, `packages`, assets, build); live edit through the Wasm designer; no `import.meta.env`, no aliases, no glob imports |
 | Language | TypeScript: `interface`, `enum`, generics, utility types, intersections, `?.`, `??`, `if`/`let`/`for` in handlers | `type` aliases, string-literal unions, `T \| null`, records (ADR-051). Rejected: `interface`, `enum`, user generics, intersections, `as`, `any`, `?.`, `??`, statements in handlers |
 | React core | `useState`, `useEffect`, `useRef` | Supported. `useMemo`/`useCallback` lower in safe forms |
-| | `useReducer`, `useContext`, `useId`, `useLayoutEffect`, custom hooks, `memo`, `lazy`, `Suspense`, portals, `forwardRef` | Not supported (`TESSERA_REACT_CUSTOM_HOOK`, member tags rejected, ...) |
+| | `useReducer`, `useContext`, `useId`, `useLayoutEffect`, `memo`, `lazy`, `Suspense`, portals, `forwardRef` | Not supported (`TESSERA_REACT_UNSUPPORTED_API`, member tags rejected, ...) |
+| | Custom hooks | Supported: expanded at each call site ([ADR-065](ADR-065-custom-hooks-by-compile-time-inlining.md)) |
 | Routing | react-router, TanStack Router | C++ `RouteTable`, `NavController`, deep links, restore exist (`tessera_appfw_navigation`); no TSX surface |
 | Client state | Redux Toolkit, Zustand, Jotai, Context | `Observable<T>` in `appfw`; no TSX surface |
 | Server data | fetch, axios, TanStack Query, SWR, WebSocket, GraphQL clients | C++ net client with fakes; no TSX surface |

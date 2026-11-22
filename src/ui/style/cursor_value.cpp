@@ -4,6 +4,7 @@
 // validator, `@supports` and the computed-style -> scene sync. Keeping it one table is what makes
 // `@supports (cursor: pointer)` agree with what the validator accepts and what the scene stores.
 
+#include "tessera/detail/text_util.hpp"
 #include "tessera/ui/style/cascade.hpp"
 #include "tessera/ui/style/cursor_value.hpp"
 
@@ -14,16 +15,9 @@
 #include <utility>
 
 namespace tessera::ui::style {
-namespace {
 
-std::string_view trim(std::string_view text) noexcept {
-    const auto first = text.find_first_not_of(" \t\r\n\f");
-    if (first == std::string_view::npos) {
-        return {};
-    }
-    const auto last = text.find_last_not_of(" \t\r\n\f");
-    return text.substr(first, last - first + 1);
-}
+using tessera::detail::trim;
+namespace {
 
 bool equals_lower(std::string_view text, std::string_view keyword) noexcept {
     if (text.size() != keyword.size()) {

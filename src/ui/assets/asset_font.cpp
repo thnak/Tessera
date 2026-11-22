@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "tessera/detail/text_util.hpp"
 #include "tessera/ui/assets/asset_font.hpp"
 
 #include <cstddef>
@@ -7,6 +8,7 @@
 #include <utility>
 
 namespace tessera::ui::assets {
+
 namespace {
 
 [[nodiscard]] std::span<const std::uint8_t> as_u8(std::span<const std::byte> bytes) noexcept {

@@ -220,7 +220,7 @@ Hard errors:
 - unknown/non-literal `element`, unknown element prop/event, missing shader, or `CustomElement`
   with children
 - `TextInput`/`TextArea` with children or unsupported props/event payloads
-- dynamic component types, context, suspense, custom hooks
+- dynamic component types, context, suspense
 - missing list key or non-static loop source; a loop `item`/`index` that is empty, dotted or equal
   (`TESSERA_IR_LOOP`); a virtual collection without an `itemTemplate`, an item template without its
   `loop`, or a condition on it (`TESSERA_IR_VIRTUAL`)

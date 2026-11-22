@@ -10,6 +10,25 @@
 
 namespace tessera::hal {
 
+// One side's inset in PHYSICAL pixels, as a platform reports it before the engine converts to the
+// logical pixels `WindowMetrics` carries. Android's `WindowInsets` is the source; the decode rules
+// live in the platform backend and are unit-tested there.
+struct PhysicalInsets {
+    std::int32_t left = 0;
+    std::int32_t top = 0;
+    std::int32_t right = 0;
+    std::int32_t bottom = 0;
+};
+
+// A rectangle in PHYSICAL pixels, window coordinates. Android's `DisplayCutout.getBoundingRects()`
+// reports right/bottom as exclusive edges, which the decode converts to x/y/width/height.
+struct PhysicalRect {
+    std::int32_t left = 0;
+    std::int32_t top = 0;
+    std::int32_t right = 0;
+    std::int32_t bottom = 0;
+};
+
 // Opaque native handles for renderer integration; UI/components must keep using WindowMetrics.
 // Win32: `window` is the HWND, `display` is unused. X11: `display` is the Display* and `window` the
 // Window id. Wayland: `display` is the wl_display* and `window` the wl_surface*. Android: `window`

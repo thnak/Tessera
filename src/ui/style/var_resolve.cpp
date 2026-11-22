@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "color_functions.hpp"
+#include "tessera/detail/text_util.hpp"
 #include "tessera/ui/style/cascade.hpp"
 
 #include <algorithm>
@@ -15,6 +16,7 @@
 #include <vector>
 
 namespace tessera::ui::style {
+
 namespace {
 
 // A hard cap keeps a pathological custom-property chain bounded; the dependency graph walk above
@@ -27,10 +29,6 @@ constexpr int kMaxVarDepth = 32;
 
 char ascii_lower(char c) {
     return static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-}
-
-bool is_space(char c) {
-    return std::isspace(static_cast<unsigned char>(c)) != 0;
 }
 
 bool is_custom_property_name(std::string_view name) {
@@ -123,15 +121,7 @@ std::size_t find_comma(std::string_view text) {
 }
 
 std::string trim(std::string_view text) {
-    std::size_t first = 0;
-    std::size_t last = text.size();
-    while (first < last && is_space(text[first])) {
-        ++first;
-    }
-    while (last > first && is_space(text[last - 1])) {
-        --last;
-    }
-    return std::string(text.substr(first, last - first));
+    return std::string(tessera::detail::trim(text));
 }
 
 void collect_references(std::string_view value, std::vector<std::string>& out, int depth = 0) {

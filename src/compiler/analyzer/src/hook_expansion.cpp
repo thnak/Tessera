@@ -465,7 +465,11 @@ ExpansionMetrics expand_custom_hooks(Module& module, const SourceMap& map,
         }
         const std::size_t before = item.body.size();
         expander.expand_component(item);
-        const std::size_t added = item.body.size() - before;
+        // The expansion can SHRINK the body: a hook whose body is only a `return` contributes no
+        // statements, so the call statement is replaced by nothing. Subtracting the sizes would
+        // underflow to SIZE_MAX and report a size error for a hook that added no code at all.
+        const std::size_t after = item.body.size();
+        const std::size_t added = after > before ? after - before : 0;
         metrics.added_statements.push_back(added);
         if (added > kMaxStatements) {
             sink.error("TESSERA_REACT_HOOK_SIZE",

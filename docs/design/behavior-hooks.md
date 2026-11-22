@@ -13,7 +13,8 @@ one behavior created for one component instance.
   hooks of the library manifest ([`jsx-subset-v1.md`](../specs/jsx-subset-v1.md) section 7.1). A
   manifest hook has one lowering kind, `environment`: no parameters, a read-only value (or a value and
   a setter) from an engine provider.
-- A hook declared in the project is rejected (`TESSERA_REACT_CUSTOM_HOOK`).
+- A hook declared in the project is a custom hook and is expanded
+  ([`custom-hooks-v1.md`](../specs/custom-hooks-v1.md)).
 - Code generation does not emit library hooks yet: `emit_component.cpp` reports that `environment` hooks "are a later slice". The behavior kind therefore also finishes the generic library-hook path in codegen, not only adds a kind.
 - The behavior primitives of `packages/tessera-ui/primitives/` (Press, FocusScope, RovingFocus,
   Toggle, ...) are TSX **components**, each drawing nothing, wrapped around their children.
