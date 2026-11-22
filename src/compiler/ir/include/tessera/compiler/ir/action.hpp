@@ -24,7 +24,12 @@ struct Param {
 // through an unset callback is a no-op.
 // `If` (ADR-066 item 2) is the conditional action: `guard` is the pure bool condition and the two
 // lists are the branches. It is how `if`/`else` and an early `return` in a handler body lower.
-enum class ActionKind : std::uint8_t { Set, AnimSet, Focus, Blur, CallProp, If };
+// `If` (ADR-066 item 2) is the conditional action: `guard` is the pure bool condition and the two
+// lists are the branches. It is how `if`/`else` and an early `return` in a handler body lower.
+// `Dispatch` (ADR-066 item 4) is one `dispatch({ type: "x" })`: `target` is the reducer state's
+// `state::` id and `action` the `type` literal. The generated listener indexes the state's dispatch
+// table and calls the handler it names, so the component needs no new state kind.
+enum class ActionKind : std::uint8_t { Set, AnimSet, Focus, Blur, CallProp, If, Dispatch };
 
 // The spring driver of `v.set(x, { spring })`: an alternative to `duration`/`easing`. The defaults
 // are the runtime's (`SpringConfig`: stiffness 180, damping 20, mass 1).
@@ -42,6 +47,11 @@ struct Action {
     std::string target; // state::x or anim::x
     ExprPtr value;
     bool animate = true; // AnimSet only
+    // ADR-066 item 4: the `type` literal of a `dispatch({ type: "x" })` (Dispatch only). Empty for
+    // every other kind, and for a dispatch that carries no literal `type`, which the validator
+    // rejects because the dispatch table is keyed by it. Declared after `animate` so every existing
+    // positional aggregate initializer keeps its meaning.
+    std::string action;
     // AnimSet only, and only when `animate` is true: the literal timing options of
     // `v.set(x, { duration, easing })`. Absent means the runtime default (200 ms, ease-out).
     // Default member initializers keep `{kind, target, value, animate}` aggregate initializers

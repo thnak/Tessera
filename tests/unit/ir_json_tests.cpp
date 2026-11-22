@@ -288,6 +288,37 @@ void test_output_is_deterministic() {
 
 } // namespace
 
+// ADR-066 item 4: a `useReducer` state carries its dispatch table, and a `dispatch(...)` names the
+// state and the `type` literal. A `useState` has neither, so its entry stays byte-identical.
+void test_dispatch_table_and_action() {
+    ir::IrModule module = make_counter_module();
+    ir::Component& component = module.components.front();
+    component.state.front().dispatch.push_back(ir::DispatchCase{"increment", "handler::1"});
+    component.state.front().dispatch.push_back(ir::DispatchCase{"", "handler::2"});
+
+    ir::Handler dispatch;
+    dispatch.id = "handler::9";
+    dispatch.source = component.source;
+    ir::Action action;
+    action.kind = ir::ActionKind::Dispatch;
+    action.target = component.state.front().id;
+    action.action = "increment";
+    dispatch.actions.push_back(std::move(action));
+    component.handlers.push_back(std::move(dispatch));
+
+    const std::string text = ir::write_ir_json(module);
+    check(text.find("\"dispatch\"") != std::string::npos, "the state writes its dispatch table");
+    check(text.find("\"action\": \"increment\"") != std::string::npos,
+          "a case writes its action literal");
+    check(text.find("\"default\": true") != std::string::npos, "a `default` case is marked");
+    check(text.find("\"kind\": \"dispatch\"") != std::string::npos, "the action writes its kind");
+
+    // A `useState` module has no dispatch key at all, which is what keeps every existing golden
+    // byte-identical.
+    const std::string plain = ir::write_ir_json(make_counter_module());
+    check(plain.find("\"dispatch\"") == std::string::npos, "a `useState` writes no dispatch table");
+}
+
 int main(int argc, char** argv) {
     if (argc > 1 && std::string_view(argv[1]) == "--write") {
         // Deliberate golden update: run with --write after an intentional writer change, then
@@ -303,6 +334,7 @@ int main(int argc, char** argv) {
         return finish("ir json golden update");
     }
     test_expression_forms();
+    test_dispatch_table_and_action();
     test_array_expression();
     test_value_position_is_bare_for_literals_only();
     test_malformed_ir_is_written_with_gaps();

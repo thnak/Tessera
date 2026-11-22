@@ -47,6 +47,9 @@ struct ComponentScope {
     std::unordered_map<std::string, std::string> declared_types;
     // Section 3.4: the component declares the `children` prop, so it may place a `Slot`.
     bool declares_children = false;
+    // ADR-066 item 4: the `type` literals each `useReducer` state dispatches to, keyed by the
+    // state's IR id. A state absent from this map is a plain `useState`, which has no dispatch.
+    std::unordered_map<std::string, std::unordered_set<std::string>> dispatch;
 };
 
 // Local names in scope (loop item and index, handler parameters).

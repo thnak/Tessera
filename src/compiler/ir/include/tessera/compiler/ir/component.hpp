@@ -22,11 +22,23 @@ struct Prop {
     bool optional = false;
 };
 
+// One `case` of a reducer (ADR-066 item 4): the action's `type` literal and the handler the case
+// became. `default` has an empty `action`.
+struct DispatchCase {
+    std::string action;  // the `type` literal (`"increment"`); empty for `default`
+    std::string handler; // `handler::<N>`
+};
+
 struct State {
     std::string id;
     std::string name;
     std::string type;
     ExprPtr initial;
+    // ADR-066 item 4: the dispatch table of a `useReducer` state, in `case` order. Empty for every
+    // `useState`, which is what keeps each existing golden byte-identical. A `dispatch(...)` call
+    // reads this rather than a second IR concept, so the reducer needs no new state kind: it is one
+    // state cell plus one handler per case.
+    std::vector<DispatchCase> dispatch{};
 };
 
 struct Effect {

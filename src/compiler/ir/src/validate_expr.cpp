@@ -360,6 +360,18 @@ void validate_on_complete(ValidationContext& context, const ComponentScope& scop
     }
 }
 
+// ADR-066 item 4: whether `action` is one of the `type` literals `state_id`'s reducer handles.
+bool has_dispatch_case(const ComponentScope& scope, const std::string& state_id,
+                       const std::string& action) {
+    const auto table = scope.dispatch.find(state_id);
+    if (table == scope.dispatch.end()) {
+        // Not a reducer state; the caller reports that, so this answers "no" without a second
+        // diagnostic.
+        return true;
+    }
+    return table->second.count(action) != 0;
+}
+
 void validate_actions(ValidationContext& context, const ComponentScope& scope,
                       const LocalNames& locals, const std::vector<Action>& actions,
                       const SourceSpan& where) {
@@ -380,6 +392,38 @@ void validate_actions(ValidationContext& context, const ComponentScope& scope,
             }
             validate_actions(context, scope, locals, action.then_actions, where);
             validate_actions(context, scope, locals, action.else_actions, where);
+            continue;
+        }
+        // ADR-066 item 4: a `dispatch({ type: "x" })` names a reducer state and one of the `type`
+        // literals in its dispatch table. The table is the authority, so a literal it does not list
+        // is unresolved rather than silently a no-op.
+        if (action.kind == ActionKind::Dispatch) {
+            if (!starts_with(action.target, "state::") || scope.ids.count(action.target) == 0) {
+                context.report("TESSERA_IR_UNRESOLVED",
+                               "dispatch target `" + action.target + "` is not a state variable",
+                               where);
+                continue;
+            }
+            if (action.action.empty()) {
+                context.report("TESSERA_IR_MALFORMED",
+                               "a dispatch needs the action's `type` literal", where);
+                continue;
+            }
+            if (action.value) {
+                context.report("TESSERA_IR_MALFORMED",
+                               "a dispatch in the limited form carries no value", where);
+            }
+            const std::string& state_id = action.target;
+            if (scope.dispatch.count(state_id) == 0) {
+                context.report(
+                    "TESSERA_IR_UNRESOLVED",
+                    "`" + state_id + "` is not a `useReducer` state, so it has no dispatch", where);
+            } else if (!has_dispatch_case(scope, state_id, action.action)) {
+                context.report("TESSERA_IR_UNRESOLVED",
+                               "action `" + action.action + "` is not a case of `" + state_id +
+                                   "`'s reducer",
+                               where);
+            }
             continue;
         }
         if (action.kind == ActionKind::Focus || action.kind == ActionKind::Blur) {
