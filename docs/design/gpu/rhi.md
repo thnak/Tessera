@@ -35,8 +35,8 @@ RHI versioning and capabilities (ADR-049):
 
 - `include/tessera/rendering/rhi/version.hpp` defines the published RHI contract version as
   `kRhiVersionMajor`, `kRhiVersionMinor`, and `kRhiVersion = (major << 16) | minor`
-  (`1.0` / `0x00010000` for the first published version). The current contract is **1.7**
-  (`0x00010007`): 1.0 is the B1 surface; 1.1 adds `CommandList::copy_target_region` for the
+  (`1.0` / `0x00010000` for the first published version). The current contract is **1.11**
+  (`0x0001000b`): 1.0 is the B1 surface; 1.1 adds `CommandList::copy_target_region` for the
   isolated-layer seam (issue #242, [`offscreen-layers.md`](offscreen-layers.md)); 1.2 adds the
   swapchain composite-alpha request and the resolved-mode query (glass-v1.md section 6, issue #243);
   1.3 adds the sampled view of an offscreen render target (`CommandList::bind_sampled_target` plus
