@@ -160,6 +160,7 @@ std::unique_ptr<rhi::Buffer> VulkanDevice::create_buffer(const rhi::BufferDesc& 
 
     resource_created();
     account_buffer(static_cast<std::int64_t>(desc.size), epoch_);
+    account_category(buffer_category(desc.usage), static_cast<std::int64_t>(desc.size), epoch_);
     return std::make_unique<VulkanBuffer>(this, epoch_, allocator_, buffer, allocation, desc.size,
                                           allocated.pMappedData, desc.usage);
 }
@@ -278,6 +279,7 @@ VulkanDevice::create_render_target(const rhi::RenderTargetDesc& desc) {
         const std::int64_t target_bytes =
             render_target_bytes(desc.extent, desc.format, sample_count);
         account_image(target_bytes, epoch_);
+        account_category(rhi::MemoryCategory::RenderTarget, target_bytes, epoch_);
         try {
             return std::make_unique<VulkanRenderTarget>(
                 this, epoch_, device_, allocator_, render_image.image, view,
@@ -285,6 +287,7 @@ VulkanDevice::create_render_target(const rhi::RenderTargetDesc& desc) {
                 resolve_view, resolve_image.allocation, sample_count, desc.filter, desc.address);
         } catch (...) {
             account_image(-target_bytes, epoch_);
+            account_category(rhi::MemoryCategory::RenderTarget, -target_bytes, epoch_);
             resource_destroyed();
             throw;
         }
@@ -351,6 +354,12 @@ rhi::DeviceMemoryStats VulkanDevice::memory_statistics() const {
     stats.allocation_bytes = total.total.statistics.allocationBytes;
     stats.block_count = total.total.statistics.blockCount;
     stats.allocation_count = total.total.statistics.allocationCount;
+    // Per-category live bytes and peak (RHI 1.14, issue #703). These are the device's own tally,
+    // not a second one derived from VMA: VMA knows a block's size, not what the block is for.
+    for (std::size_t i = 0; i < rhi::kMemoryCategoryCount; ++i) {
+        stats.categories[i].live_bytes = static_cast<std::uint64_t>(category_bytes_[i]);
+        stats.categories[i].peak_bytes = category_peak_bytes_[i];
+    }
     return stats;
 }
 

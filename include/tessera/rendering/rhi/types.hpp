@@ -194,6 +194,46 @@ enum class TextureFormat : std::uint8_t {
 // It is appended last so no existing enumerator changes value.
 enum class BufferUsage : std::uint8_t { Vertex, Index, Uniform, Staging, Readback, Storage };
 
+// The memory category a resource is charged to (RHI 1.14, issue #703). memory-model-v1 section 4
+// asks for explicit per-category GPU budgets, and a budget needs a category to attach to: the
+// allocator's totals say how much the device holds, not what it is holding it *for*, so a texture
+// regression and a vertex-buffer regression look identical in `DeviceMemoryStats::image_bytes`.
+//
+// The split is by *purpose*, not by resource kind, because that is what a budget can act on: a
+// glyph atlas page and a decoded image are both textures, but only one of them is bounded by the
+// atlas page limit. `Other` is the honest default for a resource whose purpose the RHI cannot know
+// (a caller that creates a texture directly), so an untagged resource is visible rather than
+// silently attributed to a category it may not belong to.
+//
+// Appended as a new enum rather than folded into `BufferUsage`: a texture has no `BufferUsage`, and
+// the categories span both resource kinds.
+enum class MemoryCategory : std::uint8_t {
+    Vertex,
+    Index,
+    Uniform,
+    Staging,
+    Readback,
+    Storage,
+    Texture,
+    RenderTarget,
+    GlyphAtlas,
+    PathCache,
+    Other,
+};
+
+// Number of `MemoryCategory` values, for a fixed-size per-category array. Kept beside the enum so
+// adding a category without widening the arrays is a compile error rather than a silent truncation.
+inline constexpr std::size_t kMemoryCategoryCount = 11;
+
+// Per-category live bytes and the high-water mark since the device was created (RHI 1.14, issue
+// #703). `peak_bytes` is what makes a transient spike visible: a staging buffer that exists for one
+// upload is gone by the time anyone samples, so the live figure alone understates what the device
+// had to find room for.
+struct MemoryCategoryStats {
+    std::uint64_t live_bytes = 0;
+    std::uint64_t peak_bytes = 0;
+};
+
 enum class Filter : std::uint8_t { Nearest, Linear };
 
 enum class AddressMode : std::uint8_t { ClampToEdge, Repeat };
@@ -275,6 +315,11 @@ struct TextureDesc {
     // `Device::supports_texture_mipmaps(format)` is true; otherwise `create_texture` throws. A
     // mipmapped texture is immutable: `Texture::write` throws, because the chain would go stale.
     std::uint32_t levels = 1;
+    // Which budget this texture is charged to (RHI 1.14, issue #703). The default is `Other`, so a
+    // caller that does not care is counted and visible rather than misattributed. A cache that owns
+    // a bounded pool (the glyph atlas, the path cache) sets its own category so its budget row can
+    // be checked against the device's own accounting instead of a second, drifting tally.
+    MemoryCategory category = MemoryCategory::Other;
 };
 
 // The length of a complete mip chain for a base extent: floor(log2(max(width, height))) + 1.

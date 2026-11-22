@@ -60,8 +60,15 @@ namespace tessera::rendering::rhi {
 // side of the transfer function the pipeline is on, and a backend's surface-format choice changes
 // accordingly. Behaviour-compatible for every caller that reads `Swapchain::format()`; the minor
 // moves because the documented contract changed.
+// 1.14 (2026-11-22): additive `MemoryCategory`, `MemoryCategoryStats`, `TextureDesc::category` and
+// `DeviceMemoryStats::categories` (issue #703). memory-model-v1 section 4 asks for explicit
+// per-category GPU budgets, and a budget needs a category to attach to: the allocator's totals say
+// how much the device holds, not what it holds it for. The new fields are appended with defaults
+// (`Other`, all-zero), so every existing caller compiles and behaves unchanged and a backend that
+// does not fill the categories reports zeros rather than a wrong attribution. The minor moves
+// because `DeviceMemoryStats` grew, which is an ABI change for anything that copies it by value.
 inline constexpr std::uint32_t kRhiVersionMajor = 1;
-inline constexpr std::uint32_t kRhiVersionMinor = 13;
+inline constexpr std::uint32_t kRhiVersionMinor = 14;
 inline constexpr std::uint32_t kRhiVersion = (kRhiVersionMajor << 16) | kRhiVersionMinor;
 
 } // namespace tessera::rendering::rhi

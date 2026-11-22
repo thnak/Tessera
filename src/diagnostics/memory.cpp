@@ -2,6 +2,8 @@
 
 #include "tessera/diagnostics/memory.hpp"
 
+#include <string>
+
 #if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
@@ -121,16 +123,44 @@ ProcessMemory MemoryGauges::sample() noexcept {
     return memory;
 }
 
+namespace {
+
+// The gauge-name stem for each category, in `rhi::MemoryCategory` order (issue #703). A table
+// rather than a switch so the names and the enum cannot drift apart silently:
+// `kGpuMemoryCategoryCount` is asserted against the table length below.
+constexpr const char* kCategoryNames[] = {
+    "vertex",  "index",         "uniform",     "staging",    "readback", "storage",
+    "texture", "render_target", "glyph_atlas", "path_cache", "other",
+};
+
+static_assert(std::size(kCategoryNames) == kGpuMemoryCategoryCount,
+              "every MemoryCategory needs a gauge name");
+
+} // namespace
+
 GpuMemoryGauges::GpuMemoryGauges(MetricsRegistry& registry)
     : registry_(&registry),
       ids_{registry.add_gauge("gpu.buffer_bytes"), registry.add_gauge("gpu.image_bytes"),
-           registry.add_gauge("gpu.block_bytes"), registry.add_gauge("gpu.allocation_bytes")} {}
+           registry.add_gauge("gpu.block_bytes"), registry.add_gauge("gpu.allocation_bytes")} {
+    // One live and one peak gauge per category. Registration allocates, which is why it happens
+    // here and not in `publish`.
+    for (std::size_t i = 0; i < kGpuMemoryCategoryCount; ++i) {
+        const std::string live = std::string("gpu.category.") + kCategoryNames[i] + ".bytes";
+        const std::string peak = std::string("gpu.category.") + kCategoryNames[i] + ".peak_bytes";
+        category_ids_[i] = registry.add_gauge(live);
+        category_peak_ids_[i] = registry.add_gauge(peak);
+    }
+}
 
 void GpuMemoryGauges::publish(const GpuMemory& memory) noexcept {
     registry_->set(ids_[0], memory.buffer_bytes);
     registry_->set(ids_[1], memory.image_bytes);
     registry_->set(ids_[2], memory.block_bytes);
     registry_->set(ids_[3], memory.allocation_bytes);
+    for (std::size_t i = 0; i < kGpuMemoryCategoryCount; ++i) {
+        registry_->set(category_ids_[i], memory.category_bytes[i]);
+        registry_->set(category_peak_ids_[i], memory.category_peak_bytes[i]);
+    }
 }
 
 } // namespace tessera::diagnostics

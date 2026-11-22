@@ -216,6 +216,10 @@ ImageTextureCache::acquire(const DecodedImage& image, const ImageTextureKey& key
     // variant of the same image at a different filter is a separate entry.
     desc.filter = key.filter;
     desc.address = impl_->config.address;
+    // A decoded image is a texture, not a glyph atlas or a path cache: it is charged to `Texture`
+    // so the image cache's own `max_bytes` and the device's category total can be compared (RHI
+    // 1.14, issue #703).
+    desc.category = rhi::MemoryCategory::Texture;
     desc.levels = key.levels;
 
     std::unique_ptr<rhi::Texture> texture;

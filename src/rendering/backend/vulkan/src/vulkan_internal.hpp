@@ -3,6 +3,7 @@
 #pragma once
 
 #include "tessera/rendering/rhi/device.hpp"
+#include "vulkan_memory_category.hpp"
 #include "vulkan_texture_math.hpp"
 
 #include <algorithm>
@@ -159,27 +160,6 @@ inline VkAttachmentStoreOp to_vk_store_op(rhi::StoreOp op) {
                                      : VK_ATTACHMENT_STORE_OP_DONT_CARE;
 }
 
-inline void record_image_transition(VkCommandBuffer command_buffer, VkImage image,
-                                    VkImageLayout old_layout, VkImageLayout new_layout,
-                                    VkAccessFlags src_access, VkAccessFlags dst_access,
-                                    VkPipelineStageFlags src_stage,
-                                    VkPipelineStageFlags dst_stage) {
-    VkImageMemoryBarrier barrier{};
-    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    barrier.oldLayout = old_layout;
-    barrier.newLayout = new_layout;
-    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.image = image;
-    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    barrier.subresourceRange.levelCount = 1;
-    barrier.subresourceRange.layerCount = 1;
-    barrier.srcAccessMask = src_access;
-    barrier.dstAccessMask = dst_access;
-    vkCmdPipelineBarrier(command_buffer, src_stage, dst_stage, 0, 0, nullptr, 0, nullptr, 1,
-                         &barrier);
-}
-
 // The stage/access pair a barrier waits on to make a render target's readable image available in
 // its current layout. RHI 1.1 left every offscreen target in TRANSFER_SRC_OPTIMAL; RHI 1.3 adds
 // SHADER_READ_ONLY_OPTIMAL (`bind_sampled_target`), so a consumer can no longer assume one state
@@ -190,6 +170,7 @@ struct LayoutSource {
 };
 
 [[nodiscard]] LayoutSource source_for_layout(VkImageLayout layout);
+
 class VulkanBuffer final : public rhi::Buffer {
 public:
     VulkanBuffer(VulkanDevice* owner, std::uint32_t epoch, VmaAllocator allocator, VkBuffer buffer,
@@ -238,7 +219,8 @@ public:
                   VkSampler sampler, VmaAllocation allocation, VkDescriptorPool descriptor_pool,
                   VkDescriptorSet descriptor_set, rhi::Extent2D extent, rhi::TextureFormat format,
                   VulkanDevice* owner, std::uint32_t epoch, std::uint32_t sample_count = 1,
-                  std::uint32_t levels = 1)
+                  std::uint32_t levels = 1,
+                  rhi::MemoryCategory category = rhi::MemoryCategory::Other)
         : device_(device),
           allocator_(allocator),
           image_(image),
@@ -252,7 +234,8 @@ public:
           owner_(owner),
           epoch_(epoch),
           sample_count_(sample_count),
-          levels_(levels) {}
+          levels_(levels),
+          category_(category) {}
 
     ~VulkanTexture() override;
 
@@ -305,6 +288,7 @@ private:
     std::uint32_t epoch_ = 0;
     std::uint32_t sample_count_ = 1;
     std::uint32_t levels_ = 1;
+    rhi::MemoryCategory category_ = rhi::MemoryCategory::Other;
 };
 
 class VulkanPipeline final : public rhi::Pipeline {

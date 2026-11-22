@@ -76,6 +76,9 @@ begin frame -> frame arena reset
 
 - VMA sub-allocates; no raw `vkAllocateMemory` in the backend.
 - Categories: vertex, index, uniform, texture, staging, render target, glyph atlas, path cache.
+  Enforced by `rhi::MemoryCategory` (RHI 1.14, issue #703): every resource is charged to one, an
+  untagged one lands in `Other` rather than a guessed category, and `DeviceMemoryStats::categories`
+  reports live bytes and a peak per category.
 - Uploads use pooled staging buffers; batch per frame; no per-draw allocation.
 - Budgets are explicit per category; eviction is LRU (least recently used)/age-based and never evicts in-flight data.
 - OOM (out of memory) degrades: evict caches, reduce optional quality, skip prefetch; fatal only if the device
@@ -198,6 +201,7 @@ weaker rule; it is one a reviewer has to catch, and saying so is better than imp
 | VMA, no raw `vkAllocateMemory` | `grep vkAllocateMemory src/rendering` has no hits; the Phase 0 PoC is exempt by ADR-001 point 4 and lives in `tools/poc/` (#704) |
 | Eviction never touches in-flight data | `ImageTextureCache` and glyph-atlas tests |
 | Bounded caches | `scripts/check_memory_budget.py` cache rows |
+| GPU memory by category, with a peak | `gpu_memory_probe` + the `gpu_vma_category_bytes` and `gpu_category_peak_after_free_bytes` budget rows (#703) |
 | Recoverable failure as `std::expected` | `src/ui/boundary/guard.cpp` and its tests |
 | Steady-state RSS and `sizeof` ratchet | `scripts/check_memory_budget.py` (two-sided) |
 | ASan/LSan/TSan | CI lanes (#702) |
