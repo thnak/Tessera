@@ -211,10 +211,9 @@ and has no public header outside the compiler tree.
 | `tessera_layout` | static | computed-style to Yoga layout adapter + text measure callback (B2) |
 | `tessera_frame` | static | per-frame animation/dirty/damage/redraw orchestration (B2) |
 | `tessera_codegen` | static | C++ codegen: the ADR-040 generated base + scaffold |
-| `tessera_vulkan` | static | offscreen Vulkan renderer |
 | `tessera_rhi_vulkan` | static | Vulkan RHI backend + batched2D pipeline |
 | `tessera_stb` | static | stb image decode/write |
-| `vulkan_offscreen_poc` | exe | offscreen Vulkan proof |
+| `vulkan_offscreen_poc` | exe | offscreen Vulkan proof (Phase 0; raw `vkAllocateMemory` by ADR-001 point 4) |
 | `batched2d_poc` | exe | batched 2D demo (Vulkan/null) |
 | `*_tests` | exe | unit/CLI tests |
 

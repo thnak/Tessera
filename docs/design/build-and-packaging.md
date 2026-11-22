@@ -38,7 +38,6 @@ ctest --preset vs2026-release
 | `tessera_rhi_null` | static | null backend |
 | `tessera_scene` | static | scene graph/events |
 | `tessera_codegen` | static | C++ codegen: the ADR-040 generated base |
-| `tessera_vulkan` | static | offscreen Vulkan renderer |
 | `tessera_rhi_vulkan` | static | Vulkan RHI backend |
 | `tessera_stb` | static | stb image decode/write |
 | demos/tests | exe | PoC/tests |
