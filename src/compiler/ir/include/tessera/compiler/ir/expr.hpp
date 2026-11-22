@@ -15,7 +15,7 @@ namespace tessera::compiler::ir {
 // `OptionalField` and `Coalesce` are the two additive kinds of ADR-066 item 1 (`a?.b` and `a ?? b`
 // over an `optional<T>`). Both are optional in the format: a module that writes neither is
 // byte-identical to the IR before them, so `irVersion` stays 1 (ir-v1-expr.md section 12).
-enum class ExprKind {
+enum class ExprKind : std::uint8_t {
     Literal,
     Ref,
     Binary,

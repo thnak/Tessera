@@ -2187,6 +2187,22 @@ target_link_libraries(lowering_control_tests PRIVATE tessera_lowering)
 
 add_test(NAME lowering_control COMMAND lowering_control_tests)
 
+# ADR-066 item 2: control flow in a handler body (`if`/`else`, `const`, an early `return`).
+add_executable(lowering_handler_control_tests
+    lowering_handler_control_tests.cpp)
+
+target_link_libraries(lowering_handler_control_tests PRIVATE tessera_lowering)
+
+add_test(NAME lowering_handler_control COMMAND lowering_handler_control_tests)
+
+# ADR-066 item 2, the generated C++ half: an `If` action becomes a real `if`/`else`.
+add_executable(codegen_handler_control_tests
+    codegen_handler_control_tests.cpp)
+
+target_link_libraries(codegen_handler_control_tests PRIVATE tessera_codegen)
+
+add_test(NAME codegen_handler_control COMMAND codegen_handler_control_tests)
+
 add_executable(lowering_control_reject_tests
     lowering_control_reject_tests.cpp)
 

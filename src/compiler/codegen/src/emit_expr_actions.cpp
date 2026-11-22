@@ -164,6 +164,37 @@ std::optional<std::string> emit_actions(const std::vector<ir::Action>& actions,
                                         std::span<const ir::Param> params, std::string& error) {
     std::string body;
     for (const ir::Action& action : actions) {
+        // ADR-066 item 2: an `If` action is a C++ `if`/`else` whose branches are emitted by this
+        // same function, so nesting needs no special case. Its `guard` is the condition, which is
+        // why it is handled before the guarded-statement path below.
+        if (action.kind == ir::ActionKind::If) {
+            if (!action.guard) {
+                error = "an `if` action has no condition";
+                return std::nullopt;
+            }
+            const ExprEmission condition =
+                emit_expr(*action.guard, component, payload_field_locals(params));
+            if (!condition.error.empty()) {
+                error = condition.error;
+                return std::nullopt;
+            }
+            std::optional<std::string> then_body =
+                emit_actions(action.then_actions, component, params, error);
+            if (!then_body) {
+                return std::nullopt;
+            }
+            body += "if (" + condition.text + ") {\n" + *then_body + "}";
+            if (!action.else_actions.empty()) {
+                std::optional<std::string> else_body =
+                    emit_actions(action.else_actions, component, params, error);
+                if (!else_body) {
+                    return std::nullopt;
+                }
+                body += " else {\n" + *else_body + "}";
+            }
+            body += "\n";
+            continue;
+        }
         std::string one;
         if (!emit_one_action(action, component, params, one, error)) {
             return std::nullopt;

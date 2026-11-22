@@ -296,6 +296,28 @@ std::expected<Value, EvalError> Evaluator::eval_call(const ir::Expr& expr, const
 
 std::expected<void, EvalError> Evaluator::run(std::span<const ir::Action> actions, Scope& scope) {
     for (const ir::Action& action : actions) {
+        // ADR-066 item 2: an `If` action runs one branch, chosen by its condition. The condition is
+        // evaluated here rather than through the generic guard path below, because a false guard
+        // there means "skip this action" while here it means "run the else branch".
+        if (action.kind == ir::ActionKind::If) {
+            if (!action.guard) {
+                return fail("TESSERA_IR_EVAL_MALFORMED", "an `if` action has no condition");
+            }
+            auto held = eval(*action.guard, scope, 0);
+            if (!held) {
+                return std::unexpected(std::move(held.error()));
+            }
+            const bool* flag = held->as_bool();
+            if (flag == nullptr) {
+                return fail("TESSERA_IR_EVAL_TYPE", "an `if` condition must be a bool, got " +
+                                                        std::string(type_name(*held)));
+            }
+            auto branch = run(*flag ? action.then_actions : action.else_actions, scope);
+            if (!branch) {
+                return branch;
+            }
+            continue;
+        }
         if (action.guard) {
             auto held = eval(*action.guard, scope, 0);
             if (!held) {

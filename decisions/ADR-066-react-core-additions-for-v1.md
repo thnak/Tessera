@@ -281,6 +281,36 @@ files changed state, and each one is a row of item 1:
 on the input elements), which the spike already recorded. `use-memo.tsx` still fails on
 `TESSERA_JSX_SUBSET_ARRAY_METHOD` because its body uses `.filter`, which is item 3.
 
+### Step 2 evidence (recorded 2026-11-22, issue #652)
+
+Item 2 landed. The corpus golden moved from **33 of 50 accepted (66.0%)** at the front end and
+**20 of 50 (40.0%)** through the pipeline to **34 of 50 (68.0%)** and **21 of 50 (42.0%)**:
+`handlers/handler-control-flow.tsx` now compiles, which is the one fixture written for this shape.
+
+**What the ADR got wrong, and what the landing corrected.**
+
+1. **The `if` action needed a `guard`, not a new `cond` field.** The ADR described "a pure `cond` and
+   two action lists". Every action already carries a pure bool `guard` (issue #236), so the condition
+   reuses it and the two lists are the only new fields. That keeps the format smaller and means the
+   validator's existing guard check covers the condition too.
+2. **`else if` is not a separate form.** The ADR listed `if`/`else` without saying how a chain
+   lowers. Nesting the `If` directly in the else branch needs no new kind and no parser special case
+   beyond one branch in `parse_branch_block`, so `else if` is free.
+3. **A branch is a `Block` even when it is one statement.** The parser wraps a bare statement in a
+   block, so the lowering has one shape to walk and a nested `if` is an `If` inside a list rather
+   than a special case.
+4. **`const` in a handler body is the component-level local, not a new binding.** The ADR said
+   "lowered to a conditional action in the handler IR" for control flow but did not say what a
+   handler `const` becomes. It is a local inlined at each use (decision 8), so it produces no action
+   at all; `ComponentNames::add_const_local` is the one new seam.
+5. **An early `return;` is not an action.** It ends the list it appears in, which is what makes the
+   corpus fixture's `if (disabled) { return; }` an `If` with an empty `then` list. A `return <value>;`
+   stays a preview-body return and is rejected in an inline handler.
+
+**Still open from item 2.** `let`, loops, `switch` and mutation stay in native handlers, as the ADR
+says. A loop is a parse error (`TESSERA_JSX_SUBSET_STATEMENT`), because the statement grammar has no
+loop form at all.
+
 ## Follow-up
 - Update `jsx-subset-v1.md` sections 6, 7, 9, 10 and 12, `ir-v1.md` section 2.1 and `ir-v1-expr.md`
   section 4 in the implementing PRs (the subset spec is near its size limit: edit in place).

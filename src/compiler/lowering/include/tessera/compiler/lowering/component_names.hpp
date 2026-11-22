@@ -38,6 +38,11 @@ public:
     // declarations of the same name.
     void add_local(std::string name);
 
+    // ADR-066 item 2: a `const x = <PureExpr>;` inside a handler body. It is a local like a
+    // component-level one, so it is inlined at each use (decision 8) rather than referenced; this
+    // records the initializer so `local_binding` can hand it back.
+    void add_const_local(std::string name, const jsx::Expr* initializer);
+
     // Scope support for the loop variables of slice 8: `local_count()` is a mark, and
     // `truncate_locals(mark)` drops the names added since (the template of a `.map` loop sees its
     // item and index; the code after the loop does not).

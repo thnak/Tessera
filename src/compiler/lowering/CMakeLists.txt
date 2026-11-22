@@ -18,6 +18,7 @@ set(_tessera_lowering_core_sources
     src/event_lowering.cpp
     src/expression_lowering.cpp
     src/handler_actions.cpp
+    src/handler_control.cpp
     src/hook_lowering.cpp
     src/hook_lowering_support.cpp
     src/hook_lookups.cpp

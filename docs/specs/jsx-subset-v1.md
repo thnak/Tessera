@@ -78,7 +78,6 @@ Non-goals:
   diagnostic (section 12) and not a generic syntax error.
 
 ### 3.2 Literals
-
 | Literal | Accepted form | Notes |
 |---|---|---|
 | Number | decimal integer or decimal with fraction and optional exponent: `0`, `42`, `0.5`, `1e3` | No hex/octal/binary, no numeric separators (`1_000`), no BigInt suffix. Unary minus is an operator, not part of the literal |
@@ -91,18 +90,16 @@ Not accepted: regular-expression literals, `undefined` as a literal (the identif
 rejected), array literals except as defined in section 8.3, object literals except as defined in
 section 8.3.
 
-### 3.3 Punctuators
+### 3.3 Punctuators and automatic semicolon insertion
 
 `( ) { } [ ] < > </ /> , ; : . ... => = ? ?? ?. + - * / % == != === !== < <= > >= && || ! `` ` `` `${`.
 `==` and `!=` are lexed so they can be rejected with a suggestion to use `===` and `!==`
 (section 8.2). `??` and `?.` are accepted over an `optional<T>` (section 8.2). All other JavaScript
 operators (`++ -- += ** & | ^ ~ << >> >>>`, comma operator) are lexed and rejected (section 12).
 
-### 3.4 Automatic semicolon insertion
-
-Not supported in V1. Every statement ends with `;`. A missing `;` is reported at the end of the
-previous token with the suggested fix "insert `;`". This is a design choice to keep the grammar
-unambiguous. The project owner decided this.
+Automatic semicolon insertion is not supported in V1: every statement ends with `;`. A missing `;` is
+reported at the end of the previous token with the suggested fix "insert `;`". This is a design choice
+to keep the grammar unambiguous. The project owner decided this.
 
 ## 4. Module structure
 
@@ -471,7 +468,7 @@ record's declaration supplies the field order, so the source order does not matt
 
 A handler is a function value given to an event prop, to `useEffect`, or to a callback prop such as
 `onError`. Exactly three forms are accepted; a callback prop of the component itself may also be
-forwarded as an event handler (section 9.5).
+forwarded as an event handler (section 9.4).
 
 ### 9.1 Setter reference
 
@@ -490,16 +487,22 @@ expressions, separated by `;`:
 <Button onClick={() => setCount(count + 1)}>Increment</Button>
 ```
 
-- Parameters are allowed and typed by the event (section 9.4); they may be used in the arguments.- A statement may be guarded: `guard && setter(...)` runs the call only when the pure bool `guard`
+- Parameters are allowed and typed by the event (section 9.4); they may be used in the arguments.
+- A statement may be guarded: `guard && setter(...)` runs the call only when the pure bool `guard`
   holds (issue #236). A key handler uses it as `(e) => e.key === "Escape" && setOpen(false)`; the
   `KeyEvent` `key` is compared with a W3C key-value string literal (`"Escape"`, `"ArrowDown"`, `" "`,
   a letter). It lowers to the IR action `guard`, and the generated code tests it with
   `tessera::ui::key_is`. A guard on a non-setter call is rejected.
-- No other statements: no `if`, no loops, no declarations, no calls other than setters, `.set`,
-  `r.focus()`, `r.blur()` and calls of the component's own callback props (section 9.5). The front end
+- No other statements: no loops, no declarations beyond `const`, no calls other than setters, `.set`,
+  `r.focus()`, `r.blur()` and calls of the component's own callback props (section 9.4). The front end
   lowers this form to IR and generates C++ for it; no developer member is required, and the designer
   runs it exactly as the generated code would. `startViewTransition(update, options)` accepts only a
   handler of this form as `update` ([`view-transitions-v1.md`](view-transitions-v1.md) section 3.1).
+- **Control flow** (ADR-066 item 2): `if`/`else`, `const` and an early `return;` are also accepted.
+  `if (cond) { ... } else { ... }` lowers to one `if` action whose `guard` is the condition and whose
+  two lists are the branches; `else if` nests in the else branch. `const x = <PureExpr>;` is a local,
+  inlined at each use. `return;` ends the list it appears in; `return <value>;` stays a preview-body
+  return (section 9.3). `let`, loops, `switch` and mutation stay in native handlers.
 
 ### 9.3 Native handler
 
@@ -537,17 +540,15 @@ const submit = (values: FormValues): void => {
 - The annotation may also precede a hook call to give its binding a stable id; the accepted
   positions are: before a handler declaration and before a `useEffect` statement. Any other position
   is `TESSERA_REACT_BIND_POSITION`.
+- **Event parameter types.** Event names and payload types are those listed in
+  [`component-model-v1.md`](component-model-v1.md) section 4 and in the element specs
+  ([`text-editing-v1.md`](text-editing-v1.md), [`scroll-and-gestures-v1.md`](scroll-and-gestures-v1.md)).
+  The typed event objects are declared by the framework typings generated for `"tessera"`
+  (section 16.2). The payload records and which member is primary are defined in
+  [`jsx-intrinsics-v1`](jsx-intrinsics-v1/common-and-events.md) section 2. An event prop given a
+  function with a different parameter type is `TESSERA_JSX_TYPE_MISMATCH`.
 
-### 9.4 Event parameter types
-
-Event names and payload types are those listed in [`component-model-v1.md`](component-model-v1.md)
-section 4 and in the element specs ([`text-editing-v1.md`](text-editing-v1.md),
-[`scroll-and-gestures-v1.md`](scroll-and-gestures-v1.md)). The typed event objects are declared by the
-framework typings generated for `"tessera"` (section 16.2). The payload records and which member is
-primary are defined in [`jsx-intrinsics-v1`](jsx-intrinsics-v1/common-and-events.md) section 2. An
-event prop given a function with a different parameter type is `TESSERA_JSX_TYPE_MISMATCH`.
-
-### 9.5 Callback prop forwarding
+### 9.4 Callback prop forwarding
 
 A component may declare a function-typed prop and hand it on (issue #286). The prop type is
 `() => void` or `(e: Record) => void`, where `Record` is a payload record

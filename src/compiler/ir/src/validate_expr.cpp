@@ -333,6 +333,21 @@ void validate_actions(ValidationContext& context, const ComponentScope& scope,
         if (action.guard) {
             require_expr(context, scope, locals, action.guard.get(), where, "an action guard");
         }
+        // ADR-066 item 2: an `If` action carries no target and no value; its `guard` is the
+        // condition and its two lists are the branches, validated by the same rules (so a nested
+        // `If` is checked the same way). An `If` with no guard has no condition to test.
+        if (action.kind == ActionKind::If) {
+            if (!action.guard) {
+                context.report("TESSERA_IR_MALFORMED", "an `if` action needs a condition", where);
+            }
+            if (!action.target.empty() || action.value) {
+                context.report("TESSERA_IR_MALFORMED",
+                               "an `if` action carries no target and no value", where);
+            }
+            validate_actions(context, scope, locals, action.then_actions, where);
+            validate_actions(context, scope, locals, action.else_actions, where);
+            continue;
+        }
         if (action.kind == ActionKind::Focus || action.kind == ActionKind::Blur) {
             if (!starts_with(action.target, "ref::") || scope.ids.count(action.target) == 0) {
                 context.report("TESSERA_IR_UNRESOLVED",

@@ -51,7 +51,7 @@ behavior through key-guarded handlers (jsx-subset-v1 section 9.2). Headless evid
 
 Styled stage-0 control (issue #239, in progress): `packages/tessera-ui/Button.tsx` with `button.css`
 (variants `primary`, `secondary`, `ghost`, `danger`; sizes `md`, `sm`; a disabled state; tokens only).
-It forwards `onPress` behind a `!disabled` guard ([jsx-subset-v1 section 9.5](../specs/jsx-subset-v1.md)).
+It forwards `onPress` behind a `!disabled` guard ([jsx-subset-v1 section 9.4](../specs/jsx-subset-v1.md)).
 Evidence: `library_button_lowering`, `library_button_style`, `library_button_runtime` (keyboard and
 pointer through the real `InputRouter`), the native gallery captures below, and 15 lavapipe goldens
 in `tests/golden/gallery/` (`gallery_golden_*`: three themes in every state, compact, 150% text, RTL).

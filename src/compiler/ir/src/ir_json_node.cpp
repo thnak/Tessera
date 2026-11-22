@@ -154,8 +154,24 @@ JsonValue actions_to_json(const std::vector<Action>& actions) {
             kind = "blur";
         } else if (action.kind == ActionKind::CallProp) {
             kind = "callProp";
+        } else if (action.kind == ActionKind::If) {
+            kind = "if";
         }
         json.set("kind", JsonValue::string(kind));
+        // ADR-066 item 2: an `If` action has no target and no value; its `guard` is the condition
+        // and its two lists are the branches. `then` is always written, `else` only when present,
+        // so a bare `if` stays as small as it can be.
+        if (action.kind == ActionKind::If) {
+            if (action.guard) {
+                json.set("guard", expr_to_json(action.guard.get()));
+            }
+            json.set("then", actions_to_json(action.then_actions));
+            if (!action.else_actions.empty()) {
+                json.set("else", actions_to_json(action.else_actions));
+            }
+            list.push(std::move(json));
+            continue;
+        }
         json.set("target", JsonValue::string(action.target));
         if (action.guard) {
             json.set("guard", expr_to_json(action.guard.get()));
