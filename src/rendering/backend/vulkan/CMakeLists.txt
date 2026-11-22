@@ -85,12 +85,18 @@ add_custom_command(
 # the pipeline the sampled-target composite test (issue #254) records.
 tessera_add_spv_c(glass_blur.frag TESSERA_GLASS_BLUR_FRAG_SPV)
 
+# Storage-buffer conformance probe (RHI 1.12, ADR-068 slice 1): a fragment stage that reads one
+# read-only storage buffer and writes what it found, so the conformance suite can prove
+# bind_storage_buffer reaches the shader on a real device. Pairs with fullscreen.vert.
+tessera_add_spv_c(storage_probe.frag TESSERA_STORAGE_PROBE_FRAG_SPV)
+
 add_custom_target(tessera_vulkan_shaders DEPENDS ${TESSERA_VERT_SPV} ${TESSERA_FRAG_SPV})
 add_custom_target(tessera_batched2d_shaders
     DEPENDS ${TESSERA_BATCHED2D_VERT_SPV} ${TESSERA_BATCHED2D_FRAG_SPV}
             ${TESSERA_BATCHED2D_LCD_FRAG_SPV} ${TESSERA_BATCHED2D_LCD_VERT_SPV}
             ${TESSERA_BATCHED2D_ARRAY_FRAG_SPV}
-            ${TESSERA_GLASS_BLUR_FRAG_SPV})
+            ${TESSERA_GLASS_BLUR_FRAG_SPV}
+            ${TESSERA_STORAGE_PROBE_FRAG_SPV})
 
 add_library(tessera_vulkan STATIC
     src/offscreen_renderer.cpp
@@ -112,6 +118,7 @@ set(TESSERA_VULKAN_RHI_SOURCES
     src/vulkan_device_recovery.cpp
     src/vulkan_descriptor_pool.cpp
     src/vulkan_instance.cpp
+    src/vulkan_timestamp_probe.cpp
     src/vulkan_resources.cpp
     src/vulkan_command_list.cpp
     src/vulkan_command_list_copy.cpp
@@ -120,12 +127,14 @@ set(TESSERA_VULKAN_RHI_SOURCES
     src/vulkan_upload.cpp
     src/vulkan_texture.cpp
     src/vulkan_texture_array.cpp
+    src/vulkan_storage_buffer.cpp
     src/vulkan_mipmaps.cpp
     src/vulkan_pipeline.cpp
     src/vulkan_validation.cpp
     src/vma_impl.cpp
     src/batched2d_pipeline.cpp
     src/glass_blur_pipeline.cpp
+    src/storage_probe_pipeline.cpp
     ${TESSERA_BATCHED2D_VERT_SPV}
     ${TESSERA_BATCHED2D_FRAG_SPV}
     ${TESSERA_BATCHED2D_LCD_FRAG_SPV}
@@ -133,6 +142,7 @@ set(TESSERA_VULKAN_RHI_SOURCES
     ${TESSERA_BATCHED2D_ARRAY_FRAG_SPV}
     ${TESSERA_VERT_SPV}
     ${TESSERA_GLASS_BLUR_FRAG_SPV}
+    ${TESSERA_STORAGE_PROBE_FRAG_SPV}
     ${PROJECT_SOURCE_DIR}/third_party/volk/volk.c)
 
 # The presentation-family resolution is part of the RHI target unconditionally: `vulkan_instance.cpp`

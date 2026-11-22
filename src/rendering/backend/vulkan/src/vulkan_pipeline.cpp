@@ -73,6 +73,22 @@ std::unique_ptr<rhi::Pipeline> VulkanDevice::create_pipeline(const rhi::Pipeline
         }
         set_layout = texture_array_layout_;
     }
+    // A pipeline whose shader reads a read-only storage buffer declares that layout instead (RHI
+    // 1.12, ADR-068). The two are mutually exclusive in this RHI: a shader that needs both is not
+    // expressible yet, and silently picking one would build a pipeline whose other binding can
+    // never be satisfied.
+    if (desc.storage_buffer) {
+        if (storage_buffer_layout_ == VK_NULL_HANDLE) {
+            throw std::runtime_error(
+                "create_pipeline: storage buffers are not supported on this device");
+        }
+        if (desc.texture_array) {
+            throw std::invalid_argument(
+                "create_pipeline: a pipeline cannot declare both a texture array and a storage "
+                "buffer");
+        }
+        set_layout = storage_buffer_layout_;
+    }
     layout_info.setLayoutCount = 1;
     layout_info.pSetLayouts = &set_layout;
     layout_info.pushConstantRangeCount = desc.push_constant_size > 0 ? 1 : 0;

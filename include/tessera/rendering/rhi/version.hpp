@@ -49,8 +49,13 @@ namespace tessera::rendering::rhi {
 // structs holding them shrinks (`RenderTargetDesc` 48 -> 40, `DeviceDesc` 16 -> 12). A backend
 // compiled against 1.10 and linked against 1.11 headers would disagree about those layouts, so the
 // minor moves even though the source contract is compatible.
+// 1.12 (2026-11-22): additive `BufferUsage::Storage`, `CommandList::bind_storage_buffer`,
+// `PipelineDesc::storage_buffer` and the capability that gates them,
+// `Device::supports_storage_buffers()` (ADR-068 slice 1, issue #669). The enumerator is appended so
+// no existing value changes; the capability is pure virtual so every backend answers. A backend
+// answering false keeps the push-constant clip path and no frame changes.
 inline constexpr std::uint32_t kRhiVersionMajor = 1;
-inline constexpr std::uint32_t kRhiVersionMinor = 11;
+inline constexpr std::uint32_t kRhiVersionMinor = 12;
 inline constexpr std::uint32_t kRhiVersion = (kRhiVersionMajor << 16) | kRhiVersionMinor;
 
 } // namespace tessera::rendering::rhi

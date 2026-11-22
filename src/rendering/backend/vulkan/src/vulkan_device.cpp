@@ -91,6 +91,7 @@ VulkanDevice::VulkanDevice(const rhi::DeviceDesc& desc)
         create_allocator();
         create_descriptor_layout();
         create_texture_array_layout();
+        create_storage_buffer_layout();
         create_descriptor_pool();
     } catch (...) {
         destroy();
@@ -104,6 +105,12 @@ VulkanDevice::~VulkanDevice() {
 
 std::unique_ptr<rhi::Buffer> VulkanDevice::create_buffer(const rhi::BufferDesc& desc) {
     require_ready("create_buffer");
+    // Vulkan cannot create a zero-size buffer (vkCreateBuffer reports
+    // VK_ERROR_INITIALIZATION_FAILED), so the request is refused here with the same error every
+    // backend reports instead of surfacing a driver result.
+    if (desc.size == 0) {
+        throw std::invalid_argument("create_buffer: a buffer needs a non-zero size");
+    }
     VkBufferCreateInfo buffer_info{};
     buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     buffer_info.size = desc.size;
@@ -134,6 +141,14 @@ std::unique_ptr<rhi::Buffer> VulkanDevice::create_buffer(const rhi::BufferDesc& 
         buffer_info.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
         allocation_info.flags |= VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
         break;
+    case rhi::BufferUsage::Storage:
+        // RHI 1.12 (ADR-068): a read-only storage buffer the fragment shader indexes. It is written
+        // by the CPU every frame (the clip record list), so it keeps host-sequential-write access
+        // and is mapped once at creation; the per-frame-buffer contract keeps a write from racing a
+        // submission that still reads it.
+        buffer_info.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+        allocation_info.flags |= VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+        break;
     }
 
     VkBuffer buffer = VK_NULL_HANDLE;
@@ -146,7 +161,7 @@ std::unique_ptr<rhi::Buffer> VulkanDevice::create_buffer(const rhi::BufferDesc& 
     resource_created();
     account_buffer(static_cast<std::int64_t>(desc.size), epoch_);
     return std::make_unique<VulkanBuffer>(this, epoch_, allocator_, buffer, allocation, desc.size,
-                                          allocated.pMappedData);
+                                          allocated.pMappedData, desc.usage);
 }
 
 std::unique_ptr<rhi::RenderTarget>

@@ -56,6 +56,12 @@ std::uint32_t buffer_usage_flags(rhi::BufferUsage usage) {
         return bits::kMapWrite | bits::kCopySrc;
     case rhi::BufferUsage::Readback:
         return bits::kMapRead | bits::kCopyDst;
+    case rhi::BufferUsage::Storage:
+        // RHI 1.12 (ADR-068): a read-only storage buffer the fragment shader indexes. COPY_DST
+        // because the CPU writes the record list through a staging copy, STORAGE because the shader
+        // reads it. The binding itself lands with ADR-068 slice 2; the usage mapping is here so a
+        // buffer created with it is well formed on this backend too.
+        return bits::kStorage | bits::kCopyDst;
     }
     return 0;
 }

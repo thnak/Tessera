@@ -34,11 +34,15 @@ bool offset_region_fits(rhi::Offset2D offset, const rhi::Scissor& region, rhi::E
 
 class NullBuffer final : public rhi::Buffer {
 public:
-    explicit NullBuffer(std::size_t size)
-        : data_(size, 0) {}
+    NullBuffer(std::size_t size, rhi::BufferUsage usage)
+        : data_(size, 0),
+          usage_(usage) {}
 
     [[nodiscard]] std::size_t size() const override {
         return data_.size();
+    }
+    [[nodiscard]] rhi::BufferUsage usage() const {
+        return usage_;
     }
 
     void write(const void* data, std::size_t size, std::size_t offset) override {
@@ -60,6 +64,7 @@ private:
     }
 
     std::vector<std::uint8_t> data_;
+    rhi::BufferUsage usage_ = rhi::BufferUsage::Vertex;
 };
 
 class NullTexture final : public rhi::Texture {
@@ -234,8 +239,22 @@ public:
         return true;
     }
 
+    // Null parity for the storage-buffer capability (RHI 1.12, ADR-068). The null backend reads no
+    // shader data, so a read-only storage buffer is representable: it records the bind
+    // (NullStorageBufferBind) instead of reading it. Reporting true is what lets the structural
+    // tests exercise the path on any machine, and it is paired with that record so "supported" is
+    // never an unobserved claim; a test asserts the recorded slot and size.
+    [[nodiscard]] bool supports_storage_buffers() const override {
+        return true;
+    }
+
     std::unique_ptr<rhi::Buffer> create_buffer(const rhi::BufferDesc& desc) override {
-        return std::make_unique<NullBuffer>(desc.size);
+        // Validating-backend parity: Vulkan cannot create a zero-size buffer, so the null backend
+        // refuses the same request with the same error (RHI 1.12).
+        if (desc.size == 0) {
+            throw std::invalid_argument("null create_buffer: a buffer needs a non-zero size");
+        }
+        return std::make_unique<NullBuffer>(desc.size, desc.usage);
     }
 
     std::unique_ptr<rhi::Texture> create_texture(const rhi::TextureDesc& desc) override {
@@ -314,6 +333,10 @@ void NullCommandList::bind_pipeline(const rhi::Pipeline& pipeline) {
         throw std::invalid_argument(
             "null bind_pipeline: pipeline sample count does not match the render target");
     }
+    // The null backend's own pipeline type carries the layout facts a later bind needs (RHI 1.12).
+    // A pipeline from another backend is a contract violation the RHI docs call out; the cast is
+    // unchecked in release builds like every other backend's.
+    current_pipeline_ = dynamic_cast<const NullPipeline*>(&pipeline);
     ++stats_.pipeline_binds;
     stats_.command_order.push_back(NullCommandKind::BindPipeline);
 }
@@ -360,8 +383,25 @@ void NullCommandList::bind_sampled_target(std::uint32_t slot, const rhi::RenderT
                                                            target.address()});
 }
 
-void NullCommandList::set_viewport(const rhi::Viewport&) {}
+void NullCommandList::bind_storage_buffer(std::uint32_t slot, const rhi::Buffer& buffer) {
+    // Validating-backend parity: the null backend rejects the same misuse the Vulkan backend does,
+    // so a structural test on it stays meaningful (RHI 1.12, ADR-068).
+    if (current_pipeline_ == nullptr) {
+        throw std::logic_error("null bind_storage_buffer: missing pipeline");
+    }
+    if (!current_pipeline_->declares_storage_buffer()) {
+        throw std::logic_error(
+            "null bind_storage_buffer: the bound pipeline declares no storage buffer");
+    }
+    if (buffer.size() == 0) {
+        throw std::invalid_argument("null bind_storage_buffer: an empty buffer cannot be read");
+    }
+    ++stats_.storage_buffer_binds;
+    stats_.command_order.push_back(NullCommandKind::BindStorageBuffer);
+    stats_.storage_buffer_records.push_back(NullStorageBufferBind{slot, buffer.size()});
+}
 
+void NullCommandList::set_viewport(const rhi::Viewport&) {}
 void NullCommandList::set_scissor(const rhi::Scissor& scissor) {
     scissor_ = scissor;
     ++stats_.scissor_changes;

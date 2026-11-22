@@ -35,8 +35,8 @@ RHI versioning and capabilities (ADR-049):
 
 - `include/tessera/rendering/rhi/version.hpp` defines the published RHI contract version as
   `kRhiVersionMajor`, `kRhiVersionMinor`, and `kRhiVersion = (major << 16) | minor`
-  (`1.0` / `0x00010000` for the first published version). The current contract is **1.11**
-  (`0x0001000b`): 1.0 is the B1 surface; 1.1 adds `CommandList::copy_target_region` for the
+  (`1.0` / `0x00010000` for the first published version). The current contract is **1.12**
+  (`0x0001000c`): 1.0 is the B1 surface; 1.1 adds `CommandList::copy_target_region` for the
   isolated-layer seam (issue #242, [`offscreen-layers.md`](offscreen-layers.md)); 1.2 adds the
   swapchain composite-alpha request and the resolved-mode query (glass-v1.md section 6, issue #243);
   1.3 adds the sampled view of an offscreen render target (`CommandList::bind_sampled_target` plus
@@ -59,7 +59,12 @@ RHI versioning and capabilities (ADR-049):
   instead of resolving to `NoPlatform`; 1.11 gives every RHI `enum class` an explicit
   `std::uint8_t` base type (issue #734). No enumerator changes value and no member is added or
   removed, so every caller compiles unchanged, but `sizeof` shrinks (`RenderTargetDesc` 48 -> 40,
-  `DeviceDesc` 16 -> 12), which is an ABI change rather than a source one - hence a minor bump.
+  `DeviceDesc` 16 -> 12), which is an ABI change rather than a source one - hence a minor bump;
+  1.12 adds `BufferUsage::Storage`, `CommandList::bind_storage_buffer`,
+  `PipelineDesc::storage_buffer` and the capability that gates them,
+  `Device::supports_storage_buffers()` (ADR-068 slice 1, issue #669, section 5.5 below). The
+  enumerator is appended so no existing value changes, and the capability is pure virtual so every
+  backend answers; a backend answering false keeps the push-constant clip path and no frame changes.
   All later versions are additive compatible changes.
 - `RhiCapabilities { Backend backend; std::uint32_t rhi_version; GpuTimestampCapability timestamps; }`
   is reported by `Device::capabilities()` (default: current backend, `kRhiVersion`,
@@ -326,8 +331,39 @@ issue #681: a 2048 page write is 3.8-5.9 ms, a 512 page 0.2-0.4 ms).
   `texture_write_region` (every backend), `text_renderer_dirty_upload` (byte count equals the
   glyph's rectangle and the GPU copy equals the CPU page).
 
-## 6. Lifetime and threading
+### 5.5 Read-only storage buffers (RHI 1.12)
 
+`CommandList::bind_storage_buffer(slot, buffer)` binds a `BufferUsage::Storage` buffer as a
+read-only shader resource, and `PipelineDesc::storage_buffer` declares the binding in the pipeline
+layout. It exists because a push constant is a fixed-size block: the clip set `clip-path` needs is a
+variable-length record list, and no push-constant budget holds one
+([ADR-068](../../../decisions/ADR-068-clip-state-in-a-storage-buffer.md)).
+
+- `Device::supports_storage_buffers()` is the only authority. It is pure virtual, like
+  `supports_dual_source_blend()`, so every backend answers. A backend answering false keeps the
+  push-constant path with its three rounded rectangles, and `create_pipeline` with
+  `PipelineDesc::storage_buffer` throws instead of building a pipeline whose binding can never be
+  satisfied. A Tier-2 backend may answer false indefinitely; it is a capability, not a deadline.
+- A zero-size buffer is refused at creation (`std::invalid_argument`), not at bind: Vulkan cannot
+  create one at all (`vkCreateBuffer` reports `VK_ERROR_INITIALIZATION_FAILED`), so the RHI states
+  the rule once instead of letting each backend fail differently.
+- `bind_storage_buffer` throws `std::logic_error` without a bound pipeline, and
+  `std::invalid_argument` for a buffer not created with `BufferUsage::Storage`.
+- The buffer's contents are read at draw time, not at bind time, so a caller may rewrite it between
+  draws. It must not be rewritten while a submission that reads it is in flight; the
+  per-frame-buffer pattern (one buffer per frame in flight) is what keeps that true.
+- Vulkan uses a long-lived `VK_DESCRIPTOR_TYPE_STORAGE_BUFFER` set rewritten in place
+  (update-after-bind), the same pattern as the texture array (section 5.3), so a frame records no
+  descriptor allocation. The capability is gated on
+  `VkPhysicalDeviceLimits::maxPerStageDescriptorStorageBuffers`, which is the only honest limit: a
+  fragment-stage storage buffer is core Vulkan 1.0, so there is no feature bit to enable.
+- WebGPU and Metal report false until ADR-068 slice 2 implements the binding; both have an
+  expressible form (`read-only-storage`, `[[buffer(n)]]`), so the answer is a schedule, not a limit.
+- Tests: the conformance check `storage_buffer_bind` (a fragment shader reads the buffer and the
+  target is read back for its colour, on every backend that reports the capability) and the null
+  structural test in `rhi_null_tests` (the recorded slot and size, plus the three refusals).
+
+## 6. Lifetime and threading
 - The device owns GPU objects; users own handles and destroy them before the device.
 - Resources referenced by in-flight frames retire after their completion value; never destroy
   immediately after submit.

@@ -185,7 +185,11 @@ enum class TextureFormat : std::uint8_t {
     return format == TextureFormat::R8G8B8A8Srgb || format == TextureFormat::B8G8R8A8Srgb;
 }
 
-enum class BufferUsage : std::uint8_t { Vertex, Index, Uniform, Staging, Readback };
+// What a buffer is for. `Storage` (RHI 1.12, ADR-068) is a read-only shader buffer of arbitrary
+// size, bound by `CommandList::bind_storage_buffer`; it is the seam that lets a variable-length
+// record list (clip shapes, ADR-068) reach the fragment shader without a fixed push-constant slot.
+// It is appended last so no existing enumerator changes value.
+enum class BufferUsage : std::uint8_t { Vertex, Index, Uniform, Staging, Readback, Storage };
 
 enum class Filter : std::uint8_t { Nearest, Linear };
 
@@ -241,6 +245,10 @@ struct DeviceDesc {
     SurfacePlatform surface = SurfacePlatform::Auto;
 };
 
+// A buffer request. `size` must be non-zero: Vulkan cannot create a zero-size buffer at all
+// (`vkCreateBuffer` reports VK_ERROR_INITIALIZATION_FAILED), so a zero-size request is a caller bug
+// every backend rejects with std::invalid_argument instead of each failing differently. A caller
+// that has nothing to upload skips the creation rather than asking for an empty buffer.
 struct BufferDesc {
     std::size_t size = 0;
     BufferUsage usage = BufferUsage::Vertex;
@@ -341,6 +349,12 @@ struct PipelineDesc {
     // without the capability (`Device::texture_array_capacity() == 0`) throws instead of building a
     // pipeline whose descriptor set can never be bound. False keeps the one-set-per-texture layout.
     bool texture_array = false;
+    // True when the shader reads a read-only storage buffer bound by
+    // `CommandList::bind_storage_buffer` (RHI 1.12, ADR-068), so the pipeline layout must declare
+    // that binding. A backend without the capability (`Device::supports_storage_buffers()` false)
+    // throws instead of building a pipeline whose descriptor set can never be bound. False keeps
+    // the push-constant-only layout every existing pipeline uses.
+    bool storage_buffer = false;
 };
 
 // Supported MSAA sample counts for the 1-sample-first RHI. Values outside this set are rejected at

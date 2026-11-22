@@ -60,6 +60,7 @@ Do not claim a tier in a PR without the matrix row and the CI evidence it implie
 | `supports_sample_count()` | 1 or 4, per format. Report honestly; never silently fall back to 1 sample. |
 | `supports_dual_source_blend()` | Whether `BlendMode::DualSource` is expressible (RHI 1.5). Pure virtual, so every backend answers. False means `create_pipeline` must reject the mode, never map it; the caller's fallback is grayscale coverage. |
 | `supports_texture_mipmaps()` | Whether `create_texture` can build a mip chain for a format (RHI 1.6). Pure virtual, so every backend answers. False means `levels > 1` must throw; the caller samples one level. A chain is built at creation from the base level and the texture is immutable afterwards. |
+| `supports_storage_buffers()` | Whether a read-only storage buffer can be bound by `bind_storage_buffer` (RHI 1.12, ADR-068). Pure virtual, so every backend answers. False means `create_pipeline` with `PipelineDesc::storage_buffer` must throw and the caller keeps the push-constant clip path. A Tier-2 backend may answer false indefinitely. |
 | `timestamp_capability()` | The only authority on GPU frame-time samples. A backend without query support returns the default (all false) and the runtime keeps the CPU signal. |
 | `status()` / `recover()` | Loss is recoverable state, not an exception. A backend with no recovery path returns `NotSupported`. |
 | `create_buffer/texture/render_target/pipeline/command_list` | Creation validates descriptors and throws on invalid input; releases partial allocations on failure. |

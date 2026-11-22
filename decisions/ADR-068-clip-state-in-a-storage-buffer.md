@@ -1,7 +1,8 @@
 # ADR-068: Clip state in a storage buffer: arbitrary clip shapes for `clip-path`
 
-- Status: Proposed (2026-11-20). Owner direction: Tessera is pre-alpha, so the renderer is refactored
-  to fit the requirement instead of patched around its current limits.
+- Status: Accepted (2026-11-22). Owner direction: Tessera is pre-alpha, so the renderer is refactored
+  to fit the requirement instead of patched around its current limits. The three open questions were
+  answered by the owner on 2026-11-22 and are recorded in the Follow-up section.
 - Date: 2026-11-20
 - Related: [ADR-003](ADR-003-thin-rhi-and-batched-2d-renderer.md) (thin RHI, batched 2D renderer),
   [ADR-049](ADR-049-backend-extensibility.md) (RHI versioning, conformance, tiers),
@@ -161,6 +162,16 @@ Slices 1 to 3 are a refactor with no user-visible change; #615 lands from slice 
   written with slice 1, so this ADR stays the decision and the note stays the rationale.
 - Conformance suite: a clip-record scene per kind, run on every backend, with the CPU result as the
   reference.
-- Open for owner review: the initial `kMaxClipDepth` of 32, the 256 and 4096 polygon limits, and
-  whether Tier-2 backends may answer `supports_storage_buffers() == false` indefinitely or only until
-  the next RHI minor.
+- Owner review, answered 2026-11-22:
+  - **`kMaxClipDepth` is 32.** The stack is 32 x 8 bytes = 256 B of frame state, and overflow still
+    folds conservatively.
+  - **Polygon limits are 256 vertices per polygon and 4096 per frame.** 4096 x 8 B = 32 KB per frame
+    buffer. A clip over either limit falls back to its bounding box and is counted in diagnostics.
+  - **A Tier-2 backend may answer `supports_storage_buffers() == false` indefinitely.** It is a
+    capability, not a deadline, exactly like `supports_dual_source_blend()`; a backend that says
+    false keeps the three-rounded-rectangle path and no frame changes.
+- Slice 1 landed as RHI 1.12 (issue #669): `BufferUsage::Storage`,
+  `CommandList::bind_storage_buffer`, `PipelineDesc::storage_buffer` and
+  `Device::supports_storage_buffers()`, with the null and Vulkan implementations and a conformance
+  check that reads the buffer back out of a rendered target. Contract in
+  [rhi.md](../docs/design/gpu/rhi.md) section 5.5.

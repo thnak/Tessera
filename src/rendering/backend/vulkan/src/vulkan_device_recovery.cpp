@@ -59,6 +59,8 @@ void VulkanDevice::destroy_device_objects() {
     destroy_descriptor_pools();
     // The array set and its layout belong to the generation too (RHI 1.7, issue #480 part 2).
     destroy_texture_array();
+    // The storage-buffer set and its layout likewise (RHI 1.12, ADR-068).
+    destroy_storage_buffer();
     if (descriptor_set_layout_ != VK_NULL_HANDLE && device_ != VK_NULL_HANDLE) {
         vkDestroyDescriptorSetLayout(device_, descriptor_set_layout_, nullptr);
     }
@@ -143,6 +145,7 @@ std::expected<void, rhi::DeviceRecoveryError> VulkanDevice::recover() {
         create_allocator();
         create_descriptor_layout();
         create_texture_array_layout();
+        create_storage_buffer_layout();
         create_descriptor_pool();
     } catch (...) {
         destroy_device_objects();

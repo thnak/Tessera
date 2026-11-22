@@ -336,6 +336,16 @@ void VulkanDevice::create_device() {
         supported_12.descriptorBindingPartiallyBound == VK_TRUE;
     const std::uint32_t texture_array_capacity = descriptor_indexing ? kTextureArrayCapacity : 0U;
 
+    // Read-only storage buffers (RHI 1.12, ADR-068 slice 1). A fragment-stage storage buffer is
+    // core Vulkan 1.0, but the set is rewritten in place while a submitted frame may still read it,
+    // which needs `descriptorBindingStorageBufferUpdateAfterBind`. Validation rejects the layout
+    // flag without it (VUID-VkDescriptorSetLayoutBindingFlagsCreateInfo-
+    // descriptorBindingStorageBufferUpdateAfterBind-03008), so the capability is gated on the
+    // feature rather than assumed: a device without it reports no storage buffers and the caller
+    // keeps the push-constant clip path.
+    const bool storage_buffer_update_after_bind =
+        supported_12.descriptorBindingStorageBufferUpdateAfterBind == VK_TRUE;
+
     VkPhysicalDeviceVulkan13Features enabled_13{};
     enabled_13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
     enabled_13.dynamicRendering = VK_TRUE;
@@ -349,6 +359,10 @@ void VulkanDevice::create_device() {
     enabled_12.descriptorBindingSampledImageUpdateAfterBind =
         descriptor_indexing ? VK_TRUE : VK_FALSE;
     enabled_12.descriptorBindingPartiallyBound = descriptor_indexing ? VK_TRUE : VK_FALSE;
+    // The storage-buffer set is rewritten in place, so its update-after-bind feature is enabled
+    // when the physical device reports it (RHI 1.12, ADR-068).
+    enabled_12.descriptorBindingStorageBufferUpdateAfterBind =
+        storage_buffer_update_after_bind ? VK_TRUE : VK_FALSE;
     enabled_13.pNext = &enabled_12;
 
     VkPhysicalDeviceFeatures2 enabled_2{};
@@ -396,33 +410,14 @@ void VulkanDevice::create_device() {
     // "unusable" instead of letting a consumer guess.
     VkPhysicalDeviceProperties properties{};
     vkGetPhysicalDeviceProperties(physical_device_, &properties);
-    std::uint32_t family_count = 0;
-    vkGetPhysicalDeviceQueueFamilyProperties(physical_device_, &family_count, nullptr);
-    std::vector<VkQueueFamilyProperties> families(family_count);
-    if (family_count > 0) {
-        vkGetPhysicalDeviceQueueFamilyProperties(physical_device_, &family_count, families.data());
-    }
-    rhi::GpuTimestampCapability capability;
-    capability.period_ns = properties.limits.timestampPeriod;
-    if (static_cast<std::size_t>(queue_family_) < families.size()) {
-        const VkQueueFamilyProperties& family = families[queue_family_];
-        capability.queries_supported = family.timestampValidBits > 0;
-        capability.queue_supported = (family.queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0;
-    }
-    timestamp_query_pool_ = VK_NULL_HANDLE;
-    if (capability.usable()) {
-        VkQueryPoolCreateInfo pool_info{};
-        pool_info.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
-        pool_info.queryType = VK_QUERY_TYPE_TIMESTAMP;
-        pool_info.queryCount = 2 * kGpuTimestampSlots;
-        VkQueryPool pool = VK_NULL_HANDLE;
-        if (vkCreateQueryPool(device_, &pool_info, nullptr, &pool) == VK_SUCCESS) {
-            timestamp_query_pool_ = pool;
-        } else {
-            capability = rhi::GpuTimestampCapability{};
-        }
-    }
-    timestamp_capability_ = capability;
+    // Read-only storage buffers (RHI 1.12, ADR-068 slice 1): a fragment-stage storage buffer is
+    // core Vulkan 1.0, so the only honest gate is the per-stage descriptor limit, combined with the
+    // update-after-bind feature the in-place set rewrite needs. Every real device reports both; a
+    // device that reports either as absent keeps the push-constant clip path.
+    storage_buffer_capacity_ = storage_buffer_update_after_bind
+                                   ? properties.limits.maxPerStageDescriptorStorageBuffers
+                                   : 0U;
+    probe_timestamp_capability(properties);
 }
 
 void VulkanDevice::create_allocator() {

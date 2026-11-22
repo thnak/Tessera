@@ -23,9 +23,11 @@ int main() {
     // `Texture::write_region`/`TextureRegion` (issue #681); 1.10 added `SurfacePlatform::Android`,
     // the `VK_KHR_android_surface` presentation family (issue #189); 1.11 gave every RHI `enum
     // class` an explicit `std::uint8_t` base type (issue #734), which is an ABI change rather than
-    // a source one. All are additive compatible changes.
-    if (rhi::kRhiVersionMajor != 1 || rhi::kRhiVersionMinor != 11 ||
-        rhi::kRhiVersion != ((1u << 16) | 11u)) {
+    // a source one; 1.12 added `BufferUsage::Storage`, `CommandList::bind_storage_buffer`,
+    // `PipelineDesc::storage_buffer` and `Device::supports_storage_buffers()` (ADR-068 slice 1,
+    // issue #669). All are additive compatible changes.
+    if (rhi::kRhiVersionMajor != 1 || rhi::kRhiVersionMinor != 12 ||
+        rhi::kRhiVersion != ((1u << 16) | 12u)) {
         std::cerr << "unexpected RHI version constants\n";
         return 1;
     }
@@ -317,6 +319,74 @@ int main() {
     if (!write_rejected) {
         std::cerr << "a mipmapped texture should be immutable\n";
         return 26;
+    }
+
+    // RHI 1.12 storage buffers (ADR-068 slice 1, issue #669): the null device reports the
+    // capability, records the bind, and rejects the same misuse a validating backend rejects.
+    if (!device->supports_storage_buffers()) {
+        std::cerr << "the null device should report storage-buffer support\n";
+        return 27;
+    }
+    const auto storage_buffer =
+        device->create_buffer(rhi::BufferDesc{64, rhi::BufferUsage::Storage});
+    rhi::PipelineDesc storage_pipeline_desc;
+    storage_pipeline_desc.storage_buffer = true;
+    const auto storage_pipeline = device->create_pipeline(storage_pipeline_desc);
+    const auto* storage_recorded = dynamic_cast<const null::NullPipeline*>(storage_pipeline.get());
+    if (storage_recorded == nullptr || !storage_recorded->declares_storage_buffer()) {
+        std::cerr << "the null pipeline did not record the storage-buffer layout\n";
+        return 28;
+    }
+
+    auto storage_commands = device->create_command_list();
+    // A bind before any pipeline is a logic error, exactly as on the Vulkan backend.
+    bool storage_rejected = false;
+    try {
+        storage_commands->bind_storage_buffer(0, *storage_buffer);
+    } catch (const std::logic_error&) {
+        storage_rejected = true;
+    }
+    if (!storage_rejected) {
+        std::cerr << "bind_storage_buffer should reject a bind without a pipeline\n";
+        return 29;
+    }
+    // A pipeline that declares no storage buffer cannot have one bound to it.
+    storage_commands->bind_pipeline(*pipeline);
+    storage_rejected = false;
+    try {
+        storage_commands->bind_storage_buffer(0, *storage_buffer);
+    } catch (const std::logic_error&) {
+        storage_rejected = true;
+    }
+    if (!storage_rejected) {
+        std::cerr << "bind_storage_buffer should reject a pipeline without the layout\n";
+        return 30;
+    }
+    // An empty buffer cannot be read, and Vulkan cannot even create one, so creation refuses it.
+    storage_rejected = false;
+    try {
+        (void)device->create_buffer(rhi::BufferDesc{0, rhi::BufferUsage::Storage});
+    } catch (const std::invalid_argument&) {
+        storage_rejected = true;
+    }
+    if (!storage_rejected) {
+        std::cerr << "create_buffer should reject a zero-size buffer\n";
+        return 31;
+    }
+    // The valid bind is recorded with its slot and size, which is the structural evidence.
+    storage_commands->bind_pipeline(*storage_pipeline);
+    storage_commands->bind_storage_buffer(3, *storage_buffer);
+    const auto* storage_null = dynamic_cast<null::NullCommandList*>(storage_commands.get());
+    if (storage_null == nullptr || storage_null->stats().storage_buffer_binds != 1 ||
+        storage_null->stats().storage_buffer_records.size() != 1) {
+        std::cerr << "bind_storage_buffer was not recorded\n";
+        return 32;
+    }
+    const null::NullStorageBufferBind& storage_record =
+        storage_null->stats().storage_buffer_records.front();
+    if (storage_record.slot != 3 || storage_record.size != 64) {
+        std::cerr << "bind_storage_buffer record mismatch\n";
+        return 33;
     }
 
     std::cout << "rhi_null: ok\n";

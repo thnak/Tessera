@@ -58,6 +58,11 @@ public:
     supports_texture_mipmaps(tessera::rendering::rhi::TextureFormat) const override {
         return false;
     }
+    // This fake never binds a storage buffer, so the capability is unreachable; false is the honest
+    // answer for a device that cannot bind one (RHI 1.12, ADR-068).
+    [[nodiscard]] bool supports_storage_buffers() const override {
+        return false;
+    }
     std::unique_ptr<tessera::rendering::rhi::Buffer> create_buffer(const BufferDesc&) override {
         return nullptr;
     }

@@ -158,6 +158,14 @@ public:
         return true;
     }
 
+    // WebGPU has `read-only-storage` bindings, so the capability is expressible; the binding itself
+    // is not implemented yet (ADR-068 slice 2). Reporting false is what keeps a caller on the
+    // push-constant clip path instead of building a pipeline whose descriptor set can never be
+    // bound. Flip this to true in the same change that implements bind_storage_buffer.
+    [[nodiscard]] bool supports_storage_buffers() const override {
+        return false;
+    }
+
     [[nodiscard]] rhi::DeviceStatus status() const override {
         return context_->lost ? rhi::DeviceStatus::Lost : rhi::DeviceStatus::Ready;
     }

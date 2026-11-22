@@ -132,6 +132,28 @@ public:
                                  "(texture_array_capacity() is 0)");
     }
 
+    // Binds `buffer` as a read-only storage buffer at descriptor `slot`, so a shader can read a
+    // variable-length record list instead of a fixed push-constant block (RHI 1.12, ADR-068). This
+    // is the seam `clip-path` needs: a clip set is a list of records whose length depends on the
+    // scene, and a push constant cannot hold it.
+    //
+    // Contract:
+    //  - `buffer` must have been created with `BufferUsage::Storage` by this device, and must not
+    //  be
+    //    empty; a zero-size buffer throws std::invalid_argument, because a shader that indexes it
+    //    would read past its end.
+    //  - A pipeline must have been bound, and its layout must declare a read-only storage buffer at
+    //    `slot` (`PipelineDesc::storage_buffer`). Binding without one throws std::logic_error.
+    //  - Backends without the capability (`Device::supports_storage_buffers() == false`) throw
+    //    std::runtime_error; callers ask the capability first, so this never reaches a frame.
+    //  - The buffer's contents are read at draw time, not at bind time, so a caller may rewrite it
+    //    between draws. It must not be rewritten while a submission that reads it is in flight; the
+    //    per-frame-buffer pattern (one buffer per frame in flight) is what keeps that true.
+    virtual void bind_storage_buffer(std::uint32_t /*slot*/, const Buffer& /*buffer*/) {
+        throw std::runtime_error("bind_storage_buffer: this backend has no storage buffers "
+                                 "(supports_storage_buffers() is false)");
+    }
+
     // Binds `target` as a texture at descriptor `slot`, so a shader can read pixels a render target
     // already holds. This is the RHI 1.3 sampled view of an offscreen target: the missing half of
     // the isolated-layer seam (RHI 1.1 `copy_target_region`) and the capability the glass composite
@@ -346,6 +368,18 @@ public:
     [[nodiscard]] virtual std::uint32_t texture_array_capacity() const {
         return 0;
     }
+
+    // True when this device can bind a read-only storage buffer
+    // (`CommandList::bind_storage_buffer`, RHI 1.12, ADR-068). This is the only authority on the
+    // capability: consumers must not infer it from the backend name, because a read-only storage
+    // buffer in the fragment stage is optional on Vulkan and absent from some Tier-2 backends.
+    // When it is false, `create_pipeline` with `PipelineDesc::storage_buffer` throws and the caller
+    // keeps the push-constant path (three rounded rectangles, ADR-068 section 5). Pure virtual on
+    // purpose, like `supports_dual_source_blend()`: a backend that does not answer cannot honour
+    // the contract, and the answer is a recorded device fact, not a guess. A Tier-2 backend may
+    // answer false indefinitely (ADR-068, owner decision 2026-11-22); it is a capability, not a
+    // deadline.
+    [[nodiscard]] virtual bool supports_storage_buffers() const = 0;
 
     // The device's GPU-timestamp probe (docs/design/performance.md section 6.1). This is the only
     // authority on whether a GPU frame-time sample exists; consumers must not infer it from the

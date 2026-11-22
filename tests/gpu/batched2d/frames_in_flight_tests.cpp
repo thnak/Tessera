@@ -153,6 +153,9 @@ public:
     [[nodiscard]] bool supports_texture_mipmaps(rhi::TextureFormat format) const override {
         return inner_->supports_texture_mipmaps(format);
     }
+    [[nodiscard]] bool supports_storage_buffers() const override {
+        return inner_->supports_storage_buffers();
+    }
     std::unique_ptr<rhi::Buffer> create_buffer(const rhi::BufferDesc& desc) override {
         return std::make_unique<RecordingBuffer>(inner_->create_buffer(desc), log_);
     }

@@ -1258,6 +1258,7 @@ class include/tessera/rendering/null/null_device.hpp tessera::rendering::null::N
 struct include/tessera/rendering/null/null_device.hpp tessera::rendering::null::NullCommandStats
 struct include/tessera/rendering/null/null_device.hpp tessera::rendering::null::NullDrawRecord
 struct include/tessera/rendering/null/null_device.hpp tessera::rendering::null::NullSampledTargetBind
+struct include/tessera/rendering/null/null_device.hpp tessera::rendering::null::NullStorageBufferBind
 struct include/tessera/rendering/null/null_device.hpp tessera::rendering::null::NullTargetRegionCopy
 enum include/tessera/rendering/null/null_device.hpp tessera::rendering::null::NullCommandKind
 function include/tessera/rendering/null/null_device.hpp tessera::rendering::null::create_null_device
@@ -1406,6 +1407,9 @@ function include/tessera/rendering/vulkan/batched2d_pipeline.hpp tessera::render
 
 header include/tessera/rendering/vulkan/glass_blur_pipeline.hpp
 function include/tessera/rendering/vulkan/glass_blur_pipeline.hpp tessera::rendering::vulkan::glass_blur_pipeline_desc
+
+header include/tessera/rendering/vulkan/storage_probe_pipeline.hpp
+function include/tessera/rendering/vulkan/storage_probe_pipeline.hpp tessera::rendering::vulkan::storage_probe_pipeline_desc
 
 header include/tessera/rendering/vulkan/vulkan_device.hpp
 function include/tessera/rendering/vulkan/vulkan_device.hpp tessera::rendering::vulkan::create_vulkan_device

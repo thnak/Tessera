@@ -34,6 +34,9 @@ struct BackendProfile {
     bool command_list = false;
     bool device_status = false;
     bool gpu_timestamps = false;
+    // RHI 1.12 (ADR-068): the device's own `supports_storage_buffers()` answer, which is the only
+    // authority for the capability.
+    bool storage_buffer = false;
 
     [[nodiscard]] bool has(Capability capability) const;
 };
@@ -57,5 +60,12 @@ struct OpenedBackend {
 // batched2d pipeline fixture; Metal consumes MSL, so it names the same shader by id; the null
 // backend records the default descriptor.
 [[nodiscard]] rendering::rhi::PipelineDesc pipeline_template(rendering::rhi::Backend backend);
+
+// Fills `desc` with the backend's storage-buffer probe program (RHI 1.12, ADR-068 slice 1), keeping
+// the caller's `storage_buffer`/`color_format`/`blend` choices. Returns false when this backend has
+// no such program, so the check reports a skip instead of failing on a pipeline it cannot build.
+// The null backend needs no program: it records the descriptor, so it returns true unchanged.
+[[nodiscard]] bool fill_storage_probe_pipeline(rendering::rhi::Backend backend,
+                                               rendering::rhi::PipelineDesc& desc);
 
 } // namespace tessera::tests::gpu::conformance
