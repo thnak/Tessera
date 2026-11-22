@@ -128,5 +128,45 @@ fewer)**, and the curve is linear again (6,274 / 7,475 / 12,279 / 24,286 at 500 
   the remaining cost is `build_layout_input` + Yoga, which is slice D (retained Yoga tree).
 - **layout-dirty is unchanged.** A node that marks `Dirty::Layout` is honoured by the gate, so the
   pass still runs. That is the intended contract, not a miss.
-- **6k size-change is still ~60 ms on Windows and ~93 ms on Linux.** Slice D is the fix; the gate
-  cannot help a frame that genuinely reflows.
+
+## Slice D — the retained Yoga tree
+
+`LayoutEngine::layout` used to build a `YGNode` per `LayoutInput`, apply ~40 computed-style lookups
+per node, lay out, and free the whole tree. It now keeps one `YGNode` per node id across frames
+(`src/ui/layout/layout_retained.cpp`) and re-applies a node's style only when its
+`style::layout_digest` changed, letting Yoga propagate the dirtiness from there. A changed node's
+style is rebuilt from a pristine `Style` rather than patched in place, because `apply_style` writes
+only the longhands the style *has*: a longhand the author removed would otherwise keep its old Yoga
+value. The from-scratch path (`layout_cold.cpp`) stays as the oracle, for `layout_subtree`, and for
+grid items.
+
+Measured on the same box as the rows above, median of 5 runs, 50 warm-up / 200 measured frames. The
+before column is the from-scratch path measured in the same session, not the `9.45`/`59.93` above;
+it reproduces them (9.02 vs 9.45 at 1.5k), so the two are comparable.
+
+| scenario | nodes | before | after | allocations before → after |
+|---|---|---|---|---|
+| size-change | 1,501 | 9.02 | **0.98** | 6,290 → 2,255 |
+| size-change | 6,001 | 62.06 | **8.49** | 223,453 → 107,811 |
+
+The remaining cost is Yoga's own layout pass plus the box walk, which a real reflow cannot avoid.
+The acceptance gate is `layout_retained` (`tests/unit/layout_retained_tests.cpp`): a fixed-seed
+randomized edit sequence over one tree — size changes, `order` changes, `display: none` and
+`display: contents` flips, text changes, a child added and removed, a grid track change, a nested
+flex direction flip, and a longhand *removed* — where every frame's retained result must equal
+`layout_cold` box for box, including `content_insets` and `text_fit`. It also asserts that a steady
+frame re-applies no style, that a viewport change re-applies styles but keeps the tree, and that an
+unbounded (negative) viewport axis gates the page adjustments exactly as the from-scratch path does.
+
+The test was verified to have teeth: removing the pristine style reset, the `order` sort, the grid
+input refresh, or the child insert each makes it fail on a specific frame. The removed-longhand case
+is the one that found a real bug — without the pristine reset a node kept the `width` its author had
+just deleted, and the box stayed 128px wide where the from-scratch path produced 38px.
+
+## What is still not fixed after D
+
+- **layout-dirty is unchanged.** A node that marks `Dirty::Layout` is honoured by the gate, so the
+  pass still runs. That is the intended contract, not a miss.
+- **The remaining size-change cost is Yoga's own pass plus the box walk**, which a real reflow
+  cannot avoid. Slices E+F (interned property ids, style as a delta over shared defaults) target the
+  style-lookup share of it.

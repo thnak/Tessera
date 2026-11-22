@@ -14,7 +14,11 @@ add_library(tessera_layout STATIC
     layout_read_model.cpp
     layout_settle.cpp
     layout_block_fill.cpp
+    layout_cold.cpp
     layout_font_size.cpp
+    layout_measure.cpp
+    layout_retained.cpp
+    layout_retained_collect.cpp
     layout_style.cpp
     layout_tokens.cpp
     layout_scheduler.cpp
@@ -49,4 +53,14 @@ if (TESSERA_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/unit/grid_signature_tests.cpp)
     target_link_libraries(grid_signature_tests PRIVATE tessera_layout)
     add_test(NAME grid_signature COMMAND grid_signature_tests)
+
+    # The retained tree's acceptance gate (issue #735, slice D): a randomized edit sequence whose
+    # every frame must equal the from-scratch path box for box. It includes the module's internal
+    # headers, so it is registered here rather than in the shared tests/unit registry.
+    add_executable(layout_retained_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/layout_retained_tests.cpp)
+    target_include_directories(layout_retained_tests PRIVATE
+        ${PROJECT_SOURCE_DIR}/src/ui/layout)
+    target_link_libraries(layout_retained_tests PRIVATE tessera_layout)
+    add_test(NAME layout_retained COMMAND layout_retained_tests)
 endif()
