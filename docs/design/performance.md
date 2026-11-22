@@ -98,7 +98,7 @@ Frame budgets say nothing about resident memory, which regresses late and on mob
 | Event-binding table (first binding) | 200 bytes, once per node | lazy; `node_size` test; `event_binding_table_bytes` row || Paint payload (text/image node) | 512 bytes plus its string; 520 allocated on first use. The paint cache's recorded op is 104 bytes, down from 2376 while every draw payload sat inline (issue #731 made the payload a `std::variant` and moved the gradient shapes to `PaintRecord::gradients`, so the 2 MiB budget holds 1159 entries instead of 104) | lazy; `node_size` test; `sizeof_paint_data`, `paint_slot_bytes` and `sizeof_paint_op` rows; `paint_op_size` test |
 | Resolved `background-image` | `BackgroundLayerList` 1672 bytes, down from 4552 because `GradientValue` carried all three gradient shapes side by side (24 stops where a gradient can use 8); issue #731 made the three shapes a union, so `GradientValue` is 200. `resolve_layers` returns one by value per painted node | `background_layer_size` test (`static_assert`), `sizeof_background_layer_list` row |
 | `InputEvent` | 320 bytes (the 256-event queue is about 80 KiB; the members were grouped by alignment in the security review, finding C5, which removed 24 bytes of internal padding) | `sizeof_input_event` row (was measured but unasserted) |
-| `ComputedStyle` (first property) | 96 bytes per styled node (208 in MSVC Debug); the handle itself is 16 bytes on MSVC, 48 on libstdc++ | `computed_style_one_property_bytes` row |
+| `ComputedStyle` (first property) | 128 bytes per styled node (208 in MSVC Debug); the handle itself is 16 bytes on MSVC, 48 on libstdc++ | `computed_style_one_property_bytes` row |
 | `NodeId` | 8 bytes, and it is repeated in every side table (paint cache, resolved styles, dirty list, damage) | `sizeof_node_id` row |
 | Internal padding (issue #731) | `PaceDecision` 24→16, `AdaptiveQualitySample` 32→24, `OverlayPlacement` 48→40 and `PaintData` 536→528 by ordering members widest-first. The other padding rows are **accepted**: `KeyframeTiming` (64), `AnimationEntry` (216), `BidiVisualRun` (24), `PaintImageStyle`/`PaintVectorStyle` (56), `PaintOutsets` (20) and `TextConstraints` (8) carry only *tail* padding, which no reorder can remove | `padding_size` test (`static_assert`), `sizeof_pace_decision`, `sizeof_adaptive_quality_sample`, `sizeof_overlay_placement` and `sizeof_paint_data` rows |
 | Resident bytes per plain node (20k-node tree) | 364 on Windows x64, 327 on Linux x64, budget 1024 | `memory_steady_state` test, `tests/golden/memory/steady_state.txt`, `resident_bytes_per_node` row (warn) |
@@ -466,10 +466,19 @@ the style stage, and both are now fixed:
   `tests/unit/selector_match_tests.cpp` pins that with a replaced global `operator new`.
 
 Measured on the reference machine above, same scene and preset: first style + layout went from
-**449 ms to 384 ms** (a 14.5 % reduction), and the damaged-frame paint from 3.50 ms to 3.31 ms. The
-remaining cost is the ~120 `std::map` inserts per node that `apply_initial_values` still performs;
-replacing `ComputedStyle`'s `std::map` with a flat sorted vector is the next step and is recorded as
-an open question in section 10.
+**449 ms to 384 ms** (a 14.5 % reduction), and the damaged-frame paint from 3.50 ms to 3.31 ms.
+
+**The style representation (issue #735, slices E and F).** A `ComputedStyle` used to hold every
+one of the ~100 longhands with an initial value as its own `std::string` pair (~6.5 KB per node), and
+`perf` put its `lower_bound` and `memcmp` at **53 % of LLC misses** on a size-change frame. Now
+`PropertyRegistry` builds one immutable `StyleDefaults` table from its own merged property list, a
+computed style stores only the entries that differ from it (slice F), and every registered longhand
+gets a stable small id in sorted-name order that indexes that table: one probe, one array read. The contracts are unchanged (`find` returns the effective value,
+`contains` only what the style holds itself, `properties()` the full sorted effective style as a
+view that allocates nothing, `identity()`/`cached_digest()` still live with the shared entries;
+`tests/unit/style_delta_tests.cpp` pins each). With `frame_alloc_probe --computecheck`, one computed
+style went from **99 allocations / 28 678 bytes to 43 / 11 848** at depth 2 and from **147 / 43 813
+to 64 / 18 240** at depth 3, and a real computed style now holds **33 of its 101 effective entries**.
 
 **Glass scenario (issue #244, [`glass-v1.md`](../specs/glass-v1.md) section 9).** The same full
 paint with the reference dashboard's fixed top bar blurred (`backdrop-filter: blur(16px)` through an
@@ -570,10 +579,10 @@ design is unchanged pending that discussion. The paint number is draw-list build
 rasterization is excluded because the benchmark runs without a font, and a full paint still paints
 all 12 000 nodes because the paint-pass cull only applies to a damaged plan. "First style + layout"
 includes the
-full CSS cascade; the benchmark's resolved-style table drops longhands that still equal their
-registry initial value, which keeps 12 000 computed styles at a few megabytes and lets layout and
-paint measure their own work instead of re-copying ~90 default longhands per node. Do not claim
-parallelism without a measured gain on this benchmark.
+full CSS cascade; a computed style is a delta over the registry's shared initial values (issue #735,
+slices E and F), so 12 000 computed styles cost a few megabytes and layout and paint measure their
+own work instead of re-copying ~90 default longhands per node. Do not claim parallelism without a
+measured gain on this benchmark.
 
 ## 10. Open questions
 
@@ -585,13 +594,6 @@ parallelism without a measured gain on this benchmark.
   or per-display rendering is scheduled or a mixed-DPI app needs it.
 - How much adaptive quality is acceptable without visual regression.
 - Benchmark harness and baseline budgets per scene class.
-- **Should `ComputedStyle` stay a `std::map<std::string, std::string>`?** After the P1 fix the
-  remaining cost of a style pass is the ~120 map inserts `apply_initial_values` performs per node,
-  plus a `std::string` key copy per lookup (the map has no transparent comparator). A flat
-  `std::vector<std::pair<std::string, std::string>>` kept sorted by name would make a lookup a
-  binary search over contiguous memory, make `winners()` a view instead of a copy, and preserve the
-  sorted iteration order `layout_signature.cpp` relies on. It is a wide change - every
-  `properties()` consumer and the `set`/`erase`/`find` seam - so it needs its own landing.
 - **Should `SceneStyleTree::compute` memoize per style generation?** It re-cascades the whole
   ancestor chain per node, and one frame resolves each node's style up to five times (layout input,
   scene-style sync, interaction style, animation style bridge, paint). A per-generation table would

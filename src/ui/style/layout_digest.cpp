@@ -165,7 +165,7 @@ std::uint64_t layout_digest(const ComputedStyle& style) noexcept {
         return cached;
     }
     Hasher hasher;
-    // `ComputedStyle` owns a sorted map, so this walk is deterministic regardless of insertion
+    // The effective style is sorted by name, so this walk is deterministic regardless of insertion
     // order. Only the layout set is folded in; a paint-only change leaves the digest intact.
     for (const auto& [name, value] : style.properties()) {
         const std::size_t index = layout_property_index(name);

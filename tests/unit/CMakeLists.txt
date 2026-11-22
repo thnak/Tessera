@@ -1246,6 +1246,15 @@ target_link_libraries(style_var_tests PRIVATE tessera_style)
 
 add_test(NAME style_var COMMAND style_var_tests)
 
+# The computed style's representation (issue #735, slices E and F): a delta over the registry's
+# shared initial values, with a stable small id per registered longhand.
+add_executable(style_delta_tests
+    style_delta_tests.cpp)
+
+target_link_libraries(style_delta_tests PRIVATE tessera_style)
+
+add_test(NAME style_delta COMMAND style_delta_tests)
+
 add_executable(compiled_stylesheet_tests
     compiled_stylesheet_tests.cpp)
 

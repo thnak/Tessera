@@ -281,26 +281,47 @@ ComputedStyle::Entries& ComputedStyle::mutable_entries() {
     if (properties_ == nullptr) {
         properties_ = std::make_shared<Storage>();
     } else if (properties_.use_count() > 1) {
+        // The clone is a delta over the same defaults: they are immutable and shared, so the copy
+        // keeps the pointer rather than dropping it.
+        std::shared_ptr<const StyleDefaults> defaults = properties_->defaults;
         properties_ = std::make_shared<Storage>(properties_->entries);
+        properties_->defaults = std::move(defaults);
     } else {
         properties_->digest.store(0, std::memory_order_relaxed);
     }
     return properties_->entries;
 }
 
+void ComputedStyle::attach_defaults(std::shared_ptr<const StyleDefaults> defaults) {
+    if (properties_ == nullptr) {
+        if (defaults == nullptr) {
+            return;
+        }
+        properties_ = std::make_shared<Storage>();
+    } else if (properties_.use_count() > 1) {
+        std::shared_ptr<const StyleDefaults> previous = properties_->defaults;
+        properties_ = std::make_shared<Storage>(properties_->entries);
+        properties_->defaults = std::move(previous);
+    }
+    properties_->defaults = std::move(defaults);
+    // The effective style changed even though the delta did not, so a digest folded from the old
+    // defaults is stale.
+    properties_->digest.store(0, std::memory_order_relaxed);
+}
+
 void ComputedStyle::erase(std::string_view property) {
     const std::string normalized = normalize_property(property);
     const auto found = lower_bound(normalized);
-    if (found != properties().end() && found->first == normalized) {
-        const auto index = found - properties().cbegin();
-        Entries& entries = mutable_entries();
-        entries.erase(entries.begin() + index);
+    if (found != entries().end() && found->first == normalized) {
+        const auto index = found - entries().cbegin();
+        Entries& mutable_values = mutable_entries();
+        mutable_values.erase(mutable_values.begin() + index);
     }
 }
 
 ComputedStyle::Entries::const_iterator
 ComputedStyle::lower_bound(std::string_view normalized) const {
-    const Entries& entries = properties();
+    const Entries& values = entries();
     // Names mostly differ in their first byte, so decide on it before calling into a full compare.
     const auto less = [](std::string_view left, std::string_view right) {
         if (!left.empty() && !right.empty() && left.front() != right.front()) {
@@ -309,8 +330,8 @@ ComputedStyle::lower_bound(std::string_view normalized) const {
         }
         return left < right;
     };
-    auto first = entries.begin();
-    auto count = entries.end() - first;
+    auto first = values.begin();
+    auto count = values.end() - first;
     while (count > 0) {
         const auto half = count / 2;
         const auto middle = first + half;
@@ -335,41 +356,68 @@ const std::string* ComputedStyle::find(std::string_view property) const {
 }
 
 bool ComputedStyle::contains(std::string_view property) const {
-    return find(property) != nullptr;
+    // The delta only: `initial`/`unset` leave a property to its default, and a caller asking
+    // whether this style *holds* the entry must not see the default as one.
+    const std::string normalized = normalize_property(property);
+    const auto found = lower_bound(normalized);
+    return found != entries().end() && found->first == normalized;
 }
 
 const std::string* ComputedStyle::find_normalized(std::string_view normalized) const {
     const auto found = lower_bound(normalized);
-    return found != properties().end() && found->first == normalized ? &found->second : nullptr;
+    if (found != entries().end() && found->first == normalized) {
+        return &found->second;
+    }
+    // Not held: the registry default it was computed against, if any.
+    return properties_ != nullptr && properties_->defaults != nullptr
+               ? properties_->defaults->find(normalized)
+               : nullptr;
 }
 
 bool ComputedStyle::contains_normalized(std::string_view normalized) const {
-    return find_normalized(normalized) != nullptr;
+    const auto found = lower_bound(normalized);
+    return found != entries().end() && found->first == normalized;
 }
 
 void ComputedStyle::set_normalized(std::string_view normalized, std::string value) {
+    // The delta never stores a value equal to its default: the effective style is the same either
+    // way, and this is what keeps a node's style a handful of entries instead of ~100 (slice F).
+    const std::string* fallback = properties_ != nullptr && properties_->defaults != nullptr
+                                      ? properties_->defaults->find(normalized)
+                                      : nullptr;
+    const bool redundant = fallback != nullptr && *fallback == value;
     // Computed styles are mostly built in name order (inherited properties, then the initial
     // values), so appending is the common case.
-    const Entries& current = properties();
+    const Entries& current = entries();
     if (current.empty() || std::string_view(current.back().first) < normalized) {
-        mutable_entries().emplace_back(std::string(normalized), std::move(value));
+        if (!redundant) {
+            mutable_entries().emplace_back(std::string(normalized), std::move(value));
+        }
         return;
     }
     const auto found = lower_bound(normalized);
     const auto index = found - current.cbegin();
     const bool exists = found != current.end() && found->first == normalized;
-    Entries& entries = mutable_entries();
-    if (exists) {
-        entries[static_cast<std::size_t>(index)].second = std::move(value);
+    if (redundant) {
+        if (exists) {
+            Entries& mutable_values = mutable_entries();
+            mutable_values.erase(mutable_values.begin() + index);
+        }
         return;
     }
-    entries.emplace(entries.begin() + index, std::string(normalized), std::move(value));
+    Entries& mutable_values = mutable_entries();
+    if (exists) {
+        mutable_values[static_cast<std::size_t>(index)].second = std::move(value);
+        return;
+    }
+    mutable_values.emplace(mutable_values.begin() + index, std::string(normalized),
+                           std::move(value));
 }
 
 void ComputedStyle::merge_missing(const Entries& defaults) {
     // Entries may be shared with another style: move strings out only when this style owns them.
     const bool owned = properties_ != nullptr && properties_.use_count() == 1;
-    const Entries& mine_entries = properties();
+    const Entries& mine_entries = entries();
     Entries merged;
     merged.reserve(mine_entries.size() + defaults.size());
     auto mine = mine_entries.begin();
@@ -393,16 +441,21 @@ void ComputedStyle::merge_missing(const Entries& defaults) {
     for (; mine != mine_entries.end(); ++mine) {
         take(*mine);
     }
+    std::shared_ptr<const StyleDefaults> defaults_table =
+        properties_ != nullptr ? properties_->defaults : nullptr;
     properties_ = std::make_shared<Storage>(std::move(merged));
+    properties_->defaults = std::move(defaults_table);
 }
 
 ComputedStyle compute_style(const ComputedStyle* parent, const CascadeTable& cascade,
                             std::vector<StyleDiagnostic>* diagnostics) {
     ComputedStyle style;
     if (parent != nullptr) {
+        // The effective style: an inherited property the parent left at its default still inherits
+        // that default, and a child that overrides it must see the value it is overriding.
         for (const auto& [property, value] : parent->properties()) {
             if (is_inherited_property(property)) {
-                style.set_normalized(property, value);
+                style.set_normalized(property, std::string(value));
             }
         }
     }

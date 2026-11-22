@@ -11,6 +11,9 @@ target_compile_features(tessera_css_tokenizer PUBLIC cxx_std_23)
 add_library(tessera_style STATIC
     backdrop_filter.cpp
     cascade.cpp
+    # The effective-style view of a computed style: the delta merged with the shared defaults, as a
+    # two-range merge that allocates nothing (issue #735, slice F).
+    cascade_properties.cpp
     font_size.cpp
     color.cpp
     color_functions.cpp
@@ -43,6 +46,10 @@ add_library(tessera_style STATIC
     property_registry.cpp
     property_registry_extra.cpp
     property_value_validation.cpp
+    # The registry's initial values, indexed by the stable small id a computed style's delta is read
+    # against (issue #735, slices E and F). Its own translation unit so the registry table and the
+    # lookup stay under the source line limit.
+    style_defaults.cpp
     # The node half of SafeArea (safe-area-v1.md sections 3 and 11, issue #408): the `tsafe` token
     # parsing and the one padding/margin writer the app host AND the design-time preview both call.
     # It lives here so the two layout consumers share one implementation instead of a preview-only

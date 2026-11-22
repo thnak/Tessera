@@ -86,6 +86,8 @@ std::vector<AnimationId> start_style_transitions(AnimationRuntime& runtime, std:
                                                  const style::ComputedStyle& after,
                                                  AnimationCallback on_complete) {
     std::vector<AnimationId> ids;
+    // The effective style: a property that was at its default before and is set now is a transition
+    // too, so this must see the defaults as well as the delta (issue #735, slice F).
     for (const auto& [property, to] : after.properties()) {
         const std::string* from = before.find(property);
         if (from == nullptr || *from == to || to.empty()) {
@@ -96,7 +98,8 @@ std::vector<AnimationId> start_style_transitions(AnimationRuntime& runtime, std:
             continue;
         }
         const AnimationId id =
-            start_transition_values(runtime, target, *transition, property, *from, to, on_complete);
+            start_transition_values(runtime, target, *transition, std::string(property), *from,
+                                    std::string(to), on_complete);
         if (id != 0) {
             ids.push_back(id);
         }

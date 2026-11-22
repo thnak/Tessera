@@ -4,6 +4,7 @@
 
 #include "tessera/ui/style/parser.hpp"
 #include "tessera/ui/style/selector.hpp"
+#include "tessera/ui/style/style_defaults.hpp"
 
 #include <atomic>
 #include <cstddef>
@@ -103,15 +104,107 @@ public:
     void set(std::string property, std::string value);
     void erase(std::string_view property);
 
+    // The effective value: the entry this style holds itself, else the registry default it was
+    // computed against. A pointer stays valid while any holder of the style lives.
     [[nodiscard]] const std::string* find(std::string_view property) const;
     [[nodiscard]] bool contains(std::string_view property) const;
-    // Property/value pairs sorted by property name (byte order), the iteration order the former
-    // `std::map` gave. A flat vector: a copy is one allocation instead of one per property, and a
-    // lookup is a binary search with no key materialised (issue #711).
+
+    // The entries this style holds *itself*, sorted by property name (byte order): a delta over the
+    // registry's initial values, not the ~100-entry effective style (issue #735, slice F). A copy
+    // is one allocation instead of one per property, and a lookup is a binary search with no key
+    // materialised (issue #711).
     using Entries = std::vector<std::pair<std::string, std::string>>;
-    [[nodiscard]] const Entries& properties() const {
-        return properties_ != nullptr ? properties_->entries : empty_entries();
+
+    // One (name, value) pair of the effective style. Views, not copies: the name points into the
+    // delta or the shared defaults table, both of which outlive the view.
+    using Entry = std::pair<std::string_view, std::string_view>;
+
+    // The effective style: this style's delta merged with the defaults it was computed against,
+    // sorted by name - the iteration order `properties()` always gave. A view, so reading the
+    // ~100-entry effective style allocates nothing and touches only the delta plus the defaults
+    // table (issue #735, slice F).
+    class Properties {
+    public:
+        class const_iterator {
+        public:
+            [[nodiscard]] const Entry& operator*() const noexcept {
+                return current_;
+            }
+            [[nodiscard]] const Entry* operator->() const noexcept {
+                return &current_;
+            }
+            const_iterator& operator++();
+            [[nodiscard]] bool operator==(const const_iterator& other) const noexcept {
+                return done_ == other.done_ && di_ == other.di_ && si_ == other.si_;
+            }
+            [[nodiscard]] bool operator!=(const const_iterator& other) const noexcept {
+                return !(*this == other);
+            }
+
+        private:
+            friend class Properties;
+            const_iterator(const Entries* delta, const StyleDefaults* defaults, std::size_t di,
+                           std::uint16_t si)
+                : delta_(delta),
+                  defaults_(defaults),
+                  di_(di),
+                  si_(si) {
+                advance();
+            }
+            // Merges the two sorted ranges: the delta wins on a name it holds, and a default with
+            // no initial value (absent until declared) is skipped.
+            void advance();
+
+            const Entries* delta_ = nullptr;
+            const StyleDefaults* defaults_ = nullptr;
+            std::size_t di_ = 0;
+            std::uint16_t si_ = 0;
+            Entry current_{};
+            bool done_ = true;
+        };
+
+        Properties(const Entries* delta, const StyleDefaults* defaults)
+            : delta_(delta),
+              defaults_(defaults) {}
+
+        [[nodiscard]] const_iterator begin() const {
+            return const_iterator(delta_, defaults_, 0, 0);
+        }
+        [[nodiscard]] const_iterator end() const {
+            // The exhausted position `advance` normalises to, so every exhausted iterator compares
+            // equal to this one.
+            return const_iterator(delta_, defaults_, delta_ != nullptr ? delta_->size() : 0,
+                                  defaults_ != nullptr
+                                      ? static_cast<std::uint16_t>(defaults_->size())
+                                      : std::uint16_t{0});
+        }
+        [[nodiscard]] bool empty() const {
+            return begin() == end();
+        }
+        [[nodiscard]] std::size_t size() const;
+        [[nodiscard]] bool operator==(const Properties& other) const;
+
+    private:
+        const Entries* delta_ = nullptr;
+        const StyleDefaults* defaults_ = nullptr;
+    };
+    [[nodiscard]] Properties properties() const {
+        return Properties(properties_ != nullptr ? &properties_->entries : &empty_entries(),
+                          properties_ != nullptr ? properties_->defaults.get() : nullptr);
     }
+
+    // The delta itself: only the entries this style holds, without the defaults. A writer that
+    // rewrites values in place wants this - the defaults are literal CSS initial values, so they
+    // can never contain a `var()` reference or need re-resolving.
+    [[nodiscard]] const Entries& delta() const {
+        return entries();
+    }
+
+    // The registry's initial values this style is a delta over. A style with none (a bare
+    // `ComputedStyle`, as `compute_style` returns) holds every entry itself, which is what the
+    // cascade tests pin. Attaching is idempotent and drops the cached digest, because the effective
+    // style changed.
+    void attach_defaults(std::shared_ptr<const StyleDefaults> defaults);
 
     // Two styles that share their entries are equal without comparing them; `equals` takes that
     // shortcut first. `identity` keeps the entries alive, so a holder can recognise "the very same
@@ -119,15 +212,31 @@ public:
     [[nodiscard]] bool same_entries(const ComputedStyle& other) const noexcept {
         return properties_ == other.properties_;
     }
+    // Equality of the EFFECTIVE style. Two styles computed against the same defaults are equal
+    // exactly when their deltas are equal, so this compares the deltas - a handful of entries -
+    // instead of walking the ~100-entry merged view. That matters: `DiffingStyleProvider` calls
+    // this once per node per frame, and a merged walk there cost 45% of a size-change frame
+    // (issue #735). Styles with different (or absent) defaults fall back to the full comparison,
+    // because their effective styles can differ even with equal deltas.
     [[nodiscard]] bool equals(const ComputedStyle& other) const {
-        return same_entries(other) || properties() == other.properties();
+        if (same_entries(other)) {
+            return true;
+        }
+        const StyleDefaults* mine = properties_ != nullptr ? properties_->defaults.get() : nullptr;
+        const StyleDefaults* theirs =
+            other.properties_ != nullptr ? other.properties_->defaults.get() : nullptr;
+        if (mine == theirs) {
+            return entries() == other.entries();
+        }
+        return properties() == other.properties();
     }
     [[nodiscard]] std::shared_ptr<const void> identity() const {
         return properties_;
     }
 
-    // One cached 64-bit digest of these entries, for a reader that folds the style into a hash
-    // (the layout signature). It lives with the shared entries, so every copy of an unchanged style
+    // One cached 64-bit digest of the effective style, for a reader that folds the style into a
+    // hash (the layout signature). It lives with the shared entries, so every copy of an unchanged
+    // style
     // - the memo entry, the layout input - computes it once across frames; a mutation drops it.
     // Zero means "not computed" (a digest of zero is stored as one).
     [[nodiscard]] std::uint64_t cached_digest() const {
@@ -153,6 +262,10 @@ public:
     void set_normalized(std::string_view normalized, std::string value);
 
 private:
+    // The delta itself, for the operations that maintain it. `properties()` is the effective view.
+    [[nodiscard]] const Entries& entries() const {
+        return properties_ != nullptr ? properties_->entries : empty_entries();
+    }
     [[nodiscard]] Entries::const_iterator lower_bound(std::string_view normalized) const;
     [[nodiscard]] static const Entries& empty_entries();
     // Copy-on-write: copying a style shares the entries (the layout input, the diff baseline and
@@ -162,6 +275,9 @@ private:
 
     struct Storage {
         Entries entries;
+        // The initial values this delta is over. Shared, immutable and never reset by a mutation:
+        // only the entries change.
+        std::shared_ptr<const StyleDefaults> defaults;
         mutable std::atomic<std::uint64_t> digest{0};
 
         Storage() = default;

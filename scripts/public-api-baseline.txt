@@ -2767,6 +2767,10 @@ struct include/tessera/ui/style/selector_match.hpp tessera::ui::style::StyleNode
 function include/tessera/ui/style/selector_match.hpp tessera::ui::style::matches
 function include/tessera/ui/style/selector_match.hpp tessera::ui::style::matches_has
 
+header include/tessera/ui/style/style_defaults.hpp
+class include/tessera/ui/style/style_defaults.hpp tessera::ui::style::StyleDefaults
+struct include/tessera/ui/style/style_defaults.hpp tessera::ui::style::StyleDefault
+
 header include/tessera/ui/style/stylesheet_blob.hpp
 struct include/tessera/ui/style/stylesheet_blob.hpp tessera::ui::style::BlobError
 struct include/tessera/ui/style/stylesheet_blob.hpp tessera::ui::style::EmbeddedStylesheet

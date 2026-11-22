@@ -241,7 +241,7 @@ void resolve_color_functions(ComputedStyle& style, const ComputedStyle* parent,
         std::optional<std::string> value;
     };
     std::vector<Update> updates;
-    for (const auto& [property, value] : style.properties()) {
+    for (const auto& [property, value] : style.delta()) {
         if (is_custom_property(property) || value.find('(') == std::string::npos) {
             continue;
         }
@@ -355,16 +355,18 @@ std::optional<std::string> resolve_custom(CustomProperties& state, const std::st
 
 void resolve_variables(ComputedStyle& style, const ComputedStyle* parent,
                        std::vector<StyleDiagnostic>* diagnostics) {
-    const auto& properties = style.properties();
+    // The delta, not the effective style: a registry default is a literal CSS initial value, so it
+    // can never hold a `var()` reference and re-resolving it would be wasted work (issue #735).
+    const auto& properties = style.delta();
     if (properties.empty()) {
         return;
     }
 
     // `light-dark()` and `color-mix()` are computed-value-time functions like `var()`: they read
     // the element's own `color-scheme` (inherited, so a nested dark region resolves its own
-    // colours) and they may appear inside a larger value. Resolve them after `var()` below, because
-    // a custom property may hold the function, and before the initial-value pass, so a malformed
-    // call drops the declaration exactly as an unresolvable `var()` does.
+    // colours) and may appear inside a larger value. Resolve them after `var()` below, because a
+    // custom property may hold the function, and before the initial-value pass, so a malformed call
+    // drops the declaration exactly as an unresolvable `var()` does.
     const ColorContext color_context = color_context_for(style, parent);
 
     // Style resolution runs for every dirty node, and almost no value references a custom property.
@@ -386,7 +388,6 @@ void resolve_variables(ComputedStyle& style, const ComputedStyle* parent,
         resolve_color_functions(style, parent, color_context, diagnostics);
         return;
     }
-
     CustomProperties state;
     for (const auto& [property, value] : properties) {
         if (is_custom_property(property)) {
@@ -486,5 +487,4 @@ void resolve_variables(ComputedStyle& style, const ComputedStyle* parent,
 
     resolve_color_functions(style, parent, color_context, diagnostics);
 }
-
 } // namespace tessera::ui::style
