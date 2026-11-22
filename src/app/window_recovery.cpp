@@ -99,6 +99,11 @@ bool WindowHost::Impl::create_presentation() {
     if (!group->ensure_presentation(swapchain->format(), options)) {
         return false;
     }
+    // LCD text needs a per-channel pipeline on a device that can blend that way. Whether it exists
+    // is an input of the policy (`Auto` resolves grayscale without it), and the policy applied to
+    // the text renderer below reads `aa_options`, so the two can never disagree. The pipeline is
+    // the group's, so this reads it after `ensure_presentation` created it.
+    aa_options.lcd_supported = group->lcd_pipeline() != nullptr;
     // Creation is a between-frames moment exactly like a metrics change, so the shared text
     // renderer (which starts on the golden policy) adopts this window's policy here. A device-loss
     // recovery calls this again, which is why the policy is not applied from the constructor
@@ -222,8 +227,17 @@ bool WindowHost::Impl::service_device_loss(const runtime::RuntimeTick& tick, Rec
     case RecoveryAction::Release:
         // Destroy the lost-generation RHI objects once: the controller's next probe can only
         // succeed after they are gone (`ResourcesOutstanding` otherwise).
+        //
+        // The shared caches hold RHI resources too (the renderer's vertex ring and offscreen pool,
+        // the glyph atlas textures, the pipelines, the white texture), so the group releases them
+        // here as well. Without this the in-place `recover()` fails with `ResourcesOutstanding` and
+        // the run gives up on its first attempt. `release_presentation` is idempotent, so a second
+        // window reaching this branch costs nothing.
         release_in_flight(detail::kRecoveryDrainBudgetSeconds);
         release_presentation();
+        if (group != nullptr) {
+            group->release_presentation();
+        }
         break;
     case RecoveryAction::GiveUp:
         stats.stalled = true;
