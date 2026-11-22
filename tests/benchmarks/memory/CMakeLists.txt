@@ -90,3 +90,12 @@ target_compile_features(frame_alloc_probe PRIVATE cxx_std_23)
 
 # Replaces the global operator new/delete to count allocations; see the helper's comment.
 tessera_allow_allocator_override(frame_alloc_probe)
+
+# `--sites` resolves an allocation's return address to a symbol with `dladdr`, which needs the
+# executable's own symbols in the dynamic table. POSIX only; on Windows the address is printed
+# unresolved, which still distinguishes sites.
+if (UNIX AND NOT APPLE)
+    target_link_options(frame_alloc_probe PRIVATE -rdynamic)
+elseif (APPLE)
+    target_link_options(frame_alloc_probe PRIVATE -Wl,-export_dynamic)
+endif()

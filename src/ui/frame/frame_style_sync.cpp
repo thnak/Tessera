@@ -55,7 +55,8 @@ paint::SceneStyleSyncResult FramePipeline::sync_style_scoped(Node& root,
         style_bridge_snapshot_ = {};
         return {};
     }
-    DiffingStyleProvider diffing(styles, previous_styles_);
+    DiffingStyleProvider diffing(styles, previous_styles_, ++style_sync_generation_,
+                                 style_diff_changed_);
     paint::SceneStyleSyncResult result =
         paint::sync_scene_style_scoped(diffing, roots, config_.glass, &scene_sync_memo_);
     // No `prune()` here, deliberately. `prune()` drops every node this pass did not visit, and a
@@ -100,7 +101,8 @@ paint::SceneStyleSyncResult FramePipeline::sync_style(Node& root, paint::StylePr
         style_bridge_snapshot_ = {};
         return {};
     }
-    DiffingStyleProvider diffing(styles, previous_styles_);
+    DiffingStyleProvider diffing(styles, previous_styles_, ++style_sync_generation_,
+                                 style_diff_changed_);
     paint::SceneStyleSyncResult result =
         paint::sync_scene_style(root, diffing, config_.glass, &scene_sync_memo_);
     diffing.prune();
