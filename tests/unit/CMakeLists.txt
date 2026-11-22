@@ -2244,6 +2244,15 @@ target_link_libraries(codegen_handler_control_tests PRIVATE tessera_codegen)
 
 add_test(NAME codegen_handler_control COMMAND codegen_handler_control_tests)
 
+# ADR-066 item 4, the generated C++ half: a `Dispatch` action becomes a call of the handler its
+# case became, resolved through the state's dispatch table at generation time.
+add_executable(codegen_reducer_tests
+    codegen_reducer_tests.cpp)
+
+target_link_libraries(codegen_reducer_tests PRIVATE tessera_codegen)
+
+add_test(NAME codegen_reducer COMMAND codegen_reducer_tests)
+
 # ADR-066 item 3: `filter`, `slice`, `.length` and the total string methods.
 add_executable(lowering_list_ops_tests
     lowering_list_ops_tests.cpp)
