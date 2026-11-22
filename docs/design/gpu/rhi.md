@@ -374,6 +374,10 @@ variable-length record list, and no push-constant budget holds one
   the rule once instead of letting each backend fail differently.
 - `bind_storage_buffer` throws `std::logic_error` without a bound pipeline, and
   `std::invalid_argument` for a buffer not created with `BufferUsage::Storage`.
+- The storage buffer is a **separate descriptor set** from the sampled image, so a shader can sample
+  a texture and read the record list in the same draw. `slot` names that set; Vulkan and null use
+  set 1 (set 0 is the sampled image), and a slot the layout does not declare throws
+  `std::invalid_argument`.
 - The buffer's contents are read at draw time, not at bind time, so a caller may rewrite it between
   draws. It must not be rewritten while a submission that reads it is in flight; the
   per-frame-buffer pattern (one buffer per frame in flight) is what keeps that true.

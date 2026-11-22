@@ -8,7 +8,7 @@
 // This is a conformance fixture, not a production shader: it exists so `bind_storage_buffer` is
 // proven end to end on a real device instead of only structurally on the null backend.
 
-layout(set = 0, binding = 0, std430) readonly buffer ClipRecords {
+layout(set = 1, binding = 0, std430) readonly buffer ClipRecords {
     vec4 color;
 } records;
 

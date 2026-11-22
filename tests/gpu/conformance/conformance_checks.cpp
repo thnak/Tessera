@@ -399,7 +399,7 @@ CheckResult storage_buffer_bind(rhi::Device& device) {
 
     commands->begin_render_pass(*target, target_desc);
     commands->bind_pipeline(*pipeline);
-    commands->bind_storage_buffer(0, *buffer);
+    commands->bind_storage_buffer(1, *buffer);
     commands->set_viewport(rhi::Viewport{0.0f, 0.0f, static_cast<float>(kTargetExtent),
                                          static_cast<float>(kTargetExtent), 0.0f, 1.0f});
     commands->set_scissor(rhi::Scissor{0, 0, kTargetExtent, kTargetExtent});

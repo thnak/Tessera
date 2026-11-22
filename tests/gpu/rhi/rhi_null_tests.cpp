@@ -378,9 +378,10 @@ int main() {
         std::cerr << "create_buffer should reject a zero-size buffer\n";
         return 31;
     }
-    // The valid bind is recorded with its slot and size, which is the structural evidence.
+    // The valid bind is recorded with its slot and size, which is the structural evidence. The
+    // storage buffer is set 1 (ADR-068: a separate set from the sampled image).
     storage_commands->bind_pipeline(*storage_pipeline);
-    storage_commands->bind_storage_buffer(3, *storage_buffer);
+    storage_commands->bind_storage_buffer(1, *storage_buffer);
     const auto* storage_null = dynamic_cast<null::NullCommandList*>(storage_commands.get());
     if (storage_null == nullptr || storage_null->stats().storage_buffer_binds != 1 ||
         storage_null->stats().storage_buffer_records.size() != 1) {
@@ -389,9 +390,20 @@ int main() {
     }
     const null::NullStorageBufferBind& storage_record =
         storage_null->stats().storage_buffer_records.front();
-    if (storage_record.slot != 3 || storage_record.size != 64) {
+    if (storage_record.slot != 1 || storage_record.size != 64) {
         std::cerr << "bind_storage_buffer record mismatch\n";
         return 33;
+    }
+    // Any other slot is refused: the pipeline layout declares the storage set at 1 only.
+    storage_rejected = false;
+    try {
+        storage_commands->bind_storage_buffer(0, *storage_buffer);
+    } catch (const std::invalid_argument&) {
+        storage_rejected = true;
+    }
+    if (!storage_rejected) {
+        std::cerr << "bind_storage_buffer should reject a slot other than 1\n";
+        return 34;
     }
 
     std::cout << "rhi_null: ok\n";

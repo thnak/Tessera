@@ -7,6 +7,7 @@
 #include <cstring>
 #include <expected>
 #include <stdexcept>
+#include <string>
 #include <utility>
 
 namespace tessera::rendering::null {
@@ -392,6 +393,13 @@ void NullCommandList::bind_storage_buffer(std::uint32_t slot, const rhi::Buffer&
     if (!current_pipeline_->declares_storage_buffer()) {
         throw std::logic_error(
             "null bind_storage_buffer: the bound pipeline declares no storage buffer");
+    }
+    // The storage buffer is set 1, so the only legal slot is 1 (ADR-068: a separate set from the
+    // sampled image, so a shader can read both).
+    if (slot != 1) {
+        throw std::invalid_argument("null bind_storage_buffer: the storage buffer is set 1, not "
+                                    "slot " +
+                                    std::to_string(slot));
     }
     if (buffer.size() == 0) {
         throw std::invalid_argument("null bind_storage_buffer: an empty buffer cannot be read");
