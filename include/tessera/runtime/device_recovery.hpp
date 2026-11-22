@@ -28,7 +28,7 @@ namespace rhi = tessera::rendering::rhi;
 //   Failed            -> the one-shot recovery failed; frames stay stopped and no further attempts
 //                        are made until the device is observed Ready again (an external/new
 //                        recovery) and then Lost again (a new loss).
-enum class DeviceRecoveryState { Ready, WaitingForCaller, Recovering, Failed };
+enum class DeviceRecoveryState : std::uint8_t { Ready, WaitingForCaller, Recovering, Failed };
 
 struct DeviceRecoveryUpdate {
     DeviceRecoveryState state = DeviceRecoveryState::Ready;

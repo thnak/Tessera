@@ -16,16 +16,29 @@
 
 namespace tessera::rendering::webgpu {
 
-enum class WgpuTextureFormat { Rgba8Unorm, R8Unorm, Bgra8Unorm, Rgba8UnormSrgb, Bgra8UnormSrgb };
-enum class WgpuFilterMode { Nearest, Linear };
-enum class WgpuAddressMode { ClampToEdge, Repeat };
+enum class WgpuTextureFormat : std::uint8_t {
+    Rgba8Unorm,
+    R8Unorm,
+    Bgra8Unorm,
+    Rgba8UnormSrgb,
+    Bgra8UnormSrgb
+};
+enum class WgpuFilterMode : std::uint8_t { Nearest, Linear };
+enum class WgpuAddressMode : std::uint8_t { ClampToEdge, Repeat };
 // WebGPU has no "don't care" load op; see load_op().
-enum class WgpuLoadOp { Clear, Load };
-enum class WgpuStoreOp { Store, Discard };
-enum class WgpuVertexFormat { Float32, Float32x2, Float32x3, Float32x4, Unorm8x4, Uint32 };
-enum class WgpuBlendFactor { One, SrcAlpha, OneMinusSrcAlpha };
-enum class WgpuBlendOp { Add };
-enum class WgpuPrimitiveTopology { TriangleList };
+enum class WgpuLoadOp : std::uint8_t { Clear, Load };
+enum class WgpuStoreOp : std::uint8_t { Store, Discard };
+enum class WgpuVertexFormat : std::uint8_t {
+    Float32,
+    Float32x2,
+    Float32x3,
+    Float32x4,
+    Unorm8x4,
+    Uint32
+};
+enum class WgpuBlendFactor : std::uint8_t { One, SrcAlpha, OneMinusSrcAlpha };
+enum class WgpuBlendOp : std::uint8_t { Add };
+enum class WgpuPrimitiveTopology : std::uint8_t { TriangleList };
 
 // Values are the WebGPU specification's GPUBufferUsage / GPUTextureUsage bits.
 namespace buffer_usage_bits {

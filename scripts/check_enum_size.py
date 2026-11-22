@@ -44,9 +44,11 @@ SCAN_ROOTS = ("include", "src")
 SOURCE_SUFFIXES = (".hpp", ".h", ".cpp", ".cc", ".cxx")
 
 # `enum class Name {` or `enum class Name : type {`, at any indentation, possibly with the brace on
-# the next line (the tree uses both). `enum struct` is the same thing and is matched too.
+# the next line (the tree uses both). `enum struct` is the same thing and is matched too. A one-line
+# body (`enum class E { A, B };`) is matched as well: the declaration is what matters here, not the
+# enumerators, so the pattern stops at the opening brace and does not require the line to end there.
 ENUM_RE = re.compile(
-    r"^\s*enum\s+(?:class|struct)\s+(?P<name>[A-Za-z_]\w*)\s*(?P<base>:\s*[^/{]+?)?\s*(?P<brace>\{)?\s*$"
+    r"^\s*enum\s+(?:class|struct)\s+(?P<name>[A-Za-z_]\w*)\s*(?P<base>:\s*[^/{]+?)?\s*(?P<brace>\{)?"
 )
 
 

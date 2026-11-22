@@ -7,7 +7,7 @@
 
 namespace tessera::ui::text {
 
-enum class TextDirection { LeftToRight, RightToLeft };
+enum class TextDirection : std::uint8_t { LeftToRight, RightToLeft };
 
 // One visual run of a line, in visual (left-to-right) order. Byte offsets are absolute in the
 // original UTF-8 paragraph text; `level` is the resolved bidi embedding level (odd = RTL).

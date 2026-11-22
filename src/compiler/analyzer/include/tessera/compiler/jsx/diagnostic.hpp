@@ -6,6 +6,7 @@
 #include "tessera/compiler/jsx/source_map.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -13,7 +14,7 @@
 
 namespace tessera::compiler::jsx {
 
-enum class Severity { Error, Warning };
+enum class Severity : std::uint8_t { Error, Warning };
 
 // Upper bound on the bytes a diagnostic quotes from source text. Messages that embed input (a
 // tag name, an identifier, an escape sequence) use excerpt(), so one hostile line cannot make

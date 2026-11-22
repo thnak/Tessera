@@ -31,7 +31,7 @@ SCAN_ROOTS = ("include", "src")
 SOURCE_SUFFIXES = (".hpp", ".h", ".cpp", ".cc", ".cxx")
 
 ENUM_RE = re.compile(
-    r"^(?P<indent>\s*)enum\s+(?:class|struct)\s+(?P<name>[A-Za-z_]\w*)\s*(?P<base>:\s*[^/{]+?)?\s*(?P<brace>\{)?\s*$"
+    r"^(?P<indent>\s*)enum\s+(?:class|struct)\s+(?P<name>[A-Za-z_]\w*)\s*(?P<base>:\s*[^/{]+?)?\s*(?P<brace>\{)?"
 )
 
 

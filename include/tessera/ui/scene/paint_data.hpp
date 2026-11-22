@@ -44,7 +44,7 @@ struct PaintTextStyle {
     }
 };
 
-enum class PaintKind { Text, Vector, Image };
+enum class PaintKind : std::uint8_t { Text, Vector, Image };
 
 // PaintData image options (embedded PNG/JPEG asset). Mirrors PaintVectorStyle: the payload carries
 // the borrowed asset name, optional device-pixel raster size, scale hint, tint and opacity, and the
@@ -121,8 +121,8 @@ struct PaintVectorStyle {
 // `wrap` is authoritative for the paint pass (computed `white-space: nowrap|pre` can only suppress
 // wrapping, never enable it); nullopt `text_align` falls back to computed `text-align`, then Start;
 // `max_lines == 0` means unlimited.
-enum class PaintWrap { NoWrap, Wrap };
-enum class PaintTextAlign { Start, Center, End };
+enum class PaintWrap : std::uint8_t { NoWrap, Wrap };
+enum class PaintTextAlign : std::uint8_t { Start, Center, End };
 
 // Caret/selection decoration for a paint text run. Paint consumes only byte offsets: it resolves
 // them to line boxes through the same metrics source/layout the wrap uses, so the paint pass needs

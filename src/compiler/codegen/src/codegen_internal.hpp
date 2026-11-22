@@ -196,7 +196,7 @@ struct FormPlan;
 // An interpolated element metadata value (`id`, `className`, `role`, `aria-*`, `automationId`).
 // The generated component owns the current string (node metadata stays a borrowed view) and only
 // re-applies it when the hash changes; id/className mark Dirty::Style through the node setters.
-enum class MetadataField { ElementId, ClassName, Role, Aria, Style };
+enum class MetadataField : std::uint8_t { ElementId, ClassName, Role, Aria, Style };
 
 struct ControlledInput;
 struct DynamicPlan;

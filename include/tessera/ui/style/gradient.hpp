@@ -42,11 +42,17 @@ struct LinearGradientValue {
 };
 
 // `radial-gradient()` shape. `circle` has one radius; `ellipse` (the default) has two.
-enum class RadialShape { Circle, Ellipse };
+enum class RadialShape : std::uint8_t { Circle, Ellipse };
 
 // The size keywords of CSS Images 3 section 3.2.1, plus explicit radii. `Explicit` carries the two
 // radii in `RadialGradientValue::radius_x`/`radius_y` (a circle uses `radius_x` only).
-enum class RadialSize { ClosestSide, ClosestCorner, FarthestSide, FarthestCorner, Explicit };
+enum class RadialSize : std::uint8_t {
+    ClosestSide,
+    ClosestCorner,
+    FarthestSide,
+    FarthestCorner,
+    Explicit
+};
 
 // The gradient's centre as a fraction of the node's border box, so paint resolves it against the
 // box it actually paints (the parser has no box). CSS `at 25% 75%` is `{0.25, 0.75}`.

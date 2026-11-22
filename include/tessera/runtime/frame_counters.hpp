@@ -12,7 +12,7 @@ namespace tessera::runtime {
 // `Gpu` means the sample came from the RHI timestamp probe's completed submission interval; `Cpu`
 // is the always-available fallback (also the source for the null backend and the first frame,
 // because a GPU interval is only readable after its submission completed).
-enum class FrameTimeSource { Cpu, Gpu };
+enum class FrameTimeSource : std::uint8_t { Cpu, Gpu };
 
 // One frame's adaptive-quality state (docs/design/performance.md section 6; the policy keys are
 // `adaptiveQuality`, `minRenderScale`, `renderScale` and `frameBudgetMs` in
