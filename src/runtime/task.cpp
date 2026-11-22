@@ -17,6 +17,14 @@ TaskStateBase::TaskStateBase(TaskContext context)
       priority_(context.priority),
       token_(std::move(context.token)) {}
 
+void TaskPromiseBase::declare_no_resume() noexcept {
+    // The promise holds the state weakly, so a frame that has already been released is a no-op
+    // rather than a dangling write.
+    if (const std::shared_ptr<TaskStateBase> state = self_.lock()) {
+        state->declare_no_resume();
+    }
+}
+
 bool TaskStateBase::start() {
     if (started_ || done_) {
         return false;
@@ -67,6 +75,21 @@ void TaskStateBase::finish() {
 
 void TaskStateBase::set_exception(std::exception_ptr exception) {
     exception_ = std::move(exception);
+}
+
+void TaskStateBase::declare_no_resume() noexcept {
+    // This task will never finish, so it will never resume its continuation. That strong reference
+    // is one half of the abandoned-frame reference cycle (ADR-069): dropping it turns the pair into
+    // a chain rooted at whoever started the awaiting task, which frees it at that owner's next safe
+    // point instead of never.
+    //
+    // Nothing is destroyed here, and that is the point. The awaiting frame is owned by its starter,
+    // and its awaiter still owns this state, so this frame stays alive until that owner drops the
+    // awaiting frame. `self` guards the cascade if that ever stops holding: releasing the
+    // continuation can release the awaiting frame, whose awaiter is the other reference to this
+    // state, and this function runs inside the frame that state owns.
+    const std::shared_ptr<TaskStateBase> self = weak_from_this().lock();
+    continuation_.reset();
 }
 
 } // namespace detail

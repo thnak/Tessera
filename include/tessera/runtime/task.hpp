@@ -49,6 +49,14 @@ public:
     TaskPromiseBase(const TaskPromiseBase&) = delete;
     TaskPromiseBase& operator=(const TaskPromiseBase&) = delete;
 
+    // Declares that this coroutine will never be resumed: the awaitable it is suspended on holds no
+    // handle to the frame and nothing will post a resume for it. The runtime then drops the strong
+    // reference to the awaiting task, which is what turns an abandoned pair from a reference cycle
+    // nothing can break into a chain its owner frees normally (ADR-069). An awaitable that can
+    // resume the frame later - a queued completion, a callback, a timer - must not call this,
+    // because the awaiting frame would be freed while a resume is still coming.
+    void declare_no_resume() noexcept;
+
     std::weak_ptr<TaskStateBase> self_;
 
 protected:
@@ -93,6 +101,13 @@ public:
     void set_continuation(std::shared_ptr<TaskStateBase> continuation);
     void finish();
     void set_exception(std::exception_ptr exception);
+
+    // Records that this task is suspended on an awaitable that will never resume it, so it will
+    // never finish and never resume its continuation. The strong reference to that continuation is
+    // one half of the abandoned-frame reference cycle, so it is dropped here (ADR-069). Nothing is
+    // destroyed: the awaiting frame is still owned by whoever started it, and its awaiter still
+    // owns this state, so the pair is freed when that owner drops the awaiting frame.
+    void declare_no_resume() noexcept;
 
     [[nodiscard]] bool started() const noexcept {
         return started_;
@@ -202,6 +217,18 @@ bool attach_continuation(TaskStateBase& child, std::coroutine_handle<ParentPromi
         throw std::runtime_error("completion queue rejected the task resume");
     }
     return true;
+}
+
+// Opt-in for an awaitable that provably cannot resume the frame it is suspending: it holds no
+// `coroutine_handle`, posts nothing, and registers no callback. Call it from `await_suspend` with
+// the handle that was passed in, and only when that is true - an awaitable that can resume later
+// must not, because the awaiting frame would be freed while a resume is still coming (ADR-069).
+//
+// The effect is that the task the frame is awaiting drops its strong reference back to the frame's
+// state. Without it an abandoned pair is a reference cycle that only the awaited task finishing can
+// break, and a task parked on such an awaitable never finishes.
+template<typename Promise> void declare_no_resume(std::coroutine_handle<Promise> handle) noexcept {
+    handle.promise().declare_no_resume();
 }
 
 } // namespace detail

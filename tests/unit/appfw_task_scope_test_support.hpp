@@ -47,12 +47,19 @@ struct QueueHop {
 };
 
 // Suspends and is never resumed: the only thing that can end such a child is cancellation (which
-// stops its *next* resume) or scope destruction.
+// stops its *next* resume) or scope destruction. It holds no handle and posts nothing, so it is the
+// one awaitable that can honestly tell the runtime "this frame will never run again" - which is
+// what lets an abandoned pair be freed instead of leaking (ADR-069). The handle is taken as a
+// template parameter because the marker lives on the promise, and a type-erased
+// `coroutine_handle<>` cannot reach it.
 struct ParkForever {
     bool await_ready() const noexcept {
         return false;
     }
-    void await_suspend(std::coroutine_handle<>) const noexcept {}
+    template<typename Promise>
+    void await_suspend(std::coroutine_handle<Promise> handle) const noexcept {
+        runtime::detail::declare_no_resume(handle);
+    }
     void await_resume() const noexcept {}
 };
 
