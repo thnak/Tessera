@@ -113,7 +113,7 @@ A tuple or object return that mixes types is allowed: each element keeps its own
 | Library `environment` hooks | yes | The environment entry is per call site |
 | Behavior hooks | yes | The behavior and its output ids are per call site |
 | Other custom hooks | yes | Depth 8; cycles are `TESSERA_REACT_HOOK_CYCLE` |
-| `useService<T>()` | not in V1 | `TESSERA_REACT_HOOK_SERVICE`: two expansions would require one interface twice, which the code generator refuses; a service is read in the component and passed as an argument. Open item |
+| `useService<T>()` | not in V1 | `TESSERA_REACT_HOOK_SERVICE`: two expansions would require one interface twice, which the code generator refuses; a service is read in the component and passed as an argument. **Not yet emitted**: `useService` has no front-end form (no manifest entry, no core-hook entry), so the rule guards a form that cannot be written today. The code is reserved, not reachable |
 
 ## 7. Limits
 
@@ -150,7 +150,7 @@ All are errors unless stated; new codes are registered with a fixture in `diagno
 | `TESSERA_REACT_HOOK_CYCLE` | A hook calls itself directly or through other hooks |
 | `TESSERA_REACT_HOOK_DEPTH` | Expansion deeper than 8 |
 | `TESSERA_REACT_HOOK_SIZE` | Expansion adds more than 400 statements (a warning from 200) |
-| `TESSERA_REACT_HOOK_SERVICE` | `useService` inside a custom hook |
+| `TESSERA_REACT_HOOK_SERVICE` | `useService` inside a custom hook (reserved: no front-end form yet, see section 6) |
 | `TESSERA_REACT_HOOK_ORDER` | Unchanged; checked on the expanded component |
 
 ## 10. Versioning
