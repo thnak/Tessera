@@ -146,6 +146,14 @@ private:
 
     void refresh_subtree_dirty();
 
+    // The two halves of `hit_test_deep` once the point has been mapped into a node's space, so the
+    // descent maps it one level at a time instead of inverting the whole parent chain per node.
+    // `hit_test_local` takes a point in this node's box space; `hit_test_in_parent_space` takes one
+    // in the parent's content space, maps it into this node's space and prunes by the cached
+    // subtree paint box before descending.
+    [[nodiscard]] Node* hit_test_local(float local_x, float local_y);
+    [[nodiscard]] Node* hit_test_in_parent_space(float parent_x, float parent_y);
+
     // The node's boolean state, one bit each. Ten separate bools cost more in padding than the
     // budget can spare (and MSVC's debug vector adds a pointer on top), so they share one word.
     // Defaults: visible, `pointer-events: auto`, everything else off.

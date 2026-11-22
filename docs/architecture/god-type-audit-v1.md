@@ -156,6 +156,22 @@ recompiles every includer of `node.hpp`, because `Node` derives from all four. T
 comes from 4b, not 4c. The previous decision against `NodeGeometryView`/`NodeInteractionView` stands
 (a view object adds a hop to `hit_test`); a base does not.
 
+**Measured (step 0, `tessera_benchmark --walk`, Linux Release GCC, 12 000 nodes, one pinned core).**
+A traversal that reads only the hot fields costs 12.9 ns/node with 3.8 L1D misses and 0.02 LLC
+misses per node (the whole 3.8 MB tree sits in the LLC). Two passes were far above that and were
+algorithmic, not cache-bound: `hit_test_deep` took 3.2 ms per point (it inverted the whole parent
+chain at every node and searched every subtree outside scroll containers), and the full-dirty
+`collect + clear` took 800 ns/node with 2 330 instructions/node.
+
+**Landed (step 1, hit test).** `hit_test_deep` inverts the world transform once at the entry node
+and maps the point one level at a time below it, pruning each child by its cached
+`subtree_paint_bounds()` (an infinite box, i.e. unproven text, is never pruned; a 0.5 px slack
+absorbs float differences). 3.2 ms -> 1.3 us per point on the same scene, with an identical hit
+checksum. `scene_hit_test_prune_tests` compares it against the unpruned algorithm over random trees
+and pins the cases a prune could get wrong. Still open: the dirty-clear cost (`refresh_subtree_dirty`
+rescans a parent's children once per cleared child), and the cache-line layout, which is judged
+against the `--walk` numbers once the algorithmic passes are fixed.
+
 ### 3.2 `app::WindowHost::Impl` (rank 2)
 
 [window_impl.hpp](../../src/app/window_impl.hpp) is 255 lines and declares 32 member functions and 42

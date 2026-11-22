@@ -324,23 +324,44 @@ bool Node::hit_test(float x, float y) const {
     return rhi::Rect{0.0f, 0.0f, bounds_.width, bounds_.height}.contains(local_x, local_y);
 }
 
+namespace {
+
+// Slack on the subtree-box prune, in box-local px. The box is already a superset of every
+// descendant's hit area (each node adds a pixel of reach and children are mapped by their AABB), so
+// this only absorbs the float difference between inverting a chain and inverting it one level at a
+// time. It can only keep a subtree that could have been skipped, never skip one that could be hit.
+constexpr float kPruneSlack = 0.5f;
+
+// True when the affine part of `matrix` is the identity, so mapping a point through it is a plain
+// translation by (m[2], m[5]). The common case: most nodes carry no transform.
+bool affine_is_identity(const rhi::Mat3& matrix) {
+    return matrix.m[0] == 1.0f && matrix.m[1] == 0.0f && matrix.m[3] == 0.0f && matrix.m[4] == 1.0f;
+}
+
+} // namespace
+
 Node* Node::hit_test_deep(float x, float y) {
     if (!rendered()) {
         return nullptr;
     }
+    // The one full inversion of the call: the entry node may sit anywhere in the tree, so its point
+    // is mapped through the whole parent chain. Everything below it maps one level at a time. A
+    // node whose world transform is singular has no hit area and neither do its descendants.
+    rhi::Mat3 inverse;
+    if (!world_transform().try_inverse(inverse)) {
+        return nullptr;
+    }
+    float local_x = 0;
+    float local_y = 0;
+    inverse.transform_point(x, y, local_x, local_y);
+    return hit_test_local(local_x, local_y);
+}
 
+Node* Node::hit_test_local(float local_x, float local_y) {
     // A scroll container clips its children to its scrollport (the border box inset by
     // scrollport_insets, so a caller that set them to the border widths gets the padding box):
-    // points outside cannot hit anything in the subtree. The offset itself is applied by
-    // world_transform(), so child inverse transforms already account for it.
+    // points outside cannot hit anything in the subtree.
     if (scrollable_x() || scrollable_y()) {
-        rhi::Mat3 inverse;
-        if (!world_transform().try_inverse(inverse)) {
-            return nullptr;
-        }
-        float local_x = 0;
-        float local_y = 0;
-        inverse.transform_point(x, y, local_x, local_y);
         const float min_x = std::min(scroll_.scrollport_left(), bounds_.width);
         const float min_y = std::min(scroll_.scrollport_top(), bounds_.height);
         const float max_x = std::max(min_x, bounds_.width - scroll_.scrollport_right());
@@ -348,14 +369,23 @@ Node* Node::hit_test_deep(float x, float y) {
         if (local_x < min_x || local_y < min_y || local_x > max_x || local_y > max_y) {
             // Children are clipped at the scrollport, but the container itself is still hit within
             // its own box (its border/padding area paints there).
-            return flag(kPointerEvents) && hit_test(x, y) ? this : nullptr;
+            return flag(kPointerEvents) &&
+                           rhi::Rect{0.0f, 0.0f, bounds_.width, bounds_.height}.contains(local_x,
+                                                                                         local_y)
+                       ? this
+                       : nullptr;
         }
     }
+
+    // Children live in content space: the parent's scroll shifts them by -scroll, so a point in
+    // this node's box space is `scroll` further along in content space.
+    const float content_x = local_x + scroll_.scroll_x();
+    const float content_y = local_y + scroll_.scroll_y();
 
     // Topmost first: highest z-index, and later siblings over earlier ones at equal z-index.
     Node* hit = nullptr;
     for_each_by_z(children_, true, [&](Node& child) {
-        hit = child.hit_test_deep(x, y);
+        hit = child.hit_test_in_parent_space(content_x, content_y);
         return hit != nullptr;
     });
     if (hit != nullptr) {
@@ -364,7 +394,41 @@ Node* Node::hit_test_deep(float x, float y) {
 
     // `pointer-events: none` skips only this node as a target; the child search above already ran,
     // so a descendant with `auto` is hit normally.
-    return flag(kPointerEvents) && hit_test(x, y) ? this : nullptr;
+    return flag(kPointerEvents) &&
+                   rhi::Rect{0.0f, 0.0f, bounds_.width, bounds_.height}.contains(local_x, local_y)
+               ? this
+               : nullptr;
+}
+
+Node* Node::hit_test_in_parent_space(float parent_x, float parent_y) {
+    if (!rendered()) {
+        return nullptr;
+    }
+
+    // Parent content space -> this node's box space: undo the box origin, then the transform that
+    // acts around it (the same composition world_transform() builds).
+    float local_x = 0;
+    float local_y = 0;
+    if (affine_is_identity(transform_)) {
+        local_x = parent_x - bounds_.x - transform_.m[2];
+        local_y = parent_y - bounds_.y - transform_.m[5];
+    } else {
+        rhi::Mat3 inverse;
+        if (!(rhi::Mat3::translation(bounds_.x, bounds_.y) * transform_).try_inverse(inverse)) {
+            return nullptr; // singular: no area here, and none below
+        }
+        inverse.transform_point(parent_x, parent_y, local_x, local_y);
+    }
+
+    // Prune by the cached subtree paint box. It covers every descendant's hit area and the whole
+    // subtree when it cannot prove a bound (an infinite box), so a miss here cannot hide a hit.
+    const rhi::Rect box = subtree_paint_bounds();
+    if (std::isfinite(box.width) &&
+        (local_x < box.x - kPruneSlack || local_y < box.y - kPruneSlack ||
+         local_x > box.right() + kPruneSlack || local_y > box.bottom() + kPruneSlack)) {
+        return nullptr;
+    }
+    return hit_test_local(local_x, local_y);
 }
 
 } // namespace tessera::ui
