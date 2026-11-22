@@ -2212,6 +2212,14 @@ target_link_libraries(codegen_handler_control_tests PRIVATE tessera_codegen)
 
 add_test(NAME codegen_handler_control COMMAND codegen_handler_control_tests)
 
+# ADR-066 item 3: `filter`, `slice`, `.length` and the total string methods.
+add_executable(lowering_list_ops_tests
+    lowering_list_ops_tests.cpp)
+
+target_link_libraries(lowering_list_ops_tests PRIVATE tessera_lowering)
+
+add_test(NAME lowering_list_ops COMMAND lowering_list_ops_tests)
+
 add_executable(lowering_control_reject_tests
     lowering_control_reject_tests.cpp)
 

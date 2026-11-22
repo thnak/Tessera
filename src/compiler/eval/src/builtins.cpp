@@ -85,6 +85,38 @@ std::expected<Value, EvalError> rounding(std::string_view name, const Value& val
     return Value::of_float(std::round(x)); // ties away from zero
 }
 
+// ADR-066 item 3: `trim` removes ASCII whitespace from both ends. It is deliberately ASCII-only, so
+// the result does not depend on a locale or on the host's Unicode tables.
+std::string trimmed(const std::string& text) {
+    const auto space = [](char c) {
+        return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f' || c == '\v';
+    };
+    std::size_t begin = 0;
+    std::size_t end = text.size();
+    while (begin < end && space(text[begin])) {
+        ++begin;
+    }
+    while (end > begin && space(text[end - 1])) {
+        --end;
+    }
+    return text.substr(begin, end - begin);
+}
+
+// ADR-066 item 3: `toUpperCase`/`toLowerCase` fold ASCII letters only. A non-ASCII byte passes
+// through unchanged, so the result is a pure function of the input bytes.
+std::string cased(const std::string& text, bool upper) {
+    std::string out = text;
+    for (char& c : out) {
+        const auto byte = static_cast<unsigned char>(c);
+        if (byte >= 'a' && byte <= 'z' && upper) {
+            c = static_cast<char>(byte - 'a' + 'A');
+        } else if (byte >= 'A' && byte <= 'Z' && !upper) {
+            c = static_cast<char>(byte - 'A' + 'a');
+        }
+    }
+    return out;
+}
+
 } // namespace
 
 std::expected<Value, EvalError> call_function(std::string_view name, std::span<const Value> args) {
@@ -157,6 +189,75 @@ std::expected<Value, EvalError> call_function(std::string_view name, std::span<c
         return needs(name, "a string or a list");
     }
     if (name == "formatNumber") {
+        if (args.size() != 2) {
+            return arity(name, 2);
+        }
+        if (!args[0].is_number() || args[1].as_int() == nullptr) {
+            return needs(name, "a number and an int count of decimals");
+        }
+        return Value::of_string(fixed_text(args[0].number(), *args[1].as_int()));
+    }
+    // ADR-066 item 3: the total string methods. Each takes its receiver as the first argument, so a
+    // method call and a function call are one shape.
+    if (name == "trim" || name == "toUpperCase" || name == "toLowerCase") {
+        if (args.size() != 1) {
+            return arity(name, 1);
+        }
+        const std::string* text = args[0].as_string();
+        if (text == nullptr) {
+            return needs(name, "a string");
+        }
+        if (name == "trim") {
+            return Value::of_string(trimmed(*text));
+        }
+        return Value::of_string(cased(*text, name == "toUpperCase"));
+    }
+    if (name == "startsWith") {
+        if (args.size() != 2) {
+            return arity(name, 2);
+        }
+        const std::string* text = args[0].as_string();
+        const std::string* prefix = args[1].as_string();
+        if (text == nullptr || prefix == nullptr) {
+            return needs(name, "two strings");
+        }
+        return Value::of_bool(text->starts_with(*prefix));
+    }
+    if (name == "slice") {
+        // The list form is `listSlice`; this is the string form, `s.slice(start[, end])`.
+        if (args.size() < 2 || args.size() > 3) {
+            return fail("TESSERA_IR_EVAL_ARITY", "`slice` takes a string and one or two bounds");
+        }
+        const std::string* text = args[0].as_string();
+        if (text == nullptr) {
+            return needs(name, "a string");
+        }
+        const auto bound = [&](std::size_t index,
+                               std::int64_t fallback) -> std::expected<std::int64_t, EvalError> {
+            if (index >= args.size()) {
+                return fallback;
+            }
+            const std::int32_t* integer = args[index].as_int();
+            if (integer == nullptr) {
+                return fail("TESSERA_IR_EVAL_TYPE", "a `slice` bound must be an int");
+            }
+            return static_cast<std::int64_t>(*integer);
+        };
+        auto start = bound(1, 0);
+        if (!start) {
+            return std::unexpected(std::move(start.error()));
+        }
+        auto end = bound(2, static_cast<std::int64_t>(text->size()));
+        if (!end) {
+            return std::unexpected(std::move(end.error()));
+        }
+        const auto size = static_cast<std::int64_t>(text->size());
+        const std::int64_t from = std::clamp<std::int64_t>(*start, 0, size);
+        const std::int64_t to = std::clamp<std::int64_t>(*end, from, size);
+        return Value::of_string(
+            text->substr(static_cast<std::size_t>(from), static_cast<std::size_t>(to - from)));
+    }
+    if (name == "toFixed") {
         if (args.size() != 2) {
             return arity(name, 2);
         }

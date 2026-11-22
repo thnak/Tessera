@@ -2502,6 +2502,17 @@ class include/tessera/ui/scene/input_dispatch.hpp tessera::ui::InputRouter
 struct include/tessera/ui/scene/input_dispatch.hpp tessera::ui::InputDispatchResult
 function include/tessera/ui/scene/input_dispatch.hpp tessera::ui::dispatch_input
 
+header include/tessera/ui/scene/list_ops.hpp
+function include/tessera/ui/scene/list_ops.hpp tessera::ui::filter_list
+function include/tessera/ui/scene/list_ops.hpp tessera::ui::slice_bounds
+function include/tessera/ui/scene/list_ops.hpp tessera::ui::slice_list
+function include/tessera/ui/scene/list_ops.hpp tessera::ui::string_slice
+function include/tessera/ui/scene/list_ops.hpp tessera::ui::string_startsWith
+function include/tessera/ui/scene/list_ops.hpp tessera::ui::string_toFixed
+function include/tessera/ui/scene/list_ops.hpp tessera::ui::string_toLowerCase
+function include/tessera/ui/scene/list_ops.hpp tessera::ui::string_toUpperCase
+function include/tessera/ui/scene/list_ops.hpp tessera::ui::string_trim
+
 header include/tessera/ui/scene/node.hpp
 class include/tessera/ui/scene/node.hpp tessera::ui::Node
 enum include/tessera/ui/scene/node.hpp tessera::ui::OverscrollBehavior

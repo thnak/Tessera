@@ -20,6 +20,10 @@ struct LoweringState {
     // Decision 8: the initializers currently being inlined, outermost first. A local that reaches
     // itself (`const a = a;`, or a longer cycle) is reported instead of recursing forever.
     std::vector<const jsx::Expr*> inlining;
+    // ADR-066 item 3: the names a nested expression scope binds, such as a `filter` predicate's
+    // item. `resolve_name` consults this before the resolver, so the name resolves to itself (an
+    // action local, as a handler parameter does) and cannot leak past the scope it was pushed for.
+    std::vector<std::string> scope;
 };
 
 [[nodiscard]] ir::ExprPtr lower_expr(LoweringState& state, const jsx::Expr& expr);

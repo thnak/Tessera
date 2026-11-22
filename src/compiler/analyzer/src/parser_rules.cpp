@@ -11,10 +11,13 @@ namespace tessera::compiler::jsx {
 namespace {
 
 bool is_rejected_array_method(std::string_view name) {
+    // ADR-066 item 3 removed `filter` and `slice` from this list: both are pure and total, so they
+    // lower to the `listFilter` and `listSlice` IR kinds. The rest stay rejected, because each
+    // either mutates its receiver or has no total result type in v1.
     static constexpr std::string_view kMethods[] = {
-        "filter", "reduce", "reduceRight", "forEach", "slice",    "splice", "sort",    "reverse",
-        "concat", "find",   "findIndex",   "some",    "every",    "flat",   "flatMap", "push",
-        "pop",    "shift",  "unshift",     "indexOf", "includes", "join",   "fill",    "at",
+        "reduce",    "reduceRight", "forEach",  "splice", "sort",    "reverse", "concat", "find",
+        "findIndex", "some",        "every",    "flat",   "flatMap", "push",    "pop",    "shift",
+        "unshift",   "indexOf",     "includes", "join",   "fill",    "at",
     };
     for (const auto method : kMethods) {
         if (name == method) {

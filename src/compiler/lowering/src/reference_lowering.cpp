@@ -106,6 +106,16 @@ ir::ExprPtr inline_local(LoweringState& state, std::string_view name, jsx::Span 
 }
 
 ir::ExprPtr resolve_name(LoweringState& state, std::string_view name, jsx::Span span) {
+    // ADR-066 item 3: a name a nested expression scope binds (a `filter` predicate's item) resolves
+    // to itself, exactly as a handler parameter does. It is checked first so it shadows an outer
+    // declaration of the same spelling.
+    const std::size_t dot = name.find('.');
+    const std::string_view base = dot == std::string_view::npos ? name : name.substr(0, dot);
+    for (const std::string& bound : state.scope) {
+        if (bound == base) {
+            return ir::make_ref(std::string(name));
+        }
+    }
     if (state.context.names == nullptr) {
         fail(state, kUnresolved,
              "`" + std::string(name) +
@@ -136,6 +146,19 @@ ir::ExprPtr resolve_name(LoweringState& state, std::string_view name, jsx::Span 
 } // namespace
 
 ir::ExprPtr lower_reference(LoweringState& state, const jsx::Expr& expr) {
+    // ADR-066 item 3: `list.length` is the `length(list)` pure function, not a field read. The
+    // property has no IR form of its own; the function already exists and is total, so the two
+    // spellings lower to one node.
+    if (expr.kind == jsx::ExprKind::Member && expr.text == "length" && expr.operands.size() == 1 &&
+        expr.operands[0]) {
+        ir::ExprPtr base = lower_expr(state, *expr.operands[0]);
+        if (!base) {
+            return nullptr;
+        }
+        std::vector<ir::ExprPtr> args;
+        args.push_back(std::move(base));
+        return ir::make_call("length", std::move(args));
+    }
     std::string chain;
     const ChainStatus status = append_chain(expr, chain);
     if (status == ChainStatus::Index) {

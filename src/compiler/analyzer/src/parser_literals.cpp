@@ -67,7 +67,32 @@ ExprPtr Parser::parse_object() {
     const std::uint32_t begin = cur_.span.offset;
     advance(LexMode::Code);
     std::vector<ObjectProperty> properties;
+    ExprPtr spread_base;
     while (!fatal_ && !at_punct("}")) {
+        // ADR-066 item 3: `{ ...record, field: value }` updates a record value with known fields
+        // (ADR-051). The base must be the first entry and appear once, so the written members are
+        // unambiguous; anything else keeps the old rejection.
+        if (at_punct("...")) {
+            if (spread_base || !properties.empty()) {
+                fail("TESSERA_JSX_SUBSET_LITERAL",
+                     "a record spread must be the first entry of the object literal", cur_.span,
+                     "write `{ ...state, field: value }`");
+                return nullptr;
+            }
+            advance(LexMode::Code);
+            spread_base = parse_expr();
+            if (!spread_base) {
+                return nullptr;
+            }
+            if (!at_punct(",") && !at_punct("}")) {
+                fail_unexpected("`,` or `}`");
+                return nullptr;
+            }
+            if (at_punct(",")) {
+                advance(LexMode::Code);
+            }
+            continue;
+        }
         ObjectProperty property;
         property.key_span = cur_.span;
         if (cur_.kind == TokenKind::Identifier || cur_.kind == TokenKind::Keyword) {
@@ -75,11 +100,9 @@ ExprPtr Parser::parse_object() {
         } else if (cur_.kind == TokenKind::String) {
             property.key = std::move(cur_.value);
             property.key_is_string = true;
-        } else if (at_punct("[") || at_punct("...")) {
-            fail("TESSERA_JSX_SUBSET_LITERAL",
-                 at_punct("[") ? "computed object keys are not supported"
-                               : "spread in an object literal is not supported",
-                 cur_.span, "use literal keys");
+        } else if (at_punct("[")) {
+            fail("TESSERA_JSX_SUBSET_LITERAL", "computed object keys are not supported", cur_.span,
+                 "use literal keys");
             return nullptr;
         } else {
             fail_unexpected("a property name");
@@ -110,6 +133,7 @@ ExprPtr Parser::parse_object() {
     }
     ExprPtr expr = make_expr(ExprKind::Object, begin);
     expr->properties = std::move(properties);
+    expr->spread_base = std::move(spread_base);
     return finish_node(*expr) ? std::move(expr) : nullptr;
 }
 

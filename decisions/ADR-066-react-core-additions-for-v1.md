@@ -311,6 +311,39 @@ Item 2 landed. The corpus golden moved from **33 of 50 accepted (66.0%)** at the
 says. A loop is a parse error (`TESSERA_JSX_SUBSET_STATEMENT`), because the statement grammar has no
 loop form at all.
 
+### Step 3 evidence (recorded 2026-11-22, issue #653)
+
+Item 3 landed. The corpus golden moved from **34 of 50 accepted (68.0%)** at the front end and
+**21 of 50 (42.0%)** through the pipeline to **38 of 50 (76.0%)** and **24 of 50 (48.0%)**. Four
+files changed state: `expressions/string-methods.tsx`, `expressions/list-length.tsx`,
+`expressions/object-spread.tsx`, and one that used `.filter` in a render expression.
+
+**What the ADR got wrong, and what the landing corrected.**
+
+1. **`filter` and `slice` are IR kinds, not allowlist entries.** The ADR said "the pure-expression
+   allowlist gains `filter` and `slice` on lists". A list operation is not a call: it binds a name
+   (`filter`'s item) and returns a list, which no existing kind expresses. They are two additive
+   kinds, `listFilter` and `listSlice`, so `irVersion` stays 1.
+2. **The string methods are calls with the receiver as the first argument.** The ADR listed them
+   beside the numeric functions without saying how a method becomes a call. Making the receiver
+   argument 0 means the evaluator, the validator and codegen see one shape for `s.trim()` and
+   `trim(s)`, and the allowlist stays a flat list of names.
+3. **`.length` needed a lowering rule, not just an allowlist entry.** `length(list)` already existed;
+   the property did not. It is a member access that lowers to the existing call, so no new kind and
+   no new function.
+4. **A record spread is a `recordUpdate`, not a `record`.** The ADR said "object spread `{...state, x}`
+   is accepted for record values with known fields". A `record` value must write every required
+   member; an update starts from a complete base and writes only what changes. The validator's
+   missing-member rule therefore skips an update, and the IR carries the base's ref id rather than a
+   copy of the whole record.
+5. **`parseIntOr` and `parseFloatOr` did not land.** The ADR lists them with the string functions.
+   They are not total in the same way — each needs a fallback and a parse-failure rule — and no
+   corpus file uses either, so they stay open rather than being guessed at.
+
+**Still open from item 3.** `sort` stays rejected (it mutates its receiver). An inline object type in
+a prop (`rows: { id: string }[]`) is still `TESSERA_IR_UNSUPPORTED`: that is an anonymous record type,
+which the type table does not have, and it is what keeps `filter-map.tsx` and `slice-map.tsx` out.
+
 ## Follow-up
 - Update `jsx-subset-v1.md` sections 6, 7, 9, 10 and 12, `ir-v1.md` section 2.1 and `ir-v1-expr.md`
   section 4 in the implementing PRs (the subset spec is near its size limit: edit in place).

@@ -158,6 +158,83 @@ ir::ExprPtr lower_field_value(RecordLoweringState& state, const jsx::Expr& expr,
 
 } // namespace
 
+// `{ ...state, field: value }` (ADR-066 item 3): a record update. The base must be a reference to a
+// record of the same type, because the IR carries the base's id and the written members, not a copy
+// of the whole record.
+ir::ExprPtr lower_record_update(RecordLoweringState& state, const jsx::Expr& object,
+                                const ir::RecordType& record,
+                                std::span<const ir::RecordType> records) {
+    if (!object.spread_base) {
+        return nullptr;
+    }
+    const jsx::Expr& base = *object.spread_base;
+    // The base is a reference chain (`state`, `props.form`), which is what the IR carries. Anything
+    // else would need a temporary, which the record form does not have.
+    if (base.kind != jsx::ExprKind::Identifier && base.kind != jsx::ExprKind::Member) {
+        fail_record(state, kRecordValue,
+                    "the base of a record update must be a reference to a record of type `" +
+                        record.name + "`",
+                    base.span);
+        return nullptr;
+    }
+    std::vector<ir::RecordField> fields;
+    for (const jsx::ObjectProperty& property : object.properties) {
+        const ir::RecordMember* member = find_member(record, property.key);
+        if (member == nullptr) {
+            fail_record(state, kRecordValue,
+                        "record `" + record.name + "` has no member `" + property.key + "`",
+                        property.key_span);
+            return nullptr;
+        }
+        if (!property.value) {
+            fail_record(state, kRecordValue,
+                        "field `" + property.key + "` of the record update has no value",
+                        property.key_span);
+            return nullptr;
+        }
+        ir::ExprPtr value =
+            lower_field_value(state, *property.value, *member, record.name, records);
+        if (!value) {
+            return nullptr;
+        }
+        fields.push_back(ir::RecordField{property.key, std::move(value)});
+    }
+    // The base's IR id is the reference chain as written; the validator resolves it against the
+    // component scope, so lowering does not duplicate that check.
+    std::string id;
+    const jsx::Expr* node = &base;
+    while (node->kind == jsx::ExprKind::Member && node->operands.size() == 1 && node->operands[0]) {
+        id = "." + node->text + id;
+        node = node->operands[0].get();
+    }
+    if (node->kind != jsx::ExprKind::Identifier) {
+        fail_record(state, kRecordValue,
+                    "the base of a record update must be a reference to a record of type `" +
+                        record.name + "`",
+                    base.span);
+        return nullptr;
+    }
+    // The written name is a source name (`state`), so it is resolved to its IR id (`state::state`)
+    // through the same resolver every other reference uses.
+    if (state.names == nullptr) {
+        fail_record(state, kRecordValue,
+                    "the base of a record update must be a reference to a record of type `" +
+                        record.name + "`",
+                    base.span);
+        return nullptr;
+    }
+    const std::optional<std::string> resolved = state.names->resolve(node->text);
+    if (!resolved) {
+        fail_record(state, kRecordValue,
+                    "the base of a record update must be a reference to a record of type `" +
+                        record.name + "`",
+                    base.span);
+        return nullptr;
+    }
+    id = *resolved + id;
+    return ir::make_record_update(record.name, std::move(id), std::move(fields));
+}
+
 ir::ExprPtr lower_record_value(RecordLoweringState& state, const jsx::Expr& object,
                                const ir::RecordType& record,
                                std::span<const ir::RecordType> records) {
@@ -167,6 +244,12 @@ ir::ExprPtr lower_record_value(RecordLoweringState& state, const jsx::Expr& obje
                         "` must be an object literal",
                     object.span);
         return nullptr;
+    }
+    // ADR-066 item 3: `{ ...state, field: value }` updates a record value. The base must be a
+    // reference to a record of the same type, so the written members are the only thing that
+    // changes and the result keeps the record's member order.
+    if (object.spread_base) {
+        return lower_record_update(state, object, record, records);
     }
     // An undeclared key is presumably a typo, not a new member, and a repeated key is ambiguous.
     // Both are checked before the members are walked, so the diagnostic names the offending key

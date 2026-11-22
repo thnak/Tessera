@@ -193,7 +193,9 @@ void test_rejected_keywords_are_fatal_and_specific() {
         {"function () {}", "TESSERA_JSX_SUBSET_FUNCTION_VALUE;"},
         {"import x", "TESSERA_JSX_SUBSET_IMPORT;"},
         {"{ [k]: 1 }", "TESSERA_JSX_SUBSET_LITERAL;"},
-        {"{ ...a }", "TESSERA_JSX_SUBSET_LITERAL;"},
+        // ADR-066 item 3 accepts `{ ...record, field: value }`, so a spread is no longer a literal
+        // rejection. A spread that is not the first entry still is.
+        {"{ a: 1, ...b }", "TESSERA_JSX_SUBSET_LITERAL;"},
     };
     for (const auto& test : cases) {
         const auto result = parse_expression(test.source);

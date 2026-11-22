@@ -3,6 +3,7 @@
 #include "operators.hpp"
 #include "tessera/compiler/eval/evaluator.hpp"
 
+#include <algorithm>
 #include <cstdint>
 #include <limits>
 #include <utility>
@@ -172,6 +173,122 @@ std::expected<Value, EvalError> Evaluator::eval(const ir::Expr& expr, const Scop
             return value;
         }
         return eval(*expr.operands[1], scope, depth + 1);
+    }
+    case ir::ExprKind::ListFilter: {
+        // ADR-066 item 3: `list.filter(item => <bool>)`. The predicate runs once per element with
+        // the item name bound in a nested scope, so it cannot see or write the outer one.
+        if (!has_operands(expr, 2)) {
+            return malformed("a list filter needs a list and a predicate");
+        }
+        auto list = eval(*expr.operands[0], scope, depth + 1);
+        if (!list) {
+            return list;
+        }
+        const List* items = list->as_list();
+        if (items == nullptr) {
+            return fail("TESSERA_IR_EVAL_TYPE",
+                        "`filter` needs a list, got " + std::string(type_name(*list)));
+        }
+        List kept;
+        for (const Value& item : *items) {
+            Scope inner = scope;
+            inner[expr.id] = item;
+            auto held = eval(*expr.operands[1], inner, depth + 1);
+            if (!held) {
+                return held;
+            }
+            const bool* flag = held->as_bool();
+            if (flag == nullptr) {
+                return fail("TESSERA_IR_EVAL_TYPE", "a `filter` predicate must be a bool, got " +
+                                                        std::string(type_name(*held)));
+            }
+            if (*flag) {
+                kept.push_back(item);
+            }
+        }
+        return Value::of_list(std::move(kept));
+    }
+    case ir::ExprKind::ListSlice: {
+        // ADR-066 item 3: `list.slice(start[, end])`. The bounds are clamped to the list, as in
+        // JavaScript: a negative or oversized bound is not an error.
+        if (expr.operands.size() < 2 || expr.operands.size() > 3) {
+            return malformed("a list slice needs a list and one or two bounds");
+        }
+        auto list = eval(*expr.operands[0], scope, depth + 1);
+        if (!list) {
+            return list;
+        }
+        const List* items = list->as_list();
+        if (items == nullptr) {
+            return fail("TESSERA_IR_EVAL_TYPE",
+                        "`slice` needs a list, got " + std::string(type_name(*list)));
+        }
+        const auto bound = [&](std::size_t index,
+                               std::int64_t fallback) -> std::expected<std::int64_t, EvalError> {
+            if (index >= expr.operands.size()) {
+                return fallback;
+            }
+            auto value = eval(*expr.operands[index], scope, depth + 1);
+            if (!value) {
+                return std::unexpected(std::move(value.error()));
+            }
+            const std::int32_t* integer = value->as_int();
+            if (integer == nullptr) {
+                return fail("TESSERA_IR_EVAL_TYPE", "a `slice` bound must be an int, got " +
+                                                        std::string(type_name(*value)));
+            }
+            return static_cast<std::int64_t>(*integer);
+        };
+        auto start = bound(1, 0);
+        if (!start) {
+            return std::unexpected(std::move(start.error()));
+        }
+        auto end = bound(2, static_cast<std::int64_t>(items->size()));
+        if (!end) {
+            return std::unexpected(std::move(end.error()));
+        }
+        const auto size = static_cast<std::int64_t>(items->size());
+        const std::int64_t from = std::clamp<std::int64_t>(*start, 0, size);
+        const std::int64_t to = std::clamp<std::int64_t>(*end, from, size);
+        List kept(items->begin() + from, items->begin() + to);
+        return Value::of_list(std::move(kept));
+    }
+    case ir::ExprKind::RecordUpdate: {
+        // ADR-066 item 3: `{ ...record, field: value }`. The base is copied and the written fields
+        // replace their members, so the result keeps the record's member order.
+        auto base = eval(*ir::make_ref(expr.id), scope, depth + 1);
+        if (!base) {
+            return base;
+        }
+        const Record* record = base->as_record();
+        if (record == nullptr) {
+            return fail("TESSERA_IR_EVAL_TYPE", "a record update needs a record base, got " +
+                                                    std::string(type_name(*base)));
+        }
+        Record updated = *record;
+        for (const ir::RecordField& field : expr.fields) {
+            if (!field.value) {
+                return malformed("record update field `" + field.name + "` has no value");
+            }
+            auto value = eval(*field.value, scope, depth + 1);
+            if (!value) {
+                return value;
+            }
+            bool replaced = false;
+            for (RecordField& existing : updated.fields) {
+                if (existing.name == field.name) {
+                    existing.value = std::move(*value);
+                    replaced = true;
+                    break;
+                }
+            }
+            if (!replaced) {
+                return fail("TESSERA_IR_EVAL_UNKNOWN_REF", "`" + field.name +
+                                                               "` names no member of record `" +
+                                                               record->type + "`");
+            }
+        }
+        return Value::of_record(std::move(updated));
     }
     case ir::ExprKind::Call:
         return eval_call(expr, scope, depth);

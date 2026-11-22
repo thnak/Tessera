@@ -227,6 +227,47 @@ void test_nested_record_and_array_field() {
 
 } // namespace
 
+// ADR-066 item 3: `{ ...state, field: value }` updates a record value. The result is a
+// `recordUpdate` naming the base's IR id and the written members, not a full record literal.
+void test_record_update() {
+    Project project;
+    project.add(parse_file("ui/Box.tsx",
+                           "type Size = { w: int; h: int };\n"
+                           "function Box() {\n"
+                           "  const [size, setSize] = useState<Size>({ w: 1, h: 2 });\n"
+                           "  const grow = () => setSize({ ...size, w: 3 });\n"
+                           "  return <View className=\"box\" onClick={grow}/>;\n"
+                           "}\n"));
+    const auto lowered = project.lower("Box");
+    expect(lowered.has_value(), "a record update lowers: " + first_code(lowered));
+    if (!lowered) {
+        return;
+    }
+    const ir::Component* box = find_component(*lowered, "Box");
+    expect(box != nullptr, "the component is lowered");
+    if (box == nullptr || box->handlers.empty()) {
+        expect(false, "the handler is lowered");
+        return;
+    }
+    const ir::Handler& handler = box->handlers.front();
+    expect(handler.actions.size() == 1, "the handler has one action");
+    if (handler.actions.size() != 1) {
+        return;
+    }
+    const ir::Expr* value = handler.actions.front().value.get();
+    expect(value != nullptr, "the action has a value");
+    if (value == nullptr) {
+        return;
+    }
+    expect(value->kind == ir::ExprKind::RecordUpdate, "the value is a record update");
+    expect(value->type == "Size", "the update names its declared type");
+    expect(value->id == "state::size", "the update names the base's IR id");
+    expect(value->fields.size() == 1, "only the written member is present");
+    if (value->fields.size() == 1) {
+        expect(value->fields[0].name == "w", "the written member is `w`");
+    }
+}
+
 int main() {
     test_use_state_record_initial();
     test_prop_default_record();
@@ -234,6 +275,7 @@ int main() {
     test_missing_field_is_refused();
     test_out_of_order_fields_are_normalized();
     test_nested_record_and_array_field();
+    test_record_update();
     if (g_failures != 0) {
         std::cerr << "lowering_record_value: " << g_failures << " failure(s)\n";
         return 1;

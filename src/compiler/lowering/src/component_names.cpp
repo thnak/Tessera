@@ -121,6 +121,18 @@ std::optional<std::string> ComponentNames::resolve(std::string_view source_name)
             return entry.id;
         }
     }
+    // ADR-066 item 3: a field of a record-typed state, `state.name`. The state itself is an entry
+    // (`state` -> `state::state`), so the dotted form is the entry's id plus the field. The IR
+    // validator checks the field against the record type, so an unknown field is reported there
+    // rather than here.
+    if (dot != std::string_view::npos) {
+        const std::string_view base = source_name.substr(0, dot);
+        for (const Entry& entry : entries_) {
+            if (entry.name == base) {
+                return entry.id + std::string(source_name.substr(dot));
+            }
+        }
+    }
     // A behavior output: `<local>.<field>` resolves to `beh::<local>.<field>` (behavior-hooks-v1.md
     // section 6). Only a field the hook actually returns resolves; `press.nope` stays unresolved so
     // the IR validator reports it rather than the generator inventing an accessor.

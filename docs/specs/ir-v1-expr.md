@@ -23,6 +23,9 @@ V1 expressions are pure and statically analyzable:
 | `record` | `{ "kind": "record", "type": "Size", "fields": [{ "name": "w", "value": Expr }] }` | record value (section 4.3, ADR-051); a value position only |
 | `optionalField` | `{ "kind": "optionalField", "field": "name", "value": Expr }` | `a?.b` over an `optional<T>` (ADR-066 item 1); the result is an `optional<T>` of the field's type |
 | `coalesce` | `{ "kind": "coalesce", "value": Expr, "fallback": Expr }` | `a ?? b` over an `optional<T>` (ADR-066 item 1); the result is the optional's inner type |
+| `listFilter` | `{ "kind": "listFilter", "item": "row", "list": Expr, "predicate": Expr }` | `list.filter(item => <bool>)` (ADR-066 item 3); the result is a list of the same element type |
+| `listSlice` | `{ "kind": "listSlice", "list": Expr, "bounds": [Expr] }` | `list.slice(start[, end])` (ADR-066 item 3); both bounds are clamped to the list |
+| `recordUpdate` | `{ "kind": "recordUpdate", "type": "Size", "base": "state::size", "fields": [{ "name": "w", "value": Expr }] }` | `{ ...record, field: value }` (ADR-066 item 3, ADR-051); an omitted member keeps the base's value |
 
 Rejected: member access on arbitrary objects, array indexing except list items, assignments,
 function expressions, `await`, `yield`, `new`, dynamic imports, and any call with side effects.
@@ -34,6 +37,15 @@ base yields an absent result, so a chain short-circuits. `coalesce` takes two op
 the fallback only when the value is absent, exactly as a `conditional` evaluates one branch. The
 evaluator and the generated C++ implement the same rule: the evaluator's `null` and C++'s empty
 `std::optional` are the absent value.
+
+**`listFilter`, `listSlice` and `recordUpdate` (additive, ADR-066 item 3).** All three are optional in
+the format, so a module that writes none of them is byte-identical to the IR before them and
+`irVersion` stays `1`. `listFilter` binds `item` in the predicate's own scope, so the predicate cannot
+see or write the enclosing one; the predicate is one expression, not a body. `listSlice` clamps both
+bounds to the list, as JavaScript does, so an out-of-range bound is not an error. `recordUpdate`
+names its base by ref id and writes only the members it changes, so the result keeps the record's
+member order and an omitted member keeps the base's value. The evaluator and the generated C++
+(`tessera/ui/scene/list_ops.hpp`) share one definition of each rule.
 
 ### 4.1 Numeric semantics
 
