@@ -19,6 +19,7 @@
 #include <cstddef>
 #include <span>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -85,6 +86,28 @@ struct FrameRender {
 struct FramePaint {
     paint::PaintStats stats;
     bool painted = false;
+};
+
+// What one style sync last saw for a node (issue #701): the style's identity (its shared entries
+// block), the style itself, whether it carried an `opacity`, and the sync generation that last
+// visited it.
+//
+// The identity is compared first because it is a pointer test: a restyle that kept its entries
+// cannot have changed the effective style. The stored style is the fallback for a *new* block --
+// `SceneStyleTree::begin_memo` drops the memo on a non-incremental restyle, so a recompute produces
+// a fresh block even when the values are identical, and only a value comparison can tell those
+// apart. Storing it costs one copy per node per *generation*, not per frame: the copy is refreshed
+// only when the block actually moved.
+//
+// `generation` replaces a separate `seen_` set and its per-frame `prune()` walk: a node the pass
+// did not visit keeps an older stamp, and `prune` erases only those. The set-plus-erase form
+// allocated once per node per frame (601 nodes x 120 frames = 72,120 allocations, 89% of a
+// layout-dirty frame) because the erase/reinsert cycle rebuilt the map nodes.
+struct StyleBaseline {
+    std::shared_ptr<const void> identity;
+    style::ComputedStyle style;
+    std::uint64_t generation = 0;
+    bool opacity_present = false;
 };
 
 class FramePipeline {
@@ -302,7 +325,18 @@ private:
     // retain a per-node style snapshot between style stages.
     // Last computed style per node, the baseline `sync_style` diffs against so a restyle that
     // changes only paint properties still plans a redraw (dirty-rendering.md section 4.1).
-    mutable std::unordered_map<NodeId, style::ComputedStyle> previous_styles_;
+    //
+    // The identity is stored beside the style (issue #701): comparing identities is a pointer test,
+    // and the stored style is only re-copied when the identity actually moved. Comparing values
+    // against a stored copy allocated once per node per frame, because `begin_memo` drops the memo
+    // each generation, so a recomputed style is a different object every time even when it is
+    // equal.
+    mutable std::unordered_map<NodeId, StyleBaseline> previous_styles_;
+    // Bumped once per style sync; a baseline entry whose stamp is older was not visited and is
+    // pruned. Replaces a per-sync `unordered_set` of seen ids (issue #701).
+    mutable std::uint64_t style_sync_generation_ = 0;
+    // Scratch for one style sync, retained so its capacity survives the frame (issue #701).
+    mutable std::vector<std::pair<NodeId, bool>> style_diff_changed_;
     mutable animation::StyleBridge style_bridge_state_;
     // What the scene and interaction syncs applied last, so an unchanged node is not redone.
     mutable style::SyncMemo scene_sync_memo_;

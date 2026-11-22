@@ -2134,6 +2134,7 @@ struct include/tessera/ui/frame_pipeline.hpp tessera::ui::frame::FramePaint
 struct include/tessera/ui/frame_pipeline.hpp tessera::ui::frame::FramePipelineConfig
 struct include/tessera/ui/frame_pipeline.hpp tessera::ui::frame::FrameRender
 struct include/tessera/ui/frame_pipeline.hpp tessera::ui::frame::FrameTick
+struct include/tessera/ui/frame_pipeline.hpp tessera::ui::frame::StyleBaseline
 
 header include/tessera/ui/gesture.hpp
 class include/tessera/ui/gesture.hpp tessera::ui::GestureArena

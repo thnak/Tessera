@@ -18,6 +18,14 @@
 // --classcheck | --computecheck Output: one line per scenario, `name allocs/frame(min,mean,max)
 // bytes/frame(mean)`.
 
+// GCC at -O3 inlines the replaced operator new/delete pair into std::make_unique and then flags the
+// free() inside our operator delete; the pair is intentionally malloc/free. Same suppression, and
+// the same reason, as tests/unit/chart_node_allocation.cpp and the other allocation counters.
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic ignored "-Wmismatched-new-delete"
+#endif
+
+#include "frame_alloc_sites.hpp"
 #include "tessera/app/host.hpp"
 #include "tessera/runtime/clock.hpp"
 #include "tessera/runtime/runtime_loop.hpp"
@@ -50,6 +58,9 @@ void count(std::size_t size) {
     if (g_counting) {
         ++g_allocations;
         g_bytes += size;
+        if (tessera::probe::g_track_sites) {
+            tessera::probe::record_site(size);
+        }
     }
 }
 
@@ -156,6 +167,18 @@ const char* name_of(Action action) {
         return "size-change";
     }
     return "?";
+}
+
+// The inverse of `name_of`, for `--sites --only <scenario>`.
+Action action_from_name(const char* name) {
+    for (Action action : {Action::Idle, Action::PaintDirty, Action::TextChange, Action::ClassToggle,
+                          Action::LayoutDirty, Action::SizeChange}) {
+        if (std::strcmp(name_of(action), name) == 0) {
+            return action;
+        }
+    }
+    std::fprintf(stderr, "unknown scenario %s\n", name);
+    std::exit(2);
 }
 
 void apply(Action action, Scene& scene, int frame) {
@@ -371,12 +394,26 @@ int main(int argc, char** argv) {
     // `--only <scenario> --cards N`: one row, for running the probe under a sampling profiler.
     const char* only = nullptr;
     int only_cards = 200;
+    bool sites = false;
     for (int i = 1; i + 1 < argc; i += 2) {
         if (std::strcmp(argv[i], "--only") == 0) {
             only = argv[i + 1];
         } else if (std::strcmp(argv[i], "--cards") == 0) {
             only_cards = std::atoi(argv[i + 1]);
+        } else if (std::strcmp(argv[i], "--sites") == 0) {
+            sites = true;
+            --i; // a flag, not a key/value pair
         }
+    }
+    if (sites) {
+        // Attribution mode: one scenario, then the top call sites by allocation count. The symbol
+        // names come from `dladdr`, so the binary needs `-rdynamic` (the CMake target sets it).
+        const char* scenario = only != nullptr ? only : "layout-dirty";
+        tessera::probe::g_track_sites = true;
+        measure(only_cards, action_from_name(scenario), warmup, frames);
+        tessera::probe::g_track_sites = false;
+        tessera::probe::print_sites();
+        return 0;
     }
     std::vector<int> sizes{10, 200};
     if (only != nullptr) {
