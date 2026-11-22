@@ -84,7 +84,7 @@ struct RuntimeConfig {
 
 // One failure class per kind of rejection. `MalformedJson` is a document-level syntax error (its
 // `field` is empty); every other code names the runtime object's JSON key it rejected.
-enum class RuntimeConfigErrorCode {
+enum class RuntimeConfigErrorCode : std::uint8_t {
     MalformedJson, // not JSON, duplicate key, invalid UTF-8, bad escape, nesting too deep
     InvalidType,   // member has the wrong JSON type (integer vs number is part of the field table)
     InvalidValue,  // an enum string is not one of the documented values

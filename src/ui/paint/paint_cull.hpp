@@ -42,7 +42,7 @@
 
 namespace tessera::ui::paint::detail {
 
-enum class CullVerdict {
+enum class CullVerdict : std::uint8_t {
     Paint,   // nothing can be skipped: the node's own content may reach the target
     Node,    // a leaf whose own emission is inside the reach: skip the whole node
     Own,     // skip the node's own emission, walk its children (a non-clipping parent)

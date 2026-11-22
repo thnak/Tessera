@@ -12,7 +12,7 @@
 
 namespace tessera::harness {
 
-enum class JsonType {
+enum class JsonType : std::uint8_t {
     Null,
     Bool,
     Number,

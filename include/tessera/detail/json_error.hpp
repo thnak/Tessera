@@ -23,7 +23,7 @@
 
 namespace tessera::detail::json {
 
-enum class ErrorCode {
+enum class ErrorCode : std::uint8_t {
     // Generic syntax.
     UnexpectedEnd,
     UnexpectedCharacter,

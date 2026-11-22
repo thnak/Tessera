@@ -9,7 +9,7 @@
 
 namespace tessera::compiler::jsx {
 
-enum class TokenKind {
+enum class TokenKind : std::uint8_t {
     Eof,
     Identifier,
     Keyword, // reserved words of spec section 3.3 (code mode only)
@@ -41,7 +41,7 @@ struct Token {
 
 // JSX needs a lexer driven by the parser because the same characters mean different things in
 // an expression, inside a tag, and between tags.
-enum class LexMode {
+enum class LexMode : std::uint8_t {
     Code,     // expressions and statements
     JsxTag,   // after `<`: names may contain `-`, `>` and `/>` are single tokens, no keywords
     JsxChild, // between `>` and the next `<` or `{`: raw text

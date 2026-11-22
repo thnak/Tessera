@@ -55,7 +55,7 @@ void mark_validation_active() noexcept;
 // next matching operation instead of waiting for a real GPU reset. The "no fault" enumerator is
 // `NoFault`, not `None`: X11's X.h defines `None` as a macro, so `None` would break this header on
 // every Linux Xlib build.
-enum class InjectedDeviceFault {
+enum class InjectedDeviceFault : std::uint8_t {
     NoFault,
     DeviceLostOnSubmit,
     DeviceLostOnFenceWait,

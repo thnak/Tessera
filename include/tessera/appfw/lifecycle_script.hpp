@@ -37,7 +37,7 @@ namespace tessera::appfw {
 inline constexpr std::size_t kMaxLifecycleScriptBytes = 64 * 1024;
 inline constexpr std::size_t kMaxLifecycleScriptSteps = 256;
 
-enum class LifecycleScriptErrorCode {
+enum class LifecycleScriptErrorCode : std::uint8_t {
     MalformedScript,
     UnsupportedVersion,
     UnknownEvent,

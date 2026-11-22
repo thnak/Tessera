@@ -9,7 +9,7 @@
 
 namespace tessera::ui {
 
-enum class EventType {
+enum class EventType : std::uint8_t {
     PointerDown,
     PointerUp,
     PointerMove,

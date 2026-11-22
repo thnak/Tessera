@@ -127,7 +127,7 @@ inline constexpr std::uint32_t kBindingTexture = 1;
 inline constexpr std::uint32_t kBindingSampler = 2;
 
 // Default-limit validation for a vertex buffer layout.
-enum class VertexLayoutError {
+enum class VertexLayoutError : std::uint8_t {
     None,
     TooManyAttributes,
     StrideUnaligned,

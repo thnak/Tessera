@@ -11,7 +11,7 @@
 
 namespace tessera::ui::animation {
 
-enum class PlayState {
+enum class PlayState : std::uint8_t {
     Running,
     Paused,
 };

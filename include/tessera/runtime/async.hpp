@@ -11,7 +11,7 @@
 
 namespace tessera::runtime {
 
-enum class CompletionPriority {
+enum class CompletionPriority : std::uint8_t {
     Visible = 0,
     LayoutPaint = 1,
     Background = 2,

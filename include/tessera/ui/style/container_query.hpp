@@ -16,12 +16,12 @@ struct StyleNode;
 // so inline = width) in the legacy `(min-width: 400px)` form and the range form
 // `(width >= 400px)`, joined with `and`. Lengths are `px`, `em`/`rem` (16px) or a bare 0.
 // `or`, `not` and style/scroll-state queries are rejected as an invalid at-rule.
-enum class ContainerAxis {
+enum class ContainerAxis : std::uint8_t {
     Width,
     Height,
 };
 
-enum class ContainerOp {
+enum class ContainerOp : std::uint8_t {
     Equal,
     Greater,
     GreaterEqual,

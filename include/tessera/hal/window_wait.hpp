@@ -7,7 +7,7 @@
 
 namespace tessera::hal {
 
-enum class WaitOutcome {
+enum class WaitOutcome : std::uint8_t {
     Event,
     Deadline,
 };

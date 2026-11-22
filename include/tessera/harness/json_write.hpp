@@ -11,7 +11,7 @@
 
 namespace tessera::harness {
 
-enum class JsonWriteErrorCode {
+enum class JsonWriteErrorCode : std::uint8_t {
     NonFiniteNumber, // JSON has no NaN/Infinity: report instead of writing invalid output
     InvalidUtf8,     // a string is not well-formed UTF-8, so the line would not be valid JSON
 };

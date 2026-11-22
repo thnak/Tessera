@@ -245,7 +245,7 @@ public:
 // destruction is safe); the device itself can be recreated with `recover()`.
 enum class DeviceStatus { Ready, Lost };
 
-enum class DeviceRecoveryError {
+enum class DeviceRecoveryError : std::uint8_t {
     // The backend has no recovery path (null/software backends).
     NotSupported,
     // `recover()` was called while the device is healthy.

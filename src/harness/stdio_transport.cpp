@@ -51,7 +51,7 @@ std::string describe(const FrameError& error) {
     return "framing error";
 }
 
-enum class ReadOutcome {
+enum class ReadOutcome : std::uint8_t {
     More,
     WouldBlock,
     End,

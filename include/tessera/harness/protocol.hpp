@@ -28,7 +28,7 @@ inline constexpr std::int64_t kProtocolVersion = 1;
 // Typed failures shared by the envelope and the command model. The set is closed: a peer that
 // sends an unknown code string decodes it as `Internal` and keeps the message, so a newer server
 // degrades instead of crashing an older client.
-enum class ProtocolErrorCode {
+enum class ProtocolErrorCode : std::uint8_t {
     MalformedRequest,   // not a JSON object, or a required envelope/command field is missing
     UnsupportedVersion, // protocolVersion is not kProtocolVersion
     UnknownCommand,     // cmd is not one of the v1 commands

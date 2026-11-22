@@ -16,7 +16,7 @@ namespace tessera::harness {
 
 // Outcome of one raw stream operation. `WouldBlock` means the handle is open and healthy but has
 // no bytes (read) or no room (write) right now, so the caller must not wait for it.
-enum class StdioIoStatus {
+enum class StdioIoStatus : std::uint8_t {
     Ok,
     WouldBlock,
     EndOfStream,

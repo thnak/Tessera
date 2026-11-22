@@ -12,7 +12,7 @@
 
 namespace tessera::ui::style {
 
-enum class ColorScheme {
+enum class ColorScheme : std::uint8_t {
     Light,
     Dark,
 };
@@ -29,7 +29,7 @@ struct MediaContext {
     hal::BackdropMaterial window_backdrop = hal::BackdropMaterial::NoMaterial;
 };
 
-enum class MediaFeature {
+enum class MediaFeature : std::uint8_t {
     Width,
     Height,
     Resolution,
@@ -41,7 +41,7 @@ enum class MediaFeature {
     WindowBackdrop,
 };
 
-enum class MediaComparison {
+enum class MediaComparison : std::uint8_t {
     Equal,
     Min,
     Max,

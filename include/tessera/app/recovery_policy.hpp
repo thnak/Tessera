@@ -15,7 +15,7 @@ namespace tessera::app {
 inline constexpr std::uint32_t kMaxDeviceRecoveryAttempts = 3;
 
 // What the window driver does next for one device-loss observation.
-enum class RecoveryAction {
+enum class RecoveryAction : std::uint8_t {
     // Nothing to do this iteration.
     None,
     // Release every RHI object of the lost generation, then let the runtime attempt recovery.

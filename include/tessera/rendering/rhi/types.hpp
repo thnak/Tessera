@@ -171,7 +171,7 @@ enum class Backend { Null, Vulkan, WebGpu, Metal };
 // siblings but store/return sRGB-encoded values: attachment writes are encoded from linear light
 // and texture samples are decoded to linear. Production presentation prefers an sRGB surface format
 // (D2); offscreen golden/deterministic targets stay UNORM unless a caller asks for sRGB.
-enum class TextureFormat {
+enum class TextureFormat : std::uint8_t {
     R8G8B8A8Unorm,
     R8Unorm,
     B8G8R8A8Unorm,

@@ -116,7 +116,7 @@ struct WindowOptions {
 // Device health when run() returned. A caller distinguishes a clean exit (Ready, or Unavailable for
 // a host that never had a presentation surface) from a run that stopped because a lost device could
 // not be recovered (Lost; run() also sets WindowFrameStats::stalled).
-enum class WindowDeviceState {
+enum class WindowDeviceState : std::uint8_t {
     Unavailable,
     Ready,
     Lost,

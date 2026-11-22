@@ -56,7 +56,10 @@ RHI versioning and capabilities (ADR-049):
   `SurfacePlatform::Android`, the `VK_KHR_android_surface` presentation family (issue #189). No
   enumerator changes value and no interface member changes, so a backend that never presents to an
   `ANativeWindow` is unaffected; the enumerator exists so an Android build can name its family
-  instead of resolving to `NoPlatform`.
+  instead of resolving to `NoPlatform`; 1.11 gives every RHI `enum class` an explicit
+  `std::uint8_t` base type (issue #734). No enumerator changes value and no member is added or
+  removed, so every caller compiles unchanged, but `sizeof` shrinks (`RenderTargetDesc` 48 -> 40,
+  `DeviceDesc` 16 -> 12), which is an ABI change rather than a source one - hence a minor bump.
   All later versions are additive compatible changes.
 - `RhiCapabilities { Backend backend; std::uint32_t rhi_version; GpuTimestampCapability timestamps; }`
   is reported by `Device::capabilities()` (default: current backend, `kRhiVersion`,

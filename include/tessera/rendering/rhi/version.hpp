@@ -43,8 +43,14 @@ namespace tessera::rendering::rhi {
 // `VK_KHR_android_surface`. No existing enumerator changes value and no interface member changes,
 // so a backend that never presents to an ANativeWindow is unaffected; the enumerator exists so an
 // Android build can name its family instead of resolving to `NoPlatform` (issue #189).
+// 1.11 (2026-11-22): every RHI `enum class` names an explicit `std::uint8_t` base type (issue #734).
+// This is an ABI change, not a source one: no enumerator changes value, no member is added or
+// removed, and every existing caller compiles unchanged, but `sizeof` of the enums and of the
+// structs holding them shrinks (`RenderTargetDesc` 48 -> 40, `DeviceDesc` 16 -> 12). A backend
+// compiled against 1.10 and linked against 1.11 headers would disagree about those layouts, so the
+// minor moves even though the source contract is compatible.
 inline constexpr std::uint32_t kRhiVersionMajor = 1;
-inline constexpr std::uint32_t kRhiVersionMinor = 10;
+inline constexpr std::uint32_t kRhiVersionMinor = 11;
 inline constexpr std::uint32_t kRhiVersion = (kRhiVersionMajor << 16) | kRhiVersionMinor;
 
 } // namespace tessera::rendering::rhi

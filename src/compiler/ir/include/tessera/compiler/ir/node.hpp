@@ -15,7 +15,7 @@
 namespace tessera::compiler::ir {
 
 // docs/specs/ir-v1.md section 3 and 3.4: the closed list of node kinds.
-enum class NodeKind {
+enum class NodeKind : std::uint8_t {
     View,
     Text,
     Button,
