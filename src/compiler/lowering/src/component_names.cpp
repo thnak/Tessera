@@ -86,6 +86,13 @@ void ComponentNames::add_local(std::string name) {
     locals_.push_back(std::move(name));
 }
 
+void ComponentNames::add_const_local(std::string name, const jsx::Expr* initializer) {
+    if (initializer == nullptr) {
+        return;
+    }
+    const_locals_.push_back({std::move(name), initializer, std::string()});
+}
+
 void ComponentNames::truncate_locals(std::size_t count) {
     if (count < locals_.size()) {
         locals_.resize(count);

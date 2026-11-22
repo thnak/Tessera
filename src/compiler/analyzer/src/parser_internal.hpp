@@ -125,6 +125,12 @@ private:
         TypePtr return_type;
     };
     ExprPtr parse_arrow(std::uint32_t begin, ArrowSignature signature);
+    // ADR-066 item 2: the statements a handler block body may hold.
+    bool parse_statement_list(std::vector<ExprPtr>& statements);
+    ExprPtr parse_block_statement();
+    ExprPtr parse_if_statement();
+    ExprPtr parse_branch_block();
+    ExprPtr parse_const_in_block();
     ExprPtr parse_template();
     ExprPtr parse_array();
     ExprPtr parse_object();

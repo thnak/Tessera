@@ -158,6 +158,16 @@ void dump_expr(std::string& out, const Expr& expr) {
     case ExprKind::Return:
         out += "(return";
         break;
+    // ADR-066 item 2: the handler-body statement forms.
+    case ExprKind::If:
+        out += "(if";
+        break;
+    case ExprKind::Block:
+        out += "(block";
+        break;
+    case ExprKind::Const:
+        out += "(const " + expr.text;
+        break;
     case ExprKind::Array:
         out += "(array";
         break;

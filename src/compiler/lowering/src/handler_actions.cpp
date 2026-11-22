@@ -3,6 +3,7 @@
 // Inline setter handlers (docs/specs/jsx-subset-v1.md section 9.2, docs/specs/ir-v1.md section
 // 2.1): the statements of a setter-call arrow become ordered IR actions.
 
+#include "handler_control_internal.hpp"
 #include "hook_lowering_internal.hpp"
 #include "tessera/schema/intrinsics.hpp"
 
@@ -165,8 +166,13 @@ bool animated_options(HookState& state, const jsx::Expr& options, ir::Action& ac
     return true;
 }
 
+} // namespace
+
+// The four call forms a handler body may hold. They are outside the anonymous namespace because the
+// control-flow walk in `handler_control.cpp` reaches them through `lower_call_action`
+// (`handler_control_internal.hpp` declares them).
 std::optional<ir::Action> lower_setter_call(HookState& state, const jsx::Expr& call,
-                                            const jsx::Expr& callee, const ComponentNames& names) {
+                                            const jsx::Expr& callee, ComponentNames& names) {
     const rules::Symbol* setter = state.context.analysis.find(callee.text);
     const rules::Symbol* target =
         setter != nullptr ? state_for_setter(state.context.analysis, *setter) : nullptr;
@@ -190,7 +196,7 @@ std::optional<ir::Action> lower_setter_call(HookState& state, const jsx::Expr& c
 }
 
 std::optional<ir::Action> lower_animated_set(HookState& state, const jsx::Expr& call,
-                                             const jsx::Expr& callee, const ComponentNames& names) {
+                                             const jsx::Expr& callee, ComponentNames& names) {
     // `v.set(value)` or `v.set(value, { animate, duration, easing, spring, onComplete })`.
     if (call.operands.size() < 2 || call.operands.size() > 3 || !callee.operands[0]) {
         fail_hook(state, "TESSERA_IR_UNSUPPORTED",
@@ -279,7 +285,13 @@ std::optional<ir::Action> lower_callback_call(HookState& state, const jsx::Expr&
     return action;
 }
 
-// The first `count` statements of `arrow` as actions.
+//   * `if (cond) { ... } else { ... }` becomes one `If` action whose `guard` is the condition and
+//     whose two lists are the branches. Nesting is an `If` inside either list, so a chain needs no
+//     new kind.
+//   * `const x = <PureExpr>;` is a local, inlined at each use exactly as a component-level `const`
+//     is (decision 8), so it produces no action at all.
+//   * an early `return;` ends the list it appears in. A `return` with a value is only meaningful in
+//     a preview body, which `lower_preview` handles separately.
 std::vector<ir::Action> lower_statements(HookState& state, const jsx::Expr& arrow,
                                          std::size_t count) {
     std::vector<ir::Action> actions;
@@ -294,11 +306,47 @@ std::vector<ir::Action> lower_statements(HookState& state, const jsx::Expr& arro
     }
     for (std::size_t i = 0; i < count; ++i) {
         const jsx::Expr* statement_ptr = arrow.operands[i].get();
+        if (statement_ptr == nullptr) {
+            fail_hook(state, "TESSERA_IR_MALFORMED", "a handler statement is missing", arrow.span);
+            return actions;
+        }
+        // `if`/`else` (ADR-066 item 2).
+        if (statement_ptr->kind == jsx::ExprKind::If) {
+            std::optional<ir::Action> branch = lower_if_action(state, *statement_ptr, arrow, names);
+            if (state.error || !branch) {
+                return actions;
+            }
+            actions.push_back(std::move(*branch));
+            continue;
+        }
+        // `const x = <PureExpr>;` (ADR-066 item 2): a local, inlined at each use, so it contributes
+        // no action. The name is registered so a later statement can read it.
+        if (statement_ptr->kind == jsx::ExprKind::Const) {
+            if (statement_ptr->operands.size() != 1 || !statement_ptr->operands[0]) {
+                fail_hook(state, "TESSERA_IR_MALFORMED", "a handler local needs one initializer",
+                          statement_ptr->span);
+                return actions;
+            }
+            names.add_const_local(statement_ptr->text, statement_ptr->operands[0].get());
+            continue;
+        }
+        // An early `return;` ends the list. A value is only allowed in a preview body, which
+        // `lower_preview` handles; here it would have nowhere to go.
+        if (statement_ptr->kind == jsx::ExprKind::Return) {
+            if (!statement_ptr->operands.empty()) {
+                fail_hook(
+                    state, "TESSERA_IR_UNSUPPORTED",
+                    "`return <value>` is only allowed as the last statement of a preview body",
+                    statement_ptr->span, "write `return;` to leave the handler early");
+                return actions;
+            }
+            break;
+        }
         // `guard && call(...)`: the call runs only when the pure guard holds (issue #236).
         ir::ExprPtr guard;
-        if (statement_ptr != nullptr && statement_ptr->kind == jsx::ExprKind::Binary &&
-            statement_ptr->text == "&&" && statement_ptr->operands.size() == 2 &&
-            statement_ptr->operands[0] && statement_ptr->operands[1]) {
+        if (statement_ptr->kind == jsx::ExprKind::Binary && statement_ptr->text == "&&" &&
+            statement_ptr->operands.size() == 2 && statement_ptr->operands[0] &&
+            statement_ptr->operands[1]) {
             guard = lower_component_expression(state, *statement_ptr->operands[0], names);
             if (state.error || !guard) {
                 return actions;
@@ -311,28 +359,12 @@ std::vector<ir::Action> lower_statements(HookState& state, const jsx::Expr& arro
                       statement_ptr ? statement_ptr->span : arrow.span);
             return actions;
         }
-        const jsx::Expr* const statement = statement_ptr;
-        const jsx::Expr& callee = *statement->operands[0];
-        std::optional<ir::Action> action;
-        if (callee.kind == jsx::ExprKind::Member &&
-            (callee.text == "focus" || callee.text == "blur") && callee.operands.size() == 1 &&
-            callee.operands[0] && callee.operands[0]->kind == jsx::ExprKind::Identifier) {
-            action = lower_ref_focus(state, *statement, callee);
-        } else if (callee.kind == jsx::ExprKind::Member && callee.text == "set" &&
-                   callee.operands.size() == 1 && callee.operands[0] &&
-                   callee.operands[0]->kind == jsx::ExprKind::Identifier) {
-            action = lower_animated_set(state, *statement, callee, names);
-        } else if (callee.kind == jsx::ExprKind::Identifier) {
-            action = lower_setter_call(state, *statement, callee, names);
-            if (!action && !state.error) {
-                action = lower_callback_call(state, *statement, callee, arrow);
-            }
-        }
+        std::optional<ir::Action> action = lower_call_action(state, *statement_ptr, arrow, names);
         if (state.error) {
             return actions;
         }
         if (!action) {
-            fail_hook(state, "TESSERA_IR_UNSUPPORTED", kBodyRule, statement->span);
+            fail_hook(state, "TESSERA_IR_UNSUPPORTED", kBodyRule, statement_ptr->span);
             return actions;
         }
         action->guard = std::move(guard);
@@ -341,8 +373,6 @@ std::vector<ir::Action> lower_statements(HookState& state, const jsx::Expr& arro
     return actions;
 }
 
-} // namespace
-
 std::vector<ir::Action> lower_actions(HookState& state, const jsx::Expr& arrow) {
     if (arrow.kind != jsx::ExprKind::Arrow) {
         fail_hook(state, "TESSERA_IR_UNSUPPORTED",
@@ -350,68 +380,6 @@ std::vector<ir::Action> lower_actions(HookState& state, const jsx::Expr& arrow) 
         return {};
     }
     return lower_statements(state, arrow, arrow.operands.size());
-}
-
-std::optional<ir::Preview> lower_preview(HookState& state, const jsx::Expr& arrow) {
-    if (arrow.kind != jsx::ExprKind::Arrow || arrow.operands.empty()) {
-        return std::nullopt;
-    }
-    // A scratch state: a body outside the preview rules is not an error here.
-    HookState scratch{state.context, std::nullopt};
-    std::size_t count = arrow.operands.size();
-    ir::ExprPtr return_value;
-    const jsx::ExprPtr& last = arrow.operands.back();
-    if (last && last->kind == jsx::ExprKind::Return) {
-        --count;
-        if (last->operands.size() == 1 && last->operands[0]) {
-            ComponentNames names(scratch.context.analysis);
-            for (const std::string& param : arrow.params) {
-                names.add_local(param);
-            }
-            return_value = lower_component_expression(scratch, *last->operands[0], names);
-            if (scratch.error || !return_value) {
-                return std::nullopt;
-            }
-        }
-    }
-    std::vector<ir::Action> actions = lower_statements(scratch, arrow, count);
-    if (scratch.error) {
-        return std::nullopt;
-    }
-    return ir::Preview{std::move(actions), std::move(return_value)};
-}
-
-std::vector<ir::Param> lower_handler_params(HookState& state, const jsx::Expr& arrow) {
-    std::vector<ir::Param> params;
-    if (arrow.params.size() != arrow.param_types.size()) {
-        fail_hook(state, "TESSERA_IR_MALFORMED",
-                  "a handler arrow has one parameter type per parameter", arrow.span);
-        return params;
-    }
-    for (std::size_t i = 0; i < arrow.params.size(); ++i) {
-        const std::string& name = arrow.params[i];
-        if (name.empty()) {
-            fail_hook(state, "TESSERA_IR_MALFORMED", "a handler parameter has no name", arrow.span);
-            return params;
-        }
-        if (!arrow.param_types[i]) {
-            fail_hook(state, "TESSERA_IR_UNSUPPORTED",
-                      "parameter `" + name +
-                          "` of a declared handler needs a type annotation; the event parameter "
-                          "types of the element table are slice 4",
-                      arrow.span, "annotate the parameter type");
-            return params;
-        }
-        const std::optional<std::string> type = lower_written_type(*arrow.param_types[i]);
-        if (!type) {
-            fail_hook(state, "TESSERA_IR_UNSUPPORTED",
-                      "parameter `" + name + "` has a type with no IR form in v1",
-                      arrow.param_types[i]->span);
-            return params;
-        }
-        params.push_back(ir::Param{name, *type});
-    }
-    return params;
 }
 
 } // namespace tessera::compiler::lowering::internal

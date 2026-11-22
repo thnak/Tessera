@@ -642,8 +642,11 @@ Acceptance: a `useState`/`useEffect`/`useRef` screen regenerates without losing 
       `import React`, `memo`, `StrictMode`/`Profiler`, `useId`, `useLayoutEffect`, the safe
       `useMemo`/`useCallback` forms, `??`/`?.` as the additive `coalesce`/`optionalField` IR kinds,
       and the `id`/`aria-labelledby` schema pair `useId` needs; corpus 25→33 front end, 12→20
-      pipeline; evidence in ADR-066 "Step 1 evidence"), then #652 control flow in handlers,
-      #653 list and string expressions, #654 limited `useReducer` and static `useContext`.
+      pipeline; evidence in ADR-066 "Step 1 evidence"), #652 control flow in handlers **done**
+      (`if`/`else` as the additive `If` action reusing `guard`, `else if` nested, a handler `const`
+      inlined, an early `return;` ending its list; corpus 33→34, 20→21; evidence in ADR-066 "Step 2
+      evidence"), then #653 list and string expressions, #654 limited `useReducer` and static
+      `useContext`.
 - [ ] Pending UI (ADR-067, waits for Acceptance): spec #655, front end and engine behaviors #656
       (preview support #657 belongs to V1-M4).
 

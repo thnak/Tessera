@@ -1,7 +1,7 @@
 corpus: 50 file(s)
-front end accepted: 33 (66.0%), 17 rejected
-front end accepted with a component declaration: 33 (66.0%)
-pipeline accepted: 20 (40.0%)
+front end accepted: 34 (68.0%), 16 rejected
+front end accepted with a component declaration: 34 (68.0%)
+pipeline accepted: 21 (42.0%)
 warnings: 0
 
 front-end rejections (code, occurrences, files):
@@ -13,7 +13,6 @@ front-end rejections (code, occurrences, files):
   TESSERA_JSX_SUBSET_DYNAMIC_TAG 1 1
   TESSERA_JSX_SUBSET_LITERAL 1 1
   TESSERA_JSX_SUBSET_MUTATION 1 1
-  TESSERA_JSX_SUBSET_STATEMENT 1 1
   TESSERA_REACT_EFFECT_DEPS 1 1
   TESSERA_REACT_HOOK_ORDER 1 1
   TESSERA_REACT_UNKNOWN_HOOK 1 1
@@ -26,7 +25,6 @@ front-end first rejections (code, files):
   TESSERA_JSX_SUBSET_DYNAMIC_TAG 1
   TESSERA_JSX_SUBSET_LITERAL 1
   TESSERA_JSX_SUBSET_MUTATION 1
-  TESSERA_JSX_SUBSET_STATEMENT 1
   TESSERA_REACT_EFFECT_DEPS 1
   TESSERA_REACT_HOOK_ORDER 1
   TESSERA_REACT_UNKNOWN_HOOK 1
@@ -43,7 +41,6 @@ pipeline rejections (first blocking code, files):
   TESSERA_JSX_SUBSET_DYNAMIC_TAG 1
   TESSERA_JSX_SUBSET_LITERAL 1
   TESSERA_JSX_SUBSET_MUTATION 1
-  TESSERA_JSX_SUBSET_STATEMENT 1
   TESSERA_REACT_EFFECT_DEPS 1
   TESSERA_REACT_HOOK_ORDER 1
   TESSERA_REACT_UNKNOWN_HOOK 1
@@ -78,7 +75,7 @@ files:
   accepted react/forms/checkbox-input.tsx components=1 pipeline=TESSERA_IR_UNKNOWN_PROP
   accepted react/forms/controlled-input.tsx components=1 pipeline=TESSERA_IR_UNKNOWN_PROP
   accepted react/forms/label-html-for.tsx components=1 pipeline=TESSERA_IR_UNKNOWN_PROP
-  rejected react/handlers/handler-control-flow.tsx components=1: TESSERA_JSX_SUBSET_STATEMENT pipeline=TESSERA_JSX_SUBSET_STATEMENT
+  accepted react/handlers/handler-control-flow.tsx components=1 pipeline=ok
   rejected react/handlers/handler-loop.tsx components=1: TESSERA_JSX_SUBSET_MUTATION pipeline=TESSERA_JSX_SUBSET_MUTATION
   rejected react/hooks/hook-order.tsx components=1: TESSERA_REACT_HOOK_ORDER pipeline=TESSERA_REACT_HOOK_ORDER
   accepted react/hooks/use-callback.tsx components=1 pipeline=ok

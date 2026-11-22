@@ -19,7 +19,7 @@ struct JsxNode;
 using ExprPtr = std::unique_ptr<Expr>;
 using JsxPtr = std::unique_ptr<JsxNode>;
 
-enum class ExprKind {
+enum class ExprKind : std::uint8_t {
     Number,      // text = source spelling, number = value
     String,      // text = decoded contents
     Template,    // template_strings (cooked) interleaved with operands (substitutions)
@@ -40,6 +40,10 @@ enum class ExprKind {
     Jsx,    // jsx
     Arrow,  // params; operands = [body] or the statements of a block body
     Return, // `return e;` in a block body; operands = [value] or empty
+    // ADR-066 item 2: control flow in a handler body.
+    If,    // operands = [condition, then-block] or [condition, then-block, else-block]
+    Block, // operands = the statements of a branch; the body of an `if`/`else`
+    Const, // text = the name; operands = [value]. A local of a handler body
 };
 
 struct ObjectProperty {
@@ -71,14 +75,14 @@ struct Expr {
     JsxPtr jsx;
 };
 
-enum class JsxKind {
+enum class JsxKind : std::uint8_t {
     Element,       // tag, attributes, children
     Fragment,      // children
     Text,          // text (already whitespace-collapsed and entity-decoded)
     ExprContainer, // expr; null for `{}` and `{/* comment */}`
 };
 
-enum class JsxAttrKind {
+enum class JsxAttrKind : std::uint8_t {
     Flag,       // `disabled`
     String,     // `a="x"`, string_value decoded
     Expression, // `a={expr}`

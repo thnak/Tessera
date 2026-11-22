@@ -154,6 +154,23 @@ inline std::string deps_text(const std::vector<std::string>& deps) {
 }
 
 inline std::string action_text(const ir::Action& action) {
+    // ADR-066 item 2: an `If` action has no target or value; its condition and branches are what
+    // matter, so it is described as `if <cond> then [...] else [...]`.
+    if (action.kind == ir::ActionKind::If) {
+        std::string out = "if " + expr_text(action.guard.get()) + " then [";
+        for (const ir::Action& nested : action.then_actions) {
+            out += action_text(nested) + "; ";
+        }
+        out += "]";
+        if (!action.else_actions.empty()) {
+            out += " else [";
+            for (const ir::Action& nested : action.else_actions) {
+                out += action_text(nested) + "; ";
+            }
+            out += "]";
+        }
+        return out;
+    }
     std::string out = action.kind == ir::ActionKind::Set ? "set " : "animSet ";
     out += action.target + " = " + expr_text(action.value.get());
     if (action.kind == ir::ActionKind::AnimSet) {

@@ -128,6 +128,20 @@ it is an IR record of its own, referenced from `events`:
 - `actions` run in order. `set` writes a state variable through its setter; `animSet` is an
   animated-value `.set(...)`, with `animate` defaulting to `true`. Values are pure Expressions that may
   read `params`. `focus`/`blur` (#226, `r.focus()`/`r.blur()`) take a `ref::` `target`, no `value`, and are no-ops until the ref is assigned: `blur` clears focus only if the node holds it. `callProp` (#286) calls a callback prop of the component: `target` is `prop::<name>` (a `() => void` or payload-record prop), `value` is the handler's payload parameter ref for a payload callback and absent otherwise; an unset callback is skipped. Any action may carry a pure bool `guard` (#236) and runs only when it holds.
+- `if` (additive, ADR-066 item 2) is the conditional action: `guard` is the pure bool condition,
+  `then` is the list that runs when it holds, and `else` is the list that runs when it does not
+  (absent for a bare `if`). It carries no `target` and no `value`. Both lists are action lists, so a
+  nested `if` is an `if` inside one of them and a chain needs no new kind. It is how `if`/`else` and
+  an early `return;` in a handler body lower:
+
+  ```json
+  { "kind": "if", "guard": { "kind": "ref", "id": "prop::disabled" },
+    "then": [], "else": [ { "kind": "set", "target": "state::busy", "value": { "kind": "literal", "value": true } } ] }
+  ```
+
+  An `if` with no `guard`, or one that carries a `target` or a `value`, is `TESSERA_IR_MALFORMED`.
+  The evaluator and the generated C++ run the same branch, which is the differential property the
+  ADR asks for.
 - An `animSet` may carry literal timing, omitted when absent (default 200 ms `ease-out`): `durationMs`
   (0..60000), `easing` (a CSS keyword or `cubic-bezier(x1, y1, x2, y2)` with x in [0, 1]) or, exclusive with both and with `animate: false`, `spring` `{stiffness, damping, mass}` in (0, 1e5], [0, 1e4], (0, 1000]; invalid timing is `TESSERA_IR_ANIMATION`.
   `onComplete` (additive) is the `handler::N` of a parameterless handler of the component, run once when the value reaches that set's target (a snap completes at once); unknown: `TESSERA_IR_UNRESOLVED`, with parameters or on a `set`: `TESSERA_IR_ANIMATION`.

@@ -6,6 +6,7 @@
 
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace tessera::compiler::ir {
 
@@ -20,7 +21,9 @@ struct Param {
 // `CallProp` (issue #286) calls a callback prop of the component itself: `target` is `prop::<name>`
 // and `value` is the payload argument (absent for a payload-free `() => void` callback). A call
 // through an unset callback is a no-op.
-enum class ActionKind { Set, AnimSet, Focus, Blur, CallProp };
+// `If` (ADR-066 item 2) is the conditional action: `guard` is the pure bool condition and the two
+// lists are the branches. It is how `if`/`else` and an early `return` in a handler body lower.
+enum class ActionKind { Set, AnimSet, Focus, Blur, CallProp, If };
 
 // The spring driver of `v.set(x, { spring })`: an alternative to `duration`/`easing`. The defaults
 // are the runtime's (`SpringConfig`: stiffness 180, damping 20, mass 1).
@@ -58,6 +61,13 @@ struct Action {
     // assigns, so `isPending` is true while the change's fetch is in flight. Off by default: an
     // action without the mark is byte-identical to the IR before it.
     bool transition = false;
+    // ADR-066 item 2: the branches of an `If` action. `then_actions` always runs when `guard`
+    // holds; `else_actions` runs when it does not and is empty for a bare `if`. Both are lists
+    // rather than single actions so a branch may hold several statements, and nesting is an `If`
+    // inside either list. Empty for every other kind, so an action without them is byte-identical
+    // to the IR before this field existed.
+    std::vector<Action> then_actions{};
+    std::vector<Action> else_actions{};
 };
 
 } // namespace tessera::compiler::ir

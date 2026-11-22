@@ -48,11 +48,56 @@ bool is_setter_call(const Context& ctx, const Expr& expr) {
     return false;
 }
 
+// Spec 9.2, extended by ADR-066 item 2: a handler body may also hold `if`/`else`, `const` and an
+// early `return;`. Each is checked here so the role classification sees the same set of forms the
+// lowering accepts; a body outside them is still `TESSERA_REACT_BIND_MISSING`.
+bool is_handler_statement(const Context& ctx, const Expr& statement);
+
+// The statements of one `if`/`else` branch, which are handler statements too. An `else if` nests an
+// `If` directly rather than wrapping it in a `Block`, so both shapes are accepted here.
+bool is_handler_branch(const Context& ctx, const Expr& branch) {
+    if (branch.kind == ExprKind::If) {
+        return is_handler_statement(ctx, branch);
+    }
+    if (branch.kind != ExprKind::Block) {
+        return false;
+    }
+    return std::all_of(branch.operands.begin(), branch.operands.end(),
+                       [&](const jsx::ExprPtr& statement) {
+                           return statement && is_handler_statement(ctx, *statement);
+                       });
+}
+
+bool is_handler_statement(const Context& ctx, const Expr& statement) {
+    if (statement.kind == ExprKind::If) {
+        // `if (cond) <branch> [else <branch>]`: the condition is a pure expression, which the
+        // lowering checks, and both branches must be handler statements.
+        if (statement.operands.size() < 2 || statement.operands.size() > 3) {
+            return false;
+        }
+        if (!is_handler_branch(ctx, *statement.operands[1])) {
+            return false;
+        }
+        return statement.operands.size() == 2 || is_handler_branch(ctx, *statement.operands[2]);
+    }
+    if (statement.kind == ExprKind::Const) {
+        // `const x = <PureExpr>;`: one initializer, which the lowering inlines.
+        return statement.operands.size() == 1 && statement.operands[0] != nullptr;
+    }
+    if (statement.kind == ExprKind::Return) {
+        // An early `return;` ends the body. A value is a preview-body return, which
+        // `check_preview_body` handles separately.
+        return statement.operands.empty();
+    }
+    return is_setter_call(ctx, statement);
+}
+
 // Spec 9.2. An empty body is not a handler of this form (least committal; decision 4 is silent).
 bool is_setter_only(const Context& ctx, const Expr& arrow) {
     return !arrow.operands.empty() && std::all_of(arrow.operands.begin(), arrow.operands.end(),
                                                   [&](const jsx::ExprPtr& statement) {
-                                                      return is_setter_call(ctx, *statement);
+                                                      return statement &&
+                                                             is_handler_statement(ctx, *statement);
                                                   });
 }
 
