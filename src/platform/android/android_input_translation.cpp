@@ -204,4 +204,43 @@ float scroll_dy_from_axis(float axis_vscroll) {
     return -axis_vscroll;
 }
 
+KeyTranslation translate_key_sample(const KeySample& sample) noexcept {
+    KeyTranslation result;
+    if (sample.action != kKeyActionDown && sample.action != kKeyActionUp) {
+        // A chord's multiple-action event is not a single key transition; the platform sends the
+        // individual events too.
+        return result;
+    }
+    const ui::KeyCode logical = logical_key_from_keycode(sample.keycode);
+    if (logical == ui::key::kUnknown) {
+        // A key the engine has no code for: produce nothing so the caller can let the platform
+        // handle it rather than swallowing it.
+        return result;
+    }
+    const ui::Modifier modifiers = modifiers_from_meta(sample.meta_state);
+    ui::InputEvent& key_event = result.events[result.count++];
+    key_event.timestamp_s = sample.timestamp_s;
+    key_event.type =
+        sample.action == kKeyActionDown ? ui::InputEventType::KeyDown : ui::InputEventType::KeyUp;
+    key_event.key = logical;
+    key_event.modifiers = modifiers;
+    key_event.repeat = sample.repeat_count > 0;
+
+    // Typed text: a key-down that produces a character also emits a `Text` event, which is what the
+    // edit controller inserts. A key-up never types. This is the same rule the NDK path applies,
+    // and it is what makes a hardware Backspace delete: the key event alone only carries the
+    // logical key, and the controller's key map turns that into the delete command.
+    if (sample.action == kKeyActionDown) {
+        const std::uint32_t codepoint = codepoint_from_key(sample.keycode, modifiers);
+        if (codepoint != 0) {
+            ui::InputEvent& text_event = result.events[result.count++];
+            text_event.timestamp_s = sample.timestamp_s;
+            text_event.type = ui::InputEventType::Text;
+            text_event.text_codepoint = codepoint;
+            text_event.modifiers = modifiers;
+        }
+    }
+    return result;
+}
+
 } // namespace tessera::hal::android

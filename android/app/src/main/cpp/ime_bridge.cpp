@@ -11,6 +11,7 @@
 // which is what makes the IME's idea of the text and the engine's the same text.
 
 #include "android_ime_translation.hpp"
+#include "android_input_translation.hpp"
 #include "shell.hpp"
 
 #include <algorithm>
@@ -21,6 +22,66 @@
 
 using tessera::android_shell::Shell;
 using tessera::android_shell::shell_from;
+
+namespace {
+
+// Forwards one normalized input event to the edit controller and requests the frame that shows the
+// result. Shared by the IME callbacks and the key path: both produce `ui::InputEvent` and both must
+// reach the same controller, so the mapping and the redraw request live in one place.
+//
+// The event goes straight to the controller, not through the window's input queue. The controller
+// is the buffer's owner, so routing through the queue would make the text arrive one frame later
+// than the caret the IME is tracking, and the platform would then ask for text around a caret the
+// engine has not applied yet.
+bool dispatch_to_editor(Shell& shell, const tessera::ui::InputEvent& input) {
+    tessera::ui::Event event;
+    // The two enums are NOT the same type and do NOT share values: `ui::InputEventType` is the
+    // normalized input vocabulary, `ui::EventType` is the scene's. A cast would silently turn a
+    // commit into a composition start (EditText is 13 in one and 14 in the other), so the mapping
+    // is explicit and total.
+    switch (input.type) {
+    case tessera::ui::InputEventType::Text:
+        event.type = tessera::ui::EventType::Text;
+        break;
+    case tessera::ui::InputEventType::EditText:
+        event.type = tessera::ui::EventType::EditText;
+        break;
+    case tessera::ui::InputEventType::CompositionStart:
+        event.type = tessera::ui::EventType::CompositionStart;
+        break;
+    case tessera::ui::InputEventType::CompositionUpdate:
+        event.type = tessera::ui::EventType::CompositionUpdate;
+        break;
+    case tessera::ui::InputEventType::CompositionEnd:
+        event.type = tessera::ui::EventType::CompositionEnd;
+        break;
+    case tessera::ui::InputEventType::KeyDown:
+        event.type = tessera::ui::EventType::KeyDown;
+        break;
+    case tessera::ui::InputEventType::KeyUp:
+        event.type = tessera::ui::EventType::KeyUp;
+        break;
+    default:
+        // The producers above only emit these seven types; anything else is a bug in the
+        // translation, and dropping it is safer than dispatching a wrong event.
+        return false;
+    }
+    event.set_text(std::string_view(input.text.data(), input.text_size));
+    event.selection_start = input.selection_start;
+    event.selection_end = input.selection_end;
+    event.key = input.key;
+    event.modifiers = input.modifiers;
+    event.repeat = input.repeat;
+    event.text_codepoint = input.text_codepoint;
+    const bool consumed = shell.editor_runtime.handle_event(event);
+    if (consumed && shell.window != nullptr) {
+        // The node's paint data changed, so the frame that shows the new text has to be requested.
+        shell.window->request_redraw();
+    }
+    return consumed;
+}
+
+} // namespace
 
 extern "C" {
 JNIEXPORT jboolean JNICALL Java_dev_tessera_app_TesseraView_nativeIme(
@@ -59,50 +120,7 @@ JNIEXPORT jboolean JNICALL Java_dev_tessera_app_TesseraView_nativeIme(
     if (!out.translated) {
         return JNI_FALSE;
     }
-    // The event goes straight to the edit controller, not through the window's input queue. The
-    // controller is the buffer's owner, so routing through the queue would make the text arrive one
-    // frame later than the caret the IME is tracking, and the platform would then ask for text
-    // around a caret the engine has not applied yet. The runtime publishes the caret and the
-    // committed text into the node, so the next frame paints what was typed.
-    tessera::ui::Event event;
-    // The two enums are NOT the same type and do NOT share values: `ui::InputEventType` is the
-    // normalized input vocabulary, `ui::EventType` is the scene's. A cast would silently turn a
-    // commit into a composition start (EditText is 13 in one and 14 in the other), so the mapping
-    // is explicit and total.
-    switch (out.event.type) {
-    case tessera::ui::InputEventType::Text:
-        event.type = tessera::ui::EventType::Text;
-        break;
-    case tessera::ui::InputEventType::EditText:
-        event.type = tessera::ui::EventType::EditText;
-        break;
-    case tessera::ui::InputEventType::CompositionStart:
-        event.type = tessera::ui::EventType::CompositionStart;
-        break;
-    case tessera::ui::InputEventType::CompositionUpdate:
-        event.type = tessera::ui::EventType::CompositionUpdate;
-        break;
-    case tessera::ui::InputEventType::CompositionEnd:
-        event.type = tessera::ui::EventType::CompositionEnd;
-        break;
-    case tessera::ui::InputEventType::KeyDown:
-        event.type = tessera::ui::EventType::KeyDown;
-        break;
-    default:
-        // The IME translation only produces the six types above; anything else is a bug in the
-        // translation, and dropping it is safer than dispatching a wrong event.
-        return JNI_FALSE;
-    }
-    event.set_text(std::string_view(out.event.text.data(), out.event.text_size));
-    event.selection_start = out.event.selection_start;
-    event.selection_end = out.event.selection_end;
-    event.key = out.event.key;
-    const bool consumed = shell->editor_runtime.handle_event(event);
-    if (consumed) {
-        // The node's paint data changed, so the frame that shows the new text has to be requested.
-        shell->window->request_redraw();
-    }
-    return consumed ? JNI_TRUE : JNI_FALSE;
+    return dispatch_to_editor(*shell, out.event) ? JNI_TRUE : JNI_FALSE;
 }
 
 // The text around the caret, for the platform's `InputConnection` queries. Android asks these to
@@ -193,6 +211,44 @@ JNIEXPORT void JNICALL Java_dev_tessera_app_TesseraView_nativeSetSelection(JNIEn
     shell->editor.buffer().set_selection(anchor, focus);
     shell->editor_runtime.publish_decoration();
     shell->window->request_redraw();
+}
+
+// One Java `KeyEvent`, forwarded to the edit controller. This is the path a hardware key and an
+// IME-synthesised key both take: the shell is a Java activity, so neither arrives as the NDK's
+// `AInputEvent`, and without this the engine never sees a Backspace at all.
+//
+// The translation is the pure `translate_key_sample` (unit-tested on every lane); this only reads
+// the Java getters. A key the engine has no logical code for produces nothing and the caller lets
+// the platform handle it, which is what keeps the system Back gesture working.
+JNIEXPORT jboolean JNICALL Java_dev_tessera_app_TesseraView_nativeKey(JNIEnv*, jclass, jlong handle,
+                                                                      jint keycode, jint meta_state,
+                                                                      jint action,
+                                                                      jint repeat_count,
+                                                                      jlong event_time_nanos) {
+    Shell* shell = shell_from(handle);
+    if (shell == nullptr || shell->window == nullptr) {
+        return JNI_FALSE;
+    }
+    tessera::hal::android::KeySample sample;
+    sample.keycode = keycode;
+    sample.meta_state = meta_state;
+    sample.action = action;
+    sample.repeat_count = repeat_count;
+    sample.timestamp_s = static_cast<double>(event_time_nanos) / 1.0e9;
+    const tessera::hal::android::KeyTranslation out =
+        tessera::hal::android::translate_key_sample(sample);
+    if (out.count == 0) {
+        return JNI_FALSE;
+    }
+    // A key-down that types a character produces two events (the key and the text). Both are
+    // offered to the controller in order; the key event is what a Backspace needs, the text event
+    // is what a letter needs. The return value reports whether the controller consumed any of them,
+    // so the platform keeps its own handling for a key the field ignored.
+    bool consumed = false;
+    for (std::size_t i = 0; i < out.count; ++i) {
+        consumed = dispatch_to_editor(*shell, out.events[i]) || consumed;
+    }
+    return consumed ? JNI_TRUE : JNI_FALSE;
 }
 
 } // extern "C"

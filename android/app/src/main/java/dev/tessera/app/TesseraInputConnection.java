@@ -4,8 +4,7 @@ package dev.tessera.app;
 
 import android.view.KeyEvent;
 import android.view.inputmethod.BaseInputConnection;
-
-
+import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnectionWrapper;
 
 /**
@@ -71,16 +70,44 @@ final class TesseraInputConnection extends InputConnectionWrapper {
 
     @Override
     public boolean sendKeyEvent(KeyEvent event) {
-        // A hardware key arrives through the native input queue, so this path only exists for an IME
-        // that synthesises one. The engine's key handling is the same either way.
+        // An IME that synthesises a key (Space, Enter, Backspace on a keyboard that sends key
+        // events rather than committing text) reaches the engine only here: the event never goes
+        // through the view's `dispatchKeyEvent`, because the IME owns the input connection. Without
+        // this override the key is handed to the base connection, which has no engine behind it, so
+        // Space and Enter silently do nothing while letters (committed as text) still work.
+        //
+        // The engine's key path is the same one a hardware key takes, so the mapping rules and the
+        // edit controller's chord table are shared rather than duplicated.
+        if (handle != 0 && TesseraView.nativeKey(handle, event.getKeyCode(), event.getMetaState(),
+                event.getAction(), event.getRepeatCount(), event.getEventTime())) {
+            return true;
+        }
         return super.sendKeyEvent(event);
     }
 
     @Override
     public boolean performEditorAction(int editorAction) {
-        // The engine's edit controller has no editor-action concept yet (Done/Search/Go). Reporting
-        // "not handled" lets the platform fall back instead of pretending it did something, and a
-        // newline already arrives as a key event.
+        // A multi-line field's Enter key arrives here, not as a key event: the IME reports an editor
+        // action and expects the app to insert the line break itself. Reporting "not handled" made
+        // Enter do nothing at all, which on a phone reads as a broken key.
+        //
+        // Only IME_ACTION_NONE (and the unspecified action) means "insert a newline"; the named
+        // actions (Done/Search/Go/Send) are a form concern the engine has no concept of, so they
+        // stay unhandled and the platform keeps its own behaviour.
+        if (editorAction == EditorInfo.IME_ACTION_NONE || editorAction == EditorInfo.IME_ACTION_UNSPECIFIED) {
+            if (handle != 0) {
+                // The same key path a hardware Enter takes, so the field's multiline flag decides
+                // whether the newline is inserted or gated off - one rule, not two.
+                final long now = System.currentTimeMillis();
+                final boolean down = TesseraView.nativeKey(handle, KeyEvent.KEYCODE_ENTER, 0,
+                        KeyEvent.ACTION_DOWN, 0, now);
+                final boolean up = TesseraView.nativeKey(handle, KeyEvent.KEYCODE_ENTER, 0,
+                        KeyEvent.ACTION_UP, 0, now);
+                if (down || up) {
+                    return true;
+                }
+            }
+        }
         return false;
     }
 

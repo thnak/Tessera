@@ -19,6 +19,7 @@
 #include "shell.hpp"
 #include "tessera/app/window.hpp"
 #include "tessera/hal/window.hpp"
+#include "tessera/ui/style/pseudo_state.hpp"
 
 #include <android/log.h>
 #include <android/native_window_jni.h>
@@ -87,6 +88,20 @@ float display_scale(JNIEnv* env, jobject view) {
     return density > 0.0f ? density : 1.0f;
 }
 
+// The caret-blink policy the driver asks for every iteration: the field blinks only while it holds
+// scene focus and is editable with a collapsed selection, which is exactly what
+// `EditController::caret_blink_active` decides. Reading the node's pseudo state is a bit test, so
+// asking once per iteration costs nothing.
+bool caret_active_for_shell(void* user) {
+    auto* shell = static_cast<Shell*>(user);
+    if (shell == nullptr || shell->scene == nullptr || shell->scene->input_label == nullptr) {
+        return false;
+    }
+    const bool focused = tessera::ui::style::has_state(shell->scene->input_label->pseudo_state(),
+                                                       tessera::ui::style::PseudoState::Focus);
+    return shell->editor.caret_blink_active(focused);
+}
+
 // Creates the host around the surface and starts the frame loop. Called from `surfaceCreated`,
 // which is the first moment the engine may render.
 void start_host(Shell& shell) {
@@ -115,6 +130,17 @@ void start_host(Shell& shell) {
     // turns each committed edit into the scene's `TextChange`. Attaching before the host exists is
     // safe: the node is already in the tree, and the runtime only reads it on an event.
     shell.editor_runtime.attach(shell.scene->input_label);
+    // The demo field is multi-line, so Enter inserts a newline instead of being dropped. A
+    // single-line field ignores Enter by design (submit is a form concern the engine defers), which
+    // on a phone reads as "the Enter key is broken" - the shell has no form to submit, so a
+    // multi-line field is the honest demo.
+    shell.editor.set_multiline(true);
+    // The caret blink. The driver owns the clock, but only the shell knows whether the field is
+    // focused, so the policy is a callback and the runtime is where the phase lands: without both
+    // the caret would be solid, because nothing would ever flip the decoration's phase.
+    options.caret_active = &caret_active_for_shell;
+    options.caret_active_user = &shell;
+    options.caret_target = &shell.editor_runtime;
     shell.host = std::make_unique<tessera::app::WindowHost>(
         shell.scene->root, tessera::android_shell::shell_stylesheet(), options,
         &shell.scene->scheduler);

@@ -27,6 +27,7 @@
 #include "tessera/ui/input_pump.hpp"
 #include "tessera/ui/scale/render_target_extent.hpp"
 #include "tessera/ui/text/caret_blink.hpp"
+#include "tessera/ui/text/text_input_runtime.hpp"
 #include "window_config.hpp"
 #include "window_internal.hpp"
 
@@ -227,6 +228,10 @@ struct WindowHost::Impl {
     // both pump_once() and run(). Inactive (unfocused) blinks are not ticked at all, so they
     // request nothing and the loop stays idle. A visibility flip requests exactly one frame.
     void tick_caret();
+    // Pushes the blink result into `caret_target` (a no-op without one). Called from every path
+    // that can change the blink state, including the inactive one: a field that just lost focus
+    // must stop painting a caret, and the decoration is the only thing paint reads.
+    void sync_caret_target();
     // Focus/editability/selection policy input; false stops ticking and requests nothing.
     void set_caret_active(bool active);
 
@@ -368,6 +373,11 @@ struct WindowHost::Impl {
     // pump_once(), pause - sees the same state. Starts inactive: no field owns focus until the app
     // calls set_caret_active(true), so a fresh window requests nothing for the caret.
     ui::text::CaretBlink caret;
+    // The text runtime whose decoration carries the caret, when the app installed one through
+    // `WindowOptions::caret_blink_target`. Borrowed: the app owns it and must clear the option
+    // before the runtime dies. Null leaves the blink purely internal, which is what every desktop
+    // caller keeps.
+    ui::text::TextInputRuntime* caret_target = nullptr;
     std::array<std::unique_ptr<rhi::CommandList>, detail::kFramesInFlight> in_flight;
     std::size_t slot = 0;
 

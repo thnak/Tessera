@@ -326,10 +326,21 @@ void WindowHost::Impl::update_pause_state() {
 // after the pause guard. An inactive blink is never ticked, so an unfocused field costs no frame
 // request and no GPU work; a paused window never ticks either (the pause wins over the blink).
 void WindowHost::Impl::tick_caret() {
+    // The app's policy first: only it knows whether a text field is focused and editable. Asking
+    // every iteration is what makes the caret appear when a field takes focus and disappear when it
+    // loses it. A null callback keeps the old behaviour (the app drives `set_caret_active` itself).
+    if (options.caret_active != nullptr) {
+        set_caret_active(options.caret_active(options.caret_active_user));
+    }
     if (!caret.active()) {
+        // Still publish: a field that just lost focus must stop painting a caret, and the
+        // decoration is the only thing paint reads. `publish_decoration` is a no-op when nothing
+        // changed, so this costs a comparison per iteration, not a dirty mark.
+        sync_caret_target();
         return;
     }
     if (!caret.tick(caret_now_seconds())) {
+        sync_caret_target();
         return;
     }
     ++stats.caret_blinks;
@@ -339,8 +350,20 @@ void WindowHost::Impl::tick_caret() {
     // frame. A repeated tick in the same phase asks for nothing.
     loop->mark_render_dirty();
     host->request_full_repaint();
+    sync_caret_target();
 }
 
+// Pushes the blink result into the app's text runtime, which is what makes the caret actually
+// blink: the decoration is what paint reads, and the runtime publishes `blink_phase` from the value
+// the driver last pushed. Without this the host's state machine would run and paint would still
+// draw a solid caret.
+void WindowHost::Impl::sync_caret_target() {
+    if (caret_target == nullptr) {
+        return;
+    }
+    caret_target->set_caret_blink_visible(caret.caret_visible());
+    caret_target->publish_decoration();
+}
 void WindowHost::Impl::set_caret_active(bool active) {
     const bool changed = caret.set_active(active, caret_now_seconds());
     if (!changed || host == nullptr || !available) {
@@ -354,6 +377,9 @@ void WindowHost::Impl::set_caret_active(bool active) {
     if (active) {
         host->request_full_repaint();
     }
+    // The decoration carries the phase, so a policy change has to reach it as well: activating
+    // shows the caret immediately, deactivating hides it immediately.
+    sync_caret_target();
 }
 
 // One bounded iteration: pump events and input, honour the pause, tick the loop and produce at most

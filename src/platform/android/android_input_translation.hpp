@@ -122,6 +122,34 @@ inline constexpr std::int32_t kKeycodeF12 = 142;
 // come from on Android anyway.
 [[nodiscard]] std::uint32_t codepoint_from_key(std::int32_t keycode, ui::Modifier modifiers);
 
+// One Java `KeyEvent`, reduced to the values the mapping needs. The shell is a Java activity, so a
+// hardware key and an IME-synthesised key both arrive as a `KeyEvent` rather than as the NDK's
+// `AInputEvent`; this is the Java-side twin of the `AKeyEvent` path in `android_input.cpp`.
+struct KeySample {
+    std::int32_t keycode = 0;
+    std::int32_t meta_state = 0;
+    // `kKeyActionDown` or `kKeyActionUp`; anything else (a chord's multiple-action event) is
+    // ignored, exactly as the NDK path ignores it.
+    std::int32_t action = kKeyActionDown;
+    std::int32_t repeat_count = 0;
+    double timestamp_s = 0.0;
+};
+
+// What one key event means for the queue: at most two events, because a key-down that types a
+// character produces the key event AND a `Text` event (the edit controller inserts the character
+// from the latter). Bounded and allocation-free, so it is safe on the platform's callback thread.
+struct KeyTranslation {
+    static constexpr std::size_t kMaxEvents = 2;
+    ui::InputEvent events[kMaxEvents]{};
+    std::size_t count = 0;
+};
+
+// Converts one key event. A key the engine has no logical code for produces nothing, so the caller
+// can let the platform handle it instead of swallowing it. The system Back key is deliberately NOT
+// translated here: the Java shell leaves it to the platform (see `TesseraView.dispatchKeyEvent`),
+// because the engine's `BackRequested` needs a route stack the shell does not have.
+[[nodiscard]] KeyTranslation translate_key_sample(const KeySample& sample) noexcept;
+
 // What one MotionEvent action means for the normalized queue. `pointer_index` is the index the
 // action's high byte carried, or -1 when the action is not a pointer action.
 struct MotionAction {

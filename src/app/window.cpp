@@ -61,6 +61,9 @@ WindowHost::Impl::Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet,
     // No field owns focus until the app says so. An inactive blink is not ticked, so a window that
     // never gains an editable field never requests a caret frame (ADR-019: static UI idles).
     (void)caret.set_active(false, caret_now_seconds());
+    // The app's text runtime, when it has one: the blink result is pushed into its decoration so
+    // the caret actually blinks. Borrowed, so it is only recorded here.
+    caret_target = options.caret_target;
     applied_present_cap_hz = options.max_fps;
     // The runtime config's lifecycle keys are mapped here, once: the pause policy owns occlusion
     // and minimization, and the pipeline config owns paint interpolation.

@@ -207,6 +207,110 @@ int main() {
     check(android::scroll_dy_from_axis(-1.0F) == 1.0F, "a negative Android axis is positive dy");
     check(android::scroll_dy_from_axis(0.0F) == 0.0F, "a zero axis is zero dy");
 
+    // --- Java KeyEvent translation -----------------------------------------------------------
+    //
+    // The shell is a Java activity, so a hardware key arrives as a `KeyEvent` and never as the
+    // NDK's `AInputEvent`. Without this path the engine sees no Backspace at all and the field
+    // cannot be emptied, which is exactly the defect these checks pin.
+    {
+        android::KeySample backspace;
+        backspace.keycode = android::kKeycodeDel;
+        backspace.action = android::kKeyActionDown;
+        const android::KeyTranslation out = android::translate_key_sample(backspace);
+        check(out.count == 1, "a Backspace key-down produces exactly one event");
+        check(out.events[0].type == tessera::ui::InputEventType::KeyDown,
+              "the Backspace event is a KeyDown");
+        check(out.events[0].key == key::kBackspace, "the Backspace keycode maps to kBackspace");
+        // Backspace types nothing, so it must not also emit a Text event: a Text event with a zero
+        // codepoint would be dropped by the controller anyway, but emitting one would be a lie.
+        check(out.events[0].text_codepoint == 0, "Backspace types no character");
+    }
+    {
+        // A letter key-down produces the key event AND the typed character, which is what the edit
+        // controller inserts. Losing the second event is what makes typing appear to do nothing.
+        android::KeySample letter;
+        letter.keycode = android::kKeycodeA;
+        letter.action = android::kKeyActionDown;
+        const android::KeyTranslation out = android::translate_key_sample(letter);
+        check(out.count == 2, "a letter key-down produces the key and the text");
+        check(out.events[0].type == tessera::ui::InputEventType::KeyDown, "the first is the key");
+        check(out.events[1].type == tessera::ui::InputEventType::Text, "the second is the text");
+        check(out.events[1].text_codepoint == 'a', "an unshifted letter types lower case");
+    }
+    {
+        // Shift decides the case, and the modifier rides on both events so a handler can tell.
+        android::KeySample shifted;
+        shifted.keycode = android::kKeycodeA;
+        shifted.meta_state = android::kMetaShiftOn;
+        shifted.action = android::kKeyActionDown;
+        const android::KeyTranslation out = android::translate_key_sample(shifted);
+        check(out.count == 2, "a shifted letter still produces both events");
+        check(out.events[1].text_codepoint == 'A', "a shifted letter types upper case");
+        check(tessera::ui::has_modifier(out.events[0].modifiers, Modifier::Shift),
+              "the key event carries the shift modifier");
+    }
+    {
+        // A key-up never types: the character was already committed by the key-down, and emitting
+        // it twice would double every keystroke.
+        android::KeySample up;
+        up.keycode = android::kKeycodeA;
+        up.action = android::kKeyActionUp;
+        const android::KeyTranslation out = android::translate_key_sample(up);
+        check(out.count == 1, "a key-up produces only the key event");
+        check(out.events[0].type == tessera::ui::InputEventType::KeyUp, "the event is a KeyUp");
+    }
+    {
+        // A key the engine has no logical code for produces nothing, so the caller can let the
+        // platform handle it. This is what keeps the system Back gesture working.
+        android::KeySample unknown;
+        unknown.keycode = android::kKeycodeBack;
+        unknown.action = android::kKeyActionDown;
+        check(android::translate_key_sample(unknown).count == 0,
+              "an unmapped key produces no event");
+    }
+    {
+        // A chord's multiple-action event is not a single transition; the platform sends the
+        // individual events too.
+        android::KeySample multiple;
+        multiple.keycode = android::kKeycodeA;
+        multiple.action = android::kKeyActionMultiple;
+        check(android::translate_key_sample(multiple).count == 0,
+              "a multiple-action event produces no event");
+    }
+    {
+        // The repeat count rides through, so auto-repeat is distinguishable from a fresh press.
+        android::KeySample repeat;
+        repeat.keycode = android::kKeycodeDel;
+        repeat.action = android::kKeyActionDown;
+        repeat.repeat_count = 3;
+        const android::KeyTranslation out = android::translate_key_sample(repeat);
+        check(out.count == 1 && out.events[0].repeat, "the repeat count reaches the event");
+    }
+    {
+        // Space types a space. It is the one non-letter key whose character is unambiguous, and an
+        // IME that synthesises it as a key event (rather than committing text) is common: without
+        // this the field cannot contain a space at all.
+        android::KeySample space;
+        space.keycode = android::kKeycodeSpace;
+        space.action = android::kKeyActionDown;
+        const android::KeyTranslation out = android::translate_key_sample(space);
+        check(out.count == 2, "space produces the key and the text");
+        check(out.events[0].key == key::kSpace, "the space keycode maps to kSpace");
+        check(out.events[1].text_codepoint == ' ', "space types a space");
+    }
+    {
+        // Enter maps to the newline chord. It types no character: the edit controller's key map
+        // turns the key event into `InsertNewline`, which a single-line field gates off and a
+        // multi-line field applies. Emitting a '\n' text event as well would insert two newlines.
+        android::KeySample enter;
+        enter.keycode = android::kKeycodeEnter;
+        enter.action = android::kKeyActionDown;
+        const android::KeyTranslation out = android::translate_key_sample(enter);
+        check(out.count == 1, "enter produces only the key event");
+        check(out.events[0].key == key::kEnter, "the enter keycode maps to kEnter");
+        check(out.events[0].text_codepoint == 0, "enter types no character");
+    }
+
     if (failures != 0) {
         std::cerr << "android_input: " << failures << " failure(s)\n";
         return 1;

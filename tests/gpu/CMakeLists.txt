@@ -869,6 +869,19 @@ if (TARGET tessera_app_window)
     set_tests_properties(caret_blink_host PROPERTIES
         SKIP_REGULAR_EXPRESSION "skipped")
 
+    # The blink reaching the paint payload (text-editing-v1 section 12): `WindowOptions::caret_active`
+    # is the app's focus policy and `WindowOptions::caret_target` is where the driver pushes the blink
+    # result. Without both the host's state machine runs but nothing it decides reaches
+    # `TextDecoration`, so paint draws a solid caret forever.
+    add_executable(app_window_caret_target_tests
+        app_window_caret_target_tests.cpp)
+    target_compile_definitions(app_window_caret_target_tests PRIVATE
+        TESSERA_TEST_FONT="${PROJECT_SOURCE_DIR}/tests/fixtures/fonts/NotoSans-Regular.ttf")
+    target_link_libraries(app_window_caret_target_tests PRIVATE tessera_app_window)
+    add_test(NAME caret_blink_target COMMAND app_window_caret_target_tests)
+    set_tests_properties(caret_blink_target PROPERTIES
+        SKIP_REGULAR_EXPRESSION "skipped")
+
     # The adaptive render-scale consumer (docs/design/performance.md 6.1): a real hidden window and
     # swapchain prove that scale 1.0 keeps the direct full-size path, a forced downgrade renders into
     # the smaller target and presents through the resample without recreating the swapchain, and the
