@@ -118,6 +118,7 @@ Only `include/tessera/` is public. Current headers:
 | `ui/scene/node_scroll.hpp` | `NodeScroll`: scrollable axes, content size, insets, clamped offset |
 | `ui/scene/node_metadata.hpp` | `NodeMetadata`: element metadata, aria pairs, inline style, bindings, paint payload |
 | `ui/scene/dirty_pass.hpp` | pruned dirty collect/clear over a scene subtree |
+| `ui/scene/event_type.hpp` | `EventType`, `ClickSource`, `EventPhase`: the event vocabulary, no payload |
 | `ui/scene/event.hpp` | pointer/keyboard/focus event types, phases, key payload |
 | `ui/scene/focus.hpp` | focus target, focus transitions, depth-first Tab traversal |
 | `ui/scene/input_dispatch.hpp` | pointer/keyboard input -> scene dispatch, focus + capture router |

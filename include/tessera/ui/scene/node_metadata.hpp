@@ -3,8 +3,7 @@
 #pragma once
 
 #include "tessera/ui/dirty.hpp"
-#include "tessera/ui/scene/event.hpp"
-#include "tessera/ui/scene/paint_data.hpp"
+#include "tessera/ui/scene/event_type.hpp"
 
 #include <array>
 #include <cstddef>
@@ -30,6 +29,16 @@
 // lazily allocated pointer - because `kNodeSizeBudget` and the allocation-count test encode a
 // measured decision for 10k-node screens (docs/design/performance.md, memory budgets).
 namespace tessera::ui {
+
+// Only ever named through a reference in a function-pointer signature and a dispatch call, so the
+// payload header is not needed here. `event_type.hpp` above supplies `EventType`, which the binding
+// table stores by value.
+struct Event;
+
+// Held behind a `unique_ptr`, so a forward declaration is enough for the member. The constructor
+// and destructor are out of line for exactly this reason: their implicit versions instantiate
+// `unique_ptr<optional<PaintData>>::~unique_ptr`, which needs the complete type.
+struct PaintData;
 
 // Element metadata is borrowed (docs/design/scene-graph.md section 5): every string is a view the
 // caller keeps alive, so the caps below shorten a view and nothing here copies text into the node.
@@ -83,6 +92,14 @@ struct StyleWrite {
 
 class NodeMetadata {
 public:
+    // Out of line: the implicit versions instantiate
+    // `unique_ptr<optional<PaintData>>::~unique_ptr`, which needs the complete `PaintData` - the
+    // include this header deliberately avoids. See the forward-declaration note above.
+    NodeMetadata();
+    ~NodeMetadata();
+    NodeMetadata(const NodeMetadata&) = delete;
+    NodeMetadata& operator=(const NodeMetadata&) = delete;
+
     [[nodiscard]] std::string_view element_kind() const {
         return element_kind_;
     }
@@ -189,10 +206,9 @@ public:
     // node's background and borders and inside the active clip. Purely visual - it never affects
     // layout, style, or hit testing. Text longer than PaintData::kMaxTextBytes is truncated at a
     // UTF-8 code-point boundary.
-    [[nodiscard]] const std::optional<PaintData>& paint_data() const {
-        static const std::optional<PaintData> kNone;
-        return paint_data_ ? *paint_data_ : kNone;
-    }
+    // Defined in `node_metadata.cpp`: returning a reference to the empty slot needs the complete
+    // `PaintData`, and this header must not include `paint_data.hpp`.
+    [[nodiscard]] const std::optional<PaintData>& paint_data() const;
     Dirty set_paint_data(std::optional<PaintData> data);
     Dirty clear_paint_data();
 

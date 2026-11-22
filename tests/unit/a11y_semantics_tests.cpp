@@ -4,6 +4,7 @@
 // capacity/truncation, determinism, and the combined scroll + focus + metadata scene.
 
 #include "a11y_test_helpers.hpp"
+#include "tessera/ui/scene/paint_data.hpp"
 
 namespace a11y_test {
 bool focused_uniqueness() {

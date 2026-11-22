@@ -4,6 +4,7 @@
 #include "a11y_text.hpp"
 #include "tessera/schema/intrinsics.hpp"
 #include "tessera/ui/accessibility/a11y_tree.hpp"
+#include "tessera/ui/scene/paint_data.hpp"
 
 #include <algorithm>
 #include <cstddef>

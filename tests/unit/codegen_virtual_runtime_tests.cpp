@@ -15,6 +15,7 @@
 
 #include "VirtualDemo.hpp"
 #include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/scene/paint_data.hpp"
 #include "tessera/ui/virtual/item_geometry.hpp"
 
 #include <algorithm>

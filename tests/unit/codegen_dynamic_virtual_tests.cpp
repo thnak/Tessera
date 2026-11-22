@@ -29,6 +29,8 @@
 #include "tessera/ui/scene/node.hpp"
 #endif
 
+#include "tessera/ui/scene/paint_data.hpp"
+
 #include <cstdint>
 #include <filesystem>
 #include <fstream>

@@ -5,6 +5,7 @@
 // span's bounds are the run rectangle the paint pass stored on the child node.
 
 #include "a11y_test_helpers.hpp"
+#include "tessera/ui/scene/paint_data.hpp"
 
 namespace a11y_test {
 namespace {

@@ -27,6 +27,7 @@
 #include "VectorIcon.hpp"
 #include "tessera/ui/assets/asset_svg.hpp"
 #include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/scene/paint_data.hpp"
 #include "vicon_vector_assets.hpp"
 #endif
 
@@ -347,55 +348,35 @@ void test_rejections() {
         check(contains(error, needle),
               std::string(what) + " names the offending prop: " + std::string(needle));
     };
-    {
+    // One row per rejected prop: the name, a factory for the value that must be refused, and the
+    // message. A factory rather than a value because `ir::ExprPtr` is an owning pointer.
+    struct Rejection {
+        const char* prop;
+        ir::ExprPtr (*make)();
+        const char* what;
+    };
+    const Rejection rejections[] = {
+        {"d", [] { return ir::make_ref("prop::d"); }, "a non-literal `d` is rejected"},
+        {"viewBox", [] { return ir::make_ref("prop::box"); },
+         "a non-literal `viewBox` is rejected"},
+        {"fill", [] { return ir::make_ref("state::accent"); }, "a non-literal `fill` is rejected"},
+        {"stroke", [] { return ir::make_ref("state::edge"); },
+         "a non-literal `stroke` is rejected"},
+        {"strokeWidth", [] { return ir::make_ref("prop::width"); },
+         "a non-literal `strokeWidth` is rejected"},
+        {"label", [] { return ir::make_ref("prop::label"); }, "a non-literal `label` is rejected"},
+        {"viewBox", [] { return ir::make_literal(std::string("0 0 24")); },
+         "a three-number `viewBox` is rejected"},
+        {"viewBox", [] { return ir::make_literal(std::string("0 0 0 24")); },
+         "a zero-width `viewBox` is rejected"},
+        {"fill", [] { return ir::make_literal(std::string("var(--accent)")); },
+         "a `var()` color is rejected"},
+        {"d", [] { return ir::make_literal(std::string("")); }, "an empty `d` is rejected"},
+    };
+    for (const Rejection& rejection : rejections) {
         ir::IrModule module = make_vector_module();
-        explicit_node(module).props["d"] = ir::make_ref("prop::d");
-        expect_error(module, "a non-literal `d` is rejected", "`d`");
-    }
-    {
-        ir::IrModule module = make_vector_module();
-        explicit_node(module).props["viewBox"] = ir::make_ref("prop::box");
-        expect_error(module, "a non-literal `viewBox` is rejected", "`viewBox`");
-    }
-    {
-        ir::IrModule module = make_vector_module();
-        explicit_node(module).props["fill"] = ir::make_ref("state::accent");
-        expect_error(module, "a non-literal `fill` is rejected", "`fill`");
-    }
-    {
-        ir::IrModule module = make_vector_module();
-        explicit_node(module).props["stroke"] = ir::make_ref("state::edge");
-        expect_error(module, "a non-literal `stroke` is rejected", "`stroke`");
-    }
-    {
-        ir::IrModule module = make_vector_module();
-        explicit_node(module).props["strokeWidth"] = ir::make_ref("prop::width");
-        expect_error(module, "a non-literal `strokeWidth` is rejected", "`strokeWidth`");
-    }
-    {
-        ir::IrModule module = make_vector_module();
-        explicit_node(module).props["label"] = ir::make_ref("prop::label");
-        expect_error(module, "a non-literal `label` is rejected", "`label`");
-    }
-    {
-        ir::IrModule module = make_vector_module();
-        explicit_node(module).props["viewBox"] = ir::make_literal(std::string("0 0 24"));
-        expect_error(module, "a three-number `viewBox` is rejected", "`viewBox`");
-    }
-    {
-        ir::IrModule module = make_vector_module();
-        explicit_node(module).props["viewBox"] = ir::make_literal(std::string("0 0 0 24"));
-        expect_error(module, "a zero-width `viewBox` is rejected", "`viewBox`");
-    }
-    {
-        ir::IrModule module = make_vector_module();
-        explicit_node(module).props["fill"] = ir::make_literal(std::string("var(--accent)"));
-        expect_error(module, "a `var()` color is rejected", "`fill`");
-    }
-    {
-        ir::IrModule module = make_vector_module();
-        explicit_node(module).props["d"] = ir::make_literal(std::string(""));
-        expect_error(module, "an empty `d` is rejected", "`d`");
+        explicit_node(module).props[rejection.prop] = rejection.make();
+        expect_error(module, rejection.what, std::string("`") + rejection.prop + "`");
     }
 }
 

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "Sample.hpp"
+#include "tessera/ui/scene/paint_data.hpp"
 
 namespace demo {
 

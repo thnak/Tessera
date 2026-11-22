@@ -7,6 +7,7 @@
 
 #include "tessera/ui/accessibility/a11y_tree.hpp"
 #include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/scene/paint_data.hpp"
 #include "tessera/ui/scene/scroll.hpp"
 
 #include <iostream>

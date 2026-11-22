@@ -12,6 +12,7 @@
 
 #include "Dynamic.hpp"
 #include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/scene/paint_data.hpp"
 
 #include <cstddef>
 #include <cstdint>

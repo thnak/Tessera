@@ -6,6 +6,7 @@
 // scene is a real AppHost, so layout and style come from the shipped pipeline.
 
 #include "overlay_test_fixture.hpp"
+#include "tessera/ui/scene/paint_data.hpp"
 
 #include <stdexcept>
 

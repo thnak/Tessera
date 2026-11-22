@@ -4,7 +4,7 @@
 
 #include "tessera/rendering/rhi/types.hpp"
 #include "tessera/ui/dirty.hpp"
-#include "tessera/ui/scene/event.hpp"
+#include "tessera/ui/scene/event_type.hpp"
 #include "tessera/ui/scene/node_metadata.hpp"
 #include "tessera/ui/scene/node_scroll.hpp"
 #include "tessera/ui/style/cursor_value.hpp"
@@ -31,6 +31,12 @@
 namespace tessera::ui {
 
 namespace rhi = tessera::rendering::rhi;
+
+// `Event` is only ever named through a reference here (`on_event`, `run_event_bindings`,
+// `dispatch_event`), so the payload header is not needed. `event_type.hpp` above supplies
+// `EventType`, which the binding table stores by value. This is what keeps `node.hpp` - included by
+// 80 translation units - from pulling the 41k-line `event.hpp`.
+struct Event;
 
 using NodeId = std::uint64_t;
 
@@ -73,7 +79,9 @@ enum class OverscrollEffect : std::uint8_t {
 class Node {
 public:
     explicit Node(NodeId id = 0);
-    virtual ~Node() = default;
+    // Out of line for the same reason `NodeMetadata`'s is: the implicit destructor instantiates
+    // `unique_ptr<optional<PaintData>>::~unique_ptr`, which needs the complete `PaintData`.
+    virtual ~Node();
 
     Node(const Node&) = delete;
     Node& operator=(const Node&) = delete;

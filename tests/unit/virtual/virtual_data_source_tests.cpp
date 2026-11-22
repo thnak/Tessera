@@ -5,6 +5,7 @@
 // Recycler-driven cleaning is covered by `virtual_pool`.
 
 #include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/scene/paint_data.hpp"
 #include "tessera/ui/virtual/virtual_data_source.hpp"
 
 #include <array>

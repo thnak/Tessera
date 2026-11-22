@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "Feed.hpp"
+#include "tessera/ui/scene/paint_data.hpp"
 
 // The pending-UI fixture's developer class has no bindings to define: the generated base owns the
 // boundary, the fake resource and the transition mark. This translation unit exists so the runtime

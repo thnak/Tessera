@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "tessera/ui/scene/event.hpp"
 #include "tessera/ui/scene/focus.hpp"
 #include "tessera/ui/scene/scroll.hpp"
 

@@ -11,6 +11,7 @@
 
 #include "Feed.hpp"
 #include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/scene/paint_data.hpp"
 
 #include <cstddef>
 #include <cstdlib>
