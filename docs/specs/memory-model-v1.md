@@ -155,7 +155,16 @@ See [`bridges.md`](../design/bridges.md) for the native-first bridge policy.
   [error-model-v1.md](error-model-v1.md) and [AGENTS.md](../../AGENTS.md#code-conventions) "Code conventions").
   Unrecoverable out-of-memory (`bad_alloc`) is fatal and goes to the root handler.
 - Evict caches, drop optional quality, skip prefetch, retry once; then surface a diagnostic.
-- Never crash on a cache allocation failure if a fallback exists.
+  The eviction order is fixed and **largest-first strictly**: image texture, path texture, paint,
+  glyph atlas, measure. It is a property of `rendering::memory::MemoryPressure`, not of registration
+  order, so a caller cannot change it by registering caches in a different sequence
+  (`include/tessera/rendering/memory/memory_pressure.hpp`, issue #705). A cache whose name is not in
+  the order is evicted last rather than skipped.
+- Never crash on a cache allocation failure if a fallback exists. `ImageTextureCache::acquire` evicts
+  to fit *before* creating (so the allocation sees the memory it is about to be given), and on a
+  creation failure evicts everything idle and retries exactly once. A second failure is reported as
+  `upload_failed`, not retried again: an unbounded retry loop on a full device is a hang, not a
+  recovery. `Stats::oom_retries` counts the recoveries.
 - Fatal OOM triggers controlled shutdown, not undefined behavior.
 - Log bytes/category and the failed allocation size; redact user data.
 
@@ -203,6 +212,7 @@ weaker rule; it is one a reviewer has to catch, and saying so is better than imp
 | Bounded caches | `scripts/check_memory_budget.py` cache rows |
 | GPU memory by category, with a peak | `gpu_memory_probe` + the `gpu_vma_category_bytes` and `gpu_category_peak_after_free_bytes` budget rows (#703) |
 | Recoverable failure as `std::expected` | `src/ui/boundary/guard.cpp` and its tests |
+| OOM evicts, retries once, then reports | `memory_pressure_tests` (the order) and `image_texture_cache_tests` (evict-and-retry, and a second failure surfacing) (#705) |
 | Steady-state RSS and `sizeof` ratchet | `scripts/check_memory_budget.py` (two-sided) |
 | ASan/LSan/TSan | CI lanes (#702) |
 | Determinism (section 8) | goldens on lavapipe; hash-map iteration in output paths is **not** checked |

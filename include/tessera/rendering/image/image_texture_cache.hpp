@@ -80,6 +80,10 @@ public:
         std::uint64_t resamples = 0;       // CPU resample passes (raster extent != decoded extent)
         std::uint64_t invalidations = 0;   // loss/notify/invalidate_all events
         std::uint64_t forced_releases = 0; // parked textures destroyed early to stay bounded
+        // Uploads that failed once and succeeded after evicting everything idle (issue #705). A
+        // non-zero value is not a bug: it is the degradation path working. A value that keeps
+        // climbing means the device is persistently short and the budget needs attention.
+        std::uint64_t oom_retries = 0;
         std::uint32_t entries = 0;
         std::uint32_t retired = 0; // evicted textures parked until end_frame()
         std::uint64_t bytes = 0;
@@ -109,6 +113,11 @@ public:
 
     // Drops every entry (textures are destroyed through the RHI). Call before Device::recover().
     void invalidate_all();
+
+    // Memory-pressure hook (issue #705): drops every cached entry and returns the bytes released.
+    // Evicted textures are parked until end_frame(), so a caller must run this between frames, not
+    // while recording one. This is the `evict_idle` a `MemoryPressure` registration uses.
+    std::uint64_t evict_idle();
 
     // Explicit loss hook for callers that observe DeviceStatus::Lost outside acquire().
     void notify_device_lost();

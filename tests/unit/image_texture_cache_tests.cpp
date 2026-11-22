@@ -349,6 +349,69 @@ bool evicted_texture_outlives_the_frame() {
     return ok;
 }
 
+// Issue #705, memory-model-v1 section 7: "evict caches, retry once; then surface a diagnostic" and
+// "never crash on a cache allocation failure if a fallback exists".
+//
+// The two properties that matter, and why each is asserted separately:
+//
+// 1. A creation that throws out-of-device-memory is retried once after evicting, and the retry
+//    succeeds. This is the degradation path working: the frame still gets its texture.
+// 2. A creation that fails twice is reported as `upload_failed`, not retried again. An unbounded
+//    retry loop on a full device is a hang, not a recovery, so the second failure must surface.
+bool oom_evicts_and_retries_once() {
+    FakeDevice device;
+    image::ImageTextureCache cache(device);
+    const image::DecodedImage decoded = solid_image(2, 2, 7, 7, 7, 255);
+    const image::ImageTextureKey key{decoded.content_hash, 2, 2, rhi::TextureFormat::R8G8B8A8Unorm};
+
+    // One injected OOM: the cache evicts and retries, and the retry succeeds.
+    device.throw_textures = 1;
+    const auto recovered = cache.acquire(decoded, key);
+    bool ok =
+        expect(recovered.has_value(), "an injected OOM is recovered by evicting and retrying");
+    ok = expect(cache.stats().oom_retries == 1, "the recovery is counted as an OOM retry") && ok;
+    ok = expect(cache.entry_count() == 1, "the recovered texture is cached") && ok;
+
+    // Two injected OOMs: the retry also fails, so the failure surfaces instead of looping.
+    cache.invalidate_all();
+    const image::DecodedImage other = solid_image(2, 2, 8, 8, 8, 255);
+    const image::ImageTextureKey other_key{other.content_hash, 2, 2,
+                                           rhi::TextureFormat::R8G8B8A8Unorm};
+    device.throw_textures = 2;
+    const auto failed = cache.acquire(other, other_key);
+    ok = expect(!failed.has_value() && failed.error() == image::ImageTextureError::upload_failed,
+                "a second failure surfaces as upload_failed rather than retrying again") &&
+         ok;
+    ok =
+        expect(cache.stats().oom_retries == 1, "a failed retry does not count as a recovery") && ok;
+    ok = expect(cache.entry_count() == 0, "a doubly-failed upload is not cached") && ok;
+
+    // The device is still usable afterwards: an OOM is recoverable, unlike a loss.
+    const auto after = cache.acquire(other, other_key);
+    ok = expect(after.has_value(), "the cache still works after a surfaced OOM") && ok;
+    return ok;
+}
+
+// The eviction order the pressure path relies on: `evict_idle` releases every entry and reports the
+// bytes, so a `MemoryPressure` registration can sum it.
+bool evict_idle_releases_everything() {
+    FakeDevice device;
+    image::ImageTextureCache cache(device);
+    const image::DecodedImage a = solid_image(2, 2, 1, 1, 1, 255);
+    const image::DecodedImage b = solid_image(2, 2, 2, 2, 2, 255);
+    const auto first = cache.acquire(a, {a.content_hash, 2, 2, rhi::TextureFormat::R8G8B8A8Unorm});
+    const auto second = cache.acquire(b, {b.content_hash, 2, 2, rhi::TextureFormat::R8G8B8A8Unorm});
+    bool ok = expect(first.has_value() && second.has_value(), "both uploads succeed");
+    const std::uint64_t before = cache.byte_count();
+    ok = expect(before > 0, "the cache holds bytes before eviction") && ok;
+    const std::uint64_t released = cache.evict_idle();
+    ok = expect(released == before, "evict_idle reports the bytes it released") && ok;
+    ok = expect(cache.entry_count() == 0 && cache.byte_count() == 0,
+                "evict_idle drops every entry") &&
+         ok;
+    return ok;
+}
+
 int main() {
     bool ok = true;
     ok = hit_and_upload_once() && ok;
@@ -358,6 +421,8 @@ int main() {
     ok = resample_is_skipped_when_the_extent_matches() && ok;
     ok = eviction_and_entry_guard() && ok;
     ok = upload_failure_and_device_loss() && ok;
+    ok = oom_evicts_and_retries_once() && ok;
+    ok = evict_idle_releases_everything() && ok;
     ok = evicted_texture_outlives_the_frame() && ok;
     if (!ok) {
         std::cerr << "image_texture_cache: FAILED\n";

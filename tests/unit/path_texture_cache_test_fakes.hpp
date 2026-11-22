@@ -17,6 +17,7 @@
 #include <iostream>
 #include <memory>
 #include <span>
+#include <stdexcept>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -193,6 +194,15 @@ public:
             --fail_textures;
             return nullptr;
         }
+        // A real backend reports out-of-device-memory by throwing (Vulkan's `check_vk` on
+        // `vmaCreateImage`), not by returning null. `throw_textures` models that path so the
+        // cache's evict-and-retry (issue #705) is exercised the way it runs in production;
+        // `fail_textures` above stays as the null-returning case, which is the other shape a
+        // backend can take.
+        if (throw_textures > 0) {
+            --throw_textures;
+            throw std::runtime_error("create_texture: out of device memory (injected)");
+        }
         ++textures_created;
         return std::make_unique<FakeTexture>(desc);
     }
@@ -225,6 +235,9 @@ public:
     bool mipmaps_supported = true;
     std::uint32_t textures_created = 0;
     std::uint32_t fail_textures = 0;
+    // Throwing variant of `fail_textures` (issue #705): the next N creations throw, the way a real
+    // out-of-device-memory does.
+    std::uint32_t throw_textures = 0;
     rhi::DeviceStatus device_status = rhi::DeviceStatus::Ready;
 };
 

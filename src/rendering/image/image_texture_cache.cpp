@@ -133,6 +133,27 @@ struct ImageTextureCache::Impl {
         }
     }
 
+    // Drops every entry, for the memory-pressure path (issue #705). The cache cannot tell which
+    // entries the current frame references - it has no per-frame reference set - so "idle" here
+    // means "everything", and the caller is responsible for calling this only at a point where the
+    // frame's recorded commands are not relying on these textures.
+    //
+    // That is why this is NOT what `acquire` calls on its retry: `acquire` runs while the frame is
+    // being recorded, so it uses `evict_until_fits` (which respects the parking lot) instead. This
+    // entry point exists for the pressure path, which runs between frames.
+    std::uint64_t evict_all_idle() {
+        const std::uint64_t released = total_bytes;
+        while (!entries.empty()) {
+            Entry& victim = entries.back();
+            total_bytes -= victim.bytes;
+            index.erase(victim.key);
+            retire(victim);
+            entries.pop_back();
+            ++stats.evictions;
+        }
+        return released;
+    }
+
     [[nodiscard]] Stats snapshot() const {
         Stats result = stats;
         result.retired = static_cast<std::uint32_t>(retired.size());
@@ -222,18 +243,36 @@ ImageTextureCache::acquire(const DecodedImage& image, const ImageTextureKey& key
     desc.category = rhi::MemoryCategory::Texture;
     desc.levels = key.levels;
 
+    // Evict BEFORE creating, not after (issue #705). The old order allocated the new texture while
+    // the cache still held its full budget, so on a device near OOM the eviction that would have
+    // made room had not happened yet and the creation failed for no reason. Evicting first means
+    // the allocation sees the memory it is about to be given.
+    impl_->evict_until_fits(entry_bytes);
+
     std::unique_ptr<rhi::Texture> texture;
     try {
         texture = impl_->device.create_texture(desc);
     } catch (const std::exception&) {
-        return std::unexpected(ImageTextureError::upload_failed);
+        // Section 7: evict, then retry once. The first eviction above only made room inside this
+        // cache's own budget; a real OOM means the *device* is full, so drop everything the current
+        // frame does not reference and try exactly once more. A second failure is reported, not
+        // retried again: an unbounded retry loop on a full device is a hang, not a recovery.
+        impl_->evict_all_idle();
+        try {
+            texture = impl_->device.create_texture(desc);
+        } catch (const std::exception&) {
+            return std::unexpected(ImageTextureError::upload_failed);
+        }
+        if (!texture) {
+            return std::unexpected(ImageTextureError::upload_failed);
+        }
+        ++impl_->stats.oom_retries;
     }
     if (!texture) {
         return std::unexpected(ImageTextureError::upload_failed);
     }
     ++impl_->stats.uploads;
 
-    impl_->evict_until_fits(entry_bytes);
     impl_->entries.push_front(Impl::Entry{key, std::move(texture), desc.extent, entry_bytes});
     impl_->index[key] = impl_->entries.begin();
     impl_->total_bytes += entry_bytes;
@@ -248,6 +287,10 @@ void ImageTextureCache::end_frame() {
 void ImageTextureCache::invalidate_all() {
     impl_->clear_entries();
     ++impl_->stats.invalidations;
+}
+
+std::uint64_t ImageTextureCache::evict_idle() {
+    return impl_->evict_all_idle();
 }
 
 void ImageTextureCache::notify_device_lost() {
