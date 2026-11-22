@@ -77,8 +77,9 @@ public:
         }
         cv_.wait(lock, [this] { return !block_pump_; });
         parked_ = false;
+        // Wake `open_pump()`, which waits for this to clear before it returns.
+        cv_.notify_all();
     }
-
     [[nodiscard]] std::string_view name() const override {
         return "logging";
     }
@@ -101,9 +102,16 @@ public:
     }
 
     void open_pump() {
-        std::lock_guard lock(mutex_);
+        std::unique_lock lock(mutex_);
         block_pump_ = false;
         cv_.notify_all();
+        // Wait until the worker has actually left `pump()`. Without this, a caller that opens the
+        // gate and immediately closes it again (open_pump(); block_pump();) can flip `block_pump_`
+        // back to true while the worker is still inside the wait, so the worker never returns from
+        // that pump() call, never picks up the next job, and the following `step()` times out.
+        // Waiting for `parked_` to clear makes the next block_pump() take effect at the worker's
+        // *next* pump() instead of trapping it in the current one.
+        cv_.wait(lock, [this] { return !parked_; });
     }
 
     std::thread::id init_thread;
@@ -216,6 +224,17 @@ inline tessera::ui::a11y::UiaHostConfig test_config() {
 // Owns the fakes and the host. Declaration order matters: the host is destroyed first, so the
 // bridge is joined before the fake apartment/platform it points at are destroyed.
 struct HostHarness {
+    // The bridge's destructor joins its worker thread, and the worker can be parked inside
+    // `LoggingApartment::pump()` waiting for the gate to open. Joining a parked worker deadlocks:
+    // the gate is only opened by the test, which is already gone. Opening it here - before `host`
+    // is destroyed - lets the worker finish its pump, see the stop request and exit. This is the
+    // teardown half of the same contract `open_pump()` documents.
+    ~HostHarness() {
+        if (apartment != nullptr) {
+            apartment->open_pump();
+        }
+    }
+
     Log log;
     LoggingApartment* apartment = nullptr;
     FakePlatform* platform = nullptr;
