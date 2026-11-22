@@ -158,12 +158,32 @@ void test_an_unknown_literal_is_an_error() {
     }
 }
 
+void test_a_dotted_state_read_emits_the_field() {
+    // A case that reads the cell it writes. The IR has no member-access expression, so the dot is
+    // part of the id (ir-v1-expr.md section 4.3): the emitted C++ is the aggregate's own member.
+    ir::IrModule module = reducer_module({ir::DispatchCase{"inc", "handler::1"}}, "inc");
+    ir::Component& component = module.components.front();
+    ir::Action set;
+    set.kind = ir::ActionKind::Set;
+    set.target = "state::state";
+    std::vector<ir::RecordField> fields;
+    fields.push_back(
+        ir::RecordField{"count", ir::make_binary("+", ir::make_ref("state::state.count"),
+                                                 ir::make_literal(std::int64_t{1}))});
+    set.value = ir::make_record("Counter", std::move(fields));
+    component.handlers.front().actions.clear();
+    component.handlers.front().actions.push_back(std::move(set));
+    const std::string text = generate(module);
+    check(contains(text, "state_state_.count + 1"), "a dotted state read emits the member");
+}
+
 } // namespace
 
 int main() {
     test_dispatch_calls_the_cases_handler();
     test_dispatch_to_the_other_case();
     test_an_unknown_literal_is_an_error();
+    test_a_dotted_state_read_emits_the_field();
     if (failures == 0) {
         std::cout << "codegen reducer tests passed\n";
     }

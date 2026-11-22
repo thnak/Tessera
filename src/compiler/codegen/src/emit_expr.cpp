@@ -66,8 +66,16 @@ ExprEmission emit_expr(const ir::Expr& expr, const ir::Component& component,
                             "` reads a field of a loop item; record element types have no C++ form "
                             "in this codegen slice (list element types are primitives only)");
             }
-            return fail("record field `" + expr.id +
-                        "` needs the type table (slice 4); unsupported in this codegen slice");
+            // ADR-066 item 4: a dotted read into a record-typed cell. The IR has no member-access
+            // expression, so the dot is part of the id (ir-v1-expr.md section 4.3, "dotted
+            // members"): the generated member name of the base plus the field path is exactly the
+            // C++ the generated aggregate uses, so `state::state.count` is `state_state_.count`.
+            const std::string_view base = std::string_view(expr.id).substr(0, dot);
+            const std::size_t split = base.find("::");
+            if (split == std::string_view::npos || !member_prefix(base.substr(0, split + 2))) {
+                return fail("record field `" + expr.id + "` does not name a declared cell or prop");
+            }
+            return ExprEmission{member_name(base) + std::string(expr.id.substr(dot)), {}};
         }
         const std::size_t split = expr.id.find("::");
         if (split == std::string::npos || !member_prefix(expr.id.substr(0, split + 2))) {

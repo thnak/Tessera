@@ -9,6 +9,7 @@
 
 #include "validate_internal.hpp"
 
+#include <cmath>
 #include <optional>
 #include <string>
 #include <string_view>

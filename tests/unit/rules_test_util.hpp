@@ -65,10 +65,9 @@ inline std::string describe_all(const Fixture& fixture) {
 }
 
 inline std::string symbol_text(const rules::ComponentAnalysis& analysis) {
-    static const char* const kNames[] = {"Prop",        "PropsParam", "State",
-                                         "StateSetter", "Ref",        "AnimatedValue",
-                                         "Environment", "Local",      "Handler",
-                                         "Dispatch"};
+    static const char* const kNames[] = {"Prop",    "PropsParam",    "State",       "StateSetter",
+                                         "Ref",     "AnimatedValue", "Environment", "Local",
+                                         "Handler", "Dispatch"};
     std::string out;
     for (const auto& symbol : analysis.symbols) {
         out += symbol.name + ":" + kNames[static_cast<int>(symbol.kind)] + " ";
