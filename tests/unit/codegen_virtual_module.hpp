@@ -132,8 +132,9 @@ inline ir::IrModule make_virtual_module() {
     ir::Handler on_end_reached;
     on_end_reached.id = "handler::on_end_reached";
     on_end_reached.source = span(120, 20, 8, 3);
-    on_end_reached.actions.push_back(
-        ir::Action{ir::ActionKind::Set, "state::count", ir::make_literal(std::int64_t{1})});
+    on_end_reached.actions.push_back(ir::Action{.kind = ir::ActionKind::Set,
+                                                .target = "state::count",
+                                                .value = ir::make_literal(std::int64_t{1})});
     component.handlers.push_back(std::move(on_end_reached));
     module.components.push_back(std::move(component));
 
