@@ -7,6 +7,7 @@
 #include "tessera/compiler/rules/behavior_info.hpp"
 #include "tessera/compiler/rules/effect_info.hpp"
 #include "tessera/compiler/rules/environment_info.hpp"
+#include "tessera/compiler/rules/reducer_info.hpp"
 #include "tessera/compiler/rules/symbol.hpp"
 
 #include <cstddef>
@@ -27,6 +28,9 @@ struct ComponentAnalysis {
     std::vector<BehaviorInfo> behaviors; // body order
     std::vector<EnvironmentInfo> environment; // body order
     std::vector<ArrowInfo> arrows;            // source order of first occurrence
+    // ADR-066 item 4: `useReducer` statements in their accepted form, in body order. A rejected
+    // one is a diagnostic and contributes no entry.
+    std::vector<ReducerInfo> reducers;
 
     // First declaration of `name`, or null.
     [[nodiscard]] const Symbol* find(std::string_view name) const;

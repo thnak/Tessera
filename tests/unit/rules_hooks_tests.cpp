@@ -140,24 +140,26 @@ void test_unknown_hooks_are_rejected() {
     const auto top = analyze(component("  const t = useNothing();\n"));
     check_eq(describe_all(*top),
              "TESSERA_REACT_UNKNOWN_HOOK | 2:13 | useNothing | unknown hook `useNothing`: only "
-             "useState, useEffect, useRef, useAnimatedValue, useId and useLayoutEffect are "
-             "available\n",
+             "useState, useReducer, useEffect, useRef, useAnimatedValue, useId and useLayoutEffect "
+             "are available\n",
              "an unknown hook at the top level");
     const auto nested = analyze(component("", "<View a={useNothing()}/>"));
     check_eq(describe_all(*nested),
              "TESSERA_REACT_UNKNOWN_HOOK | 2:19 | useNothing | unknown hook `useNothing`: only "
-             "useState, useEffect, useRef, useAnimatedValue, useId and useLayoutEffect are "
-             "available\n",
+             "useState, useReducer, useEffect, useRef, useAnimatedValue, useId and useLayoutEffect "
+             "are available\n",
              "an unknown hook nested in JSX is unknown first, misplaced second");
     // ADR-066 item 1: only the safe forms of `useMemo`/`useCallback` are accepted, and the parser
     // desugars those before the rules see them. A call that is not the safe form reaches the rules
     // as a call and keeps the unsupported-API diagnostic.
+    // `useReducer` left this list with ADR-066 item 4: it is a core hook now, and its form is
+    // checked by `rules_reducer_tests`.
     const auto memo = analyze(component("  const m = useMemo(1);\n"));
     check_eq(describe_all(*memo),
              "TESSERA_REACT_UNSUPPORTED_API | 2:13 | useMemo | `useMemo` is not supported in "
              "V1\n",
              "React APIs that the subset names are unsupported, not unknown");
-    for (const char* name : {"useCallback", "useReducer", "useContext"}) {
+    for (const char* name : {"useCallback", "useContext"}) {
         const auto other = analyze(component(std::string("  const m = ") + name + "(1);\n"));
         check(other->analyzed.diagnostics.size() == 1 &&
                   other->analyzed.diagnostics[0].code == "TESSERA_REACT_UNSUPPORTED_API",

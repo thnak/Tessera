@@ -218,6 +218,15 @@ target_link_libraries(rules_hooks_tests PRIVATE tessera_react_rules)
 
 add_test(NAME rules_hooks COMMAND rules_hooks_tests)
 
+# ADR-066 item 4: the `useReducer` form, which is defined by a module-scope helper and the type
+# aliases beside it rather than by the component body alone.
+add_executable(rules_reducer_tests
+    rules_reducer_tests.cpp)
+
+target_link_libraries(rules_reducer_tests PRIVATE tessera_react_rules)
+
+add_test(NAME rules_reducer COMMAND rules_reducer_tests)
+
 add_executable(rules_arrows_tests
     rules_arrows_tests.cpp)
 

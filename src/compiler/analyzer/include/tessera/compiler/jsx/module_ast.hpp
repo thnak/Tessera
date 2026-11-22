@@ -101,6 +101,15 @@ struct ImportName {
     }
 };
 
+// One positional parameter of a module-scope helper (ADR-066 item 4). A helper is not lowered, so
+// its parameters are recorded only for the one helper the lowering reads: a reducer, whose
+// `(state, action)` names and types are what its `switch` and its record results are keyed by.
+struct HelperParam {
+    std::string name;
+    Span span;
+    TypePtr type; // the written annotation; null when the parameter has none
+};
+
 struct ModuleItem {
     ItemKind kind = ItemKind::Unknown;
     Span span;
@@ -143,6 +152,10 @@ struct ModuleItem {
     TypePtr props_type;
     std::vector<Statement> body;
     JsxPtr returned;
+
+    // Helper only: the positional parameters, in order. A component's single parameter is the
+    // `props_*` fields above; the two never apply to the same item.
+    std::vector<HelperParam> helper_params;
 
     // Hook (docs/specs/custom-hooks-v1.md section 2): the positional parameters and the returned
     // value. A hook has no props and no JSX return; `body` holds its statements and `hook_return`

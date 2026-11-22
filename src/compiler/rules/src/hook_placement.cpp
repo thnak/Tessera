@@ -92,7 +92,10 @@ private:
 
 bool is_hook_symbol(SymbolKind kind) {
     return kind == SymbolKind::State || kind == SymbolKind::StateSetter ||
-           kind == SymbolKind::Ref || kind == SymbolKind::AnimatedValue;
+           kind == SymbolKind::Ref || kind == SymbolKind::AnimatedValue ||
+           // ADR-066 item 4: both names of a `useReducer` statement, so a statement that reads the
+           // reducer's state or dispatch before its declaration is an order error like any other.
+           kind == SymbolKind::Dispatch;
 }
 
 void check_nesting(Context& ctx) {

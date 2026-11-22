@@ -31,6 +31,11 @@ bool is_setter_call(const Context& ctx, const Expr& expr) {
     }
     const Expr& callee = *expr.operands[0];
     if (callee.kind == ExprKind::Identifier) {
+        // ADR-066 item 4: `dispatch({ type: "x" })` is a state update like a setter call, so a
+        // handler body made of dispatch calls is an inline handler and needs no native binding.
+        if (is_dispatch_call(ctx, expr)) {
+            return true;
+        }
         const Symbol* symbol = ctx.out.find(callee.text);
         return symbol != nullptr && symbol->kind == SymbolKind::StateSetter;
     }

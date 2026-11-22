@@ -99,8 +99,20 @@ bool Parser::parse_component(ModuleItem& item) {
 
 bool Parser::parse_component_param(ModuleItem& item) {
     item.has_props = true;
+    // ADR-066 item 4: a helper's parameters are recorded in order, because a reducer's `(state,
+    // action)` is what its `switch` subject and its record results are keyed by. A component's one
+    // parameter keeps the `props_*` fields instead, since that is what the props rules read.
+    HelperParam helper_param;
+    const auto record_helper_param = [&item](HelperParam& param, TypePtr type) {
+        if (item.kind == ItemKind::Helper) {
+            param.type = std::move(type);
+            item.helper_params.push_back(std::move(param));
+        }
+    };
     if (cur_.kind == TokenKind::Identifier) {
-        item.props_name = std::string(cur_.text);
+        helper_param.name = std::string(cur_.text);
+        helper_param.span = cur_.span;
+        item.props_name = helper_param.name;
         advance(LexMode::Code);
     } else if (at_punct("{")) {
         item.props_destructured = true;
@@ -144,8 +156,19 @@ bool Parser::parse_component_param(ModuleItem& item) {
     if (!expect_punct(":", LexMode::Code)) {
         return false;
     }
-    item.props_type = parse_type_expr();
-    return item.props_type != nullptr;
+    TypePtr type = parse_type_expr();
+    if (!type) {
+        return false;
+    }
+    // A helper's parameters are the reducer's `(state, action)`, recorded in order; a component's
+    // single parameter is its props type, whatever shape it took, because that is what the props
+    // rules resolve. The two are different fields, so each takes ownership of its own node.
+    if (item.kind == ItemKind::Helper) {
+        record_helper_param(helper_param, std::move(type));
+        return true;
+    }
+    item.props_type = std::move(type);
+    return true;
 }
 
 // ADR-066 item 4: whether the helper body about to be parsed declares a `switch`. A reducer is the

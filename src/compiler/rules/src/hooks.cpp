@@ -7,17 +7,18 @@
 #include "reporter.hpp"
 
 namespace tessera::compiler::rules {
+
+void add_symbol(Context& ctx, std::string name, SymbolKind kind, jsx::Span span,
+                std::size_t statement) {
+    ctx.out.symbols.push_back({std::move(name), kind, span, statement});
+}
+
 namespace {
 
 using jsx::Expr;
 using jsx::ExprKind;
 using jsx::Statement;
 using jsx::StatementKind;
-
-void add_symbol(Context& ctx, std::string name, SymbolKind kind, jsx::Span span,
-                std::size_t statement) {
-    ctx.out.symbols.push_back({std::move(name), kind, span, statement});
-}
 
 // The `options` parameter of a behavior hook, or nullptr when the hook takes none. The manifest is
 // the authority on the option list, so the analyzer asks it rather than keeping a second copy.
@@ -336,6 +337,10 @@ void check_hook_statement(Context& ctx, std::size_t index, const Statement& stat
     const std::string_view name = callee_name(call);
     if (name == "useState") {
         check_state(ctx, index, statement, call);
+    } else if (name == "useReducer") {
+        // ADR-066 item 4: handled by its own pass (reducer.cpp), which needs the module's helper
+        // and type aliases. Nothing is recorded here, so a rejected form reports once.
+        return;
     } else if (name == "useRef") {
         check_ref(ctx, index, statement, call);
     } else if (name == "useMergedRefs") {
@@ -363,8 +368,7 @@ void check_hook_statement(Context& ctx, std::size_t index, const Statement& stat
 } // namespace
 
 void report_unknown_hook(Context& ctx, std::string_view name, jsx::Span span) {
-    const bool unsupported =
-        name == "useMemo" || name == "useCallback" || name == "useReducer" || name == "useContext";
+    const bool unsupported = name == "useMemo" || name == "useCallback" || name == "useContext";
     if (unsupported) {
         ctx.error("TESSERA_REACT_UNSUPPORTED_API",
                   "`" + std::string(name) + "` is not supported in V1", span,
@@ -373,7 +377,7 @@ void report_unknown_hook(Context& ctx, std::string_view name, jsx::Span span) {
     }
     ctx.error("TESSERA_REACT_UNKNOWN_HOOK",
               "unknown hook `" + std::string(name) +
-                  "`: only useState, useEffect, useRef, useAnimatedValue, useId and "
+                  "`: only useState, useReducer, useEffect, useRef, useAnimatedValue, useId and "
                   "useLayoutEffect are available",
               span, "use a core hook, or write a native handler");
 }
@@ -396,6 +400,10 @@ void check_hooks(Context& ctx) {
             }
         }
     }
+    // ADR-066 item 4 runs before the placement rules so that its two symbols exist for the order
+    // check, and before the arrow-role classification, which decides whether a body of
+    // `dispatch({...})` calls is an inline handler.
+    check_reducers(ctx);
     check_hook_placement(ctx);
 }
 
