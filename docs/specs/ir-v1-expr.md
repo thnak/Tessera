@@ -21,9 +21,19 @@ V1 expressions are pure and statically analyzable:
 | `call` | `{ "kind": "call", "callee": "formatNumber", "args": [Expr] }` | allowlisted pure functions only (section 4.2) |
 | `array` | `{ "kind": "array", "items": [Expr] }` | list literal; a value position only (state/prop initial). Lowering accepts literal elements only, per jsx-subset-v1 section 8.4 |
 | `record` | `{ "kind": "record", "type": "Size", "fields": [{ "name": "w", "value": Expr }] }` | record value (section 4.3, ADR-051); a value position only |
+| `optionalField` | `{ "kind": "optionalField", "field": "name", "value": Expr }` | `a?.b` over an `optional<T>` (ADR-066 item 1); the result is an `optional<T>` of the field's type |
+| `coalesce` | `{ "kind": "coalesce", "value": Expr, "fallback": Expr }` | `a ?? b` over an `optional<T>` (ADR-066 item 1); the result is the optional's inner type |
 
 Rejected: member access on arbitrary objects, array indexing except list items, assignments,
 function expressions, `await`, `yield`, `new`, dynamic imports, and any call with side effects.
+
+**`optionalField` and `coalesce` (additive, ADR-066 item 1).** Both are optional in the format: a
+module that writes neither is byte-identical to the IR before them, so `irVersion` stays `1`
+(section 12). `optionalField` takes one operand (the optional base) and a `field` name; an absent
+base yields an absent result, so a chain short-circuits. `coalesce` takes two operands and evaluates
+the fallback only when the value is absent, exactly as a `conditional` evaluates one branch. The
+evaluator and the generated C++ implement the same rule: the evaluator's `null` and C++'s empty
+`std::optional` are the absent value.
 
 ### 4.1 Numeric semantics
 
@@ -77,7 +87,7 @@ Adding a function to this table is a change to this specification and to the eva
   other dynamic Expression in a field is `TESSERA_IR_UNSUPPORTED` until a later slice; the field is
   still an Expression in the format, so allowing dynamic values later is not a format change.
 - No spread, no computed keys, no shorthand with a function value (the rule of
-  [`jsx-subset-v1.md`](jsx-subset-v1.md) section 8.5 is unchanged).
+  [`jsx-subset-v1.md`](jsx-subset-v1.md) section 8.3 is unchanged).
 - **Where a record value is allowed.** Only a `useState` initial of a record type, a prop default of
   a record type, or a field of another record value. A record value anywhere else (a binary operand,
   a condition, a template part, an event payload) is `TESSERA_IR_RECORD_VALUE` and only its members

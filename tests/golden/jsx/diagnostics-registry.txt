@@ -31,12 +31,12 @@ TESSERA_JSX_SUBSET_CLASS	subset-class	`new` is not supported
 TESSERA_JSX_SUBSET_DOM	subset-dom	`dangerouslySetInnerHTML` is not supported
 TESSERA_JSX_SUBSET_DYNAMIC_TAG	subset-dynamic-tag	member and namespace tags (`<A.B>`) are not supported
 TESSERA_JSX_SUBSET_FUNCTION_VALUE	subset-function-value	`function` is not supported
-TESSERA_JSX_SUBSET_IMPORT	subset-import	`export default` is not supported
+TESSERA_JSX_SUBSET_IMPORT	subset-import	`export default` is not supported for this form
 TESSERA_JSX_SUBSET_LITERAL	subset-literal	computed object keys are not supported
 TESSERA_JSX_SUBSET_LOOSE_EQUALITY	subset-loose-equality	loose equality is not supported
 TESSERA_JSX_SUBSET_MEMBER	subset-member	indexing is not supported
 TESSERA_JSX_SUBSET_MUTATION	subset-mutation	assignment `=` is not supported
-TESSERA_JSX_SUBSET_OPERATOR	subset-operator	`??` is not supported
+TESSERA_JSX_SUBSET_OPERATOR	subset-operator	`**` is not supported
 TESSERA_JSX_SUBSET_SPREAD	subset-spread	spread is only allowed for the props parameter or an object literal
 TESSERA_JSX_SUBSET_STATEMENT	subset-statement	`if` is not supported
 TESSERA_JSX_SUBSET_STYLE_DYNAMIC	subset-style-dynamic	`style` must be an inline object literal
@@ -60,5 +60,5 @@ TESSERA_REACT_HOOK_SIZE	react-hook-size	expanding the hooks of `A` adds 401 stat
 TESSERA_REACT_LIST_KEY	react-list-key	the element returned by `.map` needs a `key` attribute
 TESSERA_REACT_NO_PREVIEW_BODY	react-no-preview-body	native handler `go` has an empty body, so the designer does nothing for its event
 TESSERA_REACT_PREVIEW_BODY	react-preview-body	the body of native handler `go` is not a preview body, so the designer does nothing for its event
-TESSERA_REACT_UNKNOWN_HOOK	react-unknown-hook	unknown hook `useNothing`: only useState, useEffect, useRef and useAnimatedValue are available
+TESSERA_REACT_UNKNOWN_HOOK	react-unknown-hook	unknown hook `useNothing`: only useState, useEffect, useRef, useAnimatedValue, useId and useLayoutEffect are available
 TESSERA_REACT_UNSUPPORTED_API	react-unsupported-api	`useMemo` is not supported in V1

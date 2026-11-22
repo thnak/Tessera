@@ -322,8 +322,16 @@ HookLoweringResult lower_hooks(const HookLoweringContext& context) {
             lower_merged_refs(state, index, out);
         } else if (hook == "useAnimatedValue") {
             lower_animated(state, index, out, names);
-        } else if (hook == "useEffect") {
+        } else if (hook == "useEffect" || hook == "useLayoutEffect") {
+            // `useLayoutEffect` (ADR-066 item 1) has `useEffect` timing, so it lowers to the same
+            // effect record; the analyzer already accepted it under the same form rules.
             internal::lower_effect_hook(state, index, out);
+        } else if (hook == "useId") {
+            // `useId` (ADR-066 item 1): the analyzer records it as an environment value with the
+            // `id` provider, so the ordinary environment lowering produces its `environment[]`
+            // entry. The generated base derives the value from the instance identity rather than
+            // receiving it from the host.
+            internal::lower_environment_hook(state, index, out, names);
         } else if (const jsx::HookEntry* behavior = rules::builtin_hook_manifest().find(hook);
                    behavior != nullptr && behavior->lowering == jsx::HookLoweringKind::Behavior) {
             internal::lower_behavior_hook(state, index, out, names);

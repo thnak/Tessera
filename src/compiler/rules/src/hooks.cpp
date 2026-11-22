@@ -299,6 +299,38 @@ void check_environment(Context& ctx, std::size_t index, const Statement& stateme
     ctx.out.environment.push_back(std::move(info));
 }
 
+// `useId` (ADR-066 item 1): a stable id from the instance key and the call ordinal. It takes no
+// arguments and binds one name, which is a string the component can use for an `id`/`aria-*`
+// association. The value is engine-owned like an environment hook, so it is recorded as one: the
+// generated base computes it once from the instance identity, and nothing in the component writes
+// it.
+void check_id(Context& ctx, std::size_t index, const Statement& statement, const Expr& call) {
+    if (!statement.names.empty()) {
+        add_symbol(ctx, statement.names[0], SymbolKind::Environment, statement.span, index);
+    }
+    const bool ok = statement.kind == StatementKind::Const && !statement.array_pattern &&
+                    statement.names.size() == 1 && call.operands.size() == 1;
+    if (!ok) {
+        form_error(ctx, "useId", statement, "const id = useId();");
+        return;
+    }
+    EnvironmentInfo info;
+    info.statement = index;
+    info.hook = "useId";
+    info.provider = "id";
+    info.type = "string";
+    info.name = statement.names.front();
+    ctx.out.environment.push_back(std::move(info));
+}
+
+// `useLayoutEffect` (ADR-066 item 1): accepted with `useEffect` timing, because there is no browser
+// paint to order against. The form and the dependency rules are `useEffect`'s, so the same check
+// runs and the effect is recorded identically.
+void check_layout_effect(Context& ctx, std::size_t index, const Statement& statement,
+                         const Expr& call) {
+    check_effect(ctx, index, statement, call);
+}
+
 void check_hook_statement(Context& ctx, std::size_t index, const Statement& statement) {
     const Expr& call = *statement.init;
     const std::string_view name = callee_name(call);
@@ -312,6 +344,10 @@ void check_hook_statement(Context& ctx, std::size_t index, const Statement& stat
         check_animated(ctx, index, statement, call);
     } else if (name == "useEffect") {
         check_effect(ctx, index, statement, call);
+    } else if (name == "useLayoutEffect") {
+        check_layout_effect(ctx, index, statement, call);
+    } else if (name == "useId") {
+        check_id(ctx, index, statement, call);
     } else if (const jsx::HookEntry* behavior = ctx.manifest.find(name);
                behavior != nullptr && behavior->lowering == jsx::HookLoweringKind::Behavior) {
         check_behavior(ctx, index, statement, call, *behavior);
@@ -337,7 +373,8 @@ void report_unknown_hook(Context& ctx, std::string_view name, jsx::Span span) {
     }
     ctx.error("TESSERA_REACT_UNKNOWN_HOOK",
               "unknown hook `" + std::string(name) +
-                  "`: only useState, useEffect, useRef and useAnimatedValue are available",
+                  "`: only useState, useEffect, useRef, useAnimatedValue, useId and "
+                  "useLayoutEffect are available",
               span, "use a core hook, or write a native handler");
 }
 

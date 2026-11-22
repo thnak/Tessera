@@ -103,28 +103,32 @@ Section 9.4, add at the end: "The payload records, and which member is primary, 
 | Large lists with `.map` | Works but use `VirtualList` | [`elements-other.md`](elements-other.md) section 3 |
 | `onDoubleClick`, `onContextMenu`, `onWheel`, `onDrag*`, `onTouch*`, `onInput`, `onKeyPress`, `onMouse*` | Not supported [Q21] | No event of that name is specified |
 | `tabIndex`, `autoFocus` | Supported on `View` and `Text` (issue #226) | `tabIndex` is `{0}` or `{-1}`; semantics required ([common-and-events.md](common-and-events.md) section 4); `autoFocus` on inputs stays `HTML_ATTR`. Evidence: `focusable_view` |
+| `id`, `aria-labelledby`, `aria-describedby`, `aria-controls` | Supported, and `id` takes an expression since ADR-066 item 1 | The id-reference attributes are what `useId` pairs with: `const id = useId(); <View id={id} aria-labelledby={id} />`. `id` was a literal-only selector target before, which made the pair unwritable |
 | `title`, `data-*`, `hidden`, `dangerouslySetInnerHTML` | Not supported | No V1 meaning |
-| `import { useState, useEffect, useRef } from "react"` | Supported (Q15): alias of `"tessera"` | Any other name from `"react"`, `import React from "react"` and `import * as React` are errors; other bare modules stay errors (subset 4) |
-| Arrow-function components, `export default`, `memo(...)`, `lazy`, `Suspense`, context, portals, class components, `async` | Not supported | Subset 4, 6, 12 |
+| `import { useState, useEffect, useRef } from "react"` | Supported (Q15): alias of `"tessera"` | Any other name from `"react"` stays an error. `import React from "react"` and `import * as React from "react"` are accepted and ignored (ADR-066 item 1); a differently named default or namespace import stays an error (subset 4) |
+| Arrow-function components, `export default function Name`, `memo(...)` | Supported (ADR-066 item 1) | An arrow component is an uppercase `const` bound to an arrow with the same parameter and body rules; `export default function Name` keeps its own name; `memo(Component)` is identity, because updates already follow dependencies |
+| `StrictMode`, `Profiler` | Supported as pass-through (ADR-066 item 1) | There is no development double-render and no profiler, so the wrapper contributes nothing and its children are spliced where it stood |
+| `useId`, `useLayoutEffect` | Supported (ADR-066 item 1) | `useId` is a stable string from the instance identity and the call ordinal; `useLayoutEffect` has `useEffect` timing, because there is no browser paint to order against |
+| `lazy`, `Suspense`, context, portals, class components, `async` | Not supported | Subset 4, 6, 12; `Suspense` and `lazy` are ADR-067 |
 | Custom hooks | Supported: expanded at each call site ([`custom-hooks-v1.md`](../custom-hooks-v1.md)) | ADR-065 |
-| `let`, `if`, `for`, `switch`, `try`, `??`, `?.` in component code | Not supported | Subset 6, 12 |
+| `let`, `if`, `for`, `switch`, `try` in component code | Not supported | Subset 6, 12; handler control flow is ADR-066 item 2 |
+| `??`, `?.` over an `optional<T>` | Supported (ADR-066 item 1) | Both are IR expression kinds (`coalesce`, `optionalField`), because the IR has no null literal to compare against. A plain `.` on an optional stays an error |
 
 ### 4.2 `useMemo` and `useCallback` (decided: Q16, safe forms lower)
 
-Before the slice of `jsx-ir-lowering.md` item 13 lands, both still give `TESSERA_REACT_UNSUPPORTED_API`.
-The safe forms below are accepted afterwards:
+**Landed** (ADR-066 item 1). The safe forms below are accepted; the parser desugars them, so every
+later pass sees the ordinary form it already handles. A form outside them keeps
+`TESSERA_REACT_UNSUPPORTED_API`.
 
 | Source | Safe lowering | Condition |
 |---|---|---|
 | `const v = useMemo(() => <PureExpr>, [deps])` | `const v = <PureExpr>` (a `LocalDecl`, inlined, decision 8) | arrow with an expression body that is a pure expression; the dependency list is ignored, or checked for exactness like `useEffect`. The memo's only effect in React is skipping recomputation, which a pure inlined expression does not need |
 | `const f = useCallback(() => setN(n + 1), [n])` | `const f = () => setN(n + 1)`, a reusable inline handler (decision 4) | the arrow body is made of setter calls only (subset 9.2) |
 | `// Note: bind::x` + `const f = useCallback((e: TextChangeEvent): void => {...}, [])` | the native handler form (subset 9.3) | the annotation sits before the `const`; deps ignored |
-| `useReducer`, `useContext`, `useLayoutEffect`, `useId`, `useTransition`, `useDeferredValue`, `memo`, `forwardRef` | not safe | They need switch statements, context, different timing or ids |
+| `useReducer`, `useContext`, `useTransition`, `useDeferredValue`, `forwardRef` | not safe | They need switch statements, context or different timing. `useReducer` and `useContext` are ADR-066 items 4 and 5; `useTransition` and `useDeferredValue` are ADR-067 |
 
 `TESSERA_REACT_UNSUPPORTED_API` stays for the unsafe rows and for any `useMemo`/`useCallback` outside
-the first three rows. The subset spec section 12 row and the open-question line of
-[`component-model-v1.md`](../component-model-v1.md) section 12 are updated. The hook table of subset
-section 7 gains the two forms when the code slice lands (the front end rejects them until then).
+the first three rows. The subset spec section 7 table carries the two forms.
 
 ### 4.3 `children` of user components (Q14, decided: O2)
 

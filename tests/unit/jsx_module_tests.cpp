@@ -57,7 +57,10 @@ void test_import_rejections() {
         {"import type X from \"tessera\";", "TESSERA_JSX_SUBSET_IMPORT;"},
         {"import { A } from \"/abs/A\";", "TESSERA_JSX_SUBSET_IMPORT;"},
         {"import \"./x.js\";", "TESSERA_JSX_SUBSET_IMPORT;"},
-        {"export default function A() {}", "TESSERA_JSX_SUBSET_IMPORT;"},
+        // ADR-066 item 1 accepts `export default function Name`, so only the anonymous form and a
+        // default export of something that is not a function stay rejected.
+        {"export default () => <div />;", "TESSERA_JSX_SUBSET_IMPORT;"},
+        {"export default 42;", "TESSERA_JSX_SUBSET_IMPORT;"},
         {"export { A };", "TESSERA_JSX_PARSE_UNEXPECTED_TOKEN;"},
         {"import { A } \"tessera\";", "TESSERA_JSX_PARSE_UNEXPECTED_TOKEN;"},
         {"import { A } from tessera;", "TESSERA_JSX_PARSE_UNEXPECTED_TOKEN;"},

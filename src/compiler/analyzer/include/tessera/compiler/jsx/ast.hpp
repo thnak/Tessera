@@ -30,12 +30,16 @@ enum class ExprKind {
     Binary,      // text = operator, operands = [lhs, rhs]; also assignments the subset rejects
     Conditional, // operands = [test, then, else]
     Member,      // text = property name, operands = [object]; `a[i]` has text "[]" and [a, i]
-    Call,        // operands = [callee, arguments...]; type_args for `useState<int>(0)`
-    Array,       // operands = elements
-    Object,      // properties
-    Jsx,         // jsx
-    Arrow,       // params; operands = [body] or the statements of a block body
-    Return,      // `return e;` in a block body; operands = [value] or empty
+    // `a?.b` (ADR-066 item 1): the same shape as Member, kept distinct so the lowering can require
+    // an `optional<T>` base and produce the presence-guarded form. A plain `.` on an optional stays
+    // an error, because it would read a field of a value that may be absent.
+    OptionalMember,
+    Call,   // operands = [callee, arguments...]; type_args for `useState<int>(0)`
+    Array,  // operands = elements
+    Object, // properties
+    Jsx,    // jsx
+    Arrow,  // params; operands = [body] or the statements of a block body
+    Return, // `return e;` in a block body; operands = [value] or empty
 };
 
 struct ObjectProperty {

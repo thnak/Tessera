@@ -17,7 +17,7 @@ Today the IR has no record type:
   a record name is not an error and a field access `size.w` is not checked.
 - There is no expression for a record value. The lowering rejects an object literal with
   `TESSERA_IR_UNSUPPORTED` ("an object literal is not an IR expression", `expression_lowering.cpp`).
-  `jsx-subset-v1.md` section 8.5 already allows an object literal as a `useState` initial of a
+  `jsx-subset-v1.md` section 8.3 already allows an object literal as a `useState` initial of a
   declared record type, but nothing can lower it. The same gap blocks `props = { size: { w: 1 } }`
   defaults (issue #158, the last open #70 leftover).
 - Codegen cannot emit a record default: it does not know the members or their order.
@@ -69,7 +69,7 @@ Add a module-level type table and one new expression kind. Both are additive and
   `TESSERA_IR_UNSUPPORTED` until a later slice (the field is still an Expression in the schema, so
   allowing dynamic values later is not a format change).
 - No spread, no computed keys, no shorthand with a function value (the rule of
-  `jsx-subset-v1.md` section 8.5 is unchanged).
+  `jsx-subset-v1.md` section 8.3 is unchanged).
 
 ### 3. Where a record value is allowed
 

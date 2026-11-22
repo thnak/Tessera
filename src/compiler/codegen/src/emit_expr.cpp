@@ -152,6 +152,40 @@ ExprEmission emit_expr(const ir::Expr& expr, const ir::Component& component,
         return ExprEmission{
             "(" + test.text + " ? " + then_value.text + " : " + else_value.text + ")", {}};
     }
+    case ir::ExprKind::OptionalField: {
+        // ADR-066 item 1: `a?.b` over an `optional<T>`. The generated C++ is the same shape the
+        // evaluator implements: an absent base yields an empty optional, a present one yields the
+        // field. `std::optional` has no member access, so the presence test is written out.
+        if (expr.operands.size() != 1 || !expr.operands[0]) {
+            return fail("an optional field access needs one operand");
+        }
+        ExprEmission base = emit_expr(*expr.operands[0], component, locals);
+        if (!base.error.empty()) {
+            return base;
+        }
+        const std::string text =
+            "(" + base.text + ".has_value() ? " + base.text + "->" + expr.id + " : std::nullopt)";
+        return ExprEmission{text, {}};
+    }
+    case ir::ExprKind::Coalesce: {
+        // ADR-066 item 1: `a ?? b`. `value_or` is the direct spelling, but it evaluates the
+        // fallback eagerly; the conditional keeps the short-circuit the evaluator has, so a
+        // fallback with a side effect (a call) behaves the same in both.
+        if (expr.operands.size() != 2 || !expr.operands[0] || !expr.operands[1]) {
+            return fail("a coalesce needs two operands");
+        }
+        ExprEmission value = emit_expr(*expr.operands[0], component, locals);
+        if (!value.error.empty()) {
+            return value;
+        }
+        ExprEmission fallback = emit_expr(*expr.operands[1], component, locals);
+        if (!fallback.error.empty()) {
+            return fallback;
+        }
+        const std::string text =
+            "(" + value.text + ".has_value() ? *" + value.text + " : " + fallback.text + ")";
+        return ExprEmission{text, {}};
+    }
     case ir::ExprKind::Template: {
         std::string folded;
         for (const ir::TemplatePart& part : expr.parts) {

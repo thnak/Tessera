@@ -65,6 +65,10 @@ struct ElementInfo {
     // The lowercase tag the element was written as (`h1`); becomes the `tag` prop so a type
     // selector can match it (issue #610). Empty for every other element.
     std::string_view alias_tag = {};
+    // ADR-066 item 1: `StrictMode` and `Profiler` are pass-through wrappers with no node of their
+    // own, so their children are spliced where the element stood (like a fragment's). Every other
+    // element builds a node.
+    bool passthrough = false;
 };
 [[nodiscard]] std::optional<ElementInfo> resolve_element(NodeState& state,
                                                          const jsx::JsxNode& element);
@@ -133,6 +137,8 @@ struct ChildItem {
 };
 
 [[nodiscard]] bool is_run_item(const ChildItem& item);
+// ADR-066 item 1: `StrictMode`/`Profiler` contribute no node, so their children are spliced.
+[[nodiscard]] bool is_passthrough_element(const jsx::JsxNode& element);
 [[nodiscard]] bool flatten_children(NodeState& state, const jsx::JsxNode& parent,
                                     std::vector<ChildItem>& items, bool reject_fragments);
 [[nodiscard]] jsx::Span run_span(const std::vector<const ChildItem*>& run);

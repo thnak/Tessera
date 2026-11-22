@@ -149,8 +149,8 @@ void test_subset_rejections_keep_parsing() {
     const Case cases[] = {
         {"a == b", "TESSERA_JSX_SUBSET_LOOSE_EQUALITY;"},
         {"a != b", "TESSERA_JSX_SUBSET_LOOSE_EQUALITY;"},
-        {"a ?? b", "TESSERA_JSX_SUBSET_OPERATOR;"},
-        {"a?.b", "TESSERA_JSX_SUBSET_OPERATOR;"},
+        // ADR-066 item 1 accepts `??` and `?.` as expressions, so they are no longer operator
+        // rejections; the remaining rejected operators keep their code.
         {"a ** b", "TESSERA_JSX_SUBSET_OPERATOR;"},
         {"a & b", "TESSERA_JSX_SUBSET_OPERATOR;"},
         {"a << b", "TESSERA_JSX_SUBSET_OPERATOR;"},

@@ -135,6 +135,11 @@ void dump_expr(std::string& out, const Expr& expr) {
     case ExprKind::Member:
         out += expr.text == "[]" ? "(index" : "(member " + expr.text;
         break;
+    case ExprKind::OptionalMember:
+        // ADR-066 item 1: `a?.b`, kept distinct from `a.b` so the lowering can require an
+        // `optional<T>` base.
+        out += "(optional-member " + expr.text;
+        break;
     case ExprKind::Call:
         out += "(call";
         if (!expr.type_args.empty()) {

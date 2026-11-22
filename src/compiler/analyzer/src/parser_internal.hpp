@@ -52,6 +52,10 @@ private:
         Token cur;
         std::uint32_t prev_end = 0;
         std::size_t brace_depth = 0;
+        // The component-body context. A trial parse (an arrow component, a parenthesized arrow)
+        // enters a component body and must leave the flags as it found them when it rewinds.
+        bool in_component = false;
+        std::string props_name;
     };
 
     // Counts one level of parser recursion; entered() is false (and the parse failed with
@@ -143,6 +147,9 @@ private:
     bool parse_reexport(ModuleItem& item);
     bool parse_type_alias(ModuleItem& item);
     bool parse_const_item(ModuleItem& item);
+    // ADR-066 item 1: `const Name = (props: Props) => { ... }`, tried from parse_const_item and
+    // rewound when the text is an ordinary constant instead.
+    bool parse_arrow_component(ModuleItem& item);
     bool parse_import_names(ModuleItem& item);
     void check_module_source(ModuleItem& item, Span span);
     void recover_to_next_item(std::uint32_t item_start);
@@ -154,6 +161,8 @@ private:
     bool parse_component_body(ModuleItem& item);
     bool parse_statement(ModuleItem& item);
     bool parse_const_statement(Statement& statement);
+    // ADR-066 item 1: the safe forms of `useMemo`/`useCallback` become the value they wrap.
+    void desugar_memo_or_callback(Statement& statement);
     bool parse_returned_element(ModuleItem& item);
 
     // parser_hook.cpp (spike #659, ADR-065): a project-declared `use...` function.

@@ -27,24 +27,16 @@ constructs mean at run time; that is defined in [`component-model-v1.md`](compon
 | Handler | A function value passed to an event prop or to an effect (section 9) |
 | Native handler | A handler whose run-time behavior is developer-written C++ in the developer-owned component class, announced by a `// Note: bind::<id>` comment (section 9.3). The bind id names a required member of that class ([ADR-040](../../decisions/ADR-040-generated-base-and-developer-class.md)) |
 | Preview body | The TypeScript body of a native handler; the browser designer runs it because it cannot run C++ (section 9.3) |
-| Live view | The preview in the browser designer ([`designer.md`](../design/designer.md)) |
 | Span | A source location: file, byte offset and length, and 1-based start and end line and column (section 13.2) |
-| V1 | The first release; see the [glossary](../reference/glossary.md) |
 
-### 0.2 References
+The rest of the vocabulary is in the [glossary](../reference/glossary.md).
 
-| Reference | Subject |
-|---|---|
-| [`component-model-v1.md`](component-model-v1.md) | Component, hook, props, event, lifecycle and reconciliation semantics |
-| [`ir-v1.md`](ir-v1.md) | IR: node kinds, expressions, loops, bindings, source spans |
-| [`compiler.md`](../design/compiler.md) | Compiler stages; "Tier 1" (React rules) and "Tier 2" (bindings and lowering) |
-| [`stylesheet-v1.md`](stylesheet-v1.md) | Style properties and values accepted in `style` and `className` |
-| [`custom-elements-v1.md`](custom-elements-v1.md) | `CustomElement` and `ui/elements.json` |
-| [`virtualization-v1.md`](virtualization-v1.md) | `VirtualList` and `VirtualGrid` |
-| [`error-boundaries-v1.md`](error-boundaries-v1.md) | `ErrorBoundary` |
-| [`view-transitions-v1.md`](view-transitions-v1.md) | `startViewTransition` update-function rule |
-| [`developer-workflow.md`](../guides/developer-workflow.md) | Generated base, developer class and `bind::` ids |
-
+The specs this one depends on are indexed in [`docs/README.md`](../README.md). The ones a reader of
+this document needs most: [`component-model-v1.md`](component-model-v1.md) (component, hook, props,
+event and lifecycle semantics), [`ir-v1.md`](ir-v1.md) (the IR this document lowers to),
+[`compiler.md`](../design/compiler.md) (the stages, and "Tier 1" versus "Tier 2"),
+[`stylesheet-v1.md`](stylesheet-v1.md) (`style` and `className` values) and
+[`custom-hooks-v1.md`](custom-hooks-v1.md) (a project-declared `use...` function).
 ## 1. Purpose and non-goals
 
 Purpose: let React/TypeScript developers write UI in familiar syntax while keeping the language small
@@ -72,26 +64,20 @@ Non-goals:
 
 ## 3. Lexical grammar
 
-### 3.1 Whitespace and comments
+### 3.1 Whitespace, comments, identifiers and keywords
 
 - Whitespace: space, tab, LF, CR.
 - Comments: `// ...` to end of line and `/* ... */` (not nested). Comments are kept with their spans
   because binding annotations are comments (section 9.3).
+- `IDENT = [A-Za-z_$][A-Za-z0-9_$]*`. Only ASCII is allowed in identifiers. Text inside strings,
+  templates and JSX text may contain any Unicode.
+- Reserved: `import`, `export`, `from`, `function`, `const`, `return`, `type`, `true`, `false`,
+  `null`, `as`. Words that are keywords in TypeScript or JavaScript but unused here (for example
+  `class`, `let`, `var`, `if`, `for`, `while`, `switch`, `try`, `await`, `async`, `new`, `this`,
+  `delete`, `typeof`, `instanceof`, `yield`) are also reserved so that using one gives a specific
+  diagnostic (section 12) and not a generic syntax error.
 
-### 3.2 Identifiers
-
-`IDENT = [A-Za-z_$][A-Za-z0-9_$]*`. Only ASCII is allowed in identifiers. Text inside strings,
-templates and JSX text may contain any Unicode.
-
-### 3.3 Keywords
-
-Reserved: `import`, `export`, `from`, `function`, `const`, `return`, `type`, `true`, `false`, `null`,
-`as`. Words that are keywords in TypeScript or JavaScript but unused here (for example `class`,
-`let`, `var`, `if`, `for`, `while`, `switch`, `try`, `await`, `async`, `new`, `this`, `delete`,
-`typeof`, `instanceof`, `yield`) are also reserved so that using one gives a specific diagnostic
-(section 12) and not a generic syntax error.
-
-### 3.4 Literals
+### 3.2 Literals
 
 | Literal | Accepted form | Notes |
 |---|---|---|
@@ -102,17 +88,17 @@ Reserved: `import`, `export`, `from`, `function`, `const`, `return`, `type`, `tr
 | Null | `null` | Only as a ref initial value and in comparisons allowed by section 8 |
 
 Not accepted: regular-expression literals, `undefined` as a literal (the identifier `undefined` is
-rejected), array literals except as defined in section 8.4, object literals except as defined in
-section 8.5.
+rejected), array literals except as defined in section 8.3, object literals except as defined in
+section 8.3.
 
-### 3.5 Punctuators
+### 3.3 Punctuators
 
-`( ) { } [ ] < > </ /> , ; : . ... => = ? + - * / % == != === !== < <= > >= && || ! `` ` `` `${`.
+`( ) { } [ ] < > </ /> , ; : . ... => = ? ?? ?. + - * / % == != === !== < <= > >= && || ! `` ` `` `${`.
 `==` and `!=` are lexed so they can be rejected with a suggestion to use `===` and `!==`
-(section 8.2). All other JavaScript operators (`++ -- += ?? ?. ** & | ^ ~ << >> >>>`, comma operator)
-are lexed and rejected (section 12).
+(section 8.2). `??` and `?.` are accepted over an `optional<T>` (section 8.2). All other JavaScript
+operators (`++ -- += ** & | ^ ~ << >> >>>`, comma operator) are lexed and rejected (section 12).
 
-### 3.6 Automatic semicolon insertion
+### 3.4 Automatic semicolon insertion
 
 Not supported in V1. Every statement ends with `;`. A missing `;` is reported at the end of the
 previous token with the suggested fix "insert `;`". This is a design choice to keep the grammar
@@ -126,13 +112,17 @@ A file is a sequence of top-level items in any order:
 Module        = { Import | ReExport | TypeAlias | ComponentDecl | ConstDecl } ;
 Import        = "import" [ "type" ] NamedImports "from" STRING ";"
               | "import" IDENT "from" STRING ";"   (* STRING must end in ".module.css" *)
+              | "import" "React" "from" "\"react\"" ";"
+              | "import" "*" "as" "React" "from" "\"react\"" ";"
               | "import" STRING ";" ;
 NamedImports  = "{" [ ImportName { "," ImportName } [ "," ] ] "}" ;
 ImportName    = IDENT [ "as" IDENT ] ;
 ReExport      = "export" "type" "{" [ ImportName { "," ImportName } [ "," ] ] "}"
                 [ "from" STRING ] ";" ;
 TypeAlias     = [ "export" ] "type" IDENT "=" TypeExpr ";" ;
-ComponentDecl = [ "export" ] "function" IDENT "(" [ Param ] ")" [ ":" TypeExpr ] Block ;
+ComponentDecl = [ "export" [ "default" ] ] "function" IDENT "(" [ Param ] ")" [ ":" TypeExpr ] Block
+              | [ "export" ] "const" IDENT "=" ArrowComponent ";" ;
+ArrowComponent = "(" [ Param ] ")" "=>" ( Block | JsxElement ) ;
 ConstDecl     = [ "export" ] "const" IDENT [ ":" TypeExpr ] "=" PureExpr ";" ;
 ```
 
@@ -146,33 +136,33 @@ Rules:
   - `from "tessera"` imports built-in intrinsics and hooks (for example `useState`, `View`,
     `CustomElement`). Library components such as `Field` and `Form` are not built in: importing one
     from `"tessera"` is `TESSERA_IR_UNSUPPORTED` naming `tessera-ui`. `from "react"` is accepted for `useState`, `useEffect`, `useRef` only, as an alias
-    of `"tessera"` (other names and `import React` are errors; [`jsx-intrinsics-v1`](jsx-intrinsics-v1/react-compat.md) Q15).
+    of `"tessera"` (other names are errors; [`jsx-intrinsics-v1`](jsx-intrinsics-v1/react-compat.md) Q15).
+  - **`import React from "react"` and `import * as React from "react"` are accepted and ignored**
+    (ADR-066 item 1): the automatic JSX runtime means the binding is never read, so a port that keeps
+    the import compiles. Any other default or namespace import stays `TESSERA_JSX_SUBSET_IMPORT`.
   - `from "./X"` or `from "../X"` imports a component, type or constant exported by another source
     file of the project (extension omitted). Absolute paths are errors.
   - `from "pkg"` or `from "pkg/Sub"` resolves through a package root configured in `tessera.json`
     `packages` ([`project-config-v1.md`](project-config-v1.md)): `"pkg"` is `<root>/index` and
     `"pkg/Sub"` is `<root>/Sub`, extensions omitted like a relative import. A bare specifier with
-    no package root is `TESSERA_IR_UNSUPPORTED` naming the specifier ("neither a project file
-    (`./X`) nor a configured package"); a configured root without the named file is
-    `TESSERA_IR_UNRESOLVED`. `"tessera"` and `"react"` stay built in and are never captured by a
-    package root of the same name. A package entry that declares a `version` is checked against the
-    root's `tessera-package.json` before compilation (`TESSERA_PACKAGE_VERSION`,
-    `TESSERA_PACKAGE_MANIFEST`; [`project-config-v1.md`](project-config-v1.md) `packages`). The
-    component library is imported this way: `from "tessera-ui"` and `from "tessera-ui/<Name>"`
-    resolve inside the one `tessera-ui` root ([ADR-047](../../decisions/ADR-047-component-library-layers-and-design-language.md)).
-    When the project has no `tessera-ui` entry, those specifiers resolve to the library bundled
-    with the compiler (`Field`, `Form`); an unknown name or subpath is `TESSERA_IR_UNRESOLVED`. A
-    configured `tessera-ui` entry replaces the bundled library with its own files.
+    no package root is `TESSERA_IR_UNSUPPORTED` naming the specifier; a configured root without the
+    named file is `TESSERA_IR_UNRESOLVED`. `"tessera"` and `"react"` stay built in and are never
+    captured by a package root of the same name. A package entry that declares a `version` is
+    checked against the root's `tessera-package.json` before compilation (`TESSERA_PACKAGE_VERSION`,
+    `TESSERA_PACKAGE_MANIFEST`). The component library is imported this way: `from "tessera-ui"` and
+    `from "tessera-ui/<Name>"` resolve inside the one `tessera-ui` root
+    ([ADR-047](../../decisions/ADR-047-component-library-layers-and-design-language.md)). When the
+    project has no `tessera-ui` entry, those specifiers resolve to the library bundled with the
+    compiler (`Field`, `Form`); an unknown name or subpath is `TESSERA_IR_UNRESOLVED`. A configured
+    `tessera-ui` entry replaces the bundled library with its own files.
   - **An imported component shadows an intrinsic element of the same name in that file** (issue
     #291). `import { Button } from "tessera-ui"` makes `<Button>` the library component; a file
-    without the import keeps the intrinsic `Button`, and a renamed import (`import { Button as
-    Action }`) shadows under its local name only. A component declared in the same file does not
-    shadow an intrinsic. The library component renders intrinsic elements (`View`) itself, so the
-    intrinsic stays reachable.
+    without the import keeps the intrinsic `Button`, and a renamed import shadows under its local
+    name only. A component declared in the same file does not shadow an intrinsic. The library
+    component renders intrinsic elements (`View`) itself, so the intrinsic stays reachable.
   - A resolved package import follows the ordinary cross-file rules: the imported name must be
     declared in the target file, component names stay unique project-wide, import cycles apply,
-    and the package file is compiled by the same analyzer, rules and lowering pipeline (no
-    special-casing downstream).
+    and the package file is compiled by the same analyzer, rules and lowering pipeline.
   - `import "./file.css";` (side-effect import) registers a stylesheet with the build
     ([`stylesheet-v1.md`](stylesheet-v1.md)); the path must end in `.css`. Lowering resolves it
     relative to the importing file and records it in `IrModule::stylesheets` (`id`, `path`,
@@ -185,28 +175,34 @@ Rules:
     the `animation-name`/`animation` references to them in the same file are renamed to
     `<local>_<hash>`, where `<hash>` is 6 lowercase hex digits of FNV-1a 64 over the file's
     project-relative POSIX path ([`stylesheet-v1.md`](stylesheet-v1.md) section 3). The specifier
-    must end in `.module.css`, and the path rules of every other import still apply (absolute, drive
-    and UNC paths are errors). **`styles.<ident>` is its only allowed use**: a static member access
-    that lowers to the scoped class name. A `className` that reads a CSS module either folds to
-    one class string at compile time, or is a conditional (`c ? styles.a : styles.b`, also inside a
-    template) whose every `styles.<ident>` read is a constant: the reads become the scoped literals
-    and the choice stays the ordinary `conditional` expression (section 10.4). Anything else — a
-    bare `styles`, or any expression the compiler cannot evaluate — is
-    `TESSERA_JSX_STYLES_DYNAMIC` (the same reason `style` keys must be static, section 10.3). Two forms are refused earlier by the subset's own rules:
-    `styles[k]` is `TESSERA_JSX_SUBSET_MEMBER` (indexing is never supported) and `{...styles}` is
-    `TESSERA_JSX_SUBSET_SPREAD`, since a more fundamental error is the more useful one to report.
-    A `styles.<ident>` with no matching class in the file is
-    `TESSERA_CSS_MODULE_UNKNOWN_CLASS`, an error naming the file and the class. `:global(.x)` leaves
-    one class unrenamed; the block form `:global { ... }` is not supported. `import type` binds
-    types, and a class map is a value, so `import type styles from "./Card.module.css";` stays
+    must end in `.module.css`, and the path rules of every other import still apply. **`styles.<ident>`
+    is its only allowed use**: a static member access that lowers to the scoped class name. A
+    `className` that reads a CSS module either folds to one class string at compile time, or is a
+    conditional (`c ? styles.a : styles.b`, also inside a template) whose every `styles.<ident>` read
+    is a constant: the reads become the scoped literals and the choice stays the ordinary
+    `conditional` expression (section 10.4). Anything else — a bare `styles`, or any expression the
+    compiler cannot evaluate — is `TESSERA_JSX_STYLES_DYNAMIC` (the same reason `style` keys must be
+    static, section 10.3). Two forms are refused earlier by the subset's own rules: `styles[k]` is
+    `TESSERA_JSX_SUBSET_MEMBER` and `{...styles}` is `TESSERA_JSX_SUBSET_SPREAD`, since a more
+    fundamental error is the more useful one to report. A `styles.<ident>` with no matching class in
+    the file is `TESSERA_CSS_MODULE_UNKNOWN_CLASS`, naming the file and the class. `:global(.x)`
+    leaves one class unrenamed; the block form `:global { ... }` is not supported. `import type`
+    binds types, and a class map is a value, so `import type styles from "./Card.module.css";` stays
     `TESSERA_JSX_SUBSET_IMPORT`. A plain `import "./x.css";` keeps its global meaning.
-- **Exports**: named exports only. `export default` is rejected in V1.
+- **Exports**: named exports, plus `export default function Name(...)` (ADR-066 item 1). The
+  default-ness is dropped: the component is reachable by its own name, because the subset has no
+  default-export resolution. An anonymous default export stays `TESSERA_JSX_SUBSET_IMPORT`, since a
+  component with no name has no id.
 - **Type re-exports**: `export type { A, B as C } [from "./X"];` re-exports type names, from another
   file or from the file's own imports. Other re-exports (`export { A }`, `export *`) are rejected. A
   re-exported name resolves like a directly declared type alias, so a props alias may be reached
   through a chain of re-exports and is lowered by the same rules as an inline alias.
-- **Components** are `function` declarations (section 6). Arrow-function components and anonymous
-  components are rejected ([`component-model-v1.md`](component-model-v1.md) section 8).
+- **Components** are `function` declarations (section 6), or an arrow function bound to an
+  uppercase `const` (ADR-066 item 1): `const Avatar = ({ initials }: Props) => { ... };`. The arrow
+  form takes the same parameter, the same required annotation and the same body rules, and its body
+  may be a block or a single JSX element. Anonymous components are rejected
+  ([`component-model-v1.md`](component-model-v1.md) section 8); a lowercase `const` arrow is an
+  ordinary constant.
 - **Top-level constants** (`ConstDecl`) must have a pure expression made of literals and other
   top-level constants. They are evaluated at compile time.
 - **Cycles**: an import cycle between files is an error (`TESSERA_JSX_SUBSET_IMPORT_CYCLE`).
@@ -236,8 +232,8 @@ ParamType  = IDENT ":" TypeExpr ;
   `TESSERA_JSX_TYPE_NUMBER` and the suggestion to write `int` or `float`. The project owner decided this.
   **Type-hint rules:** state is typed by inference (`useState(0)`) or by a Tessera type hint
   (`useState<int>(0)`), and there is no third spelling. `useState<number>(0)` is an explicit error, not
-  a fallback, so a port cannot silently pick the wrong numeric type; the fix is `int`, `float`, or no
-  hint. The error is reported on every surface (the preview CLIs print it to stderr as
+  a fallback, so a port cannot silently pick the wrong numeric type. The error is reported on every
+  surface (the preview CLIs print it to stderr as
   `file:line:col: error TESSERA_JSX_TYPE_NUMBER: ... (hint: ...)`).
 - **Literal types.** A number literal without a fraction or exponent (`0`, `42`) is `int`, unless the
   expected type at that position is `float`, in which case it is `float`. A literal with a fraction or
@@ -252,12 +248,12 @@ ParamType  = IDENT ":" TypeExpr ;
   expression: `{children}` is accepted only as a child of an element, once per component, not in a
   loop, and lowers to the IR `Slot` node ([`ir-v1.md`](ir-v1.md) section 3.4). A `Children` value
   cannot be stored, compared, passed to another prop or used in text.
-- A union is accepted only as `T | null` or as a union of string literals (an enum).
-- Type aliases are non-recursive and may refer only to earlier or later aliases without cycles,
-  including aliases imported from other files (a cycle is `TESSERA_IR_TYPE_CYCLE`). A component's
-  props type may be an alias declared in another project file (section 4).
-- Built-in generic names accepted: `Ref<T>` is not written by developers; refs use the element type
-  directly (`useRef<Text>(null)`, section 7). Element types are the intrinsic names of section 11.
+- A union is accepted only as `T | null` or as a union of string literals (an enum). Type aliases are
+  non-recursive and may refer to earlier or later aliases without cycles, including aliases imported
+  from other files (a cycle is `TESSERA_IR_TYPE_CYCLE`). A component's props type may be an alias
+  declared in another project file (section 4).
+- `Ref<T>` is not written by developers; refs use the element type directly (`useRef<Text>(null)`,
+  section 7). Element types are the intrinsic names of section 11.
 - Not accepted: `any`, `unknown`, `never`, `object`, `Function`, intersections (`&`), conditional or
   mapped types, `keyof`/`typeof` types, tuple types, enums (`enum`), interfaces (`interface`),
   generics on user declarations, `as` assertions, non-null `!` assertions, `satisfies`, decorators.
@@ -281,12 +277,12 @@ LocalDecl  = "const" IDENT [ ":" TypeExpr ] "=" PureExpr ";" ;
   is required when the parameter exists. Rest elements (`...rest`) are rejected. A default may also
   be an object literal when the prop's type is a declared record (`{ padding = { top: 4 } }`, ADR-051);
   its values are literals, nested record literals or arrays of literals, and a computed value is a
-  lowering error (`TESSERA_IR_UNSUPPORTED`, section 8.5).
+  lowering error (`TESSERA_IR_UNSUPPORTED`, section 8.3).
 - The name starts with an uppercase letter.
 - The body is a sequence of statements followed by exactly one `return` that is the last statement.
-  The returned value is one JSX element (not an array, string or `null`).
-  Early returns, `if`/`switch` statements, loops, `try`, and assignments are rejected;
-  conditional output uses `&&` or `?:` inside JSX (section 10.4).
+  The returned value is one JSX element (not an array, string or `null`). Early returns,
+  `if`/`switch` statements, loops, `try` and assignments are rejected; conditional output uses `&&`
+  or `?:` inside JSX (section 10.4).
 - Statements before `return` may only be hook declarations (section 7), handler declarations
   (section 9) and `LocalDecl` constants. A `LocalDecl` is a pure expression recomputed on each
   update; it may not call hooks.
@@ -294,8 +290,8 @@ LocalDecl  = "const" IDENT [ ":" TypeExpr ] "=" PureExpr ";" ;
   keep a fixed order; the checks are in section 7 and in
   [`compiler.md`](../design/compiler.md) section 4.
 - Props are read-only. Writing to a prop or state variable directly is rejected; state changes use
-  setters only.
-- `key` and `ref` are not props of a component; they are element attributes (section 10.2).
+  setters only. `key` and `ref` are not props of a component; they are element attributes
+  (section 10.2).
 
 ## 7. Hooks
 
@@ -305,8 +301,12 @@ Hook calls are statements of these exact forms. Argument expressions are pure ex
 |---|---|---|
 | State | `const [x, setX] = useState<T>(init);` | Exactly two names. `<T>` may be omitted when `init` is a string, boolean or `null` literal or a prop with a declared type; it is required when `init` is a number literal `init` must be pure |
 | Ref | `const r = useRef<ElementType>(null);` | `ElementType` is an intrinsic name (section 11). The initial value must be `null` |
-| Animated value | `const v = useAnimatedValue(init);` | `init` is a number literal or a pure expression of numbers. Use in handlers is `v.set(expr)` and `v.set(expr, { animate, duration, easing, spring, onComplete })`: `animate` is a boolean, `duration` a non-negative number literal in milliseconds, `easing` a string literal ([`ir-v1.md`](ir-v1.md) section 2.1 lists the accepted easings) and `spring` is `true` or an object literal of optional `stiffness`, `damping` and `mass` number literals (defaults 180, 20, 1; exclusive with `duration`/`easing`), `onComplete` is the name of a parameterless inline setter handler (section 9.2) declared anywhere in the same component, before or after the call (an undeclared name, a native `bind::` handler, a handler with parameters, a setter or any non-identifier is `TESSERA_IR_UNSUPPORTED`); other options, non-literals and repeated options are `TESSERA_IR_UNSUPPORTED`. See [`animation.md`](../design/animation.md) section 6. Reading the value (`v.value` or any other member) is rejected with `TESSERA_JSX_SUBSET_ANIMATED_READ`; an animated value is passed whole as a prop or style value. The project owner decided this |
+| Animated value | `const v = useAnimatedValue(init);` | `init` is a number literal or a pure expression of numbers. Handlers use `v.set(expr)` and `v.set(expr, { animate, duration, easing, spring, onComplete })`; the option rules, the accepted easings and the rejected forms are in [`animation.md`](../design/animation.md) section 6 and [`ir-v1.md`](ir-v1.md) section 2.1. Reading the value (`v.value` or any other member) is `TESSERA_JSX_SUBSET_ANIMATED_READ`; an animated value is passed whole as a prop or style value. The project owner decided this |
 | Effect | `useEffect(() => { ... }, [dep, ...]);` | The body is a native handler body (section 9.3). Dependencies are names of props, state variables or animated values; an expression is not allowed. Exact matching is enforced as in [`component-model-v1.md`](component-model-v1.md) section 2 |
+| Layout effect | `useLayoutEffect(() => { ... }, [dep, ...]);` | Accepted with `useEffect` timing (ADR-066 item 1): there is no browser paint to order against, so the form and dependency rules are `useEffect`'s |
+| Id | `const id = useId();` | A stable string from the instance identity and the call ordinal (ADR-066 item 1). No arguments, one name, read-only; its purpose is an `id`/`aria-labelledby` pair |
+| Memo | `const v = useMemo(() => <PureExpr>, [deps]);` | The safe form only (ADR-066 item 1, [`react-compat.md`](jsx-intrinsics-v1/react-compat.md) section 4.2): the wrapped expression becomes the local, because a pure inlined expression needs no memo. A block body or a missing dependency list keeps `TESSERA_REACT_UNSUPPORTED_API` |
+| Callback | `const f = useCallback(() => <body>, [deps]);` | The safe form only: the wrapped arrow becomes the handler, because nothing here observes a function's identity. The body is classified like any declared handler (section 9) |
 
 - Library hooks declared in the built-in hook manifest (section 7.1) are also accepted. Any other name
   starting with `use` gives `TESSERA_REACT_UNKNOWN_HOOK`. A hook that exists (core or manifest) but is not
@@ -315,7 +315,7 @@ Hook calls are statements of these exact forms. Argument expressions are pure ex
   ([`project-config-v1.md`](project-config-v1.md)).
 - A function whose name starts with `use` and that is declared in the project is a custom hook: it is
   expanded at each call site and never reaches the IR ([`custom-hooks-v1.md`](custom-hooks-v1.md)).
-- A hook called inside a condition, a handler, an effect, a loop callback or a nested function is an
+  A hook called inside a condition, a handler, an effect, a loop callback or a nested function is an
   error (`TESSERA_REACT_HOOK_ORDER`).
 - The returned value of `useEffect` is not used. An effect may have a cleanup function, written as the
   last statement of the effect body: `return () => { ... };`. The cleanup is a second native handler:
@@ -329,13 +329,13 @@ Hook calls are statements of these exact forms. Argument expressions are pure ex
 ### 7.1 Built-in hook manifest
 
 The **built-in hook manifest** is a JSON file shipped with the Tessera framework that lists every library
-hook (a hook other than the four core hooks above). The front end reads it to validate calls and to lower
+hook (a hook other than the core hooks above). The front end reads it to validate calls and to lower
 them to IR; the build also generates the editor typings of section 16.2 from it. A project cannot add
 entries: a hook written by an app developer is a custom hook and is expanded
 ([`custom-hooks-v1.md`](custom-hooks-v1.md)). The source file is
-`src/compiler/frontend/hooks-manifest.json` in the framework repository. The build embeds it in the front end
-(the native compiler and the Wasm designer both contain it, so neither reads it from disk at run time) and
-installs a copy at `share/tessera/hooks-manifest.json` for the typings generator of section 16.2.
+`src/compiler/frontend/hooks-manifest.json`. The build embeds it in the front end (the native compiler
+and the Wasm designer both contain it, so neither reads it from disk at run time) and installs a copy
+at `share/tessera/hooks-manifest.json` for the typings generator.
 
 ```json
 {
@@ -376,9 +376,11 @@ dependency.
 "type": "<ir type>" }`, and every use of the variable becomes a `ref` to that id. A **provider** is an
 engine-owned source of a read-only value. When the provider's value changes, the engine marks every
 component that reads it as updated, exactly as for a state change
-([`component-model-v1.md`](component-model-v1.md) section 5). A component can write an environment value only through the setter of a `writable` hook; the setter is used
-like a state setter in handlers of section 9.2 and in `startViewTransition` update functions, and lowers to
-a write of `env::<name>`. Other environment values are read-only.
+([`component-model-v1.md`](component-model-v1.md) section 5). A component can write an environment
+value only through the setter of a `writable` hook; the setter is used like a state setter in handlers
+of section 9.2 and in `startViewTransition` update functions, and lowers to a write of `env::<name>`.
+Other environment values are read-only. `useId` (section 7) is the one provider the host never pushes:
+the generated base derives it from the instance identity.
 
 V1 library hooks (the full contents of the V1 manifest):
 
@@ -386,7 +388,7 @@ V1 library hooks (the full contents of the V1 manifest):
 |---|---|---|
 | `useTheme()` | `string` | The id of the active theme. The engine always provides a built-in theme with id `default` (no tokens); it is the active theme at start unless the project's theme asset (`assets.theme` in [`project-config-v1.md`](project-config-v1.md)) names another start theme ([`stylesheet-v1.md`](stylesheet-v1.md) section 9.1). Never empty. The project owner decided this |
 | `useThemeState()` | `[string, (id: string) => void]` | The pair of the active theme id (the same value as `useTheme()`) and a setter. `setTheme(id)` makes `id` the active theme: the stylesheet engine re-resolves styles, as for any theme change ([`stylesheet-v1.md`](stylesheet-v1.md) section 9). A string literal that is not a theme id of the project (`default` plus the keys of the theme asset) is `TESSERA_JSX_THEME_UNKNOWN`; a non-literal unknown id at run time changes nothing and reports the runtime diagnostic `TESSERA_IR_THEME_UNKNOWN` |
-| `useBreakpoint()` | `"compact" \| "medium" \| "expanded"` | The size class of the window width in dp (logical pixels): `compact` below 600, `medium` from 600 to 839, `expanded` from 840 upward; the same thresholds as [`responsive.md`](../design/responsive.md) section 2. Uses the window, not the display, and updates on resize, fold change and multi-window changes. **Implemented** (issue #692): the thresholds are the named constants in `include/tessera/ui/responsive/size_class.hpp`, computed from the same `MediaContext::viewport_width` the `@media` evaluator reads, so a stylesheet breakpoint and the hook cannot disagree. The generated base holds the value in a private field, the host pushes a new class through an equality-gated `set_environment_<name>()`, and the developer class reads it through an accessor. A change that stays inside one class schedules nothing |
+| `useBreakpoint()` | `"compact" \| "medium" \| "expanded"` | The size class of the window width in dp (logical pixels): `compact` below 600, `medium` from 600 to 839, `expanded` from 840 upward; the same thresholds as [`responsive.md`](../design/responsive.md) section 2. Uses the window, not the display, and updates on resize, fold change and multi-window changes. **Implemented** (issue #692): the thresholds are the named constants in `include/tessera/ui/responsive/size_class.hpp`, computed from the same `MediaContext::viewport_width` the `@media` evaluator reads, so a stylesheet breakpoint and the hook cannot disagree. A change that stays inside one class schedules nothing |
 
 In the browser designer, the values come from the viewer environment set by `viewport.set`
 ([`designer-protocol-v1.md`](designer-protocol-v1.md) section 5). Adding a hook, changing a signature or a
@@ -399,14 +401,15 @@ threshold is a change to this specification, the manifest, the evaluator and the
 ```ebnf
 PureExpr   = Cond ;
 Cond       = Or [ "?" PureExpr ":" PureExpr ] ;
-Or         = And { "||" And } ;
+Or         = Coalesce { "||" Coalesce } ;
+Coalesce   = And { "??" And } ;
 And        = Equality { "&&" Equality } ;
 Equality   = Relational { ( "===" | "!==" ) Relational } ;
 Relational = Additive { ( "<" | "<=" | ">" | ">=" ) Additive } ;
 Additive   = Mul { ( "+" | "-" ) Mul } ;
 Mul        = Unary { ( "*" | "/" | "%" ) Unary } ;
 Unary      = [ "!" | "-" | "+" ] Postfix ;
-Postfix    = Primary { "." IDENT | "(" [ PureExpr { "," PureExpr } ] ")" } ;
+Postfix    = Primary { "." IDENT | "?." IDENT | "(" [ PureExpr { "," PureExpr } ] ")" } ;
 Primary    = NUMBER | STRING | TEMPLATE | "true" | "false" | "null"
            | IDENT | "(" PureExpr ")" | ArrayLit | ObjectLit ;
 ```
@@ -423,11 +426,16 @@ Operator precedence and left associativity follow JavaScript for the operators l
 | `===`, `!==` | `binary` with `==`, `!=` (the typed IR has no implicit conversions) |
 | `!a`, `-a`, `+a` | `unary` |
 | `c ? a : b` | `conditional` |
+| `a ?? b` over an `optional<T>` | `coalesce` (ADR-066 item 1): the optional and the fallback. The result is the optional's inner type |
+| `a?.b` over an `optional<T>` | `optionalField` (ADR-066 item 1): the optional base and the field name. The result is an `optional<T>` of the field's type, absent when the base is absent |
 | template literal | `template` |
 | `f(args)` where `f` is on the pure-function allowlist | `call` |
 | `a.b` where `a` is a props object, a record-typed state, or a loop item | `ref` with a dotted id (for example `item.id`) |
 
 - `==` and `!=` are rejected with the suggestion "use `===`/`!==`" (`TESSERA_JSX_SUBSET_LOOSE_EQUALITY`).
+- `??` and `?.` are accepted only over an `optional<T>` (ADR-066 item 1): the IR has no null literal
+  to compare against, so both are their own expression kinds and the type rule is what makes them
+  meaningful. A plain `.` on an optional stays an error.
 - Operands must have compatible IR types; a mismatch is `TESSERA_JSX_TYPE_MISMATCH`. There is no
   implicit string/number coercion: `"a" + 1` is an error.
 - The pure-function allowlist is defined in [`ir-v1.md`](ir-v1.md) section 4.2. A function is used by
@@ -436,34 +444,28 @@ Operator precedence and left associativity follow JavaScript for the operators l
 - Member access `a.b` is accepted only when the front end knows the record type of `a` (props type,
   type alias, loop item type). Access on any other value is `TESSERA_JSX_SUBSET_MEMBER`. Indexing
   (`a[i]`) is rejected except where the loop form of section 10.5 defines it.
+- Evaluation: no side effects, no assignment, no closures, no function values except those in
+  section 9. Order is left to right; `&&`, `||`, `??` and `?:` short-circuit. Integer overflow,
+  division by zero and number formatting follow [`ir-v1.md`](ir-v1.md) section 4.1.
 
-### 8.3 Evaluation properties
+### 8.3 Array and object literals
 
-- No side effects, no assignment, no closures, no function values except those in section 9.
-- Evaluation order is left to right; `&&`, `||` and `?:` short-circuit.
-- Integer overflow, division by zero and number formatting follow [`ir-v1.md`](ir-v1.md) section 4.1.
+An array literal is accepted only as a `useState` initial value of a declared array type
+(`useState<string[]>([])`, `useState<int[]>([1, 2])`) — elements must be literals of the declared
+element type; a dynamic element, a nested array, a record element type and a scalar initial for a
+list type are rejected as `TESSERA_IR_UNSUPPORTED`. A list-loop source and a top-level constant list
+are not accepted yet: a loop source must be a list reference.
 
-### 8.4 Array literals
-
-Accepted only as a `useState` initial value of a declared array type (`useState<string[]>([])`,
-`useState<int[]>([1, 2])`) — elements must be literals of the declared element type; a dynamic
-element, a nested array, a record element type and a scalar initial for a list type are rejected as
-`TESSERA_IR_UNSUPPORTED` (`src/compiler/lowering/src/hook_lowering.cpp`). A list-loop source and a
-top-level constant list are not accepted yet: a loop source must be a list reference.
-
-### 8.5 Object literals
-
-Accepted only as: the `style` attribute value (section 10.3), the `props` attribute of
-`CustomElement` ([`custom-elements-v1.md`](custom-elements-v1.md)), the `initial` attribute of library
-`Form` components, a `useState` initial value of a declared record type, and a prop default whose
-prop type is a declared record (ADR-051). Keys are identifiers or string literals (no computed keys,
-no shorthand with a function value, no spread).
+An object literal is accepted only as: the `style` attribute value (section 10.3), the `props`
+attribute of `CustomElement` ([`custom-elements-v1.md`](custom-elements-v1.md)), the `initial`
+attribute of library `Form` components, a `useState` initial value of a declared record type, and a
+prop default whose prop type is a declared record (ADR-051). Keys are identifiers or string literals
+(no computed keys, no shorthand with a function value, no spread).
 
 A record's field values are literals, nested record literals, or arrays of literals of the member's
-element type; a computed value (a reference, a call, an expression) is `TESSERA_IR_UNSUPPORTED` and
-names the field. A field whose key is not a member of the record, a repeated key and a missing
-non-optional member are `TESSERA_IR_RECORD_VALUE`. The record's declaration supplies the field order,
-so the source order of the fields does not matter.
+element type; a computed value is `TESSERA_IR_UNSUPPORTED` and names the field. A field whose key is
+not a member, a repeated key and a missing non-optional member are `TESSERA_IR_RECORD_VALUE`. The
+record's declaration supplies the field order, so the source order does not matter.
 
 ## 9. Handlers
 
@@ -488,17 +490,16 @@ expressions, separated by `;`:
 <Button onClick={() => setCount(count + 1)}>Increment</Button>
 ```
 
-- Parameters are allowed and typed by the event (section 9.4); they may be used in the arguments.
-- A statement may be guarded: `guard && setter(...)` runs the call only when the pure bool `guard`
+- Parameters are allowed and typed by the event (section 9.4); they may be used in the arguments.- A statement may be guarded: `guard && setter(...)` runs the call only when the pure bool `guard`
   holds (issue #236). A key handler uses it as `(e) => e.key === "Escape" && setOpen(false)`; the
   `KeyEvent` `key` is compared with a W3C key-value string literal (`"Escape"`, `"ArrowDown"`, `" "`,
   a letter). It lowers to the IR action `guard`, and the generated code tests it with
   `tessera::ui::key_is`. A guard on a non-setter call is rejected.
-- No other statements: no `if`, no loops, no declarations, no calls other than setters, `.set`, `r.focus()`, `r.blur()` and calls of the component's own callback props (section 9.5).
-- The front end lowers this form to IR and generates C++ for it. No developer member is required, and
-  the designer runs it exactly as the generated code would.
-- `startViewTransition(update, options)` accepts only a handler of this form as `update`
-  ([`view-transitions-v1.md`](view-transitions-v1.md) section 3.1).
+- No other statements: no `if`, no loops, no declarations, no calls other than setters, `.set`,
+  `r.focus()`, `r.blur()` and calls of the component's own callback props (section 9.5). The front end
+  lowers this form to IR and generates C++ for it; no developer member is required, and the designer
+  runs it exactly as the generated code would. `startViewTransition(update, options)` accepts only a
+  handler of this form as `update` ([`view-transitions-v1.md`](view-transitions-v1.md) section 3.1).
 
 ### 9.3 Native handler
 
@@ -525,11 +526,10 @@ const submit = (values: FormValues): void => {
   silent no-op. The TSX body is not translated to C++.
 - The TSX body is the **preview body**: the browser designer runs it (it cannot run C++). It follows
   the rules of section 9.2, and may additionally contain `return <PureExpr>;` for a non-`void` handler.
-  The preview body is optional. A native handler with an empty body is allowed; the designer then does
-  nothing for that event and reports the warning `TESSERA_REACT_NO_PREVIEW_BODY` (severity `warning`,
-  never an error, and it does not stop code generation). The project owner decided this. A body that
-  is not setter calls plus an optional final `return` is `TESSERA_REACT_PREVIEW_BODY`, also a warning:
-  it has no preview and the designer does nothing for the event.
+  It is optional: an empty body is allowed, and the designer then does nothing for that event and
+  reports the warning `TESSERA_REACT_NO_PREVIEW_BODY`. A body that is not setter calls plus an
+  optional final `return` is `TESSERA_REACT_PREVIEW_BODY`. Both are warnings, never errors, and
+  neither stops code generation. The project owner decided this.
 - The compiler does not check the preview body against the C++ code; keeping them equivalent is the
   developer's responsibility. A project can compare them with the preview-parity test: a script of
   handler calls runs on the IR evaluator and on the generated component, and the state must match
@@ -569,17 +569,18 @@ export function Button({ onPress, children }: ButtonProps) {
   `TESSERA_IR_CYCLE` (`lowering_callback_forward` covers a 12-deep chain and a cycle).
 - A `() => void` prop forwards to any event, because the call ignores the payload. A payload prop
   forwards only to an event that delivers that same record; any other pairing is
-  `TESSERA_IR_UNSUPPORTED` naming both records.
-- A prop that is not a callback (or whose type is unknown) is `TESSERA_IR_UNSUPPORTED`; a name that is
-  not a prop, setter or handler stays `TESSERA_IR_UNRESOLVED`.
+  `TESSERA_IR_UNSUPPORTED` naming both records. A prop that is not a callback (or whose type is
+  unknown) is `TESSERA_IR_UNSUPPORTED`; a name that is not a prop, setter or handler stays
+  `TESSERA_IR_UNRESOLVED`.
 - On a component reference (`<Inner onPress={onPress} />`) only a `() => void` prop is handed on: the
   child's payload record is not known to the lowering yet.
 - A callback prop may also be called as a statement of an inline handler (section 9.2), after or
-  between setter calls: `() => { setPressed(false); onPress(); }`, `(e) => { setValue(e.value); onChange(e); }`.
-  A `() => void` prop is called with no argument. A payload prop is called with the handler's own
-  parameter, the whole payload and nothing else (`onChange(e)`, not `onChange(e.value)`), and the
-  parameter's record must be the prop's. Anything else is `TESSERA_IR_UNSUPPORTED`. The call lowers to
-  the same `callProp` action, runs in order with the other statements and may carry a `guard`.
+  between setter calls: `() => { setPressed(false); onPress(); }`,
+  `(e) => { setValue(e.value); onChange(e); }`. A `() => void` prop is called with no argument. A
+  payload prop is called with the handler's own parameter, the whole payload and nothing else
+  (`onChange(e)`, not `onChange(e.value)`), and the parameter's record must be the prop's. Anything
+  else is `TESSERA_IR_UNSUPPORTED`. The call lowers to the same `callProp` action, runs in order with
+  the other statements and may carry a `guard`.
 
 ## Continued in part 2
 

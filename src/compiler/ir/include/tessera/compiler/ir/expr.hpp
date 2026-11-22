@@ -11,7 +11,27 @@
 namespace tessera::compiler::ir {
 
 // docs/specs/ir-v1.md section 4.
-enum class ExprKind { Literal, Ref, Binary, Unary, Conditional, Template, Call, Array, Record };
+//
+// `OptionalField` and `Coalesce` are the two additive kinds of ADR-066 item 1 (`a?.b` and `a ?? b`
+// over an `optional<T>`). Both are optional in the format: a module that writes neither is
+// byte-identical to the IR before them, so `irVersion` stays 1 (ir-v1-expr.md section 12).
+enum class ExprKind {
+    Literal,
+    Ref,
+    Binary,
+    Unary,
+    Conditional,
+    Template,
+    Call,
+    Array,
+    Record,
+    // `a?.b`: `operands[0]` is the optional base, `id` the field name. The result is `optional<T>`
+    // of the field's type: absent when the base is absent, otherwise the field.
+    OptionalField,
+    // `a ?? b`: `operands[0]` is the optional value, `operands[1]` the fallback. The result is the
+    // inner type of the optional.
+    Coalesce,
+};
 
 struct Null {};
 // A literal is null, bool, int, float or string. Int and float stay distinct so the writer can
@@ -63,6 +83,12 @@ ExprPtr make_array(std::vector<ExprPtr> elements);
 // in member order. The first slice accepts literal, nested-record and array-of-literal field values
 // only; the validator is what enforces that and the field set.
 ExprPtr make_record(std::string type, std::vector<RecordField> fields);
+// `a?.b` (ADR-066 item 1): the optional base and the field name. The result is an `optional<T>` of
+// the field's type, absent when the base is absent.
+ExprPtr make_optional_field(ExprPtr base, std::string field);
+// `a ?? b` (ADR-066 item 1): the optional value and the fallback. The result is the optional's
+// inner type.
+ExprPtr make_coalesce(ExprPtr value, ExprPtr fallback);
 
 TemplatePart text_part(std::string text);
 TemplatePart expr_part(ExprPtr expr);

@@ -106,6 +106,18 @@ JsonValue expr_to_json(const Expr* expr) {
         json.set("fields", std::move(fields));
         break;
     }
+    case ExprKind::OptionalField:
+        // ADR-066 item 1: `a?.b`. `field` is the member name, `value` the optional base.
+        json.set("kind", JsonValue::string("optionalField"));
+        json.set("field", JsonValue::string(expr->id));
+        json.set("value", expr_to_json(operand(*expr, 0)));
+        break;
+    case ExprKind::Coalesce:
+        // ADR-066 item 1: `a ?? b`. `value` is the optional, `fallback` the alternative.
+        json.set("kind", JsonValue::string("coalesce"));
+        json.set("value", expr_to_json(operand(*expr, 0)));
+        json.set("fallback", expr_to_json(operand(*expr, 1)));
+        break;
     }
     return json;
 }

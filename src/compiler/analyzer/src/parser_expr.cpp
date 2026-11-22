@@ -55,7 +55,10 @@ BinaryOperator binary_operator(const Token& token) {
         return {8, {}, {}, {}};
     }
     if (op == "??") {
-        return {1, kOperatorCode, "`??` is not supported", kNotAvailable};
+        // ADR-066 item 1: `a ?? b` over an `optional<T>` is accepted and lowers to a conditional on
+        // the optional's presence (ir-v1-expr.md section 4). It keeps `||`'s precedence, as in
+        // JavaScript, so `a ?? b || c` groups as `a ?? (b || c)`.
+        return {1, {}, {}, {}};
     }
     if (op == "|" || op == "^" || op == "&") {
         return {3, kOperatorCode, "bitwise operators are not supported", kNotAvailable};
@@ -227,10 +230,12 @@ ExprPtr Parser::parse_postfix() {
         const bool generic = at_punct("<") && expr->kind == ExprKind::Identifier &&
                              expr->text.starts_with("use") && parse_call_type_args(type_args);
         if (at_punct(".") || at_punct("?.")) {
-            if (at_punct("?.")) {
-                report(kOperatorCode, "`?.` is not supported", cur_.span,
-                       std::string(kNotAvailable));
-            }
+            // ADR-066 item 1: `a?.b` over an `optional<T>` is accepted and lowers to a conditional
+            // that yields the field or null (ir-v1-expr.md section 4). It is recorded as a Member
+            // with the `?.` operator so the lowering can tell the two apart: a plain `.` on an
+            // optional is still an error, because it would read a field of a value that may be
+            // absent.
+            const bool optional_chain = at_punct("?.");
             advance(LexMode::Code);
             // Reserved words are fine as property names: `row.type`.
             if (cur_.kind != TokenKind::Identifier && cur_.kind != TokenKind::Keyword) {
@@ -240,7 +245,8 @@ ExprPtr Parser::parse_postfix() {
             std::string name(cur_.text);
             advance(LexMode::Code);
             operands.push_back(std::move(expr));
-            expr = make_operator(ExprKind::Member, begin, std::move(name), std::move(operands));
+            expr = make_operator(optional_chain ? ExprKind::OptionalMember : ExprKind::Member,
+                                 begin, std::move(name), std::move(operands));
         } else if (generic || at_punct("(")) {
             operands.push_back(std::move(expr));
             advance(LexMode::Code);

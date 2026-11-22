@@ -136,6 +136,13 @@ How unattended agents pick and land work. Milestones live on GitHub only (no oth
   not already claimed by an open PR (`gh pr list --search "<item words>"`).
 - **Blocked by ADR:** ADR-049 and ADR-050 are Accepted (2026-11-12), so their items are open. If an
   item depends on a Proposed ADR, wait until it is Accepted on `main`.
+- **Proposed on purpose (owner direction).** An ADR may stay Proposed while its items land, when the
+  owner says the decision is expected to move during V1 and locking it would be premature. The owner
+  records that direction in the ADR's status line, naming the date and the reason; the items then
+  carry `ready` and land normally. This is not a general licence to skip Acceptance: it applies only
+  to an ADR whose status line says so, and the ADR is still amended by evidence as its items land.
+  ADR-066 is the first such case (owner direction 2026-11-22: the React core set may change as V1
+  ports real code, so it stays Proposed and its steps #651 to #654 are open).
 - **Spikes:** an item labeled `spike` may depend on a Proposed ADR. It proves one decision with
   measured evidence: it lands off by default (an experimental flag or CMake option) and changes no
   default behavior, its PR appends the requested evidence and what the ADR got wrong to the ADR's
@@ -630,9 +637,13 @@ Acceptance: a `useState`/`useEffect`/`useRef` screen regenerates without losing 
       #639, code generation #641.
 - [ ] Custom hooks by inlining (ADR-065, waits for Acceptance): #645 expansion pass, #646
       diagnostics, #647 typings, member names and preview state carry, #648 documentation sweep.
-- [ ] React core additions (ADR-066, waits for Acceptance): #651 cheap acceptances, #652 control flow
-      in handlers, #653 list and string expressions, #654 limited `useReducer` and static
-      `useContext`.
+- [ ] React core additions (ADR-066, Proposed on purpose per owner direction 2026-11-22, so its
+      items are open): #651 cheap acceptances **done** (arrow components, `export default function`,
+      `import React`, `memo`, `StrictMode`/`Profiler`, `useId`, `useLayoutEffect`, the safe
+      `useMemo`/`useCallback` forms, `??`/`?.` as the additive `coalesce`/`optionalField` IR kinds,
+      and the `id`/`aria-labelledby` schema pair `useId` needs; corpus 25→33 front end, 12→20
+      pipeline; evidence in ADR-066 "Step 1 evidence"), then #652 control flow in handlers,
+      #653 list and string expressions, #654 limited `useReducer` and static `useContext`.
 - [ ] Pending UI (ADR-067, waits for Acceptance): spec #655, front end and engine behaviors #656
       (preview support #657 belongs to V1-M4).
 

@@ -305,6 +305,20 @@ bool Parser::parse_const_statement(Statement& statement) {
     if (!statement.init) {
         return false;
     }
+    // ADR-066 item 1: the safe forms of `useMemo` and `useCallback` (react-compat.md section 4.2)
+    // are desugared here, where the wrapped expression is still a parse tree:
+    //
+    //   const v = useMemo(() => <PureExpr>, [deps]);   ->  const v = <PureExpr>;
+    //   const f = useCallback(() => <body>, [deps]);   ->  const f = () => <body>;
+    //
+    // The memo's only effect in React is skipping a recomputation, which a pure inlined expression
+    // does not need; the callback's only effect is a stable identity, which nothing in this model
+    // observes. Desugaring in the parser rather than in the rules means every later pass sees the
+    // ordinary form it already handles, so there is no second path to keep in step.
+    //
+    // A form outside the two shapes is left alone, so the rules report
+    // `TESSERA_REACT_UNSUPPORTED_API` with the message that names the accepted spelling.
+    desugar_memo_or_callback(statement);
     // A rename in an object pattern is allowed only at a custom-hook call site, where the expansion
     // pass consumes it (docs/specs/custom-hooks-v1.md section 3). Anywhere else it is the form the
     // subset refuses, so the check waits until the initializer is known.
@@ -321,6 +335,57 @@ bool Parser::parse_const_statement(Statement& statement) {
     }
     expect_semicolon();
     return true;
+}
+
+// ADR-066 item 1: the safe forms of `useMemo` and `useCallback` (react-compat.md section 4.2).
+//
+//   const v = useMemo(() => <PureExpr>, [deps]);   ->  const v = <PureExpr>;
+//   const f = useCallback(() => <body>, [deps]);   ->  const f = () => <body>;
+//
+// The memo's only effect in React is skipping a recomputation, which a pure inlined expression does
+// not need; the callback's only effect is a stable identity, which nothing in this model observes.
+// Desugaring here rather than in the rules means every later pass sees the ordinary form it already
+// handles, so there is no second path to keep in step.
+//
+// A form outside the two shapes is left alone, so the rules report `TESSERA_REACT_UNSUPPORTED_API`
+// with the message that names the accepted spelling.
+void Parser::desugar_memo_or_callback(Statement& statement) {
+    if (statement.kind != StatementKind::Const || statement.array_pattern ||
+        statement.names.size() != 1 || !statement.init || statement.init->kind != ExprKind::Call ||
+        statement.init->operands.size() != 3) {
+        return;
+    }
+    const Expr& call = *statement.init;
+    if (call.operands[0]->kind != ExprKind::Identifier) {
+        return;
+    }
+    const std::string_view name = call.operands[0]->text;
+    const bool memo = name == "useMemo";
+    if (!memo && name != "useCallback") {
+        return;
+    }
+    // The wrapped value is the first argument and must be an arrow; the second is the dependency
+    // list, which the desugared form does not carry (the value is recomputed on every update, which
+    // is what a pure expression costs).
+    const Expr* wrapped = call.operands[1].get();
+    if (wrapped == nullptr || wrapped->kind != ExprKind::Arrow ||
+        call.operands[2]->kind != ExprKind::Array) {
+        return;
+    }
+    // A memo needs an expression body (a block body would be a function value, not a value); a
+    // callback keeps whatever body it has, because the arrow IS the handler.
+    if (memo && (wrapped->arrow_block_body || wrapped->operands.size() != 1)) {
+        return;
+    }
+    // Move the wrapped arrow out of the call and make it the statement's initializer. For a memo
+    // the arrow's single expression becomes the initializer directly, so the local is inlined like
+    // any other `const`.
+    ExprPtr& call_init = statement.init;
+    if (memo) {
+        statement.init = std::move(call_init->operands[1]->operands[0]);
+    } else {
+        statement.init = std::move(call_init->operands[1]);
+    }
 }
 
 // `return <A/>;` or `return (<A/>);`. Anything but one JSX element is an error (spec section 6).

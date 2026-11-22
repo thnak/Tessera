@@ -31,7 +31,8 @@ void Parser::advance_template() {
 }
 
 Parser::Checkpoint Parser::checkpoint() const {
-    return Checkpoint{lexer_.mark(), sink_.mark(), cur_, prev_end_, brace_depth_};
+    return Checkpoint{lexer_.mark(), sink_.mark(),  cur_,       prev_end_,
+                      brace_depth_,  in_component_, props_name_};
 }
 
 void Parser::restore(Checkpoint saved) {
@@ -40,6 +41,8 @@ void Parser::restore(Checkpoint saved) {
     cur_ = std::move(saved.cur);
     prev_end_ = saved.prev_end;
     brace_depth_ = saved.brace_depth;
+    in_component_ = saved.in_component;
+    props_name_ = std::move(saved.props_name);
 }
 
 bool Parser::expect_semicolon() {
