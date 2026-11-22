@@ -1362,6 +1362,13 @@ target_link_libraries(media_query_tests PRIVATE tessera_style)
 
 add_test(NAME media_query COMMAND media_query_tests)
 
+add_executable(viewport_units_tests
+    viewport_units_tests.cpp)
+
+target_link_libraries(viewport_units_tests PRIVATE tessera_style)
+
+add_test(NAME viewport_units COMMAND viewport_units_tests)
+
 add_executable(keyframes_tests
     keyframes_tests.cpp)
 
