@@ -941,6 +941,11 @@ add_test(NAME memory_steady_state
     COMMAND memory_steady_state_tests
         ${PROJECT_SOURCE_DIR}/tests/golden/memory/steady_state.txt)
 
+# The baseline is resident bytes per node measured on an uninstrumented Release build. A sanitizer
+# build adds its own shadow memory and redzones to every allocation, so the number is a different
+# claim, not a regression; the sanitizer presets exclude the label (CMakePresets.json).
+set_tests_properties(memory_steady_state PROPERTIES LABELS uninstrumented_baseline)
+
 add_executable(diagnostics_trace_tests
     diagnostics_trace_tests.cpp)
 

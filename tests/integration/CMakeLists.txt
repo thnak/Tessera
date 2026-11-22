@@ -67,3 +67,8 @@ add_test(
     COMMAND generated_ui_memory_tests
         ${TESSERA_DEMO_FONT_FIXTURE}
         ${PROJECT_SOURCE_DIR}/tests/golden/memory/generated_ui.txt)
+
+# The baseline is resident bytes measured on an uninstrumented Release build. A sanitizer build adds
+# shadow memory and redzones to every allocation, so the number is a different claim, not a
+# regression; the sanitizer presets exclude the label (CMakePresets.json).
+set_tests_properties(generated_ui_memory PROPERTIES LABELS uninstrumented_baseline)

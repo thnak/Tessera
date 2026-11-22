@@ -305,8 +305,10 @@ void build_chrome(Node& root, bool custom) {
     const int title = 32;
     const int app_bar = custom ? 48 : 0;
     const int row_height = static_cast<int>(kHeight) - title - app_bar;
-    Node& row =
-        box(root, {{"flex-direction", "row"}, {"height", std::to_string(row_height) + "px"}});
+    // The node borrows the declaration text, so the height string has to outlive the call: a
+    // temporary here would leave the node holding a view into a destroyed std::string.
+    const std::string row_height_px = std::to_string(row_height) + "px";
+    Node& row = box(root, {{"flex-direction", "row"}, {"height", row_height_px}});
     build_sidebar(row);
     build_content(row, false);
 }

@@ -66,6 +66,11 @@ if (Python3_EXECUTABLE AND NOT APPLE)
             --check
             --sizes-only
             --build-dir "${CMAKE_BINARY_DIR}")
+    # The budget is recorded from a Release build, and the gate itself refuses to compare across
+    # configurations (sizeof and allocation counts differ). The sanitizer presets are RelWithDebInfo
+    # with instrumentation, so they exclude the label (CMakePresets.json) rather than re-record a
+    # budget that would then be wrong for the gating lanes.
+    set_tests_properties(memory_budget PROPERTIES LABELS uninstrumented_baseline)
 elseif (NOT APPLE)
     # A missing interpreter is reported, not silently skipped: a gate that does not run is worse
     # than a gate that fails.

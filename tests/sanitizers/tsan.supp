@@ -13,6 +13,16 @@
 #   * Only a third-party library may be listed, and only with a reason that names the library, the
 #     report it emits and why the report is not ours to fix.
 #
-# CURRENT STATE: empty. TSan has not been run against this tree yet (issue #702 lists it as still to
-# measure), so no suppression is known to be needed. If the first runs report third-party noise, the
-# entry goes here with its reason rather than in the workflow.
+# CURRENT STATE: one entry, for Mesa's lavapipe software Vulkan driver. It is the only third-party
+# report the full suite produces; everything else the lane found was Tessera's own code and was
+# fixed rather than suppressed.
+
+# Mesa lavapipe (libvulkan_lvp.so), the software Vulkan ICD the Linux lane renders with. Its
+# `llvmpipe` worker threads tear down a mutex while another worker still locks it, which TSan
+# reports as a data race between `pthread_mutex_destroy` and `pthread_mutex_lock`. Both racing
+# accesses are inside `libvulkan_lvp.so`; Tessera appears in the report only as the caller that
+# created the device and the threads. It is not ours to fix, and it is not a Tessera defect: the
+# same driver is used by every GPU test on this lane, so without the entry 62 of 724 tests fail on
+# driver-internal noise and the lane cannot report a real finding. Matched on the module name so a
+# race whose *Tessera* frames are involved is still reported.
+race:libvulkan_lvp.so

@@ -205,6 +205,11 @@
       "configurePreset": "asan",
       "output": {
         "outputOnFailure": true
+      },
+      "filter": {
+        "exclude": {
+          "label": "uninstrumented_baseline"
+        }
       }
     },
     {
@@ -212,6 +217,11 @@
       "configurePreset": "tsan",
       "output": {
         "outputOnFailure": true
+      },
+      "filter": {
+        "exclude": {
+          "label": "uninstrumented_baseline"
+        }
       }
     }
   ]

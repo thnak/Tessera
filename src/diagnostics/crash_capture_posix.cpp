@@ -224,6 +224,16 @@ int walk_stack(void** pointers) noexcept {
 int walk_stack(void** pointers) noexcept {
     return ::backtrace(pointers, static_cast<int>(kMaxBacktraceFrames));
 }
+
+// glibc's `backtrace` is not async-signal-safe on first use: it dlopens `libgcc_s` to unwind, and
+// that path allocates. Calling it from the handler would therefore malloc inside a signal, which
+// TSan reports as "signal-unsafe call inside of a signal" and which can deadlock for real if the
+// fault happened while the heap lock was held. One call at install time pays that cost while the
+// process is healthy, so the handler's own call finds everything already resolved.
+void warm_backtrace() noexcept {
+    void* pointers[kMaxBacktraceFrames] = {};
+    (void)::backtrace(pointers, static_cast<int>(kMaxBacktraceFrames));
+}
 #endif
 
 void capture_frames() noexcept {
@@ -297,6 +307,11 @@ CrashCaptureDetails install_crash_capture(const CrashCaptureConfig& config) {
     g_metadata.gpu.set(config.gpu);
     g_metadata.config_hash.set(config.config_hash);
     capture_modules(g_modules);
+
+#if !defined(__ANDROID__)
+    // Resolve the unwinder now, not in the handler; see warm_backtrace().
+    warm_backtrace();
+#endif
 
     // The alternate stack is what lets a stack-overflow fault produce a record at all.
     stack_t alt{};
