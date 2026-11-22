@@ -44,6 +44,26 @@ using StyleEntry = std::pair<std::string_view, std::string_view>;
 
 std::uint64_t g_next_id = 1;
 
+// Inline style declarations are borrowed, not copied: the node keeps a view into the text it was
+// given, and the style tree reads it back on every resolve. A literal is fine (it outlives the
+// node), but a computed value such as `std::to_string(height) + "px"` is not - a local dies at the
+// end of its scope and a temporary dies at the end of the full expression, while the node lives on
+// until the frame is captured. Anything computed therefore goes through this pool, which lives for
+// the whole program, and the node borrows from the pool.
+std::vector<std::string>& style_text_pool() {
+    static std::vector<std::string> pool;
+    return pool;
+}
+
+std::string_view intern_style_text(std::string text) {
+    std::vector<std::string>& pool = style_text_pool();
+    // Reserve up front: a reallocation would move every string already interned and invalidate the
+    // views the nodes hold, which is the same bug in a different place.
+    pool.reserve(pool.size() + 1);
+    pool.push_back(std::move(text));
+    return pool.back();
+}
+
 NodeId next_id() {
     return g_next_id++;
 }
@@ -305,9 +325,9 @@ void build_chrome(Node& root, bool custom) {
     const int title = 32;
     const int app_bar = custom ? 48 : 0;
     const int row_height = static_cast<int>(kHeight) - title - app_bar;
-    // The node borrows the declaration text, so the height string has to outlive the call: a
-    // temporary here would leave the node holding a view into a destroyed std::string.
-    const std::string row_height_px = std::to_string(row_height) + "px";
+    // The node borrows the declaration text, so the height string has to outlive the node: intern it
+    // rather than keeping a local, which would die with this frame.
+    const std::string_view row_height_px = intern_style_text(std::to_string(row_height) + "px");
     Node& row = box(root, {{"flex-direction", "row"}, {"height", row_height_px}});
     build_sidebar(row);
     build_content(row, false);

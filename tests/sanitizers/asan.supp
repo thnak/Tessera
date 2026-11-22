@@ -12,7 +12,14 @@
 #   * Only a third-party library may be listed, and only with a reason that names the library, the
 #     report it emits and why the report is not ours to fix.
 #
-# CURRENT STATE: empty. The measured baseline (issue #702) is 12 representative suites passing under
-# ASan+UBSan+LSan with GCC 15 and no suppressions at all, so nothing is known to need one. The full
-# ctest set and the lavapipe GPU suites have not been measured under ASan yet; if they turn up
-# third-party noise, the entry goes here with its reason rather than in the workflow.
+# CURRENT STATE: one entry, for Mesa's lavapipe software Vulkan driver. It is the only third-party
+# report the full suite produces; everything else the lane found was Tessera's own code and was
+# fixed rather than suppressed.
+
+# Mesa lavapipe (libvulkan_lvp.so), the software Vulkan ICD the Linux lane renders with. When a test
+# forces a device or texture-pool creation to fail, lavapipe leaks the partially built object: the
+# whole allocation stack is inside `libvulkan_lvp.so`, and the only Tessera frame is the call that
+# asked for the object. It is not ours to fix, and it is not a Tessera defect - the leak is the
+# driver's own error path, which the test triggers on purpose. Matched on the module name so a leak
+# with Tessera frames in it is still reported.
+leak:libvulkan_lvp.so
