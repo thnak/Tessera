@@ -23,8 +23,10 @@ namespace tessera::ui::text {
 void bidi_apply_visual_runs(std::string_view utf8, TextDirection paragraph_direction,
                             std::vector<TextLine>& lines);
 
-// Advance callback used to convert a run-local byte offset to pixels.
-using BidiAdvance = float (*)(std::string_view text, const TextStyle& style, void* user);
+// Advance callback used to convert a run-local byte offset to pixels. `user` is `const void*` for
+// the same reason as `TextAdvanceMeasure` (issue #733 item 4): every implementation only reads
+// through it, and the two seams share one callback.
+using BidiAdvance = float (*)(std::string_view text, const TextStyle& style, const void* user);
 
 // Visual x of a logical byte offset relative to the line start, for a line with visual runs.
 // Boundary affinity: at a logical run join the offset belongs to the run whose logical range ends
@@ -32,6 +34,6 @@ using BidiAdvance = float (*)(std::string_view text, const TextStyle& style, voi
 // run; line begin belongs to the first logical run. RTL runs map from their right edge.
 [[nodiscard]] float bidi_offset_x(std::string_view utf8, const TextLine& line,
                                   std::size_t logical_offset, const TextStyle& style,
-                                  BidiAdvance advance, void* user);
+                                  BidiAdvance advance, const void* user);
 
 } // namespace tessera::ui::text

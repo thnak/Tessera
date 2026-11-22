@@ -341,7 +341,8 @@ TextLayout wrap_with(std::string_view text, const TextStyle& style, const FontMe
 
 TextLayout layout_text_with_breaks(std::string_view text, const TextStyle& style,
                                    const FontMetrics& metrics, const TextConstraints& constraints,
-                                   BreakBackend backend, TextAdvanceMeasure measure, void* user) {
+                                   BreakBackend backend, TextAdvanceMeasure measure,
+                                   const void* user) {
     if (text.empty()) {
         return {};
     }

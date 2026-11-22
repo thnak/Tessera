@@ -13,7 +13,7 @@
 namespace tessera::ui::text {
 namespace {
 
-float stub_advance(std::string_view run, const TextStyle& style, void* user) {
+float stub_advance(std::string_view run, const TextStyle& style, const void* user) {
     const auto* metrics = static_cast<const FontMetrics*>(user);
     // The advance seam is literal: hit testing measures one cluster at a time, so a space cluster
     // must advance one space even when the line's mode collapses or trims separator runs. The wrap
@@ -31,7 +31,7 @@ float stub_advance(std::string_view run, const TextStyle& style, void* user) {
 // (paint passes its metrics source; hit testing defaults to the stub above), so the ASCII 1:1
 // transform is applied here before the callback.
 float measure_cluster(std::string_view run, const TextStyle& style, TextAdvanceMeasure measure,
-                      void* user) {
+                      const void* user) {
     if (style.text_transform == TextTransform::None) {
         return measure(run, style, user);
     }
@@ -46,7 +46,7 @@ struct Cursor {
 
 // Cluster boundaries of one line with their measured visual x relative to the line start.
 std::vector<Cursor> boundaries(std::string_view text, const TextLine& line, const TextStyle& style,
-                               TextAdvanceMeasure measure, void* user) {
+                               TextAdvanceMeasure measure, const void* user) {
     std::vector<Cursor> result;
     std::size_t offset = line.begin;
     float x = 0.0f;
@@ -103,10 +103,10 @@ TextHit nearest_rtl(const std::vector<Cursor>& cursors, float right_edge, float 
 
 TextHit hit_test_point(std::string_view text, const TextStyle& style,
                        const TextConstraints& constraints, float x, float y,
-                       const FontMetrics& metrics, TextAdvanceMeasure measure, void* user) {
+                       const FontMetrics& metrics, TextAdvanceMeasure measure, const void* user) {
     if (measure == nullptr) {
         measure = &stub_advance;
-        user = const_cast<FontMetrics*>(&metrics);
+        user = &metrics;
     }
     const TextLayout layout =
         layout_text_measured(text, style, metrics, constraints, measure, user);

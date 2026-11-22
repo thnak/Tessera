@@ -219,13 +219,15 @@ bool transform_idempotent() {
 // measured the original lowercase text would be measurably narrower than one that measured the
 // transformed bytes.
 struct RecordingMeasure {
-    std::vector<std::string> runs;
+    // `mutable` because the advance seam takes `const void*` (issue #733 item 4): the callback
+    // only records what it measured, which is not a change to the value being measured.
+    mutable std::vector<std::string> runs;
     float lowercase_advance = 8.0f;
     float uppercase_advance = 10.0f;
 };
 
-float recording_measure(std::string_view run, const TextStyle& style, void* user) {
-    auto* recorder = static_cast<RecordingMeasure*>(user);
+float recording_measure(std::string_view run, const TextStyle& style, const void* user) {
+    const auto* recorder = static_cast<const RecordingMeasure*>(user);
     recorder->runs.emplace_back(run);
     float width = 0.0f;
     for (const char c : run) {

@@ -23,7 +23,7 @@ namespace {
 
 // Advance callback for the text module's measurement seams (bidi offset mapping and the
 // `text-overflow: ellipsis` fit): both measure one painted run with this paint's metrics source.
-float run_advance(std::string_view text, const text::TextStyle& style, void* user) {
+float run_advance(std::string_view text, const text::TextStyle& style, const void* user) {
     return static_cast<const PaintTextMetricsSource*>(user)->advance(text, style);
 }
 
@@ -137,8 +137,7 @@ float line_offset_x(std::string_view text, const text::TextLine& line, std::size
         }
         return x;
     }
-    return text::bidi_offset_x(text, line, offset, style, &run_advance,
-                               const_cast<PaintTextMetricsSource*>(&source));
+    return text::bidi_offset_x(text, line, offset, style, &run_advance, &source);
 }
 
 void emit_line_runs(const text::TextLine& line, std::string_view text,
@@ -151,9 +150,9 @@ void emit_line_runs(const text::TextLine& line, std::string_view text,
     if (text_style.text_overflow == text::TextOverflow::Ellipsis && line.width > available_width) {
         // Paint-side only: the fit reuses the metrics seam and the section 6.2 views, so layout,
         // line boxes, baselines and the measure cache stay exactly what `clip` produces.
-        const text::PaintedEllipsis fit = text::fit_ellipsis_prefix(
-            text, line.begin, line.end, text_style.white_space, available_width, text_style,
-            &run_advance, const_cast<PaintTextMetricsSource*>(&source));
+        const text::PaintedEllipsis fit =
+            text::fit_ellipsis_prefix(text, line.begin, line.end, text_style.white_space,
+                                      available_width, text_style, &run_advance, &source);
         emit_ellipsized_line(line, text, fit, text_style, source, line_x, line_top, color, sink,
                              stats);
         return;

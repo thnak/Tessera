@@ -56,7 +56,7 @@ TextLayout layout(std::string_view text, float width = 1000.0f, bool wrap = true
                        constraints);
 }
 
-float advance(std::string_view text, const TextStyle& /*text_style*/, void* /*user*/) {
+float advance(std::string_view text, const TextStyle& /*text_style*/, const void* /*user*/) {
     // Literal advance seam: a run slice may end with a separator, which the collapsing modes would
     // trim if this went through the mode's line layout.
     TextStyle literal = style();

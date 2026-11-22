@@ -203,7 +203,7 @@ bool deterministic_layout() {
 }
 
 // The raw advance seam the measured path expects: literal, `word-spacing` excluded.
-float raw_measure(std::string_view text, const TextStyle& text_style, void* user) {
+float raw_measure(std::string_view text, const TextStyle& text_style, const void* user) {
     const auto& metrics = *static_cast<const FontMetrics*>(user);
     TextStyle literal = text_style;
     literal.white_space = WhiteSpace::Pre;

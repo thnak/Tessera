@@ -64,7 +64,7 @@ const FontMetrics kMetrics{12.8f, 3.2f, 3.2f};
 
 // Exactly the deterministic stub advance (font-size / 2 + letter spacing per code point), so every
 // expected cut is a number the layout also produced.
-float stub_measure(std::string_view text, const TextStyle& style, void* /*user*/) {
+float stub_measure(std::string_view text, const TextStyle& style, const void* /*user*/) {
     std::size_t count = 0;
     for (const char c : text) {
         if ((static_cast<unsigned char>(c) & 0xC0u) != 0x80u) {
