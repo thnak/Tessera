@@ -129,7 +129,8 @@ public:
     [[nodiscard]] const PaintOutsets& paint_outsets() const {
         return paint_outsets_;
     }
-
+    [[nodiscard]] rhi::Rect subtree_paint_bounds() const; // cached; see node_geometry.cpp
+    void invalidate_subtree_paint_bounds();
     // Glass (CSS `backdrop-filter`, docs/specs/glass-v1.md sections 2 and 7). The blur sigma in CSS
     // px is what paint::sync_scene_style resolved from the computed value, already clamped to the
     // configured `glassMaxBlurRadius`; 0 means the node has no non-`none` backdrop-filter. Damage
@@ -143,9 +144,7 @@ public:
     // Layout's text-fit fact (issue #490): true when layout proved this node's text payload stays
     // inside the content box paint uses. `apply_layout` rewrites it every pass, so it is false
     // until one proved it; paint re-checks the payload before trusting it.
-    void set_text_fits_box(bool fits) {
-        set_flag(kTextFitsBox, fits);
-    }
+    void set_text_fits_box(bool fits);
     [[nodiscard]] bool text_fits_box() const {
         return flag(kTextFitsBox);
     }
@@ -595,6 +594,10 @@ private:
     std::unique_ptr<BindingTable> event_bindings_;
     std::unique_ptr<ComponentMetadata> component_metadata_;
     rhi::Rect bounds_;
+    // Cached subtree paint box (issue #735, slice C); `mutable` because paint fills it lazily
+    // through a const reference. Width encodes the state: negative is "not computed", +infinity is
+    // "computed and unbounded", else the box - so no separate validity flag is needed.
+    mutable rhi::Rect subtree_paint_bounds_{0.0f, 0.0f, -1.0f, 0.0f};
     rhi::Mat3 transform_;
     int tab_index_ = 0;
     int z_index_ = 0;
@@ -637,13 +640,10 @@ private:
     Dirty subtree_dirty_ = Dirty::Clean;
 };
 
-// Memory budget of one scene node (docs/design/performance.md, memory budgets): a 10k-node screen
-// costs 10k times this plus Yoga and style storage. Raise it only with a recorded decision.
-// 320 -> 336 (issue #235): the component-parts record added one pointer. 336 -> 320 (issue #285):
-// the ten booleans now share one flags word (Release 312, MSVC Debug 320: its checked vector adds a
-// pointer, so Debug is exactly at the budget). 320 -> 312 (security review finding C4): grouping
-// the members by alignment removed 8 bytes of internal padding (Release 304, MSVC Debug 312).
-inline constexpr std::size_t kNodeSizeBudget = 312;
+// Memory budget of one scene node (docs/design/performance.md); raise it only with a recorded
+// decision. History: 336 -> 320 (#285 flags word), 320 -> 312 (C4 member reorder), 312 -> 328
+// (#735 slice C: the cached subtree paint box is one rhi::Rect with no padding left to reclaim).
+inline constexpr std::size_t kNodeSizeBudget = 328;
 static_assert(sizeof(Node) <= kNodeSizeBudget, "ui::Node grew past kNodeSizeBudget");
 
 bool dispatch_event(Node& root, Event& event);

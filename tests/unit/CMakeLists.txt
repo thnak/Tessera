@@ -2198,6 +2198,19 @@ target_link_libraries(paint_cull_text_fit_tests PRIVATE
 
 add_test(NAME paint_cull_text_fit COMMAND paint_cull_text_fit_tests)
 
+# Subtree cull (issue #735, slice C): `Node::subtree_paint_bounds` caches the union of a subtree's
+# painted boxes so the paint pass rejects a whole subtree at its root in O(1) instead of visiting
+# every node in it. The cache is invalidated by every mutation that moves a painted pixel (through
+# `mark_dirty`, plus the two writes that mark no dirty domain), an unbounded subtree is never culled,
+# and a culled pass emits exactly the ops the unculled pass emitted inside the rect. Pure CPU.
+add_executable(paint_subtree_cull_tests
+    paint_subtree_cull_tests.cpp)
+
+target_link_libraries(paint_subtree_cull_tests PRIVATE
+    tessera_paint)
+
+add_test(NAME paint_subtree_cull COMMAND paint_subtree_cull_tests)
+
 # Effective opacity (#227): the ancestor product multiplies each emitted primitive (box visuals and
 # text/vector/image content), an animated ancestor fade repaints the subtree, and the paint cache
 # never replays a record under a different inherited product.
