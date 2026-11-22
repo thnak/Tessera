@@ -79,3 +79,7 @@ desktop.ini
 
 # Python bytecode from the stdlib-only gate scripts
 __pycache__/
+
+# A scratch file for `git commit -F` when a message has characters PowerShell would mangle. It was
+# committed by accident in an earlier session; it is never part of a change.
+.commit-msg.txt

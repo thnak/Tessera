@@ -148,14 +148,30 @@ LoweredComponentResult lower_component(const HookLoweringContext& base_context) 
         return std::unexpected(single_error(*state.error));
     }
     const jsx::JsxNode& returned = *context.component.returned;
-    if (returned.kind != jsx::JsxKind::Element) {
+    // ADR-066 item 1: a `StrictMode`/`Profiler` root is a pass-through wrapper, so the component
+    // returns its single child instead. More than one child has no single root, which is the same
+    // rule a fragment root gets.
+    const jsx::JsxNode* root_element = &returned;
+    while (internal::is_passthrough_element(*root_element)) {
+        if (root_element->children.size() != 1 || !root_element->children.front() ||
+            root_element->children.front()->kind != jsx::JsxKind::Element) {
+            internal::fail_node(state, "TESSERA_IR_UNSUPPORTED",
+                                "a component must return exactly one element; `" +
+                                    root_element->tag +
+                                    "` is a pass-through wrapper, so it must hold one element",
+                                root_element->span, "wrap the children in one element");
+            return std::unexpected(single_error(*state.error));
+        }
+        root_element = root_element->children.front().get();
+    }
+    if (root_element->kind != jsx::JsxKind::Element) {
         internal::fail_node(state, "TESSERA_IR_UNSUPPORTED",
                             "a component must return exactly one element; a fragment is spliced "
                             "only as a child (jsx-subset-v1.md section 10.1)",
-                            returned.span, "wrap the children in one element");
+                            root_element->span, "wrap the children in one element");
         return std::unexpected(single_error(*state.error));
     }
-    std::optional<ir::Node> root = internal::make_node(state, returned);
+    std::optional<ir::Node> root = internal::make_node(state, *root_element);
     if (!root) {
         return std::unexpected(single_error(*state.error));
     }

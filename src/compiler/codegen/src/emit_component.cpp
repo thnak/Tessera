@@ -151,6 +151,17 @@ bool emit_source(const ir::Component& component, const ir::IrModule& module,
     if (takes_children && !has_slot) {
         writer.line("(void)slot; // the component declares `children` but places no Slot");
     }
+    // `useId` (ADR-066 item 1): the value is derived from the instance identity, which the owner
+    // sets before build() (`node_id_base_`), plus the call ordinal. Computing it here rather than
+    // in a constructor is what makes it stable across a re-render and distinct per instance: the
+    // base is fixed for the life of the instance, and the ordinal is the declaration order.
+    for (const ir::Environment& env : component.environment) {
+        if (env.provider != "id") {
+            continue;
+        }
+        writer.line(member_name(env.id) + " = \"t\" + std::to_string(node_id_base_) + \"-\" + \"" +
+                    env.name + "\";");
+    }
     if (has_props) {
         // The declared props of every owned instance are assigned before any child build() runs, so
         // the callee's build reads its prop members (docs/specs/component-model-v1.md section 3).

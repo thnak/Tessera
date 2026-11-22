@@ -179,14 +179,18 @@ inline const std::vector<Case> kCases = {
     fixture("TESSERA_JSX_SUBSET_DYNAMIC_TAG", "subset-dynamic-tag", Entry::kJsx, "<A.B/>", 1, 3),
     fixture("TESSERA_JSX_SUBSET_FUNCTION_VALUE", "subset-function-value", Entry::kExpression,
             "function", 0, 8),
-    fixture("TESSERA_JSX_SUBSET_IMPORT", "subset-import", Entry::kModule, "export default 1;", 7,
-            7),
+    // ADR-066 item 1 accepts `export default function Name`, so the fixture uses the anonymous
+    // form, which has no component name and stays rejected. The span is the `(` that follows
+    // `default`, because that is the token the parser refuses.
+    fixture("TESSERA_JSX_SUBSET_IMPORT", "subset-import", Entry::kModule, "export default () => 1;",
+            15, 1),
     fixture("TESSERA_JSX_SUBSET_LITERAL", "subset-literal", Entry::kExpression, "{[k]: 1}", 1, 1),
     fixture("TESSERA_JSX_SUBSET_LOOSE_EQUALITY", "subset-loose-equality", Entry::kExpression,
             "a == b", 2, 2),
     fixture("TESSERA_JSX_SUBSET_MEMBER", "subset-member", Entry::kExpression, "a[0]", 1, 1),
     fixture("TESSERA_JSX_SUBSET_MUTATION", "subset-mutation", Entry::kExpression, "a = 1", 2, 1),
-    fixture("TESSERA_JSX_SUBSET_OPERATOR", "subset-operator", Entry::kExpression, "a ?? b", 2, 2),
+    // ADR-066 item 1 accepts `??` and `?.`, so the fixture uses `**`, which stays rejected.
+    fixture("TESSERA_JSX_SUBSET_OPERATOR", "subset-operator", Entry::kExpression, "a ** b", 2, 2),
     fixture("TESSERA_JSX_SUBSET_SPREAD", "subset-spread", Entry::kModule,
             "function A(props: P) { return <B {...other}/>; }\n", 33, 10),
     fixture("TESSERA_JSX_SUBSET_STATEMENT", "subset-statement", Entry::kExpression, "if", 0, 2),

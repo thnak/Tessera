@@ -12,9 +12,9 @@ bool has_environment(const ir::Component& component) {
 
 std::string environment_cpp_type(const ir::Environment& env) {
     // A `media_query` provider returns a boolean (does the query match this window?), so its field
-    // is a `bool`; every other provider today returns a string (the size class, the theme id). A
-    // future numeric provider would add its mapping here, which is why the type is a function
-    // rather than a literal at the call site.
+    // is a `bool`; every other provider today returns a string (the size class, the theme id, the
+    // `useId` value). A future numeric provider would add its mapping here, which is why the type
+    // is a function rather than a literal at the call site.
     if (env.provider == "media_query") {
         return "bool";
     }
@@ -38,6 +38,13 @@ std::string environment_initial_value(const ir::Environment& env) {
         // malformed query gives: a component renders its non-matching layout for the first frame
         // rather than claiming a match it has not checked.
         return "false";
+    }
+    if (env.provider == "id") {
+        // `useId` (ADR-066 item 1): a stable id from the instance key and the call ordinal. The
+        // generated base computes it in its constructor, because the instance key is set before
+        // build() and the ordinal is the declaration order, so the value is fixed for the life of
+        // the instance and identical across a re-render.
+        return "{}";
     }
     return "std::string{}";
 }
@@ -71,6 +78,11 @@ void emit_environment_declarations(CppWriter& writer, const ir::Component& compo
                         "_context(const tessera::ui::style::MediaContext& context);");
             // The query is parsed once per component update, not per frame.
             writer.line("void parse_environment_" + env.name + "();");
+            continue;
+        }
+        if (env.provider == "id") {
+            // `useId` is not host-pushed: the value is derived from the instance identity, so it is
+            // computed once in the constructor and never set from outside.
             continue;
         }
         // The `EnvironmentConsumer::Fn` thunk: a plain function pointer plus the component, so the
@@ -122,6 +134,18 @@ bool emit_environment_definitions(CppWriter& writer, const ir::Component& compon
             writer.line("");
             continue;
         }
+        if (env.provider == "id") {
+            // `useId` (ADR-066 item 1): the value is derived from the instance identity, so it has
+            // no setter body. The declaration exists so the header's surface is uniform; nothing
+            // calls it, because the value never changes.
+            writer.open("void " + component.name + "::set_environment_" + env.name +
+                        "(std::string value)");
+            writer.line(
+                "(void)value; // `useId` is derived from the instance identity, not pushed");
+            writer.close("");
+            writer.line("");
+            continue;
+        }
         writer.open("void " + component.name + "::set_environment_" + env.name + "(" +
                     environment_cpp_type(env) + " value)");
         // Equality-gated like a state setter (ADR-041 decision 6): a host that pushes the same
@@ -154,9 +178,10 @@ bool emit_environment_definitions(CppWriter& writer, const ir::Component& compon
     }
     // One consumer per value, each with its own thunk so the provider and the field are fixed at
     // compile time (no map lookup, no string compare on the frame path). A media-query hook has no
-    // string push, so it registers no consumer: the host calls its context setter directly.
+    // string push, so it registers no consumer: the host calls its context setter directly. A
+    // `useId` value is derived from the instance identity, so it has no provider to join either.
     for (const ir::Environment& env : component.environment) {
-        if (env.provider == "media_query") {
+        if (env.provider == "media_query" || env.provider == "id") {
             continue;
         }
         writer.open("void " + component.name + "::set_environment_" + env.name +
@@ -169,7 +194,7 @@ bool emit_environment_definitions(CppWriter& writer, const ir::Component& compon
     writer.open("void " + component.name +
                 "::attach_environment(tessera::ui::responsive::EnvironmentSet& values)");
     for (const ir::Environment& env : component.environment) {
-        if (env.provider == "media_query") {
+        if (env.provider == "media_query" || env.provider == "id") {
             continue;
         }
         writer.line("values.attach(tessera::ui::responsive::EnvironmentConsumer{\"" + env.provider +
@@ -180,7 +205,7 @@ bool emit_environment_definitions(CppWriter& writer, const ir::Component& compon
     writer.open("void " + component.name +
                 "::detach_environment(tessera::ui::responsive::EnvironmentSet& values)");
     for (const ir::Environment& env : component.environment) {
-        if (env.provider == "media_query") {
+        if (env.provider == "media_query" || env.provider == "id") {
             continue;
         }
         writer.line("values.detach(tessera::ui::responsive::EnvironmentConsumer{\"" + env.provider +

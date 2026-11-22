@@ -134,6 +134,20 @@ ExprPtr make_record(std::string type, std::vector<RecordField> fields) {
     return expr;
 }
 
+ExprPtr make_optional_field(ExprPtr base, std::string field) {
+    auto expr = make_expr(ExprKind::OptionalField);
+    expr->id = std::move(field);
+    expr->operands.push_back(std::move(base));
+    return expr;
+}
+
+ExprPtr make_coalesce(ExprPtr value, ExprPtr fallback) {
+    auto expr = make_expr(ExprKind::Coalesce);
+    expr->operands.push_back(std::move(value));
+    expr->operands.push_back(std::move(fallback));
+    return expr;
+}
+
 TemplatePart text_part(std::string text) {
     return TemplatePart{std::move(text), nullptr};
 }

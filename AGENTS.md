@@ -638,8 +638,12 @@ Acceptance: a `useState`/`useEffect`/`useRef` screen regenerates without losing 
 - [ ] Custom hooks by inlining (ADR-065, waits for Acceptance): #645 expansion pass, #646
       diagnostics, #647 typings, member names and preview state carry, #648 documentation sweep.
 - [ ] React core additions (ADR-066, Proposed on purpose per owner direction 2026-11-22, so its
-      items are open): #651 cheap acceptances, #652 control flow in handlers, #653 list and string
-      expressions, #654 limited `useReducer` and static `useContext`.
+      items are open): #651 cheap acceptances **done** (arrow components, `export default function`,
+      `import React`, `memo`, `StrictMode`/`Profiler`, `useId`, `useLayoutEffect`, the safe
+      `useMemo`/`useCallback` forms, `??`/`?.` as the additive `coalesce`/`optionalField` IR kinds,
+      and the `id`/`aria-labelledby` schema pair `useId` needs; corpus 25→33 front end, 12→20
+      pipeline; evidence in ADR-066 "Step 1 evidence"), then #652 control flow in handlers,
+      #653 list and string expressions, #654 limited `useReducer` and static `useContext`.
 - [ ] Pending UI (ADR-067, waits for Acceptance): spec #655, front end and engine behaviors #656
       (preview support #657 belongs to V1-M4).
 

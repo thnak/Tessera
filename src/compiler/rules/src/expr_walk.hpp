@@ -51,11 +51,16 @@ inline bool is_hook_name(std::string_view name) {
     return name.size() > 3 && name.starts_with("use") && name[3] >= 'A' && name[3] <= 'Z';
 }
 
-// The hooks of docs/specs/jsx-subset-v1.md section 7. Library hooks need the hook manifest,
-// which does not exist yet (docs/design/jsx-ir-lowering.md section 2).
+// The hooks of docs/specs/jsx-subset-v1.md section 7. Library hooks need the hook manifest, which
+// does not exist yet (docs/design/jsx-ir-lowering.md section 2).
+//
+// `useId` and `useLayoutEffect` are core hooks since ADR-066 item 1: `useId` yields a stable id
+// from the instance key and the call ordinal, and `useLayoutEffect` is `useEffect` with the same
+// timing (there is no browser paint to order against). `useMemo` and `useCallback` are handled
+// separately, because only their safe forms are accepted (react-compat.md section 4.2).
 inline bool is_core_hook(std::string_view name) {
     return name == "useState" || name == "useEffect" || name == "useRef" ||
-           name == "useAnimatedValue";
+           name == "useAnimatedValue" || name == "useId" || name == "useLayoutEffect";
 }
 
 // True for a name that is a hook call: a core hook, or a hook the manifest declares. The expansion

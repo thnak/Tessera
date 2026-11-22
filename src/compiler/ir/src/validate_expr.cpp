@@ -225,6 +225,18 @@ void validate_expr(ValidationContext& context, const ComponentScope& scope,
         }
         validate_record_expr(context, *expr, nullptr, where);
         break;
+    case ExprKind::OptionalField:
+        // ADR-066 item 1: `a?.b`. One operand (the optional base) and a field name.
+        if (expr->id.empty()) {
+            context.report("TESSERA_IR_MALFORMED", "an optional field access needs a field name",
+                           where);
+        }
+        operands(1, "an optional field access");
+        break;
+    case ExprKind::Coalesce:
+        // ADR-066 item 1: `a ?? b`. Two operands: the optional value and the fallback.
+        operands(2, "a coalesce");
+        break;
     }
 }
 

@@ -131,6 +131,48 @@ std::expected<Value, EvalError> Evaluator::eval(const ir::Expr& expr, const Scop
     }
     case ir::ExprKind::Template:
         return eval_template(expr, scope, depth);
+    case ir::ExprKind::OptionalField: {
+        // ADR-066 item 1: `a?.b`. An absent base yields null, so the chain short-circuits; a
+        // present base yields the field. The base is a record value here, because the IR has no
+        // separate member-access expression (ir-v1-expr.md section 4.3).
+        if (!has_operands(expr, 1)) {
+            return malformed("an optional field access needs one operand");
+        }
+        auto base = eval(*expr.operands[0], scope, depth + 1);
+        if (!base) {
+            return base;
+        }
+        if (base->is_null()) {
+            return Value::null();
+        }
+        const Record* record = base->as_record();
+        if (record == nullptr) {
+            return fail("TESSERA_IR_EVAL_TYPE", "`?." + expr.id + "` reads a field of a " +
+                                                    std::string(type_name(*base)) +
+                                                    ", which is not a record");
+        }
+        const Value* member = record->find(expr.id);
+        if (member == nullptr) {
+            return fail("TESSERA_IR_EVAL_UNKNOWN_REF",
+                        "`" + expr.id + "` names no member of record `" + record->type + "`");
+        }
+        return *member;
+    }
+    case ir::ExprKind::Coalesce: {
+        // ADR-066 item 1: `a ?? b`. Only the chosen side runs, so the other cannot report a
+        // diagnostic or an error, exactly as for a conditional.
+        if (!has_operands(expr, 2)) {
+            return malformed("a coalesce needs two operands");
+        }
+        auto value = eval(*expr.operands[0], scope, depth + 1);
+        if (!value) {
+            return value;
+        }
+        if (!value->is_null()) {
+            return value;
+        }
+        return eval(*expr.operands[1], scope, depth + 1);
+    }
     case ir::ExprKind::Call:
         return eval_call(expr, scope, depth);
     case ir::ExprKind::Array: {

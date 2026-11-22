@@ -150,6 +150,15 @@ std::optional<ElementInfo> resolve_element(NodeState& state, const jsx::JsxNode&
                   element.span);
         return std::nullopt;
     }
+    // ADR-066 item 1: `StrictMode` and `Profiler` are pass-through wrappers. There is no
+    // development double-render and no profiler in this model, so the element contributes nothing
+    // of its own and its children are spliced where it stood, exactly as a fragment's are.
+    // `Passthrough` is how the child walker learns to splice rather than build a node.
+    if (element.tag == "StrictMode" || element.tag == "Profiler") {
+        ElementInfo info;
+        info.passthrough = true;
+        return info;
+    }
     // An imported component shadows an intrinsic of the same name in this file (issue #291), so the
     // library `Button` is reachable as `<Button>`; a file without the import keeps the intrinsic.
     for (const ComponentRef& reference : state.context.component_refs) {

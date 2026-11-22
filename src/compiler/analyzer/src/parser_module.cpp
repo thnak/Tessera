@@ -17,6 +17,13 @@ bool is_line_break(char c) {
     return c == '\n' || c == '\r';
 }
 
+// A component name starts uppercase (docs/specs/jsx-subset-v1.md section 6). Used to decide whether
+// a `const` is worth trying as an arrow component, so a lowercase helper never pays for the
+// attempt.
+bool is_component_name(std::string_view name) {
+    return !name.empty() && name[0] >= 'A' && name[0] <= 'Z';
+}
+
 // Absolute, drive-letter and UNC specifiers are malformed for every import form (spec section 4).
 bool is_absolute_source(const std::string& source) {
     return source.starts_with("/") || source.starts_with("\\") ||
@@ -95,9 +102,19 @@ bool Parser::parse_item(ModuleItem& item) {
         item.exported = true;
         advance(LexMode::Code);
         if (cur_.is_keyword("default")) {
-            fail("TESSERA_JSX_SUBSET_IMPORT", "`export default` is not supported", cur_.span,
-                 "use a named export");
-            return false;
+            // ADR-066 item 1: `export default function Name(...)` is accepted, because a page-level
+            // component is written that way in most React apps and the name is still declared. The
+            // default-ness is dropped: the subset has no default exports, so the component is
+            // reachable by its own name like any other. An anonymous default export stays rejected,
+            // since a component with no name has no id.
+            advance(LexMode::Code);
+            if (!cur_.is_keyword("function")) {
+                fail("TESSERA_JSX_SUBSET_IMPORT", "`export default` is not supported for this form",
+                     cur_.span, "use `export default function Name(...)` or a named export");
+                return false;
+            }
+            item.default_export = true;
+            return parse_component(item);
         }
         if (!cur_.is_keyword("function") && !cur_.is_keyword("const") && !cur_.is_keyword("type")) {
             fail_unexpected("`function`, `const` or `type` after `export`");
@@ -253,13 +270,46 @@ bool Parser::parse_import(ModuleItem& item) {
             advance(LexMode::Code);
             return expect_semicolon();
         }
+        // ADR-066 item 1: `import React from "react"` is accepted and ignored. The automatic JSX
+        // runtime means the binding is never read, so a port that keeps the import compiles; any
+        // other default import stays the rejection below. The binding is recorded as ignored so the
+        // lowering does not look for a value it will never find.
+        if (!item.type_only && item.source == "react" && binding == "React") {
+            item.ignored_react_import = true;
+            check_module_source(item, cur_.span);
+            advance(LexMode::Code);
+            return expect_semicolon();
+        }
         fail("TESSERA_JSX_SUBSET_IMPORT", "default and namespace imports are not supported",
              binding_span, "use named imports: `import { Name } from \"...\";`");
         return false;
     }
     if (at_punct("*")) {
+        // ADR-066 item 1: `import * as React from "react"` is the namespace spelling of the same
+        // unused import, so it is accepted and ignored too. Any other namespace import stays the
+        // rejection.
+        const Span star_span = cur_.span;
+        const Checkpoint saved = checkpoint();
+        advance(LexMode::Code); // past `*`
+        if (cur_.is_keyword("as")) {
+            advance(LexMode::Code);
+            if (cur_.kind == TokenKind::Identifier && cur_.text == "React") {
+                advance(LexMode::Code);
+                if (cur_.is_keyword("from")) {
+                    advance(LexMode::Code);
+                    if (cur_.kind == TokenKind::String && cur_.value == "react") {
+                        item.source = cur_.value;
+                        item.ignored_react_import = true;
+                        check_module_source(item, cur_.span);
+                        advance(LexMode::Code);
+                        return expect_semicolon();
+                    }
+                }
+            }
+        }
+        restore(std::move(saved));
         fail("TESSERA_JSX_SUBSET_IMPORT", "default and namespace imports are not supported",
-             cur_.span, "use named imports: `import { Name } from \"...\";`");
+             star_span, "use named imports: `import { Name } from \"...\";`");
         return false;
     }
     if (!at_punct("{")) {
@@ -341,8 +391,69 @@ bool Parser::parse_const_item(ModuleItem& item) {
     if (!expect_punct("=", LexMode::Code)) {
         return false;
     }
+    // ADR-066 item 1: `const Avatar = ({ initials }: Props) => { ... return <div/>; };` is an
+    // arrow-function component, the most common spelling in ported code. It is tried first and
+    // rewound when it is not one, because the two forms share the `const Name = (` prefix: a
+    // component needs a props annotation and a JSX return, and an ordinary arrow has neither.
+    // Only an uppercase name is a candidate, so `const format = (v: string) => v;` never pays for
+    // the attempt.
+    if (is_component_name(item.name) && (at_punct("(") || at_punct("{"))) {
+        const Checkpoint saved = checkpoint();
+        const std::string name = item.name;
+        const Span name_span = item.name_span;
+        const bool exported = item.exported;
+        if (parse_arrow_component(item)) {
+            return true;
+        }
+        // Not an arrow component: rewind every token, diagnostic and flag the attempt produced and
+        // parse the same text as an ordinary constant.
+        fatal_ = false;
+        restore(std::move(saved));
+        item = ModuleItem{};
+        item.kind = ItemKind::Const;
+        item.name = name;
+        item.name_span = name_span;
+        item.exported = exported;
+        if (!expect_punct("=", LexMode::Code)) {
+            return false;
+        }
+    }
     item.init = parse_expr();
     return item.init != nullptr && expect_semicolon();
+}
+
+// `({ initials, size = 32 }: Props) => { ... }` or `() => { ... }`, with the body of a component
+// (docs/specs/jsx-subset-v1.md section 6). cur_ is `(` or `{`.
+bool Parser::parse_arrow_component(ModuleItem& item) {
+    item.kind = ItemKind::Component;
+    if (!expect_punct("(", LexMode::Code)) {
+        return false;
+    }
+    if (!at_punct(")") && !parse_component_param(item)) {
+        return false;
+    }
+    if (!expect_punct(")", LexMode::Code) || !expect_punct("=>", LexMode::Code)) {
+        return false;
+    }
+    // An expression body (`=> <div/>`) is the same component with one returned element, so it is
+    // accepted too; a block body goes through the ordinary component rules.
+    if (at_punct("<")) {
+        item.returned = parse_jsx_element(LexMode::Code);
+        if (!item.returned) {
+            return false;
+        }
+        expect_semicolon();
+        return true;
+    }
+    if (!parse_component_body(item)) {
+        return false;
+    }
+    // `const Avatar = (...) => { ... };` ends with a `;` that a `function` declaration does not
+    // have. It is optional here so both spellings are accepted.
+    if (at_punct(";")) {
+        advance(LexMode::Code);
+    }
+    return true;
 }
 
 } // namespace tessera::compiler::jsx

@@ -52,9 +52,12 @@ bool valid_bind_id(const std::string& id) {
     return true;
 }
 
+// `useEffect` and `useLayoutEffect` (ADR-066 item 1: the latter has the same timing, so it takes
+// the same annotation).
 bool is_use_effect_call(const Expr& expr) {
     return expr.kind == ExprKind::Call && !expr.operands.empty() &&
-           expr.operands[0]->kind == ExprKind::Identifier && expr.operands[0]->text == "useEffect";
+           expr.operands[0]->kind == ExprKind::Identifier &&
+           (expr.operands[0]->text == "useEffect" || expr.operands[0]->text == "useLayoutEffect");
 }
 
 // A handler declaration (`const f = <arrow>;`) or a `useEffect(...)` statement.

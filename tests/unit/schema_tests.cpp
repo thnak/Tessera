@@ -71,7 +71,9 @@ void test_schema_version_and_counts() {
     check(schema::dom_types().size() == 14, "14 DOM types (html-aliases.md section 4)");
     check(schema::style_properties().size() == 127, "127 style longhands");
     check(schema::role_tokens().size() == 23, "23 role tokens (common-and-events.md 1.1)");
-    check(schema::common_props().size() == 23, "23 common attributes");
+    // 26 since ADR-066 item 1 added `aria-labelledby`, `aria-describedby` and `aria-controls`, the
+    // id-reference attributes `useId` exists to fill.
+    check(schema::common_props().size() == 26, "26 common attributes");
 }
 
 void test_element_rows() {

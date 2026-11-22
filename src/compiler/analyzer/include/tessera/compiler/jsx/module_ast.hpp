@@ -97,6 +97,10 @@ struct ModuleItem {
     // False after any error inside the item; an invalid component produces no IR (spec 14).
     bool valid = true;
     bool exported = false;
+    // `export default function Name(...)` (ADR-066 item 1): the component is declared under its own
+    // name, so the default-ness changes nothing downstream. Recorded so a later pass can report a
+    // second default export if it ever matters.
+    bool default_export = false;
 
     // Import: source and names; side_effect for `import "./x.css";`. A re-export (`ItemKind::
     // ReExport`) uses `names` the same way, with `source` empty for `export type { A };`.
@@ -110,6 +114,10 @@ struct ModuleItem {
     // `import type { ... }` / `export type { ... }`: the binding introduces types only, so it adds
     // no runtime import edge (docs/specs/jsx-subset-v1.md section 4).
     bool type_only = false;
+    // `import React from "react"` / `import * as React from "react"` (ADR-066 item 1): accepted and
+    // ignored, because the automatic JSX runtime means the binding is never read. Recorded so the
+    // lowering skips the item instead of resolving a value that does not exist.
+    bool ignored_react_import = false;
 
     // TypeAlias, Const, Component.
     std::string name;

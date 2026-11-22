@@ -17,6 +17,14 @@
 
 namespace tessera::compiler::lowering::internal {
 
+// ADR-066 item 1: a pass-through wrapper (`StrictMode`, `Profiler`) has no node of its own, so its
+// children are spliced where it stood. The tag test is the same one `resolve_element` uses; keeping
+// it here as well means the child walker does not have to resolve an element just to decide.
+bool is_passthrough_element(const jsx::JsxNode& element) {
+    return element.kind == jsx::JsxKind::Element &&
+           (element.tag == "StrictMode" || element.tag == "Profiler");
+}
+
 bool is_run_item(const ChildItem& item) {
     return item.kind == ChildItem::Kind::Text || item.kind == ChildItem::Kind::Expression;
 }
@@ -118,6 +126,14 @@ bool flatten_children(NodeState& state, const jsx::JsxNode& parent, std::vector<
             break;
         }
         case jsx::JsxKind::Element:
+            // ADR-066 item 1: `StrictMode`/`Profiler` contribute no node, so their children are
+            // spliced where the element stood, exactly as a fragment's are.
+            if (is_passthrough_element(*child)) {
+                if (!flatten_children(state, *child, items, reject_fragments)) {
+                    return false;
+                }
+                break;
+            }
             items.push_back(ChildItem{ChildItem::Kind::Element, child.get(), nullptr});
             break;
         }

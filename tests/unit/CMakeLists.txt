@@ -35,6 +35,16 @@ target_link_libraries(jsx_module_tests PRIVATE tessera_jsx_frontend)
 
 add_test(NAME jsx_module COMMAND jsx_module_tests)
 
+# ADR-066 item 1: the React spellings a port uses (arrow components, `import React`, `useId`, the
+# safe `useMemo`/`useCallback` forms, `??`/`?.`). Split from jsx_module_tests when that file reached
+# the 500-line hard limit.
+add_executable(jsx_react_core_tests
+    jsx_react_core_tests.cpp)
+
+target_link_libraries(jsx_react_core_tests PRIVATE tessera_jsx_frontend)
+
+add_test(NAME jsx_react_core COMMAND jsx_react_core_tests)
+
 find_package(Threads REQUIRED)
 
 add_executable(jsx_concurrent_tests

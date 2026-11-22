@@ -235,8 +235,53 @@ because the code is generic and the tool cannot split it. A corpus of permissive
 third-party components, kept out of the repository and recorded only as measurements, is the next
 step if the frequency table is to drive the order rather than confirm it.
 
-## Follow-up
+### Step 1 evidence (recorded 2026-11-22, issue #651)
 
+Item 1 landed. The corpus golden moved from **25 of 50 accepted (50.0%)** at the front end and
+**12 of 50 (24.0%)** through the pipeline to **33 of 50 (66.0%)** and **20 of 50 (40.0%)**. Eight
+files changed state, and each one is a row of item 1:
+
+| Fixture | Before | After |
+|---|---|---|
+| `components/arrow-component.tsx` | `PARSE_UNEXPECTED_TOKEN` | accepted, pipeline ok |
+| `components/export-default.tsx` | `SUBSET_IMPORT` | accepted, pipeline ok |
+| `components/react-default-import.tsx` | `SUBSET_IMPORT` | accepted, pipeline ok |
+| `components/react-namespace-import.tsx` | `SUBSET_IMPORT` | accepted, pipeline ok |
+| `components/strict-mode.tsx` | accepted, `IR_UNSUPPORTED` | accepted, pipeline ok |
+| `expressions/nullish-coalescing.tsx` | `SUBSET_OPERATOR` | accepted, pipeline ok |
+| `hooks/use-callback.tsx` | `REACT_UNSUPPORTED_API` | accepted, pipeline ok |
+| `hooks/use-id.tsx` | `REACT_UNKNOWN_HOOK` | accepted, pipeline ok |
+| `hooks/use-layout-effect.tsx` | `REACT_UNKNOWN_HOOK` | accepted, pipeline ok |
+
+**What the ADR got wrong, and what the landing corrected.**
+
+1. **`??` and `?.` are not "IR expressions with a type rule" — they are two new expression kinds.**
+   The ADR assumed they could lower to an existing form. They cannot: the IR has no null literal, so
+   there is nothing to compare an `optional<T>` against, and a `conditional` needs a `bool` test.
+   `coalesce` and `optionalField` are additive kinds (a module that writes neither is byte-identical,
+   so `irVersion` stays 1), and the evaluator and codegen implement the same short-circuit.
+2. **`useId` is an `environment` value, not a new hook kind.** The ADR described it as "a stable id
+   from the instance key and the call ordinal" without saying where it lives. It fits the existing
+   `environment[]` shape with a new `id` provider, which is what let it land without a second
+   mechanism: the generated base derives the value in `build()` from `node_id_base_` and the
+   declaration order, and it registers no host consumer because nothing pushes it.
+3. **`useId` was unreachable without a schema change.** The hook's whole purpose is an
+   `id`/`aria-labelledby` pair, and `id` was a literal-only selector target while `aria-labelledby`
+   did not exist at all. Both had to change for the hook to be usable, which the ADR did not
+   anticipate: a hook can be accepted and still be pointless if the attributes it feeds are missing.
+4. **`useMemo`/`useCallback` desugar in the parser, not the rules.** The ADR left the mechanism open.
+   Desugaring where the wrapped expression is still a parse tree means every later pass sees the
+   ordinary form it already handles, so there is no second path to keep in step; a form outside the
+   safe shapes is left alone so the rules report it with the message that names the accepted spelling.
+5. **`StrictMode`/`Profiler` are spliced, not built.** "Pass-through" needed a concrete meaning: they
+   contribute no node, so their children are spliced where the element stood, exactly as a fragment's
+   are. A wrapper as the returned root resolves to its single child.
+
+**Still open from item 1.** `autoFocus` on an input stays `HTML_ATTR` (the prop exists on `View`, not
+on the input elements), which the spike already recorded. `use-memo.tsx` still fails on
+`TESSERA_JSX_SUBSET_ARRAY_METHOD` because its body uses `.filter`, which is item 3.
+
+## Follow-up
 - Update `jsx-subset-v1.md` sections 6, 7, 9, 10 and 12, `ir-v1.md` section 2.1 and `ir-v1-expr.md`
   section 4 in the implementing PRs (the subset spec is near its size limit: edit in place).
 - One issue per step of item 6, labeled for the farm. They are `ready` while this ADR is Proposed on

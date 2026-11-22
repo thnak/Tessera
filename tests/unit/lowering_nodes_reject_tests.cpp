@@ -50,7 +50,9 @@ void test_unknown_props_and_events() {
     check(!boundary_size_result.has_value(), "an ErrorBoundary has no box to observe");
     check_eq(first_code(boundary_size_result), "TESSERA_IR_UNKNOWN_PROP", "the boundary code");
 
-    const auto aria = parse(component("", "<View aria-labelledby=\"x\" />"));
+    // `aria-labelledby`, `aria-describedby` and `aria-controls` are real props since ADR-066 item 1
+    // (they are what `useId` pairs with), so the unknown case uses a name the schema does not have.
+    const auto aria = parse(component("", "<View aria-nonsense=\"x\" />"));
     const auto aria_result = lower(*aria);
     check(!aria_result.has_value(), "an unknown aria-* name is rejected");
     check_eq(first_code(aria_result), "TESSERA_IR_UNKNOWN_PROP", "the code");

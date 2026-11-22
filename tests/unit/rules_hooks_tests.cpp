@@ -140,13 +140,18 @@ void test_unknown_hooks_are_rejected() {
     const auto top = analyze(component("  const t = useNothing();\n"));
     check_eq(describe_all(*top),
              "TESSERA_REACT_UNKNOWN_HOOK | 2:13 | useNothing | unknown hook `useNothing`: only "
-             "useState, useEffect, useRef and useAnimatedValue are available\n",
+             "useState, useEffect, useRef, useAnimatedValue, useId and useLayoutEffect are "
+             "available\n",
              "an unknown hook at the top level");
     const auto nested = analyze(component("", "<View a={useNothing()}/>"));
     check_eq(describe_all(*nested),
              "TESSERA_REACT_UNKNOWN_HOOK | 2:19 | useNothing | unknown hook `useNothing`: only "
-             "useState, useEffect, useRef and useAnimatedValue are available\n",
+             "useState, useEffect, useRef, useAnimatedValue, useId and useLayoutEffect are "
+             "available\n",
              "an unknown hook nested in JSX is unknown first, misplaced second");
+    // ADR-066 item 1: only the safe forms of `useMemo`/`useCallback` are accepted, and the parser
+    // desugars those before the rules see them. A call that is not the safe form reaches the rules
+    // as a call and keeps the unsupported-API diagnostic.
     const auto memo = analyze(component("  const m = useMemo(1);\n"));
     check_eq(describe_all(*memo),
              "TESSERA_REACT_UNSUPPORTED_API | 2:13 | useMemo | `useMemo` is not supported in "
@@ -158,6 +163,41 @@ void test_unknown_hooks_are_rejected() {
                   other->analyzed.diagnostics[0].code == "TESSERA_REACT_UNSUPPORTED_API",
               std::string(name) + " is unsupported");
     }
+}
+
+// ADR-066 item 1: `useId` and `useLayoutEffect` are core hooks now, so they are neither unknown nor
+// unsupported, and they fill the symbol table like any other hook.
+void test_react_core_hooks_are_accepted() {
+    const auto id = analyze(component("  const id = useId();\n", "<View id={id}/>"));
+    check_eq(describe_all(*id), "", "`useId` is accepted");
+    const auto& id_analysis = only_component(*id);
+    check(id_analysis.ok, "the component with `useId` is ok");
+    check(id_analysis.find("id") != nullptr, "`useId` binds a symbol");
+    check(id_analysis.environment.size() == 1, "`useId` is recorded as an environment value");
+    if (!id_analysis.environment.empty()) {
+        check_eq(id_analysis.environment[0].provider, "id", "the provider is `id`");
+        check_eq(id_analysis.environment[0].type, "string", "the value is a string");
+    }
+
+    const auto layout = analyze(component("  // Note: bind::sync\n"
+                                          "  useLayoutEffect(() => { log(1); }, []);\n"));
+    check_eq(describe_all(*layout), "", "`useLayoutEffect` is accepted");
+    const auto& layout_analysis = only_component(*layout);
+    check(layout_analysis.effects.size() == 1,
+          "`useLayoutEffect` is recorded as an effect, with `useEffect` timing");
+    if (!layout_analysis.effects.empty()) {
+        check_eq(layout_analysis.effects[0].bind_id, "sync", "the effect keeps its bind id");
+    }
+
+    // The form rules are `useEffect`'s, so a missing dependency list is still an error.
+    const auto no_deps = analyze(component("  useLayoutEffect(() => { log(1); });\n"));
+    check(!only_component(*no_deps).ok, "`useLayoutEffect` without a dependency list is rejected");
+    // `useId` takes no arguments and binds one name.
+    const auto with_arg = analyze(component("  const id = useId(\"x\");\n"));
+    check_eq(describe_all(*with_arg),
+             "TESSERA_REACT_HOOK_FORM | 2:3 | const id = useId(\"x\"); | `useId` is not written in "
+             "its accepted form\n",
+             "`useId` takes no arguments");
 }
 
 void test_malformed_hook_forms_are_rejected() {
@@ -252,6 +292,7 @@ int main() {
     test_hook_in_jsx_or_arguments_is_rejected();
     test_use_before_declaration_is_rejected();
     test_unknown_hooks_are_rejected();
+    test_react_core_hooks_are_accepted();
     test_malformed_hook_forms_are_rejected();
     test_an_error_flags_only_its_component();
     test_parser_invalid_items_are_skipped();

@@ -122,6 +122,20 @@ ir::ExprPtr lower_binary(LoweringState& state, const jsx::Expr& expr) {
     if (!check_operands(state, expr, 2, "a binary expression")) {
         return nullptr;
     }
+    // ADR-066 item 1: `a ?? b` over an `optional<T>` is its own IR kind, not a binary operator,
+    // because the IR has no null literal to compare against. The type rule (the left side must be
+    // an optional) is the validator's job; the lowering only has to produce the node.
+    if (expr.text == "??") {
+        ir::ExprPtr value = lower_expr(state, *expr.operands[0]);
+        if (!value) {
+            return nullptr;
+        }
+        ir::ExprPtr fallback = lower_expr(state, *expr.operands[1]);
+        if (!fallback) {
+            return nullptr;
+        }
+        return ir::make_coalesce(std::move(value), std::move(fallback));
+    }
     std::string op;
     if (!map_binary_op(expr.text, op)) {
         const std::string suggestion = expr.text == "==" || expr.text == "!="
@@ -154,6 +168,19 @@ ir::ExprPtr lower_expr(LoweringState& state, const jsx::Expr& expr) {
     case jsx::ExprKind::Identifier:
     case jsx::ExprKind::Member:
         return lower_reference(state, expr);
+    case jsx::ExprKind::OptionalMember: {
+        // ADR-066 item 1: `a?.b` over an `optional<T>`. The base is lowered like any expression and
+        // the field is kept by name; the validator checks that the base is an optional.
+        if (expr.operands.size() != 1 || !expr.operands[0]) {
+            fail(state, kMalformed, "an optional field access needs one operand", expr.span);
+            return nullptr;
+        }
+        ir::ExprPtr base = lower_expr(state, *expr.operands[0]);
+        if (!base) {
+            return nullptr;
+        }
+        return ir::make_optional_field(std::move(base), expr.text);
+    }
     case jsx::ExprKind::Unary:
         return lower_unary(state, expr);
     case jsx::ExprKind::Binary:

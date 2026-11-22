@@ -903,9 +903,9 @@
         "Spacer",
         "ErrorBoundary"
       ],
-      "note": "selector target only; not a label target and not an automation id",
+      "note": "selector target and label target; an expression since ADR-066 item 1, so `id={useId()}` and `aria-labelledby={id}` can pair a label with its field",
       "type": "string",
-      "value": "literal"
+      "value": "expr"
     },
     {
       "lowersTo": "props.role",
@@ -937,6 +937,39 @@
         "ErrorBoundary"
       ],
       "note": "accessible name; overrides a derived name",
+      "type": "string",
+      "value": "expr"
+    },
+    {
+      "lowersTo": "props.aria-labelledby",
+      "name": "aria-labelledby",
+      "notOn": [
+        "Spacer",
+        "ErrorBoundary"
+      ],
+      "note": "the `id` of the node that names this one; the usual partner of `useId` (ADR-066 item 1)",
+      "type": "string",
+      "value": "expr"
+    },
+    {
+      "lowersTo": "props.aria-describedby",
+      "name": "aria-describedby",
+      "notOn": [
+        "Spacer",
+        "ErrorBoundary"
+      ],
+      "note": "the `id` of the node that describes this one",
+      "type": "string",
+      "value": "expr"
+    },
+    {
+      "lowersTo": "props.aria-controls",
+      "name": "aria-controls",
+      "notOn": [
+        "Spacer",
+        "ErrorBoundary"
+      ],
+      "note": "the `id` of the node this one controls",
       "type": "string",
       "value": "expr"
     },
