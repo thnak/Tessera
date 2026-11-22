@@ -785,6 +785,20 @@ if (TARGET tessera_app_window)
     set_tests_properties(app_window_multi PROPERTIES
         SKIP_REGULAR_EXPRESSION "skipped")
 
+    # Issue #180: two windows driven by ONE loop. `WindowDevice::pump_windows_once()` gives every
+    # registered window one bounded iteration, so the acceptance's "independent lifecycle, damage and
+    # pacing" is asserted on the real GPU: both windows present in the same group tick, a change in
+    # one paints only that one, and a settled window presents nothing. A lane with no presentation
+    # surface prints `skipped`, which the property below turns into a skip rather than a pass.
+    add_executable(app_window_multi_loop_tests
+        app_window_multi_loop_tests.cpp)
+    target_compile_definitions(app_window_multi_loop_tests PRIVATE
+        TESSERA_TEST_FONT="${PROJECT_SOURCE_DIR}/tests/fixtures/fonts/NotoSans-Regular.ttf")
+    target_link_libraries(app_window_multi_loop_tests PRIVATE tessera_app_window)
+    add_test(NAME app_window_multi_loop COMMAND app_window_multi_loop_tests)
+    set_tests_properties(app_window_multi_loop PROPERTIES
+        SKIP_REGULAR_EXPRESSION "skipped")
+
     # Multi-frame sync: two frames in flight paced by one timeline semaphore on the swapchain path,
     # driven through the single-iteration seam, with the backend's validation counter proving the
     # run (including teardown) is validation-clean.

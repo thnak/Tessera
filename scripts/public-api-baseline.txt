@@ -66,6 +66,7 @@ function include/tessera/app/window.hpp tessera::app::capture_frame
 
 header include/tessera/app/window_device.hpp
 class include/tessera/app/window_device.hpp tessera::app::WindowDevice
+class include/tessera/app/window_device.hpp tessera::app::WindowHost
 class include/tessera/app/window_device.hpp tessera::app::detail::TextStack
 struct include/tessera/app/window_device.hpp tessera::app::WindowDeviceOptions
 struct include/tessera/app/window_device.hpp tessera::app::WindowOptions
@@ -400,6 +401,12 @@ struct include/tessera/appfw/task_scope.hpp tessera::appfw::TaskScopeConfig
 struct include/tessera/appfw/task_scope.hpp tessera::appfw::detail::TaskScopeState
 enum include/tessera/appfw/task_scope.hpp tessera::appfw::TaskScopeCloseState
 function include/tessera/appfw/task_scope.hpp tessera::appfw::detail::drive_child
+
+header include/tessera/appfw/window_registry.hpp
+class include/tessera/appfw/window_registry.hpp tessera::appfw::WindowRegistry
+struct include/tessera/appfw/window_registry.hpp tessera::appfw::WindowId
+function include/tessera/appfw/window_registry.hpp tessera::appfw::aggregate_window_lifecycle
+constant include/tessera/appfw/window_registry.hpp tessera::appfw::kMaxWindowsPerApplication
 
 header include/tessera/automation/app_config.hpp
 struct include/tessera/automation/app_config.hpp tessera::automation::AppConfigError

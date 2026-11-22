@@ -18,8 +18,15 @@
 //   forwards
 //     focus/minimize/occlusion without appfw naming the window driver.
 //
+// Multi-window (issue #180) is the window set: `attach_window()` registers a window and returns its
+// `WindowId`, the `WindowId` overloads of `dispatch()`/`apply_window_snapshot()` fold one window's
+// events, and the state is derived from the aggregate over all of them (ADR-050 section 2 derives
+// every state from a phrase about the whole set). The no-`WindowId` overloads address
+// `kPrimaryWindow`, which is the window the `<App>` subtree describes, so a single-window app is
+// unchanged. See `window_registry.hpp` for the aggregation rule.
+//
 // Out of scope for AF3 and owned by later slices: startup phases P1-P5 and launch modes (AF5), the
-// per-window child scope and multi-window (the AF6 prerequisite), and `TaskScope`/timers (AF2).
+// per-window child service scope, and `TaskScope`/timers (AF2).
 //
 // Threading and blocking: every method runs on the UI thread. Nothing waits, sleeps, joins or
 // detaches. A transition is one bounded loop over at most `max_services` observers, and termination
@@ -31,10 +38,12 @@
 #include "tessera/appfw/lifecycle.hpp"
 #include "tessera/appfw/service.hpp"
 #include "tessera/appfw/service_runner.hpp"
+#include "tessera/appfw/window_registry.hpp"
 
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <span>
 #include <string_view>
 
@@ -83,6 +92,9 @@ struct ApplicationConfig {
     // more services than the table holds. Matches AF1's `ServiceRunnerConfig::max_services`
     // default.
     std::size_t max_services = 32;
+    // Bound on the window set (issue #180), so `attach_window` never allocates. Matches
+    // `kMaxWindowsPerApplication`, which is also the renderer frame ring's window bound.
+    std::size_t max_windows = kMaxWindowsPerApplication;
 };
 
 // The outcome of `request_termination()`.
@@ -124,6 +136,26 @@ public:
     // refused. The observer must outlive the application.
     bool attach_observer(ServiceId id, AppLifecycleObserver& observer);
 
+    // --- the window set (issue #180) -------------------------------------------------------------
+    // Registers a window and returns its id, or nullopt when the set is full. The primary window is
+    // registered by the constructor, so a single-window app never calls this. A window is detached
+    // when it is destroyed; ids are never reused.
+    std::optional<WindowId> attach_window(WindowLifecycle initial = {});
+    // Removes a window from the set. False when the id is unknown. Detaching the last open window
+    // does not by itself request termination: the platform reports the close, and `dispatch` owns
+    // that rule.
+    bool detach_window(WindowId id);
+
+    // The window set, for a caller that walks it (a host that owns several windows).
+    [[nodiscard]] const WindowRegistry& windows() const noexcept {
+        return windows_;
+    }
+    // The aggregate over every registered window: what `derive_app_state` consumes. This is the
+    // multi-window form of `window()`.
+    [[nodiscard]] WindowLifecycle aggregate_window() const noexcept {
+        return windows_.aggregate();
+    }
+
     // --- startup and the state machine -----------------------------------------------------------
     // Begins the runner's start sequence and stays in `Launching`. False when the runner is not
     // prepared or is no longer idle. The app leaves `Launching` on the first `tick()` that observes
@@ -144,7 +176,12 @@ public:
     // (when the state moved) dispatches `on_app_state` in start order. `Close` becomes a
     // termination request when `quitOnLastWindowClosed` is set, `ShutdownRequest` always does,
     // `Suspend`/`Resume` set and clear the suspension flag.
+    //
+    // The no-`WindowId` overload addresses `kPrimaryWindow` (the `<App>` subtree's window), which
+    // is what every pre-#180 caller means. The `WindowId` overload folds the event into that one
+    // window and derives the state from the aggregate over all of them.
     LifecycleDispatchResult dispatch(const LifecycleEvent& event);
+    LifecycleDispatchResult dispatch(WindowId id, const LifecycleEvent& event);
 
     // The termination gate. See `TerminationOutcome`.
     TerminationOutcome request_termination();
@@ -152,12 +189,20 @@ public:
     // --- the layer-0 seam ------------------------------------------------------------------------
     // Adapts an `app::LifecycleSink` onto `dispatch`, forwarding each forwarded window event in
     // poll order. The sink borrows this application and must be destroyed before it.
+    //
+    // The `WindowId` overload is the multi-window form: one sink per window, so a driver that owns
+    // several windows forwards each one's events into its own slot of the set. A single-window app
+    // installs the no-argument sink, which addresses `kPrimaryWindow`.
     [[nodiscard]] std::unique_ptr<app::LifecycleSink> make_lifecycle_sink();
+    [[nodiscard]] std::unique_ptr<app::LifecycleSink> make_lifecycle_sink(WindowId id);
 
     // Applies the window state a platform reports through the metrics snapshot instead of an event
-    // (`WindowHost::apply_metrics` and the deterministic test seams). The flags become the
-    // aggregate and the derived state is dispatched when it moved.
+    // (`WindowHost::apply_metrics` and the deterministic test seams). The flags become that
+    // window's aggregate and the derived state is dispatched when it moved. The no-`WindowId`
+    // overload addresses `kPrimaryWindow`.
     LifecycleDispatchResult apply_window_snapshot(bool focused, bool occluded, bool minimized);
+    LifecycleDispatchResult apply_window_snapshot(WindowId id, bool focused, bool occluded,
+                                                  bool minimized);
 
     // --- observation -----------------------------------------------------------------------------
     [[nodiscard]] AppState state() const noexcept {
@@ -172,8 +217,13 @@ public:
     [[nodiscard]] bool launched() const noexcept {
         return launched_;
     }
+    // The primary window's aggregate (`kPrimaryWindow`). A multi-window caller reads
+    // `aggregate_window()` instead; this stays because it is what a single-window caller and every
+    // pre-#180 test mean by "the window". A detached primary window reads as the default aggregate
+    // rather than dangling.
     [[nodiscard]] const WindowLifecycle& window() const noexcept {
-        return window_;
+        const WindowLifecycle* primary = windows_.find(kPrimaryWindow);
+        return primary != nullptr ? *primary : detached_window_;
     }
     [[nodiscard]] const ApplicationConfig& config() const noexcept {
         return config_;
@@ -202,10 +252,20 @@ private:
     LifecycleDispatchResult synthesize(LifecycleSignal signal);
     void notify_observers(AppState state, std::size_t& delivered) noexcept;
     [[nodiscard]] AppLifecycleObserver* observer_for(ServiceId id) const noexcept;
+    // The state the aggregate derives right now. One call site for the rule, so the one-window and
+    // N-window paths cannot drift.
+    [[nodiscard]] AppState derived_state() const noexcept {
+        return derive_app_state(windows_.aggregate(), suspended_);
+    }
 
     ServiceRunner* runner_ = nullptr;
     ApplicationConfig config_;
-    WindowLifecycle window_{};
+    // The app's window set (issue #180). The primary window is registered by the constructor, so a
+    // single-window app's aggregate is exactly the one `WindowLifecycle` AF3 had.
+    WindowRegistry windows_;
+    // What `window()` reads when the primary window has been detached: a default aggregate rather
+    // than a dangling reference. Never written.
+    WindowLifecycle detached_window_{};
     AppState state_ = AppState::Launching;
     bool suspended_ = false;
     bool launched_ = false;

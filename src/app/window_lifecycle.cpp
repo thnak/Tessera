@@ -350,7 +350,22 @@ void WindowHost::Impl::set_caret_active(bool active) {
 // One bounded iteration: pump events and input, honour the pause, tick the loop and produce at most
 // one frame. Deliberately no parking, retry or device-loss servicing - run() owns those, and a
 // caller of this seam decides when the next iteration happens.
-bool WindowHost::Impl::pump_once() {
+//
+// `advance_pacer` is the multi-window half (issue #180). The pacer is app-scoped: one app presents
+// at one rate (docs/design/multi-window.md section 5). That makes it a gate on *ticks*, not on
+// windows - so a group walk that drove N windows must advance it once, after the last window, not
+// once per window. Advancing it per window would let the first window in the walk consume the
+// interval and starve every sibling for as long as the walk order stayed the same, which is exactly
+// the "independent pacing" the acceptance forbids.
+bool WindowHost::Impl::pump_once(bool advance_pacer) {
+    if (!available) {
+        return false;
+    }
+    // The single-window path ticks the shared loop itself, exactly as it did before #180.
+    return pump_once(loop->tick(), advance_pacer);
+}
+
+bool WindowHost::Impl::pump_once(const runtime::RuntimeTick& tick, bool advance_pacer) {
     if (!available) {
         return false;
     }
@@ -393,7 +408,6 @@ bool WindowHost::Impl::pump_once() {
         loop->mark_render_dirty();
     }
 
-    const runtime::RuntimeTick tick = loop->tick();
     if (tick.device_blocked || tick.device_failed || tick.device_recovered || !tick.should_render) {
         // No device-loss servicing and no forced frames here: a lost device makes this iteration a
         // no-op, and run() remains the bounded recovery path.
@@ -430,7 +444,12 @@ bool WindowHost::Impl::pump_once() {
         }
         return false;
     }
-    pacer->present(hal::steady_now_seconds());
+    // The pacer's deadline is advanced once per *tick*, not once per window: a group walk passes
+    // `advance_pacer == false` and the group advances it after the last window (issue #180). A
+    // single-window caller passes true and keeps the pre-#180 behaviour exactly.
+    if (advance_pacer) {
+        pacer->present(hal::steady_now_seconds());
+    }
     // Same one-frame adaptive-quality observation as run(): `now` is this frame's start (the
     // pacer check above returned without waiting); the source is the GPU interval when the RHI
     // probe reported it usable and a completed submission produced one, else this frame's CPU cost.

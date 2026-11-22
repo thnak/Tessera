@@ -104,10 +104,11 @@ multi-window app constructs one `WindowDevice` and N hosts.
   later decision, not a missing feature.
 - **Window groups with independent devices.** A second device is a second GPU context; nothing in V1
   needs one.
-- **The `Application`-level window registry.** `appfw::Application` still owns the lifecycle state
-  machine and not the windows; wiring a window list into it is #180's slice, which this unblocks.
 - **Tray apps** (#181) and **native surfaces** (AF6), both of which now have the shared device they
   need.
+
+The `Application`-level window registry that used to be listed here landed in #180; section 10
+records it.
 
 ## 8. Specs reconciled
 
@@ -127,8 +128,49 @@ The issue names five specs that still said "one window". Each is amended in this
   other running, and a resize of one does not relayout the other.
 - `app_window_multi_gpu` (lavapipe/real GPU): the same, with a real swapchain per window, plus a
   device-loss recovery that rebuilds both.
+- `app_window_multi_loop` (real GPU, #180): one loop drives both windows, a change in one paints only
+  that one, both present in the same group tick, and a settled window presents nothing.
 - The existing single-window suites are unchanged and must stay green: the compatibility overload is
   what proves the refactor did not move the one-window path.
+
+## 10. The window set (#180)
+
+#228 made one device serve N windows but left the *loop* per window: a caller had to interleave two
+blocking `run()` calls, which cannot work on one thread. #180 closes that, in two halves.
+
+**Layer 1 owns the aggregate.** `appfw::WindowRegistry` (`include/tessera/appfw/window_registry.hpp`)
+is a fixed-capacity table of `WindowLifecycle` values plus `aggregate_window_lifecycle`, the pure
+function that folds them into the one aggregate `derive_app_state` already consumed. That is the
+whole point: ADR-050 section 2 derives every state from a phrase about the *set* - "a window
+focused", "all windows blurred", "no visible window" - so AF3's single `WindowLifecycle` member was
+a one-window special case of the rule, not the rule. `Application` registers the primary window in
+its constructor, so a single-window app's aggregate is exactly the member AF3 had and every
+pre-#180 caller is unchanged; `attach_window()` adds the others and returns a `WindowId` that is
+never reused.
+
+The two rules the aggregation adds, both asserted row by row in `appfw_window_registry`:
+
+- **A closed window is not visible**, even when its stale flags still say it is focused. A platform
+  may report a focus for a window the app already closed.
+- **Closing one of two windows is not a termination request.** `quitOnLastWindowClosed` is about the
+  last *open* window, so the app stays `Active`/`Inactive` on the survivor. That is the acceptance's
+  "independent lifecycle" in the form a user sees it.
+
+**Layer 0 owns the walk.** `WindowDevice` keeps the live window list (`register_window` in a host's
+constructor, `unregister_window` in its destructor) and `pump_windows_once()` gives every window one
+bounded iteration. Two things had to move for that to be correct, and both were found by the
+two-window pacing case rather than by reading the code:
+
+1. **The tick is the group's.** `RuntimeLoop::tick()` *consumes* the render request, so a second
+   window that ticked the loop itself saw `should_render == false` and never painted. The walk takes
+   one tick and hands it to every window.
+2. **The pacer advances once per tick, not once per window.** The pacer is app-scoped (section 5), so
+   it gates *ticks*: advancing it per window let the first window in the walk consume the interval
+   and starve its siblings for as long as the walk order stayed the same.
+
+Both are the same mistake in two places - treating a per-tick resource as a per-window one - and
+neither is visible without a real cap: an uncapped pacer has no interval, so `ready()` always says
+"present now" and the bug is invisible. The test therefore asks for 30 Hz explicitly.
 
 Related: [`app-host.md`](app-host.md), [`window-resize.md`](window-resize.md),
 [`performance.md`](performance.md), [ADR-020](../../decisions/ADR-020-window-resize-and-lifecycle.md),

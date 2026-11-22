@@ -949,7 +949,32 @@ ADR-050 is Accepted (roadmap AF1-AF8); start with AF1.
       tested. Same-directory temp + flush + atomic replace
       (`src/appfw/storage_atomic.cpp`), the `IoTaskExecutor` seam in layer 0, and a fake
       `FileSystem` that fails at one named step so atomicity is proved rather than hoped for.
-- [ ] #180, #181: Multi-window, then tray apps, each its own slice.
+- [x] #180: Multi-window support: two windows with independent lifecycle, damage and pacing, and a
+      static window that still idles with zero presents. Layer 1 owns the aggregate:
+      `appfw::WindowRegistry` (`include/tessera/appfw/window_registry.hpp`) is a fixed-capacity table
+      of `WindowLifecycle` values plus `aggregate_window_lifecycle`, the pure function that folds
+      them into the one aggregate `derive_app_state` already consumed - ADR-050 section 2 derives
+      every state from a phrase about the *set* ("a window focused", "all windows blurred", "no
+      visible window"), so AF3's single member was a one-window special case of the rule. The
+      primary window is registered by `Application`'s constructor, so a single-window app's
+      aggregate is exactly the member AF3 had and every pre-#180 caller is unchanged;
+      `attach_window()` adds the others and returns a `WindowId` that is never reused, and
+      `make_lifecycle_sink(WindowId)` gives each window its own seam. Two rules the aggregation
+      adds: a closed window is not visible even when its stale flags say it is focused, and closing
+      one of two windows is not a termination request (`quitOnLastWindowClosed` is about the last
+      *open* window). Layer 0 owns the walk: `WindowDevice` keeps the live window list and
+      `pump_windows_once()` gives every window one bounded iteration. Two per-tick resources had to
+      move to the group for that to be correct, and the two-window pacing case found both:
+      `RuntimeLoop::tick()` *consumes* the render request, so a second window that ticked the loop
+      itself never painted; and the app-scoped pacer gates *ticks*, so advancing it per window let
+      the first window in the walk starve its siblings. Neither is visible without a real cap (an
+      uncapped pacer always says "present now"), so the test asks for 30 Hz explicitly. Evidence:
+      `tests/unit/appfw_window_registry_tests.cpp` (ctest `appfw_lifecycle`: the aggregation table
+      row by row, close-one-of-two, the tray-app row, per-window sinks, the capacity bound),
+      `tests/gpu/app_window_multi_loop_tests.cpp` (ctest `app_window_multi_loop`: one loop drives
+      both, independent damage, both present in one group tick, a settled window presents nothing,
+      the single-window path unchanged), and `docs/design/multi-window.md` section 10.
+- [ ] #181: Tray apps, its own slice.
 - [x] #228: One `Application` loop and one `rhi::Device` for several windows (before AF6). The
       shared owner is `app::WindowDevice` (`include/tessera/app/window_device.hpp`,
       `src/app/window_device.cpp`): one `rhi::Device`, one `Batched2DRenderer`, one `TextStack`

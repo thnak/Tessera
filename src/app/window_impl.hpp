@@ -63,8 +63,12 @@ struct WindowHost::Impl {
     // must outlive the host. A single-window caller never names it: the `WindowHost` constructor
     // that takes only `WindowOptions` builds a private one-window group and hands it here, which is
     // exactly the pre-refactor behaviour.
+    //
+    // `owner` is the public host this Impl belongs to, borrowed for the group's window list (issue
+    // #180): the group holds `WindowHost*` rather than `Impl*`, because the list is what a caller
+    // walks and `Impl` is private to this directory.
     Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet, WindowOptions options,
-         ui::UpdateScheduler* update_scheduler, WindowDevice& group);
+         ui::UpdateScheduler* update_scheduler, WindowDevice& group, WindowHost& owner);
     ~Impl();
 
     // Outcome of one frame attempt; a lost device is state the run services, not a painted frame.
@@ -132,7 +136,14 @@ struct WindowHost::Impl {
     // out; a later tree keeps whatever focus the user or the app set.
     void apply_initial_auto_focus();
     // One bounded iteration shared by pump_once(): events -> input -> pause -> tick -> one frame.
-    bool pump_once();
+    // `advance_pacer` is false when a group walk drives this window: the pacer gates ticks, not
+    // windows, so the walk advances it once after every window has had its turn (issue #180).
+    bool pump_once(bool advance_pacer);
+    // The same iteration against a tick the caller already took. A group walk ticks the shared
+    // `RuntimeLoop` ONCE and hands the result to every window: the loop's render request is
+    // consumed by `tick()`, so a second window that ticked it itself would see `should_render ==
+    // false` and never paint (issue #180).
+    bool pump_once(const runtime::RuntimeTick& tick, bool advance_pacer);
 
     // --- adaptive present cap (docs/design/performance.md section 6, step 3) ------------------
     // Applies the controller's decided present cap to the pacer through the pacer's existing
@@ -299,6 +310,9 @@ struct WindowHost::Impl {
     // presents through it. `device`/`loop`/`pacer`/`recovery` below are views into it, kept as
     // members so the frame path reads them without a second indirection.
     WindowDevice* group = nullptr;
+    // The public host this Impl belongs to (issue #180). Borrowed and never null: the group's
+    // window list holds it, so a walk drives the host rather than this private type.
+    WindowHost* owner = nullptr;
     // A private one-window group, owned only when this host was constructed without one. Declared
     // before the views so it is destroyed after them.
     std::unique_ptr<WindowDevice> owned_group;
