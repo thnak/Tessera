@@ -512,8 +512,22 @@ two readers because the third is a leaf library whose no-project-header rule is 
    domain; `Node` keeps the forwarders, because those calls are where the frame policy belongs and a
    forwarding call is what paint already pays. A view that paint and scroll would have to spell
    instead bought nothing and cost a header.
-2. Does `Event` move to a variant before or after the paint-text payload work that copies into
+2. ~~Is a narrow header for the metadata-only TUs worth building?~~ **Answered by measurement, no.**
+   The plan was a header the 46 TUs that never touch the tree API could include instead of
+   `node.hpp`. Measured first: `node_metadata.hpp` alone cost *more* than `node.hpp` (1.26 s vs
+   0.96 s), because it pulled the same payload headers directly. A narrow view built on it would
+   have been slower than what it replaced. The fix that works is making the headers themselves
+   cheap: `event_type.hpp` split out of `event.hpp`, and `Event`/`PaintData` forward-declared
+   instead of included. That took `node.hpp` from 91,535 to 76,792 preprocessed lines (−14.7% per
+   TU) and `node_metadata.hpp` from 90,770 to 58,449 (−34.6%).
+3. ~~Should the interaction members become a `NodeInteraction` value type?~~ **Answered: it does not
+   fit.** The flag word, `focus_group`, `user_select` and `cursor` pack into 6 bytes, but that
+   struct's 2-byte alignment breaks the byte block the 320-byte layout depends on. Every member
+   order enumerated measured 328 bytes, past `kNodeSizeBudget`. `tab_index` and `pseudo_state` have
+   to stay on `Node` for the layout to close, and with them out the extraction buys a header at the
+   cost of a wider diff, so it was dropped.
+4. Does `Event` move to a variant before or after the paint-text payload work that copies into
    `Event::text`? The buffer removal is independent and cheaper.
-3. `WindowHost::Impl` and `AppHost::Impl` are private headers, so their splits are invisible to
+5. `WindowHost::Impl` and `AppHost::Impl` are private headers, so their splits are invisible to
    users and can land in any order; the only constraint is that `WindowOptions` and
    `WindowFrameStats` stay put.

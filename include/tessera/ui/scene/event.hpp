@@ -2,9 +2,8 @@
 
 #pragma once
 
-#include "tessera/ui/scene/event_type.hpp"
-
 #include "tessera/ui/input.hpp"
+#include "tessera/ui/scene/event_type.hpp"
 
 #include <cstdint>
 #include <string_view>
