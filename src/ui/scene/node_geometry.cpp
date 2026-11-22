@@ -218,6 +218,7 @@ void NodeGeometryApi::set_transform(const rhi::Mat3& transform) {
         return;
     }
     self.transform_ = transform;
+    self.set_flag(Node::kHasTransform, !same_transform(transform, rhi::Mat3::identity()));
     self.mark_dirty(Dirty::Paint | Dirty::Render);
 }
 
@@ -227,6 +228,7 @@ void NodeGeometryApi::set_z_index(int z_index) {
         return;
     }
     self.z_index_ = z_index;
+    self.set_flag(Node::kHasZIndex, z_index != 0);
     self.mark_dirty(Dirty::Paint | Dirty::Render);
 }
 
@@ -409,7 +411,11 @@ Node* Node::hit_test_in_parent_space(float parent_x, float parent_y) {
     // acts around it (the same composition world_transform() builds).
     float local_x = 0;
     float local_y = 0;
-    if (affine_is_identity(transform_)) {
+    if (!flag(kHasTransform)) {
+        // The common case, decided from the first line alone: no matrix is read.
+        local_x = parent_x - bounds_.x;
+        local_y = parent_y - bounds_.y;
+    } else if (affine_is_identity(transform_)) {
         local_x = parent_x - bounds_.x - transform_.m[2];
         local_y = parent_y - bounds_.y - transform_.m[5];
     } else {

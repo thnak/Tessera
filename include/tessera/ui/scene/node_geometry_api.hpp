@@ -39,11 +39,17 @@ public:
 
     void set_transform(const rhi::Mat3& transform);
     [[nodiscard]] const rhi::Mat3& transform() const;
+    // False while the transform is the identity: a hot-line flag, so a pass that only needs to know
+    // whether to apply it does not read the 36-byte matrix.
+    [[nodiscard]] bool has_transform() const;
 
     // Stacking order among siblings (CSS `z-index`, `auto` = 0): lower values paint first and hit
     // last; equal values keep child order. Visual only, so it dirties paint/render, not layout.
     void set_z_index(int z_index);
     [[nodiscard]] int z_index() const;
+    // True when `z_index()` is non-zero. Sibling walks test this first: when no child has one, the
+    // stacking order is plain child order and the values are never read.
+    [[nodiscard]] bool has_z_index() const;
 
     // How far this node paints beyond its border box (see `PaintOutsets`).
     void set_paint_outsets(const PaintOutsets& outsets);

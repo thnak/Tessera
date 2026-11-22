@@ -156,31 +156,12 @@ recompiles every includer of `node.hpp`, because `Node` derives from all four. T
 comes from 4b, not 4c. The previous decision against `NodeGeometryView`/`NodeInteractionView` stands
 (a view object adds a hop to `hit_test`); a base does not.
 
-**Measured (step 0, `tessera_benchmark --walk`, Linux Release GCC, 12 000 nodes, one pinned core).**
-A traversal that reads only the hot fields costs 12.9 ns/node with 3.8 L1D misses and 0.02 LLC
-misses per node (the whole 3.8 MB tree sits in the LLC). Two passes were far above that and were
-algorithmic, not cache-bound: `hit_test_deep` took 3.2 ms per point (it inverted the whole parent
-chain at every node and searched every subtree outside scroll containers), and the full-dirty
-`collect + clear` took 800 ns/node with 2 330 instructions/node.
-
-**Landed (step 1, hit test).** `hit_test_deep` inverts the world transform once at the entry node
-and maps the point one level at a time below it, pruning each child by its cached
-`subtree_paint_bounds()` (an infinite box, i.e. unproven text, is never pruned; a 0.5 px slack
-absorbs float differences). 3.2 ms -> 1.3 us per point on the same scene, with an identical hit
-checksum. `scene_hit_test_prune_tests` compares it against the unpruned algorithm over random trees
-and pins the cases a prune could get wrong.
-
-**Landed (step 2, dirty clear).** `DirtyPass::clear` calls `Node::clear_subtree_dirty`, one
-post-order pass in which each node recomputes its summary once, then the ancestors of the cleared
-root re-derive once. The old walk called `clear_dirty` per node, and every child's change made its
-parent re-scan the whole child list (quadratic in container width). Full-dirty `collect + clear`:
-800 -> 24 ns/node, 2 330 -> 58 instructions/node, 562 -> 6.5 L1D misses/node.
-`scene_dirty_clear_tests` compares the final state of every node against the old walk on random
-sparse-dirty trees (a uniformly dirty tree hides summary bugs, so it starts clean).
-
-**Where that leaves the cache-line question.** With both algorithmic passes fixed, the dirty pass
-is within 2x of the hot-field walk (24 vs 12.9 ns/node) and the walk itself costs 3.8 L1D misses per
-node. That is the remaining, layout-bound cost, and the number a hot-line layout has to beat.
+**Landed (steps 0-3, measured).** `tessera_benchmark --walk` baselines the whole-scene passes over
+the 12 000-node scene, and the numbers moved the work: `hit_test_deep` (3.2 ms -> 1.3 us per
+point, pruned by `subtree_paint_bounds()`) and the dirty clear (800 -> 24 ns/node, one post-order
+pass) were algorithmic, and only then did the layout matter: heap nodes start on a cache line and
+the first 64 bytes hold every field the passes read per node. The method, the table and the
+checks that pin it are in [cache-lines.md](../design/cache-lines.md) section 6.
 
 ### 3.2 `app::WindowHost::Impl` (rank 2)
 

@@ -23,6 +23,12 @@ inline const rhi::Mat3& NodeGeometryApi::transform() const {
 inline int NodeGeometryApi::z_index() const {
     return node().z_index_;
 }
+inline bool NodeGeometryApi::has_z_index() const {
+    return node().flag(Node::kHasZIndex);
+}
+inline bool NodeGeometryApi::has_transform() const {
+    return node().flag(Node::kHasTransform);
+}
 inline const PaintOutsets& NodeGeometryApi::paint_outsets() const {
     return node().paint_outsets_;
 }

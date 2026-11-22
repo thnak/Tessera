@@ -259,7 +259,7 @@ This page is the map and reading order for the framework.
 - [`design/multi-window.md`](design/multi-window.md) — one device, one loop, many windows: the ownership split, the renderer frame ring, device-loss fan-out, resize isolation (#228)
 - [`design/shell-design-preview.md`](design/shell-design-preview.md) — mock captures of the startup P0/P2/P4 frames and the system vs framework window chrome, rendered through the real style/layout/paint path- [`design/dirty-rendering.md`](design/dirty-rendering.md) — invalidation, caches, damage, multi-frame execution, render-side damage present-loop evidence (`damage_min`/`damage_present`)
 - [`design/performance.md`](design/performance.md) — power-aware defaults, budgets, adaptive
-  quality, hardware utilization; [`cache-lines.md`](design/cache-lines.md) covers false sharing;
+  quality, hardware utilization; [`cache-lines.md`](design/cache-lines.md) covers false sharing and the `ui::Node` locality layout;
   [`perf-735-baseline.md`](design/perf-735-baseline.md) has the measured probe rows
 - [`design/window-resize.md`](design/window-resize.md) — resize/DPI/lifecycle, declarative vs
   infrastructure, OS compliance, present-path hardening (`--msaa 4`, `--simulate-loss`);

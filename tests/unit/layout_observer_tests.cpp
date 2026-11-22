@@ -5,6 +5,7 @@
 // content box, position-only moves, a node with no layout box, detach and attach during delivery,
 // attach-order determinism, the depth floor, RAII lifetime, and zero allocation after reserve.
 
+#include "tessera/detail/aligned_alloc.hpp"
 #include "tessera/ui/layout/layout_observer.hpp"
 #include "tessera/ui/scene/node.hpp"
 
@@ -35,6 +36,19 @@ void* operator new(std::size_t size) {
         return pointer;
     }
     throw std::bad_alloc();
+}
+
+void* operator new(std::size_t size, std::align_val_t alignment) {
+    ++g_allocations;
+    return tessera::detail::aligned_allocate(size, alignment);
+}
+
+void operator delete(void* pointer, std::align_val_t) noexcept {
+    tessera::detail::aligned_release(pointer);
+}
+
+void operator delete(void* pointer, std::size_t, std::align_val_t) noexcept {
+    tessera::detail::aligned_release(pointer);
 }
 
 void operator delete(void* pointer) noexcept {

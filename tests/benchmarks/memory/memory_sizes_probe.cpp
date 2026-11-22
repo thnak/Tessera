@@ -26,6 +26,7 @@
 // Usage: memory_sizes_probe [--nodes N] [--idle-cycles N]
 // Exit codes: 0 measured, 2 usage error or the platform reports no resident memory.
 
+#include "tessera/detail/aligned_alloc.hpp"
 #include "tessera/diagnostics/memory.hpp"
 #include "tessera/runtime/frame_counters.hpp"
 #include "tessera/runtime/frame_pacer.hpp"
@@ -217,6 +218,20 @@ void* operator new(std::size_t size) {
         return pointer;
     }
     throw std::bad_alloc();
+}
+
+void* operator new(std::size_t size, std::align_val_t alignment) {
+    ++g_allocation_count;
+    g_allocation_bytes += size;
+    return tessera::detail::aligned_allocate(size, alignment);
+}
+
+void operator delete(void* pointer, std::align_val_t) noexcept {
+    tessera::detail::aligned_release(pointer);
+}
+
+void operator delete(void* pointer, std::size_t, std::align_val_t) noexcept {
+    tessera::detail::aligned_release(pointer);
 }
 
 void operator delete(void* pointer) noexcept {

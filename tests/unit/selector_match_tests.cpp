@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "tessera/detail/aligned_alloc.hpp"
 #include "tessera/ui/style/selector_match.hpp"
 
 #include <cstddef>
@@ -25,6 +26,19 @@ void* operator new(std::size_t size) {
         return pointer;
     }
     throw std::bad_alloc();
+}
+
+void* operator new(std::size_t size, std::align_val_t alignment) {
+    ++g_allocations;
+    return tessera::detail::aligned_allocate(size, alignment);
+}
+
+void operator delete(void* pointer, std::align_val_t) noexcept {
+    tessera::detail::aligned_release(pointer);
+}
+
+void operator delete(void* pointer, std::size_t, std::align_val_t) noexcept {
+    tessera::detail::aligned_release(pointer);
 }
 
 void operator delete(void* pointer) noexcept {

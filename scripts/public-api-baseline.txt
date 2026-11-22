@@ -528,6 +528,10 @@ constant include/tessera/dbus/wire.hpp tessera::dbus::kMaxWireFieldBytes
 constant include/tessera/dbus/wire.hpp tessera::dbus::kMaxWireMessage
 constant include/tessera/dbus/wire.hpp tessera::dbus::kMaxWireText
 
+header include/tessera/detail/aligned_alloc.hpp
+function include/tessera/detail/aligned_alloc.hpp tessera::detail::aligned_allocate
+function include/tessera/detail/aligned_alloc.hpp tessera::detail::aligned_release
+
 header include/tessera/detail/cache_line.hpp
 struct include/tessera/detail/cache_line.hpp tessera::detail::CacheLine
 function include/tessera/detail/cache_line.hpp tessera::detail::cache_line_is_exact

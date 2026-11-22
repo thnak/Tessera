@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "tessera/detail/cache_line.hpp"
 #include "tessera/rendering/rhi/types.hpp"
 #include "tessera/ui/dirty.hpp"
 #include "tessera/ui/scene/event_type.hpp"
@@ -69,6 +70,15 @@ public:
 
     Node(const Node&) = delete;
     Node& operator=(const Node&) = delete;
+
+    // Heap nodes start on a cache-line boundary. `sizeof(Node)` is five lines exactly, so an
+    // aligned node occupies five lines and an unaligned one (16-byte malloc) straddles six, and
+    // which fields share a line is only meaningful once the object's start is fixed. A class-level
+    // allocator instead of `alignas(64)` on the type: an over-aligned `Node` would pad every
+    // derived class (tests, generated components) and trip MSVC's C4324 on each. Stack and by-value
+    // nodes are not aligned; that costs speed, never correctness.
+    [[nodiscard]] static void* operator new(std::size_t size);
+    static void operator delete(void* pointer, std::size_t size) noexcept;
 
     // The nested spellings generated code, tests and the bridges use; the types live in
     // `node_types.hpp` and `node_metadata.hpp`.
@@ -148,6 +158,7 @@ private:
     friend class NodeInteractionApi;
     friend class NodeScrollApi;
     friend class NodeMetadataApi;
+    friend struct NodeLayoutCheck; // pins the first-line layout in node.cpp
 
     void refresh_subtree_dirty();
     void clear_subtree_dirty_below(Dirty flags);
@@ -176,6 +187,8 @@ private:
         kStyleHidden = 1u << 9,        // resolved `visibility: hidden|collapse`
         kTextFitsBox = 1u << 10,       // layout's text-fit fact (issue #490)
         kInteractiveParent = 1u << 11, // `useInteractiveRole` (issue #635); see the accessor
+        kHasZIndex = 1u << 12,    // `z_index_` is non-zero; lets a sibling walk skip reading it
+        kHasTransform = 1u << 13, // `transform_` is not the identity
     };
     [[nodiscard]] bool flag(Flag bit) const noexcept {
         return (flags_ & bit) != 0;
@@ -184,35 +197,33 @@ private:
         flags_ = static_cast<std::uint16_t>(on ? (flags_ | bit) : (flags_ & ~bit));
     }
 
-    NodeId id_ = 0;
+    // --- Cache-line layout (docs/architecture/god-type-audit-v1.md section 3.1)
+    // ---------------------
+    //
+    // `sizeof(Node)` is 320, five 64-byte lines, and heap nodes start on a line (`operator new`).
+    // The first line holds everything the whole-scene passes read at every node - the dirty pass,
+    // the hit-test descent and the paint cull walk - so a visit touches one line instead of four:
+    // the vptr, the tree links, the box, the flag word, both dirty summaries and the packed bytes
+    // the scroll and interaction checks read. The rest is reached only on a flag or when a pass
+    // needs that field (`kHasZIndex`, `kHasTransform` stand in for the values below). Members are
+    // placed by `offsetof`, with no padding anywhere; `NodeLayoutCheck` in node.cpp pins the first
+    // line.
+    //
+    // line 0 (offsets 0..63): vptr, then
     Node* parent_ = nullptr;
     std::vector<std::unique_ptr<Node>> children_;
     // `mutable` for the same reason as `subtree_paint_bounds_`: `set_span_bounds` writes it through
     // a const scene (issue #733 item 4). Every other write goes through `set_bounds`, which is
     // non-const, so the mutability is confined to the one paint-derived path.
     mutable rhi::Rect bounds_;
-    // Cached subtree paint box (issue #735, slice C); `mutable` because paint fills it lazily
-    // through a const reference. Width encodes the state: negative is "not computed", +infinity is
-    // "computed and unbounded", else the box - so no separate validity flag is needed.
-    mutable rhi::Rect subtree_paint_bounds_{0.0f, 0.0f, -1.0f, 0.0f};
-    rhi::Mat3 transform_;
-    int tab_index_ = 0;
-    int z_index_ = 0;
-    PaintOutsets paint_outsets_;
-    float glass_blur_sigma_ = 0.0f;
-    UserSelect user_select_ = UserSelect::Auto; // resolved `user-select` value
-    // Resolved `cursor` value (issue #191). The initial `auto` is the platform default arrow.
-    style::CursorKind cursor_ = style::CursorKind::Auto;
-    FocusGroup focus_group_ = FocusGroup::None;
+    std::uint16_t flags_ = kVisible | kPointerEvents;
+    Dirty dirty_ = Dirty::Clean;
+    Dirty subtree_dirty_ = Dirty::Clean;
     // Packed scroll bookkeeping: the scrollable-axis flags and the scroll runtime style enums share
-    // one byte. It sits here, not with the other flag words, because `NodeScroll`'s ten floats need
-    // 4-byte alignment and this byte is exactly the one-byte hole between `focus_group_` and them -
-    // measured with `offsetof`: the byte block ends at 152 either way, so putting it here costs
-    // nothing and putting it after the floats costs 1 byte of padding plus 7 at the tail.
-    //
-    // Enum values are stored in declaration order; the masks are sized to the largest enumerator.
-    // Defaults: not scrollable, `scroll-behavior: auto`, `overscroll-behavior: auto` and the
-    // registry initial `overscroll-effect: platform` (ordinal 4).
+    // one byte, read by every hit-test visit (`scrollable_x/y`). Enum values are stored in
+    // declaration order; the masks are sized to the largest enumerator. Defaults: not scrollable,
+    // `scroll-behavior: auto`, `overscroll-behavior: auto` and the registry initial
+    // `overscroll-effect: platform` (ordinal 4).
     static constexpr std::uint8_t kScrollableXBit = 1u << 0;
     static constexpr std::uint8_t kScrollableYBit = 1u << 1;
     static constexpr std::uint8_t kScrollBehaviorSmoothBit = 1u << 2;
@@ -225,17 +236,28 @@ private:
     static_assert(static_cast<std::uint8_t>(OverscrollEffect::Platform) == 4,
                   "OverscrollEffect is packed in declaration order");
     std::uint8_t scroll_bits_ = 0x4u << kOverscrollEffectShift;
-    // The ten scroll floats follow the byte above, so they start at a 4-aligned offset with no
-    // hole.
-    NodeScroll scroll_;
-    // The remaining scalar bytes total exactly 8 (4 + 2 + 1 + 1), which is `NodeMetadata`'s
-    // alignment, so the rarely used metadata record starts on an 8-byte boundary with no tail
-    // padding before it. Together with the byte above this is what keeps `sizeof(Node)` at 320:
-    // every member is contiguous and the object ends exactly at its last byte.
+    UserSelect user_select_ = UserSelect::Auto; // resolved `user-select` value
+    // Resolved `cursor` value (issue #191). The initial `auto` is the platform default arrow.
+    style::CursorKind cursor_ = style::CursorKind::Auto;
+    FocusGroup focus_group_ = FocusGroup::None;
+
+    // line 1 and on (offsets 64..): read on demand.
+    //
+    // Cached subtree paint box (issue #735, slice C); `mutable` because paint fills it lazily
+    // through a const reference. Width encodes the state: negative is "not computed", +infinity is
+    // "computed and unbounded", else the box - so no separate validity flag is needed.
+    mutable rhi::Rect subtree_paint_bounds_{0.0f, 0.0f, -1.0f, 0.0f};
+    rhi::Mat3 transform_; // meaningful only while `kHasTransform` is set; identity otherwise
+    int z_index_ = 0;     // meaningful only while `kHasZIndex` is set; 0 otherwise
+    int tab_index_ = 0;
     style::PseudoState pseudo_state_ = style::PseudoState::None;
-    std::uint16_t flags_ = kVisible | kPointerEvents;
-    Dirty dirty_ = Dirty::Clean;
-    Dirty subtree_dirty_ = Dirty::Clean;
+    PaintOutsets paint_outsets_;
+    float glass_blur_sigma_ = 0.0f;
+    // The ten scroll floats start at a 4-aligned offset with no hole.
+    NodeScroll scroll_;
+    // The last two members are the 8-aligned ones, so the object ends exactly at its last byte: an
+    // 8-byte id, then the rarely used metadata record on an 8-byte boundary.
+    NodeId id_ = 0;
     NodeMetadata metadata_;
 };
 

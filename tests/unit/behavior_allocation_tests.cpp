@@ -8,6 +8,7 @@
 // sampling. The behavior is built once (that allocation is the slot the generated base owns), and
 // every attach/update/detach after it must be free.
 
+#include "tessera/detail/aligned_alloc.hpp"
 #include "tessera/ui/behavior/press_feedback.hpp"
 #include "tessera/ui/behavior/registry.hpp"
 #include "tessera/ui/scene/input_dispatch.hpp"
@@ -31,6 +32,19 @@ void* operator new(std::size_t size) {
         return pointer;
     }
     throw std::bad_alloc();
+}
+
+void* operator new(std::size_t size, std::align_val_t alignment) {
+    ++g_allocations;
+    return tessera::detail::aligned_allocate(size, alignment);
+}
+
+void operator delete(void* pointer, std::align_val_t) noexcept {
+    tessera::detail::aligned_release(pointer);
+}
+
+void operator delete(void* pointer, std::size_t, std::align_val_t) noexcept {
+    tessera::detail::aligned_release(pointer);
 }
 
 void operator delete(void* pointer) noexcept {

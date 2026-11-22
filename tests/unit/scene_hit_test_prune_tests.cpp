@@ -304,10 +304,46 @@ bool test_stale_cache_is_not_trusted_after_a_move() {
            expect(root.hit_test_deep(10, 10)->id() == 2, "no hit left at the old position");
 }
 
+bool test_first_line_flags_follow_the_values() {
+    // `has_z_index` and `has_transform` stand in for the values on the node's first cache line;
+    // they must track every write, including a write back to the default.
+    Node node(1);
+    bool ok = expect(!node.has_z_index() && !node.has_transform(), "a new node has neither");
+    node.set_z_index(3);
+    node.set_transform(Mat3::scale(2.0f, 2.0f));
+    ok &= expect(node.has_z_index() && node.has_transform(), "both set");
+    node.set_z_index(0);
+    node.set_transform(Mat3::identity());
+    ok &= expect(!node.has_z_index() && !node.has_transform(), "both cleared by the default");
+    node.set_transform(Mat3::translation(4.0f, 0.0f));
+    ok &= expect(node.has_transform(), "a pure translation is still a transform");
+    return ok;
+}
+
+bool test_siblings_sharing_one_nonzero_z_keep_child_order() {
+    // With no zero-z child the walk takes the flag fast path; a set that all share one non-zero
+    // z-index takes the general path and must order the same way: later siblings are hit first.
+    Node root(1);
+    root.set_bounds(Rect{0, 0, 100, 100});
+    Node* first = nullptr;
+    Node* second = nullptr;
+    for (int i = 0; i < 2; ++i) {
+        auto child = std::make_unique<Node>(static_cast<NodeId>(10 + i));
+        child->set_bounds(Rect{10, 10, 50, 50}); // overlapping
+        child->set_z_index(4);
+        Node& attached = root.add_child(std::move(child));
+        (i == 0 ? first : second) = &attached;
+    }
+    return expect(first != nullptr && second != nullptr, "children attached") &&
+           expect(root.hit_test_deep(20, 20) == second, "the later sibling is on top");
+}
+
 } // namespace
 
 int main() {
     bool ok = true;
+    ok &= test_first_line_flags_follow_the_values();
+    ok &= test_siblings_sharing_one_nonzero_z_keep_child_order();
     ok &= test_random_trees_match_reference();
     ok &= test_entry_below_root_matches_reference();
     ok &= test_child_outside_parent_box_is_still_hit();
