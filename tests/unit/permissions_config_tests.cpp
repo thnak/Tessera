@@ -15,6 +15,10 @@
 #include <string>
 #include <string_view>
 
+#ifndef _WIN32
+#include <sys/wait.h>
+#endif
+
 namespace {
 
 namespace fs = std::filesystem;
@@ -70,7 +74,19 @@ int run_cli(const std::string& cli, const std::string& arguments, const fs::path
     command += " > ";
     command += shell_quote((log_dir / "cli.log").generic_string());
     command += " 2>&1";
-    return std::system(command.c_str());
+    const int status = std::system(command.c_str());
+#ifdef _WIN32
+    return status;
+#else
+    // POSIX `system` returns a wait status, not an exit code: the code is in the high byte. Without
+    // this the test reads a *rejected* run (exit 1 -> status 256) and a successful one (exit 0 ->
+    // status 0) as the same, so every rejection case "passed" while asserting nothing - which is the
+    // failure mode a cross-platform lane exists to find.
+    if (status == -1) {
+        return -1;
+    }
+    return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+#endif
 }
 
 } // namespace
