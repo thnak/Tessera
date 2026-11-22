@@ -39,10 +39,11 @@
         android:supportsRtl="true">
 
         <!--
-          NativeActivity owns the surface and the input queue, which is the path
-          docs/design/mobile-integration.md section 3.2 lists as the native app shell. The engine
-          receives the ANativeWindow through android_app->window and hands it to
-          hal::create_window as WindowDesc::surface.
+          The shell's own activity, not android.app.NativeActivity. The platform reports window
+          insets, display cutouts and fold posture through Java APIs that have no NDK equivalent,
+          so one Java class reads them and passes them across JNI (TesseraActivity/TesseraView).
+          The activity owns no rendering: it creates the SurfaceView, which owns the surface and
+          forwards input, and everything else stays in C++.
 
           configChanges is a contract: every change listed here is handled by the app instead of
           restarting it. The engine handles size/density/orientation through WindowMetrics, so the
@@ -50,7 +51,7 @@
           is the safe default (state restoration is not implemented yet).
         -->
         <activity
-            android:name="android.app.NativeActivity"
+            android:name=".TesseraActivity"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|density|fontScale|keyboard|keyboardHidden|navigation|uiMode"
             android:exported="true"
             android:label="Tessera"
@@ -59,12 +60,6 @@
             android:screenOrientation="unspecified"
             android:theme="@android:style/Theme.Material.NoActionBar.Fullscreen"
             android:windowSoftInputMode="adjustResize">
-
-            <!-- The native entry point. `libtessera_android_app.so` is built by CMake and packaged
-                 by the Gradle task in this directory. -->
-            <meta-data
-                android:name="android.app.lib_name"
-                android:value="tessera_android_app" />
 
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

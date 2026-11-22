@@ -33,8 +33,10 @@
 #include "tessera/hal/timer/steady_time.hpp"
 #include "tessera/hal/window.hpp"
 
+#include <algorithm>
 #include <android/input.h>
 #include <android/native_window.h>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <memory>
@@ -232,6 +234,32 @@ public:
                   const android::PhysicalRect& hinge) {
         metrics_.fold = android::fold_info(posture, axis, hinge, dpi_scale_);
         pending_fold_ = true;
+    }
+
+    // The HAL seam the JNI bridge calls (issue #189). It takes the platform's physical values and
+    // forwards them to the decode above, so the bridge never needs to know the layout rules.
+    void set_physical_insets(const PhysicalInsets& system_bars, const PhysicalInsets& ime,
+                             const PhysicalInsets& gestures) override {
+        android::PhysicalInsets bars{system_bars.left, system_bars.top, system_bars.right,
+                                     system_bars.bottom};
+        android::PhysicalInsets keyboard{ime.left, ime.top, ime.right, ime.bottom};
+        android::PhysicalInsets gesture{gestures.left, gestures.top, gestures.right,
+                                        gestures.bottom};
+        set_insets(bars, keyboard, gesture);
+    }
+
+    void set_physical_cutouts(std::span<const PhysicalRect> rects) override {
+        // The HAL type and the decode type are the same four numbers; the conversion is a copy so
+        // the public header does not have to expose the decode header.
+        std::array<android::PhysicalRect, kMaxCutouts> converted{};
+        const std::size_t count = std::min(rects.size(), converted.size());
+        for (std::size_t i = 0; i < count; ++i) {
+            converted[i].left = rects[i].left;
+            converted[i].top = rects[i].top;
+            converted[i].right = rects[i].right;
+            converted[i].bottom = rects[i].bottom;
+        }
+        set_cutouts(std::span<const android::PhysicalRect>(converted.data(), count));
     }
 
     // The surface the renderer borrows. Invalid once the window is closed or replaced.

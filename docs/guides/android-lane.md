@@ -198,15 +198,42 @@ The window backend exposes `set_insets`, `set_cutouts` and `set_fold` for the ho
 platform callbacks; each queues at most one coalesced `SafeAreaChanged`/`FoldChanged` event, so a
 burst of callbacks between two ticks costs one event per kind.
 
-### 3.6 What is still missing
+### 3.6 The JNI bridge
 
-- **Input.** `AInputEvent` arrives in `android_main` and is dropped (`onInputEvent` returns 0, so the
-  platform falls back to its own behaviour). Translating `MotionEvent`/`KeyEvent` into
-  `ui::InputEvent` is `docs/design/mobile-integration.md` section 3.2.
-- **The JNI bridge itself.** The decode rules exist and are tested, but nothing calls them yet: the
-  host needs a `WindowInsets`/`DisplayCutout`/`FoldingFeature` reader over JNI to feed
-  `set_insets`/`set_cutouts`/`set_fold`. Until then the metrics carry the documented zero-inset
-  fallback.
+The shell is a **Java activity**, not `android.app.NativeActivity`, because the platform reports
+insets, cutouts and fold posture through Java APIs that have no NDK equivalent. A NativeActivity can
+hand the engine an `ANativeWindow` but cannot read those.
+
+| File | Role |
+|---|---|
+| `android/app/src/main/java/dev/tessera/app/TesseraActivity.java` | the activity: edge-to-edge, hides the system bars, owns the view |
+| `android/app/src/main/java/dev/tessera/app/TesseraView.java` | a `SurfaceView`: surface lifecycle, insets/cutouts, touch |
+| `android/app/src/main/cpp/jni_bridge.cpp` | the only TU that includes `<jni.h>` |
+
+`TesseraView` is a `SurfaceView` because that is the one view whose `Surface` the NDK can turn into
+an `ANativeWindow` (`ANativeWindow_fromSurface`). A `TextureView` would give a `SurfaceTexture`,
+which needs a different Vulkan path.
+
+**The render thread.** `WindowHost` is single-threaded and must be created, run and destroyed on the
+thread that owns the window, so the bridge starts a dedicated render thread that calls
+`host->run(0)`. The Java thread only signals it: `surfaceDestroyed` closes the window, which makes
+`run(0)` return, and then joins. `pump_once` on the Java thread would need a spin, and a spin on a
+phone burns battery for nothing.
+
+**The metrics seam.** `hal::Window` gains `set_physical_insets` and `set_physical_cutouts`, which
+take the platform's **physical** pixels. The backend converts them with the decode rules in
+`android_metrics_translation.cpp`, so the bridge never needs to know the layout rules and the
+conversion stays unit-tested on every lane. The types live in `window_desc.hpp` so `window.hpp`
+stays inside its size budget.
+
+### 3.7 What is still missing
+
+- **Java `MotionEvent` translation.** The native path (`AInputQueue` → `AInputEvent`) is wired, but
+  the shell is now a Java activity, so touch arrives as a `MotionEvent` and `nativeOnTouch` returns
+  false. A Java-event reader is the next slice; the pure rules it needs already exist in
+  `android_input_translation.cpp`.
+- **Fold posture over JNI.** `set_physical_insets` and `set_physical_cutouts` are wired; the fold
+  reader (`FoldingFeature`) is not, so `set_fold` has no caller yet.
 - **IME and accessibility** (sections 3.3 and 3.4).
 - **A generated component.** The shell's scene (`android/app/src/main/cpp/scene.hpp`) is built by
   hand, because the codegen CLI runs on the host at build time and `tessera_compiler_demo` is gated
@@ -215,7 +242,7 @@ burst of callbacks between two ticks costs one event per kind.
   Replacing it with the generated `demo::Demo` needs the codegen host tool — the same
   `ExternalProject` pattern the shader manifest checker uses.
 
-### 3.7 Emulator GPU mode matters
+### 3.8 Emulator GPU mode matters
 
 | Emulator GPU mode | Device | API version | Tessera accepts? |
 |---|---|---|---|
