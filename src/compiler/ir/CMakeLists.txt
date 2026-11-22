@@ -14,6 +14,7 @@ add_library(tessera_ir STATIC
     src/types.cpp
     src/validate.cpp
     src/validate_component.cpp
+    src/validate_actions.cpp
     src/validate_expr.cpp
     src/validate_node.cpp
     src/validate_record.cpp

@@ -312,6 +312,14 @@ inline const std::vector<Case> kCases = {
             "  return <View onClick={go}/>;\n"
             "}\n",
             37, 35, 3),
+    // ADR-066 item 4: the reducer form. `reduce` is not a module-scope helper here, so the lowering
+    // has no body to read; the span is the call.
+    fixture("TESSERA_REACT_REDUCER_FORM", "react-reducer-form", Entry::kRules,
+            "function A() {\n"
+            "  const [state, dispatch] = useReducer(reduce, { count: 0 });\n"
+            "  return <View/>;\n"
+            "}\n",
+            54, 6, 2),
     fixture("TESSERA_REACT_UNKNOWN_HOOK", "react-unknown-hook", Entry::kRules,
             "function A() {\n"
             "  const t = useNothing();\n"

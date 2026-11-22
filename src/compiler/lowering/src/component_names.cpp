@@ -65,8 +65,10 @@ ComponentNames::ComponentNames(const rules::ComponentAnalysis& analysis) {
             }
             break;
         case rules::SymbolKind::StateSetter:
+        case rules::SymbolKind::Dispatch:
         case rules::SymbolKind::Handler:
-            // Function values have no IR expression.
+            // Function values have no IR expression. A `Dispatch` is one (ADR-066 item 4): the
+            // `dispatch` name is not a value, and a call of it lowers to a `dispatch` action.
             break;
         }
     }

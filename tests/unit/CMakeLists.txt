@@ -218,6 +218,15 @@ target_link_libraries(rules_hooks_tests PRIVATE tessera_react_rules)
 
 add_test(NAME rules_hooks COMMAND rules_hooks_tests)
 
+# ADR-066 item 4: the `useReducer` form, which is defined by a module-scope helper and the type
+# aliases beside it rather than by the component body alone.
+add_executable(rules_reducer_tests
+    rules_reducer_tests.cpp)
+
+target_link_libraries(rules_reducer_tests PRIVATE tessera_react_rules)
+
+add_test(NAME rules_reducer COMMAND rules_reducer_tests)
+
 add_executable(rules_arrows_tests
     rules_arrows_tests.cpp)
 
@@ -2255,6 +2264,15 @@ target_link_libraries(lowering_handler_control_tests PRIVATE tessera_lowering)
 
 add_test(NAME lowering_handler_control COMMAND lowering_handler_control_tests)
 
+# ADR-066 item 4: the `useReducer` lowering — one state cell, one handler per case, and a
+# `dispatch({ type: "x" })` that becomes a `Dispatch` action.
+add_executable(lowering_reducer_tests
+    lowering_reducer_tests.cpp)
+
+target_link_libraries(lowering_reducer_tests PRIVATE tessera_lowering)
+
+add_test(NAME lowering_reducer COMMAND lowering_reducer_tests)
+
 # ADR-066 item 2, the generated C++ half: an `If` action becomes a real `if`/`else`.
 add_executable(codegen_handler_control_tests
     codegen_handler_control_tests.cpp)
@@ -2262,6 +2280,15 @@ add_executable(codegen_handler_control_tests
 target_link_libraries(codegen_handler_control_tests PRIVATE tessera_codegen)
 
 add_test(NAME codegen_handler_control COMMAND codegen_handler_control_tests)
+
+# ADR-066 item 4, the generated C++ half: a `Dispatch` action becomes a call of the handler its
+# case became, resolved through the state's dispatch table at generation time.
+add_executable(codegen_reducer_tests
+    codegen_reducer_tests.cpp)
+
+target_link_libraries(codegen_reducer_tests PRIVATE tessera_codegen)
+
+add_test(NAME codegen_reducer COMMAND codegen_reducer_tests)
 
 # ADR-066 item 3: `filter`, `slice`, `.length` and the total string methods.
 add_executable(lowering_list_ops_tests

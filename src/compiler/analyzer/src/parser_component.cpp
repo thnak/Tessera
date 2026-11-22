@@ -99,8 +99,20 @@ bool Parser::parse_component(ModuleItem& item) {
 
 bool Parser::parse_component_param(ModuleItem& item) {
     item.has_props = true;
+    // ADR-066 item 4: a helper's parameters are recorded in order, because a reducer's `(state,
+    // action)` is what its `switch` subject and its record results are keyed by. A component's one
+    // parameter keeps the `props_*` fields instead, since that is what the props rules read.
+    HelperParam helper_param;
+    const auto record_helper_param = [&item](HelperParam& param, TypePtr type) {
+        if (item.kind == ItemKind::Helper) {
+            param.type = std::move(type);
+            item.helper_params.push_back(std::move(param));
+        }
+    };
     if (cur_.kind == TokenKind::Identifier) {
-        item.props_name = std::string(cur_.text);
+        helper_param.name = std::string(cur_.text);
+        helper_param.span = cur_.span;
+        item.props_name = helper_param.name;
         advance(LexMode::Code);
     } else if (at_punct("{")) {
         item.props_destructured = true;
@@ -144,35 +156,19 @@ bool Parser::parse_component_param(ModuleItem& item) {
     if (!expect_punct(":", LexMode::Code)) {
         return false;
     }
-    item.props_type = parse_type_expr();
-    return item.props_type != nullptr;
-}
-
-// ADR-066 item 4: whether the helper body about to be parsed declares a `switch`. A reducer is the
-// only helper whose body the lowering reads, and it is recognised by that form. The scan is a
-// lookahead: it saves the lexer position, walks the body's braces, and restores, so the body is
-// parsed once either way. The caller has already consumed the body's opening `{`, so the scan
-// starts one level in.
-bool Parser::helper_has_switch() {
-    const Checkpoint saved = checkpoint();
-    bool found = false;
-    int depth = 1;
-    while (!fatal_ && cur_.kind != TokenKind::Eof && depth > 0) {
-        if (at_punct("{")) {
-            ++depth;
-        } else if (at_punct("}")) {
-            --depth;
-            if (depth == 0) {
-                break;
-            }
-        } else if (cur_.text == "switch") {
-            found = true;
-            break;
-        }
-        advance(LexMode::Code);
+    TypePtr type = parse_type_expr();
+    if (!type) {
+        return false;
     }
-    restore(saved);
-    return found;
+    // A helper's parameters are the reducer's `(state, action)`, recorded in order; a component's
+    // single parameter is its props type, whatever shape it took, because that is what the props
+    // rules resolve. The two are different fields, so each takes ownership of its own node.
+    if (item.kind == ItemKind::Helper) {
+        record_helper_param(helper_param, std::move(type));
+        return true;
+    }
+    item.props_type = std::move(type);
+    return true;
 }
 
 bool Parser::parse_component_body(ModuleItem& item) {
@@ -238,33 +234,6 @@ bool Parser::parse_component_body(ModuleItem& item) {
         return false;
     }
     advance(LexMode::Code);
-    return true;
-}
-
-// ADR-066 item 4: the body of a reducer helper. It is a statement list whose one statement is the
-// `switch`; the statements are recorded on the item so the lowering can read them.
-bool Parser::parse_reducer_body(ModuleItem& item) {
-    while (!fatal_ && !at_punct("}")) {
-        ExprPtr statement = parse_block_statement();
-        if (!statement) {
-            return false;
-        }
-        Statement recorded;
-        recorded.kind = StatementKind::Expression;
-        recorded.span = statement->span;
-        recorded.init = std::move(statement);
-        item.body.push_back(std::move(recorded));
-        if (at_punct(";")) {
-            advance(LexMode::Code);
-        }
-    }
-    if (fatal_) {
-        return false;
-    }
-    if (!at_punct("}")) {
-        fail_unexpected("`}`");
-        return false;
-    }
     return true;
 }
 

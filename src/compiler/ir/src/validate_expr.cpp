@@ -3,6 +3,7 @@
 // Expression, action, type and span checks (docs/specs/ir-v1.md sections 4, 8 and 9).
 
 #include "validate_internal.hpp"
+#include "validate_record_detail.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -24,49 +25,6 @@ constexpr std::string_view kFunctions[] = {
     "toUpperCase", "toLowerCase", "startsWith", "slice",  "toFixed"};
 constexpr std::string_view kPrimitiveTypes[] = {"bool",  "int",    "float",    "string",
                                                 "color", "length", "node_ref", "children"};
-
-constexpr std::string_view kEasingKeywords[] = {"linear", "ease", "ease-in", "ease-out",
-                                                "ease-in-out"};
-constexpr double kMaxAnimationMs = 60'000.0;
-
-// `cubic-bezier(x1, y1, x2, y2)` with the x control points in [0, 1] (the CSS rule that keeps the
-// curve a function of time).
-bool valid_cubic_bezier(std::string_view text) {
-    constexpr std::string_view kPrefix = "cubic-bezier(";
-    if (!text.starts_with(kPrefix) || !text.ends_with(')')) {
-        return false;
-    }
-    std::string body(text.substr(kPrefix.size(), text.size() - kPrefix.size() - 1));
-    double values[4] = {};
-    std::size_t start = 0;
-    for (int index = 0; index < 4; ++index) {
-        const std::size_t end = index == 3 ? body.size() : body.find(',', start);
-        if (end == std::string::npos || end == start) {
-            return false;
-        }
-        const std::string piece = body.substr(start, end - start);
-        std::size_t used = 0;
-        try {
-            values[index] = std::stod(piece, &used);
-        } catch (...) {
-            return false;
-        }
-        while (used < piece.size() && piece[used] == ' ') {
-            ++used;
-        }
-        if (used != piece.size() || !std::isfinite(values[index])) {
-            return false;
-        }
-        start = end + 1;
-    }
-    return values[0] >= 0.0 && values[0] <= 1.0 && values[2] >= 0.0 && values[2] <= 1.0;
-}
-
-bool valid_easing(std::string_view text) {
-    return std::find(std::begin(kEasingKeywords), std::end(kEasingKeywords), text) !=
-               std::end(kEasingKeywords) ||
-           valid_cubic_bezier(text);
-}
 
 template<std::size_t N> bool contains(const std::string_view (&list)[N], std::string_view value) {
     return std::find(std::begin(list), std::end(list), value) != std::end(list);
@@ -225,7 +183,7 @@ void validate_expr(ValidationContext& context, const ComponentScope& scope,
                            where);
             break;
         }
-        validate_record_expr(context, *expr, nullptr, where);
+        validate_record_expr(context, scope, locals, *expr, nullptr, where);
         break;
     case ExprKind::OptionalField:
         // ADR-066 item 1: `a?.b`. One operand (the optional base) and a field name.
@@ -269,204 +227,8 @@ void validate_expr(ValidationContext& context, const ComponentScope& scope,
             context.report("TESSERA_IR_UNRESOLVED",
                            "record update base `" + expr->id + "` does not resolve", where);
         }
-        validate_record_expr(context, *expr, nullptr, where);
+        validate_record_expr(context, scope, locals, *expr, nullptr, where);
         break;
-    }
-}
-
-bool in_range(double value, double low, double high, bool low_inclusive) {
-    return std::isfinite(value) && value <= high && (low_inclusive ? value >= low : value > low);
-}
-
-void validate_spring(ValidationContext& context, const SpringTiming& spring, const Action& action,
-                     const SourceSpan& where) {
-    if (action.duration_ms.has_value() || !action.easing.empty()) {
-        context.report("TESSERA_IR_ANIMATION", "a spring cannot take a duration or easing", where);
-    }
-    if (!in_range(spring.stiffness, 0.0, 100000.0, false)) {
-        context.report("TESSERA_IR_ANIMATION", "spring stiffness must be in (0, 100000]", where);
-    }
-    if (!in_range(spring.damping, 0.0, 10000.0, true)) {
-        context.report("TESSERA_IR_ANIMATION", "spring damping must be in [0, 10000]", where);
-    }
-    if (!in_range(spring.mass, 0.0, 1000.0, false)) {
-        context.report("TESSERA_IR_ANIMATION", "spring mass must be in (0, 1000]", where);
-    }
-}
-
-// Timing options exist on `animSet` only, are meaningless when `animate` is false, and are bounded
-// so a generated tween always finishes (ir-v1.md section 2.1).
-void validate_animation_options(ValidationContext& context, const Action& action,
-                                const SourceSpan& where) {
-    const bool has_timing =
-        action.duration_ms.has_value() || !action.easing.empty() || action.spring.has_value();
-    if (!has_timing) {
-        return;
-    }
-    if (action.kind != ActionKind::AnimSet) {
-        context.report("TESSERA_IR_ANIMATION",
-                       "only an `animSet` action takes duration, easing or spring", where);
-        return;
-    }
-    if (!action.animate) {
-        context.report("TESSERA_IR_ANIMATION",
-                       "`animate: false` snaps, so it cannot take a duration, easing or spring",
-                       where);
-    }
-    if (action.spring.has_value()) {
-        validate_spring(context, *action.spring, action, where);
-    }
-    if (action.duration_ms.has_value() &&
-        (!std::isfinite(*action.duration_ms) || *action.duration_ms < 0.0 ||
-         *action.duration_ms > kMaxAnimationMs)) {
-        context.report("TESSERA_IR_ANIMATION", "duration must be 0..60000 ms", where);
-    }
-    if (!action.easing.empty() && !valid_easing(action.easing)) {
-        context.report("TESSERA_IR_ANIMATION",
-                       "easing must be linear, ease, ease-in, ease-out, ease-in-out or "
-                       "cubic-bezier(x1, y1, x2, y2) with x in [0, 1]",
-                       where);
-    }
-}
-
-// `onComplete` is the `handler::N` of a parameterless handler of the same component; only an
-// `animSet` completes. A handler that completes into itself is allowed: the runtime bounds it.
-void validate_on_complete(ValidationContext& context, const ComponentScope& scope,
-                          const Action& action, const SourceSpan& where) {
-    if (action.on_complete.empty()) {
-        return;
-    }
-    if (action.kind != ActionKind::AnimSet) {
-        context.report("TESSERA_IR_ANIMATION", "only an `animSet` action takes onComplete", where);
-        return;
-    }
-    const Handler* target = nullptr;
-    if (scope.component != nullptr) {
-        for (const auto& handler : scope.component->handlers) {
-            if (handler.id == action.on_complete) {
-                target = &handler;
-                break;
-            }
-        }
-    }
-    if (target == nullptr) {
-        context.report("TESSERA_IR_UNRESOLVED",
-                       "onComplete `" + action.on_complete + "` is not a handler of this component",
-                       where);
-    } else if (!target->params.empty()) {
-        context.report("TESSERA_IR_ANIMATION",
-                       "onComplete handler `" + action.on_complete + "` must take no parameters",
-                       where);
-    }
-}
-
-// ADR-066 item 4: whether `action` is one of the `type` literals `state_id`'s reducer handles.
-bool has_dispatch_case(const ComponentScope& scope, const std::string& state_id,
-                       const std::string& action) {
-    const auto table = scope.dispatch.find(state_id);
-    if (table == scope.dispatch.end()) {
-        // Not a reducer state; the caller reports that, so this answers "no" without a second
-        // diagnostic.
-        return true;
-    }
-    return table->second.count(action) != 0;
-}
-
-void validate_actions(ValidationContext& context, const ComponentScope& scope,
-                      const LocalNames& locals, const std::vector<Action>& actions,
-                      const SourceSpan& where) {
-    for (const auto& action : actions) {
-        if (action.guard) {
-            require_expr(context, scope, locals, action.guard.get(), where, "an action guard");
-        }
-        // ADR-066 item 2: an `If` action carries no target and no value; its `guard` is the
-        // condition and its two lists are the branches, validated by the same rules (so a nested
-        // `If` is checked the same way). An `If` with no guard has no condition to test.
-        if (action.kind == ActionKind::If) {
-            if (!action.guard) {
-                context.report("TESSERA_IR_MALFORMED", "an `if` action needs a condition", where);
-            }
-            if (!action.target.empty() || action.value) {
-                context.report("TESSERA_IR_MALFORMED",
-                               "an `if` action carries no target and no value", where);
-            }
-            validate_actions(context, scope, locals, action.then_actions, where);
-            validate_actions(context, scope, locals, action.else_actions, where);
-            continue;
-        }
-        // ADR-066 item 4: a `dispatch({ type: "x" })` names a reducer state and one of the `type`
-        // literals in its dispatch table. The table is the authority, so a literal it does not list
-        // is unresolved rather than silently a no-op.
-        if (action.kind == ActionKind::Dispatch) {
-            if (!starts_with(action.target, "state::") || scope.ids.count(action.target) == 0) {
-                context.report("TESSERA_IR_UNRESOLVED",
-                               "dispatch target `" + action.target + "` is not a state variable",
-                               where);
-                continue;
-            }
-            if (action.action.empty()) {
-                context.report("TESSERA_IR_MALFORMED",
-                               "a dispatch needs the action's `type` literal", where);
-                continue;
-            }
-            if (action.value) {
-                context.report("TESSERA_IR_MALFORMED",
-                               "a dispatch in the limited form carries no value", where);
-            }
-            const std::string& state_id = action.target;
-            if (scope.dispatch.count(state_id) == 0) {
-                context.report(
-                    "TESSERA_IR_UNRESOLVED",
-                    "`" + state_id + "` is not a `useReducer` state, so it has no dispatch", where);
-            } else if (!has_dispatch_case(scope, state_id, action.action)) {
-                context.report("TESSERA_IR_UNRESOLVED",
-                               "action `" + action.action + "` is not a case of `" + state_id +
-                                   "`'s reducer",
-                               where);
-            }
-            continue;
-        }
-        if (action.kind == ActionKind::Focus || action.kind == ActionKind::Blur) {
-            if (!starts_with(action.target, "ref::") || scope.ids.count(action.target) == 0) {
-                context.report("TESSERA_IR_UNRESOLVED",
-                               "action target `" + action.target + "` is not a ref", where);
-            }
-            if (action.value) {
-                context.report("TESSERA_IR_MALFORMED",
-                               "a `focus` or `blur` action carries no value", where);
-            }
-            continue;
-        }
-        if (action.kind == ActionKind::CallProp) {
-            const bool is_prop = starts_with(action.target, "prop::") &&
-                                 scope.props.count(action.target.substr(6)) != 0;
-            if (!is_prop) {
-                context.report("TESSERA_IR_UNRESOLVED",
-                               "action target `" + action.target + "` is not a callback prop",
-                               where);
-            } else if (action.value) {
-                require_expr(context, scope, locals, action.value.get(), where,
-                             "a callback argument");
-            }
-            continue;
-        }
-        const char* prefix = action.kind == ActionKind::Set ? "state::" : "anim::";
-        if (!starts_with(action.target, prefix) || scope.ids.count(action.target) == 0) {
-            context.report(
-                "TESSERA_IR_UNRESOLVED",
-                "action target `" + action.target + "` is not a " +
-                    (action.kind == ActionKind::Set ? "state variable" : "animated value"),
-                where);
-        }
-        require_expr(context, scope, locals, action.value.get(), where, "an action value");
-        validate_animation_options(context, action, where);
-        validate_on_complete(context, scope, action, where);
-        // ADR-067 item 4: only a state setter can be a transition. A transition mark on an
-        // animated set would promise a pending UI for a change that never fetches.
-        if (action.transition && action.kind != ActionKind::Set) {
-            context.report("TESSERA_IR_TRANSITION",
-                           "a transition mark is only valid on a state setter", where);
-        }
     }
 }
 

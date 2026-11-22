@@ -58,9 +58,15 @@ inline bool is_hook_name(std::string_view name) {
 // from the instance key and the call ordinal, and `useLayoutEffect` is `useEffect` with the same
 // timing (there is no browser paint to order against). `useMemo` and `useCallback` are handled
 // separately, because only their safe forms are accepted (react-compat.md section 4.2).
+//
+// `useReducer` is a core hook since ADR-066 item 4. Its *form* is checked by its own pass
+// (reducer.cpp) because it is defined by a module-scope helper and the type aliases beside it, but
+// it is listed here so the placement and nesting rules treat it as a hook rather than as an
+// unknown name.
 inline bool is_core_hook(std::string_view name) {
     return name == "useState" || name == "useEffect" || name == "useRef" ||
-           name == "useAnimatedValue" || name == "useId" || name == "useLayoutEffect";
+           name == "useAnimatedValue" || name == "useId" || name == "useLayoutEffect" ||
+           name == "useReducer";
 }
 
 // True for a name that is a hook call: a core hook, or a hook the manifest declares. The expansion

@@ -20,6 +20,11 @@ enum class SymbolKind : std::uint8_t {
     Environment,   // `const bp = useBreakpoint()` (an `environment` hook value)
     Local,         // `const x = <pure expression>`
     Handler,       // `const f = (...) => ...`
+    // ADR-066 item 4: the `dispatch` of `const [state, dispatch] = useReducer(...)`. It is a
+    // function value like a `StateSetter`, so a handler body of only `dispatch({...})` calls is an
+    // inline handler rather than a native one. Kept distinct from `StateSetter` because its
+    // argument is an action object, not the state's value.
+    Dispatch,
 };
 
 inline constexpr std::size_t kNoStatement = static_cast<std::size_t>(-1);

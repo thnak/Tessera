@@ -10,6 +10,7 @@
 // an rvalue - and the two only meet at `emit_expr`.
 
 #include "codegen_internal.hpp"
+#include "emit_events.hpp"
 
 #include <cstddef>
 #include <optional>
@@ -58,6 +59,34 @@ bool emit_one_action(const ir::Action& action, const ir::Component& component,
     }
     if (action.kind == ir::ActionKind::CallProp) {
         return emit_call_prop(action, component, params, body, error);
+    }
+    // ADR-066 item 4: a `dispatch({ type: "x" })` runs the handler the reducer's dispatch table
+    // maps that literal to. Which handler it is decided at generation time, so there is no run-time
+    // lookup and no payload: the generated call is the case's own method.
+    if (action.kind == ir::ActionKind::Dispatch) {
+        const ir::State* cell = nullptr;
+        for (const ir::State& candidate : component.state) {
+            if (candidate.id == action.target) {
+                cell = &candidate;
+            }
+        }
+        if (cell == nullptr) {
+            error = "a dispatch names `" + action.target + "`, which is not a state variable";
+            return false;
+        }
+        const ir::DispatchCase* entry = nullptr;
+        for (const ir::DispatchCase& candidate : cell->dispatch) {
+            if (candidate.action == action.action) {
+                entry = &candidate;
+            }
+        }
+        if (entry == nullptr) {
+            error =
+                "action `" + action.action + "` is not a case of `" + action.target + "`'s reducer";
+            return false;
+        }
+        body += method_name(entry->handler) + "(tessera::ui::Event{});\n";
+        return true;
     }
     if (!action.value) {
         error = "an action has no value expression";

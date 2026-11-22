@@ -102,6 +102,35 @@ ir::ExprPtr lower_literal_field(RecordLoweringState& state, const jsx::Expr& exp
     return nullptr;
 }
 
+// A field value that is not a literal, a nested record or an array of literals: a pure expression
+// of the member type (ADR-066 item 4). `ir-v1-expr.md` section 4.3 keeps the field an Expression in
+// the format for exactly this, and states the widening is not a format change.
+//
+// The expression is lowered with the caller's resolver, so `{ count: state.count + 1 }` reads the
+// state cell it is about to be assigned to. A caller with no resolver (a prop default) cannot reach
+// a reference, and the expression lowerer reports it.
+ir::ExprPtr lower_expression_field(RecordLoweringState& state, const jsx::Expr& expr,
+                                   const ir::RecordMember& member, std::string_view owner) {
+    if (state.names == nullptr) {
+        fail_record(state, kUnsupported,
+                    "field `" + member.name + "` of record `" + std::string(owner) + "` is `" +
+                        jsx::dump(expr) +
+                        "`; this position accepts a literal here, because it has no names to "
+                        "resolve",
+                    expr.span, "write a literal value, for example `" + member.name + ": 4`");
+        return nullptr;
+    }
+    const ExpressionLoweringContext context{state.source_map, state.file, state.names};
+    ExpressionLoweringResult lowered = lower_expression(expr, context);
+    if (!lowered) {
+        if (!state.error && !lowered.error().empty()) {
+            state.error = lowered.error().front();
+        }
+        return nullptr;
+    }
+    return std::move(*lowered);
+}
+
 ir::ExprPtr lower_field_value(RecordLoweringState& state, const jsx::Expr& expr,
                               const ir::RecordMember& member, std::string_view owner,
                               std::span<const ir::RecordType> records) {
@@ -299,20 +328,16 @@ ir::ExprPtr lower_record_value(RecordLoweringState& state, const jsx::Expr& obje
                         property->key_span);
             return nullptr;
         }
-        // A shorthand (`{ top }`) parses as an Identifier value: a reference to a local, and a
-        // dynamic field value is the unsupported form of this slice.
-        if (!is_literal_field_value(*property->value)) {
-            fail_record(state, kUnsupported,
-                        "field `" + member.name + "` of record `" + record.name + "` is `" +
-                            jsx::dump(*property->value) +
-                            "`; this slice accepts a literal, a record of literals or an array of "
-                            "literals",
-                        property->value->span,
-                        "write a literal value, for example `" + member.name + ": 4`");
-            return nullptr;
+        // A shorthand (`{ top }`) parses as an Identifier value: a reference to a local, which the
+        // resolver inlines or rejects. A literal, a nested record and an array of literals are the
+        // forms `lower_field_value` accepts; anything else is a pure expression of the member type
+        // (ADR-066 item 4), which the expression lowerer handles.
+        ir::ExprPtr value;
+        if (is_literal_field_value(*property->value)) {
+            value = lower_field_value(state, *property->value, member, record.name, records);
+        } else {
+            value = lower_expression_field(state, *property->value, member, record.name);
         }
-        ir::ExprPtr value =
-            lower_field_value(state, *property->value, member, record.name, records);
         if (!value) {
             return nullptr;
         }

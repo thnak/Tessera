@@ -35,6 +35,7 @@ set(_tessera_lowering_core_sources
     src/record_lowering.cpp
     src/record_types.cpp
     src/reference_lowering.cpp
+    src/reducer_lowering.cpp
     src/schema_bridge.cpp
     src/source_span.cpp
     src/style_lowering.cpp

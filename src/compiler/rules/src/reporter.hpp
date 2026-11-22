@@ -21,6 +21,9 @@ struct Context {
     jsx::DiagnosticSink& sink;
     // The built-in hook manifest: the authority on what a library hook accepts and returns.
     const jsx::HookManifest& manifest;
+    // The module the component was parsed from. ADR-066 item 4's `useReducer` form is defined by a
+    // module-scope helper and by the type aliases beside it, so the recognition pass reads them.
+    const jsx::Module& module;
     // The custom-hook expansion's call-site map (spike #659, ADR-065; docs/specs/custom-hooks-v1.md
     // section 8), or null when the expansion did not run. A diagnostic whose span falls inside an
     // expanded region carries that region's call site as its related span, so the reader sees the
@@ -62,10 +65,21 @@ struct Context {
 // subset names (spec section 12), UNKNOWN_HOOK for anything else starting with `use`.
 void report_unknown_hook(Context& ctx, std::string_view name, jsx::Span span);
 
+// Adds one name to the component's symbol table. Shared with reducer.cpp, which declares the two
+// names of a `useReducer` statement.
+void add_symbol(Context& ctx, std::string name, SymbolKind kind, jsx::Span span,
+                std::size_t statement);
+
+// ADR-066 item 4: whether `expr` is a call of a `useReducer` dispatch, which a handler body may
+// hold like a setter call. Defined in reducer.cpp, which owns the form.
+[[nodiscard]] bool is_dispatch_call(const Context& ctx, const jsx::Expr& expr);
+
 // Passes, in the order analyze_module runs them.
 void check_hooks(Context& ctx);          // hooks.cpp: symbols and forms, then the placement checks
 void check_hook_placement(Context& ctx); // hook_placement.cpp: nesting and declaration order
 void classify_arrows(Context& ctx);      // arrows.cpp: roles, BIND_MISSING, effect returns
 void check_effect_deps(Context& ctx);    // effect_deps.cpp: exact dependency match
+// reducer.cpp: the `useReducer` form, run after the hook forms so its symbols exist.
+void check_reducers(Context& ctx);
 
 } // namespace tessera::compiler::rules

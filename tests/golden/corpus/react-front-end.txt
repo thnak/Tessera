@@ -1,12 +1,11 @@
 corpus: 50 file(s)
-front end accepted: 38 (76.0%), 12 rejected
-front end accepted with a component declaration: 38 (76.0%)
-pipeline accepted: 24 (48.0%)
+front end accepted: 39 (78.0%), 11 rejected
+front end accepted with a component declaration: 39 (78.0%)
+pipeline accepted: 26 (52.0%)
 warnings: 0
 
 front-end rejections (code, occurrences, files):
   TESSERA_JSX_PARSE_UNEXPECTED_TOKEN 5 5
-  TESSERA_REACT_UNSUPPORTED_API 2 2
   TESSERA_JSX_PARSE_MISSING_SEMICOLON 1 1
   TESSERA_JSX_SUBSET_DOM 1 1
   TESSERA_JSX_SUBSET_DYNAMIC_TAG 1 1
@@ -14,6 +13,7 @@ front-end rejections (code, occurrences, files):
   TESSERA_REACT_EFFECT_DEPS 1 1
   TESSERA_REACT_HOOK_ORDER 1 1
   TESSERA_REACT_UNKNOWN_HOOK 1 1
+  TESSERA_REACT_UNSUPPORTED_API 1 1
 
 front-end first rejections (code, files):
   TESSERA_JSX_PARSE_UNEXPECTED_TOKEN 4
@@ -24,14 +24,12 @@ front-end first rejections (code, files):
   TESSERA_REACT_EFFECT_DEPS 1
   TESSERA_REACT_HOOK_ORDER 1
   TESSERA_REACT_UNKNOWN_HOOK 1
-  TESSERA_REACT_UNSUPPORTED_API 1
 
 pipeline rejections (first blocking code, files):
   TESSERA_IR_UNSUPPORTED 7
   TESSERA_IR_UNKNOWN_PROP 4
   TESSERA_JSX_PARSE_UNEXPECTED_TOKEN 4
   TESSERA_IR_BINDING 1
-  TESSERA_IR_UNKNOWN_TYPE 1
   TESSERA_IR_UNRESOLVED 1
   TESSERA_JSX_PARSE_MISSING_SEMICOLON 1
   TESSERA_JSX_SUBSET_DOM 1
@@ -40,7 +38,6 @@ pipeline rejections (first blocking code, files):
   TESSERA_REACT_EFFECT_DEPS 1
   TESSERA_REACT_HOOK_ORDER 1
   TESSERA_REACT_UNKNOWN_HOOK 1
-  TESSERA_REACT_UNSUPPORTED_API 1
 
 files:
   accepted react/components/arrow-component.tsx components=1 pipeline=ok
@@ -63,7 +60,7 @@ files:
   accepted react/expressions/list-map-key.tsx components=1 pipeline=ok
   accepted react/expressions/nullish-coalescing.tsx components=1 pipeline=ok
   accepted react/expressions/object-destructure-local.tsx components=1 pipeline=ok
-  accepted react/expressions/object-spread.tsx components=1 pipeline=TESSERA_IR_UNKNOWN_TYPE
+  accepted react/expressions/object-spread.tsx components=1 pipeline=ok
   accepted react/expressions/readonly-array-type.tsx components=1 pipeline=ok
   accepted react/expressions/slice-map.tsx components=1 pipeline=TESSERA_IR_UNSUPPORTED
   accepted react/expressions/string-methods.tsx components=1 pipeline=ok
@@ -82,7 +79,7 @@ files:
   accepted react/hooks/use-id.tsx components=1 pipeline=ok
   accepted react/hooks/use-layout-effect.tsx components=1 pipeline=TESSERA_IR_BINDING
   accepted react/hooks/use-memo.tsx components=1 pipeline=TESSERA_IR_UNSUPPORTED
-  rejected react/hooks/use-reducer.tsx components=1: TESSERA_REACT_UNSUPPORTED_API pipeline=TESSERA_REACT_UNSUPPORTED_API
+  accepted react/hooks/use-reducer.tsx components=1 pipeline=ok
   accepted react/hooks/use-ref-focus.tsx components=1 pipeline=ok
   accepted react/hooks/use-state-typed.tsx components=1 pipeline=ok
   accepted react/rejected/browser-api.tsx components=1 pipeline=TESSERA_IR_UNRESOLVED

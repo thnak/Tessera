@@ -63,7 +63,7 @@ AnalyzedModule analyze_module(const jsx::Module& module, const jsx::SourceMap& m
             result.components.push_back(std::move(analysis));
             continue;
         }
-        Context ctx{item, analysis, sink, hooks, call_sites};
+        Context ctx{item, analysis, sink, hooks, module, call_sites};
         check_hooks(ctx);
         classify_arrows(ctx);
         check_effect_deps(ctx);

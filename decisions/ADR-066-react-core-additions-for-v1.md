@@ -366,9 +366,55 @@ does not move (38 of 50 at the front end, 24 through the pipeline, unchanged fro
    to, so a `case` after `default` is unreachable and is rejected; every case of a reducer returns, so
    `break` is accepted and ignored rather than being a form the lowering has to model.
 
-**Still open from item 4.** The `useReducer` lowering (one state cell plus one handler per action
-type, `dispatch({ type: "x" })` as a call of that handler, `TESSERA_REACT_REDUCER_FORM` for anything
-outside the limited form) and the static `useContext` provider tree.
+**Still open from item 4.** The static `useContext` provider tree, and the generated C++ for a
+reducer state (below).
+
+### Step 4 evidence, part 2 (recorded 2026-11-22, issue #801)
+
+`useReducer` is recognised and lowered. The corpus moves to 39 of 50 at the front end (78.0%) and
+26 through the pipeline (52.0%), from 38/24.
+
+**The shape, as it landed.** Accepted only when `reduce` is a module-scope `function` the same file
+declares, taking `(state, action)` with declared types; the state type is a record alias; the action
+type is a union of object literals each carrying a `type` string literal and nothing else; the
+helper returns its state type and its body is exactly one `switch` on `action.type`; every case is
+one `return <record>;` labelling a `type` the union declares, once; and every `type` in the union has
+a case. Anything else is `TESSERA_REACT_REDUCER_FORM`, reported at the part that broke the form.
+
+**A missing case is the form error, not a fall-through.** The handler set is one handler per `type`,
+so an action the union declares with no case would give a `dispatch({ type: "x" })` that compiles
+and does nothing. A `default` clause is accepted and recorded but adds no dispatch key, because the
+table is keyed by the literal.
+
+**Lowering.** One state cell of the state record type (an ordinary record-valued `useState`), one
+handler per case, and a `dispatch` table mapping each `type` to its handler. `dispatch({ type: "x" })`
+becomes a `Dispatch` action naming the cell and the literal.
+
+**Three layers the case body needed, none optional.** A case returns `{ count: state.count + 1 }`, a
+record whose field is computed:
+
+1. The record lowerer accepted literal field values only. `ir-v1-expr.md` section 4.3 already says
+   the field is an Expression in the format so dynamic values can land "in a later slice"; this is
+   that slice.
+2. The IR validator checked record field values against an *empty* scope, so the reference would have
+   been reported unresolved. It now takes the component scope and the handler's locals. A `set` of a
+   record-typed state also takes a record value — section 4.3's fourth position — without which a
+   case's generated handler could not be written at all.
+3. A case reads its own state through the symbol the reducer declared, so `state` resolves to
+   `state::state` and `state.count` to `state::state.count`. A same-named local shadows that and
+   yields a bare `state.count`.
+
+**A pre-existing bug this exposed.** `tools/codegen/diagnose.cpp` copied components, bindings and
+stylesheets into the IR module but not the record type table, so every record-typed position on the
+preview and corpus path reported `TESSERA_IR_UNKNOWN_TYPE` while the CLI accepted the same file. It
+is what kept `object-spread.tsx` out too: one of the two files the pipeline gained was already
+accepted by the CLI.
+
+**Still open.** The generated C++ for a reducer state. The IR is valid, but `codegen`'s text-value
+typing has no record table, so `<Text>{state.count}</Text>` reports `TESSERA_CODEGEN_UNSUPPORTED`.
+One slice: thread the module's record table through `printable_text_expression` and its eight call
+sites, and teach `declared_text_type` to resolve a dotted field through it.
+
 
 ## Follow-up
 - Update `jsx-subset-v1.md` sections 6, 7, 9, 10 and 12, `ir-v1.md` section 2.1 and `ir-v1-expr.md`

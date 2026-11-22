@@ -316,6 +316,10 @@ HookLoweringResult lower_hooks(const HookLoweringContext& context) {
         const std::string hook = internal::callee_name(*statement.init);
         if (hook == "useState") {
             lower_state(state, index, out, names);
+        } else if (hook == "useReducer") {
+            // ADR-066 item 4: one state cell whose dispatch table maps each action `type` to the
+            // handler its case became. The analyzer resolved the form, so this emits it.
+            internal::lower_reducer_hook(state, index, out, names);
         } else if (hook == "useRef") {
             lower_ref(state, index, out);
         } else if (hook == "useMergedRefs") {
