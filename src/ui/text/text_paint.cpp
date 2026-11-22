@@ -14,7 +14,7 @@ namespace {
 // down to a grapheme-cluster boundary: paint never splits a multi-byte character or a base + mark
 // cluster, and the measurement used for the decision is the caller's metric seam.
 std::size_t fitting_prefix_end(std::string_view text, const PaintedSegment& segment,
-                               const TextStyle& style, TextAdvanceMeasure advance, void* user,
+                               const TextStyle& style, TextAdvanceMeasure advance, const void* user,
                                float budget) noexcept {
     if (segment.collapsed) {
         // A collapsed run paints as exactly one space: either that space fits and the run's whole
@@ -47,7 +47,7 @@ std::size_t fitting_prefix_end(std::string_view text, const PaintedSegment& segm
 
 PaintedEllipsis fit_ellipsis_prefix(std::string_view text, std::size_t begin, std::size_t end,
                                     WhiteSpace mode, float available_width, const TextStyle& style,
-                                    TextAdvanceMeasure advance, void* user) noexcept {
+                                    TextAdvanceMeasure advance, const void* user) noexcept {
     PaintedEllipsis result;
     begin = std::min(begin, text.size());
     end = std::min(std::max(end, begin), text.size());

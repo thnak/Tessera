@@ -25,6 +25,6 @@ namespace tessera::ui::text {
 [[nodiscard]] TextLayout
 layout_text_with_breaks(std::string_view text, const TextStyle& style, const FontMetrics& metrics,
                         const TextConstraints& constraints, BreakBackend backend,
-                        TextAdvanceMeasure measure = nullptr, void* user = nullptr);
+                        TextAdvanceMeasure measure = nullptr, const void* user = nullptr);
 
 } // namespace tessera::ui::text

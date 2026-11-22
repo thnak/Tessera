@@ -41,7 +41,7 @@ TextStyle style() {
     return result;
 }
 
-float advance(std::string_view text, const TextStyle& text_style, void* user) {
+float advance(std::string_view text, const TextStyle& text_style, const void* user) {
     const auto* metrics = static_cast<const FontMetrics*>(user);
     // Literal cluster advance, matching the text module's raw advance seam (the wrap adds
     // `word-spacing` itself, so the seam must not include it).

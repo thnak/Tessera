@@ -113,7 +113,13 @@ public:
     // the generic hit test can resolve a point to the span child. It never marks a dirty domain;
     // the parent's layout/paint dirty flags already drive the frame (a span has no independent
     // size).
-    void set_span_bounds(const rhi::Rect& bounds);
+    //
+    // `const` because this is paint-derived data written through a const scene (issue #733 item 4):
+    // the pass is handed the tree as `const` and must not have to `const_cast` a node to record
+    // what it derived. The same rule as `subtree_paint_bounds_` below -- a field paint fills lazily
+    // is `mutable`, so "paint does not change the scene" stays true for every field a caller can
+    // read as scene state.
+    void set_span_bounds(const rhi::Rect& bounds) const;
 
     void set_transform(const rhi::Mat3& transform);
     [[nodiscard]] const rhi::Mat3& transform() const {
@@ -144,7 +150,7 @@ public:
         return paint_outsets_;
     }
     [[nodiscard]] rhi::Rect subtree_paint_bounds() const; // cached; see node_geometry.cpp
-    void invalidate_subtree_paint_bounds();
+    void invalidate_subtree_paint_bounds() const;
     // Glass (CSS `backdrop-filter`, docs/specs/glass-v1.md sections 2 and 7). The blur sigma in CSS
     // px is what paint::sync_scene_style resolved from the computed value, already clamped to the
     // configured `glassMaxBlurRadius`; 0 means the node has no non-`none` backdrop-filter. Damage
@@ -531,7 +537,10 @@ private:
     NodeId id_ = 0;
     Node* parent_ = nullptr;
     std::vector<std::unique_ptr<Node>> children_;
-    rhi::Rect bounds_;
+    // `mutable` for the same reason as `subtree_paint_bounds_`: `set_span_bounds` writes it through
+    // a const scene (issue #733 item 4). Every other write goes through `set_bounds`, which is
+    // non-const, so the mutability is confined to the one paint-derived path.
+    mutable rhi::Rect bounds_;
     // Cached subtree paint box (issue #735, slice C); `mutable` because paint fills it lazily
     // through a const reference. Width encodes the state: negative is "not computed", +infinity is
     // "computed and unbounded", else the box - so no separate validity flag is needed.

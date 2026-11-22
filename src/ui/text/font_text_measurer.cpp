@@ -17,7 +17,7 @@ namespace {
 // The wrap's advance seam. HarfBuzz reports the shaped advance of the run it is given; the wrap
 // adds `word-spacing` per separator and applies `text-transform` itself, so this callback must
 // return the bare advance of the bytes it receives (docs/design/text.md section 6.4).
-float shaped_advance(std::string_view text, const TextStyle& style, void* user) {
+float shaped_advance(std::string_view text, const TextStyle& style, const void* user) {
     return static_cast<const HarfBuzzShaper*>(user)->shape(text, style).advance;
 }
 

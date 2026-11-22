@@ -30,6 +30,7 @@ struct TextHit {
 [[nodiscard]] TextHit hit_test_point(std::string_view text, const TextStyle& style,
                                      const TextConstraints& constraints, float x, float y,
                                      const FontMetrics& metrics,
-                                     TextAdvanceMeasure measure = nullptr, void* user = nullptr);
+                                     TextAdvanceMeasure measure = nullptr,
+                                     const void* user = nullptr);
 
 } // namespace tessera::ui::text

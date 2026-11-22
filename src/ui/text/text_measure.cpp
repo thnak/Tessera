@@ -224,7 +224,7 @@ TextMetrics StubTextMeasurer::measure(std::string_view text, const TextStyle& st
 
 TextLayout layout_text_measured(std::string_view text, const TextStyle& style,
                                 const FontMetrics& metrics, const TextConstraints& constraints,
-                                TextAdvanceMeasure measure, void* user) {
+                                TextAdvanceMeasure measure, const void* user) {
     if (text.empty() || measure == nullptr) {
         return {};
     }

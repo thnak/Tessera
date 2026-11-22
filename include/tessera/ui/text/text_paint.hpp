@@ -70,7 +70,8 @@ struct PaintedEllipsis {
 [[nodiscard]] PaintedEllipsis fit_ellipsis_prefix(std::string_view text, std::size_t begin,
                                                   std::size_t end, WhiteSpace mode,
                                                   float available_width, const TextStyle& style,
-                                                  TextAdvanceMeasure advance, void* user) noexcept;
+                                                  TextAdvanceMeasure advance,
+                                                  const void* user) noexcept;
 
 // Sequential, allocation-free mapping from a laid-out line's source range to the painted segment
 // sequence. The layout already trimmed the line edges for the trimming modes; `trim_edges` makes

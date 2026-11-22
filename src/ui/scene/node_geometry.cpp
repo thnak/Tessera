@@ -124,8 +124,10 @@ bool own_paint_is_bounded(const Node& node) {
 // one unbounded descendant disables the skip for every ancestor. A scroll container's children are
 // not clipped here (the clip is a style question this layer cannot answer), which only ever makes
 // the box larger, never smaller.
-void Node::invalidate_subtree_paint_bounds() {
-    for (Node* node = this; node != nullptr; node = node->parent_) {
+void Node::invalidate_subtree_paint_bounds() const {
+    // The walk is const (issue #733 item 4): `subtree_paint_bounds_` is `mutable`, so a const node
+    // can clear its own and every ancestor's cached box without casting the parent chain.
+    for (const Node* node = this; node != nullptr; node = node->parent_) {
         node->subtree_paint_bounds_ = rhi::Rect{0.0f, 0.0f, -1.0f, 0.0f};
     }
 }
@@ -190,8 +192,10 @@ void Node::set_bounds(const rhi::Rect& bounds) {
     set_scroll_offset(scroll_.scroll_x(), scroll_.scroll_y());
 }
 
-void Node::set_span_bounds(const rhi::Rect& bounds) {
+void Node::set_span_bounds(const rhi::Rect& bounds) const {
     // Derivable paint data, not a layout box: no dirty marks and no scrollport/offset side effects.
+    // `const` (issue #733 item 4) because the paint pass derives it through a const scene; the
+    // fields it writes are `mutable` for the same reason `subtree_paint_bounds_` is.
     if (!same_rect(bounds_, bounds)) {
         bounds_ = bounds;
         // The one geometry write that marks no dirty domain, so the cached subtree box (issue #735)

@@ -237,13 +237,14 @@ void paint_spanned_text(const Node& node, const text::TextStyle& base_style,
     }
     // Only a span that is interactive or semantic becomes a hit target / accessibility entry: the
     // plain synthetic runs stay part of the parent Text (elements-basic.md section 2.1).
-    Node& mutable_node = const_cast<Node&>(node);
+    // `set_span_bounds` is const (issue #733 item 4): the pass is handed the tree as `const` and
+    // records paint-derived data through it, so no `const_cast` is needed to reach a child.
     const rhi::Rect world = node.world_bounds();
     for (std::size_t index = 0; index < span_count; ++index) {
         if (!styles[index].painted) {
             continue;
         }
-        for (const auto& child : mutable_node.children()) {
+        for (const auto& child : node.children()) {
             if (child->id() != data->spans[index].node_id) {
                 continue;
             }

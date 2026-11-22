@@ -11,8 +11,8 @@
 namespace tessera::ui::paint {
 namespace {
 
-float harfbuzz_advance(std::string_view text, const text::TextStyle& style, void* user) {
-    return static_cast<text::HarfBuzzShaper*>(user)->shape(text, style).advance;
+float harfbuzz_advance(std::string_view text, const text::TextStyle& style, const void* user) {
+    return static_cast<const text::HarfBuzzShaper*>(user)->shape(text, style).advance;
 }
 
 } // namespace

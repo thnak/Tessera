@@ -39,13 +39,18 @@ TextLayout layout_text(std::string_view text, const TextStyle& style, const Font
 // itself, so the stub and measured paths agree). The callback is the metrics seam for measured
 // wrapping: the real-face path passes a HarfBuzz advance, the deterministic stub path uses
 // layout_text directly.
-using TextAdvanceMeasure = float (*)(std::string_view text, const TextStyle& style, void* user);
+//
+// `user` is `const void*` (issue #733 item 4): every implementation only reads through it -- a
+// `FontMetrics`, a `HarfBuzzShaper` (whose `shape` is const), a `PaintTextMetricsSource` -- so the
+// non-const form forced callers to `const_cast` away a constness they never violated.
+using TextAdvanceMeasure = float (*)(std::string_view text, const TextStyle& style,
+                                     const void* user);
 
 // Same greedy line-box algorithm as layout_text, but line widths come from `measure` instead of the
 // fixed stub advance. Used by the paint wrap when a real font metrics source is supplied; the
 // deterministic stub path keeps calling layout_text so goldens stay byte-identical.
 TextLayout layout_text_measured(std::string_view text, const TextStyle& style,
                                 const FontMetrics& metrics, const TextConstraints& constraints,
-                                TextAdvanceMeasure measure, void* user);
+                                TextAdvanceMeasure measure, const void* user);
 
 } // namespace tessera::ui::text

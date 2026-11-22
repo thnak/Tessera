@@ -217,7 +217,7 @@ void bidi_apply_visual_runs(std::string_view utf8, TextDirection paragraph_direc
 }
 
 float bidi_offset_x(std::string_view utf8, const TextLine& line, std::size_t logical_offset,
-                    const TextStyle& style, BidiAdvance advance, void* user) {
+                    const TextStyle& style, BidiAdvance advance, const void* user) {
     if (line.visual_runs.empty()) {
         const std::size_t clamped = std::min(std::max(logical_offset, line.begin), line.end);
         return advance(utf8.substr(line.begin, clamped - line.begin), style, user);
