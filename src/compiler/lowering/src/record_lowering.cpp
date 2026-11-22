@@ -85,7 +85,7 @@ const ir::RecordMember* find_member(const ir::RecordType& record, std::string_vi
 ir::ExprPtr lower_literal_field(RecordLoweringState& state, const jsx::Expr& expr,
                                 const ir::RecordMember& member, std::string_view owner) {
     const ExpressionLoweringContext context{state.source_map, state.file, nullptr};
-    LoweringState lowering{context, std::nullopt, {}};
+    LoweringState lowering{context, std::nullopt, {}, {}};
     ir::ExprPtr value = lower_literal(lowering, expr);
     if (value) {
         return value;
