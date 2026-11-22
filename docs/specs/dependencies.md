@@ -199,7 +199,7 @@ checks could move to server rendering without a jsdom (or any other) dependency.
 | X11 (`libX11`) | V1 (Linux, B3 window/present; linked dynamically) | MIT/X11 | `platform/linux`, `rendering/backend/vulkan` | Window, Xlib `VkSurfaceKHR` |
 | Wayland (`libwayland-client`, `wayland-protocols`) | V1 (Linux, B3 window/present; linked dynamically, optional at build time) | MIT | `platform/linux`, `rendering/backend/vulkan` | Window (xdg-shell), `VK_KHR_wayland_surface` |
 | libxkbcommon | V1 (Linux) | MIT | `hal/input` | Keyboard mapping |
-| AndroidX WindowManager (`androidx.window:window`) | Android V1 optional | Apache-2.0 | `hal/window`, `ui/layout` | `WindowMetrics`, fold posture/hinge via JNI (Java Native Interface) |
+| AndroidX WindowManager (`androidx.window:window` 1.5.1) | Android V1 optional | Apache-2.0 | `hal/window`, `ui/layout` | Fold posture/hinge via JNI (shipped, #189); the platform SDK has no fold API at any level |
 | Cocoa / AppKit | Post-V1 (macOS, [ADR-053](../../decisions/ADR-053-native-metal-backend.md), native Metal) | System | `platform/macos` | Window, input |
 | GLFW | Candidate (buy) | zlib | `hal/window` | Window/input abstraction |
 | SDL3 | Candidate (buy) | zlib | `hal/window`, `hal/audio` | Window/input/audio abstraction |

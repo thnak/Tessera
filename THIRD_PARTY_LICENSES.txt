@@ -17,7 +17,7 @@ option (miniaudio: MIT-0, rpmalloc: MIT); libjpeg-turbo ships BSD-3-Clause and I
 Components (38)
 ----------------
 
-AndroidX WindowManager (androidx.window:window)
+AndroidX WindowManager (androidx.window:window 1.5.1)
   License: Apache-2.0
   Copyright: Google / Android Open Source Project
 
