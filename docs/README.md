@@ -298,7 +298,7 @@ This page is the map and reading order for the framework.
 - [`design/css-isolation.md`](design/css-isolation.md) — CSS isolation: `*.module.css` class scoping
 - [`design/designer.md`](design/designer.md) — Wasm/WebGPU preview, IPC (inter-process communication), hot reload
 - [`design/threading-and-memory.md`](design/threading-and-memory.md) — threads, ownership,
-  allocators, GPU memory, shutdown
+  allocators, GPU memory, shutdown; [`design/std-function-audit.md`](design/std-function-audit.md) — `std::function` hot/cold (#707)
 - [`design/resources.md`](design/resources.md) — assets, caches, uploads, lifetime, hot reload
 - [`design/services/README.md`](design/services/README.md) — services docs index: the common service
   contract, i18n (internationalization), navigation, storage, and the platform modules
