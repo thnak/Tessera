@@ -953,6 +953,18 @@ target_include_directories(android_ime_tests PRIVATE
 target_link_libraries(android_ime_tests PRIVATE tessera_input)
 
 add_test(NAME android_ime COMMAND android_ime_tests)
+# Fold decoding (issue #189): a flat fold is a seam, not a barrier, and that rule is the one most
+# likely to be got wrong, so it gets its own executable and its own failure line.
+add_executable(android_fold_tests
+    hal/android_fold_tests.cpp
+    ${PROJECT_SOURCE_DIR}/src/platform/android/android_metrics_translation.cpp)
+
+target_include_directories(android_fold_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src/platform/android)
+
+target_link_libraries(android_fold_tests PRIVATE tessera_hal_metrics)
+
+add_test(NAME android_fold COMMAND android_fold_tests)
 
 add_executable(diagnostics_crash_tests
     diagnostics_crash_tests.cpp)

@@ -364,27 +364,24 @@ public:
     }
 
     // Offers one platform input event to the window's translator and returns true when it produced
-    // at least one queued `ui::InputEvent`. `event` is an opaque platform event (Android:
-    // `AInputEvent*`): only the backend interprets it, so no platform type reaches this header
-    // (ADR-020 rule 1). For input that arrives through a callback the host does not own. The
-    // default returns false. Must be called on the window's thread.
+    // at least one queued `ui::InputEvent`. `event` is opaque (Android: `AInputEvent*`), so no
+    // platform type reaches this header (ADR-020 rule 1). False by default; window thread only.
     virtual bool translate_input(const void* event) {
         (void)event;
         return false;
     }
 
     // Queues one already-normalized event, for a platform whose input the HOST translates because
-    // the platform reports it as an object rather than a native event (Android's Java
-    // `MotionEvent`). Returns false when the window has no queue; call on the window's thread.
+    // the platform reports it as an object (Android's Java `MotionEvent`). False with no queue.
     virtual bool post_input_event(const ui::InputEvent& event) {
         (void)event;
         return false;
     }
 
     // The platform's window-metrics signals, for a platform that reports them through a callback
-    // the host does not own (Android's `WindowInsets`/`DisplayCutout` over JNI). Values are
-    // PHYSICAL pixels; the backend converts them to logical ones. Cutouts keep at most
-    // `kMaxCutouts`.
+    // the host does not own (Android's `WindowInsets`/`DisplayCutout`/`FoldingFeature` over JNI).
+    // Values are PHYSICAL pixels; the backend converts them to logical ones. Cutouts keep at most
+    // `kMaxCutouts`; a fold is ignored unless HalfOpened.
     virtual void set_physical_insets(const PhysicalInsets& system_bars, const PhysicalInsets& ime,
                                      const PhysicalInsets& gestures) {
         (void)system_bars;
@@ -393,6 +390,9 @@ public:
     }
     virtual void set_physical_cutouts(std::span<const PhysicalRect> rects) {
         (void)rects;
+    }
+    virtual void set_physical_fold(const PhysicalFold& fold) {
+        (void)fold;
     }
 
     // Installs the UIA root handshake (see AccessibilityRoot). Must be called on the window's

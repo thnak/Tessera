@@ -29,6 +29,27 @@ struct PhysicalRect {
     std::int32_t bottom = 0;
 };
 
+// The fold posture a platform reports, in the platform's own terms: a foldable is unfolded flat, or
+// it is half-opened on an axis, or it has no fold at all. Android's `FoldingFeature.State` and
+// `.Orientation` are the source; the decode maps these onto `FoldState`/`FoldOrientation`, which is
+// where the engine's own vocabulary lives.
+enum class PhysicalFoldPosture : std::uint8_t {
+    None,
+    Flat,
+    HalfOpened,
+};
+enum class PhysicalFoldAxis : std::uint8_t {
+    None,
+    Horizontal,
+    Vertical,
+};
+struct PhysicalFold {
+    PhysicalFoldPosture posture = PhysicalFoldPosture::None;
+    PhysicalFoldAxis axis = PhysicalFoldAxis::None;
+    // The hinge rectangle in physical pixels; ignored unless the posture is HalfOpened.
+    PhysicalRect hinge;
+};
+
 // Opaque native handles for renderer integration; UI/components must keep using WindowMetrics.
 // Win32: `window` is the HWND, `display` is unused. X11: `display` is the Display* and `window` the
 // Window id. Wayland: `display` is the wl_display* and `window` the wl_surface*. Android: `window`
