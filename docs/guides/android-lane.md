@@ -268,9 +268,14 @@ stays inside its size budget.
   fold therefore needs an AndroidX dependency in the shell, which is a decision for whoever owns the
   dependency policy rather than something to slip into this change. Until then the shell reports no
   fold, which is the same answer a non-foldable gives.
-- **Accessibility** (section 3.4), and the IME's long tail: `setSelection`/`requestCursorUpdates`
-  are not forwarded yet, and `performEditorAction` reports "not handled" because the edit controller
-  has no Done/Search/Go concept. The compose/commit/delete path is wired.
+- **The accessibility bridge itself.** The role/action mapping
+  (`android_a11y_mapping.cpp`) and its tests are done, but nothing builds an
+  `AccessibilityNodeProvider` from a snapshot yet, so a screen reader sees an empty window. The
+  engine's `A11ySnapshot` already carries everything the provider needs; the Java half is the
+  remaining work.
+- **The IME's long tail:** `setSelection`/`requestCursorUpdates` are not forwarded yet, and
+  `performEditorAction` reports "not handled" because the edit controller has no Done/Search/Go
+  concept. The compose/commit/delete path is wired.
 - **A generated component.** The shell's scene (`android/app/src/main/cpp/scene.hpp`) is built by
   hand, because the codegen CLI runs on the host at build time and `tessera_compiler_demo` is gated
   on `NOT CMAKE_CROSSCOMPILING`. A hand-built tree still exercises the scene graph, the compiled
