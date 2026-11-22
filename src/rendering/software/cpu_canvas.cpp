@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 
-#include "tessera/rendering/software/cpu_canvas.hpp"
 #include "tessera/rendering/gpu/clip_shapes.hpp"
+#include "tessera/rendering/software/cpu_canvas.hpp"
 
 #include <algorithm>
 #include <cmath>

@@ -36,8 +36,8 @@ struct ClipShape {
     float inset_right = 0.0f;
     float inset_bottom = 0.0f;
     float inset_left = 0.0f;
-    // `inset(â€¦ round â€¦)`: the four corner radii (TL, TR, BR, BL) in pixels. A zero entry is a square
-    // corner; the elliptical pair is not expressible in the CSS `round` shorthand this slice
+    // `inset(â€¦ round â€¦)`: the four corner radii (TL, TR, BR, BL) in pixels. A zero entry is a
+    // square corner; the elliptical pair is not expressible in the CSS `round` shorthand this slice
     // accepts, so both components of a corner are equal.
     float radius_tl = 0.0f;
     float radius_tr = 0.0f;
@@ -66,11 +66,13 @@ struct ClipPathParse {
 
 // Parses a `clip-path` value against `box`, the reference box in target pixels. `value` is the
 // computed string, so a `var()` or a `calc()` has already been resolved by the cascade.
-[[nodiscard]] ClipPathParse parse_clip_path(std::string_view value, const rendering::rhi::Rect& box);
+[[nodiscard]] ClipPathParse parse_clip_path(std::string_view value,
+                                            const rendering::rhi::Rect& box);
 
 // Converts a parsed shape into the clip record the renderer and the CPU reference both read. The
-// record's `kind` is `Ellipse` for a circle/ellipse and `RoundedRect` for an inset, which is what the
-// shader dispatches on.
-[[nodiscard]] rendering::gpu::clip::ClipRecord to_clip_record(const ClipShape& shape, const rendering::rhi::Rect& box);
+// record's `kind` is `Ellipse` for a circle/ellipse and `RoundedRect` for an inset, which is what
+// the shader dispatches on.
+[[nodiscard]] rendering::gpu::clip::ClipRecord to_clip_record(const ClipShape& shape,
+                                                              const rendering::rhi::Rect& box);
 
 } // namespace tessera::ui::paint::detail

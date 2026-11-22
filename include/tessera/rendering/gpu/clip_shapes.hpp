@@ -124,8 +124,8 @@ struct Ellipse {
     const float y = static_cast<float>(py) + 0.5f;
     switch (static_cast<RecordKind>(record.kind)) {
     case RecordKind::Ellipse: {
-        const Ellipse ellipse = make_ellipse(rhi::Rect{record.x, record.y, record.width,
-                                                       record.height});
+        const Ellipse ellipse =
+            make_ellipse(rhi::Rect{record.x, record.y, record.width, record.height});
         return inside_ellipse(ellipse, x, y);
     }
     case RecordKind::RoundedRect:
@@ -137,8 +137,8 @@ struct Ellipse {
     return true;
 }
 
-// The smallest integer scissor containing the record's bounding box. A shaped clip still narrows the
-// hardware scissor, so the shader only refines the edge.
+// The smallest integer scissor containing the record's bounding box. A shaped clip still narrows
+// the hardware scissor, so the shader only refines the edge.
 [[nodiscard]] inline rhi::Scissor enclosing_scissor(const ClipRecord& record) {
     if (record.width <= 0.0f || record.height <= 0.0f) {
         return rhi::Scissor{};

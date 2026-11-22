@@ -46,8 +46,8 @@ std::vector<std::string> tokenize(std::string_view text) {
         } else if (character == ')') {
             --depth;
         }
-        if (depth == 0 && (std::isspace(static_cast<unsigned char>(character)) != 0 ||
-                           character == ',')) {
+        if (depth == 0 &&
+            (std::isspace(static_cast<unsigned char>(character)) != 0 || character == ',')) {
             if (!current.empty()) {
                 tokens.push_back(current);
                 current.clear();
@@ -133,7 +133,8 @@ bool parse_position(const std::vector<std::string>& tokens, std::size_t first, P
     }
     if (token == "left" || token == "right") {
         out.x = Length{token == "left" ? 0.0f : 100.0f, true};
-        if (first + 1 < tokens.size() && (tokens[first + 1] == "top" || tokens[first + 1] == "bottom")) {
+        if (first + 1 < tokens.size() &&
+            (tokens[first + 1] == "top" || tokens[first + 1] == "bottom")) {
             out.y = Length{tokens[first + 1] == "top" ? 0.0f : 100.0f, true};
             return first + 2 == tokens.size();
         }
@@ -142,7 +143,8 @@ bool parse_position(const std::vector<std::string>& tokens, std::size_t first, P
     }
     if (token == "top" || token == "bottom") {
         out.y = Length{token == "top" ? 0.0f : 100.0f, true};
-        if (first + 1 < tokens.size() && (tokens[first + 1] == "left" || tokens[first + 1] == "right")) {
+        if (first + 1 < tokens.size() &&
+            (tokens[first + 1] == "left" || tokens[first + 1] == "right")) {
             out.x = Length{tokens[first + 1] == "left" ? 0.0f : 100.0f, true};
             return first + 2 == tokens.size();
         }
@@ -276,7 +278,8 @@ bool parse_circle(const std::string& arguments, const rendering::rhi::Rect& box,
 }
 
 // `ellipse( <length-percentage>{2} [ at <position> ]? )`.
-bool parse_ellipse(const std::string& arguments, const rendering::rhi::Rect& box, ClipShape& shape) {
+bool parse_ellipse(const std::string& arguments, const rendering::rhi::Rect& box,
+                   ClipShape& shape) {
     const std::vector<std::string> tokens = tokenize_arguments(arguments);
     if (tokens.size() < 2) {
         return false;
@@ -351,7 +354,8 @@ ClipPathParse parse_clip_path(std::string_view value, const rendering::rhi::Rect
     return result;
 }
 
-rendering::gpu::clip::ClipRecord to_clip_record(const ClipShape& shape, const rendering::rhi::Rect& box) {
+rendering::gpu::clip::ClipRecord to_clip_record(const ClipShape& shape,
+                                                const rendering::rhi::Rect& box) {
     rendering::gpu::clip::ClipRecord record;
     switch (shape.kind) {
     case ClipShape::Kind::None:

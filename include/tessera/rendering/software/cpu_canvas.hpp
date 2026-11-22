@@ -10,14 +10,14 @@
 #include <vector>
 namespace tessera::rendering::software {
 
-// A shaped clip for the CPU reference (ADR-068 slice 4): a list of clip records the canvas tests with
-// `gpu::clip::covers_pixel`, the same rule the fragment shader's hard-test path implements. Keeping
-// the rule in one function is what makes a shaped-clip golden a test rather than a tolerance
-// argument.
+// A shaped clip for the CPU reference (ADR-068 slice 4): a list of clip records the canvas tests
+// with `gpu::clip::covers_pixel`, the same rule the fragment shader's hard-test path implements.
+// Keeping the rule in one function is what makes a shaped-clip golden a test rather than a
+// tolerance argument.
 //
 // A null `ShapedClip*` means "no shaped clip", which is the axis-aligned `rhi::Rect` path every
-// existing caller uses. A non-null one with an empty record list clips everything away, which is the
-// honest reading of an empty intersection.
+// existing caller uses. A non-null one with an empty record list clips everything away, which is
+// the honest reading of an empty intersection.
 struct ShapedClip {
     std::span<const gpu::clip::ClipRecord> records;
 

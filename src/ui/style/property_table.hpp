@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 //
 // The property table: every longhand the cascade knows, with its initial value and whether it
-// inherits. Split out of property_registry.cpp, which is at the 500-line hard limit and whose job is
-// the registry's behaviour (lookup, shorthand expansion, value validation), not the data.
+// inherits. Split out of property_registry.cpp, which is at the 500-line hard limit and whose job
+// is the registry's behaviour (lookup, shorthand expansion, value validation), not the data.
 //
-// The table is the one place a property is declared. `docs/specs/stylesheet-v1.properties.txt` lists
-// the same names by row and `property_registry_matrix` fails when the two disagree, so adding a
-// property means adding a row here and a line there.
+// The table is the one place a property is declared. `docs/specs/stylesheet-v1.properties.txt`
+// lists the same names by row and `property_registry_matrix` fails when the two disagree, so adding
+// a property means adding a row here and a line there.
 
 #pragma once
 
@@ -133,4 +133,3 @@ constexpr PropertyDef kProperties[] = {
 };
 
 } // namespace tessera::ui::style
-

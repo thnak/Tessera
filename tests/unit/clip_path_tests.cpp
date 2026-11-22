@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 //
-// `clip-path` basic shapes (ADR-068 slice 4, issue #672): the parser, the record it produces, and the
-// coverage rule the CPU reference and the shader share.
+// `clip-path` basic shapes (ADR-068 slice 4, issue #672): the parser, the record it produces, and
+// the coverage rule the CPU reference and the shader share.
 //
 // The coverage assertions are the important half. `gpu::clip::covers_pixel` is the one function the
 // CPU golden and the shader's hard-test path both implement, so pinning its answers here is what
@@ -40,7 +40,8 @@ void test_none() {
     expect(parsed.shape.is_none() && !parsed.invalid && !parsed.unsupported,
            "`none` is the no-clip value");
     expect(detail::parse_clip_path("", kBox).shape.is_none(), "an empty value is no clip");
-    expect(detail::parse_clip_path("  none  ", kBox).shape.is_none(), "surrounding space is ignored");
+    expect(detail::parse_clip_path("  none  ", kBox).shape.is_none(),
+           "surrounding space is ignored");
 }
 
 void test_inset() {
@@ -209,8 +210,8 @@ void test_cpu_canvas_shaped_clip() {
     tessera::rendering::software::CpuCanvas canvas(64, 64);
     canvas.clear(rhi::rgba8(0, 0, 0));
 
-    const auto circle = detail::parse_clip_path("circle(24px at 32px 32px)",
-                                                rhi::Rect{0.0f, 0.0f, 64.0f, 64.0f});
+    const auto circle =
+        detail::parse_clip_path("circle(24px at 32px 32px)", rhi::Rect{0.0f, 0.0f, 64.0f, 64.0f});
     const clip::ClipRecord record =
         detail::to_clip_record(circle.shape, rhi::Rect{0.0f, 0.0f, 64.0f, 64.0f});
     const std::vector<clip::ClipRecord> records{record};
@@ -230,8 +231,8 @@ void test_cpu_canvas_shaped_clip() {
 }
 
 void test_cpu_canvas_intersects_records() {
-    // Two overlapping clips intersect: a pixel must be inside both. This is the nested-clip case the
-    // slice's acceptance asks for.
+    // Two overlapping clips intersect: a pixel must be inside both. This is the nested-clip case
+    // the slice's acceptance asks for.
     tessera::rendering::software::CpuCanvas canvas(64, 64);
     canvas.clear(rhi::rgba8(0, 0, 0));
 
@@ -250,8 +251,7 @@ void test_cpu_canvas_intersects_records() {
     };
     // The two insets are disjoint (the left half and the right half), so their intersection is
     // empty and nothing is painted.
-    expect(pixel(16, 32) == 0 && pixel(48, 32) == 0,
-           "two disjoint clips intersect to nothing");
+    expect(pixel(16, 32) == 0 && pixel(48, 32) == 0, "two disjoint clips intersect to nothing");
 }
 
 } // namespace
