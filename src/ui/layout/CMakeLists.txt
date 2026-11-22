@@ -16,6 +16,7 @@ add_library(tessera_layout STATIC
     layout_block_fill.cpp
     layout_font_size.cpp
     layout_style.cpp
+    layout_tokens.cpp
     layout_scheduler.cpp
     layout_signature.cpp
     pixel_snap.cpp)

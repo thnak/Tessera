@@ -16,8 +16,13 @@ namespace tessera::ui::layout::detail {
 [[nodiscard]] std::string lower(std::string_view value);
 [[nodiscard]] std::string trim(std::string_view value);
 
-// True when `value` is non-null and equals `keyword` after trim + lower-casing.
+// True when `value` is non-null and equals `keyword` after trim + lower-casing. Allocation-free:
+// `apply_style` asks this ~32 times per node, and the `lower(trim(...))` form it used to take
+// allocated two `std::string`s per call - 64 allocations per node, per layout pass (issue #735).
 [[nodiscard]] bool is_keyword(const std::string* value, std::string_view keyword);
+
+// The same comparison for a value already in hand, without the null check.
+[[nodiscard]] bool equals_keyword(std::string_view value, std::string_view keyword) noexcept;
 
 // Parses a finite float token; false (value untouched) on anything else.
 [[nodiscard]] bool parse_number(std::string_view text, float& value);
