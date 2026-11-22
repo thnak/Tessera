@@ -12,7 +12,6 @@
 #include "tessera/ui/style/color_oklch.hpp"
 
 #include <algorithm>
-#include <cctype>
 #include <cmath>
 #include <cstdlib>
 #include <string>
@@ -22,34 +21,15 @@
 namespace tessera::ui::style::detail {
 namespace {
 
+// The shared helpers (issue #733 item 1). This file kept its own `ascii_lower`, `is_space`, `trim`
+// and `lower` after the migration, and its `lower` went through the locale table via `std::tolower`
+// -- the exact defect the shared ASCII-only form exists to remove.
+using tessera::detail::ascii_lower;
+using tessera::detail::is_css_whitespace;
+using tessera::detail::lower;
+using tessera::detail::trim;
+
 constexpr double kPi = 3.14159265358979323846;
-
-char ascii_lower(char c) {
-    return static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-}
-
-bool is_space(char c) {
-    return std::isspace(static_cast<unsigned char>(c)) != 0;
-}
-
-std::string_view trim(std::string_view text) {
-    std::size_t first = 0;
-    std::size_t last = text.size();
-    while (first < last && is_space(text[first])) {
-        ++first;
-    }
-    while (last > first && is_space(text[last - 1])) {
-        --last;
-    }
-    return text.substr(first, last - first);
-}
-
-std::string lower(std::string_view text) {
-    std::string result(text);
-    std::transform(result.begin(), result.end(), result.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return result;
-}
 
 // The function name and its argument text when `text` is exactly one call of `name`, else nullopt.
 // `name` is compared ASCII-case-insensitively, as CSS function names are.
@@ -156,7 +136,7 @@ std::optional<MixOperand> parse_operand(std::string_view text, const ColorContex
             ++paren_depth;
         } else if (value[i] == ')') {
             --paren_depth;
-        } else if (paren_depth == 0 && is_space(value[i])) {
+        } else if (paren_depth == 0 && is_css_whitespace(value[i])) {
             split = i;
         }
     }
