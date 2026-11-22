@@ -199,6 +199,28 @@ statements) are enforced and tested, but the 200-statement warning is not emitte
 because the diagnostic sink has no warning path for this stage. `useService` is undecided (above).
 The four engine gaps are slice-4 work, not expansion work, and the spike does not touch them.
 
+### Addendum (2026-11-22): the implementing issues landed
+
+#645 to #648 landed in PR #759, so this ADR's evidence is now the shipped behaviour rather than a
+spike. What changed since the record above:
+
+- **The switch is on by default.** `FrontEndOptions::custom_hooks` defaults to `true`; the
+  `TESSERA_REACT_CUSTOM_HOOK` rejection is the switch-off path only, and it keeps a fixture
+  (`Entry::kNoCustomHooks`) so the code stays covered.
+- **Engine gap 2 is closed.** A behavior hook's result now resolves: `beh::` is a reference form in
+  the validator, in codegen and in `declared_text_type`, so `press.pressed` lowers instead of
+  reporting `TESSERA_IR_UNRESOLVED`. Gaps 1, 3 and 4 remain slice-4 work.
+- **The rules consume the call-site map.** `analyze_module` takes the `CallSiteMap` and attaches the
+  related span, which is the piece of spec section 8 the spike left unfinished.
+- **`useService` inside a hook is recorded as unreachable, not undecided.** `useService` has no
+  front-end form at all (no manifest entry, no core-hook entry, no analyzer path), so
+  `TESSERA_REACT_HOOK_SERVICE` guards a form that cannot be written. The spec says so; the code is
+  reserved. The dedupe question above is therefore moot until `useService` has a front-end form.
+- **The spec's four corrections are written down**, including the rename/`is_hook_name` collision
+  and the defaulted-parameter rule.
+
+This does not move the ADR to Accepted. Only the owner does that.
+
 ## Follow-up
 
 - `docs/specs/custom-hooks-v1.md` accepted; update the sentences that say custom hooks are rejected

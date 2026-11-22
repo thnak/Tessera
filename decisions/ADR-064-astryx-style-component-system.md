@@ -320,6 +320,37 @@ yet resolve a callback arg to a thunk (it records the handler id and passes 0), 
 invokes a callback is wired but inert in the preview — a gap to close with the first behavior that
 needs one.
 
+### Addendum (2026-11-22): every core behavior landed
+
+The paragraph above named nine behaviors as future work. All nine shipped in PR #752, plus
+`useMediaQuery` and `useMergedRefs`, so item 7's hook set is complete:
+
+| Behavior | Issue | Note |
+|---|---|---|
+| `focus_trap` | #624 | confines focus, restores it on release |
+| `roving_focus` | #625 | one Tab stop, arrows move and wrap; `useTypeahead` folded in as its `typeahead` option |
+| `press_feedback` | #628 | `disabled` suppresses `pressed` only |
+| `media_query` | #631 | shares the cascade's evaluator, no second parser |
+| `scroll_lock` | #633 | reference-counted across nested layers |
+| `hotkeys` | #627 | window-scoped chords, withdrawn while a text field has focus |
+| `clipboard_copy` | #632 | self-clearing feedback window |
+| `overflow` | #634 | reads the last layout pass, so no layout loop |
+| `interactive_role` | #635 | the flag lives on the node, because the descendant is another component |
+| `announce` | #629 | needed a new engine feature: a bounded, de-duplicating live-region queue |
+| `useMergedRefs` | #630 | not a behavior: a compiler-level ref-combining feature |
+
+**The seam grew, and the growth is the interesting part.** `Services` went from one pointer to five,
+each nullable and each documented as "treat null as unavailable": the router, the clipboard, the
+layout read model, the announcement queue, and the clock. `Behavior` gained a defaulted
+`tick(double)` for a behavior whose outputs expire, so the behaviors with no deadline pay nothing.
+The callback-thunk gap recorded above is still open: no shipped behavior invokes a callback, so
+nothing has needed it yet.
+
+**The preview gap is closed for the behaviors that shipped.** `scene_behavior` and the canvas
+session drive the same `Instance` for every one of them.
+
+This does not move the ADR to Accepted. Only the owner does that.
+
 
 ## Follow-up
 
