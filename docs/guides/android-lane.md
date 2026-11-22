@@ -254,6 +254,31 @@ JNI — so `android_ime` pins the two conversions that fail silently on screen:
 A lone surrogate becomes U+FFFD rather than being dropped, because dropping it would desynchronise
 every offset after it.
 
+**The engine owns the buffer, so the platform must ask.** Forwarding callbacks is only half an IME
+bridge: the platform also *queries* the text, and a bridge that answers `""` makes the IME behave as
+if the field were always empty. That is not cosmetic — suggestions stop, Backspace deletes nothing,
+and the IME places its composing region at offset 0. So `TesseraInputConnection` overrides the
+queries too, and each one reads the engine's buffer back:
+
+| callback | what it reads |
+|---|---|
+| `getTextBeforeCursor` / `getTextAfterCursor` | the buffer around the caret, in UTF-16 units |
+| `getSelectedText` | `EditBuffer::selected_text()` |
+| `setSelection` | `EditBuffer::set_selection`, converting UTF-16 offsets to UTF-8 bytes |
+| `deleteSurroundingTextInCodePoints` | the same delete path as the UTF-16 variant |
+
+The shell owns one `EditController` and one `TextInputRuntime` (`Shell::editor`,
+`Shell::editor_runtime`). The runtime is attached to the field's node, so a committed edit publishes
+the buffer's text **and** the caret into that node's `PaintData` — a field whose node started with an
+empty payload would otherwise paint nothing while the buffer filled up, leaving the caret moving over
+blank space.
+
+**The two enums are not the same enum.** `ui::InputEventType` is the normalized input vocabulary and
+`ui::EventType` is the scene's; they do not share values (`EditText` is 13 in one and 14 in the
+other). A `static_cast` between them silently turns a commit into a composition start, which looks
+like "typing does nothing" while the buffer stays empty. The bridge maps the six types explicitly and
+drops anything else.
+
 **The metrics seam.** `hal::Window` gains `set_physical_insets` and `set_physical_cutouts`, which
 take the platform's **physical** pixels. The backend converts them with the decode rules in
 `android_metrics_translation.cpp`, so the bridge never needs to know the layout rules and the
@@ -269,9 +294,9 @@ stays inside its size budget.
   `AccessibilityNodeProvider` are done — see section 3.9. What is not wired: live-region
   announcements, collection set-size/position, and `SetText`/`SetSelection` actions (they are offered
   to the platform but the edit controller drops them).
-- **The IME's long tail:** `setSelection`/`requestCursorUpdates` are not forwarded yet, and
-  `performEditorAction` reports "not handled" because the edit controller has no Done/Search/Go
-  concept. The compose/commit/delete path is wired.
+- **The IME's long tail:** `requestCursorUpdates` is not forwarded (the engine has no cursor-anchor
+  report), and `performEditorAction` reports "not handled" because the edit controller has no
+  Done/Search/Go concept. The compose/commit/delete path and the text queries are wired.
 - **A generated component.** The shell's scene (`android/app/src/main/cpp/scene.hpp`) is built by
   hand, because the codegen CLI runs on the host at build time and `tessera_compiler_demo` is gated
   on `NOT CMAKE_CROSSCOMPILING`. A hand-built tree still exercises the scene graph, the compiled
