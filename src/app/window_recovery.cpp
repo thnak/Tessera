@@ -72,97 +72,51 @@ bool WindowHost::Impl::create_presentation() {
     // scale) can be resampled into the presented images (docs/design/performance.md section 6.1).
     scaled_targets.reset(swapchain->supports_scaled_present());
 
-    rendering::gpu::Batched2DConfig renderer_config{4096, true, false};
-    renderer_config.frames_in_flight = static_cast<std::uint32_t>(detail::kFramesInFlight);
-    // Glass bounds the blurred-backdrop pool (glass-v1 section 5); 0 disables the pool and a frame
-    // then paints without the effect instead of growing without bound.
-    renderer_config.max_offscreen_targets = options.runtime.glass_max_blur_targets;
-    // The same limits the paint pass applies: the sigma clamp and the half-resolution threshold.
-    renderer_config.glass.max_blur_radius = options.runtime.glass_max_blur_radius;
-    renderer_config.glass.max_backdrop_area = options.runtime.glass_max_backdrop_area;
-    // The CPU cull of quads outside the scissor or damage (issue #474); off means every quad is
-    // staged, for a pixel-identical comparison when debugging.
-    renderer_config.cull_draws = options.runtime.cull_draws;
     // The AA policy's renderer inputs are the config the renderer is actually built with, so the
     // policy can never claim AA is on when the pipeline has it off (section 6). `reduce_effects` is
     // the paint pass's own consumer; the AA policy reads the same power preset directly.
     aa_options.display_aware_aa = options.display_aware_aa;
-    aa_options.aa_enabled = renderer_config.enable_aa;
-    aa_options.golden_mode = renderer_config.golden_mode;
+    aa_options.aa_enabled = true;
+    aa_options.golden_mode = false;
     aa_options.msaa_samples =
         static_cast<std::uint8_t>(std::min<std::uint32_t>(options.msaa_samples, 255u));
     aa_options.reduced_quality = options.runtime.power_policy == PowerPolicy::PowerSave;
-    // The policy is resolved before the pipeline exists because its MSAA decision selects the
-    // pipeline, the renderer config and the offscreen frame target's sample count together (S8).
-    // Everything is derived from this one value so the renderer's sample-count check can never see
-    // a mismatched pipeline/desc/target. Applying the policy to the text renderer still happens
-    // after the text stack exists, below.
+    // The policy is resolved before the shared pipelines exist because its MSAA decision selects
+    // the pipeline, the renderer config and the offscreen frame target's sample count together
+    // (S8). The first window in a group resolves it and the group keeps the answer, because every
+    // window presents through the same pipelines and must agree on the sample count.
     const ui::scale::AaPolicy resolved_policy = window_aa_policy(metrics, aa_options);
-    presentation_sample_count_ =
+    const std::uint32_t resolved_samples =
         presentation_sample_count(resolved_policy.msaa_samples, aa_options.golden_mode,
                                   device->supports_sample_count(swapchain->format(), 4));
-    if (presentation_sample_count_ > 1) {
-        // The 4x frame is presented through its resolved image on a single-sample, no-blend
-        // pipeline; a device that refuses that pipeline falls back to the 1-sample path rather than
-        // failing the window.
-        present_pipeline = detail::create_present_pipeline(*device, swapchain->format());
-        if (present_pipeline == nullptr) {
-            presentation_sample_count_ = 1;
-        }
+    if (group->window_count() == 1 || !group->has_presentation()) {
+        group->set_presentation_sample_count(resolved_samples);
     }
-    pipeline = detail::create_pipeline(*device, swapchain->format(), presentation_sample_count_);
-    if (pipeline == nullptr) {
+    presentation_sample_count_ = group->presentation_sample_count();
+    // The shared caches are created by the first window to present and reused by every later one.
+    // A format mismatch is refused by the group rather than silently rebuilding the pipelines under
+    // the first window (docs/design/multi-window.md section 3).
+    if (!group->ensure_presentation(swapchain->format(), options)) {
         return false;
     }
-    renderer_config.sample_count = presentation_sample_count_;
-    // LCD text needs a per-channel pipeline on a device that can blend that way. Whether it exists
-    // is an input of the policy (`Auto` resolves grayscale without it), and the policy applied to
-    // the text renderer below reads `aa_options`, so the two can never disagree.
-    lcd_pipeline =
-        detail::create_lcd_pipeline(*device, swapchain->format(), presentation_sample_count_);
-    aa_options.lcd_supported = lcd_pipeline != nullptr;
-    detail::GlassPipelines glass = detail::create_glass_pipelines(*device, swapchain->format());
-    if (glass.blur == nullptr || glass.composite == nullptr) {
-        return false;
-    }
-    white = detail::create_white(*device);
-    if (white == nullptr) {
-        return false;
-    }
-    glass_blur_pipeline = std::move(glass.blur);
-    glass_composite_pipeline = std::move(glass.composite);
-    renderer = std::make_unique<rendering::gpu::Batched2DRenderer>(
-        *device, *pipeline, *white, renderer_config,
-        rendering::gpu::GlassPipelines{glass_blur_pipeline.get(), glass_composite_pipeline.get()});
-    renderer->set_lcd_pipeline(lcd_pipeline.get());
-    // The text stack owns the glyph atlas textures, so it is recreated with the device generation
-    // instead of reusing an atlas whose images died with the old device.
-    text = std::make_unique<detail::TextStack>(*device, options.font_path);
-    sink = std::make_unique<ui::paint::Batched2DSink>(*renderer, text->renderer.get(),
-                                                      text->shaper.get());
-    // Creation is a between-frames moment exactly like a metrics change, so the fresh text renderer
-    // (which starts on the golden policy) adopts the window's policy here. A device-loss recovery
-    // calls this again, which is why the policy is not applied from the constructor instead.
+    // Creation is a between-frames moment exactly like a metrics change, so the shared text
+    // renderer (which starts on the golden policy) adopts this window's policy here. A device-loss
+    // recovery calls this again, which is why the policy is not applied from the constructor
+    // instead.
     apply_aa_policy(metrics);
     return true;
 }
 
 void WindowHost::Impl::release_presentation() {
-    // Destruction order is the dependency order: the sink borrows the renderer and the text
-    // renderer, and the renderer borrows the pipeline and the white texture. The adaptive-scale
-    // target is an independent offscreen image, released before the swapchain it presents through.
-    sink.reset();
-    renderer.reset();
-    text.reset();
-    white.reset();
+    // Only the per-window objects are released here. The shared caches belong to the group and are
+    // released by it, once, when the device generation ends (docs/design/multi-window.md section
+    // 2): a window closing must not destroy the renderer its siblings are still drawing through.
+    //
+    // Destruction order is the dependency order: the adaptive-scale target is an independent
+    // offscreen image, released before the swapchain it presents through.
     scaled_targets.reset(false);
     frame_time.reset(false);
-    pipeline.reset();
-    present_pipeline.reset();
-    lcd_pipeline.reset();
     presentation_sample_count_ = 1;
-    glass_blur_pipeline.reset();
-    glass_composite_pipeline.reset();
     swapchain.reset();
     for (auto& commands : in_flight) {
         commands.reset();
@@ -185,23 +139,22 @@ bool WindowHost::Impl::recreate_presentation() {
 
 bool WindowHost::Impl::replace_device() {
     // The one-shot in-place recover() of this loss is spent, so the backend device object itself is
-    // rebuilt. The platform window owns the surface handle and outlives every device generation, so
-    // the swapchain is recreated against the same native window afterwards; the input queue and the
-    // accessibility root seam live on the window and stay attached.
-    loop->set_device_recovery(nullptr);
-    recovery.reset();
+    // rebuilt. The device belongs to the group (issue #228), so this replaces it once for every
+    // window; each window then recreates its own swapchain against the same native window, which
+    // outlives every device generation. The input queue and the accessibility root seam live on the
+    // window and stay attached.
     release_in_flight(detail::kRecoveryDrainBudgetSeconds);
     release_presentation();
-    // The replacement device is created for the same presentation family: the platform window and
-    // its native surface handle outlive the lost device generation.
-    device = detail::create_device(options.validation,
-                                   detail::surface_platform_for(window->window_system()));
-    if (device == nullptr) {
+    WindowDeviceOptions device_options;
+    device_options.validation = options.validation;
+    device_options.surface = detail::surface_platform_for(window->window_system());
+    device_options.font_path = options.font_path;
+    if (!group->replace_device(device_options)) {
         return false;
     }
-    recovery = std::make_unique<runtime::DeviceRecoveryController>(*device);
-    loop->set_device_recovery(recovery.get());
-    return true;
+    device = group->device_or_null();
+    recovery = group->recovery();
+    return device != nullptr;
 }
 
 // Charges one non-presented attempt to the right budget. A busy slot is backpressure, not a fault

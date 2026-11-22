@@ -64,6 +64,15 @@ struct include/tessera/app/window.hpp tessera::ui::InputEvent
 enum include/tessera/app/window.hpp tessera::app::WindowDeviceState
 function include/tessera/app/window.hpp tessera::app::capture_frame
 
+header include/tessera/app/window_device.hpp
+class include/tessera/app/window_device.hpp tessera::app::WindowDevice
+class include/tessera/app/window_device.hpp tessera::app::detail::TextStack
+struct include/tessera/app/window_device.hpp tessera::app::WindowDeviceOptions
+struct include/tessera/app/window_device.hpp tessera::app::WindowOptions
+alias include/tessera/app/window_device.hpp tessera::app::rhi
+constant include/tessera/app/window_device.hpp tessera::app::kFramesInFlightPerWindow
+constant include/tessera/app/window_device.hpp tessera::app::kMaxWindowsPerDevice
+
 header include/tessera/appfw/application.hpp
 class include/tessera/appfw/application.hpp tessera::appfw::AppLifecycleObserver
 class include/tessera/appfw/application.hpp tessera::appfw::Application

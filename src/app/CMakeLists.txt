@@ -112,6 +112,14 @@ if (TESSERA_BUILD_VULKAN AND (NOT CMAKE_CROSSCOMPILING OR ANDROID))
         window_backdrop_request.hpp
         window_cursor.cpp
         window_cursor.hpp
+        # The shared device, per-device caches and runtime loop one app's windows present through
+        # (issue #228, docs/design/multi-window.md).
+        window_device.cpp
+        # The frame path: acquire, paint, present, and the swapchain pacing sample. Split out of
+        # window.cpp when the multi-window refactor pushed it past its size budget.
+        window_frame.cpp
+        # The blocking run loop: the paced per-window half of the group's shared tick.
+        window_run.cpp
         window_impl.hpp
         window_internal.hpp
         window_lifecycle.cpp
@@ -134,6 +142,10 @@ if (TESSERA_BUILD_VULKAN AND (NOT CMAKE_CROSSCOMPILING OR ANDROID))
         tessera_input_pump
         tessera_paint
         tessera_rhi_vulkan
+        # The null backend (issue #228): a `WindowDevice` may be created with `Backend::Null` so the
+        # multi-window acceptance can prove device sharing on a headless lane, where no presentation
+        # surface exists. It is a leaf library, so linking it costs nothing on the production path.
+        tessera_rhi_null
         tessera_scale
         tessera_text
         tessera_text_edit

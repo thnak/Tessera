@@ -229,4 +229,8 @@ Items are open (no decision yet).
 - Preload budgets on mobile/power-save.
 - Whether preload should create a weak lease.
 - Per-route resource scoping/ownership.
-- Cross-process/shared cache for multiple windows.
+- Cross-process/shared cache for multiple windows. **Decided for the in-process half** (issue #228,
+  [multi-window.md](../design/multi-window.md) section 2): device-scoped resources - the renderer,
+  the glyph atlas, the pipelines, the white texture - are owned once by the `WindowDevice` group and
+  released once, at the group's teardown, not per window. A window closing releases only its own
+  swapchain, scaled targets and in-flight command lists. Cross-*process* sharing remains open.

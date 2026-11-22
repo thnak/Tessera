@@ -59,8 +59,12 @@ inline constexpr double kRecoveryDrainBudgetSeconds = 0.05;
 } // namespace detail
 
 struct WindowHost::Impl {
+    // `group` is the shared device this window presents through (issue #228). It is borrowed and
+    // must outlive the host. A single-window caller never names it: the `WindowHost` constructor
+    // that takes only `WindowOptions` builds a private one-window group and hands it here, which is
+    // exactly the pre-refactor behaviour.
     Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet, WindowOptions options,
-         ui::UpdateScheduler* update_scheduler);
+         ui::UpdateScheduler* update_scheduler, WindowDevice& group);
     ~Impl();
 
     // Outcome of one frame attempt; a lost device is state the run services, not a painted frame.
@@ -89,6 +93,26 @@ struct WindowHost::Impl {
     void sample_frame_sync();
     void apply_metrics(const hal::WindowMetrics& metrics);
     WindowFrameStats run(std::uint32_t max_frames);
+
+    // --- the shared caches (issue #228) ------------------------------------------------------
+    // These are views into `group`, never owned here. They are accessors rather than members so the
+    // frame path cannot accidentally hold a stale pointer across a device generation: every read
+    // goes through the group, which is the object that replaces them.
+    [[nodiscard]] rendering::gpu::Batched2DRenderer* renderer() noexcept {
+        return group != nullptr ? group->renderer() : nullptr;
+    }
+    [[nodiscard]] detail::TextStack* text() noexcept {
+        return group != nullptr ? group->text() : nullptr;
+    }
+    [[nodiscard]] ui::paint::Batched2DSink* sink() noexcept {
+        return group != nullptr ? group->sink() : nullptr;
+    }
+    [[nodiscard]] rhi::Pipeline* present_pipeline() noexcept {
+        return group != nullptr ? group->present_pipeline() : nullptr;
+    }
+    [[nodiscard]] rhi::Pipeline* lcd_pipeline() noexcept {
+        return group != nullptr ? group->lcd_pipeline() : nullptr;
+    }
 
     // --- lifecycle, pause and the single-iteration seam (window_lifecycle.cpp) ---------------
     // True while the platform reports the window as occluded/minimized: no frame may be acquired,
@@ -271,8 +295,21 @@ struct WindowHost::Impl {
     ui::UpdateScheduler* scheduler = nullptr;
     bool available = false;
 
+    // The shared device, caches and loop (issue #228). Borrowed: the group outlives every host that
+    // presents through it. `device`/`loop`/`pacer`/`recovery` below are views into it, kept as
+    // members so the frame path reads them without a second indirection.
+    WindowDevice* group = nullptr;
+    // A private one-window group, owned only when this host was constructed without one. Declared
+    // before the views so it is destroyed after them.
+    std::unique_ptr<WindowDevice> owned_group;
+
     std::unique_ptr<hal::Window> window;
-    std::unique_ptr<rhi::Device> device;
+    // Views into `group`. Never owned here: a window must not destroy the device its siblings use.
+    rhi::Device* device = nullptr;
+    runtime::RuntimeLoop* loop = nullptr;
+    runtime::FramePacer* pacer = nullptr;
+    runtime::DeviceRecoveryController* recovery = nullptr;
+    // The swapchain is per window: it is bound to this window's surface.
     std::unique_ptr<rhi::Swapchain> swapchain;
     // Adaptive render-scale targets (docs/design/performance.md section 6.1): allocated only while
     // the controller reports a scale below full quality, at the decided extent, and never at the
@@ -284,36 +321,9 @@ struct WindowHost::Impl {
     // True once the per-pixel-alpha fallback (glass-v1.md section 6) was reported, so a swapchain
     // recreation during a run does not repeat TESSERA_GLASS_WINDOW_UNSUPPORTED.
     bool alpha_fallback_reported = false;
-    std::unique_ptr<rhi::Pipeline> pipeline;
-    // The single-sample, no-blend pipeline that presents a 4x frame through its resolved image
-    // (S8). Null on the 1-sample path, which presents directly and records exactly the pre-S8
-    // commands.
-    std::unique_ptr<rhi::Pipeline> present_pipeline;
-    // Dual-source pipeline LCD glyph quads draw with (display-aware-rendering.md section 3.4.1).
-    // Null when the device cannot blend per channel; borrowed by the renderer like `pipeline`.
-    std::unique_ptr<rhi::Pipeline> lcd_pipeline;
-    // The sample count the presentation stack was created with: 1 (default) or 4. Resolved once per
-    // presentation generation from the AA policy and the device capability, because the pipeline,
-    // the renderer config and the offscreen frame target must all agree. A metrics change
-    // re-resolves the policy for text and scale but never changes this: the stack is recreated on
-    // the next presentation generation instead, like the swapchain format.
+    // The sample count this window's presentation stack was created with: 1 (default) or 4. It is
+    // the group's value, read here because the offscreen frame target is per window.
     std::uint32_t presentation_sample_count_ = 1;
-    // Glass composite pipelines (issue #244): the horizontal blur pass (no blending) and the
-    // composite pass (alpha blending over the frame target). Recreated with the device generation
-    // and borrowed by the renderer, like `pipeline`.
-    std::unique_ptr<rhi::Pipeline> glass_blur_pipeline;
-    std::unique_ptr<rhi::Pipeline> glass_composite_pipeline;
-    std::unique_ptr<rhi::Texture> white;
-    std::unique_ptr<rendering::gpu::Batched2DRenderer> renderer;
-    std::unique_ptr<detail::TextStack> text;
-    std::unique_ptr<ui::paint::Batched2DSink> sink;
-    // D7: polled once per RuntimeLoop::tick(); it owns the backend's single bounded in-place
-    // recovery attempt. Replaced together with the device.
-    std::unique_ptr<runtime::DeviceRecoveryController> recovery;
-    runtime::SteadyClock clock;
-    std::unique_ptr<runtime::RuntimeLoop> loop = std::make_unique<runtime::RuntimeLoop>(clock);
-    // Present-rate cap and deadline source for the idle paths (0 = uncapped).
-    runtime::FramePacer pacer;
     // The cap the pacer is currently applying (0 = uncapped). Starts at the configured `maxFps`,
     // which is what the pacer was constructed with, so the first observation only calls update()
     // when the controller actually moved the cap.

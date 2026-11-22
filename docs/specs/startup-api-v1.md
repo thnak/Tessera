@@ -300,7 +300,7 @@ phase (section 5.1).
 | Id | Phase | Enter when | Content |
 |---|---|---|---|
 | `launch` (P0) | OS launch screen | Process start | Platform-generated launch artifact only: Android splash theme, iOS launch screen, or (desktop) a hidden window. No app code runs |
-| `runtime` (P1) | Minimal native runtime | Launch artifact accepted | Window, graphics surface, chrome policy ([window-chrome-v1.md](window-chrome-v1.md)), device/queues, executors, completion queue, `RuntimeLoop`. No app UI |
+| `runtime` (P1) | Minimal native runtime | Launch artifact accepted | Window, graphics surface, chrome policy ([window-chrome-v1.md](window-chrome-v1.md)), device/queues, executors, completion queue, `RuntimeLoop`. No app UI. **One device, then N windows** (issue #228, [multi-window.md](../design/multi-window.md)): P1 creates the `rhi::Device`, its caches and the one `RuntimeLoop` first, and each window then adds only its own surface, swapchain and scene |
 | `first_frame` (P2) | First frame | Surface presentable | Framework `WindowChrome` (when `window.titleBar` is `custom`) plus the loading subtree presented once. Independent of app resources |
 | `background_init` (P3) | Background initialization | P2 frame presented | Critical set loads; resource manager, remaining fonts, shader/pipeline warm-up, caches, services, session/auth, initial route and restore validation run off the UI thread |
 | `interactive` (P4) | Interactive ready | Critical set ready and initial route/restore resolved | App UI tree mounted and laid out (first meaningful frame); input dispatched. `high` resources may still load |

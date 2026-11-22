@@ -19,9 +19,10 @@ void WindowHost::Impl::apply_aa_policy(const hal::WindowMetrics& metrics) {
         std::isfinite(metrics.dpi_scale) && metrics.dpi_scale > 0.0f ? metrics.dpi_scale : 1.0f;
     aa_policy = window_aa_policy(metrics, aa_options);
     // A re-application of the same policy is a no-op inside the renderer (hinting and scale are
-    // compared), so a metrics event that moved nothing releases no atlas page.
-    if (text != nullptr) {
-        text->renderer->set_aa_policy(aa_policy);
+    // compared), so a metrics event that moved nothing releases no atlas page. The text stack is
+    // the group's (issue #228), so this reaches it through the accessor rather than a member.
+    if (detail::TextStack* stack = text(); stack != nullptr) {
+        stack->renderer->set_aa_policy(aa_policy);
     }
 }
 
