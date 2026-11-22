@@ -90,88 +90,110 @@ void NodeScroll::clear_animation() {
 // state like every other flag, and putting that byte on `NodeScroll` made the type 44 bytes with 3
 // of tail padding, which pushed `sizeof(Node)` from 320 to 328.
 
-void Node::set_scrollable_x(bool scrollable) {
+void NodeScrollApi::set_scrollable_x(bool scrollable) {
+    Node& self = node();
     if (scrollable_x() == scrollable) {
         return;
     }
-    scroll_bits_ = scrollable ? static_cast<std::uint8_t>(scroll_bits_ | kScrollableXBit)
-                              : static_cast<std::uint8_t>(scroll_bits_ & ~kScrollableXBit);
+    self.scroll_bits_ = scrollable
+                            ? static_cast<std::uint8_t>(self.scroll_bits_ | Node::kScrollableXBit)
+                            : static_cast<std::uint8_t>(self.scroll_bits_ & ~Node::kScrollableXBit);
     // The paint clip and hit-testing clipping start or stop at this node, so it is visible even
     // when the re-clamped offset stays at 0.
-    mark_dirty(Dirty::Paint | Dirty::Render);
-    set_scroll_offset(scroll_.scroll_x(), scroll_.scroll_y());
+    self.mark_dirty(Dirty::Paint | Dirty::Render);
+    set_scroll_offset(self.scroll_.scroll_x(), self.scroll_.scroll_y());
 }
 
-void Node::set_scrollable_y(bool scrollable) {
+void NodeScrollApi::set_scrollable_y(bool scrollable) {
+    Node& self = node();
     if (scrollable_y() == scrollable) {
         return;
     }
-    scroll_bits_ = scrollable ? static_cast<std::uint8_t>(scroll_bits_ | kScrollableYBit)
-                              : static_cast<std::uint8_t>(scroll_bits_ & ~kScrollableYBit);
-    mark_dirty(Dirty::Paint | Dirty::Render);
-    set_scroll_offset(scroll_.scroll_x(), scroll_.scroll_y());
+    self.scroll_bits_ = scrollable
+                            ? static_cast<std::uint8_t>(self.scroll_bits_ | Node::kScrollableYBit)
+                            : static_cast<std::uint8_t>(self.scroll_bits_ & ~Node::kScrollableYBit);
+    self.mark_dirty(Dirty::Paint | Dirty::Render);
+    set_scroll_offset(self.scroll_.scroll_x(), self.scroll_.scroll_y());
 }
 
-void Node::set_content_size(float width, float height) {
+void NodeScrollApi::set_content_size(float width, float height) {
+    Node& self = node();
     const float next_width = std::max(0.0f, std::isfinite(width) ? width : 0.0f);
     const float next_height = std::max(0.0f, std::isfinite(height) ? height : 0.0f);
-    if (scroll_.content_width() == next_width && scroll_.content_height() == next_height) {
+    if (self.scroll_.content_width() == next_width &&
+        self.scroll_.content_height() == next_height) {
         return;
     }
-    scroll_.set_content_size(width, height);
+    self.scroll_.set_content_size(width, height);
     // Clamping only; a content-size change is not itself a layout request.
-    set_scroll_offset(scroll_.scroll_x(), scroll_.scroll_y());
+    set_scroll_offset(self.scroll_.scroll_x(), self.scroll_.scroll_y());
 }
 
-void Node::set_scrollport_insets(float left, float top, float right, float bottom) {
-    if (!scroll_.set_scrollport_insets(left, top, right, bottom, bounds_.width, bounds_.height)) {
+void NodeScrollApi::set_scrollport_insets(float left, float top, float right, float bottom) {
+    Node& self = node();
+    if (!self.scroll_.set_scrollport_insets(left, top, right, bottom, self.bounds_.width,
+                                            self.bounds_.height)) {
         return;
     }
     // The paint clip and the hit-test viewport shrink or grow with the insets; the clamp range
     // changes with the viewport, so re-clamp the stored offset (Paint|Render either way).
-    mark_dirty(Dirty::Paint | Dirty::Render);
-    set_scroll_offset(scroll_.scroll_x(), scroll_.scroll_y());
+    self.mark_dirty(Dirty::Paint | Dirty::Render);
+    set_scroll_offset(self.scroll_.scroll_x(), self.scroll_.scroll_y());
 }
 
-bool Node::set_scroll_offset(float x, float y) {
-    if (!scroll_.set_scroll_offset(x, y, bounds_.width, bounds_.height, scrollable_x(),
-                                   scrollable_y())) {
+bool NodeScrollApi::set_scroll_offset(float x, float y) {
+    Node& self = node();
+    if (!self.scroll_.set_scroll_offset(x, y, self.bounds_.width, self.bounds_.height,
+                                        scrollable_x(), scrollable_y())) {
         return false;
     }
     // Scrolling moves content, never layout: repaint and re-render only.
-    mark_dirty(Dirty::Paint | Dirty::Render);
+    self.mark_dirty(Dirty::Paint | Dirty::Render);
     return true;
 }
 
-void Node::set_scroll_behavior(ScrollBehavior behavior) {
+void NodeScrollApi::set_scroll_behavior(ScrollBehavior behavior) {
+    Node& self = node();
     // Policy input only: no paint/layout effect until a programmatic scroll animates an offset, and
     // that move marks Paint|Render through set_scroll_offset.
-    scroll_bits_ = behavior == ScrollBehavior::Smooth
-                       ? static_cast<std::uint8_t>(scroll_bits_ | kScrollBehaviorSmoothBit)
-                       : static_cast<std::uint8_t>(scroll_bits_ & ~kScrollBehaviorSmoothBit);
+    self.scroll_bits_ =
+        behavior == ScrollBehavior::Smooth
+            ? static_cast<std::uint8_t>(self.scroll_bits_ | Node::kScrollBehaviorSmoothBit)
+            : static_cast<std::uint8_t>(self.scroll_bits_ & ~Node::kScrollBehaviorSmoothBit);
 }
 
-void Node::set_overscroll_behavior(OverscrollBehavior behavior) {
-    scroll_bits_ = static_cast<std::uint8_t>(
-        (scroll_bits_ & ~kOverscrollBehaviorMask) |
-        ((static_cast<std::uint8_t>(behavior) << kOverscrollBehaviorShift) &
-         kOverscrollBehaviorMask));
+void NodeScrollApi::set_overscroll_behavior(OverscrollBehavior behavior) {
+    Node& self = node();
+    self.scroll_bits_ = static_cast<std::uint8_t>(
+        (self.scroll_bits_ & ~Node::kOverscrollBehaviorMask) |
+        ((static_cast<std::uint8_t>(behavior) << Node::kOverscrollBehaviorShift) &
+         Node::kOverscrollBehaviorMask));
 }
 
-void Node::set_overscroll_effect(OverscrollEffect effect) {
-    scroll_bits_ = static_cast<std::uint8_t>(
-        (scroll_bits_ & ~kOverscrollEffectMask) |
-        ((static_cast<std::uint8_t>(effect) << kOverscrollEffectShift) & kOverscrollEffectMask));
+void NodeScrollApi::set_overscroll_effect(OverscrollEffect effect) {
+    Node& self = node();
+    self.scroll_bits_ = static_cast<std::uint8_t>(
+        (self.scroll_bits_ & ~Node::kOverscrollEffectMask) |
+        ((static_cast<std::uint8_t>(effect) << Node::kOverscrollEffectShift) &
+         Node::kOverscrollEffectMask));
 }
 
-void Node::set_scroll_animation_target(float x, float y) {
-    scroll_.set_animation_target(x, y);
-    set_flag(kScrollAnimationActive, true);
+void NodeScrollApi::set_scroll_animation_target(float x, float y) {
+    Node& self = node();
+    self.scroll_.set_animation_target(x, y);
+    self.set_flag(Node::kScrollAnimationActive, true);
 }
 
-void Node::clear_scroll_animation() {
-    set_flag(kScrollAnimationActive, false);
-    scroll_.clear_animation();
+rhi::Mat3 NodeScrollApi::content_transform() const {
+    const Node& self = node();
+    return self.world_transform() *
+           rhi::Mat3::translation(-self.scroll_.scroll_x(), -self.scroll_.scroll_y());
+}
+
+void NodeScrollApi::clear_scroll_animation() {
+    Node& self = node();
+    self.set_flag(Node::kScrollAnimationActive, false);
+    self.scroll_.clear_animation();
 }
 
 } // namespace tessera::ui

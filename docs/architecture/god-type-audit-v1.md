@@ -135,6 +135,27 @@ and `PaintOutsets` moved to [node_types.hpp](../../include/tessera/ui/scene/node
 `Node::FocusGroup` and `Node::PaintOutsets` are aliases, so no call site changed and the layout stays at
 320 bytes. A new enumerator now touches the types header instead of the class declaration.
 
+**Landed (step 4b, include hygiene).** 43 headers that only hold or pass a node by pointer or
+reference include [node_fwd.hpp](../../include/tessera/ui/scene/node_fwd.hpp) (`class Node` plus
+`NodeId`) instead of `node.hpp`; the 120 files that really call into a node include it themselves.
+Measured with `g++ -MM` over `compile_commands.json` on the Linux `dev` preset: translation units
+that depend on `node.hpp` went 878 -> 784 of 2650.
+
+**Landed (step 4c, role bases).** The public surface of `Node` is now four data-free bases,
+one header each: [`NodeGeometryApi`](../../include/tessera/ui/scene/node_geometry_api.hpp),
+[`NodeInteractionApi`](../../include/tessera/ui/scene/node_interaction_api.hpp),
+[`NodeScrollApi`](../../include/tessera/ui/scene/node_scroll_api.hpp) and
+[`NodeMetadataApi`](../../include/tessera/ui/scene/node_metadata_api.hpp). The storage did not
+move, so `kNodeSizeBudget` and the 320-byte exact assert hold on GCC and MSVC (the class carries
+`__declspec(empty_bases)`: MSVC otherwise pads one word per extra empty base). A base reaches the
+storage through a private `node()` cast and `Node` befriends the four; the one-line reads are inline
+in `*_api_inl.hpp`, included at the end of `node.hpp`, so they cost no call, and `hit_test_deep`
+stayed a `Node` member. This is the structure-only half: `node.hpp` is 257 lines (from 538) and a
+new accessor of one role is written in that role's header, but a change to any base still
+recompiles every includer of `node.hpp`, because `Node` derives from all four. The recompile win
+comes from 4b, not 4c. The previous decision against `NodeGeometryView`/`NodeInteractionView` stands
+(a view object adds a hop to `hit_test`); a base does not.
+
 ### 3.2 `app::WindowHost::Impl` (rank 2)
 
 [window_impl.hpp](../../src/app/window_impl.hpp) is 255 lines and declares 32 member functions and 42

@@ -5,10 +5,10 @@
 #include <cstdint>
 
 // The value vocabulary of `ui::Node`: its id type and the small enums and records its setters take.
-// They live apart from the class (docs/architecture/god-type-audit-v1.md section 3.1) so a header or
-// translation unit that only names a `UserSelect`, a `ScrollBehavior` or a `NodeId` does not pull the
-// whole node declaration, and so adding an enumerator here recompiles the files that read it instead
-// of every includer of `node.hpp`. `Node` re-exports each name (`Node::PaintOutsets`,
+// They live apart from the class (docs/architecture/god-type-audit-v1.md section 3.1) so a header
+// or translation unit that only names a `UserSelect`, a `ScrollBehavior` or a `NodeId` does not
+// pull the whole node declaration, and so adding an enumerator here recompiles the files that read
+// it instead of every includer of `node.hpp`. `Node` re-exports each name (`Node::PaintOutsets`,
 // `Node::FocusGroup`), which generated code and tests spell.
 //
 // Nothing here adds a member to `Node`; the layout and `kNodeSizeBudget` are unaffected.
@@ -32,8 +32,8 @@ enum class UserSelect : std::uint8_t {
 // `overscroll-effect` uses the names of docs/specs/animation-v1.md section 7 and has no `auto`
 // keyword: `Platform` is the initial request the HAL profile resolves.
 //
-// `Node` packs the three values and the two scrollable-axis bits into one byte, and that byte is what
-// lets the ten scroll floats fit inside `kNodeSizeBudget`, so the packing stays on `Node`.
+// `Node` packs the three values and the two scrollable-axis bits into one byte, and that byte is
+// what lets the ten scroll floats fit inside `kNodeSizeBudget`, so the packing stays on `Node`.
 enum class ScrollBehavior : std::uint8_t {
     Auto,
     Smooth,

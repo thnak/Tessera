@@ -125,33 +125,36 @@ bool own_paint_is_bounded(const Node& node) {
 // one unbounded descendant disables the skip for every ancestor. A scroll container's children are
 // not clipped here (the clip is a style question this layer cannot answer), which only ever makes
 // the box larger, never smaller.
-void Node::invalidate_subtree_paint_bounds() const {
+void NodeGeometryApi::invalidate_subtree_paint_bounds() const {
+    const Node& self = node();
     // The walk is const (issue #733 item 4): `subtree_paint_bounds_` is `mutable`, so a const node
     // can clear its own and every ancestor's cached box without casting the parent chain.
-    for (const Node* node = this; node != nullptr; node = node->parent_) {
-        node->subtree_paint_bounds_ = rhi::Rect{0.0f, 0.0f, -1.0f, 0.0f};
+    for (const Node* cursor = &self; cursor != nullptr; cursor = cursor->parent_) {
+        cursor->subtree_paint_bounds_ = rhi::Rect{0.0f, 0.0f, -1.0f, 0.0f};
     }
 }
 
-rhi::Rect Node::subtree_paint_bounds() const {
-    if (subtree_paint_bounds_.width >= 0.0f) {
-        return subtree_paint_bounds_; // cached, including the infinite "unbounded" answer
+rhi::Rect NodeGeometryApi::subtree_paint_bounds() const {
+    const Node& self = node();
+    if (self.subtree_paint_bounds_.width >= 0.0f) {
+        return self.subtree_paint_bounds_; // cached, including the infinite "unbounded" answer
     }
 
-    const float left = paint_reach(paint_outsets_.left, glass_blur_sigma_);
-    const float top = paint_reach(paint_outsets_.top, glass_blur_sigma_);
-    const float right = paint_reach(paint_outsets_.right, glass_blur_sigma_);
-    const float bottom = paint_reach(paint_outsets_.bottom, glass_blur_sigma_);
-    rhi::Rect box{-left, -top, bounds_.width + left + right, bounds_.height + top + bottom};
+    const float left = paint_reach(self.paint_outsets_.left, self.glass_blur_sigma_);
+    const float top = paint_reach(self.paint_outsets_.top, self.glass_blur_sigma_);
+    const float right = paint_reach(self.paint_outsets_.right, self.glass_blur_sigma_);
+    const float bottom = paint_reach(self.paint_outsets_.bottom, self.glass_blur_sigma_);
+    rhi::Rect box{-left, -top, self.bounds_.width + left + right,
+                  self.bounds_.height + top + bottom};
 
     // Text is the one payload that can paint outside its box (wrapped lines advance past the
     // content box and are not clipped). Layout's fit fact on a plain payload is the only proof it
     // stays inside; anything richer leaves the subtree unbounded.
-    if (!own_paint_is_bounded(*this)) {
+    if (!own_paint_is_bounded(self)) {
         box = unbounded_paint_box();
     }
 
-    for (const auto& child : children_) {
+    for (const auto& child : self.children_) {
         const rhi::Rect child_box = child->subtree_paint_bounds();
         if (!std::isfinite(child_box.width)) {
             box = unbounded_paint_box();
@@ -160,122 +163,131 @@ rhi::Rect Node::subtree_paint_bounds() const {
         // A child's local space is positioned at its box origin and then transformed around it; the
         // parent's scroll offset shifts the whole content. This is the same composition
         // world_transform() performs, one level down.
-        const rhi::Mat3 to_parent = rhi::Mat3::translation(child->bounds().x - scroll_.scroll_x(),
-                                                           child->bounds().y - scroll_.scroll_y()) *
-                                    child->transform_;
+        const rhi::Mat3 to_parent =
+            rhi::Mat3::translation(child->bounds().x - self.scroll_.scroll_x(),
+                                   child->bounds().y - self.scroll_.scroll_y()) *
+            child->transform_;
         box = union_rect(box, mapped_aabb(to_parent, child_box));
     }
 
-    subtree_paint_bounds_ = box;
+    self.subtree_paint_bounds_ = box;
     return box;
 }
 
-void Node::set_text_fits_box(bool fits) {
-    if (flag(kTextFitsBox) == fits) {
+void NodeGeometryApi::set_text_fits_box(bool fits) {
+    Node& self = node();
+    if (self.flag(Node::kTextFitsBox) == fits) {
         return;
     }
-    set_flag(kTextFitsBox, fits);
+    self.set_flag(Node::kTextFitsBox, fits);
     // A layout fact, not a paint-visible mutation, so it marks no dirty domain - but it decides
     // whether this node's text payload is bounded, which the cached subtree box relies on.
     invalidate_subtree_paint_bounds();
 }
 
-void Node::set_bounds(const rhi::Rect& bounds) {
-    if (same_rect(bounds_, bounds)) {
+void NodeGeometryApi::set_bounds(const rhi::Rect& bounds) {
+    Node& self = node();
+    if (same_rect(self.bounds_, bounds)) {
         return;
     }
-    bounds_ = bounds;
-    mark_dirty(Dirty::Paint | Dirty::Render);
+    self.bounds_ = bounds;
+    self.mark_dirty(Dirty::Paint | Dirty::Render);
     // Insets are stored relative to the box; a smaller box can make them exceed it, and the new
     // viewport can lower the maximum offset. Re-clamping the offset raises its own damage when it
     // moves.
-    scroll_.reclamp_insets(bounds_.width, bounds_.height);
-    set_scroll_offset(scroll_.scroll_x(), scroll_.scroll_y());
+    self.scroll_.reclamp_insets(self.bounds_.width, self.bounds_.height);
+    self.set_scroll_offset(self.scroll_.scroll_x(), self.scroll_.scroll_y());
 }
 
-void Node::set_span_bounds(const rhi::Rect& bounds) const {
+void NodeGeometryApi::set_span_bounds(const rhi::Rect& bounds) const {
+    const Node& self = node();
     // Derivable paint data, not a layout box: no dirty marks and no scrollport/offset side effects.
     // `const` (issue #733 item 4) because the paint pass derives it through a const scene; the
     // fields it writes are `mutable` for the same reason `subtree_paint_bounds_` is.
-    if (!same_rect(bounds_, bounds)) {
-        bounds_ = bounds;
+    if (!same_rect(self.bounds_, bounds)) {
+        self.bounds_ = bounds;
         // The one geometry write that marks no dirty domain, so the cached subtree box (issue #735)
         // must be cleared here explicitly: `bounds_` is part of it.
         invalidate_subtree_paint_bounds();
     }
 }
 
-void Node::set_transform(const rhi::Mat3& transform) {
-    if (same_transform(transform_, transform)) {
+void NodeGeometryApi::set_transform(const rhi::Mat3& transform) {
+    Node& self = node();
+    if (same_transform(self.transform_, transform)) {
         return;
     }
-    transform_ = transform;
-    mark_dirty(Dirty::Paint | Dirty::Render);
+    self.transform_ = transform;
+    self.mark_dirty(Dirty::Paint | Dirty::Render);
 }
 
-void Node::set_z_index(int z_index) {
-    if (z_index_ == z_index) {
+void NodeGeometryApi::set_z_index(int z_index) {
+    Node& self = node();
+    if (self.z_index_ == z_index) {
         return;
     }
-    z_index_ = z_index;
-    mark_dirty(Dirty::Paint | Dirty::Render);
+    self.z_index_ = z_index;
+    self.mark_dirty(Dirty::Paint | Dirty::Render);
 }
 
-void Node::set_paint_outsets(const PaintOutsets& outsets) {
+void NodeGeometryApi::set_paint_outsets(const PaintOutsets& outsets) {
+    Node& self = node();
     const auto sanitize = [](float value) {
         return std::isfinite(value) && value > 0.0f ? value : 0.0f;
     };
     const PaintOutsets next{sanitize(outsets.left), sanitize(outsets.top), sanitize(outsets.right),
                             sanitize(outsets.bottom), outsets.blurred};
-    if (next.left == paint_outsets_.left && next.top == paint_outsets_.top &&
-        next.right == paint_outsets_.right && next.bottom == paint_outsets_.bottom &&
-        next.blurred == paint_outsets_.blurred) {
+    if (next.left == self.paint_outsets_.left && next.top == self.paint_outsets_.top &&
+        next.right == self.paint_outsets_.right && next.bottom == self.paint_outsets_.bottom &&
+        next.blurred == self.paint_outsets_.blurred) {
         return;
     }
-    paint_outsets_ = next;
-    mark_dirty(Dirty::Paint | Dirty::Render);
+    self.paint_outsets_ = next;
+    self.mark_dirty(Dirty::Paint | Dirty::Render);
 }
 
-void Node::set_glass_blur_sigma(float sigma) {
+void NodeGeometryApi::set_glass_blur_sigma(float sigma) {
+    Node& self = node();
     const float next = std::isfinite(sigma) && sigma > 0.0f ? sigma : 0.0f;
-    if (next == glass_blur_sigma_) {
+    if (next == self.glass_blur_sigma_) {
         return;
     }
-    glass_blur_sigma_ = next;
+    self.glass_blur_sigma_ = next;
     // Paint-visible: the emitted sigma changes and damage must cover the new dependency region.
     // Layout and hit testing are unaffected (glass is paint only, glass-v1 section 3.4).
-    mark_dirty(Dirty::Paint | Dirty::Render);
+    self.mark_dirty(Dirty::Paint | Dirty::Render);
 }
 
-void Node::set_glass_subtree(bool has_glass) {
+void NodeGeometryApi::set_glass_subtree(bool has_glass) {
+    Node& self = node();
     // Derived state, not paint-visible on its own: it can only change when a style change already
     // marked the affected node, so it never raises damage by itself.
-    set_flag(kGlassSubtree, has_glass);
+    self.set_flag(Node::kGlassSubtree, has_glass);
 }
 
-rhi::Mat3 Node::world_transform() const {
+rhi::Mat3 NodeGeometryApi::world_transform() const {
+    const Node& self = node();
     // bounds are parent-relative (layout writes them that way), so the box origin is part of the
     // local-to-parent transform; transform_ then acts around that box origin (animation/rotation).
-    const rhi::Mat3 local = rhi::Mat3::translation(bounds_.x, bounds_.y) * transform_;
-    if (parent_ != nullptr) {
+    const rhi::Mat3 local =
+        rhi::Mat3::translation(self.bounds_.x, self.bounds_.y) * self.transform_;
+    if (self.parent_ != nullptr) {
         // Children of a scroll container live in content space: the parent's scroll shifts them
         // by -scroll without changing this node's own bounds or transform.
-        return parent_->world_transform() *
-               rhi::Mat3::translation(-parent_->scroll_.scroll_x(), -parent_->scroll_.scroll_y()) *
+        return self.parent_->world_transform() *
+               rhi::Mat3::translation(-self.parent_->scroll_.scroll_x(),
+                                      -self.parent_->scroll_.scroll_y()) *
                local;
     }
     return local;
 }
 
-rhi::Mat3 Node::content_transform() const {
-    return world_transform() * rhi::Mat3::translation(-scroll_.scroll_x(), -scroll_.scroll_y());
-}
-
-rhi::Rect Node::world_bounds() const {
+rhi::Rect NodeGeometryApi::world_bounds() const {
+    const Node& self = node();
     const rhi::Mat3 world = world_transform();
     // The transform already carries the box origin, so the local rect starts at (0, 0).
-    const float xs[4] = {0.0f, bounds_.width, bounds_.width, 0.0f};
-    const float ys[4] = {0.0f, 0.0f, bounds_.height, bounds_.height};
+    const float xs[4] = {0.0f, self.bounds_.width, self.bounds_.width, 0.0f};
+    const float ys[4] = {0.0f, 0.0f, self.bounds_.height, self.bounds_.height};
 
     float min_x = std::numeric_limits<float>::max();
     float min_y = std::numeric_limits<float>::max();
