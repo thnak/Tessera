@@ -930,6 +930,20 @@ target_link_libraries(android_motion_tests PRIVATE tessera_input)
 
 add_test(NAME android_motion COMMAND android_motion_tests)
 
+# Android IME translation (issue #189): the InputConnection callbacks mapped onto ui::InputEvent.
+# Pure over UTF-16 code units and offsets, so it runs on every lane with no Android SDK and no
+# device; the surrogate-pair and caret-offset conversions are the reason it exists.
+add_executable(android_ime_tests
+    hal/android_ime_tests.cpp
+    ${PROJECT_SOURCE_DIR}/src/platform/android/android_ime_translation.cpp)
+
+target_include_directories(android_ime_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src/platform/android)
+
+target_link_libraries(android_ime_tests PRIVATE tessera_input)
+
+add_test(NAME android_ime COMMAND android_ime_tests)
+
 add_executable(diagnostics_crash_tests
     diagnostics_crash_tests.cpp)
 
