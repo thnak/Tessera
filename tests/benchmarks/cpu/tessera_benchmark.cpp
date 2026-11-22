@@ -13,10 +13,13 @@
 
 #include "benchmark_budget.hpp"
 #include "benchmark_fixture.hpp"
+#include "benchmark_walk.hpp"
 
 #include <algorithm>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
+#include <string_view>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -103,6 +106,10 @@ void accumulate(benchmark::Totals& totals, const benchmark::Measurement& sample)
 } // namespace
 
 int main(int argc, char** argv) {
+    // `--walk [rounds]`: the scene-walk report (no budget, never fails); see benchmark_walk.hpp.
+    if (argc >= 2 && std::string_view(argv[1]) == "--walk") {
+        return benchmark::run_scene_walk(argc >= 3 ? std::atoi(argv[2]) : 15);
+    }
     if (argc < 2) {
         std::fprintf(stderr, "usage: tessera_benchmark <tests/golden/perf/cpu_benchmark.txt>\n");
         return 2;

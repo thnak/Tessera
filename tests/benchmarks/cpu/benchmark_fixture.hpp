@@ -109,6 +109,10 @@ public:
     [[nodiscard]] std::size_t nodes() const noexcept {
         return targets_.nodes;
     }
+    // The scene root, laid out once `measure()` has run. The scene-walk benchmark reads it.
+    [[nodiscard]] ui::Node& root() noexcept {
+        return *root_;
+    }
 
 private:
     // `plan` selects the renderer entry point: null (or a full plan) is `begin()`, a partial plan

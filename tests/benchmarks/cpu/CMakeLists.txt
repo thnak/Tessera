@@ -11,6 +11,7 @@ add_executable(tessera_benchmark
     benchmark_driver.cpp
     benchmark_fixture.cpp
     benchmark_scene.cpp
+    benchmark_walk.cpp
     benchmark_budget.cpp)
 
 # The raster-image fixture bytes are embedded at build time (one small PNG shared by every image
