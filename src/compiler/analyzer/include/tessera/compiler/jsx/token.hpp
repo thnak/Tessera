@@ -4,6 +4,7 @@
 
 #include "tessera/compiler/jsx/source_map.hpp"
 
+#include <cstdint>
 #include <string>
 #include <string_view>
 

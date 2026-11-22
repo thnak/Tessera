@@ -5,6 +5,7 @@
 #include "tessera/ui/animation/easing.hpp"
 #include "tessera/ui/style/keyframes.hpp"
 
+#include <cstdint>
 #include <vector>
 
 namespace tessera::ui::animation {

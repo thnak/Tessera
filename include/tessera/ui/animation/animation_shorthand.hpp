@@ -5,6 +5,7 @@
 #include "tessera/ui/animation/easing.hpp"
 #include "tessera/ui/animation/keyframes.hpp"
 
+#include <cstdint>
 #include <string>
 #include <string_view>
 #include <vector>

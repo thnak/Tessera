@@ -4,6 +4,7 @@
 
 #include "tessera/hal/timer/steady_time.hpp"
 #include "tessera/hal/window.hpp"
+#include <cstdint>
 
 namespace tessera::hal {
 

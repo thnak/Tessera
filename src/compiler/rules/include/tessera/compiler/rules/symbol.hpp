@@ -5,6 +5,7 @@
 #include "tessera/compiler/jsx/source_map.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <string>
 
 namespace tessera::compiler::rules {

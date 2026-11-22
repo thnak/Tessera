@@ -38,6 +38,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <optional>
 
 namespace tessera::ui::paint::detail {

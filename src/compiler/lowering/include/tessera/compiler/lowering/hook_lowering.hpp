@@ -14,6 +14,7 @@
 #include "tessera/compiler/lowering/type_alias.hpp"
 #include "tessera/compiler/rules/component_analysis.hpp"
 
+#include <cstdint>
 #include <expected>
 #include <span>
 #include <string>

@@ -24,6 +24,7 @@
 #include "tessera/appfw/lifecycle.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <expected>
 #include <span>
 #include <string>

@@ -5,6 +5,7 @@
 #include "tessera/harness/json_value.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <expected>
 #include <string>
 #include <string_view>

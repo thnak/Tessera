@@ -4,6 +4,7 @@
 
 #include "tessera/compiler/jsx/ast.hpp"
 
+#include <cstdint>
 #include <string>
 
 namespace tessera::compiler::rules {

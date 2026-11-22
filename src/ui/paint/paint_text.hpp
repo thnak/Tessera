@@ -4,6 +4,7 @@
 
 #include "paint_text_rules.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
+#include <cstdint>
 
 namespace tessera::ui::paint::detail {
 

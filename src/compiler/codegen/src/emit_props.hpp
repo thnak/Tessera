@@ -5,6 +5,7 @@
 #include "codegen_internal.hpp"
 #include "emit_dirty.hpp"
 
+#include <cstdint>
 #include <span>
 #include <string>
 #include <string_view>

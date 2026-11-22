@@ -6,6 +6,7 @@
 #include "tessera/hal/window_backdrop.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <string>
 #include <string_view>
 #include <vector>

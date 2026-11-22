@@ -5,6 +5,7 @@
 #include "tessera/compiler/ir/expr.hpp"
 #include "tessera/compiler/ir/source_span.hpp"
 
+#include <cstdint>
 #include <map>
 #include <memory>
 #include <optional>

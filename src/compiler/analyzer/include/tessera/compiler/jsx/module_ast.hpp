@@ -5,6 +5,7 @@
 #include "tessera/compiler/jsx/ast.hpp"
 #include "tessera/compiler/jsx/type_ast.hpp"
 
+#include <cstdint>
 #include <string>
 #include <vector>
 

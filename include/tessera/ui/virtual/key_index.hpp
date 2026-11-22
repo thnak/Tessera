@@ -6,6 +6,7 @@
 #include "tessera/ui/virtual/virtual_item.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <expected>
 #include <optional>
 #include <span>
