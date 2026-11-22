@@ -114,6 +114,12 @@ std::optional<TextValueType> infer_type(const ir::Expr& expr, const ir::Componen
     case ir::ExprKind::Record:
         // A record value has no printable text form either (section 4.3: a value position only).
         return std::nullopt;
+    case ir::ExprKind::OptionalField:
+    case ir::ExprKind::Coalesce:
+        // ADR-066 item 1: `a?.b` and `a ?? b` are printable when their result is, which is the
+        // fallback's type for a coalesce and the field's for an optional access. Neither is
+        // inferable here without the record table, so they are not printable in a text position.
+        return std::nullopt;
     }
     return std::nullopt;
 }

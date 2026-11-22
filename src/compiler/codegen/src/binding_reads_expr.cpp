@@ -86,6 +86,10 @@ void ReadCollector::add(const ir::Expr* expr) {
     case ir::ExprKind::Unary:
     case ir::ExprKind::Conditional:
     case ir::ExprKind::Array:
+    // ADR-066 item 1: `a?.b` reads its base, `a ?? b` reads both sides. Both are pure, so the read
+    // set is the union of their operands and nothing else.
+    case ir::ExprKind::OptionalField:
+    case ir::ExprKind::Coalesce:
         for (const ir::ExprPtr& operand : expr->operands) {
             add(operand.get());
         }
