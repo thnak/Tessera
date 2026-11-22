@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <utility>
 
 namespace tessera::appfw {
@@ -47,7 +48,7 @@ std::vector<std::string> FakeFileSystem::steps() const {
 }
 
 bool FakeFileSystem::has_file(std::string_view path) const {
-    return files_.find(std::string(path)) != files_.end();
+    return files_.contains(std::string(path));
 }
 
 std::string FakeFileSystem::content_of(std::string_view path) const {
@@ -59,7 +60,7 @@ std::size_t FakeFileSystem::temp_file_count() const {
     std::size_t count = 0;
     for (const auto& [path, value] : files_) {
         (void)value;
-        if (path.size() > 4 && path.compare(path.size() - 4, 4, ".tmp") == 0) {
+        if (path.ends_with(".tmp")) {
             ++count;
         }
     }
@@ -112,7 +113,7 @@ FileResult FakeFileSystem::flush(std::string_view path) {
     if (fail_ == FailStep::Flush) {
         return fail(FileErrorCode::Io, "flush");
     }
-    if (files_.find(std::string(path)) == files_.end()) {
+    if (!files_.contains(std::string(path))) {
         return fail(FileErrorCode::NotFound, "flush");
     }
     return {};
@@ -135,9 +136,8 @@ FileResult FakeFileSystem::replace(std::string_view from, std::string_view to) {
     // temp file is always a distinct path), but a caller that does would otherwise lose the file to
     // the erase below, which is the kind of fake-only bug that makes a test disagree with the OS.
     if (from == to) {
-        return files_.find(std::string(from)) == files_.end()
-                   ? fail(FileErrorCode::NotFound, "replace")
-                   : FileResult{};
+        return !files_.contains(std::string(from)) ? fail(FileErrorCode::NotFound, "replace")
+                                                   : FileResult{};
     }
     const auto source = files_.find(std::string(from));
     if (source == files_.end()) {
@@ -171,7 +171,7 @@ FileResult FakeFileSystem::create_directory(std::string_view path) {
 }
 
 bool FakeFileSystem::exists(std::string_view path) {
-    return files_.find(std::string(path)) != files_.end();
+    return files_.contains(std::string(path));
 }
 
 std::expected<std::uint64_t, FileError> FakeFileSystem::size(std::string_view path) {
@@ -190,7 +190,7 @@ std::expected<std::vector<DirEntry>, FileError> FakeFileSystem::list(std::string
     std::vector<DirEntry> entries;
     const std::string prefix = std::string(directory) + "/";
     for (const auto& [path, value] : files_) {
-        if (path.compare(0, prefix.size(), prefix) != 0) {
+        if (!path.starts_with(prefix)) {
             continue;
         }
         const std::string name = path.substr(prefix.size());
@@ -201,8 +201,7 @@ std::expected<std::vector<DirEntry>, FileError> FakeFileSystem::list(std::string
     }
     // Sorted by name, which the `FileSystem` contract requires and a `std::map` of full paths does
     // not give for free once the prefix is stripped.
-    std::sort(entries.begin(), entries.end(),
-              [](const DirEntry& left, const DirEntry& right) { return left.name < right.name; });
+    std::ranges::sort(entries, {}, &DirEntry::name);
     return entries;
 }
 
