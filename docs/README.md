@@ -180,9 +180,9 @@ This page is the map and reading order for the framework.
 - [`specs/state-restoration-v1.md`](specs/state-restoration-v1.md) — versioned route/window/scroll/
   focus/draft restoration
 - [`specs/platform-shell-v1.md`](specs/platform-shell-v1.md) — clipboard, drag/drop, context
-  menus, file dialogs, menu bar/tray
-- [`specs/i18n-v1.md`](specs/i18n-v1.md) — locale negotiation, ICU (International Components for Unicode) catalogs, formatting, RTL,
-  pseudo-localization
+  menus, file dialogs, menu bar/tray; [`specs/permissions-v1.md`](specs/permissions-v1.md) — the
+  permission state model, request flow and `tessera.json` declaration
+- [`specs/i18n-v1.md`](specs/i18n-v1.md) — locale negotiation, ICU catalogs, formatting, RTL, pseudo-localization
 - [`specs/accessibility-v1.md`](specs/accessibility-v1.md) — semantics/roles/actions/focus/
   announcements/platform bridges/tests
 - [`specs/networking-v1.md`](specs/networking-v1.md) — the `net` module: `fetch`-shaped interface, normative behavior, back ends and contract suite (ADR-052)

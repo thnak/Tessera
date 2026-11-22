@@ -5,6 +5,7 @@
 
 #include "package_manifest.hpp"
 #include "project_identity.hpp"
+#include "tessera/appfw/permission.hpp"
 #include "tessera/compiler/lowering/node_lowering.hpp"
 #include "tessera/harness/json_parse.hpp"
 #include "tessera/ui/style/theme_asset.hpp"
@@ -66,6 +67,41 @@ bool read_limits(const tessera::harness::JsonValue& config, ProjectIdentity& ide
             return false;
         }
         *target = static_cast<std::size_t>(*number);
+    }
+    return true;
+}
+
+// Reads the optional `permissions` array (docs/specs/permissions-v1.md section 7): a list of the
+// permission ids of section 3, deduplicated into a mask. Returns false and sets `why` on an id
+// outside the set, naming the valid ones - a typo here would otherwise become a permission the app
+// cannot request and a manifest entry nobody meant.
+bool read_permissions(const tessera::harness::JsonValue& config, ProjectIdentity& identity,
+                      std::string& why) {
+    const tessera::harness::JsonValue* permissions = config.find("permissions");
+    if (permissions == nullptr || permissions->is_null()) {
+        return true;
+    }
+    const tessera::harness::JsonValue::Array* entries = permissions->as_array();
+    if (entries == nullptr) {
+        why = "`permissions` must be an array of permission ids";
+        return false;
+    }
+    for (const tessera::harness::JsonValue& entry : *entries) {
+        const std::optional<std::string_view> id = entry.as_string();
+        if (!id || id->empty()) {
+            why = "every `permissions` entry must be a non-empty string";
+            return false;
+        }
+        tessera::appfw::Permission permission = tessera::appfw::Permission::Camera;
+        if (!tessera::appfw::permission_from_name(*id, permission)) {
+            why = "`permissions` entry `" + std::string(*id) +
+                  "` is not a permission: camera, microphone, location, notifications, "
+                  "photo-library, file-access";
+            return false;
+        }
+        // A duplicate is not an error: declaring `camera` twice is the same intent, and failing a
+        // build over it would be hostile. The mask makes it a no-op.
+        identity.permissions |= tessera::appfw::permission_mask(permission);
     }
     return true;
 }
@@ -278,6 +314,10 @@ std::optional<ProjectIdentity> resolve_identity(const Options& options, Outcome&
     std::string package_error;
     if (!read_packages(*parsed, identity, package_error)) {
         return fail(package_error);
+    }
+    std::string permission_error;
+    if (!read_permissions(*parsed, identity, permission_error)) {
+        return fail(permission_error);
     }
     std::string limits_error;
     if (!read_limits(*parsed, identity, limits_error)) {

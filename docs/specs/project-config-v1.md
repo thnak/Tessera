@@ -34,9 +34,9 @@ File: `tessera.json` at the project root. JSON is the source of truth; the C++ A
 | `tunables` | array | no | `[]` | Explicit allowlist of user-adjustable settings |
 | `diagnostics` | object | no | see [diagnostics-config-v1.md](diagnostics-config-v1.md) | Logging, tracing, profiling, crash |
 | `dependencies` | object | no | empty | Include/link additions |
+| `permissions` | array | no | `[]` | see [permissions-v1.md](permissions-v1.md) | The permissions the app may request; nothing is on by default |
 
-Unknown fields are **errors** (strict schema). Paths are relative to the project root; absolute
-paths are rejected.
+Unknown fields are **errors** (strict schema). Paths are relative to the project root; absolute paths are rejected.
 
 ## `app`
 

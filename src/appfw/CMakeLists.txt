@@ -215,6 +215,41 @@ if (WIN32)
         PRIVATE tessera_hal_clipboard comdlg32 ole32 shell32 user32)
 endif()
 
+# ADR-050 layer 1 module: `tessera_appfw_permission` (issue #451, docs/specs/permissions-v1.md). A
+# separate static library for the same reason as storage, i18n, navigation, net and shell: an app that
+# does not ask the user for anything links none of it.
+#
+# Dependencies, and why each is the narrowest one:
+#   * `tessera_appfw_core` for the layer-1 build boundary and the service contract. It is PUBLIC
+#     because a caller names the module's types next to a service.
+#   * `tessera_runtime` for the three layer-0 seams the module is handed rather than inventing:
+#     `CompletionQueue` (where an answer is delivered), `CancellationToken` (how a request is
+#     cancelled) and `Clock` (`ManualClock` in tests, which is what makes `FakePermissionBackend`
+#     deterministic). `tessera_appfw_core` already links it PUBLIC, so naming it is documentation as
+#     much as configuration.
+#
+# Deliberately *not* linked, and this is the whole point of the backend seam: no Android NDK
+# `ActivityCompat`, no `AVFoundation`, no `Windows.Security.Authorization`, no macOS
+# `AVCaptureDevice`. `permission.hpp` is the only place a platform plugs in. The contract suite
+# therefore compiles and runs on every lane, including lavapipe and the Wasm lane, with no platform
+# library anywhere in it. No per-platform back end ships in this slice: the fake is what an app, a
+# headless run and the studio panel (#448) use (spec section 11).
+add_library(tessera_appfw_permission STATIC
+    permission_fake.cpp
+    permission_service.cpp
+    # The coroutine half of the service (the `runtime::Task` wrapper and its awaiter). Its own TU
+    # because `permission_service.cpp` is at its file-size budget and the split is along the line the
+    # code already had: the state machine and its rules, then the async shape.
+    permission_service_task.cpp)
+
+target_include_directories(tessera_appfw_permission PUBLIC
+    ${PROJECT_SOURCE_DIR}/include)
+
+target_compile_features(tessera_appfw_permission PUBLIC cxx_std_23)
+
+target_link_libraries(tessera_appfw_permission
+    PUBLIC tessera_appfw_core tessera_runtime)
+
 if (TESSERA_BUILD_TESTS)
     enable_testing()
 
@@ -362,4 +397,20 @@ if (TESSERA_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/unit)
     target_link_libraries(appfw_shell_tests PRIVATE tessera_appfw_shell tessera_runtime)
     add_test(NAME appfw_shell COMMAND appfw_shell_tests)
+
+    # The permissions contract suite (issue #451, docs/specs/permissions-v1.md). Deterministic end to
+    # end - `ManualClock` for every instant, `FakePermissionBackend` for the platform, a hand-drained
+    # `CompletionQueue` for delivery - so no test prompts, reads a wall clock, sleeps, starts a thread
+    # or touches an OS permission. It links the module and `tessera_runtime` and nothing platform-
+    # specific, which is what lets the same suite run on Windows, Linux and the Wasm lane.
+    add_executable(appfw_permission_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/permissions_main.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/permissions_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/permissions_edges_tests.cpp)
+    target_include_directories(appfw_permission_tests PRIVATE
+        ${PROJECT_SOURCE_DIR}/tests/unit)
+    target_link_libraries(appfw_permission_tests PRIVATE tessera_appfw_permission tessera_runtime)
+    # Two TUs, one counter and one exit code: `permissions_test_support.hpp` declares the failure count
+    # inline, so a failure in either half fails the one binary.
+    add_test(NAME appfw_permission COMMAND appfw_permission_tests)
 endif()
