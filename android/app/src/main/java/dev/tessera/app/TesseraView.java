@@ -49,6 +49,16 @@ public final class TesseraView extends SurfaceView implements SurfaceHolder.Call
      * surfaceCreated}.
      */
     private TesseraAccessibilityProvider accessibilityProvider;
+    /**
+     * Runs once the native shell exists, so a metric the activity read before the surface was ready
+     * is not lost.
+     *
+     * <p>This exists because of a real ordering trap: {@code onResume} runs BEFORE {@code
+     * surfaceCreated}, so a fold read there has no native handle to push to. Without this, a device
+     * that is already folded when the app starts reports no fold until the next configuration
+     * change, which may never come.
+     */
+    private Runnable onNativeReady;
 
     public TesseraView(Context context) {
         super(context);
@@ -71,6 +81,32 @@ public final class TesseraView extends SurfaceView implements SurfaceHolder.Call
         accessibilityProvider = null;
     }
 
+    /**
+     * The native shell handle, or 0 before the surface exists.
+     *
+     * <p>The activity needs it to push metrics the view does not own — fold posture arrives from a
+     * library the activity drives, not from a callback on this view. A zero handle means the engine
+     * has nothing to receive it yet, and every native entry point treats that as a no-op.
+     */
+    long nativeHandle() {
+        return nativeHandle;
+    }
+
+    /**
+     * Registers a one-shot action to run as soon as the native shell exists, or immediately when it
+     * already does. Used for metrics the activity reads before {@code surfaceCreated}.
+     */
+    void whenNativeReady(Runnable action) {
+        if (action == null) {
+            return;
+        }
+        if (nativeHandle != 0) {
+            action.run();
+            return;
+        }
+        onNativeReady = action;
+    }
+
     // --- Surface lifecycle -------------------------------------------------------------------
 
     @Override
@@ -80,6 +116,10 @@ public final class TesseraView extends SurfaceView implements SurfaceHolder.Call
         }
         nativeSurfaceCreated(nativeHandle, holder.getSurface());
         requestApplyInsets();
+        // The shell exists now, so anything the activity read before this point can be pushed.
+        if (onNativeReady != null) {
+            onNativeReady.run();
+        }
     }
 
     @Override
@@ -245,6 +285,17 @@ public final class TesseraView extends SurfaceView implements SurfaceHolder.Call
             int gestureLeft, int gestureTop, int gestureRight, int gestureBottom);
 
     private static native void nativeSetCutouts(long handle, int[] rects);
+
+    /**
+     * Pushes the fold posture and hinge to the engine.
+     *
+     * <p>The posture and axis are the engine's own enum values (0 none, 1 flat, 2 half-opened; axis
+     * 0 none, 1 horizontal, 2 vertical) rather than the library's objects, so no AndroidX type
+     * crosses the boundary. The hinge is in physical pixels, which is what the engine's decode rules
+     * take; they convert to logical with the window's scale.
+     */
+    static native void nativeSetFold(long handle, int posture, int axis, int left, int top,
+            int right, int bottom);
 
     private static native boolean nativeOnTouch(long handle, MotionEvent event);
 

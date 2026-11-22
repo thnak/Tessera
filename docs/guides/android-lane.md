@@ -262,12 +262,8 @@ stays inside its size budget.
 
 ### 3.7 What is still missing
 
-- **Fold posture over JNI.** The decode, the HAL seam (`set_physical_fold`) and its tests are done,
-  but the Java reader is blocked on a dependency decision: `FoldingFeature`/`WindowInfo` live in
-  **`androidx.window`**, not in the platform SDK (`javap` on `android.jar` finds neither). Reading a
-  fold therefore needs an AndroidX dependency in the shell, which is a decision for whoever owns the
-  dependency policy rather than something to slip into this change. Until then the shell reports no
-  fold, which is the same answer a non-foldable gives.
+- **Fold posture over JNI.** Done — see section 3.10. The decode, the HAL seam
+  (`set_physical_fold`), the Java reader and the live observer are all wired.
 - **The accessibility bridge itself.** The role/action mapping
   (`android_a11y_mapping.cpp`), the pull-side provider (`snapshot_provider.cpp`) and the Java
   `AccessibilityNodeProvider` are done — see section 3.9. What is not wired: live-region
@@ -344,6 +340,56 @@ adb shell dumpsys accessibility | Select-String "tessera"
 The emulator check that matters: with TalkBack on, swiping right must move focus through *"Tessera on
 Android"*, *"Taps: 0"*, *"Tap me"* and the text field — four separate stops. Before this slice the
 whole window was one unnamed stop.
+
+### 3.10 Fold posture: the one AndroidX dependency, and why
+
+**The platform has no fold API.** Verified against the build's own `android.jar` for API 35, 36.1 and
+37: no class matches fold, hinge or posture, and `android.view.WindowInfo` does not exist at any of
+those levels. `android.view.DisplayShape` does exist but describes the outline of a display, not a
+hinge, so it cannot substitute.
+
+Posture is exposed only by **Jetpack WindowManager** (`androidx.window:window`), Google's official
+Apache-2.0 library for exactly this. It was already the planned dependency:
+[`dependencies.md`](../specs/dependencies.md) lists it as "Android V1 optional" and
+[`THIRD_PARTY_NOTICES.md`](../../THIRD_PARTY_NOTICES.md) already carried the entry, so this slice
+consumes a decision that was already made rather than making a new one.
+
+The shell pins **1.5.1** (current stable) and uses it for one call. The chain it pulls in is
+`window-core`, `androidx.core`, `androidx.collection`, `androidx.annotation`, `jspecify`,
+`kotlin-stdlib` and `kotlinx-coroutines-android` — which is why the build also enables the Kotlin
+plugin, for one 40-line file.
+
+**Why a Kotlin file.** `WindowInfoTracker.windowLayoutInfo` returns a Kotlin `Flow`. Collecting one
+from Java means calling suspend functions through `BuildersKt` with a hand-written `Function2`, which
+compiles only while every parameter type lines up and breaks on any coroutines version bump. I tried
+that first and it failed to compile; `FoldObserver.kt` does it in three lines instead. All the mapping
+stays in `TesseraFoldReader.java` with the rest of the shell.
+
+**Why a listener, not just a config-change re-read.** A fold change is *not* always a configuration
+change. The emulator's `HALF_OPENED` transition changes the hinge angle without resizing the window,
+so `onConfigurationChanged` never fires — measured, not assumed. A re-read on that hook alone reports
+the posture the app started with, forever.
+
+**The ordering trap.** `onResume` runs *before* `surfaceCreated`, so a fold read there has no native
+handle to push to. `TesseraView.whenNativeReady` defers the first push until the shell exists;
+without it a device that is already folded at launch reports no fold until the next change, which may
+never come.
+
+Verification on the emulator, which can simulate a foldable:
+
+```powershell
+adb shell cmd device_state print-states   # lists CLOSED, HALF_OPENED, OPENED, ...
+adb shell cmd device_state state 1        # HALF_OPENED
+adb shell cmd device_state state 2        # OPENED
+```
+
+| Device state | posture | axis | hinge |
+|---|---|---|---|
+| `OPENED` | 1 (Flat) | 2 (Vertical) | `1038,0,1038,2152` |
+| `HALF_OPENED` | 2 (HalfOpened) | 2 (Vertical) | `1038,0,1038,2152` |
+
+The hinge sits at x=1038, the exact centre of the 2076 px display, and the transition is observed
+live without restarting the activity.
 
 ## 4. Related
 

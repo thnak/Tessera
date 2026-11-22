@@ -13,12 +13,28 @@
 
 plugins {
     id("com.android.application") version "8.7.0"
+    // Kotlin is needed for exactly one file (FoldObserver.kt): the fold tracker's only continuous
+    // API is a Kotlin Flow, and collecting one from Java means calling suspend functions through
+    // BuildersKt with a hand-written Function2, which breaks on any coroutines version bump.
+    // androidx.window already puts Kotlin on the classpath, so this adds no new runtime dependency.
+    id("org.jetbrains.kotlin.android") version "2.0.21"
 }
 
 android {
     namespace = "dev.tessera.app"
     compileSdk = 35
     ndkVersion = "30.0.16248370"
+
+    // Kotlin and Java must agree on a JVM target or Gradle refuses the build ("Inconsistent
+    // JVM-target compatibility"). 17 is the highest the Android toolchain accepts for both without
+    // a toolchain download, and nothing here needs newer bytecode.
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = "17"
+    }
 
     defaultConfig {
         applicationId = "dev.tessera.app"
@@ -74,4 +90,15 @@ android {
             useLegacyPackaging = false
         }
     }
+}
+
+dependencies {
+    // Jetpack WindowManager is the ONLY way to read fold posture on Android: the platform SDK has no
+    // fold, hinge or posture API at any level (verified against android.jar for API 35, 36.1 and 37;
+    // android.view.WindowInfo does not exist either). Google publishes it as an official Jetpack
+    // library under Apache-2.0, and it is what Google documents for foldables.
+    //
+    // 1.5.1 is the current stable release. It is used for exactly one call -
+    // WindowInfoTracker.getCurrentWindowLayoutInfo - so the dependency is a leaf, not a framework.
+    implementation("androidx.window:window:1.5.1")
 }
