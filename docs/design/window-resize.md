@@ -427,9 +427,9 @@ GPU-reset coverage across drivers/vendors (the fault-injection tests cover the s
   through a CPU readback -> 1x texture -> fullscreen textured quad. The bridge exists because the RHI
   has no image-to-image copy yet (`CommandList` only copies a target to a buffer); it is a demo
   workaround, not the intended production path. Readback bytes are in the target's encoded space, so
-  on an sRGB swapchain the extra sample->encode->decode step is a documented visual approximation;
-  the path is validation-clean. The production `WindowHost` does not use it: it samples the 4x
-  target's resolved image (RHI 1.3 `bind_sampled_target`) into the acquired image instead.
+  the extra sample->encode->decode step is a documented visual approximation on any target carrying a
+  transfer function; presentation is UNORM (issue #791), so production does not pay it. The production
+  `WindowHost` samples the 4x target's resolved image (RHI 1.3 `bind_sampled_target`) instead.
 - `--simulate-loss --font <fixture>` (requires a `TESSERA_VULKAN_TEST_HOOKS` build): after three
   rendered frames the POC injects a simulated device loss, destroys every RHI object (swapchain,
   pipelines, targets, textures, text atlas textures), lets `runtime::DeviceRecoveryController` drive

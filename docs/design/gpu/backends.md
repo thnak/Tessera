@@ -126,25 +126,34 @@ Format policy:
   `R8G8B8A8Unorm`; the deterministic offscreen renderer and `--golden` keep that default, so the
   lavapipe/CPU golden bytes and the windowed smoke baselines are unchanged. A caller opts into sRGB
   explicitly by setting `format`.
-- **Swapchain prefers sRGB.** Surface format selection (`src/rendering/backend/vulkan/src/
-  vulkan_surface_format.hpp`, unit-tested with plain data) picks, in order:
-  1. `R8G8B8A8Srgb`, then `B8G8R8A8Srgb`, advertised with `VK_COLOR_SPACE_SRGB_NONLINEAR_KHR`;
-  2. `R8G8B8A8Unorm`, then `B8G8R8A8Unorm`, with an sRGB non-linear color space (the pre-D2
-     behavior);
+- **Presentation is UNORM (issue #791).** Surface format selection
+  (`src/rendering/backend/vulkan/src/vulkan_surface_format.hpp`, unit-tested with plain data) picks,
+  in order:
+  1. `R8G8B8A8Unorm`, then `B8G8R8A8Unorm`, advertised with `VK_COLOR_SPACE_SRGB_NONLINEAR_KHR`;
+  2. the `R8G8B8A8Srgb`/`B8G8R8A8Srgb` siblings with an sRGB non-linear color space, which is the
+     fallback when a surface offers no UNORM format at all;
   3. any of those four formats with any color space, so an unusual color-space pairing still gets a
      swapchain;
-  4. a lone `VK_FORMAT_UNDEFINED` entry ("any format"): `R8G8B8A8Srgb` for an sRGB color space,
-     `R8G8B8A8Unorm` otherwise.
+  4. a lone `VK_FORMAT_UNDEFINED` entry ("any format"): `R8G8B8A8Unorm`.
   The chosen format is exposed through `Swapchain::format()`; presenters that build a pipeline must
   set `PipelineDesc::color_format` from it (`batched2d_pipeline_desc()` returns UNORM by default, so
   callers overwrite the field with `swapchain->format()`/`target->format()`).
+- **Why presentation is not sRGB.** The paint pipeline is sRGB-*encoded* internally, not linear: an
+  authored `#2563eb` reaches the shader as `37/255, 99/255, 235/255` and blending happens in that
+  encoded space (the D2 approximation below). An `*_SRGB` attachment applies the linear-to-sRGB
+  transfer function on write, so those already-encoded values get encoded a second time and every
+  color washes out - `#0b1220` (11,18,32) displayed as (59,75,99), `#2563eb` (37,99,235) as
+  (106,167,246), each matching `linear_to_srgb(authored/255)` exactly. A presentation surface is
+  therefore an UNORM image whose bytes are the encoded values the pipeline produced, which is what
+  the stylesheet authored.
 - **Approximation.** Rendering into an `*Srgb` target encodes the fragment output from linear light
-  to sRGB on write (and hardware sampling decodes sRGB textures); the shader/vertex colors are the
-  authored 8-bit values passed through as normalized floats without a color-space conversion, so an
-  sRGB target is not byte-identical to the UNORM path. Blending also follows the hardware's color
-  space rules rather than the encoded values an author might expect. V1 accepts this documented
-  approximation; linear-light rendering, HDR output, and per-surface color management stay out of
-  scope.
+  to sRGB on write (and hardware sampling decodes sRGB textures). That is the right behavior for a
+  path that really holds linear light or authored sRGB bytes needing a decode on sample - an
+  authored sRGB image or an SVG raster drawn into an sRGB target - which is why the formats stay in
+  the RHI. It is the wrong behavior for the paint pipeline's encoded output, which is why
+  presentation does not use them. Blending still follows the hardware's rules rather than a
+  linear-light model; V1 accepts this documented approximation and keeps linear-light rendering,
+  HDR output, and per-surface color management out of scope.
 - **Capability checks.** `create_render_target` validates color-attachment/transfer support via
   `vkGetPhysicalDeviceFormatProperties` and throws for an unsupported format; tests skip such a
   device cleanly rather than requiring sRGB everywhere.
@@ -185,8 +194,9 @@ Format policy:
 
 - Same logical resources/bindings/vertex layouts across backends.
 - Same blend/color/clip-space conventions; Y-flip is backend-specific and documented.
-- Same color-format policy: offscreen defaults to UNORM, presentation prefers sRGB, and a pipeline's
-  color format always matches its target.
+- Same color-format policy: offscreen defaults to UNORM, presentation is UNORM (issue #791: the
+  paint pipeline's output is already sRGB-encoded, so an `*_SRGB` surface would encode it twice),
+  and a pipeline's color format always matches its target.
 - Same shader manifest; shared shaders stay inside the WebGPU floor.
 - Same golden corpus/structural reports where the path is deterministic.
 - Same fallback behavior for missing optional features.

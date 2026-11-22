@@ -53,23 +53,34 @@ struct PreferredSurfaceFormat {
     SurfaceFormat format;
 };
 
-// D2 color policy order: sRGB-encoded formats first, then the pre-D2 UNORM order. Keeping the
-// sRGB/UNORM siblings adjacent makes the fallback list explicit and testable.
+// Presentation color policy (issue #791): UNORM first, then the sRGB siblings.
+//
+// The paint pipeline is sRGB-*encoded* internally: every color the stylesheet authored
+// (`#2563eb` -> 37/99/235) reaches the shader as `byte / 255` and the blend happens in that encoded
+// space (D2, docs/design/rendering-production-plan.md). An `*_SRGB` attachment applies the
+// linear->sRGB transfer function on write, which encodes those already-encoded values a second
+// time: #0b1220 (11,18,32) reaches the screen as (59,75,99), #2563eb (37,99,235) as (106,167,246).
+// Measured on the Android shell emulator and matching `linear_to_srgb(authored/255)` exactly.
+//
+// So a presentation surface must be UNORM. The sRGB formats stay in the RHI for the paths that
+// really do store encoded bytes and want hardware decoding on sample (an authored sRGB image or an
+// SVG raster drawn into an sRGB target). Keeping the UNORM pair first and the sRGB pair as fallback
+// keeps the list explicit and testable.
 inline constexpr PreferredSurfaceFormat kPreferredSurfaceFormats[] = {
-    {SurfaceFormat::R8G8B8A8Srgb},
-    {SurfaceFormat::B8G8R8A8Srgb},
     {SurfaceFormat::R8G8B8A8Unorm},
     {SurfaceFormat::B8G8R8A8Unorm},
+    {SurfaceFormat::R8G8B8A8Srgb},
+    {SurfaceFormat::B8G8R8A8Srgb},
 };
 
 } // namespace detail
 
-// Picks the swapchain surface format (D2 color policy), returning the chosen candidate index:
-// 1. the first preferred format (sRGB before UNORM) advertised with an sRGB non-linear color space;
+// Picks the swapchain surface format, returning the chosen candidate index:
+// 1. the first preferred format (UNORM before sRGB, see above) advertised with an sRGB non-linear
+//    color space;
 // 2. the first preferred format with any color space, so a driver that pairs a preferred format
 //    with an unusual color space still gets a usable swapchain;
-// 3. a lone `Undefined` entry, which means "any format is fine": the caller then chooses sRGB for
-//    an sRGB color space and UNORM otherwise.
+// 3. a lone `Undefined` entry, which means "any format is fine": the caller then chooses UNORM.
 // Returns nullopt when the surface offers no preferred format.
 [[nodiscard]] constexpr std::optional<std::size_t>
 choose_surface_format(std::span<const SurfaceFormatCandidate> formats) {

@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 //
-// D2 swapchain surface-format preference (plain data, no GPU): sRGB-encoded formats are preferred
-// with an sRGB non-linear color space, with the historical UNORM selection as fallback. The
-// Vulkan-specific mapping from VkFormat to this plain model is exercised by the real-surface
-// tests on a GPU host.
+// Swapchain surface-format preference (plain data, no GPU). A presentation surface is UNORM: the
+// paint pipeline emits sRGB-encoded values and blends in that encoded space, so an `*_SRGB` image
+// would encode every color a second time (issue #791). The sRGB siblings stay as a fallback for a
+// surface that offers nothing else. The Vulkan-specific mapping from VkFormat to this plain model
+// is exercised by the real-surface tests on a GPU host.
 
 #include "vulkan_composite_alpha.hpp"
 #include "vulkan_surface_format.hpp"
@@ -69,33 +70,42 @@ int main() {
     expect_choice("empty", std::span<const SurfaceFormatCandidate>{}, std::nullopt);
     expect_choice("unsupported format only", std::array{candidate(Other)}, std::nullopt);
 
-    // An UNORM-only surface keeps the pre-D2 UNORM selection.
+    // An UNORM-only surface picks the UNORM format, as before.
     expect_choice("unorm nonlinear", std::array{candidate(B8G8R8A8Unorm)}, std::size_t{0});
 
-    // sRGB wins even when the driver lists its UNORM sibling first.
-    expect_choice("srgb beats earlier unorm",
-                  std::array{candidate(B8G8R8A8Unorm), candidate(R8G8B8A8Srgb)}, std::size_t{1});
-    // Within sRGB, the historical layout order still applies (R8G8B8A8 before B8G8R8A8).
-    expect_choice("srgb layout order", std::array{candidate(B8G8R8A8Srgb), candidate(R8G8B8A8Srgb)},
-                  std::size_t{1});
-    // R8G8B8A8 sRGB is preferred over B8G8R8A8 sRGB even with an UNORM candidate between them.
+    // The regression of issue #791: UNORM wins even when the driver lists an sRGB sibling first,
+    // because the paint pipeline's output is already sRGB-encoded.
+    expect_choice("unorm beats earlier srgb",
+                  std::array{candidate(B8G8R8A8Srgb), candidate(B8G8R8A8Unorm)}, std::size_t{1});
+    expect_choice("r8 unorm beats r8 srgb",
+                  std::array{candidate(R8G8B8A8Srgb), candidate(R8G8B8A8Unorm)}, std::size_t{1});
+    // Within UNORM, the layout order applies (R8G8B8A8 before B8G8R8A8).
+    expect_choice("unorm layout order",
+                  std::array{candidate(B8G8R8A8Unorm), candidate(R8G8B8A8Unorm)}, std::size_t{1});
+    // R8G8B8A8 UNORM is preferred over B8G8R8A8 UNORM even with an sRGB candidate between them.
     expect_choice(
-        "srgb over both unorm siblings",
-        std::array{candidate(B8G8R8A8Unorm), candidate(R8G8B8A8Srgb), candidate(B8G8R8A8Srgb)},
+        "unorm over both srgb siblings",
+        std::array{candidate(B8G8R8A8Srgb), candidate(R8G8B8A8Unorm), candidate(B8G8R8A8Unorm)},
         std::size_t{1});
 
-    // A non-sRGB color space does not beat a preferred UNORM format with an sRGB color space.
+    // The color space still dominates the format preference: an sRGB format advertised with the
+    // sRGB non-linear color space is chosen over a UNORM format paired with an unusual color space,
+    // because the latter may not be presentable.
     expect_choice(
-        "nonlinear unorm beats other-space srgb",
-        std::array{candidate(B8G8R8A8Unorm), candidate(R8G8B8A8Srgb, SurfaceColorSpace::Other)},
+        "srgb color space beats other-space unorm",
+        std::array{candidate(B8G8R8A8Srgb), candidate(R8G8B8A8Unorm, SurfaceColorSpace::Other)},
         std::size_t{0});
-    // But a preferred format is still chosen when its color space is unusual, rather than failing.
-    expect_choice("srgb other-space fallback",
-                  std::array{candidate(R8G8B8A8Srgb, SurfaceColorSpace::Other)}, std::size_t{0});
+    // A preferred format is still chosen when its color space is unusual, rather than failing.
     expect_choice("unorm other-space fallback",
                   std::array{candidate(R8G8B8A8Unorm, SurfaceColorSpace::Other)}, std::size_t{0});
+    // A surface that advertises only an sRGB format still gets a usable swapchain.
+    expect_choice("srgb-only surface falls back to srgb", std::array{candidate(R8G8B8A8Srgb)},
+                  std::size_t{0});
+    expect_choice("bgra srgb-only surface falls back to srgb", std::array{candidate(B8G8R8A8Srgb)},
+                  std::size_t{0});
 
-    // A lone VK_FORMAT_UNDEFINED entry ("any format works") is handed back to the caller.
+    // A lone VK_FORMAT_UNDEFINED entry ("any format works") is handed back to the caller, which
+    // then chooses UNORM for presentation.
     expect_choice("undefined nonlinear", std::array{candidate(Undefined)}, std::size_t{0});
     expect_choice("undefined other space",
                   std::array{candidate(Undefined, SurfaceColorSpace::Other)}, std::size_t{0});

@@ -35,8 +35,8 @@ RHI versioning and capabilities (ADR-049):
 
 - `include/tessera/rendering/rhi/version.hpp` defines the published RHI contract version as
   `kRhiVersionMajor`, `kRhiVersionMinor`, and `kRhiVersion = (major << 16) | minor`
-  (`1.0` / `0x00010000` for the first published version). The current contract is **1.12**
-  (`0x0001000c`): 1.0 is the B1 surface; 1.1 adds `CommandList::copy_target_region` for the
+  (`1.0` / `0x00010000` for the first published version). The current contract is **1.13**
+  (`0x0001000d`): 1.0 is the B1 surface; 1.1 adds `CommandList::copy_target_region` for the
   isolated-layer seam (issue #242, [`offscreen-layers.md`](offscreen-layers.md)); 1.2 adds the
   swapchain composite-alpha request and the resolved-mode query (glass-v1.md section 6, issue #243);
   1.3 adds the sampled view of an offscreen render target (`CommandList::bind_sampled_target` plus
@@ -64,7 +64,11 @@ RHI versioning and capabilities (ADR-049):
   `PipelineDesc::storage_buffer` and the capability that gates them,
   `Device::supports_storage_buffers()` (ADR-068 slice 1, issue #669, section 5.5 below). The
   enumerator is appended so no existing value changes, and the capability is pure virtual so every
-  backend answers; a backend answering false keeps the push-constant clip path and no frame changes.
+  backend answers; a backend answering false keeps the push-constant clip path and no frame changes;
+  1.13 states the color-space contract for `TextureFormat`/`Swapchain::format()` and moves
+  presentation to UNORM (issue #791, section 4 below). No enumerator or member changes and every
+  caller compiles unchanged; the surface format a backend chooses does change, which the minor
+  marks (see the color formats note in section 4).
   All later versions are additive compatible changes.
 - `RhiCapabilities { Backend backend; std::uint32_t rhi_version; GpuTimestampCapability timestamps; }`
   is reported by `Device::capabilities()` (default: current backend, `kRhiVersion`,
@@ -129,6 +133,20 @@ Presentation notes (RHI 1.2, additive):
   fallback on the first without failing the frame.
 - The old opaque selection is unchanged when `per_pixel_alpha` is false, so every existing caller
   keeps byte-identical behaviour.
+
+Color formats (D2, corrected by issue #791):
+
+- `TextureFormat` carries the 8-bit color family: `R8G8B8A8Unorm`, `B8G8R8A8Unorm`, their
+  `R8G8B8A8Srgb`/`B8G8R8A8Srgb` siblings, plus `R8Unorm` for coverage/masks. `is_srgb()` identifies
+  the sRGB-encoded variants; their byte layout matches the UNORM sibling and only the transfer
+  function differs.
+- A `*Srgb` attachment encodes fragment output from linear light on write and a `*Srgb` texture
+  decodes on sample. That is for a path that really holds linear light or authored sRGB bytes.
+- A `RenderTargetDesc`/`TextureDesc` defaults to `R8G8B8A8Unorm`, and presentation is UNORM too: the
+  paint pipeline emits sRGB-encoded values (an authored `#2563eb` reaches the shader as
+  `37/255, 99/255, 235/255`), so an `*_SRGB` presentation surface would encode them a second time and
+  wash every color out. `Swapchain::format()` therefore reports a UNORM format on any surface that
+  offers one; the sRGB siblings stay as the fallback for a surface that offers nothing else.
 
 Rules:
 
