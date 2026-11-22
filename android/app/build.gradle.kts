@@ -53,7 +53,10 @@ android {
     externalNativeBuild {
         cmake {
             // The engine's own CMake project, not a copy: the app shell is a target inside it.
-            path = file("../../../../CMakeLists.txt")
+            // The path is resolved from the Gradle root (`android/`), so it is two levels up to the
+            // repository root. A relative path here is relative to the MODULE directory
+            // (`android/app`), which is why the earlier `../../../../` resolved outside the repo.
+            path = file("../../CMakeLists.txt")
             version = "3.31.6"
         }
     }
