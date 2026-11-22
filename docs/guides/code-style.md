@@ -12,6 +12,12 @@ installs exactly that version and the `format-version` gate
 
 - **C++23** for all shipped code ([ADR-038](../../decisions/ADR-038-cpp23-baseline.md)).
 - No RTTI/reflection on hot paths (hot path = code that runs per frame or per input event). No exceptions in frame-critical code.
+- A `std::function` may be **stored** (a registration or submission seam: `post`, `submit`,
+  `schedule_*`, an event listener) but must not be **constructed or copied on a per-frame or
+  per-node path**. Storing one is a one-time cost at registration; constructing one per call is a
+  heap allocation on the frame path. Where a callback runs per event, prefer a function pointer plus
+  opaque user data (`InputPump::GestureCallback` is the reference). See
+  [the audit](../design/std-function-audit.md) for the measurement behind this rule.
 - Prefer the standard library (`std::span`, `std::string_view`, `std::expected` where the compiler provides it)
   over ad-hoc utility types.
 
