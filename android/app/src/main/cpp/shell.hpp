@@ -14,6 +14,8 @@
 #include "tessera/app/window.hpp"
 #include "tessera/hal/window.hpp"
 #include "tessera/ui/accessibility/snapshot_provider.hpp"
+#include "tessera/ui/text/edit_controller.hpp"
+#include "tessera/ui/text/text_input_runtime.hpp"
 
 #include <android/native_window.h>
 #include <atomic>
@@ -48,6 +50,15 @@ struct Shell {
     // before the first frame, and an empty tree is a truthful answer.
     std::unique_ptr<tessera::ui::a11y::SnapshotProvider> a11y =
         std::make_unique<tessera::ui::a11y::SnapshotProvider>();
+    // The text field's edit state. The engine owns the buffer, the undo history and the selection,
+    // so the Java `InputConnection` must not keep a copy: it forwards callbacks here and asks here
+    // for the text around the caret. Created with the shell because the platform can open an input
+    // connection before the first frame.
+    tessera::ui::text::EditController editor;
+    // Turns the controller's committed edits into the scene's `TextChange` events and publishes the
+    // caret/selection into the node's paint data. Attached to the shell's text field once the scene
+    // exists.
+    tessera::ui::text::TextInputRuntime editor_runtime{editor};
 };
 
 // The shell behind a Java `long` handle, or null for a zero handle.

@@ -13,7 +13,6 @@
 // The engine never sees a `jobject`, and this file never interprets a scene: it is a thin,
 // value-only bridge, which is what docs/design/bridges.md section 3 asks for.
 
-#include "android_ime_translation.hpp"
 #include "android_input_translation.hpp"
 #include "android_motion_translation.hpp"
 #include "scene.hpp"
@@ -112,6 +111,10 @@ void start_host(Shell& shell) {
     if (shell.scene == nullptr) {
         shell.scene = std::make_unique<tessera::android_shell::ShellScene>();
     }
+    // The edit runtime publishes the caret and the committed text into the field's paint data, and
+    // turns each committed edit into the scene's `TextChange`. Attaching before the host exists is
+    // safe: the node is already in the tree, and the runtime only reads it on an event.
+    shell.editor_runtime.attach(shell.scene->input_label);
     shell.host = std::make_unique<tessera::app::WindowHost>(
         shell.scene->root, tessera::android_shell::shell_stylesheet(), options,
         &shell.scene->scheduler);
@@ -410,45 +413,6 @@ JNIEXPORT jboolean JNICALL Java_dev_tessera_app_TesseraView_nativeOnTouch(JNIEnv
     }
     // Returns true only when the event actually reached the queue, so the platform keeps sending
     // the rest of the gesture.
-    return shell->window->post_input_event(out.event) ? JNI_TRUE : JNI_FALSE;
-}
-
-JNIEXPORT jboolean JNICALL Java_dev_tessera_app_TesseraView_nativeIme(
-    JNIEnv* env, jclass, jlong handle, jint action, jstring text, jint cursor_utf16,
-    jint delete_before, jint delete_after) {
-    Shell* shell = shell_from(handle);
-    if (shell == nullptr || shell->window == nullptr) {
-        return JNI_FALSE;
-    }
-    // The IME callbacks arrive as Java strings; the bridge reads them into UTF-16 once and the
-    // mapping in android_ime_translation.cpp does the conversion to the engine's UTF-8 payload.
-    tessera::hal::android::ImeSample sample;
-    sample.action = static_cast<tessera::hal::android::ImeAction>(action);
-    sample.cursor_utf16 = cursor_utf16;
-    sample.delete_before = delete_before;
-    sample.delete_after = delete_after;
-    if (text != nullptr) {
-        const jsize length = env->GetStringLength(text);
-        const jsize capped = std::min<jsize>(
-            length, static_cast<jsize>(tessera::hal::android::ImeSample::kMaxUtf16));
-        if (capped > 0) {
-            // `jchar` and `char16_t` are both 16-bit code units but distinct types, so the region
-            // is read into a jchar buffer and copied across. A reinterpret_cast would work and is
-            // what most bridges do; the copy is a few hundred bytes on a callback that happens once
-            // per keystroke, so it is not worth the aliasing risk.
-            std::vector<jchar> units(static_cast<std::size_t>(capped));
-            env->GetStringRegion(text, 0, capped, units.data());
-            for (jsize i = 0; i < capped; ++i) {
-                sample.text[i] = static_cast<char16_t>(units[static_cast<std::size_t>(i)]);
-            }
-            sample.text_length = static_cast<std::size_t>(capped);
-        }
-    }
-    const tessera::hal::android::ImeTranslation out =
-        tessera::hal::android::translate_ime_sample(sample, shell->composing);
-    if (!out.translated) {
-        return JNI_FALSE;
-    }
     return shell->window->post_input_event(out.event) ? JNI_TRUE : JNI_FALSE;
 }
 

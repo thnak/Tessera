@@ -307,6 +307,27 @@ public final class TesseraView extends SurfaceView implements SurfaceHolder.Call
      */
     static native void nativeSetHingeAngle(long handle, float degrees);
 
+    /**
+     * The text around the caret, for the platform's {@code InputConnection} queries.
+     *
+     * <p>The engine owns the buffer, so the platform cannot read it: an IME that asks
+     * {@code getTextBeforeCursor} and gets "" behaves as if the field were always empty, which
+     * breaks suggestions, Backspace and the IME's own composing region. {@code before} and
+     * {@code after} are UTF-16 code units, which is the unit the platform asks in.
+     */
+    static native String nativeTextAround(long handle, int before, int after);
+
+    /** The selected text, or "" when the selection is collapsed. Used by cut/copy. */
+    static native String nativeSelectedText(long handle);
+
+    /**
+     * Moves the caret or extends the selection, in UTF-16 units from the start of the buffer.
+     *
+     * <p>Without this the engine's caret and the platform's disagree after the user drags a
+     * selection handle, and the next commit lands in the wrong place.
+     */
+    static native void nativeSetSelection(long handle, int start, int end);
+
     private static native boolean nativeOnTouch(long handle, MotionEvent event);
 
     /**

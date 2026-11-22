@@ -12,15 +12,19 @@
 
 add_library(tessera_android_app SHARED
     ${CMAKE_CURRENT_SOURCE_DIR}/jni_bridge.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/ime_bridge.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/a11y_bridge.cpp)
 
 # The engine. tessera_app_window is the window driver (Vulkan device, swapchain, Batched2D, the
-# AppHost loop); tessera_app is the platform-neutral host it drives.
+# AppHost loop); tessera_app is the platform-neutral host it drives. tessera_text_edit is the edit
+# controller and its scene runtime: the shell owns the text field's buffer, so the Java
+# `InputConnection` forwards callbacks into it instead of keeping a copy of the text.
 target_link_libraries(tessera_android_app PRIVATE
     tessera_accessibility
     tessera_app_window
     tessera_app
-    tessera_hal_window)
+    tessera_hal_window
+    tessera_text_edit)
 
 # The bridge includes android_motion_translation.hpp and android_a11y_mapping.hpp, which live with
 # the other Android pure rules.

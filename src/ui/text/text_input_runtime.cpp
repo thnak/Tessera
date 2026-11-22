@@ -102,9 +102,16 @@ void TextInputRuntime::publish_decoration() {
         decoration.preedit_end = static_cast<std::size_t>(preedit.end);
         decoration.preedit_text.assign(preedit.text);
     }
-    if (data->decoration == decoration) {
+    // The painted text follows the buffer. A field whose node was built with an empty payload (the
+    // Android shell's, and any generated field that starts empty) would otherwise paint nothing
+    // while the buffer filled up: the caret would move over blank space. The comparison is on the
+    // whole payload so an unchanged buffer still costs no dirty mark.
+    const std::string_view value = buffer.text();
+    const bool text_changed = data->text != value;
+    if (!text_changed && data->decoration == decoration) {
         return;
     }
+    data->text.assign(value);
     data->decoration = std::move(decoration);
     target_->set_paint_data(std::move(*data));
 }

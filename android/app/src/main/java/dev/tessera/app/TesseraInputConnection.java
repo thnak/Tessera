@@ -83,4 +83,51 @@ final class TesseraInputConnection extends InputConnectionWrapper {
         // newline already arrives as a key event.
         return false;
     }
+
+    // --- Text queries -------------------------------------------------------------------------
+    //
+    // The engine owns the buffer, so these must read it back rather than answer from a copy. An IME
+    // that gets "" from getTextBeforeCursor treats the field as empty: it stops offering
+    // suggestions, Backspace deletes nothing, and its composing region is placed at the wrong
+    // offset. The platform asks in UTF-16 code units, which is what the native side converts.
+
+    @Override
+    public CharSequence getTextBeforeCursor(int length, int flags) {
+        if (length <= 0) {
+            return "";
+        }
+        return TesseraView.nativeTextAround(handle, length, 0);
+    }
+
+    @Override
+    public CharSequence getTextAfterCursor(int length, int flags) {
+        if (length <= 0) {
+            return "";
+        }
+        return TesseraView.nativeTextAround(handle, 0, length);
+    }
+
+    @Override
+    public CharSequence getSelectedText(int flags) {
+        return TesseraView.nativeSelectedText(handle);
+    }
+
+    @Override
+    public boolean setSelection(int start, int end) {
+        // A negative offset is the platform's "no selection"; the engine clamps, so passing it
+        // through would move the caret to the start instead of leaving it alone.
+        if (start < 0 || end < 0) {
+            return false;
+        }
+        TesseraView.nativeSetSelection(handle, start, end);
+        return true;
+    }
+
+    @Override
+    public boolean deleteSurroundingTextInCodePoints(int beforeLength, int afterLength) {
+        // The engine's delete path is per code point already, so the code-point variant is the same
+        // call as the UTF-16 one. Overriding it matters because the base class would otherwise
+        // answer false and the IME would fall back to a slower path that also fails.
+        return deleteSurroundingText(beforeLength, afterLength);
+    }
 }

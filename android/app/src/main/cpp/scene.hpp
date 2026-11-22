@@ -85,6 +85,12 @@ struct ShellScene {
 
         auto input = std::make_unique<tessera::ui::Node>(kInputId);
         input->set_element_kind("TextInput");
+        // The field is focusable so the scene routes IME events to it, and it starts with an empty
+        // Text payload: the edit runtime publishes the committed text and the caret into that
+        // payload, and a node with no payload would be skipped (there is nothing to decorate).
+        input->set_focusable(true);
+        set_text(*input, "");
+        input_label = input.get();
 
         card->add_child(std::move(title));
         card->add_child(std::move(count));
@@ -106,6 +112,9 @@ struct ShellScene {
     tessera::ui::Node root{kRootId};
     // Borrowed from the tree, which owns it. Null until the constructor has built the tree.
     tessera::ui::Node* count_label = nullptr;
+    // The text field, borrowed for the same reason: the edit runtime publishes the caret and the
+    // committed text into it, and the tree owns it.
+    tessera::ui::Node* input_label = nullptr;
     tessera::ui::UpdateScheduler scheduler;
     int taps = 0;
 };
