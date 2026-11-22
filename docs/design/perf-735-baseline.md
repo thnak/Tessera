@@ -86,11 +86,47 @@ comparison on top of a full reflow and gets none of the savings. That is the hon
 path A cannot help, and it is why slice D (retained Yoga tree) is the fix for this row rather than a
 further gate. Re-measured with the corrected harness, the row is 9.45 ms at 1.5k.
 
-## What slice A does not fix
+## Slice C — the subtree paint cull
+
+`Node::subtree_paint_bounds()` caches the union of a node's own painted box and every descendant's,
+so paint rejects a whole subtree with one test at its root instead of visiting every node in it.
+
+| scenario | nodes | Win before | Win after | Linux before | Linux after |
+|---|---|---|---|---|---|
+| paint-dirty | 1,501 | 0.108 | **0.026** | 0.223 | **0.057** |
+| paint-dirty | 6,001 | 0.375 | **0.083** | 0.880 | **0.191** |
+| class-toggle | 1,501 | 0.070 | 0.061 | 0.195 | 0.186 |
+| class-toggle | 6,001 | 0.250 | 0.263 | 0.711 | 0.654 |
+
+**paint-dirty is 4.2–4.6× faster on both lanes.** class-toggle is unchanged within noise: the cull
+walk was already cheap there after slice H, so this slice's value is paint-dirty, not the
+class-change frame the issue predicted.
+
+The cost is `sizeof(Node)` 304 → 320, a real growth (MSVC's layout dump shows all 304 bytes of the
+old object occupied, so there was no padding to reclaim). At 10k nodes that is 160 KB.
+
+## The text measure cache cliff
+
+`LayoutEngine`'s text measure cache defaulted to 1,024 entries and is a strict LRU, so a scene with
+more distinct text runs than slots evicted the entry it was about to need again. The failure is a
+cliff, not a slope, and it sat inside the range this issue targets:
+
+| cards | nodes | labels | allocs/frame |
+|---|---|---|---|
+| 500 | 1,501 | 1,000 | 6,274 |
+| 512 | 1,537 | **1,024** | 6,418 ← capacity |
+| 515 | 1,546 | 1,030 | **57,108** ← 8.9×, one card later |
+| 2,000 | 6,001 | 4,000 | 223,453 |
+
+The default is now 16,384. At 6,001 nodes that is **223,453 → 24,302 allocations per frame (9.2×
+fewer)**, and the curve is linear again (6,274 / 7,475 / 12,279 / 24,286 at 500 / 600 / 1,000 /
+2,000 cards).
+
+## What is still not fixed
 
 - **size-change is barely moved.** A real box change must reflow, so the gate correctly declines;
   the remaining cost is `build_layout_input` + Yoga, which is slice D (retained Yoga tree).
 - **layout-dirty is unchanged.** A node that marks `Dirty::Layout` is honoured by the gate, so the
   pass still runs. That is the intended contract, not a miss.
-- **6k size-change is still ~29 ms on Windows.** Slice D is the fix; the gate cannot help a frame
-  that genuinely reflows.
+- **6k size-change is still ~60 ms on Windows and ~93 ms on Linux.** Slice D is the fix; the gate
+  cannot help a frame that genuinely reflows.
