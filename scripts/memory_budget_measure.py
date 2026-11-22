@@ -95,6 +95,27 @@ DETERMINISTIC_ROWS = (
     "cleared_table_reallocations",
 )
 
+# The GPU category rows (issue #703), printed by `gpu_memory_probe` rather than by
+# `memory_sizes_probe`. They are deterministic for the same reason the sizes are: the numbers are our
+# own accounting (extent x texel size, buffer size), not the driver's block sizes, so two runs of one
+# binary must agree exactly and lavapipe agrees with a real GPU.
+GPU_DETERMINISTIC_ROWS = (
+    "gpu_category_glyph_atlas_bytes",
+    "gpu_category_glyph_atlas_peak_bytes",
+    "gpu_category_texture_bytes",
+    "gpu_category_texture_peak_bytes",
+    "gpu_category_vertex_bytes",
+    "gpu_category_vertex_peak_bytes",
+    "gpu_category_staging_bytes",
+    "gpu_category_staging_peak_bytes",
+    "gpu_category_other_bytes",
+    "gpu_category_other_peak_bytes",
+    "gpu_vma_category_bytes",
+    "gpu_category_peak_total_bytes",
+    "gpu_category_live_after_free_bytes",
+    "gpu_category_peak_after_free_bytes",
+)
+
 # Rows read from the OS. Reported as the minimum over `RSS_RUNS`, and never enforced.
 SAMPLED_ROWS = ("resident_bytes_per_node", "resident_bytes_total", "node_dirty_scratch_bytes")
 
@@ -231,11 +252,14 @@ def run_probe_with_config(
 
 
 def _merge_deterministic(
-    runs: Sequence[Dict[str, int]], errors: List[str], warnings: List[str]
+    runs: Sequence[Dict[str, int]],
+    errors: List[str],
+    warnings: List[str],
+    rows: Sequence[str] = DETERMINISTIC_ROWS,
 ) -> Dict[str, int]:
     """The exact rows, after proving every run agrees on them."""
     merged: Dict[str, int] = {}
-    for name in DETERMINISTIC_ROWS:
+    for name in rows:
         seen = [run[name] for run in runs if name in run]
         if not seen:
             continue
@@ -247,7 +271,7 @@ def _merge_deterministic(
                 )
             )
         merged[name] = seen[0]
-    missing = [name for name in DETERMINISTIC_ROWS if name not in merged]
+    missing = [name for name in rows if name not in merged]
     if missing:
         warnings.append(
             "the probe printed no row for {}; the budget entry for it cannot be checked".format(
@@ -304,11 +328,113 @@ def measure(
         for name, value in _merge_sampled(runs).items():
             measurements[name] = float(value)
 
+    # The GPU category rows (issue #703). They are deterministic like the sizes, so they belong to a
+    # sizes-only run too; a lane with no device simply contributes none.
+    gpu_measurements, gpu_errors = measure_gpu(build_dir, sizes_runs)
+    measurements.update(gpu_measurements)
+    errors.extend(gpu_errors)
+
     # The build configuration is a comment, so it is carried beside the rows rather than in them.
     # A Debug build is a different claim (see the probe's CMakeLists): same code, different sizeof,
     # different PaintData, one extra proxy allocation per vector.
     return measurements, errors, warnings, configs[0] if configs else ""
 
+
+# The GPU probe (issue #703). It is a second binary because `memory_sizes_probe` deliberately links
+# no RHI target, so it runs on every lane; this one needs a real `rhi::Device`.
+GPU_PROBE_TARGET = "gpu_memory_probe"
+GPU_PROBE_SOURCE = REPO_ROOT / "tests" / "benchmarks" / "memory" / "gpu_memory_probe.cpp"
+
+
+def find_gpu_probe(build_dir: Path) -> Optional[Path]:
+    """The built GPU probe under `build_dir`, or None when the lane did not build one.
+
+    None is not an error here: a lane without a Vulkan backend has no GPU rows to measure, and the
+    caller decides whether that is acceptable. It is deliberately distinct from a probe that exists
+    but fails, which IS an error.
+    """
+    names = (GPU_PROBE_TARGET, GPU_PROBE_TARGET + ".exe")
+    for name in names:
+        for candidate in build_dir.rglob(name):
+            if candidate.is_file():
+                return candidate
+    return None
+
+
+def run_gpu_probe(probe: Path, backend: str) -> Dict[str, int]:
+    """One GPU probe process, parsed into `name -> int`.
+
+    Exit 3 means "no device on this lane", which is a skip rather than a failure: lavapipe is
+    present on the Linux lane and absent on a machine without Vulkan, and a lane that cannot run the
+    probe must not report a number it did not measure.
+    """
+    command = [str(probe), "--backend", backend]
+    try:
+        result = subprocess.run(
+            command,
+            cwd=str(REPO_ROOT),
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=TIMEOUT_SECONDS,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise SetupError("cannot run the GPU memory probe: {}".format(exc)) from exc
+    if result.returncode == 3:
+        return {}
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip().splitlines()
+        raise SetupError(
+            "the GPU memory probe failed (exit {}): {}".format(
+                result.returncode, detail[0] if detail else "no diagnostics"
+            )
+        )
+    rows: Dict[str, int] = {}
+    for line in result.stdout.splitlines():
+        match = _RUN_RE.match(line.strip())
+        if match:
+            rows[match.group(1)] = int(match.group(2))
+    return rows
+
+
+def gpu_rows_available(build_dir: Path) -> bool:
+    """True when this lane can measure the GPU category rows (issue #703).
+
+    Two conditions, both about the lane rather than the code: the probe was built, and it found a
+    device. A lane that fails either has no number to report, and the gate treats those entries as
+    out of scope instead of missing.
+    """
+    probe = find_gpu_probe(build_dir)
+    if probe is None:
+        return False
+    return bool(run_gpu_probe(probe, "vulkan"))
+
+
+def measure_gpu(build_dir: Path, sizes_runs: int = SIZES_RUNS) -> Tuple[Dict[str, float], List[str]]:
+    """The GPU category rows: `(measurements, errors)`.
+
+    Run twice like the CPU rows, and for the same reason: the category bytes are our own accounting
+    (extent x texel size, buffer size) rather than the driver's block sizes, so two runs of one
+    binary must agree exactly. A disagreement is a measurement bug, not a budget regression, and it
+    is reported as an error rather than ratcheted.
+    """
+    probe = find_gpu_probe(build_dir)
+    if probe is None:
+        return {}, []
+    errors: List[str] = []
+    runs: List[Dict[str, int]] = []
+    for _ in range(max(1, sizes_runs)):
+        rows = run_gpu_probe(probe, "vulkan")
+        if not rows:
+            # No device on this lane. The rows stay out of scope rather than being recorded as zero,
+            # which would ratchet a fiction.
+            return {}, []
+        runs.append(rows)
+    merged = _merge_deterministic(runs, errors, [], GPU_DETERMINISTIC_ROWS)
+    return {name: float(value) for name, value in merged.items()}, errors
 
 def measurement_counts(sizes_only: bool, sizes_runs: int = SIZES_RUNS, rss_runs: int = RSS_RUNS) -> Dict:
     """The sample counts and the statistic, stored in the budget file.

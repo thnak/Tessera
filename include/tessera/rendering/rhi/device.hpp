@@ -8,6 +8,7 @@
 #include "tessera/rendering/rhi/types.hpp"
 #include "tessera/rendering/rhi/version.hpp"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <expected>
@@ -287,6 +288,12 @@ enum class DeviceRecoveryError : std::uint8_t {
 // images are estimated as extent x texel size (x samples, plus the resolve image, for multisampled
 // targets), and presentation images are not counted because the driver owns them. All zero on
 // backends that do not track it.
+//
+// `categories` (RHI 1.14, issue #703) splits the same live bytes by *purpose* instead of by kind,
+// which is what memory-model-v1 section 4 budgets. The two views are not additive with each other:
+// `buffer_bytes + image_bytes` and the sum of `categories` both describe the live set, so a backend
+// that fills both must keep them consistent. A backend that cannot attribute a resource leaves it
+// in `MemoryCategory::Other` rather than guessing.
 struct DeviceMemoryStats {
     std::uint64_t buffer_bytes = 0;
     std::uint64_t image_bytes = 0;
@@ -294,6 +301,9 @@ struct DeviceMemoryStats {
     std::uint64_t allocation_bytes = 0;
     std::uint32_t block_count = 0;
     std::uint32_t allocation_count = 0;
+    // Indexed by `static_cast<std::size_t>(MemoryCategory)`. All zero on backends that do not
+    // track categories.
+    std::array<MemoryCategoryStats, kMemoryCategoryCount> categories{};
 };
 
 // Static and runtime capabilities a backend reports (ADR-049). `rhi_version` is the RHI contract

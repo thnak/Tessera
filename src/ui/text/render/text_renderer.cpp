@@ -210,6 +210,9 @@ float TextRenderer::draw(rendering::gpu::Batched2DRenderer& renderer, const Shap
             desc.pixels = pixels.data();
             desc.row_pitch = static_cast<std::size_t>(atlas.page_width()) * 4;
             desc.filter = rendering::rhi::Filter::Linear;
+            // The atlas is a bounded pool with its own budget row, so it is charged to its own
+            // category rather than to `Texture` (RHI 1.14, issue #703).
+            desc.category = rendering::rhi::MemoryCategory::GlyphAtlas;
             slot.texture = impl_->device->create_texture(desc);
             slot.generation = generation;
             slot.created = true;

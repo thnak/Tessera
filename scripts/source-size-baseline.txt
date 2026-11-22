@@ -14,7 +14,7 @@ src/compiler/lowering/src/module_lowering.cpp 580
 src/platform/linux/window.cpp 753
 src/platform/windows/window.cpp 607
 src/rendering/backend/vulkan/src/vulkan_command_list.cpp 685
-src/rendering/backend/vulkan/src/vulkan_internal.hpp 621
+src/rendering/backend/vulkan/src/vulkan_internal.hpp 605
 src/rendering/backend/vulkan/src/vulkan_swapchain.cpp 591
 src/schema/src/aliases.cpp 515
 src/ui/layout/layout_style.cpp 538

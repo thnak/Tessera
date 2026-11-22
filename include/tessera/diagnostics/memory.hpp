@@ -4,6 +4,7 @@
 
 #include "tessera/diagnostics/metrics.hpp"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 
@@ -48,15 +49,25 @@ private:
 
 // GPU memory as plain numbers, so diagnostics needs no RHI types: the caller copies them from
 // rhi::DeviceMemoryStats (see docs/design/performance.md, section 3.1).
+//
+// `category_bytes` and `category_peak_bytes` (issue #703) are the per-purpose split, indexed by
+// `rhi::MemoryCategory`. They are plain arrays rather than an RHI enum so this header stays free of
+// rendering types; the caller fills them in the same order the RHI enum declares, and
+// `kGpuMemoryCategoryCount` is the length both sides agree on.
+inline constexpr std::size_t kGpuMemoryCategoryCount = 11;
+
 struct GpuMemory {
     std::uint64_t buffer_bytes = 0;
     std::uint64_t image_bytes = 0;
     std::uint64_t block_bytes = 0;
     std::uint64_t allocation_bytes = 0;
+    std::array<std::uint64_t, kGpuMemoryCategoryCount> category_bytes{};
+    std::array<std::uint64_t, kGpuMemoryCategoryCount> category_peak_bytes{};
 };
 
-// Gauges `gpu.buffer_bytes`, `gpu.image_bytes`, `gpu.block_bytes` and `gpu.allocation_bytes`.
-// Registration allocates once; `publish` does not.
+// Gauges `gpu.buffer_bytes`, `gpu.image_bytes`, `gpu.block_bytes` and `gpu.allocation_bytes`, plus
+// one `gpu.category.<name>.bytes` and `gpu.category.<name>.peak_bytes` pair per category (issue
+// #703). Registration allocates once; `publish` does not.
 class GpuMemoryGauges {
 public:
     explicit GpuMemoryGauges(MetricsRegistry& registry);
@@ -75,11 +86,23 @@ public:
     [[nodiscard]] std::size_t allocation_id() const noexcept {
         return ids_[3];
     }
+    // The live-bytes gauge for one category, or `kInvalidMetric` for an out-of-range index.
+    [[nodiscard]] std::size_t category_id(std::size_t category) const noexcept {
+        return category < kGpuMemoryCategoryCount ? category_ids_[category]
+                                                  : MetricsRegistry::kInvalidMetric;
+    }
+    // The peak gauge for one category, or `kInvalidMetric` for an out-of-range index.
+    [[nodiscard]] std::size_t category_peak_id(std::size_t category) const noexcept {
+        return category < kGpuMemoryCategoryCount ? category_peak_ids_[category]
+                                                  : MetricsRegistry::kInvalidMetric;
+    }
 
 private:
     MetricsRegistry* registry_ = nullptr;
     std::size_t ids_[4] = {MetricsRegistry::kInvalidMetric, MetricsRegistry::kInvalidMetric,
                            MetricsRegistry::kInvalidMetric, MetricsRegistry::kInvalidMetric};
+    std::array<std::size_t, kGpuMemoryCategoryCount> category_ids_{};
+    std::array<std::size_t, kGpuMemoryCategoryCount> category_peak_ids_{};
 };
 
 } // namespace tessera::diagnostics

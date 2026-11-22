@@ -84,11 +84,34 @@ int sampler() {
     }
 
     diag::GpuMemoryGauges gpu(registry);
-    gpu.publish({1, 2, 3, 4});
+    diag::GpuMemory sample;
+    sample.buffer_bytes = 1;
+    sample.image_bytes = 2;
+    sample.block_bytes = 3;
+    sample.allocation_bytes = 4;
+    // Issue #703: the per-category gauges carry what was published, and the peak is a separate
+    // gauge rather than being folded into the live one. The index is the RHI's `MemoryCategory`
+    // order (glyph atlas is 8); this test links no RHI target, so it names the index rather than
+    // the enum, and `rhi_memory` asserts the enum-to-index mapping on a real device.
+    constexpr std::size_t kGlyphAtlas = 8;
+    sample.category_bytes[kGlyphAtlas] = 5;
+    sample.category_peak_bytes[kGlyphAtlas] = 6;
+    gpu.publish(sample);
     if (!expect(registry.value(gpu.buffer_id()) == 1 && registry.value(gpu.image_id()) == 2 &&
                     registry.value(gpu.block_id()) == 3 && registry.value(gpu.allocation_id()) == 4,
                 "the GPU gauges carry what was published") ||
         !expect(registry.name(gpu.image_id()) == "gpu.image_bytes", "GPU gauge name")) {
+        return 3;
+    }
+    if (!expect(registry.value(gpu.category_id(kGlyphAtlas)) == 5,
+                "the category gauge carries the live bytes") ||
+        !expect(registry.value(gpu.category_peak_id(kGlyphAtlas)) == 6,
+                "the category peak gauge is separate from the live one") ||
+        !expect(registry.name(gpu.category_id(kGlyphAtlas)) == "gpu.category.glyph_atlas.bytes",
+                "the category gauge is named after the category") ||
+        !expect(gpu.category_id(diag::kGpuMemoryCategoryCount) ==
+                    diag::MetricsRegistry::kInvalidMetric,
+                "an out-of-range category has no gauge")) {
         return 3;
     }
     return 0;

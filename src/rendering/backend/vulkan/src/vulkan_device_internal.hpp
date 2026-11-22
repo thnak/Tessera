@@ -5,6 +5,7 @@
 // Internal Vulkan device definition, included at the end of vulkan_internal.hpp (which supplies the
 // RHI wrapper classes, CommandResources, and InjectedDeviceFault). Do not include it directly.
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <expected>
@@ -113,6 +114,25 @@ public:
     }
     void account_image(std::int64_t delta, std::uint32_t epoch) {
         account(image_bytes_, delta, epoch);
+    }
+    // Per-category live bytes and high-water mark (RHI 1.14, issue #703). The peak is updated on
+    // the way up only, so it survives the free that follows a transient allocation - which is the
+    // whole point of recording it: a staging buffer that lives for one upload is invisible to a
+    // live-bytes sample taken after the upload.
+    void account_category(rhi::MemoryCategory category, std::int64_t delta, std::uint32_t epoch) {
+        if (epoch != epoch_) {
+            return;
+        }
+        const auto index = static_cast<std::size_t>(category);
+        if (index >= rhi::kMemoryCategoryCount) {
+            return;
+        }
+        std::int64_t& live = category_bytes_[index];
+        live = live + delta < 0 ? 0 : live + delta;
+        const auto as_unsigned = static_cast<std::uint64_t>(live);
+        if (as_unsigned > category_peak_bytes_[index]) {
+            category_peak_bytes_[index] = as_unsigned;
+        }
     }
     void resource_created() {
         ++live_resources_;
@@ -313,6 +333,10 @@ private:
     std::size_t live_resources_ = 0;
     std::int64_t buffer_bytes_ = 0;
     std::int64_t image_bytes_ = 0;
+    // Per-category live bytes and peak, indexed by `static_cast<std::size_t>(MemoryCategory)`
+    // (RHI 1.14, issue #703). Cleared with the rest of the device generation.
+    std::array<std::int64_t, rhi::kMemoryCategoryCount> category_bytes_{};
+    std::array<std::uint64_t, rhi::kMemoryCategoryCount> category_peak_bytes_{};
     rhi::GpuTimestampCapability timestamp_capability_{};
     VkQueryPool timestamp_query_pool_ = VK_NULL_HANDLE;
     // dualSrcBlend, probed and enabled in create_device() only when the physical device reports it

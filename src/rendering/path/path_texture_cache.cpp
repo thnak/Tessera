@@ -175,6 +175,8 @@ struct PathTextureCache::Impl {
         desc.row_pitch = static_cast<std::size_t>(row_bytes);
         desc.filter = config.filter;
         desc.address = config.address;
+        // The path cache is a bounded pool with its own budget row (RHI 1.14, issue #703).
+        desc.category = rhi::MemoryCategory::PathCache;
 
         std::unique_ptr<rhi::Texture> texture;
         try {

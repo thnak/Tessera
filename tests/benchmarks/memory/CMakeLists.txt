@@ -77,6 +77,25 @@ elseif (NOT APPLE)
     message(WARNING "Python3 not found: the `memory_budget` CTest is not registered")
 endif()
 
+# gpu_memory_probe (issue #703): the GPU half of the memory budget. Separate from
+# memory_sizes_probe because that one deliberately links no RHI target, so it runs on every lane;
+# this one needs a real rhi::Device. The category bytes it prints are our own accounting (extent x
+# texel size, buffer size), not the driver's block sizes, so lavapipe and a real GPU agree and the
+# row can be ratcheted.
+add_executable(gpu_memory_probe
+    gpu_memory_probe.cpp)
+
+target_link_libraries(gpu_memory_probe PRIVATE tessera_rhi_null)
+if (TARGET tessera_rhi_vulkan)
+    target_link_libraries(gpu_memory_probe PRIVATE tessera_rhi_vulkan)
+    target_compile_definitions(gpu_memory_probe PRIVATE TESSERA_PROBE_HAS_VULKAN)
+endif()
+
+target_compile_features(gpu_memory_probe PRIVATE cxx_std_23)
+
+# The probe itself, so a probe that stops building or printing is caught on every lane that builds.
+add_test(NAME gpu_memory_sizes COMMAND gpu_memory_probe --backend null)
+
 # frame_alloc_probe (issue #701, step 1): allocations per steady-state frame. A measurement tool, not a
 # CTest entry: it asserts nothing until the numbers have been read and a bound has been decided.
 add_executable(frame_alloc_probe

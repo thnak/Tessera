@@ -306,7 +306,15 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     # A sizes-only run skips the sampled rows, so their entries are out of scope rather than
     # unmeasured. The `unmeasured` status is reserved for a row no lane can measure.
-    skipped = measure.SAMPLED_ROWS if args.sizes_only else ()
+    skipped = list(measure.SAMPLED_ROWS) if args.sizes_only else []
+    # The GPU rows are out of scope on a lane that built no GPU probe or has no device (issue #703).
+    # That is a lane capability, not a regression: the Windows CI lane configures with
+    # TESSERA_BUILD_VULKAN=OFF, so it has no `gpu_memory_probe` and no device to measure. Reporting
+    # those entries as missing would fail every such lane for a number it cannot produce, which is
+    # exactly the "a gate that fails for an unrelated reason trains people to ignore it" failure the
+    # source-size gate documents.
+    if not measure.gpu_rows_available(build_dir):
+        skipped.extend(measure.GPU_DETERMINISTIC_ROWS)
     checked = ratchet.in_scope(entries, skipped)
     checked = ratchet.in_scope(
         checked, [name for name, entry in entries.items() if entry["status"] == "unmeasured"]

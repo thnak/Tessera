@@ -151,10 +151,16 @@
       "reason": "NOT MEASURABLE IN THIS REPO'S LANES. Issue #13's motivating number is an Android PSS split (Java/Native/Graphics), and the DPR-squared bitmap scaling it exposes is the point of the mobile row. This worktree has no Android sample and no emulator job, and AGENTS.md makes Android an advisory, post-V1 platform (Windows and Linux are the gating lanes), so there is nothing to run dumpsys meminfo against. No budget is recorded on purpose: a plausible-looking number would read as evidence and would ratchet a figure nobody measured. Declare it until the Android sample and its emulator job exist"
     },
     "gpu_vma_category_bytes": {
-      "status": "unmeasured",
+      "budget": 2195456,
+      "status": "enforce",
       "unit": "bytes",
-      "measures": "vmaCalculateStatistics bytes by category (swapchain, glyph-atlas pages, images, buffers), the GPU half of the memory story",
-      "reason": "NOT MEASURABLE ON THE NULL BACKEND, the backend every deterministic measurement here uses. Issue #13 asks for vmaCalculateStatistics by category. rhi::Device::memory_statistics() reports zero on the null backend by design, and tests/gpu/rhi/rhi_memory_tests.cpp asserts that zero, so a null-backend run cannot produce this row. The Vulkan backend does fill it from vmaCalculateStatistics and rhi_memory already asserts the per-resource costs (a 1024x1024 R8 atlas page is 1 MiB, a 1280x720 RGBA target 3.5 MiB, 17.6 MiB at 4x MSAA), which is the enforcement that exists today. The swapchain category is driver-owned and not counted at all, so there is no number to record for it either"
+      "measures": "the sum of rhi::DeviceMemoryStats::categories for a fixed resource set (a 1024x1024 R8 glyph-atlas page, a 512x512 RGBA texture, a 64 KiB vertex buffer, a 32 KiB staging buffer), measured by tests/benchmarks/memory/gpu_memory_probe.cpp on lavapipe. This is the GPU half of the memory story that issue #13 asked for. The number is deterministic because it is OUR accounting (extent x texel size, buffer size), not the driver's block sizes: lavapipe and a real GPU agree on it for the same resource set, which is what makes a ratchet possible. The allocator's own block_bytes is deliberately NOT the budgeted row, because that one is driver-specific and would make the gate flaky. A lane with no Vulkan device contributes no rows and the entry stays out of scope rather than being recorded as zero"
+    },
+    "gpu_category_peak_after_free_bytes": {
+      "budget": 2195456,
+      "status": "enforce",
+      "unit": "bytes",
+      "measures": "the same fixed resource set's category peak, sampled AFTER every resource is released. This is the property that makes a peak worth recording: a staging buffer that exists for one upload is invisible to a live-bytes sample taken afterwards, so the peak is the only figure that shows the device had to find room for it. Equal to gpu_vma_category_bytes for this set by construction, and a change in either means the accounting changed"
     }
   }
 }

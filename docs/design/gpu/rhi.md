@@ -68,7 +68,14 @@ RHI versioning and capabilities (ADR-049):
   1.13 states the color-space contract for `TextureFormat`/`Swapchain::format()` and moves
   presentation to UNORM (issue #791, section 4 below). No enumerator or member changes and every
   caller compiles unchanged; the surface format a backend chooses does change, which the minor
-  marks (see the color formats note in section 4).
+  marks (see the color formats note in section 4);
+  1.14 adds `MemoryCategory`, `MemoryCategoryStats`, `TextureDesc::category` and
+  `DeviceMemoryStats::categories` (issue #703, section 5.6 below). memory-model-v1 section 4 asks for
+  explicit per-category GPU budgets, and a budget needs a category to attach to: the allocator's
+  totals say how much the device holds, not what it holds it for. The new fields are appended with
+  defaults (`Other`, all-zero), so every existing caller compiles and behaves unchanged and a
+  backend that does not fill the categories reports zeros rather than a wrong attribution. The minor
+  moves because `DeviceMemoryStats` grew, which is an ABI change for anything that copies it.
   All later versions are additive compatible changes.
 - `RhiCapabilities { Backend backend; std::uint32_t rhi_version; GpuTimestampCapability timestamps; }`
   is reported by `Device::capabilities()` (default: current backend, `kRhiVersion`,
@@ -380,6 +387,38 @@ variable-length record list, and no push-constant budget holds one
 - Tests: the conformance check `storage_buffer_bind` (a fragment shader reads the buffer and the
   target is read back for its colour, on every backend that reports the capability) and the null
   structural test in `rhi_null_tests` (the recorded slot and size, plus the three refusals).
+
+### 5.6 Per-category GPU memory (RHI 1.14)
+
+`DeviceMemoryStats::categories` splits the live GPU bytes by *purpose* instead of by resource kind,
+and adds a high-water mark per category. memory-model-v1 section 4 asks for explicit per-category
+budgets; `buffer_bytes` and `image_bytes` say how much the device holds, not what it holds it for, so
+a texture regression and a vertex-buffer regression were indistinguishable (issue #703).
+
+- `MemoryCategory` is a separate enum from `BufferUsage`, not a reuse of it: a texture has no
+  `BufferUsage`, and the categories span both resource kinds. `TextureDesc::category` is how a
+  texture names its purpose; a buffer's `BufferUsage` already is its purpose, so the Vulkan backend
+  maps it rather than asking for a second field.
+- The default is `Other`, and that is deliberate. A caller that does not care is *counted and
+  visible* rather than silently attributed to a category it may not belong to. The glyph atlas and
+  the path cache set their own categories because each owns a bounded pool with its own budget row,
+  and the point of the split is to compare that row against the device's own accounting instead of a
+  second, drifting tally.
+- `peak_bytes` is updated on the way up only, so it survives the free that follows a transient
+  allocation. That is the whole reason it exists: a staging buffer that lives for one upload is
+  invisible to a live-bytes sample taken after the upload.
+- The two views are not additive with each other. `buffer_bytes + image_bytes` and the sum of
+  `categories` both describe the live set, so a backend filling both must keep them consistent;
+  `rhi_memory` asserts exactly that, and that releasing everything returns every category to zero.
+- A backend that cannot attribute a resource reports zeros rather than a guess. The null backend
+  does, and `rhi_memory` asserts it: a budget row measured there would otherwise read as evidence for
+  a number nobody measured.
+- Enforcement: `tests/benchmarks/memory/gpu_memory_probe.cpp` measures a fixed resource set and the
+  `gpu_vma_category_bytes` / `gpu_category_peak_after_free_bytes` rows of
+  `tests/golden/perf/memory_budget.json` ratchet it. The numbers are deterministic because they are
+  *our* accounting (extent x texel size, buffer size), not the driver's block sizes, so lavapipe and
+  a real GPU agree and the row can be enforced. The allocator's own `block_bytes` is deliberately not
+  the budgeted row: it is driver-specific and would make the gate flaky.
 
 ## 6. Lifetime and threading
 - The device owns GPU objects; users own handles and destroy them before the device.
