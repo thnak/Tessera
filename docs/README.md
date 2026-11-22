@@ -210,7 +210,7 @@ This page is the map and reading order for the framework.
 ## 4. Design
 
 - [`design/renderer.md`](design/renderer.md) — B1 renderer summary, batched 2D, Vulkan backend
-- [`design/paint-pass.md`](design/paint-pass.md) — computed-style box paint: background/border quads, rounded overflow clips, `PaintData` text runs, source coordinates, sink seam, limits
+- [`design/paint-pass.md`](design/paint-pass.md) — computed-style box paint: background/border quads, rounded overflow clips, `PaintData` text runs, source coordinates, sink seam, limits; [`design/paint-cull-measurement.md`](design/paint-cull-measurement.md) — why the cull needs no cache (#789)
 - [`design/background-layers.md`](design/background-layers.md) — `background-image` layer list: parse, bottom-to-top order, interpolation, baselines (#614)
 - [`design/theme-scoping.md`](design/theme-scoping.md) — nested theme regions: the `:has()`/`@scope` decision, matching cost, `@layer`/source-order interaction (#622)
 - [`design/dials-and-gauges.md`](design/dials-and-gauges.md) — dials and gauges: the conic-gradient-then-mask-then-filter decision, and what a live `Path` would need (#617)
