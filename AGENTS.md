@@ -948,7 +948,18 @@ ADR-050 is Accepted (roadmap AF1-AF8); start with AF1.
       `FileSystem` that fails at one named step so atomicity is proved rather than hoped for.
 - [ ] #180, #181: Multi-window, then tray apps, each its own slice.
 - [ ] #228: One `Application` loop and one `rhi::Device` for several windows (before AF6).
-- [ ] #450: Platform shell implementation behind `ShellService` (`ready`): fake first, Windows clipboard, drop, dialogs, context menu.
+- [x] #450: Platform shell implementation behind `ShellService`: the module (`tessera_appfw_shell`)
+      owns the policy - capability negotiation with `Unsupported`/`Denied` kept distinct, the
+      clipboard bound, the secure-field rule, one operation at a time, capability handles validated
+      as a token/path pair, the section 8 path rule (traversal, drive-relative, executable) and the
+      drop budget - and the Win32 back end (`tessera_appfw_shell_win32`) owns the platform: clipboard
+      through `hal::Clipboard`, `IFileOpenDialog`/`IFileSaveDialog`/`FOS_PICKFOLDERS` on an
+      `IoTaskExecutor` worker, and `WM_DROPFILES` for external file drop. Evidence:
+      `include/tessera/appfw/shell{,_types,_backend,_path,_fake}.hpp`, `src/appfw/shell*.cpp`,
+      `src/platform/windows/shell_win32*.cpp`, ctest `appfw_shell` (six TUs, deterministic under
+      `ManualClock`/`FakeShell`), `docs/design/shell-module.md`. **Still open:** the Linux/X11,
+      macOS and mobile back ends, clipboard files/URIs, OLE drag with a drag image, the menu bar and
+      tray models, and the `useClipboard` hook - all recorded in section 7 of the design note.
 - [ ] #451: Permissions: `permissions-v1` spec and `PermissionService` (spec first; #452 and #455 need it).
 - [ ] #452: Notifications: `notifications-v1` spec and `NotificationService` (spec first; after #451).
 - [ ] #453: Background work policy: design note, in-process `TaskScope` or OS-scheduled jobs (decision, no code).

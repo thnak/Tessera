@@ -307,6 +307,69 @@ struct include/tessera/appfw/service_runner.hpp tessera::appfw::detail::RunnerSt
 enum include/tessera/appfw/service_runner.hpp tessera::appfw::ServicePhase
 function include/tessera/appfw/service_runner.hpp tessera::appfw::service_phase_name
 
+header include/tessera/appfw/shell.hpp
+class include/tessera/appfw/shell.hpp tessera::appfw::ShellService
+class include/tessera/appfw/shell.hpp tessera::appfw::detail::ShellServiceImpl
+struct include/tessera/appfw/shell.hpp tessera::appfw::ShellConfig
+
+header include/tessera/appfw/shell_backend.hpp
+class include/tessera/appfw/shell_backend.hpp tessera::appfw::ShellBackend
+struct include/tessera/appfw/shell_backend.hpp tessera::appfw::DialogRequest
+struct include/tessera/appfw/shell_backend.hpp tessera::appfw::DialogResult
+struct include/tessera/appfw/shell_backend.hpp tessera::appfw::DropRequest
+struct include/tessera/appfw/shell_backend.hpp tessera::appfw::ShellBackendCapabilities
+enum include/tessera/appfw/shell_backend.hpp tessera::appfw::DialogKind
+
+header include/tessera/appfw/shell_fake.hpp
+class include/tessera/appfw/shell_fake.hpp tessera::appfw::FakeShell
+struct include/tessera/appfw/shell_fake.hpp tessera::appfw::FakeClipboardScript
+struct include/tessera/appfw/shell_fake.hpp tessera::appfw::FakeDialogScript
+struct include/tessera/appfw/shell_fake.hpp tessera::appfw::FakeDropScript
+struct include/tessera/appfw/shell_fake.hpp tessera::appfw::FakeShellCall
+function include/tessera/appfw/shell_fake.hpp tessera::appfw::desktop_shell_capabilities
+
+header include/tessera/appfw/shell_path.hpp
+enum include/tessera/appfw/shell_path.hpp tessera::appfw::PathRejection
+function include/tessera/appfw/shell_path.hpp tessera::appfw::path_rejection_name
+function include/tessera/appfw/shell_path.hpp tessera::appfw::shell_path_check
+function include/tessera/appfw/shell_path.hpp tessera::appfw::shell_path_has_traversal
+function include/tessera/appfw/shell_path.hpp tessera::appfw::shell_path_is_absolute
+function include/tessera/appfw/shell_path.hpp tessera::appfw::shell_path_is_executable
+function include/tessera/appfw/shell_path.hpp tessera::appfw::shell_refused_extension
+function include/tessera/appfw/shell_path.hpp tessera::appfw::shell_refused_extension_count
+constant include/tessera/appfw/shell_path.hpp tessera::appfw::kMaxShellPathBytes
+
+header include/tessera/appfw/shell_types.hpp
+struct include/tessera/appfw/shell_types.hpp tessera::appfw::ClipboardContent
+struct include/tessera/appfw/shell_types.hpp tessera::appfw::DialogFilter
+struct include/tessera/appfw/shell_types.hpp tessera::appfw::DragPayload
+struct include/tessera/appfw/shell_types.hpp tessera::appfw::FileHandle
+struct include/tessera/appfw/shell_types.hpp tessera::appfw::FolderDialogSpec
+struct include/tessera/appfw/shell_types.hpp tessera::appfw::OpenDialogSpec
+struct include/tessera/appfw/shell_types.hpp tessera::appfw::SaveDialogSpec
+struct include/tessera/appfw/shell_types.hpp tessera::appfw::ShellCapabilities
+struct include/tessera/appfw/shell_types.hpp tessera::appfw::ShellDiagnostic
+struct include/tessera/appfw/shell_types.hpp tessera::appfw::ShellDiagnostics
+struct include/tessera/appfw/shell_types.hpp tessera::appfw::ShellError
+enum include/tessera/appfw/shell_types.hpp tessera::appfw::DragActions
+enum include/tessera/appfw/shell_types.hpp tessera::appfw::DragPayloadKind
+enum include/tessera/appfw/shell_types.hpp tessera::appfw::DropAction
+enum include/tessera/appfw/shell_types.hpp tessera::appfw::ShellCapability
+enum include/tessera/appfw/shell_types.hpp tessera::appfw::ShellErrorKind
+function include/tessera/appfw/shell_types.hpp tessera::appfw::drag_payload_kind_name
+function include/tessera/appfw/shell_types.hpp tessera::appfw::drop_action_name
+function include/tessera/appfw/shell_types.hpp tessera::appfw::has_drag_action
+function include/tessera/appfw/shell_types.hpp tessera::appfw::operator_amp
+function include/tessera/appfw/shell_types.hpp tessera::appfw::operator_pipe
+function include/tessera/appfw/shell_types.hpp tessera::appfw::shell_capability_bit
+function include/tessera/appfw/shell_types.hpp tessera::appfw::shell_capability_name
+function include/tessera/appfw/shell_types.hpp tessera::appfw::shell_error_kind_name
+constant include/tessera/appfw/shell_types.hpp tessera::appfw::kMaxShellClipboardBytes
+constant include/tessera/appfw/shell_types.hpp tessera::appfw::kMaxShellDragTextBytes
+constant include/tessera/appfw/shell_types.hpp tessera::appfw::kMaxShellDropBytes
+constant include/tessera/appfw/shell_types.hpp tessera::appfw::kMaxShellDropFiles
+constant include/tessera/appfw/shell_types.hpp tessera::appfw::kShellCapabilityCount
+
 header include/tessera/appfw/storage.hpp
 class include/tessera/appfw/storage.hpp tessera::appfw::Storage
 struct include/tessera/appfw/storage.hpp tessera::appfw::AtomicWriteTrace

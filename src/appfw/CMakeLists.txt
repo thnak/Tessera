@@ -155,6 +155,59 @@ target_compile_features(tessera_appfw_net PUBLIC cxx_std_23)
 target_link_libraries(tessera_appfw_net
     PUBLIC tessera_appfw_core tessera_runtime)
 
+# ADR-050 layer 1 module: `tessera_appfw_shell` (issue #450, docs/specs/platform-shell-v1.md,
+# ADR-030). A separate static library for the same reason as storage, i18n, navigation and net: an
+# app that does not adopt the shell links none of it.
+#
+# Dependencies, and why each is the narrowest one:
+#   * `tessera_appfw_core` for the layer-1 build boundary and the service contract. It is PUBLIC
+#     because a caller names the module's types next to a service.
+#   * `tessera_runtime` for the three layer-0 seams the module is handed rather than inventing:
+#     `CompletionQueue` (where a result is delivered), `CancellationToken` (how an operation is
+#     cancelled) and `Clock` (`ManualClock` in tests, which is what makes `FakeShell` deterministic).
+#     `tessera_appfw_core` already links it PUBLIC, so naming it is documentation as much as
+#     configuration.
+#
+# Deliberately *not* linked, and this is the whole point of the backend seam: no `user32`, no
+# `comdlg32`, no `ole32`, no `shell32`, no `shlobj`. `shell_backend.hpp` is the only place a platform
+# plugs in, and the Win32 back end is a separate target (`tessera_appfw_shell_win32`) that only a
+# Windows build links. The headless contract suite therefore compiles and runs on every lane,
+# including lavapipe and the Wasm lane, with no platform library anywhere in it.
+add_library(tessera_appfw_shell STATIC
+    shell.cpp
+    shell_fake.cpp
+    shell_impl.cpp
+    shell_impl_requests.cpp
+    shell_path.cpp)
+
+target_include_directories(tessera_appfw_shell PUBLIC
+    ${PROJECT_SOURCE_DIR}/include)
+
+target_compile_features(tessera_appfw_shell PUBLIC cxx_std_23)
+
+target_link_libraries(tessera_appfw_shell
+    PUBLIC tessera_appfw_core tessera_runtime)
+
+# The Win32 back end (issue #450, section 1's Windows column). It is its own target so the platform
+# libraries are linked only where they exist, and so a Linux or Wasm build never sees a `windows.h`.
+# It depends on the module for the seam types and on `tessera_hal_clipboard` for the clipboard
+# primitive that already exists (the HAL seam is where the `OpenClipboard` retry budget lives, and
+# this back end must not grow a second copy of it).
+if (WIN32)
+    add_library(tessera_appfw_shell_win32 STATIC
+        ${PROJECT_SOURCE_DIR}/src/platform/windows/shell_win32.cpp
+        ${PROJECT_SOURCE_DIR}/src/platform/windows/shell_win32_dialogs.cpp)
+
+    target_include_directories(tessera_appfw_shell_win32 PUBLIC
+        ${PROJECT_SOURCE_DIR}/include)
+
+    target_compile_features(tessera_appfw_shell_win32 PUBLIC cxx_std_23)
+
+    target_link_libraries(tessera_appfw_shell_win32
+        PUBLIC tessera_appfw_shell
+        PRIVATE tessera_hal_clipboard comdlg32 ole32 shell32 user32)
+endif()
+
 if (TESSERA_BUILD_TESTS)
     enable_testing()
 
@@ -280,4 +333,23 @@ if (TESSERA_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/unit)
     target_link_libraries(appfw_net_tests PRIVATE tessera_appfw_net tessera_runtime)
     add_test(NAME appfw_net COMMAND appfw_net_tests)
+
+    # The shell contract suite (issue #450, docs/specs/platform-shell-v1.md section 9): one TU per
+    # acceptance group, so a failure names the rule. Deterministic end to end - `ManualClock` for
+    # every instant, `FakeShell` for the platform, a hand-drained `CompletionQueue` for delivery - so
+    # no test opens a dialog, touches a real clipboard, reads a wall clock, sleeps, starts a thread or
+    # touches the file system. It links `tessera_appfw_shell` and nothing platform-specific, which is
+    # what lets the same suite run on Windows, Linux and the Wasm lane.
+    add_executable(appfw_shell_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_shell_main.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_shell_path_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_shell_capability_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_shell_clipboard_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_shell_dialog_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_shell_drop_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_shell_task_tests.cpp)
+    target_include_directories(appfw_shell_tests PRIVATE
+        ${PROJECT_SOURCE_DIR}/tests/unit)
+    target_link_libraries(appfw_shell_tests PRIVATE tessera_appfw_shell tessera_runtime)
+    add_test(NAME appfw_shell COMMAND appfw_shell_tests)
 endif()
