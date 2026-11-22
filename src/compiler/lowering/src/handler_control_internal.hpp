@@ -25,6 +25,11 @@ namespace tessera::compiler::lowering::internal {
 [[nodiscard]] std::optional<ir::Action> lower_callback_call(HookState& state, const jsx::Expr& call,
                                                             const jsx::Expr& callee,
                                                             const jsx::Expr& arrow);
+// ADR-066 item 4: `dispatch({ type: "x" })`. The one argument is an object literal whose `type` is
+// a string literal, because that is the dispatch table's key; anything else is refused rather than
+// guessed at.
+[[nodiscard]] std::optional<ir::Action> lower_dispatch_call(HookState& state, const jsx::Expr& call,
+                                                            const jsx::Expr& callee);
 
 // One call statement as an action: a setter, an animated-value `.set(...)`, a ref `focus`/`blur`,
 // or a callback prop. Shared by the body walk and by an `if` branch, so both accept exactly the

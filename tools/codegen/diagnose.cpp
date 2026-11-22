@@ -191,6 +191,11 @@ std::vector<DiagnosticRecord> collect_source_diagnostics(std::string_view text,
     module.components = std::move(lowered_module.components);
     module.bindings = std::move(lowered_module.bindings);
     module.stylesheets = std::move(lowered_module.stylesheets);
+    // ADR-051 section 2.2: the record type table. Without it every record-typed position in this
+    // path (a record-valued `useState` initial, a reducer state) reports `TESSERA_IR_UNKNOWN_TYPE`,
+    // so the preview and the corpus measurement would disagree with the CLI about a file that
+    // compiles.
+    module.types = std::move(lowered_module.types);
 
     // No salt in a browser: ids stay unassigned, exactly as in an unsalted CLI run.
     const std::vector<ir::IrDiagnostic> all = ir::validate(module);
@@ -276,6 +281,11 @@ std::string diagnose_project(const ProjectInput& project) {
     module.components = std::move(lowered_module.components);
     module.bindings = std::move(lowered_module.bindings);
     module.stylesheets = std::move(lowered_module.stylesheets);
+    // ADR-051 section 2.2: the record type table. Without it every record-typed position in this
+    // path (a record-valued `useState` initial, a reducer state) reports `TESSERA_IR_UNKNOWN_TYPE`,
+    // so the preview and the corpus measurement would disagree with the CLI about a file that
+    // compiles.
+    module.types = std::move(lowered_module.types);
 
     const std::vector<ir::IrDiagnostic> all = ir::validate(module);
     const auto first = std::find_if(all.begin(), all.end(), [](const ir::IrDiagnostic& diagnostic) {

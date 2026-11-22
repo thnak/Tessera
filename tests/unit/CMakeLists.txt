@@ -2227,6 +2227,15 @@ target_link_libraries(lowering_handler_control_tests PRIVATE tessera_lowering)
 
 add_test(NAME lowering_handler_control COMMAND lowering_handler_control_tests)
 
+# ADR-066 item 4: the `useReducer` lowering — one state cell, one handler per case, and a
+# `dispatch({ type: "x" })` that becomes a `Dispatch` action.
+add_executable(lowering_reducer_tests
+    lowering_reducer_tests.cpp)
+
+target_link_libraries(lowering_reducer_tests PRIVATE tessera_lowering)
+
+add_test(NAME lowering_reducer COMMAND lowering_reducer_tests)
+
 # ADR-066 item 2, the generated C++ half: an `If` action becomes a real `if`/`else`.
 add_executable(codegen_handler_control_tests
     codegen_handler_control_tests.cpp)

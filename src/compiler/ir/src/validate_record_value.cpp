@@ -78,22 +78,62 @@ bool value_matches(const ValidationContext& context, const Expr& value, std::str
     return scalar_literal_matches(value, type);
 }
 
-// Section 4.3: a field value is a literal, a nested record of literals, or an array of literals.
+// Section 4.3: a field value is a literal, a nested record, an array of literals, or (ADR-066
+// item 4) a pure expression of the member type. The field has always been an Expression in the
+// format, so the last form is the one the spec already reserved; what a value may *be* is checked
+// against the member type below.
 bool supported_field_value(const Expr& value) {
     switch (value.kind) {
     case ExprKind::Literal:
     case ExprKind::Record:
         return true;
     case ExprKind::Array:
+        // "an array of literals of the element type": an array of records is not that form, so it
+        // is the unsupported-form rule rather than a value/type mismatch.
         for (const ExprPtr& item : value.operands) {
             if (!item || item->kind != ExprKind::Literal) {
                 return false;
             }
         }
         return true;
-    default:
+    case ExprKind::Ref:
+    case ExprKind::Binary:
+    case ExprKind::Unary:
+    case ExprKind::Conditional:
+    case ExprKind::Template:
+    case ExprKind::Call:
+    case ExprKind::OptionalField:
+    case ExprKind::Coalesce:
+    case ExprKind::ListFilter:
+    case ExprKind::ListSlice:
+        return true;
+    case ExprKind::RecordUpdate:
+        // A record update is a whole-record value, never one field's value.
         return false;
     }
+    return false;
+}
+
+// The static type a field value's *literal* form has, or nullopt when the value is not a literal.
+// A dynamic value is checked by the expression validator against the member type, so only the
+// literal and array forms need a value-vs-type answer here.
+std::optional<std::string> literal_type(const Expr& value) {
+    if (value.kind == ExprKind::Literal) {
+        if (std::holds_alternative<bool>(value.literal)) {
+            return std::string("bool");
+        }
+        if (std::holds_alternative<std::int64_t>(value.literal)) {
+            return std::string("int");
+        }
+        if (std::holds_alternative<double>(value.literal)) {
+            return std::string("float");
+        }
+        if (std::holds_alternative<std::string>(value.literal)) {
+            return std::string("string");
+        }
+        return std::string("null");
+    }
+    return std::nullopt;
 }
 
 const RecordMember* find_member(const RecordType& type, std::string_view name, std::size_t& index) {
@@ -108,7 +148,8 @@ const RecordMember* find_member(const RecordType& type, std::string_view name, s
 
 } // namespace
 
-void validate_record_expr(ValidationContext& context, const Expr& expr, const std::string* expected,
+void validate_record_expr(ValidationContext& context, const ComponentScope& scope,
+                          const LocalNames& locals, const Expr& expr, const std::string* expected,
                           const SourceSpan& where) {
     if (expr.type.empty()) {
         context.report("TESSERA_IR_MALFORMED", "a record value needs a record type", where);
@@ -173,7 +214,8 @@ void validate_record_expr(ValidationContext& context, const Expr& expr, const st
         if (!supported_field_value(*field.value)) {
             context.report("TESSERA_IR_UNSUPPORTED",
                            "field `" + field.name + "` of record `" + expr.type +
-                               "` is a literal, a record or an array of literals in this slice",
+                               "` is a record update; a field value is a literal, a record, an "
+                               "array of literals or a pure expression",
                            where);
             continue;
         }
@@ -189,7 +231,14 @@ void validate_record_expr(ValidationContext& context, const Expr& expr, const st
             continue;
         }
         if (field.value->kind == ExprKind::Record) {
-            validate_record_expr(context, *field.value, &member->type, where);
+            validate_record_expr(context, scope, locals, *field.value, &member->type, where);
+            continue;
+        }
+        if (!literal_type(*field.value).has_value()) {
+            // ADR-066 item 4: a pure expression of the member type. Its references resolve against
+            // the component scope and the handler's locals, which is what lets a reducer case read
+            // the cell it writes; the expression rules type it as usual.
+            validate_expr(context, scope, locals, field.value.get(), where);
             continue;
         }
         if (!value_matches(context, *field.value, member->type)) {
@@ -200,7 +249,7 @@ void validate_record_expr(ValidationContext& context, const Expr& expr, const st
             continue;
         }
         // A literal field value is still checked for e.g. a non-finite float (section 9).
-        validate_expr(context, ComponentScope{}, {}, field.value.get(), where, true);
+        validate_expr(context, scope, locals, field.value.get(), where, true);
     }
     for (const RecordMember& member : type->members) {
         // ADR-066 item 3: a `recordUpdate` starts from a complete base, so it only has to name
@@ -235,7 +284,7 @@ void validate_record_position(ValidationContext& context, const ComponentScope& 
                            where);
             return;
         }
-        validate_record_expr(context, *expr, &declared_type, where);
+        validate_record_expr(context, scope, {}, *expr, &declared_type, where);
         return;
     }
     // Not a record position: a record value here is not one of the three places section 4.3 allows.

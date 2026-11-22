@@ -27,6 +27,12 @@ std::optional<ir::Action> lower_call_action(HookState& state, const jsx::Expr& s
         return lower_animated_set(state, statement, callee, names);
     }
     if (callee.kind == jsx::ExprKind::Identifier) {
+        // ADR-066 item 4: a dispatch is a state update, not a value, so it is matched before the
+        // setter path (which looks up a setter symbol and would not find one).
+        std::optional<ir::Action> dispatch = lower_dispatch_call(state, statement, callee);
+        if (dispatch) {
+            return dispatch;
+        }
         std::optional<ir::Action> action = lower_setter_call(state, statement, callee, names);
         if (!action && !state.error) {
             action = lower_callback_call(state, statement, callee, arrow);
@@ -34,6 +40,73 @@ std::optional<ir::Action> lower_call_action(HookState& state, const jsx::Expr& s
         return action;
     }
     return std::nullopt;
+}
+
+// `dispatch({ type: "x" })` (ADR-066 item 4). The generated listener indexes the state's dispatch
+// table by the `type` literal and calls the handler that case became, so the IR action carries the
+// cell's id and the literal — no handler id, because which one runs is the table's answer.
+//
+// The argument has to be an object literal with a string-literal `type`: the table is keyed by a
+// literal, so a computed type would need a run-time lookup. A second member is the payload the
+// limited form does not have.
+std::optional<ir::Action> lower_dispatch_call(HookState& state, const jsx::Expr& call,
+                                              const jsx::Expr& callee) {
+    const rules::Symbol* dispatch = state.context.analysis.find(callee.text);
+    if (dispatch == nullptr || dispatch->kind != rules::SymbolKind::Dispatch) {
+        return std::nullopt; // not a dispatch: the caller tries the other call forms
+    }
+    constexpr std::string_view kShape =
+        "a dispatch is `dispatch({ type: \"x\" })`, where `x` is a `type` of the reducer's action "
+        "union";
+    if (call.operands.size() != 2 || !call.operands[1]) {
+        fail_hook(state, "TESSERA_REACT_REDUCER_FORM", kShape, call.span);
+        return std::nullopt;
+    }
+    const jsx::Expr& argument = *call.operands[1];
+    if (argument.kind != jsx::ExprKind::Object) {
+        fail_hook(state, "TESSERA_REACT_REDUCER_FORM", kShape, argument.span);
+        return std::nullopt;
+    }
+    const jsx::ObjectProperty* type_property = nullptr;
+    for (const jsx::ObjectProperty& property : argument.properties) {
+        if (property.key == "type") {
+            type_property = &property;
+            continue;
+        }
+        // A payload the limited form cannot carry: the dispatch table has no slot for it.
+        fail_hook(state, "TESSERA_REACT_REDUCER_FORM",
+                  "`" + property.key +
+                      "` is not part of a dispatch in the limited form; an action carries its "
+                      "`type` only",
+                  property.key_span, kShape);
+        return std::nullopt;
+    }
+    if (type_property == nullptr || !type_property->value ||
+        type_property->value->kind != jsx::ExprKind::String) {
+        fail_hook(state, "TESSERA_REACT_REDUCER_FORM",
+                  "a dispatch needs a `type` whose value is a string literal, because the dispatch "
+                  "table is keyed by it",
+                  argument.span, kShape);
+        return std::nullopt;
+    }
+    // The state a dispatch belongs to is the one declared by the same statement.
+    const rules::Symbol* cell = nullptr;
+    for (const rules::Symbol& symbol : state.context.analysis.symbols) {
+        if (symbol.kind == rules::SymbolKind::State && symbol.statement == dispatch->statement) {
+            cell = &symbol;
+            break;
+        }
+    }
+    if (cell == nullptr) {
+        fail_hook(state, "TESSERA_IR_UNRESOLVED",
+                  "`" + callee.text + "` has no reducer state on its statement", call.span);
+        return std::nullopt;
+    }
+    ir::Action action;
+    action.kind = ir::ActionKind::Dispatch;
+    action.target = "state::" + cell->name;
+    action.action = type_property->value->text;
+    return action;
 }
 
 // One `if`/`else` statement as an `If` action (ADR-066 item 2). The condition is a pure bool

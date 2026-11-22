@@ -82,4 +82,10 @@ void lower_environment_hook(HookState& state, std::size_t index, LoweredHooks& o
                             const NameResolver& names);
 void lower_declared_arrow_hook(HookState& state, std::size_t index, LoweredHooks& out);
 
+// One `const [state, dispatch] = useReducer(reduce, initial)` in its accepted form (ADR-066 item
+// 4): the state cell plus one handler per case. `rules/reducer.cpp` has already resolved the shape,
+// so this reads the recorded `ReducerInfo` and emits it.
+void lower_reducer_hook(HookState& state, std::size_t index, LoweredHooks& out,
+                        const NameResolver& names);
+
 } // namespace tessera::compiler::lowering::internal

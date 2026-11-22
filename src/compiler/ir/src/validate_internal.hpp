@@ -89,8 +89,11 @@ void check_type_table(ValidationContext& context);
 void validate_type_names(ValidationContext& context, std::string_view type, const SourceSpan& where,
                          bool mark_used = true);
 // A `record` expression (section 4.3): its type, its field set and every field value. `expected` is
-// the declared type of the position, or null when the position has none.
-void validate_record_expr(ValidationContext& context, const Expr& expr, const std::string* expected,
+// the declared type of the position, or null when the position has none. `scope` and `locals` are
+// what a dynamic field value's references resolve against (ADR-066 item 4): a field may read a
+// state cell or an action local, so an empty scope would report a valid reference as unresolved.
+void validate_record_expr(ValidationContext& context, const ComponentScope& scope,
+                          const LocalNames& locals, const Expr& expr, const std::string* expected,
                           const SourceSpan& where);
 // Section 4.3: an initial-value position (a `useState` initial or a prop default) of
 // `declared_type`. A record-typed position requires a record value of exactly that record; any

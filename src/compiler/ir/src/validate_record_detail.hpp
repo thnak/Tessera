@@ -81,4 +81,51 @@ inline bool is_record_name(const ValidationContext& context, std::string_view ty
     return find_declared_type(context, type) != nullptr || is_predeclared_record(type);
 }
 
+// The animation-timing rules, shared with `validate_actions.cpp`: a generated tween must always
+// finish (ir-v1.md section 2.1), so a duration is bounded, and an easing is a CSS keyword or a
+// `cubic-bezier` whose x control points stay in [0, 1] (the rule that keeps the curve a function of
+// time).
+inline constexpr double kMaxAnimationMs = 60'000.0;
+inline constexpr std::string_view kEasingKeywords[] = {"linear", "ease", "ease-in", "ease-out",
+                                                       "ease-in-out"};
+
+inline bool valid_cubic_bezier(std::string_view text) {
+    constexpr std::string_view kPrefix = "cubic-bezier(";
+    if (!text.starts_with(kPrefix) || !text.ends_with(')')) {
+        return false;
+    }
+    const std::string body(text.substr(kPrefix.size(), text.size() - kPrefix.size() - 1));
+    double values[4] = {};
+    std::size_t start = 0;
+    for (int index = 0; index < 4; ++index) {
+        const std::size_t end = index == 3 ? body.size() : body.find(',', start);
+        if (end == std::string::npos || end == start) {
+            return false;
+        }
+        const std::string piece = body.substr(start, end - start);
+        std::size_t used = 0;
+        try {
+            values[index] = std::stod(piece, &used);
+        } catch (...) {
+            return false;
+        }
+        while (used < piece.size() && piece[used] == ' ') {
+            ++used;
+        }
+        if (used != piece.size() || !std::isfinite(values[index])) {
+            return false;
+        }
+        start = end + 1;
+    }
+    return values[0] >= 0.0 && values[0] <= 1.0 && values[2] >= 0.0 && values[2] <= 1.0;
+}
+
+inline bool valid_easing(std::string_view text) {
+    for (const std::string_view keyword : kEasingKeywords) {
+        if (keyword == text) {
+            return true;
+        }
+    }
+    return valid_cubic_bezier(text);
+}
 } // namespace tessera::compiler::ir::record_detail

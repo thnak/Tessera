@@ -171,33 +171,6 @@ bool Parser::parse_component_param(ModuleItem& item) {
     return true;
 }
 
-// ADR-066 item 4: whether the helper body about to be parsed declares a `switch`. A reducer is the
-// only helper whose body the lowering reads, and it is recognised by that form. The scan is a
-// lookahead: it saves the lexer position, walks the body's braces, and restores, so the body is
-// parsed once either way. The caller has already consumed the body's opening `{`, so the scan
-// starts one level in.
-bool Parser::helper_has_switch() {
-    const Checkpoint saved = checkpoint();
-    bool found = false;
-    int depth = 1;
-    while (!fatal_ && cur_.kind != TokenKind::Eof && depth > 0) {
-        if (at_punct("{")) {
-            ++depth;
-        } else if (at_punct("}")) {
-            --depth;
-            if (depth == 0) {
-                break;
-            }
-        } else if (cur_.text == "switch") {
-            found = true;
-            break;
-        }
-        advance(LexMode::Code);
-    }
-    restore(saved);
-    return found;
-}
-
 bool Parser::parse_component_body(ModuleItem& item) {
     in_component_ = true;
     props_name_ = item.props_name;
@@ -261,33 +234,6 @@ bool Parser::parse_component_body(ModuleItem& item) {
         return false;
     }
     advance(LexMode::Code);
-    return true;
-}
-
-// ADR-066 item 4: the body of a reducer helper. It is a statement list whose one statement is the
-// `switch`; the statements are recorded on the item so the lowering can read them.
-bool Parser::parse_reducer_body(ModuleItem& item) {
-    while (!fatal_ && !at_punct("}")) {
-        ExprPtr statement = parse_block_statement();
-        if (!statement) {
-            return false;
-        }
-        Statement recorded;
-        recorded.kind = StatementKind::Expression;
-        recorded.span = statement->span;
-        recorded.init = std::move(statement);
-        item.body.push_back(std::move(recorded));
-        if (at_punct(";")) {
-            advance(LexMode::Code);
-        }
-    }
-    if (fatal_) {
-        return false;
-    }
-    if (!at_punct("}")) {
-        fail_unexpected("`}`");
-        return false;
-    }
     return true;
 }
 

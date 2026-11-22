@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT
 
 // IR record values, validator half (docs/specs/ir-v1.md sections 4.3 and 9; ADR-051): the three
 // positions a record value is allowed in, the field set and field order, member-typed field values,
@@ -201,34 +201,54 @@ void test_record_field_rules() {
 }
 
 void test_record_dynamic_field_values() {
-    // Section 4.3: the first slice accepts a literal, a nested record of literals or an array of
-    // literals. A `ref` or any other dynamic expression is `TESSERA_IR_UNSUPPORTED`.
-    const auto check_dynamic = [](const std::string& what, ir::ExprPtr value) {
+    // Section 4.3: a field value is a literal, a nested record, an array of literals, or (ADR-066
+    // item 4) a pure expression of the member type. The field has always been an Expression in the
+    // format, so the expression forms are *accepted* — this is what a reducer case needs, since
+    // `return { count: state.count + 1 }` is a record with one computed field.
+    const auto check_accepted = [](const std::string& what, ir::ExprPtr value) {
         std::vector<ir::RecordField> fields;
         fields.push_back({"w", std::move(value)});
         fields.push_back({"h", ir::make_literal(std::int64_t{2})});
         expect_record(
             what,
             [&](auto& m) { m.components[0].state[0].initial = size_record(std::move(fields)); },
-            std::string(kUnsupported));
+            "");
     };
-    check_dynamic("a ref field value", ir::make_ref("state::size"));
-    check_dynamic("a binary field value", ir::make_binary("+", ir::make_literal(std::int64_t{1}),
-                                                          ir::make_literal(std::int64_t{2})));
+    check_accepted("a ref field value", ir::make_ref("prop::size.w"));
+    check_accepted("a binary field value", ir::make_binary("+", ir::make_literal(std::int64_t{1}),
+                                                           ir::make_literal(std::int64_t{2})));
     {
         // An argument list is built explicitly: a braced list of `unique_ptr` would need to copy.
         std::vector<ir::ExprPtr> args;
         args.push_back(ir::make_literal(std::int64_t{1}));
-        check_dynamic("a call field value", ir::make_call("abs", std::move(args)));
+        check_accepted("a call field value", ir::make_call("abs", std::move(args)));
     }
-    // An array in a scalar member: the value is not a literal of the member type.
+    // A dynamic value in a position with no names to resolve is still an error, and it is reported
+    // at the reference rather than quietly accepted.
+    {
+        std::vector<ir::RecordField> fields;
+        fields.push_back({"w", ir::make_ref("nowhere::x")});
+        fields.push_back({"h", ir::make_literal(std::int64_t{2})});
+        expect_record(
+            "an unresolved ref field value",
+            [&](auto& m) { m.components[0].state[0].initial = size_record(std::move(fields)); },
+            std::string(kUnresolved));
+    }
+    // An array in a scalar member: the value is not one of the member's permitted forms.
     {
         std::vector<ir::ExprPtr> items;
         items.push_back(ir::make_literal(std::int64_t{1}));
-        check_dynamic("an array field value in a scalar member", ir::make_array(std::move(items)));
+        expect_record(
+            "an array field value in a scalar member",
+            [&](auto& m) {
+                std::vector<ir::RecordField> fields;
+                fields.push_back({"w", ir::make_array(std::move(items))});
+                fields.push_back({"h", ir::make_literal(std::int64_t{2})});
+                m.components[0].state[0].initial = size_record(std::move(fields));
+            },
+            std::string(kUnsupported));
     }
-    // A `list<record>` member is declarable, but its value form is not in this slice: an array of
-    // records is not an array of literals.
+    // A `list<record>` member is declarable, but an array of records is not an array of literals.
     {
         std::vector<ir::ExprPtr> items;
         items.push_back(size_record(1, 2));
