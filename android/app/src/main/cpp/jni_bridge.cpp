@@ -354,8 +354,9 @@ JNIEXPORT void JNICALL Java_dev_tessera_app_TesseraView_nativeSetFold(JNIEnv*, j
         return;
     }
     // The Java reader sends the engine's own enum values, so this is a cast rather than a mapping:
-    // the mapping from the library's objects to those values lives in TesseraFoldReader, where it is
-    // one place instead of two. The hinge is physical pixels, which is what the decode rules take.
+    // the mapping from the library's objects to those values lives in TesseraFoldReader, where it
+    // is one place instead of two. The hinge is physical pixels, which is what the decode rules
+    // take.
     tessera::hal::PhysicalFold fold;
     fold.posture = static_cast<tessera::hal::PhysicalFoldPosture>(posture);
     fold.axis = static_cast<tessera::hal::PhysicalFoldAxis>(axis);
