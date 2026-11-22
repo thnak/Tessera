@@ -39,8 +39,10 @@ A component has:
 - a returned node tree (`View`, `Text`, `Button`, `TextInput`, `TextArea`, `Image`, `Path`,
   `Scroll`, `VirtualList`, `VirtualGrid`, `CustomElement`)
 
-V1 rejects: custom hooks, context, suspense, dynamic component types, portals, and non-static
-conditionals/loops. Portals are replaced by the explicit overlay host/service
+V1 rejects: context, suspense, dynamic component types, portals, and non-static
+conditionals/loops. Custom hooks are supported: a `use...` function declared in the project is
+expanded at each call site ([`custom-hooks-v1.md`](../specs/custom-hooks-v1.md)). Portals are
+replaced by the explicit overlay host/service
 ([`overlays-and-layers-v1.md`](../specs/overlays-and-layers-v1.md)). Error boundaries are
 supported wrappers; see
 [`component-model-v1.md`](../specs/component-model-v1.md) and

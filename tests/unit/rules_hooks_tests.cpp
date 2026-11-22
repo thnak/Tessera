@@ -224,14 +224,19 @@ void test_an_error_flags_only_its_component() {
 }
 
 void test_parser_invalid_items_are_skipped() {
+    // A `use...` function is a custom hook since #645, so it is no longer a parser error. The
+    // invalid item this test needs is a component whose body the parser refuses.
     const std::string source =
-        "function useThing() {\n  const t = useTheme();\n  return <View/>;\n}\n"
+        "function A() {\n  const t = useTheme();\n  return <View/>;\n  const u = 1;\n}\n"
         "type T = { a: int };\n";
     const auto parsed = jsx::parse_module(source);
-    check(!parsed.ok() && parsed.root != nullptr, "the custom hook is a parser error");
+    check(!parsed.ok() && parsed.root != nullptr, "the invalid component is a parser error");
     const jsx::SourceMap map(source);
     const auto analyzed = rules::analyze_module(*parsed.root, map);
     check(analyzed.components.size() == 1, "the invalid component is listed");
+    if (analyzed.components.empty()) {
+        return;
+    }
     check(!analyzed.components[0].ok, "it is flagged");
     check(analyzed.diagnostics.empty(), "analysis adds no diagnostics for an invalid item");
     check(analyzed.components[0].symbols.empty(), "nothing was analysed");

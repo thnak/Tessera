@@ -313,8 +313,8 @@ Hook calls are statements of these exact forms. Argument expressions are pure ex
   listed in `ui.hooks.allowed` gives `TESSERA_REACT_HOOK_NOT_ALLOWED`: an error when `ui.hooks.strict` is
   `true` (the default), a warning when it is `false`; in both cases the hook is still lowered normally
   ([`project-config-v1.md`](project-config-v1.md)).
-- A function whose name starts with `use` and that is declared in the project is a custom hook and is
-  rejected (`TESSERA_REACT_CUSTOM_HOOK`).
+- A function whose name starts with `use` and that is declared in the project is a custom hook: it is
+  expanded at each call site and never reaches the IR ([`custom-hooks-v1.md`](custom-hooks-v1.md)).
 - A hook called inside a condition, a handler, an effect, a loop callback or a nested function is an
   error (`TESSERA_REACT_HOOK_ORDER`).
 - The returned value of `useEffect` is not used. An effect may have a cleanup function, written as the
@@ -331,7 +331,8 @@ Hook calls are statements of these exact forms. Argument expressions are pure ex
 The **built-in hook manifest** is a JSON file shipped with the Tessera framework that lists every library
 hook (a hook other than the four core hooks above). The front end reads it to validate calls and to lower
 them to IR; the build also generates the editor typings of section 16.2 from it. A project cannot add
-entries: hooks written by app developers are rejected (`TESSERA_REACT_CUSTOM_HOOK`). The source file is
+entries: a hook written by an app developer is a custom hook and is expanded
+([`custom-hooks-v1.md`](custom-hooks-v1.md)). The source file is
 `src/compiler/frontend/hooks-manifest.json` in the framework repository. The build embeds it in the front end
 (the native compiler and the Wasm designer both contain it, so neither reads it from disk at run time) and
 installs a copy at `share/tessera/hooks-manifest.json` for the typings generator of section 16.2.

@@ -32,7 +32,8 @@ Rules:
 - Props are typed; defaults are static literals.
 - Hooks are called unconditionally at the top level, in stable order.
 - Event handlers may set state; render must be pure.
-- No custom hooks, context, suspense, portals, or dynamic component types.
+- No context, suspense, portals, or dynamic component types. A custom hook is expanded at each call
+  site and never reaches the IR ([`custom-hooks-v1.md`](custom-hooks-v1.md)).
 - No arbitrary JavaScript execution at runtime; only generated C++.
 
 ## 1.1 Identity
@@ -183,7 +184,7 @@ A custom element is an intrinsic native-render node declared from JSX:
 
 ## 8. Rejected in V1
 
-- custom hooks, context, suspense, portals; use `OverlayHost`/overlay service instead
+- context, suspense, portals; use `OverlayHost`/overlay service instead
   ([`overlays-and-layers-v1.md`](overlays-and-layers-v1.md))
 - dynamic component types (`<Component is={...}>`); `CustomElement` is an intrinsic node, not a
   dynamic component type

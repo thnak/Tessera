@@ -32,7 +32,8 @@ Stage numbers refer to section 8. Behavior primitives (press, toggle, focus scop
 dismissable layer, list/grid navigation, typeahead) are stage 0 and are not listed per component.
 
 **Primitive form (issue #236, decided while building).** A primitive is a *component*, not a hook:
-the JSX subset rejects custom hooks (`TESSERA_REACT_CUSTOM_HOOK`, jsx-subset-v1 section 7). Each is
+a primitive is shared across packages, and a custom hook is expanded per call site inside one
+project ([`custom-hooks-v1.md`](../specs/custom-hooks-v1.md)). Each is
 one file in `packages/tessera-ui/primitives/`, draws nothing, and owns role/name/state plus its key
 behavior through key-guarded handlers (jsx-subset-v1 section 9.2). Headless evidence:
 `primitives` (`tests/unit/primitives_tests.cpp`).

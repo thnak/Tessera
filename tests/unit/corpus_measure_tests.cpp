@@ -57,7 +57,16 @@ bool read_file(const std::string& path, std::string& out) {
 
 } // namespace
 
-int main() {
+int main(int argc, char** argv) {
+    // `--write` regenerates the golden from the measurement, the same convention the codegen
+    // goldens use. Without it the report is compared byte for byte, which is what makes a change to
+    // what the front end accepts show up as a diff in review.
+    bool write = false;
+    for (int i = 1; i < argc; ++i) {
+        if (std::string_view(argv[i]) == "--write") {
+            write = true;
+        }
+    }
     // The label is the corpus's own name, not the absolute path, so the golden is the same bytes on
     // every machine and in every checkout.
     std::string error;
@@ -73,9 +82,16 @@ int main() {
     // The corpus is the evidence, so a corpus that shrank is a failure, not a smaller number.
     check(report.total() >= 30, "the corpus holds at least 30 files");
 
+    const std::string actual = corpus::format_report(report);
+    if (write) {
+        std::ofstream out(TESSERA_CORPUS_GOLDEN, std::ios::binary | std::ios::trunc);
+        out << actual;
+        out.close();
+        std::cout << "corpus golden written to " << TESSERA_CORPUS_GOLDEN << "\n";
+        return 0;
+    }
     std::string golden;
     check(read_file(TESSERA_CORPUS_GOLDEN, golden), "the golden is readable");
-    const std::string actual = corpus::format_report(report);
     if (actual != golden) {
         std::cerr << "FAIL: the corpus report differs from " << TESSERA_CORPUS_GOLDEN << "\n"
                   << "--- expected ---\n"

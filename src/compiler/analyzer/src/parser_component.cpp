@@ -212,6 +212,9 @@ bool Parser::parse_statement(ModuleItem& item) {
 
 bool Parser::parse_const_statement(Statement& statement) {
     statement.kind = StatementKind::Const;
+    // Set when an object pattern renames a field; the initializer decides whether that is allowed
+    // (a custom-hook call site) or refused (everywhere else).
+    bool renamed = false;
     advance(LexMode::Code); // past `const`
     if (at_punct("[")) {
         statement.array_pattern = true;
@@ -238,9 +241,14 @@ bool Parser::parse_const_statement(Statement& statement) {
         //     initializer to a local of the same name. A rename (`{ state: s }`) is refused rather
         //     than guessed at, because the subset has no rename form and a silent rename would be a
         //     second naming rule.
-        //   * with the experimental custom-hook switch on, `const { page, next: goNext } =
-        //     usePagination(...)` (spike #659) DOES allow a rename, because the expansion pass is
-        //     the only consumer and it never reaches the rules or lowering.
+        //   * `const { page, next: goNext } = usePagination(...)` (docs/specs/custom-hooks-v1.md
+        //     section 3) DOES allow a rename, because the expansion pass is the only consumer and
+        //     it never reaches the rules or lowering.
+        //
+        // The two are told apart by the initializer, which is parsed after the pattern, so a rename
+        // is recorded here and refused below when the initializer is not a custom-hook call. Gating
+        // the refusal on the switch alone would accept `const {a: c} = b` in every component, which
+        // is the form the subset refuses.
         advance(LexMode::Code);
         while (!fatal_ && !at_punct("}")) {
             if (cur_.kind != TokenKind::Identifier && cur_.kind != TokenKind::Keyword) {
@@ -253,12 +261,7 @@ bool Parser::parse_const_statement(Statement& statement) {
             binding.span = cur_.span;
             advance(LexMode::Code);
             if (at_punct(":")) {
-                if (!custom_hooks_) {
-                    fail("TESSERA_JSX_SUBSET_STATEMENT",
-                         "a renamed destructured binding is not supported", cur_.span,
-                         "write `const <field> = <init>.<field>;` for each field");
-                    return false;
-                }
+                renamed = true;
                 advance(LexMode::Code);
                 if (cur_.kind != TokenKind::Identifier) {
                     fail_unexpected("a local name after `:`");
@@ -301,6 +304,20 @@ bool Parser::parse_const_statement(Statement& statement) {
     statement.init = parse_expr();
     if (!statement.init) {
         return false;
+    }
+    // A rename in an object pattern is allowed only at a custom-hook call site, where the expansion
+    // pass consumes it (docs/specs/custom-hooks-v1.md section 3). Anywhere else it is the form the
+    // subset refuses, so the check waits until the initializer is known.
+    if (renamed) {
+        const bool hook_call = custom_hooks_ && statement.init->kind == ExprKind::Call &&
+                               !statement.init->operands.empty() &&
+                               statement.init->operands[0]->kind == ExprKind::Identifier &&
+                               is_hook_declaration_name(statement.init->operands[0]->text);
+        if (!hook_call) {
+            fail("TESSERA_JSX_SUBSET_STATEMENT", "a renamed destructured binding is not supported",
+                 statement.span, "write `const <field> = <init>.<field>;` for each field");
+            return false;
+        }
     }
     expect_semicolon();
     return true;

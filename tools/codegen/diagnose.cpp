@@ -54,15 +54,27 @@ struct InMemorySource {
     std::string text;
     jsx::ModuleParseResult parsed;
     jsx::SourceMap map;
+    // The custom-hook expansion (docs/specs/custom-hooks-v1.md section 4) runs between the parse
+    // and the rules, exactly as the driver's `SourceFile` does. Without it this path would report a
+    // custom hook as an unknown hook, which is a diagnostic the compiler no longer produces.
+    std::unique_ptr<jsx::DiagnosticSink> expansion_sink;
+    jsx::ExpansionMetrics expansion;
     rules::AnalyzedModule analyzed;
 
     InMemorySource(std::string path, std::string source)
         : file(std::move(path)),
           text(std::move(source)),
           parsed(jsx::parse_module(text)),
-          map(text),
-          analyzed(parsed.root != nullptr ? rules::analyze_module(*parsed.root, map)
-                                          : rules::AnalyzedModule{}) {}
+          map(text) {
+        if (parsed.root == nullptr) {
+            return;
+        }
+        expansion_sink = std::make_unique<jsx::DiagnosticSink>(map, jsx::Limits{});
+        expansion =
+            jsx::expand_custom_hooks(*parsed.root, map, jsx::FrontEndOptions{}, *expansion_sink);
+        analyzed =
+            rules::analyze_module(*parsed.root, map, jsx::Limits{}, nullptr, &expansion.call_sites);
+    }
 
     [[nodiscard]] lowering::ModuleSource module_source() const {
         return lowering::ModuleSource{file, parsed.root.get(), &analyzed, &map};
@@ -136,6 +148,12 @@ std::vector<DiagnosticRecord> collect_source_diagnostics(std::string_view text,
     }
     if (!source.parsed.diagnostics.empty() && !source.parsed.ok()) {
         report(source.parsed.diagnostics.front(), source.file);
+        return records;
+    }
+    // The expansion's own diagnostics come before the rules': a hook that cannot be expanded never
+    // reaches them, and its diagnostic is the one the author can act on.
+    if (source.expansion_sink != nullptr && !source.expansion_sink->diagnostics().empty()) {
+        report(source.expansion_sink->diagnostics().front(), source.file);
         return records;
     }
     if (source.analyzed.has_errors()) {

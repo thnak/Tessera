@@ -1,38 +1,34 @@
-hook: useMergedRefs, one ref attribute that fills every owner (#630)
+custom hooks: typings, state carry and the last stale rejection claims (#647)
 
-`useMergedRefs(inner, forwarded)` produces a ref whose assignment also
-fills the refs it names. It is not a behavior hook: it is a compiler-level
-ref-combining feature with no engine behavior, no runtime state and no
-outputs, because the thing it produces is an assignment the generated base
-already writes.
+Three of #647's four items were already satisfied by the expansion pass; this
+lands the fourth and the documentation the sweep missed.
 
-The problem it solves is structural: a component that both forwards a ref
-to its parent and keeps an internal one has two owners for one node, and a
-node has one `ref` attribute. Without this hook the component must either
-drop one owner or write an effect that copies the pointer after the fact,
-which runs a frame late and misses the first layout.
+**State carry.** The preview carries state across an edit by id, and an
+expanded id is `<hook>_<n>__<name>`, so state survives an edit that keeps the
+call order. That property was asserted in the spec and never tested. The new
+`test_state_ids_are_stable_across_an_edit` pins both halves: an unrelated edit
+keeps `useFlag_1__on` and `useFlag_2__on`, and a reorder changes them, which
+is the honest limit of the rule — the preview cannot tell a reorder from a
+different hook, so it must not carry state across one.
 
-The merged ref IS the primary ref, so the lowering records aliases on it
-rather than creating a second entry. A second entry would give the node two
-`ref` attributes and the second assignment would overwrite the first. The
-generated base then writes `this-><primary> = node;` followed by
-`this-><alias> = node;` for each alias, from the same pointer, during the
-build walk.
+**Typings.** `jsx-subset-v1-jsx.md` section 16.2 now says an exported custom
+hook gets a declaration generated from its declaration, not from the
+expansion, because the expansion is per call site and the editor sees one
+function.
 
-Every operand must be a `useRef` binding. A forwarded ref that never fills
-is a bug the developer cannot see, so the analyzer reports it at the call
-site rather than letting the lowering silently skip it.
+**Generated member names** were already proven: the differential fixture "two
+calls of one hook" compares the expanded IR against a hand-written component
+with `on`/`on2` and `flip`/`flip2`.
 
-Two things this cost, both worth recording:
+**Three stale rejection claims** the earlier sweep missed, because they did
+not use the words "custom hook" next to "rejected":
 
-- The analyzer's operand count for a call is `callee + arguments`, so a
-  two-argument call has three operands. My first version checked `== 2` and
-  rejected every valid call.
-- The reject test used the `parse` helper, which asserts a clean analysis.
-  A test that expects the analysis to fail must use `parse_raw`, or the
-  helper's own assertion is what fails.
+- `jsx-subset-v1.md` section 7.1 said "hooks written by app developers are
+  rejected".
+- `behavior-hooks.md` said "a hook declared in the project is rejected".
+- `jsx-frontend.md` listed `TESSERA_REACT_CUSTOM_HOOK` as an unconditional
+  diagnostic; it is now the switch-off path only.
 
-Evidence: `lowering_hooks` (the alias is recorded on the primary ref, and a
-non-ref operand is refused) and `codegen_behaviors` (the generated base
-assigns both owners from one node). Spec:
-`docs/specs/use-merged-refs-v1.md`.
+`jsx-subset-v1.md` stays at 598 lines (the replacement is the same length).
+
+Gates: 12/12.
