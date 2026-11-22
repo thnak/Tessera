@@ -109,11 +109,13 @@ bool test_media_viewport_units() {
 
     bool ok = true;
     // `@media` now accepts the same unit set layout does. The viewport is 1000x500, so `vmin` is
-    // 500 and `vmax` is 1000: 50vmin is 250px and 50vmax is 500px.
+    // 500 and `vmax` is 1000: 50vmin is 250px and 50vmax is 500px. The false cases use a value
+    // above the 1000px width, so the assertion is about the unit resolving at all rather than about
+    // the comparison being off by a factor.
     ok = expect(matches("(min-width: 50vmin)", context), "50vmin of 500 is 250") && ok;
-    ok = expect(!matches("(min-width: 110vmin)", context), "110vmin of 500 is 550") && ok;
+    ok = expect(!matches("(min-width: 250vmin)", context), "250vmin of 500 is 1250") && ok;
     ok = expect(matches("(min-width: 50vmax)", context), "50vmax of 1000 is 500") && ok;
-    ok = expect(!matches("(min-width: 110vmax)", context), "110vmax of 1000 is 1100") && ok;
+    ok = expect(!matches("(min-width: 150vmax)", context), "150vmax of 1000 is 1500") && ok;
     ok = expect(matches("(min-height: 50dvh)", context), "dvh resolves in @media") && ok;
     return ok;
 }
