@@ -162,6 +162,11 @@ WindowHost::Impl::Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet,
     // A platform can create the window already occluded or minimized; start paused in that case so
     // the first iteration does not acquire and present a frame the user cannot see. The policy can
     // disable that pause (`pauseWhenOccluded=false`), in which case the window keeps rendering.
+    //
+    // A window created with `visible = false` is deliberately *not* paused: that is the
+    // offscreen/CI pattern, where the app paints into a window the user never sees, and it must
+    // keep presenting. The tray app's zero-present state comes from `set_visible(false)` instead
+    // (issue #181).
     metrics_paused_ = pause_policy.pauses(metrics.occluded, metrics.minimized);
     paused_ = metrics_paused_;
     last_tick_seconds_ = hal::steady_now_seconds();
@@ -334,6 +339,14 @@ bool WindowHost::fullscreen_supported() const {
     return impl_->fullscreen_supported();
 }
 
+void WindowHost::set_visible(bool visible) {
+    impl_->set_visible(visible);
+}
+
+bool WindowHost::visible() const {
+    return impl_->visible();
+}
+
 void WindowHost::set_caret_active(bool active) {
     impl_->set_caret_active(active);
 }
@@ -414,6 +427,31 @@ bool WindowHost::Impl::fullscreen() const {
 
 bool WindowHost::Impl::fullscreen_supported() const {
     return available && window != nullptr && window->supports_fullscreen();
+}
+
+// Showing or hiding the platform window (issue #181). Hiding is the app's own decision that the
+// window is not on screen, so it is tracked separately from the platform's occlusion report: a
+// `pauseWhenOccluded=false` config must not be able to make a hidden window paint.
+void WindowHost::Impl::set_visible(bool visible) {
+    if (!available || window == nullptr) {
+        return;
+    }
+    if (visible) {
+        window->show();
+    } else {
+        window->hide();
+    }
+    hidden_by_app_ = !visible;
+    if (visible) {
+        // Nothing painted while hidden describes the screen, so the first frame after showing is a
+        // full one. `request_full_repaint` also marks the loop dirty, which is what wakes an
+        // on-demand loop that has been parked since the hide.
+        host->request_full_repaint();
+    }
+}
+
+bool WindowHost::Impl::visible() const {
+    return available && window != nullptr && !hidden_by_app_;
 }
 
 } // namespace tessera::app

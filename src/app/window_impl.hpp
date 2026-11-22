@@ -119,10 +119,11 @@ struct WindowHost::Impl {
     }
 
     // --- lifecycle, pause and the single-iteration seam (window_lifecycle.cpp) ---------------
-    // True while the platform reports the window as occluded/minimized: no frame may be acquired,
-    // painted or presented, and the frame pipeline/animation runtime must not tick.
+    // True while the platform reports the window as occluded/minimized, or while the app has hidden
+    // it (issue #181): no frame may be acquired, painted or presented, and the frame
+    // pipeline/animation runtime must not tick.
     [[nodiscard]] bool paused() const noexcept {
-        return paused_;
+        return paused_ || hidden_by_app_;
     }
     // Folds one normalized platform event into the driver state. True means the window asked to
     // close (the caller ends the run).
@@ -132,6 +133,10 @@ struct WindowHost::Impl {
     // Recomputes `paused_` from the lifecycle flags and the latest metrics; a pause -> resume edge
     // latches a full repaint so nothing on screen can be stale.
     void update_pause_state();
+    // Shows or hides the platform window and re-derives the pause from what the platform resolved
+    // (issue #181). A hidden window paints nothing; showing latches a full repaint.
+    void set_visible(bool visible);
+    [[nodiscard]] bool visible() const;
     // Honours JSX `autoFocus` (issue #226) once, after the first begin_frame() has laid the tree
     // out; a later tree keeps whatever focus the user or the app set.
     void apply_initial_auto_focus();
@@ -373,6 +378,13 @@ struct WindowHost::Impl {
     bool lifecycle_paused_ = false;
     bool metrics_paused_ = false;
     bool paused_ = false;
+    // Set by `set_visible(false)` and cleared by `set_visible(true)` (issue #181). It is
+    // deliberately separate from `paused_`: `paused_` is the platform's occlusion/minimize report,
+    // which a `pauseWhenOccluded=false` config can override, while this is the app's own decision
+    // that the window is not on screen at all - the tray app's steady state. A window created with
+    // `WindowOptions::visible = false` is *not* hidden by the app: that is the offscreen/CI
+    // pattern, which paints into a window the user never sees, and it must keep presenting.
+    bool hidden_by_app_ = false;
     // Last frame time shared by run() and pump_once(), so a resume gets a normal dt instead of the
     // whole pause duration (and paused iterations refresh it).
     double last_tick_seconds_ = 0.0;

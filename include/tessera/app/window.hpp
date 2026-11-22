@@ -343,6 +343,26 @@ public:
     // The state the platform currently reports: true only while the window really is full-screen.
     [[nodiscard]] bool fullscreen() const;
 
+    // Shows or hides the platform window (issue #181). A hidden window is the tray app's steady
+    // state: it keeps pumping events and input and its services keep running, but it acquires,
+    // paints and presents nothing, so a hidden app costs no GPU work.
+    //
+    // This is the runtime half of `WindowOptions::visible`, which only sets the creation state, and
+    // the two are deliberately different. A window created with `visible = false` is the
+    // offscreen/CI pattern - the app paints into a window the user never sees - so it keeps
+    // presenting. Hiding through this call is the app's own decision that the window is not on
+    // screen, so it stops presenting and no config switch can override it.
+    //
+    // Hiding is not closing: the window keeps its scene, its swapchain and its place in the group,
+    // so showing it again is one repaint rather than a rebuild. Showing latches a full repaint,
+    // because nothing painted while hidden can be trusted to describe the screen.
+    void set_visible(bool visible);
+
+    // Whether the app has this window on screen: false after `set_visible(false)`, and false for a
+    // host with no window at all. It reports the app's decision, not the platform's occlusion state
+    // (which `stats()` and the lifecycle seam already carry).
+    [[nodiscard]] bool visible() const;
+
     // False when this platform cannot do full-screen at all (no window backend, a display with no
     // EWMH window manager). A UI that would offer a full-screen control hides or disables it,
     // rather than calling set_fullscreen() and hoping.

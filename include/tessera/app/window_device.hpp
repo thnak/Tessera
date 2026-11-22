@@ -244,7 +244,55 @@ public:
     // iteration happens, and the loop never parks, retries or services a lost device (that stays
     // `WindowHost::run()`'s job). A window whose iteration presented nothing does not stop its
     // siblings - which is the whole point of driving them from one place.
+    //
+    // With **no** window registered it still ticks the shared loop and returns 0. That is the tray
+    // app's steady state (issue #181): the app is running, its services and timers are alive, and
+    // nothing is painted because there is nothing to paint.
     std::size_t pump_windows_once();
+
+    // --- the group loop (issue #181) -----------------------------------------------------------
+    // Seconds the caller may park before the next iteration is due: the nearer of the pacer's
+    // present deadline and the next timer, clamped to `kMaxIdleWaitSeconds` when neither schedules
+    // anything. Never negative, so a caller cannot sleep past a deadline.
+    //
+    // This is what makes a window-less app possible. Before it, the only loop was
+    // `WindowHost::run()`, which parks on *its own* window's event wait - so an app with no window
+    // had no loop at all and a tray app could only spin. The query is the whole fix: with no window
+    // to wait on, the group still knows when it next has work.
+    //
+    // Not `const`: `FramePacer::ready()` is the query that resolves the deadline, and it is the
+    // same call `run()` makes. It neither presents nor advances the pacer.
+    [[nodiscard]] double next_wait_seconds();
+
+    // One iteration of the group loop: pump every window, then park for `next_wait_seconds()`.
+    //
+    // `max_frames > 0` bounds the run by presented frames (the CI path). With `max_frames == 0` it
+    // runs until `request_stop()`, which is what a tray app wants: it starts with no window, parks,
+    // and paints once activation registers one.
+    //
+    // A bounded run on a group with no window returns immediately with `presented == 0` rather than
+    // parking forever: a caller that asked for frames learns there is nothing to paint.
+    struct RunStats {
+        std::size_t iterations = 0;
+        std::size_t presented = 0;
+        std::size_t idle_waits = 0;
+        // True when `request_stop()` ended the run (as opposed to the frame budget).
+        bool stopped = false;
+    };
+    RunStats run_windows(std::uint32_t max_frames = 0);
+
+    // Ends a `run_windows()` call at its next iteration boundary. Safe to call from a lifecycle
+    // sink, a timer callback or a tray activation, which is the only way a window-less run can end:
+    // there is no window whose close would stop it.
+    //
+    // The request is *consumed* by the run that observes it, so a second run is not stopped by the
+    // first one's request - the same re-entrancy rule `run()` follows.
+    void request_stop() noexcept {
+        stop_requested_ = true;
+    }
+    [[nodiscard]] bool stop_requested() const noexcept {
+        return stop_requested_;
+    }
 
 private:
     std::unique_ptr<rhi::Device> device_;
@@ -276,6 +324,8 @@ private:
     // renderer's frame ring uses, so a registration can never exceed what the ring can serve.
     std::unique_ptr<WindowHost*[]> windows_ = std::make_unique<WindowHost*[]>(kMaxWindowsPerDevice);
     std::size_t window_list_size_ = 0;
+    // Set by `request_stop()` and consumed by the run that observes it (issue #181).
+    bool stop_requested_ = false;
 };
 
 } // namespace tessera::app
