@@ -221,7 +221,12 @@ elseif (ANDROID)
         # Window-metrics decode (issue #189, mobile-integration.md sections 3.5/3.6). The pure rules
         # are in android_metrics_translation.cpp, which includes no Android header and is
         # unit-tested on every lane.
-        ${PROJECT_SOURCE_DIR}/src/platform/android/android_metrics_translation.cpp)
+        ${PROJECT_SOURCE_DIR}/src/platform/android/android_metrics_translation.cpp
+        # Java MotionEvent translation (issue #189, mobile-integration.md section 3.2). The shell is a
+        # Java activity, so touch arrives as a Java object; the pure rules are in
+        # android_motion_translation.cpp, which includes neither an Android header nor <jni.h> and is
+        # unit-tested on every lane.
+        ${PROJECT_SOURCE_DIR}/src/platform/android/android_motion_translation.cpp)
     target_include_directories(tessera_hal_window PRIVATE
         ${PROJECT_SOURCE_DIR}/src/platform/android)
     # libandroid provides ANativeWindow_acquire/release, the extent queries and AInputEvent.

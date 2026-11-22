@@ -18,6 +18,10 @@ target_link_libraries(tessera_android_app PRIVATE
     tessera_app
     tessera_hal_window)
 
+# The bridge includes android_motion_translation.hpp, which lives with the other Android pure rules.
+target_include_directories(tessera_android_app PRIVATE
+    ${PROJECT_SOURCE_DIR}/src/platform/android)
+
 # libandroid provides ANativeWindow_fromSurface/release; liblog is the logcat writer; libEGL is what
 # the NDK's native-window header pulls in on some NDK versions.
 target_link_libraries(tessera_android_app PRIVATE

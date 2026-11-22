@@ -144,6 +144,12 @@ public:
         return input_.translate(static_cast<const AInputEvent*>(event));
     }
 
+    // Queues an event the host already translated (the Java MotionEvent path). The shell is a Java
+    // activity, so touch arrives as a Java object and the host maps it; the queue lives here.
+    bool post_input_event(const ui::InputEvent& event) override {
+        return input_.push(event);
+    }
+
     void show() override {
         visible_ = true;
         metrics_.minimized = false;

@@ -26,6 +26,14 @@ bool AndroidInputTranslator::pending() const {
     return queue_ != nullptr && !queue_->empty();
 }
 
+bool AndroidInputTranslator::push(const ui::InputEvent& event) {
+    if (queue_ == nullptr) {
+        return false;
+    }
+    queue_->push(event);
+    return true;
+}
+
 bool AndroidInputTranslator::translate(const AInputEvent* event) {
     if (event == nullptr || queue_ == nullptr) {
         return false;
