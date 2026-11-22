@@ -3,12 +3,14 @@
 #include "scene_frame.hpp"
 #include "scene_prepare.hpp"
 #include "tessera/rendering/gpu/batched2d_renderer.hpp"
+#include "tessera/rendering/gpu/glass_blur.hpp"
 #include "tessera/rendering/gpu/shader_ids.hpp"
 #include "tessera/rendering/gpu/vertex2d.hpp"
 #include "tessera/ui/paint/batched2d_sink.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
 #include "tessera/ui/style/scene_style.hpp"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <exception>
@@ -121,7 +123,13 @@ rhi::PipelineDesc scene_frame_pipeline_desc(rhi::TextureFormat format, std::uint
     desc.color_format = format;
     desc.sample_count = sample_count;
     desc.blend = rhi::BlendMode::Alpha;
-    desc.push_constant_size = sizeof(gpu::Batched2DPushConstants);
+    // The same push-constant range and descriptor-set layout the Vulkan batched2d pipeline uses, so
+    // a preview frame and a window frame record the same commands. Since ADR-068 slice 3 the block
+    // is 16 bytes and the clip records live in a storage buffer, and the range is widened to the
+    // glass block's size so the two pipelines the renderer interleaves share one layout.
+    desc.push_constant_size = static_cast<std::uint32_t>(
+        std::max(sizeof(gpu::Batched2DPushConstants), sizeof(gpu::GlassPushConstants)));
+    desc.storage_buffer = true;
     // ADR-049: the logical name, not SPIR-V. Vulkan resolves it to its compiled program and WebGPU
     // to the embedded WGSL twin, so one description serves both lanes. The SPIR-V fields stay empty
     // on purpose: this description must be creatable by a backend with no GLSL output at all.

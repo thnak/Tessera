@@ -195,9 +195,8 @@ public:
     [[nodiscard]] VkBuffer handle() const {
         return buffer_;
     }
-    // What the buffer was created for. bind_storage_buffer rejects a buffer that was not created
-    // with BufferUsage::Storage (RHI 1.12, ADR-068): a vertex buffer bound as a storage buffer
-    // would be a descriptor the driver may reject or, worse, silently accept.
+    // What the buffer was created for; bind_storage_buffer rejects a buffer that was not created
+    // with BufferUsage::Storage (RHI 1.12, ADR-068).
     [[nodiscard]] rhi::BufferUsage usage() const {
         return usage_;
     }
@@ -291,40 +290,8 @@ private:
     rhi::MemoryCategory category_ = rhi::MemoryCategory::Other;
 };
 
-class VulkanPipeline final : public rhi::Pipeline {
-public:
-    VulkanPipeline(VulkanDevice* owner, std::uint32_t epoch, VkDevice device, VkPipeline pipeline,
-                   VkPipelineLayout layout, std::uint32_t sample_count)
-        : owner_(owner),
-          epoch_(epoch),
-          device_(device),
-          pipeline_(pipeline),
-          layout_(layout),
-          sample_count_(sample_count) {}
-
-    ~VulkanPipeline() override;
-
-    [[nodiscard]] VkPipeline handle() const {
-        return pipeline_;
-    }
-    [[nodiscard]] VkPipelineLayout layout() const {
-        return layout_;
-    }
-    [[nodiscard]] std::uint32_t epoch() const {
-        return epoch_;
-    }
-    [[nodiscard]] std::uint32_t sample_count() const override {
-        return sample_count_;
-    }
-
-private:
-    VulkanDevice* owner_ = nullptr;
-    std::uint32_t epoch_ = 0;
-    VkDevice device_ = VK_NULL_HANDLE;
-    VkPipeline pipeline_ = VK_NULL_HANDLE;
-    VkPipelineLayout layout_ = VK_NULL_HANDLE;
-    std::uint32_t sample_count_ = 1;
-};
+// The pipeline wrapper lives in vulkan_device_internal.hpp, which is included at the end of this
+// file: it grew a storage-buffer flag (ADR-068 slice 3) and this header is at its size baseline.
 
 // Frame-pacing binding a swapchain publishes on an acquired image target (docs/design/gpu/frames.md
 // section 5.1). The submission that renders the image waits on the slot's binary acquire semaphore

@@ -1,23 +1,49 @@
 // WGSL twin of ../../vulkan/shaders/batched2d.{vert,frag} (ADR-011: two sources, one manifest).
-// WebGPU has no push constants, so the 112-byte block is a uniform buffer at group 0, binding 0
-// (Batched2DPushConstants layout: viewport, aa_radius, clip_count, 3 clips of rect + radii).
+// WebGPU has no push constants, so the 16-byte block is a uniform buffer at group 0, binding 0
+// (Batched2DPushConstants layout: viewport, aa_radius, clip_set).
+//
+// The clip records live in a read-only storage buffer at group 0, binding 3 (ADR-068 slice 3), the
+// same layout the Vulkan shader reads from set 1. WebGPU's fragment stage allows 8 storage buffers,
+// so one is not a constraint.
 // Unbuilt against a real WebGPU implementation on the authoring host; verify in the Wasm CI lane.
 
-struct ClipUniform {
-    rect: vec4<f32>,  // xy = origin, zw = size in target pixels
-    radii: vec4<f32>, // top-left, top-right, bottom-right, bottom-left
+const TESSERA_CLIP_MAX_RECORDS: u32 = 256u;
+const TESSERA_CLIP_MAX_SETS: u32 = 256u;
+
+struct ClipRecord {
+    kind: u32,
+    flags: u32,
+    first_vertex: u32,
+    vertex_count: u32,
+    rect: vec4<f32>,    // xy = origin, zw = size in target pixels
+    radii_a: vec4<f32>, // top-left, top-right, bottom-right, bottom-left
+    radii_b: vec4<f32>, // elliptical second components; zero for a circular corner
+};
+
+struct ClipSetRange {
+    first_record: u32,
+    count: u32,
+    reserved0: u32,
+    reserved1: u32,
+};
+
+struct ClipBuffer {
+    record_count: u32,
+    header_reserved: vec3<u32>,
+    records: array<ClipRecord, TESSERA_CLIP_MAX_RECORDS>,
+    sets: array<ClipSetRange, TESSERA_CLIP_MAX_SETS>,
 };
 
 struct Params {
     viewport: vec2<f32>,
     aa_radius: f32,
-    clip_count: u32,
-    clips: array<ClipUniform, 3>,
+    clip_set: u32,
 };
 
 @group(0) @binding(0) var<uniform> pc: Params;
 @group(0) @binding(1) var u_texture: texture_2d<f32>;
 @group(0) @binding(2) var u_sampler: sampler;
+@group(0) @binding(3) var<storage, read> clip_buffer: ClipBuffer;
 
 struct VertexInput {
     @location(0) position: vec2<f32>,
@@ -69,28 +95,29 @@ fn sd_round_box(p: vec2<f32>, b: vec2<f32>, r: f32) -> f32 {
     return min(max(q.x, q.y), 0.0) + length(max(q, vec2<f32>(0.0))) - r;
 }
 
-fn inside_clip(p: vec2<f32>, clip: ClipUniform) -> bool {
+fn inside_clip(p: vec2<f32>, index: u32) -> bool {
+    let clip = clip_buffer.records[index];
     let origin = clip.rect.xy;
     let size = clip.rect.zw;
     if (p.x < origin.x || p.y < origin.y || p.x > origin.x + size.x || p.y > origin.y + size.y) {
         return false;
     }
     let q = p - origin;
-    if (q.x < clip.radii.x && q.y < clip.radii.x) {
-        let d = vec2<f32>(q.x - clip.radii.x, q.y - clip.radii.x);
-        return dot(d, d) <= clip.radii.x * clip.radii.x;
+    if (q.x < clip.radii_a.x && q.y < clip.radii_a.x) {
+        let d = vec2<f32>(q.x - clip.radii_a.x, q.y - clip.radii_a.x);
+        return dot(d, d) <= clip.radii_a.x * clip.radii_a.x;
     }
-    if (q.x > size.x - clip.radii.y && q.y < clip.radii.y) {
-        let d = vec2<f32>(q.x - (size.x - clip.radii.y), q.y - clip.radii.y);
-        return dot(d, d) <= clip.radii.y * clip.radii.y;
+    if (q.x > size.x - clip.radii_a.y && q.y < clip.radii_a.y) {
+        let d = vec2<f32>(q.x - (size.x - clip.radii_a.y), q.y - clip.radii_a.y);
+        return dot(d, d) <= clip.radii_a.y * clip.radii_a.y;
     }
-    if (q.x > size.x - clip.radii.z && q.y > size.y - clip.radii.z) {
-        let d = vec2<f32>(q.x - (size.x - clip.radii.z), q.y - (size.y - clip.radii.z));
-        return dot(d, d) <= clip.radii.z * clip.radii.z;
+    if (q.x > size.x - clip.radii_a.z && q.y > size.y - clip.radii_a.z) {
+        let d = vec2<f32>(q.x - (size.x - clip.radii_a.z), q.y - (size.y - clip.radii_a.z));
+        return dot(d, d) <= clip.radii_a.z * clip.radii_a.z;
     }
-    if (q.x < clip.radii.w && q.y > size.y - clip.radii.w) {
-        let d = vec2<f32>(q.x - clip.radii.w, q.y - (size.y - clip.radii.w));
-        return dot(d, d) <= clip.radii.w * clip.radii.w;
+    if (q.x < clip.radii_a.w && q.y > size.y - clip.radii_a.w) {
+        let d = vec2<f32>(q.x - clip.radii_a.w, q.y - (size.y - clip.radii_a.w));
+        return dot(d, d) <= clip.radii_a.w * clip.radii_a.w;
     }
     return true;
 }
@@ -104,12 +131,13 @@ fn erf_approx(x: f32) -> f32 {
     return select(y, -y, x < 0.0);
 }
 
-fn clip_coverage(p: vec2<f32>, clip: ClipUniform) -> f32 {
+fn clip_coverage(p: vec2<f32>, index: u32) -> f32 {
+    let clip = clip_buffer.records[index];
     // See batched2d.frag: the clip's own signed distance over +/- aa_radius pixels.
     let half_size = clip.rect.zw * 0.5;
     let q = p - (clip.rect.xy + half_size);
-    var r = select(select(clip.radii.w, clip.radii.x, q.y < 0.0),
-                   select(clip.radii.z, clip.radii.y, q.y < 0.0), q.x >= 0.0);
+    var r = select(select(clip.radii_a.w, clip.radii_a.x, q.y < 0.0),
+                   select(clip.radii_a.z, clip.radii_a.y, q.y < 0.0), q.x >= 0.0);
     r = min(r, min(half_size.x, half_size.y));
     let d = sd_round_box(q, half_size, r);
     return 1.0 - smoothstep(-pc.aa_radius, pc.aa_radius, d);
@@ -126,15 +154,18 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let edge_radius = pc.aa_radius * local_per_pixel;
 
     // Coverage-mask clipping instead of discard, matching the GLSL shader: hard test with AA off,
-    // anti-aliased coverage with AA on.
+    // anti-aliased coverage with AA on. The set is a range into the record list (ADR-068 slice 3),
+    // so an unclipped draw has count 0 and the loop body never runs.
     var clip_alpha = 1.0;
-    for (var index = 0u; index < pc.clip_count; index = index + 1u) {
+    let clip_set = clip_buffer.sets[pc.clip_set];
+    for (var offset = 0u; offset < clip_set.count; offset = offset + 1u) {
+        let index = clip_set.first_record + offset;
         if (pc.aa_radius <= 0.0) {
-            if (!inside_clip(in.position.xy, pc.clips[index])) {
+            if (!inside_clip(in.position.xy, index)) {
                 clip_alpha = 0.0;
             }
         } else {
-            clip_alpha = clip_alpha * clip_coverage(in.position.xy, pc.clips[index]);
+            clip_alpha = clip_alpha * clip_coverage(in.position.xy, index);
         }
     }
 

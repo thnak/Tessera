@@ -41,11 +41,11 @@ clip::RoundedRect rect_clip(float x, float y, float w, float h) {
 
 bool check_clip_table_starts_empty() {
     gpu::ClipStateTable table;
-    return expect(table.index() == 0, "the empty clip set is state 0") &&
+    return expect(table.index() == 0, "the empty clip set is set 0") &&
            expect(table.depth() == 0, "a fresh table has no depth") &&
            expect(table.empty(), "a fresh table is empty") &&
-           expect(table.interned_count() == 1, "only the empty state is interned at first") &&
-           expect(table.state(0).count == 0, "state 0 carries no shader clips");
+           expect(table.interned_count() == 1, "only the empty set is interned at first") &&
+           expect(table.set(0).empty(), "set 0 carries no clip records");
 }
 
 bool check_clip_table_push_pop_restores_scissor() {
@@ -53,9 +53,9 @@ bool check_clip_table_push_pop_restores_scissor() {
     table.reset();
 
     const auto pushed = table.push(rect_clip(10.0f, 10.0f, 40.0f, 40.0f), kBaseScissor);
-    if (!expect(pushed.state != 0, "a pushed clip interns a new state") ||
+    if (!expect(pushed.set != 0, "a pushed clip interns a new set") ||
         !expect(table.depth() == 1, "push adds one level") ||
-        !expect(table.state(pushed.state).count == 1, "one active clip folds into one slot")) {
+        !expect(table.set(pushed.set).size() == 1, "one active clip folds into one record")) {
         return false;
     }
     // The enclosing scissor is the intersection of the current scissor and the clip's rect.
@@ -66,7 +66,7 @@ bool check_clip_table_push_pop_restores_scissor() {
     }
 
     const auto popped = table.pop(kBaseScissor);
-    return expect(popped.state == 0, "popping returns to the empty state") &&
+    return expect(popped.set == 0, "popping returns to the empty set") &&
            expect(table.depth() == 0, "pop removes the level") &&
            expect(popped.scissor.x == kBaseScissor.x && popped.scissor.y == kBaseScissor.y &&
                       popped.scissor.width == kBaseScissor.width &&
@@ -74,50 +74,76 @@ bool check_clip_table_push_pop_restores_scissor() {
                   "pop restores the scissor the push was entered with");
 }
 
-bool check_clip_table_reuses_interned_states() {
+bool check_clip_table_reuses_interned_sets() {
     gpu::ClipStateTable table;
     table.reset();
     const auto first = table.push(rect_clip(10.0f, 10.0f, 40.0f, 40.0f), kBaseScissor);
     static_cast<void>(table.pop(kBaseScissor)); // the popped value is checked elsewhere
     const std::uint32_t after_pop = table.interned_count();
     const auto again = table.push(rect_clip(10.0f, 10.0f, 40.0f, 40.0f), kBaseScissor);
-    return expect(again.state == first.state,
+    return expect(again.set == first.set,
                   "the same fold interns to the same index, so a batch does not split") &&
            expect(table.interned_count() == after_pop,
                   "re-pushing an identical clip interns nothing new");
 }
 
-bool check_clip_table_folds_beyond_shader_slots() {
+bool check_clip_table_keeps_every_clip_as_a_record() {
     gpu::ClipStateTable table;
     table.reset();
-    // kMaxShaderClips == 3 slots, kMaxClipDepth == 8 levels: pushing 5 distinct clips must keep the
-    // first 3 in the shader slots and fold the rest into the innermost one.
-    std::uint32_t last_state = 0;
+    // Since ADR-068 slice 3 the shader reads a record list, so there is no three-slot ceiling: five
+    // distinct clips are five records, and the stack bound (kMaxClipDepth) is what limits nesting.
+    std::uint32_t last_set = 0;
     rhi::Scissor scissor = kBaseScissor;
     for (std::uint32_t i = 0; i < 5; ++i) {
         const auto update =
             table.push(rect_clip(static_cast<float>(i), 0.0f, 100.0f, 100.0f), scissor);
-        last_state = update.state;
+        last_set = update.set;
         scissor = update.scissor;
     }
     if (!expect(table.depth() == 5, "five clips fit under kMaxClipDepth") ||
-        !expect(table.state(last_state).count == clip::kMaxShaderClips,
-                "the fold stops at kMaxShaderClips slots")) {
+        !expect(table.set(last_set).size() == 5, "every clip becomes its own record")) {
         return false;
     }
-    // The innermost slot is the conservative intersection of the clips that did not fit. With five
-    // clips and three slots, the fourth and fifth both fold into slot 2, so its left edge walks out
-    // to the last pushed clip's x (4).
-    const clip::RoundedRect& innermost = table.state(last_state).clips[clip::kMaxShaderClips - 1];
-    return expect(innermost.rect.x == 4.0f,
-                  "clips past the third fold into the innermost shader slot");
+    // The records are in stack order, so the last one is the innermost clip, unmodified: the fold
+    // that used to intersect past the third slot no longer happens.
+    const clip::ClipRecord& innermost = table.set(last_set).back();
+    return expect(innermost.x == 4.0f && innermost.width == 100.0f,
+                  "the innermost record is the clip as pushed, not a folded intersection");
+}
+
+bool check_clip_table_folds_past_the_stack_bound() {
+    gpu::ClipStateTable table;
+    table.reset();
+    // kMaxClipDepth is the stack bound; a clip past it folds into the innermost level
+    // conservatively, which is the documented nesting rule.
+    rhi::Scissor scissor = kBaseScissor;
+    std::uint32_t last_set = 0;
+    for (std::uint32_t i = 0; i < clip::kMaxClipDepth + 2; ++i) {
+        const auto update =
+            table.push(rect_clip(static_cast<float>(i), 0.0f, 100.0f, 100.0f), scissor);
+        last_set = update.set;
+        scissor = update.scissor;
+    }
+    if (!expect(table.depth() == clip::kMaxClipDepth, "the stack stops at kMaxClipDepth") ||
+        !expect(table.set(last_set).size() == clip::kMaxClipDepth,
+                "the fold keeps one record per stack level")) {
+        return false;
+    }
+    // The two clips past the bound intersect into the innermost level. Level 31 holds the clip at
+    // x=31 (right edge 131); the clips at x=32 and x=33 fold into it, so the result starts at 33
+    // and keeps the right edge 131: width 98.
+    const clip::ClipRecord& innermost = table.set(last_set).back();
+    return expect(innermost.x == static_cast<float>(clip::kMaxClipDepth + 1),
+                  "clips past the bound fold into the innermost level") &&
+           expect(innermost.width == 100.0f - 2.0f,
+                  "the folded record is the conservative intersection");
 }
 
 bool check_clip_table_unbalanced_pop_is_a_no_op() {
     gpu::ClipStateTable table;
     table.reset();
     const auto popped = table.pop(kBaseScissor);
-    return expect(popped.state == 0, "an unbalanced pop keeps the empty state") &&
+    return expect(popped.set == 0, "an unbalanced pop keeps the empty set") &&
            expect(popped.scissor.x == kBaseScissor.x && popped.scissor.width == kBaseScissor.width,
                   "an unbalanced pop keeps the caller's scissor");
 }
@@ -131,17 +157,23 @@ bool check_clip_table_packs_push_constants() {
         clip::make_rounded_rect(rhi::Rect{5.0f, 6.0f, 20.0f, 20.0f}, 1.0f, 2.0f, 3.0f, 4.0f),
         kBaseScissor);
     gpu::Batched2DPushConstants push;
-    table.pack_push_constants(pushed.state, rhi::Extent2D{320, 200}, 1.0f, push);
+    table.pack_push_constants(pushed.set, rhi::Extent2D{320, 200}, 1.0f, push);
+    // The block carries the viewport, the aa radius and the set index; the clip geometry is in the
+    // record buffer now (ADR-068 slice 3).
+    const auto records = table.set(pushed.set);
     return expect(push.viewport_width == 320.0f && push.viewport_height == 200.0f,
                   "the viewport comes from the frame extent") &&
            expect(push.aa_radius == 1.0f, "the aa radius is passed through") &&
-           expect(push.clip_count == 1, "one clip is packed") &&
-           expect(push.clips[0].x == 5.0f && push.clips[0].y == 6.0f &&
-                      push.clips[0].width == 20.0f && push.clips[0].height == 20.0f,
-                  "the clip rect is packed") &&
-           expect(push.clips[0].top_left == 1.0f && push.clips[0].top_right == 2.0f &&
-                      push.clips[0].bottom_right == 3.0f && push.clips[0].bottom_left == 4.0f,
-                  "the four corner radii are packed");
+           expect(push.clip_set == pushed.set, "the interned set index is packed") &&
+           expect(records.size() == 1, "one clip is one record") &&
+           expect(records[0].x == 5.0f && records[0].y == 6.0f && records[0].width == 20.0f &&
+                      records[0].height == 20.0f,
+                  "the clip rect is in the record") &&
+           expect(records[0].radii[0] == 1.0f && records[0].radii[1] == 2.0f &&
+                      records[0].radii[2] == 3.0f && records[0].radii[3] == 4.0f,
+                  "the four corner radii are in the record") &&
+           expect(records[0].kind == static_cast<std::uint32_t>(clip::RecordKind::RoundedRect),
+                  "slice 3 emits RoundedRect records");
 }
 
 // --- VertexArena ------------------------------------------------------------------------------
@@ -305,8 +337,9 @@ int main() {
     bool ok = true;
     ok = check_clip_table_starts_empty() && ok;
     ok = check_clip_table_push_pop_restores_scissor() && ok;
-    ok = check_clip_table_reuses_interned_states() && ok;
-    ok = check_clip_table_folds_beyond_shader_slots() && ok;
+    ok = check_clip_table_reuses_interned_sets() && ok;
+    ok = check_clip_table_keeps_every_clip_as_a_record() && ok;
+    ok = check_clip_table_folds_past_the_stack_bound() && ok;
     ok = check_clip_table_unbalanced_pop_is_a_no_op() && ok;
     ok = check_clip_table_packs_push_constants() && ok;
     ok = check_arena_appends_within_a_frame() && ok;

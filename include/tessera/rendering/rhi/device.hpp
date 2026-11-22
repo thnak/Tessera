@@ -70,6 +70,15 @@ public:
     [[nodiscard]] virtual std::uint32_t sample_count() const {
         return 1;
     }
+
+    // True when the pipeline's layout declares the read-only storage buffer set
+    // (`PipelineDesc::storage_buffer`, RHI 1.12, ADR-068). A caller that binds a storage buffer
+    // must ask this first: binding one to a pipeline that does not declare it is a validation
+    // error, not a no-op, and the renderer's clip-record path has to know whether the pipeline it
+    // is about to draw with reads records at all.
+    [[nodiscard]] virtual bool declares_storage_buffer() const {
+        return false;
+    }
 };
 
 class RenderTarget {

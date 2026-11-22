@@ -35,8 +35,8 @@ RHI versioning and capabilities (ADR-049):
 
 - `include/tessera/rendering/rhi/version.hpp` defines the published RHI contract version as
   `kRhiVersionMajor`, `kRhiVersionMinor`, and `kRhiVersion = (major << 16) | minor`
-  (`1.0` / `0x00010000` for the first published version). The current contract is **1.13**
-  (`0x0001000d`): 1.0 is the B1 surface; 1.1 adds `CommandList::copy_target_region` for the
+  (`1.0` / `0x00010000` for the first published version). The current contract is **1.15**
+  (`0x0001000f`): 1.0 is the B1 surface; 1.1 adds `CommandList::copy_target_region` for the
   isolated-layer seam (issue #242, [`offscreen-layers.md`](offscreen-layers.md)); 1.2 adds the
   swapchain composite-alpha request and the resolved-mode query (glass-v1.md section 6, issue #243);
   1.3 adds the sampled view of an offscreen render target (`CommandList::bind_sampled_target` plus
@@ -76,6 +76,10 @@ RHI versioning and capabilities (ADR-049):
   defaults (`Other`, all-zero), so every existing caller compiles and behaves unchanged and a
   backend that does not fill the categories reports zeros rather than a wrong attribution. The minor
   moves because `DeviceMemoryStats` grew, which is an ABI change for anything that copies it.
+  1.15 adds `Pipeline::declares_storage_buffer()`, so a caller can ask whether the pipeline it is
+  about to draw with reads a storage buffer before binding one (ADR-068 slice 3, issue #671). The
+  default is false, which is the answer for every pipeline created without
+  `PipelineDesc::storage_buffer`, so no existing backend or caller changes.
   All later versions are additive compatible changes.
 - `RhiCapabilities { Backend backend; std::uint32_t rhi_version; GpuTimestampCapability timestamps; }`
   is reported by `Device::capabilities()` (default: current backend, `kRhiVersion`,

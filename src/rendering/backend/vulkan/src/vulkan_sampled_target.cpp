@@ -138,7 +138,6 @@ void VulkanCommandList::bind_sampled_target(std::uint32_t slot, const rhi::Rende
                                 VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
         vulkan_target->mark_image_layout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     }
-
     const VkDescriptorSet descriptor_set = owner_.sampled_descriptor(*vulkan_target);
     vkCmdBindDescriptorSets(buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, current_layout_, slot, 1,
                             &descriptor_set, 0, nullptr);

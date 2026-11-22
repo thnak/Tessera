@@ -29,10 +29,11 @@ int main() {
     // #791), changing the surface format a backend chooses but not a single enumerator or member;
     // 1.14 added `MemoryCategory`, `MemoryCategoryStats`, `TextureDesc::category` and
     // `DeviceMemoryStats::categories` (issue #703), which grew `DeviceMemoryStats` and is therefore
-    // an ABI change for anything that copies it.
+    // an ABI change for anything that copies it; 1.15 added `Pipeline::declares_storage_buffer()`
+    // (ADR-068 slice 3, issue #671).
     // All are additive compatible changes.
-    if (rhi::kRhiVersionMajor != 1 || rhi::kRhiVersionMinor != 14 ||
-        rhi::kRhiVersion != ((1u << 16) | 14u)) {
+    if (rhi::kRhiVersionMajor != 1 || rhi::kRhiVersionMinor != 15 ||
+        rhi::kRhiVersion != ((1u << 16) | 15u)) {
         std::cerr << "unexpected RHI version constants\n";
         return 1;
     }

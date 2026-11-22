@@ -98,30 +98,22 @@ inline constexpr rhi::VertexAttribute kVertex2DAttributes[] = {
 inline constexpr std::uint32_t kVertex2DAttributeCount = 9;
 inline constexpr std::uint32_t kVertex2DStride = sizeof(Vertex2D);
 
-// Push-constant block shared by the batched2d vertex and fragment stages. `clips` carries the
-// folded rounded clips for the current batch: the fragment shader discards outside each one. The
-// block stays inside Vulkan's 128-byte minimum push-constant budget (16 + 3 * 32 = 112 bytes).
+// Push-constant block shared by the batched2d vertex and fragment stages.
+//
+// Since ADR-068 slice 3 the clip set is no longer in here: the fragment shader reads a per-frame
+// clip-record buffer (set 1, `clip_records.hpp`) and this block carries only the interned clip-set
+// index. That is what removed the three-clip ceiling and the fixed 32-byte slot per clip, and it
+// shrank the block from 112 bytes to 16.
 struct Batched2DPushConstants {
     float viewport_width = 0;
     float viewport_height = 0;
     float aa_radius = 1.0f;
-    std::uint32_t clip_count = 0;
-
-    struct ClipUniform {
-        float x = 0;
-        float y = 0;
-        float width = 0;
-        float height = 0;
-        float top_left = 0;
-        float top_right = 0;
-        float bottom_right = 0;
-        float bottom_left = 0;
-    };
-
-    ClipUniform clips[clip::kMaxShaderClips]{};
+    // Index into the clip-record buffer's interned set list. 0 is always the empty set, so an
+    // unclipped batch needs no special case and the shader's loop is a no-op.
+    std::uint32_t clip_set = 0;
 };
 
-static_assert(sizeof(Batched2DPushConstants) == 112,
+static_assert(sizeof(Batched2DPushConstants) == 16,
               "push constants must fit the 128-byte Vulkan minimum");
 
 } // namespace tessera::rendering::gpu

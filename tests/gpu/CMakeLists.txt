@@ -130,9 +130,14 @@ set(TESSERA_BATCHED2D_GLSL_DIR
     "${PROJECT_SOURCE_DIR}/src/rendering/backend/vulkan/shaders")
 file(READ "${TESSERA_BATCHED2D_GLSL_DIR}/batched2d.vert" TESSERA_BATCHED2D_VERT_GLSL)
 file(READ "${TESSERA_BATCHED2D_GLSL_DIR}/batched2d.frag" TESSERA_BATCHED2D_FRAG_GLSL)
+# The LCD variant's fragment stage (issue #471), embedded so the parity test can pin that its
+# clip/SDF/shadow logic cannot drift from batched2d.frag (ADR-068 slice 3 moved both to the clip
+# record buffer, and a divergence there would be invisible until a golden moved).
+file(READ "${TESSERA_BATCHED2D_GLSL_DIR}/batched2d_lcd.frag" TESSERA_BATCHED2D_LCD_FRAG_GLSL)
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     "${TESSERA_BATCHED2D_GLSL_DIR}/batched2d.vert"
-    "${TESSERA_BATCHED2D_GLSL_DIR}/batched2d.frag")
+    "${TESSERA_BATCHED2D_GLSL_DIR}/batched2d.frag"
+    "${TESSERA_BATCHED2D_GLSL_DIR}/batched2d_lcd.frag")
 file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/generated")
 # LF output so the embedded text is byte-identical to the authored files (the repo stores shaders
 # with LF, .gitattributes `eol=lf`) and the generated header is the same on every host.

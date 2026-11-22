@@ -192,9 +192,15 @@ bool GlassCompositor::compose(const FrameContext& frame, const GlassBackdropDraw
     vertical.mode = 1.0f;
     vertical.opacity = std::clamp(draw.opacity, 0.0f, 1.0f);
 
+    // The sampler is bound outside a pass (RHI 1.3), and a descriptor-set bind is recorded against
+    // the pipeline layout current at that point. The glass pipeline is therefore bound first, so
+    // the set-0 bind below is recorded against the glass layout rather than the batched2d one the
+    // frame left current (ADR-068 slice 3 made the two layouts differ).
+    commands.bind_pipeline(*glass_.composite);
     commands.bind_sampled_target(0, *blur);
-    // Reopen the frame pass before recording the composite into it. The sampler is bound outside a
-    // pass (RHI 1.3), so this is the only ordering that satisfies both rules.
+    // Reopen the frame pass before recording the composite into it. reopen() rebinds the frame's
+    // own pipeline and clip set, so the glass pipeline is rebound after it; the set-0 bind above
+    // stays valid because it was recorded against the glass layout.
     frame.seam.reopen();
     commands.bind_pipeline(*glass_.composite);
     commands.set_viewport(rhi::Viewport{0.0f, 0.0f, static_cast<float>(frame.extent.width),

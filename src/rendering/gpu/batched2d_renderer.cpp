@@ -37,6 +37,7 @@ Batched2DRenderer::Batched2DRenderer(rhi::Device& device, rhi::Pipeline& pipelin
       // state, and -Wreorder is an error on the Linux lane.
       glass_(device, glass, config.max_offscreen_targets, config.glass),
       clips_(),
+      clip_buffer_(device, config.frames_in_flight),
       vertices_(device, config.initial_vertex_capacity, config.frames_in_flight),
       config_(config),
       current_texture_(&white_texture) {
@@ -123,6 +124,9 @@ void Batched2DRenderer::begin_frame(rhi::CommandList& commands, const rhi::Rende
     cull_stats_ = CullStats{};
     split_stats_ = BatchSplitStats{};
     clips_.reset();
+    // The clip-record buffer rotates with the frame slots, so a frame never rewrites a buffer a
+    // submission still reads (ADR-068 slice 3).
+    clip_buffer_.begin_frame();
     transform_ = rhi::Mat3::identity();
     transform_stack_.clear();
     content_scale_x_ = 1.0f;
@@ -136,6 +140,7 @@ void Batched2DRenderer::begin_frame(rhi::CommandList& commands, const rhi::Rende
 
     commands_->begin_render_pass(target, desc);
     commands_->bind_pipeline(*pipeline_);
+    bound_pipeline_ = pipeline_;
     commands_->set_viewport(
         rhi::Viewport{0, 0, static_cast<float>(extent_.width), static_cast<float>(extent_.height)});
     commands_->set_scissor(scissor_);
@@ -314,7 +319,12 @@ void Batched2DRenderer::flush() {
     const std::uint32_t base = span.base_vertex;
 
     std::uint32_t emitted_draws = 0;
-    rhi::Pipeline* bound_pipeline = pipeline_;
+    // The pipeline the command list actually has bound. A glass composite records its own pipeline
+    // in the middle of the frame's pass, so the renderer cannot assume `pipeline_` is current; it
+    // tracks what it last bound itself and rebinds when that is not what the batch needs.
+    // `bind_frame_state` and `resume_pass` reset this to null because they bind outside this
+    // function.
+    rhi::Pipeline* bound_pipeline = bound_pipeline_;
     if (damage_regions_.empty()) {
         for (const Batch& batch : batches_) {
             bind_batch_pipeline(batch, bound_pipeline);
@@ -348,6 +358,9 @@ void Batched2DRenderer::flush() {
     }
 
     bind_batch_pipeline(Batch{}, bound_pipeline);
+    // Remember what the command list has bound, so the next flush does not rebind needlessly and
+    // does not assume the frame pipeline is current after a glass composite.
+    bound_pipeline_ = bound_pipeline;
     draw_calls_ += emitted_draws;
     vertices_.clear();
     batches_.clear();
@@ -434,7 +447,7 @@ void Batched2DRenderer::emit_quad(const rhi::Rect& rect, const rhi::Rect& uv, rh
 }
 
 void Batched2DRenderer::apply_clip_state(const ClipStateTable::Update& update) {
-    const bool state_changed = update.state != current_batch_.clip_state;
+    const bool state_changed = update.set != current_batch_.clip_state;
     const bool scissor_changed = !same_scissor(update.scissor, current_batch_.scissor);
     if (state_changed || scissor_changed) {
         // Batching split rule: a draw batch covers one (texture, scissor, folded-clip-uniform)
@@ -443,7 +456,7 @@ void Batched2DRenderer::apply_clip_state(const ClipStateTable::Update& update) {
     }
     scissor_ = update.scissor;
     current_batch_.scissor = update.scissor;
-    current_batch_.clip_state = update.state;
+    current_batch_.clip_state = update.set;
 }
 
 void Batched2DRenderer::update_push_constants(std::uint32_t state_index) {
@@ -455,6 +468,25 @@ void Batched2DRenderer::update_push_constants(std::uint32_t state_index) {
     const float aa_radius = (config_.enable_aa && !config_.golden_mode) ? 0.5f : 0.0f;
     clips_.pack_push_constants(state_index, extent_, aa_radius, push);
     commands_->push_constants(&push, sizeof(push));
+    // The clip records reach the shader through the storage buffer, not the push-constant block
+    // (ADR-068 slice 3). The upload is incremental, so a batch that changed only its scissor writes
+    // nothing.
+    //
+    // The bind is gated on the pipeline declaring the set: a pipeline created without
+    // `PipelineDesc::storage_buffer` (a test fixture, or a device without the capability) has no
+    // set 1, and binding one to it is a validation error rather than a no-op. Such a pipeline's
+    // shader does not read records either, so skipping the bind is the correct behaviour, not a
+    // fallback.
+    //
+    // The check is on the pipeline the *next* draw will use, which is `pipeline_` for a batch. A
+    // caller that binds a different pipeline (the glass composite) rebinds its own state, so this
+    // only has to be right for the renderer's own draws.
+    if (pipeline_ != nullptr && pipeline_->declares_storage_buffer()) {
+        if (rhi::Buffer* records =
+                clip_buffer_.upload(clips_.flat_records(), clips_.set_ranges())) {
+            commands_->bind_storage_buffer(1, *records);
+        }
+    }
 }
 
 void Batched2DRenderer::resume_pass_callback(void* context) {

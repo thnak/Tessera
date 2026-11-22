@@ -210,7 +210,7 @@ std::unique_ptr<rhi::Pipeline> VulkanDevice::create_pipeline(const rhi::Pipeline
     // above still release them.
     resource_created();
     auto result = std::make_unique<VulkanPipeline>(this, epoch_, device_, pipeline, pipeline_layout,
-                                                   sample_count);
+                                                   sample_count, desc.storage_buffer);
     pipeline_guard.dismiss();
     layout_guard.dismiss();
     return result;

@@ -17,6 +17,52 @@ namespace tessera::rendering::vulkan {
 
 class VulkanTexture;
 
+// The pipeline wrapper. It lives here rather than in vulkan_internal.hpp because that header is at
+// its size baseline and this one has room; the split is by responsibility either way, since this
+// header is the device's own state and a pipeline is a device-owned resource.
+class VulkanPipeline final : public rhi::Pipeline {
+public:
+    VulkanPipeline(VulkanDevice* owner, std::uint32_t epoch, VkDevice device, VkPipeline pipeline,
+                   VkPipelineLayout layout, std::uint32_t sample_count,
+                   bool declares_storage_buffer = false)
+        : owner_(owner),
+          epoch_(epoch),
+          device_(device),
+          pipeline_(pipeline),
+          layout_(layout),
+          sample_count_(sample_count),
+          declares_storage_buffer_(declares_storage_buffer) {}
+
+    ~VulkanPipeline() override;
+
+    [[nodiscard]] VkPipeline handle() const {
+        return pipeline_;
+    }
+    [[nodiscard]] VkPipelineLayout layout() const {
+        return layout_;
+    }
+    [[nodiscard]] std::uint32_t epoch() const {
+        return epoch_;
+    }
+    [[nodiscard]] std::uint32_t sample_count() const override {
+        return sample_count_;
+    }
+    // True when the pipeline's layout declares the clip-record storage buffer (ADR-068 slice 3), so
+    // a caller can ask before binding one.
+    [[nodiscard]] bool declares_storage_buffer() const override {
+        return declares_storage_buffer_;
+    }
+
+private:
+    VulkanDevice* owner_ = nullptr;
+    std::uint32_t epoch_ = 0;
+    VkDevice device_ = VK_NULL_HANDLE;
+    VkPipeline pipeline_ = VK_NULL_HANDLE;
+    VkPipelineLayout layout_ = VK_NULL_HANDLE;
+    std::uint32_t sample_count_ = 1;
+    bool declares_storage_buffer_ = false;
+};
+
 class VulkanDevice final : public rhi::Device {
 public:
     explicit VulkanDevice(const rhi::DeviceDesc& desc);

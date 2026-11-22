@@ -14,3 +14,8 @@ inline constexpr char kBatched2dVertGlsl[] =
 
 inline constexpr char kBatched2dFragGlsl[] =
     R"TESSERA_GLSL(@TESSERA_BATCHED2D_FRAG_GLSL@)TESSERA_GLSL";
+
+// The LCD variant's fragment stage (issue #471): the same clip/SDF/shadow logic as batched2d.frag
+// plus the second fragment output, so the parity test can pin that the two cannot drift.
+inline constexpr char kBatched2dLcdFragGlsl[] =
+    R"TESSERA_GLSL(@TESSERA_BATCHED2D_LCD_FRAG_GLSL@)TESSERA_GLSL";

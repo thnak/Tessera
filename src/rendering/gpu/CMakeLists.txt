@@ -15,6 +15,7 @@ add_library(tessera_gpu STATIC
     batched2d_cull.cpp
     batched2d_seam.cpp
     clip_state_table.cpp
+    clip_buffer.cpp
     glass_blur.cpp
     glass_compositor.cpp
     offscreen_target_pool.cpp

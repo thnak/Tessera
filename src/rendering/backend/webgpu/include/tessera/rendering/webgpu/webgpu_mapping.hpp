@@ -140,6 +140,9 @@ inline constexpr std::uint32_t kUniformSliceAlignment = 256;
 inline constexpr std::uint32_t kBindingPushConstants = 0;
 inline constexpr std::uint32_t kBindingTexture = 1;
 inline constexpr std::uint32_t kBindingSampler = 2;
+// The clip-record read-only storage buffer (ADR-068 slice 3). WebGPU's fragment stage allows 8
+// storage buffers, so one is not a constraint.
+inline constexpr std::uint32_t kBindingClipRecords = 3;
 
 // Default-limit validation for a vertex buffer layout.
 enum class VertexLayoutError : std::uint8_t {
