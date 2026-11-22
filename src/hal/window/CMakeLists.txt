@@ -226,7 +226,11 @@ elseif (ANDROID)
         # Java activity, so touch arrives as a Java object; the pure rules are in
         # android_motion_translation.cpp, which includes neither an Android header nor <jni.h> and is
         # unit-tested on every lane.
-        ${PROJECT_SOURCE_DIR}/src/platform/android/android_motion_translation.cpp)
+        ${PROJECT_SOURCE_DIR}/src/platform/android/android_motion_translation.cpp
+        # IME translation (issue #189, mobile-integration.md section 3.3). The InputConnection
+        # callbacks arrive as Java strings; the pure rules convert UTF-16 and offsets in
+        # android_ime_translation.cpp, which includes no Android header and is unit-tested.
+        ${PROJECT_SOURCE_DIR}/src/platform/android/android_ime_translation.cpp)
     target_include_directories(tessera_hal_window PRIVATE
         ${PROJECT_SOURCE_DIR}/src/platform/android)
     # libandroid provides ANativeWindow_acquire/release, the extent queries and AInputEvent.

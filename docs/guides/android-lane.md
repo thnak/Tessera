@@ -231,6 +231,29 @@ Two seams carry it. `hal::Window::post_input_event` queues an event the HOST tra
 `translate_input` is the opposite split, where the backend translates an opaque native event. Android
 has both paths because the same platform can deliver touch either way.
 
+**The IME bridge.** A custom-rendered text field does not get an IME for free: the platform talks to
+an `InputConnection`, and the engine's edit controller consumes `ui::InputEvent`.
+`TesseraInputConnection` is the adapter — it holds no text of its own, because the engine owns the
+buffer, the undo history and the selection, and a copy in Java would be a second source of truth that
+drifts.
+
+Two other hooks are required, and both are easy to miss:
+
+- `onCheckIsTextEditor()` must return true, or the platform never offers the view a keyboard.
+- The show request is explicit (`InputMethodManager.showSoftInput`), because a `SurfaceView` cannot
+  focus itself the way an `EditText` does.
+
+The mapping rules live in `android_ime_translation.cpp` and are **pure over UTF-16** — no SDK, no
+JNI — so `android_ime` pins the two conversions that fail silently on screen:
+
+- **UTF-16 to UTF-8.** A naive per-character loop encodes each surrogate half separately and turns
+  every emoji into two replacement characters.
+- **UTF-16 offsets to UTF-8 byte offsets.** Android reports the caret in UTF-16 units; the engine's
+  selection is UTF-8 bytes. Mixing them puts the caret in the wrong place on any non-ASCII string.
+
+A lone surrogate becomes U+FFFD rather than being dropped, because dropping it would desynchronise
+every offset after it.
+
 **The metrics seam.** `hal::Window` gains `set_physical_insets` and `set_physical_cutouts`, which
 take the platform's **physical** pixels. The backend converts them with the decode rules in
 `android_metrics_translation.cpp`, so the bridge never needs to know the layout rules and the
@@ -241,7 +264,9 @@ stays inside its size budget.
 
 - **Fold posture over JNI.** `set_physical_insets` and `set_physical_cutouts` are wired; the fold
   reader (`FoldingFeature`) is not, so `set_fold` has no caller yet.
-- **IME and accessibility** (sections 3.3 and 3.4).
+- **Accessibility** (section 3.4), and the IME's long tail: `setSelection`/`requestCursorUpdates`
+  are not forwarded yet, and `performEditorAction` reports "not handled" because the edit controller
+  has no Done/Search/Go concept. The compose/commit/delete path is wired.
 - **A generated component.** The shell's scene (`android/app/src/main/cpp/scene.hpp`) is built by
   hand, because the codegen CLI runs on the host at build time and `tessera_compiler_demo` is gated
   on `NOT CMAKE_CROSSCOMPILING`. A hand-built tree still exercises the scene graph, the compiled
