@@ -202,6 +202,14 @@ bool expr_source(const ir::Expr& expr, std::string& out, std::string& error) {
                 std::string(expr.kind == ir::ExprKind::Coalesce ? "coalesce" : "optionalField") +
                 "` has no generated IR-source form yet (ADR-066 item 1)";
         return false;
+    case ir::ExprKind::ListFilter:
+    case ir::ExprKind::ListSlice:
+    case ir::ExprKind::RecordUpdate:
+        // ADR-066 item 3: the same reasoning. A library component that used one would need this
+        // emitter extended first.
+        error = "a list or record-update expression has no generated IR-source form yet "
+                "(ADR-066 item 3)";
+        return false;
     }
     std::string operands;
     if (!expr_list(expr.operands, operands, error)) {
