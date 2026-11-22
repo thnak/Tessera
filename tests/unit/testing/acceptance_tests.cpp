@@ -268,9 +268,18 @@ void test_back_pops_a_route() {
     app.build();
 
     // The route table the app ships. `RouteTable::create` validates it, so a test also covers the
-    // declaration a real app would have failed to build.
+    // declaration a real app would have failed to build. Built field by field rather than with a
+    // braced initializer list: a designated-initializer list that omits `params` trips
+    // `-Wmissing-field-initializers`, which is an error under this project's `-Werror` (MSVC does
+    // not warn, so only the Linux lane catches it).
     appfw::RouteTableConfig table_config;
-    table_config.routes = {{.id = "home", .path = "/"}, {.id = "details", .path = "/details"}};
+    appfw::RouteDef home;
+    home.id = "home";
+    home.path = "/";
+    appfw::RouteDef details;
+    details.id = "details";
+    details.path = "/details";
+    table_config.routes = {home, details};
     table_config.not_found_route = "home";
     table_config.initial_route = "home";
     auto table = appfw::RouteTable::create(std::move(table_config));
