@@ -6,8 +6,10 @@
 // turn that answer into the node's dirty marks, so the frame policy stays on the tree and this TU
 // never touches geometry or scroll state.
 
+#include "tessera/ui/scene/event.hpp"
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/scene/node_metadata.hpp"
+#include "tessera/ui/scene/paint_data.hpp"
 
 #include <algorithm>
 #include <cstddef>
@@ -306,6 +308,14 @@ Dirty NodeMetadata::clear_inline_style() {
     }
     inline_style_->count = 0;
     return Dirty::Style;
+}
+
+NodeMetadata::NodeMetadata() = default;
+NodeMetadata::~NodeMetadata() = default;
+
+const std::optional<PaintData>& NodeMetadata::paint_data() const {
+    static const std::optional<PaintData> kNone;
+    return paint_data_ ? *paint_data_ : kNone;
 }
 
 Dirty NodeMetadata::set_paint_data(std::optional<PaintData> data) {

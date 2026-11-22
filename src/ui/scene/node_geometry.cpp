@@ -9,6 +9,7 @@
 // mouse-move hot path, and the audit records that the call it already pays must not grow.
 
 #include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/scene/paint_data.hpp"
 #include "tessera/ui/scene/z_order.hpp"
 
 #include <algorithm>

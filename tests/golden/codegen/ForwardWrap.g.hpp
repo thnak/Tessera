@@ -10,6 +10,7 @@
 #include "tessera/ui/scene/state_snapshot.hpp"
 #include "tessera/ui/text/text_input_runtime.hpp"
 #include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/scene/paint_data.hpp"
 
 #include <cstdint>
 #include <functional>

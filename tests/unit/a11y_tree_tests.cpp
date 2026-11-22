@@ -3,6 +3,7 @@
 // Accessibility semantics snapshot: role/name precedence and the hidden/ignored rules.
 
 #include "a11y_test_helpers.hpp"
+#include "tessera/ui/scene/paint_data.hpp"
 
 namespace a11y_test {
 bool role_precedence() {

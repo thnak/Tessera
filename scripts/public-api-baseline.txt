@@ -2485,9 +2485,6 @@ struct include/tessera/ui/scene/dirty_pass.hpp tessera::ui::DirtyNode
 
 header include/tessera/ui/scene/event.hpp
 struct include/tessera/ui/scene/event.hpp tessera::ui::Event
-enum include/tessera/ui/scene/event.hpp tessera::ui::ClickSource
-enum include/tessera/ui/scene/event.hpp tessera::ui::EventPhase
-enum include/tessera/ui/scene/event.hpp tessera::ui::EventType
 
 header include/tessera/ui/scene/event_payloads.hpp
 struct include/tessera/ui/scene/event_payloads.hpp tessera::ui::ClickEvent
@@ -2518,6 +2515,11 @@ function include/tessera/ui/scene/event_payloads.hpp tessera::ui::text_change_tr
 function include/tessera/ui/scene/event_payloads.hpp tessera::ui::text_selection_event
 function include/tessera/ui/scene/event_payloads.hpp tessera::ui::text_submit_event
 
+header include/tessera/ui/scene/event_type.hpp
+enum include/tessera/ui/scene/event_type.hpp tessera::ui::ClickSource
+enum include/tessera/ui/scene/event_type.hpp tessera::ui::EventPhase
+enum include/tessera/ui/scene/event_type.hpp tessera::ui::EventType
+
 header include/tessera/ui/scene/focus.hpp
 class include/tessera/ui/scene/focus.hpp tessera::ui::FocusManager
 
@@ -2539,6 +2541,7 @@ function include/tessera/ui/scene/list_ops.hpp tessera::ui::string_trim
 
 header include/tessera/ui/scene/node.hpp
 class include/tessera/ui/scene/node.hpp tessera::ui::Node
+struct include/tessera/ui/scene/node.hpp tessera::ui::Event
 enum include/tessera/ui/scene/node.hpp tessera::ui::OverscrollBehavior
 enum include/tessera/ui/scene/node.hpp tessera::ui::OverscrollEffect
 enum include/tessera/ui/scene/node.hpp tessera::ui::ScrollBehavior
@@ -2555,8 +2558,10 @@ constant include/tessera/ui/scene/node_ids.hpp tessera::ui::kNodeIdBaseStride
 header include/tessera/ui/scene/node_metadata.hpp
 class include/tessera/ui/scene/node_metadata.hpp tessera::ui::NodeMetadata
 struct include/tessera/ui/scene/node_metadata.hpp tessera::ui::AriaAttribute
+struct include/tessera/ui/scene/node_metadata.hpp tessera::ui::Event
 struct include/tessera/ui/scene/node_metadata.hpp tessera::ui::EventBinding
 struct include/tessera/ui/scene/node_metadata.hpp tessera::ui::InlineStyleDeclaration
+struct include/tessera/ui/scene/node_metadata.hpp tessera::ui::PaintData
 struct include/tessera/ui/scene/node_metadata.hpp tessera::ui::StyleWrite
 alias include/tessera/ui/scene/node_metadata.hpp tessera::ui::BoundEventHandler
 constant include/tessera/ui/scene/node_metadata.hpp tessera::ui::kMaxAriaNameBytes

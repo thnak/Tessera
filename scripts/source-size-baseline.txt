@@ -7,20 +7,19 @@
 # once the file is split under the limit.
 #
 # path lines
-include/tessera/ui/scene/node.hpp 652
-src/app/host.cpp 687
-src/app/window.cpp 697
-src/compiler/lowering/src/module_lowering.cpp 580
+include/tessera/ui/scene/node.hpp 622
+src/app/host.cpp 628
+src/app/window.cpp 692
+src/compiler/lowering/src/module_lowering.cpp 570
 src/platform/linux/window.cpp 753
 src/platform/windows/window.cpp 607
 src/rendering/backend/vulkan/src/vulkan_command_list.cpp 685
-src/rendering/backend/vulkan/src/vulkan_internal.hpp 621
-src/rendering/backend/vulkan/src/vulkan_swapchain.cpp 591
-src/schema/src/aliases.cpp 515
-src/ui/layout/layout_style.cpp 538
-src/ui/scene/input_dispatch.cpp 516
-src/ui/style/property_registry.cpp 507
+src/rendering/backend/vulkan/src/vulkan_internal.hpp 611
+src/rendering/backend/vulkan/src/vulkan_swapchain.cpp 522
+src/ui/layout/layout_style.cpp 505
+src/ui/style/property_registry.cpp 505
 tests/unit/adaptive_quality_tests.cpp 804
+tests/unit/codegen_vector_payload_tests.cpp 501
 tests/unit/frame_pipeline_tests.cpp 563
 tests/unit/input_router_tests.cpp 507
-tools/codegen/regenerate.cpp 668
+tools/codegen/regenerate.cpp 624

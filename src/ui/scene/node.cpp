@@ -8,6 +8,7 @@
 // one of those features no longer edits the TU every other feature includes.
 
 #include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/scene/paint_data.hpp"
 #include "tessera/ui/scene/structure_epoch.hpp"
 
 #include <atomic>
@@ -29,6 +30,8 @@ std::uint64_t scene_structure_epoch() noexcept {
 
 Node::Node(NodeId id)
     : id_(id) {}
+
+Node::~Node() = default;
 
 Node& Node::add_child(std::unique_ptr<Node> child) {
     g_structure_epoch.fetch_add(1, std::memory_order_relaxed);

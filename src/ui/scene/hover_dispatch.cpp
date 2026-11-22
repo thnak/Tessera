@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "hover_dispatch.hpp"
+#include "tessera/ui/scene/event.hpp"
 
 #include <cstddef>
 

@@ -12,6 +12,7 @@
 #include "tessera/appfw/saved_state.hpp"
 #include "tessera/hal/synthetic_events.hpp"
 #include "tessera/ui/input_pump.hpp"
+#include "tessera/ui/scene/paint_data.hpp"
 
 #include <vector>
 

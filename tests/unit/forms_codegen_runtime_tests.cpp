@@ -18,6 +18,7 @@
 #include "tessera/ui/forms/form_model.hpp"
 #include "tessera/ui/scene/focus.hpp"
 #include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/scene/paint_data.hpp"
 #include "tessera/ui/scene/update_scheduler.hpp"
 
 #include <cstdint>

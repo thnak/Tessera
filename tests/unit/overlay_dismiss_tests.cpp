@@ -6,6 +6,7 @@
 
 #include "overlay_test_fixture.hpp"
 #include "tessera/ui/input_pump.hpp"
+#include "tessera/ui/scene/paint_data.hpp"
 
 #include <vector>
 

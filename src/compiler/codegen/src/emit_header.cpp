@@ -101,6 +101,11 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
     if (uses_list_ops(component)) {
         writer.line("#include \"tessera/ui/scene/list_ops.hpp\"");
     }
+    // Generated code constructs `PaintData` by value for text, vector, image and interpolated
+    // payloads, and `node.hpp` no longer includes it (it forward-declares the type so its own
+    // include cost stays down). Emitting the include here keeps every generated header
+    // self-sufficient instead of relying on a transitive include.
+    writer.line("#include \"tessera/ui/scene/paint_data.hpp\"");
     if (!instances.empty()) {
         writer.line("#include \"tessera/ui/scene/node_ids.hpp\"");
     }

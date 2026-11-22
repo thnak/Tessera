@@ -8,6 +8,7 @@
 #include "ForwardOuter.hpp"
 #include "ForwardWrap.hpp"
 #include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/scene/paint_data.hpp"
 
 #include <chrono>
 #include <cstdint>

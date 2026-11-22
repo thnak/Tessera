@@ -27,6 +27,7 @@
 #include "VectorIcon.hpp"
 #include "tessera/ui/assets/asset_svg.hpp"
 #include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/scene/paint_data.hpp"
 #include "vicon_vector_assets.hpp"
 #endif
 
