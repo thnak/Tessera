@@ -9,6 +9,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 
 namespace tessera::harness {
@@ -28,7 +29,7 @@ struct ServeOptions {
     SessionLimits limits;
 };
 
-enum class ServeEnd {
+enum class ServeEnd : std::uint8_t {
     InputClosed, // EOF or the peer went away; all queued work was answered
     Stopped,     // `stop` was observed; queued work was cancelled via SessionExecutor::shutdown()
 };

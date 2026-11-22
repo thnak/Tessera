@@ -16,7 +16,7 @@ namespace {
 
 // The `ui::StateScalar` alternative a declared IR type maps to, matching the generated C++ field
 // `emit_snapshot.cpp` reads. `ScalarKind::List` covers `list<T>` over a scalar element.
-enum class ScalarKind { Bool, Int, Float, String, List };
+enum class ScalarKind : std::uint8_t { Bool, Int, Float, String, List };
 
 std::optional<ScalarKind> element_kind(std::string_view ir_type) {
     if (ir_type == "bool") {

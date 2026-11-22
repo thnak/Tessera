@@ -6,6 +6,7 @@
 #include "tessera/compiler/ir/component.hpp"
 #include "tessera/compiler/ir/types.hpp"
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -15,7 +16,7 @@ namespace tessera::compiler::ir {
 
 inline constexpr int kIrVersion = 1;
 
-enum class BindingKind { State, Effect, Ref, Animated, Event, Logic };
+enum class BindingKind : std::uint8_t { State, Effect, Ref, Animated, Event, Logic };
 
 std::string_view binding_kind_name(BindingKind kind);
 

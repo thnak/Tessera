@@ -34,7 +34,7 @@ inline constexpr std::string_view kAuditCommand = "audit";
 // lane's contract (docs/specs/automation-ids-v1.md), and this codec never hashes anything.
 using UiId = std::uint64_t;
 
-enum class ActionKind {
+enum class ActionKind : std::uint8_t {
     Click,
     SetValue,
     Focus,
@@ -48,7 +48,7 @@ enum class ActionKind {
 // Placement of the item revealed by `scrollIntoView` with an `itemIndex`
 // (`virtualization::ScrollAlignment` on the engine side). `Nearest` is the shortest move that makes
 // the item fully visible; no move when it already is.
-enum class ScrollIntoViewAlignment {
+enum class ScrollIntoViewAlignment : std::uint8_t {
     Start,
     Center,
     End,

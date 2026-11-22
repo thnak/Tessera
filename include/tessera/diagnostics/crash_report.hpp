@@ -63,7 +63,7 @@ struct CrashRecord {
     std::uint64_t unmatched_frames = 0;
 };
 
-enum class CrashParseError {
+enum class CrashParseError : std::uint8_t {
     NotACrashRecord, // empty, or the first line is not a schema this build knows
     Unsupported,     // a `tessera.crash.` schema other than v1
     Malformed,       // a line that is neither a known key nor `module=`/`frame=`

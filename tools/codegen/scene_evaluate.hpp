@@ -6,6 +6,7 @@
 #include "tessera/compiler/ir/module.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <expected>
 #include <span>
 #include <string>
@@ -43,7 +44,7 @@ struct EvaluatedScene {
 // Why a source produced no component. The preview reports failure *in* its document rather than
 // beside it (P2's rule), so this exists for the callers that need the reason — the parity CLI's
 // exit code and the session's build status — not for the page.
-enum class EvaluateErrorCode {
+enum class EvaluateErrorCode : std::uint8_t {
     Parse,
     Analyze,
     Lower,

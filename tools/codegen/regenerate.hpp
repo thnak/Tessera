@@ -4,6 +4,7 @@
 
 #include "diagnostics_json.hpp"
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -77,7 +78,7 @@ struct Message {
 };
 
 // How a generated file compares with the file on disk before the run.
-enum class GeneratedStatus {
+enum class GeneratedStatus : std::uint8_t {
     New,       // not on disk
     Changed,   // on disk with other bytes
     Unchanged, // on disk with the same bytes

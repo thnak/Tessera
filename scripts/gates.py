@@ -13,7 +13,8 @@ Gate order:
   4. sbom            sbom.spdx.json is up to date (adds --check)
   5. docs            relative links/anchors, docs index, fences, sizes, ADRs
   6. source-size     C++ files within the 500-line hard limit (ratchet baseline, #327)
-  7. public-api      the public surface matches scripts/public-api-baseline.txt (issue #76)
+  7. enum-size       `enum class` declarations name a base type (ratchet baseline, #734)
+  8. public-api      the public surface matches scripts/public-api-baseline.txt (issue #76)
   8. pins            reproducible dependency pins + dependencies.md rows (adds --check)
   9. version-policy  a breaking RHI/IR/tessera.json change moves its version (issue #194)
  10. memory-budget   hot-type sizes and allocation counts match the recorded budget (issue #13)
@@ -74,6 +75,12 @@ BASE_GATES: List[Gate] = [
         "check_source_size.py",
         (),
         "C++ files stay within the 500-line hard limit (ratchet baseline, issue #327)",
+    ),
+    Gate(
+        "enum-size",
+        "check_enum_size.py",
+        (),
+        "`enum class` declarations name a base type (ratchet baseline, issue #734)",
     ),
     Gate(
         "public-api",

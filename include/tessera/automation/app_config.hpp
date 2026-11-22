@@ -23,7 +23,7 @@ inline constexpr std::size_t kMaxStyleTotalBytes = std::size_t{1} << 20U;  // 1 
 inline constexpr int kSupportedManifestVersion = 1;
 inline constexpr std::string_view kManifestFileName = "automation.manifest.json";
 
-enum class AppConfigErrorCode {
+enum class AppConfigErrorCode : std::uint8_t {
     ConfigUnreadable,
     ConfigTooLarge,
     ConfigInvalid,

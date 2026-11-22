@@ -5,9 +5,11 @@
 #include "tessera/hal/timer/steady_time.hpp"
 #include "tessera/hal/window.hpp"
 
+#include <cstdint>
+
 namespace tessera::hal {
 
-enum class WaitOutcome {
+enum class WaitOutcome : std::uint8_t {
     Event,
     Deadline,
 };

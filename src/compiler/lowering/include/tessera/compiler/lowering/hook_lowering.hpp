@@ -14,6 +14,7 @@
 #include "tessera/compiler/lowering/type_alias.hpp"
 #include "tessera/compiler/rules/component_analysis.hpp"
 
+#include <cstdint>
 #include <expected>
 #include <span>
 #include <string>
@@ -85,7 +86,7 @@ struct HookLoweringContext {
 };
 
 // What an event attribute value resolves to (docs/specs/ir-v1.md sections 2.1 and 6).
-enum class HandlerRefKind {
+enum class HandlerRefKind : std::uint8_t {
     Binding,       // a `// Note: bind::<id>` native handler: `bind::<id>`
     InlineHandler, // a declared setter-call arrow: `handler::N`
 };

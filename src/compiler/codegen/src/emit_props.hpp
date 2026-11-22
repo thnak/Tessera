@@ -5,6 +5,7 @@
 #include "codegen_internal.hpp"
 #include "emit_dirty.hpp"
 
+#include <cstdint>
 #include <span>
 #include <string>
 #include <string_view>
@@ -35,7 +36,7 @@ namespace tessera::compiler::codegen::internal {
 // one-shot bound flag for a callback (the lambda is built once), or no guard when the type has no
 // hashable form. A record value is `None`: ADR-051 section 5 does not generate equality or hashing
 // for a record in this slice, so a record prop is assigned on every refresh (as a list would be).
-enum class PropGuard { None, Value, Callback };
+enum class PropGuard : std::uint8_t { None, Value, Callback };
 
 [[nodiscard]] PropGuard prop_guard(std::string_view ir_type,
                                    std::span<const ir::RecordType> records = {});

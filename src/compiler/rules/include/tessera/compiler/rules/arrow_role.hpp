@@ -4,13 +4,14 @@
 
 #include "tessera/compiler/jsx/ast.hpp"
 
+#include <cstdint>
 #include <string>
 
 namespace tessera::compiler::rules {
 
 // What an arrow function is for (docs/specs/jsx-subset-v1.md section 9). Lowering reads the role
 // instead of re-deriving it from the surrounding syntax.
-enum class ArrowRole {
+enum class ArrowRole : std::uint8_t {
     NativeHandler, // `// Note: bind::id` + `const f = (...) => ...` (spec 9.3)
     InlineHandler, // un-annotated `const f = arrow` made of setter calls only (decision 4)
     Effect,        // first argument of `useEffect`

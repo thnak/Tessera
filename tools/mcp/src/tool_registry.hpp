@@ -4,6 +4,7 @@
 
 #include "tessera/harness/json_value.hpp"
 
+#include <cstdint>
 #include <expected>
 #include <string>
 #include <string_view>
@@ -23,7 +24,7 @@ using tessera::harness::JsonValue;
 
 // What this build can do with a tool. The distinction is published, not implied: a declared tool's
 // description says so, so an agent reading `tools/list` never has to discover it by calling.
-enum class ToolStatus {
+enum class ToolStatus : std::uint8_t {
     Implemented,
     Declared, // advertised, returns TESSERA_MCP_TOOL_UNIMPLEMENTED
 };
@@ -31,7 +32,7 @@ enum class ToolStatus {
 // Where the tool's work comes from once it is implemented. This records the mapping the spec
 // requires ("every tool maps to one command of headless-automation-v1.md or one message of the
 // designer protocol"), and it is what a later slice fills in rather than inventing a new protocol.
-enum class ToolSource {
+enum class ToolSource : std::uint8_t {
     Compiler,         // the front end / codegen driver, as the CLI harness runs it
     Harness,          // a headless-automation-v1 command (needs a live host)
     DesignerProtocol, // a designer-protocol-v1 host message (needs the studio host)

@@ -21,10 +21,11 @@ int main() {
     // `CommandList::bind_texture_array` and `Device::texture_array_capacity()` (issue #480);
     // 1.8 added `Backend::Metal`, the native macOS/iOS backend (ADR-053); 1.9 added
     // `Texture::write_region`/`TextureRegion` (issue #681); 1.10 added `SurfacePlatform::Android`,
-    // the `VK_KHR_android_surface` presentation family (issue #189). All are additive compatible
+    // the `VK_KHR_android_surface` presentation family (issue #189); 1.11 gave every RHI `enum
+    // class` an explicit `std::uint8_t` underlying type (issue #734). All are additive compatible
     // changes.
-    if (rhi::kRhiVersionMajor != 1 || rhi::kRhiVersionMinor != 10 ||
-        rhi::kRhiVersion != ((1u << 16) | 10u)) {
+    if (rhi::kRhiVersionMajor != 1 || rhi::kRhiVersionMinor != 11 ||
+        rhi::kRhiVersion != ((1u << 16) | 11u)) {
         std::cerr << "unexpected RHI version constants\n";
         return 1;
     }

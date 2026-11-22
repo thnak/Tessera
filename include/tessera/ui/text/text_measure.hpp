@@ -30,7 +30,7 @@ class FontMetricsProvider;
 //
 // `pre` parses to Pre and `pre-line` to Normal: the paragraph split already keeps hard newlines, so
 // collapsing is the only observable part of pre-line (docs/design/text.md section 6.1).
-enum class WhiteSpace {
+enum class WhiteSpace : std::uint8_t {
     Normal,
     NoWrap,
     Pre,
@@ -65,7 +65,7 @@ enum class WhiteSpace {
 //   * Clip     - paint the laid-out line verbatim, even when it is wider than its content box.
 //   * Ellipsis - when the laid-out line does not fit, paint the longest cluster-aligned prefix plus
 //                one U+2026 that still fits the content box (the layout is unchanged).
-enum class TextOverflow {
+enum class TextOverflow : std::uint8_t {
     Clip,
     Ellipsis,
 };
@@ -75,7 +75,7 @@ enum class TextOverflow {
 // one byte to one byte, and non-ASCII bytes are copied unchanged. Full Unicode/ICU casing (and the
 // locale-sensitive Turkic forms) is a later slice. It changes the measured glyphs, so it is part of
 // both cache keys and the layout signature.
-enum class TextTransform {
+enum class TextTransform : std::uint8_t {
     None,
     Uppercase,
     Lowercase,

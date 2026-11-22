@@ -27,7 +27,9 @@ namespace {
 constexpr std::size_t kPaceDecisionBytes = 16;
 constexpr std::size_t kAdaptiveQualitySampleBytes = 24;
 constexpr std::size_t kOverlayPlacementBytes = 40;
-constexpr std::size_t kPaintDataBytes = 528;
+// 528 -> 520 with issue #734: `PaintData`'s untyped `enum class` members were `int`, and typing
+// them let the tail padding close.
+constexpr std::size_t kPaintDataBytes = 520;
 
 static_assert(sizeof(runtime::PaceDecision) == kPaceDecisionBytes,
               "sizeof(PaceDecision) regressed (issue #731: order members widest-first)");
@@ -35,8 +37,9 @@ static_assert(sizeof(runtime::AdaptiveQualitySample) == kAdaptiveQualitySampleBy
               "sizeof(AdaptiveQualitySample) regressed (issue #731: order members widest-first)");
 static_assert(sizeof(ui::OverlayPlacement) == kOverlayPlacementBytes,
               "sizeof(OverlayPlacement) regressed (issue #731: order members widest-first)");
-static_assert(sizeof(ui::PaintData) == kPaintDataBytes,
-              "sizeof(PaintData) regressed (issue #731: LinearGradient reordered)");
+static_assert(
+    sizeof(ui::PaintData) == kPaintDataBytes,
+    "sizeof(PaintData) regressed (issue #731: LinearGradient reordered; #734: enum bases)");
 
 } // namespace
 

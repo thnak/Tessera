@@ -2,17 +2,18 @@
 
 #pragma once
 
+#include <cstdint>
 #include <string_view>
 
 namespace tessera::ui::animation {
 
-enum class EasingKind {
+enum class EasingKind : std::uint8_t {
     Linear,
     CubicBezier,
     Steps,
 };
 
-enum class StepPosition {
+enum class StepPosition : std::uint8_t {
     JumpStart,
     JumpEnd,
     JumpNone,

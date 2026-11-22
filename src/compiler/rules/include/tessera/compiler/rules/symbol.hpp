@@ -5,11 +5,12 @@
 #include "tessera/compiler/jsx/source_map.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <string>
 
 namespace tessera::compiler::rules {
 
-enum class SymbolKind {
+enum class SymbolKind : std::uint8_t {
     Prop,          // a destructured prop, `{ initial = 0 }: P`
     PropsParam,    // the whole props parameter, `props: P`
     State,         // `x` of `const [x, setX] = useState(...)`

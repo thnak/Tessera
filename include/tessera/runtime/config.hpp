@@ -16,12 +16,12 @@
 // config is named `tessera::RuntimeConfig` exactly as the spec shows.
 namespace tessera {
 
-enum class VsyncMode { Off, On, Adaptive, Mailbox };
-enum class RefreshMode { Off, Auto, Preferred };
-enum class FramePacing { Auto, Smooth, LowLatency, PowerSave };
-enum class DirtyMode { Auto, On, Off };
-enum class PowerPolicy { Adaptive, PowerSave, Balanced, Performance, Benchmark };
-enum class ResizeMode { Live, Deferred, Adaptive };
+enum class VsyncMode : std::uint8_t { Off, On, Adaptive, Mailbox };
+enum class RefreshMode : std::uint8_t { Off, Auto, Preferred };
+enum class FramePacing : std::uint8_t { Auto, Smooth, LowLatency, PowerSave };
+enum class DirtyMode : std::uint8_t { Auto, On, Off };
+enum class PowerPolicy : std::uint8_t { Adaptive, PowerSave, Balanced, Performance, Benchmark };
+enum class ResizeMode : std::uint8_t { Live, Deferred, Adaptive };
 
 struct RuntimeConfig {
     double fixed_timestep_hz = 60.0;
@@ -84,7 +84,7 @@ struct RuntimeConfig {
 
 // One failure class per kind of rejection. `MalformedJson` is a document-level syntax error (its
 // `field` is empty); every other code names the runtime object's JSON key it rejected.
-enum class RuntimeConfigErrorCode {
+enum class RuntimeConfigErrorCode : std::uint8_t {
     MalformedJson, // not JSON, duplicate key, invalid UTF-8, bad escape, nesting too deep
     InvalidType,   // member has the wrong JSON type (integer vs number is part of the field table)
     InvalidValue,  // an enum string is not one of the documented values

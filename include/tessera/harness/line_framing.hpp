@@ -3,6 +3,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -16,7 +17,7 @@ namespace tessera::harness {
 // a line may additionally carry a CR before its LF.
 inline constexpr std::size_t kMaxLineBytes = std::size_t{1} << 20U;
 
-enum class FrameErrorCode {
+enum class FrameErrorCode : std::uint8_t {
     LineTooLong, // payload exceeded kMaxLineBytes; framing resumed after the terminator
     InvalidUtf8, // payload is not well-formed UTF-8
     EmptyLine,   // a terminator with no payload is not a frame
@@ -40,7 +41,7 @@ struct FrameError {
 // until a terminator arrives, so a partial line is never observable.
 class LineFramer {
 public:
-    enum class Status {
+    enum class Status : std::uint8_t {
         Line,        // `line` holds one validated payload
         NeedMore,    // no complete line yet: append() more bytes or call finish()
         Rejected,    // `error` says why the current line was dropped

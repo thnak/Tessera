@@ -7,6 +7,7 @@
 #include "tool_registry.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <optional>
 #include <string>
@@ -28,7 +29,7 @@ inline constexpr std::size_t kMaxSourceBytes = 1024 * 1024;
 // Where the open project's root came from (docs/specs/designer-studio-v1.md section 8). The order
 // of precedence is the order of this list: an explicit `open_project` beats the client's `roots`,
 // which beat the server's working directory.
-enum class RootSource {
+enum class RootSource : std::uint8_t {
     Argument,
     Roots,
     Cwd,

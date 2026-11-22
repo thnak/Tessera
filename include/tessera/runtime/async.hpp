@@ -3,6 +3,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <deque>
 #include <functional>
 #include <memory>
@@ -11,7 +12,7 @@
 
 namespace tessera::runtime {
 
-enum class CompletionPriority {
+enum class CompletionPriority : std::uint8_t {
     Visible = 0,
     LayoutPaint = 1,
     Background = 2,

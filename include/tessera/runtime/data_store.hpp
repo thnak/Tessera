@@ -18,7 +18,7 @@ class Clock;
 
 // Observable lifecycle of one resource (docs/specs/async-data-v1.md section 1). Cached is not a
 // status: an entry that was never written reports Idle with no value.
-enum class DataStatus { Idle, Loading, Refreshing, Success, Error, Stale };
+enum class DataStatus : std::uint8_t { Idle, Loading, Refreshing, Success, Error, Stale };
 
 // A value error (docs/specs/error-model-v1.md); the UI edge localizes it, the store only carries
 // it.

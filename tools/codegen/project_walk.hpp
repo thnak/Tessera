@@ -8,6 +8,7 @@
 #include "tessera/compiler/rules/analyze.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <span>
@@ -41,7 +42,7 @@ struct WalkUnit {
 
 // Why the walk stopped. `file` is the project file the failure is in.
 struct WalkFailure {
-    enum class Kind { Parse, Analyze, Import, Stylesheet };
+    enum class Kind : std::uint8_t { Parse, Analyze, Import, Stylesheet };
     Kind kind = Kind::Parse;
     std::string file;
     std::string message;
