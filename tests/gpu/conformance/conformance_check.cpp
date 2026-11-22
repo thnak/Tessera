@@ -32,6 +32,8 @@ std::string_view capability_name(Capability capability) {
         return "device_status";
     case Capability::GpuTimestamps:
         return "gpu_timestamps";
+    case Capability::StorageBuffer:
+        return "storage_buffer";
     }
     return "unknown";
 }

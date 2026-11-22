@@ -193,14 +193,16 @@ struct LayoutSource {
 class VulkanBuffer final : public rhi::Buffer {
 public:
     VulkanBuffer(VulkanDevice* owner, std::uint32_t epoch, VmaAllocator allocator, VkBuffer buffer,
-                 VmaAllocation allocation, std::size_t size, void* mapped)
+                 VmaAllocation allocation, std::size_t size, void* mapped,
+                 rhi::BufferUsage usage = rhi::BufferUsage::Vertex)
         : owner_(owner),
           epoch_(epoch),
           allocator_(allocator),
           buffer_(buffer),
           allocation_(allocation),
           size_(size),
-          mapped_(mapped) {}
+          mapped_(mapped),
+          usage_(usage) {}
 
     ~VulkanBuffer() override;
 
@@ -212,6 +214,12 @@ public:
     [[nodiscard]] VkBuffer handle() const {
         return buffer_;
     }
+    // What the buffer was created for. bind_storage_buffer rejects a buffer that was not created
+    // with BufferUsage::Storage (RHI 1.12, ADR-068): a vertex buffer bound as a storage buffer
+    // would be a descriptor the driver may reject or, worse, silently accept.
+    [[nodiscard]] rhi::BufferUsage usage() const {
+        return usage_;
+    }
 
 private:
     VulkanDevice* owner_ = nullptr;
@@ -221,6 +229,7 @@ private:
     VmaAllocation allocation_ = nullptr;
     std::size_t size_ = 0;
     void* mapped_ = nullptr;
+    rhi::BufferUsage usage_ = rhi::BufferUsage::Vertex;
 };
 
 class VulkanTexture final : public rhi::Texture {
@@ -548,6 +557,7 @@ public:
     void bind_texture_array(std::uint32_t slot,
                             const std::vector<const rhi::Texture*>& textures) override;
     void bind_sampled_target(std::uint32_t slot, const rhi::RenderTarget& target) override;
+    void bind_storage_buffer(std::uint32_t slot, const rhi::Buffer& buffer) override;
     void set_viewport(const rhi::Viewport& viewport) override;
     void set_scissor(const rhi::Scissor& scissor) override;
     void push_constants(const void* data, std::size_t size) override;

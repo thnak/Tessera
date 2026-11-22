@@ -43,6 +43,14 @@ public:
                                              std::uint32_t sample_count) const override;
     [[nodiscard]] bool supports_dual_source_blend() const override;
     [[nodiscard]] bool supports_texture_mipmaps(rhi::TextureFormat format) const override;
+    // Metal has `[[buffer(n)]]` slots on the fragment stage, so a read-only storage buffer is
+    // expressible; the binding itself is not implemented yet (ADR-068 slice 2). Reporting false
+    // keeps a caller on the push-constant clip path instead of building a pipeline whose binding
+    // can never be satisfied. Flip this to true in the same change that implements
+    // bind_storage_buffer.
+    [[nodiscard]] bool supports_storage_buffers() const override {
+        return false;
+    }
 
     [[nodiscard]] id<MTLDevice> device() const {
         return device_;

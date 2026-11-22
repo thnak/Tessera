@@ -30,6 +30,9 @@ enum class Capability {
     CommandList,
     DeviceStatus,
     GpuTimestamps,
+    // RHI 1.12 (ADR-068): a read-only storage buffer bound by `bind_storage_buffer`. A backend that
+    // answers `supports_storage_buffers() == false` reports a skip naming this capability.
+    StorageBuffer,
 };
 
 [[nodiscard]] std::string_view capability_name(Capability capability);

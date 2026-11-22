@@ -182,6 +182,11 @@ public:
     [[nodiscard]] bool supports_texture_mipmaps(rhi::TextureFormat) const override {
         return mipmaps_supported;
     }
+    // The cache under test never binds a storage buffer, so the capability is unreachable here;
+    // false is the honest answer for a fake that cannot bind one.
+    [[nodiscard]] bool supports_storage_buffers() const override {
+        return false;
+    }
 
     std::unique_ptr<rhi::Texture> create_texture(const rhi::TextureDesc& desc) override {
         if (fail_textures > 0) {

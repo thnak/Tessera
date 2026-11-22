@@ -49,6 +49,8 @@ inline constexpr std::uint32_t kCopyDst = 0x08;
 inline constexpr std::uint32_t kIndex = 0x10;
 inline constexpr std::uint32_t kVertex = 0x20;
 inline constexpr std::uint32_t kUniform = 0x40;
+// GPUBufferUsage.STORAGE (RHI 1.12, ADR-068): a read-only storage buffer a shader indexes.
+inline constexpr std::uint32_t kStorage = 0x80;
 } // namespace buffer_usage_bits
 
 namespace texture_usage_bits {

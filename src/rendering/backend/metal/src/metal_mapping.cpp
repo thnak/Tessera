@@ -72,6 +72,9 @@ StorageMode buffer_storage_mode(rhi::BufferUsage usage) {
     case rhi::BufferUsage::Uniform:
     case rhi::BufferUsage::Staging:
     case rhi::BufferUsage::Readback:
+    // A read-only storage buffer (RHI 1.12, ADR-068) is written by the CPU every frame, so it needs
+    // the same CPU-visible mode as the upload buffers.
+    case rhi::BufferUsage::Storage:
         // Every RHI buffer use is written or read by the CPU: vertex/index/uniform data is
         // uploaded, staging is written, readback is read. `Shared` is the mode that allows both
         // without the explicit synchronize calls `Managed` needs (section 4.1).

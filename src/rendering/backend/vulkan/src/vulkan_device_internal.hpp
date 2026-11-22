@@ -43,6 +43,13 @@ public:
     [[nodiscard]] std::uint32_t texture_array_capacity() const override {
         return texture_array_capacity_;
     }
+    // RHI 1.12 (ADR-068 slice 1): a read-only storage buffer in the fragment stage is core Vulkan
+    // 1.0, so the only honest gate is the per-stage descriptor limit. Probed in create_device()
+    // from VkPhysicalDeviceLimits::maxPerStageDescriptorStorageBuffers, so a recovered device
+    // reports the new device's answer. A device that reports 0 keeps the push-constant clip path.
+    [[nodiscard]] bool supports_storage_buffers() const override {
+        return storage_buffer_capacity_ > 0;
+    }
     // The RHI timestamp probe: the selected queue family's timestampValidBits, that family's
     // graphics capability, and the device's timestampPeriod (docs/design/performance.md 6.1).
     [[nodiscard]] rhi::GpuTimestampCapability timestamp_capability() const override {
@@ -183,6 +190,18 @@ public:
         return texture_array_set_;
     }
 
+    // The storage-buffer layout and its one set, for a command list's bind_storage_buffer (RHI
+    // 1.12, ADR-068). Both are VK_NULL_HANDLE when the device reports no storage buffers. The set
+    // is rewritten in place (UPDATE_AFTER_BIND), so a frame records no descriptor allocation; the
+    // caller re-binds before each draw that needs a different buffer, which the renderer does at a
+    // batch boundary.
+    [[nodiscard]] VkDescriptorSetLayout storage_buffer_layout() const {
+        return storage_buffer_layout_;
+    }
+    [[nodiscard]] VkDescriptorSet storage_buffer_set() const {
+        return storage_buffer_set_;
+    }
+
 private:
     void require_ready(const char* what) const;
     void reap_command_resources();
@@ -196,6 +215,10 @@ private:
     // kTextureArrayCapacity descriptors, created only when the device enabled descriptor indexing.
     void create_texture_array_layout();
     void destroy_texture_array();
+    // The storage-buffer layout (RHI 1.12, ADR-068): one STORAGE_BUFFER binding in the fragment
+    // stage, created only when the device reports a non-zero per-stage storage-buffer limit.
+    void create_storage_buffer_layout();
+    void destroy_storage_buffer();
     // Descriptor pools (issue #480): one pool holds kDescriptorSetsPerPool sets; when it is full
     // the device grows a list instead of failing, up to kMaxDescriptorPools.
     static constexpr std::uint32_t kDescriptorSetsPerPool = 1024;
@@ -257,6 +280,11 @@ private:
     // it whenever the batch's texture set changes.
     VkDescriptorSet texture_array_set_ = VK_NULL_HANDLE;
     VkDescriptorPool texture_array_pool_ = VK_NULL_HANDLE;
+    // The storage-buffer layout and its one set (RHI 1.12, ADR-068). VK_NULL_HANDLE means the
+    // device reports no storage buffers and the push-constant clip path stays.
+    VkDescriptorSetLayout storage_buffer_layout_ = VK_NULL_HANDLE;
+    VkDescriptorSet storage_buffer_set_ = VK_NULL_HANDLE;
+    VkDescriptorPool storage_buffer_pool_ = VK_NULL_HANDLE;
     VkDescriptorPool descriptor_pool_ = VK_NULL_HANDLE; // the pool new sets are tried in first
     std::vector<VkDescriptorPool> descriptor_pools_;
     std::vector<CommandResources> free_commands_;
@@ -290,6 +318,9 @@ private:
     // RHI 1.7 (issue #480 part 2): the descriptor-array length this generation enabled, 0 when the
     // device cannot index descriptors. Cleared with the rest of the device generation.
     std::uint32_t texture_array_capacity_ = 0;
+    // RHI 1.12 (ADR-068): the per-stage storage-buffer descriptor limit this generation reported, 0
+    // when the device cannot bind one. Cleared with the rest of the device generation.
+    std::uint32_t storage_buffer_capacity_ = 0;
 
     void account(std::int64_t& counter, std::int64_t delta, std::uint32_t epoch) {
         if (epoch == epoch_) {

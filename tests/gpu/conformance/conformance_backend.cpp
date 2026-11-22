@@ -6,6 +6,7 @@
 #include "tessera/rendering/null/null_device.hpp"
 #if defined(TESSERA_TEST_HAS_VULKAN)
 #include "tessera/rendering/vulkan/batched2d_pipeline.hpp"
+#include "tessera/rendering/vulkan/storage_probe_pipeline.hpp"
 #include "tessera/rendering/vulkan/vulkan_device.hpp"
 #endif
 #if defined(TESSERA_TEST_HAS_METAL)
@@ -32,6 +33,7 @@ BackendProfile profile_for(const rhi::Device& device) {
     profile.command_list = true;
     profile.device_status = true;
     profile.gpu_timestamps = device.timestamp_capability().usable();
+    profile.storage_buffer = device.supports_storage_buffers();
     return profile;
 }
 
@@ -176,6 +178,8 @@ bool BackendProfile::has(Capability capability) const {
         return device_status;
     case Capability::GpuTimestamps:
         return gpu_timestamps;
+    case Capability::StorageBuffer:
+        return storage_buffer;
     }
     return false;
 }
@@ -222,6 +226,30 @@ rhi::PipelineDesc pipeline_template(rhi::Backend backend) {
     }
     static_cast<void>(backend);
     return rhi::PipelineDesc{};
+}
+
+bool fill_storage_probe_pipeline(rhi::Backend backend, rhi::PipelineDesc& desc) {
+    // The null backend records the descriptor and rasterizes nothing, so it needs no program: the
+    // structural half of the check is the recorded bind.
+    if (backend == rhi::Backend::Null) {
+        return true;
+    }
+#if defined(TESSERA_TEST_HAS_VULKAN)
+    if (backend == rhi::Backend::Vulkan) {
+        const rhi::PipelineDesc probe = vulkan::storage_probe_pipeline_desc(desc.color_format);
+        desc.vertex_spirv = probe.vertex_spirv;
+        desc.vertex_spirv_size = probe.vertex_spirv_size;
+        desc.fragment_spirv = probe.fragment_spirv;
+        desc.fragment_spirv_size = probe.fragment_spirv_size;
+        desc.vertex_layout = probe.vertex_layout;
+        desc.push_constant_size = probe.push_constant_size;
+        return true;
+    }
+#endif
+    // Metal and WebGPU report no storage buffers yet (ADR-068 slice 2), so the capability gate in
+    // the check already skipped them; this is the honest answer if one ever reports true without a
+    // probe program.
+    return false;
 }
 
 } // namespace tessera::tests::gpu::conformance
