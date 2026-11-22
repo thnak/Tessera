@@ -290,6 +290,11 @@ private:
     // Paint records for the tree this pipeline paints; mutable because painting is const.
     mutable paint::PaintCache paint_cache_;
     mutable paint::PaintCacheStats paint_cache_stats_snapshot_;
+    // Parsed `background-image` layer lists, keyed by style identity (issue #733 item 2). Mutable
+    // and owned here for the same reason as the paint cache: it must outlive one frame for a
+    // steady frame to stop re-parsing, and painting is const. A paint-cache hit never reaches the
+    // gradient path, so this only serves the misses -- which is exactly where the parse was paid.
+    mutable paint::BackgroundLayerCache background_layers_;
     PaintSamples previous_samples_;
     PaintSamples current_samples_;
     // Computed-style -> transitions/animations (issue #271). Mutable because `sync_style` is const

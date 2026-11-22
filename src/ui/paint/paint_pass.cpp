@@ -161,9 +161,9 @@ void paint_backdrop(const style::ComputedStyle& style, const rhi::Rect& rect, fl
 void paint_box_and_border(const Node& node, const style::ComputedStyle& style,
                           const rhi::Rect& rect, float opacity, const rhi::Color& current,
                           float device_scale, PaintSink& sink, PaintStats& stats,
-                          bool reduce_effects) {
+                          bool reduce_effects, BackgroundLayerCache* const layer_cache) {
     paint_background(style, rect, opacity, current, sink, stats);
-    detail::paint_gradient(node, style, rect, opacity, sink, stats);
+    detail::paint_gradient(node, style, rect, opacity, sink, stats, layer_cache);
     if (const std::optional<RingBorder> ring =
             rounded_ring(style, rect, opacity, current, device_scale)) {
         sink.fill_rounded_ring(rect, ring->color, ring->radius, ring->width);
@@ -386,7 +386,7 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
                                   current, *own, stats, detail::ShadowLayer::Outer,
                                   context.reduce_effects);
         paint_box_and_border(node, style, rect, effective_opacity, current, context.device_scale,
-                             *own, stats, context.reduce_effects);
+                             *own, stats, context.reduce_effects, context.background_layers);
     }
 
     // `overflow` clipping applies to the children (the element's own background/border are painted

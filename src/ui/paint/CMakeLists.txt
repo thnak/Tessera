@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: MIT
 
 add_library(tessera_paint STATIC
+    background_layer_cache.cpp
     paint_cache.cpp
     paint_pass.cpp
     paint_image.cpp
@@ -170,6 +171,15 @@ if (TESSERA_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/unit/paint_cache_bounds_tests.cpp)
     target_link_libraries(paint_cache_tests PRIVATE tessera_paint)
     add_test(NAME paint_cache COMMAND paint_cache_tests)
+
+    # The per-style `background-image` parse cache (issue #733 item 2): identity keying, the
+    # copy-on-write staleness rule, LRU/byte budgets, the bypass, and one parse per style across a
+    # whole paint rather than one per node. Registered here for the same lane-isolation reason as
+    # the other paint tests.
+    add_executable(background_layer_cache_tests
+        ${PROJECT_SOURCE_DIR}/tests/unit/background_layer_cache_tests.cpp)
+    target_link_libraries(background_layer_cache_tests PRIVATE tessera_paint)
+    add_test(NAME background_layer_cache COMMAND background_layer_cache_tests)
 
     # Vulkan-free CPU raster-image golden: embedded PNG -> decode cache -> textured blit, compared
     # against the committed baseline at tolerance 0. JPEG is decode-tested only (cross-compiler IDCT

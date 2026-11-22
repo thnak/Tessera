@@ -61,11 +61,38 @@ emission and the shared encoded-space ramp are the same code on both sides.
 
 A value outside the grammar returns `nullopt`, so the caller keeps its discrete 50 % switch.
 
+## 4b. Where the parse happens (issue #733 item 2)
+
+`paint_gradient` runs once per painted node per frame, and for a stylesheet value it used to call
+`parse_background_layers` on the authored text each time -- a `split_commas` vector plus a `lower`
+string per layer, thrown away when the call returned. `BackgroundLayerCache` memoises that parse.
+
+The key is **style identity**, not the value text (`ComputedStyle::identity`, the shared-entries
+block from issue #711). Three consequences:
+
+- A node whose restyle kept its entries hits without comparing a byte of the value.
+- A theme giving 5,000 nodes the same `background-image` parses it **once**, which is the shape the
+  cost has: one authored value read by many nodes.
+- A restyle hands the node a new entries block (`mutable_entries` is copy-on-write), so a cached
+  parse can never describe later text. That is why `invalidate_paint_cache` does not reset it.
+
+An invalid value is cached as "does not parse" too: it is the most stable and most expensive case to
+re-parse. A style with no entries (a default-constructed one) shares a null identity and is never
+cached, so one empty style's value cannot be served to another.
+
+The paint cache does not make this redundant: a paint-cache *hit* replays recorded ops and never
+reaches `paint_gradient`, so this only serves the misses -- which is exactly where the parse was
+paid. The two are complementary, not alternatives.
+
+A null `PaintContext::background_layers` is the uncached path and parses per call, byte-identical to
+before the cache existed.
+
 ## 5. Tests and baselines
 
 | Test | What it proves |
 |---|---|
 | `background_layers` | unit: the grammar (including the `url()`/radial/trailing-comma/9-layer rejections), the printed form round-trips, the shorthand's final-layer colour rule, the interpolation (channel blend, bottom padding, `none` fade, shorter arc), and the paint order through a recording sink |
+| `background_layer_cache` | unit: identity keying (a copy hits, a distinct style with the same text does not), the copy-on-write staleness rule, a cached invalid value, LRU and byte budgets, the disabled bypass, and one parse per style across a whole paint rather than one per node |
 | `paint_gradient_gpu` | real Vulkan readback: the bottom ramp shows through the translucent top layer, and the CPU sink agrees within 2/255 per channel |
 | `cpu_wide_golden` `layers` | the committed CPU baseline `tests/golden/baseline/cpu_wide/layers.png`: a two-layer stack, a three-layer stack with a `none` in the middle, and a single opaque layer |
 
