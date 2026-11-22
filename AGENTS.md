@@ -1016,7 +1016,25 @@ ADR-050 is Accepted (roadmap AF1-AF8); start with AF1.
 - [ ] #451: Permissions: `permissions-v1` spec and `PermissionService` (spec first; #452 and #455 need it).
 - [ ] #452: Notifications: `notifications-v1` spec and `NotificationService` (spec first; after #451).
 - [ ] #453: Background work policy: design note, in-process `TaskScope` or OS-scheduled jobs (decision, no code).
-- [ ] #454: App-level test support `tessera_testing` and a guide (`ready`): service fakes, lifecycle injection, `tap/find/advance`.
+- [x] #454: App-level test support `tessera_testing` and a guide (`ready`): service fakes, lifecycle injection, `tap/find/advance`.
+      **Done.** `include/tessera/testing/` (`test_app.hpp`, `expect.hpp`) and the `src/testing/` target:
+      one deterministic stack (`ManualClock`, `CompletionQueue`, `ManualIoExecutor`, `TimerQueue`,
+      `RuntimeLoop`, `AppHost`, `InputPump`) with the verbs an app test wants (`tap`, `type_text`,
+      `send`, `press`, `advance`, `pump_ticks`, `find`, `text_of`, `snapshot`, `expect_text`). The
+      pump gets the host as its input filter, as the window driver does, so `BackRequested` reaches the
+      app's handler instead of the scene (which has no Back event). `provide<T>()` registers in the
+      `ServiceContext` *and* the runner, because getting those out of step is the wiring mistake the
+      target exists to prevent. The AF7 fake is promoted to `include/tessera/appfw/filesystem_fake.hpp`
+      beside `net_fake`/`shell_fake` so an app test and the storage contract suite assert against one
+      definition, and it now treats a self-replace as a no-op rather than deleting the file.
+      `docs/guides/testing-your-app.md` is the worked example on the Counter fixture. Tests:
+      `testing_acceptance` (a tap increments, a conditional child appears, typing reaches the
+      generated `onChange`, a failed `FakeNet` shows the error state, Back pops a route and is then
+      reported unhandled) and `testing_kit` (determinism across two runs, `advance` arithmetic, a
+      missing locator, duplicate ids, the file-system fake, idle paint counts). No shipping target
+      links `tessera_testing`, and it links no window or GPU backend, so the suite runs on every lane.
+      **Still open:** #451/#452 add the permission and notification fakes, and the form sample's test
+      lands with the forms lane.
 - [x] #234: Library stage 0: bare package imports of `tessera-ui` —
       `packages/tessera-ui/` (Field, Form, `tessera-package.json`), `tools/codegen/package_manifest.cpp`
       (version check), `src/compiler/lowering/src/module_lowering.cpp` (bundled `tessera-ui` imports,

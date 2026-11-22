@@ -82,6 +82,17 @@ struct include/tessera/appfw/application.hpp tessera::appfw::LifecycleDispatchRe
 enum include/tessera/appfw/application.hpp tessera::appfw::TerminationOutcome
 function include/tessera/appfw/application.hpp tessera::appfw::termination_outcome_name
 
+header include/tessera/appfw/filesystem_fake.hpp
+class include/tessera/appfw/filesystem_fake.hpp tessera::appfw::FakeFileSystem
+struct include/tessera/appfw/filesystem_fake.hpp tessera::appfw::FakeFileCall
+enum include/tessera/appfw/filesystem_fake.hpp tessera::appfw::FailStep
+alias include/tessera/appfw/filesystem_fake.hpp tessera::appfw::DirEntry
+alias include/tessera/appfw/filesystem_fake.hpp tessera::appfw::FileError
+alias include/tessera/appfw/filesystem_fake.hpp tessera::appfw::FileErrorCode
+alias include/tessera/appfw/filesystem_fake.hpp tessera::appfw::FileReadResult
+alias include/tessera/appfw/filesystem_fake.hpp tessera::appfw::FileResult
+alias include/tessera/appfw/filesystem_fake.hpp tessera::appfw::FileSystem
+
 header include/tessera/appfw/i18n_catalog.hpp
 class include/tessera/appfw/i18n_catalog.hpp tessera::appfw::MessageCatalog
 struct include/tessera/appfw/i18n_catalog.hpp tessera::appfw::MessageCatalogConfig
@@ -1542,6 +1553,18 @@ class include/tessera/runtime/worker_executor.hpp tessera::runtime::WorkerExecut
 
 header include/tessera/runtime/worker_io_executor.hpp
 class include/tessera/runtime/worker_io_executor.hpp tessera::runtime::WorkerIoExecutor
+
+header include/tessera/testing/expect.hpp
+function include/tessera/testing/expect.hpp tessera::testing::expect
+function include/tessera/testing/expect.hpp tessera::testing::expect_eq
+function include/tessera/testing/expect.hpp tessera::testing::failures
+function include/tessera/testing/expect.hpp tessera::testing::note_case
+function include/tessera/testing/expect.hpp tessera::testing::print_value
+variable include/tessera/testing/expect.hpp tessera::testing::g_failures
+
+header include/tessera/testing/test_app.hpp
+class include/tessera/testing/test_app.hpp tessera::testing::TestApp
+struct include/tessera/testing/test_app.hpp tessera::testing::AdvanceConfig
 
 header include/tessera/ui/accessibility/a11y_tree.hpp
 class include/tessera/ui/accessibility/a11y_tree.hpp tessera::ui::a11y::StyleProvider

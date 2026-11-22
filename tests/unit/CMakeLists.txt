@@ -2734,6 +2734,10 @@ add_subdirectory(a11y)
 add_subdirectory(harness)
 add_subdirectory(manifest)
 add_subdirectory(scale)
+# App-level test support (issue #454): the `tessera_testing` kit's own contract and its acceptance
+# tests. Own directory for the same reason as the others: one `add_subdirectory` here keeps this file
+# the single index while the slice owns its own registrations.
+add_subdirectory(testing)
 
 # ICU-backed text tests exist only when the reduced-data option is on (CI keeps it off).
 if (TESSERA_ICU_REDUCED_DATA)
