@@ -168,6 +168,10 @@ void dump_expr(std::string& out, const Expr& expr) {
     case ExprKind::Const:
         out += "(const " + expr.text;
         break;
+    // ADR-066 item 4: the reducer form. `operands[0]` is the subject and the rest are the cases.
+    case ExprKind::Switch:
+        out += "(switch";
+        break;
     case ExprKind::Array:
         out += "(array";
         break;
