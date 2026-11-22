@@ -3,6 +3,7 @@
 #pragma once
 
 #include "tessera/rendering/path/svg_loader.hpp"
+
 #include <cstdint>
 
 namespace tessera::rendering::path {

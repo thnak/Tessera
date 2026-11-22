@@ -3,6 +3,7 @@
 #pragma once
 
 #include "tessera/rendering/rhi/types.hpp"
+
 #include <cstdint>
 
 namespace tessera::rendering::vulkan {
