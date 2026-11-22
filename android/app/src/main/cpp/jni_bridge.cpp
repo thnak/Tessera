@@ -285,10 +285,17 @@ JNIEXPORT void JNICALL Java_dev_tessera_app_TesseraView_nativeSurfaceChanged(JNI
     if (shell == nullptr || shell->window == nullptr) {
         return;
     }
-    // The window backend recomputes its metrics from the ANativeWindow and queues a coalesced
-    // Resize; the width/height the platform reports are already what the surface carries.
-    (void)width;
-    (void)height;
+    // The surface extent is the one thing this callback exists to report. It used to be discarded
+    // on the assumption that the backend would re-read the ANativeWindow itself, but nothing calls
+    // it: a fold that switches to the cover display changes the extent from 2076x2152 to 1080x2364
+    // and the engine kept rendering at the old size, which is a black screen on the new display.
+    //
+    // `set_surface_extent` is the HAL seam for exactly this: it recomputes the metrics and queues a
+    // coalesced Resize, so the driver resizes the swapchain and re-lays out.
+    if (width > 0 && height > 0) {
+        shell->window->set_surface_extent(static_cast<std::uint32_t>(width),
+                                          static_cast<std::uint32_t>(height));
+    }
 }
 
 JNIEXPORT void JNICALL Java_dev_tessera_app_TesseraView_nativeSurfaceDestroyed(JNIEnv*, jclass,

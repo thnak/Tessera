@@ -40,6 +40,7 @@
 #include <cmath>
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <span>
 
 namespace tessera::hal {
@@ -83,6 +84,11 @@ public:
     AndroidWindow& operator=(const AndroidWindow&) = delete;
 
     [[nodiscard]] WindowMetrics metrics() const override {
+        // The platform thread writes `metrics_` through the setters below while the render thread
+        // reads it here and in `poll_events`. Android delivers insets, cutouts and fold posture on
+        // the Java UI thread, so this is a genuine cross-thread read, not a same-thread one: the
+        // mutex is what makes it defined behaviour rather than a torn read of a large struct.
+        const std::lock_guard lock(metrics_mutex_);
         return metrics_;
     }
 
@@ -104,6 +110,9 @@ public:
         if (events.empty()) {
             return 0;
         }
+        // One lock for the whole batch: the pending flags and the metrics snapshot they carry must
+        // agree, or an event could report a fold the metrics no longer have.
+        const std::lock_guard lock(metrics_mutex_);
         std::size_t written = 0;
         auto emit = [&](WindowEventType type, bool& pending) {
             if (!pending || written == events.size()) {
@@ -151,11 +160,13 @@ public:
     }
 
     void show() override {
+        const std::lock_guard lock(metrics_mutex_);
         visible_ = true;
         metrics_.minimized = false;
     }
 
     void hide() override {
+        const std::lock_guard lock(metrics_mutex_);
         visible_ = false;
         metrics_.minimized = true;
     }
@@ -177,13 +188,18 @@ public:
 
     // The platform reported a new surface extent (a rotation, a fold, a multi-window resize). The
     // metrics are recomputed and a coalesced Resize is queued.
-    void set_surface_extent(std::uint32_t width_px, std::uint32_t height_px) {
+    void set_surface_extent(std::uint32_t width_px, std::uint32_t height_px) override {
         if (width_px == 0 || height_px == 0) {
             return;
         }
+        const std::lock_guard lock(metrics_mutex_);
+        // The extent is recorded and the metrics are recomputed WITHOUT re-reading the
+        // ANativeWindow: on a fold that switches to the cover display the adopted window keeps
+        // reporting the old extent, so `refresh_metrics()` would overwrite the value the platform
+        // just reported. That is why this path sets the fields directly.
         physical_width_ = width_px;
         physical_height_ = height_px;
-        refresh_metrics();
+        apply_geometry();
         pending_resize_ = true;
     }
 
@@ -192,6 +208,7 @@ public:
         if (scale <= 0.0f || scale == dpi_scale_) {
             return;
         }
+        const std::lock_guard lock(metrics_mutex_);
         dpi_scale_ = scale;
         refresh_metrics();
         pending_resize_ = true;
@@ -212,6 +229,7 @@ public:
         if (window_ != nullptr) {
             ANativeWindow_acquire(window_);
         }
+        const std::lock_guard lock(metrics_mutex_);
         refresh_metrics();
         pending_resize_ = true;
     }
@@ -220,6 +238,7 @@ public:
     // values are physical pixels; the decode divides by the display scale.
     void set_insets(const android::PhysicalInsets& system_bars, const android::PhysicalInsets& ime,
                     const android::PhysicalInsets& gestures) {
+        const std::lock_guard lock(metrics_mutex_);
         metrics_.insets = android::system_bar_insets(system_bars, dpi_scale_);
         metrics_.ime_insets = android::ime_insets(ime, dpi_scale_);
         metrics_.gesture_insets = android::gesture_insets(gestures, dpi_scale_);
@@ -231,6 +250,7 @@ public:
 
     // The platform reported the display cutouts (`DisplayCutout.getBoundingRects()`).
     void set_cutouts(std::span<const android::PhysicalRect> rects) {
+        const std::lock_guard lock(metrics_mutex_);
         metrics_.cutouts = android::cutout_info(rects, dpi_scale_);
         pending_safe_area_ = true;
     }
@@ -238,6 +258,7 @@ public:
     // The platform reported a fold posture (`FoldingFeature`).
     void set_fold(android::FoldPosture posture, android::FoldAxis axis,
                   const android::PhysicalRect& hinge) {
+        const std::lock_guard lock(metrics_mutex_);
         metrics_.fold = android::fold_info(posture, axis, hinge, dpi_scale_);
         pending_fold_ = true;
     }
@@ -321,6 +342,13 @@ private:
                 physical_height_ = static_cast<std::uint32_t>(height);
             }
         }
+        apply_geometry();
+    }
+
+    // Recomputes the metrics from the recorded physical extent and scale, without touching the
+    // ANativeWindow. Split out of `refresh_metrics` so the platform-reported extent path can reuse
+    // it: that path must NOT re-read the window, which still reports the pre-fold size.
+    void apply_geometry() {
         metrics_.physical_width = physical_width_;
         metrics_.physical_height = physical_height_;
         metrics_.logical_width = logical_from_physical(physical_width_, dpi_scale_);
@@ -342,6 +370,11 @@ private:
     float dpi_scale_ = 1.0f;
     std::uint32_t physical_width_ = 0;
     std::uint32_t physical_height_ = 0;
+    // Guards `metrics_`, the pending flags and the geometry fields the setters write. Android
+    // delivers insets, cutouts and fold posture on the Java UI thread while the render thread reads
+    // them from `metrics()` and `poll_events()`, so every access is a cross-thread one. The mutex
+    // is held for one struct copy or one decode, never across a present or a platform call.
+    mutable std::mutex metrics_mutex_;
     WindowMetrics metrics_{};
     SurfaceLifetime lifetime_;
     AndroidInputTranslator input_;
