@@ -34,7 +34,8 @@ struct InputEvent;
 
 namespace tessera::ui::text {
 class TextMeasurer;
-}
+class TextInputRuntime;
+} // namespace tessera::ui::text
 
 namespace tessera::app {
 
@@ -120,6 +121,23 @@ struct WindowOptions {
     // the platform reported.
     hal::NativeSurfaceToken surface;
     float dpi_scale = 1.0f;
+    // The app's caret-blink policy, pushed by the driver every iteration
+    // (docs/specs/text-editing-v1.md section 12). The host owns the blink state machine, but only
+    // the app knows whether a text field is focused and editable, so the app answers through this
+    // callback and the host feeds the answer to `set_caret_active`. Null keeps the pre-existing
+    // behaviour exactly: the caret stays inactive until the app calls `set_caret_active` itself,
+    // which is what every desktop caller does today.
+    //
+    // It is a plain function pointer plus a context rather than a `std::function` because it runs
+    // once per driver iteration, and the host must not allocate on that path.
+    bool (*caret_active)(void* user) = nullptr;
+    void* caret_active_user = nullptr;
+    // The text runtime whose paint decoration carries the caret, when the app has one. The driver
+    // pushes its blink result into it (`TextInputRuntime::set_caret_blink_visible`) and republishes
+    // the decoration, which is what makes the caret actually blink instead of staying solid. Null
+    // leaves the blink internal, so a caller with no text field keeps the old behaviour. Borrowed:
+    // the app owns it and must clear this before the runtime dies.
+    ui::text::TextInputRuntime* caret_target = nullptr;
 };
 
 // Device health when run() returned. A caller distinguishes a clean exit (Ready, or Unavailable for

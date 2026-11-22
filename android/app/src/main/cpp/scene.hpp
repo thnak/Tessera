@@ -128,6 +128,7 @@ struct ShellScene {
 inline tessera::ui::style::CompiledStyleSheet shell_stylesheet() {
     return tessera::ui::style::compile_stylesheet(R"(
 View {
+  box-sizing: border-box;
   width: 100%;
   display: flex;
   flex-direction: column;
@@ -153,6 +154,7 @@ Button:active {
   background-color: #1e40af;
 }
 TextInput {
+  box-sizing: border-box;
   width: 100%;
   height: 48px;
   padding: 12px;

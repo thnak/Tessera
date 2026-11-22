@@ -297,6 +297,11 @@ stays inside its size budget.
 - **The IME's long tail:** `requestCursorUpdates` is not forwarded (the engine has no cursor-anchor
   report), and `performEditorAction` reports "not handled" because the edit controller has no
   Done/Search/Go concept. The compose/commit/delete path and the text queries are wired.
+- **Caret movement, selection and the context menu.** `EditController::place_caret_at` and
+  `extend_selection_to` exist and are unit-tested, but no Android shell code calls them: a tap on the
+  field does not move the caret, there is no long-press selection, and there is no context menu or
+  clipboard backend for Android (`src/platform/windows/clipboard_win32.cpp` is the only
+  implementation; `clipboard_unsupported.cpp` is the fallback). See section 3.12 for what *is* wired.
 - **A generated component.** The shell's scene (`android/app/src/main/cpp/scene.hpp`) is built by
   hand, because the codegen CLI runs on the host at build time and `tessera_compiler_demo` is gated
   on `NOT CMAKE_CROSSCOMPILING`. A hand-built tree still exercises the scene graph, the compiled
@@ -468,6 +473,57 @@ adb shell dumpsys sensorservice | Select-String "hinge"
 
 The emulator reports `90.00` at `HALF_OPENED` and `0.00` at `CLOSED`, which is the sensor's own
 scale (0 closed, 180 flat) and not the posture enum.
+
+### 3.12 Keys and the caret: two seams a custom-rendered field does not get for free
+
+A custom-rendered text field gets neither of these from the platform, and both fail in a way that
+looks like "the engine is broken" rather than "a seam is missing".
+
+**Keys.** A `SurfaceView` receives key events only when it is focused, and the engine draws its own
+field, so the platform cannot route a key to "the field" — it routes it to the view. Without a
+`dispatchKeyEvent` override the engine never sees a Backspace at all: the IME's own suggestion strip
+drops a character while the field keeps the text, which is exactly the symptom that was reported.
+`TesseraView.dispatchKeyEvent` forwards every key except the system Back to `nativeKey`, which reads
+the Java getters into a `KeySample` and lets the pure `translate_key_sample`
+(`android_input_translation.cpp`) do the mapping — the same split as the touch path, so
+`android_input` pins it on every lane.
+
+Two rules matter there:
+
+- A key-down that types a character produces **two** events, the key event and a `Text` event. The
+  edit controller inserts from the latter; a bridge that forwards only the key event types nothing.
+- A key the engine has no logical code for produces **nothing**, so the caller lets the platform
+  handle it. That is what keeps the system Back gesture working; consuming it would break navigation.
+
+An IME that synthesises a key (Space, Enter) does **not** go through the view's dispatcher: the IME
+owns the input connection, so the event arrives at `TesseraInputConnection.sendKeyEvent` instead.
+That override takes the same `nativeKey` path, which is why Space types at all — without it the
+field could not contain a space while letters (committed as text) still worked.
+
+Enter has two paths and both are needed. A hardware Enter arrives as a key event; a soft-keyboard
+Enter on a multi-line field arrives as `performEditorAction`, which the connection answers by
+sending the same key pair. A single-line field gates the newline off by design (submit is a form
+concern the engine defers), so the shell's demo field is multi-line — otherwise Enter reads as a
+broken key on a phone with no form to submit.
+
+`adb shell input keyevent` is not a substitute for a real keyboard here: it delivers only the
+key-up to the view (the default `View.onKeyDown` consumes the down), so a newline cannot be
+reproduced with it. Tap the soft keyboard's Enter instead.
+
+**The caret.** `CaretBlink` is host-owned (`WindowHost::Impl::caret`) and ticks once per driver
+iteration, but the host cannot know whether a field is focused — only the app can. Two options close
+the loop:
+
+| option | direction | why |
+|---|---|---|
+| `caret_active` | app → host | the app's focus/editability policy, asked every iteration |
+| `caret_target` | host → app | the `TextInputRuntime` whose decoration carries the caret |
+
+Without `caret_active` the blink never starts; without `caret_target` it starts but nothing it
+decides reaches `TextDecoration::blink_phase`, so paint draws a solid caret forever. Both are null by
+default, which keeps every desktop caller on the pre-blink behaviour. `caret_blink_target` (a GPU
+test) pins the round trip: focus through the policy alone publishes a visible phase, a half-period
+flip publishes a hidden one, and blurring publishes hidden immediately.
 
 ## 4. Related
 

@@ -66,9 +66,20 @@ public:
     // `PaintData::decoration` (Text-kind payload only). Generated controlled fields call this at
     // the end of `apply_state` because that rebuilds the PaintData, and the runtime calls it after
     // every handled event, so paint sees the caret without a timer. Caret visibility follows focus
-    // (`EditController::caret_blink_active`); `blink_phase` keeps the paint default until a host
-    // wires `CaretBlink`. No-op without a target or a Text-kind payload.
+    // (`EditController::caret_blink_active`) combined with the host-owned blink phase below.
     void publish_decoration();
+
+    // The host-owned blink result (`CaretBlink::caret_visible`), pushed by the driver that owns the
+    // clock. Paint has no timer, so the phase is a value the driver writes here and
+    // `publish_decoration` copies into `TextDecoration::blink_phase`; the default (true) keeps the
+    // pre-blink behaviour for a host that never wires a blink. Republishing is the caller's job:
+    // this only records the value, so a driver that flips it calls `publish_decoration` too.
+    void set_caret_blink_visible(bool visible) {
+        caret_blink_visible_ = visible;
+    }
+    [[nodiscard]] bool caret_blink_visible() const {
+        return caret_blink_visible_;
+    }
 
     // Number of `TextChange` events emitted since construction (diagnostics/tests).
     [[nodiscard]] std::size_t change_events() const {
@@ -88,6 +99,9 @@ private:
     std::uint64_t seen_committed_edits_ = 0;
     std::size_t change_events_ = 0;
     bool last_change_handled_ = false;
+    // The host-owned blink phase, copied into every decoration this runtime publishes. True keeps
+    // the paint default, so a host that never wires a blink paints a steady caret.
+    bool caret_blink_visible_ = true;
 };
 
 // Trampoline for a node event binding: forwards the bound scene event to the runtime. Declared

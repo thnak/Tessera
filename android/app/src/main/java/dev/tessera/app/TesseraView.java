@@ -8,6 +8,7 @@ import android.graphics.Rect;
 import android.os.Build;
 import android.text.InputType;
 import android.view.DisplayCutout;
+import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.Surface;
 import android.view.SurfaceHolder;
@@ -180,6 +181,30 @@ public final class TesseraView extends SurfaceView implements SurfaceHolder.Call
 
     // --- Input -------------------------------------------------------------------------------
 
+    /**
+     * Forwards a key event to the engine, which is the only way a hardware Backspace reaches the
+     * text field.
+     *
+     * <p>A {@link SurfaceView} receives key events only when it is focused, and the engine draws its
+     * own text field, so the platform cannot route a key to "the field" — it routes it to this view.
+     * The engine's edit controller then decides whether the key means anything (Backspace deletes,
+     * an arrow moves the caret, a letter is ignored here because the IME commits it as text).
+     *
+     * <p>The system Back key is deliberately left to the platform: the engine models it as a
+     * {@code BackRequested} event that needs a route stack, and the shell has none, so consuming it
+     * here would break the navigation gesture.
+     */
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        if (nativeHandle != 0 && event.getKeyCode() != KeyEvent.KEYCODE_BACK) {
+            if (nativeKey(nativeHandle, event.getKeyCode(), event.getMetaState(), event.getAction(),
+                    event.getRepeatCount(), event.getEventTime())) {
+                return true;
+            }
+        }
+        return super.dispatchKeyEvent(event);
+    }
+
     @Override
     public boolean onTouchEvent(MotionEvent event) {
         if (nativeHandle == 0) {
@@ -341,4 +366,20 @@ public final class TesseraView extends SurfaceView implements SurfaceHolder.Call
      */
     static native boolean nativeIme(long handle, int action, String text, int cursorUtf16,
             int deleteBefore, int deleteAfter);
+
+    /**
+     * Forwards one key event to the engine's edit controller.
+     *
+     * <p>A hardware key and an IME-synthesised key both arrive here as a {@link KeyEvent}: the shell
+     * is a Java activity, so neither reaches the engine through the NDK's {@code AInputEvent} path.
+     * Without this the engine never sees a Backspace, and the field cannot be emptied.
+     *
+     * <p>The keycode, meta state and action are the platform's own values; the native side maps them
+     * with the same pure rules the NDK path uses. A key the engine has no logical code for returns
+     * false, so the platform keeps its own handling (the system Back gesture, for one).
+     *
+     * @return true when the engine consumed the key.
+     */
+    static native boolean nativeKey(long handle, int keycode, int metaState, int action,
+            int repeatCount, long eventTimeNanos);
 }

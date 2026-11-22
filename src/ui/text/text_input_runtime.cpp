@@ -96,6 +96,9 @@ void TextInputRuntime::publish_decoration() {
     decoration.selection_begin = static_cast<std::size_t>(buffer.selection_start());
     decoration.selection_end = static_cast<std::size_t>(buffer.selection_end());
     decoration.caret_visible = controller_->caret_blink_active(focused);
+    // The host owns the blink clock, so the phase is whatever it last pushed. A host that never
+    // wires a blink leaves this true, which keeps the pre-blink steady caret.
+    decoration.blink_phase = caret_blink_visible_ ? 1.0f : 0.0f;
     const EditController::PreeditRange preedit = controller_->preedit_range();
     if (preedit.active) {
         decoration.composition_active = true;

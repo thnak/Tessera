@@ -55,6 +55,7 @@ class include/tessera/app/window.hpp tessera::app::WindowHost
 class include/tessera/app/window.hpp tessera::rendering::rhi::Device
 class include/tessera/app/window.hpp tessera::runtime::Clock
 class include/tessera/app/window.hpp tessera::ui::FocusManager
+class include/tessera/app/window.hpp tessera::ui::text::TextInputRuntime
 class include/tessera/app/window.hpp tessera::ui::text::TextMeasurer
 struct include/tessera/app/window.hpp tessera::app::CaptureOptions
 struct include/tessera/app/window.hpp tessera::app::CapturedFrame

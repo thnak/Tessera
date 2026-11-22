@@ -322,6 +322,35 @@ int main() {
         return 13;
     }
 
+    // A percentage width resolves against the containing block's CONTENT box, not its padding box
+    // (issue #791 part 2). The Android shell's card has `padding: 24px` and its children have
+    // `width: 100%`; resolving against the padding box makes every child end at the card's border
+    // edge, so the right padding is never subtracted and the children overflow. The left padding IS
+    // applied, which is why the bug looks almost right and is easy to miss.
+    const LayoutInput padded_card =
+        node(200,
+             style({{"display", "flex"},
+                    {"flex-direction", "column"},
+                    {"width", "400px"},
+                    {"height", "200px"},
+                    {"padding-top", "24px"},
+                    {"padding-right", "24px"},
+                    {"padding-bottom", "24px"},
+                    {"padding-left", "24px"}}),
+             {node(201, style({{"width", "100%"}, {"height", "48px"}})),
+              node(202, style({{"width", "100%"}, {"height", "48px"}}))});
+    const LayoutResult padded_card_result = engine.layout(padded_card, viewport);
+    // The card is `content-box` (the CSS default), so its authored 400x200 is the CONTENT box and
+    // the border box is 448x248. A 100% child therefore resolves to 400 wide starting at x=24 -
+    // ending at 424, not at the card's 448 border edge.
+    if (!expect(box_is(padded_card_result, 200, 0, 0, 448, 248), "padded card box") ||
+        !expect(box_is(padded_card_result, 201, 24, 24, 400, 48),
+                "a 100% child fits the content box, not the padding box") ||
+        !expect(box_is(padded_card_result, 202, 24, 72, 400, 48),
+                "the second 100% child fits too")) {
+        return 14;
+    }
+
     std::cout << "layout: ok\n";
     return 0;
 }

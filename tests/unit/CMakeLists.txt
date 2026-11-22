@@ -2006,6 +2006,18 @@ target_link_libraries(layout_apply_tests PRIVATE tessera_layout)
 
 add_test(NAME layout_apply COMMAND layout_apply_tests)
 
+# A percentage width resolves against the containing block's content box (issue #791 part 2). The
+# Android shell's card has `padding: 24px` and its children ask for `width: 100%`; resolving against
+# the padding box makes every child end at the card's border edge, so the right padding is never
+# subtracted and the children overflow. This goes through the real path - a compiled stylesheet plus
+# inline declarations - because the pure LayoutInput path takes longhands that are already expanded.
+add_executable(layout_percent_content_box_tests
+    layout_percent_content_box_tests.cpp)
+
+target_link_libraries(layout_percent_content_box_tests PRIVATE tessera_app tessera_runtime)
+
+add_test(NAME layout_percent_content_box COMMAND layout_percent_content_box_tests)
+
 add_executable(layout_observer_tests
     layout_observer_tests.cpp)
 
