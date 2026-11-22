@@ -326,11 +326,11 @@ This page is the map and reading order for the framework.
 - [`design/networking-module.md`](design/networking-module.md) — the `net` module: the
   fetch-shaped interface, named outcomes, redirects, the transport seam and `FakeNet`
   (issue #197)
-- [`design/native-render-surfaces.md`](design/native-render-surfaces.md) — typed refs to native
+- [`design/shell-module.md`](design/shell-module.md) — the `shell` module: the policy/back-end
+  split, capability negotiation, the path rule, capability handles, and the Win32 back end (#450)- [`design/native-render-surfaces.md`](design/native-render-surfaces.md) — typed refs to native
   render surfaces drawn through the RHI: lifecycle, threading, dirty/idle rules (ADR-050 section 7)
 - [`design/service-resolve-benchmark.md`](design/service-resolve-benchmark.md) — measured cost of
-  resolving app services (per call, per mount, cache effects, virtual vs static dispatch) behind
-  ADR-050's resolve-at-mount rule
+  resolving app services (per call, per mount, cache effects, virtual vs static dispatch)
 - [`design/observable.md`](design/observable.md) — `Observable<T>`: coalescing over
   `UpdateScheduler` (one notification per flush), the `const T&` delivery model, unsubscribe
   semantics, and the zero-allocation `set()` proof (ADR-050 section 6, AF4)
