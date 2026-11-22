@@ -5,6 +5,7 @@
 // and `cursor` (the shape the app requests from the platform). The property side (z-index,
 // transform, shadow reach, glass) stays in `paint::sync_scene_style`.
 
+#include "tessera/detail/text_util.hpp"
 #include "tessera/ui/style/cursor_value.hpp"
 #include "tessera/ui/style/interaction_style.hpp"
 
@@ -13,16 +14,9 @@
 #include <string_view>
 
 namespace tessera::ui::style {
-namespace {
 
-std::string_view trim(std::string_view text) {
-    const auto first = text.find_first_not_of(" \t\r\n\f");
-    if (first == std::string_view::npos) {
-        return {};
-    }
-    const auto last = text.find_last_not_of(" \t\r\n\f");
-    return text.substr(first, last - first + 1);
-}
+using tessera::detail::trim;
+namespace {
 
 bool equals_lower(std::string_view text, std::string_view keyword) {
     if (text.size() != keyword.size()) {

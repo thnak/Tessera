@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "tessera/detail/text_util.hpp"
 #include "tessera/ui/frame_interpolation.hpp"
 #include "tessera/ui/style/transform.hpp"
 
@@ -11,6 +12,10 @@
 #include <string_view>
 
 namespace tessera::ui::frame {
+
+using tessera::detail::lower;
+using tessera::detail::parse_number;
+using tessera::detail::trim;
 namespace {
 
 constexpr float kPi = 3.14159265358979323846f;
@@ -22,15 +27,6 @@ constexpr float kDecompositionTolerance = 1.0e-4f;
 
 constexpr const char* kBorderColorProperties[4] = {"border-top-color", "border-right-color",
                                                    "border-bottom-color", "border-left-color"};
-
-std::string_view trim(std::string_view text) {
-    const auto first = text.find_first_not_of(" \t\r\n\f");
-    if (first == std::string_view::npos) {
-        return {};
-    }
-    const auto last = text.find_last_not_of(" \t\r\n\f");
-    return text.substr(first, last - first + 1);
-}
 
 bool parse_number(std::string_view text, float& out) {
     const std::string_view trimmed = trim(text);

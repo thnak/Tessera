@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "tessera/detail/text_util.hpp"
 #include "tessera/ui/animation/animation_shorthand.hpp"
 
 #include <algorithm>
@@ -11,44 +12,20 @@
 #include <utility>
 
 namespace tessera::ui::animation {
+
+using tessera::detail::lower;
 namespace {
 
 std::string trim(std::string_view value) {
-    const auto first = std::find_if_not(value.begin(), value.end(),
-                                        [](unsigned char c) { return std::isspace(c) != 0; });
-    const auto last = std::find_if_not(value.rbegin(), value.rend(), [](unsigned char c) {
-                          return std::isspace(c) != 0;
-                      }).base();
-    if (first >= last) {
-        return {};
-    }
-    return std::string(first, last);
-}
-
-std::string lower(std::string_view value) {
-    std::string result(value);
-    std::transform(result.begin(), result.end(), result.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return result;
+    return std::string(tessera::detail::trim(value));
 }
 
 std::vector<std::string> split_top_level(std::string_view text) {
-    std::vector<std::string> parts;
-    std::size_t start = 0;
-    int depth = 0;
-    for (std::size_t i = 0; i <= text.size(); ++i) {
-        const char c = i < text.size() ? text[i] : '\0';
-        if (c == '(') {
-            ++depth;
-        } else if (c == ')') {
-            --depth;
-        }
-        if (i == text.size() || (c == ',' && depth <= 0)) {
-            parts.push_back(trim(text.substr(start, i - start)));
-            start = i + 1;
-        }
+    std::vector<std::string> out;
+    for (const std::string_view part : tessera::detail::split_commas(text)) {
+        out.emplace_back(part);
     }
-    return parts;
+    return out;
 }
 
 bool tokenize_spec(std::string_view text, std::vector<std::string>& tokens) {

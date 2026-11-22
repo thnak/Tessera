@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "tessera/detail/text_util.hpp"
 #include "tessera/ui/style/container_query.hpp"
 
 #include <algorithm>
@@ -8,27 +9,13 @@
 #include <string>
 
 namespace tessera::ui::style {
+
+using tessera::detail::lower;
+using tessera::detail::trim;
 namespace {
 
 bool is_space(char c) {
     return std::isspace(static_cast<unsigned char>(c)) != 0;
-}
-
-std::string lower(std::string_view value) {
-    std::string result(value);
-    std::transform(result.begin(), result.end(), result.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return result;
-}
-
-std::string_view trim(std::string_view value) {
-    while (!value.empty() && is_space(value.front())) {
-        value.remove_prefix(1);
-    }
-    while (!value.empty() && is_space(value.back())) {
-        value.remove_suffix(1);
-    }
-    return value;
 }
 
 bool parse_length(std::string_view text, double& out) {

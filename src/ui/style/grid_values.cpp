@@ -4,6 +4,7 @@
 // engine (docs/specs/grid-v1.md). Keeping one parser here means a value the engine accepts can
 // never disagree with what `@supports` reports.
 
+#include "tessera/detail/text_util.hpp"
 #include "tessera/ui/style/grid_values.hpp"
 
 #include <algorithm>
@@ -17,23 +18,11 @@
 #include <vector>
 
 namespace tessera::ui::style {
+
+using tessera::detail::lower;
+using tessera::detail::split_top_level;
+using tessera::detail::trim;
 namespace {
-
-std::string_view trim(std::string_view text) {
-    const auto first = text.find_first_not_of(" \t\r\n\f");
-    if (first == std::string_view::npos) {
-        return {};
-    }
-    const auto last = text.find_last_not_of(" \t\r\n\f");
-    return text.substr(first, last - first + 1);
-}
-
-std::string lower(std::string_view value) {
-    std::string result(value);
-    std::transform(result.begin(), result.end(), result.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return result;
-}
 
 bool parse_float(std::string_view text, float& value) {
     const std::string_view token = trim(text);
@@ -48,26 +37,6 @@ bool parse_float(std::string_view text, float& value) {
 
 // Splits on `separator` at parenthesis depth 0. Quotes are not part of the grammar these values
 // use, so only parentheses are tracked.
-std::vector<std::string_view> split_top_level(std::string_view text, char separator) {
-    std::vector<std::string_view> parts;
-    std::size_t start = 0;
-    int depth = 0;
-    for (std::size_t i = 0; i < text.size(); ++i) {
-        const char c = text[i];
-        if (c == '(') {
-            ++depth;
-        } else if (c == ')') {
-            if (depth > 0) {
-                --depth;
-            }
-        } else if (c == separator && depth == 0) {
-            parts.push_back(text.substr(start, i - start));
-            start = i + 1;
-        }
-    }
-    parts.push_back(text.substr(start));
-    return parts;
-}
 
 // Splits on top-level whitespace, keeping a `repeat(...)`/`minmax(...)` call in one token.
 std::vector<std::string_view> split_tokens(std::string_view text) {

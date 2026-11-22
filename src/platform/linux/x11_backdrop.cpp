@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "tessera/detail/text_util.hpp"
 #include "x11_backdrop.hpp"
 
 #include <X11/Xatom.h>
@@ -11,16 +12,11 @@
 #include <string_view>
 
 namespace tessera::hal::detail {
+
+using tessera::detail::lower;
 namespace {
 
 constexpr long kMaxNameLength = 1024;
-
-std::string lower(std::string_view value) {
-    std::string result(value);
-    std::transform(result.begin(), result.end(), result.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return result;
-}
 
 // Reads one UTF8_STRING/STRING property of `window` as text. Empty when the property is missing or
 // of an unusable type; a window-manager query is startup-only and never on the frame path.

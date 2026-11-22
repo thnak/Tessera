@@ -2,6 +2,7 @@
 
 #include "gradient_interpolation.hpp"
 #include "shadow_interpolation.hpp"
+#include "tessera/detail/text_util.hpp"
 #include "tessera/ui/animation/keyframes.hpp"
 #include "tessera/ui/style/color.hpp"
 
@@ -18,6 +19,7 @@
 #include <vector>
 
 namespace tessera::ui::animation {
+
 namespace {
 
 struct NumericValue {
@@ -27,15 +29,7 @@ struct NumericValue {
 };
 
 std::string trim(std::string_view value) {
-    const auto first = std::find_if_not(value.begin(), value.end(),
-                                        [](unsigned char c) { return std::isspace(c) != 0; });
-    const auto last = std::find_if_not(value.rbegin(), value.rend(), [](unsigned char c) {
-                          return std::isspace(c) != 0;
-                      }).base();
-    if (first >= last) {
-        return {};
-    }
-    return std::string(first, last);
+    return std::string(tessera::detail::trim(value));
 }
 
 NumericValue parse_numeric(std::string_view value) {

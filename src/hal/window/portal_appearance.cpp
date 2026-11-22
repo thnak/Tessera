@@ -8,9 +8,12 @@
 // message's own order flag, so a big-endian peer decodes correctly on any host. This file only
 // decides what a decoded value MEANS.
 
+#include "tessera/detail/text_util.hpp"
 #include "tessera/hal/portal_appearance.hpp"
 
 namespace tessera::hal {
+
+using tessera::detail::trim;
 
 std::string_view to_string(PortalValueError error) noexcept {
     switch (error) {
@@ -149,19 +152,6 @@ decode_portal_setting_changed(std::span<const std::uint8_t> body, bool big_endia
 // --- GTK settings.ini fallback --------------------------------------------------------------
 
 namespace {
-
-std::string_view trim(std::string_view text) {
-    std::size_t begin = 0;
-    while (begin < text.size() && (text[begin] == ' ' || text[begin] == '\t')) {
-        ++begin;
-    }
-    std::size_t end = text.size();
-    while (end > begin &&
-           (text[end - 1] == ' ' || text[end - 1] == '\t' || text[end - 1] == '\r')) {
-        --end;
-    }
-    return text.substr(begin, end - begin);
-}
 
 // GLib key files write a boolean as `true`/`false`; GSettings' list form writes `true;`/`false;`
 // (a one-element ';'-separated list). Both spellings are accepted, nothing else.

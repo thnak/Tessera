@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "tessera/detail/text_util.hpp"
 #include "tessera/ui/style/media_query.hpp"
 
 #include <algorithm>
@@ -12,25 +13,13 @@
 #include <vector>
 
 namespace tessera::ui::style {
+
+using tessera::detail::lower;
+using tessera::detail::split_top_level;
 namespace {
 
-std::string lower(std::string_view value) {
-    std::string result(value);
-    std::transform(result.begin(), result.end(), result.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return result;
-}
-
 std::string trim(std::string_view value) {
-    const auto first = std::find_if_not(value.begin(), value.end(),
-                                        [](unsigned char c) { return std::isspace(c) != 0; });
-    const auto last = std::find_if_not(value.rbegin(), value.rend(), [](unsigned char c) {
-                          return std::isspace(c) != 0;
-                      }).base();
-    if (first >= last) {
-        return {};
-    }
-    return std::string(first, last);
+    return std::string(tessera::detail::trim(value));
 }
 
 bool starts_with_word(std::string_view text, std::string_view word) {
@@ -39,25 +28,6 @@ bool starts_with_word(std::string_view text, std::string_view word) {
     }
     return text.size() == word.size() ||
            std::isspace(static_cast<unsigned char>(text[word.size()])) != 0;
-}
-
-std::vector<std::string_view> split_top_level(std::string_view text, char separator) {
-    std::vector<std::string_view> parts;
-    int depth = 0;
-    std::size_t start = 0;
-    for (std::size_t i = 0; i < text.size(); ++i) {
-        const char c = text[i];
-        if (c == '(' || c == '[') {
-            ++depth;
-        } else if (c == ')' || c == ']') {
-            --depth;
-        } else if (c == separator && depth == 0) {
-            parts.push_back(text.substr(start, i - start));
-            start = i + 1;
-        }
-    }
-    parts.push_back(text.substr(start));
-    return parts;
 }
 
 bool parse_number_value(std::string_view text, double& value, std::string_view& unit) {

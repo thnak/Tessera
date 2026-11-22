@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "tessera/detail/text_util.hpp"
 #include "tessera/ui/layout/layout_engine.hpp"
 #include "tessera/ui/style/cascade.hpp"
 
@@ -13,8 +14,12 @@
 namespace tessera::ui::layout::detail {
 
 // Lower-cases ASCII and trims whitespace of CSS keyword/number tokens.
-[[nodiscard]] std::string lower(std::string_view value);
-[[nodiscard]] std::string trim(std::string_view value);
+[[nodiscard]] inline std::string lower(std::string_view value) {
+    return ::tessera::detail::lower(value);
+}
+[[nodiscard]] inline std::string trim(std::string_view value) {
+    return std::string(::tessera::detail::trim(value));
+}
 
 // True when `value` is non-null and equals `keyword` after trim + lower-casing. Allocation-free:
 // `apply_style` asks this ~32 times per node, and the `lower(trim(...))` form it used to take

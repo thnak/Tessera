@@ -458,6 +458,16 @@ header include/tessera/detail/json_error.hpp
 enum include/tessera/detail/json_error.hpp tessera::detail::json::ErrorCode
 function include/tessera/detail/json_error.hpp tessera::detail::json::to_string
 
+header include/tessera/detail/text_util.hpp
+function include/tessera/detail/text_util.hpp tessera::detail::ascii_lower
+function include/tessera/detail/text_util.hpp tessera::detail::lower
+function include/tessera/detail/text_util.hpp tessera::detail::normalized
+function include/tessera/detail/text_util.hpp tessera::detail::parse_number
+function include/tessera/detail/text_util.hpp tessera::detail::split_commas
+function include/tessera/detail/text_util.hpp tessera::detail::split_top_level
+function include/tessera/detail/text_util.hpp tessera::detail::trim
+constant include/tessera/detail/text_util.hpp tessera::detail::kCssWhitespace
+
 header include/tessera/diagnostics/crash.hpp
 struct include/tessera/diagnostics/crash.hpp tessera::diagnostics::CrashBreadcrumb
 struct include/tessera/diagnostics/crash.hpp tessera::diagnostics::CrashFrame

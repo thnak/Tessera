@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "tessera/detail/text_util.hpp"
 #include "tessera/ui/style/gradient.hpp"
 
 #include <array>
@@ -14,8 +15,10 @@
 // (`gradient.cpp`, `gradient_radial.cpp`). Internal to the style library; not installed.
 namespace tessera::ui::style::detail {
 
-std::string_view trim(std::string_view text);
-std::string lower(std::string_view text);
+// These forward to the shared implementations (issue #733) rather than owning a private copy: the
+// grammar is one dialect, and a fix to `trim` or `lower` must reach every parser at once.
+using tessera::detail::lower;
+using tessera::detail::trim;
 
 // Splits at top-level commas (a colour such as rgba(0, 0, 0, .5) has commas of its own).
 std::vector<std::string_view> split_commas(std::string_view text);

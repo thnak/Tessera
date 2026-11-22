@@ -9,21 +9,6 @@
 
 namespace tessera::ui::style::detail {
 
-std::string_view trim(std::string_view text) {
-    const auto first = text.find_first_not_of(" \t\r\n\f");
-    if (first == std::string_view::npos) {
-        return {};
-    }
-    return text.substr(first, text.find_last_not_of(" \t\r\n\f") - first + 1);
-}
-
-std::string lower(std::string_view text) {
-    std::string result(text);
-    std::transform(result.begin(), result.end(), result.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return result;
-}
-
 std::vector<std::string_view> split_commas(std::string_view text) {
     std::vector<std::string_view> parts;
     int depth = 0;

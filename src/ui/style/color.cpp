@@ -2,6 +2,7 @@
 
 #include "color_functions.hpp"
 #include "color_names.hpp"
+#include "tessera/detail/text_util.hpp"
 #include "tessera/ui/style/color.hpp"
 
 #include <algorithm>
@@ -16,25 +17,12 @@
 #include <vector>
 
 namespace tessera::ui::style {
+
+using tessera::detail::lower;
 namespace {
 
-std::string lower(std::string_view value) {
-    std::string result(value);
-    std::transform(result.begin(), result.end(), result.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return result;
-}
-
 std::string trim(std::string_view value) {
-    const auto first = std::find_if_not(value.begin(), value.end(),
-                                        [](unsigned char c) { return std::isspace(c) != 0; });
-    const auto last = std::find_if_not(value.rbegin(), value.rend(), [](unsigned char c) {
-                          return std::isspace(c) != 0;
-                      }).base();
-    if (first >= last) {
-        return {};
-    }
-    return std::string(first, last);
+    return std::string(tessera::detail::trim(value));
 }
 
 float clamp01(float value) {

@@ -542,6 +542,16 @@ target_link_libraries(node_size_tests PRIVATE tessera_scene)
 
 add_test(NAME node_size COMMAND node_size_tests)
 
+# The shared text helpers (issue #733): header-only, so this target exists to compile and exercise
+# them on every lane. It links `tessera_style` only to inherit the public include path; the header
+# itself has no dependency.
+add_executable(text_util_tests
+    text_util_tests.cpp)
+
+target_link_libraries(text_util_tests PRIVATE tessera_style)
+
+add_test(NAME text_util COMMAND text_util_tests)
+
 # The paint cache's per-op size budget (issue #731): the assertions are compile-time, so this target
 # exists to compile them on every lane.
 add_executable(paint_op_size_tests

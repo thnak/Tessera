@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "paint_shadow.hpp"
+#include "tessera/detail/text_util.hpp"
 #include "tessera/ui/style/color.hpp"
 
 #include <algorithm>
@@ -12,28 +13,16 @@
 #include <vector>
 
 namespace tessera::ui::paint::detail {
+
+using tessera::detail::lower;
+using tessera::detail::split_top_level;
+using tessera::detail::trim;
 namespace {
 
 // Concentric fills per blurred shadow. More layers approximate the Gaussian edge more smoothly; the
 // cap keeps a large blur from flooding the batch.
 constexpr int kMinBlurLayers = 3;
 constexpr int kMaxBlurLayers = 8;
-
-std::string_view trim(std::string_view text) {
-    const auto first = text.find_first_not_of(" \t\r\n\f");
-    if (first == std::string_view::npos) {
-        return {};
-    }
-    const auto last = text.find_last_not_of(" \t\r\n\f");
-    return text.substr(first, last - first + 1);
-}
-
-std::string lower(std::string_view text) {
-    std::string result(text);
-    std::transform(result.begin(), result.end(), result.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return result;
-}
 
 bool parse_px(std::string_view text, float& value) {
     std::string token = lower(trim(text));
@@ -69,32 +58,6 @@ bool is_length_token(std::string_view token) {
 }
 
 // Splits at `separator` outside parentheses.
-std::vector<std::string_view> split_top_level(std::string_view text, char separator) {
-    std::vector<std::string_view> parts;
-    int depth = 0;
-    std::size_t start = 0;
-    for (std::size_t i = 0; i <= text.size(); ++i) {
-        if (i < text.size()) {
-            if (text[i] == '(') {
-                ++depth;
-            } else if (text[i] == ')') {
-                --depth;
-            }
-        }
-        const bool at_separator =
-            i < text.size() &&
-            (separator == ' ' ? std::isspace(static_cast<unsigned char>(text[i])) != 0
-                              : text[i] == separator) &&
-            depth == 0;
-        if (i == text.size() || at_separator) {
-            if (i > start) {
-                parts.push_back(text.substr(start, i - start));
-            }
-            start = i + 1;
-        }
-    }
-    return parts;
-}
 
 bool parse_one(std::string_view text, const rhi::Color& current_color, BoxShadow& out) {
     float lengths[4] = {};
