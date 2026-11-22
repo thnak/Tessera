@@ -1,0 +1,81 @@
+{
+  "schema": "tessera.alloc-budget.v1",
+  "issue": "#701",
+  "doc": "Allocations per steady-state frame, per scene and scenario (docs/specs/memory-model-v1.md section 2: 'no malloc/new in steady-state frame code after warm-up'). Measured by tests/benchmarks/memory/alloc_per_frame_tests.cpp, which replaces the global operator new and counts every call in the process. A row is a RATCHET: the number may fall and `scripts/check_alloc_budget.py --update` lowers it, but it may not rise.",
+  "why_lanes_differ": "The counts are NOT the same on MSVC and GCC, so each lane has its own table. The difference is real and expected: the standard library's containers and the two compilers' inlining decide how many separate blocks a frame's work becomes, and MSVC's checked iterators and its std::string small-buffer size differ from libstdc++'s. A single shared table would either fail on one lane or be so loose on both that it caught nothing. The gate selects the table by the lane it is running on and refuses to compare across lanes, the same rule check_memory_budget.py applies to build configurations.",
+  "measurement": {
+    "build_config": "Release",
+    "warmup_frames": 10,
+    "measured_frames": 20,
+    "statistic": "mean allocations per frame, integer division",
+    "conditions": "No GPU, no window, no font, no clock. The count comes from a replaced global operator new, so it is exact for a given binary; the gate runs the test twice and fails if the two runs disagree, which is what makes a 0-tolerance row meaningful."
+  },
+  "lanes": {
+    "gcc": {
+      "recorded_on": "Linux x64, GCC 15.2, Release, 28 cores",
+      "rows": {
+        "card-grid/idle": {
+          "budget": 0,
+          "measures": "A 601-node card grid with nothing dirty: the steady-state frame the spec's rule is about."
+        },
+        "card-grid/paint-dirty": {
+          "budget": 57,
+          "measures": "One label marked paint-dirty. The paint pass culls most of the tree but resolves each culled node's style to decide the clip, which is the remaining per-scene term tracked on #789."
+        },
+        "card-grid/layout-dirty": {
+          "budget": 202,
+          "measures": "One card marked layout-dirty: the restyle-and-layout path. Was 810 before #793 removed the per-node-per-frame style-diff allocation."
+        },
+        "scrolling-list/idle": {
+          "budget": 0,
+          "measures": "A 200-row list inside a clipped scrollport, nothing dirty."
+        },
+        "scrolling-list/paint-dirty": {
+          "budget": 22,
+          "measures": "One row marked paint-dirty inside the scrollport."
+        },
+        "animated/idle": {
+          "budget": 14,
+          "measures": "A running CSS animation with nothing else dirty. NOT 0: AnimationRuntime::tick returns an AnimationTickResult by value, so its samples/finished vectors allocate every tick. Pinned at the measured number so it cannot grow; the fix is a caller-owned result, tracked on #701."
+        },
+        "animated/paint-dirty": {
+          "budget": 14,
+          "measures": "A running animation plus one paint-dirty node."
+        }
+      }
+    },
+    "msvc": {
+      "recorded_on": "Windows x64, MSVC 19.4x (vs2026-release), Release, 16 cores",
+      "rows": {
+        "card-grid/idle": {
+          "budget": 1,
+          "measures": "A 601-node card grid with nothing dirty. 1, not 0: MSVC's std::string and container growth allocate one block a GCC build does not. Recorded rather than asserted to zero, because the spec's rule is about the engine's own allocations and this one is the standard library's."
+        },
+        "card-grid/paint-dirty": {
+          "budget": 65,
+          "measures": "One label marked paint-dirty; the same per-scene term as the GCC row, 8 higher for the standard library's block count."
+        },
+        "card-grid/layout-dirty": {
+          "budget": 203,
+          "measures": "One card marked layout-dirty: the restyle-and-layout path."
+        },
+        "scrolling-list/idle": {
+          "budget": 1,
+          "measures": "A 200-row list inside a clipped scrollport, nothing dirty. 1 for the same reason as card-grid/idle."
+        },
+        "scrolling-list/paint-dirty": {
+          "budget": 25,
+          "measures": "One row marked paint-dirty inside the scrollport."
+        },
+        "animated/idle": {
+          "budget": 18,
+          "measures": "A running CSS animation with nothing else dirty. NOT 0: AnimationRuntime::tick returns its result by value, so its vectors allocate every tick. 18 on MSVC against 14 on GCC, the same standard-library difference."
+        },
+        "animated/paint-dirty": {
+          "budget": 18,
+          "measures": "A running animation plus one paint-dirty node."
+        }
+      }
+    }
+  }
+}

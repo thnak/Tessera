@@ -99,3 +99,37 @@ if (UNIX AND NOT APPLE)
 elseif (APPLE)
     target_link_options(frame_alloc_probe PRIVATE -Wl,-export_dynamic)
 endif()
+
+# alloc_per_frame (issue #701, step 4): the same measurement as the probe, with a bound attached.
+# Three scenes (card grid, scrolling list, animated), each asserting that an idle frame allocates
+# zero and that a change frame stays at or below its recorded budget. The budgets are the numbers
+# measured when the test landed; `scripts/check_alloc_budget.py --update` lowers them, never raises.
+add_executable(alloc_per_frame_tests
+    alloc_per_frame_tests.cpp)
+
+target_link_libraries(alloc_per_frame_tests PRIVATE
+    tessera_app
+    tessera_runtime)
+
+target_compile_features(alloc_per_frame_tests PRIVATE cxx_std_23)
+
+# Replaces the global operator new/delete to count allocations; see the helper's comment.
+tessera_allow_allocator_override(alloc_per_frame_tests)
+
+add_test(NAME alloc_per_frame COMMAND alloc_per_frame_tests)
+
+# The ratchet over those numbers (issue #701 step 4). Registered here rather than in
+# `scripts/gates.py` for the same reason `memory_budget` is: the aggregator's release-gates job has
+# no build tree, so a gate that needs a compiled binary cannot live there. A lane that builds also
+# tests.
+if (Python3_EXECUTABLE AND NOT APPLE)
+    add_test(
+        NAME alloc_budget
+        COMMAND "${Python3_EXECUTABLE}" -B
+            "${PROJECT_SOURCE_DIR}/scripts/check_alloc_budget.py"
+            --check
+            --build-dir "${CMAKE_BINARY_DIR}")
+    # The budget is recorded from a Release build, and the gate refuses to compare across
+    # configurations, so this runs only where the numbers were measured.
+    set_tests_properties(alloc_budget PROPERTIES LABELS uninstrumented_baseline)
+endif()

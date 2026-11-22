@@ -60,6 +60,15 @@ struct FrameDiagnosticsSample {
     // looking like a generic render miss; neither value changes what is painted.
     double glass_ms = 0.0;
     std::size_t glass_backdrop_count = 0;
+    // Allocations this frame made, and the frame arena's high-water mark in bytes
+    // (docs/specs/memory-model-v1.md sections 2 and 9). Both are 0 when nothing installed a
+    // counter, which is the default: the counting seam is a replaced global `operator new`, so only
+    // a binary that opts in (the allocation probe and its test) reports a non-zero number. A
+    // steady-state frame is expected to report 0 allocations; the gate in
+    // `scripts/check_alloc_budget.py` is what holds that.
+    std::size_t allocations = 0;
+    std::size_t allocation_bytes = 0;
+    std::size_t arena_high_water_bytes = 0;
 };
 
 // Per-frame counters and their cumulative totals: what the frame loop itself did. One of the three
@@ -79,6 +88,11 @@ public:
         total_animation_samples_ += sample.animation_samples;
         total_glass_ms_ += sample.glass_ms;
         total_glass_backdrops_ += sample.glass_backdrop_count;
+        total_allocations_ += sample.allocations;
+        total_allocation_bytes_ += sample.allocation_bytes;
+        if (sample.arena_high_water_bytes > arena_high_water_bytes_) {
+            arena_high_water_bytes_ = sample.arena_high_water_bytes;
+        }
         if (sample.glass_ms > 0.0 || sample.glass_backdrop_count > 0) {
             ++glass_frames_;
         }
@@ -126,6 +140,18 @@ public:
     [[nodiscard]] std::uint64_t glass_frames() const {
         return glass_frames_;
     }
+    // Allocations across every recorded frame, and the largest frame-arena high-water mark seen
+    // (docs/specs/memory-model-v1.md section 9). Zero unless the binary installed a counting
+    // `operator new`; see `FrameDiagnosticsSample::allocations`.
+    [[nodiscard]] std::uint64_t total_allocations() const {
+        return total_allocations_;
+    }
+    [[nodiscard]] std::uint64_t total_allocation_bytes() const {
+        return total_allocation_bytes_;
+    }
+    [[nodiscard]] std::size_t arena_high_water_bytes() const {
+        return arena_high_water_bytes_;
+    }
 
 private:
     FrameDiagnosticsSample last_;
@@ -139,6 +165,9 @@ private:
     double total_glass_ms_ = 0.0;
     std::uint64_t total_glass_backdrops_ = 0;
     std::uint64_t glass_frames_ = 0;
+    std::uint64_t total_allocations_ = 0;
+    std::uint64_t total_allocation_bytes_ = 0;
+    std::size_t arena_high_water_bytes_ = 0;
 };
 
 // Adaptive-quality state and the counters that make a downgrade visible without sampling frame time
