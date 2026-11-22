@@ -57,7 +57,9 @@ std::string repo_root() {
     return path;
 }
 
-// The viewport line of section 8.1, as the spec writes it.
+// The viewport bullet of section 8.1, as the spec writes it. A markdown bullet wraps across several
+// lines, so this collects the `- viewport:` line and every following line that is indented as a
+// continuation, stopping at the next bullet or a blank line.
 std::string spec_viewport_line(const std::string& root) {
     const std::string file = root + "/docs/specs/stylesheet-v1.md";
     std::ifstream input(file);
@@ -65,12 +67,26 @@ std::string spec_viewport_line(const std::string& root) {
         return {};
     }
     std::string line;
+    std::string collected;
+    bool inside = false;
     while (std::getline(input, line)) {
-        if (line.rfind("- viewport:", 0) == 0) {
-            return line;
+        if (!inside) {
+            if (line.rfind("- viewport:", 0) == 0) {
+                inside = true;
+                collected = line;
+            }
+            continue;
         }
+        // A continuation line starts with whitespace; a new bullet or a blank line ends the bullet.
+        if (line.empty() || line.rfind("- ", 0) == 0 || line.rfind("#", 0) == 0) {
+            break;
+        }
+        if (line.front() != ' ' && line.front() != '\t') {
+            break;
+        }
+        collected += " " + line;
     }
-    return {};
+    return collected;
 }
 
 // The `code` spans of a markdown line, which is how the spec writes unit names.
