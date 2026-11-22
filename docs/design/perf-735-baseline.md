@@ -163,10 +163,31 @@ input refresh, or the child insert each makes it fail on a specific frame. The r
 is the one that found a real bug — without the pristine reset a node kept the `width` its author had
 just deleted, and the box stayed 128px wide where the from-scratch path produced 38px.
 
-## What is still not fixed after D
+## Slices E+F — interned ids and style as a delta over shared defaults
+
+A computed style was ~101 `std::pair<std::string, std::string>` entries per node — ~6.5 KB, and
+~39 MB for 6k nodes, past L2 and close to L3 — almost all of them the same default value repeated
+per node. A style is now a **delta over one shared immutable `StyleDefaults` table**, and every
+registered longhand has a stable small id that indexes it.
+
+| scenario | nodes | before | after |
+|---|---|---|---|
+| size-change | 1,501 | 2.33 | **2.06** |
+| size-change | 6,001 | 18.1 | **12.9** |
+
+Allocations per frame at 6,001 nodes: **92,153 → 8,156 (11.3× fewer)**. A real computed style now
+holds 33 entries itself out of 101 effective (was 101 of 101), and `registry.initial_style()` costs
+1 allocation instead of 31.
+
+**The first version of this slice was 45% slower** (2.33 → 4.27 ms) despite the allocation win:
+`ComputedStyle::equals` compared the merged effective view, and `DiffingStyleProvider` calls it once
+per node per frame, so a 101-entry merge walk replaced a vector compare. `equals` now compares the
+deltas when both styles share defaults. The lesson is recorded here because the allocation numbers
+looked good while the frame got slower — only an interleaved A/B against the parent commit showed it.
+
+## What is still not fixed after D and E+F
 
 - **layout-dirty is unchanged.** A node that marks `Dirty::Layout` is honoured by the gate, so the
   pass still runs. That is the intended contract, not a miss.
 - **The remaining size-change cost is Yoga's own pass plus the box walk**, which a real reflow
-  cannot avoid. Slices E+F (interned property ids, style as a delta over shared defaults) target the
-  style-lookup share of it.
+  cannot avoid.
