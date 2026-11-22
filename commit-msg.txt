@@ -1,0 +1,15 @@
+docs: record the no-resume marker in ADR-069
+
+#770 requires the ownership change to be recorded, because it changes a
+trade-off the design docs state plainly. ADR-069 covers the decision, the
+alternatives that were rejected (a `weak_ptr` continuation, destroying the
+frame at the deadline, propagating the marker, a suppression, bounded
+reclamation) and why the marker is an opt-in rather than a default.
+
+The three places that documented the old cost now point at it:
+`task_scope.hpp`'s header comment, `docs/design/async.md` section 2.1 and
+`docs/design/background-work.md` section 2.1. Each keeps the cycle as the
+default and narrows it to the one case that is now freed.
+
+The public-API baseline records `detail::declare_no_resume`, which is the
+opt-in an awaitable calls.

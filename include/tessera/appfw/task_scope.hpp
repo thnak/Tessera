@@ -33,6 +33,11 @@
 // the scope's `capacity`, it happens only for a child that ignores its token, and it is visible:
 // `live()` never reaches zero and `tick()` reports `TimedOut`.
 //
+// The one exception is a child parked on an awaitable that can never resume it: that awaitable
+// declares so through `runtime::detail::declare_no_resume`, the child drops its reference to the
+// driver, and the pair is freed when the slot is released (ADR-069). A child suspended on anything
+// that can still resume it keeps the cycle.
+//
 // The alternative — destroying the frame — is not safe in general, because the awaitable the child
 // is suspended on may hold a bare `coroutine_handle` and resume it later (that is exactly what the
 // queue-hop fixture in the tests does). Destroying the frame would then resume freed memory. Since

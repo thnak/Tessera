@@ -1526,6 +1526,7 @@ class include/tessera/runtime/task.hpp tessera::runtime::detail::TaskState
 class include/tessera/runtime/task.hpp tessera::runtime::detail::TaskStateBase
 struct include/tessera/runtime/task.hpp tessera::runtime::TaskContext
 function include/tessera/runtime/task.hpp tessera::runtime::detail::attach_continuation
+function include/tessera/runtime/task.hpp tessera::runtime::detail::declare_no_resume
 
 header include/tessera/runtime/timer_queue.hpp
 class include/tessera/runtime/timer_queue.hpp tessera::runtime::TimerQueue
