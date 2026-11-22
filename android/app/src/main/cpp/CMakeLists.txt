@@ -13,6 +13,7 @@
 add_library(tessera_android_app SHARED
     ${CMAKE_CURRENT_SOURCE_DIR}/jni_bridge.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/ime_bridge.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/caret_bridge.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/a11y_bridge.cpp)
 
 # The engine. tessera_app_window is the window driver (Vulkan device, swapchain, Batched2D, the
