@@ -245,6 +245,11 @@ bool fill_storage_probe_pipeline(rhi::Backend backend, rhi::PipelineDesc& desc) 
         desc.push_constant_size = probe.push_constant_size;
         return true;
     }
+#else
+    // Without the Vulkan backend there is no probe program to fill in, so `desc` is never read in
+    // this configuration. Naming it keeps the parameter referenced there (MSVC C4100 is an error
+    // under /WX, and this file builds in lanes that have no Vulkan backend).
+    static_cast<void>(desc);
 #endif
     // Metal and WebGPU report no storage buffers yet (ADR-068 slice 2), so the capability gate in
     // the check already skipped them; this is the honest answer if one ever reports true without a
