@@ -67,6 +67,13 @@ frame; a child holds its awaiter's state as the continuation). Three consequence
 - a child that ignores its token keeps its frame alive, so `live()` never reaches zero and
   `tick()` reports `TimedOut`. That is visible in the counters instead of being a silent crash.
 
+A child parked on an awaitable that can never resume it is the one case where the pair is not
+retained: the awaitable declares that through `runtime::detail::declare_no_resume`, the child drops
+its reference to the driver, and the pair is freed when the scope releases the slot
+([ADR-069](../../decisions/ADR-069-awaitable-declares-no-resume.md)). A child suspended on anything
+that can still resume it - a queue hop, a callback, a timer - keeps the cycle, because destroying
+its frame would let a live resume touch freed memory.
+
 The driver's own `TaskContext` is deliberately token-free. A tokened driver would be skipped by
 `TaskStateBase::resume_from_queue` exactly when its child is cancelled, and the driver is what
 retires the slot and reports the drain. AF1 records the same reasoning for service attempts in

@@ -78,6 +78,7 @@ V1 is the first release. A feature is in V1 unless the ADR or spec that owns it 
 | [ADR-066](ADR-066-react-core-additions-for-v1.md) | React core additions for V1: arrow components, `import React`, `memo`, `useId`, `useMemo`/`useCallback`, `??`/`?.`, handler control flow, list and string expressions, limited `useReducer` and static `useContext` (amends ADR-036) | Proposed |
 | [ADR-067](ADR-067-pending-ui-transitions-suspense-lazy.md) | Pending UI: `useResource`, `Suspense` as a static boundary, `useTransition`, `useDeferredValue`, `lazy` as identity, on the data store's resource model | Proposed |
 | [ADR-068](ADR-068-clip-state-in-a-storage-buffer.md) | Clip state in a per-frame storage buffer: RHI 1.9 `bind_storage_buffer`, clip records for rounded rect, ellipse and polygon, `CpuCanvas` shaped-clip reference, for `clip-path` (#615) | Proposed |
+| [ADR-069](ADR-069-awaitable-declares-no-resume.md) | An awaitable declares when its frame will never resume: `declare_no_resume` drops the continuation reference so an abandoned task pair is freed at its owner instead of leaking (#770) | Accepted |
 
 ## Dependency overview
 
@@ -134,6 +135,7 @@ ADR-065 custom hooks by inlining (proposed) ── ADR-036 own front end, ADR-05
 ADR-066 React core additions (proposed) ── ADR-036 own front end, ADR-058 React ports, ADR-065 custom hooks, ADR-051 records
 ADR-067 pending UI (proposed) ── async-data-v1 resources, ADR-021 async runtime, ADR-050 services, ADR-066 React additions, error-boundaries-v1
 ADR-068 clip storage buffer (proposed) ── ADR-003 thin RHI, ADR-049 RHI versioning, ADR-053 Metal, ADR-004 vector paths
+ADR-069 awaitable declares no resume (accepted) ── ADR-021 async runtime, ADR-050 app framework, async design, background-work design
 ```
 
 [ADR-035](ADR-035-view-transitions.md), [ADR-036](ADR-036-own-jsx-frontend-and-react-like-model.md), and [ADR-037](ADR-037-self-contained-wasm-designer.md) are listed in the table above but are not drawn in this diagram.

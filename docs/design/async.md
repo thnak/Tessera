@@ -114,7 +114,10 @@ Limitations of this slice:
   when the child next completes; there is no eager cancellation wakeup.
 - Dropping the last `Task` handle does not cancel or detach a graph: a started task still runs to
   its next completion on the queue, and a parent suspended on a child keeps both states alive until
-  the child finishes (the reference cycle breaks at that point). Cancel the token to stop work.
+  the child finishes (the reference cycle breaks at that point). Cancel the token to stop work. The
+  one exception is a child parked on an awaitable that declares it will never resume it
+  ([ADR-069](../../decisions/ADR-069-awaitable-declares-no-resume.md)): that child drops its reference
+  to the parent, so the pair is freed at the parent's owner instead of never.
 - A full bounded queue drops the resume (`CompletionQueue::Stats::dropped`) and the task stays
   suspended; the caller sizes the queue and the per-tick budget.
 - One `shared_ptr` control block per task frame; no frame pool yet.

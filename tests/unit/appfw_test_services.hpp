@@ -54,6 +54,8 @@ using tessera::runtime::CompletionPriority;
 using tessera::runtime::CompletionQueue;
 using tessera::runtime::Task;
 
+namespace runtime = tessera::runtime;
+
 inline int g_failures = 0;
 
 inline bool expect(bool condition, std::string_view message) {
@@ -86,12 +88,19 @@ struct QueueHop {
     void await_resume() const noexcept {}
 };
 
-// Suspends and is never resumed: the only exit is cancellation plus a deadline.
+// Suspends and is never resumed: the only exit is cancellation plus a deadline. It holds no handle
+// and posts nothing, so it can honestly tell the runtime that the frame will never run again, which
+// is what lets an abandoned pair be freed instead of leaking (ADR-069). The handle is taken as a
+// template parameter because the marker lives on the promise, and a type-erased
+// `coroutine_handle<>` cannot reach it.
 struct ParkForever {
     bool await_ready() const noexcept {
         return false;
     }
-    void await_suspend(std::coroutine_handle<>) const noexcept {}
+    template<typename Promise>
+    void await_suspend(std::coroutine_handle<Promise> handle) const noexcept {
+        runtime::detail::declare_no_resume(handle);
+    }
     void await_resume() const noexcept {}
 };
 
