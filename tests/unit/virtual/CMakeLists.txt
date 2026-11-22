@@ -22,6 +22,9 @@ add_executable(virtual_allocation_tests
 
 target_link_libraries(virtual_allocation_tests PRIVATE tessera_virtual)
 
+# Replaces the global operator new/delete to count allocations; see the helper's comment.
+tessera_allow_allocator_override(virtual_allocation_tests)
+
 add_test(NAME virtual_allocations COMMAND virtual_allocation_tests)
 
 add_executable(virtual_anchor_tests
@@ -57,6 +60,9 @@ add_executable(virtual_pool_tests
 
 target_link_libraries(virtual_pool_tests PRIVATE tessera_virtual)
 
+# Replaces the global operator new/delete to count allocations; see the helper's comment.
+tessera_allow_allocator_override(virtual_pool_tests)
+
 add_test(NAME virtual_pool COMMAND virtual_pool_tests)
 
 add_executable(virtual_range_tests
@@ -77,6 +83,9 @@ add_executable(virtual_churn_tests
     virtual_churn_tests.cpp)
 
 target_link_libraries(virtual_churn_tests PRIVATE tessera_virtual)
+
+# Replaces the global operator new/delete to count allocations; see the helper's comment.
+tessera_allow_allocator_override(virtual_churn_tests)
 
 add_test(NAME virtual_churn COMMAND virtual_churn_tests)
 
@@ -99,6 +108,9 @@ add_executable(virtual_focus_churn_tests
 
 target_link_libraries(virtual_focus_churn_tests PRIVATE tessera_virtual)
 
+# Replaces the global operator new/delete to count allocations; see the helper's comment.
+tessera_allow_allocator_override(virtual_focus_churn_tests)
+
 add_test(NAME virtual_focus_churn COMMAND virtual_focus_churn_tests)
 
 add_executable(virtual_grid_rows_tests
@@ -113,12 +125,18 @@ add_executable(virtual_collection_semantics_tests
 
 target_link_libraries(virtual_collection_semantics_tests PRIVATE tessera_virtual)
 
+# Replaces the global operator new/delete to count allocations; see the helper's comment.
+tessera_allow_allocator_override(virtual_collection_semantics_tests)
+
 add_test(NAME virtual_collection_semantics COMMAND virtual_collection_semantics_tests)
 
 add_executable(virtual_announce_tests
     virtual_announce_tests.cpp)
 
 target_link_libraries(virtual_announce_tests PRIVATE tessera_virtual)
+
+# Replaces the global operator new/delete to count allocations; see the helper's comment.
+tessera_allow_allocator_override(virtual_announce_tests)
 
 add_test(NAME virtual_announce COMMAND virtual_announce_tests)
 

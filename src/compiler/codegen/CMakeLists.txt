@@ -1258,6 +1258,9 @@ if (TESSERA_BUILD_TESTS)
         target_link_libraries(codegen_pending_runtime_tests PRIVATE tessera_scene)
         target_compile_features(codegen_pending_runtime_tests PRIVATE cxx_std_23)
 
+        # Replaces the global operator new/delete to count allocations; see the helper's comment.
+        tessera_allow_allocator_override(codegen_pending_runtime_tests)
+
         add_test(NAME codegen_pending_runtime COMMAND codegen_pending_runtime_tests)
 
         # The differential test: the IR evaluator and the generated component run one script of
@@ -1334,6 +1337,9 @@ if (TESSERA_BUILD_TESTS)
             tessera_animation
             tessera_style)
         target_compile_features(codegen_callback_forward_runtime_tests PRIVATE cxx_std_23)
+
+        # Replaces the global operator new/delete to count allocations; see the helper's comment.
+        tessera_allow_allocator_override(codegen_callback_forward_runtime_tests)
 
         add_test(NAME codegen_callback_forward_runtime
             COMMAND codegen_callback_forward_runtime_tests)

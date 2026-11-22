@@ -30,6 +30,10 @@ if (TESSERA_BUILD_TESTS)
     add_executable(behavior_allocation_tests
         ${PROJECT_SOURCE_DIR}/tests/unit/behavior_allocation_tests.cpp)
     target_link_libraries(behavior_allocation_tests PRIVATE tessera_behavior)
+
+    # Replaces the global operator new/delete to count allocations; see the helper's comment.
+    tessera_allow_allocator_override(behavior_allocation_tests)
+
     add_test(NAME behavior_allocation COMMAND behavior_allocation_tests)
 
     add_executable(behavior_instance_tests

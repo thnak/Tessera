@@ -19,3 +19,10 @@ endif()
 
 add_executable(service_resolve_bench
     main.cpp)
+
+# main.cpp replaces the global operator new/delete to count allocations. The helper only exists when
+# this directory is built as part of the Tessera tree (cmake/Sanitizers.cmake); a standalone
+# configure has no sanitizer lane, so there is nothing to do.
+if (COMMAND tessera_allow_allocator_override)
+    tessera_allow_allocator_override(service_resolve_bench)
+endif()
