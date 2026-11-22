@@ -3,7 +3,7 @@
 #pragma once
 
 // Inline half of `NodeInteractionApi`. Included only by `node.hpp`, after `Node` is complete: each
-// accessor is a one-line read of `Node`'s storage and stays inline so the input and focus hot paths
+// accessor is a one-line read of `NodeInputPolicy` and stays inline so the input and focus hot paths
 // pay no call for it. Do not include this file directly.
 
 namespace tessera::ui {
@@ -16,58 +16,58 @@ inline const Node& NodeInteractionApi::node() const noexcept {
 }
 
 inline bool NodeInteractionApi::visible() const {
-    return node().flag(Node::kVisible);
+    return node().input_.visible();
 }
 inline bool NodeInteractionApi::style_hidden() const {
-    return node().flag(Node::kStyleHidden);
+    return node().input_.style_hidden();
 }
 inline bool NodeInteractionApi::rendered() const {
-    return node().flag(Node::kVisible) && !node().flag(Node::kStyleHidden);
+    return node().input_.rendered();
 }
 inline bool NodeInteractionApi::pointer_events() const {
-    return node().flag(Node::kPointerEvents);
+    return node().input_.pointer_events();
 }
 inline UserSelect NodeInteractionApi::user_select() const {
-    return node().user_select_;
+    return node().input_.user_select();
 }
 inline style::CursorKind NodeInteractionApi::cursor() const {
-    return node().cursor_;
+    return node().input_.cursor();
 }
 inline bool NodeInteractionApi::focusable() const {
-    return node().flag(Node::kFocusable);
+    return node().input_.focusable();
 }
 inline int NodeInteractionApi::tab_index() const {
     return node().tab_index_;
 }
 inline void NodeInteractionApi::set_auto_focus(bool auto_focus) {
-    node().set_flag(Node::kAutoFocus, auto_focus);
+    node().input_.set_auto_focus(auto_focus);
 }
 inline bool NodeInteractionApi::auto_focus() const {
-    return node().flag(Node::kAutoFocus);
+    return node().input_.auto_focus();
 }
 inline void NodeInteractionApi::set_focus_trap(bool trap) {
-    node().set_flag(Node::kFocusTrap, trap);
+    node().input_.set_focus_trap(trap);
 }
 inline bool NodeInteractionApi::focus_trap() const {
-    return node().flag(Node::kFocusTrap);
+    return node().input_.focus_trap();
 }
 inline void NodeInteractionApi::set_typeahead(bool typeahead) {
-    node().set_flag(Node::kTypeahead, typeahead);
+    node().input_.set_typeahead(typeahead);
 }
 inline bool NodeInteractionApi::typeahead() const {
-    return node().flag(Node::kTypeahead);
+    return node().input_.typeahead();
 }
 inline void NodeInteractionApi::set_interactive_parent(bool interactive) {
-    node().set_flag(Node::kInteractiveParent, interactive);
+    node().input_.set_interactive_parent(interactive);
 }
 inline bool NodeInteractionApi::interactive_parent() const {
-    return node().flag(Node::kInteractiveParent);
+    return node().input_.interactive_parent();
 }
 inline void NodeInteractionApi::set_focus_group(FocusGroup group) {
-    node().focus_group_ = group;
+    node().input_.set_focus_group(group);
 }
 inline FocusGroup NodeInteractionApi::focus_group() const {
-    return node().focus_group_;
+    return node().input_.focus_group();
 }
 inline style::PseudoState NodeInteractionApi::pseudo_state() const {
     return node().pseudo_state_;

@@ -15,10 +15,10 @@ inline const Node& NodeScrollApi::node() const noexcept {
 }
 
 inline bool NodeScrollApi::scrollable_x() const {
-    return (node().scroll_bits_ & Node::kScrollableXBit) != 0;
+    return node().scroll_style_.scrollable_x();
 }
 inline bool NodeScrollApi::scrollable_y() const {
-    return (node().scroll_bits_ & Node::kScrollableYBit) != 0;
+    return node().scroll_style_.scrollable_y();
 }
 inline float NodeScrollApi::content_width() const {
     return node().scroll_.content_width();
@@ -48,19 +48,16 @@ inline bool NodeScrollApi::has_scrollport_insets() const {
     return node().scroll_.has_scrollport_insets();
 }
 inline ScrollBehavior NodeScrollApi::scroll_behavior() const {
-    return (node().scroll_bits_ & Node::kScrollBehaviorSmoothBit) != 0 ? ScrollBehavior::Smooth
-                                                                       : ScrollBehavior::Auto;
+    return node().scroll_style_.scroll_behavior();
 }
 inline OverscrollBehavior NodeScrollApi::overscroll_behavior() const {
-    return static_cast<OverscrollBehavior>((node().scroll_bits_ & Node::kOverscrollBehaviorMask) >>
-                                           Node::kOverscrollBehaviorShift);
+    return node().scroll_style_.overscroll_behavior();
 }
 inline OverscrollEffect NodeScrollApi::overscroll_effect() const {
-    return static_cast<OverscrollEffect>((node().scroll_bits_ & Node::kOverscrollEffectMask) >>
-                                         Node::kOverscrollEffectShift);
+    return node().scroll_style_.overscroll_effect();
 }
 inline bool NodeScrollApi::scroll_animation_active() const {
-    return node().flag(Node::kScrollAnimationActive);
+    return node().hints_.scroll_animation_active();
 }
 inline float NodeScrollApi::scroll_animation_target_x() const {
     return node().scroll_.animation_target_x();

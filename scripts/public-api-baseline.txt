@@ -2566,8 +2566,14 @@ alias include/tessera/ui/scene/node_geometry_api.hpp tessera::ui::rhi
 
 header include/tessera/ui/scene/node_geometry_api_inl.hpp
 
+header include/tessera/ui/scene/node_hints.hpp
+class include/tessera/ui/scene/node_hints.hpp tessera::ui::NodeHints
+
 header include/tessera/ui/scene/node_ids.hpp
 constant include/tessera/ui/scene/node_ids.hpp tessera::ui::kNodeIdBaseStride
+
+header include/tessera/ui/scene/node_input_policy.hpp
+class include/tessera/ui/scene/node_input_policy.hpp tessera::ui::NodeInputPolicy
 
 header include/tessera/ui/scene/node_interaction_api.hpp
 class include/tessera/ui/scene/node_interaction_api.hpp tessera::ui::Node
@@ -2599,6 +2605,12 @@ class include/tessera/ui/scene/node_metadata_api.hpp tessera::ui::NodeMetadataAp
 
 header include/tessera/ui/scene/node_metadata_api_inl.hpp
 
+header include/tessera/ui/scene/node_paint_extent.hpp
+class include/tessera/ui/scene/node_paint_extent.hpp tessera::ui::NodePaintExtent
+
+header include/tessera/ui/scene/node_placement.hpp
+class include/tessera/ui/scene/node_placement.hpp tessera::ui::NodePlacement
+
 header include/tessera/ui/scene/node_scroll.hpp
 class include/tessera/ui/scene/node_scroll.hpp tessera::ui::NodeScroll
 
@@ -2608,6 +2620,9 @@ class include/tessera/ui/scene/node_scroll_api.hpp tessera::ui::NodeScrollApi
 alias include/tessera/ui/scene/node_scroll_api.hpp tessera::ui::rhi
 
 header include/tessera/ui/scene/node_scroll_api_inl.hpp
+
+header include/tessera/ui/scene/node_scroll_style.hpp
+class include/tessera/ui/scene/node_scroll_style.hpp tessera::ui::NodeScrollStyle
 
 header include/tessera/ui/scene/node_types.hpp
 struct include/tessera/ui/scene/node_types.hpp tessera::ui::PaintOutsets

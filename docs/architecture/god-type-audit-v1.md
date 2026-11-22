@@ -156,6 +156,18 @@ recompiles every includer of `node.hpp`, because `Node` derives from all four. T
 comes from 4b, not 4c. The previous decision against `NodeGeometryView`/`NodeInteractionView` stands
 (a view object adds a hop to `hit_test`); a base does not.
 
+**Landed (step 4d, small parts).** The loose flag word, the packed scroll byte and the geometry
+scalars on `Node` are now five single-role value types, each with a `static_assert` on its size:
+[`NodeHints`](../../include/tessera/ui/scene/node_hints.hpp) (1 byte, derived/presence bits),
+[`NodeInputPolicy`](../../include/tessera/ui/scene/node_input_policy.hpp) (4 bytes: visibility,
+pointer events, focus, user-select, cursor, focus group),
+[`NodeScrollStyle`](../../include/tessera/ui/scene/node_scroll_style.hpp) (1 byte),
+[`NodePlacement`](../../include/tessera/ui/scene/node_placement.hpp) (40 bytes: transform, z-index)
+and [`NodePaintExtent`](../../include/tessera/ui/scene/node_paint_extent.hpp) (40 bytes: outsets,
+glass sigma, the cached subtree box). A part owns values and sanitizing and returns "changed" from
+its setters; `Node` keeps the dirty policy. `sizeof(Node)` is still exactly 320 and line 0 still holds
+every hot field, pinned by `NodeLayoutCheck`; `tests/unit/node_parts_tests.cpp` covers the parts.
+
 **Landed (steps 0-3, measured).** `tessera_benchmark --walk` baselines the whole-scene passes over
 the 12 000-node scene, and the numbers moved the work: `hit_test_deep` (3.2 ms -> 1.3 us per
 point, pruned by `subtree_paint_bounds()`) and the dirty clear (800 -> 24 ns/node, one post-order

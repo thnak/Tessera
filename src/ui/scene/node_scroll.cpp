@@ -85,19 +85,16 @@ void NodeScroll::clear_animation() {
 
 // --- Node forwarders ------------------------------------------------------------------------
 //
-// The public `Node` scroll surface did not move, so no call site changed. The scrollable-axis flags
-// and the resolved scroll-behavior/overscroll enums stay in `Node::scroll_bits_`: they are node
-// state like every other flag, and putting that byte on `NodeScroll` made the type 44 bytes with 3
-// of tail padding, which pushed `sizeof(Node)` from 320 to 328.
+// The public `Node` scroll surface did not move, so no call site changed. The configuration (axes and
+// the resolved style enums) is `NodeScrollStyle`, one byte on the node's first cache line; the
+// offset, insets and animation target are `NodeScroll`, on demand. The bodies here own the frame
+// policy: which dirty domain a change raises.
 
 void NodeScrollApi::set_scrollable_x(bool scrollable) {
     Node& self = node();
-    if (scrollable_x() == scrollable) {
+    if (!self.scroll_style_.set_scrollable_x(scrollable)) {
         return;
     }
-    self.scroll_bits_ = scrollable
-                            ? static_cast<std::uint8_t>(self.scroll_bits_ | Node::kScrollableXBit)
-                            : static_cast<std::uint8_t>(self.scroll_bits_ & ~Node::kScrollableXBit);
     // The paint clip and hit-testing clipping start or stop at this node, so it is visible even
     // when the re-clamped offset stays at 0.
     self.mark_dirty(Dirty::Paint | Dirty::Render);
@@ -106,12 +103,9 @@ void NodeScrollApi::set_scrollable_x(bool scrollable) {
 
 void NodeScrollApi::set_scrollable_y(bool scrollable) {
     Node& self = node();
-    if (scrollable_y() == scrollable) {
+    if (!self.scroll_style_.set_scrollable_y(scrollable)) {
         return;
     }
-    self.scroll_bits_ = scrollable
-                            ? static_cast<std::uint8_t>(self.scroll_bits_ | Node::kScrollableYBit)
-                            : static_cast<std::uint8_t>(self.scroll_bits_ & ~Node::kScrollableYBit);
     self.mark_dirty(Dirty::Paint | Dirty::Render);
     set_scroll_offset(self.scroll_.scroll_x(), self.scroll_.scroll_y());
 }
@@ -153,35 +147,23 @@ bool NodeScrollApi::set_scroll_offset(float x, float y) {
 }
 
 void NodeScrollApi::set_scroll_behavior(ScrollBehavior behavior) {
-    Node& self = node();
     // Policy input only: no paint/layout effect until a programmatic scroll animates an offset, and
     // that move marks Paint|Render through set_scroll_offset.
-    self.scroll_bits_ =
-        behavior == ScrollBehavior::Smooth
-            ? static_cast<std::uint8_t>(self.scroll_bits_ | Node::kScrollBehaviorSmoothBit)
-            : static_cast<std::uint8_t>(self.scroll_bits_ & ~Node::kScrollBehaviorSmoothBit);
+    node().scroll_style_.set_scroll_behavior(behavior);
 }
 
 void NodeScrollApi::set_overscroll_behavior(OverscrollBehavior behavior) {
-    Node& self = node();
-    self.scroll_bits_ = static_cast<std::uint8_t>(
-        (self.scroll_bits_ & ~Node::kOverscrollBehaviorMask) |
-        ((static_cast<std::uint8_t>(behavior) << Node::kOverscrollBehaviorShift) &
-         Node::kOverscrollBehaviorMask));
+    node().scroll_style_.set_overscroll_behavior(behavior);
 }
 
 void NodeScrollApi::set_overscroll_effect(OverscrollEffect effect) {
-    Node& self = node();
-    self.scroll_bits_ = static_cast<std::uint8_t>(
-        (self.scroll_bits_ & ~Node::kOverscrollEffectMask) |
-        ((static_cast<std::uint8_t>(effect) << Node::kOverscrollEffectShift) &
-         Node::kOverscrollEffectMask));
+    node().scroll_style_.set_overscroll_effect(effect);
 }
 
 void NodeScrollApi::set_scroll_animation_target(float x, float y) {
     Node& self = node();
     self.scroll_.set_animation_target(x, y);
-    self.set_flag(Node::kScrollAnimationActive, true);
+    self.hints_.set_scroll_animation_active(true);
 }
 
 rhi::Mat3 NodeScrollApi::content_transform() const {
@@ -192,7 +174,7 @@ rhi::Mat3 NodeScrollApi::content_transform() const {
 
 void NodeScrollApi::clear_scroll_animation() {
     Node& self = node();
-    self.set_flag(Node::kScrollAnimationActive, false);
+    self.hints_.set_scroll_animation_active(false);
     self.scroll_.clear_animation();
 }
 

@@ -38,17 +38,17 @@ inline std::uint64_t NodeMetadataApi::automation_id() const {
 inline void NodeMetadataApi::set_item_key(std::uint64_t item_key) noexcept {
     Node& self = node();
     self.metadata_.set_item_key(item_key);
-    self.set_flag(Node::kHasItemKey, true);
+    self.hints_.set_has_item_key(true);
 }
 inline void NodeMetadataApi::clear_item_key() noexcept {
     Node& self = node();
     self.metadata_.set_item_key(0);
-    self.set_flag(Node::kHasItemKey, false);
+    self.hints_.set_has_item_key(false);
 }
 inline std::optional<std::uint64_t> NodeMetadataApi::item_key() const noexcept {
     const Node& self = node();
-    return self.flag(Node::kHasItemKey) ? std::optional<std::uint64_t>(self.metadata_.item_key())
-                                        : std::nullopt;
+    return self.hints_.has_item_key() ? std::optional<std::uint64_t>(self.metadata_.item_key())
+                                      : std::nullopt;
 }
 inline std::string_view NodeMetadataApi::role() const {
     return node().metadata_.role();

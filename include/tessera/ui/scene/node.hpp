@@ -7,11 +7,16 @@
 #include "tessera/ui/dirty.hpp"
 #include "tessera/ui/scene/event_type.hpp"
 #include "tessera/ui/scene/node_geometry_api.hpp"
+#include "tessera/ui/scene/node_hints.hpp"
+#include "tessera/ui/scene/node_input_policy.hpp"
 #include "tessera/ui/scene/node_interaction_api.hpp"
 #include "tessera/ui/scene/node_metadata.hpp"
 #include "tessera/ui/scene/node_metadata_api.hpp"
+#include "tessera/ui/scene/node_paint_extent.hpp"
+#include "tessera/ui/scene/node_placement.hpp"
 #include "tessera/ui/scene/node_scroll.hpp"
 #include "tessera/ui/scene/node_scroll_api.hpp"
+#include "tessera/ui/scene/node_scroll_style.hpp"
 #include "tessera/ui/scene/node_types.hpp"
 #include "tessera/ui/style/cursor_value.hpp"
 #include "tessera/ui/style/pseudo_state.hpp"
@@ -171,92 +176,35 @@ private:
     [[nodiscard]] Node* hit_test_local(float local_x, float local_y);
     [[nodiscard]] Node* hit_test_in_parent_space(float parent_x, float parent_y);
 
-    // The node's boolean state, one bit each. Ten separate bools cost more in padding than the
-    // budget can spare (and MSVC's debug vector adds a pointer on top), so they share one word.
-    // Defaults: visible, `pointer-events: auto`, everything else off.
-    enum Flag : std::uint16_t {
-        kVisible = 1u << 0,
-        kFocusable = 1u << 1,
-        kAutoFocus = 1u << 2,
-        kFocusTrap = 1u << 3,
-        kTypeahead = 1u << 4,
-        kGlassSubtree = 1u << 5,
-        kHasItemKey = 1u << 6,
-        kScrollAnimationActive = 1u << 7,
-        kPointerEvents = 1u << 8,      // CSS `pointer-events: auto`
-        kStyleHidden = 1u << 9,        // resolved `visibility: hidden|collapse`
-        kTextFitsBox = 1u << 10,       // layout's text-fit fact (issue #490)
-        kInteractiveParent = 1u << 11, // `useInteractiveRole` (issue #635); see the accessor
-        kHasZIndex = 1u << 12,    // `z_index_` is non-zero; lets a sibling walk skip reading it
-        kHasTransform = 1u << 13, // `transform_` is not the identity
-    };
-    [[nodiscard]] bool flag(Flag bit) const noexcept {
-        return (flags_ & bit) != 0;
-    }
-    void set_flag(Flag bit, bool on) noexcept {
-        flags_ = static_cast<std::uint16_t>(on ? (flags_ | bit) : (flags_ & ~bit));
-    }
-
-    // --- Cache-line layout (docs/architecture/god-type-audit-v1.md section 3.1)
-    // ---------------------
+    // --- Members: small role types, laid out for the cache (god-type audit section 3.1) ---------
     //
     // `sizeof(Node)` is 320, five 64-byte lines, and heap nodes start on a line (`operator new`).
-    // The first line holds everything the whole-scene passes read at every node - the dirty pass,
-    // the hit-test descent and the paint cull walk - so a visit touches one line instead of four:
-    // the vptr, the tree links, the box, the flag word, both dirty summaries and the packed bytes
-    // the scroll and interaction checks read. The rest is reached only on a flag or when a pass
-    // needs that field (`kHasZIndex`, `kHasTransform` stand in for the values below). Members are
-    // placed by `offsetof`, with no padding anywhere; `NodeLayoutCheck` in node.cpp pins the first
-    // line.
+    // Each role keeps its own data and rules in a small type (the `node_*.hpp` headers); `Node` owns
+    // the tree, the dirty summaries and the frame policy that decides which dirty domain a role's
+    // change raises. The types are placed by what a whole-scene pass reads at every node - the dirty
+    // pass, the hit-test descent, the paint cull walk - so a visit touches line 0 only:
     //
-    // line 0 (offsets 0..63): vptr, then
+    // line 0 (offsets 0..63): the vptr, then the tree links, the box, and the one-byte hot half of
+    // each role. Placed by `offsetof` with no padding; `NodeLayoutCheck` in node.cpp pins it.
     Node* parent_ = nullptr;
     std::vector<std::unique_ptr<Node>> children_;
-    // `mutable` for the same reason as `subtree_paint_bounds_`: `set_span_bounds` writes it through
-    // a const scene (issue #733 item 4). Every other write goes through `set_bounds`, which is
-    // non-const, so the mutability is confined to the one paint-derived path.
+    // `mutable` because `set_span_bounds` writes it through a const scene (issue #733 item 4). Every
+    // other write goes through `set_bounds`, which is non-const, so the mutability is confined to
+    // the one paint-derived path.
     mutable rhi::Rect bounds_;
-    std::uint16_t flags_ = kVisible | kPointerEvents;
+    NodeHints hints_;            // presence/derived bits about the on-demand members below
     Dirty dirty_ = Dirty::Clean;
     Dirty subtree_dirty_ = Dirty::Clean;
-    // Packed scroll bookkeeping: the scrollable-axis flags and the scroll runtime style enums share
-    // one byte, read by every hit-test visit (`scrollable_x/y`). Enum values are stored in
-    // declaration order; the masks are sized to the largest enumerator. Defaults: not scrollable,
-    // `scroll-behavior: auto`, `overscroll-behavior: auto` and the registry initial
-    // `overscroll-effect: platform` (ordinal 4).
-    static constexpr std::uint8_t kScrollableXBit = 1u << 0;
-    static constexpr std::uint8_t kScrollableYBit = 1u << 1;
-    static constexpr std::uint8_t kScrollBehaviorSmoothBit = 1u << 2;
-    static constexpr std::uint8_t kOverscrollBehaviorShift = 3;
-    static constexpr std::uint8_t kOverscrollBehaviorMask = 0x3u << kOverscrollBehaviorShift;
-    static constexpr std::uint8_t kOverscrollEffectShift = 5;
-    static constexpr std::uint8_t kOverscrollEffectMask = 0x7u << kOverscrollEffectShift;
-    static_assert(static_cast<std::uint8_t>(OverscrollBehavior::None) == 2,
-                  "OverscrollBehavior is packed in declaration order");
-    static_assert(static_cast<std::uint8_t>(OverscrollEffect::Platform) == 4,
-                  "OverscrollEffect is packed in declaration order");
-    std::uint8_t scroll_bits_ = 0x4u << kOverscrollEffectShift;
-    UserSelect user_select_ = UserSelect::Auto; // resolved `user-select` value
-    // Resolved `cursor` value (issue #191). The initial `auto` is the platform default arrow.
-    style::CursorKind cursor_ = style::CursorKind::Auto;
-    FocusGroup focus_group_ = FocusGroup::None;
+    NodeInputPolicy input_;      // visibility, hit eligibility, focus bits, user-select, cursor
+    NodeScrollStyle scroll_style_; // scrollable axes and the scroll style enums
 
-    // line 1 and on (offsets 64..): read on demand.
-    //
-    // Cached subtree paint box (issue #735, slice C); `mutable` because paint fills it lazily
-    // through a const reference. Width encodes the state: negative is "not computed", +infinity is
-    // "computed and unbounded", else the box - so no separate validity flag is needed.
-    mutable rhi::Rect subtree_paint_bounds_{0.0f, 0.0f, -1.0f, 0.0f};
-    rhi::Mat3 transform_; // meaningful only while `kHasTransform` is set; identity otherwise
-    int z_index_ = 0;     // meaningful only while `kHasZIndex` is set; 0 otherwise
-    int tab_index_ = 0;
-    style::PseudoState pseudo_state_ = style::PseudoState::None;
-    PaintOutsets paint_outsets_;
-    float glass_blur_sigma_ = 0.0f;
-    // The ten scroll floats start at a 4-aligned offset with no hole.
-    NodeScroll scroll_;
-    // The last two members are the 8-aligned ones, so the object ends exactly at its last byte: an
-    // 8-byte id, then the rarely used metadata record on an 8-byte boundary.
+    // line 1 and on (offsets 64..): read on demand, 256 bytes with no padding. The two 8-aligned
+    // members are last so the object ends exactly at its last byte.
+    NodePaintExtent extent_;     // outsets, glass sigma, the cached subtree paint box
+    NodePlacement placement_;    // transform and z-index; `hints_` says when they matter
+    int tab_index_ = 0;          // sequential focus order key
+    style::PseudoState pseudo_state_ = style::PseudoState::None; // selector-matching state
+    NodeScroll scroll_;          // content size, scrollport insets, offset, animation target
     NodeId id_ = 0;
     NodeMetadata metadata_;
 };

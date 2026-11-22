@@ -46,15 +46,13 @@ struct NodeLayoutCheck {
     TESSERA_NODE_ON_FIRST_LINE(parent_);
     TESSERA_NODE_ON_FIRST_LINE(children_);
     TESSERA_NODE_ON_FIRST_LINE(bounds_);
-    TESSERA_NODE_ON_FIRST_LINE(flags_);
+    TESSERA_NODE_ON_FIRST_LINE(hints_);
     TESSERA_NODE_ON_FIRST_LINE(dirty_);
     TESSERA_NODE_ON_FIRST_LINE(subtree_dirty_);
-    TESSERA_NODE_ON_FIRST_LINE(scroll_bits_);
-    TESSERA_NODE_ON_FIRST_LINE(user_select_);
-    TESSERA_NODE_ON_FIRST_LINE(cursor_);
-    TESSERA_NODE_ON_FIRST_LINE(focus_group_);
+    TESSERA_NODE_ON_FIRST_LINE(input_);
+    TESSERA_NODE_ON_FIRST_LINE(scroll_style_);
 #undef TESSERA_NODE_ON_FIRST_LINE
-    static_assert(offsetof(Node, subtree_paint_bounds_) == detail::kCacheLine,
+    static_assert(offsetof(Node, extent_) == detail::kCacheLine,
                   "the first on-demand field starts exactly on the second line");
 };
 #if defined(__GNUC__) || defined(__clang__)
@@ -129,7 +127,7 @@ void Node::mark_dirty(Dirty flags) {
     // child's clear), which does not invalidate anything.
     if ((flags & Dirty::Paint) != Dirty::Clean) {
         for (Node* node = this; node != nullptr; node = node->parent_) {
-            node->subtree_paint_bounds_ = rhi::Rect{0.0f, 0.0f, -1.0f, 0.0f};
+            node->extent_.invalidate_cache();
         }
     }
     for (Node* ancestor = parent_; ancestor != nullptr; ancestor = ancestor->parent_) {

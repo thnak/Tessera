@@ -12,11 +12,11 @@
 // What is deliberately NOT here:
 //   * the scroll *policy* (which gesture moves a container, what a wheel delta becomes, when a
 //     smooth scroll ticks) lives in `src/ui/scene/scroll*.cpp`;
-//   * the packed scroll flags and the resolved `scroll-behavior`/`overscroll-*` enums, which are
-//     node state like every other flag and stay on `Node`'s own word.
+//   * the scroll configuration - the scrollable axes and the resolved `scroll-behavior` /
+//     `overscroll-*` enums - which is `NodeScrollStyle`, one byte on the node's first cache line.
 //
-// Keeping those two out is what holds the type to ten floats. The scroll flags byte used to live
-// here, which made this type 44 bytes with 3 bytes of tail padding, and that padding alone pushed
+// Keeping those two out is what holds the type to ten floats. The flags byte used to live here,
+// which made this type 44 bytes with 3 bytes of tail padding, and that padding alone pushed
 // `ui::Node` from 320 to 328 - the exact growth `kNodeSizeBudget` and the `sizeof_node` budget row
 // exist to catch. The clamp therefore takes the two scrollable axes as arguments instead of reading
 // them from state this type would have to carry.
@@ -76,8 +76,8 @@ public:
 
     // Smooth programmatic scroll state (scroll-behavior: smooth). `scroll.cpp` owns the policy and
     // the fixed-step advance; the target is a plain offset so retargeting never jumps. Whether a
-    // target is active is one bit of `Node`'s flag word (`kScrollAnimationActive`), not a separate
-    // field here: 4 bool bytes would be the same padding problem as the flags byte above.
+    // target is active is one bit of `NodeHints` (`scroll_animation_active`), not a separate field
+    // here: a bool would be the same padding problem as the flags byte above.
     void set_animation_target(float x, float y);
     // Resets the stored target to the current offset; the owner clears its own active flag.
     void clear_animation();
