@@ -1,9 +1,15 @@
 # Memory model v1
 
-Status: proposed. Normative companion to [`threading-and-memory.md`](../design/threading-and-memory.md)
-and [`resources.md`](../design/resources.md). Bridge policy:
+Status: **accepted** (2026-11-22). Normative companion to
+[`threading-and-memory.md`](../design/threading-and-memory.md) and
+[`resources.md`](../design/resources.md). Bridge policy:
 [ADR-024](../../decisions/ADR-024-native-first-boundaries.md) (native-first boundaries; no
 production bridges) and [`bridges.md`](../design/bridges.md).
+
+Promoted from *proposed* once the allocator question was decided
+([ADR-070](../../decisions/ADR-070-frame-arena-not-pmr.md)) and the audit's checklist was worked
+through ([#708](https://github.com/thnak/Tessera/issues/708)). The rules below are what the code is
+held to; where a rule is not yet enforced by a check, section 11 says so rather than implying it is.
 
 Goals: deterministic allocation behavior, bounded memory, no leaks, no cross-language
 ownership, no hidden allocations in the frame hot path, and explicit GPU memory budgets.
@@ -124,7 +130,10 @@ Rules:
 - Per-callback `@autoreleasepool`; no unbounded autoreleased objects in the frame loop.
 - Use `CFData`/`NSData` no-copy only when the buffer's owner and lifetime are defined at the
   boundary (section 6 rule "Define ownership at the boundary"); define who owns the buffer.
-- ARC handles ObjC lifetime; C++ objects must not hold unretained ObjC pointers (no such policy is written yet; the rule is to avoid it).
+- ARC handles ObjC lifetime; C++ objects must not hold unretained ObjC pointers. The rule is to avoid
+  it; a C++ member that needs an ObjC object holds a strong reference and releases it in its
+  destructor, and a callback that outlives the call passes an id rather than a pointer (section 1,
+  "handles not pointers across threads").
 - Avoid per-frame ObjC message sends in the render path; cache callbacks/pointers.
 - `CAMetalLayer`/drawable ownership follows the view/scene lifecycle.
 
@@ -174,7 +183,27 @@ See [`bridges.md`](../design/bridges.md) for the native-first bridge policy.
 - Wasm/IPC buffer bounds/ownership tests.
 - Long-run scroll/animation: bounded memory, no cache growth.
 
-## 11. Open questions
+## 11. Enforcement status
+
+Which rules a check holds today, and which are held by review alone. A rule with no check is not a
+weaker rule; it is one a reviewer has to catch, and saying so is better than implying a gate exists.
+
+| Rule | Held by |
+|---|---|
+| No `malloc`/`new` in steady-state frame code | `alloc_per_frame_tests` + `scripts/check_alloc_budget.py` (per-lane ratchet, #800) |
+| Pools fail with a diagnostic, not silent growth | `scripts/check_memory_budget.py` (counted rows at 0%) |
+| Avoid `std::function` in hot paths | review; the rule is stated in [`code-style.md`](../guides/code-style.md) and the audit is [`std-function-audit.md`](../design/std-function-audit.md) (#707) |
+| Intern strings/ids; no formatting in the frame loop | review |
+| Frame lifetime: retire after fence, deferred deletion | `tests/gpu/` retirement and in-flight tests |
+| VMA, no raw `vkAllocateMemory` | review; one known violation is #704 |
+| Eviction never touches in-flight data | `ImageTextureCache` and glyph-atlas tests |
+| Bounded caches | `scripts/check_memory_budget.py` cache rows |
+| Recoverable failure as `std::expected` | `src/ui/boundary/guard.cpp` and its tests |
+| Steady-state RSS and `sizeof` ratchet | `scripts/check_memory_budget.py` (two-sided) |
+| ASan/LSan/TSan | CI lanes (#702) |
+| Determinism (section 8) | goldens on lavapipe; hash-map iteration in output paths is **not** checked |
+
+## 12. Open questions
 
 - ~~Custom arena API vs `std::pmr` wrappers.~~ **Decided:** a custom arena API, not `std::pmr`
   ([ADR-070](../../decisions/ADR-070-frame-arena-not-pmr.md)). The measurement that decided it is in
