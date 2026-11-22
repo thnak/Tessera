@@ -76,9 +76,10 @@ public:
         socket_ok_ = wl_display_add_socket(display_, socket) == 0;
         output_resources_.assign(outputs.size(), nullptr);
         for (std::size_t i = 0; i < outputs.size(); ++i) {
-            // The global's user data is owned here, not by libwayland: `wl_global_create` stores the
-            // pointer and never frees it, so the compositor keeps it in `output_data_` and releases
-            // it in the destructor. Leaking it would be a real leak in the harness (LSan reports it).
+            // The global's user data is owned here, not by libwayland: `wl_global_create` stores
+            // the pointer and never frees it, so the compositor keeps it in `output_data_` and
+            // releases it in the destructor. Leaking it would be a real leak in the harness (LSan
+            // reports it).
             output_data_.push_back(std::make_unique<OutputData>(OutputData{this, i}));
             globals_.push_back(wl_global_create(display_, &wl_output_interface, 2,
                                                 output_data_.back().get(),

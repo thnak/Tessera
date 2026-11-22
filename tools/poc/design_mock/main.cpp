@@ -325,8 +325,8 @@ void build_chrome(Node& root, bool custom) {
     const int title = 32;
     const int app_bar = custom ? 48 : 0;
     const int row_height = static_cast<int>(kHeight) - title - app_bar;
-    // The node borrows the declaration text, so the height string has to outlive the node: intern it
-    // rather than keeping a local, which would die with this frame.
+    // The node borrows the declaration text, so the height string has to outlive the node: intern
+    // it rather than keeping a local, which would die with this frame.
     const std::string_view row_height_px = intern_style_text(std::to_string(row_height) + "px");
     Node& row = box(root, {{"flex-direction", "row"}, {"height", row_height_px}});
     build_sidebar(row);

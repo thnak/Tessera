@@ -73,7 +73,9 @@ void build_button_tree(A11ySnapshot& out, std::string_view button_name) {
 // worker does is enter `pump()` and park.
 bool park_worker(HostHarness& harness) {
     LoggingApartment* apartment = harness.apartment;
-    return expect(harness.host->bridge().post([apartment](auto&) { apartment->block_pump(); }).has_value(),
+    return expect(harness.host->bridge()
+                      .post([apartment](auto&) { apartment->block_pump(); })
+                      .has_value(),
                   "the barrier was posted") &&
            expect(harness.apartment->wait_parked(), "the worker parked in its pump");
 }

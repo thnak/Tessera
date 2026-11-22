@@ -108,7 +108,8 @@ class LoggingApartment final : public tessera::ui::a11y::UiaApartment {
 public:
     // `gate` defaults to a private one, so a fixture that does not need to park the worker (and so
     // has nothing to release at teardown) can construct the apartment with just the log.
-    explicit LoggingApartment(Log& log, std::shared_ptr<PumpGate> gate = std::make_shared<PumpGate>())
+    explicit LoggingApartment(Log& log,
+                              std::shared_ptr<PumpGate> gate = std::make_shared<PumpGate>())
         : log_(log),
           gate_(std::move(gate)) {}
 
