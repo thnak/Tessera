@@ -299,7 +299,7 @@ This page is the map and reading order for the framework.
 - [`design/designer.md`](design/designer.md) — Wasm/WebGPU preview, IPC (inter-process communication), hot reload
 - [`design/threading-and-memory.md`](design/threading-and-memory.md) — threads, ownership,
   allocators, GPU memory, shutdown; [`design/std-function-audit.md`](design/std-function-audit.md) — `std::function` hot/cold (#707); [`design/memory-pressure.md`](design/memory-pressure.md) — eviction order, OOM retry (#705)
-- [`design/resources.md`](design/resources.md) — assets, caches, uploads, lifetime, hot reload
+- [`design/resources.md`](design/resources.md) — assets, caches, uploads, lifetime, hot reload; [`design/cache-decisions.md`](design/cache-decisions.md) — shaped-run/pipeline caches measured, not built (#706)
 - [`design/services/README.md`](design/services/README.md) — services docs index: the common service
   contract, i18n (internationalization), navigation, storage, and the platform modules
 - [`design/services/common-contract.md`](design/services/common-contract.md) — section 1: the

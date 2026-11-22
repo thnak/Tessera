@@ -1745,6 +1745,16 @@ target_link_libraries(text_measure_cache_tests PRIVATE tessera_text)
 
 add_test(NAME text_measure_cache COMMAND text_measure_cache_tests)
 
+# Long-run cache bound (issue #706, memory-model-v1 section 10): a scrolling list plus a per-frame
+# restyle for 600 frames, asserting the measure cache stays within its capacity and does not keep
+# climbing. A bound, not a benchmark, so it runs on every lane.
+add_executable(cache_growth_tests
+    cache_growth_tests.cpp)
+
+target_link_libraries(cache_growth_tests PRIVATE tessera_text)
+
+add_test(NAME cache_growth COMMAND cache_growth_tests)
+
 add_executable(font_metrics_tests
     font_metrics_tests.cpp)
 

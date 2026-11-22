@@ -163,4 +163,25 @@ void GpuMemoryGauges::publish(const GpuMemory& memory) noexcept {
     }
 }
 
+CacheGauges::CacheGauges(MetricsRegistry& registry, std::string_view name)
+    : registry_(&registry),
+      name_(name) {
+    // One gauge per counter, named after the cache so a diagnostic can group them. Registration
+    // allocates, which is why it happens here and not in `publish`.
+    const std::string prefix = "cache." + name_ + ".";
+    ids_[0] = registry.add_gauge(prefix + "hits");
+    ids_[1] = registry.add_gauge(prefix + "misses");
+    ids_[2] = registry.add_gauge(prefix + "evictions");
+    ids_[3] = registry.add_gauge(prefix + "entries");
+    ids_[4] = registry.add_gauge(prefix + "bytes");
+}
+
+void CacheGauges::publish(const CacheStats& stats) noexcept {
+    registry_->set(ids_[0], stats.hits);
+    registry_->set(ids_[1], stats.misses);
+    registry_->set(ids_[2], stats.evictions);
+    registry_->set(ids_[3], stats.entries);
+    registry_->set(ids_[4], stats.bytes);
+}
+
 } // namespace tessera::diagnostics
