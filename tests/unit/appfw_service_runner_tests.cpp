@@ -375,6 +375,11 @@ int run_runner_tests() {
                "the in-flight stop is Abandoned by the total budget");
         expect(runner.phase() == ServicePhase::Stopped, "the sequence ends after the total budget");
         expect(!runner.sequence_active(), "nothing is left in flight after the budget expires");
+        // The abandoned stop is suspended on a queue hop, not parked forever, so it can still
+        // resume: draining lets it observe its cancelled token and unwind, which is what `abandon`
+        // documents as happening at the next resume. Leaving that resume pending would destroy the
+        // queue with the frame still inside the abandoned pair's cycle.
+        pump(queue);
     }
 
     // --- tick() never runs service code
