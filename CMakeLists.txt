@@ -52,6 +52,12 @@ if (MSVC)
     # /utf-8: source files are UTF-8 without a BOM (test fixtures carry non-ASCII literals like
     # U'א'); without it MSVC reads them as the ANSI code page and rejects multi-byte constants.
     add_compile_options(/W4 /permissive- /utf-8)
+    # C4062 is "enumerator not handled in switch and there is no default label"; /W4 does not include
+    # it, while GCC's and Clang's `-Wswitch` (part of `-Wall`, so on every other lane) do. ADR-066's
+    # four steps hit that gap nine times, each cost a full CI round, and each fix was one line
+    # (issue #805). `scripts/check_switch_exhaustive.py` catches the same class without a compiler;
+    # this flag is the compiler's own answer, so the two agree.
+    add_compile_options(/w14062)
     # The Visual Studio generator compiles the files of one project serially unless /MP is set.
     # Ninja already parallelizes per file, so /MP there would only oversubscribe the CPU.
     if (CMAKE_GENERATOR MATCHES "Visual Studio")

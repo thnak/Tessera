@@ -83,6 +83,12 @@ BASE_GATES: List[Gate] = [
         "every enum class names an explicit base type (issue #734)",
     ),
     Gate(
+        "switch-exhaustive",
+        "check_switch_exhaustive.py",
+        (),
+        "a switch over an enum handles every enumerator or has a `default:` (issue #805)",
+    ),
+    Gate(
         "public-api",
         "check_public_api.py",
         ("--check",),
