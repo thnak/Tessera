@@ -7,6 +7,7 @@
 // longhands to Yoga's Start/End edges; paint resolves the same mapping from the computed
 // `direction`, so one stylesheet mirrors between LTR and RTL.
 
+#include "tessera/detail/text_util.hpp"
 #include "tessera/ui/style/color.hpp"
 #include "tessera/ui/style/property_registry.hpp"
 
@@ -19,6 +20,8 @@
 #include <vector>
 
 namespace tessera::ui::style {
+
+using tessera::detail::lower;
 namespace {
 
 // Every logical longhand is a plain box/border value, so none inherits. See the file comment for
@@ -33,14 +36,6 @@ constexpr const char* kLogicalLonghands[] = {
 constexpr std::string_view kWidthDefault = "0";
 constexpr std::string_view kStyleDefault = "none";
 constexpr std::string_view kColorDefault = "currentColor";
-
-std::string lower(std::string_view value) {
-    std::string result(value);
-    for (char& c : result) {
-        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    }
-    return result;
-}
 
 // Split a shorthand value on top-level whitespace. Quoted strings and balanced (), [] are kept
 // together so `rgb(1, 2, 3)` and a family list stay one component. Mirrors the registry but stays

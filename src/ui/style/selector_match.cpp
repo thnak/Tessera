@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "tessera/detail/text_util.hpp"
 #include "tessera/ui/style/selector_match.hpp"
 
 #include <algorithm>
@@ -10,14 +11,9 @@
 #include <system_error>
 
 namespace tessera::ui::style {
-namespace {
 
-std::string lower(std::string_view value) {
-    std::string result(value);
-    std::transform(result.begin(), result.end(), result.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return result;
-}
+using tessera::detail::lower;
+namespace {
 
 bool has_class(const StyleNode& node, std::string_view name) {
     return std::find(node.classes.begin(), node.classes.end(), name) != node.classes.end();

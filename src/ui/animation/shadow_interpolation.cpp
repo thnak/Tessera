@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "shadow_interpolation.hpp"
+#include "tessera/detail/text_util.hpp"
 #include "tessera/ui/style/color.hpp"
 
 #include <algorithm>
@@ -11,6 +12,10 @@
 #include <vector>
 
 namespace tessera::ui::animation {
+
+using tessera::detail::lower;
+using tessera::detail::split_top_level;
+using tessera::detail::trim;
 namespace {
 
 // Matches paint_shadow.hpp's kMaxBoxShadows: the paint pass honours no more layers than this, so a
@@ -26,49 +31,8 @@ struct Layer {
     bool inset = false;
 };
 
-std::string_view trim(std::string_view text) {
-    const auto first = text.find_first_not_of(" \t\r\n\f");
-    if (first == std::string_view::npos) {
-        return {};
-    }
-    return text.substr(first, text.find_last_not_of(" \t\r\n\f") - first + 1);
-}
-
-std::string lower(std::string_view text) {
-    std::string result(text);
-    std::transform(result.begin(), result.end(), result.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return result;
-}
-
 // Splits at `separator` outside parentheses (a colour such as rgba(0, 0, 0, .2) has commas and
 // spaces of its own).
-std::vector<std::string_view> split_top_level(std::string_view text, char separator) {
-    std::vector<std::string_view> parts;
-    int depth = 0;
-    std::size_t start = 0;
-    for (std::size_t i = 0; i <= text.size(); ++i) {
-        bool at_separator = false;
-        if (i < text.size()) {
-            if (text[i] == '(') {
-                ++depth;
-            } else if (text[i] == ')') {
-                --depth;
-            }
-            at_separator =
-                depth == 0 &&
-                (separator == ' ' ? std::isspace(static_cast<unsigned char>(text[i])) != 0
-                                  : text[i] == separator);
-        }
-        if (i == text.size() || at_separator) {
-            if (i > start) {
-                parts.push_back(text.substr(start, i - start));
-            }
-            start = i + 1;
-        }
-    }
-    return parts;
-}
 
 bool is_length_token(std::string_view token) {
     const char c = token.front();

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "tessera/detail/text_util.hpp"
 #include "tessera/ui/style/background_layers.hpp"
 #include "tessera/ui/style/color.hpp"
 #include "tessera/ui/style/cursor_value.hpp"
@@ -15,23 +16,10 @@
 #include <vector>
 
 namespace tessera::ui::style {
+
+using tessera::detail::lower;
+using tessera::detail::trim;
 namespace {
-
-std::string_view trim(std::string_view text) {
-    const auto first = text.find_first_not_of(" \t\r\n\f");
-    if (first == std::string_view::npos) {
-        return {};
-    }
-    const auto last = text.find_last_not_of(" \t\r\n\f");
-    return text.substr(first, last - first + 1);
-}
-
-std::string lower(std::string_view value) {
-    std::string result(value);
-    std::transform(result.begin(), result.end(), result.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return result;
-}
 
 // True when `word` appears in `text` as a whole keyword (not inside `inset-x` or a longer name).
 bool has_keyword(std::string_view text, std::string_view word) {

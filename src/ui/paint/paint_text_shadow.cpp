@@ -6,6 +6,7 @@
 // docs/design/text-shadow.md for why, and for the cost bound.
 
 #include "paint_text_shadow.hpp"
+#include "tessera/detail/text_util.hpp"
 #include "tessera/ui/style/color.hpp"
 
 #include <algorithm>
@@ -17,6 +18,10 @@
 #include <vector>
 
 namespace tessera::ui::paint::detail {
+
+using tessera::detail::lower;
+using tessera::detail::split_top_level;
+using tessera::detail::trim;
 namespace {
 
 // Unit offsets of the copies placed on one ring, at 45 degree steps. A table instead of
@@ -30,22 +35,6 @@ constexpr UnitOffset kRingOffsets[kTextShadowRingSamples] = {
     {1.0f, 0.0f},  {0.70710678f, 0.70710678f},   {0.0f, 1.0f},  {-0.70710678f, 0.70710678f},
     {-1.0f, 0.0f}, {-0.70710678f, -0.70710678f}, {0.0f, -1.0f}, {0.70710678f, -0.70710678f},
 };
-
-std::string_view trim(std::string_view text) {
-    const auto first = text.find_first_not_of(" \t\r\n\f");
-    if (first == std::string_view::npos) {
-        return {};
-    }
-    const auto last = text.find_last_not_of(" \t\r\n\f");
-    return text.substr(first, last - first + 1);
-}
-
-std::string lower(std::string_view text) {
-    std::string result(text);
-    std::transform(result.begin(), result.end(), result.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return result;
-}
 
 bool parse_px(std::string_view text, float& value) {
     std::string token = lower(trim(text));
@@ -82,32 +71,6 @@ bool is_length_token(std::string_view token) {
 
 // Splits at `separator` outside parentheses (a colour such as rgba(0, 0, 0, .2) has commas and
 // spaces of its own).
-std::vector<std::string_view> split_top_level(std::string_view text, char separator) {
-    std::vector<std::string_view> parts;
-    int depth = 0;
-    std::size_t start = 0;
-    for (std::size_t i = 0; i <= text.size(); ++i) {
-        if (i < text.size()) {
-            if (text[i] == '(') {
-                ++depth;
-            } else if (text[i] == ')') {
-                --depth;
-            }
-        }
-        const bool at_separator =
-            i < text.size() &&
-            (separator == ' ' ? std::isspace(static_cast<unsigned char>(text[i])) != 0
-                              : text[i] == separator) &&
-            depth == 0;
-        if (i == text.size() || at_separator) {
-            if (i > start) {
-                parts.push_back(text.substr(start, i - start));
-            }
-            start = i + 1;
-        }
-    }
-    return parts;
-}
 
 // `[<color>? <x> <y> <blur>?]`. Unlike `box-shadow` there is no spread and no `inset` keyword
 // (CSS Text Decoration 3 section 3), so a fourth length or an `inset` token is invalid rather than

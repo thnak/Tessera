@@ -6,6 +6,7 @@
 // the repeating flag inside it are authoritative and this module never has to know which shape a
 // layer carries beyond "is it a gradient at all".
 
+#include "tessera/detail/text_util.hpp"
 #include "tessera/ui/style/background_layers.hpp"
 
 #include <algorithm>
@@ -17,45 +18,13 @@
 #include <vector>
 
 namespace tessera::ui::style {
+
+using tessera::detail::lower;
+using tessera::detail::split_commas;
+using tessera::detail::trim;
 namespace {
 
-std::string_view trim(std::string_view text) {
-    const auto first = text.find_first_not_of(" \t\r\n\f");
-    if (first == std::string_view::npos) {
-        return {};
-    }
-    const auto last = text.find_last_not_of(" \t\r\n\f");
-    return text.substr(first, last - first + 1);
-}
-
-std::string lower(std::string_view text) {
-    std::string result(text);
-    std::transform(result.begin(), result.end(), result.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return result;
-}
-
 // Splits at commas outside parentheses, so a gradient's own commas stay inside its layer.
-std::vector<std::string_view> split_commas(std::string_view text) {
-    std::vector<std::string_view> parts;
-    int depth = 0;
-    std::size_t start = 0;
-    for (std::size_t i = 0; i <= text.size(); ++i) {
-        if (i < text.size()) {
-            if (text[i] == '(') {
-                ++depth;
-            } else if (text[i] == ')') {
-                --depth;
-            }
-        }
-        const bool at_comma = i < text.size() && text[i] == ',' && depth == 0;
-        if (i == text.size() || at_comma) {
-            parts.push_back(trim(text.substr(start, i - start)));
-            start = i + 1;
-        }
-    }
-    return parts;
-}
 
 std::string format_number(float value) {
     char buffer[32] = {};

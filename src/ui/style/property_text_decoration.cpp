@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "property_text_decoration.hpp"
+#include "tessera/detail/text_util.hpp"
 #include "tessera/ui/style/color.hpp"
 #include "tessera/ui/style/text_decoration.hpp"
 
@@ -11,6 +12,8 @@
 #include <vector>
 
 namespace tessera::ui::style {
+
+using tessera::detail::lower;
 namespace {
 
 // Whitespace split outside parentheses, so `rgba(0, 0, 0, .5)` stays one component.
@@ -33,13 +36,6 @@ std::vector<std::string_view> components_of(std::string_view text) {
         }
     }
     return parts;
-}
-
-std::string lower(std::string_view text) {
-    std::string result(text);
-    std::transform(result.begin(), result.end(), result.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return result;
 }
 
 } // namespace

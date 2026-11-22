@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "tessera/detail/text_util.hpp"
 #include "tessera/ui/style/backdrop_filter.hpp"
 
 #include <algorithm>
@@ -11,6 +12,8 @@
 #include <system_error>
 
 namespace tessera::ui::style {
+
+using tessera::detail::trim;
 namespace {
 
 constexpr std::string_view kExpectedFunction =
@@ -27,15 +30,6 @@ std::string_view trim_left(std::string_view text) {
         ++first;
     }
     return text.substr(first);
-}
-
-std::string_view trim(std::string_view text) {
-    text = trim_left(text);
-    std::size_t last = text.size();
-    while (last > 0 && std::isspace(static_cast<unsigned char>(text[last - 1])) != 0) {
-        --last;
-    }
-    return text.substr(0, last);
 }
 
 bool equals_ignore_case(std::string_view lhs, std::string_view rhs) {

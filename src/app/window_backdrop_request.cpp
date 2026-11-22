@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "tessera/detail/text_util.hpp"
 #include "tessera/ui/scene/node.hpp"
 #include "window_backdrop_request.hpp"
 
@@ -10,16 +11,9 @@
 #include <string_view>
 
 namespace tessera::app {
-namespace {
 
-std::string_view trim(std::string_view value) {
-    const std::size_t first = value.find_first_not_of(" \t");
-    if (first == std::string_view::npos) {
-        return {};
-    }
-    const std::size_t last = value.find_last_not_of(" \t");
-    return value.substr(first, last - first + 1);
-}
+using tessera::detail::trim;
+namespace {
 
 // CSS keywords are ASCII case-insensitive while the platform grammar is lowercase, so the inline
 // value is normalized once at startup (never on a frame path).

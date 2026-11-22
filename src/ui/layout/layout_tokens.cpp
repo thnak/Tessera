@@ -10,6 +10,7 @@
 // frame (issue #735). The comparison below trims and lower-cases in place, so it allocates nothing.
 
 #include "layout_style.hpp"
+#include "tessera/detail/text_util.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -19,25 +20,6 @@
 #include <string_view>
 
 namespace tessera::ui::layout::detail {
-
-std::string lower(std::string_view value) {
-    std::string result(value);
-    std::transform(result.begin(), result.end(), result.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return result;
-}
-
-std::string trim(std::string_view value) {
-    const auto first = std::find_if_not(value.begin(), value.end(),
-                                        [](unsigned char c) { return std::isspace(c) != 0; });
-    const auto last = std::find_if_not(value.rbegin(), value.rend(), [](unsigned char c) {
-                          return std::isspace(c) != 0;
-                      }).base();
-    if (first >= last) {
-        return {};
-    }
-    return std::string(first, last);
-}
 
 bool is_keyword(const std::string* value, std::string_view keyword) {
     return value != nullptr && equals_keyword(*value, keyword);
