@@ -239,6 +239,17 @@ ir::ExprPtr lower_expr(LoweringState& state, const jsx::Expr& expr) {
     case jsx::ExprKind::Return:
         fail(state, kMalformed, "`return` is only valid inside an arrow body", expr.span);
         return nullptr;
+    // ADR-066 item 2: the handler-body statement forms are lowered by `handler_control.cpp`, which
+    // walks a handler body. They are not expressions, so reaching one here means the statement was
+    // written where a value is expected.
+    case jsx::ExprKind::If:
+    case jsx::ExprKind::Block:
+    case jsx::ExprKind::Const:
+        fail(state, kUnsupported,
+             "`if`, a block and `const` are handler statements, not expressions; they are only "
+             "valid inside a handler body (jsx-subset-v1.md section 9.2)",
+             expr.span);
+        return nullptr;
     }
     fail(state, kUnsupported, "the expression kind has no IR form", expr.span);
     return nullptr;
