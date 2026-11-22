@@ -45,6 +45,11 @@ constexpr std::array<WindowEventInfo, kWindowEventTypeCount> kWindowEvents{{
     {true, OsEventType::SafeAreaChanged, "SafeAreaChanged"},
     {true, OsEventType::ImeChanged, "ImeChanged"},
     {false, OsEventType::FoldChanged, "FoldChanged"},
+    // The hinge angle is a continuous signal, so it coalesces: a slow fold produces a sample per
+    // sensor period and only the newest one is worth a tick. It maps onto the taxonomy's
+    // `PostureChanged` because that is the fold-category event a continuous posture signal belongs
+    // to; `FoldChanged` stays the discrete state/rectangle transition.
+    {true, OsEventType::PostureChanged, "HingeAngleChanged"},
     {true, OsEventType::RefreshRateChanged, "RefreshRateChanged"},
     {true, OsEventType::WorkAreaChanged, "WorkAreaChanged"},
     {false, OsEventType::DisplayAdded, "DisplayAdded"},

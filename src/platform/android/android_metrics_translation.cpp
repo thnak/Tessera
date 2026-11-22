@@ -73,9 +73,28 @@ CutoutInfo cutout_info(std::span<const PhysicalRect> rects, float scale) noexcep
     return info;
 }
 
-FoldInfo fold_info(FoldPosture posture, FoldAxis axis, const PhysicalRect& bounds,
-                   float scale) noexcept {
+float hinge_angle(float reported_degrees) noexcept {
+    // A negative reading is the platform's "no sensor" answer, not a measurement: pass it through
+    // so a caller can tell "closed" (0) from "unknown" (-1). A non-finite reading is a broken HAL,
+    // which is also unknown rather than a clamp to 0 that would look like a closed hinge.
+    if (!std::isfinite(reported_degrees) || reported_degrees < 0.0F) {
+        return kUnknownHingeAngle;
+    }
+    return std::min(reported_degrees, kMaxHingeAngleDegrees);
+}
+
+bool hinge_angle_is_known(float angle_degrees) noexcept {
+    return std::isfinite(angle_degrees) && angle_degrees >= 0.0F;
+}
+
+FoldInfo fold_info(FoldPosture posture, FoldAxis axis, const PhysicalRect& bounds, float scale,
+                   float angle_degrees) noexcept {
     FoldInfo info;
+    // The angle is set before the posture switch because it is independent of it: a device can have
+    // a hinge sensor and still report no `FoldingFeature` (the library answers nothing while the
+    // window is not laid out), and dropping the angle in that case would make a foldable look like
+    // a slab for as long as the posture is unknown.
+    info.hinge_angle_degrees = hinge_angle(angle_degrees);
     switch (posture) {
     case FoldPosture::Flat:
         info.state = FoldState::Flat;
@@ -84,7 +103,7 @@ FoldInfo fold_info(FoldPosture posture, FoldAxis axis, const PhysicalRect& bound
         info.state = FoldState::HalfOpened;
         break;
     case FoldPosture::None:
-        // No fold: every field keeps its "no fold" default, which is what a non-foldable reports.
+        // No fold: the geometry keeps its "no fold" default, which is what a non-foldable reports.
         return info;
     }
     switch (axis) {

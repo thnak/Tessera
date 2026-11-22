@@ -50,10 +50,12 @@ struct FoldInfo {
     FoldOrientation orientation = FoldOrientation::None;
     FoldOcclusion occlusion = FoldOcclusion::None;
     bool separating = false;
-    // Hinge rectangle, logical pixels, window coordinates; zero when there is no fold.
+    // Hinge rectangle, logical pixels, window coordinates; zero when there is no fold. The angle is
+    // degrees from the platform's hinge sensor (0 closed, 180 flat), `kUnknownHingeAngle` when
+    // nothing measured one; it is independent of `state`, so a flat fold still has an angle.
     WindowRect hinge_bounds;
+    float hinge_angle_degrees = kUnknownHingeAngle;
 };
-
 // Immutable-per-frame window/display snapshot. Styles, layout, and input see this type and never
 // an OS handle, OS message, or swapchain.
 struct WindowMetrics {
@@ -145,15 +147,13 @@ struct WindowMetrics {
 // Budget for the per-event metrics snapshot. `WindowMetrics` is embedded in `WindowEvent`, which
 // the platform event ring and the pump path copy, and `OsEvent` copies it again, so its size is a
 // hot-path cost, not an ergonomics question: the same guardrail as `kNodeSizeBudget` for `Node`
-// (docs/guides/code-style.md). `sizeof(WindowMetrics)` is 376 today, so this budget leaves 8 bytes
-// of headroom for one small future field; growing past it needs a deliberate decision and an
-// updated comment, not an accidental struct member.
+// (docs/guides/code-style.md). `sizeof(WindowMetrics)` is 380 today, so this leaves 4 bytes of
+// headroom; growing past it needs a deliberate decision, not an accidental struct member.
 inline constexpr std::size_t kWindowMetricsSizeBudget = 384;
 
 static_assert(
     sizeof(WindowMetrics) <= kWindowMetricsSizeBudget,
-    "WindowMetrics is copied per event and per pump; keep it within kWindowMetricsSizeBudget "
-    "(or group new fields, or update the budget deliberately)");
+    "WindowMetrics is copied per event and per pump; keep it within kWindowMetricsSizeBudget");
 
 enum class WindowEventType : std::uint8_t {
     Resize,
@@ -177,6 +177,10 @@ enum class WindowEventType : std::uint8_t {
     // The fold state or hinge rectangle changed; the metrics carry `fold`. Consecutive ones
     // coalesce into the newest.
     FoldChanged,
+    // The hinge ANGLE changed without the posture or the hinge rectangle changing (issue #189): the
+    // user is part-way through folding. The metrics carry `fold.hinge_angle_degrees`. Separate from
+    // `FoldChanged` because the angle is continuous where a posture change is a discrete relayout.
+    HingeAngleChanged,
     // --- display capabilities (docs/specs/os-events-v1.md section 2) --------------------------
     // The display's refresh rate changed (a mode change, a move to another monitor, a VRR
     // renegotiation). The metrics carry the new `refresh_hz`/`vrr`. Coalesces into the newest.
@@ -186,7 +190,6 @@ enum class WindowEventType : std::uint8_t {
     WorkAreaChanged,
     // A display was added to or removed from the desktop. The metrics describe the display the
     // window is on now, so a window that lost its monitor to a hotplug reports its new one.
-    // `display` on the event names the display that appeared or disappeared.
     DisplayAdded,
     DisplayRemoved,
     // An existing display changed (its mode, position or scale) without being added or removed.
@@ -222,7 +225,7 @@ enum class WindowSystem : std::uint8_t {
 // The number of `WindowEventType` enumerators. The rules table is indexed by the enumerator value
 // and compile-time checked against this count, so an enumerator added without a row fails the
 // build.
-inline constexpr std::size_t kWindowEventTypeCount = 19;
+inline constexpr std::size_t kWindowEventTypeCount = 20;
 
 // What a window event is about, above its concrete `WindowEventType`: section 3's fixed delivery
 // order is these categories in ascending order. Keeping the category separate from the concrete
@@ -265,8 +268,7 @@ struct WindowEvent {
 // to its OS call (UiaReturnRawElementProvider on Windows). The callback runs on the window's thread
 // inside message dispatch and must never block or call UIA: it only reads a pointer another thread
 // published. Returning false means "no root ready yet", and the platform falls back to its default
-// handling (DefWindowProc, the MSAA default bridge) so a starting or failed accessibility bridge
-// never stalls or breaks the window.
+// handling (DefWindowProc, the MSAA default bridge) so a starting or failed bridge never stalls.
 struct AccessibilityRoot {
     void* context = nullptr;
     bool (*answer)(void* context, std::intptr_t object_id, void*& raw_provider) = nullptr;
@@ -303,9 +305,7 @@ public:
     //
     // It is not a per-frame query: the app window host reads it once, when the window is created,
     // to resolve WindowOptions::refresh_hz (an explicit option still wins). A monitor change is not
-    // tracked in this slice; the OS-event display-capabilities item owns that. Must be called on
-    // the thread that created the window. The default returns the unknown value, for platforms
-    // that have no display-refresh source.
+    // tracked in this slice; the OS-event display-capabilities item owns that.
     [[nodiscard]] virtual double display_refresh_hz() const noexcept {
         return kUnknownRefreshHz;
     }
@@ -317,8 +317,7 @@ public:
     // the documented "no per-monitor information" answer, never a fabricated monitor.
     //
     // It is a state query, not an event: a `DisplayAdded`/`DisplayRemoved`/`DisplayChanged` event
-    // says the list is stale, and the loop re-reads it at that tick's boundary. Must be called on
-    // the thread that created the window. The default returns 0, for platforms with no topology.
+    // says the list is stale, and the loop re-reads it at that tick's boundary.
     virtual std::size_t displays(std::span<DisplayInfo> displays) const {
         (void)displays;
         return 0;
@@ -328,11 +327,9 @@ public:
     // (issue #187, `tessera/hal/appearance.hpp`). It is the value the platform measured LAST, not a
     // query: every platform that has a source keeps a normalized snapshot and a change arrives as
     // `ThemeChanged`/`SystemSettingsChanged`, so the owner re-reads it at that tick's boundary
-    // instead of polling. The read is required to be cheap and non-blocking (a lock-free load), so
-    // it is safe on the frame path; the platform is responsible for doing any I/O on its own
-    // thread. The default is the documented fallback (light, motion enabled, both recorded as
-    // assumed) for platforms with no settings source, and for a platform that has one but has not
-    // answered yet.
+    // instead of polling. The read is cheap and non-blocking (a lock-free load), so it is safe on
+    // the frame path; the platform does any I/O on its own thread. The default is the documented
+    // fallback (light, motion enabled, both recorded as assumed) for platforms with no source.
     [[nodiscard]] virtual AppearancePreference appearance() const noexcept {
         return assumed_appearance();
     }
@@ -375,7 +372,8 @@ public:
     // The platform's window-metrics signals, for a platform that reports them through a callback
     // the host does not own (Android's `WindowInsets`/`DisplayCutout`/`FoldingFeature` over JNI).
     // Values are PHYSICAL pixels; the backend converts them to logical ones. Cutouts keep at most
-    // `kMaxCutouts`; a fold is ignored unless HalfOpened.
+    // `kMaxCutouts`; a fold is ignored unless HalfOpened. `set_physical_fold` also carries the
+    // hinge angle, which is independent of the posture and may arrive alone.
     virtual void set_physical_insets(const PhysicalInsets& system_bars, const PhysicalInsets& ime,
                                      const PhysicalInsets& gestures) {
         (void)system_bars;
@@ -388,6 +386,13 @@ public:
     virtual void set_physical_fold(const PhysicalFold& fold) {
         (void)fold;
     }
+    // The platform's hinge sensor reported an angle in degrees (0 closed, 180 flat), or
+    // `kUnknownHingeAngle` when the sensor went away. A separate seam from `set_physical_fold`
+    // because it is a separate source at a separate rate: the sensor fires while the user is
+    // mid-fold, when the posture has not changed yet.
+    virtual void set_physical_hinge_angle(float degrees) {
+        (void)degrees;
+    }
     // The presentation surface changed extent (a fold switching to the cover display, a rotation),
     // in physical pixels. A backend that re-reads its own surface ignores this; Android cannot,
     // because the ANativeWindow it adopted keeps reporting the old extent.
@@ -395,7 +400,6 @@ public:
         (void)width_px;
         (void)height_px;
     }
-
     // Installs the UIA root handshake (see AccessibilityRoot). Must be called on the window's
     // thread; a null `answer` uninstalls it. Platforms without a UIA host ignore the hook. The
     // context must outlive the window or be uninstalled before it is destroyed.
@@ -413,11 +417,9 @@ public:
     // of `WindowMetrics::fullscreen`, and Escape is left to the app (media-components-v1.md
     // section 8). Must be called on the thread that created the window.
     //
-    // It never blocks, throws, or fails: a platform that cannot honor the request (no backend, a
-    // window manager that refuses the state change) leaves the window as it was,
-    // `metrics().fullscreen` keeps telling the truth, and the caller reports one
-    // TESSERA_WINDOW_UNSUPPORTED diagnostic. The default is a no-op, for platforms without
-    // full-screen support.
+    // It never blocks, throws, or fails: a platform that cannot honor the request leaves the window
+    // as it was, `metrics().fullscreen` keeps telling the truth, and the caller reports one
+    // TESSERA_WINDOW_UNSUPPORTED diagnostic. The default is a no-op.
     virtual void set_fullscreen(bool fullscreen) {
         (void)fullscreen;
     }
@@ -450,8 +452,7 @@ public:
     //
     // X11 applies it with `XDefineCursor` (Xlib buffers the request, so not a blocking round trip
     // in the ADR-021 sense); Win32 records the shape and lets the next `WM_SETCURSOR` install it,
-    // because the OS re-asserts the class cursor on every non-client transition. Neither waits.
-    // Must be called on the thread that created the window.
+    // because the OS re-asserts the class cursor on every non-client transition.
     virtual void set_cursor(CursorShape shape) {
         (void)shape;
     }

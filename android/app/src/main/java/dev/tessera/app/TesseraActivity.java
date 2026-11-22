@@ -27,6 +27,7 @@ public final class TesseraActivity extends android.app.Activity {
 
     private TesseraView view;
     private TesseraFoldReader foldReader;
+    private TesseraHingeReader hingeReader;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -38,6 +39,7 @@ public final class TesseraActivity extends android.app.Activity {
         // insets meaningful to the scene instead of being consumed by the framework.
         hideSystemBars();
         foldReader = new TesseraFoldReader(this);
+        hingeReader = new TesseraHingeReader(this);
     }
 
     @Override
@@ -47,6 +49,29 @@ public final class TesseraActivity extends android.app.Activity {
         // The first read happens here rather than in onCreate: the window layout is not final until
         // the activity is resumed, and a fold read before that reports the pre-layout bounds.
         pushFold();
+        startHinge();
+    }
+
+    /**
+     * Starts the hinge sensor once the native shell exists.
+     *
+     * <p>The sensor is registered on resume and released on pause, which is the platform's rule for
+     * a non-wake-up sensor: leaving it registered while the app is backgrounded would keep the
+     * sensor powered for a value no frame can show.
+     */
+    private void startHinge() {
+        if (hingeReader == null || view == null) {
+            return;
+        }
+        view.whenNativeReady(() -> hingeReader.start(view.nativeHandle()));
+    }
+
+    @Override
+    protected void onPause() {
+        if (hingeReader != null) {
+            hingeReader.stop();
+        }
+        super.onPause();
     }
 
     /**
@@ -92,11 +117,15 @@ public final class TesseraActivity extends android.app.Activity {
         if (foldReader != null) {
             foldReader.stop();
         }
+        if (hingeReader != null) {
+            hingeReader.stop();
+        }
         if (view != null) {
             view.destroy();
             view = null;
         }
         foldReader = null;
+        hingeReader = null;
         super.onDestroy();
     }
 }

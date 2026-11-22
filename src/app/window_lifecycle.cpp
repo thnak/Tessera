@@ -78,6 +78,14 @@ bool WindowHost::Impl::handle_window_event(const hal::WindowEvent& event) {
         host->set_window_metrics(window->metrics());
         loop->mark_render_dirty();
         break;
+    case hal::WindowEventType::HingeAngleChanged:
+        // The angle is a continuous signal, not a geometry change: it moves no inset and no node,
+        // so it must not re-lay out. It only wakes the loop so a scene that reads the angle (an
+        // animation, a debug overlay) can repaint against the new value. The metrics snapshot is
+        // still pushed, because that is where the angle lives and a consumer reads it from there.
+        host->set_window_metrics(window->metrics());
+        loop->mark_render_dirty();
+        break;
     case hal::WindowEventType::Minimized:
         // The window is not visible: the configured pause policy decides whether a frame may be
         // acquired, painted or presented until the platform reports it back. Win32 emits Minimized;

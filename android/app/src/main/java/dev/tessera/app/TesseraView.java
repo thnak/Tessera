@@ -297,6 +297,16 @@ public final class TesseraView extends SurfaceView implements SurfaceHolder.Call
     static native void nativeSetFold(long handle, int posture, int axis, int left, int top,
             int right, int bottom);
 
+    /**
+     * Pushes one hinge-sensor reading to the engine.
+     *
+     * <p>Separate from {@link #nativeSetFold} because it is a separate source at a separate rate:
+     * the sensor fires while the user is mid-fold, when the posture has not changed yet. The value
+     * is degrees with 0 fully closed and 180 fully flat, which is what the engine's decode rules
+     * take; a negative value is the "no sensor" sentinel.
+     */
+    static native void nativeSetHingeAngle(long handle, float degrees);
+
     private static native boolean nativeOnTouch(long handle, MotionEvent event);
 
     /**

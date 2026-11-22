@@ -85,9 +85,21 @@ enum class FoldAxis : std::uint8_t {
 
 // The fold state as `WindowMetrics::fold` wants it. `bounds` is the hinge rectangle in physical
 // pixels; it is ignored unless the posture is `HalfOpened`, because a flat fold has no occluding
-// hinge.
+// hinge. `angle_degrees` is the hinge sensor's reading, or `kUnknownHingeAngle` when the device has
+// no sensor; it is carried through independently of the posture.
 [[nodiscard]] FoldInfo fold_info(FoldPosture posture, FoldAxis axis, const PhysicalRect& bounds,
-                                 float scale) noexcept;
+                                 float scale, float angle_degrees = kUnknownHingeAngle) noexcept;
+
+// The hinge angle as `FoldInfo::hinge_angle_degrees` wants it. Android's hinge sensor reports
+// degrees with 0 fully closed and 180 fully flat, but a vendor driver can report a value outside
+// that range (a 360-degree hinge, a calibration glitch, a NaN from a broken HAL), so this clamps to
+// [0, kMaxHingeAngleDegrees] and turns a non-finite reading into `kUnknownHingeAngle`. A negative
+// input is the "no sensor" sentinel and is passed through rather than clamped to 0, because 0 is a
+// real measurement (a closed hinge) and the two must stay distinguishable.
+[[nodiscard]] float hinge_angle(float reported_degrees) noexcept;
+
+// True when `angle_degrees` is a measurement rather than the "no sensor" sentinel.
+[[nodiscard]] bool hinge_angle_is_known(float angle_degrees) noexcept;
 
 // The window orientation from the logical extent. Android reports a rotation, but the engine
 // derives the orientation from the extent everywhere else, so a device that reports neither still

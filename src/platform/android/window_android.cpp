@@ -129,6 +129,7 @@ public:
         emit(WindowEventType::Resize, pending_resize_);
         emit(WindowEventType::SafeAreaChanged, pending_safe_area_);
         emit(WindowEventType::FoldChanged, pending_fold_);
+        emit(WindowEventType::HingeAngleChanged, pending_hinge_angle_);
         return written;
     }
 
@@ -139,7 +140,8 @@ public:
         if (std::isfinite(timeout_seconds) && timeout_seconds > 0.0) {
             wait_until_seconds(steady_now_seconds() + timeout_seconds);
         }
-        return pending_resize_ || pending_safe_area_ || pending_fold_;
+        const std::lock_guard lock(metrics_mutex_);
+        return pending_resize_ || pending_safe_area_ || pending_fold_ || pending_hinge_angle_;
     }
 
     void set_input_queue(ui::InputQueue* queue) override {
@@ -257,10 +259,25 @@ public:
 
     // The platform reported a fold posture (`FoldingFeature`).
     void set_fold(android::FoldPosture posture, android::FoldAxis axis,
-                  const android::PhysicalRect& hinge) {
+                  const android::PhysicalRect& hinge, float angle_degrees) {
         const std::lock_guard lock(metrics_mutex_);
-        metrics_.fold = android::fold_info(posture, axis, hinge, dpi_scale_);
+        metrics_.fold = android::fold_info(posture, axis, hinge, dpi_scale_, angle_degrees);
         pending_fold_ = true;
+    }
+
+    // The platform's hinge sensor reported a new angle. It is a separate signal from the posture:
+    // the sensor fires while the user is mid-fold, when `FoldingFeature` still reports the posture
+    // it started with, so this must not touch the state, the axis or the hinge rectangle.
+    void set_hinge_angle(float angle_degrees) {
+        const std::lock_guard lock(metrics_mutex_);
+        const float decoded = android::hinge_angle(angle_degrees);
+        if (decoded == metrics_.fold.hinge_angle_degrees) {
+            // A sensor that repeats its last value (an on-change sensor re-reporting after a
+            // registration) is not a change, and waking the loop for it would cost a frame.
+            return;
+        }
+        metrics_.fold.hinge_angle_degrees = decoded;
+        pending_hinge_angle_ = true;
     }
 
     // The HAL seam the JNI bridge calls (issue #189). It takes the platform's physical values and
@@ -319,7 +336,13 @@ public:
         }
         android::PhysicalRect hinge{fold.hinge.left, fold.hinge.top, fold.hinge.right,
                                     fold.hinge.bottom};
-        set_fold(posture, axis, hinge);
+        set_fold(posture, axis, hinge, fold.hinge_angle_degrees);
+    }
+
+    // The hinge sensor's reading, from the HAL seam the JNI bridge calls. It is a separate signal
+    // from the posture, so it never touches the state, the axis or the hinge rectangle.
+    void set_physical_hinge_angle(float degrees) override {
+        set_hinge_angle(degrees);
     }
 
     // The surface the renderer borrows. Invalid once the window is closed or replaced.
@@ -384,6 +407,7 @@ private:
     bool pending_resize_ = false;
     bool pending_safe_area_ = false;
     bool pending_fold_ = false;
+    bool pending_hinge_angle_ = false;
 };
 
 } // namespace

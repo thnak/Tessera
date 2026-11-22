@@ -216,7 +216,7 @@ void check_window_path() {
     expect(static_cast<std::size_t>(WindowEventType::ThemeChanged) + 1 ==
                hal::kWindowEventTypeCount,
            "kWindowEventTypeCount matches the window enumerator count");
-    expect(hal::kWindowEventTypeCount == 19, "the documented window enumerator count");
+    expect(hal::kWindowEventTypeCount == 20, "the documented window enumerator count");
     expect(hal::window_event_type_is_known(WindowEventType::Resize), "resize is known");
     expect(hal::window_event_type_is_known(WindowEventType::ScaleChanged), "scale is known");
     expect(!hal::window_event_type_is_known(static_cast<WindowEventType>(200)),
@@ -265,6 +265,23 @@ void check_window_path() {
     expect(hal::window_event_coalesces(WindowEventType::Resize), "resize coalesces");
     expect(hal::window_event_coalesces(WindowEventType::RefreshRateChanged), "refresh coalesces");
     expect(!hal::window_event_coalesces(WindowEventType::Close), "close never coalesces");
+
+    // The hinge angle is a continuous sensor signal, so it coalesces: a slow fold produces a
+    // sample per sensor period and only the newest is worth a tick. It maps onto the taxonomy's
+    // `PostureChanged` (the fold-category event a continuous posture signal belongs to), while
+    // `FoldChanged` stays the discrete state/rectangle transition.
+    expect(hal::window_event_coalesces(WindowEventType::HingeAngleChanged),
+           "the hinge angle coalesces");
+    expect(!hal::window_event_coalesces(WindowEventType::FoldChanged),
+           "a fold posture change never coalesces");
+    expect(hal::os_event_type_for(WindowEventType::HingeAngleChanged) ==
+               hal::OsEventType::PostureChanged,
+           "HingeAngleChanged maps to PostureChanged");
+    expect(hal::window_event_order_rank(WindowEventType::HingeAngleChanged) ==
+               hal::window_event_order_rank(WindowEventType::FoldChanged),
+           "the hinge angle ranks with the fold events");
+    expect(hal::window_event_type_name(WindowEventType::HingeAngleChanged) == "HingeAngleChanged",
+           "the hinge angle has its own wire name");
 }
 
 void check_sequence() {
