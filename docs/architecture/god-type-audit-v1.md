@@ -526,8 +526,20 @@ two readers because the third is a leaf library whose no-project-header rule is 
    order enumerated measured 328 bytes, past `kNodeSizeBudget`. `tab_index` and `pseudo_state` have
    to stay on `Node` for the layout to close, and with them out the extraction buys a header at the
    cost of a wider diff, so it was dropped.
-4. Does `Event` move to a variant before or after the paint-text payload work that copies into
+4. ~~Can `node.cpp` be split further by role?~~ **Answered by measurement, no.** After slice 1 the
+   file holds four roles: tree structure (37 lines), dirty bookkeeping (59), the structure-epoch
+   counter (9) and the constructor/destructor (4). Splitting them is a loss, because a `.cpp` split
+   does not reduce what each new TU parses — every one of them re-includes `node.hpp`. A 4-way split
+   totals 254,072 preprocessed lines against 91,559 for the single file. The one move that is not a
+   loss is into a TU that already pays for `node.hpp`: `dirty_pass.cpp` includes it through
+   `dirty_pass.hpp`, so moving the dirty methods there is exactly cost-neutral (155,748 lines either
+   way, and time within noise). It buys nothing, so it was not done. Moving the epoch counter out
+   costs a fresh 13,119-line TU to save the 1,756 lines `<atomic>` adds, a net loss of 11,363. The
+   file stays as it is. What the question did surface is a dead include: `node.cpp` carried
+   `paint_data.hpp` from #785 and never named `PaintData`, costing 12,721 preprocessed lines and
+   0.10 s per compile; removing it took the TU from 91,559 to 78,838 lines.
+5. Does `Event` move to a variant before or after the paint-text payload work that copies into
    `Event::text`? The buffer removal is independent and cheaper.
-5. `WindowHost::Impl` and `AppHost::Impl` are private headers, so their splits are invisible to
+6. `WindowHost::Impl` and `AppHost::Impl` are private headers, so their splits are invisible to
    users and can land in any order; the only constraint is that `WindowOptions` and
    `WindowFrameStats` stay put.

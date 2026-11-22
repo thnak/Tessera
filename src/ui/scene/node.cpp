@@ -8,7 +8,6 @@
 // one of those features no longer edits the TU every other feature includes.
 
 #include "tessera/ui/scene/node.hpp"
-#include "tessera/ui/scene/paint_data.hpp"
 #include "tessera/ui/scene/structure_epoch.hpp"
 
 #include <atomic>
