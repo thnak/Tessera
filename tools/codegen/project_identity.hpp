@@ -5,6 +5,7 @@
 #include "regenerate.hpp"
 #include "tessera/compiler/jsx/limits.hpp"
 
+#include <cstdint>
 #include <filesystem>
 #include <optional>
 #include <string>
@@ -44,6 +45,11 @@ struct ProjectIdentity {
     std::vector<ThemePinSpec> theme_pins;
     // `ui.limits.*`: the JSX front end limits, the compiled-in defaults unless the config sets one.
     tessera::compiler::jsx::Limits limits;
+    // `permissions`: the mask of the permissions this app may request (docs/specs/permissions-v1.md
+    // section 7). Empty by default, so an app that declares nothing can request nothing; the
+    // codegen driver turns a request for an undeclared permission into a `TESSERA_PERM_UNDECLARED`
+    // diagnostic.
+    std::uint64_t permissions = 0;
 };
 
 // Appends one message; an error also makes the exit code 1 unless it was already larger. The

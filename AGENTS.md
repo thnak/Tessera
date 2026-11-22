@@ -1039,7 +1039,27 @@ ADR-050 is Accepted (roadmap AF1-AF8); start with AF1.
       `ManualClock`/`FakeShell`), `docs/design/shell-module.md`. **Still open:** the Linux/X11,
       macOS and mobile back ends, clipboard files/URIs, OLE drag with a drag image, the menu bar and
       tray models, and the `useClipboard` hook - all recorded in section 7 of the design note.
-- [ ] #451: Permissions: `permissions-v1` spec and `PermissionService` (spec first; #452 and #455 need it).
+- [x] #451: Permissions: `permissions-v1` spec and `PermissionService` (spec first; #452 and #455 need it).
+      **Done.** `docs/specs/permissions-v1.md` owns what five other documents mentioned but none
+      defined: the five-state model (`NotDetermined`/`Granted`/`Denied`/`PermanentlyDenied`/
+      `Restricted`), the closed V1 permission set with its per-platform mapping, one `request` and one
+      `status` per permission with app-supplied rationale text, and the `tessera.json` declaration.
+      `tessera_appfw_permission` (`include/tessera/appfw/permission.hpp`, `permission_service.hpp`,
+      `permission_fake.hpp`) implements it: the four "do not ask" rules (granted, permanently denied,
+      restricted, and an opted-out denial all resolve from the state table without a prompt),
+      coalescing of a request that arrives while one is pending (one prompt, one answer, N callers),
+      the `NotDeclared` check before the platform sees a request, and per-permission state updated
+      only by a result. `FakePermissionBackend` scripts every state, a promptless platform row, a
+      platform failure and a prompt that never answers. `tests/unit/permissions_tests.cpp` (22 cases,
+      `appfw_permission`) covers each transition, coalescing, cancellation, staleness, eviction and the
+      name round-trip; each was proven to fail with its rule disabled. `tessera.json` `permissions`
+      parses and validates in `tools/codegen/project_identity.cpp` (unknown id names the valid set,
+      duplicate is a no-op, non-array rejected), covered by `codegen_cli`.
+      **Still open:** no per-platform back end ships (the fake is what an app, a headless run and the
+      studio panel use); the `TESSERA_PERM_UNDECLARED` front-end diagnostic is specified in section 7
+      rule 2 but the AST check lands with #455, which is the first component that requests a
+      permission; permission groups, iOS provisional authorization and the `permissionText` manifest
+      emission are open questions 1-3 of the spec.
 - [ ] #452: Notifications: `notifications-v1` spec and `NotificationService` (spec first; after #451).
 - [ ] #453: Background work policy: design note, in-process `TaskScope` or OS-scheduled jobs (decision, no code).
 - [x] #454: App-level test support `tessera_testing` and a guide (`ready`): service fakes, lifecycle injection, `tap/find/advance`.

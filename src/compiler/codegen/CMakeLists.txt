@@ -1842,6 +1842,17 @@ if (TESSERA_BUILD_TESTS)
     add_test(NAME codegen_cli
         COMMAND codegen_cli_tests ${_tessera_codegen_demo_src} $<TARGET_FILE:tessera_codegen_cli>)
 
+    # `tessera.json` `permissions` (issue #451, permissions-v1.md section 7). Its own executable rather
+    # than another block in `codegen_cli_tests`, which is at its file-size budget: one config key, one
+    # subject. Host-only like the CLI test above, because it runs the built CLI through `std::system`.
+    if (NOT CMAKE_CROSSCOMPILING AND NOT CMAKE_SYSTEM_NAME MATCHES "^(iOS|tvOS|watchOS)$")
+        add_executable(permissions_config_tests
+            ${CMAKE_SOURCE_DIR}/tests/unit/permissions_config_tests.cpp)
+
+        add_test(NAME permissions_config
+            COMMAND permissions_config_tests $<TARGET_FILE:tessera_codegen_cli>)
+    endif ()
+
     # The demo target only exists on host builds (see the cross-compiling guard above).
     if (NOT CMAKE_CROSSCOMPILING)
         add_test(NAME sample_compile

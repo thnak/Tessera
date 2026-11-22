@@ -284,6 +284,38 @@ constant include/tessera/appfw/net_url.hpp tessera::appfw::kMaxUrlLength
 header include/tessera/appfw/observable.hpp
 class include/tessera/appfw/observable.hpp tessera::appfw::Observable
 
+header include/tessera/appfw/permission.hpp
+class include/tessera/appfw/permission.hpp tessera::appfw::PermissionBackend
+struct include/tessera/appfw/permission.hpp tessera::appfw::PermissionBackendCapabilities
+struct include/tessera/appfw/permission.hpp tessera::appfw::PermissionError
+struct include/tessera/appfw/permission.hpp tessera::appfw::PermissionRequestOptions
+struct include/tessera/appfw/permission.hpp tessera::appfw::PermissionResult
+enum include/tessera/appfw/permission.hpp tessera::appfw::Permission
+enum include/tessera/appfw/permission.hpp tessera::appfw::PermissionErrorKind
+enum include/tessera/appfw/permission.hpp tessera::appfw::PermissionState
+alias include/tessera/appfw/permission.hpp tessera::appfw::PermissionCompletion
+function include/tessera/appfw/permission.hpp tessera::appfw::all_permissions_mask
+function include/tessera/appfw/permission.hpp tessera::appfw::permission_askable
+function include/tessera/appfw/permission.hpp tessera::appfw::permission_error_kind_name
+function include/tessera/appfw/permission.hpp tessera::appfw::permission_from_name
+function include/tessera/appfw/permission.hpp tessera::appfw::permission_mask
+function include/tessera/appfw/permission.hpp tessera::appfw::permission_name
+function include/tessera/appfw/permission.hpp tessera::appfw::permission_state_name
+function include/tessera/appfw/permission.hpp tessera::appfw::permission_usable
+constant include/tessera/appfw/permission.hpp tessera::appfw::kPermissionCount
+
+header include/tessera/appfw/permission_fake.hpp
+class include/tessera/appfw/permission_fake.hpp tessera::appfw::FakePermissionBackend
+struct include/tessera/appfw/permission_fake.hpp tessera::appfw::FakePermissionCall
+struct include/tessera/appfw/permission_fake.hpp tessera::appfw::FakePermissionScript
+
+header include/tessera/appfw/permission_service.hpp
+class include/tessera/appfw/permission_service.hpp tessera::appfw::PermissionService
+class include/tessera/appfw/permission_service.hpp tessera::appfw::detail::PermissionServiceImpl
+struct include/tessera/appfw/permission_service.hpp tessera::appfw::PermissionConfig
+struct include/tessera/appfw/permission_service.hpp tessera::appfw::PermissionTicket
+constant include/tessera/appfw/permission_service.hpp tessera::appfw::kMaxPendingPermissionRequests
+
 header include/tessera/appfw/saved_state.hpp
 class include/tessera/appfw/saved_state.hpp tessera::appfw::SavedStateRecord
 class include/tessera/appfw/saved_state.hpp tessera::appfw::SavedStateRecorder
