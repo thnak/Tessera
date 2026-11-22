@@ -191,8 +191,21 @@ JsonValue actions_to_json(const std::vector<Action>& actions) {
             kind = "callProp";
         } else if (action.kind == ActionKind::If) {
             kind = "if";
+        } else if (action.kind == ActionKind::Dispatch) {
+            kind = "dispatch";
         }
         json.set("kind", JsonValue::string(kind));
+        // ADR-066 item 4: a `dispatch({ type: "x" })` names the reducer state and the `type`
+        // literal; it carries no value, because the action payload is not part of the limited form.
+        if (action.kind == ActionKind::Dispatch) {
+            json.set("target", JsonValue::string(action.target));
+            json.set("action", JsonValue::string(action.action));
+            if (action.guard) {
+                json.set("guard", expr_to_json(action.guard.get()));
+            }
+            list.push(std::move(json));
+            continue;
+        }
         // ADR-066 item 2: an `If` action has no target and no value; its `guard` is the condition
         // and its two lists are the branches. `then` is always written, `else` only when present,
         // so a bare `if` stays as small as it can be.

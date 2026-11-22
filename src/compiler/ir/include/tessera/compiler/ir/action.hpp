@@ -24,7 +24,12 @@ struct Param {
 // through an unset callback is a no-op.
 // `If` (ADR-066 item 2) is the conditional action: `guard` is the pure bool condition and the two
 // lists are the branches. It is how `if`/`else` and an early `return` in a handler body lower.
-enum class ActionKind : std::uint8_t { Set, AnimSet, Focus, Blur, CallProp, If };
+// `If` (ADR-066 item 2) is the conditional action: `guard` is the pure bool condition and the two
+// lists are the branches. It is how `if`/`else` and an early `return` in a handler body lower.
+// `Dispatch` (ADR-066 item 4) is one `dispatch({ type: "x" })`: `target` is the reducer state's
+// `state::` id and `action` the `type` literal. The generated listener indexes the state's dispatch
+// table and calls the handler it names, so the component needs no new state kind.
+enum class ActionKind : std::uint8_t { Set, AnimSet, Focus, Blur, CallProp, If, Dispatch };
 
 // The spring driver of `v.set(x, { spring })`: an alternative to `duration`/`easing`. The defaults
 // are the runtime's (`SpringConfig`: stiffness 180, damping 20, mass 1).
@@ -39,13 +44,18 @@ struct SpringTiming {
 // One step of an inline handler or of a preview body.
 struct Action {
     ActionKind kind = ActionKind::Set;
+    // The fields an initializer spells in order: `{kind, target, value, animate}`. Every field
+    // *after* `animate` has a default member initializer, so a positional init may stop at
+    // `value` or `animate` and stay `-Wmissing-field-initializers`-free on GCC and Clang. A new
+    // field therefore belongs after `animate`, with a default — a bare `std::string action;` here
+    // is enough to warn and fail the Linux lanes, which is how this field first broke two of them.
     std::string target; // state::x or anim::x
     ExprPtr value;
     bool animate = true; // AnimSet only
-    // AnimSet only, and only when `animate` is true: the literal timing options of
-    // `v.set(x, { duration, easing })`. Absent means the runtime default (200 ms, ease-out).
-    // Default member initializers keep `{kind, target, value, animate}` aggregate initializers
-    // warning-free (-Wmissing-field-initializers).
+    // ADR-066 item 4: the `type` literal of a `dispatch({ type: "x" })` (Dispatch only). Empty for
+    // every other kind, and for a dispatch that carries no literal `type`, which the validator
+    // rejects because the dispatch table is keyed by it.
+    std::string action{};
     std::optional<double> duration_ms{};
     std::string easing{}; // CSS easing text, empty when absent
     // AnimSet only, exclusive with `duration_ms`/`easing` and with `animate: false`.

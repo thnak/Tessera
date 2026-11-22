@@ -78,6 +78,26 @@ void ComponentChecker::check_declarations() {
         } else {
             validate_record_position(context, scope, state.initial.get(), state.type, where);
         }
+        // ADR-066 item 4: a reducer state's dispatch table. Each case's handler must be a declared
+        // handler of this component, and a `default` case is at most one.
+        bool seen_default = false;
+        for (const DispatchCase& entry : state.dispatch) {
+            if (entry.action.empty()) {
+                if (seen_default) {
+                    context.report("TESSERA_IR_MALFORMED",
+                                   "`" + state.id + "` has more than one `default` dispatch case",
+                                   where);
+                }
+                seen_default = true;
+            } else {
+                scope.dispatch[state.id].insert(entry.action);
+            }
+            if (!starts_with(entry.handler, "handler::")) {
+                context.report("TESSERA_IR_MALFORMED",
+                               "dispatch case handler `" + entry.handler + "` is not a handler id",
+                               where);
+            }
+        }
     }
     for (const auto& value : component.animated_values) {
         declare(value.id, "anim::", where);

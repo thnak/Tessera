@@ -64,7 +64,26 @@ JsonValue to_json(const Component& component) {
 
     JsonValue state = JsonValue::array();
     for (const auto& item : component.state) {
-        state.push(typed_entry(item.id, item.name, item.type, item.initial.get()));
+        JsonValue entry = typed_entry(item.id, item.name, item.type, item.initial.get());
+        // ADR-066 item 4: the dispatch table of a `useReducer` state, in `case` order. A `useState`
+        // has none, so its entry is byte-identical to before.
+        if (!item.dispatch.empty()) {
+            JsonValue table = JsonValue::array();
+            for (const DispatchCase& entry_case : item.dispatch) {
+                JsonValue row = JsonValue::object();
+                // `default` has no action; the writer omits the key rather than writing an empty
+                // string, so a reader can tell the two apart.
+                if (!entry_case.action.empty()) {
+                    row.set("action", JsonValue::string(entry_case.action));
+                } else {
+                    row.set("default", JsonValue::boolean(true));
+                }
+                row.set("handler", JsonValue::string(entry_case.handler));
+                table.push(std::move(row));
+            }
+            entry.set("dispatch", std::move(table));
+        }
+        state.push(std::move(entry));
     }
     add_if_not_empty(json, "state", std::move(state));
 
