@@ -5,6 +5,11 @@
   record; this ADR is the decision that fixes the set, the order and the IR changes it needs. The L
   rows are in [ADR-067](ADR-067-pending-ui-transitions-suspense-lazy.md), custom hooks in
   [ADR-065](ADR-065-custom-hooks-by-compile-time-inlining.md).
+  **Stays Proposed on purpose** (owner direction 2026-11-22): the set and the order are expected to
+  move as V1 ports real code, so locking them now would make every later correction an amendment.
+  The steps #651 to #654 therefore land while this ADR is Proposed, under the "Proposed on purpose"
+  rule of [`AGENTS.md`](../AGENTS.md#farming-protocol); each landing amends this ADR with what it
+  measured, and the owner moves it to Accepted when the set has stopped moving.
 - Date: 2026-11-20
 - Related: [ADR-036](ADR-036-own-jsx-frontend-and-react-like-model.md) (amended: items on rejected hooks
   and syntax), [ADR-058](ADR-058-react-vite-port-compatibility-tiers.md) (typing rules and ports),
@@ -99,7 +104,12 @@ growing the codebase around the gaps, which makes each later change more expensi
 
 ## Evidence required before Accepted
 
-This ADR stays Proposed until measured evidence exists, so a wrong choice is amended before it is locked. Spike [#660](https://github.com/thnak/Tessera/issues/660) measures what the front end accepts on a corpus of real components and reports the frequency of each rejection. The order of item 6 is chosen by that table and may change; the implementing issues #651 to #654 wait for Acceptance.
+This ADR stays Proposed until measured evidence exists, so a wrong choice is amended before it is locked. Spike [#660](https://github.com/thnak/Tessera/issues/660) measures what the front end accepts on a corpus of real components and reports the frequency of each rejection. The order of item 6 is chosen by that table and may change.
+
+**The implementing issues no longer wait for Acceptance** (owner direction 2026-11-22, recorded in
+the status line): #651 to #654 land while this ADR is Proposed, because the set is expected to move
+during V1 and a locked decision would turn each correction into an amendment. Each landing appends
+what it measured to this section. The owner moves the ADR to Accepted when the set stops moving.
 
 ### Spike #660 evidence (recorded 2026-11-21)
 
@@ -229,7 +239,8 @@ step if the frequency table is to drive the order rather than confirm it.
 
 - Update `jsx-subset-v1.md` sections 6, 7, 9, 10 and 12, `ir-v1.md` section 2.1 and `ir-v1-expr.md`
   section 4 in the implementing PRs (the subset spec is near its size limit: edit in place).
-- One issue per step of item 6, labeled for the farm after this ADR is Accepted.
+- One issue per step of item 6, labeled for the farm. They are `ready` while this ADR is Proposed on
+  purpose (see the status line), not after Acceptance.
 - Register the new diagnostics (`TESSERA_REACT_REDUCER_FORM`, `TESSERA_REACT_CONTEXT_DYNAMIC`, and the
   existing codes whose messages change) with fixtures.
 - Update `react-core-coverage.md` and `react-compat.md` section 4 as each step lands.
