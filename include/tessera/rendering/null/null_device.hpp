@@ -106,7 +106,7 @@ public:
     }
     // True when the pipeline's layout declares a read-only storage buffer (RHI 1.12, ADR-068), so
     // bind_storage_buffer can reject a bind the shader could never read.
-    [[nodiscard]] bool declares_storage_buffer() const {
+    [[nodiscard]] bool declares_storage_buffer() const override {
         return desc_.storage_buffer;
     }
 

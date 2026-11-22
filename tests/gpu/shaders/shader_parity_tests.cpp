@@ -208,30 +208,47 @@ std::pair<std::uint32_t, std::uint32_t> layout_of(const std::string& type,
     return {0, 4};
 }
 
-// `@group(0) @binding(N) var[<uniform>] name: type;` -> binding -> type ("uniform" for buffers).
+// `@group(0) @binding(N) var[<uniform>|<storage, read>] name: type;` -> binding -> type ("uniform"
+// for a uniform buffer, "storage" for a read-only storage buffer). WebGPU has one bind group, so
+// the key is the binding number in the portable space glsl_bindings also produces.
 std::map<std::uint32_t, std::string> wgsl_bindings(const std::vector<std::string>& lines) {
-    const std::regex pattern(R"(@group\(0\) @binding\((\d+)\) var(<uniform>)? \w+: ([^;]+);)");
+    const std::regex pattern(
+        R"(@group\((\d+)\) @binding\((\d+)\) var(<uniform>|<storage, read>)? \w+: ([^;]+);)");
     std::map<std::uint32_t, std::string> result;
     std::smatch match;
     for (const std::string& line : lines) {
         if (std::regex_search(line, match, pattern)) {
-            result[static_cast<std::uint32_t>(std::stoul(match[1]))] =
-                match[2].matched ? "uniform" : match[3].str();
+            const std::uint32_t binding = static_cast<std::uint32_t>(std::stoul(match[2]));
+            std::string type = match[4].str();
+            if (match[3].matched) {
+                type = match[3].str() == "<uniform>" ? "uniform" : "storage";
+            }
+            result[binding] = type;
         }
     }
     return result;
 }
 
-// `layout(set = 0, binding = N[, std140]) uniform <type|Block> name;`
+// `layout(set = 0, binding = N[, std140]) uniform <type|Block> name;` and the storage-buffer form
+// `layout(set = 1, binding = N, std430) readonly buffer <Block> { ... } name;`.
+//
+// The result is keyed in the *portable* binding space, which is what the manifest records and what
+// WebGPU uses: Vulkan's set 0 keeps its binding numbers, and set 1 (the clip records, ADR-068 slice
+// 3) maps onto the single WebGPU bind group at `kBindingClipRecords`. Comparing the two APIs
+// directly would fail on the set/group split, which is a backend difference, not a drift.
 std::map<std::uint32_t, std::string> glsl_bindings(const std::vector<std::string>& lines) {
-    const std::regex pattern(R"(layout\(set = 0, binding = (\d+)(?:, std140)?\) uniform (\w+))");
+    const std::regex pattern(
+        R"(layout\(set = (\d+), binding = (\d+)(?:, std140|, std430)?\) (?:uniform|readonly buffer) (\w+))");
     std::map<std::uint32_t, std::string> result;
     std::smatch match;
     for (const std::string& line : lines) {
         if (std::regex_search(line, match, pattern)) {
-            const std::string type = wgsl_type(match[2]);
-            result[static_cast<std::uint32_t>(std::stoul(match[1]))] =
-                type == "PushConstants" ? "uniform" : type;
+            const std::uint32_t set = static_cast<std::uint32_t>(std::stoul(match[1]));
+            const std::uint32_t binding = static_cast<std::uint32_t>(std::stoul(match[2]));
+            const std::string type = wgsl_type(match[3]);
+            // Set 1 is the clip-record storage buffer; it is the only `readonly buffer` block.
+            const std::uint32_t key = set == 1 ? wg::kBindingClipRecords : binding;
+            result[key] = type == "PushConstants" ? "uniform" : (set == 1 ? "storage" : type);
         }
     }
     return result;
@@ -240,10 +257,12 @@ std::map<std::uint32_t, std::string> glsl_bindings(const std::vector<std::string
 void test_batched2d_parity() {
     const std::string vert_text(kBatched2dVertGlsl);
     const std::string frag_text(kBatched2dFragGlsl);
-    expect(!vert_text.empty() && !frag_text.empty(),
+    const std::string lcd_frag_text(kBatched2dLcdFragGlsl);
+    expect(!vert_text.empty() && !frag_text.empty() && !lcd_frag_text.empty(),
            "GLSL sources embedded at configure time are non-empty");
     const auto vert = code_lines(vert_text, true);
     const auto frag = code_lines(frag_text, true);
+    const auto lcd_frag = code_lines(lcd_frag_text, true);
     const auto wgsl = code_lines(std::string(wg::batched2d_wgsl_program().source), false);
 
     const Locations inputs = glsl_locations(vert, "in");
@@ -259,24 +278,33 @@ void test_batched2d_parity() {
     expect(varyings == wgsl_locations(wgsl, "VertexOutput"),
            "varyings (type or flat interpolation) differ from WGSL VertexOutput");
 
-    const Members clip = glsl_block(frag, "struct ClipUniform {");
-    expect(!clip.empty() && clip == glsl_block(vert, "struct ClipUniform {") &&
-               clip == wgsl_members(wgsl, "ClipUniform"),
-           "ClipUniform members differ");
+    // The clip-record struct is declared by the two fragment stages that read it; the vertex stage
+    // only needs the push-constant block, so it does not declare the record at all.
+    const Members clip = glsl_block(frag, "struct ClipRecord {");
+    expect(!clip.empty() && clip == glsl_block(lcd_frag, "struct ClipRecord {") &&
+               clip == wgsl_members(wgsl, "ClipRecord"),
+           "ClipRecord members differ between the fragment stages and WGSL");
     const Members block = glsl_block(frag, "uniform PushConstants {");
     expect(!block.empty() && block == glsl_block(vert, "uniform PushConstants {") &&
                block == wgsl_members(wgsl, "Params"),
            "uniform block members differ between GLSL PushConstants and WGSL Params");
-    const std::map<std::string, Members> structs = {{"ClipUniform", clip}};
+    const std::map<std::string, Members> structs = {{"ClipRecord", clip}};
     expect(struct_layout(block, structs).first == sizeof(gpu::Batched2DPushConstants),
            "uniform block size differs from Batched2DPushConstants");
 
     const auto bindings = wgsl_bindings(wgsl);
     expect(bindings == glsl_bindings(frag), "portable GLSL bindings differ from WGSL bindings");
-    expect(bindings.size() == 3 && bindings.at(wg::kBindingPushConstants) == "uniform" &&
+    // Set 0 is the sampled image and the uniform block; set 1 is the clip-record storage buffer
+    // (ADR-068 slice 3). The keys are `set * 1000 + binding`.
+    expect(bindings.size() == 4 && bindings.at(wg::kBindingPushConstants) == "uniform" &&
                bindings.at(wg::kBindingTexture) == "texture_2d<f32>" &&
                bindings.at(wg::kBindingSampler) == "sampler",
            "WGSL bindings match the WebGPU pipeline layout constants");
+    // The clip-record buffer is a read-only storage binding, the one binding that is not a uniform,
+    // texture or sampler.
+    expect(bindings.contains(wg::kBindingClipRecords) &&
+               bindings.at(wg::kBindingClipRecords) == "storage",
+           "WGSL declares the clip-record storage buffer");
     const auto vert_bindings = glsl_bindings(vert);
     expect(vert_bindings.size() == 1 && vert_bindings.contains(wg::kBindingPushConstants),
            "portable vertex stage binds only the uniform block");

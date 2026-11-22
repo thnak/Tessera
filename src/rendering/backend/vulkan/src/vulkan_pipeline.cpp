@@ -61,10 +61,10 @@ std::unique_ptr<rhi::Pipeline> VulkanDevice::create_pipeline(const rhi::Pipeline
 
     VkPipelineLayoutCreateInfo layout_info{};
     layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    // A pipeline whose shader indexes a sampled-image array declares the array layout; every other
-    // pipeline keeps the one-combined-image-sampler layout (RHI 1.7, issue #480 part 2). The choice
-    // is the descriptor's, so a caller that wants the array path asks for it explicitly and a
-    // device without the capability refuses it instead of building a pipeline that cannot bind.
+    // Set 0 is the sampled-image layout: the array when the shader indexes one (RHI 1.7, issue #480
+    // part 2), the single combined image sampler otherwise. The choice is the descriptor's, so a
+    // caller that wants the array path asks for it explicitly and a device without the capability
+    // refuses it instead of building a pipeline that cannot bind.
     VkDescriptorSetLayout set_layout = descriptor_set_layout_;
     if (desc.texture_array) {
         if (texture_array_layout_ == VK_NULL_HANDLE) {
@@ -73,24 +73,21 @@ std::unique_ptr<rhi::Pipeline> VulkanDevice::create_pipeline(const rhi::Pipeline
         }
         set_layout = texture_array_layout_;
     }
-    // A pipeline whose shader reads a read-only storage buffer declares that layout instead (RHI
-    // 1.12, ADR-068). The two are mutually exclusive in this RHI: a shader that needs both is not
-    // expressible yet, and silently picking one would build a pipeline whose other binding can
-    // never be satisfied.
+    // Set 1 is the read-only storage-buffer layout (RHI 1.12, ADR-068). It is a separate set, not a
+    // replacement for set 0, because the consumer that needs it (the clip record list) also samples
+    // a texture: a shader that reads both is the normal case, not an exotic one.
+    VkDescriptorSetLayout set_layouts[2] = {set_layout, VK_NULL_HANDLE};
+    std::uint32_t set_count = 1;
     if (desc.storage_buffer) {
         if (storage_buffer_layout_ == VK_NULL_HANDLE) {
             throw std::runtime_error(
                 "create_pipeline: storage buffers are not supported on this device");
         }
-        if (desc.texture_array) {
-            throw std::invalid_argument(
-                "create_pipeline: a pipeline cannot declare both a texture array and a storage "
-                "buffer");
-        }
-        set_layout = storage_buffer_layout_;
+        set_layouts[1] = storage_buffer_layout_;
+        set_count = 2;
     }
-    layout_info.setLayoutCount = 1;
-    layout_info.pSetLayouts = &set_layout;
+    layout_info.setLayoutCount = set_count;
+    layout_info.pSetLayouts = set_layouts;
     layout_info.pushConstantRangeCount = desc.push_constant_size > 0 ? 1 : 0;
     layout_info.pPushConstantRanges = desc.push_constant_size > 0 ? &push_range : nullptr;
 
@@ -213,7 +210,7 @@ std::unique_ptr<rhi::Pipeline> VulkanDevice::create_pipeline(const rhi::Pipeline
     // above still release them.
     resource_created();
     auto result = std::make_unique<VulkanPipeline>(this, epoch_, device_, pipeline, pipeline_layout,
-                                                   sample_count);
+                                                   sample_count, desc.storage_buffer);
     pipeline_guard.dismiss();
     layout_guard.dismiss();
     return result;

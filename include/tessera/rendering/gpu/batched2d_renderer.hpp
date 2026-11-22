@@ -4,6 +4,7 @@
 
 #include "tessera/rendering/gpu/batch_split.hpp"
 #include "tessera/rendering/gpu/clip.hpp"
+#include "tessera/rendering/gpu/clip_buffer.hpp"
 #include "tessera/rendering/gpu/clip_state_table.hpp"
 #include "tessera/rendering/gpu/glass_blur.hpp"
 #include "tessera/rendering/gpu/glass_compositor.hpp"
@@ -361,6 +362,13 @@ private:
 
     GlassCompositor glass_;
     ClipStateTable clips_;
+    // The per-frame clip-record buffer the fragment shader reads (ADR-068 slice 3). Empty and
+    // unused on a device without storage buffers, where the push-constant path stays.
+    ClipBuffer clip_buffer_;
+    // The pipeline the command list has bound, as far as this renderer knows. Null after anything
+    // that binds outside flush() (begin, resume_pass, a glass composite), so the next flush
+    // rebinds.
+    rhi::Pipeline* bound_pipeline_ = nullptr;
     VertexArena vertices_;
 
     Batched2DConfig config_;

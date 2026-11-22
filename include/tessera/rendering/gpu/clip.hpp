@@ -13,10 +13,14 @@ namespace tessera::rendering::gpu::clip {
 // Clip model for the batched 2D renderer: an axis-aligned rect plus four per-corner radii (TL, TR,
 // BR, BL), clamped to half the smaller dimension. A clip with all radii zero is a plain rectangle
 // and uses the scissor fast path; any non-zero radius switches that draw to the analytic fragment
-// test. `kMaxClipDepth` bounds the clip stack; `kMaxShaderClips` is the number of folded clips the
-// fragment shader receives as push constants (deeper clips are folded conservatively).
-inline constexpr std::uint32_t kMaxClipDepth = 8;
-inline constexpr std::uint32_t kMaxShaderClips = 3;
+// test.
+//
+// `kMaxClipDepth` bounds the clip stack. Since ADR-068 slice 3 the shader no longer receives a
+// fixed number of folded clips as push constants: it reads a per-frame record buffer, so the
+// shader-side count is a buffer capacity (`clip::kMaxClipRecords`) rather than a constant in the
+// push-constant block. The stack bound is 32 (ADR-068, owner decision 2026-11-22): 32 x 8 bytes of
+// frame state, and overflow still folds conservatively.
+inline constexpr std::uint32_t kMaxClipDepth = 32;
 
 struct RoundedRect {
     rhi::Rect rect;

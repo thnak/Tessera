@@ -30,18 +30,41 @@ layout(location = 6) in vec4 v_carve;
 
 layout(set = 0, binding = 0) uniform sampler2D u_texture;
 
-struct ClipUniform {
-    vec4 rect;  // xy = origin, zw = size in target pixels
-    vec4 radii; // top-left, top-right, bottom-right, bottom-left
+// The clip-record buffer (ADR-068 slice 3), the same layout batched2d.frag declares: set 1, a
+// read-only storage buffer holding the frame's clip records and the interned set ranges.
+#define TESSERA_CLIP_MAX_RECORDS 256
+#define TESSERA_CLIP_MAX_SETS 256
+
+struct ClipRecord {
+    uint kind;
+    uint flags;
+    uint first_vertex;
+    uint vertex_count;
+    vec4 rect;    // xy = origin, zw = size in target pixels
+    vec4 radii_a; // top-left, top-right, bottom-right, bottom-left
+    vec4 radii_b; // elliptical second components; zero for a circular corner
 };
 
-// Must match Batched2DPushConstants, the same block batched2d.frag uses (112 bytes): the LCD variant
+struct ClipSetRange {
+    uint first_record;
+    uint count;
+    uint reserved0;
+    uint reserved1;
+};
+
+layout(set = 1, binding = 0, std430) readonly buffer ClipBuffer {
+    uint record_count;
+    uint header_reserved[3];
+    ClipRecord records[TESSERA_CLIP_MAX_RECORDS];
+    ClipSetRange sets[TESSERA_CLIP_MAX_SETS];
+} clip_buffer;
+
+// Must match Batched2DPushConstants, the same block batched2d.frag uses (16 bytes): the LCD variant
 // consumes the identical vertex data and push constants, so switching a run to it is a pipeline swap.
 layout(push_constant) uniform PushConstants {
     vec2 viewport;
     float aa_radius;
-    uint clip_count;
-    ClipUniform clips[3];
+    uint clip_set;
 } pc;
 
 // Output 0 is colour, output 1 is coverage; together they are the two sources of the dual-source
@@ -71,9 +94,9 @@ float erf_approx(float x) {
 // front end rejects, so the cross-compiled WGSL (TESSERA_SHADER_CROSS) could not be produced on
 // those hosts. Indexing the block is the same code with no per-call copy and translates everywhere.
 bool inside_clip(vec2 p, uint index) {
-    vec2 origin = pc.clips[index].rect.xy;
-    vec2 size = pc.clips[index].rect.zw;
-    vec4 radii = pc.clips[index].radii;
+    vec2 origin = clip_buffer.records[index].rect.xy;
+    vec2 size = clip_buffer.records[index].rect.zw;
+    vec4 radii = clip_buffer.records[index].radii_a;
     if (p.x < origin.x || p.y < origin.y || p.x > origin.x + size.x ||
         p.y > origin.y + size.y) {
         return false;
@@ -102,9 +125,9 @@ bool inside_clip(vec2 p, uint index) {
 // per-corner radii) blended over +/- aa_radius pixels, the same half-pixel width as the SDF edges.
 // A pixel-aligned clip edge is fully covered on its inside pixels, so aligned clips look unchanged.
 float clip_coverage(vec2 p, uint index) {
-    vec2 origin = pc.clips[index].rect.xy;
-    vec2 half_size = pc.clips[index].rect.zw * 0.5;
-    vec4 radii = pc.clips[index].radii;
+    vec2 origin = clip_buffer.records[index].rect.xy;
+    vec2 half_size = clip_buffer.records[index].rect.zw * 0.5;
+    vec4 radii = clip_buffer.records[index].radii_a;
     vec2 q = p - (origin + half_size);
     float r = q.x < 0.0 ? (q.y < 0.0 ? radii.x : radii.w) : (q.y < 0.0 ? radii.y : radii.z);
     r = min(r, min(half_size.x, half_size.y));
@@ -127,8 +150,15 @@ void main() {
     // alpha-blend leaves the destination untouched. This deliberately avoids `discard`, so the
     // shader does not require shaderDemoteToHelperInvocation (same policy as the SDF AA path).
     // With AA on the mask has anti-aliased coverage; with aa_radius 0 it is the hard test.
+    // The set is a range into the record list (ADR-068 slice 3), so the loop bound is data, not a
+    // constant: an unclipped draw has count 0 and the loop body never runs. The range is read field
+    // by field rather than copied into a local, because a by-value struct copy lowers to
+    // OpCopyLogical, which naga's SPIR-V front end rejects.
     float clip_alpha = 1.0;
-    for (uint index = 0u; index < pc.clip_count; ++index) {
+    uint first_record = clip_buffer.sets[pc.clip_set].first_record;
+    uint clip_count = clip_buffer.sets[pc.clip_set].count;
+    for (uint offset = 0u; offset < clip_count; ++offset) {
+        uint index = first_record + offset;
         if (pc.aa_radius <= 0.0) {
             if (!inside_clip(gl_FragCoord.xy, index)) {
                 clip_alpha = 0.0;

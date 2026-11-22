@@ -24,20 +24,15 @@
       "bindings": [
         { "group": 0, "binding": 0, "type": "uniform_buffer", "name": "pc" },
         { "group": 0, "binding": 1, "type": "sampled_texture", "name": "u_texture" },
-        { "group": 0, "binding": 2, "type": "sampler", "name": "u_sampler" }
+        { "group": 0, "binding": 2, "type": "sampler", "name": "u_sampler" },
+        { "group": 0, "binding": 3, "type": "storage_buffer", "name": "clip_buffer" }
       ],
       "pushConstants": {
-        "size": 112,
+        "size": 16,
         "fields": [
           { "name": "viewport", "type": "float2", "offset": 0 },
           { "name": "aa_radius", "type": "float", "offset": 8 },
-          { "name": "clip_count", "type": "uint", "offset": 12 },
-          { "name": "clips[0].rect", "type": "float4", "offset": 16 },
-          { "name": "clips[0].radii", "type": "float4", "offset": 32 },
-          { "name": "clips[1].rect", "type": "float4", "offset": 48 },
-          { "name": "clips[1].radii", "type": "float4", "offset": 64 },
-          { "name": "clips[2].rect", "type": "float4", "offset": 80 },
-          { "name": "clips[2].radii", "type": "float4", "offset": 96 }
+          { "name": "clip_set", "type": "uint", "offset": 12 }
         ]
       },
       "tests": [
@@ -103,20 +98,15 @@
       "bindings": [
         { "group": 0, "binding": 0, "type": "uniform_buffer", "name": "pc" },
         { "group": 0, "binding": 1, "type": "sampled_texture", "name": "u_texture" },
-        { "group": 0, "binding": 2, "type": "sampler", "name": "u_sampler" }
+        { "group": 0, "binding": 2, "type": "sampler", "name": "u_sampler" },
+        { "group": 0, "binding": 3, "type": "storage_buffer", "name": "clip_buffer" }
       ],
       "pushConstants": {
-        "size": 112,
+        "size": 16,
         "fields": [
           { "name": "viewport", "type": "float2", "offset": 0 },
           { "name": "aa_radius", "type": "float", "offset": 8 },
-          { "name": "clip_count", "type": "uint", "offset": 12 },
-          { "name": "clips[0].rect", "type": "float4", "offset": 16 },
-          { "name": "clips[0].radii", "type": "float4", "offset": 32 },
-          { "name": "clips[1].rect", "type": "float4", "offset": 48 },
-          { "name": "clips[1].radii", "type": "float4", "offset": 64 },
-          { "name": "clips[2].rect", "type": "float4", "offset": 80 },
-          { "name": "clips[2].radii", "type": "float4", "offset": 96 }
+          { "name": "clip_set", "type": "uint", "offset": 12 }
         ]
       },
       "tests": [
@@ -145,20 +135,15 @@
       "bindings": [
         { "group": 0, "binding": 0, "type": "uniform_buffer", "name": "pc" },
         { "group": 0, "binding": 1, "type": "sampled_texture", "name": "u_texture" },
-        { "group": 0, "binding": 2, "type": "sampler", "name": "u_sampler" }
+        { "group": 0, "binding": 2, "type": "sampler", "name": "u_sampler" },
+        { "group": 0, "binding": 3, "type": "storage_buffer", "name": "clip_buffer" }
       ],
       "pushConstants": {
-        "size": 112,
+        "size": 16,
         "fields": [
           { "name": "viewport", "type": "float2", "offset": 0 },
           { "name": "aa_radius", "type": "float", "offset": 8 },
-          { "name": "clip_count", "type": "uint", "offset": 12 },
-          { "name": "clips[0].rect", "type": "float4", "offset": 16 },
-          { "name": "clips[0].radii", "type": "float4", "offset": 32 },
-          { "name": "clips[1].rect", "type": "float4", "offset": 48 },
-          { "name": "clips[1].radii", "type": "float4", "offset": 64 },
-          { "name": "clips[2].rect", "type": "float4", "offset": 80 },
-          { "name": "clips[2].radii", "type": "float4", "offset": 96 }
+          { "name": "clip_set", "type": "uint", "offset": 12 }
         ]
       },
       "tests": [

@@ -136,7 +136,11 @@ std::map<std::uint32_t, GlslDecl> glsl_inputs(const std::string& text) {
 
 // Group-0 bindings of the portable GLSL: the std140 push-constant block, the texture and sampler.
 std::map<std::uint32_t, GlslDecl> glsl_bindings(const std::vector<std::string>& lines) {
-    const std::regex layout(R"(layout\(set = 0, binding = (\d+)(?:, std140)?\) uniform (\w+))");
+    // Set 0 is the sampled image and the uniform block; set 1 is the clip-record storage buffer
+    // (ADR-068 slice 3). The manifest records the portable binding space, which is one WebGPU bind
+    // group, so set 1 maps onto the manifest's clip-record binding index.
+    const std::regex layout(
+        R"(layout\(set = (\d+), binding = (\d+)(?:, std140|, std430)?\) (?:uniform|readonly buffer) (\w+))");
     const std::regex uniform_name(R"(uniform (?:texture2D|sampler) (\w+);)");
     const std::regex block_name(R"(^\}\s+(\w+);)");
     std::map<std::uint32_t, GlslDecl> bindings;
@@ -145,9 +149,15 @@ std::map<std::uint32_t, GlslDecl> glsl_bindings(const std::vector<std::string>& 
     for (const std::string& line : lines) {
         std::smatch match;
         if (std::regex_search(line, match, layout)) {
-            const auto binding = static_cast<std::uint32_t>(std::stoul(match[1]));
-            const std::string token = match[2];
-            if (token == "PushConstants") {
+            const auto set = static_cast<std::uint32_t>(std::stoul(match[1]));
+            const auto binding = static_cast<std::uint32_t>(std::stoul(match[2]));
+            const std::string token = match[3];
+            if (set == 1) {
+                // The clip-record storage buffer, at the manifest's portable binding index (group
+                // 0, binding 3: the WebGPU bind group is one flat space, so Vulkan's set 1 maps
+                // onto it). Kept as a literal because this target does not link the WebGPU backend.
+                bindings[3] = {"storage_buffer", "clip_buffer"};
+            } else if (token == "PushConstants") {
                 block_binding = binding;
                 in_block = true;
             } else {
@@ -320,8 +330,10 @@ void test_push_constants(Checker& checker, const ShaderEntry& entry) {
     const auto& constants = *entry.push_constants;
     checker.check(constants.size == sizeof(Batched2DPushConstants),
                   "push-constant size matches Batched2DPushConstants");
-    checker.check(constants.fields.size() == 9, "push-constant fields cover the block");
-    if (constants.fields.size() != 9) {
+    // Since ADR-068 slice 3 the block carries only the viewport, the aa radius and the interned
+    // clip-set index: the clip records live in the storage buffer, so there are no clip fields.
+    checker.check(constants.fields.size() == 3, "push-constant fields cover the block");
+    if (constants.fields.size() != 3) {
         return;
     }
     checker.check(constants.fields[0].name == "viewport" && constants.fields[0].type == "float2" &&
@@ -330,15 +342,9 @@ void test_push_constants(Checker& checker, const ShaderEntry& entry) {
     checker.check(constants.fields[1].name == "aa_radius" && constants.fields[1].type == "float" &&
                       constants.fields[1].offset == 8,
                   "aa_radius is a float at offset 8");
-    checker.check(constants.fields[2].name == "clip_count" && constants.fields[2].type == "uint" &&
+    checker.check(constants.fields[2].name == "clip_set" && constants.fields[2].type == "uint" &&
                       constants.fields[2].offset == 12,
-                  "clip_count is a uint at offset 12");
-    for (std::size_t index = 3; index < constants.fields.size(); ++index) {
-        checker.check(constants.fields[index].type == "float4",
-                      "clip fields are float4 rect/radii pairs");
-        checker.check(constants.fields[index].offset == 16 + (index - 3) * 16,
-                      "clip fields are contiguous");
-    }
+                  "clip_set is a uint at offset 12");
 }
 
 void test_broken_copies(Checker& checker, const std::string& text) {

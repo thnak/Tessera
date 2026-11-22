@@ -3,26 +3,50 @@
 #include "tessera/rendering/gpu/clip_state_table.hpp"
 
 #include <algorithm>
+#include <cstring>
 
 namespace tessera::rendering::gpu {
+namespace {
 
-bool ClipStateTable::State::equals(const State& other) const {
-    if (count != other.count) {
+// One rounded rectangle as a record. Slice 3 emits `RoundedRect` only, with the four circular
+// corner radii in `radii[0..3]`; the elliptical second components stay zero until slice 4.
+clip::ClipRecord to_record(const clip::RoundedRect& source) {
+    clip::ClipRecord record;
+    record.kind = static_cast<std::uint32_t>(clip::RecordKind::RoundedRect);
+    record.x = source.rect.x;
+    record.y = source.rect.y;
+    record.width = source.rect.width;
+    record.height = source.rect.height;
+    record.radii[0] = source.top_left;
+    record.radii[1] = source.top_right;
+    record.radii[2] = source.bottom_right;
+    record.radii[3] = source.bottom_left;
+    return record;
+}
+
+// True when two records describe the same clip. Only the fields slice 3 writes are compared, so a
+// future kind that fills more of the record cannot make two equal clips intern as different sets by
+// accident.
+bool same_record(const clip::ClipRecord& a, const clip::ClipRecord& b) {
+    if (a.kind != b.kind || a.flags != b.flags || a.x != b.x || a.y != b.y || a.width != b.width ||
+        a.height != b.height) {
         return false;
     }
-    for (std::uint32_t i = 0; i < count; ++i) {
-        if (!(clips[i] == other.clips[i])) {
+    for (int index = 0; index < 8; ++index) {
+        if (a.radii[index] != b.radii[index]) {
             return false;
         }
     }
     return true;
 }
 
+} // namespace
+
 ClipStateTable::ClipStateTable() {
-    // State 0 is the empty clip set, so index 0 always means "no shader clips" and an unclipped
-    // batch needs no special case in the renderer.
-    states_.reserve(16);
-    states_.push_back(State{});
+    // Set 0 is the empty clip set, so index 0 always means "no shader clips" and an unclipped batch
+    // needs no special case in the renderer.
+    sets_.reserve(16);
+    sets_.emplace_back();
     clip_stack_.reserve(clip::kMaxClipDepth);
     clip_folded_.reserve(clip::kMaxClipDepth);
     scissor_stack_.reserve(clip::kMaxClipDepth);
@@ -32,8 +56,9 @@ void ClipStateTable::reset() {
     clip_stack_.clear();
     clip_folded_.clear();
     scissor_stack_.clear();
-    states_.resize(1);
-    current_state_ = 0;
+    sets_.resize(1);
+    flat_dirty_ = true;
+    current_set_ = 0;
 }
 
 ClipStateTable::Update ClipStateTable::push(const clip::RoundedRect& clip, rhi::Scissor current) {
@@ -51,13 +76,13 @@ ClipStateTable::Update ClipStateTable::push(const clip::RoundedRect& clip, rhi::
         clip_folded_.push_back(true);
     }
     rebuild();
-    return Update{current_state_, rhi::intersect(current, clip::enclosing_scissor(clip))};
+    return Update{current_set_, rhi::intersect(current, clip::enclosing_scissor(clip))};
 }
 
 ClipStateTable::Update ClipStateTable::pop(rhi::Scissor current) {
     if (clip_folded_.empty()) {
         // Unbalanced pop: nothing to restore, so the caller's scissor stands.
-        return Update{current_state_, current};
+        return Update{current_set_, current};
     }
     const bool folded = clip_folded_.back();
     clip_folded_.pop_back();
@@ -70,36 +95,93 @@ ClipStateTable::Update ClipStateTable::pop(rhi::Scissor current) {
         scissor_stack_.pop_back();
     }
     rebuild();
-    return Update{current_state_, restored};
+    return Update{current_set_, restored};
 }
 
 void ClipStateTable::rebuild() {
-    State folded;
+    // One record per active clip, in stack order, which is the order the shader multiplies coverage
+    // in. A stack deeper than the buffer's capacity folds the overflow into the last record
+    // conservatively, the same rule the stack uses at its own bound; the CPU-side scissor still
+    // reflects every clip rect, so the result never paints outside any active clip.
+    std::vector<clip::ClipRecord> records;
+    records.reserve(std::min<std::size_t>(clip_stack_.size(), clip::kMaxClipRecords));
     for (const clip::RoundedRect& active : clip_stack_) {
-        if (folded.count < clip::kMaxShaderClips) {
-            folded.clips[folded.count++] = active;
-        } else {
-            // Deeper clips fold into the innermost shader slot conservatively; the CPU-side scissor
-            // still reflects every clip rect, so the result never paints outside any active clip.
-            folded.clips[clip::kMaxShaderClips - 1] =
-                clip::intersect_clips(folded.clips[clip::kMaxShaderClips - 1], active);
+        if (records.size() >= clip::kMaxClipRecords) {
+            records.back() =
+                to_record(clip::intersect_clips(clip_stack_[records.size() - 1], active));
+            continue;
         }
+        records.push_back(to_record(active));
     }
-    current_state_ = intern(folded);
+    current_set_ = intern(records);
+    flat_dirty_ = true;
 }
 
-std::uint32_t ClipStateTable::intern(const State& state) {
-    for (std::uint32_t i = 0; i < states_.size(); ++i) {
-        if (states_[i].equals(state)) {
-            return i;
+std::uint32_t ClipStateTable::intern(const std::vector<clip::ClipRecord>& records) {
+    for (std::uint32_t index = 0; index < sets_.size(); ++index) {
+        const std::vector<clip::ClipRecord>& candidate = sets_[index];
+        if (candidate.size() != records.size()) {
+            continue;
+        }
+        bool equal = true;
+        for (std::size_t offset = 0; offset < records.size(); ++offset) {
+            if (!same_record(candidate[offset], records[offset])) {
+                equal = false;
+                break;
+            }
+        }
+        if (equal) {
+            return index;
         }
     }
-    states_.push_back(state);
-    return static_cast<std::uint32_t>(states_.size() - 1);
+    sets_.push_back(records);
+    return static_cast<std::uint32_t>(sets_.size() - 1);
 }
 
-const ClipStateTable::State& ClipStateTable::state(std::uint32_t index) const {
-    return index < states_.size() ? states_[index] : states_[0];
+std::span<const clip::ClipRecord> ClipStateTable::set(std::uint32_t index) const {
+    if (index >= sets_.size()) {
+        return {};
+    }
+    return std::span<const clip::ClipRecord>(sets_[index].data(), sets_[index].size());
+}
+
+const std::vector<clip::ClipRecord>& ClipStateTable::flat_records() const {
+    if (flat_dirty_) {
+        flatten();
+    }
+    return flat_records_;
+}
+
+const std::vector<clip::ClipSetRange>& ClipStateTable::set_ranges() const {
+    if (flat_dirty_) {
+        flatten();
+    }
+    return set_ranges_;
+}
+
+void ClipStateTable::flatten() const {
+    // Every set's records concatenated in set order, so a set's range is a contiguous slice. A set
+    // that would overflow the buffer's record capacity is truncated rather than written past it:
+    // the renderer's scissor still bounds every draw, so dropping a set's shader refinement can
+    // only paint inside the scissor, never outside it.
+    flat_records_.clear();
+    set_ranges_.clear();
+    const std::uint32_t set_count =
+        std::min<std::uint32_t>(static_cast<std::uint32_t>(sets_.size()), clip::kMaxClipSets);
+    set_ranges_.reserve(set_count);
+    for (std::uint32_t index = 0; index < set_count; ++index) {
+        const std::vector<clip::ClipRecord>& records = sets_[index];
+        const std::uint32_t room = std::min<std::uint32_t>(
+            static_cast<std::uint32_t>(records.size()),
+            clip::kMaxClipRecords - static_cast<std::uint32_t>(flat_records_.size()));
+        clip::ClipSetRange range;
+        range.first_record = static_cast<std::uint32_t>(flat_records_.size());
+        range.count = room;
+        flat_records_.insert(flat_records_.end(), records.begin(),
+                             records.begin() + static_cast<std::ptrdiff_t>(room));
+        set_ranges_.push_back(range);
+    }
+    flat_dirty_ = false;
 }
 
 void ClipStateTable::pack_push_constants(std::uint32_t index, rhi::Extent2D viewport,
@@ -107,20 +189,8 @@ void ClipStateTable::pack_push_constants(std::uint32_t index, rhi::Extent2D view
     out.viewport_width = static_cast<float>(viewport.width);
     out.viewport_height = static_cast<float>(viewport.height);
     out.aa_radius = aa_radius;
-    const State& folded = state(index);
-    out.clip_count = folded.count;
-    for (std::uint32_t i = 0; i < folded.count; ++i) {
-        const clip::RoundedRect& source = folded.clips[i];
-        Batched2DPushConstants::ClipUniform& target = out.clips[i];
-        target.x = source.rect.x;
-        target.y = source.rect.y;
-        target.width = source.rect.width;
-        target.height = source.rect.height;
-        target.top_left = source.top_left;
-        target.top_right = source.top_right;
-        target.bottom_right = source.bottom_right;
-        target.bottom_left = source.bottom_left;
-    }
+    // The shader reads the records from the buffer; the block carries only which set to read.
+    out.clip_set = index;
 }
 
 } // namespace tessera::rendering::gpu

@@ -80,9 +80,10 @@ void Batched2DRenderer::present_target(rhi::CommandList& commands,
     Batched2DPushConstants push;
     push.viewport_width = width;
     push.viewport_height = height;
-    // No SDF edge and no clip: the pass replaces every destination pixel with the source's.
+    // No SDF edge and no clip: the pass replaces every destination pixel with the source's. Set 0
+    // is the empty clip set, so the shader's clip loop does not run.
     push.aa_radius = 0.0f;
-    push.clip_count = 0;
+    push.clip_set = 0;
 
     // RHI 1.3 ordering: the sampled bind is recorded outside a render pass and after a pipeline
     // bind, before the pass that reads the target opens.

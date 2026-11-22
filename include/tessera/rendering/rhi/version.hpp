@@ -67,8 +67,12 @@ namespace tessera::rendering::rhi {
 // (`Other`, all-zero), so every existing caller compiles and behaves unchanged and a backend that
 // does not fill the categories reports zeros rather than a wrong attribution. The minor moves
 // because `DeviceMemoryStats` grew, which is an ABI change for anything that copies it by value.
+// 1.15 (2026-11-22): additive `Pipeline::declares_storage_buffer()`, so a caller can ask whether
+// the pipeline it is about to draw with reads a storage buffer before binding one (ADR-068 slice 3,
+// issue #671). The default is false, which is the answer for every pipeline created without
+// `PipelineDesc::storage_buffer`, so no existing backend or caller changes.
 inline constexpr std::uint32_t kRhiVersionMajor = 1;
-inline constexpr std::uint32_t kRhiVersionMinor = 14;
+inline constexpr std::uint32_t kRhiVersionMinor = 15;
 inline constexpr std::uint32_t kRhiVersion = (kRhiVersionMajor << 16) | kRhiVersionMinor;
 
 } // namespace tessera::rendering::rhi

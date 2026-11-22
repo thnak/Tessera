@@ -93,6 +93,12 @@ void VulkanCommandList::bind_storage_buffer(std::uint32_t slot, const rhi::Buffe
     if (owner_.storage_buffer_layout() == VK_NULL_HANDLE) {
         throw std::runtime_error("bind_storage_buffer: this device has no storage buffers");
     }
+    // The storage set is set 1, so the only legal slot is 1. A caller that asks for another slot is
+    // asking for a binding the pipeline layout does not declare.
+    if (slot != 1) {
+        throw std::invalid_argument("bind_storage_buffer: the storage buffer is set 1, not slot " +
+                                    std::to_string(slot));
+    }
     if (storage.size() == 0) {
         throw std::invalid_argument("bind_storage_buffer: an empty buffer cannot be read");
     }
@@ -121,8 +127,10 @@ void VulkanCommandList::bind_storage_buffer(std::uint32_t slot, const rhi::Buffe
     vkUpdateDescriptorSets(device_, 1, &write, 0, nullptr);
 
     const VkDescriptorSet set = owner_.storage_buffer_set();
-    vkCmdBindDescriptorSets(buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, current_layout_, slot, 1,
-                            &set, 0, nullptr);
+    // Set 1, not `slot`: set 0 is the sampled-image layout, and the storage set is a separate set
+    // so a shader can sample a texture and read the clip records in the same draw (ADR-068).
+    vkCmdBindDescriptorSets(buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, current_layout_, 1, 1, &set,
+                            0, nullptr);
 }
 
 } // namespace tessera::rendering::vulkan

@@ -1182,7 +1182,21 @@ function include/tessera/rendering/gpu/clip.hpp tessera::rendering::gpu::clip::o
 function include/tessera/rendering/gpu/clip.hpp tessera::rendering::gpu::clip::same_rect
 function include/tessera/rendering/gpu/clip.hpp tessera::rendering::gpu::clip::uniform_rect
 constant include/tessera/rendering/gpu/clip.hpp tessera::rendering::gpu::clip::kMaxClipDepth
-constant include/tessera/rendering/gpu/clip.hpp tessera::rendering::gpu::clip::kMaxShaderClips
+
+header include/tessera/rendering/gpu/clip_buffer.hpp
+class include/tessera/rendering/gpu/clip_buffer.hpp tessera::rendering::gpu::ClipBuffer
+
+header include/tessera/rendering/gpu/clip_records.hpp
+struct include/tessera/rendering/gpu/clip_records.hpp tessera::rendering::gpu::clip::ClipBufferHeader
+struct include/tessera/rendering/gpu/clip_records.hpp tessera::rendering::gpu::clip::ClipRecord
+struct include/tessera/rendering/gpu/clip_records.hpp tessera::rendering::gpu::clip::ClipSetRange
+enum include/tessera/rendering/gpu/clip_records.hpp tessera::rendering::gpu::clip::RecordKind
+function include/tessera/rendering/gpu/clip_records.hpp tessera::rendering::gpu::clip::buffer_bytes
+function include/tessera/rendering/gpu/clip_records.hpp tessera::rendering::gpu::clip::records_offset
+function include/tessera/rendering/gpu/clip_records.hpp tessera::rendering::gpu::clip::sets_offset
+constant include/tessera/rendering/gpu/clip_records.hpp tessera::rendering::gpu::clip::kMaxClipRecords
+constant include/tessera/rendering/gpu/clip_records.hpp tessera::rendering::gpu::clip::kMaxClipSets
+constant include/tessera/rendering/gpu/clip_records.hpp tessera::rendering::gpu::clip::kRecordFlagEvenOdd
 
 header include/tessera/rendering/gpu/clip_state_table.hpp
 class include/tessera/rendering/gpu/clip_state_table.hpp tessera::rendering::gpu::ClipStateTable

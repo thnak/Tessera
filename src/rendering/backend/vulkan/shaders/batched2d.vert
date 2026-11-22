@@ -13,12 +13,9 @@ layout(location = 7) in vec4 in_carve;
 // reads the single bound image, the array path writes the batch's slot.
 layout(location = 8) in uint in_texture_index;
 
-struct ClipUniform {
-    vec4 rect;  // xy = origin, zw = size in target pixels
-    vec4 radii; // top-left, top-right, bottom-right, bottom-left
-};
-
-// Must match Batched2DPushConstants (112 bytes: 2 floats + 1 float + 1 uint + 3 * 32-byte clips).
+// Must match Batched2DPushConstants (16 bytes: 2 floats + 1 float + 1 uint). Since ADR-068 slice 3
+// the clip records live in a storage buffer (set 1) and this block carries only the interned set
+// index, so the vertex stage reads nothing about clips.
 // TESSERA_SHADER_PORTABLE selects the cross-compilation interface (ADR-049): the same block as a
 // std140 uniform buffer at set 0, binding 0, the layout WebGPU, Metal and D3D12 use. The Vulkan
 // build never defines it, so its SPIR-V is unchanged.
@@ -29,8 +26,7 @@ layout(push_constant) uniform PushConstants {
 #endif
     vec2 viewport;
     float aa_radius;
-    uint clip_count;
-    ClipUniform clips[3];
+    uint clip_set;
 } pc;
 
 layout(location = 0) out vec2 v_uv;

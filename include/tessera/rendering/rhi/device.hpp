@@ -70,6 +70,15 @@ public:
     [[nodiscard]] virtual std::uint32_t sample_count() const {
         return 1;
     }
+
+    // True when the pipeline's layout declares the read-only storage buffer set
+    // (`PipelineDesc::storage_buffer`, RHI 1.12, ADR-068). A caller that binds a storage buffer
+    // must ask this first: binding one to a pipeline that does not declare it is a validation
+    // error, not a no-op, and the renderer's clip-record path has to know whether the pipeline it
+    // is about to draw with reads records at all.
+    [[nodiscard]] virtual bool declares_storage_buffer() const {
+        return false;
+    }
 };
 
 class RenderTarget {
@@ -145,6 +154,10 @@ public:
     //    would read past its end.
     //  - A pipeline must have been bound, and its layout must declare a read-only storage buffer at
     //    `slot` (`PipelineDesc::storage_buffer`). Binding without one throws std::logic_error.
+    //  - The storage buffer is a *separate descriptor set* from the sampled image, so a shader can
+    //    sample a texture and read the record list in the same draw. `slot` names that set: a
+    //    backend declares which one it is, and a slot the layout does not declare throws
+    //    std::invalid_argument. Vulkan and null use set 1 (set 0 is the sampled image).
     //  - Backends without the capability (`Device::supports_storage_buffers() == false`) throw
     //    std::runtime_error; callers ask the capability first, so this never reaches a frame.
     //  - The buffer's contents are read at draw time, not at bind time, so a caller may rewrite it

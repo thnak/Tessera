@@ -267,10 +267,13 @@ int main() {
     commands->end_render_pass();
 
     const GlassPushConstants vertical = vertical_constants();
+    // The sampler is bound outside a pass (RHI 1.3) and a descriptor-set bind is recorded against
+    // the pipeline layout current at that point, so the glass pipeline comes first. resume_pass()
+    // then rebinds the batched2d pipeline and its clip set, and the glass pipeline is rebound after
+    // it — the same order GlassCompositor::compose uses.
+    commands->bind_pipeline(*glass_pipeline);
     commands->bind_sampled_target(0, *blur);
     renderer.resume_pass();
-    // resume_pass() rebinds the batched 2D pipeline: the sampling pipeline is rebound for the
-    // composite draw, exactly as a renderer that paints the node after the break will.
     commands->bind_pipeline(*glass_pipeline);
     commands->set_viewport({0.0f, 0.0f, static_cast<float>(kSize), static_cast<float>(kSize)});
     commands->set_scissor(Scissor{0, 0, kSize, kSize});

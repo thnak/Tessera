@@ -30,6 +30,7 @@ void Batched2DRenderer::bind_frame_state() {
     // A new pass starts with no bound pipeline, viewport, scissor or push constants, and a glass
     // composite records its own pipeline/push constants in the middle of the frame's pass, so the
     // frame state is re-established from the renderer's own stacks rather than replayed.
+    bound_pipeline_ = pipeline_;
     commands_->bind_pipeline(*pipeline_);
     commands_->set_viewport(rhi::Viewport{0.0f, 0.0f, static_cast<float>(extent_.width),
                                           static_cast<float>(extent_.height)});
@@ -92,6 +93,9 @@ bool Batched2DRenderer::draw_backdrop(const GlassBackdropDraw& draw) {
     // The pass is broken before the compositor touches the pool, so a failed composite leaves the
     // frame resumed and the caller's recording continues either way.
     break_pass();
+    // The composite binds its own pipeline, so whatever this renderer last bound is no longer
+    // current; the next flush must rebind rather than assume.
+    bound_pipeline_ = nullptr;
     if (!glass_.compose(frame, draw)) {
         resume_pass();
         return false;

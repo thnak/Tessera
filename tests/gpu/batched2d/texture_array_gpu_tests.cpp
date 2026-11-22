@@ -18,6 +18,7 @@
 #include "tessera/rendering/vulkan/batched2d_pipeline.hpp"
 #include "tessera/rendering/vulkan/vulkan_device.hpp"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <exception>
