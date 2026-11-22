@@ -255,10 +255,107 @@ ExprPtr Parser::parse_block_statement() {
     if (cur_.is_keyword("if")) {
         return parse_if_statement();
     }
+    if (cur_.is_keyword("switch")) {
+        return parse_switch_statement();
+    }
     if (cur_.is_keyword("const")) {
         return parse_const_in_block();
     }
     return parse_expr();
+}
+
+// `switch (subject) { case <literal>: <statements> ... }` (ADR-066 item 4). Only the reducer form
+// needs it: one `switch` on the action's `type`, each case returning a record. A `default` clause
+// is accepted and must be last, because a closed action union has no other case to fall to.
+ExprPtr Parser::parse_switch_statement() {
+    const std::uint32_t begin = cur_.span.offset;
+    advance(LexMode::Code); // past `switch`
+    if (!expect_punct("(", LexMode::Code)) {
+        return nullptr;
+    }
+    ExprPtr subject = parse_expr();
+    if (!subject || !expect_punct(")", LexMode::Code)) {
+        return nullptr;
+    }
+    if (!expect_punct("{", LexMode::Code)) {
+        return nullptr;
+    }
+    ExprPtr expr = make_expr(ExprKind::Switch, begin);
+    expr->operands.push_back(std::move(subject));
+    bool seen_default = false;
+    while (!fatal_ && !at_punct("}")) {
+        if (cur_.is_keyword("case")) {
+            if (seen_default) {
+                fail("TESSERA_JSX_SUBSET_STATEMENT", "a `case` after `default` is unreachable",
+                     cur_.span, "put `default` last");
+                return nullptr;
+            }
+            advance(LexMode::Code);
+            ExprPtr label = parse_expr();
+            if (!label || !expect_punct(":", LexMode::Code)) {
+                return nullptr;
+            }
+            ExprPtr body = parse_case_body();
+            if (!body) {
+                return nullptr;
+            }
+            // The case is a `Block` whose first operand is the label, so the lowering reads the
+            // label and the statements from one node.
+            body->operands.insert(body->operands.begin(), std::move(label));
+            expr->operands.push_back(std::move(body));
+            continue;
+        }
+        if (cur_.is_keyword("default")) {
+            if (seen_default) {
+                fail("TESSERA_JSX_SUBSET_STATEMENT", "a `switch` has one `default`", cur_.span);
+                return nullptr;
+            }
+            seen_default = true;
+            advance(LexMode::Code);
+            if (!expect_punct(":", LexMode::Code)) {
+                return nullptr;
+            }
+            ExprPtr body = parse_case_body();
+            if (!body) {
+                return nullptr;
+            }
+            expr->operands.push_back(std::move(body));
+            continue;
+        }
+        fail_unexpected("`case`, `default` or `}`");
+        return nullptr;
+    }
+    if (!expect_punct("}", LexMode::Code)) {
+        return nullptr;
+    }
+    return finish_node(*expr) ? std::move(expr) : nullptr;
+}
+
+// The statements of one `case`, up to the next `case`, `default` or the closing `}`. A `break` is
+// accepted and ignored: every case of a reducer returns, so a fall-through has nothing to break out
+// of.
+ExprPtr Parser::parse_case_body() {
+    const std::uint32_t begin = cur_.span.offset;
+    ExprPtr block = make_expr(ExprKind::Block, begin);
+    while (!fatal_ && !at_punct("}") && !cur_.is_keyword("case") && !cur_.is_keyword("default")) {
+        if (cur_.is_keyword("break")) {
+            advance(LexMode::Code);
+            if (at_punct(";")) {
+                advance(LexMode::Code);
+            }
+            continue;
+        }
+        ExprPtr statement = parse_block_statement();
+        if (!statement) {
+            return nullptr;
+        }
+        block->operands.push_back(std::move(statement));
+        if (at_punct(";")) {
+            advance(LexMode::Code);
+        }
+    }
+    block->span = span_from(begin);
+    return finish_node(*block) ? std::move(block) : nullptr;
 }
 
 // `if (cond) <statement> [else <statement>]`, where a statement is a block or a single statement.

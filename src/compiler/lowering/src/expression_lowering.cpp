@@ -245,10 +245,12 @@ ir::ExprPtr lower_expr(LoweringState& state, const jsx::Expr& expr) {
     case jsx::ExprKind::If:
     case jsx::ExprKind::Block:
     case jsx::ExprKind::Const:
-        fail(state, kUnsupported,
-             "`if`, a block and `const` are handler statements, not expressions; they are only "
-             "valid inside a handler body (jsx-subset-v1.md section 9.2)",
-             expr.span);
+    case jsx::ExprKind::Switch:
+        fail(
+            state, kUnsupported,
+            "`if`, a block, `const` and `switch` are handler statements, not expressions; they are "
+            "only valid inside a handler body (jsx-subset-v1.md section 9.2)",
+            expr.span);
         return nullptr;
     }
     fail(state, kUnsupported, "the expression kind has no IR form", expr.span);

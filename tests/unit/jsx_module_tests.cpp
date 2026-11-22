@@ -402,6 +402,41 @@ void test_corpus_gaps_are_accepted() {
     const auto readonly = parse_module("function A(p: { xs: readonly string[] }) { return <B/>; }");
     check_eq(codes(readonly), "", "a `readonly` modifier is accepted");
     check_eq(validity(readonly), "V", "the module with `readonly` is valid");
+
+    // ADR-066 item 4: a reducer is a module-scope helper with two parameters and a `switch` body.
+    // The helper is not lowered, so it only has to parse; the `switch` is the form the reducer
+    // lowering reads.
+    const auto reducer = parse_module("type S = { count: int };\n"
+                                      "type A = { type: \"inc\" } | { type: \"reset\" };\n"
+                                      "function reduce(state: S, action: A): S {\n"
+                                      "  switch (action.type) {\n"
+                                      "    case \"inc\":\n"
+                                      "      return { count: state.count + 1 };\n"
+                                      "    case \"reset\":\n"
+                                      "      return { count: 0 };\n"
+                                      "  }\n"
+                                      "}\n"
+                                      "function Counter() { return <B/>; }");
+    check_eq(codes(reducer), "", "a two-parameter helper with a `switch` is accepted");
+    // Two type aliases, the reducer and the component: four items.
+    check_eq(validity(reducer), "VVVV", "the reducer and the component are both valid");
+    check(reducer.root->items.size() == 4, "the types, the reducer and the component are items");
+    if (reducer.root->items.size() == 4) {
+        check(reducer.root->items[2].kind == ItemKind::Helper, "the reducer is a helper");
+    }
+
+    // A `case` after `default` is unreachable, so it is rejected rather than silently dropped.
+    const auto unreachable = parse_module("function reduce(s: S, a: A): S {\n"
+                                          "  switch (a.type) {\n"
+                                          "    default:\n"
+                                          "      return s;\n"
+                                          "    case \"inc\":\n"
+                                          "      return s;\n"
+                                          "  }\n"
+                                          "}\n"
+                                          "function A() { return <B/>; }");
+    check_eq(codes(unreachable), "TESSERA_JSX_SUBSET_STATEMENT;",
+             "a `case` after `default` is rejected");
 }
 
 int main() {

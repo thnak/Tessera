@@ -131,6 +131,13 @@ private:
     ExprPtr parse_if_statement();
     ExprPtr parse_branch_block();
     ExprPtr parse_const_in_block();
+    // ADR-066 item 4: the reducer form.
+    ExprPtr parse_switch_statement();
+    ExprPtr parse_case_body();
+    // Whether the helper body about to be parsed declares a `switch` (a reducer).
+    bool helper_has_switch();
+    // ADR-066 item 4: the body of a reducer helper, recorded on the item.
+    bool parse_reducer_body(ModuleItem& item);
     ExprPtr parse_template();
     ExprPtr parse_array();
     ExprPtr parse_object();

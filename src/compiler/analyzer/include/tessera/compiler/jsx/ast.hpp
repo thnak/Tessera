@@ -44,6 +44,9 @@ enum class ExprKind : std::uint8_t {
     If,    // operands = [condition, then-block] or [condition, then-block, else-block]
     Block, // operands = the statements of a branch; the body of an `if`/`else`
     Const, // text = the name; operands = [value]. A local of a handler body
+    // ADR-066 item 4: the reducer form. `operands[0]` is the subject and the rest are `Block`s,
+    // each with its `case` label first (a `default` has no label).
+    Switch,
 };
 
 struct ObjectProperty {
