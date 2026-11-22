@@ -109,7 +109,10 @@ _NAMESPACE_ALIAS_RE = re.compile(r"^namespace\s+([A-Za-z_]\w*)\s*=")
 # An alignment specifier may sit between the type keyword and the name
 # (`struct alignas(64) Vertex2D`). It names nothing, so it is skipped rather than read as the
 # declaration's name - the same rule `NOT_A_NAME` already applies to a bare `alignas`.
-_ALIGNAS_SPECIFIER_RE = re.compile(r"alignas\s*\([^)]*\)\s*")
+#
+# `TESSERA_EMPTY_BASES` (`__declspec(empty_bases)` on MSVC, empty elsewhere) sits in the same place
+# on `ui::Node`. The scanner resolves no macro, so it is named here as the one specifier macro.
+_ALIGNAS_SPECIFIER_RE = re.compile(r"(?:alignas\s*\([^)]*\)|TESSERA_EMPTY_BASES)\s*")
 _TYPE_RE = re.compile(r"^(class|struct|union|enum)\s+(?:(class|struct)\s+)?([A-Za-z_]\w*)")
 _USING_ALIAS_RE = re.compile(r"^using\s+([A-Za-z_]\w*)\s*=")
 _USING_DECL_RE = re.compile(r"^using\s+([A-Za-z_]\w*(?:\s*::\s*[A-Za-z_]\w*)+)\s*$")
