@@ -137,5 +137,70 @@ class SourceSizeGateTests(unittest.TestCase):
             self.assertNotIn(exempt, result.stdout)
 
 
+class TrackedFilesGateTests(unittest.TestCase):
+    """The file list comes from `git ls-files`, so untracked trees are invisible (issue #733 item 6).
+
+    Before this, a directory walk saw agent worktrees under `.claude/worktrees/` -- which
+    `.git/info/exclude` hides from git but not from `rglob` -- and reported 63 errors for files that
+    were not on `main` at all. The `git` case is the one that matters, so these tests build a real
+    repository; the walk fallback is covered by the class above, whose throwaway tree has no `.git`.
+    """
+
+    def setUp(self) -> None:
+        self._temp = tempfile.TemporaryDirectory()
+        self.repo = Path(self._temp.name)
+        (self.repo / "scripts").mkdir()
+        shutil.copy2(GATE, self.repo / "scripts" / GATE.name)
+        self._git("init", "-q")
+        self._git("config", "user.email", "gate@example.invalid")
+        self._git("config", "user.name", "gate")
+
+    def tearDown(self) -> None:
+        self._temp.cleanup()
+
+    def _git(self, *args: str) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            ["git", *args], cwd=str(self.repo), capture_output=True, text=True, encoding="utf-8"
+        )
+
+    def run_gate(self, *args: str) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [sys.executable, "-B", str(self.repo / "scripts" / GATE.name), *args],
+            cwd=str(self.repo),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+        )
+
+    def test_untracked_tree_is_not_counted(self) -> None:
+        write_lines(self.repo / "src" / "small.cpp", 100)
+        # A whole agent checkout under a path git does not track. The walk this gate used to do
+        # would report it as a new 600-line violation.
+        write_lines(self.repo / ".claude" / "worktrees" / "lane" / "big.cpp", 600)
+        self.assertEqual(self._git("add", "src").returncode, 0)
+        result = self.run_gate()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("0 error(s)", result.stdout)
+        self.assertNotIn(".claude", result.stdout)
+
+    def test_ignored_file_is_not_counted(self) -> None:
+        write_lines(self.repo / "src" / "small.cpp", 100)
+        write_lines(self.repo / ".gitignore", 1)
+        (self.repo / ".gitignore").write_text("scratch/\n", encoding="utf-8")
+        write_lines(self.repo / "scratch" / "big.cpp", 600)
+        self.assertEqual(self._git("add", "src", ".gitignore").returncode, 0)
+        result = self.run_gate()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotIn("scratch", result.stdout)
+
+    def test_tracked_over_limit_file_still_fails(self) -> None:
+        # The gate must stay a gate: a tracked violation is still an error.
+        write_lines(self.repo / "src" / "big.cpp", 501)
+        self.assertEqual(self._git("add", "src").returncode, 0)
+        result = self.run_gate()
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("ERROR src/big.cpp", result.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()
