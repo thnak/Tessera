@@ -175,10 +175,15 @@ void main() {
     // The set is a range into the record list (ADR-068 slice 3), so the loop bound is data, not a
     // constant: an unclipped draw has count 0 and the loop body never runs, which is the early-out
     // that keeps an unclipped frame at its old cost.
+    //
+    // The range is read field by field rather than copied into a local. A by-value struct copy
+    // lowers to OpCopyLogical, which naga's SPIR-V front end rejects, so the cross-compiled WGSL
+    // (TESSERA_SHADER_CROSS) could not be produced - the same hazard the clip helpers below avoid.
     float clip_alpha = 1.0;
-    ClipSetRange clip_set = clip_buffer.sets[pc.clip_set];
-    for (uint offset = 0u; offset < clip_set.count; ++offset) {
-        uint index = clip_set.first_record + offset;
+    uint first_record = clip_buffer.sets[pc.clip_set].first_record;
+    uint clip_count = clip_buffer.sets[pc.clip_set].count;
+    for (uint offset = 0u; offset < clip_count; ++offset) {
+        uint index = first_record + offset;
         if (pc.aa_radius <= 0.0) {
             if (!inside_clip(gl_FragCoord.xy, index)) {
                 clip_alpha = 0.0;

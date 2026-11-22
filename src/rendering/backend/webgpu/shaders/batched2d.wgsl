@@ -157,9 +157,10 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // anti-aliased coverage with AA on. The set is a range into the record list (ADR-068 slice 3),
     // so an unclipped draw has count 0 and the loop body never runs.
     var clip_alpha = 1.0;
-    let clip_set = clip_buffer.sets[pc.clip_set];
-    for (var offset = 0u; offset < clip_set.count; offset = offset + 1u) {
-        let index = clip_set.first_record + offset;
+    let first_record = clip_buffer.sets[pc.clip_set].first_record;
+    let clip_count = clip_buffer.sets[pc.clip_set].count;
+    for (var offset = 0u; offset < clip_count; offset = offset + 1u) {
+        let index = first_record + offset;
         if (pc.aa_radius <= 0.0) {
             if (!inside_clip(in.position.xy, index)) {
                 clip_alpha = 0.0;
