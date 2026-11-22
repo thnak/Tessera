@@ -3,6 +3,7 @@
 // `WindowDevice` (issue #228): the shared device, per-device caches and runtime loop. See
 // docs/design/multi-window.md for the ownership table and the reasoning behind each row.
 
+#include "tessera/app/idle_policy.hpp"
 #include "tessera/app/window.hpp"
 #include "tessera/app/window_device.hpp"
 #include "tessera/hal/timer/steady_time.hpp"
@@ -102,6 +103,67 @@ std::size_t WindowDevice::pump_windows_once() {
         pacer_.present(hal::steady_now_seconds());
     }
     return presented;
+}
+
+double WindowDevice::next_wait_seconds() {
+    // The nearer of the two deadlines the app has: the pacer's next present and the next timer.
+    // `kNoDeadline` is infinity, so the minimum picks whichever is scheduled and stays infinite
+    // when neither is - which the clamp below turns into the documented park.
+    const double now = hal::steady_now_seconds();
+    const runtime::PaceDecision pace = pacer_.ready(now);
+    const double pacer_wait = pace.render_now ? 0.0 : pace.wait_seconds;
+    const double timer_wait =
+        loop_ != nullptr ? loop_->next_timer_wait_seconds() : runtime::kNoDeadline;
+    const double wait = pacer_wait < timer_wait ? pacer_wait : timer_wait;
+    if (!(wait > 0.0)) {
+        // A due present or a due timer asks for 0, so the caller re-iterates immediately instead of
+        // sleeping past the work.
+        return 0.0;
+    }
+    // An uncapped pacer has no future deadline and a loop with no timer has none either, so a
+    // settled app would otherwise park forever. The clamp is the same one `idle_policy.hpp` applies
+    // to a single window, and it is what bounds how late a wake can be noticed.
+    return wait < kMaxIdleWaitSeconds ? wait : kMaxIdleWaitSeconds;
+}
+
+WindowDevice::RunStats WindowDevice::run_windows(std::uint32_t max_frames) {
+    RunStats stats;
+    if (loop_ == nullptr) {
+        return stats;
+    }
+    // Startup is a frame cause for every window, the same rule `run()` applies: the scene has no
+    // dirty flags until the first layout.
+    loop_->mark_render_dirty();
+    for (;;) {
+        if (stop_requested_) {
+            // Consumed rather than merely observed: a request made before the run ends this one,
+            // and a second run is not stopped by the first one's request.
+            stop_requested_ = false;
+            stats.stopped = true;
+            break;
+        }
+        // A bounded run with nothing to paint returns at once rather than parking for frames that
+        // cannot happen. An unbounded one keeps going: that is the tray app, which is waiting for a
+        // window to be attached or a timer to fire.
+        if (max_frames > 0 && window_list_size_ == 0) {
+            break;
+        }
+        ++stats.iterations;
+        stats.presented += pump_windows_once();
+        if (max_frames > 0 && stats.presented >= max_frames) {
+            break;
+        }
+        const double wait = next_wait_seconds();
+        if (wait > 0.0) {
+            ++stats.idle_waits;
+            // Park on the group's own deadline. With no window there is no platform event wait to
+            // join, so this is a plain bounded sleep - which is exactly what a tray app does
+            // between activations. The wait is always bounded (`next_wait_seconds` clamps it), so a
+            // window-less run polls at that cadence instead of hanging.
+            hal::wait_until_seconds(hal::steady_now_seconds() + wait);
+        }
+    }
+    return stats;
 }
 
 bool WindowDevice::ensure_presentation(rhi::TextureFormat format, const WindowOptions& options) {

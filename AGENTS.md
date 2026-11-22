@@ -974,7 +974,30 @@ ADR-050 is Accepted (roadmap AF1-AF8); start with AF1.
       `tests/gpu/app_window_multi_loop_tests.cpp` (ctest `app_window_multi_loop`: one loop drives
       both, independent damage, both present in one group tick, a settled window presents nothing,
       the single-window path unchanged), and `docs/design/multi-window.md` section 10.
-- [ ] #181: Tray apps, its own slice.
+- [x] #181: Tray apps: a tray app runs with no visible window and zero presents, and shows a window
+      on activation. The lifecycle half was already right after #180 - an empty window set is
+      `closed`, which `derive_app_state` maps to `Hidden`, and `quitOnLastWindowClosed = false`
+      keeps the app running - so this slice is the layer-0 half, and it is two seams. Hiding is the
+      *app's* decision, not a platform query: `WindowHost::set_visible(false)` stops the driver
+      presenting and `set_visible(true)` shows it and latches a full repaint, tracked as a driver
+      flag rather than through `WindowPausePolicy`, because a `pauseWhenOccluded=false` config must
+      not be able to make a hidden window paint. That is deliberately different from
+      `WindowOptions::visible = false`, which is the offscreen/CI pattern where the app paints into
+      a window nobody sees and must keep presenting - conflating the two hangs every bounded
+      `run(N)` on an offscreen window, which is what the first version of this slice did to twelve
+      GPU tests and two samples. The loop half is `WindowDevice::run_windows()`: the only loop
+      before it was `WindowHost::run()`, which parks on *its own* window's event wait, so an app
+      with no window had no loop at all. `next_wait_seconds()` is the nearer of the pacer deadline
+      and the next timer, clamped so a window-less park is bounded, and `request_stop()` is the only
+      way such a run can end (consumed, not merely observed, so a second run is not stopped by the
+      first one's request). Evidence: `tests/gpu/app_window_tray_tests.cpp` (ctest
+      `app_window_tray`: a hidden window presents nothing across several iterations and after
+      damage, an offscreen-created window still presents, showing paints and the first frame is a
+      full repaint, hiding again stops presenting and keeps the window in the group, a window-less
+      group reports a wait and a bounded run returns at once, `request_stop()` ends an unbounded
+      run, and a tray app activates into a window and paints it - verified to fail with the fix
+      reverted), the layer-1 half in `tests/unit/appfw_window_registry_tests.cpp` from #180, and
+      `docs/design/tray-apps.md`.
 - [x] #228: One `Application` loop and one `rhi::Device` for several windows (before AF6). The
       shared owner is `app::WindowDevice` (`include/tessera/app/window_device.hpp`,
       `src/app/window_device.cpp`): one `rhi::Device`, one `Batched2DRenderer`, one `TextStack`

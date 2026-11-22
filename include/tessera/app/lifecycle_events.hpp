@@ -31,6 +31,12 @@ struct LifecycleBaseline {
 
 // The baseline a window's creation snapshot implies. A window created visible and focused has
 // nothing to report.
+//
+// Creation-time visibility is deliberately not part of this rule (issue #181). A window created
+// with `WindowOptions::visible = false` is the offscreen/CI pattern - the app paints into a window
+// the user never sees - so it is not a lifecycle transition and must not be reported as one. The
+// tray app's hidden state is the app's own `WindowHost::set_visible(false)`, which is a driver
+// decision rather than a platform snapshot, so it never reaches this function.
 [[nodiscard]] constexpr LifecycleBaseline
 lifecycle_baseline_for(const hal::WindowMetrics& metrics) noexcept {
     return LifecycleBaseline{metrics.occluded || metrics.minimized, metrics.focused};
