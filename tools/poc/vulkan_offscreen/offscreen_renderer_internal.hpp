@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include <tessera/rendering/vulkan/offscreen_renderer.hpp>
+#include "offscreen_renderer.hpp"
 
 #include <stdexcept>
 #include <string>

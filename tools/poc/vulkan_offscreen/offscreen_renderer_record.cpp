@@ -4,7 +4,7 @@
 // offscreen_renderer.cpp, which keeps instance/device/target setup, readback and teardown).
 
 #include "offscreen_renderer_internal.hpp"
-#include <tessera/rendering/vulkan/offscreen_renderer.hpp>
+#include "offscreen_renderer.hpp"
 
 #include <cstdint>
 

@@ -12,6 +12,12 @@ set(TESSERA_SHADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/shaders)
 set(TESSERA_SHADER_GEN_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
 file(MAKE_DIRECTORY ${TESSERA_SHADER_GEN_DIR})
 
+# Exported for the Phase 0 offscreen PoC (tools/poc/vulkan_offscreen), which includes the
+# `fullscreen_vert_spv.h` generated here: fullscreen.vert is shared with the glass-blur and
+# storage-probe pipelines, so it is compiled once, in the backend, and the PoC reuses the header
+# rather than duplicating the rule (issue #704).
+set(TESSERA_VULKAN_SHADER_GEN_DIR ${TESSERA_SHADER_GEN_DIR} PARENT_SCOPE)
+
 if (Vulkan_GLSLC_EXECUTABLE)
     set(TESSERA_GLSLC "${Vulkan_GLSLC_EXECUTABLE}")
 else()
@@ -42,8 +48,13 @@ function(tessera_add_spv_c shader out_var)
     set(${out_var} ${output} PARENT_SCOPE)
 endfunction()
 
+# fullscreen.vert is shared: the glass-blur and storage-probe pipelines use it, and so does the
+# Phase 0 offscreen PoC (which compiles it into its own generated header). fullscreen.frag is
+# PoC-only and lives with the PoC, so this backend directory holds no shader that only a tool uses.
 tessera_add_spv_c(fullscreen.vert TESSERA_VERT_SPV)
-tessera_add_spv_c(fullscreen.frag TESSERA_FRAG_SPV)
+# Exported so the Phase 0 offscreen PoC can name the generated header as a source, which is what
+# gives it a build-order dependency on the rule above (issue #704).
+set(TESSERA_VULKAN_VERT_SPV ${TESSERA_VERT_SPV} PARENT_SCOPE)
 tessera_add_spv_c(batched2d.vert TESSERA_BATCHED2D_VERT_SPV)
 tessera_add_spv_c(batched2d.frag TESSERA_BATCHED2D_FRAG_SPV)
 # LCD subpixel variant of the batched 2D fragment program (issue #471 slice 1,
@@ -90,27 +101,12 @@ tessera_add_spv_c(glass_blur.frag TESSERA_GLASS_BLUR_FRAG_SPV)
 # bind_storage_buffer reaches the shader on a real device. Pairs with fullscreen.vert.
 tessera_add_spv_c(storage_probe.frag TESSERA_STORAGE_PROBE_FRAG_SPV)
 
-add_custom_target(tessera_vulkan_shaders DEPENDS ${TESSERA_VERT_SPV} ${TESSERA_FRAG_SPV})
 add_custom_target(tessera_batched2d_shaders
     DEPENDS ${TESSERA_BATCHED2D_VERT_SPV} ${TESSERA_BATCHED2D_FRAG_SPV}
             ${TESSERA_BATCHED2D_LCD_FRAG_SPV} ${TESSERA_BATCHED2D_LCD_VERT_SPV}
             ${TESSERA_BATCHED2D_ARRAY_FRAG_SPV}
             ${TESSERA_GLASS_BLUR_FRAG_SPV}
             ${TESSERA_STORAGE_PROBE_FRAG_SPV})
-
-add_library(tessera_vulkan STATIC
-    src/offscreen_renderer.cpp
-    src/offscreen_renderer_record.cpp
-    ${TESSERA_VERT_SPV}
-    ${TESSERA_FRAG_SPV})
-
-target_include_directories(tessera_vulkan PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
-target_include_directories(tessera_vulkan PRIVATE
-    ${TESSERA_SHADER_GEN_DIR})
-target_link_libraries(tessera_vulkan PUBLIC Vulkan::Vulkan tessera_stb)
-target_compile_features(tessera_vulkan PUBLIC cxx_std_23)
-add_dependencies(tessera_vulkan tessera_vulkan_shaders)
 
 set(TESSERA_VULKAN_RHI_SOURCES
     src/vulkan_device.cpp
