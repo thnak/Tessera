@@ -983,6 +983,17 @@ target_link_libraries(android_caret_tests PRIVATE tessera_text)
 
 add_test(NAME android_caret COMMAND android_caret_tests)
 
+# Android long-press and drag-to-select (issue #189, android-lane.md section 3.14): pure over plain
+# numbers, so it runs on every lane without an NDK or a device. The thresholds (500 ms, 8 dp) and the
+# transitions are the whole behaviour, and a wrong one turns every scroll into a selection.
+add_executable(android_selection_tests
+    hal/android_selection_tests.cpp
+    ${PROJECT_SOURCE_DIR}/src/platform/android/android_selection_gesture.cpp)
+
+target_include_directories(android_selection_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src/platform/android)
+
+add_test(NAME android_selection COMMAND android_selection_tests)
 # Android window-metrics decode (issue #189): pure over plain numbers, so it runs on every lane
 # without an NDK or a device. The source lives under src/platform/android but includes no Android
 # header.
