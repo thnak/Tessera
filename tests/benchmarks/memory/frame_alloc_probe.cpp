@@ -310,6 +310,13 @@ int main(int argc, char** argv) {
             (void)copy;
         });
         std::printf("entries in a computed style: %zu\n", filled.properties().size());
+        std::printf("entries held by the delta (not the shared defaults): %zu\n",
+                    filled.delta().size());
+        // A real computed style, not the initial one: this is the per-node cost that multiplies by
+        // the node count, and the number issue #735 slice F is about.
+        const tessera::ui::style::ComputedStyle card = tree.compute(sheet, card_node);
+        std::printf("entries a real computed style holds itself: %zu (of %zu effective)\n",
+                    card.delta().size(), card.properties().size());
         std::size_t long_values = 0;
         for (const auto& [k, v] : filled.properties()) {
             long_values += v.size() > 15 ? 1 : 0;

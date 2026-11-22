@@ -250,11 +250,7 @@ PropertyRegistry::PropertyRegistry() {
         ShorthandInfo{{"flex-grow", "flex-shrink", "flex-basis"}, ShorthandKind::Flex};
     register_logical_properties();
     register_extension_properties();
-    for (const auto& [name, info] : properties_) {
-        if (!info.initial.empty()) {
-            initial_entries_.emplace_back(name, info.initial);
-        }
-    }
+    build_defaults();
 }
 
 const PropertyInfo* PropertyRegistry::find(std::string_view property) const {
@@ -391,13 +387,16 @@ PropertyRegistry::expand(const std::vector<Declaration>& declarations) const {
 }
 
 ComputedStyle PropertyRegistry::initial_style() const {
+    // No entries of its own: the defaults are its whole effective style, so this is one allocation.
     ComputedStyle style;
-    apply_initial_values(style);
+    style.attach_defaults(defaults_);
     return style;
 }
 
 void PropertyRegistry::apply_initial_values(ComputedStyle& style) const {
-    style.merge_missing(initial_entries_);
+    // The style is a delta over `defaults_`, so its initial values are already the fallback: there
+    // is nothing to materialize (issue #735, slice F). Attaching is what makes them visible.
+    style.attach_defaults(defaults_);
 }
 
 ComputedStyle PropertyRegistry::compute_with_initial(const ComputedStyle* parent,
@@ -503,5 +502,4 @@ PropertyExpansionResult PropertyRegistry::expand_flex(const Declaration& declara
     result.declarations.push_back(make_declaration(declaration, "flex-basis", std::move(basis)));
     return result;
 }
-
 } // namespace tessera::ui::style

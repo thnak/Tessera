@@ -91,10 +91,10 @@
       "measures": "sizeof(ui::style::BackgroundLayerList): the resolved `background-image` value, returned by value from resolve_layers once per painted node. Was 4552 because GradientValue carried all three shapes side by side (24 stops where a gradient can use 8); issue #731 made the three shapes a union, so GradientValue is 200 and the list 1672. Identical on both lanes"
     },
     "computed_style_one_property_bytes": {
-      "budget": 112,
+      "budget": 128,
       "status": "enforce",
       "unit": "bytes",
-      "measures": "bytes the first property insert into a ComputedStyle allocates (two allocations since the copy-on-write storage of issue #711: the shared block with its control block, digest and vector header, and the vector buffer holding the one pair). A copy of a style allocates nothing, which is what the layout input, the diff baseline and every reader pay now, so the per-node cost that matters fell by about 30x while this one-property floor rose from 64. This is the portable row; sizeof(ComputedStyle) itself is not pinned because it is a std::map handle whose size the standard library decides (16 on MSVC, 48 on libstdc++) and pinning it would record a libstdc++/MSVC difference as a memory budget. 96 on both lanes"
+      "measures": "bytes the first property insert into a ComputedStyle allocates (two allocations since the copy-on-write storage of issue #711: the shared block with its control block, digest, vector header and the shared defaults pointer, and the vector buffer holding the one pair). A copy of a style allocates nothing, which is what the layout input, the diff baseline and every reader pay now, so the per-node cost that matters fell by about 30x while this one-property floor rose from 64. It rose from 96 to 128 with issue #735 slices E and F: the shared block now also holds the pointer to the registry's immutable StyleDefaults table, which is what lets a style store a handful of entries instead of ~100, so the floor grew by one pointer while the per-node style fell by roughly 20x. This is the portable row; sizeof(ComputedStyle) itself is not pinned because it is a std::map handle whose size the standard library decides (16 on MSVC, 48 on libstdc++) and pinning it would record a libstdc++/MSVC difference as a memory budget. 128 on both lanes"
     },
     "plain_node_allocations": {
       "budget": 1,

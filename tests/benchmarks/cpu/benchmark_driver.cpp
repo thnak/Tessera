@@ -70,22 +70,10 @@ style::ComputedStyle BenchmarkDriver::compute_one(const ui::Node& node,
     // and materializes the registry's initial longhands), so the measured "first style+layout"
     // number includes what the engine really does for every node.
     const style::ComputedStyle materialized = sheet_.compute(*style_tree_.view(node), parent);
-    const style::ComputedStyle styled = apply_inline(materialized, node, sheet_.registry());
-    // The resolved table drops longhands that still equal their registry initial value. Readers of
-    // a computed style treat an absent longhand as its initial value (the engine's stubs and every
-    // paint/layout test rely on it), so this is the same style semantically while keeping 12 000
-    // entries at a few megabytes instead of ~100 MB of default strings. The copy cost is paid once
-    // per node here, not per layout or paint consumer.
-    style::ComputedStyle stripped;
-    const style::PropertyRegistry& registry = sheet_.registry();
-    for (const auto& [name, value] : styled.properties()) {
-        const style::PropertyInfo* info = registry.find(name);
-        if (info != nullptr && info->initial == value) {
-            continue;
-        }
-        stripped.set(name, value);
-    }
-    return stripped;
+    // A computed style is already a delta over the registry's initial values (issue #735, slice F),
+    // so it holds only the longhands that differ from them: the ~100-entry table this used to strip
+    // by hand is the shared defaults table now, and the copy below is a handful of entries.
+    return apply_inline(materialized, node, sheet_.registry());
 }
 
 void BenchmarkDriver::resolve_all_styles() {

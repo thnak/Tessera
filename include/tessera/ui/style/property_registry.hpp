@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <map>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -49,6 +50,13 @@ public:
     [[nodiscard]] ComputedStyle compute_with_initial(const ComputedStyle* parent,
                                                      const CascadeTable& cascade) const;
 
+    // The registry's initial values, shared by every style this registry computes (issue #735,
+    // slices E and F). A computed style is a delta over this table, so a default read is one
+    // id-indexed array read instead of a binary search over the whole style.
+    [[nodiscard]] const std::shared_ptr<const StyleDefaults>& defaults() const {
+        return defaults_;
+    }
+
 private:
     enum class ShorthandKind : std::uint8_t {
         Box4,
@@ -85,10 +93,14 @@ private:
     // them and `@supports` is correct for them.
     void register_extension_properties();
 
+    // Builds `defaults_` from `properties_`. Defined in `style_defaults.cpp` so this table and the
+    // registry's own translation unit stay under the source line limit.
+    void build_defaults();
+
     std::map<std::string, PropertyInfo> properties_;
-    // Every longhand with a non-empty initial value, sorted by name: what `apply_initial_values`
-    // merges into a style in one pass. Built once at the end of the constructor.
-    ComputedStyle::Entries initial_entries_;
+    // The same initial values, indexed by the stable small id a computed style's delta is read
+    // against (issue #735, slices E and F). Built from `properties_` at the end of the constructor.
+    std::shared_ptr<const StyleDefaults> defaults_;
     std::map<std::string, ShorthandInfo> shorthands_;
 };
 
