@@ -111,6 +111,15 @@ std::vector<Diagnostic> run_case(const jsx_registry::Case& test, const std::stri
         const SourceMap map(test.source);
         return rules::analyze_module(*parsed.root, map, test.limits).diagnostics;
     }
+    case jsx_registry::Entry::kNoCustomHooks: {
+        // The switch-off path. `TESSERA_REACT_CUSTOM_HOOK` is only reachable with the switch off
+        // (docs/specs/custom-hooks-v1.md section 1), so its fixture pins that path rather than the
+        // default one. The code stays in the registry because a caller may still pin the old
+        // rejection.
+        FrontEndOptions options;
+        options.custom_hooks = false;
+        return parse_module(test.source, test.limits, options).diagnostics;
+    }
     case jsx_registry::Entry::kExpansion: {
         // The custom-hook expansion (spike #659, ADR-065) only runs with the experimental switch
         // on, so its codes need their own entry kind: the default pipeline never reports them.

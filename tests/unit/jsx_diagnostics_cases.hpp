@@ -29,7 +29,7 @@ namespace jsx_registry {
 // `kExpansion` runs the custom-hook expansion (spike #659, ADR-065) with the experimental switch
 // on: the codes it reports are not reachable from the default pipeline, so a fixture that parses
 // without the switch cannot cover them.
-enum class Entry { kLex, kExpression, kJsx, kType, kModule, kRules, kExpansion };
+enum class Entry { kLex, kExpression, kJsx, kType, kModule, kRules, kExpansion, kNoCustomHooks };
 
 struct Case {
     std::string_view code;
@@ -211,7 +211,11 @@ inline const std::vector<Case> kCases = {
             17, 26, 2),
     fixture("TESSERA_REACT_BIND_POSITION", "react-bind-position", Entry::kModule,
             "// Note: bind::x\nfunction A() { return <A/>; }\n", 0, 16),
-    fixture("TESSERA_REACT_CUSTOM_HOOK", "react-custom-hook", Entry::kModule,
+    // The switch-off path: with `custom_hooks` off a `use...` function is still the pre-#645
+    // rejection (docs/specs/custom-hooks-v1.md section 1), which is what a caller that pins the old
+    // behaviour sees. `TESSERA_REACT_HOOK_RETURN` is covered by `react-hook-return` below, which
+    // enters through the expansion pass; the registry allows one fixture per code.
+    fixture("TESSERA_REACT_CUSTOM_HOOK", "react-custom-hook", Entry::kNoCustomHooks,
             "function useThing() { return <A/>; }", 9, 8),
     fixture("TESSERA_REACT_EFFECT_DEPS", "react-effect-deps", Entry::kRules,
             "function A() {\n"

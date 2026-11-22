@@ -226,11 +226,11 @@ void test_component_rejections() {
         const char* codes;
     };
     const Case cases[] = {
-        // A lowercase `function` is a module-scope helper, not a badly named component (issue
-        // #660's
-        // corpus): it is accepted and skipped, so the component beside it still compiles. Asserted
-        // separately below, because this table is the REJECTION table.
-        {"function useThing() { return <B/>; }", "TESSERA_REACT_CUSTOM_HOOK;"},
+        // A `use...` function is a custom hook since #645: it is parsed as a hook declaration, and
+        // a
+        // hook whose body returns JSX is `TESSERA_REACT_HOOK_RETURN` rather than the old
+        // `TESSERA_REACT_CUSTOM_HOOK` rejection (docs/specs/custom-hooks-v1.md section 2).
+        {"function useThing() { return <B/>; }", "TESSERA_REACT_HOOK_RETURN;"},
         {"function A() { const a = 1; }", "TESSERA_JSX_PARSE_MISSING_RETURN;"},
         {
             "function A() { return <B/>; const a = 1; }",
