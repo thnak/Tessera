@@ -91,6 +91,11 @@ if (TESSERA_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/unit/chart_node_paint_tests.cpp
         ${PROJECT_SOURCE_DIR}/tests/unit/chart_node_allocation.cpp)
     target_link_libraries(chart_node_tests PRIVATE tessera_paint)
+
+    # chart_node_allocation.cpp replaces the global operator new/delete to count allocations; see
+    # the helper's comment.
+    tessera_allow_allocator_override(chart_node_tests)
+
     add_test(NAME chart_node COMMAND chart_node_tests)
 
     # Chart damage on the null RHI: a one-sample append repaints a band, the plan's scissor contains

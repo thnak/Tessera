@@ -22,6 +22,13 @@ set(TESSERA_SANITIZERS "OFF" CACHE STRING
 string(STRIP "${TESSERA_SANITIZERS}" TESSERA_SANITIZERS_STRIPPED)
 string(TOUPPER "${TESSERA_SANITIZERS_STRIPPED}" TESSERA_SANITIZERS_UPPER)
 
+# The HAS_* probes are read by tessera_allow_allocator_override() below, which every allocation
+# test calls unconditionally, so they must exist even when no sanitizer is enabled. -1 is "absent",
+# the same value list(FIND) returns for a miss.
+set(TESSERA_SANITIZER_HAS_ADDRESS -1)
+set(TESSERA_SANITIZER_HAS_UNDEFINED -1)
+set(TESSERA_SANITIZER_HAS_THREAD -1)
+
 if (TESSERA_SANITIZERS_STRIPPED STREQUAL "" OR TESSERA_SANITIZERS_UPPER STREQUAL "OFF")
     set(TESSERA_SANITIZER_LIST "")
 else()
@@ -80,3 +87,27 @@ if (TESSERA_SANITIZER_LIST)
         "Tessera: sanitizers ON (-fsanitize=${TESSERA_SANITIZER_VALUE}); runtime options "
         "(ASAN_OPTIONS/LSAN_OPTIONS/UBSAN_OPTIONS/TSAN_OPTIONS) are set by the caller")
 endif()
+
+# Targets that replace the global allocation functions (the allocation-counting tests and probes)
+# must call this. It is a no-op unless the build is a TSan build, so a caller writes it
+# unconditionally and every other lane is byte-for-byte what it was.
+#
+# Why it is needed: clang links `libclang_rt.tsan_cxx` into every TSan executable, and that archive
+# is a single object, `tsan_new_delete.cpp.o`, whose only job is to define the global `operator
+# new`/`delete` family as *strong* symbols (ASan's equivalent is weak, which is why ASan links the
+# same tests without complaint). A test that defines its own `operator new` therefore collides:
+#
+#   multiple definition of `operator new(unsigned long)';
+#   libclang_rt.tsan_cxx-x86_64.a(tsan_new_delete.cpp.o): first defined here
+#
+# `-fno-sanitize-link-c++-runtime` drops that archive from the link. It is the narrow fix, not a
+# workaround: the archive contains nothing but the allocator wrappers, so TSan loses no checking
+# ability. TSan intercepts `malloc`/`free` itself, so heap races and use-after-free are still
+# reported, and the test's own `operator new` (which calls `std::malloc`) is still instrumented.
+# Verified on the `tsan` preset: a heap race and a use-after-free both still fail the run, and the
+# allocation counter still counts.
+function(tessera_allow_allocator_override target)
+    if (TESSERA_SANITIZER_HAS_THREAD GREATER -1)
+        target_link_options(${target} PRIVATE -fno-sanitize-link-c++-runtime)
+    endif()
+endfunction()

@@ -12,7 +12,8 @@
 #   * Only a third-party library may be listed, and only with a reason that names the library, the
 #     report it emits and why the report is not ours to fix.
 #
-# CURRENT STATE: empty. The measured baseline (issue #702) is 12 representative suites passing under
-# ASan+UBSan+LSan with GCC 15 and no suppressions at all, so nothing is known to need one. The full
-# ctest set and the lavapipe GPU suites have not been measured under ASan yet; if they turn up
-# third-party noise, the entry goes here with its reason rather than in the workflow.
+# CURRENT STATE: empty. The full ctest set, including the lavapipe GPU suites, runs under
+# ASan+UBSan with no suppressions. Everything the first full run reported was Tessera's own code and
+# was fixed rather than suppressed. Leak suppressions live in `lsan.supp`, not here: ASan's parser
+# rejects the `leak:` type, so a shared file would make every test abort with "failed to parse
+# suppressions".

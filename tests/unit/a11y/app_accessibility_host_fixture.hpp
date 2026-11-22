@@ -111,7 +111,10 @@ inline AccessibilityHostConfig uia_config(HostHarness* harness, Log& log) {
     config.backend = AccessibilityBackend::Uia;
     config.report = [&log](std::string_view line) { log.add(std::string(line)); };
     config.create_uia = [harness]() -> std::unique_ptr<UiaHost> {
-        auto apartment = std::make_unique<LoggingApartment>(harness->log);
+        // Share the harness's gate: `AccessibilityHost::stop()` destroys the apartment before the
+        // harness destructor runs, so the harness releases a parked worker through the gate it owns
+        // rather than through the (by then dangling) apartment pointer.
+        auto apartment = std::make_unique<LoggingApartment>(harness->log, harness->gate);
         harness->apartment = apartment.get();
         auto platform =
             std::make_unique<FakePlatform>(harness->log, reinterpret_cast<void*>(0x1234));

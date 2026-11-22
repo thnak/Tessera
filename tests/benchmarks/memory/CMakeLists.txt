@@ -27,6 +27,9 @@ target_link_libraries(memory_sizes_probe PRIVATE
 
 target_compile_features(memory_sizes_probe PRIVATE cxx_std_23)
 
+# Replaces the global operator new/delete to count allocations; see the helper's comment.
+tessera_allow_allocator_override(memory_sizes_probe)
+
 # The build configuration, so the gate can tell a Release measurement from a Debug one. It matters:
 # a checked-STL Debug build has a different sizeof(Node) (320 vs 312 on MSVC), a larger PaintData
 # and one extra proxy allocation per vector, so a Debug number is a *different claim* from the
@@ -63,6 +66,11 @@ if (Python3_EXECUTABLE AND NOT APPLE)
             --check
             --sizes-only
             --build-dir "${CMAKE_BINARY_DIR}")
+    # The budget is recorded from a Release build, and the gate itself refuses to compare across
+    # configurations (sizeof and allocation counts differ). The sanitizer presets are RelWithDebInfo
+    # with instrumentation, so they exclude the label (CMakePresets.json) rather than re-record a
+    # budget that would then be wrong for the gating lanes.
+    set_tests_properties(memory_budget PROPERTIES LABELS uninstrumented_baseline)
 elseif (NOT APPLE)
     # A missing interpreter is reported, not silently skipped: a gate that does not run is worse
     # than a gate that fails.
@@ -79,3 +87,6 @@ target_link_libraries(frame_alloc_probe PRIVATE
     tessera_runtime)
 
 target_compile_features(frame_alloc_probe PRIVATE cxx_std_23)
+
+# Replaces the global operator new/delete to count allocations; see the helper's comment.
+tessera_allow_allocator_override(frame_alloc_probe)

@@ -12,6 +12,7 @@
 #include <array>
 #include <atomic>
 #include <cstdint>
+#include <memory>
 #include <thread>
 #include <vector>
 #include <wayland-server.h>
@@ -75,8 +76,13 @@ public:
         socket_ok_ = wl_display_add_socket(display_, socket) == 0;
         output_resources_.assign(outputs.size(), nullptr);
         for (std::size_t i = 0; i < outputs.size(); ++i) {
+            // The global's user data is owned here, not by libwayland: `wl_global_create` stores
+            // the pointer and never frees it, so the compositor keeps it in `output_data_` and
+            // releases it in the destructor. Leaking it would be a real leak in the harness (LSan
+            // reports it).
+            output_data_.push_back(std::make_unique<OutputData>(OutputData{this, i}));
             globals_.push_back(wl_global_create(display_, &wl_output_interface, 2,
-                                                new OutputData{this, i},
+                                                output_data_.back().get(),
                                                 &FakeCompositor::bind_output));
         }
         wl_global_create(display_, &wl_compositor_interface, 4, this,
@@ -318,6 +324,8 @@ private:
 
     std::vector<OutputSpec> specs_;
     std::vector<wl_global*> globals_;
+    // Owns the per-output user data handed to `wl_global_create`; see the constructor.
+    std::vector<std::unique_ptr<OutputData>> output_data_;
     OutputSpec reconfigure_spec_;
     std::atomic<int> pending_reconfigure_{-1};
     std::atomic<int> pending_removal_{-1};

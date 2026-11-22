@@ -116,8 +116,11 @@ void test_aria_pairs() {
     check_eq(node.aria_attributes()[0].value, "open", "the value is replaced");
 
     check(!node.set_aria("", "x"), "an empty aria name is rejected");
-    // Metadata views are borrowed: keep the test storage alive for the life of the node.
+    // Metadata views are borrowed: keep the test storage alive for the life of the node. The
+    // capacity is reserved up front because a reallocation would move the strings and leave the
+    // node holding views into the freed block (ASan reports that as a heap-use-after-free).
     std::vector<std::string> names;
+    names.reserve(ui::Node::kMaxAriaPairs);
     for (std::size_t i = 1; i < ui::Node::kMaxAriaPairs; ++i) {
         names.push_back("aria-p" + std::to_string(i));
         check(node.set_aria(names.back(), "v"), "pairs below the cap are accepted");

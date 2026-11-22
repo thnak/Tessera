@@ -62,22 +62,31 @@ void build_button_tree(A11ySnapshot& out, std::string_view button_name) {
     out.nodes.assign({root, button});
 }
 
-// Closes the gate, then forces one trip around the worker loop (the barrier job) so the worker is
-// provably inside its message pump before the test posts anything. Closing the gate alone is racy:
-// a worker already waiting for a job would run the next flush before it ever reached the pump.
+// Forces one trip around the worker loop and closes the gate from *inside* that trip, so the worker
+// is provably parked in its message pump before the test posts anything.
+//
+// Closing the gate from the test thread first is racy: the worker may already be between
+// `run_jobs()` and `pump()`, in which case it parks before it ever picks up the barrier job, and
+// the `step()` below waits for a job that cannot run until the gate opens - a deadlock the TSan
+// lane caught as an intermittent hang. Running `block_pump()` as the job itself removes the window:
+// the gate closes on the bridge thread, after the job was dequeued, so the very next thing the
+// worker does is enter `pump()` and park.
 bool park_worker(HostHarness& harness) {
-    harness.apartment->block_pump();
-    return expect(harness.host->bridge().step().has_value(), "the barrier ran") &&
+    LoggingApartment* apartment = harness.apartment;
+    return expect(harness.host->bridge()
+                      .post([apartment](auto&) { apartment->block_pump(); })
+                      .has_value(),
+                  "the barrier was posted") &&
            expect(harness.apartment->wait_parked(), "the worker parked in its pump");
 }
 
 // Starts the host with the worker parked in its message pump, so a posted flush job cannot run
 // until the test opens the gate. That is what makes "pending" assertions deterministic.
 bool start_parked(HostHarness& harness) {
-    harness.apartment->block_pump();
-    if (!expect(harness.host->start().has_value(), "start succeeds") ||
-        !expect(harness.host->bridge().step().has_value(), "the start hook ran") ||
-        !expect(harness.apartment->wait_parked(), "the worker parked in its pump")) {
+    if (!expect(harness.host->start().has_value(), "start succeeds")) {
+        return false;
+    }
+    if (!park_worker(harness)) {
         return false;
     }
     return expect(harness.host->ready(), "the root is published");

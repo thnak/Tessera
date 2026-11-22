@@ -36,3 +36,8 @@ add_test(
     NAME cpu_benchmark
     COMMAND tessera_benchmark
         ${PROJECT_SOURCE_DIR}/tests/golden/perf/cpu_benchmark.txt)
+
+# The budgets are wall-clock milliseconds measured on an uninstrumented Release build. Sanitizer
+# instrumentation multiplies them, so the comparison is meaningless there; the sanitizer presets
+# exclude the label (CMakePresets.json).
+set_tests_properties(cpu_benchmark PROPERTIES LABELS uninstrumented_baseline)

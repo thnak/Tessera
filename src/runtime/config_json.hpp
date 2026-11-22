@@ -39,6 +39,8 @@ struct JsonParseError {
     std::size_t offset = 0;
 };
 
+struct JsonMember;
+
 // A decoded value. `offset` is the byte offset of the first character of the value in the input, so
 // a validation error can point at the member it rejected. Members keep document order: warnings and
 // the first-error choice are therefore deterministic.
@@ -50,7 +52,7 @@ struct JsonValue {
     double number = 0.0;
     std::string string;
     std::vector<JsonValue> array;
-    std::vector<std::pair<std::string, JsonValue>> object;
+    std::vector<JsonMember> object;
     std::size_t offset = 0;
 
     [[nodiscard]] bool is_null() const noexcept {
@@ -73,6 +75,16 @@ struct JsonValue {
     }
     // First member named `key`, or nullptr. Duplicate keys never reach the DOM.
     [[nodiscard]] const JsonValue* find(std::string_view key) const noexcept;
+};
+
+// A named member rather than `std::pair<std::string, JsonValue>`. clang against libstdc++ 15
+// instantiates the pair's destructor while `JsonValue` is still incomplete - the default member
+// initializers above force that instantiation - and rejects it as "arithmetic on a pointer to an
+// incomplete type". GCC and MSVC accept the pair, so only the clang lanes saw it. Naming the member
+// also reads better at the use sites than `.first` / `.second`.
+struct JsonMember {
+    std::string key;
+    JsonValue value;
 };
 
 // Decodes one UTF-8 document. `max_depth` bounds object/array nesting (a scalar top-level value is

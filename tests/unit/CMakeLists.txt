@@ -540,6 +540,9 @@ add_executable(node_size_tests
 
 target_link_libraries(node_size_tests PRIVATE tessera_scene)
 
+# Replaces the global operator new/delete to count allocations; see the helper's comment.
+tessera_allow_allocator_override(node_size_tests)
+
 add_test(NAME node_size COMMAND node_size_tests)
 
 # The shared text helpers (issue #733): header-only, so this target exists to compile and exercise
@@ -1026,6 +1029,11 @@ add_test(NAME memory_steady_state
     COMMAND memory_steady_state_tests
         ${PROJECT_SOURCE_DIR}/tests/golden/memory/steady_state.txt)
 
+# The baseline is resident bytes per node measured on an uninstrumented Release build. A sanitizer
+# build adds its own shadow memory and redzones to every allocation, so the number is a different
+# claim, not a regression; the sanitizer presets exclude the label (CMakePresets.json).
+set_tests_properties(memory_steady_state PROPERTIES LABELS uninstrumented_baseline)
+
 add_executable(diagnostics_trace_tests
     diagnostics_trace_tests.cpp)
 
@@ -1199,6 +1207,9 @@ add_executable(selector_match_tests
     selector_match_tests.cpp)
 
 target_link_libraries(selector_match_tests PRIVATE tessera_style)
+
+# Replaces the global operator new/delete to count allocations; see the helper's comment.
+tessera_allow_allocator_override(selector_match_tests)
 
 add_test(NAME selector_match COMMAND selector_match_tests)
 
@@ -1920,6 +1931,9 @@ add_executable(layout_observer_tests
     layout_observer_tests.cpp)
 
 target_link_libraries(layout_observer_tests PRIVATE tessera_layout)
+
+# Replaces the global operator new/delete to count allocations; see the helper's comment.
+tessera_allow_allocator_override(layout_observer_tests)
 
 add_test(NAME layout_observer COMMAND layout_observer_tests)
 
@@ -2854,6 +2868,9 @@ add_executable(chart_series_ring_tests
 
 target_include_directories(chart_series_ring_tests PRIVATE
     ${PROJECT_SOURCE_DIR}/include)
+
+# Replaces the global operator new/delete to count allocations; see the helper's comment.
+tessera_allow_allocator_override(chart_series_ring_tests)
 
 add_test(NAME chart_series_ring COMMAND chart_series_ring_tests)
 

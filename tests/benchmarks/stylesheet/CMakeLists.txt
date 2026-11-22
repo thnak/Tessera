@@ -34,6 +34,10 @@ target_link_libraries(tessera_stylesheet_benchmark PRIVATE
     tessera_harness
     tessera_style)
 
+# benchmark_counters.cpp replaces the global operator new/delete to count allocations; see the
+# helper's comment.
+tessera_allow_allocator_override(tessera_stylesheet_benchmark)
+
 option(TESSERA_BENCHMARK_STYLESHEET
     "Run the opt-in stylesheet startup benchmark in ctest (label: benchmark)" OFF)
 

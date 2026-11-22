@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: MIT
+#
+# LeakSanitizer suppressions for the nightly `asan` lane (issue #702,
+# docs/specs/memory-model-v1.md section 10).
+#
+# This is a SEPARATE file from `asan.supp` on purpose. LSan and ASan parse the same
+# `suppressions=` option but accept different types: `leak:` is LSan-only, and ASan's parser
+# rejects it outright - a shared file makes every test abort with "failed to parse suppressions"
+# before it runs a single assertion. The workflow therefore passes `asan.supp` to ASAN_OPTIONS and
+# this file to LSAN_OPTIONS.
+#
+# Format: one entry per line, `leak:pattern`, preceded by a `#` comment line that gives the reason.
+# The runtime ignores blank lines and `#` comments.
+#
+# POLICY - read before adding a line:
+#   * Tessera's own code is NEVER suppressed here. A leak in our code is a bug to fix; the lane
+#     exists to surface it.
+#   * Only a third-party library may be listed, and only with a reason that names the library, the
+#     report it emits and why the report is not ours to fix.
+#
+# CURRENT STATE: one entry, for Mesa's lavapipe software Vulkan driver.
+
+# Mesa lavapipe (libvulkan_lvp.so), the software Vulkan ICD the Linux lane renders with. When a test
+# forces device or texture-pool creation to fail, lavapipe leaks the partially built object: the
+# whole allocation stack is inside `libvulkan_lvp.so`, and the only Tessera frame is the call that
+# asked for the object. It is not ours to fix, and it is not a Tessera defect - the leak is the
+# driver's own error path, which the test triggers on purpose. Matched on the module name so a leak
+# with Tessera frames in it is still reported.
+leak:libvulkan_lvp.so

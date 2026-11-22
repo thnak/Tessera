@@ -42,10 +42,12 @@ jobs:
     env:
       # detect_leaks=1 is what makes LSan run at exit for every test process, so a leak fails the
       # lane (issue #702 item 3). abort_on_error=1 turns a report into a non-zero exit instead of a
-      # diagnostic that a test could swallow. The suppressions file is in-repo and every entry in it
-      # carries its reason; it is empty today (see tests/sanitizers/asan.supp).
+      # diagnostic that a test could swallow. The suppressions files are in-repo and every entry in
+      # them carries its reason. ASan and LSan get DIFFERENT files: `leak:` is an LSan-only type and
+      # ASan's parser rejects it, so a shared file would abort every test with "failed to parse
+      # suppressions".
       ASAN_OPTIONS: detect_leaks=1:abort_on_error=1:suppressions=${{ github.workspace }}/tests/sanitizers/asan.supp
-      LSAN_OPTIONS: suppressions=${{ github.workspace }}/tests/sanitizers/asan.supp
+      LSAN_OPTIONS: suppressions=${{ github.workspace }}/tests/sanitizers/lsan.supp
       UBSAN_OPTIONS: print_stacktrace=1
     outputs:
       excerpt: ${{ steps.excerpt.outputs.excerpt }}

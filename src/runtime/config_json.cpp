@@ -218,7 +218,7 @@ private:
                 return std::unexpected(member.error());
             }
             for (const auto& existing : value.object) {
-                if (existing.first == *key) {
+                if (existing.key == *key) {
                     return fail(JsonErrorCode::DuplicateKey, key_offset);
                 }
             }
@@ -464,8 +464,8 @@ private:
 
 const JsonValue* JsonValue::find(std::string_view key) const noexcept {
     for (const auto& member : object) {
-        if (member.first == key) {
-            return &member.second;
+        if (member.key == key) {
+            return &member.value;
         }
     }
     return nullptr;

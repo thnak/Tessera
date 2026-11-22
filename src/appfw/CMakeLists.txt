@@ -178,6 +178,11 @@ if (TESSERA_BUILD_TESTS)
     target_include_directories(appfw_observable_tests PRIVATE
         ${PROJECT_SOURCE_DIR}/tests/unit)
     target_link_libraries(appfw_observable_tests PRIVATE tessera_scene)
+
+    # appfw_observable_allocation.cpp replaces the global operator new/delete to count allocations;
+    # see the helper's comment.
+    tessera_allow_allocator_override(appfw_observable_tests)
+
     add_test(NAME appfw_observable COMMAND appfw_observable_tests)
     # The AF3 tests (issue #175, ADR-050 section 2): the state table of section 2 row by row, the
     # ordered-event vector a transition produces, the termination gate and `Defer`, and the
