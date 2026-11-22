@@ -7,6 +7,8 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <string>
+#include <string_view>
 
 namespace tessera::diagnostics {
 
@@ -103,6 +105,59 @@ private:
                            MetricsRegistry::kInvalidMetric, MetricsRegistry::kInvalidMetric};
     std::array<std::size_t, kGpuMemoryCategoryCount> category_ids_{};
     std::array<std::size_t, kGpuMemoryCategoryCount> category_peak_ids_{};
+};
+
+// One cache's counters, in the one shape every cache reports (issue #706, memory-model-v1 section
+// 9: "cache hit/miss/eviction/size"). The caches in the tree each grew their own `Stats` struct
+// with overlapping-but-not-identical fields; this is the common projection, so a diagnostic can
+// iterate caches instead of knowing each one's type.
+//
+// `bytes` is 0 for a cache that counts entries rather than bytes (the measure cache), and `entries`
+// is 0 for one that only tracks bytes. A zero is "not tracked", not "empty": the two are different
+// claims and a reader that conflates them will misread a healthy cache as an empty one.
+struct CacheStats {
+    std::uint64_t hits = 0;
+    std::uint64_t misses = 0;
+    std::uint64_t evictions = 0;
+    std::uint64_t entries = 0;
+    std::uint64_t bytes = 0;
+};
+
+// Publishes one cache's counters as gauges `cache.<name>.{hits,misses,evictions,entries,bytes}`.
+// Registration allocates once; `publish` does not. The name is the cache's stable identifier
+// ("image_texture", "path_texture", "paint", "glyph_atlas", "text_measure"), the same names the
+// memory-pressure order uses, so a diagnostic and an eviction log line refer to the same thing.
+class CacheGauges {
+public:
+    CacheGauges(MetricsRegistry& registry, std::string_view name);
+
+    void publish(const CacheStats& stats) noexcept;
+
+    [[nodiscard]] std::string_view name() const noexcept {
+        return name_;
+    }
+    [[nodiscard]] std::size_t hits_id() const noexcept {
+        return ids_[0];
+    }
+    [[nodiscard]] std::size_t misses_id() const noexcept {
+        return ids_[1];
+    }
+    [[nodiscard]] std::size_t evictions_id() const noexcept {
+        return ids_[2];
+    }
+    [[nodiscard]] std::size_t entries_id() const noexcept {
+        return ids_[3];
+    }
+    [[nodiscard]] std::size_t bytes_id() const noexcept {
+        return ids_[4];
+    }
+
+private:
+    MetricsRegistry* registry_ = nullptr;
+    std::string name_;
+    std::size_t ids_[5] = {MetricsRegistry::kInvalidMetric, MetricsRegistry::kInvalidMetric,
+                           MetricsRegistry::kInvalidMetric, MetricsRegistry::kInvalidMetric,
+                           MetricsRegistry::kInvalidMetric};
 };
 
 } // namespace tessera::diagnostics

@@ -96,6 +96,15 @@ target_compile_features(gpu_memory_probe PRIVATE cxx_std_23)
 # The probe itself, so a probe that stops building or printing is caught on every lane that builds.
 add_test(NAME gpu_memory_sizes COMMAND gpu_memory_probe --backend null)
 
+# cache_probe (issue #706): measures whether the shaped-run and pipeline caches the memory-model
+# audit could not find are actually needed. A measurement tool, not a CTest entry: it asserts
+# nothing until the numbers have been read and the decision recorded.
+add_executable(cache_probe
+    cache_probe.cpp)
+
+target_link_libraries(cache_probe PRIVATE tessera_text)
+target_compile_features(cache_probe PRIVATE cxx_std_23)
+
 # frame_alloc_probe (issue #701, step 1): allocations per steady-state frame. A measurement tool, not a
 # CTest entry: it asserts nothing until the numbers have been read and a bound has been decided.
 add_executable(frame_alloc_probe

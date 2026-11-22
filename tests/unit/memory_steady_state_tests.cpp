@@ -114,6 +114,28 @@ int sampler() {
                 "an out-of-range category has no gauge")) {
         return 3;
     }
+
+    // Issue #706: one cache's counters, in the shape every cache reports. The name is the same
+    // identifier the memory-pressure order uses, so a diagnostic and an eviction log line refer to
+    // the same thing.
+    diag::CacheGauges cache(registry, "image_texture");
+    diag::CacheStats cache_stats;
+    cache_stats.hits = 10;
+    cache_stats.misses = 2;
+    cache_stats.evictions = 1;
+    cache_stats.entries = 3;
+    cache_stats.bytes = 4096;
+    cache.publish(cache_stats);
+    if (!expect(registry.value(cache.hits_id()) == 10 && registry.value(cache.misses_id()) == 2 &&
+                    registry.value(cache.evictions_id()) == 1 &&
+                    registry.value(cache.entries_id()) == 3 &&
+                    registry.value(cache.bytes_id()) == 4096,
+                "the cache gauges carry what was published") ||
+        !expect(registry.name(cache.hits_id()) == "cache.image_texture.hits",
+                "the cache gauge is named after the cache") ||
+        !expect(cache.name() == "image_texture", "the cache gauges keep their name")) {
+        return 4;
+    }
     return 0;
 }
 

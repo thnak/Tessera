@@ -92,10 +92,10 @@ Bounded caches with keys and eviction:
 | Cache | Key | Eviction |
 |---|---|---|
 | Glyph atlas | face/size/glyph | LRU + frame-age guard |
-| Shaped run | font/size/features/script/text | LRU |
+| Shaped run | font/size/features/script/text | LRU — **measured, not built**: shaping is reachable only through `TextMeasureCache`, which already collapses it to 1 call/frame at 2 µs ([`cache-decisions.md`](../design/cache-decisions.md), #706) |
 | Layout measure | text/style/constraints | LRU |
 | Image/texture | asset id/decode params | LRU |
-| Pipeline | shader/layout/blend | refcount + LRU |
+| Pipeline | shader/layout/blend | refcount + LRU — **measured, not built**: pipelines are created once at device setup, never on the frame path, so the steady-state count is zero ([`cache-decisions.md`](../design/cache-decisions.md), #706) |
 | Path | path hash/quality | LRU |
 
 - No unbounded cache growth under animation/scroll.
@@ -209,7 +209,8 @@ weaker rule; it is one a reviewer has to catch, and saying so is better than imp
 | Frame lifetime: retire after fence, deferred deletion | `tests/gpu/` retirement and in-flight tests |
 | VMA, no raw `vkAllocateMemory` | `grep vkAllocateMemory src/rendering` has no hits; the Phase 0 PoC is exempt by ADR-001 point 4 and lives in `tools/poc/` (#704) |
 | Eviction never touches in-flight data | `ImageTextureCache` and glyph-atlas tests |
-| Bounded caches | `scripts/check_memory_budget.py` cache rows |
+| Bounded caches | `scripts/check_memory_budget.py` cache rows; `cache_growth` (long-run bound, #706) |
+| Cache hit/miss/eviction/size in diagnostics | `CacheGauges` (`cache.<name>.*`), one shape for every cache (#706) |
 | GPU memory by category, with a peak | `gpu_memory_probe` + the `gpu_vma_category_bytes` and `gpu_category_peak_after_free_bytes` budget rows (#703) |
 | Recoverable failure as `std::expected` | `src/ui/boundary/guard.cpp` and its tests |
 | OOM evicts, retries once, then reports | `memory_pressure_tests` (the order) and `image_texture_cache_tests` (evict-and-retry, and a second failure surfacing) (#705) |

@@ -632,8 +632,10 @@ function include/tessera/diagnostics/log.hpp tessera::diagnostics::level_name
 function include/tessera/diagnostics/log.hpp tessera::diagnostics::redact_paths
 
 header include/tessera/diagnostics/memory.hpp
+class include/tessera/diagnostics/memory.hpp tessera::diagnostics::CacheGauges
 class include/tessera/diagnostics/memory.hpp tessera::diagnostics::GpuMemoryGauges
 class include/tessera/diagnostics/memory.hpp tessera::diagnostics::MemoryGauges
+struct include/tessera/diagnostics/memory.hpp tessera::diagnostics::CacheStats
 struct include/tessera/diagnostics/memory.hpp tessera::diagnostics::GpuMemory
 struct include/tessera/diagnostics/memory.hpp tessera::diagnostics::ProcessMemory
 function include/tessera/diagnostics/memory.hpp tessera::diagnostics::sample_process_memory
