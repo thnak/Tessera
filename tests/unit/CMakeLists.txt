@@ -925,6 +925,20 @@ target_link_libraries(android_metrics_tests PRIVATE tessera_hal_metrics)
 
 add_test(NAME android_metrics COMMAND android_metrics_tests)
 
+# Android accessibility mapping (issue #189): the role-to-class-name table and the action bits.
+# Pure over the engine's own snapshot type, so it runs on every lane with no Android SDK and no
+# device; the enabled inversion and the text-field value/label split are the reason it exists.
+add_executable(android_a11y_tests
+    hal/android_a11y_tests.cpp
+    ${PROJECT_SOURCE_DIR}/src/platform/android/android_a11y_mapping.cpp)
+
+target_include_directories(android_a11y_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src/platform/android)
+
+target_link_libraries(android_a11y_tests PRIVATE tessera_accessibility)
+
+add_test(NAME android_a11y COMMAND android_a11y_tests)
+
 # Java-MotionEvent translation (issue #189): the shell is a Java activity, so touch arrives as a
 # MotionEvent rather than an AInputEvent. The mapping is pure over plain numbers, so it runs on
 # every lane with no NDK, no JNI and no device.
