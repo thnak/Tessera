@@ -145,6 +145,23 @@ result is a `const`, and the component it wraps is an ordinary declaration.
 | `TESSERA_REACT_EFFECT_DEPS` | 1 | 1 |
 | `TESSERA_REACT_HOOK_ORDER` | 1 | 1 |
 
+### Addendum (2026-11-22): the numbers above moved
+
+Custom hooks landed (#645–#648, PR #759), so the measurement this section records is out of date.
+The corpus golden now reads **25 of 50 accepted (50.0%)** at the front end and **12 of 50 (24.0%)**
+through the pipeline, up from 24 and 11. `TESSERA_REACT_CUSTOM_HOOK` no longer appears in any
+rejection table: `react/rejected/custom-hook.tsx` goes from `rejected ... pipeline=
+TESSERA_REACT_CUSTOM_HOOK` to `accepted ... pipeline=ok`.
+
+The tables below are the 2026-11-21 measurement and are kept as the record the order of work was
+chosen from. The current numbers are `tests/golden/corpus/react-front-end.txt`, which the
+`corpus_measure` test pins byte for byte.
+
+This does not change the ADR's decision or its order: custom hooks were ADR-065's item, not one of
+this ADR's four. It does mean the "first rejection per file" table below overstates
+`REACT_CUSTOM_HOOK` by one file, and that the remaining work of items 1 to 5 is measured against a
+slightly larger accepted set than the one recorded here.
+
 **First rejection per file** — the table the order of work is actually read from, because a file
 blocked by an earlier form cannot show what else it would need: `PARSE_UNEXPECTED_TOKEN` 6,
 `SUBSET_IMPORT` 4, `SUBSET_ARRAY_METHOD` 3, `REACT_UNKNOWN_HOOK` 3, `SUBSET_COMPONENT_NAME` 2, and
