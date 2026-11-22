@@ -230,7 +230,11 @@ elseif (ANDROID)
         # IME translation (issue #189, mobile-integration.md section 3.3). The InputConnection
         # callbacks arrive as Java strings; the pure rules convert UTF-16 and offsets in
         # android_ime_translation.cpp, which includes no Android header and is unit-tested.
-        ${PROJECT_SOURCE_DIR}/src/platform/android/android_ime_translation.cpp)
+        # Accessibility mapping (issue #189, mobile-integration.md section 3.4): the role-to-widget-
+        # class table and the platform's action ids. No Android header either, so the same table is
+        # unit-tested on every lane and cannot drift from the values `javap -constants` reports.
+        ${PROJECT_SOURCE_DIR}/src/platform/android/android_ime_translation.cpp
+        ${PROJECT_SOURCE_DIR}/src/platform/android/android_a11y_mapping.cpp)
     target_include_directories(tessera_hal_window PRIVATE
         ${PROJECT_SOURCE_DIR}/src/platform/android)
     # libandroid provides ANativeWindow_acquire/release, the extent queries and AInputEvent.

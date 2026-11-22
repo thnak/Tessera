@@ -269,10 +269,10 @@ stays inside its size budget.
   dependency policy rather than something to slip into this change. Until then the shell reports no
   fold, which is the same answer a non-foldable gives.
 - **The accessibility bridge itself.** The role/action mapping
-  (`android_a11y_mapping.cpp`) and its tests are done, but nothing builds an
-  `AccessibilityNodeProvider` from a snapshot yet, so a screen reader sees an empty window. The
-  engine's `A11ySnapshot` already carries everything the provider needs; the Java half is the
-  remaining work.
+  (`android_a11y_mapping.cpp`), the pull-side provider (`snapshot_provider.cpp`) and the Java
+  `AccessibilityNodeProvider` are done — see section 3.9. What is not wired: live-region
+  announcements, collection set-size/position, and `SetText`/`SetSelection` actions (they are offered
+  to the platform but the edit controller drops them).
 - **The IME's long tail:** `setSelection`/`requestCursorUpdates` are not forwarded yet, and
   `performEditorAction` reports "not handled" because the edit controller has no Done/Search/Go
   concept. The compose/commit/delete path is wired.
@@ -293,6 +293,57 @@ stays inside its size budget.
 A lane that wants to exercise the real renderer must boot with `-gpu host`; the default software
 renderer is below the minimum the device-selection policy enforces
 (`src/rendering/backend/vulkan/src/vulkan_device_selection.hpp`).
+
+### 3.9 Accessibility: the one platform that pulls instead of pushing
+
+Windows (UIA) and Linux (AT-SPI) are **push** bridges: a bridge thread on the app side calls out, and
+the app answers from a tree it already published. Android is the opposite. `AccessibilityNodeProvider`
+is **pull**: the platform calls `createAccessibilityNodeInfo(virtualViewId)` on the UI thread and
+expects that one node back before the call returns. A bridge shaped like UIA's would have to block
+the platform on a frame, which is exactly what the no-blocking rule forbids.
+
+So the Android column is a different shape, not a branch in an existing one:
+
+- **`ui::a11y::SnapshotProvider`** keeps the last published snapshot and answers one node at a time.
+  Its mutex covers one bounded copy (at most `kMaxNodes` entries), never a snapshot build, so the
+  render thread and the platform thread never wait on each other for longer than that copy.
+- **`AccessibilityBackend::Provider`** is the driver's third backend. It reuses the controller's
+  existing dirty tracking and action drain, so a static window still builds no tree and publishes
+  nothing. The shell sets `WindowOptions::accessibility_provider`; a null provider reports
+  `UnsupportedPlatform`, which is the documented "accessibility off, window keeps running" path.
+- **`TesseraAccessibilityProvider`** (Java) is what the platform talks to. It holds **no tree**: each
+  query is one JNI call returning the node's class name, text, description, flags, bounds, action ids
+  and child ids, and it copies them into an `AccessibilityNodeInfo`.
+
+Three details that are easy to get wrong, and that the tests pin:
+
+**Virtual ids must be stable.** A snapshot index is a pre-order position, so it renumbers whenever
+the tree is rebuilt. A screen reader that focused virtual view 3 would then be pointing at a
+different control. `SnapshotProvider` keeps a slot table: a scene node keeps its virtual id for as
+long as it stays in the tree, and a node that leaves frees its slot. Id `0` is the host view, so a
+real node is always `1..kMaxNodes`.
+
+**The action ids are the platform's, not ours.** They are *not* consecutive powers of two:
+`ACTION_FOCUS` is 1, `ACTION_CLICK` is 16, `ACTION_SCROLL_FORWARD` is 4096, `ACTION_SET_TEXT` is
+2097152. Numbering them in enum order turns a click into a focus request, and because the platform
+echoes back the id it was offered, that failure is silent. The values in `android_a11y_mapping.hpp`
+were read from `android.jar` with `javap -constants` and the test asserts them. They are also a
+**list**, not a bit set: `Click | LongClick` would be 48, which is not an id the platform knows.
+
+**Bounds are the engine's logical pixels.** They are the view's own coordinate space, so no density
+conversion happens in Java. They cross as fixed point in 1/64 px so a fractional logical position is
+rounded once rather than truncated twice.
+
+```powershell
+# What a screen reader should see, without a screen reader:
+adb shell settings put secure enabled_accessibility_services \
+  com.android.talkback/com.google.android.marvin.talkback.TalkBackService
+adb shell dumpsys accessibility | Select-String "tessera"
+```
+
+The emulator check that matters: with TalkBack on, swiping right must move focus through *"Tessera on
+Android"*, *"Taps: 0"*, *"Tap me"* and the text field — four separate stops. Before this slice the
+whole window was one unnamed stop.
 
 ## 4. Related
 

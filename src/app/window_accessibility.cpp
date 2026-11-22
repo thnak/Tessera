@@ -59,18 +59,26 @@ void WindowHost::Impl::start_accessibility() {
         return;
     }
     accessibility = std::make_unique<AccessibilityHost>();
+    AccessibilityHostConfig config;
+    // A shell that installed a pull-side provider wants that backend: its platform asks for one
+    // node at a time and has no bridge to push a tree to. Every other platform leaves this null and
+    // keeps the push bridge.
+    if (options.accessibility_provider != nullptr) {
+        config.backend = AccessibilityBackend::Provider;
+        config.provider = options.accessibility_provider;
+    }
     (void)accessibility->start(
         *window,
         [this](a11y::A11ySnapshot& out) {
-            a11y::BuildOptions options;
+            a11y::BuildOptions options_for_build;
             ui::FocusManager& focus = pump.router().focus_manager();
             if (focus.focused() != nullptr) {
-                options.focused_id = focus.focused()->id();
+                options_for_build.focused_id = focus.focused()->id();
             }
             PaintToA11yStyles styles(host->styles());
-            (void)a11y::build_a11y_tree(root, styles, out, options);
+            (void)a11y::build_a11y_tree(root, styles, out, options_for_build);
         },
-        [this](const AccessibilityAction& action) { apply_accessibility_action(action); });
+        [this](const AccessibilityAction& action) { apply_accessibility_action(action); }, config);
 }
 
 void WindowHost::Impl::tick_accessibility(const ui::frame::FrameTick* frame) {

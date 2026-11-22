@@ -48,6 +48,10 @@ add_library(tessera_app STATIC
     accessibility_host.cpp
     accessibility_host_atspi.cpp
     accessibility_host_facade.cpp
+    # The pull-side backend Android needs (issue #189): the platform asks for one node at a time
+    # instead of being pushed a tree, so this half publishes into a shell-owned SnapshotProvider
+    # and drains the actions the platform queued into it.
+    accessibility_host_provider.cpp
     accessibility_host.hpp
     accessibility_host_impl.hpp
     # The two WindowHost::Impl state clusters that carry policy but no lifecycle coupling
