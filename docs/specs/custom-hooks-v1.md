@@ -9,10 +9,10 @@ component after every call is expanded, which is what the rules, lowering and co
 
 ## 1. Scope and state of the code
 
-Today the front end rejects any project-declared `use...` function with `TESSERA_REACT_CUSTOM_HOOK`
-(`jsx-subset-v1.md` section 7, `src/compiler/rules/src/hooks.cpp`). This spec replaces that rejection
-for the forms below; every other form keeps a diagnostic (section 9). Nothing here is implemented.
-The core hooks, the library hook manifest and the behavior hooks
+Implemented. `src/compiler/analyzer/src/hook_expansion.cpp` is the pass, `parser_hook.cpp` parses a
+declaration, and `FrontEndOptions::custom_hooks` (on by default since #645) selects it; with the
+switch off the old `TESSERA_REACT_CUSTOM_HOOK` rejection is what a caller sees. The core hooks, the
+library hook manifest and the behavior hooks
 ([`behavior-hooks-v1.md`](behavior-hooks-v1.md)) are unchanged; a custom hook is built from them.
 
 ## 2. Declaration

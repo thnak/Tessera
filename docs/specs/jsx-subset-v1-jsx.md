@@ -189,7 +189,7 @@ and no silent skipping.
 | `if`, `for`, `while`, `do`, `switch`, `try`, `throw`, labels in a component body | `TESSERA_JSX_SUBSET_STATEMENT` | Use `?:`, `&&`, `.map` in JSX |
 | `async`, `await`, `yield`, generators, promises | `TESSERA_JSX_SUBSET_ASYNC` | Use async data primitives ([`async-data-v1.md`](async-data-v1.md)) |
 | `import()`, `require`, default import/export, `import * as` | `TESSERA_JSX_SUBSET_IMPORT` | Use named imports |
-| Custom hooks | `TESSERA_REACT_CUSTOM_HOOK` | Inline the hook or write a native handler |
+| Custom hooks | supported | Expanded at each call site ([`custom-hooks-v1.md`](custom-hooks-v1.md)) |
 | Context, `createContext`, `useContext`, suspense, portals | `TESSERA_REACT_UNSUPPORTED_API` | Use services and overlays ([`overlays-and-layers-v1.md`](overlays-and-layers-v1.md)) |
 | `useReducer`, `memo`, `forwardRef`; `useMemo`/`useCallback` outside the safe forms | `TESSERA_REACT_UNSUPPORTED_API` | Compute in a `const`. `useMemo(() => pure expr, deps)` and `useCallback(setter-call arrow, deps)` lower as plain locals/handlers (Q16, `jsx-intrinsics-v1/react-compat.md` 4.2) |
 | Lowercase tags with no alias mapping | `TESSERA_JSX_SUBSET_HTML_TAG` | See the alternative in `jsx-intrinsics-v1/html-aliases.md` |

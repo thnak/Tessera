@@ -34,7 +34,7 @@ list at all.
 | `useState` | accepted (checked) | keep | | Typed: `useState<int>` |
 | `useEffect` | accepted (checked); exact dependency list, optional cleanup | keep | | Body is a native handler |
 | `useRef` | accepted (checked); no `.current`; `focus()` and `blur()` as handler statements | keep | | Callback refs and `useImperativeHandle` below |
-| Custom hooks | rejected (`TESSERA_REACT_CUSTOM_HOOK`) | add (ADR-065) | M | Inlined at each call site, no IR change |
+| Custom hooks | accepted: expanded at each call site (ADR-065) | done | M | Inlined at each call site, no IR change |
 | `useMemo`, `useCallback` | rejected (`UNSUPPORTED_API`, checked); spec decided (Q16) to lower safe forms | add | S | Pure-expression memo becomes a local; setter-only callback becomes an inline handler |
 | `useReducer` | rejected (checked) | add, limited | M | A reducer as a pure function over a record with one `switch` on a literal action type; lowers to one handler per action type (ADR-058 rule 4). Needs handler control flow (section 5) and records (ADR-051) |
 | `useContext`, `createContext` | rejected | add, static | M | Lower to an IR `Environment` with a typed default and a compile-time provider tree (ADR-058 rule 4). The provider value must be a pure expression of its component's props and state |

@@ -313,8 +313,8 @@ Hook calls are statements of these exact forms. Argument expressions are pure ex
   listed in `ui.hooks.allowed` gives `TESSERA_REACT_HOOK_NOT_ALLOWED`: an error when `ui.hooks.strict` is
   `true` (the default), a warning when it is `false`; in both cases the hook is still lowered normally
   ([`project-config-v1.md`](project-config-v1.md)).
-- A function whose name starts with `use` and that is declared in the project is a custom hook and is
-  rejected (`TESSERA_REACT_CUSTOM_HOOK`).
+- A function whose name starts with `use` and that is declared in the project is a custom hook: it is
+  expanded at each call site and never reaches the IR ([`custom-hooks-v1.md`](custom-hooks-v1.md)).
 - A hook called inside a condition, a handler, an effect, a loop callback or a nested function is an
   error (`TESSERA_REACT_HOOK_ORDER`).
 - The returned value of `useEffect` is not used. An effect may have a cleanup function, written as the

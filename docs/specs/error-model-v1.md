@@ -40,7 +40,7 @@ that has a documented fallback may instead be returned as an `Error` value.
 |---|---|---|
 | `TESSERA_CFG_` | project/runtime config ([`project-config-v1.md`](project-config-v1.md), [`runtime-config-v1.md`](runtime-config-v1.md)) | unknown field, invalid value, path escape |
 | `TESSERA_JSX_` | JSX/TSX syntax | invalid token, unsupported construct |
-| `TESSERA_REACT_` | hooks/rules | hook order, missing deps, custom hook |
+| `TESSERA_REACT_` | hooks/rules | hook order, missing deps, custom-hook expansion |
 | `TESSERA_IR_` | IR (intermediate representation) validation | duplicate id, unresolved ref, version, `TESSERA_IR_STYLESHEET_MISSING` |
 | `TESSERA_CG_` | codegen | unsupported node, identifier collision, `TESSERA_CG_STYLESHEET_NOT_EMBEDDED` (warning), `TESSERA_CG_MISSING_BINDING`, `TESSERA_CG_BINDING_UNUSED` (warning), `TESSERA_CG_SERVICE_UNDECLARED`, `TESSERA_CG_SERVICE_NOT_INTERFACE` |
 | `TESSERA_CSS_` | stylesheet | parse, unknown property, var cycle |

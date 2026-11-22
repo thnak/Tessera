@@ -105,7 +105,8 @@ Section 9.4, add at the end: "The payload records, and which member is primary, 
 | `tabIndex`, `autoFocus` | Supported on `View` and `Text` (issue #226) | `tabIndex` is `{0}` or `{-1}`; semantics required ([common-and-events.md](common-and-events.md) section 4); `autoFocus` on inputs stays `HTML_ATTR`. Evidence: `focusable_view` |
 | `title`, `data-*`, `hidden`, `dangerouslySetInnerHTML` | Not supported | No V1 meaning |
 | `import { useState, useEffect, useRef } from "react"` | Supported (Q15): alias of `"tessera"` | Any other name from `"react"`, `import React from "react"` and `import * as React` are errors; other bare modules stay errors (subset 4) |
-| Arrow-function components, `export default`, `memo(...)`, `lazy`, `Suspense`, context, portals, custom hooks, class components, `async` | Not supported | Subset 4, 6, 12 |
+| Arrow-function components, `export default`, `memo(...)`, `lazy`, `Suspense`, context, portals, class components, `async` | Not supported | Subset 4, 6, 12 |
+| Custom hooks | Supported: expanded at each call site ([`custom-hooks-v1.md`](../custom-hooks-v1.md)) | ADR-065 |
 | `let`, `if`, `for`, `switch`, `try`, `??`, `?.` in component code | Not supported | Subset 6, 12 |
 
 ### 4.2 `useMemo` and `useCallback` (decided: Q16, safe forms lower)

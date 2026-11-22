@@ -130,8 +130,10 @@ all.
 6. Run `tessera build` / tests.
 7. Commit the TSX **and** `MyComponent.hpp`/`.cpp`. Never commit `MyComponent.g.hpp`.
 
-Unsupported patterns are rejected loudly: custom hooks, context, suspense, dynamic component
-types, and non-static conditionals/loops. Error boundaries (components that catch errors from their
+Unsupported patterns are rejected loudly: context, suspense, dynamic component
+types, and non-static conditionals/loops. Custom hooks are supported: a `use...` function declared in
+the project is expanded at each call site ([`custom-hooks-v1.md`](../specs/custom-hooks-v1.md)).
+Error boundaries (components that catch errors from their
 subtree and show a fallback) are supported for isolating subtrees; do not use them as a catch-all
 to hide bugs. See [`error-boundaries-v1.md`](../specs/error-boundaries-v1.md).
 
