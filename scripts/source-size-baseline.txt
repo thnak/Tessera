@@ -7,7 +7,6 @@
 # once the file is split under the limit.
 #
 # path lines
-include/tessera/ui/scene/node.hpp 652
 src/app/host.cpp 687
 src/app/window.cpp 697
 src/compiler/lowering/src/module_lowering.cpp 580

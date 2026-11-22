@@ -559,6 +559,5 @@ int main() {
     if (!test_update_scheduler()) {
         return 10;
     }
-
     return 0;
 }

@@ -502,7 +502,6 @@ int main() {
     if (!per_pointer_capture()) {
         return 11;
     }
-
     std::cout << "input_router: ok\n";
     return 0;
 }

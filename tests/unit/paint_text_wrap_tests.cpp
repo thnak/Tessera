@@ -459,7 +459,6 @@ void benchmark_200_words() {
     tessera::ui::text::TextConstraints constraints;
     constraints.wrap = true;
     constraints.max_width = 300.0f;
-
     constexpr int kIterations = 200;
     std::size_t lines = 0;
     const auto started = std::chrono::steady_clock::now();
