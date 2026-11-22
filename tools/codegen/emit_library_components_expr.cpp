@@ -193,6 +193,15 @@ bool expr_source(const ir::Expr& expr, std::string& out, std::string& error) {
         // source emitter rejects it rather than writing something codegen cannot consume.
         error = "a record value has no generated IR-source form in this slice (ADR-051)";
         return false;
+    case ir::ExprKind::OptionalField:
+    case ir::ExprKind::Coalesce:
+        // ADR-066 item 1: the library components are emitted as IR data at build time, and neither
+        // kind appears in a library component today. Rejecting them keeps the emitter honest rather
+        // than writing a form it cannot spell.
+        error = "`" +
+                std::string(expr.kind == ir::ExprKind::Coalesce ? "coalesce" : "optionalField") +
+                "` has no generated IR-source form yet (ADR-066 item 1)";
+        return false;
     }
     std::string operands;
     if (!expr_list(expr.operands, operands, error)) {
