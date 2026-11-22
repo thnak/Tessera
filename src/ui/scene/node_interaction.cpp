@@ -59,7 +59,7 @@ void Node::set_cursor(style::CursorKind value) {
 bool Node::text_selection_allowed() const {
     // A text field stays selectable even inside a `user-select: none` subtree, as in CSS: `none`
     // suppresses the document's selection gesture, it does not disable an editable control.
-    if (element_kind_ == "TextInput" || element_kind_ == "TextArea") {
+    if (element_kind() == "TextInput" || element_kind() == "TextArea") {
         return true;
     }
     return user_select_ != UserSelect::None;

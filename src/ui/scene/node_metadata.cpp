@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: MIT
 //
-// Node element metadata, ARIA attributes, event bindings, inline styles and paint payload. Split
-// from node.cpp (structure, bounds, scroll, dirty flags, hit testing) to respect the file limits.
+// `NodeMetadata` - element metadata, ARIA attributes, event bindings, inline styles and the paint
+// payload (docs/architecture/god-type-audit-v1.md section 3.1, slice 2). The type owns storage and
+// returns the dirty domain a mutation implies; the `Node` forwarders at the bottom of this file
+// turn that answer into the node's dirty marks, so the frame policy stays on the tree and this TU
+// never touches geometry or scroll state.
 
 #include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/scene/node_metadata.hpp"
 
 #include <algorithm>
 #include <cstddef>
@@ -34,135 +38,137 @@ std::string_view bounded_view(std::string_view text, std::size_t max_bytes) {
 
 } // namespace
 
-void Node::set_element_kind(std::string_view kind) {
+Dirty NodeMetadata::set_element_kind(std::string_view kind) {
     const std::string_view next = bounded_view(kind, kMaxMetadataBytes);
     if (next == element_kind_) {
-        return;
+        return Dirty::Clean;
     }
     element_kind_ = next;
+    return Dirty::Clean;
 }
 
-void Node::set_element_id(std::string_view id) {
+Dirty NodeMetadata::set_element_id(std::string_view id) {
     const std::string_view next = bounded_view(id, kMaxMetadataBytes);
     if (next == element_id_) {
-        return;
+        return Dirty::Clean;
     }
     element_id_ = next;
     // `id` is a selector input: the stylesheet must re-resolve this node.
-    mark_dirty(Dirty::Style);
+    return Dirty::Style;
 }
 
-void Node::clear_element_id() {
+Dirty NodeMetadata::clear_element_id() {
     if (element_id_.empty()) {
-        return;
+        return Dirty::Clean;
     }
     element_id_ = {};
-    mark_dirty(Dirty::Style);
+    return Dirty::Style;
 }
 
-void Node::set_class_name(std::string_view class_name) {
+Dirty NodeMetadata::set_class_name(std::string_view class_name) {
     const std::string_view next = bounded_view(class_name, kMaxMetadataBytes);
     if (next == class_name_) {
-        return;
+        return Dirty::Clean;
     }
     class_name_ = next;
-    mark_dirty(Dirty::Style);
+    return Dirty::Style;
 }
 
-void Node::clear_class_name() {
+Dirty NodeMetadata::clear_class_name() {
     if (class_name_.empty()) {
-        return;
+        return Dirty::Clean;
     }
     class_name_ = {};
-    mark_dirty(Dirty::Style);
+    return Dirty::Style;
 }
 
-void Node::set_part(std::string_view part) {
+Dirty NodeMetadata::set_part(std::string_view part) {
     const std::string_view next = bounded_view(part, kMaxMetadataBytes);
     if (next.empty()) {
-        clear_part();
-        return;
+        return clear_part();
     }
     if (component_metadata_ && component_metadata_->part == next) {
-        return;
+        return Dirty::Clean;
     }
     if (!component_metadata_) {
         component_metadata_ = std::make_unique<ComponentMetadata>();
     }
     component_metadata_->part = next;
     // `part` is a selector input for the host's `::part()` rules.
-    mark_dirty(Dirty::Style);
+    return Dirty::Style;
 }
 
-void Node::clear_part() {
+Dirty NodeMetadata::clear_part() {
     if (!component_metadata_ || component_metadata_->part.empty()) {
-        return;
+        return Dirty::Clean;
     }
     component_metadata_->part = {};
-    mark_dirty(Dirty::Style);
+    return Dirty::Style;
 }
 
-std::string_view Node::element_tag() const {
+std::string_view NodeMetadata::element_tag() const {
     return component_metadata_ ? component_metadata_->element_tag : std::string_view{};
 }
 
-void Node::set_element_tag(std::string_view tag) {
+Dirty NodeMetadata::set_element_tag(std::string_view tag) {
     const std::string_view next = bounded_view(tag, kMaxMetadataBytes);
     if (element_tag() == next) {
-        return;
+        return Dirty::Clean;
     }
     if (!component_metadata_) {
         component_metadata_ = std::make_unique<ComponentMetadata>();
     }
     component_metadata_->element_tag = next;
-    mark_dirty(Dirty::Style);
+    return Dirty::Style;
 }
 
-void Node::set_component_name(std::string_view component) {
+Dirty NodeMetadata::set_component_name(std::string_view component) {
     const std::string_view next = bounded_view(component, kMaxMetadataBytes);
     if (next.empty()) {
-        clear_component_name();
-        return;
+        return clear_component_name();
     }
     if (component_metadata_ && component_metadata_->component_name == next) {
-        return;
+        return Dirty::Clean;
     }
     if (!component_metadata_) {
         component_metadata_ = std::make_unique<ComponentMetadata>();
     }
     component_metadata_->component_name = next;
     // Types the host for matching, so every `::part()` rule of the subtree re-resolves.
-    mark_subtree_dirty(Dirty::Style);
+    return Dirty::Style;
 }
 
-void Node::clear_component_name() {
+Dirty NodeMetadata::clear_component_name() {
     if (!component_metadata_ || component_metadata_->component_name.empty()) {
-        return;
+        return Dirty::Clean;
     }
     component_metadata_->component_name = {};
-    mark_subtree_dirty(Dirty::Style);
+    return Dirty::Style;
 }
 
-void Node::set_automation_id(std::uint64_t automation_id) {
+Dirty NodeMetadata::set_automation_id(std::uint64_t automation_id) {
     if (automation_id_ == automation_id) {
-        return;
+        return Dirty::Clean;
     }
     automation_id_ = automation_id;
+    return Dirty::Clean;
 }
 
-void Node::set_role(std::string_view role) {
+Dirty NodeMetadata::set_role(std::string_view role) {
     const std::string_view next = bounded_view(role, kMaxMetadataBytes);
     if (next == role_) {
-        return;
+        return Dirty::Clean;
     }
     role_ = next;
+    return Dirty::Clean;
 }
 
-void Node::clear_role() {
+Dirty NodeMetadata::clear_role() {
     role_ = {};
+    return Dirty::Clean;
 }
 
-bool Node::set_aria(std::string_view name, std::string_view value) {
+bool NodeMetadata::set_aria(std::string_view name, std::string_view value) {
     const std::string_view bounded_name = bounded_view(name, kMaxAriaNameBytes);
     if (bounded_name.empty()) {
         return false;
@@ -184,13 +190,13 @@ bool Node::set_aria(std::string_view name, std::string_view value) {
     return true;
 }
 
-void Node::clear_aria() {
+void NodeMetadata::clear_aria() {
     if (aria_) {
         aria_->count = 0;
     }
 }
 
-bool Node::bind_event(EventType type, BoundEventHandler handler, void* context) {
+bool NodeMetadata::bind_event(EventType type, BoundEventHandler handler, void* context) {
     if (handler == nullptr) {
         return false;
     }
@@ -204,7 +210,7 @@ bool Node::bind_event(EventType type, BoundEventHandler handler, void* context) 
     return true;
 }
 
-bool Node::unbind_event(EventType type) {
+bool NodeMetadata::unbind_event(EventType type) {
     if (!event_bindings_) {
         return false;
     }
@@ -223,13 +229,13 @@ bool Node::unbind_event(EventType type) {
     return false;
 }
 
-void Node::clear_event_bindings() {
+void NodeMetadata::clear_event_bindings() {
     if (event_bindings_) {
         event_bindings_->count = 0;
     }
 }
 
-bool Node::has_event_binding(EventType type) const {
+bool NodeMetadata::has_event_binding(EventType type) const {
     for (const EventBinding& binding : event_bindings()) {
         if (binding.type == type) {
             return true;
@@ -238,7 +244,7 @@ bool Node::has_event_binding(EventType type) const {
     return false;
 }
 
-std::size_t Node::run_event_bindings(const Event& event) const {
+std::size_t NodeMetadata::run_event_bindings(const Event& event) const {
     std::size_t invoked = 0;
     for (const EventBinding& binding : event_bindings()) {
         if (binding.type == event.type) {
@@ -249,10 +255,10 @@ std::size_t Node::run_event_bindings(const Event& event) const {
     return invoked;
 }
 
-bool Node::set_inline_style(std::string_view name, std::string_view value) {
+StyleWrite NodeMetadata::set_inline_style(std::string_view name, std::string_view value) {
     const std::string_view bounded_name = bounded_view(name, kMaxInlineStyleNameBytes);
     if (bounded_name.empty()) {
-        return false;
+        return {};
     }
     const std::string_view bounded_value = bounded_view(value, kMaxInlineStyleValueBytes);
     if (!inline_style_) {
@@ -264,21 +270,19 @@ bool Node::set_inline_style(std::string_view name, std::string_view value) {
             continue;
         }
         if (table.items[i].value == bounded_value) {
-            return true;
+            return {true, Dirty::Clean};
         }
         table.items[i].value = bounded_value;
-        mark_dirty(Dirty::Style);
-        return true;
+        return {true, Dirty::Style};
     }
     if (table.count == kMaxInlineStyleDeclarations) {
-        return false;
+        return {};
     }
     table.items[table.count++] = InlineStyleDeclaration{bounded_name, bounded_value};
-    mark_dirty(Dirty::Style);
-    return true;
+    return {true, Dirty::Style};
 }
 
-bool Node::remove_inline_style(std::string_view name) {
+bool NodeMetadata::remove_inline_style(std::string_view name) {
     if (!inline_style_) {
         return false;
     }
@@ -291,26 +295,25 @@ bool Node::remove_inline_style(std::string_view name) {
             table.items[j - 1] = table.items[j];
         }
         --table.count;
-        mark_dirty(Dirty::Style);
         return true;
     }
     return false;
 }
 
-void Node::clear_inline_style() {
+Dirty NodeMetadata::clear_inline_style() {
     if (!inline_style_ || inline_style_->count == 0) {
-        return;
+        return Dirty::Clean;
     }
     inline_style_->count = 0;
-    mark_dirty(Dirty::Style);
+    return Dirty::Style;
 }
 
-void Node::set_paint_data(std::optional<PaintData> data) {
+Dirty NodeMetadata::set_paint_data(std::optional<PaintData> data) {
     if (data) {
         data->text = truncate_utf8(data->text, PaintData::kMaxTextBytes);
     }
     if (paint_data() == data) {
-        return;
+        return Dirty::Clean;
     }
     if (!data) {
         paint_data_.reset();
@@ -320,11 +323,101 @@ void Node::set_paint_data(std::optional<PaintData> data) {
         paint_data_ = std::make_unique<std::optional<PaintData>>(std::move(data));
     }
     // Visual payload only: no style/layout invalidation.
-    mark_dirty(Dirty::Paint | Dirty::Render);
+    return Dirty::Paint | Dirty::Render;
+}
+
+Dirty NodeMetadata::clear_paint_data() {
+    return set_paint_data(std::nullopt);
+}
+
+// --- Node forwarders ------------------------------------------------------------------------
+//
+// The public surface stays on `Node` so no call site moved with the split; each setter only turns
+// the domain `NodeMetadata` reported into the node's dirty marks.
+
+void Node::set_element_kind(std::string_view kind) {
+    metadata_.set_element_kind(kind);
+}
+
+void Node::set_element_id(std::string_view id) {
+    mark_dirty(metadata_.set_element_id(id));
+}
+
+void Node::clear_element_id() {
+    mark_dirty(metadata_.clear_element_id());
+}
+
+void Node::set_class_name(std::string_view class_name) {
+    mark_dirty(metadata_.set_class_name(class_name));
+}
+
+void Node::clear_class_name() {
+    mark_dirty(metadata_.clear_class_name());
+}
+
+void Node::set_part(std::string_view part) {
+    mark_dirty(metadata_.set_part(part));
+}
+
+void Node::clear_part() {
+    mark_dirty(metadata_.clear_part());
+}
+
+void Node::set_element_tag(std::string_view tag) {
+    mark_dirty(metadata_.set_element_tag(tag));
+}
+
+void Node::set_component_name(std::string_view component) {
+    // Types the host for matching, so every `::part()` rule of the subtree re-resolves.
+    const Dirty flags = metadata_.set_component_name(component);
+    if (flags != Dirty::Clean) {
+        mark_subtree_dirty(flags);
+    }
+}
+
+void Node::clear_component_name() {
+    const Dirty flags = metadata_.clear_component_name();
+    if (flags != Dirty::Clean) {
+        mark_subtree_dirty(flags);
+    }
+}
+
+void Node::set_automation_id(std::uint64_t automation_id) {
+    metadata_.set_automation_id(automation_id);
+}
+
+void Node::set_role(std::string_view role) {
+    metadata_.set_role(role);
+}
+
+void Node::clear_role() {
+    metadata_.clear_role();
+}
+
+bool Node::set_inline_style(std::string_view name, std::string_view value) {
+    const StyleWrite write = metadata_.set_inline_style(name, value);
+    mark_dirty(write.dirty);
+    return write.accepted;
+}
+
+bool Node::remove_inline_style(std::string_view name) {
+    if (!metadata_.remove_inline_style(name)) {
+        return false;
+    }
+    mark_dirty(Dirty::Style);
+    return true;
+}
+
+void Node::clear_inline_style() {
+    mark_dirty(metadata_.clear_inline_style());
+}
+
+void Node::set_paint_data(std::optional<PaintData> data) {
+    mark_dirty(metadata_.set_paint_data(std::move(data)));
 }
 
 void Node::clear_paint_data() {
-    set_paint_data(std::nullopt);
+    mark_dirty(metadata_.clear_paint_data());
 }
 
 } // namespace tessera::ui

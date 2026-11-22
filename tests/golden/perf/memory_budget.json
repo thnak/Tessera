@@ -34,7 +34,7 @@
       "budget": 320,
       "status": "enforce",
       "unit": "bytes",
-      "measures": "sizeof(ui::Node): one plain View node, the number a 10k-node screen multiplies. kNodeSizeBudget is 328, so this row both pins the measured 320 and leaves the 8-byte headroom visible as a diff. Identical on both lanes (320), which is what makes a 0% band honest. Was 312 before the member reorder of security review finding C4 removed 8 bytes of internal padding, then 304; 304 -> 320 is issue #735 slice C, which caches each subtree's paint box in one rhi::Rect. That 16 bytes is a real growth, not reclaimed padding: MSVC's layout dump shows all 304 bytes of the old object occupied, so there was nothing to pack it into. It buys a 4.1x paint-dirty frame (0.375 -> 0.083 ms at 6,001 nodes), which is the trade the budget exists to make visible"
+      "measures": "sizeof(ui::Node): one plain View node, the number a 10k-node screen multiplies. kNodeSizeBudget is now 320 and the object has no padding left, so this row pins the exact size: a padded Node fails both the static_assert in node.hpp and this budget. Identical on both lanes (320), which is what makes a 0% band honest. Was 312 before the member reorder of security review finding C4 removed 8 bytes of internal padding, then 304; 304 -> 320 is issue #735 slice C, which caches each subtree's paint box in one rhi::Rect. That 16 bytes is a real growth, not reclaimed padding: MSVC's layout dump shows all 304 bytes of the old object occupied, so there was nothing to pack it into. It buys a 4.1x paint-dirty frame (0.375 -> 0.083 ms at 6,001 nodes), which is the trade the budget exists to make visible"
     },
     "sizeof_input_event": {
       "budget": 320,

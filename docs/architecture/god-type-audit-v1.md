@@ -105,6 +105,31 @@ move `style/`, `a11y/` and codegen call sites. (4) Delete the forwarders; re-run
 slice. Hit testing is hot: keep `hit_test_deep` an inline body on `Node` after the split, or the
 mouse-move path pays a call it did not pay before.
 
+**Landed (steps 2-3, 2026-11-22).** `NodeScroll` ([node_scroll.hpp](../../include/tessera/ui/scene/node_scroll.hpp))
+owns the scrollable axes, the content size, the scrollport insets, the clamped offset, the runtime
+style inputs and the smooth-scroll target; `NodeMetadata`
+([node_metadata.hpp](../../include/tessera/ui/scene/node_metadata.hpp)) owns the element metadata,
+the aria table, the inline-style table, the event bindings and the paint payload. `node.hpp` went
+652 -> 538 lines and gained no include of either TU's helpers.
+
+Two shape decisions differ from the proposal above, both for the same reason - the split must not
+move frame policy off the tree:
+
+- **No `NodeGeometryView`/`NodeInteractionView`.** Geometry and interaction are one or two scalars
+  each with no table to own, so a view type there would add a hop to `hit_test` (the mouse-move hot
+  path the risk note protects) and buy no header it does not already have. `node_geometry.cpp` and
+  `node_interaction.cpp` stay as they are.
+- **The views are state types, not `Node` sub-objects with the public API.** Each mutator returns
+  the dirty domain it implies (`Dirty::Clean` when nothing changed), and `Node`'s forwarders raise
+  the mark, so "which domain does this rule invalidate" stays in one place and a metadata change
+  cannot silently move layout. `Node` keeps every public name, nested type and cap as a forwarder or
+  an alias, so **no call site changed** and steps 2-3 landed without the call-site migration the
+  proposal assumed.
+
+`hit_test_deep` is still a member of `Node` with the same body. `kNodeSizeBudget` went 312 -> 328
+only because #735 added the cached subtree paint box in the same window; the split itself added no
+pointer, vtable or child object, which `node_size_tests` and the `sizeof_node` budget row check.
+
 ### 3.2 `app::WindowHost::Impl` (rank 2)
 
 [window_impl.hpp](../../src/app/window_impl.hpp) is 255 lines and declares 32 member functions and 42
@@ -448,7 +473,7 @@ still open.
 | 1 | `a11y::Role` trait table | **landed** | `kRoleTable` (one row per role) in `src/ui/accessibility/a11y_role_traits.hpp`; the nine `switch (role)` blocks became index lookups, `Role::kCount` sizes the table, and a missing row is a compile error instead of a silent `default` |
 | 2 | `emit_node` emission groups | **landed** | sixteen named groups behind `NodeEmitContext`; `emit_node.cpp` 502 -> 138 lines, split across `emit_node_attributes.cpp` (what a node is) and `emit_node_behavior.cpp` (how it behaves); the emission order is now the call list, all 22 rejection messages preserved, goldens byte-identical |
 | 3 | `FrameDiagnostics` split | **landed** | `FrameCounters`, `AdaptiveQualityCounters` and `FrameTimeSourceCounter` in `include/tessera/runtime/frame_counters.hpp`; `FrameDiagnostics` is the aggregate and keeps all twenty accessor names |
-| 4 | `Node` TU split | **landed (step 1)** | `node.cpp` 483 -> 90 lines, with `node_geometry.cpp`, `node_scroll.cpp` and `node_interaction.cpp`; header unchanged and `hit_test_deep` still a member on the hot path. Steps 2-3 (the view types) remain open, see question 1 |
+| 4 | `Node` TU split | **landed (steps 1-3)** | `node.cpp` 483 -> 90 lines, with `node_geometry.cpp`, `node_scroll.cpp` and `node_interaction.cpp`; the header half then extracted `NodeScroll` (`node_scroll.hpp`) and `NodeMetadata` (`node_metadata.hpp`), taking `node.hpp` 652 -> 538 lines. `Node` keeps every public name as a forwarder, so no call site changed, and `hit_test_deep` is still a member on the hot path. `NodeGeometryView`/`NodeInteractionView` are declined in section 3.1: they would add a hop to hit testing and own no header |
 | 5 | `Event` buffer removal | **landed (step 1)** | the inline `std::array<char, kMaxEditTextBytes>` became a borrowed pointer, so `sizeof(Event)` went 384 -> 136; `InputEvent` keeps its flat array at the platform boundary. The tagged-variant/SoA payload views of section 4.2 remain open |
 | 6 | `EditController` keymap + composition | **landed** | `CompositionState` (`composition_state.hpp`) owns the IME invariant; 28-row `KeyChord` table (`edit_keymap.hpp`) replaces the `handle_key` if chain, with required/forbidden modifier masks for the old branch-order rules |
 | 7 | `VirtualRange` realized window | **landed (step 1)** | `RealizedWindow` (`realized_window.hpp`) now owns the realized table, its packed swap-in release, main-axis placement and index span; `VirtualRange` keeps the scheduling that drives it. The `FocusCursor`/`SelectionSet` extraction of section 3.3 remains open, and so does replacing the aggregate re-exports with direct accessors |
@@ -476,14 +501,17 @@ two readers because the third is a leaf library whose no-project-header rule is 
   numbers. They are data, not dispatch, and must keep their exact values.
 - `ui::InputEvent` keeps its flat layout: a tagged variant there would push the platform's union
   into the scene.
-- `Node`'s lazy payload pointers stay. The 320-byte budget and the allocation-count test encode a
-  measured decision for 10k-node screens; `SceneExtras` is a later experiment, not part of the split.
+- `Node`'s lazy payload pointers stay. The budget (`kNodeSizeBudget`, now 328 after #735 added the
+  cached subtree paint box in the same window) and the allocation-count test encode a measured
+  decision for 10k-node screens; `SceneExtras` is a later experiment, not part of the split.
 
 ## 8. Open questions
 
-1. Is `NodeMetadataView` worth its indirection when `node_metadata.cpp` already isolates the
-   implementation? It pays off only if the view replaces the forwarders in paint/scroll hot paths;
-   otherwise the TU split alone is the win.
+1. ~~Is `NodeMetadataView` worth its indirection?~~ **Answered by steps 2-3:** the useful half was
+   the storage move, not an indirection over it. `NodeMetadata` owns the tables and returns a dirty
+   domain; `Node` keeps the forwarders, because those calls are where the frame policy belongs and a
+   forwarding call is what paint already pays. A view that paint and scroll would have to spell
+   instead bought nothing and cost a header.
 2. Does `Event` move to a variant before or after the paint-text payload work that copies into
    `Event::text`? The buffer removal is independent and cheaper.
 3. `WindowHost::Impl` and `AppHost::Impl` are private headers, so their splits are invisible to

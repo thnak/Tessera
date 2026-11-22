@@ -596,6 +596,15 @@ target_link_libraries(node_metadata_tests PRIVATE tessera_scene)
 
 add_test(NAME node_metadata COMMAND node_metadata_tests)
 
+# The `NodeScroll`/`NodeMetadata` split (god-type audit section 3.1, steps 2-3): their own contracts
+# - the dirty domain each mutation reports, the scroll clamp, and the node forwarders.
+add_executable(node_views_tests
+    node_views_tests.cpp)
+
+target_link_libraries(node_views_tests PRIVATE tessera_scene)
+
+add_test(NAME node_views COMMAND node_views_tests)
+
 add_executable(scene_event_binding_tests
     scene_event_binding_tests.cpp)
 

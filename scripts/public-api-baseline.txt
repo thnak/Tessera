@@ -2453,6 +2453,25 @@ constant include/tessera/ui/scene/node.hpp tessera::ui::kNodeSizeBudget
 header include/tessera/ui/scene/node_ids.hpp
 constant include/tessera/ui/scene/node_ids.hpp tessera::ui::kNodeIdBaseStride
 
+header include/tessera/ui/scene/node_metadata.hpp
+class include/tessera/ui/scene/node_metadata.hpp tessera::ui::NodeMetadata
+struct include/tessera/ui/scene/node_metadata.hpp tessera::ui::AriaAttribute
+struct include/tessera/ui/scene/node_metadata.hpp tessera::ui::EventBinding
+struct include/tessera/ui/scene/node_metadata.hpp tessera::ui::InlineStyleDeclaration
+struct include/tessera/ui/scene/node_metadata.hpp tessera::ui::StyleWrite
+alias include/tessera/ui/scene/node_metadata.hpp tessera::ui::BoundEventHandler
+constant include/tessera/ui/scene/node_metadata.hpp tessera::ui::kMaxAriaNameBytes
+constant include/tessera/ui/scene/node_metadata.hpp tessera::ui::kMaxAriaPairs
+constant include/tessera/ui/scene/node_metadata.hpp tessera::ui::kMaxAriaValueBytes
+constant include/tessera/ui/scene/node_metadata.hpp tessera::ui::kMaxEventBindings
+constant include/tessera/ui/scene/node_metadata.hpp tessera::ui::kMaxInlineStyleDeclarations
+constant include/tessera/ui/scene/node_metadata.hpp tessera::ui::kMaxInlineStyleNameBytes
+constant include/tessera/ui/scene/node_metadata.hpp tessera::ui::kMaxInlineStyleValueBytes
+constant include/tessera/ui/scene/node_metadata.hpp tessera::ui::kMaxMetadataBytes
+
+header include/tessera/ui/scene/node_scroll.hpp
+class include/tessera/ui/scene/node_scroll.hpp tessera::ui::NodeScroll
+
 header include/tessera/ui/scene/paint_data.hpp
 struct include/tessera/ui/scene/paint_data.hpp tessera::ui::LinearGradient
 struct include/tessera/ui/scene/paint_data.hpp tessera::ui::LinearGradientStop
