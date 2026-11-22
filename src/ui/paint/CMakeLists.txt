@@ -6,6 +6,7 @@ add_library(tessera_paint STATIC
     paint_pass.cpp
     paint_image.cpp
     paint_properties.cpp
+    clip_path.cpp
     paint_shadow.cpp
     paint_sinks.cpp
     paint_text.cpp

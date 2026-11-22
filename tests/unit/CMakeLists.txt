@@ -2457,6 +2457,15 @@ target_link_libraries(paint_clip_tests PRIVATE tessera_paint)
 
 add_test(NAME paint_clip COMMAND paint_clip_tests)
 
+# `clip-path` basic shapes (ADR-068 slice 4, issue #672): the parser, the record it produces, and
+# the coverage rule the CPU reference and the shader share.
+add_executable(clip_path_tests
+    clip_path_tests.cpp)
+
+target_link_libraries(clip_path_tests PRIVATE tessera_paint tessera_software)
+
+add_test(NAME clip_path COMMAND clip_path_tests)
+
 add_executable(paint_text_tests
     paint_text_tests.cpp)
 

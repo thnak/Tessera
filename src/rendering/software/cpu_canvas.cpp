@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "tessera/rendering/gpu/clip_shapes.hpp"
 #include "tessera/rendering/software/cpu_canvas.hpp"
 
 #include <algorithm>
@@ -59,6 +60,54 @@ void CpuCanvas::fill_rect(const rhi::Rect& rect, rhi::Color color) {
                 continue;
             }
             blend(x, y, color);
+        }
+    }
+}
+
+void CpuCanvas::fill_rect_clipped(const rhi::Rect& rect, rhi::Color color, const ShapedClip& clip) {
+    if (rect.width <= 0.0f || rect.height <= 0.0f || color.a <= 0.0f) {
+        return;
+    }
+    // An empty record list clips everything away, which is the honest reading of an empty
+    // intersection: the caller asked for a clip and there is none to be inside of.
+    if (clip.empty()) {
+        return;
+    }
+    const float left = std::max(0.0f, rect.x);
+    const float top = std::max(0.0f, rect.y);
+    const float right = std::min(static_cast<float>(width_), rect.x + rect.width);
+    const float bottom = std::min(static_cast<float>(height_), rect.y + rect.height);
+    if (left >= right || top >= bottom) {
+        return;
+    }
+
+    const auto first_x = static_cast<std::uint32_t>(std::floor(left));
+    const auto first_y = static_cast<std::uint32_t>(std::floor(top));
+    const auto last_x = static_cast<std::uint32_t>(std::ceil(right));
+    const auto last_y = static_cast<std::uint32_t>(std::ceil(bottom));
+    for (std::uint32_t y = first_y; y < last_y && y < height_; ++y) {
+        const float center_y = static_cast<float>(y) + 0.5f;
+        if (center_y < top || center_y >= bottom) {
+            continue;
+        }
+        for (std::uint32_t x = first_x; x < last_x && x < width_; ++x) {
+            const float center_x = static_cast<float>(x) + 0.5f;
+            if (center_x < left || center_x >= right) {
+                continue;
+            }
+            // Every record must cover the pixel: a clip set is an intersection, which is what the
+            // shader's coverage product computes.
+            bool covered = true;
+            for (const gpu::clip::ClipRecord& record : clip.records) {
+                if (!gpu::clip::covers_pixel(record, static_cast<std::int32_t>(x),
+                                             static_cast<std::int32_t>(y))) {
+                    covered = false;
+                    break;
+                }
+            }
+            if (covered) {
+                blend(x, y, color);
+            }
         }
     }
 }

@@ -100,6 +100,10 @@ longhand box-shadow paint
 # never affects layout. It is listed under Paint, not Typography, because it is a shadow effect
 # with the same grammar family as `box-shadow` (minus spread and inset).
 longhand text-shadow paint
+# `clip-path` (ADR-068 slice 4, issue #672) is a Paint-row name: it clips what the element paints and
+# never affects layout. V1 accepts the basic shapes `inset()`, `circle()` and `ellipse()`; `polygon()`
+# is slice 5 and `url()`/`path()` are out of scope.
+longhand clip-path paint
 longhand backdrop-filter paint
 longhand -webkit-backdrop-filter paint
 longhand window-backdrop paint

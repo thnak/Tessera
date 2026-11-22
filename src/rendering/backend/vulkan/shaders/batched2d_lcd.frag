@@ -87,48 +87,77 @@ float erf_approx(float x) {
     return x < 0.0 ? -y : y;
 }
 
-// Hard-edged per-corner rounded-rect clip test, used when AA is off (golden mode, aa_radius 0): the
-// pixel-center rule keeps it deterministic and never writes outside the clip.
-// The clip arrives by index, not by value: recent glslang (16.x, the Linux distro build) lowers a
-// by-value struct parameter to a duplicated struct type plus OpCopyLogical, which naga's SPIR-V
-// front end rejects, so the cross-compiled WGSL (TESSERA_SHADER_CROSS) could not be produced on
-// those hosts. Indexing the block is the same code with no per-call copy and translates everywhere.
+// Hard-edged clip test, used when AA is off (golden mode, aa_radius 0): the pixel-center rule keeps
+// it deterministic and never writes outside the clip. It dispatches on the record's kind (ADR-068
+// slice 4): an `Ellipse` record is a circle/ellipse, a `RoundedRect` is a rect with per-corner
+// elliptical radii. The clip arrives by index, not by value: recent glslang (16.x, the Linux distro
+// build) lowers a by-value struct parameter to a duplicated struct type plus OpCopyLogical, which
+// naga's SPIR-V front end rejects, so the cross-compiled WGSL could not be produced on those hosts.
+bool inside_ellipse_record(vec2 p, uint index) {
+    vec2 origin = clip_buffer.records[index].rect.xy;
+    vec2 size = clip_buffer.records[index].rect.zw;
+    vec2 half_size = size * 0.5;
+    if (half_size.x <= 0.0 || half_size.y <= 0.0) {
+        return false;
+    }
+    vec2 d = (p - (origin + half_size)) / half_size;
+    return dot(d, d) <= 1.0;
+}
+
 bool inside_clip(vec2 p, uint index) {
+    if (clip_buffer.records[index].kind == 1u) {
+        return inside_ellipse_record(p, index);
+    }
     vec2 origin = clip_buffer.records[index].rect.xy;
     vec2 size = clip_buffer.records[index].rect.zw;
     vec4 radii = clip_buffer.records[index].radii_a;
+    vec4 radii_v = clip_buffer.records[index].radii_b;
     if (p.x < origin.x || p.y < origin.y || p.x > origin.x + size.x ||
         p.y > origin.y + size.y) {
         return false;
     }
     vec2 q = p - origin;
-    if (q.x < radii.x && q.y < radii.x) {
-        vec2 d = vec2(q.x - radii.x, q.y - radii.x);
-        return dot(d, d) <= radii.x * radii.x;
+    vec4 vertical = vec4(radii_v.x > 0.0 ? radii_v.x : radii.x,
+                         radii_v.y > 0.0 ? radii_v.y : radii.y,
+                         radii_v.z > 0.0 ? radii_v.z : radii.z,
+                         radii_v.w > 0.0 ? radii_v.w : radii.w);
+    if (radii.x > 0.0 && q.x < radii.x && q.y < vertical.x) {
+        vec2 d = vec2((q.x - radii.x) / radii.x, (q.y - vertical.x) / vertical.x);
+        return dot(d, d) <= 1.0;
     }
-    if (q.x > size.x - radii.y && q.y < radii.y) {
-        vec2 d = vec2(q.x - (size.x - radii.y), q.y - radii.y);
-        return dot(d, d) <= radii.y * radii.y;
+    if (radii.y > 0.0 && q.x > size.x - radii.y && q.y < vertical.y) {
+        vec2 d = vec2((q.x - (size.x - radii.y)) / radii.y, (q.y - vertical.y) / vertical.y);
+        return dot(d, d) <= 1.0;
     }
-    if (q.x > size.x - radii.z && q.y > size.y - radii.z) {
-        vec2 d = vec2(q.x - (size.x - radii.z), q.y - (size.y - radii.z));
-        return dot(d, d) <= radii.z * radii.z;
+    if (radii.z > 0.0 && q.x > size.x - radii.z && q.y > size.y - vertical.z) {
+        vec2 d = vec2((q.x - (size.x - radii.z)) / radii.z,
+                      (q.y - (size.y - vertical.z)) / vertical.z);
+        return dot(d, d) <= 1.0;
     }
-    if (q.x < radii.w && q.y > size.y - radii.w) {
-        vec2 d = vec2(q.x - radii.w, q.y - (size.y - radii.w));
-        return dot(d, d) <= radii.w * radii.w;
+    if (radii.w > 0.0 && q.x < radii.w && q.y > size.y - vertical.w) {
+        vec2 d = vec2((q.x - radii.w) / radii.w, (q.y - (size.y - vertical.w)) / vertical.w);
+        return dot(d, d) <= 1.0;
     }
     return true;
 }
 
-// Anti-aliased coverage of one rounded clip: the clip's own signed distance (framebuffer pixels,
-// per-corner radii) blended over +/- aa_radius pixels, the same half-pixel width as the SDF edges.
-// A pixel-aligned clip edge is fully covered on its inside pixels, so aligned clips look unchanged.
+// Anti-aliased coverage of one clip: the clip's own signed distance blended over +/- aa_radius
+// pixels. An `Ellipse` record uses the ellipse's own distance approximation; a `RoundedRect` uses
+// the rounded-box distance with the corner radius that applies at the pixel's quadrant.
 float clip_coverage(vec2 p, uint index) {
     vec2 origin = clip_buffer.records[index].rect.xy;
     vec2 half_size = clip_buffer.records[index].rect.zw * 0.5;
-    vec4 radii = clip_buffer.records[index].radii_a;
     vec2 q = p - (origin + half_size);
+    if (clip_buffer.records[index].kind == 1u) {
+        if (half_size.x <= 0.0 || half_size.y <= 0.0) {
+            return 0.0;
+        }
+        vec2 d = q / half_size;
+        float scale = min(half_size.x, half_size.y);
+        float distance = (length(d) - 1.0) * scale;
+        return 1.0 - smoothstep(-pc.aa_radius, pc.aa_radius, distance);
+    }
+    vec4 radii = clip_buffer.records[index].radii_a;
     float r = q.x < 0.0 ? (q.y < 0.0 ? radii.x : radii.w) : (q.y < 0.0 ? radii.y : radii.z);
     r = min(r, min(half_size.x, half_size.y));
     float d = sd_round_box(q, half_size, r);

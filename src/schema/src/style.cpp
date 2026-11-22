@@ -72,6 +72,10 @@ constexpr StyleProperty kStyleProperties[] = {
     {"opacity", StyleKind::Number, ""},
     {"box-shadow", StyleKind::List, "comma-separated shadow list, one per layer"},
     {"text-shadow", StyleKind::List, "comma-separated shadow list, one per layer"},
+    // `clip-path` (ADR-068 slice 4, issue #672): a basic-shape function or `none`. `Keyword` is the
+    // kind that accepts an arbitrary string, which is what a function value is; the grammar itself
+    // is validated by the paint-side parser, not by the schema.
+    {"clip-path", StyleKind::Keyword, "none | inset() | circle() | ellipse()"},
     {"backdrop-filter", StyleKind::Keyword, ""},
     {"-webkit-backdrop-filter", StyleKind::Keyword, "alias of backdrop-filter"},
     {"window-backdrop", StyleKind::Keyword, ""},
@@ -193,7 +197,7 @@ constexpr bool style_rows_are_valid(std::span<const StyleProperty> list) {
 // The registry of src/ui/style/property_registry.cpp (the physical table, `logical_properties.cpp`
 // and `property_registry_extra.cpp`) lists 127 longhands; the `schema_style_registry` test in that
 // module checks that this table and the registry agree name for name and kind for grammar.
-static_assert(std::size(kStyleProperties) == 127, "the style table has one row per longhand");
+static_assert(std::size(kStyleProperties) == 128, "the style table has one row per longhand");
 static_assert(style_rows_are_valid(kStyleProperties), "style rows are unique and named");
 
 } // namespace

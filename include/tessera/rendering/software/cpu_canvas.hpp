@@ -2,12 +2,29 @@
 
 #pragma once
 
+#include "tessera/rendering/gpu/clip_records.hpp"
 #include "tessera/rendering/rhi/types.hpp"
 
 #include <cstdint>
 #include <span>
 #include <vector>
 namespace tessera::rendering::software {
+
+// A shaped clip for the CPU reference (ADR-068 slice 4): a list of clip records the canvas tests
+// with `gpu::clip::covers_pixel`, the same rule the fragment shader's hard-test path implements.
+// Keeping the rule in one function is what makes a shaped-clip golden a test rather than a
+// tolerance argument.
+//
+// A null `ShapedClip*` means "no shaped clip", which is the axis-aligned `rhi::Rect` path every
+// existing caller uses. A non-null one with an empty record list clips everything away, which is
+// the honest reading of an empty intersection.
+struct ShapedClip {
+    std::span<const gpu::clip::ClipRecord> records;
+
+    [[nodiscard]] bool empty() const {
+        return records.empty();
+    }
+};
 
 // Minimal deterministic CPU canvas for golden references. It fills axis-aligned solid
 // rectangles with hard pixel edges and, additively, composites 8-bit glyph coverage bitmaps for
@@ -19,6 +36,11 @@ public:
 
     void clear(rhi::Color color);
     void fill_rect(const rhi::Rect& rect, rhi::Color color);
+
+    // Fills `rect` with `color`, keeping only pixels the shaped clip covers. This is the CPU
+    // reference for a shaped `clip-path`: the coverage rule is `gpu::clip::covers_pixel`, so the
+    // result is what the shader's hard-test path produces for the same record.
+    void fill_rect_clipped(const rhi::Rect& rect, rhi::Color color, const ShapedClip& clip);
 
     // Deterministic reference text blend: composites one 8-bit coverage bitmap (row-major, one
     // byte per pixel, `width * height` bytes) with straight-alpha source-over into an opaque
