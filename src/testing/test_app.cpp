@@ -88,6 +88,9 @@ std::size_t chunk_length(std::string_view text, std::size_t offset, std::size_t 
 
 } // namespace
 
+TestApp::TestApp()
+    : TestApp(Config{}) {}
+
 TestApp::TestApp(Config config)
     : config_(std::move(config)),
       loop_config_(),

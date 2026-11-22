@@ -85,7 +85,13 @@ public:
 
     // Builds the stack, lays out one frame, and runs `Config`'s stylesheet. The component's build
     // hook is not run yet: call `build()` once, or `mount()` to build and settle in one step.
-    explicit TestApp(Config config = {});
+    //
+    // Two constructors instead of `Config = {}`: a default argument would have to name the nested
+    // `AdvanceConfig`'s default member initializer while `TestApp` is still incomplete, which GCC
+    // rejects (MSVC accepts it, so only a second compiler catches it). The same workaround and the
+    // same reason as `EngineAutomationHost` in `include/tessera/automation/engine_host.hpp`.
+    TestApp();
+    explicit TestApp(Config config);
     ~TestApp();
 
     TestApp(const TestApp&) = delete;
