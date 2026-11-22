@@ -12,6 +12,7 @@
 #include "tessera/ui/layout/damage_pass.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
 #include "tessera/ui/paint/scene_style_sync.hpp"
+#include "tessera/ui/scene/node.hpp"
 
 #include <cstddef>
 #include <cstdint>

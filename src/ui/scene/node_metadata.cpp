@@ -345,89 +345,107 @@ Dirty NodeMetadata::clear_paint_data() {
 // The public surface stays on `Node` so no call site moved with the split; each setter only turns
 // the domain `NodeMetadata` reported into the node's dirty marks.
 
-void Node::set_element_kind(std::string_view kind) {
-    metadata_.set_element_kind(kind);
+void NodeMetadataApi::set_element_kind(std::string_view kind) {
+    Node& self = node();
+    self.metadata_.set_element_kind(kind);
 }
 
-void Node::set_element_id(std::string_view id) {
-    mark_dirty(metadata_.set_element_id(id));
+void NodeMetadataApi::set_element_id(std::string_view id) {
+    Node& self = node();
+    self.mark_dirty(self.metadata_.set_element_id(id));
 }
 
-void Node::clear_element_id() {
-    mark_dirty(metadata_.clear_element_id());
+void NodeMetadataApi::clear_element_id() {
+    Node& self = node();
+    self.mark_dirty(self.metadata_.clear_element_id());
 }
 
-void Node::set_class_name(std::string_view class_name) {
-    mark_dirty(metadata_.set_class_name(class_name));
+void NodeMetadataApi::set_class_name(std::string_view class_name) {
+    Node& self = node();
+    self.mark_dirty(self.metadata_.set_class_name(class_name));
 }
 
-void Node::clear_class_name() {
-    mark_dirty(metadata_.clear_class_name());
+void NodeMetadataApi::clear_class_name() {
+    Node& self = node();
+    self.mark_dirty(self.metadata_.clear_class_name());
 }
 
-void Node::set_part(std::string_view part) {
-    mark_dirty(metadata_.set_part(part));
+void NodeMetadataApi::set_part(std::string_view part) {
+    Node& self = node();
+    self.mark_dirty(self.metadata_.set_part(part));
 }
 
-void Node::clear_part() {
-    mark_dirty(metadata_.clear_part());
+void NodeMetadataApi::clear_part() {
+    Node& self = node();
+    self.mark_dirty(self.metadata_.clear_part());
 }
 
-void Node::set_element_tag(std::string_view tag) {
-    mark_dirty(metadata_.set_element_tag(tag));
+void NodeMetadataApi::set_element_tag(std::string_view tag) {
+    Node& self = node();
+    self.mark_dirty(self.metadata_.set_element_tag(tag));
 }
 
-void Node::set_component_name(std::string_view component) {
+void NodeMetadataApi::set_component_name(std::string_view component) {
+    Node& self = node();
     // Types the host for matching, so every `::part()` rule of the subtree re-resolves.
-    const Dirty flags = metadata_.set_component_name(component);
+    const Dirty flags = self.metadata_.set_component_name(component);
     if (flags != Dirty::Clean) {
-        mark_subtree_dirty(flags);
+        self.mark_subtree_dirty(flags);
     }
 }
 
-void Node::clear_component_name() {
-    const Dirty flags = metadata_.clear_component_name();
+void NodeMetadataApi::clear_component_name() {
+    Node& self = node();
+    const Dirty flags = self.metadata_.clear_component_name();
     if (flags != Dirty::Clean) {
-        mark_subtree_dirty(flags);
+        self.mark_subtree_dirty(flags);
     }
 }
 
-void Node::set_automation_id(std::uint64_t automation_id) {
-    metadata_.set_automation_id(automation_id);
+void NodeMetadataApi::set_automation_id(std::uint64_t automation_id) {
+    Node& self = node();
+    self.metadata_.set_automation_id(automation_id);
 }
 
-void Node::set_role(std::string_view role) {
-    metadata_.set_role(role);
+void NodeMetadataApi::set_role(std::string_view role) {
+    Node& self = node();
+    self.metadata_.set_role(role);
 }
 
-void Node::clear_role() {
-    metadata_.clear_role();
+void NodeMetadataApi::clear_role() {
+    Node& self = node();
+    self.metadata_.clear_role();
 }
 
-bool Node::set_inline_style(std::string_view name, std::string_view value) {
-    const StyleWrite write = metadata_.set_inline_style(name, value);
-    mark_dirty(write.dirty);
+bool NodeMetadataApi::set_inline_style(std::string_view name, std::string_view value) {
+    Node& self = node();
+    const StyleWrite write = self.metadata_.set_inline_style(name, value);
+    self.mark_dirty(write.dirty);
     return write.accepted;
 }
 
-bool Node::remove_inline_style(std::string_view name) {
-    if (!metadata_.remove_inline_style(name)) {
+bool NodeMetadataApi::remove_inline_style(std::string_view name) {
+    Node& self = node();
+    if (!self.metadata_.remove_inline_style(name)) {
         return false;
     }
-    mark_dirty(Dirty::Style);
+    self.mark_dirty(Dirty::Style);
     return true;
 }
 
-void Node::clear_inline_style() {
-    mark_dirty(metadata_.clear_inline_style());
+void NodeMetadataApi::clear_inline_style() {
+    Node& self = node();
+    self.mark_dirty(self.metadata_.clear_inline_style());
 }
 
-void Node::set_paint_data(std::optional<PaintData> data) {
-    mark_dirty(metadata_.set_paint_data(std::move(data)));
+void NodeMetadataApi::set_paint_data(std::optional<PaintData> data) {
+    Node& self = node();
+    self.mark_dirty(self.metadata_.set_paint_data(std::move(data)));
 }
 
-void Node::clear_paint_data() {
-    mark_dirty(metadata_.clear_paint_data());
+void NodeMetadataApi::clear_paint_data() {
+    Node& self = node();
+    self.mark_dirty(self.metadata_.clear_paint_data());
 }
 
 } // namespace tessera::ui

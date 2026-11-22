@@ -17,6 +17,7 @@
 #include "tessera/ui/animation/animation_style.hpp"
 #include "tessera/ui/animation/style_overlay.hpp"
 #include "tessera/ui/frame_pipeline.hpp"
+#include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/style/compiled_stylesheet.hpp"
 #include "tessera/ui/style/scene_style.hpp"
 

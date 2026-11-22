@@ -6,6 +6,7 @@
 // UI-thread only, no wall clock: the frame loop passes the tick duration, so the same dt sequence
 // always produces the same offsets.
 
+#include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/scene/scroll.hpp"
 
 #include <algorithm>

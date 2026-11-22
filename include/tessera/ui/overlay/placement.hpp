@@ -7,7 +7,7 @@
 // pure function over plain rectangles: no scene, no allocation.
 
 #include "tessera/rendering/rhi/types.hpp"
-#include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/scene/node_fwd.hpp"
 
 #include <cstdint>
 

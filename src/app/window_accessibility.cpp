@@ -7,6 +7,7 @@
 // ticks and tears the controller down, so the driver's own translation unit adds a handful of
 // lines.
 
+#include "tessera/ui/scene/node.hpp"
 #include "window_impl.hpp"
 
 #include <utility>

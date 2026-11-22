@@ -11,6 +11,7 @@
 // type, so a free function could not name it.
 
 #include "host_impl.hpp"
+#include "tessera/ui/scene/node.hpp"
 
 namespace tessera::app {
 namespace {

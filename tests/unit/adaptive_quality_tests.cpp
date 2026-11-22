@@ -17,6 +17,7 @@
 #include "tessera/runtime/diagnostics.hpp"
 #include "tessera/runtime/runtime_loop.hpp"
 #include "tessera/ui/paint/paint_sink.hpp"
+#include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/style/compiled_stylesheet.hpp"
 
 #include <cstdint>
@@ -328,7 +329,6 @@ bool identical_sequences_decide_identically() {
                   "the controller must not own a resource");
     static_assert(std::is_trivially_copyable_v<AdaptiveQualityConfig>);
     static_assert(std::is_trivially_copyable_v<AdaptiveQualitySample>);
-
     const std::vector<AdaptiveQualitySample> first = run_scripted_sequence();
     const std::vector<AdaptiveQualitySample> second = run_scripted_sequence();
     bool ok = expect(first.size() == second.size(), "both runs observed the same frames");

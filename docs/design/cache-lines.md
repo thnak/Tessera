@@ -85,3 +85,59 @@ publish and every flush. They are now two `detail::CacheLine` groups, split by w
 
 `AtspiSession`'s `phase_`/`error_`/`running_` share a line, but a start/stop is a once-per-session
 event rather than a per-frame one, so that is recorded as accepted rather than fixed.
+
+## 6. `ui::Node`: locality, not sharing (god-type audit step 3)
+
+`ui::Node` is written by one thread, so false sharing is not its problem. Its cost is locality: a
+whole-scene pass (the dirty pass, the hit-test descent, the paint cull walk) reads a few fields of
+every node, and those fields used to sit on four of the node's five lines. The work followed the
+measurements, in this order, because the first two passes were algorithmic and the layout only
+matters once they are fixed.
+
+**Method.** `tessera_benchmark --walk [rounds]` builds the 12 000-node reference scene, runs one
+full frame so it is laid out, then times three passes with `perf_event_open` counters around each:
+a hot-field walk (the lower bound of any traversal), the dirty `collect + clear` over a fully dirty
+tree, and `hit_test_deep` over a fixed 16 x 10 point grid. It is a report, not a gate (no budget,
+never fails). It needs `kernel.perf_event_paranoid <= 1` for the counters; without that the time
+columns still print and the counters read `n/a`. Numbers below are Linux Release GCC, one pinned
+core, three runs within 2%; the hit checksum is identical in every row (same hits, different cost).
+
+| Step | Hot walk ns/node (L1D miss) | Dirty ns/node (L1D miss) | Hit test us/point |
+|---|---|---|---|
+| Baseline | 12.7 (not counted) | 840 | 3 200 |
+| `hit_test_deep` pruned + one inversion | 12.9 (3.8) | 800 (562) | 1.3 |
+| Dirty clear in one post-order pass | 12.9 (3.8) | 24 (6.5) | 1.3 |
+| Heap nodes on a cache line | 9.7 (3.1) | 19.5 (5.4) | 1.3 |
+| First line holds the hot fields | 10.3 (2.2) | 20.8 (4.6) | 1.0-1.15 |
+
+**Reading it.** Alignment is the large time win (about -25% on the walk). The layout change cuts L1D
+misses a further 30% and speeds the hit test about 20%, but the walk and the dirty pass are within 5%
+of the aligned numbers, slightly slower: the 3.8 MB tree sits in L2/LLC, so an L1D miss is cheap and
+overlaps, and the node's children live in a separate vector buffer, so a visit is bounded by the
+pointer chase as much as by lines. The layout is kept because it removes the misses structurally and
+is pinned, not because this benchmark's wall time proves it; a larger or colder tree is where it
+should pay, and is not measured here.
+
+**What is on the first line.** `sizeof(Node)` is 320 (five lines) with no padding. Offsets 0..63:
+the vptr, `parent_`, `children_`, `bounds_`, the flag word, both dirty summaries, `scroll_bits_`,
+`user_select_`, `cursor_` and `focus_group_`: 8 + 8 + 24 + 16 + 2 + 1 + 1 + 1 + 1 + 1 + 1 = 64. The
+36-byte transform and the z-index do not fit, so two flag bits (`kHasTransform`, `kHasZIndex`) stand
+for them: the hit-test descent and the sibling walk read the bit and touch the value only when it is
+set (most nodes have neither). Everything else is on demand from offset 64: the cached subtree
+paint box, the transform, z-index, tab index, pseudo state, paint outsets, glass sigma, the scroll
+floats, the id, and the 120-byte metadata record.
+
+**Alignment.** Heap nodes start on a line through a class-level `operator new` (64-byte aligned
+allocation), not through `alignas(64)` on the type as section 4 prescribes for other hot structs.
+`Node` has many derived classes (every generated component, every test recorder); an over-aligned
+base pads each of them and trips MSVC's C4324 on each. Stack and by-value nodes are not aligned,
+which costs speed and never correctness. The default aligned `operator new` does not call
+`operator new(std::size_t)`, so every allocation-counting test replaces the aligned forms too
+(`detail/aligned_alloc.hpp`); a node allocated inside a counted region is still counted.
+
+**How it is pinned.** `NodeLayoutCheck` in `node.cpp` asserts, on the 64-bit lanes, that each hot
+field ends inside the first 64 bytes and that the first on-demand field starts exactly at 64. The
+exact `sizeof(Node) == 320` assert in `node.hpp` is unchanged. A new member on line 0 by mistake, or
+a reorder that pushes a hot field across the boundary, is a build failure. `scene_hit_test_prune`
+pins the flag semantics (`has_z_index`, `has_transform` follow every write, including back to the
+default).

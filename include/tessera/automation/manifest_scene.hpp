@@ -5,7 +5,7 @@
 #include "tessera/automation/app_config.hpp"
 #include "tessera/automation/node_annotation.hpp"
 #include "tessera/automation/virtual_collection.hpp"
-#include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/scene/node_fwd.hpp"
 
 #include <memory>
 #include <string_view>

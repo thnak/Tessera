@@ -7,6 +7,7 @@
 // (ADR-020), and the HAL must not know a CSS keyword. This is the one place both enums exist, which
 // is exactly what the three-layer chain wants.
 
+#include "tessera/ui/scene/node.hpp"
 #include "window_cursor.hpp"
 
 #include <cstdio>

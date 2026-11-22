@@ -539,6 +539,10 @@ constant include/tessera/dbus/wire.hpp tessera::dbus::kMaxWireFieldBytes
 constant include/tessera/dbus/wire.hpp tessera::dbus::kMaxWireMessage
 constant include/tessera/dbus/wire.hpp tessera::dbus::kMaxWireText
 
+header include/tessera/detail/aligned_alloc.hpp
+function include/tessera/detail/aligned_alloc.hpp tessera::detail::aligned_allocate
+function include/tessera/detail/aligned_alloc.hpp tessera::detail::aligned_release
+
 header include/tessera/detail/cache_line.hpp
 struct include/tessera/detail/cache_line.hpp tessera::detail::CacheLine
 function include/tessera/detail/cache_line.hpp tessera::detail::cache_line_is_exact
@@ -2597,18 +2601,34 @@ function include/tessera/ui/scene/list_ops.hpp tessera::ui::string_trim
 header include/tessera/ui/scene/node.hpp
 class include/tessera/ui/scene/node.hpp tessera::ui::Node
 struct include/tessera/ui/scene/node.hpp tessera::ui::Event
-enum include/tessera/ui/scene/node.hpp tessera::ui::OverscrollBehavior
-enum include/tessera/ui/scene/node.hpp tessera::ui::OverscrollEffect
-enum include/tessera/ui/scene/node.hpp tessera::ui::ScrollBehavior
-enum include/tessera/ui/scene/node.hpp tessera::ui::UserSelect
-alias include/tessera/ui/scene/node.hpp tessera::ui::NodeId
-alias include/tessera/ui/scene/node.hpp tessera::ui::rhi
 function include/tessera/ui/scene/node.hpp tessera::ui::dispatch_event
 function include/tessera/ui/scene/node.hpp tessera::ui::dispatch_event_to
 constant include/tessera/ui/scene/node.hpp tessera::ui::kNodeSizeBudget
 
+header include/tessera/ui/scene/node_fwd.hpp
+class include/tessera/ui/scene/node_fwd.hpp tessera::ui::Node
+
+header include/tessera/ui/scene/node_geometry_api.hpp
+class include/tessera/ui/scene/node_geometry_api.hpp tessera::ui::Node
+class include/tessera/ui/scene/node_geometry_api.hpp tessera::ui::NodeGeometryApi
+alias include/tessera/ui/scene/node_geometry_api.hpp tessera::ui::rhi
+
+header include/tessera/ui/scene/node_geometry_api_inl.hpp
+
+header include/tessera/ui/scene/node_hints.hpp
+class include/tessera/ui/scene/node_hints.hpp tessera::ui::NodeHints
+
 header include/tessera/ui/scene/node_ids.hpp
 constant include/tessera/ui/scene/node_ids.hpp tessera::ui::kNodeIdBaseStride
+
+header include/tessera/ui/scene/node_input_policy.hpp
+class include/tessera/ui/scene/node_input_policy.hpp tessera::ui::NodeInputPolicy
+
+header include/tessera/ui/scene/node_interaction_api.hpp
+class include/tessera/ui/scene/node_interaction_api.hpp tessera::ui::Node
+class include/tessera/ui/scene/node_interaction_api.hpp tessera::ui::NodeInteractionApi
+
+header include/tessera/ui/scene/node_interaction_api_inl.hpp
 
 header include/tessera/ui/scene/node_metadata.hpp
 class include/tessera/ui/scene/node_metadata.hpp tessera::ui::NodeMetadata
@@ -2628,8 +2648,39 @@ constant include/tessera/ui/scene/node_metadata.hpp tessera::ui::kMaxInlineStyle
 constant include/tessera/ui/scene/node_metadata.hpp tessera::ui::kMaxInlineStyleValueBytes
 constant include/tessera/ui/scene/node_metadata.hpp tessera::ui::kMaxMetadataBytes
 
+header include/tessera/ui/scene/node_metadata_api.hpp
+class include/tessera/ui/scene/node_metadata_api.hpp tessera::ui::Node
+class include/tessera/ui/scene/node_metadata_api.hpp tessera::ui::NodeMetadataApi
+
+header include/tessera/ui/scene/node_metadata_api_inl.hpp
+
+header include/tessera/ui/scene/node_paint_extent.hpp
+class include/tessera/ui/scene/node_paint_extent.hpp tessera::ui::NodePaintExtent
+
+header include/tessera/ui/scene/node_placement.hpp
+class include/tessera/ui/scene/node_placement.hpp tessera::ui::NodePlacement
+
 header include/tessera/ui/scene/node_scroll.hpp
 class include/tessera/ui/scene/node_scroll.hpp tessera::ui::NodeScroll
+
+header include/tessera/ui/scene/node_scroll_api.hpp
+class include/tessera/ui/scene/node_scroll_api.hpp tessera::ui::Node
+class include/tessera/ui/scene/node_scroll_api.hpp tessera::ui::NodeScrollApi
+alias include/tessera/ui/scene/node_scroll_api.hpp tessera::ui::rhi
+
+header include/tessera/ui/scene/node_scroll_api_inl.hpp
+
+header include/tessera/ui/scene/node_scroll_style.hpp
+class include/tessera/ui/scene/node_scroll_style.hpp tessera::ui::NodeScrollStyle
+
+header include/tessera/ui/scene/node_types.hpp
+struct include/tessera/ui/scene/node_types.hpp tessera::ui::PaintOutsets
+enum include/tessera/ui/scene/node_types.hpp tessera::ui::FocusGroup
+enum include/tessera/ui/scene/node_types.hpp tessera::ui::OverscrollBehavior
+enum include/tessera/ui/scene/node_types.hpp tessera::ui::OverscrollEffect
+enum include/tessera/ui/scene/node_types.hpp tessera::ui::ScrollBehavior
+enum include/tessera/ui/scene/node_types.hpp tessera::ui::UserSelect
+alias include/tessera/ui/scene/node_types.hpp tessera::ui::NodeId
 
 header include/tessera/ui/scene/paint_data.hpp
 struct include/tessera/ui/scene/paint_data.hpp tessera::ui::LinearGradient

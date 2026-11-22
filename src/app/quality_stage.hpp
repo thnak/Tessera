@@ -18,7 +18,7 @@
 #include "adaptive_quality.hpp"
 #include "tessera/runtime/diagnostics.hpp"
 #include "tessera/runtime/frame_time_source.hpp"
-#include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/scene/node_fwd.hpp"
 
 #include <cstdint>
 #include <optional>

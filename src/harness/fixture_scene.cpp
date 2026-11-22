@@ -3,6 +3,7 @@
 #include "tessera/automation/fixture_scene.hpp"
 #include "tessera/ui/scene/event.hpp"
 #include "tessera/ui/scene/event_payloads.hpp"
+#include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/scene/paint_data.hpp"
 
 #include <string>

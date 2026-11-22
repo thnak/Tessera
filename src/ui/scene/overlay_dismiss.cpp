@@ -4,6 +4,7 @@
 // Escape, back, a press outside, and window blur.
 
 #include "overlay_entry.hpp"
+#include "tessera/ui/scene/node.hpp"
 
 namespace tessera::ui {
 

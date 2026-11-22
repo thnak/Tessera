@@ -21,6 +21,7 @@
 #endif
 
 #include "appfw_observable_test_support.hpp"
+#include "tessera/detail/aligned_alloc.hpp"
 
 #include <cstddef>
 #include <cstdio>
@@ -53,6 +54,20 @@ void* operator new(std::size_t size) {
         return memory;
     }
     throw std::bad_alloc();
+}
+
+void* operator new(std::size_t size, std::align_val_t alignment) {
+    ++g_allocation_count;
+    g_allocated_bytes += size;
+    return tessera::detail::aligned_allocate(size, alignment);
+}
+
+void operator delete(void* pointer, std::align_val_t) noexcept {
+    tessera::detail::aligned_release(pointer);
+}
+
+void operator delete(void* pointer, std::size_t, std::align_val_t) noexcept {
+    tessera::detail::aligned_release(pointer);
 }
 
 void* operator new[](std::size_t size) {

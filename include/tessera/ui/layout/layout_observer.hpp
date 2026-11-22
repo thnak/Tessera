@@ -3,7 +3,7 @@
 #pragma once
 
 #include "tessera/ui/layout/layout_read_model.hpp"
-#include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/scene/node_fwd.hpp"
 
 #include <cstddef>
 #include <cstdint>

@@ -5,6 +5,7 @@
 // invariance that keeps every `clip` line box byte-identical. Deterministic stub metrics only.
 
 #include "tessera/ui/paint/paint_pass.hpp"
+#include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/style/property_registry.hpp"
 #include "tessera/ui/style/supports.hpp"
 #include "tessera/ui/text/font_metrics.hpp"

@@ -130,6 +130,51 @@ move frame policy off the tree:
 only because #735 added the cached subtree paint box in the same window; the split itself added no
 pointer, vtable or child object, which `node_size_tests` and the `sizeof_node` budget row check.
 
+**Landed (step 4a, value vocabulary).** `NodeId`, `UserSelect`, the three scroll enums, `FocusGroup`
+and `PaintOutsets` moved to [node_types.hpp](../../include/tessera/ui/scene/node_types.hpp);
+`Node::FocusGroup` and `Node::PaintOutsets` are aliases, so no call site changed and the layout stays at
+320 bytes. A new enumerator now touches the types header instead of the class declaration.
+
+**Landed (step 4b, include hygiene).** 43 headers that only hold or pass a node by pointer or
+reference include [node_fwd.hpp](../../include/tessera/ui/scene/node_fwd.hpp) (`class Node` plus
+`NodeId`) instead of `node.hpp`; the 120 files that really call into a node include it themselves.
+Measured with `g++ -MM` over `compile_commands.json` on the Linux `dev` preset: translation units
+that depend on `node.hpp` went 878 -> 784 of 2650.
+
+**Landed (step 4c, role bases).** The public surface of `Node` is now four data-free bases,
+one header each: [`NodeGeometryApi`](../../include/tessera/ui/scene/node_geometry_api.hpp),
+[`NodeInteractionApi`](../../include/tessera/ui/scene/node_interaction_api.hpp),
+[`NodeScrollApi`](../../include/tessera/ui/scene/node_scroll_api.hpp) and
+[`NodeMetadataApi`](../../include/tessera/ui/scene/node_metadata_api.hpp). The storage did not
+move, so `kNodeSizeBudget` and the 320-byte exact assert hold on GCC and MSVC (the class carries
+`__declspec(empty_bases)`: MSVC otherwise pads one word per extra empty base). A base reaches the
+storage through a private `node()` cast and `Node` befriends the four; the one-line reads are inline
+in `*_api_inl.hpp`, included at the end of `node.hpp`, so they cost no call, and `hit_test_deep`
+stayed a `Node` member. This is the structure-only half: `node.hpp` is 257 lines (from 538) and a
+new accessor of one role is written in that role's header, but a change to any base still
+recompiles every includer of `node.hpp`, because `Node` derives from all four. The recompile win
+comes from 4b, not 4c. The previous decision against `NodeGeometryView`/`NodeInteractionView` stands
+(a view object adds a hop to `hit_test`); a base does not.
+
+**Landed (step 4d, small parts).** The loose flag word, the packed scroll byte and the geometry
+scalars on `Node` are now five single-role value types, each with a `static_assert` on its size:
+[`NodeHints`](../../include/tessera/ui/scene/node_hints.hpp) (1 byte, derived/presence bits),
+[`NodeInputPolicy`](../../include/tessera/ui/scene/node_input_policy.hpp) (4 bytes: visibility,
+pointer events, focus, user-select, cursor, focus group),
+[`NodeScrollStyle`](../../include/tessera/ui/scene/node_scroll_style.hpp) (1 byte),
+[`NodePlacement`](../../include/tessera/ui/scene/node_placement.hpp) (40 bytes: transform, z-index)
+and [`NodePaintExtent`](../../include/tessera/ui/scene/node_paint_extent.hpp) (40 bytes: outsets,
+glass sigma, the cached subtree box). A part owns values and sanitizing and returns "changed" from
+its setters; `Node` keeps the dirty policy. `sizeof(Node)` is still exactly 320 and line 0 still holds
+every hot field, pinned by `NodeLayoutCheck`; `tests/unit/node_parts_tests.cpp` covers the parts.
+
+**Landed (steps 0-3, measured).** `tessera_benchmark --walk` baselines the whole-scene passes over
+the 12 000-node scene, and the numbers moved the work: `hit_test_deep` (3.2 ms -> 1.3 us per
+point, pruned by `subtree_paint_bounds()`) and the dirty clear (800 -> 24 ns/node, one post-order
+pass) were algorithmic, and only then did the layout matter: heap nodes start on a cache line and
+the first 64 bytes hold every field the passes read per node. The method, the table and the
+checks that pin it are in [cache-lines.md](../design/cache-lines.md) section 6.
+
 ### 3.2 `app::WindowHost::Impl` (rank 2)
 
 [window_impl.hpp](../../src/app/window_impl.hpp) is 255 lines and declares 32 member functions and 42

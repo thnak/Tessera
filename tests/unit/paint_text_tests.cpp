@@ -8,6 +8,7 @@
 #include "tessera/ui/frame_pipeline.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
 #include "tessera/ui/paint/paint_text_metrics.hpp"
+#include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/text/text_layout.hpp"
 
 #include <cmath>

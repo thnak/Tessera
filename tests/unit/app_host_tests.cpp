@@ -9,6 +9,7 @@
 #include "tessera/app/system_motion.hpp"
 #include "tessera/runtime/clock.hpp"
 #include "tessera/ui/paint/paint_sink.hpp"
+#include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/scene/paint_data.hpp"
 #include "tessera/ui/style/scene_style.hpp"
 

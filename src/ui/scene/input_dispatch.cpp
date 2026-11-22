@@ -3,6 +3,7 @@
 #include "hover_dispatch.hpp"
 #include "tessera/ui/key_code.hpp"
 #include "tessera/ui/scene/input_dispatch.hpp"
+#include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/style/pseudo_state.hpp"
 #include "text_input_dispatch.hpp"
 #include "volume_dispatch.hpp"

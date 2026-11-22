@@ -5,6 +5,7 @@
 // rects and baseline shift for plain, wrapped and spanned text. Deterministic stub metrics only.
 
 #include "tessera/ui/paint/paint_pass.hpp"
+#include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/style/cascade.hpp"
 #include "tessera/ui/style/property_registry.hpp"
 #include "tessera/ui/style/supports.hpp"

@@ -3,7 +3,7 @@
 #pragma once
 
 #include "tessera/ui/dirty.hpp"
-#include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/scene/node_fwd.hpp"
 
 #include <cstddef>
 #include <vector>
@@ -35,7 +35,6 @@ public:
 
 private:
     void visit(Node& node, Dirty domain);
-    void clear_visit(Node& node, Dirty domain);
 
     std::vector<DirtyNode> nodes_;
     std::size_t max_nodes_ = 0;

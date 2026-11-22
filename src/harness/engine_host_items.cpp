@@ -6,6 +6,7 @@
 // Unrealized items have no scene node and therefore cannot be targeted.
 
 #include "tessera/automation/engine_host.hpp"
+#include "tessera/ui/scene/node.hpp"
 
 #include <charconv>
 #include <cstdint>

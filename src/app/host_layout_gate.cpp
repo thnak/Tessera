@@ -20,6 +20,7 @@
 // construction: the gate only ever answers "unchanged" when every input is known to be equal.
 
 #include "host_impl.hpp"
+#include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/scene/structure_epoch.hpp"
 #include "tessera/ui/scene/text_wrap.hpp"
 

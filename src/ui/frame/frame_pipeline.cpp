@@ -9,6 +9,7 @@
 #include "tessera/ui/frame_pipeline.hpp"
 #include "tessera/ui/paint/clipped_paint_sink.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
+#include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/style/interaction_style.hpp"
 
 #include <algorithm>

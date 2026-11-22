@@ -7,6 +7,7 @@
 #include "paint_gradient.hpp"
 #include "paint_properties.hpp"
 #include "tessera/ui/paint/background_layer_cache.hpp"
+#include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/style/background_layers.hpp"
 #include "tessera/ui/style/gradient.hpp"
 

@@ -27,6 +27,7 @@
 // Split out of `host.cpp`, which is over the size budget.
 
 #include "host_impl.hpp"
+#include "tessera/ui/scene/node.hpp"
 
 #include <algorithm>
 #include <cmath>

@@ -13,6 +13,7 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <new>
 #include <utility>
 
 namespace tessera::ui {
@@ -27,10 +28,50 @@ std::uint64_t scene_structure_epoch() noexcept {
     return g_structure_epoch.load(std::memory_order_relaxed);
 }
 
+// The first-line layout of `Node` (see the member block in node.hpp) as compile-time facts: every
+// field the whole-scene passes read at each node ends inside the first 64 bytes, and the first
+// on-demand field starts exactly at the second line. A new member placed on line 0 by mistake, or
+// a reorder that pushes a hot field across the boundary, fails here instead of silently costing a
+// cache miss per visited node. 64-bit only: the offsets are a layout fact of 8-byte pointers and a
+// 24-byte vector, and the size assert in node.hpp already pins the same lanes.
+#if INTPTR_MAX == INT64_MAX
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Winvalid-offsetof"
+#endif
+struct NodeLayoutCheck {
+#define TESSERA_NODE_ON_FIRST_LINE(member)                                                         \
+    static_assert(offsetof(Node, member) + sizeof(Node::member) <= detail::kCacheLine,             \
+                  #member " must stay on Node's first cache line")
+    TESSERA_NODE_ON_FIRST_LINE(parent_);
+    TESSERA_NODE_ON_FIRST_LINE(children_);
+    TESSERA_NODE_ON_FIRST_LINE(bounds_);
+    TESSERA_NODE_ON_FIRST_LINE(hints_);
+    TESSERA_NODE_ON_FIRST_LINE(dirty_);
+    TESSERA_NODE_ON_FIRST_LINE(subtree_dirty_);
+    TESSERA_NODE_ON_FIRST_LINE(input_);
+    TESSERA_NODE_ON_FIRST_LINE(scroll_style_);
+#undef TESSERA_NODE_ON_FIRST_LINE
+    static_assert(offsetof(Node, extent_) == detail::kCacheLine,
+                  "the first on-demand field starts exactly on the second line");
+};
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
+#endif
+
 Node::Node(NodeId id)
     : id_(id) {}
 
 Node::~Node() = default;
+
+void* Node::operator new(std::size_t size) {
+    return ::operator new(size, std::align_val_t{detail::kCacheLine});
+}
+
+void Node::operator delete(void* pointer, std::size_t size) noexcept {
+    ::operator delete(pointer, size, std::align_val_t{detail::kCacheLine});
+}
 
 Node& Node::add_child(std::unique_ptr<Node> child) {
     g_structure_epoch.fetch_add(1, std::memory_order_relaxed);
@@ -86,7 +127,7 @@ void Node::mark_dirty(Dirty flags) {
     // child's clear), which does not invalidate anything.
     if ((flags & Dirty::Paint) != Dirty::Clean) {
         for (Node* node = this; node != nullptr; node = node->parent_) {
-            node->subtree_paint_bounds_ = rhi::Rect{0.0f, 0.0f, -1.0f, 0.0f};
+            node->extent_.invalidate_cache();
         }
     }
     for (Node* ancestor = parent_; ancestor != nullptr; ancestor = ancestor->parent_) {
@@ -114,6 +155,33 @@ void Node::clear_dirty(Dirty flags) {
     }
     dirty_ = remaining;
     refresh_subtree_dirty();
+}
+
+void Node::clear_subtree_dirty(Dirty flags) {
+    if (flags == Dirty::Clean || !has_any(subtree_dirty_, flags)) {
+        return;
+    }
+    clear_subtree_dirty_below(flags);
+    // Only the ancestors of the cleared root can still be stale; they re-derive from their
+    // children.
+    if (parent_ != nullptr) {
+        parent_->refresh_subtree_dirty();
+    }
+}
+
+void Node::clear_subtree_dirty_below(Dirty flags) {
+    // Post-order: each node recomputes its summary exactly once, from children that are already
+    // final. Clearing node by node with `clear_dirty` made every child's change re-scan the whole
+    // child list of its parent, which is quadratic in the width of a wide container.
+    Dirty next = dirty_ & ~flags;
+    for (const auto& child : children_) {
+        if (has_any(child->subtree_dirty_, flags)) {
+            child->clear_subtree_dirty_below(flags);
+        }
+        next |= child->subtree_dirty_;
+    }
+    dirty_ = dirty_ & ~flags;
+    subtree_dirty_ = next;
 }
 
 void Node::refresh_subtree_dirty() {

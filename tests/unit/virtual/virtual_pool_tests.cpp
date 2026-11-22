@@ -5,6 +5,7 @@
 // lease validation. Allocation counters prove the hot path stops allocating once the pool is
 // warm.
 
+#include "tessera/detail/aligned_alloc.hpp"
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/scene/paint_data.hpp"
 #include "tessera/ui/virtual/node_recycler.hpp"
@@ -74,6 +75,19 @@ void* operator new(std::size_t size) {
         return memory;
     }
     throw std::bad_alloc();
+}
+
+void* operator new(std::size_t size, std::align_val_t alignment) {
+    ++g_allocations;
+    return tessera::detail::aligned_allocate(size, alignment);
+}
+
+void operator delete(void* pointer, std::align_val_t) noexcept {
+    tessera::detail::aligned_release(pointer);
+}
+
+void operator delete(void* pointer, std::size_t, std::align_val_t) noexcept {
+    tessera::detail::aligned_release(pointer);
 }
 
 void operator delete(void* memory) noexcept {

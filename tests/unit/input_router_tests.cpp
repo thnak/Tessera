@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "tessera/ui/scene/input_dispatch.hpp"
+#include "tessera/ui/scene/node.hpp"
 
 #include <cstdint>
 #include <iostream>
@@ -501,7 +502,6 @@ int main() {
     if (!per_pointer_capture()) {
         return 11;
     }
-
     std::cout << "input_router: ok\n";
     return 0;
 }

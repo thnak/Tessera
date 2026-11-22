@@ -27,6 +27,7 @@
 
 #include "frame_alloc_sites.hpp"
 #include "tessera/app/host.hpp"
+#include "tessera/detail/aligned_alloc.hpp"
 #include "tessera/runtime/clock.hpp"
 #include "tessera/runtime/runtime_loop.hpp"
 #include "tessera/ui/paint/paint_sink.hpp"
@@ -72,6 +73,19 @@ void* operator new(std::size_t size) {
         return p;
     }
     throw std::bad_alloc();
+}
+
+void* operator new(std::size_t size, std::align_val_t alignment) {
+    count(size);
+    return tessera::detail::aligned_allocate(size, alignment);
+}
+
+void operator delete(void* pointer, std::align_val_t) noexcept {
+    tessera::detail::aligned_release(pointer);
+}
+
+void operator delete(void* pointer, std::size_t, std::align_val_t) noexcept {
+    tessera::detail::aligned_release(pointer);
 }
 void* operator new[](std::size_t size) {
     return ::operator new(size);

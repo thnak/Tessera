@@ -12,6 +12,7 @@
 
 #include "fake_hal.hpp"
 #include "tessera/hal/cutout.hpp"
+#include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/style/cursor_value.hpp"
 
 #include <cstddef>

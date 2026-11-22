@@ -7,6 +7,7 @@
 #include "tessera/ui/layout/apply_layout.hpp"
 #include "tessera/ui/layout/layout_engine.hpp"
 #include "tessera/ui/layout/layout_read_model.hpp"
+#include "tessera/ui/scene/node.hpp"
 
 #include <cmath>
 #include <initializer_list>

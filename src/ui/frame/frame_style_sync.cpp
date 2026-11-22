@@ -16,6 +16,7 @@
 #include "tessera/ui/animation/property_dirty.hpp"
 #include "tessera/ui/frame_pipeline.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
+#include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/style/interaction_style.hpp"
 
 #include <algorithm>

@@ -3,7 +3,7 @@
 #pragma once
 
 #include "tessera/ui/paint/paint_pass.hpp"
-#include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/scene/node_fwd.hpp"
 #include "tessera/ui/style/sync_memo.hpp"
 
 #include <cstddef>

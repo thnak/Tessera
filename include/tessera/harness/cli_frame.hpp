@@ -5,7 +5,7 @@
 #include "tessera/harness/artifact_sink.hpp"
 #include "tessera/harness/image_compare.hpp"
 #include "tessera/harness/json_value.hpp"
-#include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/scene/node_fwd.hpp"
 
 #include <cstdint>
 #include <ostream>

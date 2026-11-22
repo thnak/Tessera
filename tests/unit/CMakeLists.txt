@@ -254,6 +254,33 @@ target_link_libraries(scene_graph_tests PRIVATE tessera_scene)
 
 add_test(NAME scene_graph COMMAND scene_graph_tests)
 
+# hit_test_deep maps the point one level at a time and prunes by the cached subtree paint box. A
+# differential test against the unpruned algorithm over random trees, plus the cases pruning could
+# get wrong (children outside the parent, shadows, unbounded text, transforms, a stale cache).
+add_executable(scene_hit_test_prune_tests
+    scene_hit_test_prune_tests.cpp)
+
+target_link_libraries(scene_hit_test_prune_tests PRIVATE tessera_scene)
+
+add_test(NAME scene_hit_test_prune COMMAND scene_hit_test_prune_tests)
+
+# Node::clear_subtree_dirty (DirtyPass::clear) must leave every node as the per-node clear_dirty walk
+# it replaced did, on the cleared subtree and on its ancestors.
+add_executable(scene_dirty_clear_tests
+    scene_dirty_clear_tests.cpp)
+
+target_link_libraries(scene_dirty_clear_tests PRIVATE tessera_scene)
+
+add_test(NAME scene_dirty_clear COMMAND scene_dirty_clear_tests)
+
+# The small value types Node is composed of: each owns its values and reports "changed".
+add_executable(node_parts_tests
+    node_parts_tests.cpp)
+
+target_link_libraries(node_parts_tests PRIVATE tessera_scene)
+
+add_test(NAME node_parts COMMAND node_parts_tests)
+
 # The sample framework-linking executable of the release gates (ADR-012, issue #219): it replaces
 # the deleted `merger_tests` as the target `check_static_runtime.py`, `check_reproducible.py` and
 # `release_rehearsal.py` build and inspect. Registered as a test too, so a broken probe fails the

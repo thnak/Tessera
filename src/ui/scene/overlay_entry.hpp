@@ -6,6 +6,7 @@
 // OverlayHost (lifecycle, dismissal, placement). Not installed.
 
 #include "tessera/ui/overlay/overlay.hpp"
+#include "tessera/ui/scene/node.hpp"
 
 #include <array>
 #include <cstddef>

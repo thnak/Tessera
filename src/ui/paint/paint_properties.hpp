@@ -4,7 +4,7 @@
 
 #include "tessera/rendering/rhi/types.hpp"
 #include "tessera/ui/paint/paint_sink.hpp"
-#include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/scene/node_fwd.hpp"
 #include "tessera/ui/style/backdrop_filter.hpp"
 #include "tessera/ui/style/cascade.hpp"
 

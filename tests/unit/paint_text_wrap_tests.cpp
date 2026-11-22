@@ -7,6 +7,7 @@
 #include "tessera/runtime/runtime_loop.hpp"
 #include "tessera/ui/frame_pipeline.hpp"
 #include "tessera/ui/paint/paint_pass.hpp"
+#include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/text/font_metrics.hpp"
 #include "tessera/ui/text/text_layout.hpp"
 #include "tessera/ui/text/text_measure.hpp"
@@ -458,7 +459,6 @@ void benchmark_200_words() {
     tessera::ui::text::TextConstraints constraints;
     constraints.wrap = true;
     constraints.max_width = 300.0f;
-
     constexpr int kIterations = 200;
     std::size_t lines = 0;
     const auto started = std::chrono::steady_clock::now();

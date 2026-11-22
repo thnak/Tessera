@@ -10,6 +10,7 @@
 #include "paint_text_flex.hpp"
 #include "paint_text_rules.hpp"
 #include "paint_text_runs.hpp"
+#include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/text/font_metrics.hpp"
 #include "tessera/ui/text/text_layout.hpp"
 #include "tessera/ui/text/text_measure.hpp"

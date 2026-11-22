@@ -2,6 +2,7 @@
 
 #include "tessera/ui/key_code.hpp"
 #include "tessera/ui/scene/click_synthesis.hpp"
+#include "tessera/ui/scene/node.hpp"
 
 #include <cmath>
 

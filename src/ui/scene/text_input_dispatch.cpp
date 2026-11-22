@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 
+#include "tessera/ui/scene/node.hpp"
 #include "text_input_dispatch.hpp"
 
 #include <algorithm>

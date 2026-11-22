@@ -7,6 +7,7 @@
 
 #include "tessera/diagnostics/log.hpp"
 #include "tessera/ui/layout/layout_observer_settle.hpp"
+#include "tessera/ui/scene/node.hpp"
 
 #include <cstdint>
 #include <iostream>

@@ -16,6 +16,7 @@
 //   5. the vocabulary cost is reported: which tokens the components read, and which the theme
 //      defines that nothing reads.
 
+#include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/style/color.hpp"
 #include "tessera/ui/style/compiled_stylesheet.hpp"
 #include "tessera/ui/style/contrast.hpp"
