@@ -546,10 +546,9 @@ combined with `asan`. Runtime options come from the caller, not the binary. Loca
 UBSAN_OPTIONS=print_stacktrace=1 ctest --preset asan --output-on-failure` (`tsan` with
 `TSAN_OPTIONS=halt_on_error=1`). Both run nightly and on demand in `.github/workflows/sanitizers.yml`
 (advisory: a failure opens one tracking issue, never blocks a merge). Third-party suppressions live
-in `tests/sanitizers/{asan,lsan,tsan}.supp`, one comment line per entry with its reason, and Tessera's
-own code is never suppressed. ASan and LSan read separate files because `leak:` is an LSan-only
-suppression type that ASan's parser rejects. Vulkan validation layers are mandatory in debug
-builds (CI may disable them only if lavapipe cannot provide the layer); clang-tidy/format are gates.
+in `tests/sanitizers/{asan,lsan,tsan}.supp`, one comment line per entry with its reason; Tessera's
+own code is never suppressed, and ASan/LSan read separate files because `leak:` is LSan-only. Vulkan
+validation layers are mandatory in debug builds; clang-tidy/format are gates.
 
 ## 7. Benchmarks
 
