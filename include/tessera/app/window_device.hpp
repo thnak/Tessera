@@ -267,8 +267,8 @@ public:
     // One iteration of the group loop: pump every window, then park for `next_wait_seconds()`.
     //
     // `max_frames > 0` bounds the run by presented frames (the CI path). With `max_frames == 0` it
-    // runs until `request_stop()` or until the last window closes - which is what a tray app wants:
-    // it starts with no window, parks, and paints once activation registers one.
+    // runs until `request_stop()`, which is what a tray app wants: it starts with no window, parks,
+    // and paints once activation registers one.
     //
     // A bounded run on a group with no window returns immediately with `presented == 0` rather than
     // parking forever: a caller that asked for frames learns there is nothing to paint.
@@ -276,16 +276,17 @@ public:
         std::size_t iterations = 0;
         std::size_t presented = 0;
         std::size_t idle_waits = 0;
-        // True when `request_stop()` ended the run (as opposed to the frame budget or the last
-        // window closing).
+        // True when `request_stop()` ended the run (as opposed to the frame budget).
         bool stopped = false;
     };
     RunStats run_windows(std::uint32_t max_frames = 0);
 
     // Ends a `run_windows()` call at its next iteration boundary. Safe to call from a lifecycle
     // sink, a timer callback or a tray activation, which is the only way a window-less run can end:
-    // there is no window whose close would stop it. Cleared when `run_windows()` is entered, so a
-    // second run is not stopped by the first one's request.
+    // there is no window whose close would stop it.
+    //
+    // The request is *consumed* by the run that observes it, so a second run is not stopped by the
+    // first one's request - the same re-entrancy rule `run()` follows.
     void request_stop() noexcept {
         stop_requested_ = true;
     }
@@ -323,7 +324,7 @@ private:
     // renderer's frame ring uses, so a registration can never exceed what the ring can serve.
     std::unique_ptr<WindowHost*[]> windows_ = std::make_unique<WindowHost*[]>(kMaxWindowsPerDevice);
     std::size_t window_list_size_ = 0;
-    // Set by `request_stop()` and cleared when `run_windows()` is entered (issue #181).
+    // Set by `request_stop()` and consumed by the run that observes it (issue #181).
     bool stop_requested_ = false;
 };
 
