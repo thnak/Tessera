@@ -915,6 +915,21 @@ target_link_libraries(android_metrics_tests PRIVATE tessera_hal_metrics)
 
 add_test(NAME android_metrics COMMAND android_metrics_tests)
 
+# Java-MotionEvent translation (issue #189): the shell is a Java activity, so touch arrives as a
+# MotionEvent rather than an AInputEvent. The mapping is pure over plain numbers, so it runs on
+# every lane with no NDK, no JNI and no device.
+add_executable(android_motion_tests
+    hal/android_motion_tests.cpp
+    ${PROJECT_SOURCE_DIR}/src/platform/android/android_motion_translation.cpp
+    ${PROJECT_SOURCE_DIR}/src/platform/android/android_input_translation.cpp)
+
+target_include_directories(android_motion_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}/src/platform/android)
+
+target_link_libraries(android_motion_tests PRIVATE tessera_input)
+
+add_test(NAME android_motion COMMAND android_motion_tests)
+
 add_executable(diagnostics_crash_tests
     diagnostics_crash_tests.cpp)
 

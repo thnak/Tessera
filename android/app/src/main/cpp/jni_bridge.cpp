@@ -13,6 +13,8 @@
 // The engine never sees a `jobject`, and this file never interprets a scene: it is a thin,
 // value-only bridge, which is what docs/design/bridges.md section 3 asks for.
 
+#include "android_input_translation.hpp"
+#include "android_motion_translation.hpp"
 #include "scene.hpp"
 #include "tessera/app/window.hpp"
 #include "tessera/hal/window.hpp"
@@ -42,6 +44,9 @@ struct Shell {
     tessera::hal::Window* window = nullptr;
     ANativeWindow* native_window = nullptr;
     float dpi_scale = 1.0f;
+    // The gesture state the Java motion translation needs: the pointer id is fixed at DOWN because
+    // Android renumbers indices as fingers lift.
+    tessera::hal::android::MotionGesture gesture;
     // The frame loop runs on its own thread. `WindowHost` is single-threaded and must be created,
     // run and destroyed on the thread that owns the window, so the render thread owns the host and
     // the Java thread only signals it.
@@ -160,6 +165,84 @@ void stop_host(Shell& shell) {
     log_info("window host stopped");
 }
 
+// Reads the scalar fields of one Java `MotionEvent` into the pure `MotionSample` the mapping rules
+// take. This is the only place that touches a Java object's getters: the mapping itself is pure and
+// unit-tested on every lane (`android_motion_translation.cpp`).
+//
+// Every getter is looked up once per call. That is more lookups than caching them in a struct, but
+// a touch stream is tens of events per second, not thousands, and caching would need a lifetime for
+// the cached IDs that this bridge does not have.
+bool read_motion_event(JNIEnv* env, jobject event, tessera::hal::android::MotionSample& out) {
+    if (event == nullptr) {
+        return false;
+    }
+    jclass cls = env->GetObjectClass(event);
+    if (cls == nullptr) {
+        return false;
+    }
+
+    // getAction() packs the pointer index into the high byte, which is exactly the shape the pure
+    // rules expect, so no repacking happens here.
+    auto call_int = [&](const char* name) -> std::int32_t {
+        jmethodID method = env->GetMethodID(cls, name, "()I");
+        if (method == nullptr) {
+            return 0;
+        }
+        return env->CallIntMethod(event, method);
+    };
+    auto call_int_index = [&](const char* name, jint index) -> std::int32_t {
+        jmethodID method = env->GetMethodID(cls, name, "(I)I");
+        if (method == nullptr) {
+            return 0;
+        }
+        return env->CallIntMethod(event, method, index);
+    };
+    auto call_float_index = [&](const char* name, jint index) -> jfloat {
+        jmethodID method = env->GetMethodID(cls, name, "(I)F");
+        if (method == nullptr) {
+            return 0.0F;
+        }
+        return env->CallFloatMethod(event, method, index);
+    };
+
+    out.action = call_int("getAction");
+
+    // The pointer the action names: the high byte for a pointer action, index 0 otherwise. The pure
+    // rules compute the same index, but the getters need it now, so it is derived here too.
+    const std::int32_t action_bits = out.action & tessera::hal::android::kActionMask;
+    const bool names_pointer = action_bits == tessera::hal::android::kActionPointerDown ||
+                               action_bits == tessera::hal::android::kActionPointerUp;
+    const jint index =
+        names_pointer ? (out.action >> tessera::hal::android::kActionPointerIndexShift) : 0;
+
+    out.device_id = call_int("getDeviceId");
+    out.source = call_int("getSource");
+    out.pointer_id = call_int_index("getPointerId", index);
+    out.tool_type = call_int_index("getToolType", index);
+    out.x = static_cast<float>(call_float_index("getX", index));
+    out.y = static_cast<float>(call_float_index("getY", index));
+    out.pressure = static_cast<float>(call_float_index("getPressure", index));
+
+    jmethodID get_event_time = env->GetMethodID(cls, "getEventTime", "()J");
+    if (get_event_time != nullptr) {
+        out.event_time_nanos = env->CallLongMethod(event, get_event_time);
+    }
+
+    // The two scroll axes only exist on an ACTION_SCROLL, and asking for an axis on any other event
+    // is wasted work, so they are read only then.
+    if (action_bits == tessera::hal::android::kActionScroll) {
+        jmethodID get_axis = env->GetMethodID(cls, "getAxisValue", "(I)F");
+        if (get_axis != nullptr) {
+            // MotionEvent.AXIS_VSCROLL = 9, AXIS_HSCROLL = 10.
+            out.vscroll = static_cast<float>(env->CallFloatMethod(event, get_axis, 9));
+            out.hscroll = static_cast<float>(env->CallFloatMethod(event, get_axis, 10));
+        }
+    }
+
+    env->DeleteLocalRef(cls);
+    return true;
+}
+
 } // namespace
 
 extern "C" {
@@ -275,18 +358,30 @@ JNIEXPORT void JNICALL Java_dev_tessera_app_TesseraView_nativeSetCutouts(JNIEnv*
     shell->window->set_physical_cutouts(converted);
 }
 
-JNIEXPORT jboolean JNICALL Java_dev_tessera_app_TesseraView_nativeOnTouch(JNIEnv*, jclass,
+JNIEXPORT jboolean JNICALL Java_dev_tessera_app_TesseraView_nativeOnTouch(JNIEnv* env, jclass,
                                                                           jlong handle,
                                                                           jobject event) {
     Shell* shell = shell_from(handle);
     if (shell == nullptr || shell->window == nullptr) {
         return JNI_FALSE;
     }
-    // A Java MotionEvent is not an AInputEvent: the NDK's AInputEvent comes from the input queue,
-    // not from a Java object. Translating a Java event needs its own reader, which is the next
-    // slice; today the native input path is the AInputQueue one.
-    (void)event;
-    return JNI_FALSE;
+    // The shell is a Java activity, so touch arrives as a MotionEvent rather than as the NDK's
+    // AInputEvent. The bridge reads the getters; the mapping is the pure, unit-tested translation
+    // in android_motion_translation.cpp.
+    tessera::hal::android::MotionSample sample;
+    if (!read_motion_event(env, event, sample)) {
+        return JNI_FALSE;
+    }
+    const tessera::hal::android::MotionTranslation out =
+        tessera::hal::android::translate_motion_sample(sample, shell->dpi_scale, shell->gesture);
+    if (!out.translated) {
+        // Returning false lets the platform fall back on an event the engine cannot use, instead of
+        // swallowing it.
+        return JNI_FALSE;
+    }
+    // Returns true only when the event actually reached the queue, so the platform keeps sending
+    // the rest of the gesture.
+    return shell->window->post_input_event(out.event) ? JNI_TRUE : JNI_FALSE;
 }
 
 } // extern "C"

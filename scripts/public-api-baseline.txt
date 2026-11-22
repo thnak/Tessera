@@ -765,6 +765,7 @@ struct include/tessera/hal/window.hpp tessera::hal::CutoutInfo
 struct include/tessera/hal/window.hpp tessera::hal::FoldInfo
 struct include/tessera/hal/window.hpp tessera::hal::WindowEvent
 struct include/tessera/hal/window.hpp tessera::hal::WindowMetrics
+struct include/tessera/hal/window.hpp tessera::ui::InputEvent
 enum include/tessera/hal/window.hpp tessera::hal::FoldOcclusion
 enum include/tessera/hal/window.hpp tessera::hal::FoldOrientation
 enum include/tessera/hal/window.hpp tessera::hal::FoldState
