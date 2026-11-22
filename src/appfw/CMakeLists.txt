@@ -43,7 +43,13 @@ add_library(tessera_appfw_storage STATIC
     storage.cpp
     storage_atomic.cpp
     storage_envelope.cpp
-    storage_settings.cpp)
+    storage_settings.cpp
+    # The in-tree `hal::FileSystem` double (issue #454). It lives in the module for the same reason
+    # `net_fake.cpp` lives in `tessera_appfw_net`: it fakes the module's *seam*, so an app's own test
+    # and the storage contract suite use one definition of "what the file system did" instead of one
+    # per test file. It is a plain class with no test-only dependency, so building it here costs a
+    # shipping app nothing it does not already link.
+    filesystem_fake.cpp)
 
 target_include_directories(tessera_appfw_storage PUBLIC
     ${PROJECT_SOURCE_DIR}/include)

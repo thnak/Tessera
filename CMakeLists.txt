@@ -217,6 +217,10 @@ add_subdirectory(src/app)
 # ADR-050 opt-in app framework (AF1, issue #173): the service layer sits beside `src/app` and is not
 # part of it, so an app that does not adopt the framework links none of it.
 add_subdirectory(src/appfw)
+# App-level test support (issue #454): the deterministic stack an app's own test drives - the manual
+# clock and queues, the service fakes, the synthetic OS events and the `tap`/`type_text`/`advance`
+# verbs. No shipping target links it; it is a static library so that separation is a build-graph fact.
+add_subdirectory(src/testing)
 add_subdirectory(src/harness)
 add_subdirectory(src/schema)
 add_subdirectory(src/compiler/analyzer)
