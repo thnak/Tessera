@@ -115,6 +115,8 @@ Only `include/tessera/` is public. Current headers:
 | `hal/window.hpp` | `Window`, `WindowDesc`, `WindowMetrics`, normalized events, `create_window` (B3) |
 | `hal/window.hpp` | window metrics/events + abstract `Window` interface, no OS handles (B3 seam) |
 | `ui/scene/node.hpp` | retained scene node, hit testing, dispatch, dirty flags |
+| `ui/scene/node_scroll.hpp` | `NodeScroll`: scrollable axes, content size, insets, clamped offset |
+| `ui/scene/node_metadata.hpp` | `NodeMetadata`: element metadata, aria pairs, inline style, bindings, paint payload |
 | `ui/scene/dirty_pass.hpp` | pruned dirty collect/clear over a scene subtree |
 | `ui/scene/event.hpp` | pointer/keyboard/focus event types, phases, key payload |
 | `ui/scene/focus.hpp` | focus target, focus transitions, depth-first Tab traversal |

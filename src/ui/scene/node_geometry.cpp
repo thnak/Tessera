@@ -8,7 +8,6 @@
 // `hit_test_deep` stays in this TU rather than becoming a virtual or a free function: it is the
 // mouse-move hot path, and the audit records that the call it already pays must not grow.
 
-#include "node_internal.hpp"
 #include "tessera/ui/scene/node.hpp"
 #include "tessera/ui/scene/z_order.hpp"
 
@@ -158,9 +157,9 @@ rhi::Rect Node::subtree_paint_bounds() const {
         // A child's local space is positioned at its box origin and then transformed around it; the
         // parent's scroll offset shifts the whole content. This is the same composition
         // world_transform() performs, one level down.
-        const rhi::Mat3 to_parent =
-            rhi::Mat3::translation(child->bounds().x - scroll_x_, child->bounds().y - scroll_y_) *
-            child->transform_;
+        const rhi::Mat3 to_parent = rhi::Mat3::translation(child->bounds().x - scroll_.scroll_x(),
+                                                           child->bounds().y - scroll_.scroll_y()) *
+                                    child->transform_;
         box = union_rect(box, mapped_aabb(to_parent, child_box));
     }
 
@@ -184,10 +183,11 @@ void Node::set_bounds(const rhi::Rect& bounds) {
     }
     bounds_ = bounds;
     mark_dirty(Dirty::Paint | Dirty::Render);
-    // Insets are stored relative to the box; a smaller box can make them exceed it.
-    clamp_scrollport_insets();
-    // A viewport change can lower the maximum offset; never leave the stored offset out of range.
-    set_scroll_offset(scroll_x_, scroll_y_);
+    // Insets are stored relative to the box; a smaller box can make them exceed it, and the new
+    // viewport can lower the maximum offset. Re-clamping the offset raises its own damage when it
+    // moves.
+    scroll_.reclamp_insets(bounds_.width, bounds_.height);
+    set_scroll_offset(scroll_.scroll_x(), scroll_.scroll_y());
 }
 
 void Node::set_span_bounds(const rhi::Rect& bounds) {
@@ -256,13 +256,14 @@ rhi::Mat3 Node::world_transform() const {
         // Children of a scroll container live in content space: the parent's scroll shifts them
         // by -scroll without changing this node's own bounds or transform.
         return parent_->world_transform() *
-               rhi::Mat3::translation(-parent_->scroll_x_, -parent_->scroll_y_) * local;
+               rhi::Mat3::translation(-parent_->scroll_.scroll_x(), -parent_->scroll_.scroll_y()) *
+               local;
     }
     return local;
 }
 
 rhi::Mat3 Node::content_transform() const {
-    return world_transform() * rhi::Mat3::translation(-scroll_x_, -scroll_y_);
+    return world_transform() * rhi::Mat3::translation(-scroll_.scroll_x(), -scroll_.scroll_y());
 }
 
 rhi::Rect Node::world_bounds() const {
@@ -323,10 +324,10 @@ Node* Node::hit_test_deep(float x, float y) {
         float local_x = 0;
         float local_y = 0;
         inverse.transform_point(x, y, local_x, local_y);
-        const float min_x = std::min(scrollport_left_, bounds_.width);
-        const float min_y = std::min(scrollport_top_, bounds_.height);
-        const float max_x = std::max(min_x, bounds_.width - scrollport_right_);
-        const float max_y = std::max(min_y, bounds_.height - scrollport_bottom_);
+        const float min_x = std::min(scroll_.scrollport_left(), bounds_.width);
+        const float min_y = std::min(scroll_.scrollport_top(), bounds_.height);
+        const float max_x = std::max(min_x, bounds_.width - scroll_.scrollport_right());
+        const float max_y = std::max(min_y, bounds_.height - scroll_.scrollport_bottom());
         if (local_x < min_x || local_y < min_y || local_x > max_x || local_y > max_y) {
             // Children are clipped at the scrollport, but the container itself is still hit within
             // its own box (its border/padding area paints there).
