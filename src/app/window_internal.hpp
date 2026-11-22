@@ -8,6 +8,7 @@
 
 #include "tessera/hal/window.hpp"
 #include "tessera/rendering/gpu/batched2d_renderer.hpp"
+#include "tessera/rendering/null/null_device.hpp"
 #include "tessera/rendering/rhi/device.hpp"
 #include "tessera/rendering/rhi/types.hpp"
 #include "tessera/rendering/vulkan/batched2d_pipeline.hpp"
@@ -117,19 +118,31 @@ layout_measurer(const std::shared_ptr<const ui::text::TextMeasurer>& requested,
     return requested != nullptr ? requested : text.measurer;
 }
 
-// Vulkan device, or null when the machine has no usable device (tests/tools then skip).
+// The RHI device, or null when the machine has no usable device (tests/tools then skip).
 // `validation` turns the Khronos validation layer (plus synchronization validation) on for this
 // device; a GPU test reads the backend's validation_message_count() to assert a run was clean.
 // `surface` is the presentation family the device will be asked to build surfaces for; `Auto` keeps
 // the environment-based resolution for callers that have no window.
+//
+// `backend` selects the RHI implementation (issue #228). `Vulkan` is production. `Null` is the
+// deterministic backend the multi-window acceptance runs on: it records commands instead of
+// presenting, so it needs no surface and works on a headless lane, while the platform window, the
+// input path and the metrics path are still real. The pipeline factories below are Vulkan-specific,
+// so a null-backend group reports `available()` and then fails `ensure_presentation` with a
+// diagnostic rather than pretending to present; the multi-window test therefore exercises the
+// *device sharing* half on the null backend and the *presentation* half on a real one.
 inline std::unique_ptr<rhi::Device>
-create_device(bool validation = false, rhi::SurfacePlatform surface = rhi::SurfacePlatform::Auto) {
+create_device(bool validation = false, rhi::SurfacePlatform surface = rhi::SurfacePlatform::Auto,
+              rhi::Backend backend = rhi::Backend::Vulkan) {
     rhi::DeviceDesc desc;
-    desc.backend = rhi::Backend::Vulkan;
+    desc.backend = backend;
     desc.validation = validation;
     desc.device_index = -1;
     desc.surface = surface;
     try {
+        if (backend == rhi::Backend::Null) {
+            return tessera::rendering::null::create_null_device(desc);
+        }
         return tessera::rendering::vulkan::create_vulkan_device(desc);
     } catch (const std::exception&) {
         return nullptr;

@@ -950,7 +950,25 @@ ADR-050 is Accepted (roadmap AF1-AF8); start with AF1.
       (`src/appfw/storage_atomic.cpp`), the `IoTaskExecutor` seam in layer 0, and a fake
       `FileSystem` that fails at one named step so atomicity is proved rather than hoped for.
 - [ ] #180, #181: Multi-window, then tray apps, each its own slice.
-- [ ] #228: One `Application` loop and one `rhi::Device` for several windows (before AF6).
+- [x] #228: One `Application` loop and one `rhi::Device` for several windows (before AF6). The
+      shared owner is `app::WindowDevice` (`include/tessera/app/window_device.hpp`,
+      `src/app/window_device.cpp`): one `rhi::Device`, one `Batched2DRenderer`, one `TextStack`
+      (face, rasterizer, shaper, glyph atlas), one pipeline set, one `RuntimeLoop` and one
+      `FramePacer`, with each `WindowHost` owning only its surface, swapchain, `AppHost`, input pump
+      and accessibility host. The rule that decides every row is "created against the device or the
+      swapchain format -> shared; created against a surface or a scene -> per window". The one number
+      the refactor changes is the renderer's frame ring: `frames_in_flight * window_count`, because
+      one tick can call `begin()` once per window. Device loss is serviced once by the group and fans
+      out to every window, and a window whose swapchain cannot be rebuilt reports `stalled` without
+      taking its siblings down. The single-window `WindowHost` constructor builds a private
+      one-window group, so every existing caller and test is unchanged. Evidence:
+      `tests/gpu/app_window_multi_tests.cpp` (ctest `app_window_multi`: one device for both windows,
+      closing one leaves the other presenting, a resize of one does not relayout the other, a second
+      window does not reset the group's pacing), `docs/design/multi-window.md`, and the five specs
+      the issue named reconciled (`custom-elements-v1` Q9, `runtime-config-v1` Q5,
+      `resource-lifecycle-v1` Q7, `overlays-and-layers-v1`, `startup-api-v1` section 10).
+      **Still open:** the `Application`-level window registry (that is #180's slice), per-window
+      pacing on a different-refresh monitor, and window groups with independent devices.
 - [x] #450: Platform shell implementation behind `ShellService`: the module (`tessera_appfw_shell`)
       owns the policy - capability negotiation with `Unsupported`/`Denied` kept distinct, the
       clipboard bound, the secure-field rule, one operation at a time, capability handles validated

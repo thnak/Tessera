@@ -184,8 +184,8 @@ void WindowHost::Impl::apply_refresh_rate() {
     options.refresh_hz = next;
     // The pacer owns the deadline; its rate-change path resyncs to one interval after now, so the
     // new refresh takes effect at the next frame boundary with no burst and no swapchain recreate.
-    pacer.update(runtime::FramePacerConfig{applied_present_cap_hz, options.refresh_hz, false},
-                 hal::steady_now_seconds());
+    pacer->update(runtime::FramePacerConfig{applied_present_cap_hz, options.refresh_hz, false},
+                  hal::steady_now_seconds());
     ++stats.refresh_rate_changes;
     // Media queries and rem units derive from the display caps, so the style environment changed.
     loop->mark_render_dirty();
@@ -237,11 +237,11 @@ void WindowHost::Impl::apply_present_cap(double now_seconds) {
     const double decided = host->adaptive_quality().present_cap_hz;
     if (decided != applied_present_cap_hz) {
         applied_present_cap_hz = decided;
-        pacer.update(runtime::FramePacerConfig{decided, options.refresh_hz, false}, now_seconds);
+        pacer->update(runtime::FramePacerConfig{decided, options.refresh_hz, false}, now_seconds);
         ++stats.present_cap_changes;
     }
     stats.present_cap_hz = decided;
-    stats.present_interval_seconds = pacer.interval_seconds();
+    stats.present_interval_seconds = pacer->interval_seconds();
 }
 
 void WindowHost::Impl::pump_input() {
@@ -400,7 +400,7 @@ bool WindowHost::Impl::pump_once() {
         return false;
     }
     const double now = hal::steady_now_seconds();
-    if (!pacer.ready(now).render_now) {
+    if (!pacer->ready(now).render_now) {
         // The present-rate cap is due later; the caller decides whether to wait for it.
         return false;
     }
@@ -430,7 +430,7 @@ bool WindowHost::Impl::pump_once() {
         }
         return false;
     }
-    pacer.present(hal::steady_now_seconds());
+    pacer->present(hal::steady_now_seconds());
     // Same one-frame adaptive-quality observation as run(): `now` is this frame's start (the
     // pacer check above returned without waiting); the source is the GPU interval when the RHI
     // probe reported it usable and a completed submission produced one, else this frame's CPU cost.

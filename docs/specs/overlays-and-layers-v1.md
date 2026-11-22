@@ -48,7 +48,10 @@ void close_overlay(OverlayHandle);
 void close_overlays(Predicate);
 ```
 
-- `OverlayHost` exists per window/root; a default root host is created if none is declared.
+- `OverlayHost` exists per window/root; a default root host is created if none is declared. The
+  *device* an overlay draws through is shared by every window in a `WindowDevice` group (issue #228,
+  [multi-window.md](../design/multi-window.md) section 2): a layer is per window, the renderer and
+  glyph atlas behind it are not.
 - `open_overlay` is a runtime service; the content is a component/subtree, not a portal.
 - The returned handle is stable for the overlay lifetime; callbacks are non-owning ids.
 - Opening/closing is serialized on the UI thread at a frame boundary.

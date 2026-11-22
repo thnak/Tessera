@@ -559,4 +559,9 @@ At minimum:
 - Default `maxFps` for battery-powered devices (possibly a platform profile).
 - VRR min/max refresh querying and content-rate hints.
 - Power-save policy when the window is occluded/minimized.
-- Multi-window refresh/VRR independence.
+- Multi-window refresh/VRR independence. **Decided** (issue #228,
+  [multi-window.md](../design/multi-window.md) section 5): the `FramePacer` is app-scoped, so one
+  app presents at one rate. The first window seeds the pacer from its own `maxFps`/`refreshHz` and a
+  later window adopts the group's existing rate instead of resetting it. A per-window cap is not a
+  V1 feature; the remaining question is whether a window on a *different-refresh* monitor should be
+  able to opt out of the app rate.

@@ -4,6 +4,7 @@
 
 #include "tessera/app/host.hpp"
 #include "tessera/app/lifecycle_sink.hpp"
+#include "tessera/app/window_device.hpp"
 #include "tessera/hal/window.hpp"
 #include "tessera/rendering/rhi/types.hpp"
 #include "tessera/runtime/config.hpp"
@@ -254,6 +255,14 @@ public:
     // size are host-owned; an app may set additional root inline styles before run().
     WindowHost(ui::Node& root, ui::style::CompiledStyleSheet sheet, WindowOptions options,
                ui::UpdateScheduler* scheduler = nullptr);
+    // The multi-window form (issue #228): present through a shared `WindowDevice`, so every window
+    // in the group shares one `rhi::Device`, one renderer, one glyph atlas, one pipeline set, one
+    // `RuntimeLoop` and one `FramePacer`. `group` is borrowed and must outlive this host; it serves
+    // at most `kMaxWindowsPerDevice` windows. The single-window constructor above builds a private
+    // one-window group, so a caller that does not name this overload keeps the pre-refactor
+    // behaviour exactly.
+    WindowHost(ui::Node& root, ui::style::CompiledStyleSheet sheet, WindowOptions options,
+               WindowDevice& group, ui::UpdateScheduler* scheduler = nullptr);
     ~WindowHost();
 
     WindowHost(const WindowHost&) = delete;

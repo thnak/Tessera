@@ -772,6 +772,19 @@ if (TARGET tessera_app_window)
     set_tests_properties(app_window_smoke PROPERTIES
         SKIP_REGULAR_EXPRESSION "skipped")
 
+    # Multi-window (issue #228, docs/design/multi-window.md): two windows present through one shared
+    # `WindowDevice`, closing one leaves the other running, and a resize of one does not relayout the
+    # other. It runs on whatever device the lane has; a lane with no presentation surface prints
+    # `skipped`, which the property below turns into a skip rather than a pass.
+    add_executable(app_window_multi_tests
+        app_window_multi_tests.cpp)
+    target_compile_definitions(app_window_multi_tests PRIVATE
+        TESSERA_TEST_FONT="${PROJECT_SOURCE_DIR}/tests/fixtures/fonts/NotoSans-Regular.ttf")
+    target_link_libraries(app_window_multi_tests PRIVATE tessera_app_window)
+    add_test(NAME app_window_multi COMMAND app_window_multi_tests)
+    set_tests_properties(app_window_multi PROPERTIES
+        SKIP_REGULAR_EXPRESSION "skipped")
+
     # Multi-frame sync: two frames in flight paced by one timeline semaphore on the swapchain path,
     # driven through the single-iteration seam, with the backend's validation counter proving the
     # run (including teardown) is validation-clean.

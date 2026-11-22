@@ -444,5 +444,9 @@ Rules:
 - Part-id stability and automation manifest for sub-targets.
 - Custom element state ownership vs JSX props/state; snapshot serialization format.
 - WebGPU parity for custom 3D shaders and capabilities.
-- Multi-window/multi-display rendering and shared resources.
+- Multi-window/multi-display rendering and shared resources. **Decided for the device half**
+  (issue #228, [multi-window.md](../design/multi-window.md)): one `rhi::Device`, one renderer, one
+  glyph atlas and one pipeline set are shared by every window in a `WindowDevice` group, and a
+  custom element draws through that shared device rather than creating one. What is still open is
+  the *display* half: whether a custom pass may target a specific monitor's swapchain.
 - GPU timing/audit metrics for custom passes.
