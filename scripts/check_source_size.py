@@ -27,6 +27,14 @@ Excluded from the limit, with the reason recorded in the script:
 * `third_party/` -- vendored, not ours to restyle,
 * `build*/`, `.git/` -- not source.
 
+**The file list comes from `git ls-files`, not from a directory walk** (issue #733 item 6). A walk
+sees every file on disk, including trees that are not part of the change under review: agent
+worktrees under `.claude/worktrees/`, which `.git/info/exclude` hides from git but not from
+`rglob`, made a local run report 63 errors for files that are not on `main` at all. A gate that
+fails for a reason unrelated to the change trains people to ignore it, so the gate now asks git
+what is tracked and falls back to the walk only outside a git checkout (a source tarball, where
+there are no worktrees to see).
+
 Output is deterministic and sorted: ``ERROR path`` / ``WARN path``. Exit codes:
 0 = no errors (warnings are fine), 1 = at least one error, 2 = usage error.
 
@@ -39,6 +47,8 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
@@ -79,8 +89,38 @@ def is_exempt(rel: str) -> Optional[str]:
     return None
 
 
+def tracked_files() -> Optional[List[str]]:
+    """Every path git tracks, or None outside a git checkout.
+
+    Asked first so a directory walk can never report a file that is not part of the repository:
+    `.claude/worktrees/` holds whole agent checkouts that `.git/info/exclude` hides from git but
+    not from `rglob` (issue #733 item 6).
+    """
+    if shutil.which("git") is None:
+        return None
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(REPO_ROOT), "ls-files", "-z"],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    return [name for name in completed.stdout.decode("utf-8", "replace").split("\0") if name]
+
+
 def source_files() -> List[str]:
-    found: List[str] = []
+    tracked = tracked_files()
+    if tracked is not None:
+        found = [
+            rel
+            for rel in tracked
+            if Path(rel).suffix in SOURCE_SUFFIXES and not is_exempt(rel)
+        ]
+        return sorted(found)
+    # No git (a source tarball): fall back to the walk.
+    found = []
     for path in REPO_ROOT.rglob("*"):
         if not path.is_file() or path.suffix not in SOURCE_SUFFIXES:
             continue

@@ -13,7 +13,9 @@
 #include "wasm_canvas_support.hpp"
 
 #include <cstdint>
+#include <exception>
 #include <memory>
+#include <string>
 
 namespace tessera::compiler::codegen::cli {
 namespace {
@@ -22,12 +24,12 @@ namespace rhi = tessera::rendering::rhi;
 
 } // namespace
 
-void clear_canvas(rhi::Device& device, const rhi::RenderTarget& target, rhi::Extent2D extent,
-                  rhi::TextureFormat format) {
+std::string clear_canvas(rhi::Device& device, const rhi::RenderTarget& target, rhi::Extent2D extent,
+                         rhi::TextureFormat format) {
     try {
         std::unique_ptr<rhi::CommandList> commands = device.create_command_list();
         if (commands == nullptr) {
-            return;
+            return "clear_canvas: no command list";
         }
         rhi::RenderTargetDesc desc;
         desc.extent = extent;
@@ -38,8 +40,14 @@ void clear_canvas(rhi::Device& device, const rhi::RenderTarget& target, rhi::Ext
         commands->begin_render_pass(target, desc);
         commands->end_render_pass();
         commands->submit_async();
+    } catch (const std::exception& failure) {
+        // Reported, not swallowed (issue #733 item 5): the caller's report already carries the
+        // frame's real error, so this is appended as a second line rather than replacing it.
+        return std::string("clear_canvas: ") + failure.what();
     } catch (...) {
+        return "clear_canvas: unknown exception";
     }
+    return {};
 }
 
 PreviewInput::Kind pointer_kind_from(std::string_view name, bool& known) {

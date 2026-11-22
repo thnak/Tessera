@@ -6,6 +6,7 @@
 #include "scene_session.hpp"
 #include "tessera/rendering/rhi/device.hpp"
 
+#include <string>
 #include <string_view>
 
 // The two pieces of the canvas module's ABI that are not the entry points themselves (issue #390).
@@ -19,12 +20,16 @@ namespace tessera::compiler::codegen::cli {
 
 // Fills `target` with the preview's clear colour and nothing else. A canvas texture is presented
 // every frame whether or not anything drew into it, and an undrawn one shows as black, so a failed
-// frame would otherwise replace the last picture with a black box that looks like a crash. Failure
-// is swallowed: the caller's report already carries the frame's real error.
-void clear_canvas(tessera::rendering::rhi::Device& device,
-                  const tessera::rendering::rhi::RenderTarget& target,
-                  tessera::rendering::rhi::Extent2D extent,
-                  tessera::rendering::rhi::TextureFormat format);
+// frame would otherwise replace the last picture with a black box that looks like a crash.
+//
+// Returns an empty string on success and a description of the failure otherwise. It does NOT throw
+// and does not swallow (issue #733 item 5): the caller is already reporting the frame's real error,
+// so it cannot *replace* that error, but a silent `catch (...)` hid a failed clear from every
+// reader. The caller appends this to its report instead of losing it.
+[[nodiscard]] std::string clear_canvas(tessera::rendering::rhi::Device& device,
+                                       const tessera::rendering::rhi::RenderTarget& target,
+                                       tessera::rendering::rhi::Extent2D extent,
+                                       tessera::rendering::rhi::TextureFormat format);
 
 // The normalized pointer kind `name` spells, or `false` in `known` when it spells none. An
 // unrecognized kind is reported rather than coerced to a move: a typo in the page would otherwise

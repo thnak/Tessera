@@ -50,7 +50,13 @@ SceneFrameResult paint_session(CanvasSceneSession& session, rhi::Extent2D extent
     }
     result = session.paint(device, *target, desc, {}, canvas_text_stack());
     if (!result.error.empty() && canvas_view != nullptr) {
-        clear_canvas(device, *target, extent, kCanvasFormat);
+        // The clear is best effort -- the frame already failed -- but its own failure is appended
+        // rather than dropped (issue #733 item 5), so a broken command list cannot masquerade as a
+        // successful fallback.
+        const std::string clear_error = clear_canvas(device, *target, extent, kCanvasFormat);
+        if (!clear_error.empty()) {
+            result.error += "; " + clear_error;
+        }
     }
     return result;
 }
