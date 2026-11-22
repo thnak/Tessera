@@ -460,6 +460,7 @@ function include/tessera/detail/json_error.hpp tessera::detail::json::to_string
 
 header include/tessera/detail/text_util.hpp
 function include/tessera/detail/text_util.hpp tessera::detail::ascii_lower
+function include/tessera/detail/text_util.hpp tessera::detail::is_css_whitespace
 function include/tessera/detail/text_util.hpp tessera::detail::lower
 function include/tessera/detail/text_util.hpp tessera::detail::normalized
 function include/tessera/detail/text_util.hpp tessera::detail::parse_number

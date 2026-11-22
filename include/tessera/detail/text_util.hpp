@@ -35,6 +35,13 @@ namespace tessera::detail {
 // `std::isspace`, which also accepts vertical tab and is locale-dependent.
 inline constexpr std::string_view kCssWhitespace = " \t\r\n\f";
 
+// True when `c` is one of `kCssWhitespace`. The predicate form of the set above, so a caller that
+// scans a value character by character does not have to spell the set out again (and cannot spell
+// it differently).
+[[nodiscard]] inline bool is_css_whitespace(char c) noexcept {
+    return kCssWhitespace.find(c) != std::string_view::npos;
+}
+
 // ASCII-only lower-casing. A byte outside 'A'..'Z' is copied unchanged, so a UTF-8 continuation
 // byte is never reinterpreted and the result is the same in every locale.
 [[nodiscard]] inline char ascii_lower(char c) noexcept {
