@@ -17,19 +17,10 @@
 namespace tessera::ui::style {
 
 using tessera::detail::lower;
-using tessera::detail::split_top_level;
 namespace {
 
 std::string trim(std::string_view value) {
     return std::string(tessera::detail::trim(value));
-}
-
-bool starts_with_word(std::string_view text, std::string_view word) {
-    if (text.size() < word.size() || text.substr(0, word.size()) != word) {
-        return false;
-    }
-    return text.size() == word.size() ||
-           std::isspace(static_cast<unsigned char>(text[word.size()])) != 0;
 }
 
 bool parse_number_value(std::string_view text, double& value, std::string_view& unit) {
@@ -336,27 +327,6 @@ bool evaluate_condition(const MediaCondition& condition, const MediaContext& con
 }
 
 } // namespace
-
-MediaQueryParseResult parse_media_query_list(std::string_view text) {
-    MediaQueryParseResult result;
-    for (const std::string_view part : split_top_level(text, ',')) {
-        const std::string query_text = trim(part);
-        if (query_text.empty()) {
-            continue;
-        }
-        MediaQuery query;
-        if (!parse_query(query_text, query)) {
-            result.ok = false;
-            result.error_offset = 0;
-            continue;
-        }
-        result.list.queries.push_back(std::move(query));
-    }
-    if (result.list.queries.empty()) {
-        result.ok = false;
-    }
-    return result;
-}
 
 bool evaluate(const MediaQuery& query, const MediaContext& context) {
     bool matched = query.type.empty() || query.type == "all" || query.type == "screen";
