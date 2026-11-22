@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 //
 // The pieces the `@media` parser and evaluator share (issue #691). The parser lives in
-// `media_query_parse.cpp` and the evaluator in `media_query.cpp`; both need the feature-name mapping
-// and the comparison operators, so those are declared here rather than duplicated.
+// `media_query_parse.cpp` and the evaluator in `media_query.cpp`; both need the feature-name
+// mapping and the comparison operators, so those are declared here rather than duplicated.
 
 #pragma once
 
@@ -12,9 +12,9 @@
 
 namespace tessera::ui::style {
 
-// Maps a feature name (with any `min-`/`max-` prefix already stripped) to its enum. False for a name
-// the engine does not implement, which keeps the documented behaviour: the query is false and a
-// diagnostic names it, rather than silently accepting.
+// Maps a feature name (with any `min-`/`max-` prefix already stripped) to its enum. False for a
+// name the engine does not implement, which keeps the documented behaviour: the query is false and
+// a diagnostic names it, rather than silently accepting.
 [[nodiscard]] bool feature_from_name(std::string_view name, MediaFeature& feature);
 
 // True for the features that take a `<length>` or a ratio and therefore support the range form.

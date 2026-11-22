@@ -3,11 +3,10 @@
 // The `@media` parser: conditions, the range syntax and the query list (issue #691). Split out of
 // `media_query.cpp`, which keeps the evaluator and is at its source-size budget.
 //
-// The parser and the evaluator share the feature-name mapping and the comparison operators, so those
-// live in `media_query_internal.hpp` rather than being duplicated.
+// The parser and the evaluator share the feature-name mapping and the comparison operators, so
+// those live in `media_query_internal.hpp` rather than being duplicated.
 
 #include "media_query_internal.hpp"
-
 #include "tessera/detail/text_util.hpp"
 #include "tessera/ui/style/media_query.hpp"
 
@@ -185,14 +184,12 @@ bool parse_range_condition(std::string_view content, MediaCondition& condition) 
         return false;
     }
     // `600px <= width <= 900px` is the ascending form; the descending form is not valid CSS.
-    const bool ascending = (lower_op == MediaComparison::Less ||
-                            lower_op == MediaComparison::LessEqual) &&
-                           (upper_op == MediaComparison::Less ||
-                            upper_op == MediaComparison::LessEqual);
-    const bool descending = (lower_op == MediaComparison::Greater ||
-                             lower_op == MediaComparison::GreaterEqual) &&
-                            (upper_op == MediaComparison::Greater ||
-                             upper_op == MediaComparison::GreaterEqual);
+    const bool ascending =
+        (lower_op == MediaComparison::Less || lower_op == MediaComparison::LessEqual) &&
+        (upper_op == MediaComparison::Less || upper_op == MediaComparison::LessEqual);
+    const bool descending =
+        (lower_op == MediaComparison::Greater || lower_op == MediaComparison::GreaterEqual) &&
+        (upper_op == MediaComparison::Greater || upper_op == MediaComparison::GreaterEqual);
     if (!ascending && !descending) {
         return false;
     }
