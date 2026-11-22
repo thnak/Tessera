@@ -212,8 +212,23 @@ public:
     [[nodiscard]] bool same_entries(const ComputedStyle& other) const noexcept {
         return properties_ == other.properties_;
     }
+    // Equality of the EFFECTIVE style. Two styles computed against the same defaults are equal
+    // exactly when their deltas are equal, so this compares the deltas - a handful of entries -
+    // instead of walking the ~100-entry merged view. That matters: `DiffingStyleProvider` calls
+    // this once per node per frame, and a merged walk there cost 45% of a size-change frame
+    // (issue #735). Styles with different (or absent) defaults fall back to the full comparison,
+    // because their effective styles can differ even with equal deltas.
     [[nodiscard]] bool equals(const ComputedStyle& other) const {
-        return same_entries(other) || properties() == other.properties();
+        if (same_entries(other)) {
+            return true;
+        }
+        const StyleDefaults* mine = properties_ != nullptr ? properties_->defaults.get() : nullptr;
+        const StyleDefaults* theirs =
+            other.properties_ != nullptr ? other.properties_->defaults.get() : nullptr;
+        if (mine == theirs) {
+            return entries() == other.entries();
+        }
+        return properties() == other.properties();
     }
     [[nodiscard]] std::shared_ptr<const void> identity() const {
         return properties_;
