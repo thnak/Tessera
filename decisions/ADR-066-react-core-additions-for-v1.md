@@ -344,6 +344,32 @@ files changed state: `expressions/string-methods.tsx`, `expressions/list-length.
 a prop (`rows: { id: string }[]`) is still `TESSERA_IR_UNSUPPORTED`: that is an anonymous record type,
 which the type table does not have, and it is what keeps `filter-map.tsx` and `slice-map.tsx` out.
 
+### Step 4 evidence, part 1 (recorded 2026-11-22, issue #654)
+
+The reducer form parses; the `useReducer` and `useContext` lowerings are still open, so the corpus
+does not move (38 of 50 at the front end, 24 through the pipeline, unchanged from step 3).
+
+**What the ADR got wrong, and what the landing corrected.**
+
+1. **A reducer is a module-scope helper, and helpers were skipped, not parsed.** The ADR describes
+   `reduce` as "a pure function over a record state and a closed action union" without saying where it
+   lives. It is a lowercase `function` at module scope, which the parser classified as a helper and
+   skipped wholesale (issue #660's fix for unrelated helpers). The body is now parsed when it declares
+   a `switch`, and skipped otherwise, so the two behaviours coexist.
+2. **A helper needed more than one parameter.** The component parameter parser accepted exactly one,
+   because a component takes one props object. A reducer takes `(state, action)`, so a helper now
+   accepts a list.
+3. **`switch` is a statement form, not an expression.** It is parsed by the same block-statement
+   dispatch as `if`/`const`, and each case is a `Block` whose first operand is its label, so the
+   lowering reads the label and the statements from one node.
+4. **`default` must be last, and `break` is meaningless.** A closed action union has no case to fall
+   to, so a `case` after `default` is unreachable and is rejected; every case of a reducer returns, so
+   `break` is accepted and ignored rather than being a form the lowering has to model.
+
+**Still open from item 4.** The `useReducer` lowering (one state cell plus one handler per action
+type, `dispatch({ type: "x" })` as a call of that handler, `TESSERA_REACT_REDUCER_FORM` for anything
+outside the limited form) and the static `useContext` provider tree.
+
 ## Follow-up
 - Update `jsx-subset-v1.md` sections 6, 7, 9, 10 and 12, `ir-v1.md` section 2.1 and `ir-v1-expr.md`
   section 4 in the implementing PRs (the subset spec is near its size limit: edit in place).

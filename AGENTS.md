@@ -648,8 +648,12 @@ Acceptance: a `useState`/`useEffect`/`useRef` screen regenerates without losing 
       evidence"), #653 list and string expressions **done** (`filter`/`slice` as the additive
       `listFilter`/`listSlice` kinds, `.length` as the existing `length(...)` call, the total string
       methods as calls with the receiver first, and `{ ...state, x }` as the additive `recordUpdate`
-      kind; corpus 34→38, 21→24; evidence in ADR-066 "Step 3 evidence"), then #654 limited
-      `useReducer` and static `useContext`.
+      kind; corpus 34→38, 21→24; evidence in ADR-066 "Step 3 evidence"), #654 limited
+      `useReducer` and static `useContext` **partly done**: the reducer form parses (`switch`/`case`/
+      `default` as a statement form, a two-parameter module-scope helper, and a helper whose body
+      declares a `switch` is parsed rather than skipped) but `useReducer` and `useContext` are still
+      rejected, so the corpus does not move. The remaining work is the `useReducer` lowering (one
+      state cell plus one handler per action type) and the static `useContext` provider tree.
 - [ ] Pending UI (ADR-067, waits for Acceptance): spec #655, front end and engine behaviors #656
       (preview support #657 belongs to V1-M4).
 
