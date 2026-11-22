@@ -1198,6 +1198,14 @@ constant include/tessera/rendering/gpu/clip_records.hpp tessera::rendering::gpu:
 constant include/tessera/rendering/gpu/clip_records.hpp tessera::rendering::gpu::clip::kMaxClipSets
 constant include/tessera/rendering/gpu/clip_records.hpp tessera::rendering::gpu::clip::kRecordFlagEvenOdd
 
+header include/tessera/rendering/gpu/clip_shapes.hpp
+struct include/tessera/rendering/gpu/clip_shapes.hpp tessera::rendering::gpu::clip::Ellipse
+function include/tessera/rendering/gpu/clip_shapes.hpp tessera::rendering::gpu::clip::covers_pixel
+function include/tessera/rendering/gpu/clip_shapes.hpp tessera::rendering::gpu::clip::enclosing_scissor
+function include/tessera/rendering/gpu/clip_shapes.hpp tessera::rendering::gpu::clip::inside_ellipse
+function include/tessera/rendering/gpu/clip_shapes.hpp tessera::rendering::gpu::clip::inside_rounded_rect
+function include/tessera/rendering/gpu/clip_shapes.hpp tessera::rendering::gpu::clip::make_ellipse
+
 header include/tessera/rendering/gpu/clip_state_table.hpp
 class include/tessera/rendering/gpu/clip_state_table.hpp tessera::rendering::gpu::ClipStateTable
 
@@ -1436,6 +1444,7 @@ constant include/tessera/rendering/rhi/version.hpp tessera::rendering::rhi::kRhi
 
 header include/tessera/rendering/software/cpu_canvas.hpp
 class include/tessera/rendering/software/cpu_canvas.hpp tessera::rendering::software::CpuCanvas
+struct include/tessera/rendering/software/cpu_canvas.hpp tessera::rendering::software::ShapedClip
 
 header include/tessera/rendering/vulkan/batched2d_pipeline.hpp
 function include/tessera/rendering/vulkan/batched2d_pipeline.hpp tessera::rendering::vulkan::batched2d_array_pipeline_desc
@@ -2360,6 +2369,12 @@ struct include/tessera/ui/paint/batched2d_sink.hpp tessera::ui::paint::ImagePain
 struct include/tessera/ui/paint/batched2d_sink.hpp tessera::ui::paint::ImagePaintStats
 struct include/tessera/ui/paint/batched2d_sink.hpp tessera::ui::paint::VectorPaintConfig
 struct include/tessera/ui/paint/batched2d_sink.hpp tessera::ui::paint::VectorPaintStats
+
+header include/tessera/ui/paint/clip_path.hpp
+struct include/tessera/ui/paint/clip_path.hpp tessera::ui::paint::detail::ClipPathParse
+struct include/tessera/ui/paint/clip_path.hpp tessera::ui::paint::detail::ClipShape
+function include/tessera/ui/paint/clip_path.hpp tessera::ui::paint::detail::parse_clip_path
+function include/tessera/ui/paint/clip_path.hpp tessera::ui::paint::detail::to_clip_record
 
 header include/tessera/ui/paint/clipped_paint_sink.hpp
 class include/tessera/ui/paint/clipped_paint_sink.hpp tessera::ui::paint::ClippedPaintSink

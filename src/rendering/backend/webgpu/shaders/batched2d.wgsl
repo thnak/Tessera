@@ -95,29 +95,53 @@ fn sd_round_box(p: vec2<f32>, b: vec2<f32>, r: f32) -> f32 {
     return min(max(q.x, q.y), 0.0) + length(max(q, vec2<f32>(0.0))) - r;
 }
 
+fn inside_ellipse_record(p: vec2<f32>, index: u32) -> bool {
+    let clip = clip_buffer.records[index];
+    let half_size = clip.rect.zw * 0.5;
+    if (half_size.x <= 0.0 || half_size.y <= 0.0) {
+        return false;
+    }
+    let d = (p - (clip.rect.xy + half_size)) / half_size;
+    return dot(d, d) <= 1.0;
+}
+
 fn inside_clip(p: vec2<f32>, index: u32) -> bool {
     let clip = clip_buffer.records[index];
+    // Kind 1 is `Ellipse` (ADR-068 slice 4); the rest is the rounded-rect test.
+    if (clip.kind == 1u) {
+        return inside_ellipse_record(p, index);
+    }
     let origin = clip.rect.xy;
     let size = clip.rect.zw;
     if (p.x < origin.x || p.y < origin.y || p.x > origin.x + size.x || p.y > origin.y + size.y) {
         return false;
     }
     let q = p - origin;
-    if (q.x < clip.radii_a.x && q.y < clip.radii_a.x) {
-        let d = vec2<f32>(q.x - clip.radii_a.x, q.y - clip.radii_a.x);
-        return dot(d, d) <= clip.radii_a.x * clip.radii_a.x;
+    // A zero vertical component means a circular corner: use the horizontal radius for both axes.
+    let vertical = vec4<f32>(
+        select(clip.radii_a.x, clip.radii_b.x, clip.radii_b.x > 0.0),
+        select(clip.radii_a.y, clip.radii_b.y, clip.radii_b.y > 0.0),
+        select(clip.radii_a.z, clip.radii_b.z, clip.radii_b.z > 0.0),
+        select(clip.radii_a.w, clip.radii_b.w, clip.radii_b.w > 0.0));
+    if (clip.radii_a.x > 0.0 && q.x < clip.radii_a.x && q.y < vertical.x) {
+        let d = vec2<f32>((q.x - clip.radii_a.x) / clip.radii_a.x,
+                          (q.y - vertical.x) / vertical.x);
+        return dot(d, d) <= 1.0;
     }
-    if (q.x > size.x - clip.radii_a.y && q.y < clip.radii_a.y) {
-        let d = vec2<f32>(q.x - (size.x - clip.radii_a.y), q.y - clip.radii_a.y);
-        return dot(d, d) <= clip.radii_a.y * clip.radii_a.y;
+    if (clip.radii_a.y > 0.0 && q.x > size.x - clip.radii_a.y && q.y < vertical.y) {
+        let d = vec2<f32>((q.x - (size.x - clip.radii_a.y)) / clip.radii_a.y,
+                          (q.y - vertical.y) / vertical.y);
+        return dot(d, d) <= 1.0;
     }
-    if (q.x > size.x - clip.radii_a.z && q.y > size.y - clip.radii_a.z) {
-        let d = vec2<f32>(q.x - (size.x - clip.radii_a.z), q.y - (size.y - clip.radii_a.z));
-        return dot(d, d) <= clip.radii_a.z * clip.radii_a.z;
+    if (clip.radii_a.z > 0.0 && q.x > size.x - clip.radii_a.z && q.y > size.y - vertical.z) {
+        let d = vec2<f32>((q.x - (size.x - clip.radii_a.z)) / clip.radii_a.z,
+                          (q.y - (size.y - vertical.z)) / vertical.z);
+        return dot(d, d) <= 1.0;
     }
-    if (q.x < clip.radii_a.w && q.y > size.y - clip.radii_a.w) {
-        let d = vec2<f32>(q.x - clip.radii_a.w, q.y - (size.y - clip.radii_a.w));
-        return dot(d, d) <= clip.radii_a.w * clip.radii_a.w;
+    if (clip.radii_a.w > 0.0 && q.x < clip.radii_a.w && q.y > size.y - vertical.w) {
+        let d = vec2<f32>((q.x - clip.radii_a.w) / clip.radii_a.w,
+                          (q.y - (size.y - vertical.w)) / vertical.w);
+        return dot(d, d) <= 1.0;
     }
     return true;
 }
@@ -136,6 +160,15 @@ fn clip_coverage(p: vec2<f32>, index: u32) -> f32 {
     // See batched2d.frag: the clip's own signed distance over +/- aa_radius pixels.
     let half_size = clip.rect.zw * 0.5;
     let q = p - (clip.rect.xy + half_size);
+    if (clip.kind == 1u) {
+        if (half_size.x <= 0.0 || half_size.y <= 0.0) {
+            return 0.0;
+        }
+        let d = q / half_size;
+        let scale = min(half_size.x, half_size.y);
+        let distance = (length(d) - 1.0) * scale;
+        return 1.0 - smoothstep(-pc.aa_radius, pc.aa_radius, distance);
+    }
     var r = select(select(clip.radii_a.w, clip.radii_a.x, q.y < 0.0),
                    select(clip.radii_a.z, clip.radii_a.y, q.y < 0.0), q.x >= 0.0);
     r = min(r, min(half_size.x, half_size.y));
