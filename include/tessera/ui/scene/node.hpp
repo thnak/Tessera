@@ -7,6 +7,7 @@
 #include "tessera/ui/scene/event_type.hpp"
 #include "tessera/ui/scene/node_metadata.hpp"
 #include "tessera/ui/scene/node_scroll.hpp"
+#include "tessera/ui/scene/node_types.hpp"
 #include "tessera/ui/style/cursor_value.hpp"
 #include "tessera/ui/style/pseudo_state.hpp"
 
@@ -37,44 +38,6 @@ namespace rhi = tessera::rendering::rhi;
 // `EventType`, which the binding table stores by value. This is what keeps `node.hpp` - included by
 // 80 translation units - from pulling the 41k-line `event.hpp`.
 struct Event;
-
-using NodeId = std::uint64_t;
-
-// Text-selection policy from `user-select` (stylesheet-v1 section 11, issue #247). `None` blocks
-// starting a selection at this node, `Text` allows it, and `Auto` keeps the default (static text is
-// selectable). The property is inherited, so each node stores its computed value and one explicit
-// `auto`/`text` anywhere in a `none` subtree re-enables selection there.
-enum class UserSelect : std::uint8_t {
-    Auto,
-    None,
-    Text,
-};
-
-// Scroll runtime style inputs (docs/specs/stylesheet-v1.md section 11 and
-// docs/specs/scroll-and-gestures-v1.md section 4). The values mirror the CSS keywords the registry
-// accepts; the scene stores the resolved enum so the scroll controller and paint never parse CSS.
-// `overscroll-effect` uses the names of docs/specs/animation-v1.md section 7 and has no `auto`
-// keyword: `Platform` is the initial request the HAL profile resolves.
-//
-// They stay beside `Node`'s other flags rather than moving to `NodeScroll`: the three values and
-// the two scrollable-axis bits pack into one byte, and that byte is what lets the ten scroll floats
-// fit inside `kNodeSizeBudget` (docs/architecture/god-type-audit-v1.md section 3.1).
-enum class ScrollBehavior : std::uint8_t {
-    Auto,
-    Smooth,
-};
-enum class OverscrollBehavior : std::uint8_t {
-    Auto,
-    Contain,
-    None,
-};
-enum class OverscrollEffect : std::uint8_t {
-    None,
-    Glow,
-    Stretch,
-    Bounce,
-    Platform,
-};
 
 class Node {
 public:
@@ -141,18 +104,8 @@ public:
         return z_index_;
     }
 
-    // How far this node paints beyond its border box (CSS box-shadow reach), in box-local px.
-    // Damage uses it so a node's old and new pixels, including its shadow, are redrawn. Negative
-    // and non-finite values count as 0.
-    struct PaintOutsets {
-        float left = 0.0f;
-        float top = 0.0f;
-        float right = 0.0f;
-        float bottom = 0.0f;
-        // True when an outer shadow has a blur radius: the one effect adaptive quality can reduce
-        // (performance.md section 6.1). Sharp shadows reach outward too but have nothing to reduce.
-        bool blurred = false;
-    };
+    // How far this node paints beyond its border box (see `PaintOutsets`).
+    using PaintOutsets = tessera::ui::PaintOutsets;
     void set_paint_outsets(const PaintOutsets& outsets);
     [[nodiscard]] const PaintOutsets& paint_outsets() const {
         return paint_outsets_;
@@ -254,7 +207,7 @@ public:
     // JSX `focusTrap` and `focusGroup` (issue #236): a `focus_trap` node confines Tab traversal to
     // its subtree and restores the previous focus when it goes away; a `focus_group` node is a
     // roving-focus group whose focusable descendants form one Tab stop.
-    enum class FocusGroup : std::uint8_t { None, Horizontal, Vertical, Both };
+    using FocusGroup = tessera::ui::FocusGroup;
     void set_focus_trap(bool trap) {
         set_flag(kFocusTrap, trap);
     }

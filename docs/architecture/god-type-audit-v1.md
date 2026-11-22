@@ -130,6 +130,11 @@ move frame policy off the tree:
 only because #735 added the cached subtree paint box in the same window; the split itself added no
 pointer, vtable or child object, which `node_size_tests` and the `sizeof_node` budget row check.
 
+**Landed (step 4a, value vocabulary).** `NodeId`, `UserSelect`, the three scroll enums, `FocusGroup`
+and `PaintOutsets` moved to [node_types.hpp](../../include/tessera/ui/scene/node_types.hpp);
+`Node::FocusGroup` and `Node::PaintOutsets` are aliases, so no call site changed and the layout stays at
+320 bytes. A new enumerator now touches the types header instead of the class declaration.
+
 ### 3.2 `app::WindowHost::Impl` (rank 2)
 
 [window_impl.hpp](../../src/app/window_impl.hpp) is 255 lines and declares 32 member functions and 42
