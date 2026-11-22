@@ -80,8 +80,16 @@ struct LayoutResult {
 
 class LayoutEngine {
 public:
+    // `text_cache_capacity` bounds the text measurement cache. It must comfortably exceed the
+    // number of distinct text runs in a scene: the cache is a strict LRU, so a scene with more runs
+    // than slots evicts the entry it is about to need again and every layout pass re-measures the
+    // whole tree. That cliff is not gradual - at 1,024 labels a size-change frame costs 6,418
+    // allocations, at 1,030 it costs 57,108 (issue #735). The default is sized for a large scene
+    // rather than a small one, because the failure mode is a 10x regression, not a slow path.
+    static constexpr std::size_t kDefaultTextCacheCapacity = 16384;
+
     explicit LayoutEngine(std::shared_ptr<const text::TextMeasurer> measurer = nullptr,
-                          std::size_t text_cache_capacity = 1024);
+                          std::size_t text_cache_capacity = kDefaultTextCacheCapacity);
     ~LayoutEngine();
 
     LayoutEngine(LayoutEngine&&) noexcept;

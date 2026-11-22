@@ -20,42 +20,9 @@ namespace tessera::ui::layout::detail {
 
 using style::ComputedStyle;
 
-std::string lower(std::string_view value) {
-    std::string result(value);
-    std::transform(result.begin(), result.end(), result.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return result;
-}
-
-std::string trim(std::string_view value) {
-    const auto first = std::find_if_not(value.begin(), value.end(),
-                                        [](unsigned char c) { return std::isspace(c) != 0; });
-    const auto last = std::find_if_not(value.rbegin(), value.rend(), [](unsigned char c) {
-                          return std::isspace(c) != 0;
-                      }).base();
-    if (first >= last) {
-        return {};
-    }
-    return std::string(first, last);
-}
-
-bool is_keyword(const std::string* value, std::string_view keyword) {
-    return value != nullptr && lower(trim(*value)) == keyword;
-}
-
-bool parse_number(std::string_view text, float& value) {
-    const std::string token = trim(text);
-    if (token.empty()) {
-        return false;
-    }
-    char* end = nullptr;
-    const float parsed = std::strtof(token.c_str(), &end);
-    if (end == nullptr || *end != '\0' || !std::isfinite(parsed)) {
-        return false;
-    }
-    value = parsed;
-    return true;
-}
+// The CSS token helpers (`lower`, `trim`, `is_keyword`, `equals_keyword`, `parse_number`) live in
+// `layout_tokens.cpp`: they are the allocation-sensitive part of reading a computed value, and this
+// file is at its source-size budget.
 
 namespace {
 
