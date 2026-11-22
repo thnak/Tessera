@@ -5,6 +5,7 @@
 
 #include "tessera/app/window.hpp"
 #include "tessera/app/window_device.hpp"
+#include "tessera/hal/timer/steady_time.hpp"
 #include "window_internal.hpp"
 
 #include <cstdio>
@@ -32,6 +33,75 @@ WindowDevice::~WindowDevice() {
         loop_->set_device_recovery(nullptr);
     }
     release_presentation();
+}
+
+bool WindowDevice::register_window(WindowHost& window) noexcept {
+    if (window_list_size_ >= kMaxWindowsPerDevice) {
+        return false;
+    }
+    // Idempotent: a host registers once in its constructor, and a second registration would make
+    // `pump_windows_once` drive it twice per iteration.
+    for (std::size_t index = 0; index < window_list_size_; ++index) {
+        if (windows_[index] == &window) {
+            return true;
+        }
+    }
+    windows_[window_list_size_] = &window;
+    ++window_list_size_;
+    return true;
+}
+
+bool WindowDevice::unregister_window(WindowHost& window) noexcept {
+    for (std::size_t index = 0; index < window_list_size_; ++index) {
+        if (windows_[index] != &window) {
+            continue;
+        }
+        // Preserve attach order, like the appfw registry: the walk order is the order a caller
+        // registered in, which is what makes a two-window test's expected sequence readable.
+        for (std::size_t move = index; move + 1 < window_list_size_; ++move) {
+            windows_[move] = windows_[move + 1];
+        }
+        --window_list_size_;
+        return true;
+    }
+    return false;
+}
+
+std::size_t WindowDevice::pump_windows_once() {
+    if (loop_ == nullptr) {
+        return 0;
+    }
+    // One tick for the whole group. `RuntimeLoop::tick()` *consumes* the render request, so a
+    // second window that ticked the loop itself would see `should_render == false` and never paint
+    // - which is exactly the bug the two-window pacing case caught. The tick is taken here and
+    // handed to every window, so one tick can produce one frame per window.
+    const runtime::RuntimeTick tick = loop_->tick();
+    std::size_t presented = 0;
+    // The size is read once: a window that closes during its own iteration unregisters itself, and
+    // walking a shrinking list by index would skip the window that moved into the freed slot.
+    const std::size_t count = window_list_size_;
+    for (std::size_t index = 0; index < count; ++index) {
+        // A window that unregistered itself during an earlier iteration of this same walk is gone
+        // from the list, so re-read the slot rather than trusting the snapshot.
+        if (index >= window_list_size_) {
+            break;
+        }
+        WindowHost* const window = windows_[index];
+        if (window == nullptr) {
+            continue;
+        }
+        // `false`: the pacer gates ticks, not windows. It is advanced once below, after every
+        // window has had its turn, so no window can consume the interval ahead of its siblings.
+        if (window->pump_once(tick, false)) {
+            ++presented;
+        }
+    }
+    // One tick, one present interval. Advancing the pacer here rather than per window is what makes
+    // two windows present in the same tick instead of the first one starving the second.
+    if (presented > 0) {
+        pacer_.present(hal::steady_now_seconds());
+    }
+    return presented;
 }
 
 bool WindowDevice::ensure_presentation(rhi::TextureFormat format, const WindowOptions& options) {

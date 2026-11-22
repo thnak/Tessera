@@ -14,7 +14,8 @@ add_library(tessera_appfw_core STATIC
     service_context.cpp
     service_runner.cpp
     service_runner_sequence.cpp
-    task_scope.cpp)
+    task_scope.cpp
+    window_registry.cpp)
 
 target_include_directories(tessera_appfw_core PUBLIC
     ${PROJECT_SOURCE_DIR}/include)
@@ -245,7 +246,10 @@ if (TESSERA_BUILD_TESTS)
         ${PROJECT_SOURCE_DIR}/tests/unit/appfw_lifecycle_tests.cpp
         ${PROJECT_SOURCE_DIR}/tests/unit/appfw_application_tests.cpp
         ${PROJECT_SOURCE_DIR}/tests/unit/appfw_lifecycle_script_tests.cpp
-        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_lifecycle_seam_tests.cpp)
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_lifecycle_seam_tests.cpp
+        ${PROJECT_SOURCE_DIR}/tests/unit/appfw_window_registry_tests.cpp)
+    target_include_directories(appfw_lifecycle_tests PRIVATE
+        ${PROJECT_SOURCE_DIR}/tests/unit)
     target_link_libraries(appfw_lifecycle_tests PRIVATE tessera_appfw_core)
     target_compile_definitions(appfw_lifecycle_tests PRIVATE
         TESSERA_LIFECYCLE_SCRIPT_DIR="${PROJECT_SOURCE_DIR}/tests/fixtures/lifecycle")

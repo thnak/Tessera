@@ -32,15 +32,28 @@ bool start_sequence_finished(const ServiceRunner& runner) noexcept {
 
 Application::Application(ServiceRunner& runner, ApplicationConfig config)
     : runner_(&runner),
-      config_(config) {
+      config_(config),
+      windows_(config.max_windows == 0 ? 1 : config.max_windows) {
     if (config_.max_services == 0) {
         config_.max_services = 1;
     }
     observers_ = std::make_unique<ObserverSlot[]>(config_.max_services);
     last_dispatch_ = std::make_unique<ServiceId[]>(config_.max_services);
+    // The `<App>` subtree describes the primary window (startup-api-v1.md section 10), so it exists
+    // from construction: a single-window app never attaches one and every pre-#180 caller keeps its
+    // exact behaviour. The capacity is at least 1, so this cannot fail.
+    (void)windows_.attach();
 }
 
 Application::~Application() = default;
+
+std::optional<WindowId> Application::attach_window(WindowLifecycle initial) {
+    return windows_.attach(initial);
+}
+
+bool Application::detach_window(WindowId id) {
+    return windows_.detach(id);
+}
 
 bool Application::attach_observer(ServiceId id, AppLifecycleObserver& observer) {
     if (observer_for(id) != nullptr || observer_count_ >= config_.max_services) {
@@ -82,7 +95,7 @@ void Application::tick() {
         if (start_sequence_finished(*runner_)) {
             // The launch step ends here and nowhere else, so `Launching` cannot be skipped by a
             // window event that arrives while services are still starting.
-            (void)enter(derive_app_state(window_, suspended_));
+            (void)enter(derived_state());
         }
         return;
     }
@@ -104,22 +117,31 @@ void Application::refresh_state() {
         // draining, not a window snapshot, that ends the app).
         return;
     }
-    (void)enter(derive_app_state(window_, suspended_));
+    (void)enter(derived_state());
 }
 
 LifecycleDispatchResult Application::dispatch(const LifecycleEvent& event) {
+    return dispatch(kPrimaryWindow, event);
+}
+
+LifecycleDispatchResult Application::dispatch(WindowId id, const LifecycleEvent& event) {
     switch (event.signal) {
     case LifecycleSignal::Close: {
-        window_ = fold_window_lifecycle(window_, event.signal);
+        (void)windows_.fold(id, event.signal);
         if (config_.quit_on_last_window_closed) {
             // ADR-050 section 2's table: closing the last window is a termination request, not a
-            // `Hidden` state. A `Defer` answer leaves the app where it is (`deferring()` is set),
-            // so this reports the state the app is actually in.
-            const AppState before = state_;
-            (void)request_termination();
-            return LifecycleDispatchResult{state_, state_ != before, last_dispatch_size_};
+            // `Hidden` state. "Last" is the whole set, not this window: closing one of two windows
+            // leaves the app `Active`/`Inactive` on the survivor, which is what makes a
+            // multi-window app usable. A `Defer` answer leaves the app where it is (`deferring()`
+            // is set), so this reports the state the app is actually in.
+            if (windows_.open_count() == 0) {
+                const AppState before = state_;
+                (void)request_termination();
+                return LifecycleDispatchResult{state_, state_ != before, last_dispatch_size_};
+            }
+            return enter(derived_state());
         }
-        return enter(derive_app_state(window_, suspended_));
+        return enter(derived_state());
     }
     case LifecycleSignal::ShutdownRequest: {
         const AppState before = state_;
@@ -129,32 +151,28 @@ LifecycleDispatchResult Application::dispatch(const LifecycleEvent& event) {
     case LifecycleSignal::Suspend:
     case LifecycleSignal::Resume: {
         suspended_ = event.signal == LifecycleSignal::Suspend;
-        return enter(derive_app_state(window_, suspended_));
+        return enter(derived_state());
     }
     case LifecycleSignal::Focus:
     case LifecycleSignal::Blur:
     case LifecycleSignal::Minimize:
     case LifecycleSignal::Occlude:
     case LifecycleSignal::Restore:
-        window_ = fold_window_lifecycle(window_, event.signal);
-        return enter(derive_app_state(window_, suspended_));
+        (void)windows_.fold(id, event.signal);
+        return enter(derived_state());
     }
     return LifecycleDispatchResult{state_, false, 0};
 }
 
 LifecycleDispatchResult Application::apply_window_snapshot(bool focused, bool occluded,
                                                            bool minimized) {
-    window_.focused = focused;
-    window_.occluded = occluded;
-    window_.minimized = minimized;
-    // A snapshot that reports a visible, focused window clears the closed bit: the platform is
-    // showing it again (a reopened window, a restored session), and the ADR derives `Hidden` from
-    // "no visible window", not from a stale close request.
-    window_.visible = !(occluded || minimized);
-    if (window_.visible && focused) {
-        window_.closed = false;
-    }
-    return enter(derive_app_state(window_, suspended_));
+    return apply_window_snapshot(kPrimaryWindow, focused, occluded, minimized);
+}
+
+LifecycleDispatchResult Application::apply_window_snapshot(WindowId id, bool focused, bool occluded,
+                                                           bool minimized) {
+    (void)windows_.apply_snapshot(id, focused, occluded, minimized);
+    return enter(derived_state());
 }
 
 LifecycleDispatchResult Application::enter(AppState next) {

@@ -1,4 +1,4 @@
-﻿// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT
 
 #include "tessera/app/frame_guard.hpp"
 #include "tessera/app/idle_policy.hpp"
@@ -34,11 +34,12 @@ namespace rhi = tessera::rendering::rhi;
 
 WindowHost::Impl::Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet,
                        WindowOptions window_options, ui::UpdateScheduler* update_scheduler,
-                       WindowDevice& group_ref)
+                       WindowDevice& group_ref, WindowHost& owner_ref)
     : root(root),
       options(std::move(window_options)),
       scheduler(update_scheduler),
-      group(&group_ref) {
+      group(&group_ref),
+      owner(&owner_ref) {
     // The shared device, loop and pacer are views into the group (issue #228). A group with no
     // device leaves every view null, which is the "no usable device" path the rest of the driver
     // already handles.
@@ -168,6 +169,10 @@ WindowHost::Impl::Impl(ui::Node& root, ui::style::CompiledStyleSheet sheet,
     // A failed start reports one diagnostic and leaves the window fully functional.
     start_accessibility();
     available = true;
+    // The window joins the group's list (issue #180), so one loop can drive every window in the
+    // group. Registration is last: a window that failed to build never joins the list, and a walk
+    // therefore never has to skip a half-constructed host.
+    (void)group->register_window(*owner);
 }
 
 WindowHost::Impl::~Impl() {
@@ -184,6 +189,7 @@ WindowHost::Impl::~Impl() {
     // detaches from it. A window closing must not tear down the device its siblings present
     // through.
     if (group != nullptr) {
+        (void)group->unregister_window(*owner);
         group->detach_window();
     }
 }
@@ -251,7 +257,8 @@ WindowHost::WindowHost(ui::Node& root, ui::style::CompiledStyleSheet sheet, Wind
     device_options.surface = rhi::SurfacePlatform::Auto;
     device_options.font_path = options.font_path;
     auto group = std::make_unique<WindowDevice>(device_options);
-    impl_ = std::make_unique<Impl>(root, std::move(sheet), std::move(options), scheduler, *group);
+    impl_ = std::make_unique<Impl>(root, std::move(sheet), std::move(options), scheduler, *group,
+                                   *this);
     impl_->owned_group = std::move(group);
 }
 
@@ -264,7 +271,8 @@ WindowHost::WindowHost(ui::Node& root, ui::style::CompiledStyleSheet sheet, Wind
     if (!std::isfinite(options.refresh_hz) || options.refresh_hz < 0.0) {
         throw std::invalid_argument("tessera app window: refresh_hz must be finite and >= 0");
     }
-    impl_ = std::make_unique<Impl>(root, std::move(sheet), std::move(options), scheduler, group);
+    impl_ =
+        std::make_unique<Impl>(root, std::move(sheet), std::move(options), scheduler, group, *this);
 }
 
 WindowHost::~WindowHost() = default;
@@ -286,7 +294,11 @@ ui::FocusManager& WindowHost::focus_manager() {
 }
 
 bool WindowHost::pump_once() {
-    return impl_->pump_once();
+    return impl_->pump_once(true);
+}
+
+bool WindowHost::pump_once(const runtime::RuntimeTick& tick, bool advance_pacer) {
+    return impl_->pump_once(tick, advance_pacer);
 }
 
 bool WindowHost::post_input(const ui::InputEvent& event) {

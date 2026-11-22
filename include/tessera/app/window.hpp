@@ -374,6 +374,14 @@ public:
 private:
     struct Impl;
     std::unique_ptr<Impl> impl_;
+
+    // The group drives this window's iteration (issue #180). `WindowDevice::pump_windows_once()`
+    // walks its window list and calls this form with the tick it already took:
+    // `RuntimeLoop::tick()` consumes the render request, so a second window that ticked the loop
+    // itself would never paint. The pacer is likewise advanced once per tick by the group, not once
+    // per window.
+    friend class WindowDevice;
+    bool pump_once(const runtime::RuntimeTick& tick, bool advance_pacer);
 };
 
 struct CaptureOptions {

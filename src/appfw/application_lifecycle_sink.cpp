@@ -21,8 +21,9 @@ namespace {
 
 class ApplicationLifecycleSink final : public app::LifecycleSink {
 public:
-    explicit ApplicationLifecycleSink(Application& application)
-        : application_(&application) {}
+    ApplicationLifecycleSink(Application& application, WindowId window)
+        : application_(&application),
+          window_(window) {}
 
     void on_window_lifecycle(const hal::WindowEvent& event) override {
         LifecycleSignal signal{};
@@ -34,21 +35,28 @@ public:
         // still say "occluded" leaves the window occluded, which is what the driver's own pause
         // state does with the same pair (src/app/window_lifecycle.cpp).
         if (signal == LifecycleSignal::Restore) {
-            (void)application_->apply_window_snapshot(event.metrics.focused, event.metrics.occluded,
-                                                      event.metrics.minimized);
+            (void)application_->apply_window_snapshot(
+                window_, event.metrics.focused, event.metrics.occluded, event.metrics.minimized);
             return;
         }
-        (void)application_->dispatch(LifecycleEvent{signal});
+        (void)application_->dispatch(window_, LifecycleEvent{signal});
     }
 
 private:
     Application* application_ = nullptr;
+    // The window this sink forwards for. One sink per window is what keeps a two-window app's
+    // events from folding into one aggregate (issue #180).
+    WindowId window_{};
 };
 
 } // namespace
 
 std::unique_ptr<app::LifecycleSink> Application::make_lifecycle_sink() {
-    return std::make_unique<ApplicationLifecycleSink>(*this);
+    return make_lifecycle_sink(kPrimaryWindow);
+}
+
+std::unique_ptr<app::LifecycleSink> Application::make_lifecycle_sink(WindowId id) {
+    return std::make_unique<ApplicationLifecycleSink>(*this, id);
 }
 
 } // namespace tessera::appfw

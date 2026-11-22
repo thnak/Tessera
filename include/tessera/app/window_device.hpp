@@ -39,6 +39,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <span>
 #include <string>
 
 namespace tessera::app {
@@ -49,6 +50,10 @@ namespace rhi = tessera::rendering::rhi;
 // functions that take it are defined in the .cpp, so the incomplete type is enough here.
 struct WindowOptions;
 struct WindowDeviceOptions;
+// The windows this device drives (issue #180). `WindowHost` is declared in window.hpp, which
+// includes this header, so the list holds pointers to the incomplete type and only the .cpp that
+// drives them needs the definition.
+class WindowHost;
 
 namespace detail {
 class TextStack;
@@ -212,6 +217,35 @@ public:
         }
     }
 
+    // --- the window list (issue #180) ---------------------------------------------------------
+    // The windows this device drives, in attach order. A host registers itself in its constructor
+    // and unregisters in its destructor, so the list is exactly the live set.
+    //
+    // The list is what makes one loop drive N windows: `pump_once()` walks it and gives each window
+    // one bounded iteration, so a caller that owns several windows does not have to interleave them
+    // by hand (and cannot forget one). It is a fixed array, so registration never allocates.
+    //
+    // A window that is not `available()` (no platform window, no presentation) is skipped by the
+    // walk rather than reported as a failure: a group may hold a window that failed to build while
+    // its siblings present.
+    bool register_window(WindowHost& window) noexcept;
+    bool unregister_window(WindowHost& window) noexcept;
+    [[nodiscard]] std::span<WindowHost* const> windows() const noexcept {
+        return std::span<WindowHost* const>(windows_.get(), window_list_size_);
+    }
+    [[nodiscard]] std::size_t window_list_size() const noexcept {
+        return window_list_size_;
+    }
+
+    // One bounded iteration of every registered window: each one pumps its events and input,
+    // honours its own pause, and paints at most one frame. Returns how many windows presented.
+    //
+    // This is the multi-window form of `WindowHost::pump_once()`: the caller decides when the next
+    // iteration happens, and the loop never parks, retries or services a lost device (that stays
+    // `WindowHost::run()`'s job). A window whose iteration presented nothing does not stop its
+    // siblings - which is the whole point of driving them from one place.
+    std::size_t pump_windows_once();
+
 private:
     std::unique_ptr<rhi::Device> device_;
     std::unique_ptr<runtime::RuntimeLoop> loop_;
@@ -238,6 +272,10 @@ private:
     bool has_format_ = false;
     std::uint32_t presentation_sample_count_ = 1;
     std::size_t window_count_ = 0;
+    // The live window list (issue #180). Sized by `kMaxWindowsPerDevice`, the same bound the
+    // renderer's frame ring uses, so a registration can never exceed what the ring can serve.
+    std::unique_ptr<WindowHost*[]> windows_ = std::make_unique<WindowHost*[]>(kMaxWindowsPerDevice);
+    std::size_t window_list_size_ = 0;
 };
 
 } // namespace tessera::app
