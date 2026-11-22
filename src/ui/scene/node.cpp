@@ -75,6 +75,18 @@ void Node::mark_dirty(Dirty flags) {
 
     dirty_ |= flags;
     subtree_dirty_ |= flags;
+    // The cached subtree paint box (issue #735, slice C) is invalidated here, in the one walk every
+    // paint-visible mutation already takes, rather than at each call site: a mutation that can move
+    // a painted pixel marks Paint, and this reaches the node and every ancestor. That is what makes
+    // the invalidation complete - see subtree_paint_bounds() for the argument. The walk runs to the
+    // root even when the dirty propagation below can stop early, because a node whose
+    // `subtree_dirty_` already carries Paint may have got it from `refresh_subtree_dirty` (a
+    // child's clear), which does not invalidate anything.
+    if ((flags & Dirty::Paint) != Dirty::Clean) {
+        for (Node* node = this; node != nullptr; node = node->parent_) {
+            node->subtree_paint_bounds_ = rhi::Rect{0.0f, 0.0f, -1.0f, 0.0f};
+        }
+    }
     for (Node* ancestor = parent_; ancestor != nullptr; ancestor = ancestor->parent_) {
         if ((ancestor->subtree_dirty_ & flags) == flags) {
             break;

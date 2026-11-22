@@ -247,6 +247,13 @@ void paint_node(const Node& node, StyleProvider& styles, PaintSink& sink, PaintS
     // record is painted too, so its record is refreshed rather than going stale for a later clean
     // paint; the pipeline's damage always covers a dirty node, a caller's rect need not.
     const bool records_dirty = pass.cacheable && node.dirty() != Dirty::Clean;
+    // Subtree cull (issue #735, slice C): one test at the root rejects every node in the subtree.
+    if (pass.cull != nullptr && detail::may_skip_subtree(node, painted_world, *pass.cull,
+                                                         interpolated, open_frame, records_dirty)) {
+        ++stats.culled_nodes;
+        ++stats.culled_subtrees;
+        return;
+    }
     // Read by reference from the provider's cache; copied only when the view overlays this node.
     std::optional<style::ComputedStyle> overlaid_style;
     const style::ComputedStyle* culled_style = nullptr;

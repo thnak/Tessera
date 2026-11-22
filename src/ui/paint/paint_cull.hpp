@@ -159,6 +159,42 @@ inline bool clipped_children(const Node& node, const style::ComputedStyle& style
     return device_clip(corner_clip(style, *clip_rect), frame).has_value();
 }
 
+// Subtree cull (issue #735, slice C): true when the node's cached subtree paint box, mapped into
+// device space by the matrix the node paints with, cannot touch `cull`. This rejects a whole
+// subtree at its root in O(1) instead of visiting every node in it, which is what the per-node
+// `reaches_cull` above cannot do: that test only ever skips one node's own emission.
+//
+// The box is a superset of every pixel the subtree can paint (see Node::subtree_paint_bounds), so a
+// miss here is a miss for the whole subtree. A non-finite box means "cannot be bounded" and is
+// never culled. `painted_world` must be the node's authoritative world matrix: an interpolated
+// frame moves painted geometry without touching the scene, so the cached box would be stale, and
+// the caller refuses this test for those nodes.
+inline bool subtree_misses_cull(const Node& node, const rhi::Mat3& painted_world,
+                                const rhi::Rect& cull) {
+    const rhi::Rect box = node.subtree_paint_bounds();
+    if (!std::isfinite(box.x) || !std::isfinite(box.y) || !std::isfinite(box.width) ||
+        !std::isfinite(box.height)) {
+        return false; // unbounded: never cull
+    }
+    const rhi::Rect reach = transformed_aabb(painted_world, box);
+    if (!std::isfinite(reach.x) || !std::isfinite(reach.y) || !std::isfinite(reach.width) ||
+        !std::isfinite(reach.height)) {
+        return false;
+    }
+    return reach.x >= cull.right() || reach.right() <= cull.x || reach.y >= cull.bottom() ||
+           reach.bottom() <= cull.y;
+}
+
+// Whether the paint walk may take the subtree skip for this node. `interpolated` and `open_frame`
+// both mean the node paints through a matrix the scene does not know, and a dirty node must still
+// be visited so its paint-cache record is refreshed rather than going stale.
+inline bool may_skip_subtree(const Node& node, const rhi::Mat3& painted_world,
+                             const rhi::Rect& cull, bool interpolated, bool open_frame,
+                             bool records_dirty) {
+    return !interpolated && !open_frame && !records_dirty &&
+           subtree_misses_cull(node, painted_world, cull);
+}
+
 // The cull verdict for a node whose reach already missed the rect and that does not paint in its
 // own transform frame. `style` is the node's computed style; the caller must provide it when the
 // node has children (both the clip decision and the opacity its children inherit need it) and may
