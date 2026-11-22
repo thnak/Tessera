@@ -53,10 +53,62 @@ private:
     std::vector<std::string> entries_;
 };
 
+// The pump gate, in its own object so it can outlive the apartment that uses it. `HostHarness`
+// needs to open the gate during teardown, but the apartment is owned by the bridge and is already
+// destroyed by the time the harness's destructor runs (`AccessibilityHost::stop()` tears the host
+// down first). Holding the gate separately means the harness can still release a parked worker
+// without touching freed memory.
+class PumpGate {
+public:
+    void block() {
+        std::lock_guard lock(mutex_);
+        blocked_ = true;
+    }
+
+    void open() {
+        std::unique_lock lock(mutex_);
+        blocked_ = false;
+        cv_.notify_all();
+        // Wait until the worker has actually left `pump()`. Without this, a caller that opens and
+        // immediately re-blocks can flip `blocked_` back to true while the worker is still inside
+        // the wait, so the worker never returns from that pump() call, never picks up the next job,
+        // and the following `step()` times out.
+        cv_.wait(lock, [this] { return !parked_; });
+    }
+
+    // The worker's side: parks while the gate is closed, and reports when it is inside the wait.
+    void park() {
+        std::unique_lock lock(mutex_);
+        if (blocked_) {
+            parked_ = true;
+            cv_.notify_all();
+        }
+        cv_.wait(lock, [this] { return !blocked_; });
+        parked_ = false;
+        // Wake `open()`, which waits for this to clear before it returns.
+        cv_.notify_all();
+    }
+
+    // The worker only honors the gate inside `pump()`; while it waits for a job it would run a
+    // posted flush straight away. A test that needs "pending" to be deterministic must therefore
+    // wait until the worker is really parked, after a barrier that forces one trip around its loop.
+    [[nodiscard]] bool wait_parked() {
+        std::unique_lock lock(mutex_);
+        return cv_.wait_for(lock, std::chrono::seconds(5), [this] { return parked_; });
+    }
+
+private:
+    std::mutex mutex_;
+    std::condition_variable cv_;
+    bool blocked_ = false;
+    bool parked_ = false;
+};
+
 class LoggingApartment final : public tessera::ui::a11y::UiaApartment {
 public:
-    explicit LoggingApartment(Log& log)
-        : log_(log) {}
+    LoggingApartment(Log& log, std::shared_ptr<PumpGate> gate)
+        : log_(log),
+          gate_(std::move(gate)) {}
 
     [[nodiscard]] std::expected<void, tessera::ui::a11y::UiaError> init() override {
         log_.add("apartment.init");
@@ -69,17 +121,9 @@ public:
     }
 
     void pump() override {
-        std::unique_lock lock(mutex_);
-        ++pumps_;
-        if (block_pump_) {
-            parked_ = true;
-            cv_.notify_all();
-        }
-        cv_.wait(lock, [this] { return !block_pump_; });
-        parked_ = false;
-        // Wake `open_pump()`, which waits for this to clear before it returns.
-        cv_.notify_all();
+        gate_->park();
     }
+
     [[nodiscard]] std::string_view name() const override {
         return "logging";
     }
@@ -89,41 +133,23 @@ public:
     }
 
     void block_pump() {
-        std::lock_guard lock(mutex_);
-        block_pump_ = true;
+        gate_->block();
     }
 
-    // The worker only honors the gate inside pump(); while it waits for a job it would run a posted
-    // flush straight away. A test that needs "pending" to be deterministic must therefore wait
-    // until the worker is really parked, after a barrier that forces one trip around its loop.
     [[nodiscard]] bool wait_parked() {
-        std::unique_lock lock(mutex_);
-        return cv_.wait_for(lock, std::chrono::seconds(5), [this] { return parked_; });
+        return gate_->wait_parked();
     }
 
     void open_pump() {
-        std::unique_lock lock(mutex_);
-        block_pump_ = false;
-        cv_.notify_all();
-        // Wait until the worker has actually left `pump()`. Without this, a caller that opens the
-        // gate and immediately closes it again (open_pump(); block_pump();) can flip `block_pump_`
-        // back to true while the worker is still inside the wait, so the worker never returns from
-        // that pump() call, never picks up the next job, and the following `step()` times out.
-        // Waiting for `parked_` to clear makes the next block_pump() take effect at the worker's
-        // *next* pump() instead of trapping it in the current one.
-        cv_.wait(lock, [this] { return !parked_; });
+        gate_->open();
     }
 
     std::thread::id init_thread;
 
 private:
     Log& log_;
+    std::shared_ptr<PumpGate> gate_;
     std::expected<void, tessera::ui::a11y::UiaError> result_{};
-    std::mutex mutex_;
-    std::condition_variable cv_;
-    std::size_t pumps_ = 0;
-    bool block_pump_ = false;
-    bool parked_ = false;
 };
 
 class FakePlatform final : public tessera::ui::a11y::UiaPlatform {
@@ -226,16 +252,19 @@ inline tessera::ui::a11y::UiaHostConfig test_config() {
 struct HostHarness {
     // The bridge's destructor joins its worker thread, and the worker can be parked inside
     // `LoggingApartment::pump()` waiting for the gate to open. Joining a parked worker deadlocks:
-    // the gate is only opened by the test, which is already gone. Opening it here - before `host`
-    // is destroyed - lets the worker finish its pump, see the stop request and exit. This is the
-    // teardown half of the same contract `open_pump()` documents.
+    // the gate is only opened by the test, which is already gone. Opening it here lets the worker
+    // finish its pump, see the stop request and exit. This is the teardown half of the same
+    // contract `open_pump()` documents.
+    //
+    // The gate is owned here, not reached through `apartment`: a host that tears itself down
+    // (`AccessibilityHost::stop()`) destroys the apartment before this destructor runs, so the
+    // `apartment` pointer is already dangling by then.
     ~HostHarness() {
-        if (apartment != nullptr) {
-            apartment->open_pump();
-        }
+        gate->open();
     }
 
     Log log;
+    std::shared_ptr<PumpGate> gate = std::make_shared<PumpGate>();
     LoggingApartment* apartment = nullptr;
     FakePlatform* platform = nullptr;
     std::unique_ptr<tessera::ui::a11y::UiaHost> host;
@@ -245,7 +274,7 @@ inline std::unique_ptr<HostHarness>
 make_host(tessera::ui::a11y::UiaHostConfig config = test_config(),
           void* root = reinterpret_cast<void*>(0x1234)) {
     auto harness = std::make_unique<HostHarness>();
-    auto apartment = std::make_unique<LoggingApartment>(harness->log);
+    auto apartment = std::make_unique<LoggingApartment>(harness->log, harness->gate);
     harness->apartment = apartment.get();
     auto platform = std::make_unique<FakePlatform>(harness->log, root);
     harness->platform = platform.get();
