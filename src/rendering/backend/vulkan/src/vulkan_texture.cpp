@@ -56,6 +56,15 @@ std::unique_ptr<rhi::Texture> VulkanDevice::create_texture(const rhi::TextureDes
 
     VkImage image = VK_NULL_HANDLE;
     VmaAllocation allocation = nullptr;
+    // Test seam (issue #705): an injected out-of-device-memory fails this creation the way a real
+    // VK_ERROR_OUT_OF_DEVICE_MEMORY would, so the caller's evict-and-retry path is exercised
+    // without a device that is actually full. The device stays Ready: an OOM is recoverable, unlike
+    // a loss.
+    if (consume_injected_fault(InjectedDeviceFault::OutOfMemoryOnCreateTexture)) {
+        throw std::runtime_error("vmaCreateImage(texture) failed (VkResult=" +
+                                 std::to_string(static_cast<int>(VK_ERROR_OUT_OF_DEVICE_MEMORY)) +
+                                 ")");
+    }
     check_vk(
         vmaCreateImage(allocator_, &image_info, &allocation_info, &image, &allocation, nullptr),
         "vmaCreateImage(texture)");

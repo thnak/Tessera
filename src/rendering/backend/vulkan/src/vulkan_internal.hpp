@@ -3,6 +3,7 @@
 #pragma once
 
 #include "tessera/rendering/rhi/device.hpp"
+#include "vulkan_injected_fault.hpp"
 #include "vulkan_memory_category.hpp"
 #include "vulkan_texture_math.hpp"
 
@@ -53,16 +54,9 @@ void record_validation_message() noexcept;
 void mark_validation_active() noexcept;
 
 // Test seam (compiled in when TESSERA_VULKAN_TEST_HOOKS is defined) that reports a loss from the
-// next matching operation instead of waiting for a real GPU reset. The "no fault" enumerator is
-// `NoFault`, not `None`: X11's X.h defines `None` as a macro, so `None` would break this header on
-// every Linux Xlib build.
-enum class InjectedDeviceFault : std::uint8_t {
-    NoFault,
-    DeviceLostOnSubmit,
-    DeviceLostOnFenceWait,
-    DeviceLostOnAcquire,
-    DeviceLostOnPresent,
-};
+// next matching operation instead of waiting for a real GPU reset. The enumerators live in
+// vulkan_injected_fault.hpp, which this header includes: that keeps this one within its size budget
+// and lets the OOM fault (issue #705) sit beside the loss faults it shares a consumer with.
 
 // RHI objects are only ever created by the matching device, so passing one from another backend is
 // a contract violation, not a runtime condition. Debug builds verify the type; release builds do

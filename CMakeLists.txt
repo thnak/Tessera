@@ -169,6 +169,7 @@ include(cmake/TesseraWayland.cmake)
 
 add_subdirectory(third_party)
 add_subdirectory(src/rendering/rhi)
+add_subdirectory(src/rendering/memory)
 add_subdirectory(src/rendering/gpu)
 add_subdirectory(src/rendering/damage)
 add_subdirectory(src/rendering/golden)

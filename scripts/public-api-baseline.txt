@@ -1266,6 +1266,12 @@ struct include/tessera/rendering/image/image_texture_cache.hpp tessera::renderin
 struct include/tessera/rendering/image/image_texture_cache.hpp tessera::rendering::image::ImageTextureKey
 enum include/tessera/rendering/image/image_texture_cache.hpp tessera::rendering::image::ImageTextureError
 
+header include/tessera/rendering/memory/memory_pressure.hpp
+class include/tessera/rendering/memory/memory_pressure.hpp tessera::rendering::memory::MemoryPressure
+struct include/tessera/rendering/memory/memory_pressure.hpp tessera::rendering::memory::EvictableCache
+struct include/tessera/rendering/memory/memory_pressure.hpp tessera::rendering::memory::PressureResult
+function include/tessera/rendering/memory/memory_pressure.hpp tessera::rendering::memory::eviction_rank
+
 header include/tessera/rendering/null/null_device.hpp
 class include/tessera/rendering/null/null_device.hpp tessera::rendering::null::NullCommandList
 class include/tessera/rendering/null/null_device.hpp tessera::rendering::null::NullPipeline
