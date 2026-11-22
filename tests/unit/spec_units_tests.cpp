@@ -131,7 +131,13 @@ int main() {
                 "docs/specs/stylesheet-v1.md has no `- viewport:` line in section 8.1") &&
          ok;
     if (!line.empty()) {
-        const std::vector<std::string> named = backticked(line);
+        // Only the unit list, not the prose after it: the bullet continues with a sentence that
+        // names `viewport_units.hpp` and `@media`, which are not units. The list ends at the first
+        // full stop.
+        const std::size_t stop = line.find('.');
+        const std::string_view list_part =
+            stop == std::string::npos ? std::string_view(line) : std::string_view(line).substr(0, stop);
+        const std::vector<std::string> named = backticked(list_part);
         ok = expect(!named.empty(), "the spec's viewport line names no units") && ok;
         for (const std::string& name : named) {
             // The spec also names the inline/block-axis forms as deliberately absent; those are
