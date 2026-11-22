@@ -176,7 +176,10 @@ See [`bridges.md`](../design/bridges.md) for the native-first bridge policy.
 
 ## 11. Open questions
 
-- Custom arena API vs `std::pmr` wrappers.
+- ~~Custom arena API vs `std::pmr` wrappers.~~ **Decided:** a custom arena API, not `std::pmr`
+  ([ADR-070](../../decisions/ADR-070-frame-arena-not-pmr.md)). The measurement that decided it is in
+  that ADR: an idle frame already allocates zero, and every remaining site outlives the frame, so the
+  arena's first customer is command scratch rather than the cascade.
 - Default budgets per platform (desktop/embedded).
 - Zero-copy image/texture upload paths per backend.
 - Shared-memory bridge for design-time preview.
