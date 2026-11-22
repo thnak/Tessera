@@ -28,8 +28,8 @@ struct InputEvent; // forward-declared: post_input_event takes only a const refe
 namespace tessera::hal {
 
 // Display cutouts (notch, punch-hole, camera island): insets say how much to avoid, the rectangles
-// say where (docs/specs/os-events-v1.md section 2). `count == 0` is the answer of every platform
-// that reports none; entries past `count` are zero. Build one with `make_cutout_info`.
+// say where (docs/specs/os-events-v1.md section 2). `count == 0` is every platform that reports
+// none; entries past `count` are zero. Build one with `make_cutout_info`.
 inline constexpr std::size_t kMaxCutouts = 4;
 
 struct CutoutInfo {
@@ -79,28 +79,23 @@ struct WindowMetrics {
     BackdropMaterial backdrop = BackdropMaterial::NoMaterial;
     // True when the window is presented with a translucent client area. The swapchain's composite
     // alpha is the final gate on a backend that cannot present per-pixel alpha; the platform sets
-    // this from its own window-system capability (DWM composition, an X11 compositing manager and
-    // 32-bit visual, intrinsic on Wayland), and a false value here is the opaque fallback.
+    // this from its own capability (DWM composition, an X11 compositing manager and 32-bit visual,
+    // intrinsic on Wayland), and a false value here is the opaque fallback.
     bool transparent = false;
     // True when the requested backdrop or translucency could not be honored: the platform resolved
     // to the opaque fallback, and the driver reports TESSERA_GLASS_WINDOW_UNSUPPORTED once.
     bool backdrop_fallback = false;
     // True while the window is full-screen (window-chrome-v1.md section 13, issue #232). It is the
-    // state the window manager resolved, not the last request: a platform that refuses the request
-    // (no window manager, a refusing compositor) keeps reporting false. The bounds the window had
-    // before entering are owned by the platform and restored on exit; the app reads this flag only.
+    // state the window manager resolved, not the last request: a platform that refuses keeps
+    // reporting false. The pre-fullscreen bounds are the platform's to restore.
     bool fullscreen = false;
     // Interactive client regions of the custom title bar, in logical pixels. Empty by default,
     // which is the system-chrome answer: every point is client area. The HAL resolves WM_NCHITTEST
-    // against this list before app routing, so a scene node never sees a non-client hit-test result
-    // (window-chrome-v1.md section 8.1, "Hit-test contract").
+    // against this list before app routing (window-chrome-v1.md section 8.1).
     std::array<CaptionRegion, kMaxCaptionRegions> caption_regions{};
     std::uint8_t caption_region_count = 0;
-    // The pointer shape the platform resolved (window-chrome-v1.md section 8.5, issue #191). It is
-    // the value the platform actually applied, not the last request: a backend that cannot render a
-    // shape substitutes its nearest equivalent (or keeps `Default`), so a fake window and a real
-    // one report the same resolved value. `Default` is the platform arrow and every window starts
-    // there.
+    // The pointer shape the platform resolved (window-chrome-v1.md section 8.5, issue #191): the
+    // value actually applied, not the last request, so a fake window and a real one agree.
     CursorShape cursor = CursorShape::Default;
 
     // --- display capabilities (docs/specs/os-events-v1.md section 2, ADR-023 rule 4) -----------
@@ -204,9 +199,8 @@ enum class WindowEventType : std::uint8_t {
     // The OS color-scheme preference changed (issue #187): the user switched a light/dark theme in
     // the desktop's settings. It is the `ThemeChanged` member of the normalized taxonomy
     // (docs/specs/os-events-v1.md section 2) and, like `SystemSettingsChanged`, carries no value:
-    // the owner re-reads `Window::appearance()` at the tick boundary. Windows reports the same
-    // change through `WM_THEMECHANGED`/`WM_SETTINGCHANGE`, so both platforms have one event for it
-    // rather than making a color-scheme change look like a reduced-motion change.
+    // the owner re-reads `Window::appearance()` at the tick boundary. Windows reports it through
+    // `WM_THEMECHANGED`/`WM_SETTINGCHANGE`, so both platforms have one event for it.
     ThemeChanged,
 };
 
@@ -394,6 +388,13 @@ public:
     virtual void set_physical_fold(const PhysicalFold& fold) {
         (void)fold;
     }
+    // The presentation surface changed extent (a fold switching to the cover display, a rotation),
+    // in physical pixels. A backend that re-reads its own surface ignores this; Android cannot,
+    // because the ANativeWindow it adopted keeps reporting the old extent.
+    virtual void set_surface_extent(std::uint32_t width_px, std::uint32_t height_px) {
+        (void)width_px;
+        (void)height_px;
+    }
 
     // Installs the UIA root handshake (see AccessibilityRoot). Must be called on the window's
     // thread; a null `answer` uninstalls it. Platforms without a UIA host ignore the hook. The
@@ -447,12 +448,10 @@ public:
     // `metrics().cursor` reports what it resolved; an unsupported shape or platform leaves the
     // pointer as it was and the caller reports one TESSERA_WINDOW_CURSOR_UNSUPPORTED diagnostic.
     //
-    // The platforms differ in how immediately the call takes effect: X11 applies it with
-    // `XDefineCursor` (Xlib buffers the request, so this is not a blocking round trip in the
-    // ADR-021 sense), while Win32 records the shape and lets the next `WM_SETCURSOR` install it,
-    // because the OS re-asserts the class cursor on every non-client transition. Neither path
-    // waits. Must be called on the thread that created the window. The default does nothing, for
-    // platforms without a pointer-shape source.
+    // X11 applies it with `XDefineCursor` (Xlib buffers the request, so not a blocking round trip
+    // in the ADR-021 sense); Win32 records the shape and lets the next `WM_SETCURSOR` install it,
+    // because the OS re-asserts the class cursor on every non-client transition. Neither waits.
+    // Must be called on the thread that created the window.
     virtual void set_cursor(CursorShape shape) {
         (void)shape;
     }
