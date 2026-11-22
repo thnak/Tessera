@@ -127,10 +127,10 @@ void VulkanCommandList::bind_storage_buffer(std::uint32_t slot, const rhi::Buffe
     vkUpdateDescriptorSets(device_, 1, &write, 0, nullptr);
 
     const VkDescriptorSet set = owner_.storage_buffer_set();
-    // Set 1, not `slot`: set 0 is the sampled-image layout, and the storage set is a separate set so
-    // a shader can sample a texture and read the clip records in the same draw (ADR-068).
-    vkCmdBindDescriptorSets(buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, current_layout_, 1, 1, &set, 0,
-                            nullptr);
+    // Set 1, not `slot`: set 0 is the sampled-image layout, and the storage set is a separate set
+    // so a shader can sample a texture and read the clip records in the same draw (ADR-068).
+    vkCmdBindDescriptorSets(buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS, current_layout_, 1, 1, &set,
+                            0, nullptr);
 }
 
 } // namespace tessera::rendering::vulkan
