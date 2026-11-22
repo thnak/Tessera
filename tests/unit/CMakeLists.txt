@@ -264,6 +264,15 @@ target_link_libraries(scene_hit_test_prune_tests PRIVATE tessera_scene)
 
 add_test(NAME scene_hit_test_prune COMMAND scene_hit_test_prune_tests)
 
+# Node::clear_subtree_dirty (DirtyPass::clear) must leave every node as the per-node clear_dirty walk
+# it replaced did, on the cleared subtree and on its ancestors.
+add_executable(scene_dirty_clear_tests
+    scene_dirty_clear_tests.cpp)
+
+target_link_libraries(scene_dirty_clear_tests PRIVATE tessera_scene)
+
+add_test(NAME scene_dirty_clear COMMAND scene_dirty_clear_tests)
+
 # The sample framework-linking executable of the release gates (ADR-012, issue #219): it replaces
 # the deleted `merger_tests` as the target `check_static_runtime.py`, `check_reproducible.py` and
 # `release_rehearsal.py` build and inspect. Registered as a test too, so a broken probe fails the

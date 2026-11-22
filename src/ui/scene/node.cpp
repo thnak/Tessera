@@ -116,6 +116,33 @@ void Node::clear_dirty(Dirty flags) {
     refresh_subtree_dirty();
 }
 
+void Node::clear_subtree_dirty(Dirty flags) {
+    if (flags == Dirty::Clean || !has_any(subtree_dirty_, flags)) {
+        return;
+    }
+    clear_subtree_dirty_below(flags);
+    // Only the ancestors of the cleared root can still be stale; they re-derive from their
+    // children.
+    if (parent_ != nullptr) {
+        parent_->refresh_subtree_dirty();
+    }
+}
+
+void Node::clear_subtree_dirty_below(Dirty flags) {
+    // Post-order: each node recomputes its summary exactly once, from children that are already
+    // final. Clearing node by node with `clear_dirty` made every child's change re-scan the whole
+    // child list of its parent, which is quadratic in the width of a wide container.
+    Dirty next = dirty_ & ~flags;
+    for (const auto& child : children_) {
+        if (has_any(child->subtree_dirty_, flags)) {
+            child->clear_subtree_dirty_below(flags);
+        }
+        next |= child->subtree_dirty_;
+    }
+    dirty_ = dirty_ & ~flags;
+    subtree_dirty_ = next;
+}
+
 void Node::refresh_subtree_dirty() {
     Dirty next = dirty_;
     for (const auto& child : children_) {

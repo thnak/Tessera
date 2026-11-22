@@ -25,7 +25,7 @@ void DirtyPass::collect(Node& root, Dirty domain) {
 void DirtyPass::clear(Node& root, Dirty domain) {
     reset();
     if (domain != Dirty::Clean) {
-        clear_visit(root, domain);
+        root.clear_subtree_dirty(domain);
     }
 }
 
@@ -47,16 +47,6 @@ void DirtyPass::visit(Node& node, Dirty domain) {
     }
     for (const auto& child : node.children()) {
         visit(*child, domain);
-    }
-}
-
-void DirtyPass::clear_visit(Node& node, Dirty domain) {
-    if (!has_any(node.subtree_dirty(), domain)) {
-        return;
-    }
-    node.clear_dirty(domain);
-    for (const auto& child : node.children()) {
-        clear_visit(*child, domain);
     }
 }
 

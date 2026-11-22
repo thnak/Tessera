@@ -168,9 +168,19 @@ and maps the point one level at a time below it, pruning each child by its cache
 `subtree_paint_bounds()` (an infinite box, i.e. unproven text, is never pruned; a 0.5 px slack
 absorbs float differences). 3.2 ms -> 1.3 us per point on the same scene, with an identical hit
 checksum. `scene_hit_test_prune_tests` compares it against the unpruned algorithm over random trees
-and pins the cases a prune could get wrong. Still open: the dirty-clear cost (`refresh_subtree_dirty`
-rescans a parent's children once per cleared child), and the cache-line layout, which is judged
-against the `--walk` numbers once the algorithmic passes are fixed.
+and pins the cases a prune could get wrong.
+
+**Landed (step 2, dirty clear).** `DirtyPass::clear` calls `Node::clear_subtree_dirty`, one
+post-order pass in which each node recomputes its summary once, then the ancestors of the cleared
+root re-derive once. The old walk called `clear_dirty` per node, and every child's change made its
+parent re-scan the whole child list (quadratic in container width). Full-dirty `collect + clear`:
+800 -> 24 ns/node, 2 330 -> 58 instructions/node, 562 -> 6.5 L1D misses/node.
+`scene_dirty_clear_tests` compares the final state of every node against the old walk on random
+sparse-dirty trees (a uniformly dirty tree hides summary bugs, so it starts clean).
+
+**Where that leaves the cache-line question.** With both algorithmic passes fixed, the dirty pass
+is within 2x of the hot-field walk (24 vs 12.9 ns/node) and the walk itself costs 3.8 L1D misses per
+node. That is the remaining, layout-bound cost, and the number a hot-line layout has to beat.
 
 ### 3.2 `app::WindowHost::Impl` (rank 2)
 

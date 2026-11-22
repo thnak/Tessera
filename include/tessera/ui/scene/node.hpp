@@ -122,6 +122,11 @@ public:
     // repainting only the ancestor's box would leave the children stale (paint-pass.md section
     // 14.1). The dirty pass then reports each node, which is what makes damage cover the subtree.
     void mark_subtree_dirty(Dirty flags);
+    // Clears `flags` on this node and every descendant, and re-derives the summaries of the
+    // ancestors once. The result is the same as calling `clear_dirty` on each dirty node, at one
+    // pass over the dirty part of the subtree instead of a re-scan of every parent per cleared
+    // child.
+    void clear_subtree_dirty(Dirty flags);
     [[nodiscard]] Dirty dirty() const {
         return dirty_;
     }
@@ -145,6 +150,7 @@ private:
     friend class NodeMetadataApi;
 
     void refresh_subtree_dirty();
+    void clear_subtree_dirty_below(Dirty flags);
 
     // The two halves of `hit_test_deep` once the point has been mapped into a node's space, so the
     // descent maps it one level at a time instead of inverting the whole parent chain per node.
