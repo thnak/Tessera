@@ -80,8 +80,8 @@ int run_cli(const std::string& cli, const std::string& arguments, const fs::path
 #else
     // POSIX `system` returns a wait status, not an exit code: the code is in the high byte. Without
     // this the test reads a *rejected* run (exit 1 -> status 256) and a successful one (exit 0 ->
-    // status 0) as the same, so every rejection case "passed" while asserting nothing - which is the
-    // failure mode a cross-platform lane exists to find.
+    // status 0) as the same, so every rejection case "passed" while asserting nothing - which is
+    // the failure mode a cross-platform lane exists to find.
     if (status == -1) {
         return -1;
     }

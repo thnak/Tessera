@@ -57,7 +57,10 @@ public:
     PermissionAwaiter(const PermissionAwaiter&) = delete;
     PermissionAwaiter& operator=(const PermissionAwaiter&) = delete;
 
-    [[nodiscard]] bool await_ready() const noexcept {
+    // Always false, even when the answer already arrived: `await_resume` has not run yet, and
+    // posting the resume (below) keeps the coroutine off the resolving stack. Static because it
+    // reads no member, which is also how the language's `await_ready` protocol allows it.
+    [[nodiscard]] static bool await_ready() noexcept {
         return false;
     }
 

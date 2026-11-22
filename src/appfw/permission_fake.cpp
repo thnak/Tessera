@@ -176,8 +176,10 @@ bool FakePermissionBackend::request(Permission permission, PermissionRequestOpti
         return false;
     }
     FakePermissionScript scripted = script_[script_cursor_++];
+    // Milliseconds to seconds, parenthesised because `/` binds tighter than `+` and the intent
+    // ("this many seconds after now") is worth spelling out.
     const double due_seconds =
-        clock_->now_seconds() + static_cast<double>(scripted.delay_ms) / 1000.0;
+        clock_->now_seconds() + (static_cast<double>(scripted.delay_ms) / 1000.0);
     pending_.push_back(
         Pending{permission, token, std::move(on_done), std::move(scripted), due_seconds});
     return true;
