@@ -258,15 +258,36 @@ jobs:
         run: |
           set -uo pipefail
 
+          # A job is red unless it actually succeeded. Only `failure` used to count, so a
+          # `cancelled` run (a newer run in the same concurrency group supersedes this one) or a
+          # `skipped` job looked green and the issue was closed with a "both jobs are green"
+          # comment that was not true. `cancelled` is not a verdict on the code, so it must not
+          # close the issue either: it reports nothing and leaves the state alone.
           failed=""
-          [ "$ASAN_RESULT" = "failure" ] && failed="${failed}asan "
-          [ "$TSAN_RESULT" = "failure" ] && failed="${failed}tsan "
+          inconclusive=""
+          for job in asan tsan; do
+            case "$job" in
+            asan) result="$ASAN_RESULT" ;;
+            tsan) result="$TSAN_RESULT" ;;
+            esac
+            case "$result" in
+            success) ;;
+            cancelled) inconclusive="${inconclusive}${job} " ;;
+            *) failed="${failed}${job} " ;;
+            esac
+          done
           failed="${failed% }"
           failed_csv="${failed// /,}"
+          inconclusive="${inconclusive% }"
 
           # At most one issue carries this exact title; keep the first number if a duplicate exists.
           number="$(gh issue list --state open --limit 100 --json number,title \
             --jq ".[] | select(.title == \"$TRACKING_TITLE\") | .number" | head -n1)"
+
+          if [ -z "$failed" ] && [ -n "$inconclusive" ]; then
+            echo "no verdict: ${inconclusive} was cancelled (a newer run superseded this one); leaving the tracking issue alone"
+            exit 0
+          fi
 
           if [ -z "$failed" ]; then
             if [ -z "$number" ]; then
