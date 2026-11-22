@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 //
 // The small value types `ui::Node` is built from (docs/architecture/god-type-audit-v1.md section
-// 3.1): each owns its values and reports "changed" from its setters, with no dirty policy of its own.
+// 3.1): each owns its values and reports "changed" from its setters, with no dirty policy of its
+// own.
 
 #include "tessera/ui/scene/node_hints.hpp"
 #include "tessera/ui/scene/node_input_policy.hpp"

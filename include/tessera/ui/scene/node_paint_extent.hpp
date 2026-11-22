@@ -7,10 +7,10 @@
 
 #include <cmath>
 
-// How far a scene node's pixels reach beyond its border box, and the cached union of that reach over
-// its subtree (docs/architecture/god-type-audit-v1.md section 3.1; issue #735 slice C): the
-// box-shadow outsets, the glass blur sigma and the subtree paint box the paint cull and the hit-test
-// prune read. 40 bytes, on demand - a pass reads the cached box of a node, not the inputs.
+// How far a scene node's pixels reach beyond its border box, and the cached union of that reach
+// over its subtree (docs/architecture/god-type-audit-v1.md section 3.1; issue #735 slice C): the
+// box-shadow outsets, the glass blur sigma and the subtree paint box the paint cull and the
+// hit-test prune read. 40 bytes, on demand - a pass reads the cached box of a node, not the inputs.
 //
 // The type owns the inputs, their sanitizing and the cache slot. It does not compute the box: that
 // needs the children, which only `ui::Node` can reach (`subtree_paint_bounds()` in
@@ -25,8 +25,9 @@ public:
     bool set_outsets(const PaintOutsets& value) noexcept {
         const PaintOutsets next{clean(value.left), clean(value.top), clean(value.right),
                                 clean(value.bottom), value.blurred};
-        if (next.left == outsets_.left && next.top == outsets_.top && next.right == outsets_.right &&
-            next.bottom == outsets_.bottom && next.blurred == outsets_.blurred) {
+        if (next.left == outsets_.left && next.top == outsets_.top &&
+            next.right == outsets_.right && next.bottom == outsets_.bottom &&
+            next.blurred == outsets_.blurred) {
             return false;
         }
         outsets_ = next;

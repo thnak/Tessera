@@ -179,32 +179,32 @@ private:
     // --- Members: small role types, laid out for the cache (god-type audit section 3.1) ---------
     //
     // `sizeof(Node)` is 320, five 64-byte lines, and heap nodes start on a line (`operator new`).
-    // Each role keeps its own data and rules in a small type (the `node_*.hpp` headers); `Node` owns
-    // the tree, the dirty summaries and the frame policy that decides which dirty domain a role's
-    // change raises. The types are placed by what a whole-scene pass reads at every node - the dirty
-    // pass, the hit-test descent, the paint cull walk - so a visit touches line 0 only:
+    // Each role keeps its own data and rules in a small type (the `node_*.hpp` headers); `Node`
+    // owns the tree, the dirty summaries and the frame policy that decides which dirty domain a
+    // role's change raises. The types are placed by what a whole-scene pass reads at every node -
+    // the dirty pass, the hit-test descent, the paint cull walk - so a visit touches line 0 only:
     //
     // line 0 (offsets 0..63): the vptr, then the tree links, the box, and the one-byte hot half of
     // each role. Placed by `offsetof` with no padding; `NodeLayoutCheck` in node.cpp pins it.
     Node* parent_ = nullptr;
     std::vector<std::unique_ptr<Node>> children_;
-    // `mutable` because `set_span_bounds` writes it through a const scene (issue #733 item 4). Every
-    // other write goes through `set_bounds`, which is non-const, so the mutability is confined to
-    // the one paint-derived path.
+    // `mutable` because `set_span_bounds` writes it through a const scene (issue #733 item 4).
+    // Every other write goes through `set_bounds`, which is non-const, so the mutability is
+    // confined to the one paint-derived path.
     mutable rhi::Rect bounds_;
-    NodeHints hints_;            // presence/derived bits about the on-demand members below
+    NodeHints hints_; // presence/derived bits about the on-demand members below
     Dirty dirty_ = Dirty::Clean;
     Dirty subtree_dirty_ = Dirty::Clean;
-    NodeInputPolicy input_;      // visibility, hit eligibility, focus bits, user-select, cursor
+    NodeInputPolicy input_;        // visibility, hit eligibility, focus bits, user-select, cursor
     NodeScrollStyle scroll_style_; // scrollable axes and the scroll style enums
 
     // line 1 and on (offsets 64..): read on demand, 256 bytes with no padding. The two 8-aligned
     // members are last so the object ends exactly at its last byte.
-    NodePaintExtent extent_;     // outsets, glass sigma, the cached subtree paint box
-    NodePlacement placement_;    // transform and z-index; `hints_` says when they matter
-    int tab_index_ = 0;          // sequential focus order key
+    NodePaintExtent extent_;  // outsets, glass sigma, the cached subtree paint box
+    NodePlacement placement_; // transform and z-index; `hints_` says when they matter
+    int tab_index_ = 0;       // sequential focus order key
     style::PseudoState pseudo_state_ = style::PseudoState::None; // selector-matching state
-    NodeScroll scroll_;          // content size, scrollport insets, offset, animation target
+    NodeScroll scroll_; // content size, scrollport insets, offset, animation target
     NodeId id_ = 0;
     NodeMetadata metadata_;
 };

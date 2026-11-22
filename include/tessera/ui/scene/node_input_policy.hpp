@@ -128,8 +128,8 @@ private:
 
     // Defaults: visible, `pointer-events: auto`, everything else off.
     std::uint8_t flags_ = kVisible | kPointerEvents;
-    UserSelect user_select_ = UserSelect::Auto;           // resolved `user-select` value
-    style::CursorKind cursor_ = style::CursorKind::Auto;  // the initial `auto` is the platform arrow
+    UserSelect user_select_ = UserSelect::Auto;          // resolved `user-select` value
+    style::CursorKind cursor_ = style::CursorKind::Auto; // the initial `auto` is the platform arrow
     FocusGroup focus_group_ = FocusGroup::None;
 };
 

@@ -85,8 +85,8 @@ void NodeScroll::clear_animation() {
 
 // --- Node forwarders ------------------------------------------------------------------------
 //
-// The public `Node` scroll surface did not move, so no call site changed. The configuration (axes and
-// the resolved style enums) is `NodeScrollStyle`, one byte on the node's first cache line; the
+// The public `Node` scroll surface did not move, so no call site changed. The configuration (axes
+// and the resolved style enums) is `NodeScrollStyle`, one byte on the node's first cache line; the
 // offset, insets and animation target are `NodeScroll`, on demand. The bodies here own the frame
 // policy: which dirty domain a change raises.
 

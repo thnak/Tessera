@@ -46,7 +46,8 @@ public:
         return static_cast<OverscrollBehavior>((bits_ & kBehaviorMask) >> kBehaviorShift);
     }
     bool set_overscroll_behavior(OverscrollBehavior value) noexcept {
-        return write(kBehaviorMask, (static_cast<unsigned>(value) << kBehaviorShift) & kBehaviorMask);
+        return write(kBehaviorMask,
+                     (static_cast<unsigned>(value) << kBehaviorShift) & kBehaviorMask);
     }
     [[nodiscard]] OverscrollEffect overscroll_effect() const noexcept {
         return static_cast<OverscrollEffect>((bits_ & kEffectMask) >> kEffectShift);

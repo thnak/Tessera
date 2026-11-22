@@ -3,8 +3,8 @@
 #pragma once
 
 // Inline half of `NodeInteractionApi`. Included only by `node.hpp`, after `Node` is complete: each
-// accessor is a one-line read of `NodeInputPolicy` and stays inline so the input and focus hot paths
-// pay no call for it. Do not include this file directly.
+// accessor is a one-line read of `NodeInputPolicy` and stays inline so the input and focus hot
+// paths pay no call for it. Do not include this file directly.
 
 namespace tessera::ui {
 
