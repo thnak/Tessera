@@ -374,6 +374,19 @@ JNIEXPORT void JNICALL Java_dev_tessera_app_TesseraView_nativeSetFold(JNIEnv*, j
     shell->window->set_physical_fold(fold);
 }
 
+JNIEXPORT void JNICALL Java_dev_tessera_app_TesseraView_nativeSetHingeAngle(JNIEnv*, jclass,
+                                                                            jlong handle,
+                                                                            jfloat degrees) {
+    Shell* shell = shell_from(handle);
+    if (shell == nullptr || shell->window == nullptr) {
+        return;
+    }
+    // The sensor reports degrees directly, so there is nothing to convert here: the backend clamps
+    // and validates the value (a vendor driver can report out of range or a NaN), and a negative
+    // reading is the "no sensor" sentinel the Java reader sends when the sensor goes away.
+    shell->window->set_physical_hinge_angle(static_cast<float>(degrees));
+}
+
 JNIEXPORT jboolean JNICALL Java_dev_tessera_app_TesseraView_nativeOnTouch(JNIEnv* env, jclass,
                                                                           jlong handle,
                                                                           jobject event) {

@@ -10,6 +10,7 @@
 #include "android_metrics_translation.hpp"
 
 #include <iostream>
+#include <limits>
 
 namespace {
 
@@ -115,6 +116,71 @@ int main() {
             android::FoldPosture::HalfOpened, android::FoldAxis::Horizontal, hinge, 0.0F);
         check(info.hinge_bounds.y == 110.0F, "a zero scale keeps physical pixels");
         check(info.hinge_bounds.height == 11.0F, "and so does the thickness");
+    }
+
+    // --- The hinge angle (issue #189) ---------------------------------------------------------
+    // The angle is a separate signal from the posture: it is measured by a sensor, not by
+    // `FoldingFeature`, and it is the only continuous fold value the engine has.
+    {
+        // A closed hinge is 0, and 0 must survive as a measurement rather than reading as
+        // "unknown".
+        check(android::hinge_angle(0.0F) == 0.0F, "a closed hinge reports 0");
+        check(android::hinge_angle_is_known(0.0F), "and 0 is a measurement, not the sentinel");
+        check(android::hinge_angle(180.0F) == 180.0F, "a flat hinge reports 180");
+        check(android::hinge_angle(90.0F) == 90.0F, "a half-opened hinge reports its angle");
+
+        // The sentinel is negative because no valid angle is: it must not be confused with 0.
+        check(android::hinge_angle(-1.0F) == tessera::hal::kUnknownHingeAngle,
+              "a negative reading is the no-sensor sentinel");
+        check(!android::hinge_angle_is_known(tessera::hal::kUnknownHingeAngle),
+              "the sentinel is not a measurement");
+
+        // A broken HAL can report a non-finite value; clamping it to 0 would look like a closed
+        // hinge, so it becomes unknown instead.
+        check(android::hinge_angle(std::numeric_limits<float>::quiet_NaN()) ==
+                  tessera::hal::kUnknownHingeAngle,
+              "a NaN reading is unknown, not closed");
+        check(android::hinge_angle(std::numeric_limits<float>::infinity()) ==
+                  tessera::hal::kUnknownHingeAngle,
+              "an infinite reading is unknown");
+
+        // A 360-degree hinge is real, so the clamp is 360 rather than 180; anything past it is a
+        // calibration glitch and is clamped rather than trusted.
+        check(android::hinge_angle(360.0F) == 360.0F, "a 360-degree hinge is in range");
+        check(android::hinge_angle(400.0F) == tessera::hal::kMaxHingeAngleDegrees,
+              "a reading past the maximum is clamped");
+    }
+
+    // --- The angle survives a posture the library cannot describe -----------------------------
+    // A device can have a hinge sensor and still report no `FoldingFeature` (the library answers
+    // nothing while the window is not laid out). Dropping the angle there would make a foldable
+    // look like a slab for as long as the posture is unknown.
+    {
+        const tessera::hal::FoldInfo info = android::fold_info(
+            android::FoldPosture::None, android::FoldAxis::None, {}, kScale, 90.0F);
+        check(info.state == FoldState::None, "no posture is still no fold");
+        check(info.hinge_angle_degrees == 90.0F, "but the measured angle is kept");
+    }
+
+    // --- A flat fold carries its angle --------------------------------------------------------
+    // `Flat` is the posture a fully open device reports, and its angle is 180. The two are
+    // independent fields, so a consumer can read either without the other.
+    {
+        const tessera::hal::FoldInfo info = android::fold_info(
+            android::FoldPosture::Flat, android::FoldAxis::Vertical, {}, kScale, 180.0F);
+        check(info.state == FoldState::Flat, "a flat fold reports Flat");
+        check(info.hinge_angle_degrees == 180.0F, "and its angle");
+        check(info.occlusion == FoldOcclusion::None, "and still does not occlude");
+    }
+
+    // --- The default is unknown, not zero -----------------------------------------------------
+    // A caller that omits the angle gets the sentinel, so a device with no sensor is never
+    // mistaken for one reporting a closed hinge.
+    {
+        const tessera::hal::FoldInfo info = android::fold_info(
+            android::FoldPosture::HalfOpened, android::FoldAxis::Horizontal, {}, kScale);
+        check(info.hinge_angle_degrees == tessera::hal::kUnknownHingeAngle,
+              "an omitted angle is unknown, not 0");
     }
 
     if (failures != 0) {

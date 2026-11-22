@@ -391,6 +391,59 @@ adb shell cmd device_state state 2        # OPENED
 The hinge sits at x=1038, the exact centre of the 2076 px display, and the transition is observed
 live without restarting the activity.
 
+### 3.11 Hinge angle: the one fold signal the platform SDK does have
+
+Posture is discrete and needs AndroidX. The **angle** is continuous and does not: the platform
+exposes it as a sensor, `android.hardware.Sensor.TYPE_HINGE_ANGLE` (36), present in `android.jar`
+for API 35 and later and in the NDK as `ASENSOR_TYPE_HINGE_ANGLE`. So this slice adds no dependency
+— it is `SensorManager`, which every Android build already has.
+
+**Why it is a separate reader, not part of `TesseraFoldReader`.** The two read different sources at
+different rates, and a device can have one without the other:
+
+| | posture | angle |
+|---|---|---|
+| source | `FoldingFeature` (AndroidX) | `SensorManager` (platform) |
+| values | `FLAT`, `HALF_OPENED` | 0–360 degrees |
+| rate | one event per transition | continuous while folding |
+| absent when | no foldable | no hinge sensor |
+
+A foldable with no hinge sensor still reports posture; a device whose window is not laid out yet
+reports no posture while the sensor keeps working. Folding them into one reader would make each
+depend on the other's failure mode.
+
+**Why a separate event type.** `HingeAngleChanged` is not `FoldChanged`. A posture change is a
+discrete relayout; the angle is a continuous signal a scene may animate against. Merging them would
+rebuild the layout on every degree of a slow fold. The angle event coalesces into the newest, so a
+burst of sensor samples between two ticks costs one event, and it maps onto the taxonomy's
+`PostureChanged` (`FoldChanged` stays the discrete transition).
+
+**The sentinel is negative.** `kUnknownHingeAngle` is `-1`, not `0`, because `0` is a real
+measurement — a fully closed hinge. A sentinel of `0` would make "no sensor" indistinguishable from
+"closed". The decode (`android::hinge_angle`) also turns a non-finite reading into the sentinel
+rather than clamping it to `0`, because a broken HAL reporting `NaN` must not look like a closed
+device. The upper clamp is 360, not 180: a display that folds all the way around is real.
+
+**The angle survives an unknown posture.** `fold_info` sets the angle before the posture switch, so
+a device that has a sensor but no `FoldingFeature` still reports its angle. Dropping it there would
+make a foldable look like a slab for as long as the posture is unknown.
+
+**Registration follows the lifecycle.** The sensor is registered on resume and released on pause.
+It is a non-wake-up sensor, so leaving it registered while backgrounded would keep it powered for a
+value no frame can show.
+
+Verification on the emulator, which has a hinge sensor:
+
+```powershell
+adb shell dumpsys sensorservice | Select-String "hinge"
+# 0x0000000b) Goldfish hinge sensor0 (in degrees)
+#   type: android.sensor.hinge_angle(36)
+#   last events: 90.00, 0.00
+```
+
+The emulator reports `90.00` at `HALF_OPENED` and `0.00` at `CLOSED`, which is the sensor's own
+scale (0 closed, 180 flat) and not the posture enum.
+
 ## 4. Related
 
 - [`testing.md`](testing.md) — presets, the test matrix, failure triage.

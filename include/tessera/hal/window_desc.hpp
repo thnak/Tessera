@@ -43,11 +43,26 @@ enum class PhysicalFoldAxis : std::uint8_t {
     Horizontal,
     Vertical,
 };
+// The hinge angle a platform with no angle source reports, and the value `FoldInfo` carries when
+// nothing measured one. It is negative because no valid angle is: 0 is a fully closed hinge, so a
+// sentinel of 0 would be indistinguishable from a measurement.
+inline constexpr float kUnknownHingeAngle = -1.0F;
+
+// The largest angle a hinge can report. A 360-degree hinge exists (a display that folds all the way
+// around), so the bound is 360 rather than the 180 of a book-style fold.
+inline constexpr float kMaxHingeAngleDegrees = 360.0F;
+
 struct PhysicalFold {
     PhysicalFoldPosture posture = PhysicalFoldPosture::None;
     PhysicalFoldAxis axis = PhysicalFoldAxis::None;
     // The hinge rectangle in physical pixels; ignored unless the posture is HalfOpened.
     PhysicalRect hinge;
+    // The hinge angle in degrees from the platform's hinge sensor: 0 is fully closed, 180 is fully
+    // flat. `kUnknownHingeAngle` when the device has no sensor. It is independent of the posture
+    // above (a flat fold still has an angle) and arrives from a different source at a different
+    // rate, so a host that reads both sends both on every push and lets the backend decide which
+    // one actually changed.
+    float hinge_angle_degrees = kUnknownHingeAngle;
 };
 
 // Opaque native handles for renderer integration; UI/components must keep using WindowMetrics.

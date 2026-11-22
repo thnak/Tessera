@@ -94,6 +94,7 @@ struct FoldInfo {
     FoldOcclusion occlusion = FoldOcclusion::None;
     bool separating = false;
     Rect hinge_bounds;             // logical pixels, window coordinates
+    float hinge_angle_degrees;     // 0 closed, 180 flat; kUnknownHingeAngle (-1) when unmeasured
 };
 
 // Display cutouts (notch, punch-hole, camera island). Insets alone say how much to avoid; the
@@ -110,8 +111,17 @@ struct CutoutInfo {
 
 `WindowMetrics` also carries `ime_insets`, `gesture_insets` and `fold` (`FoldInfo`, in
 `tessera/hal/window.hpp`); they change on `ImeChanged`/`SafeAreaChanged` and `FoldChanged`, which
-coalesce into the newest like `SafeAreaChanged`. No platform fills them yet (desktop reports none);
-`safe_area_tests` and the fake window (`set_ime_insets`, `set_fold`) are the evidence.
+coalesce into the newest like `SafeAreaChanged`. Android fills all three; the desktop lanes report
+none, and `safe_area_tests` plus the fake window (`set_ime_insets`, `set_fold`) are the evidence.
+
+`FoldInfo::hinge_angle_degrees` is the one **continuous** fold value: the platform's hinge sensor
+reports degrees (0 fully closed, 180 fully flat), and it changes on `HingeAngleChanged` rather than
+`FoldChanged`. The two are separate because a posture change is a discrete relayout while the angle
+is a signal a scene may animate against; merging them would rebuild the layout on every degree of a
+slow fold. `HingeAngleChanged` coalesces into the newest and maps onto the taxonomy's
+`PostureChanged`. The sentinel is `kUnknownHingeAngle` (`-1`), not `0`, because `0` is a real
+measurement (a closed hinge); a non-finite reading decodes to the sentinel, and the upper clamp is
+360 because a display that folds all the way around is real.
 
 `WindowMetrics::cutouts` carries a `CutoutInfo` next to the insets, and it changes together with them
 on `SafeAreaChanged` (`WindowEventType::SafeAreaChanged`; consecutive ones coalesce into the newest,
@@ -119,11 +129,9 @@ metrics included). `make_cutout_info` (`tessera/hal/cutout.hpp`) is the one way 
 build it: it keeps the first `kMaxCutouts` rectangles, drops the extras, and skips a rectangle that
 is non-finite or has no area, so no input can overrun the array. `format_window_metrics` is the
 deterministic metrics dump and lists every rectangle. Android fills it from
-`DisplayCutout.getBoundingRects()` converted to logical pixels; the Android window backend does not
-exist yet (`src/platform/android` is empty), so that fill is a post-V1 item and the conversion
-target is `make_cutout_info`. iOS, desktop and web report none in V1
-(`count == 0`), so consumers use the top safe-area inset as the fallback
-([`safe-area-v1.md`](safe-area-v1.md) section 5).
+`DisplayCutout.getBoundingRects()` converted to logical pixels through `make_cutout_info`. iOS,
+desktop and web report none in V1 (`count == 0`), so consumers use the top safe-area inset as the
+fallback ([`safe-area-v1.md`](safe-area-v1.md) section 5).
 
 Evidence: `tests/unit/harness/cutout_tests.cpp` (ctest `cutout`): the count-0 default, one, several
 and more than `kMaxCutouts` cutouts, skipped bad rectangles, `SafeAreaChanged` coalescing in the fake
