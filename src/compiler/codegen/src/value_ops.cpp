@@ -120,6 +120,13 @@ std::optional<TextValueType> infer_type(const ir::Expr& expr, const ir::Componen
         // fallback's type for a coalesce and the field's for an optional access. Neither is
         // inferable here without the record table, so they are not printable in a text position.
         return std::nullopt;
+    case ir::ExprKind::ListFilter:
+    case ir::ExprKind::ListSlice:
+        // ADR-066 item 3: a list operation yields a list, which is not interpolated in v1.
+        return std::nullopt;
+    case ir::ExprKind::RecordUpdate:
+        // A record update yields a record, which has no printable text form either.
+        return std::nullopt;
     }
     return std::nullopt;
 }

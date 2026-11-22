@@ -72,6 +72,9 @@ struct Expr {
     TypePtr return_type;              // optional `): T =>` annotation
     std::vector<TypePtr> type_args;
     bool arrow_block_body = false;
+    // ADR-066 item 3: `{ ...record, field: value }`. The spread base is the record the written
+    // members update; `properties` holds the written members. Null for an ordinary object literal.
+    ExprPtr spread_base;
     JsxPtr jsx;
 };
 

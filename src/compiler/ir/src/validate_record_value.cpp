@@ -203,6 +203,12 @@ void validate_record_expr(ValidationContext& context, const Expr& expr, const st
         validate_expr(context, ComponentScope{}, {}, field.value.get(), where, true);
     }
     for (const RecordMember& member : type->members) {
+        // ADR-066 item 3: a `recordUpdate` starts from a complete base, so it only has to name
+        // members that exist; the ones it omits keep the base's value. A plain `record` value has
+        // no base, so every required member must be written.
+        if (expr.kind == ExprKind::RecordUpdate) {
+            continue;
+        }
         if (!member.optional && seen.count(member.name) == 0) {
             context.report("TESSERA_IR_RECORD_VALUE",
                            "record `" + expr.type + "` is missing the required member `" +

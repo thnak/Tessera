@@ -1,17 +1,15 @@
 corpus: 50 file(s)
-front end accepted: 34 (68.0%), 16 rejected
-front end accepted with a component declaration: 34 (68.0%)
-pipeline accepted: 21 (42.0%)
+front end accepted: 38 (76.0%), 12 rejected
+front end accepted with a component declaration: 38 (76.0%)
+pipeline accepted: 24 (48.0%)
 warnings: 0
 
 front-end rejections (code, occurrences, files):
   TESSERA_JSX_PARSE_UNEXPECTED_TOKEN 6 6
-  TESSERA_JSX_SUBSET_ARRAY_METHOD 3 3
   TESSERA_REACT_UNSUPPORTED_API 2 2
   TESSERA_JSX_PARSE_MISSING_SEMICOLON 1 1
   TESSERA_JSX_SUBSET_DOM 1 1
   TESSERA_JSX_SUBSET_DYNAMIC_TAG 1 1
-  TESSERA_JSX_SUBSET_LITERAL 1 1
   TESSERA_JSX_SUBSET_MUTATION 1 1
   TESSERA_REACT_EFFECT_DEPS 1 1
   TESSERA_REACT_HOOK_ORDER 1 1
@@ -19,27 +17,24 @@ front-end rejections (code, occurrences, files):
 
 front-end first rejections (code, files):
   TESSERA_JSX_PARSE_UNEXPECTED_TOKEN 5
-  TESSERA_JSX_SUBSET_ARRAY_METHOD 3
   TESSERA_JSX_PARSE_MISSING_SEMICOLON 1
   TESSERA_JSX_SUBSET_DOM 1
   TESSERA_JSX_SUBSET_DYNAMIC_TAG 1
-  TESSERA_JSX_SUBSET_LITERAL 1
   TESSERA_JSX_SUBSET_MUTATION 1
   TESSERA_REACT_EFFECT_DEPS 1
   TESSERA_REACT_HOOK_ORDER 1
   TESSERA_REACT_UNKNOWN_HOOK 1
 
 pipeline rejections (first blocking code, files):
-  TESSERA_IR_UNSUPPORTED 5
+  TESSERA_IR_UNSUPPORTED 7
   TESSERA_JSX_PARSE_UNEXPECTED_TOKEN 5
   TESSERA_IR_UNKNOWN_PROP 4
-  TESSERA_IR_UNRESOLVED 3
-  TESSERA_JSX_SUBSET_ARRAY_METHOD 3
   TESSERA_IR_BINDING 1
+  TESSERA_IR_UNKNOWN_TYPE 1
+  TESSERA_IR_UNRESOLVED 1
   TESSERA_JSX_PARSE_MISSING_SEMICOLON 1
   TESSERA_JSX_SUBSET_DOM 1
   TESSERA_JSX_SUBSET_DYNAMIC_TAG 1
-  TESSERA_JSX_SUBSET_LITERAL 1
   TESSERA_JSX_SUBSET_MUTATION 1
   TESSERA_REACT_EFFECT_DEPS 1
   TESSERA_REACT_HOOK_ORDER 1
@@ -53,7 +48,7 @@ files:
   accepted react/components/fragment-root.tsx components=1 pipeline=TESSERA_IR_UNSUPPORTED
   accepted react/components/function-component.tsx components=1 pipeline=ok
   accepted react/components/helper-function.tsx components=1 pipeline=TESSERA_IR_UNSUPPORTED
-  accepted react/components/jsdoc-in-props-type.tsx components=1 pipeline=TESSERA_IR_UNRESOLVED
+  accepted react/components/jsdoc-in-props-type.tsx components=1 pipeline=ok
   accepted react/components/memo-component.tsx components=1 pipeline=ok
   accepted react/components/react-default-import.tsx components=1 pipeline=ok
   accepted react/components/react-namespace-import.tsx components=1 pipeline=ok
@@ -61,15 +56,15 @@ files:
   accepted react/events/mouse-events.tsx components=1 pipeline=TESSERA_IR_UNKNOWN_PROP
   accepted react/events/prevent-default.tsx components=1 pipeline=TESSERA_IR_UNSUPPORTED
   accepted react/expressions/conditional-render.tsx components=1 pipeline=ok
-  rejected react/expressions/filter-map.tsx components=1: TESSERA_JSX_SUBSET_ARRAY_METHOD pipeline=TESSERA_JSX_SUBSET_ARRAY_METHOD
-  accepted react/expressions/list-length.tsx components=1 pipeline=TESSERA_IR_UNRESOLVED
+  accepted react/expressions/filter-map.tsx components=1 pipeline=TESSERA_IR_UNSUPPORTED
+  accepted react/expressions/list-length.tsx components=1 pipeline=ok
   accepted react/expressions/list-map-key.tsx components=1 pipeline=ok
   accepted react/expressions/nullish-coalescing.tsx components=1 pipeline=ok
   accepted react/expressions/object-destructure-local.tsx components=1 pipeline=ok
-  rejected react/expressions/object-spread.tsx components=1: TESSERA_JSX_SUBSET_LITERAL pipeline=TESSERA_JSX_SUBSET_LITERAL
+  accepted react/expressions/object-spread.tsx components=1 pipeline=TESSERA_IR_UNKNOWN_TYPE
   accepted react/expressions/readonly-array-type.tsx components=1 pipeline=ok
-  rejected react/expressions/slice-map.tsx components=1: TESSERA_JSX_SUBSET_ARRAY_METHOD pipeline=TESSERA_JSX_SUBSET_ARRAY_METHOD
-  accepted react/expressions/string-methods.tsx components=1 pipeline=TESSERA_IR_UNSUPPORTED
+  accepted react/expressions/slice-map.tsx components=1 pipeline=TESSERA_IR_UNSUPPORTED
+  accepted react/expressions/string-methods.tsx components=1 pipeline=ok
   accepted react/expressions/style-literal.tsx components=1 pipeline=ok
   accepted react/expressions/template-string.tsx components=1 pipeline=ok
   accepted react/forms/checkbox-input.tsx components=1 pipeline=TESSERA_IR_UNKNOWN_PROP
@@ -84,7 +79,7 @@ files:
   rejected react/hooks/use-effect-no-deps.tsx components=1: TESSERA_REACT_EFFECT_DEPS pipeline=TESSERA_REACT_EFFECT_DEPS
   accepted react/hooks/use-id.tsx components=1 pipeline=ok
   accepted react/hooks/use-layout-effect.tsx components=1 pipeline=TESSERA_IR_BINDING
-  rejected react/hooks/use-memo.tsx components=1: TESSERA_JSX_SUBSET_ARRAY_METHOD pipeline=TESSERA_JSX_SUBSET_ARRAY_METHOD
+  accepted react/hooks/use-memo.tsx components=1 pipeline=TESSERA_IR_UNSUPPORTED
   rejected react/hooks/use-reducer.tsx components=1: TESSERA_JSX_PARSE_UNEXPECTED_TOKEN TESSERA_REACT_UNSUPPORTED_API pipeline=TESSERA_JSX_PARSE_UNEXPECTED_TOKEN
   accepted react/hooks/use-ref-focus.tsx components=1 pipeline=ok
   accepted react/hooks/use-state-typed.tsx components=1 pipeline=ok

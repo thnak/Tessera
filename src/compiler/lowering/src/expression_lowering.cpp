@@ -261,7 +261,7 @@ namespace tessera::compiler::lowering {
 
 ExpressionLoweringResult lower_expression(const jsx::Expr& expr,
                                           const ExpressionLoweringContext& context) {
-    internal::LoweringState state{context, std::nullopt, {}};
+    internal::LoweringState state{context, std::nullopt, {}, {}};
     ir::ExprPtr lowered = internal::lower_expr(state, expr);
     if (!lowered && !state.error) {
         // Defensive: every branch above reports before returning null.

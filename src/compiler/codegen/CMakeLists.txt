@@ -24,6 +24,8 @@ add_library(tessera_codegen STATIC
     src/emit_expr.cpp
     src/emit_expr_actions.cpp
     src/emit_expr_names.cpp
+    # ADR-066 item 3: whether a component needs the list/string helpers (issue #653).
+    src/emit_list_ops.cpp
     src/emit_forms.cpp
     # `environment` hook values (docs/specs/jsx-subset-v1.md section 7.1, issue #692): the fields,
     # the host-facing setters and the accessors for `useBreakpoint`/`useTheme`.

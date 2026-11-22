@@ -92,7 +92,9 @@ void test_member_and_call_forms_are_rejected() {
     check(!hook.result, "a hook call is not a pure expression");
     check_eq(first_code(hook.result), "TESSERA_IR_UNSUPPORTED", "hook call code");
 
-    const Lowered member_on_literal = lower("\"x\".length", &kNames);
+    // ADR-066 item 3: `.length` is the `length(...)` pure function, so it lowers on any receiver
+    // rather than being a member read. A member that is not `length` still has no IR form.
+    const Lowered member_on_literal = lower("\"x\".nope", &kNames);
     check(!member_on_literal.result, "member access on a literal produces no IR");
     check_eq(first_code(member_on_literal.result), "TESSERA_IR_UNSUPPORTED",
              "member on a literal code");

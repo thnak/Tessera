@@ -96,6 +96,11 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
         writer.line("#include \"tessera/ui/text/text_input_runtime.hpp\"");
     }
     writer.line("#include \"tessera/ui/scene/node.hpp\"");
+    // ADR-066 item 3: `filter` and `slice` on a list, and the total string methods. Emitted only
+    // when the component uses one, so every other component keeps its exact previous bytes.
+    if (uses_list_ops(component)) {
+        writer.line("#include \"tessera/ui/scene/list_ops.hpp\"");
+    }
     if (!instances.empty()) {
         writer.line("#include \"tessera/ui/scene/node_ids.hpp\"");
     }

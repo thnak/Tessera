@@ -173,6 +173,13 @@ void dump_expr(std::string& out, const Expr& expr) {
         break;
     case ExprKind::Object:
         out += "(object";
+        // ADR-066 item 3: `{ ...base, field: value }` prints its base first, so a dump shows the
+        // update form rather than an object that looks like it lost a member.
+        if (expr.spread_base) {
+            out += " (spread ";
+            dump_expr(out, *expr.spread_base);
+            out.push_back(')');
+        }
         for (const auto& property : expr.properties) {
             out += " (";
             if (property.key_is_string) {

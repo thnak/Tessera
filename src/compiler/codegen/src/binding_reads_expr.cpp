@@ -90,8 +90,18 @@ void ReadCollector::add(const ir::Expr* expr) {
     // set is the union of their operands and nothing else.
     case ir::ExprKind::OptionalField:
     case ir::ExprKind::Coalesce:
+    // ADR-066 item 3: `list.filter(...)` reads the list and the predicate's operands, `list.slice`
+    // the list and the bounds. A `recordUpdate` reads its base and the written values.
+    case ir::ExprKind::ListFilter:
+    case ir::ExprKind::ListSlice:
         for (const ir::ExprPtr& operand : expr->operands) {
             add(operand.get());
+        }
+        return;
+    case ir::ExprKind::RecordUpdate:
+        add_ref_id(expr->id);
+        for (const ir::RecordField& field : expr->fields) {
+            add(field.value.get());
         }
         return;
     case ir::ExprKind::Call:

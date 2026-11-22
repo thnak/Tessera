@@ -186,6 +186,76 @@ ExprEmission emit_expr(const ir::Expr& expr, const ir::Component& component,
             "(" + value.text + ".has_value() ? *" + value.text + " : " + fallback.text + ")";
         return ExprEmission{text, {}};
     }
+    case ir::ExprKind::ListFilter: {
+        // ADR-066 item 3: `list.filter(item => <bool>)`. The generated C++ is a lambda over the
+        // list, so the predicate's item name is a real local and the result is a new vector.
+        if (expr.operands.size() != 2 || !expr.operands[0] || !expr.operands[1]) {
+            return fail("a list filter needs a list and a predicate");
+        }
+        ExprEmission list = emit_expr(*expr.operands[0], component, locals);
+        if (!list.error.empty()) {
+            return list;
+        }
+        LocalBindings inner = locals;
+        // The predicate's item name is a real C++ local, so it is bound for the predicate's
+        // emission and shadows any outer name of the same spelling.
+        inner.push_back(LocalBinding{expr.id, expr.id, "string"});
+        ExprEmission predicate = emit_expr(*expr.operands[1], component, inner);
+        if (!predicate.error.empty()) {
+            return predicate;
+        }
+        const std::string text = "tessera::ui::filter_list(" + list.text + ", [](const auto& " +
+                                 expr.id + ") { return " + predicate.text + "; })";
+        return ExprEmission{text, {}};
+    }
+    case ir::ExprKind::ListSlice: {
+        // ADR-066 item 3: `list.slice(start[, end])`. `slice_list` clamps the bounds, so the
+        // generated code and the evaluator agree on an out-of-range bound.
+        if (expr.operands.size() < 2 || expr.operands.size() > 3 || !expr.operands[0]) {
+            return fail("a list slice needs a list and one or two bounds");
+        }
+        ExprEmission list = emit_expr(*expr.operands[0], component, locals);
+        if (!list.error.empty()) {
+            return list;
+        }
+        std::string text = "tessera::ui::slice_list(" + list.text;
+        for (std::size_t i = 1; i < expr.operands.size(); ++i) {
+            if (!expr.operands[i]) {
+                return fail("a list slice bound is missing");
+            }
+            ExprEmission bound = emit_expr(*expr.operands[i], component, locals);
+            if (!bound.error.empty()) {
+                return bound;
+            }
+            text += ", " + bound.text;
+        }
+        text += ")";
+        return ExprEmission{std::move(text), {}};
+    }
+    case ir::ExprKind::RecordUpdate: {
+        // ADR-066 item 3: `{ ...record, field: value }`. The generated C++ copies the base and
+        // assigns the written members, so the result keeps the record's member order.
+        if (expr.id.empty()) {
+            return fail("a record update needs a base reference");
+        }
+        ExprEmission base = emit_expr(*ir::make_ref(expr.id), component, locals);
+        if (!base.error.empty()) {
+            return base;
+        }
+        std::string text = "([&] { auto updated = " + base.text + ";";
+        for (const ir::RecordField& field : expr.fields) {
+            if (!field.value) {
+                return fail("a record update field is missing its value");
+            }
+            ExprEmission value = emit_expr(*field.value, component, locals);
+            if (!value.error.empty()) {
+                return value;
+            }
+            text += " updated." + field.name + " = " + value.text + ";";
+        }
+        text += " return updated; }())";
+        return ExprEmission{std::move(text), {}};
+    }
     case ir::ExprKind::Template: {
         std::string folded;
         for (const ir::TemplatePart& part : expr.parts) {
@@ -204,6 +274,23 @@ ExprEmission emit_expr(const ir::Expr& expr, const ir::Component& component,
         };
         if (expr.id == "length" || expr.id == "formatNumber") {
             return fail("`" + expr.id + "` needs the string/format runtime, deferred");
+        }
+        // ADR-066 item 3: the total string methods, emitted as the same helpers the evaluator uses
+        // so the two agree byte for byte. Each takes its receiver as the first argument.
+        if (expr.id == "trim" || expr.id == "toUpperCase" || expr.id == "toLowerCase" ||
+            expr.id == "startsWith" || expr.id == "slice" || expr.id == "toFixed") {
+            std::string args;
+            for (std::size_t i = 0; i < expr.operands.size(); ++i) {
+                if (!expr.operands[i]) {
+                    return fail("`" + expr.id + "` has a missing argument");
+                }
+                ExprEmission arg = emit_expr(*expr.operands[i], component, locals);
+                if (!arg.error.empty()) {
+                    return arg;
+                }
+                args += (i == 0 ? "" : ", ") + arg.text;
+            }
+            return ExprEmission{"tessera::ui::string_" + expr.id + "(" + args + ")", {}};
         }
         if (expr.id == "toInt" || expr.id == "toFloat") {
             if (expr.operands.size() != 1 || !expr.operands[0]) {

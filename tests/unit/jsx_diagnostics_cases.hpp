@@ -169,7 +169,7 @@ inline const std::vector<Case> kCases = {
     fixture("TESSERA_JSX_PARSE_UNKNOWN_ENTITY", "parse-unknown-entity", Entry::kJsx,
             "<A>&bogus;</A>", 3, 7),
     fixture("TESSERA_JSX_SUBSET_ARRAY_METHOD", "subset-array-method", Entry::kExpression,
-            "rows.filter(x)", 0, 14),
+            "rows.reduce(x)", 0, 14),
     fixture("TESSERA_JSX_SUBSET_ASYNC", "subset-async", Entry::kExpression, "await x", 0, 5),
     fixture("TESSERA_JSX_SUBSET_CALL", "subset-call", Entry::kExpression, "rows.map(r => r)", 0,
             16),

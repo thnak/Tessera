@@ -43,10 +43,16 @@ void test_map_bad_shapes() {
 }
 
 void test_array_methods() {
-    for (const char* method : {"filter", "reduce", "forEach", "sort", "slice", "find", "push",
-                               "join", "includes", "flatMap", "at"}) {
+    // ADR-066 item 3 removed `filter` and `slice` from the rejected set: both are pure and total,
+    // so they lower to the `listFilter` and `listSlice` IR kinds. The rest stay rejected.
+    for (const char* method :
+         {"reduce", "forEach", "sort", "find", "push", "join", "includes", "flatMap", "at"}) {
         const auto result = parse_expression(std::string("rows.") + method + "(x)");
         check_eq(codes(result), "TESSERA_JSX_SUBSET_ARRAY_METHOD;", method);
+    }
+    for (const char* method : {"filter", "slice"}) {
+        const auto result = parse_expression(std::string("rows.") + method + "(x)");
+        check_eq(codes(result), "", method);
     }
     check_eq(codes_of_expr("a.set(1)"), "", "`.set` is not an array method");
     check_eq(codes_of_expr("a.toString()"), "", "`.toString` is not rejected");

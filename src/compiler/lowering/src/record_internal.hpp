@@ -57,6 +57,10 @@ struct RecordLoweringState {
     const jsx::SourceMap& source_map;
     std::string_view file;
     std::optional<jsx::Diagnostic> error; // the first error; later reports are ignored
+    // ADR-066 item 3: a record update's base is a source reference (`state`), which must become an
+    // IR id (`state::state`). Null when the caller has no resolver, in which case an update's base
+    // is reported rather than guessed.
+    const NameResolver* names = nullptr;
 };
 
 // Lowers an object literal in a declared record's position to an `ir::Record` (section 4.3). Fields

@@ -645,8 +645,11 @@ Acceptance: a `useState`/`useEffect`/`useRef` screen regenerates without losing 
       pipeline; evidence in ADR-066 "Step 1 evidence"), #652 control flow in handlers **done**
       (`if`/`else` as the additive `If` action reusing `guard`, `else if` nested, a handler `const`
       inlined, an early `return;` ending its list; corpus 33→34, 20→21; evidence in ADR-066 "Step 2
-      evidence"), then #653 list and string expressions, #654 limited `useReducer` and static
-      `useContext`.
+      evidence"), #653 list and string expressions **done** (`filter`/`slice` as the additive
+      `listFilter`/`listSlice` kinds, `.length` as the existing `length(...)` call, the total string
+      methods as calls with the receiver first, and `{ ...state, x }` as the additive `recordUpdate`
+      kind; corpus 34→38, 21→24; evidence in ADR-066 "Step 3 evidence"), then #654 limited
+      `useReducer` and static `useContext`.
 - [ ] Pending UI (ADR-067, waits for Acceptance): spec #655, front end and engine behaviors #656
       (preview support #657 belongs to V1-M4).
 

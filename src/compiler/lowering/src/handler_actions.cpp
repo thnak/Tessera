@@ -5,6 +5,7 @@
 
 #include "handler_control_internal.hpp"
 #include "hook_lowering_internal.hpp"
+#include "record_internal.hpp"
 #include "tessera/schema/intrinsics.hpp"
 
 #include <algorithm>
@@ -171,6 +172,17 @@ bool animated_options(HookState& state, const jsx::Expr& options, ir::Action& ac
 // The four call forms a handler body may hold. They are outside the anonymous namespace because the
 // control-flow walk in `handler_control.cpp` reaches them through `lower_call_action`
 // (`handler_control_internal.hpp` declares them).
+// The declared type of a `const [x, setX] = useState<T>(...)` statement, or an empty string when it
+// has none or the type has no IR form. The record table decides whether the type names a record.
+std::string declared_state_type(const jsx::Statement& declaration) {
+    if (declaration.init == nullptr || declaration.init->type_args.empty() ||
+        !declaration.init->type_args[0]) {
+        return {};
+    }
+    const std::optional<std::string> written = lower_written_type(*declaration.init->type_args[0]);
+    return written.value_or(std::string());
+}
+
 std::optional<ir::Action> lower_setter_call(HookState& state, const jsx::Expr& call,
                                             const jsx::Expr& callee, ComponentNames& names) {
     const rules::Symbol* setter = state.context.analysis.find(callee.text);
@@ -184,7 +196,30 @@ std::optional<ir::Action> lower_setter_call(HookState& state, const jsx::Expr& c
                   "setter `" + callee.text + "` takes exactly one value", call.span, kBodyRule);
         return std::nullopt;
     }
-    ir::ExprPtr value = lower_component_expression(state, *call.operands[1], names);
+    // ADR-066 item 3: a record-typed state's setter takes a record value, which may be an object
+    // literal or a `{ ...state, field: value }` update. The declared `useState<T>` type decides
+    // which, so the ordinary expression path is only used when the state is not a record.
+    ir::ExprPtr value;
+    if (state.context.records != nullptr && setter->statement != rules::kNoStatement) {
+        const jsx::Statement& declaration = state.context.component.body[setter->statement];
+        const std::string type = declared_state_type(declaration);
+        const std::optional<std::string_view> record_name =
+            type.empty() ? std::nullopt : record_name_of(*state.context.records, type);
+        const ir::RecordType* record =
+            record_name ? find_record(*state.context.records, *record_name) : nullptr;
+        if (record != nullptr && call.operands[1]->kind == jsx::ExprKind::Object) {
+            RecordLoweringState record_state{state.context.source_map, state.context.file,
+                                             std::nullopt, &names};
+            value = lower_record_value(record_state, *call.operands[1], *record,
+                                       *state.context.records);
+            if (!value && record_state.error && !state.error) {
+                state.error = std::move(record_state.error);
+            }
+        }
+    }
+    if (!value) {
+        value = lower_component_expression(state, *call.operands[1], names);
+    }
     if (!value) {
         return std::nullopt;
     }

@@ -16,10 +16,12 @@ namespace {
 constexpr std::string_view kBinaryOps[] = {
     "+", "-", "*", "/", "%", "==", "!=", "<", "<=", ">", ">=", "&&", "||"};
 constexpr std::string_view kUnaryOps[] = {"!", "-", "+"};
-// ir-v1.md section 4.2.
-constexpr std::string_view kFunctions[] = {"min",     "max",    "clamp",       "abs",
-                                           "floor",   "ceil",   "round",       "toInt",
-                                           "toFloat", "length", "formatNumber"};
+// ir-v1.md section 4.2. The last six are the total string methods of ADR-066 item 3; each takes its
+// receiver as the first argument, so a method call and a function call are one shape.
+constexpr std::string_view kFunctions[] = {
+    "min",         "max",         "clamp",      "abs",    "floor",        "ceil",
+    "round",       "toInt",       "toFloat",    "length", "formatNumber", "trim",
+    "toUpperCase", "toLowerCase", "startsWith", "slice",  "toFixed"};
 constexpr std::string_view kPrimitiveTypes[] = {"bool",  "int",    "float",    "string",
                                                 "color", "length", "node_ref", "children"};
 
@@ -236,6 +238,38 @@ void validate_expr(ValidationContext& context, const ComponentScope& scope,
     case ExprKind::Coalesce:
         // ADR-066 item 1: `a ?? b`. Two operands: the optional value and the fallback.
         operands(2, "a coalesce");
+        break;
+    case ExprKind::ListFilter:
+        // ADR-066 item 3: `list.filter(item => <bool>)`. The item name is what the predicate binds,
+        // so an empty one has nothing to bind.
+        if (expr->id.empty()) {
+            context.report("TESSERA_IR_MALFORMED", "a list filter needs an item name", where);
+        }
+        operands(2, "a list filter");
+        break;
+    case ExprKind::ListSlice:
+        // ADR-066 item 3: `list.slice(start[, end])`. One or two bounds, and the list first.
+        if (expr->operands.size() < 2 || expr->operands.size() > 3) {
+            context.report("TESSERA_IR_MALFORMED",
+                           "a list slice needs a list and one or two bounds", where);
+        }
+        for (const auto& operand : expr->operands) {
+            require_expr(context, scope, locals, operand.get(), where, "a slice operand");
+        }
+        break;
+    case ExprKind::RecordUpdate:
+        // ADR-066 item 3: `{ ...record, field: value }`. The base is a ref id, so it must resolve;
+        // the fields are checked against the record type like a record value's.
+        if (expr->type.empty() || expr->id.empty()) {
+            context.report("TESSERA_IR_MALFORMED",
+                           "a record update needs a type and a base reference", where);
+            break;
+        }
+        if (!reference_resolves(scope, locals, expr->id)) {
+            context.report("TESSERA_IR_UNRESOLVED",
+                           "record update base `" + expr->id + "` does not resolve", where);
+        }
+        validate_record_expr(context, *expr, nullptr, where);
         break;
     }
 }

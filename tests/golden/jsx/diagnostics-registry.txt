@@ -24,7 +24,7 @@ TESSERA_JSX_PARSE_MISSING_SEMICOLON	parse-missing-semicolon	missing `;`
 TESSERA_JSX_PARSE_UNCLOSED_ELEMENT	parse-unclosed-element	element `<A>` is not closed: expected `</A>`
 TESSERA_JSX_PARSE_UNEXPECTED_TOKEN	parse-unexpected-token	unexpected end of input, expected an expression
 TESSERA_JSX_PARSE_UNKNOWN_ENTITY	parse-unknown-entity	unknown entity `&bogus;`
-TESSERA_JSX_SUBSET_ARRAY_METHOD	subset-array-method	array method `.filter` is not supported; only `.map` is
+TESSERA_JSX_SUBSET_ARRAY_METHOD	subset-array-method	array method `.reduce` is not supported; only `.map` is
 TESSERA_JSX_SUBSET_ASYNC	subset-async	`await` is not supported
 TESSERA_JSX_SUBSET_CALL	subset-call	`.map` callback body must be a single JSX element, not a block or another value
 TESSERA_JSX_SUBSET_CLASS	subset-class	`new` is not supported

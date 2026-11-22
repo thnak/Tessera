@@ -13,8 +13,9 @@ namespace tessera::compiler::ir {
 // docs/specs/ir-v1.md section 4.
 //
 // `OptionalField` and `Coalesce` are the two additive kinds of ADR-066 item 1 (`a?.b` and `a ?? b`
-// over an `optional<T>`). Both are optional in the format: a module that writes neither is
-// byte-identical to the IR before them, so `irVersion` stays 1 (ir-v1-expr.md section 12).
+// over an `optional<T>`). `ListFilter`, `ListSlice` and `RecordUpdate` are the three of ADR-066
+// item 3. All five are optional in the format: a module that writes none of them is byte-identical
+// to the IR before them, so `irVersion` stays 1 (ir-v1-expr.md section 12).
 enum class ExprKind : std::uint8_t {
     Literal,
     Ref,
@@ -31,6 +32,15 @@ enum class ExprKind : std::uint8_t {
     // `a ?? b`: `operands[0]` is the optional value, `operands[1]` the fallback. The result is the
     // inner type of the optional.
     Coalesce,
+    // `list.filter(item => <bool>)` (ADR-066 item 3): `operands[0]` is the list, `id` the item name
+    // and `operands[1]` the pure bool predicate. The result is a list of the same element type.
+    ListFilter,
+    // `list.slice(start, end)` (ADR-066 item 3): `operands[0]` is the list and the rest are the
+    // int bounds, in source order. The result is a list of the same element type.
+    ListSlice,
+    // `{ ...record, field: value }` (ADR-066 item 3, ADR-051): `type` is the declared record name,
+    // `id` the base record's ref id, and `fields` the written members. The result is the record.
+    RecordUpdate,
 };
 
 struct Null {};
@@ -89,6 +99,14 @@ ExprPtr make_optional_field(ExprPtr base, std::string field);
 // `a ?? b` (ADR-066 item 1): the optional value and the fallback. The result is the optional's
 // inner type.
 ExprPtr make_coalesce(ExprPtr value, ExprPtr fallback);
+// `list.filter(item => <bool>)` (ADR-066 item 3): the list, the item name the predicate binds, and
+// the pure bool predicate.
+ExprPtr make_list_filter(ExprPtr list, std::string item, ExprPtr predicate);
+// `list.slice(start, end)` (ADR-066 item 3): the list and the int bounds in source order.
+ExprPtr make_list_slice(ExprPtr list, std::vector<ExprPtr> bounds);
+// `{ ...record, field: value }` (ADR-066 item 3): the declared record name, the base record's ref
+// id, and the written members in member order.
+ExprPtr make_record_update(std::string type, std::string base, std::vector<RecordField> fields);
 
 TemplatePart text_part(std::string text);
 TemplatePart expr_part(ExprPtr expr);

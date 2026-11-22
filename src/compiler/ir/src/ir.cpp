@@ -148,6 +148,31 @@ ExprPtr make_coalesce(ExprPtr value, ExprPtr fallback) {
     return expr;
 }
 
+ExprPtr make_list_filter(ExprPtr list, std::string item, ExprPtr predicate) {
+    auto expr = make_expr(ExprKind::ListFilter);
+    expr->id = std::move(item);
+    expr->operands.push_back(std::move(list));
+    expr->operands.push_back(std::move(predicate));
+    return expr;
+}
+
+ExprPtr make_list_slice(ExprPtr list, std::vector<ExprPtr> bounds) {
+    auto expr = make_expr(ExprKind::ListSlice);
+    expr->operands.push_back(std::move(list));
+    for (ExprPtr& bound : bounds) {
+        expr->operands.push_back(std::move(bound));
+    }
+    return expr;
+}
+
+ExprPtr make_record_update(std::string type, std::string base, std::vector<RecordField> fields) {
+    auto expr = make_expr(ExprKind::RecordUpdate);
+    expr->type = std::move(type);
+    expr->id = std::move(base);
+    expr->fields = std::move(fields);
+    return expr;
+}
+
 TemplatePart text_part(std::string text) {
     return TemplatePart{std::move(text), nullptr};
 }

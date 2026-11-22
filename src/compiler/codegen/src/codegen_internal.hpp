@@ -208,6 +208,11 @@ struct DynamicMetadata {
     const ir::Expr* value = nullptr;
 };
 
+// ADR-066 item 3: whether the component needs `tessera/ui/scene/list_ops.hpp` (emit_list_ops.cpp).
+// The header include is emitted only when it does, so every other component keeps its exact
+// previous bytes.
+[[nodiscard]] bool uses_list_ops(const ir::Component& component);
+
 // Emits the component header/source (emit_header.cpp / emit_component.cpp). `module` supplies the
 // referenced components for composition and the `children` slot.
 [[nodiscard]] bool emit_component_header(const ir::Component& component, const ir::IrModule& module,

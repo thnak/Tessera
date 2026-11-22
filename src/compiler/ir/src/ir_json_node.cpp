@@ -118,6 +118,41 @@ JsonValue expr_to_json(const Expr* expr) {
         json.set("value", expr_to_json(operand(*expr, 0)));
         json.set("fallback", expr_to_json(operand(*expr, 1)));
         break;
+    case ExprKind::ListFilter:
+        // ADR-066 item 3: `list.filter(item => <bool>)`. `item` is the name the predicate binds.
+        json.set("kind", JsonValue::string("listFilter"));
+        json.set("item", JsonValue::string(expr->id));
+        json.set("list", expr_to_json(operand(*expr, 0)));
+        json.set("predicate", expr_to_json(operand(*expr, 1)));
+        break;
+    case ExprKind::ListSlice: {
+        // ADR-066 item 3: `list.slice(start, end)`. `bounds` is in source order, so one bound is
+        // `slice(start)` and two are `slice(start, end)`.
+        json.set("kind", JsonValue::string("listSlice"));
+        json.set("list", expr_to_json(operand(*expr, 0)));
+        JsonValue bounds = JsonValue::array();
+        for (std::size_t i = 1; i < expr->operands.size(); ++i) {
+            bounds.push(expr_to_json(operand(*expr, i)));
+        }
+        json.set("bounds", std::move(bounds));
+        break;
+    }
+    case ExprKind::RecordUpdate: {
+        // ADR-066 item 3: `{ ...record, field: value }`. `base` is the record's ref id and `fields`
+        // the written members, in member order.
+        json.set("kind", JsonValue::string("recordUpdate"));
+        json.set("type", JsonValue::string(expr->type));
+        json.set("base", JsonValue::string(expr->id));
+        JsonValue fields = JsonValue::array();
+        for (const auto& field : expr->fields) {
+            JsonValue item = JsonValue::object();
+            item.set("name", JsonValue::string(field.name));
+            item.set("value", expr_to_json(field.value.get()));
+            fields.push(std::move(item));
+        }
+        json.set("fields", std::move(fields));
+        break;
+    }
     }
     return json;
 }
