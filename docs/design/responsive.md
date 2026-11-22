@@ -25,12 +25,24 @@ From `WindowMetrics` ([glossary](../reference/glossary.md); defined in [`os-even
 CSS `@media` V1 (first-release scope, see [AGENTS.md rule 8](../../AGENTS.md#non-negotiables); the normative list is in [`stylesheet-v1.md`](../specs/stylesheet-v1.md)):
 
 - `min-width`/`max-width`, `min-height`/`max-height`
+- `aspect-ratio` and `min-`/`max-aspect-ratio`, compared as an exact integer ratio (issue #691)
+- `hover`/`any-hover` and `pointer`/`any-pointer`, answered from the window's input capabilities
+  (issue #691); the Studio's device preset supplies them for the simulation
+- the range form for width, height, aspect-ratio and resolution: `(width >= 600px)`,
+  `(600px <= width)` and the two-sided `(600px <= width <= 900px)` (issue #691)
 - `orientation: portrait|landscape`
 - `resolution` / `min-resolution`
 - `prefers-color-scheme`
 - `prefers-reduced-motion`
 - `prefers-contrast` (no release assigned; not listed in stylesheet-v1.md)
 - `display-mode` (no release assigned; not listed in stylesheet-v1.md)
+
+**Viewport units.** `vw`, `vh`, `vmin`, `vmax` and the small/large/dynamic forms resolve through one
+table (`viewport_units.hpp`), so layout, grid and `@media` cannot disagree about what a unit means
+(issue #691). The small/large/dynamic variants exist because a mobile browser's viewport changes as
+its toolbars slide away; a desktop window has no such chrome, so all three equal the plain value
+there. That is the correct answer for such a viewport, not a fallback, and `ViewportUnits` carries a
+`has_dynamic_chrome` flag so a platform that can differ has one place to say so.
 
 Breakpoints are app-authored; Tessera does not impose a fixed set. Recommended defaults for
 dashboard-style apps: compact < 600 dp, medium 600–839 dp, expanded >= 840 dp. These values

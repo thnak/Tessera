@@ -2775,6 +2775,8 @@ struct include/tessera/ui/style/media_query.hpp tessera::ui::style::MediaQueryPa
 enum include/tessera/ui/style/media_query.hpp tessera::ui::style::ColorScheme
 enum include/tessera/ui/style/media_query.hpp tessera::ui::style::MediaComparison
 enum include/tessera/ui/style/media_query.hpp tessera::ui::style::MediaFeature
+enum include/tessera/ui/style/media_query.hpp tessera::ui::style::MediaHover
+enum include/tessera/ui/style/media_query.hpp tessera::ui::style::MediaPointer
 function include/tessera/ui/style/media_query.hpp tessera::ui::style::evaluate
 function include/tessera/ui/style/media_query.hpp tessera::ui::style::parse_media_query_list
 function include/tessera/ui/style/media_query.hpp tessera::ui::style::with_appearance
@@ -2960,6 +2962,15 @@ function include/tessera/ui/style/transform.hpp tessera::ui::style::compute_tran
 header include/tessera/ui/style/ua_stylesheet.hpp
 function include/tessera/ui/style/ua_stylesheet.hpp tessera::ui::style::ua_prepared_stylesheet
 function include/tessera/ui/style/ua_stylesheet.hpp tessera::ui::style::ua_stylesheet_text
+
+header include/tessera/ui/style/viewport_units.hpp
+struct include/tessera/ui/style/viewport_units.hpp tessera::ui::style::ViewportLength
+struct include/tessera/ui/style/viewport_units.hpp tessera::ui::style::ViewportUnits
+enum include/tessera/ui/style/viewport_units.hpp tessera::ui::style::ViewportAxis
+enum include/tessera/ui/style/viewport_units.hpp tessera::ui::style::ViewportSize
+function include/tessera/ui/style/viewport_units.hpp tessera::ui::style::parse_viewport_unit
+function include/tessera/ui/style/viewport_units.hpp tessera::ui::style::resolve_viewport_length
+function include/tessera/ui/style/viewport_units.hpp tessera::ui::style::viewport_extent
 
 header include/tessera/ui/text/bidi.hpp
 alias include/tessera/ui/text/bidi.hpp tessera::ui::text::BidiAdvance

@@ -6,6 +6,7 @@
 
 #include "tessera/detail/text_util.hpp"
 #include "tessera/ui/style/grid_values.hpp"
+#include "tessera/ui/style/viewport_units.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -70,6 +71,62 @@ std::vector<std::string_view> split_tokens(std::string_view text) {
     return tokens;
 }
 
+// The enumerator for a viewport size/axis pair (issue #691). `None` means the pair has no grid
+// unit, which cannot happen for a pair the shared table produced but keeps the mapping total.
+GridLengthUnit grid_unit_for(ViewportSize size, ViewportAxis axis) {
+    switch (size) {
+    case ViewportSize::Default:
+        switch (axis) {
+        case ViewportAxis::Width:
+            return GridLengthUnit::Vw;
+        case ViewportAxis::Height:
+            return GridLengthUnit::Vh;
+        case ViewportAxis::Min:
+            return GridLengthUnit::Vmin;
+        case ViewportAxis::Max:
+            return GridLengthUnit::Vmax;
+        }
+        break;
+    case ViewportSize::Small:
+        switch (axis) {
+        case ViewportAxis::Width:
+            return GridLengthUnit::Svw;
+        case ViewportAxis::Height:
+            return GridLengthUnit::Svh;
+        case ViewportAxis::Min:
+            return GridLengthUnit::Svmin;
+        case ViewportAxis::Max:
+            return GridLengthUnit::Svmax;
+        }
+        break;
+    case ViewportSize::Large:
+        switch (axis) {
+        case ViewportAxis::Width:
+            return GridLengthUnit::Lvw;
+        case ViewportAxis::Height:
+            return GridLengthUnit::Lvh;
+        case ViewportAxis::Min:
+            return GridLengthUnit::Lvmin;
+        case ViewportAxis::Max:
+            return GridLengthUnit::Lvmax;
+        }
+        break;
+    case ViewportSize::Dynamic:
+        switch (axis) {
+        case ViewportAxis::Width:
+            return GridLengthUnit::Dvw;
+        case ViewportAxis::Height:
+            return GridLengthUnit::Dvh;
+        case ViewportAxis::Min:
+            return GridLengthUnit::Dvmin;
+        case ViewportAxis::Max:
+            return GridLengthUnit::Dvmax;
+        }
+        break;
+    }
+    return GridLengthUnit::None;
+}
+
 // `<length-percentage>`: the unit set is the stylesheet engine's (px, rem/em, vw, vh, pt, %).
 bool parse_length_percentage(std::string_view token, GridTrackSize& out) {
     const std::string_view text = trim(token);
@@ -102,14 +159,20 @@ bool parse_length_percentage(std::string_view token, GridTrackSize& out) {
         parsed_unit = GridLengthUnit::Rem;
     } else if (unit == "em") {
         parsed_unit = GridLengthUnit::Em;
-    } else if (unit == "vw") {
-        parsed_unit = GridLengthUnit::Vw;
-    } else if (unit == "vh") {
-        parsed_unit = GridLengthUnit::Vh;
     } else if (unit == "pt") {
         parsed_unit = GridLengthUnit::Pt;
     } else {
-        return false;
+        // Every viewport unit comes from the one shared table (issue #691), so a track accepts the
+        // same set layout and `@media` do. The table's size/axis pair maps onto the enumerator.
+        ViewportSize size = ViewportSize::Default;
+        ViewportAxis axis = ViewportAxis::Width;
+        if (!parse_viewport_unit(unit, size, axis)) {
+            return false;
+        }
+        parsed_unit = grid_unit_for(size, axis);
+        if (parsed_unit == GridLengthUnit::None) {
+            return false;
+        }
     }
     out = GridTrackSize{GridTrackKind::Fixed, value, parsed_unit};
     return true;
