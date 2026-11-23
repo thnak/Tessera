@@ -45,5 +45,5 @@ inline void list_duplicate_key(const void* component, const char* node_id, std::
 } // namespace tessera::ui
 
 // The generated list calls this on the duplicate path only, so no other path carries a cost.
-#define TESSERA_LIST_DUPLICATE_KEY(component, node_id, key) \
+#define TESSERA_LIST_DUPLICATE_KEY(component, node_id, key)                                        \
     ::tessera::ui::list_duplicate_key((component), (node_id), (key))

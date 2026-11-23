@@ -83,8 +83,8 @@ void test_derived_source_shapes() {
     // `rows.slice(0, 2)`
     {
         ir::IrModule module = make_filtered_module();
-        module.components[0].root.children[0].loop->source = ir::make_list_slice(
-            ir::make_ref("prop::rows"), [] {
+        module.components[0].root.children[0].loop->source =
+            ir::make_list_slice(ir::make_ref("prop::rows"), [] {
                 std::vector<ir::ExprPtr> bounds;
                 bounds.push_back(integer(0));
                 bounds.push_back(integer(2));
@@ -107,9 +107,9 @@ void test_derived_source_shapes() {
         std::vector<ir::ExprPtr> predicate_args;
         predicate_args.push_back(ir::make_ref("row"));
         predicate_args.push_back(ir::make_ref("prop::query"));
-        module.components[0].root.children[0].loop->source = ir::make_list_filter(
-            ir::make_list_slice(ir::make_ref("prop::rows"), std::move(bounds)), "row",
-            ir::make_call("startsWith", std::move(predicate_args)));
+        module.components[0].root.children[0].loop->source =
+            ir::make_list_filter(ir::make_list_slice(ir::make_ref("prop::rows"), std::move(bounds)),
+                                 "row", ir::make_call("startsWith", std::move(predicate_args)));
         const auto result = generate_base(module);
         check(result.has_value(), "a `filter` of a `slice` source generates");
         if (result) {

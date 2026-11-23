@@ -174,8 +174,7 @@ inline ir::IrModule make_filtered_module() {
     item.text = item_text_prop();
     item.key = ir::make_ref("item");
     item.loop = ir::Loop{
-        "item", "",
-        ir::make_list_filter(ir::make_ref("prop::rows"), "row", std::move(predicate))};
+        "item", "", ir::make_list_filter(ir::make_ref("prop::rows"), "row", std::move(predicate))};
     root.children.push_back(std::move(item));
 
     component.root = std::move(root);

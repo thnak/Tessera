@@ -157,7 +157,9 @@ void test_query_insert_remove_identity() {
     ui::Node& root = *fixture.root.children()[0];
     check(root.children().size() == 4, "an empty query keeps every row");
     ui::Node* const alpha = root.children()[0].get();
-    ui::Node* const beta = root.children()[1].get();
+    // The id of the `atom` item, captured while it is live. A node's id is a value, so it survives
+    // the node's destruction; an address would not, which is why the freshness check below uses it.
+    const ui::NodeId atom_id = root.children()[2]->id();
 
     // `a` keeps alpha and atom (beta starts with `b`, gamma with `g`): beta and gamma are removed.
     fixture.set_query("a");
@@ -177,8 +179,8 @@ void test_query_insert_remove_identity() {
     check_eq(joined(root), "alpha @ 0|atom @ 0", "the widened query re-inserts the keys");
     check(root.children().size() == 2, "the re-inserted set has one child per matching key");
     check(root.children()[0].get() == alpha, "the reused item is still the same node");
-    check(root.children()[1].get() != beta, "a removed then re-inserted key is a fresh node");
-    (void)beta;
+    check(root.children()[1]->id() != atom_id,
+          "a removed then re-inserted key is a fresh node, not the destroyed one");
 }
 
 // --- 3. Unrelated state does not recompute the cache or run the list. --------------------------

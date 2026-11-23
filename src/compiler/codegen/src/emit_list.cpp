@@ -195,9 +195,8 @@ bool emit_apply_list(CppWriter& writer, const ir::Component& component,
     // A `Ref` source is read where it is named. A derived source (`listFilter`/`listSlice`) is a
     // cached component member: `apply_state()` refreshes it under the loop's own source mask, and
     // this function only reads it, so an unrelated state change neither recomputes nor re-diffs.
-    const std::string source = source_needs_cache(source_expr)
-                                   ? derived_source_member(list.ordinal)
-                                   : emission.text;
+    const std::string source =
+        source_needs_cache(source_expr) ? derived_source_member(list.ordinal) : emission.text;
     const std::string key_locals_cpp = "static_cast<int>(tessera_position)";
     const LocalBindings key_locals = list_locals(list, key_locals_cpp);
     const LocalBindings next_locals = list_locals(list, "static_cast<int>(tessera_next)");

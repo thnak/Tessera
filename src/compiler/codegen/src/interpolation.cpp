@@ -257,15 +257,14 @@ bool emit_apply_state(CppWriter& writer, const ir::Component& component,
     }
     // The controller is seeded during build(); its values/errors are re-read after the props.
     emit_form_state_calls(writer, forms);
-    // A derived list source (`listFilter`/`listSlice`) is a cached member (issue #830): recompute it
-    // here, before the child walks that read it, and only when one of its input cells is dirty. The
-    // `ListSource` mask is the source expression's own reads alone, a strictly smaller set than the
-    // `ListItem` mask (which also carries the template's content). A `Ref` source has no cache and
-    // emits nothing here.
+    // A derived list source (`listFilter`/`listSlice`) is a cached member (issue #830): recompute
+    // it here, before the child walks that read it, and only when one of its input cells is dirty.
+    // The `ListSource` mask is the source expression's own reads alone, a strictly smaller set than
+    // the `ListItem` mask (which also carries the template's content). A `Ref` source has no cache
+    // and emits nothing here.
     for (const ListTemplate& list : plan.lists) {
         if (list.is_virtual || list.node == nullptr || !list.node->loop.has_value() ||
-            list.node->loop->source == nullptr ||
-            !source_needs_cache(*list.node->loop->source)) {
+            list.node->loop->source == nullptr || !source_needs_cache(*list.node->loop->source)) {
             continue;
         }
         if (open_dirty_gate(writer, plan.dirty, BindingKind::ListSource, list.ordinal, {},

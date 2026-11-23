@@ -23,9 +23,9 @@ namespace {
 // here the analysis would fall back to "every cell" and recompute the source cache needlessly.
 bool pure_callee(std::string_view callee) {
     static constexpr std::string_view kPure[] = {
-        "min",         "max",         "clamp",      "abs",     "floor",        "ceil",
-        "round",       "toInt",       "toFloat",    "length",  "formatNumber", "trim",
-        "toUpperCase", "toLowerCase", "startsWith", "slice",   "toFixed",
+        "min",         "max",         "clamp",      "abs",    "floor",        "ceil",
+        "round",       "toInt",       "toFloat",    "length", "formatNumber", "trim",
+        "toUpperCase", "toLowerCase", "startsWith", "slice",  "toFixed",
     };
     return std::find(std::begin(kPure), std::end(kPure), callee) != std::end(kPure);
 }

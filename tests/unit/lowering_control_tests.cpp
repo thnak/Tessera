@@ -165,11 +165,11 @@ void test_loop_index() {
 // Issue #830: a `.map` receiver may be a `filter`/`slice` of a list name, which is what a
 // `useMemo(() => rows.filter(...))` desugars to once the local is inlined.
 void test_derived_list_source() {
-    const auto filter_fixture = parse(component(
-        "",
-        "<View>{props.rows.filter((row) => row.open).map((row) => "
-        "<View key={row.id}>{row.label}</View>)}</View>",
-        "props: P"));
+    const auto filter_fixture =
+        parse(component("",
+                        "<View>{props.rows.filter((row) => row.open).map((row) => "
+                        "<View key={row.id}>{row.label}</View>)}</View>",
+                        "props: P"));
     const auto filter_result = lower(*filter_fixture);
     check(filter_result.has_value(),
           "a `filter` source lowers: " + describe_errors(*filter_fixture, filter_result));
@@ -183,11 +183,11 @@ void test_derived_list_source() {
         }
     }
 
-    const auto slice_fixture = parse(
-        component("",
-                  "<View>{props.rows.slice(0, 3).map((row) => <View key={row.id}>{row.label}"
-                  "</View>)}</View>",
-                  "props: P"));
+    const auto slice_fixture =
+        parse(component("",
+                        "<View>{props.rows.slice(0, 3).map((row) => <View key={row.id}>{row.label}"
+                        "</View>)}</View>",
+                        "props: P"));
     const auto slice_result = lower(*slice_fixture);
     check(slice_result.has_value(),
           "a `slice` source lowers: " + describe_errors(*slice_fixture, slice_result));
@@ -201,11 +201,11 @@ void test_derived_list_source() {
         }
     }
 
-    const auto nested_fixture = parse(
-        component("",
-                  "<View>{props.rows.slice(0, 3).filter((row) => row.open).map((row) => "
-                  "<View key={row.id}>{row.label}</View>)}</View>",
-                  "props: P"));
+    const auto nested_fixture =
+        parse(component("",
+                        "<View>{props.rows.slice(0, 3).filter((row) => row.open).map((row) => "
+                        "<View key={row.id}>{row.label}</View>)}</View>",
+                        "props: P"));
     const auto nested_result = lower(*nested_fixture);
     check(nested_result.has_value(),
           "a `filter` of a `slice` lowers: " + describe_errors(*nested_fixture, nested_result));

@@ -241,9 +241,8 @@ void test_derived_list_source_reads() {
     ir::Node row = node(ir::NodeKind::Text);
     ir::Loop loop;
     loop.item = "item";
-    loop.source =
-        ir::make_list_filter(ref("state::items"), "row",
-                             ir::make_call("startsWith", std::move(predicate_args)));
+    loop.source = ir::make_list_filter(ref("state::items"), "row",
+                                       ir::make_call("startsWith", std::move(predicate_args)));
     row.loop = std::move(loop);
     row.key = ref("item");
     std::vector<ir::ExprPtr> text_refs;

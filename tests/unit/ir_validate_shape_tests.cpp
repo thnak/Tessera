@@ -139,15 +139,15 @@ void test_loops() {
     expect(
         "a filter of a ref is a valid loop source",
         [](auto& m) {
-            row_node(m).loop->source = ir::make_list_filter(
-                ir::make_ref("state::rows"), "row", ir::make_literal(true));
+            row_node(m).loop->source =
+                ir::make_list_filter(ir::make_ref("state::rows"), "row", ir::make_literal(true));
         },
         "");
     expect(
         "a slice of a ref is a valid loop source",
         [](auto& m) {
-            row_node(m).loop->source = ir::make_list_slice(
-                ir::make_ref("state::rows"), slice_bounds(0));
+            row_node(m).loop->source =
+                ir::make_list_slice(ir::make_ref("state::rows"), slice_bounds(0));
         },
         "");
     expect(
@@ -161,8 +161,8 @@ void test_loops() {
     expect(
         "a filter's predicate item resolves inside the predicate",
         [](auto& m) {
-            row_node(m).loop->source = ir::make_list_filter(
-                ir::make_ref("state::rows"), "row", ir::make_ref("row.value"));
+            row_node(m).loop->source =
+                ir::make_list_filter(ir::make_ref("state::rows"), "row", ir::make_ref("row.value"));
         },
         "");
     expect(

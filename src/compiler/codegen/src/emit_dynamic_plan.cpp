@@ -154,7 +154,8 @@ bool PlanWalk::validate_template_loop(const ir::Node& node, const ir::Loop& loop
     }
     // Section 5: a source is a list ref or a `filter`/`slice` of one; a derived list keeps its
     // innermost list's element type, so the declared `list<T>` comes from that ref (issue #830).
-    const ir::Expr* source_ref = loop.source == nullptr ? nullptr : ir::list_source_ref(*loop.source);
+    const ir::Expr* source_ref =
+        loop.source == nullptr ? nullptr : ir::list_source_ref(*loop.source);
     if (source_ref == nullptr) {
         return fail(error, "the loop source of `" + node.id +
                                "` must be a list reference or a `filter`/`slice` of one");

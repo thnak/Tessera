@@ -369,8 +369,8 @@ void test_rejections() {
         // stops at the innermost operand and it is a `binary`, not a ref.
         ir::IrModule module = make_dynamic_module();
         module.components[0].root.children[3].loop->source = ir::make_list_filter(
-            ir::make_binary("+", ir::make_ref("state::items"), ir::make_ref("state::items")),
-            "row", ir::make_literal(true));
+            ir::make_binary("+", ir::make_ref("state::items"), ir::make_ref("state::items")), "row",
+            ir::make_literal(true));
         expect_error(module, "a `filter` over a binary is rejected");
     }
     {
