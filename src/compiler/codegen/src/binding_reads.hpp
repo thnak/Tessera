@@ -3,6 +3,7 @@
 #pragma once
 
 #include "tessera/compiler/ir/component.hpp"
+#include "tessera/compiler/ir/types.hpp"
 
 #include <compare>
 #include <cstdint>
@@ -67,13 +68,27 @@ struct BindingReadTable {
 [[nodiscard]] ReadSet expression_reads(const ir::Expr& expr, const ir::Component& component,
                                        std::span<const std::string> locals = {});
 
-// Every cell the component declares (`state::`, `prop::`, `anim::`, `env::`), sorted.
-[[nodiscard]] std::vector<std::string> declared_cells(const ir::Component& component);
+// The dependency bits one declared cell contributes (ADR-056 decision 1, ADR-051 implementation
+// note #834). A cell whose declared type is exactly a declared record splits into one bit per read
+// leaf path (`state::form.name`, `state::form.address.city`); every other cell is one bit
+// (`{cell_id}`). A leaf is a primitive member, a `list<T>` member (a dotted ref cannot index a
+// list), or an `optional<T>` member; a plain nested record recurses, so an intermediate record read
+// expands to every leaf below it. `records` is the module's record type table.
+[[nodiscard]] std::vector<std::string> cell_bit_ids(std::string_view cell_id,
+                                                    std::string_view ir_type,
+                                                    std::span<const ir::RecordType> records);
+
+// Every bit id the component declares (`state::`, `prop::`, `anim::`, `env::`), sorted and unique.
+// With the default empty record table this is exactly the old one-bit-per-cell list, which keeps
+// every record-free golden byte-identical.
+[[nodiscard]] std::vector<std::string> declared_cells(const ir::Component& component,
+                                                      std::span<const ir::RecordType> records = {});
 
 // The read set of every dynamic binding of `component`, keyed with the same pre-order ordinals the
 // other collectors use (`collect_dynamic_text`, `collect_dynamic_metadata`,
 // `collect_dynamic_plan`). A binding whose expression is a literal is present with an empty read
-// set.
-[[nodiscard]] BindingReadTable analyze_binding_reads(const ir::Component& component);
+// set. With the default empty record table it reports one cell id per read, as before.
+[[nodiscard]] BindingReadTable analyze_binding_reads(const ir::Component& component,
+                                                     std::span<const ir::RecordType> records = {});
 
 } // namespace tessera::compiler::codegen::internal

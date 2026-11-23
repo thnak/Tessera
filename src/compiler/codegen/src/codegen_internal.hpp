@@ -105,10 +105,13 @@ struct ExprEmission {
 [[nodiscard]] ExprEmission emit_initializer_expr(const ir::Expr& expr,
                                                  const ir::Component& component);
 
-// Emits the body of an inline handler or preview: one line per action.
+// Emits the body of an inline handler or preview: one line per action. `records` is the module's
+// record type table (ADR-056 decision 1, #834): a `set` of a record-typed state splits its dirty
+// bit into one per changed field. The default empty table keeps every record-free handler's bytes.
 [[nodiscard]] std::optional<std::string> emit_actions(const std::vector<ir::Action>& actions,
                                                       const ir::Component& component,
                                                       std::span<const ir::Param> params,
+                                                      std::span<const ir::RecordType> records,
                                                       std::string& error);
 
 // One interpolated text node: ordinal matches the generated node_N variables.

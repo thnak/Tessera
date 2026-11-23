@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <optional>
+#include <span>
 #include <string>
 #include <utility>
 #include <vector>
@@ -49,6 +50,7 @@ struct Template {
 
 struct Walk {
     const ir::Component& component;
+    std::span<const ir::RecordType> records;
     BindingReadTable& table;
     unsigned ordinal = 0;
 
@@ -58,7 +60,7 @@ struct Walk {
     }
 
     [[nodiscard]] ReadSet reads_of(const ir::Expr* expr) const {
-        ReadCollector collector(component, {});
+        ReadCollector collector(component, {}, records);
         collector.add(expr);
         return collector.finish();
     }
@@ -131,7 +133,7 @@ void Walk::node(const ir::Node& node, Template* enclosing) {
             if (!node.loop->index.empty()) {
                 started.locals.push_back(node.loop->index);
             }
-            started.items.emplace(component, started.locals);
+            started.items.emplace(component, started.locals, records);
             put(BindingKind::ListSource, self, {}, reads_of(node.loop->source.get()));
             started.items->add(node.loop->source.get());
             active = &started;
@@ -170,14 +172,15 @@ const ReadSet* BindingReadTable::find(BindingKind kind, unsigned ordinal,
     return &it->reads;
 }
 
-BindingReadTable analyze_binding_reads(const ir::Component& component) {
+BindingReadTable analyze_binding_reads(const ir::Component& component,
+                                       std::span<const ir::RecordType> records) {
     BindingReadTable table;
-    Walk walk{component, table};
+    Walk walk{component, records, table};
     walk.node(component.root, nullptr);
 
     for (std::size_t index = 0; index < component.effects.size(); ++index) {
         const ir::Effect& effect = component.effects[index];
-        ReadCollector inputs(component, {});
+        ReadCollector inputs(component, {}, records);
         for (const std::string& dep : effect.deps) {
             inputs.add_ref_id(dep);
         }

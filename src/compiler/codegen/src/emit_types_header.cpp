@@ -15,7 +15,16 @@
 // order, so `Size{.w = 1, .h = 2}` is checked by the C++ compiler. A member that is another
 // declared record is the struct's own type name; a `list<T>`/`optional<T>` member is the
 // corresponding standard wrapper.
+//
+// Issue #834 (ADR-051 implementation note): every record also gets
+//   - `bool operator==(const R&) const = default` (C++20, field-wise in declaration order,
+//     recursive through nested records and `list`/`optional` members), which is what makes a record
+//     setter equality-gated and a prop hash guard possible. Floats compare with IEEE `==`
+//     (ADR-041 decision 6): a NaN field is never equal, so it always counts as changed.
+//   - a field-wise FNV-1a `hash_value(const R&)` over the shared `tessera::ui::effect_hash`
+//     helpers, used by the prop hash guards and the per-item content pass. It allocates nothing.
 
+#include "emit_record_hash.hpp"
 #include "emit_types_header.hpp"
 
 #include <optional>
@@ -62,12 +71,18 @@ bool emit_types_header(const ir::IrModule& module, GeneratedFile& file, std::str
     writer.line("// Developer code belongs only inside [DEVELOPER_LOGIC_START/END] regions.");
     writer.line("#pragma once");
     writer.line("");
+    writer.line("#include \"tessera/ui/scene/component_lifecycle.hpp\"");
+    writer.line("");
+    writer.line("#include <cstdint>");
     writer.line("#include <optional>");
     writer.line("#include <string>");
     writer.line("#include <vector>");
     writer.line("");
     writer.open("namespace " + module.name);
     writer.open("namespace gen");
+    // The aggregate structs first, so the hash helpers below can name a nested record that is
+    // declared later in `types` order. A by-value member needs the complete type only where the
+    // aggregate is used, not where it is declared (the same rule the emitted aggregate follows).
     for (const ir::RecordType& record : module.types) {
         writer.line("// Record `" + record.name + "` (" + record.id + ").");
         writer.open("struct " + record.name);
@@ -80,8 +95,33 @@ bool emit_types_header(const ir::IrModule& module, GeneratedFile& file, std::str
             }
             writer.line(*type + " " + member.name + " = {};");
         }
+        // ADR-051 implementation note (#834): generated equality is what makes a record setter
+        // equality-gated and a record a valid prop-hash/change-detection key. C++20's defaulted
+        // `==` is field-wise in declaration order, recursive through nested records and the
+        // `list`/`optional` members, and IEEE for a float field (NaN never equal: the safe
+        // direction, ADR-041 decision 6).
+        writer.line("bool operator==(const " + record.name + "&) const = default;");
         writer.close(";");
         writer.line("");
+    }
+    // The field-wise hash, one overload per record, after every struct is complete so a nested
+    // record's own `hash_value` is visible. A `list`/`optional` member recurses through the same
+    // helpers; a scalar goes through `effect_hash`, which is the shared FNV-1a contract.
+    //
+    // Forward-declare every overload first: `types` is sorted by name, so a record may name a
+    // nested record that is defined later. A record type holds an incomplete member only until the
+    // aggregate is used, and a `hash_value` call is a use, so the declaration has to precede every
+    // definition rather than following declaration order.
+    for (const ir::RecordType& record : module.types) {
+        writer.line("inline std::uint64_t hash_value(const " + record.name + "& value);");
+    }
+    if (!module.types.empty()) {
+        writer.line("");
+    }
+    for (const ir::RecordType& record : module.types) {
+        if (!emit_record_hash_definition(writer, record, module, error)) {
+            return false;
+        }
     }
     writer.close("");
     writer.close("");

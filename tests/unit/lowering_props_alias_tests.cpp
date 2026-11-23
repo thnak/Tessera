@@ -418,16 +418,29 @@ void test_record_type_and_value_are_emitted() {
     check(header->text.find("Spacing state_margin_ = Spacing{.top = 1, .bottom = 2, .label = "
                             "\"m\"};") != std::string::npos,
           "the state initial is designated aggregate initialization");
-    // ADR-051 section 5: no equality for a record, so the setter cannot be equality-gated. The
-    // generated base is one header-only file (ADR-040), so the definition lives in the header too.
+    // ADR-051 implementation note (#834): a record now has generated equality and per-field dirty
+    // bits. The generated base is one header-only file (ADR-040), so the definition lives in the
+    // header too. The whole-record setter compares field by field and raises only the changed
+    // field's bit before scheduling once.
     const std::size_t setter = header->text.find("::set_margin(Spacing value) {");
     check(setter != std::string::npos, "the record state gets a setter taking the aggregate");
     if (setter != std::string::npos) {
-        const std::string body = header->text.substr(setter, 300);
-        check(body.find("== value") == std::string::npos,
-              "the record setter is not equality-gated (no generated operator==)");
-        check(body.find("schedule_update();") != std::string::npos,
-              "the record setter always schedules an update");
+        const std::string body = header->text.substr(setter, 700);
+        check(body.find("state_margin_.top == value.top") != std::string::npos &&
+                  body.find("state_margin_.bottom == value.bottom") != std::string::npos,
+              "the record setter compares field by field");
+        check(body.find("note_dirty(kBit_state_margin_top_)") != std::string::npos,
+              "a changed field raises its own leaf bit");
+        check(body.find("if (tessera_changed)") != std::string::npos,
+              "the record setter schedules only when a field changed");
+    }
+    if (types != nullptr) {
+        check(types->text.find("bool operator==(const Spacing&) const = default;") !=
+                  std::string::npos,
+              "the record aggregates get a defaulted operator==");
+        check(types->text.find("inline std::uint64_t hash_value(const Spacing& value)") !=
+                  std::string::npos,
+              "the record aggregates get a field-wise hash");
     }
 }
 

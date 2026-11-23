@@ -32,10 +32,12 @@ std::string setter_name(const ir::State& state) {
     return "set_" + state.name;
 }
 
-// ADR-051 section 5: a record state cell has no generated equality in this slice, so its setter
-// cannot be equality-gated and must always schedule an update.
+// True when the state's declared type is exactly a declared record (`Form`, not `list<Form>` or
+// `optional<Form>`). Only then does the cell split into per-field bits and does its setter compare
+// field by field (ADR-051 implementation note #834). A wrapper-typed cell is one bit and compares
+// whole, like any other value.
 bool is_record_state(const ir::State& state, const ir::IrModule& module) {
-    return find_record_type(module, innermost_record_name(state.type)) != nullptr;
+    return find_record_type(module, state.type) != nullptr;
 }
 
 // Runs the handler recorded by the set that just completed (`onComplete`), once. The member is
@@ -220,19 +222,42 @@ bool emit_schedule_definitions(CppWriter& writer, const ir::IrModule& module,
         writer.open("void " + component.name + "::" + setter_name(state) + "(" + *type + " value)");
         // Equality-gated (ADR-041, decision 6): an unchanged value schedules nothing, so a repeated
         // identical set neither wakes the loop nor runs update(). NaN never compares equal and
-        // therefore always schedules, which is the safe direction.
-        //
-        // ADR-051 section 5 generates no equality for a record in this slice, so a record state
-        // assignment is unconditional: a record change always schedules an update, exactly as a
-        // list does without a generated comparison.
+        // therefore always schedules, which is the safe direction. A record now has generated
+        // equality (ADR-051 implementation note #834), so its whole-record setter is gated too.
         if (!is_record_state(state, module)) {
             writer.open("if (" + member_name(state.id) + " == value)");
             writer.line("return;");
             writer.close("");
+            writer.line(member_name(state.id) + " = std::move(value);");
+            writer.line("dirty_.set(" + dirty_bit_name(state.id) + ");");
+            writer.line("schedule_update();");
+            writer.close("");
+            writer.line("");
+            continue;
         }
-        writer.line(member_name(state.id) + " = std::move(value);");
-        writer.line("dirty_.set(" + dirty_bit_name(state.id) + ");");
+        // A record cell splits into one bit per read leaf path (ADR-056 decision 1, #834), so a
+        // whole-record set compares field by field and raises only the bits of the fields that
+        // changed. `note_dirty` marks a bit without scheduling; one `schedule_update()` follows
+        // only when some bit was raised, so an equal record still schedules nothing.
+        const ir::RecordType* record = find_record_type(module, state.type);
+        const std::string mask = member_name(state.id);
+        writer.line("bool tessera_changed = false;");
+        for (const ir::RecordMember& member : record->members) {
+            const std::string field = mask + "." + member.name;
+            writer.open("if (!(" + field + " == value." + member.name + "))");
+            writer.line("tessera_changed = true;");
+            for (const std::string& bit : cell_bit_ids(state.id, record->name, module.types)) {
+                if (!bit.starts_with(std::string(state.id) + "." + member.name)) {
+                    continue;
+                }
+                writer.line("note_dirty(" + dirty_bit_name(bit) + ");");
+            }
+            writer.close("");
+        }
+        writer.line(mask + " = std::move(value);");
+        writer.open("if (tessera_changed)");
         writer.line("schedule_update();");
+        writer.close("");
         writer.close("");
         writer.line("");
     }

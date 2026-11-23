@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <span>
 
 namespace tessera::compiler::codegen::internal {
 namespace {
@@ -75,15 +76,23 @@ std::string DirtyPlan::mask_name(BindingKind kind, unsigned ordinal, std::string
     return out;
 }
 
-DirtyPlan make_dirty_plan(const ir::Component& component) {
+DirtyPlan make_dirty_plan(const ir::Component& component, std::span<const ir::RecordType> records) {
     DirtyPlan plan;
-    plan.cells = declared_cells(component);
-    plan.reads = analyze_binding_reads(component);
+    plan.cells = declared_cells(component, records);
+    plan.reads = analyze_binding_reads(component, records);
     return plan;
 }
 
 std::string dirty_bit_name(std::string_view cell_id) {
-    return "kBit_" + member_name(cell_id);
+    // A record leaf path (`state::form.address.city`) would otherwise leave a `.` in the C++
+    // identifier; one `_` per dot keeps it a plain name (`kBit_state_form_address_city_`).
+    std::string out = "kBit_" + member_name(cell_id);
+    for (char& c : out) {
+        if (c == '.' || c == ':') {
+            c = '_';
+        }
+    }
+    return out;
 }
 
 void emit_dirty_declarations(CppWriter& writer, const DirtyPlan& dirty) {

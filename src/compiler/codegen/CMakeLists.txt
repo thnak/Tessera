@@ -16,6 +16,7 @@ add_library(tessera_codegen STATIC
     src/emit_dirty.cpp
     src/emit_dynamic_header.cpp
     src/emit_dynamic_plan.cpp
+    src/emit_dynamic_plan_query.cpp
     src/emit_dynamic_plan_util.cpp
     src/emit_events.cpp
     src/emit_call_prop.cpp
@@ -38,6 +39,7 @@ add_library(tessera_codegen STATIC
     src/emit_suspense.cpp
     src/emit_stylesheet_embed.cpp
     src/emit_theme_embed.cpp
+    src/emit_record_hash.cpp
     src/emit_types_header.cpp
     src/emit_vector.cpp
     src/form_binding.cpp
@@ -656,6 +658,33 @@ if (TESSERA_BUILD_TESTS)
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_SOURCE_DIR}/tests/unit)
     add_test(NAME codegen_binding_reads COMMAND codegen_binding_reads_tests)
+
+    # Issue #834 (ADR-051 implementation note, ADR-056 decisions 1 and 5): generated record
+    # equality, per-field dirty bits, and record list elements. The emission test owns the goldens
+    # (`codegen_record_equality_tests --write`); a runtime test drives the generated base.
+    set(_tessera_codegen_record_golden_dir ${_tessera_codegen_golden_dir}/record)
+    add_executable(codegen_record_equality_tests
+        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_record_equality_tests.cpp)
+    target_link_libraries(codegen_record_equality_tests PRIVATE tessera_codegen tessera_ir)
+    target_include_directories(codegen_record_equality_tests PRIVATE
+        ${CMAKE_SOURCE_DIR}/tests/unit)
+    target_compile_definitions(codegen_record_equality_tests PRIVATE
+        TESSERA_CODEGEN_RECORD_GOLDEN_DIR="${_tessera_codegen_record_golden_dir}")
+    add_test(NAME codegen_record_equality COMMAND codegen_record_equality_tests)
+
+    # The behavior: an equal record schedules nothing, a field change re-runs only the binding that
+    # reads it, and a record list repaints one item. The developer class is the hand-written
+    # `tests/unit/codegen_base/fixtures/record/FormPage.hpp` over the committed golden.
+    if (EXISTS ${_tessera_codegen_record_golden_dir}/FormPage.g.hpp)
+        add_executable(codegen_record_runtime_tests
+            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_record_runtime_tests.cpp)
+        target_include_directories(codegen_record_runtime_tests PRIVATE
+            ${_tessera_codegen_record_golden_dir}
+            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures/record)
+        target_link_libraries(codegen_record_runtime_tests PRIVATE tessera_scene)
+        target_compile_features(codegen_record_runtime_tests PRIVATE cxx_std_23)
+        add_test(NAME codegen_record_runtime COMMAND codegen_record_runtime_tests)
+    endif ()
 
 
     # The developer class derives from the generated base and the generated thunks reach it.

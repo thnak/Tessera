@@ -36,28 +36,24 @@ const ir::Binding* find_binding(const std::vector<const ir::Binding*>& bindings,
     return nullptr;
 }
 
-// Resolves one effect dependency to its generated member and C++ type.
+// Resolves one effect dependency to its generated member and C++ type. A record-typed cell is
+// allowed (its type now has a generated `hash_value`, ADR-051 implementation note #834); the
+// caller picks the hash spelling from `is_record`.
 bool dep_member(const ir::Component& component, const ir::IrModule& module, std::string_view dep,
-                std::string& member, std::string& type, std::string& error) {
-    const auto no_cpp_form = [&](std::string_view ir_type) {
-        if (find_record_type(module, innermost_record_name(ir_type)) != nullptr) {
-            // ADR-051 section 5: a record has no generated equality or hash in this slice, so a
-            // record cannot be an effect dependency yet. Say so instead of emitting a hash call
-            // that would not compile.
-            return fail(error, "effect dep `" + std::string(dep) +
-                                   "` is a record, which has no "
-                                   "dependency hash in this slice (ADR-051 section 5)");
-        }
-        return fail(error, "effect dep `" + std::string(dep) + "` has a type with no C++ form");
+                std::string& member, std::string& type, bool& is_record, std::string& error) {
+    const auto resolve_record = [&](std::string_view ir_type) {
+        return find_record_type(module, ir_type) != nullptr;
     };
     for (const ir::State& state : component.state) {
         if (state.id == dep) {
             const std::optional<std::string> mapped = cpp_type(state.type, module.types);
             if (!mapped) {
-                return no_cpp_form(state.type);
+                return fail(error,
+                            "effect dep `" + std::string(dep) + "` has a type with no C++ form");
             }
             member = member_name(state.id);
             type = *mapped;
+            is_record = resolve_record(state.type);
             return true;
         }
     }
@@ -67,20 +63,23 @@ bool dep_member(const ir::Component& component, const ir::IrModule& module, std:
         }
         const std::optional<std::string> mapped = cpp_type(prop.type, module.types);
         if (!mapped) {
-            return no_cpp_form(prop.type);
+            return fail(error, "effect dep `" + std::string(dep) + "` has a type with no C++ form");
         }
         member = member_name("prop::" + prop.name);
         type = *mapped;
+        is_record = resolve_record(prop.type);
         return true;
     }
     for (const ir::AnimatedValue& value : component.animated_values) {
         if (value.id == dep) {
             const std::optional<std::string> mapped = cpp_type(value.type, module.types);
             if (!mapped) {
-                return no_cpp_form(value.type);
+                return fail(error,
+                            "effect dep `" + std::string(dep) + "` has a type with no C++ form");
             }
             member = member_name(value.id);
             type = *mapped;
+            is_record = resolve_record(value.type);
             return true;
         }
     }
@@ -97,10 +96,15 @@ bool emit_dep_hash(CppWriter& writer, const ir::Component& component, const ir::
     for (const std::string& dep : effect.deps) {
         std::string member;
         std::string type;
-        if (!dep_member(component, module, dep, member, type, error)) {
+        bool is_record = false;
+        if (!dep_member(component, module, dep, member, type, is_record, error)) {
             return false;
         }
-        writer.line("hash = tessera::ui::effect_hash(hash, component." + member + ");");
+        // A record folds its generated field-wise hash in as a 64-bit value; every other type uses
+        // the scalar/list overload directly.
+        writer.line("hash = tessera::ui::effect_hash(hash, " +
+                    (is_record ? "hash_value(component." + member + ")" : "component." + member) +
+                    ");");
     }
     writer.line("return hash;");
     --writer.indent;
