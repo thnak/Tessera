@@ -297,13 +297,10 @@ stays inside its size budget.
 - **The IME's long tail:** `requestCursorUpdates` is not forwarded (the engine has no cursor-anchor
   report), and `performEditorAction` reports "not handled" because the edit controller has no
   Done/Search/Go concept. The compose/commit/delete path and the text queries are wired.
-- **Selection and the context menu.** A tap places the caret (section 3.13) and the long-press /
-  drag state machine exists and is unit-tested (section 3.14), but the shell cannot yet drive it to
-  completion: `hal::Window::request_redraw` is a **no-op** on Android, so a static scene never wakes
-  to tick the long-press timeout. A finger that holds still sends no `MotionEvent` at all, so the
-  timeout has nothing to fire on. The fix is a real wake seam (a `Choreographer` post, or a
-  `SurfaceView`-driven frame request); until then a long-press does not start a selection. There is
-  also no context menu and no clipboard backend for Android
+- **The context menu and the clipboard.** A tap places the caret (section 3.13), a long-press starts
+  a selection and a drag extends it (section 3.14), and `request_redraw` wakes the parked loop so the
+  timeout can fire (section 3.15). What is still missing is what a selection is *for*: there is no
+  context menu (Copy / Cut / Paste / Select all) and no clipboard backend for Android
   (`src/platform/windows/clipboard_win32.cpp` is the only implementation;
   `clipboard_unsupported.cpp` is the fallback).
 - **A generated component.** The shell's scene (`android/app/src/main/cpp/scene.hpp`) is built by
@@ -540,14 +537,11 @@ a `TextConstraints` and a `FontMetrics`, and the bridge has none of those.
 `android_caret_translation.cpp` is the adapter, and it is **pure**: no NDK, no JNI, no device. The
 box arithmetic is where a caret lands one character off, so `android_caret` pins it on every lane:
 
-| rule | why it bites |
-|---|---|
-| physical pixels ÷ density, then minus the box origin | the layout is logical; skipping the divide puts every caret at the wrong character on a 2.4x phone |
-| the point is measured from the **content** box | the text starts inside the padding, so a tap in the padding must clamp, not resolve to a negative offset |
-| a point outside the border box is `inside == false` | a tap elsewhere must leave the caret alone, not jump it to the start |
-| a zero density is treated as 1 | the platform can report an unknown density, and dividing by it would make every point NaN |
-
-Two things the bridge must get right, and both are easy to get wrong:
+The rules, each one a defect if wrong: physical pixels / density then minus the box
+origin (the layout is logical); the point measured from the **content** box (a tap in
+the padding clamps, never resolves negative); a point outside the border box is
+inside == false (a tap elsewhere leaves the caret alone); a zero density treated as
+1 (dividing by it would make every point NaN).
 
 - **The density is already applied.** `translate_motion_sample` divides the platform's physical
   pixels by the density, so the event the bridge sees is in logical pixels. Passing the density to
@@ -560,7 +554,7 @@ Two things the bridge must get right, and both are easy to get wrong:
 `caret_bridge.cpp` holds the shell half (the field's box, the blink policy, the placement call) so
 `jni_bridge.cpp` stays inside its size budget.
 
-### 3.14 Long-press and drag-to-select: the state machine, and the seam it still needs
+### 3.14 Long-press and drag-to-select
 
 The other half of the gesture is a long-press that starts a selection and a drag that extends it. The
 platform does not report either one: it reports raw DOWN/MOVE/UP samples with timestamps, and the app
@@ -572,23 +566,31 @@ The thresholds are the platform's own, so a long-press feels like every other ap
 (`ViewConfiguration.getLongPressTimeout()`) and 8 dp (`getScaledTouchSlop()`). Four rules carry the
 behaviour, and each one is a defect if it is wrong:
 
-| rule | what breaks without it |
-|---|---|
-| a move past the slop **before** the timeout abandons the press | every drag selects instead of scrolling |
-| a move inside the slop keeps the press alive | a finger that jitters by a pixel never becomes a selection |
-| a new down resets a gesture that never saw its up | a dropped up turns the next tap into a selection |
-| the timeout is also checked by `tick()` | a finger that holds still sends no samples, so `feed()` alone never fires |
+Each rule is a defect if wrong: a move past the slop before the timeout abandons the
+press (else every drag selects instead of scrolling); a move inside the slop keeps it
+alive (else a jittering finger never selects); a new down resets a gesture that never
+saw its up (else a dropped up turns the next tap into a selection); tick() also checks
+the timeout (a still finger sends no samples, so feed() alone never fires).
+the input queue, and the selection thresholds must not affect its capture bookkeeping.
 
-`SelectionGesture` is deliberately not `MotionGesture`: that one tracks pointer identity for the
-input queue, and a change to the selection thresholds must not affect the queue's capture
-bookkeeping.
+**The two seams it needs, and both are now in place.** The shell wires the state machine into
+`nativeOnTouch` and ticks it from the caret callback. Two things had to be fixed for that to work:
 
-**The seam it still needs.** The shell wires the state machine into `nativeOnTouch` and ticks it from
-the caret callback, but `hal::Window::request_redraw` is a **no-op** on Android
-(`window_android.cpp`), so a static scene never wakes to run the tick. A finger that holds still
-sends no `MotionEvent` at all, so the timeout has nothing to fire on and a long-press does not start
-a selection yet. The fix is a real wake seam — a `Choreographer` post, or a frame request the
-`SurfaceView` drives — and it is the next slice, not a defect in the state machine.
+1. **A wake seam.** `request_redraw` was a no-op on Android, so a static scene never woke to run the
+   tick — and a finger that holds still sends no `MotionEvent` at all, so the timeout had nothing to
+   fire on. `wait_for_events` is now interruptible: `request_redraw` sets a flag under its own
+   mutex and notifies a condition variable, and the wait keeps the same bounded timeout, so a
+   caller that never asks for a frame still throttles. Measured on the emulator: six screenshots
+   250 ms apart show the caret pixel alternating visible/hidden.
+2. **The right box.** `caret_field_for_shell` read `node.bounds()`, which is **parent-relative**,
+   while a touch is **window-relative**. The field sits 24 px inside its parent, so every caret
+   landed 24 px right of the finger: a tap mid-word resolved past the end of the line and a drag
+   selected nothing. `world_bounds()` is the correct accessor, and `android_caret` now pins the
+   contract (the same point resolves to the same caret at any offset).
+
+The hit test must also measure with the **same advance source paint uses** (`FontPaintTextMetrics`,
+FreeType + HarfBuzz): stub advances do not match a real face, so a tap mid-word resolves to
+the end of the line even with the box correct.
 
 ## 4. Related
 

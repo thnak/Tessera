@@ -46,8 +46,9 @@ CaretTranslation caret_from_point(const CaretField& field, const CaretSample& sa
     constraints.wrap = field.wrap;
     constraints.max_width = content_width;
 
-    result.hit = ui::text::hit_test_point(field.text, *field.style, constraints, content_x,
-                                          content_y, *field.metrics);
+    result.hit =
+        ui::text::hit_test_point(field.text, *field.style, constraints, content_x, content_y,
+                                 *field.metrics, field.advance, field.advance_user);
     result.inside = true;
     return result;
 }

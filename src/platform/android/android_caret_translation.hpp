@@ -47,6 +47,11 @@ struct CaretField {
     // sources paint reads, so a caret lands where the glyphs are.
     const ui::text::TextStyle* style = nullptr;
     const ui::text::FontMetrics* metrics = nullptr;
+    // The advance seam paint measures with, and its context. Null falls back to the deterministic
+    // stub, whose advances do not match a real face: a tap in the middle of a word then resolves to
+    // the end of the line. The shell passes the same source paint uses.
+    ui::text::TextAdvanceMeasure advance = nullptr;
+    const void* advance_user = nullptr;
     // True when the field wraps at its content width, which is what paint does for a multi-line
     // field. A single-line field does not wrap, so a long value must not be broken into lines the
     // caret could land on.

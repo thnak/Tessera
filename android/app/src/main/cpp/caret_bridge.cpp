@@ -21,6 +21,19 @@
 
 namespace tessera::android_shell {
 
+namespace {
+
+// The advance seam `hit_test_point` takes, backed by the same source paint measures with. Without
+// it the hit test falls back to the deterministic stub, whose advances do not match the real face:
+// a tap in the middle of "hello" then resolves to the end of the line, and a drag selects nothing.
+float advance_from_paint_source(std::string_view run, const tessera::ui::text::TextStyle& style,
+                                const void* user) {
+    const auto* source = static_cast<const tessera::ui::paint::PaintTextMetricsSource*>(user);
+    return source->advance(run, style);
+}
+
+} // namespace
+
 bool caret_active_for_shell(void* user) {
     auto* shell = static_cast<Shell*>(user);
     if (shell == nullptr || shell->scene == nullptr || shell->scene->input_label == nullptr) {
@@ -34,9 +47,11 @@ bool caret_active_for_shell(void* user) {
         tessera::hal::android::SelectionGestureConfig config;
         config.touch_slop = 8.0f;
         const double now = tessera::runtime::SteadyClock{}.now_seconds();
-        if (shell->selection_gesture.tick(now, config) ==
-            tessera::hal::android::SelectionGestureAction::BeginSelection) {
-            // The anchor is the press point, which the state machine kept.
+        const auto tick_action = shell->selection_gesture.tick(now, config);
+        if (tick_action == tessera::hal::android::SelectionGestureAction::BeginSelection) {
+            // The anchor is the press point, which the state machine kept. Placing it collapses the
+            // selection to a caret; the caller's drag then extends from there. A long-press with no
+            // drag leaves a caret, which is what every platform does before the finger moves.
             tessera::android_shell::place_caret_from_touch(*shell, shell->selection_press_x,
                                                            shell->selection_press_y);
         }
@@ -52,7 +67,10 @@ bool caret_field_for_shell(Shell& shell, tessera::hal::android::CaretField& fiel
         return false;
     }
     const tessera::ui::Node& node = *shell.scene->input_label;
-    const auto& bounds = node.bounds();
+    // `world_bounds`, not `bounds`: a node's `bounds` are in its PARENT's coordinate space, and the
+    // touch arrives in the window's. Using the parent-relative box put the field 24 px left of
+    // where it paints, so a tap in the middle of a word resolved past the end of the line.
+    const auto& bounds = node.world_bounds();
     field.box_x = bounds.x;
     field.box_y = bounds.y;
     field.box_width = bounds.width;
@@ -69,6 +87,11 @@ bool caret_field_for_shell(Shell& shell, tessera::hal::android::CaretField& fiel
     // seams use, so the hit test measures the glyphs that are on screen.
     field.style = &shell.field_text_style;
     field.metrics = &shell.field_font_metrics;
+    // The same advance source paint measures with, so a tap lands on the glyph under the finger.
+    if (shell.field_advance != nullptr) {
+        field.advance = &advance_from_paint_source;
+        field.advance_user = shell.field_advance.get();
+    }
     // The demo field is multi-line, so it wraps at its content width exactly as paint does.
     field.wrap = true;
     return true;
