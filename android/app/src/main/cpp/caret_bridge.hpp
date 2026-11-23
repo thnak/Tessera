@@ -46,4 +46,9 @@ bool clipboard_copy(Shell& shell);
 bool clipboard_cut(Shell& shell);
 bool clipboard_paste(Shell& shell);
 
+// Selects the whole buffer. The platform's "Select all" action reaches this; a phone has no Ctrl+A.
+// Returns false when the buffer is already fully selected, so the platform can leave its own
+// affordance alone.
+bool select_all(Shell& shell);
+
 } // namespace tessera::android_shell

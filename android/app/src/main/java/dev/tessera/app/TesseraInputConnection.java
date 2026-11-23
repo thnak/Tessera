@@ -161,6 +161,16 @@ final class TesseraInputConnection extends InputConnectionWrapper {
         return TesseraView.nativeClipboardPaste(handle);
     }
 
+    /**
+     * Selects the whole buffer.
+     *
+     * <p>No {@code @Override}: {@code BaseInputConnection} does not implement it, so this is a new
+     * method the platform reaches through the {@code InputConnection} interface.
+     */
+    public boolean selectAll() {
+        return TesseraView.nativeSelectAll(handle);
+    }
+
     @Override
     public boolean setSelection(int start, int end) {
         // A negative offset is the platform's "no selection"; the engine clamps, so passing it

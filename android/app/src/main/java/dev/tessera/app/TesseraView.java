@@ -424,6 +424,9 @@ public final class TesseraView extends SurfaceView implements SurfaceHolder.Call
     /** Inserts the clipboard at the caret. False when the clipboard is empty or unavailable. */
     static native boolean nativeClipboardPaste(long handle);
 
+    /** Selects the whole buffer. False when it is already fully selected. */
+    static native boolean nativeSelectAll(long handle);
+
     /**
      * Posts the platform clipboard write to the UI thread.
      *

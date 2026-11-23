@@ -99,6 +99,9 @@ public:
     // fields allow caret/selection moves without changing text.
     EditResult place_caret_at(TextHit hit);
     EditResult extend_selection_to(TextHit hit);
+    // Selects the whole buffer. The platform's "Select all" action reaches this (a phone has no
+    // Ctrl+A); the key chord goes through `run_command` instead, so both paths share one rule.
+    EditResult select_all();
 
     // Result of the most recent command (NoChange until the first command).
     [[nodiscard]] const EditResult& last_result() const {

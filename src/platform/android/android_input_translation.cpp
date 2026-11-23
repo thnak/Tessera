@@ -122,6 +122,15 @@ std::uint32_t codepoint_from_key(std::int32_t keycode, ui::Modifier modifiers) {
     // The NDK has no unicode-char accessor, so the character is derived from the keycode. Letters
     // and digits are the only keys whose typed character is unambiguous without a layout table; the
     // shift state decides the case for letters.
+    //
+    // A chord with Control, Alt or Meta types NOTHING: Ctrl+A is Select all, not "insert a".
+    // Without this guard the key produced both a `KeyDown` (which the edit controller runs as a
+    // command) and a `Text` event (which it inserts), so every chord also typed its letter.
+    if (ui::has_modifier(modifiers, ui::Modifier::Control) ||
+        ui::has_modifier(modifiers, ui::Modifier::Alt) ||
+        ui::has_modifier(modifiers, ui::Modifier::Meta)) {
+        return 0;
+    }
     const bool shift = ui::has_modifier(modifiers, ui::Modifier::Shift);
     if (keycode >= kKeycodeA && keycode <= kKeycodeZ) {
         const auto letter = static_cast<std::uint32_t>('a' + (keycode - kKeycodeA));
