@@ -135,25 +135,29 @@ function skipLoudly(what, why) {
 }
 
 /**
+ * Whether the pane is showing "the browser handed out a device and took it back".
+ *
+ * That is a **runner** condition, not a page bug: a hosted SwiftShader runner does it, intermittently.
+ * It is the case the issue anticipated ("if a runner cannot give Chromium an adapter, skip loudly rather
+ * than pass silently"), and telling it apart from a handover regression matters because both appear in
+ * the same unsupported state -- one as `browser`, one as `module`.
+ */
+function lostDevice(state) {
+  return state.unsupported === true && state.cause === 'browser' && /device was lost/i.test(state.body ?? '');
+}
+
+/**
  * Opens `index.html` with the Canvas view selected and the probe project loaded.
  *
- * `onLost` sees a device the browser handed out and then took away. That is a **runner** condition, not
- * a page bug (SwiftShader on a hosted runner does it), and it is the one case the issue anticipated:
- * "if a runner cannot give Chromium an adapter, skip loudly rather than pass silently". Recorded here
- * so the caller can tell an unstable runner from a handover regression, which look identical in the
- * pane's unsupported state.
+ * Whether a device was handed out and then taken away is read from the pane's own sentence (see
+ * `lostDevice`) rather than from the console: `views/canvas-session.ts` reports it in the unsupported
+ * state, and that is where a person sees it.
  */
 async function openCanvas(context, base) {
   const page = await context.newPage();
   const errors = [];
-  let lost = false;
   page.on('console', (message) => {
-    const text = message.text();
-    // The page's own words for a device that went away: `canvas-session.ts`'s lost handler.
-    if (/WebGPU device was lost/i.test(text)) {
-      lost = true;
-    }
-    if (message.type() === 'error') errors.push(text);
+    if (message.type() === 'error') errors.push(message.text());
   });
   page.on('pageerror', (error) => errors.push(`pageerror: ${String(error)}`));
   // Opening a zip over an open project asks "replace?"; the check always replaces.
@@ -173,7 +177,7 @@ async function openCanvas(context, base) {
     const status = document.getElementById('canvas-status').textContent ?? '';
     return !pane.hidden || /draw call|not applied|fail|unavailable/i.test(status);
   }, page);
-  return { page, errors, lost: () => lost, state: () => readState(page) };
+  return { page, errors, state: () => readState(page) };
 }
 
 /** A wait whose timeout is a boolean, so a caller can turn it into a check instead of a crash. */
@@ -258,17 +262,38 @@ try {
     // more than three red lines about its consequences. The lane is red either way (the check above).
     skipLoudly('the device handover', 'this runner has no WebGPU device');
   } else {
-    const context = await browser.newContext({ viewport: { width: 1600, height: 1000 } });
-    const run = await openCanvas(context, base);
+    // The handover, attempted a few times.
+    //
+    // A hosted SwiftShader runner gave a device and then took it away moments later ("The WebGPU device
+    // was lost"), intermittently: three runs of the same commit failed on a different check each time,
+    // and the same commit passes on a developer box every time. Retrying is the honest response to a
+    // *runner* that cannot hold a device -- but only when the fruit is that: a loss the page itself
+    // reports as browser-side. A module that cannot take the device (the #375 regression) is
+    // `cause=module` and fails on the first attempt, with no retry.
+    let drawn = null;
+    let run = null;
+    let lossNote = '';
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      const context = await browser.newContext({ viewport: { width: 1600, height: 1000 } });
+      run = await openCanvas(context, base);
+      drawn = await run.state();
+      const lostHere = lostDevice(drawn);
+      if (!lostHere) {
+        run.context = context;
+        break;
+      }
+      lossNote = drawn.body;
+      await context.close();
+      run = null;
+      if (attempt < 3) {
+        process.stdout.write(`     attempt ${attempt}: the runner lost the device (${lossNote}); retrying\n`);
+        await new Promise((done) => setTimeout(done, 2000));
+      }
+    }
 
-    const drawn = await run.state();
-    // A device the browser handed out and then took away is the runner, not the page. It is reported as
-    // its own line -- loudly -- and the handover checks below are then reported as unexercised rather
-    // than as failures, because the issue's rule is to skip loudly, never to pass silently, and never to
-    // blame the page for the runner.
-    const deviceLost = drawn.unsupported === true && drawn.cause === 'browser' && run.lost();
-    if (deviceLost) {
-      skipLoudly('the device handover', `this runner lost the device it handed out: ${drawn.body}`);
+    if (run === null) {
+      // Every attempt lost the device: the runner cannot hold one. Said out loud, never counted as a pass.
+      skipLoudly('the device handover', `this runner lost the device on every attempt: ${lossNote}`);
     } else {
       check(
         'the module takes the device the browser gives it (no unsupported state)',
@@ -310,8 +335,8 @@ try {
         await run.page.screenshot({ path: shot });
         process.stdout.write(`screenshot: ${shot}\n`);
       }
+      await run.context.close();
     }
-    await context.close();
   }
 
   // --- 2. the module-side heading ------------------------------------------------------------
