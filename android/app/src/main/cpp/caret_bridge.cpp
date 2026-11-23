@@ -12,7 +12,9 @@
 // field's box and the touch.
 
 #include "android_caret_translation.hpp"
+#include "caret_bridge.hpp"
 #include "shell.hpp"
+#include "tessera/runtime/steady_clock.hpp"
 #include "tessera/ui/style/pseudo_state.hpp"
 
 #include <string_view>
@@ -23,6 +25,21 @@ bool caret_active_for_shell(void* user) {
     auto* shell = static_cast<Shell*>(user);
     if (shell == nullptr || shell->scene == nullptr || shell->scene->input_label == nullptr) {
         return false;
+    }
+    // The long-press timeout's other half. A finger that holds still produces no MotionEvents at
+    // all, so the state machine cannot see the timeout from `feed()` alone; this callback runs once
+    // per driver iteration, which is exactly the tick it needs. Doing it here rather than on a
+    // posted Java callback keeps the gesture on the same clock as the caret.
+    if (shell->selection_gesture.pressing()) {
+        tessera::hal::android::SelectionGestureConfig config;
+        config.touch_slop = 8.0f;
+        const double now = tessera::runtime::SteadyClock{}.now_seconds();
+        if (shell->selection_gesture.tick(now, config) ==
+            tessera::hal::android::SelectionGestureAction::BeginSelection) {
+            // The anchor is the press point, which the state machine kept.
+            tessera::android_shell::place_caret_from_touch(*shell, shell->selection_press_x,
+                                                           shell->selection_press_y);
+        }
     }
     const bool focused = tessera::ui::style::has_state(shell->scene->input_label->pseudo_state(),
                                                        tessera::ui::style::PseudoState::Focus);
@@ -76,6 +93,29 @@ void place_caret_from_touch(Shell& shell, float logical_x, float logical_y) {
         return;
     }
     (void)shell.editor.place_caret_at(caret.hit);
+    shell.editor_runtime.publish_decoration();
+    if (shell.window != nullptr) {
+        shell.window->request_redraw();
+    }
+}
+
+void extend_selection_from_touch(Shell& shell, float logical_x, float logical_y) {
+    tessera::hal::android::CaretField field;
+    if (!caret_field_for_shell(shell, field)) {
+        return;
+    }
+    tessera::hal::android::CaretSample sample;
+    sample.x = logical_x;
+    sample.y = logical_y;
+    sample.dpi_scale = 1.0f;
+    const tessera::hal::android::CaretTranslation caret =
+        tessera::hal::android::caret_from_point(field, sample);
+    if (!caret.inside) {
+        // A drag that leaves the field keeps the selection it already has rather than collapsing
+        // it.
+        return;
+    }
+    (void)shell.editor.extend_selection_to(caret.hit);
     shell.editor_runtime.publish_decoration();
     if (shell.window != nullptr) {
         shell.window->request_redraw();

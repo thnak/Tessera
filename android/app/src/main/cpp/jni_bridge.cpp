@@ -21,6 +21,7 @@
 #include "shell.hpp"
 #include "tessera/app/window.hpp"
 #include "tessera/hal/window.hpp"
+#include "tessera/runtime/steady_clock.hpp"
 #include "tessera/ui/text/text_measure.hpp"
 
 #include <android/log.h>
@@ -443,11 +444,52 @@ JNIEXPORT jboolean JNICALL Java_dev_tessera_app_TesseraView_nativeOnTouch(JNIEnv
     // Returns true only when the event actually reached the queue, so the platform keeps sending
     // the rest of the gesture.
     const bool posted = shell->window->post_input_event(out.event);
-    // A tap on the field also places the caret. The scene's input router focuses the node, but it
-    // has no text knowledge, so the point-to-caret mapping is the shell's: `caret_from_point` is
-    // pure and unit-tested, and this only supplies the field's box and the touch.
-    if (posted && out.event.type == tessera::ui::InputEventType::PointerDown) {
-        tessera::android_shell::place_caret_from_touch(*shell, out.event.x, out.event.y);
+    // What the press MEANS is the shell's decision, not the queue's: a tap places the caret, a held
+    // press starts a selection and a drag extends it. The state machine is pure and unit-tested
+    // (`android_selection`), so this only maps the platform's action onto its three inputs and
+    // applies the answer.
+    const bool down = out.event.type == tessera::ui::InputEventType::PointerDown;
+    const bool up = out.event.type == tessera::ui::InputEventType::PointerUp ||
+                    out.event.type == tessera::ui::InputEventType::PointerCancel;
+    const bool move = out.event.type == tessera::ui::InputEventType::PointerMove;
+    if (posted && (down || up || move)) {
+        // The slop is 8 dp, so it scales with the density; the event is already in logical pixels.
+        tessera::hal::android::SelectionGestureConfig config;
+        config.touch_slop = 8.0f;
+        // `selecting()` is read BEFORE the feed, because an up clears it: the answer to "was this
+        // gesture a selection?" is the state the gesture was in, not the state it left.
+        const bool was_selecting = shell->selection_gesture.selecting();
+        if (down) {
+            // Remembered for the long-press tick: a finger that holds still sends no samples, so
+            // the tick has no event to read the anchor from.
+            shell->selection_press_x = out.event.x;
+            shell->selection_press_y = out.event.y;
+            // A static scene idles (ADR-019), so nothing would tick the long-press timeout. Asking
+            // for a frame is what wakes the loop for the duration of the press; the caret tick then
+            // runs and can turn the press into a selection.
+            shell->window->request_redraw();
+        }
+        const tessera::hal::android::SelectionGestureAction action =
+            shell->selection_gesture.feed(down, up, out.event.x, out.event.y,
+                                          tessera::runtime::SteadyClock{}.now_seconds(), config);
+        switch (action) {
+        case tessera::hal::android::SelectionGestureAction::BeginSelection:
+            // The long-press anchor is the caret the press started on, so the drag grows from
+            // there. Placing it first is what makes `extend_selection_to` keep that anchor.
+            tessera::android_shell::place_caret_from_touch(*shell, out.event.x, out.event.y);
+            break;
+        case tessera::hal::android::SelectionGestureAction::ExtendSelection:
+            tessera::android_shell::extend_selection_from_touch(*shell, out.event.x, out.event.y);
+            break;
+        case tessera::hal::android::SelectionGestureAction::EndSelection:
+        case tessera::hal::android::SelectionGestureAction::None:
+            break;
+        }
+        // A tap - a press that never became a selection - places the caret on the way up, which is
+        // what makes a tap feel immediate rather than waiting for the long-press timeout.
+        if (up && !was_selecting) {
+            tessera::android_shell::place_caret_from_touch(*shell, out.event.x, out.event.y);
+        }
     }
     return posted ? JNI_TRUE : JNI_FALSE;
 }

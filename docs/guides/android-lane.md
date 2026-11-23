@@ -297,11 +297,15 @@ stays inside its size budget.
 - **The IME's long tail:** `requestCursorUpdates` is not forwarded (the engine has no cursor-anchor
   report), and `performEditorAction` reports "not handled" because the edit controller has no
   Done/Search/Go concept. The compose/commit/delete path and the text queries are wired.
-- **Selection and the context menu.** A tap now places the caret (section 3.13), but a long-press
-  does not start a selection, there is no drag-to-select, and there is no context menu or clipboard
-  backend for Android (`src/platform/windows/clipboard_win32.cpp` is the only implementation;
-  `clipboard_unsupported.cpp` is the fallback). `EditController::extend_selection_to` is the seam a
-  long-press would use; nothing calls it yet.
+- **Selection and the context menu.** A tap places the caret (section 3.13) and the long-press /
+  drag state machine exists and is unit-tested (section 3.14), but the shell cannot yet drive it to
+  completion: `hal::Window::request_redraw` is a **no-op** on Android, so a static scene never wakes
+  to tick the long-press timeout. A finger that holds still sends no `MotionEvent` at all, so the
+  timeout has nothing to fire on. The fix is a real wake seam (a `Choreographer` post, or a
+  `SurfaceView`-driven frame request); until then a long-press does not start a selection. There is
+  also no context menu and no clipboard backend for Android
+  (`src/platform/windows/clipboard_win32.cpp` is the only implementation;
+  `clipboard_unsupported.cpp` is the fallback).
 - **A generated component.** The shell's scene (`android/app/src/main/cpp/scene.hpp`) is built by
   hand, because the codegen CLI runs on the host at build time and `tessera_compiler_demo` is gated
   on `NOT CMAKE_CROSSCOMPILING`. A hand-built tree still exercises the scene graph, the compiled
@@ -554,8 +558,37 @@ Two things the bridge must get right, and both are easy to get wrong:
   guessing metrics. A face that fails to load leaves the provider null and the tap declines.
 
 `caret_bridge.cpp` holds the shell half (the field's box, the blink policy, the placement call) so
-`jni_bridge.cpp` stays inside its size budget. What is still missing is the other half of the
-gesture: a long-press does not start a selection and there is no drag-to-select.
+`jni_bridge.cpp` stays inside its size budget.
+
+### 3.14 Long-press and drag-to-select: the state machine, and the seam it still needs
+
+The other half of the gesture is a long-press that starts a selection and a drag that extends it. The
+platform does not report either one: it reports raw DOWN/MOVE/UP samples with timestamps, and the app
+decides what they mean. That decision is `SelectionGesture` (`android_selection_gesture.cpp`), and it
+is **pure** — no NDK, no JNI, no device — so `android_selection` pins the thresholds and the
+transitions on every lane.
+
+The thresholds are the platform's own, so a long-press feels like every other app: 500 ms
+(`ViewConfiguration.getLongPressTimeout()`) and 8 dp (`getScaledTouchSlop()`). Four rules carry the
+behaviour, and each one is a defect if it is wrong:
+
+| rule | what breaks without it |
+|---|---|
+| a move past the slop **before** the timeout abandons the press | every drag selects instead of scrolling |
+| a move inside the slop keeps the press alive | a finger that jitters by a pixel never becomes a selection |
+| a new down resets a gesture that never saw its up | a dropped up turns the next tap into a selection |
+| the timeout is also checked by `tick()` | a finger that holds still sends no samples, so `feed()` alone never fires |
+
+`SelectionGesture` is deliberately not `MotionGesture`: that one tracks pointer identity for the
+input queue, and a change to the selection thresholds must not affect the queue's capture
+bookkeeping.
+
+**The seam it still needs.** The shell wires the state machine into `nativeOnTouch` and ticks it from
+the caret callback, but `hal::Window::request_redraw` is a **no-op** on Android
+(`window_android.cpp`), so a static scene never wakes to run the tick. A finger that holds still
+sends no `MotionEvent` at all, so the timeout has nothing to fire on and a long-press does not start
+a selection yet. The fix is a real wake seam — a `Choreographer` post, or a frame request the
+`SurfaceView` drives — and it is the next slice, not a defect in the state machine.
 
 ## 4. Related
 

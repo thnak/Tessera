@@ -233,6 +233,10 @@ elseif (ANDROID)
         # off. The rules are in android_caret_translation.cpp, which includes no Android header and
         # is unit-tested on every lane.
         ${PROJECT_SOURCE_DIR}/src/platform/android/android_caret_translation.cpp
+        # Long-press and drag-to-select (issue #189, android-lane.md section 3.14). The platform
+        # reports raw DOWN/MOVE/UP samples; what they MEAN is a small state machine, and it is in
+        # android_selection_gesture.cpp, which includes no Android header and is unit-tested.
+        ${PROJECT_SOURCE_DIR}/src/platform/android/android_selection_gesture.cpp
         # IME translation (issue #189, mobile-integration.md section 3.3). The InputConnection
         # callbacks arrive as Java strings; the pure rules convert UTF-16 and offsets in
         # android_ime_translation.cpp, which includes no Android header and is unit-tested.
