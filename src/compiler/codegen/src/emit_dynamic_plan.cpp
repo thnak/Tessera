@@ -152,25 +152,30 @@ bool PlanWalk::validate_template_loop(const ir::Node& node, const ir::Loop& loop
     if (loop.index == loop.item && !loop.index.empty()) {
         return fail(error, "a list callback index must differ from its item name");
     }
-    if (loop.source == nullptr ||
-        (loop.source->kind != ir::ExprKind::Ref && loop.source->kind != ir::ExprKind::ListFilter &&
-         loop.source->kind != ir::ExprKind::ListSlice)) {
+    // Section 5: a source is a list ref or a `filter`/`slice` of one; a derived list keeps its
+    // innermost list's element type, so the declared `list<T>` comes from that ref (issue #830).
+    const ir::Expr* source_ref =
+        loop.source == nullptr ? nullptr : ir::list_source_ref(*loop.source);
+    if (source_ref == nullptr) {
         return fail(error, "the loop source of `" + node.id +
-                               "` must be a list reference, or a `.filter(...)`/`.slice(...)` "
-                               "chain over one");
+                               "` must be a list reference or a `filter`/`slice` of one");
     }
     if (node.key == nullptr) {
         return fail(error, "the list template `" + node.id + "` needs a `key` expression");
     }
+    // The declared `list<T>` of the innermost list. `loop_source_type` and `declared_field_type`
+    // differ only for a derived source (issue #830): the former recurses to the ref that declares
+    // the element type, the latter cannot resolve a `listFilter`'s synthesized id. Both agree for
+    // a plain ref, so the recursive form covers every source the validator accepts.
     const std::optional<std::string> source_type = loop_source_type(component, *loop.source);
     if (!source_type) {
-        return fail(error, "the list source `" + loop.source->id +
+        return fail(error, "the list source `" + source_ref->id +
                                "` has no declared type; v1 lists are backed by a state or prop "
                                "`list<T>`");
     }
     const std::optional<std::string> element = list_element_type(*source_type);
     if (!element) {
-        return fail(error, "the list source `" + loop.source->id + "` has type `" + *source_type +
+        return fail(error, "the list source `" + source_ref->id + "` has type `" + *source_type +
                                "`, not `list<T>`");
     }
     // A printable primitive element (`bool`, `int`, `float`, `length`, `string`, `color`), or a
@@ -185,7 +190,9 @@ bool PlanWalk::validate_template_loop(const ir::Node& node, const ir::Loop& loop
             return false;
         }();
         if (!is_record_element) {
-            return fail(error, "the element type `" + *element + "` of `" + loop.source->id +
+            // The innermost list names the element type: a derived source's own id is not a
+            // declaration, so `source_ref` is what a diagnostic can point at (issue #830).
+            return fail(error, "the element type `" + *element + "` of `" + source_ref->id +
                                    "` has no printable C++ form in this slice; only bool/int/float/"
                                    "string/length/color element lists and declared records are "
                                    "generated");
@@ -246,6 +253,14 @@ bool PlanWalk::collect_virtual_collection(const ir::Node& node, unsigned node_or
     if (!item.loop) {
         return fail(error, "the item template of `" + node.id +
                                "` carries the loop that names the item and the data source");
+    }
+    // Section 3.5: a virtual collection's item template still requires a list reference. A derived
+    // source is accepted for an eager `.map` loop but is a follow-up for a realized window, so it
+    // is rejected here rather than silently materializing the whole list.
+    if (item.loop->source == nullptr || item.loop->source->kind != ir::ExprKind::Ref) {
+        return fail(error, "the item template of `" + node.id +
+                               "` must repeat over a list reference; a `filter`/`slice` source is "
+                               "not supported by a virtual collection yet");
     }
     VirtualGeometrySpec geometry;
     if (!virtual_geometry_spec(component, node, geometry, error)) {

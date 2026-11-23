@@ -9,6 +9,7 @@
 #include "tessera/ui/scene/event_payloads.hpp"
 #include "tessera/ui/scene/state_snapshot.hpp"
 #include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/scene/list_diagnostics.hpp"
 #include "tessera/ui/scene/paint_data.hpp"
 
 #include <cstdint>
@@ -231,6 +232,8 @@ namespace demo {
       [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<7> kDirty_style_5_color = tessera::ui::DirtyMask<7>::of({5, 6});
       // cond binding of node::6 reads: state::flag.
       [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<7> kDirty_cond_6 = tessera::ui::DirtyMask<7>::of({3, 6});
+      // source binding of node::7 reads: state::items.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<7> kDirty_source_7 = tessera::ui::DirtyMask<7>::of({4, 6});
       // list binding of node::7 reads: state::a state::items.
       [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<7> kDirty_list_7 = tessera::ui::DirtyMask<7>::of({1, 4, 6});
     }
@@ -484,6 +487,13 @@ namespace demo {
             if (!tessera_reused[tessera_slot] && tessera_old_keys[tessera_slot] == tessera_key) {
               tessera_reused[tessera_slot] = true;
               tessera_match = tessera_slot;
+              break;
+            }
+          }
+          for (std::size_t tessera_prior = 0; tessera_prior < tessera_next; ++tessera_prior) {
+            if (tessera_next_keys[tessera_prior] == tessera_key) {
+              TESSERA_LIST_DUPLICATE_KEY(this, "node::7", tessera_key);
+              tessera_key += "#" + std::to_string(tessera_next);
               break;
             }
           }

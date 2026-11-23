@@ -9,6 +9,7 @@
 #include "tessera/ui/scene/event_payloads.hpp"
 #include "tessera/ui/scene/state_snapshot.hpp"
 #include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/scene/list_diagnostics.hpp"
 #include "tessera/ui/scene/paint_data.hpp"
 
 #include <cstdint>
@@ -224,6 +225,8 @@ namespace dynamic {
       [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<4> kDirty_cond_6 = tessera::ui::DirtyMask<4>::of({1, 3});
       // cond binding of node::8 reads: state::count.
       [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<4> kDirty_cond_8 = tessera::ui::DirtyMask<4>::of({1, 3});
+      // source binding of node::5 reads: state::items.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<4> kDirty_source_5 = tessera::ui::DirtyMask<4>::of({2, 3});
       // list binding of node::5 reads: state::count state::items.
       [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<4> kDirty_list_5 = tessera::ui::DirtyMask<4>::of({1, 2, 3});
       template <class Self>
@@ -494,6 +497,13 @@ namespace dynamic {
             if (!tessera_reused[tessera_slot] && tessera_old_keys[tessera_slot] == tessera_key) {
               tessera_reused[tessera_slot] = true;
               tessera_match = tessera_slot;
+              break;
+            }
+          }
+          for (std::size_t tessera_prior = 0; tessera_prior < tessera_next; ++tessera_prior) {
+            if (tessera_next_keys[tessera_prior] == tessera_key) {
+              TESSERA_LIST_DUPLICATE_KEY(this, "node::5", tessera_key);
+              tessera_key += "#" + std::to_string(tessera_next);
               break;
             }
           }

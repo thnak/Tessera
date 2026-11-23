@@ -234,4 +234,13 @@ void emit_item_instance_calls(CppWriter& writer, const DynamicPlan& plan, std::s
 // The generated member name for one conditional branch slot (`branch_7_owned_`).
 [[nodiscard]] std::string branch_member(unsigned ordinal, std::string_view suffix);
 
+// True when a loop source is a derived list (`listFilter`/`listSlice`, not a plain `Ref`), so
+// `apply_list_<n>()` materializes it into a cached component member instead of reading a ref.
+[[nodiscard]] bool source_needs_cache(const ir::Expr& source);
+
+// The cached member holding a derived loop source (`list_<n>_src_`), and its "has a value yet"
+// flag (`list_<n>_src_set_`). Both are empty for a plain `Ref` source, which reads in place.
+[[nodiscard]] std::string derived_source_member(unsigned ordinal);
+[[nodiscard]] std::string derived_source_set_member(unsigned ordinal);
+
 } // namespace tessera::compiler::codegen::internal

@@ -9,6 +9,7 @@
 #include "tessera/ui/scene/event_payloads.hpp"
 #include "tessera/ui/scene/state_snapshot.hpp"
 #include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/scene/list_diagnostics.hpp"
 #include "tessera/ui/scene/paint_data.hpp"
 #include "tessera/ui/virtual/item_geometry.hpp"
 
@@ -241,6 +242,10 @@ namespace dvirt {
       [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<6> kDirty_text_2 = tessera::ui::DirtyMask<6>::of({5});
       // text binding of node::9 reads: nothing.
       [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<6> kDirty_text_9 = tessera::ui::DirtyMask<6>::of({5});
+      // source binding of node::4 reads: state::items.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<6> kDirty_source_4 = tessera::ui::DirtyMask<6>::of({4, 5});
+      // source binding of node::7 reads: state::items.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<6> kDirty_source_7 = tessera::ui::DirtyMask<6>::of({4, 5});
       // list binding of node::4 reads: state::items.
       [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<6> kDirty_list_4 = tessera::ui::DirtyMask<6>::of({4, 5});
       // list binding of node::7 reads: state::items.

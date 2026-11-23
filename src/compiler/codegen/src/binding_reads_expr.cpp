@@ -17,11 +17,15 @@ namespace tessera::compiler::codegen::internal {
 namespace {
 
 // Functions the expression emitter spells (`emit_expr.cpp`) or defers: all are pure over their
-// arguments, so a call reads exactly what its arguments read.
+// arguments, so a call reads exactly what its arguments read. The six string methods of ADR-066
+// item 3 are total and locale-independent (`tessera/ui/scene/list_ops.hpp`), so a derived list
+// source that filters with `startsWith` reads its predicate's cells and nothing else; without them
+// here the analysis would fall back to "every cell" and recompute the source cache needlessly.
 bool pure_callee(std::string_view callee) {
     static constexpr std::string_view kPure[] = {
-        "min",   "max",   "clamp",   "abs",    "floor",        "ceil",
-        "round", "toInt", "toFloat", "length", "formatNumber",
+        "min",         "max",         "clamp",      "abs",    "floor",        "ceil",
+        "round",       "toInt",       "toFloat",    "length", "formatNumber", "trim",
+        "toUpperCase", "toLowerCase", "startsWith", "slice",  "toFixed",
     };
     return std::find(std::begin(kPure), std::end(kPure), callee) != std::end(kPure);
 }
@@ -286,14 +290,33 @@ void ReadCollector::add(const ir::Expr* expr) {
     // set is the union of their operands and nothing else.
     case ir::ExprKind::OptionalField:
     case ir::ExprKind::Coalesce:
-    // ADR-066 item 3: `list.filter(...)` reads the list and the predicate's operands, `list.slice`
-    // the list and the bounds. A `recordUpdate` reads its base and the written values.
-    case ir::ExprKind::ListFilter:
+    // ADR-066 item 3: `list.slice` reads the list and the bounds.
     case ir::ExprKind::ListSlice:
         for (const ir::ExprPtr& operand : expr->operands) {
             add(operand.get());
         }
         return;
+    case ir::ExprKind::ListFilter: {
+        // ADR-066 item 3: `list.filter(item => <bool>)` reads the list and whatever the predicate
+        // reads. The predicate's own item name is a local, not a cell (the same rule
+        // `add_ref_id` applies to a loop local); without binding it here, `row.startsWith(query)`
+        // would look like an undeclared base and widen the read set to every cell, which would
+        // make a derived list source recompute on any unrelated state change (issue #830).
+        if (expr->operands.size() != 2) {
+            all_ = true;
+            return;
+        }
+        add(expr->operands[0].get());
+        const bool had_item = !expr->id.empty();
+        if (had_item) {
+            locals_.push_back(expr->id);
+        }
+        add(expr->operands[1].get());
+        if (had_item) {
+            locals_.pop_back();
+        }
+        return;
+    }
     case ir::ExprKind::RecordUpdate:
         add_ref_id(expr->id);
         for (const ir::RecordField& field : expr->fields) {

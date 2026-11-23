@@ -220,7 +220,9 @@ ExprEmission emit_expr(const ir::Expr& expr, const ir::Component& component,
         if (!predicate.error.empty()) {
             return predicate;
         }
-        const std::string text = "tessera::ui::filter_list(" + list.text + ", [](const auto& " +
+        // The predicate may read a generated member (`prop_query_`), so the lambda captures
+        // `this` by value; a predicate that reads only its item still compiles with the capture.
+        const std::string text = "tessera::ui::filter_list(" + list.text + ", [this](const auto& " +
                                  expr.id + ") { return " + predicate.text + "; })";
         return ExprEmission{text, {}};
     }

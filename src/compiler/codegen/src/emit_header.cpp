@@ -101,6 +101,11 @@ bool emit_component_header(const ir::Component& component, const ir::IrModule& m
     if (uses_list_ops(component)) {
         writer.line("#include \"tessera/ui/scene/list_ops.hpp\"");
     }
+    // Issue #830: a keyed list reports a duplicate live key through the hook seam. Emitted only
+    // for a component with an eager list, so a component without one keeps its previous bytes.
+    if (plan.has_lists) {
+        writer.line("#include \"tessera/ui/scene/list_diagnostics.hpp\"");
+    }
     // Generated code constructs `PaintData` by value for text, vector, image and interpolated
     // payloads, and `node.hpp` no longer includes it (it forward-declares the type so its own
     // include cost stays down). Emitting the include here keeps every generated header

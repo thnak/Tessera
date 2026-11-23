@@ -173,6 +173,34 @@ ExprPtr make_record_update(std::string type, std::string base, std::vector<Recor
     return expr;
 }
 
+bool is_list_source(const Expr& expr) {
+    switch (expr.kind) {
+    case ExprKind::Ref:
+        return true;
+    case ExprKind::ListFilter:
+        // `list.filter(item => <bool>)`: operand 0 is the list; a malformed operand count is the
+        // validator's error, not a different source rule.
+        return expr.operands.size() == 2 && expr.operands[0] != nullptr &&
+               is_list_source(*expr.operands[0]);
+    case ExprKind::ListSlice:
+        return !expr.operands.empty() && expr.operands[0] != nullptr &&
+               is_list_source(*expr.operands[0]);
+    default:
+        return false;
+    }
+}
+
+const Expr* list_source_ref(const Expr& expr) {
+    const Expr* current = &expr;
+    while (current != nullptr && current->kind != ExprKind::Ref) {
+        if (!is_list_source(*current) || current->operands.empty()) {
+            return nullptr;
+        }
+        current = current->operands[0].get();
+    }
+    return current;
+}
+
 TemplatePart text_part(std::string text) {
     return TemplatePart{std::move(text), nullptr};
 }

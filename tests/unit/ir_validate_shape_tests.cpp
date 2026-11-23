@@ -14,6 +14,14 @@ namespace {
 
 using namespace ir_test;
 
+// A `listSlice` bound vector. It cannot be a braced initializer list: that requires the elements to
+// be copyable, and `ExprPtr` is a `unique_ptr`.
+std::vector<ir::ExprPtr> slice_bounds(std::int64_t start) {
+    std::vector<ir::ExprPtr> bounds;
+    bounds.push_back(ir::make_literal(start));
+    return bounds;
+}
+
 ir::Node leaf(ir::NodeKind kind, const std::string& id, const std::string& ui_id) {
     ir::Node node;
     node.kind = kind;
@@ -125,6 +133,45 @@ void test_loops() {
     expect(
         "loop source is not a reference",
         [](auto& m) { row_node(m).loop->source = ir::make_literal(std::int64_t{1}); },
+        kUnsupported);
+    // Section 5: a source may be a `filter`/`slice` of a list ref (issue #830). The predicate's
+    // item name is in scope for the predicate, so it does not look unresolved.
+    expect(
+        "a filter of a ref is a valid loop source",
+        [](auto& m) {
+            row_node(m).loop->source =
+                ir::make_list_filter(ir::make_ref("state::rows"), "row", ir::make_literal(true));
+        },
+        "");
+    expect(
+        "a slice of a ref is a valid loop source",
+        [](auto& m) {
+            row_node(m).loop->source =
+                ir::make_list_slice(ir::make_ref("state::rows"), slice_bounds(0));
+        },
+        "");
+    expect(
+        "a filter of a slice is a valid loop source",
+        [](auto& m) {
+            row_node(m).loop->source = ir::make_list_filter(
+                ir::make_list_slice(ir::make_ref("state::rows"), slice_bounds(0)), "row",
+                ir::make_literal(true));
+        },
+        "");
+    expect(
+        "a filter's predicate item resolves inside the predicate",
+        [](auto& m) {
+            row_node(m).loop->source =
+                ir::make_list_filter(ir::make_ref("state::rows"), "row", ir::make_ref("row.value"));
+        },
+        "");
+    expect(
+        "a filter over a non-ref is not a loop source",
+        [](auto& m) {
+            row_node(m).loop->source = ir::make_list_filter(
+                ir::make_binary("+", ir::make_ref("state::rows"), ir::make_ref("state::rows")),
+                "row", ir::make_literal(true));
+        },
         kUnsupported);
     expect(
         "loop without an item name", [](auto& m) { row_node(m).loop->item.clear(); },

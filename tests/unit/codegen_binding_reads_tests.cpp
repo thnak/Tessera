@@ -231,6 +231,35 @@ void test_record_field_splits_into_leaf_bits() {
           "an intermediate record read depends on every leaf under it");
 }
 
+// Issue #830: a derived list source reads exactly its list and the predicate's cells. The
+// predicate's own item name is a local, not a cell; if it were not bound, `row.startsWith(prop::q)`
+// would fall back to "every cell" and the source cache would recompute on any unrelated change.
+void test_derived_list_source_reads() {
+    std::vector<ir::ExprPtr> predicate_args;
+    predicate_args.push_back(ref("row"));
+    predicate_args.push_back(ref("prop::title"));
+    ir::Node row = node(ir::NodeKind::Text);
+    ir::Loop loop;
+    loop.item = "item";
+    loop.source = ir::make_list_filter(ref("state::items"), "row",
+                                       ir::make_call("startsWith", std::move(predicate_args)));
+    row.loop = std::move(loop);
+    row.key = ref("item");
+    std::vector<ir::ExprPtr> text_refs;
+    text_refs.push_back(ref("item"));
+    row.text = text_of(std::move(text_refs));
+    const ir::Component c = with_child(std::move(row));
+    const auto table = internal::analyze_binding_reads(c);
+    check(reads_exactly(table.find(BindingKind::ListSource, kFirstChild),
+                        {"prop::title", "state::items"}),
+          "a filter source reads its list and the predicate's cell, never the predicate item");
+    check(reads_exactly(table.find(BindingKind::ListItem, kFirstChild),
+                        {"prop::title", "state::items"}),
+          "the per-item content reads the source's cells and the template's names");
+    const ReadSet* source = table.find(BindingKind::ListSource, kFirstChild);
+    check(source != nullptr && !source->all, "the predicate item does not widen the read set");
+}
+
 void test_list_template() {
     ir::Node row = node(ir::NodeKind::Text);
     ir::Loop loop;
@@ -443,6 +472,7 @@ int main() {
     test_known_call_reads_its_arguments();
     test_record_field_reads_its_base_cell();
     test_record_field_splits_into_leaf_bits();
+    test_derived_list_source_reads();
     test_list_template();
     test_virtual_collection_item_template();
     test_controlled_input_value();

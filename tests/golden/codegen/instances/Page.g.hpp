@@ -9,6 +9,7 @@
 #include "tessera/ui/scene/event_payloads.hpp"
 #include "tessera/ui/scene/state_snapshot.hpp"
 #include "tessera/ui/scene/node.hpp"
+#include "tessera/ui/scene/list_diagnostics.hpp"
 #include "tessera/ui/scene/paint_data.hpp"
 #include "tessera/ui/scene/node_ids.hpp"
 #include "Row.hpp"
@@ -225,6 +226,10 @@ namespace demo {
       }
       // cond binding of node::5 reads: state::show.
       [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<4> kDirty_cond_5 = tessera::ui::DirtyMask<4>::of({2, 3});
+      // source binding of node::2 reads: state::nums.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<4> kDirty_source_2 = tessera::ui::DirtyMask<4>::of({1, 3});
+      // source binding of node::4 reads: state::entries.
+      [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<4> kDirty_source_4 = tessera::ui::DirtyMask<4>::of({0, 3});
       // list binding of node::2 reads: state::nums.
       [[maybe_unused]] inline constexpr tessera::ui::DirtyMask<4> kDirty_list_2 = tessera::ui::DirtyMask<4>::of({1, 3});
       // list binding of node::4 reads: state::entries.
@@ -442,6 +447,13 @@ namespace demo {
               break;
             }
           }
+          for (std::size_t tessera_prior = 0; tessera_prior < tessera_next; ++tessera_prior) {
+            if (tessera_next_keys[tessera_prior] == tessera_key) {
+              TESSERA_LIST_DUPLICATE_KEY(this, "node::2", tessera_key);
+              tessera_key += "#" + std::to_string(tessera_next);
+              break;
+            }
+          }
           if (tessera_match != tessera_old_count) {
             // Reuse: the node subtree, its interpolated text pointers, its per-item branch slots and its component instances move to the new slot, so the instance state follows the key across a reorder.
             tessera_next_items[tessera_next] = std::move(tessera_old_items[tessera_match]);
@@ -580,6 +592,13 @@ namespace demo {
             if (!tessera_reused[tessera_slot] && tessera_old_keys[tessera_slot] == tessera_key) {
               tessera_reused[tessera_slot] = true;
               tessera_match = tessera_slot;
+              break;
+            }
+          }
+          for (std::size_t tessera_prior = 0; tessera_prior < tessera_next; ++tessera_prior) {
+            if (tessera_next_keys[tessera_prior] == tessera_key) {
+              TESSERA_LIST_DUPLICATE_KEY(this, "node::4", tessera_key);
+              tessera_key += "#" + std::to_string(tessera_next);
               break;
             }
           }

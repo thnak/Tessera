@@ -339,15 +339,12 @@ void NodeWalker::check_loop(const Node& node, const LocalNames& outer, int loop_
         context.report("TESSERA_IR_LOOP",
                        "a loop index must be a local name different from the item", node.source);
     }
-    // The source is a list reference, or a `.filter(...)`/`.slice(...)` chain over one (ADR-066
-    // item 3, issue #804): those two kinds yield a list again, so the loop reads a list either
-    // way. Their operands are validated recursively.
-    if (!loop.source ||
-        (loop.source->kind != ExprKind::Ref && loop.source->kind != ExprKind::ListFilter &&
-         loop.source->kind != ExprKind::ListSlice)) {
+    // Section 5: a source is a list `Ref`, or a `listFilter`/`listSlice` whose list is
+    // (recursively) an allowed source. A derived source's element type is its innermost list's, so
+    // codegen resolves the same ref this rule does (`list_source_ref`).
+    if (!loop.source || !is_list_source(*loop.source)) {
         context.report("TESSERA_IR_UNSUPPORTED",
-                       "a loop source must be a list reference, or a "
-                       "`.filter(...)`/`.slice(...)` chain over one",
+                       "a loop source must be a list reference or a `filter`/`slice` of one",
                        node.source);
     } else {
         validate_expr(context, scope, outer, loop.source.get(), node.source);

@@ -2334,6 +2334,15 @@ target_link_libraries(lowering_control_tests PRIVATE tessera_lowering)
 
 add_test(NAME lowering_control COMMAND lowering_control_tests)
 
+# Slice 8 virtual collections, split from `lowering_control_tests` when that file reached the
+# 500-line limit.
+add_executable(lowering_virtual_control_tests
+    lowering_virtual_control_tests.cpp)
+
+target_link_libraries(lowering_virtual_control_tests PRIVATE tessera_lowering)
+
+add_test(NAME lowering_virtual_control COMMAND lowering_virtual_control_tests)
+
 # ADR-066 item 2: control flow in a handler body (`if`/`else`, `const`, an early `return`).
 add_executable(lowering_handler_control_tests
     lowering_handler_control_tests.cpp)
