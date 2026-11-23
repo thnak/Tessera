@@ -2,7 +2,12 @@
 
 add_library(tessera_runtime STATIC
     adaptive_quality.cpp
-    async.cpp
+    # Async primitives, split by responsibility (issue #845): cancellation sources and their
+    # shared state, the completion queue with its continuation lane (#843), and the deterministic
+    # manual executor tests drive.
+    cancellation.cpp
+    completion_queue.cpp
+    manual_executor.cpp
     clock.cpp
     config.cpp
     config_json.cpp

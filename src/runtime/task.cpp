@@ -40,9 +40,24 @@ bool TaskStateBase::post_resume() {
     if (queue_ == nullptr) {
         return false;
     }
-    // The queue token is intentionally empty: cancellation is checked in resume_from_queue, where
-    // the task can finish (and notify its awaiter) instead of being dropped silently.
-    return queue_->post(priority_, [self = shared_from_this()] { self->resume_from_queue(); });
+    // The resume goes on the unbounded continuation lane (issue #843): it is never dropped, so a
+    // full fire-and-forget queue cannot hang a task forever. The queued keep-alive reference is
+    // what a `std::function` wrapper used to provide, without an allocation per post.
+    if (queued_keepalive_ == nullptr) {
+        queued_keepalive_ = shared_from_this();
+    }
+    if (!queue_->post_continuation(priority_, *this)) {
+        // Already queued: a second resume is a no-op, exactly like a double `start()`.
+        return true;
+    }
+    return true;
+}
+
+void TaskStateBase::resume_continuation() {
+    // Drop the queued reference last: `resume_from_queue` may finish the task and resume its
+    // continuation, and a re-post made by that resume must see a clean slot.
+    const std::shared_ptr<TaskStateBase> keepalive = std::move(queued_keepalive_);
+    resume_from_queue();
 }
 
 void TaskStateBase::resume_from_queue() {
@@ -51,6 +66,7 @@ void TaskStateBase::resume_from_queue() {
     }
     if (token_.cancelled()) {
         cancelled_ = true;
+        cancellation_ = token_.reason().value_or(CancelReason::Requested);
         mark_cancelled();
         finish();
         return;

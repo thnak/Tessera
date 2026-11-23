@@ -101,22 +101,20 @@ void TaskScopeState::record_cancelled_child() noexcept {
 TaskScope::TaskScope(runtime::Clock& clock, runtime::CompletionQueue& completions,
                      TaskScopeConfig config, runtime::CancellationToken parent)
     : state_(std::make_shared<detail::TaskScopeState>(clock, completions, config)) {
+    // Nesting is a linked source (issue #845): this scope's token is the child of the parent's, so
+    // a parent cancel arrives with reason `Parent`, and the link holds the parent registration in
+    // the scope's own state - destroying the scope unregisters from the parent instead of leaving
+    // a callback behind on a long-lived token.
     if (parent.cancelled()) {
-        state_->cancel.cancel();
+        state_->cancel.cancel(runtime::CancelReason::Parent);
         return;
     }
-    // The registration holds the state weakly, so a parent that outlives this scope neither keeps
-    // it alive nor writes through a dangling pointer when it is finally cancelled.
-    parent.on_cancel([weak = std::weak_ptr<detail::TaskScopeState>(state_)] {
-        if (const std::shared_ptr<detail::TaskScopeState> state = weak.lock()) {
-            state->cancel.cancel();
-        }
-    });
+    state_->cancel = runtime::CancellationSource::linked(parent);
 }
 
 TaskScope::~TaskScope() {
     state_->closing = true;
-    state_->cancel.cancel();
+    state_->cancel.cancel(runtime::CancelReason::Shutdown);
 }
 
 runtime::TaskContext TaskScope::context() const {
@@ -125,11 +123,14 @@ runtime::TaskContext TaskScope::context() const {
 
 void TaskScope::cancel() {
     state_->closing = true;
-    state_->cancel.cancel();
+    state_->cancel.cancel(runtime::CancelReason::Requested);
 }
 
 void TaskScope::close(double deadline_seconds) {
-    cancel();
+    // A close is a shutdown: the reason a child's awaiter sees is what tells it this was not a user
+    // abort (issue #845).
+    state_->closing = true;
+    state_->cancel.cancel(runtime::CancelReason::Shutdown);
     // A second close after the deadline expired must not revive the scope.
     if (state_->timed_out) {
         return;

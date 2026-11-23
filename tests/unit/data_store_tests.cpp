@@ -152,7 +152,7 @@ int main() {
 
         FetchHandle fetch = store.begin_fetch(k);
         bool cancelled = false;
-        fetch.token().on_cancel([&cancelled] { cancelled = true; });
+        auto cancellation = fetch.token().on_cancel([&cancelled] { cancelled = true; });
         if (!expect(fetch.valid(), "begin_fetch returns a handle") ||
             !expect(store.snapshot(k).status == DataStatus::Loading, "fetch starts Loading") ||
             !expect(queue.size() == 1, "fetch start posts a tick notification")) {

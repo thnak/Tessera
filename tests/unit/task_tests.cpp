@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
+//
+// The base `Task` contract: laziness, resumption, values, exceptions and cancellation at the await
+// boundary. Scheduling-order and cancellation-reason tests live in `task_cancellation_tests.cpp`.
 
-#include "tessera/runtime/async.hpp"
-#include "tessera/runtime/task.hpp"
+#include "task_test_support.hpp"
 
 #include <cstddef>
-#include <iostream>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -12,43 +13,18 @@
 namespace {
 
 using tessera::runtime::CancellationSource;
-using tessera::runtime::CompletionPriority;
-using tessera::runtime::CompletionQueue;
-using tessera::runtime::Task;
-using tessera::runtime::TaskCancelled;
-using tessera::runtime::TaskContext;
-
-bool expect(bool condition, const char* message) {
-    if (!condition) {
-        std::cerr << "task: " << message << "\n";
-    }
-    return condition;
-}
-
-TaskContext context(CompletionQueue& queue,
-                    CompletionPriority priority = CompletionPriority::Visible) {
-    return TaskContext{&queue, priority, {}};
-}
-
-// Drains one completion at a time so tests can observe every scheduling step.
-std::size_t pump(CompletionQueue& queue, std::size_t budget = 32) {
-    std::size_t executed = 0;
-    while (!queue.empty() && executed < budget) {
-        executed += queue.run(1);
-    }
-    return executed;
-}
+using tessera::task_test::CompletionPriority;
+using tessera::task_test::CompletionQueue;
+using tessera::task_test::context;
+using tessera::task_test::doubled;
+using tessera::task_test::expect;
+using tessera::task_test::marked;
+using tessera::task_test::pump;
+using tessera::task_test::Task;
+using tessera::task_test::TaskCancelled;
+using tessera::task_test::TaskContext;
 
 // --- coroutine fixtures ---------------------------------------------------------------------
-
-Task<int> doubled(TaskContext, int value) {
-    co_return value * 2;
-}
-
-Task<void> marked(TaskContext, bool& flag) {
-    flag = true;
-    co_return;
-}
 
 Task<void> value_root(TaskContext ctx, int& out, bool& ran) {
     out = co_await doubled(ctx, 21);

@@ -16,9 +16,23 @@ namespace tessera::runtime {
 
 // Thrown at the co_await boundary when the awaited task observed cancellation. Cancellation is
 // cooperative: it is checked immediately before a task resumes, never asynchronously.
+//
+// `reason()` carries why the task's token was cancelled (issue #845), so an awaiter can tell a
+// user abort from a timeout from a shutdown without a side channel. The default is `Requested`,
+// which is what an unspecified `cancel()` means.
 class TaskCancelled : public std::exception {
 public:
+    TaskCancelled() = default;
+    explicit TaskCancelled(CancelReason reason) noexcept
+        : reason_(reason) {}
+
     [[nodiscard]] const char* what() const noexcept override;
+    [[nodiscard]] CancelReason reason() const noexcept {
+        return reason_;
+    }
+
+private:
+    CancelReason reason_ = CancelReason::Requested;
 };
 
 // Scheduling context for one task. A task coroutine function takes it as its first parameter; the
@@ -84,7 +98,12 @@ private:
 
 // Shared ownership and lifecycle for one coroutine frame. The frame is destroyed exactly once,
 // when the last reference to the state drops; no thread is created, joined, or detached here.
-class TaskStateBase : public std::enable_shared_from_this<TaskStateBase> {
+//
+// It is also the intrusive node a queued resume links through (`detail::ContinuationNode`), which
+// is what keeps a resume unbounded and allocation-free (issue #843): the queue stores a pointer to
+// this state, the state stores an extra shared reference while queued, and nothing is dropped.
+class TaskStateBase : public detail::ContinuationNode,
+                      public std::enable_shared_from_this<TaskStateBase> {
 public:
     explicit TaskStateBase(TaskContext context);
     virtual ~TaskStateBase() = default;
@@ -128,6 +147,9 @@ protected:
     virtual void resume_coroutine() = 0;
     virtual void mark_cancelled() = 0;
 
+    // `detail::ContinuationNode`: the queued-resume entry point (issue #843).
+    void resume_continuation() final;
+
     std::exception_ptr exception_;
 
 private:
@@ -137,6 +159,16 @@ private:
     CompletionPriority priority_ = CompletionPriority::Visible;
     CancellationToken token_;
     std::shared_ptr<TaskStateBase> continuation_;
+    // Keeps the frame alive while its resume sits on the queue without a `std::function` wrapper.
+    // Released inside `resume_continuation`, which runs from the queue.
+    std::shared_ptr<TaskStateBase> queued_keepalive_;
+
+protected:
+    // Why the token was cancelled, captured when this task observes it, so `TaskCancelled` carries
+    // the reason (issue #845). Read by the derived `mark_cancelled`.
+    CancelReason cancellation_ = CancelReason::Requested;
+
+private:
     bool started_ = false;
     bool done_ = false;
     bool cancelled_ = false;
@@ -169,7 +201,7 @@ protected:
         handle_.resume();
     }
     void mark_cancelled() override {
-        exception_ = std::make_exception_ptr(TaskCancelled{});
+        exception_ = std::make_exception_ptr(TaskCancelled{cancellation_});
     }
 
 private:
@@ -194,7 +226,7 @@ protected:
         handle_.resume();
     }
     void mark_cancelled() override {
-        exception_ = std::make_exception_ptr(TaskCancelled{});
+        exception_ = std::make_exception_ptr(TaskCancelled{cancellation_});
     }
 
 private:
