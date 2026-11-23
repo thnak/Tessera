@@ -27,6 +27,13 @@ bool fail(std::string& error, std::string message);
 [[nodiscard]] std::optional<std::string> declared_field_type(const ir::Component& component,
                                                              std::string_view ref_id);
 
+// The declared list type of a loop source: a list reference reads a state/prop `list<T>`; a
+// `.filter(...)`/`.slice(...)` chain (ADR-066 item 3, issue #804) reads the type of the list it
+// filters, because a filter keeps the element type and a slice's bounds cannot change it. One
+// level of chain is followed recursively; anything else has no static list type here.
+[[nodiscard]] std::optional<std::string> loop_source_type(const ir::Component& component,
+                                                          const ir::Expr& source);
+
 // `list<T>` -> `T`.
 [[nodiscard]] std::optional<std::string> list_element_type(std::string_view type);
 

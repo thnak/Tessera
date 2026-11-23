@@ -2219,6 +2219,15 @@ add_executable(lowering_record_value_tests
 target_link_libraries(lowering_record_value_tests PRIVATE tessera_lowering)
 
 add_test(NAME lowering_record_value COMMAND lowering_record_value_tests)
+# Issue #804: an anonymous record type in a props value position (`{ rows: { id: string }[] }`)
+# becomes a `types` entry under a synthesized name, and a `.filter(...)`/`.slice(...)` chain lowers
+# as a list loop source.
+add_executable(lowering_anonymous_record_tests
+    lowering_anonymous_record_tests.cpp)
+
+target_link_libraries(lowering_anonymous_record_tests PRIVATE tessera_lowering)
+
+add_test(NAME lowering_anonymous_record COMMAND lowering_anonymous_record_tests)
 
 # Issue #70 cross-file props aliases: the same alias imported from another file must lower to the
 # same records (and the same generated C++) as the inline alias.
@@ -2333,7 +2342,7 @@ target_link_libraries(lowering_handler_control_tests PRIVATE tessera_lowering)
 
 add_test(NAME lowering_handler_control COMMAND lowering_handler_control_tests)
 
-# ADR-066 item 4: the `useReducer` lowering — one state cell, one handler per case, and a
+# ADR-066 item 4: the `useReducer` lowering ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â one state cell, one handler per case, and a
 # `dispatch({ type: "x" })` that becomes a `Dispatch` action.
 add_executable(lowering_reducer_tests
     lowering_reducer_tests.cpp)

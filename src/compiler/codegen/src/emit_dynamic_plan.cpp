@@ -25,6 +25,7 @@ namespace {
 using plan_detail::declared_field_type;
 using plan_detail::fail;
 using plan_detail::list_element_type;
+using plan_detail::loop_source_type;
 using plan_detail::mentions_loop_local;
 using plan_detail::reserved_loop_local;
 using plan_detail::starts_with;
@@ -136,6 +137,7 @@ bool PlanWalk::collect_text_site(const ir::Node& node, unsigned node_ordinal) {
 
 // Shared validation of an eager list template and a virtual item template: the loop locals, the
 // source list and its element type, and the key expression. Fills `element_type`/`element_cpp`.
+
 bool PlanWalk::validate_template_loop(const ir::Node& node, const ir::Loop& loop,
                                       std::string& element_type, std::string& element_cpp) {
     if (loop.item.empty()) {
@@ -150,13 +152,17 @@ bool PlanWalk::validate_template_loop(const ir::Node& node, const ir::Loop& loop
     if (loop.index == loop.item && !loop.index.empty()) {
         return fail(error, "a list callback index must differ from its item name");
     }
-    if (loop.source == nullptr || loop.source->kind != ir::ExprKind::Ref) {
-        return fail(error, "the loop source of `" + node.id + "` must be a list reference");
+    if (loop.source == nullptr ||
+        (loop.source->kind != ir::ExprKind::Ref && loop.source->kind != ir::ExprKind::ListFilter &&
+         loop.source->kind != ir::ExprKind::ListSlice)) {
+        return fail(error, "the loop source of `" + node.id +
+                               "` must be a list reference, or a `.filter(...)`/`.slice(...)` "
+                               "chain over one");
     }
     if (node.key == nullptr) {
         return fail(error, "the list template `" + node.id + "` needs a `key` expression");
     }
-    const std::optional<std::string> source_type = declared_field_type(component, loop.source->id);
+    const std::optional<std::string> source_type = loop_source_type(component, *loop.source);
     if (!source_type) {
         return fail(error, "the list source `" + loop.source->id +
                                "` has no declared type; v1 lists are backed by a state or prop "

@@ -193,6 +193,15 @@ declares no record writes exactly the bytes it wrote before this section existed
   by a component (a prop, state, animated value or environment type, a handler parameter, a binding type
   or a `ref` base) or reachable from such a record through its member types; a record reachable only
   from an unused record stays unused.
+- **Anonymous record types.** An object type written inline in a props value position
+  (`{ rows: { id: string; label: string }[] }`) has no alias to name it, so lowering synthesizes a
+  deterministic one (issue #804): the file stem in PascalCase, suffixed `_2`, `_3`, ... on a
+  collision with a declared alias or another synthesized name. The synthesized record is a normal
+  `types` entry and the prop type names it, so everything downstream — validation, codegen, the
+  generated aggregate — treats it like a declared record. A `type X = ...` alias for the same shape
+  keeps its declared name; the synthesis only covers type positions no alias names. A member the IR
+  cannot express leaves that anonymous type uncollected, and the prop reports its own
+  `TESSERA_IR_UNSUPPORTED` with the written spelling.
 - **Additive.** The field is optional and `irVersion` stays `1` (section 12). Lowering collects the
   declared records and emits a `record` value where a record-typed `useState` initial or prop default
   is written (section 4.3).

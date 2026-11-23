@@ -66,12 +66,16 @@ bool is_null_name(const jsx::TypeNode& type) {
            (type.text == "null" || type.text == "undefined");
 }
 
-std::optional<std::string> lower_prop_type(const jsx::TypeNode& type);
+using AnonymousRecords = std::unordered_map<const jsx::TypeNode*, std::string>;
+
+std::optional<std::string> lower_prop_type(const jsx::TypeNode& type,
+                                           const AnonymousRecords* anonymous);
 
 // A list element of a value prop: the V1 list holds printable primitive values, never a slot,
 // callback or nullable value (ir-v1 section 2).
-std::optional<std::string> lower_list_element(const jsx::TypeNode& type) {
-    const std::optional<std::string> element = lower_prop_type(type);
+std::optional<std::string> lower_list_element(const jsx::TypeNode& type,
+                                              const AnonymousRecords* anonymous) {
+    const std::optional<std::string> element = lower_prop_type(type, anonymous);
     if (!element || *element == "children" || *element == "callback" ||
         element->rfind("optional<", 0) == 0) {
         return std::nullopt;
@@ -81,7 +85,8 @@ std::optional<std::string> lower_list_element(const jsx::TypeNode& type) {
 
 // The written type -> IR v1 type mapping for one prop. `nullopt` means the V1 type list cannot
 // represent it; the caller reports the prop and the source spelling, never drops it.
-std::optional<std::string> lower_prop_type(const jsx::TypeNode& type) {
+std::optional<std::string> lower_prop_type(const jsx::TypeNode& type,
+                                           const AnonymousRecords* anonymous) {
     switch (type.kind) {
     case jsx::TypeKind::Name:
         if (!type.children.empty() || type.text.empty()) {
@@ -110,7 +115,7 @@ std::optional<std::string> lower_prop_type(const jsx::TypeNode& type) {
         if (type.children.size() != 1 || !type.children[0]) {
             return std::nullopt;
         }
-        const std::optional<std::string> element = lower_list_element(*type.children[0]);
+        const std::optional<std::string> element = lower_list_element(*type.children[0], anonymous);
         return element ? std::optional<std::string>("list<" + *element + ">") : std::nullopt;
     }
     case jsx::TypeKind::Union: {
@@ -130,7 +135,7 @@ std::optional<std::string> lower_prop_type(const jsx::TypeNode& type) {
                 inner = type.children[1].get();
             }
             if (inner != nullptr) {
-                const std::optional<std::string> value = lower_prop_type(*inner);
+                const std::optional<std::string> value = lower_prop_type(*inner, anonymous);
                 if (!value) {
                     return std::nullopt;
                 }
@@ -150,7 +155,8 @@ std::optional<std::string> lower_prop_type(const jsx::TypeNode& type) {
         }
         if (type.children.size() == 2 && type.param_names.size() == 1 && type.children[0] &&
             type.children[1] && is_void_name(*type.children[1])) {
-            const std::optional<std::string> payload = lower_prop_type(*type.children[0]);
+            const std::optional<std::string> payload =
+                lower_prop_type(*type.children[0], anonymous);
             if (!payload || *payload == "children" || *payload == "callback" ||
                 payload->rfind("optional<", 0) == 0) {
                 return std::nullopt;
@@ -160,7 +166,17 @@ std::optional<std::string> lower_prop_type(const jsx::TypeNode& type) {
         return std::nullopt;
     }
     case jsx::TypeKind::Object:
-        return std::nullopt; // an inline value record has no V1 IR type
+        // Issue #804 (owner decision): an anonymous object type in a value position names the
+        // record the collection pass synthesized for it, so the prop type is that record's name.
+        // A node the collection did not register (a member the IR cannot express, or a position
+        // outside a props type) stays unsupported, reported by the caller with the written
+        // spelling.
+        if (anonymous != nullptr) {
+            if (const auto found = anonymous->find(&type); found != anonymous->end()) {
+                return found->second;
+            }
+        }
+        return std::nullopt;
     }
     return std::nullopt;
 }
@@ -312,7 +328,8 @@ DeclaredPropsKind lower_declared_props(NodeState& state, std::vector<ir::Prop>& 
                       view.file, member.span);
             return DeclaredPropsKind::Error;
         }
-        const std::optional<std::string> type = lower_prop_type(*member.type);
+        const std::optional<std::string> type =
+            lower_prop_type(*member.type, state.context.anonymous_records);
         if (!type) {
             fail_type(state, "TESSERA_IR_UNSUPPORTED",
                       "prop `" + member.name + "` has a type with no IR form in v1 (`" +

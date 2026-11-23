@@ -19,6 +19,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 // Slice 6 of docs/design/jsx-ir-lowering.md: lower the hook declarations and `bind::` bindings of
@@ -76,6 +77,11 @@ struct HookLoweringContext {
     // literal that becomes an `ir::Record`. Null in the single-component entry points, where an
     // object literal in such a position stays unsupported.
     const std::vector<ir::RecordType>* records = nullptr;
+    // Issue #804 (owner decision): an anonymous object type in a props value position names the
+    // record the collection pass synthesized for it. Keyed by node pointer, valid for the lifetime
+    // of the parsed ASTs. Empty in the single-component entry points, where an anonymous object
+    // type stays unsupported exactly as before.
+    const std::unordered_map<const jsx::TypeNode*, std::string>* anonymous_records = nullptr;
     // Issue #463: the CSS modules this file imports, so `className={styles.title}` can resolve the
     // authored class against that file's own map. Empty when the file imports no module sheet.
     std::span<const CssModuleBinding> css_modules{};
