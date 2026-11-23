@@ -7,8 +7,8 @@
 
 #include "lowering_module_test_util.hpp"
 
-#include <string>
 #include <iostream>
+#include <string>
 #include <string_view>
 
 namespace {
