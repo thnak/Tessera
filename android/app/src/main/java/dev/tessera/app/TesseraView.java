@@ -9,8 +9,11 @@ import android.graphics.Insets;
 import android.graphics.Rect;
 import android.os.Build;
 import android.text.InputType;
+import android.view.ActionMode;
 import android.view.DisplayCutout;
 import android.view.KeyEvent;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.Surface;
 import android.view.SurfaceHolder;
@@ -62,6 +65,105 @@ public final class TesseraView extends SurfaceView implements SurfaceHolder.Call
      * change, which may never come.
      */
     private Runnable onNativeReady;
+
+    /**
+     * The floating toolbar a selection raises (docs/guides/android-lane.md section 3.17).
+     *
+     * <p>The engine has no popup surface, so the toolbar is the platform's own {@link ActionMode}:
+     * it is what every Android text field shows, it positions itself, and it dismisses on a tap
+     * outside without the engine tracking any of that.
+     */
+    private ActionMode selectionToolbar;
+
+    private final ActionMode.Callback selectionToolbarCallback =
+            new ActionMode.Callback() {
+                @Override
+                public boolean onCreateActionMode(ActionMode mode, Menu menu) {
+                    menu.add(Menu.NONE, kMenuCopy, Menu.NONE, android.R.string.copy);
+                    menu.add(Menu.NONE, kMenuCut, Menu.NONE, android.R.string.cut);
+                    menu.add(Menu.NONE, kMenuPaste, Menu.NONE, android.R.string.paste);
+                    menu.add(Menu.NONE, kMenuSelectAll, Menu.NONE, android.R.string.selectAll);
+                    return true;
+                }
+
+                @Override
+                public boolean onPrepareActionMode(ActionMode mode, Menu menu) {
+                    // Copy and Cut need a selection; Paste needs a clipboard. The engine answers
+                    // both, so the toolbar never offers an action that would do nothing.
+                    final boolean hasSelection = selectionState()[0] > 0.5f;
+                    final MenuItem copy = menu.findItem(kMenuCopy);
+                    final MenuItem cut = menu.findItem(kMenuCut);
+                    if (copy != null) {
+                        copy.setVisible(hasSelection);
+                    }
+                    if (cut != null) {
+                        cut.setVisible(hasSelection);
+                    }
+                    return true;
+                }
+
+                @Override
+                public boolean onActionItemClicked(ActionMode mode, MenuItem item) {
+                    final int id = item.getItemId();
+                    if (id == kMenuCopy) {
+                        nativeClipboardCopy(nativeHandle);
+                    } else if (id == kMenuCut) {
+                        nativeClipboardCut(nativeHandle);
+                    } else if (id == kMenuPaste) {
+                        nativeClipboardPaste(nativeHandle);
+                    } else if (id == kMenuSelectAll) {
+                        nativeSelectAll(nativeHandle);
+                    } else {
+                        return false;
+                    }
+                    // Every action collapses or changes the selection, so the toolbar's reason to
+                    // exist is gone. Dismissing here is what makes Copy feel like one gesture.
+                    mode.finish();
+                    return true;
+                }
+
+                @Override
+                public void onDestroyActionMode(ActionMode mode) {
+                    if (selectionToolbar == mode) {
+                        selectionToolbar = null;
+                    }
+                }
+            };
+
+    private static final int kMenuCopy = 1;
+    private static final int kMenuCut = 2;
+    private static final int kMenuPaste = 3;
+    private static final int kMenuSelectAll = 4;
+
+    /** The selection's state as the engine reports it: has-selection, anchor x, anchor y. */
+    private float[] selectionState() {
+        final float[] state = new float[3];
+        if (nativeHandle != 0) {
+            nativeSelectionState(nativeHandle, state);
+        }
+        return state;
+    }
+
+    /**
+     * Shows or hides the floating toolbar to match the engine's selection.
+     *
+     * <p>Called after every gesture that can change the selection. The engine owns the selection, so
+     * the platform asks rather than tracking it: a long-press, a drag, a tap and a key chord all end
+     * here.
+     */
+    private void syncSelectionToolbar() {
+        if (nativeHandle == 0) {
+            return;
+        }
+        final float[] state = selectionState();
+        final boolean hasSelection = state[0] > 0.5f;
+        if (hasSelection && selectionToolbar == null) {
+            selectionToolbar = startActionMode(selectionToolbarCallback, ActionMode.TYPE_FLOATING);
+        } else if (!hasSelection && selectionToolbar != null) {
+            selectionToolbar.finish();
+            selectionToolbar = null;
+        }
+    }
 
     public TesseraView(Context context) {
         super(context);
@@ -267,7 +369,15 @@ public final class TesseraView extends SurfaceView implements SurfaceHolder.Call
         }
         // The engine's translator owns the normalization; this only forwards. Returning true keeps
         // the gesture stream coming, which a multi-touch sequence needs.
-        return nativeOnTouch(nativeHandle, event);
+        final boolean handled = nativeOnTouch(nativeHandle, event);
+        // A gesture can start, extend or collapse a selection, so the toolbar follows it. Doing it
+        // on the up (and on a move, which is what a drag sends) is what makes the toolbar appear
+        // when the drag ends rather than mid-gesture.
+        if (event.getActionMasked() == MotionEvent.ACTION_UP
+                || event.getActionMasked() == MotionEvent.ACTION_MOVE) {
+            syncSelectionToolbar();
+        }
+        return handled;
     }
 
     // --- IME ---------------------------------------------------------------------------------
@@ -426,6 +536,15 @@ public final class TesseraView extends SurfaceView implements SurfaceHolder.Call
 
     /** Selects the whole buffer. False when it is already fully selected. */
     static native boolean nativeSelectAll(long handle);
+
+    /**
+     * The selection's state, for the floating toolbar.
+     *
+     * <p>{@code out} is a {@code float[3]}: has-selection, anchor x, anchor y (logical pixels). A
+     * float array rather than three calls keeps the answer consistent - the selection cannot change
+     * between the "is there one" and "where" reads.
+     */
+    static native void nativeSelectionState(long handle, float[] out);
 
     /**
      * Posts the platform clipboard write to the UI thread.

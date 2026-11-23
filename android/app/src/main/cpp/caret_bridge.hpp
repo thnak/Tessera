@@ -51,4 +51,20 @@ bool clipboard_paste(Shell& shell);
 // affordance alone.
 bool select_all(Shell& shell);
 
+// The selection's state, for the platform's floating toolbar (docs/guides/android-lane.md
+// section 3.17). A phone has no Ctrl key, so a long-press normally raises an `ActionMode` with
+// Copy/Cut/Paste/Select all; the platform needs to know whether a selection exists and where to
+// anchor the toolbar.
+struct SelectionState {
+    // True when the buffer has a non-collapsed selection. The toolbar is only shown for one: a
+    // collapsed caret has nothing to copy.
+    bool has_selection = false;
+    // The selection's top-left corner in LOGICAL pixels, relative to the window. The platform
+    // converts it to physical pixels for the toolbar anchor.
+    float anchor_x = 0.0f;
+    float anchor_y = 0.0f;
+};
+
+[[nodiscard]] SelectionState selection_state(Shell& shell);
+
 } // namespace tessera::android_shell

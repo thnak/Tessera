@@ -211,4 +211,22 @@ bool select_all(Shell& shell) {
     return true;
 }
 
+SelectionState selection_state(Shell& shell) {
+    SelectionState state;
+    const tessera::ui::text::EditBuffer& buffer = shell.editor.buffer();
+    if (!buffer.has_selection()) {
+        return state;
+    }
+    state.has_selection = true;
+    // The toolbar anchors at the field's top-left, which is where the selection starts on a
+    // single-line field. A multi-line selection that starts lower would want the first line's box;
+    // the field's own box is a truthful approximation and never puts the toolbar off-screen.
+    tessera::hal::android::CaretField field;
+    if (caret_field_for_shell(shell, field)) {
+        state.anchor_x = field.box_x;
+        state.anchor_y = field.box_y;
+    }
+    return state;
+}
+
 } // namespace tessera::android_shell

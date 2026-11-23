@@ -297,9 +297,9 @@ stays inside its size budget.
 - **The IME's long tail.** `requestCursorUpdates` is not forwarded (the engine has no cursor-anchor
   report). The compose/commit/delete path and the text queries are wired.
 - **The context menu itself.** A tap places the caret (3.13), a long-press starts a selection and a
-  drag extends it (3.14), `request_redraw` wakes the parked loop (3.15), and Copy/Cut/Paste and
-  Select all work through the platform's keys and the IME's `InputConnection` (3.16). Missing: the
-  floating toolbar a long-press normally raises, because the engine has no popup surface.
+  drag extends it (3.14), `request_redraw` wakes the parked loop (3.15), Copy/Cut/Paste and Select
+  all work through the platform's keys and the IME's `InputConnection` (3.16), and a selection raises
+  the platform's floating toolbar (3.17).
 - **A generated component.** The shell's scene (`android/app/src/main/cpp/scene.hpp`) is hand-built,
   because the codegen CLI runs on the host at build time and `tessera_compiler_demo` is gated on
   `NOT CMAKE_CROSSCOMPILING`. Replacing it with the generated `demo::Demo` needs the codegen host
@@ -335,21 +335,20 @@ So the Android column is a different shape, not a branch in an existing one:
 Three details that are easy to get wrong, and that the tests pin:
 
 **Virtual ids must be stable.** A snapshot index is a pre-order position, so it renumbers whenever
-the tree is rebuilt. A screen reader that focused virtual view 3 would then be pointing at a
-different control. `SnapshotProvider` keeps a slot table: a scene node keeps its virtual id for as
-long as it stays in the tree, and a node that leaves frees its slot. Id `0` is the host view, so a
-real node is always `1..kMaxNodes`.
+the tree is rebuilt, and a screen reader that focused virtual view 3 would then point at a different
+control. `SnapshotProvider` keeps a slot table: a node keeps its id while it stays in the tree, and a
+node that leaves frees its slot. Id `0` is the host view, so a real node is always `1..kMaxNodes`.
 
 **The action ids are the platform's, not ours.** They are *not* consecutive powers of two:
 `ACTION_FOCUS` is 1, `ACTION_CLICK` is 16, `ACTION_SCROLL_FORWARD` is 4096, `ACTION_SET_TEXT` is
 2097152. Numbering them in enum order turns a click into a focus request, and because the platform
-echoes back the id it was offered, that failure is silent. The values in `android_a11y_mapping.hpp`
-were read from `android.jar` with `javap -constants` and the test asserts them. They are also a
-**list**, not a bit set: `Click | LongClick` would be 48, which is not an id the platform knows.
+echoes back the id it was offered, that failure is silent. The values were read from `android.jar`
+with `javap -constants` and the test asserts them. They are also a **list**, not a bit set:
+`Click | LongClick` would be 48, which is not an id the platform knows.
 
 **Bounds are the engine's logical pixels.** They are the view's own coordinate space, so no density
-conversion happens in Java. They cross as fixed point in 1/64 px so a fractional logical position is
-rounded once rather than truncated twice.
+conversion happens in Java; they cross as fixed point in 1/64 px so a fractional position is rounded
+once rather than truncated twice.
 
 ```powershell
 # What a screen reader should see, without a screen reader:
@@ -382,35 +381,22 @@ plugin, for one 40-line file.
 
 **Why a Kotlin file.** `WindowInfoTracker.windowLayoutInfo` returns a Kotlin `Flow`. Collecting one
 from Java means calling suspend functions through `BuildersKt` with a hand-written `Function2`, which
-compiles only while every parameter type lines up and breaks on any coroutines version bump. I tried
-that first and it failed to compile; `FoldObserver.kt` does it in three lines instead. All the mapping
-stays in `TesseraFoldReader.java` with the rest of the shell.
+breaks on any coroutines version bump; `FoldObserver.kt` does it in three lines instead. All the
+mapping stays in `TesseraFoldReader.java` with the rest of the shell.
 
 **Why a listener, not just a config-change re-read.** A fold change is *not* always a configuration
-change. The emulator's `HALF_OPENED` transition changes the hinge angle without resizing the window,
-so `onConfigurationChanged` never fires — measured, not assumed. A re-read on that hook alone reports
-the posture the app started with, forever.
+change: the emulator's `HALF_OPENED` transition changes the hinge angle without resizing the window,
+so `onConfigurationChanged` never fires. A re-read on that hook alone reports the posture the app
+started with, forever.
 
 **The ordering trap.** `onResume` runs *before* `surfaceCreated`, so a fold read there has no native
 handle to push to. `TesseraView.whenNativeReady` defers the first push until the shell exists;
-without it a device that is already folded at launch reports no fold until the next change, which may
-never come.
+without it a device already folded at launch reports no fold until the next change.
 
-Verification on the emulator, which can simulate a foldable:
-
-```powershell
-adb shell cmd device_state print-states   # lists CLOSED, HALF_OPENED, OPENED, ...
-adb shell cmd device_state state 1        # HALF_OPENED
-adb shell cmd device_state state 2        # OPENED
-```
-
-| Device state | posture | axis | hinge |
-|---|---|---|---|
-| `OPENED` | 1 (Flat) | 2 (Vertical) | `1038,0,1038,2152` |
-| `HALF_OPENED` | 2 (HalfOpened) | 2 (Vertical) | `1038,0,1038,2152` |
-
-The hinge sits at x=1038, the exact centre of the 2076 px display, and the transition is observed
-live without restarting the activity.
+Verification on the emulator, which can simulate a foldable: `adb shell cmd device_state state 1`
+is `HALF_OPENED` and `state 2` is `OPENED` (`print-states` lists them). Both report posture 1/2 with
+axis 2 (Vertical) and hinge `1038,0,1038,2152` - the exact centre of the 2076 px display - and the
+transition is observed live without restarting the activity.
 
 ### 3.11 Hinge angle: the one fold signal the platform SDK does have
 
@@ -422,14 +408,10 @@ for API 35 and later and in the NDK as `ASENSOR_TYPE_HINGE_ANGLE`. So this slice
 **Why it is a separate reader, not part of `TesseraFoldReader`.** The two read different sources at
 different rates, and a device can have one without the other:
 
-| | posture | angle |
-|---|---|---|
-| source | `FoldingFeature` (AndroidX) | `SensorManager` (platform) |
-| values | `FLAT`, `HALF_OPENED` | 0–360 degrees |
-| rate | one event per transition | continuous while folding |
-| absent when | no foldable | no hinge sensor |
-
-A foldable with no hinge sensor still reports posture; a device whose window is not laid out yet
+Posture comes from `FoldingFeature` (AndroidX) as `FLAT`/`HALF_OPENED`, one event per transition,
+and is absent on a non-foldable. The angle comes from `SensorManager` (platform) as 0-360 degrees,
+continuous while folding, and is absent when there is no hinge sensor. A foldable with no hinge
+sensor still reports posture; a device whose window is not laid out yet
 reports no posture while the sensor keeps working. Folding them into one reader would make each
 depend on the other's failure mode.
 
@@ -575,8 +557,7 @@ and ticks it from the caret callback:
 touched on a thread with a `Looper`, and the engine's render thread has none. The backend keeps a
 cache: a **write** updates the engine's copy immediately (so a copy-then-paste in the same frame sees
 the new text) and asks the view to post the platform write to the UI thread; a **read** returns the
-cached text, which the UI thread refreshes on `OnPrimaryClipChangedListener`. The engine never waits
-on the UI thread, and the UI thread never waits on the engine.
+cached text, which the UI thread refreshes on `OnPrimaryClipChangedListener`.
 
 Two entry points reach it: `KEYCODE_COPY`/`CUT`/`PASTE` (the platform's text toolbar and a hardware
 keyboard) and `InputConnection.copy()`/`cut()`/`paste()` (the IME's context menu). The key codes are
@@ -592,6 +573,24 @@ key regardless of modifiers, so `Ctrl+A` produced BOTH a `KeyDown` (Select all) 
 `android_clipboard_text` pins the rule that bites: a code point above U+FFFF is a **surrogate pair**,
 two UTF-16 units. One unit per code point turns every emoji into a mojibake box and makes every offset
 after it wrong. An invalid byte becomes U+FFFD rather than being dropped, so the lengths always agree.
+
+### 3.17 The floating toolbar is the platform's, not the engine's
+
+A selection normally raises a floating toolbar with Copy/Cut/Paste/Select all. The engine has no
+popup surface, and it does not need one: Android's `ActionMode` is exactly that toolbar, it positions
+itself, and it dismisses on a tap outside without the engine tracking any of it.
+
+The engine owns the selection, so the platform asks rather than tracking it. `nativeSelectionState`
+fills a `float[3]` (has-selection, anchor x, anchor y in logical pixels) - one call rather than three,
+so the selection cannot change between the "is there one" and "where" reads. `syncSelectionToolbar`
+runs after every gesture that can change the selection (an up, and a move, which is what a drag
+sends), and starts or finishes the `ActionMode` to match. `onPrepareActionMode` hides Copy and Cut
+when there is no selection, so the toolbar never offers an action that would do nothing; every action
+finishes the mode, because each one collapses or changes the selection.
+
+Verified on the emulator: long-press and drag over `hello` raises the toolbar above the field; Copy
+writes `hello` (the platform's clipboard chip confirms it); Select all highlights the whole buffer.
+
 ## 4. Related
 
 - [`testing.md`](testing.md) — presets, the test matrix, failure triage.
