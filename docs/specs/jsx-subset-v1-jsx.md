@@ -94,16 +94,21 @@ Only this form is accepted:
 ))}
 ```
 
-- The receiver is a list-typed name (prop, state, local, or loop item field) or a top-level array
-  constant; the callback has one or two parameters (item, optional index) and its body is a single
-  JSX element expression (no block body).
-- The returned element has `key={...}` with a pure expression of type string or integer.
-- Nesting of dynamic lists is limited to depth 2 ([`ir-v1.md`](ir-v1.md) section 5).
-- Other array methods (`filter`, `reduce`, `forEach`, `slice`, `sort`, `concat`, ...) are rejected
-  (`TESSERA_JSX_SUBSET_ARRAY_METHOD`). Filtering and sorting happen in the state setter or in
-  developer C++.
+- The receiver is a list-typed name (prop, state, local, or loop item field), a top-level array
+  constant, or a `filter`/`slice` of one (`rows.filter(r => r.on)`, `rows.slice(0, 5)`,
+  `rows.slice(0, 5).filter(r => r.on)`). A `useMemo` that returns one of those is inlined into a
+  local, so the loop's receiver is the derived expression itself. The callback has one or two
+  parameters (item, optional index) and its body is a single JSX element expression (no block body).
+- The derived source is cached: recomputed only when an input cell changes, then key-diffed like a
+  plain reference. The returned element has `key={...}` with a pure string/integer expression. Two
+  live items with the same key are reported once at run time (debug/headless), and the later one's
+  key is made unique by its position so both render.
+- Nesting of dynamic lists is limited to depth 2 ([`ir-v1.md`](ir-v1.md) section 5). A derived
+  source nested inside a loop may read the outer loop item.
+- Other array methods (`reduce`, `forEach`, `sort`, `concat`, ...) are rejected
+  (`TESSERA_JSX_SUBSET_ARRAY_METHOD`). Sorting happens in the state setter or in developer C++.
 - Large collections use `VirtualList`/`VirtualGrid` ([`virtualization-v1.md`](virtualization-v1.md)),
-  not `.map`.
+  not `.map`; their item template still requires a plain list reference.
 
 ### 10.6 Event props
 
@@ -207,7 +212,7 @@ and no silent skipping.
 | Missing or extra effect dependency | `TESSERA_REACT_EFFECT_DEPS` | Match dependencies exactly |
 | Missing key on a list element | `TESSERA_REACT_LIST_KEY` | Add `key` |
 | Types in `.jsx`; `any`, `enum`, `interface`, etc. | `TESSERA_JSX_SUBSET_TYPES` | Use the types of section 5 |
-| Array methods other than `.map` (`filter`, `reduce`, `forEach`, `slice`, `sort`, ...) | `TESSERA_JSX_SUBSET_ARRAY_METHOD` | Filter or sort in a setter or in developer C++ |
+| Array methods other than `.map`, `.filter` and `.slice` (`reduce`, `forEach`, `sort`, ...) | `TESSERA_JSX_SUBSET_ARRAY_METHOD` | Sort in a setter or in developer C++ |
 | Bare `number` type | `TESSERA_JSX_TYPE_NUMBER` | Write `int` or `float` (section 5) |
 | Reading an animated value (`v.value`) | `TESSERA_JSX_SUBSET_ANIMATED_READ` | Pass the animated value whole (section 7) |
 | `return` inside an effect body other than the final cleanup | `TESSERA_REACT_EFFECT_RETURN` | Use the cleanup form (section 7) |

@@ -55,6 +55,7 @@ using tessera::test::codegen_dynamic::integer;
 using tessera::test::codegen_dynamic::item_text;
 using tessera::test::codegen_dynamic::leaf;
 using tessera::test::codegen_dynamic::make_dynamic_module;
+using tessera::test::codegen_dynamic::make_filtered_module;
 using tessera::test::codegen_dynamic::span;
 
 std::string read_file(const std::string& path) {
@@ -219,25 +220,35 @@ void test_array_initial_reaches_list_path() {
           "an array initial on a scalar state is rejected");
 }
 
+// Writes (or compares) the goldens of both dynamic fixtures: the ref-source `Dynamic` and the
+// derived-source `Filtered` of issue #830.
 void test_goldens(bool update) {
-    const auto result = generate_base(make_dynamic_module());
-    check(result.has_value(), "the dynamic golden sample generates");
-    if (!result) {
-        return;
-    }
+    const std::pair<std::string, ir::IrModule> fixtures[] = {
+        {"Dynamic", make_dynamic_module()},
+        {"Filtered", make_filtered_module()},
+    };
     const std::string directory = TESSERA_CODEGEN_GOLDEN_DIR;
     if (update) {
         std::filesystem::create_directories(directory);
     }
-    for (const codegen::GeneratedFile& file : *result) {
-        const std::string path = directory + "/" + file.path;
-        if (update) {
-            write_file(path, file.text);
+    for (const auto& [name, module] : fixtures) {
+        const auto result = generate_base(module);
+        check(result.has_value(), "the " + name + " golden sample generates");
+        if (!result) {
+            std::cerr << "  error: " << first_error(result) << "\n";
             continue;
         }
-        const std::string golden = read_file(path);
-        check(!golden.empty(), "golden " + file.path + " is readable");
-        check_eq(golden, file.text, file.path + " golden matches (codegen_dynamic_tests --write)");
+        for (const codegen::GeneratedFile& file : *result) {
+            const std::string path = directory + "/" + file.path;
+            if (update) {
+                write_file(path, file.text);
+                continue;
+            }
+            const std::string golden = read_file(path);
+            check(!golden.empty(), "golden " + file.path + " is readable");
+            check_eq(golden, file.text,
+                     file.path + " golden matches (codegen_dynamic_tests --write)");
+        }
     }
     if (update) {
         std::cout << "dynamic codegen goldens written to " << directory << "\n";
@@ -250,6 +261,14 @@ void test_determinism() {
     check(first.has_value() && second.has_value(), "the dynamic sample generates twice");
     if (first && second) {
         check_eq(concatenated(*first), concatenated(*second), "two runs are byte-identical");
+    }
+    const auto filtered_first = generate_base(make_filtered_module());
+    const auto filtered_second = generate_base(make_filtered_module());
+    check(filtered_first.has_value() && filtered_second.has_value(),
+          "the filtered sample generates twice");
+    if (filtered_first && filtered_second) {
+        check_eq(concatenated(*filtered_first), concatenated(*filtered_second),
+                 "the derived-source emission is byte-identical across runs");
     }
 }
 
@@ -339,10 +358,48 @@ void test_rejections() {
         expect_error(module, "a loop local that shadows generated code names is rejected");
     }
     {
+        // A `binary` is not a list source: only a ref or a `filter`/`slice` of one is.
         ir::IrModule module = make_dynamic_module();
         module.components[0].root.children[3].loop->source =
             ir::make_binary("+", ir::make_ref("state::items"), ir::make_ref("state::items"));
-        expect_error(module, "a non-reference loop source is rejected");
+        expect_error(module, "a binary loop source is rejected");
+    }
+    {
+        // A `filter` over a non-list expression is not an allowed source either: the recursion
+        // stops at the innermost operand and it is a `binary`, not a ref.
+        ir::IrModule module = make_dynamic_module();
+        module.components[0].root.children[3].loop->source = ir::make_list_filter(
+            ir::make_binary("+", ir::make_ref("state::items"), ir::make_ref("state::items")),
+            "row", ir::make_literal(true));
+        expect_error(module, "a `filter` over a binary is rejected");
+    }
+    {
+        // A `slice` of a record update (a record, not a list) is rejected the same way.
+        ir::IrModule module = make_filtered_module();
+        module.components[0].root.children[0].loop->source =
+            ir::make_list_slice(ir::make_ref("prop::rows"), [] {
+                std::vector<ir::ExprPtr> bounds;
+                bounds.push_back(integer(0));
+                return bounds;
+            }());
+        module.components[0].props[0].type = "int"; // prop::rows is no longer a list
+        expect_error(module, "a `slice` of a non-list ref is rejected");
+    }
+    {
+        // A virtual collection's item template stays ref-only in this change.
+        ir::IrModule module = make_filtered_module();
+        ir::Component& component = module.components[0];
+        component.root.children.clear();
+        ir::Node collection = leaf(ir::NodeKind::VirtualList, "node::10", "10");
+        ir::Node item = leaf(ir::NodeKind::Text, "node::11", "11");
+        item.key = ir::make_ref("item");
+        item.text = ir::make_ref("item");
+        item.loop = ir::Loop{
+            "item", "",
+            ir::make_list_filter(ir::make_ref("prop::rows"), "row", ir::make_literal(true))};
+        collection.item_template = std::make_unique<ir::Node>(std::move(item));
+        component.root.children.push_back(std::move(collection));
+        expect_error(module, "a virtual collection's derived source is rejected");
     }
     {
         ir::IrModule module = make_dynamic_module();

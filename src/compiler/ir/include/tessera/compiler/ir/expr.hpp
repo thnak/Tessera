@@ -111,4 +111,15 @@ ExprPtr make_record_update(std::string type, std::string base, std::vector<Recor
 TemplatePart text_part(std::string text);
 TemplatePart expr_part(ExprPtr expr);
 
+// docs/specs/ir-v1-expr.md section 5: the source a `loop` may repeat over. It is a list `Ref`, or a
+// `listFilter`/`listSlice` whose own list is (recursively) an allowed source; the element type of
+// a derived list is the element type of its innermost list, so the rule is one recursion. Anything
+// else (a literal, a call, a record update, a `binary`) is not a source. The IR validator and
+// codegen share this one predicate so an accepted module and a runnable module cannot disagree.
+[[nodiscard]] bool is_list_source(const Expr& expr);
+
+// The innermost `Ref` of an allowed list source: the ref itself, or the ref under any number of
+// `listFilter`/`listSlice` wrappers. Null when `expr` is not an allowed list source.
+[[nodiscard]] const Expr* list_source_ref(const Expr& expr);
+
 } // namespace tessera::compiler::ir

@@ -257,6 +257,28 @@ bool emit_apply_state(CppWriter& writer, const ir::Component& component,
     }
     // The controller is seeded during build(); its values/errors are re-read after the props.
     emit_form_state_calls(writer, forms);
+    // A derived list source (`listFilter`/`listSlice`) is a cached member (issue #830): recompute it
+    // here, before the child walks that read it, and only when one of its input cells is dirty. The
+    // `ListSource` mask is the source expression's own reads alone, a strictly smaller set than the
+    // `ListItem` mask (which also carries the template's content). A `Ref` source has no cache and
+    // emits nothing here.
+    for (const ListTemplate& list : plan.lists) {
+        if (list.is_virtual || list.node == nullptr || !list.node->loop.has_value() ||
+            list.node->loop->source == nullptr ||
+            !source_needs_cache(*list.node->loop->source)) {
+            continue;
+        }
+        if (open_dirty_gate(writer, plan.dirty, BindingKind::ListSource, list.ordinal, {},
+                            "source:" + std::to_string(list.ordinal))) {
+            const ExprEmission source = emit_expr(*list.node->loop->source, component);
+            if (!source.error.empty()) {
+                return fail(error, "the source of `" + list.node->id + "`: " + source.error);
+            }
+            writer.line(derived_source_member(list.ordinal) + " = " + source.text + ";");
+            writer.line(derived_source_set_member(list.ordinal) + " = true;");
+            close_dirty_gate(writer, true);
+        }
+    }
     // The child set first: a newly attached branch or list item owns nodes whose text the
     // interpolation below may then refresh in the same pass. A dynamic set inside a list template
     // is per item and runs in the item content pass instead (docs/design/compiler-node-state.md 4).

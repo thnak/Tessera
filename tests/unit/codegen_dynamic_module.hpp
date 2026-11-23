@@ -44,6 +44,15 @@ inline ir::ExprPtr item_text() {
     return ir::make_template(std::move(parts));
 }
 
+// The same text over a counted prop, for the derived-source component where `count` is a prop.
+inline ir::ExprPtr item_text_prop() {
+    std::vector<ir::TemplatePart> parts;
+    parts.push_back(ir::expr_part(ir::make_ref("item")));
+    parts.push_back(ir::text_part(" @ "));
+    parts.push_back(ir::expr_part(ir::make_ref("prop::count")));
+    return ir::make_template(std::move(parts));
+}
+
 inline ir::IrModule make_dynamic_module() {
     ir::IrModule module;
     module.name = "dynamic";
@@ -126,6 +135,51 @@ inline ir::IrModule make_dynamic_module() {
     binding.source = span(40, 10, 4, 3);
     binding.params.push_back({"event", "ClickEvent"});
     module.bindings.push_back(std::move(binding));
+    return module;
+}
+
+// Issue #830: a `.map` loop whose source is a derived list, not a ref. The IR mirrors what lowering
+// produces for
+//
+//   const visible = useMemo(() => rows.filter((row) => row.startsWith(query)), [rows, query]);
+//   {visible.map((row) => <span key={row}>{row}</span>)}
+//
+// `rows` is a list prop, `query` a string prop, and the source is `listFilter(prop::rows, row =>
+// startsWith(row, prop::query))`. The predicate's item name is `row`, which the loop does not use.
+inline ir::IrModule make_filtered_module() {
+    ir::IrModule module;
+    module.name = "dynamic";
+
+    ir::Component component;
+    component.id = "comp::Filtered";
+    component.component_id = "2";
+    component.name = "Filtered";
+    component.source = span(0, 160, 1, 1);
+    component.props.push_back({"rows", "list<string>", nullptr});
+    component.props.push_back({"query", "string", ir::make_literal(std::string(""))});
+    component.props.push_back({"count", "int", ir::make_literal(std::int64_t{0})});
+    // `noise` is read by nothing: it exercises "an unrelated cell changes, the cache does not
+    // recompute and the list diff does not run" (issue #830).
+    component.props.push_back({"noise", "int", ir::make_literal(std::int64_t{0})});
+
+    ir::Node root = leaf(ir::NodeKind::View, "node::1", "1");
+
+    // `{visible.map((row) => <Text key={row}>{row} @ {count}</Text>)}`: a derived list source. The
+    // item text reads `count` so a content-only change is observable without a structural one.
+    std::vector<ir::ExprPtr> predicate_args;
+    predicate_args.push_back(ir::make_ref("row"));
+    predicate_args.push_back(ir::make_ref("prop::query"));
+    ir::ExprPtr predicate = ir::make_call("startsWith", std::move(predicate_args));
+    ir::Node item = leaf(ir::NodeKind::Text, "node::2", "2");
+    item.text = item_text_prop();
+    item.key = ir::make_ref("item");
+    item.loop = ir::Loop{
+        "item", "",
+        ir::make_list_filter(ir::make_ref("prop::rows"), "row", std::move(predicate))};
+    root.children.push_back(std::move(item));
+
+    component.root = std::move(root);
+    module.components.push_back(std::move(component));
     return module;
 }
 

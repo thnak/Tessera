@@ -34,11 +34,14 @@ std::string_view kind_tag(BindingKind kind) {
 }
 
 // The kinds a generated binding gates on. The others (attributes, effects) are recorded by the
-// analysis but evaluated elsewhere, ungated.
+// analysis but evaluated elsewhere, ungated. `ListSource` is gated so a derived list source (a
+// `filter`/`slice`) recomputes its cache only when one of its own input cells is dirty, which is a
+// strictly smaller mask than the whole `ListItem` binding (issue #830).
 bool gated_kind(BindingKind kind) {
     return kind == BindingKind::Text || kind == BindingKind::Metadata ||
            kind == BindingKind::Style || kind == BindingKind::Condition ||
-           kind == BindingKind::ListItem || kind == BindingKind::InstanceProp;
+           kind == BindingKind::ListSource || kind == BindingKind::ListItem ||
+           kind == BindingKind::InstanceProp;
 }
 
 std::string identifier(std::string_view text) {

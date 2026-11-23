@@ -411,14 +411,18 @@ stale slots. The per-item content pass `apply_item_<n>(slot, item, index)` hash-
 interpolated values and repaints only changed items through `PaintData` (`Paint|Render` only). Item
 node ids are the template's pre-order id plus `index * kItemIdStride`, where `kItemIdStride` is one
 past the component's last pre-order id, so every generated instance has a unique `NodeId` for damage
-tracking and automation. The loop source must be a `state::`/`prop::` reference with a declared
-`list<T>`; supported element types are the printable primitives (`bool`, `int`, `float`, `length`,
-`string`, `color`); the key must read the loop item or index. Rejected loudly with
-`TESSERA_CODEGEN_UNSUPPORTED`: record element types, nested list templates, `TextInput` /
-`TextArea` / dynamic metadata / dynamic inline style / `useRef` targets inside a template, and list
-sources without a `list<T>` type. A component instance inside a template is supported (one instance
-per item, [`compiler-node-state.md`](compiler-node-state.md) section 3). A source longer than the cap
-materializes the deterministic prefix (documented truncation, no hidden growth).
+tracking and automation. The loop source is a `state::`/`prop::` reference with a declared `list<T>`,
+**or** a `listFilter`/`listSlice` of one (issue #830): a derived source keeps its innermost list's
+element type and is cached in `list_<n>_src_`, recomputed only when a source cell is dirty
+(`ListSource` mask, ADR-056). Element types are the printable primitives (`bool`, `int`, `float`,
+`length`, `string`, `color`); the key must read the loop item or index. Two live items sharing a key
+are reported once through `ui::g_list_key_diagnostic_hook` (debug/headless), and the later key is
+made unique by position so both render. Rejected with `TESSERA_CODEGEN_UNSUPPORTED`: record element
+types, nested list templates, a non-`list<T>` source, a derived virtual item-template source,
+`TextInput`/`TextArea`/dynamic metadata/dynamic inline style/`useRef` inside a template, and a source
+without a `list<T>` type. A component instance inside a template is supported (one instance per item,
+[`compiler-node-state.md`](compiler-node-state.md) section 3). A longer source truncates
+deterministically.
 
 **Virtualized collections (implemented).** A `VirtualList`/`VirtualGrid` node is a fixed container
 node (element kind `VirtualList`/`VirtualGrid`) plus one *static item template* (ir-v1.md section
@@ -577,21 +581,17 @@ AF5, #177) adds `ir::Component::services` and a generated `service<T>()` surface
 
 ## 11. Testing
 
-- Parser fixtures: valid/invalid JSX/TSX, imports, escapes.
-- Tier 1 fixtures: hook order, unsupported hooks/context/suspense, dynamic components.
-- Custom elements: unknown/literal element, prop/event schema, leaf rule, shader refs,
-  generated registry/typings.
-- IR snapshots: stable JSON for representative components.
-- Codegen goldens: generated `<Component>.g.hpp` text after formatting.
-- Compile tests: generated base plus developer class builds with the supported compilers.
-- Bindings: compile-fail tests for a missing member and a wrong signature; the unused-marker report.
-- Incremental: unchanged inputs skip; config/source change regenerates.
-- Determinism: repeated runs produce byte-identical output.
+- Parser and Tier 1 fixtures: valid/invalid JSX/TSX, imports, escapes, hook order, unsupported
+  hooks/context/suspense, dynamic components.
+- Custom elements: unknown/literal element, prop/event schema, leaf rule, shader refs, registry.
+- IR snapshots (stable JSON) and codegen goldens (generated `<Component>.g.hpp` after formatting).
+- Compile tests: generated base plus developer class builds; compile-fail tests for a missing member
+  and a wrong signature, plus the unused-marker report.
 
 ## 12. Open questions
 
-- The open questions listed in [`jsx-subset-v1.md`](../specs/jsx-subset-v1.md) section 18 (the built-in
-  hook manifest format is specified in its section 7.1).
+- The open questions in [`jsx-subset-v1.md`](../specs/jsx-subset-v1.md) section 18 (the built-in hook
+  manifest format is in its section 7.1).
 - Parser error recovery for the live view (editing partially valid files; V1 fails fast).
 - Source maps to TSX: `#line` answers line granularity ([`compiler-diagnostics-v1.md`](../specs/compiler-diagnostics-v1.md) section 9, issue #78); columns, developer class: open.
 - Incremental codegen at the node level vs component level.

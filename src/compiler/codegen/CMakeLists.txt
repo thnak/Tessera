@@ -1263,6 +1263,15 @@ if (TESSERA_BUILD_TESTS)
 
     add_test(NAME codegen_dynamic COMMAND codegen_dynamic_tests)
 
+    # Issue #830: a derived (`listFilter`/`listSlice`) `.map` source, split from
+    # `codegen_dynamic_tests` when that file reached the 500-line limit.
+    add_executable(codegen_derived_source_tests
+        ${CMAKE_SOURCE_DIR}/tests/unit/codegen_derived_source_tests.cpp)
+
+    target_link_libraries(codegen_derived_source_tests PRIVATE tessera_codegen)
+
+    add_test(NAME codegen_derived_source COMMAND codegen_derived_source_tests)
+
     # ADR-067 spike #661 (off by default): a `Suspense` boundary and a transition-marked setter.
     # Goldens from hand-built IR (the `.tsx` front end cannot author either yet), plus a runtime test
     # over the compiled generated component and the differential test against the IR evaluator.
@@ -1323,6 +1332,24 @@ if (TESSERA_BUILD_TESTS)
         target_compile_features(codegen_dynamic_runtime_tests PRIVATE cxx_std_23)
 
         add_test(NAME codegen_dynamic_runtime COMMAND codegen_dynamic_runtime_tests)
+    endif ()
+
+    # A `.map` loop over a derived list source (issue #830): the cache recomputes only when the
+    # predicate's input changes, insertion/removal keep identity, and a duplicate key reports once
+    # and stays rendered. Compiles the hand-written `Filtered` developer class over the generated
+    # base from the hand-built IR in codegen_dynamic_tests.
+    if (EXISTS ${_tessera_codegen_golden_dir}/Filtered.g.hpp)
+        add_executable(codegen_derived_source_runtime_tests
+            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_derived_source_runtime_tests.cpp)
+
+        target_include_directories(codegen_derived_source_runtime_tests PRIVATE
+            ${_tessera_codegen_golden_dir}
+            ${CMAKE_SOURCE_DIR}/tests/unit/codegen_base/fixtures)
+        target_link_libraries(codegen_derived_source_runtime_tests PRIVATE tessera_scene)
+        target_compile_features(codegen_derived_source_runtime_tests PRIVATE cxx_std_23)
+
+        add_test(NAME codegen_derived_source_runtime
+            COMMAND codegen_derived_source_runtime_tests)
     endif ()
 
     # Component composition and the static `children` slot: goldens from hand-built IR plus a

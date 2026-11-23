@@ -19,6 +19,18 @@ std::string ordinal_text(unsigned ordinal) {
 
 } // namespace
 
+bool source_needs_cache(const ir::Expr& source) {
+    return source.kind != ir::ExprKind::Ref;
+}
+
+std::string derived_source_member(unsigned ordinal) {
+    return "list_" + ordinal_text(ordinal) + "_src_";
+}
+
+std::string derived_source_set_member(unsigned ordinal) {
+    return "list_" + ordinal_text(ordinal) + "_src_set_";
+}
+
 void emit_dynamic_item_structs(CppWriter& writer, const DynamicPlan& plan,
                                const std::vector<ComponentInstance>& instances) {
     if (plan.lists.empty()) {
@@ -157,6 +169,16 @@ void emit_dynamic_fields(CppWriter& writer, const DynamicPlan& plan) {
         writer.line("std::size_t list_" + ordinal + "_count_ = 0;");
         writer.line("std::uint64_t list_" + ordinal + "_order_hash_ = 0;");
         writer.line("bool list_" + ordinal + "_order_set_ = false;");
+        // A derived source is materialized into this member once per input change (issue #830):
+        // `apply_state()` refreshes it under the loop's source mask and `apply_list_<n>()` reads it.
+        if (list.node != nullptr && list.node->loop.has_value() &&
+            list.node->loop->source != nullptr && source_needs_cache(*list.node->loop->source)) {
+            writer.line("// `node::" + ordinal +
+                        "` cached derived source; recomputed only when an input cell is dirty.");
+            writer.line("std::vector<" + list.element_cpp + "> " + derived_source_member(list.ordinal) +
+                        "{};");
+            writer.line("bool " + derived_source_set_member(list.ordinal) + " = false;");
+        }
     }
     // Per-item component instances follow their owner: an item built after the owner was mounted
     // mounts immediately, and its update ticket joins the scheduler the owner was given.

@@ -278,8 +278,11 @@ files changed state, and each one is a row of item 1:
    are. A wrapper as the returned root resolves to its single child.
 
 **Still open from item 1.** `autoFocus` on an input stays `HTML_ATTR` (the prop exists on `View`, not
-on the input elements), which the spike already recorded. `use-memo.tsx` still fails on
-`TESSERA_JSX_SUBSET_ARRAY_METHOD` because its body uses `.filter`, which is item 3.
+on the input elements), which the spike already recorded. The note that `use-memo.tsx` fails on
+`TESSERA_JSX_SUBSET_ARRAY_METHOD` was stale once item 3 landed: after `.filter`/`.slice` lowered, the
+fixture then failed on `TESSERA_IR_UNSUPPORTED` because a `.map` loop source had to be a list
+reference and the memo inlined to a `listFilter`. Issue #830 lifted that restriction — a derived
+list source is now accepted — so `use-memo.tsx` compiles end to end.
 
 ### Step 2 evidence (recorded 2026-11-22, issue #652)
 

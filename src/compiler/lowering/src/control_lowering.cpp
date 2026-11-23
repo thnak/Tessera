@@ -183,20 +183,16 @@ bool lower_loop(NodeState& state, const jsx::Expr& expr, std::vector<ir::Node>& 
                   "nested list loops deeper than 2 are not supported (ir-v1 section 5)", expr.span);
         return false;
     }
-    // The source is the receiver of `.map`. It must be a list name (a ref), or a `.filter(...)`/
-    // `.slice(...)` chain over one (ADR-066 item 3, issue #804): those two lower to the IR
-    // `ListFilter`/`ListSlice` kinds, whose result is a list again, so the loop reads a list
-    // either way. Anything else (an arbitrary expression, a `.map` chain) has no static element
-    // type in this slice and is reported.
+    // The source is the receiver of `.map`. It must be a list name, or a `filter`/`slice` chain
+    // over one (ADR-066 items 3 and 1, subset 10.5); anything else is rejected loudly.
     ir::ExprPtr source = lower_node_expression(state, *callee.operands[0]);
     if (!source) {
         return false;
     }
-    if (source->kind != ir::ExprKind::Ref && source->kind != ir::ExprKind::ListFilter &&
-        source->kind != ir::ExprKind::ListSlice) {
+    if (!ir::is_list_source(*source)) {
         fail_node(state, "TESSERA_IR_UNSUPPORTED",
-                  "a list loop source must be a list name, or a `.filter(...)`/`.slice(...)` "
-                  "chain over one (subset 10.5, ADR-066 item 3)",
+                  "a list loop source must be a list name or a `filter`/`slice` of one "
+                  "(subset 10.5)",
                   callee.operands[0]->span);
         return false;
     }

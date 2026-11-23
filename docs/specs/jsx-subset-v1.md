@@ -450,19 +450,19 @@ Operator precedence and left associativity follow JavaScript for the operators l
 An array literal is accepted only as a `useState` initial value of a declared array type
 (`useState<string[]>([])`, `useState<int[]>([1, 2])`) — elements must be literals of the declared
 element type; a dynamic element, a nested array, a record element type and a scalar initial for a
-list type are rejected as `TESSERA_IR_UNSUPPORTED`. A list-loop source and a top-level constant list
-are not accepted yet: a loop source must be a list reference.
+list type are rejected as `TESSERA_IR_UNSUPPORTED`. A top-level constant list is not accepted yet.
+A list-loop source (section 10.5) is a list reference **or** a `filter`/`slice` of one, and a
+`useMemo` inlines to a local so a memoized filter lowers to `listFilter`; anything else is rejected.
 
 An object literal is accepted only as: the `style` attribute value (section 10.3), the `props`
 attribute of `CustomElement` ([`custom-elements-v1.md`](custom-elements-v1.md)), the `initial`
-attribute of library `Form` components, a `useState` initial value of a declared record type, and a
-prop default whose prop type is a declared record (ADR-051). Keys are identifiers or string literals
-(no computed keys, no shorthand with a function value, no spread).
+attribute of library `Form` components, a `useState` initial of a declared record type, and a prop
+default whose type is a declared record (ADR-051). Keys are identifiers or string literals: no
+computed keys, no shorthand with a function value, no spread.
 
 A record's field values are literals, nested record literals, or arrays of literals of the member's
-element type; a computed value is `TESSERA_IR_UNSUPPORTED` and names the field. A field whose key is
-not a member, a repeated key and a missing non-optional member are `TESSERA_IR_RECORD_VALUE`. The
-record's declaration supplies the field order, so the source order does not matter.
+element type; a computed value is `TESSERA_IR_UNSUPPORTED`. A non-member/repeated key or a missing
+non-optional member is `TESSERA_IR_RECORD_VALUE`; the declaration supplies field order.
 
 ## 9. Handlers
 

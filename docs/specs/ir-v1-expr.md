@@ -128,10 +128,15 @@ The `loop` is a field of the node it repeats; the key is that node's `key`:
 { "kind": "View", "id": "node::10", "key": { "kind": "ref", "id": "item.id" }, "loop": { "kind": "loop", "item": "item", "index": "index", "source": { "kind": "ref", "id": "state::rows" } }, "children": [] }
 ```
 
-- `source` must be a list ref or a static list literal.
+- `source` is a list `ref`, or a `listFilter`/`listSlice` whose own list is (recursively) an
+  allowed source. A `listFilter`/`listSlice` keeps the element type of its list, so a derived
+  source's element type is the element type of its innermost `ref`. Anything else — a literal, a
+  call, a conditional, a `binary`, a `recordUpdate` — is `TESSERA_IR_UNSUPPORTED`. A virtual
+  collection's item template (section 3.5) additionally stays `ref`-only.
 - The node's `key` is required for dynamic lists; a missing key is a hard error.
 - The node that carries `loop` and its subtree are the template; `item`/`index` are local refs.
-  They are distinct valid local names (no dots), and the source is an existing list reference.
+  They are distinct valid local names (no dots), and the source is an existing list reference or a
+  derivation of one.
 - No nested dynamic loops beyond depth 2 in V1.
 
 ## 5.1 ErrorBoundary
@@ -243,9 +248,10 @@ Hard errors:
   with children
 - `TextInput`/`TextArea` with children or unsupported props/event payloads
 - dynamic component types, context, suspense
-- missing list key or non-static loop source; a loop `item`/`index` that is empty, dotted or equal
-  (`TESSERA_IR_LOOP`); a virtual collection without an `itemTemplate`, an item template without its
-  `loop`, or a condition on it (`TESSERA_IR_VIRTUAL`)
+- missing list key or a loop source that is not a list ref or a `filter`/`slice` of one; a loop
+  `item`/`index` that is empty, dotted or equal (`TESSERA_IR_LOOP`); a virtual collection without an
+  `itemTemplate`, an item template without its `loop`, a condition on it, or a derived item-template
+  source (`TESSERA_IR_VIRTUAL`)
 - a field outside its node kind (`text` on a non-`Text` node, `style` on a `Component` node), a
   template or non-bool literal `condition` (`TESSERA_IR_CONDITION`), or an `ErrorBoundary` fallback
   with `condition`/`loop`
@@ -291,7 +297,7 @@ text, not a re-parsed model.
 | Construct | Writer | Validator |
 |---|---|---|
 | `condition` | expression object | boolean-valued shape (`TESSERA_IR_CONDITION`) |
-| loop `item`/`index`/`source`/`key` | `loop` object; `index` when present | distinct local names, source ref, key required, depth 2 |
+| loop `item`/`index`/`source`/`key` | `loop` object; `index` when present | distinct local names, source is a ref or a `filter`/`slice` of one, key required, depth 2 |
 | `Component` reference | `component`, props, events, slot `children` | target resolves, no `style`, children only when the target declares the `children` prop, no reference cycle (`TESSERA_IR_CYCLE`) |
 | `Slot` | `kind` only (a bare position marker) | at most one per component, only with the `children` prop, no payload, not the root, not in a loop template or slot content (`TESSERA_IR_SLOT`) |
 | `VirtualList`/`VirtualGrid` `itemTemplate` | the template node with its `loop` and `key` | one static template, its loop source is a list ref, its key is required, no `children`/own `loop`, no condition (`TESSERA_IR_VIRTUAL`, `TESSERA_IR_LIST_KEY`) |

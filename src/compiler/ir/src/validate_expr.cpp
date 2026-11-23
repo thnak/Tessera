@@ -197,7 +197,7 @@ void validate_expr(ValidationContext& context, const ComponentScope& scope,
         // ADR-066 item 1: `a ?? b`. Two operands: the optional value and the fallback.
         operands(2, "a coalesce");
         break;
-    case ExprKind::ListFilter:
+    case ExprKind::ListFilter: {
         // ADR-066 item 3: `list.filter(item => <bool>)`. The item name is what the predicate binds,
         // so an empty one has nothing to bind, and the predicate is validated with the item as a
         // local — which is what makes `row.on` inside it resolve (issue #804). A filter's predicate
@@ -219,6 +219,7 @@ void validate_expr(ValidationContext& context, const ComponentScope& scope,
                          "a filter predicate");
         }
         break;
+    }
     case ExprKind::ListSlice:
         // ADR-066 item 3: `list.slice(start[, end])`. One or two bounds, and the list first.
         if (expr->operands.size() < 2 || expr->operands.size() > 3) {

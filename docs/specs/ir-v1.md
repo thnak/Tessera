@@ -281,8 +281,10 @@ represent VM/container virtualization or a virtual DOM.
   so there is no separate `data` prop.
 - **Lowering.** The element takes exactly one child, a `.map` of the section 5 loop form; the
   callback element becomes `itemTemplate` with its `loop` and the key expression of its `key`
-  attribute (its item identity). The `.map` receiver is `loop.source` and must be a list `ref`; the
-  item and optional index are the template's locals.
+  attribute (its item identity). The `.map` receiver is `loop.source` and must be a list `ref`; an
+  eager loop (section 5) may also repeat over a `filter`/`slice` of one, but a virtual collection's
+  source is ref-only in V1 because a realized window needs a stable random-access list. The item and
+  optional index are the template's locals.
 - **Size default.** A collection with neither `itemSize` nor `estimateSize` records
   `"estimateSize": 32`, the unmeasured 32 px estimate of
   [`virtualization-v1.md`](virtualization-v1.md) section 4 (no per-item guess, no heuristic).
@@ -290,8 +292,9 @@ represent VM/container virtualization or a virtual DOM.
   template is static (no `condition`, no dynamic component type) and counts toward the section 5 loop
   depth. Any other kind with `itemTemplate` is `TESSERA_IR_MALFORMED`; a missing/multiple/non-`.map`
   child is `TESSERA_IR_VIRTUAL`; a missing item key is `TESSERA_IR_LIST_KEY`; a non-`ref` `.map`
-  source is `TESSERA_IR_UNSUPPORTED` (section 5 loop). The field is additive, so `irVersion` stays `1`;
-  the runtime contract is [`virtualization-v1.md`](virtualization-v1.md).
+  source (including a `filter`/`slice`) is `TESSERA_IR_UNSUPPORTED` (section 5 loop). The field is
+  additive, so `irVersion` stays `1`; the runtime contract is
+  [`virtualization-v1.md`](virtualization-v1.md).
 
 ## 3.6 Inline text spans
 

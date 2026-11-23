@@ -2647,6 +2647,11 @@ class include/tessera/ui/scene/input_dispatch.hpp tessera::ui::InputRouter
 struct include/tessera/ui/scene/input_dispatch.hpp tessera::ui::InputDispatchResult
 function include/tessera/ui/scene/input_dispatch.hpp tessera::ui::dispatch_input
 
+header include/tessera/ui/scene/list_diagnostics.hpp
+alias include/tessera/ui/scene/list_diagnostics.hpp tessera::ui::ListKeyDiagnosticHook
+function include/tessera/ui/scene/list_diagnostics.hpp tessera::ui::list_duplicate_key
+variable include/tessera/ui/scene/list_diagnostics.hpp tessera::ui::g_list_key_diagnostic_hook
+
 header include/tessera/ui/scene/list_ops.hpp
 function include/tessera/ui/scene/list_ops.hpp tessera::ui::filter_list
 function include/tessera/ui/scene/list_ops.hpp tessera::ui::slice_bounds

@@ -187,10 +187,17 @@ bool emit_apply_list(CppWriter& writer, const ir::Component& component,
     const std::string ordinal = std::to_string(list.ordinal);
     writer.open("void " + component.name + "::apply_list_" + ordinal +
                 "(tessera::ui::Node& parent, std::size_t insert_at)");
-    const ExprEmission source = emit_expr(*list.node->loop->source, component);
-    if (!source.error.empty()) {
-        return fail(error, "the source of `" + list.node->id + "`: " + source.error);
+    const ir::Expr& source_expr = *list.node->loop->source;
+    const ExprEmission emission = emit_expr(source_expr, component);
+    if (!emission.error.empty()) {
+        return fail(error, "the source of `" + list.node->id + "`: " + emission.error);
     }
+    // A `Ref` source is read where it is named. A derived source (`listFilter`/`listSlice`) is a
+    // cached component member: `apply_state()` refreshes it under the loop's own source mask, and
+    // this function only reads it, so an unrelated state change neither recomputes nor re-diffs.
+    const std::string source = source_needs_cache(source_expr)
+                                   ? derived_source_member(list.ordinal)
+                                   : emission.text;
     const std::string key_locals_cpp = "static_cast<int>(tessera_position)";
     const LocalBindings key_locals = list_locals(list, key_locals_cpp);
     const LocalBindings next_locals = list_locals(list, "static_cast<int>(tessera_next)");
@@ -198,7 +205,7 @@ bool emit_apply_list(CppWriter& writer, const ir::Component& component,
                 "node.");
     writer.line("std::uint64_t tessera_order = tessera::ui::kEffectHashSeed;");
     writer.line("std::size_t tessera_position = 0;");
-    writer.open("for (const " + list.element_cpp + "& " + list.item + " : " + source.text + ")");
+    writer.open("for (const " + list.element_cpp + "& " + list.item + " : " + source + ")");
     // A key that reads only the loop index leaves the item binding unused in this pass; marking it
     // used keeps the generated file warning-clean without changing the emitted code.
     writer.line("(void)" + list.item + ";");
@@ -245,7 +252,7 @@ bool emit_apply_list(CppWriter& writer, const ir::Component& component,
                 "++tessera_slot)");
     writer.line("tessera_id_used[tessera_old_items[tessera_slot].id_slot] = true;");
     writer.close("");
-    writer.open("for (const " + list.element_cpp + "& " + list.item + " : " + source.text + ")");
+    writer.open("for (const " + list.element_cpp + "& " + list.item + " : " + source + ")");
     const ExprEmission key = emit_expr(*list.node->key, component, next_locals);
     if (!key.error.empty()) {
         return fail(error, "the key of `" + list.node->id + "`: " + key.error);
@@ -258,6 +265,19 @@ bool emit_apply_list(CppWriter& writer, const ir::Component& component,
                 "tessera_key)");
     writer.line("tessera_reused[tessera_slot] = true;");
     writer.line("tessera_match = tessera_slot;");
+    writer.line("break;");
+    writer.close("");
+    writer.close("");
+    // A key already claimed by an earlier live item of this pass is a duplicate. It is reported
+    // once per duplicate episode and made unique by its position, so both items stay rendered and
+    // the diff below cannot keep handing the same key to a different item (issue #830, subset
+    // 10.5). The report is a hook call on the duplicate path only: an unchanged, unique list pays
+    // nothing. `tessera_next` is this item's position, so the suffix is deterministic.
+    writer.open("for (std::size_t tessera_prior = 0; tessera_prior < tessera_next; "
+                "++tessera_prior)");
+    writer.open("if (tessera_next_keys[tessera_prior] == tessera_key)");
+    writer.line("TESSERA_LIST_DUPLICATE_KEY(this, \"" + list.node->id + "\", tessera_key);");
+    writer.line("tessera_key += \"#\" + std::to_string(tessera_next);");
     writer.line("break;");
     writer.close("");
     writer.close("");
@@ -320,7 +340,7 @@ bool emit_apply_list(CppWriter& writer, const ir::Component& component,
     writer.line(
         "// Content pass: hash-compared per item, so an unchanged item marks nothing dirty.");
     writer.line("std::size_t tessera_slot = 0;");
-    writer.open("for (const " + list.element_cpp + "& " + list.item + " : " + source.text + ")");
+    writer.open("for (const " + list.element_cpp + "& " + list.item + " : " + source + ")");
     writer.open("if (tessera_slot == list_" + ordinal + "_count_)");
     writer.line("break;");
     writer.close("");
